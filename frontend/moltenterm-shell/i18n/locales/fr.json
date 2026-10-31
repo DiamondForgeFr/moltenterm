@@ -9679,7 +9679,8 @@
             "morph": {
                 "title": "Il vous manque un outil ?",
                 "about": "Demandez-le à votre agent avec {morph} : il construit le panneau qu'il vous faut.",
-                "noAgent": "Lancez un agent de code depuis la palette ({keys}), puis demandez-lui l'outil avec /morph.",
+                "noAgent": "Lancez un agent de code, puis demandez-lui l'outil avec /morph.",
+                "start": "Lancer un agent",
                 "type": "Écrire {morph} dans {agent}"
             },
             "about": {
@@ -9894,6 +9895,13 @@
     "newView": {
         "aria": "Nouvelle vue : choisissez ce qu'elle contient",
         "favoritesAria": "Favoris",
+        "morph": {
+            "ask": "Demander à {agent} avec {morph}",
+            "askTitle": "Écrit {text} dans le terminal de {agent}, sans l'envoyer",
+            "noAgent": "Aucun agent dans cet espace.",
+            "start": "Lancer un agent",
+            "startTitle": "Affiche les agents que vous pouvez lancer ; rien ne démarre avant que vous en ouvriez un"
+        },
         "hint": {
             "choose": "choisir",
             "open": "ouvrir",

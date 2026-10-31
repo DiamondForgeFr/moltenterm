@@ -14,6 +14,7 @@ import { fillsPanel, PaletteEntry } from "../palette/palette-model";
 import { newViewFavoriteBindings } from "../shortcuts/registry";
 import { readWorkspaceProject } from "../workspace-project";
 import {
+    AgentPickerBlockDef,
     newViewChoices,
     NewViewFavoritesKey,
     NewViewOpenKey,
@@ -52,6 +53,11 @@ export function openNewView() {
     const choices = currentNewViewChoices();
     const direct = resolveDirect(globalStore.get(getSettingsKeyAtom(NewViewOpenKey)), choices);
     fireAndForget(() => start(newViewStart(direct)));
+}
+
+// "Start an agent" (#1672): always the chooser, whatever opens directly, its first agent selected; nothing starts.
+export function openAgentPicker() {
+    getApi().createTab(AgentPickerBlockDef);
 }
 
 // ⌥⌘1…⌥⌘4: a new view already holding the favourite of that position; false when there is none.

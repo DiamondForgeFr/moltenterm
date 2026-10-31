@@ -12,12 +12,14 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { AgentStateInfo } from "../agent-state-model";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
-import { chooserKey, chooserListEntries } from "../newview/new-view-model";
+import { chooserKey, chooserListEntries, firstAgentIndex } from "../newview/new-view-model";
+import { NewViewMorphHint } from "../newview/new-view-morph-hint";
 import { formatShortcutById } from "../shortcuts/format";
 import { keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
 import { keepViewKeysLabel } from "../sidebar/view-pin-actions";
@@ -74,6 +76,10 @@ export type NewViewChooser = {
     favoriteKeys: string[];
     onOpen: (entry: PaletteEntry) => void;
     onCancel: () => void;
+    // Nothing matches (#1672): the view goes and the agent gets the morph call with what was typed, not sent.
+    onAskAgent: (agent: AgentStateInfo, request: string) => Promise<void>;
+    // Opened by "Start an agent" (#1672): the first agent of the list is selected instead of a favourite.
+    focusAgents?: boolean;
 };
 
 type OtherWorkspaces = { list: PaletteWorkspace[]; folders: string[] };
@@ -370,6 +376,10 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     const favCount = newView?.favorites?.length ?? 0;
     // The selected favourite of a new view's chooser; -1 while the selection is in the list.
     const [fav, setFav] = useState(favCount > 0 ? 0 : -1);
+    // "Start an agent" (#1672): the selection goes to the first agent once the cleared search shows the whole list.
+    const agentsFocus = useRef(false);
+    // The launcher's empty result action, Enter's when nothing matches (#1672).
+    const morphAction = useRef<() => void>(null);
     const ownInputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const order = picker != null ? PickerGroupOrder : PaletteGroupOrder;
@@ -412,11 +422,26 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     }, [inPopover]);
 
     useEffect(() => {
+        if (agentsFocus.current) {
+            agentsFocus.current = false;
+            setFav(-1);
+            setSelected(Math.max(firstAgentIndex(flat), 0));
+            return;
+        }
         setSelected(Math.max(bestMatchIndex(sections, query), 0));
         if (favCount > 0) {
             setFav(query.trim() === "" ? 0 : -1);
         }
     }, [query]);
+    // A chooser opened by the Library's "Start an agent" (#1672) starts on the first agent.
+    const focusAgents = newView?.focusAgents === true;
+    useEffect(() => {
+        if (!focusAgents) {
+            return;
+        }
+        setFav(-1);
+        setSelected(Math.max(firstAgentIndex(flat), 0));
+    }, [focusAgents]);
     // A click on another panel before anything was chosen or typed cancels the split; the clicked panel keeps the
     // focus (DS-SHELL-066).
     useEffect(() => {
@@ -512,6 +537,10 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         }
         e.preventDefault();
         e.stopPropagation();
+        if (command === "open" && flat.length === 0 && morphAction.current != null) {
+            morphAction.current();
+            return;
+        }
         if (command === "open" || command === "open-right") {
             open(flat[selected], command === "open-right");
             return;
@@ -533,6 +562,12 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             return;
         }
         setSelected(moveSelection(selected, command, flat.length));
+    };
+
+    const startAgent = () => {
+        agentsFocus.current = true;
+        setQuery("");
+        input.current?.focus();
     };
 
     const onListHover = (i: number) => {
@@ -580,6 +615,14 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             <div ref={listRef} id="molten-palette-list" role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1">
                 {flat.length === 0 && (
                     <div className="px-3.5 py-3 text-12 text-muted">{t("palette.noMatch", { query })}</div>
+                )}
+                {flat.length === 0 && newView != null && query.trim() !== "" && (
+                    <NewViewMorphHint
+                        query={query}
+                        onAsk={newView.onAskAgent}
+                        onStartAgent={startAgent}
+                        actionRef={morphAction}
+                    />
                 )}
                 {sections.map((section) => (
                     <div key={section.group}>

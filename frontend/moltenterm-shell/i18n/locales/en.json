@@ -9679,7 +9679,8 @@
             "morph": {
                 "title": "Missing a tool?",
                 "about": "Ask your agent with {morph}: it builds the panel you need.",
-                "noAgent": "Start a coding agent from the palette ({keys}), then ask it for the tool with /morph.",
+                "noAgent": "Start a coding agent, then ask it for the tool with /morph.",
+                "start": "Start an agent",
                 "type": "Type {morph} in {agent}"
             },
             "about": {
@@ -9894,6 +9895,13 @@
     "newView": {
         "aria": "New view: choose what it holds",
         "favoritesAria": "Favourites",
+        "morph": {
+            "ask": "Ask {agent} with {morph}",
+            "askTitle": "Types {text} in {agent}'s terminal, without sending it",
+            "noAgent": "No agent in this workspace.",
+            "start": "Start an agent",
+            "startTitle": "Shows the agents you can start; nothing starts until you open one"
+        },
         "hint": {
             "choose": "choose",
             "open": "open",
