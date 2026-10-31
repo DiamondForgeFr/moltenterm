@@ -64,7 +64,7 @@ import { useReviewsRailWatch } from "../reviews/reviews-client";
 import { libraryDot } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { openSettingsKey } from "../settings/settings-open";
-import { acceleratorById, formatShortcutById } from "../shortcuts/format";
+import { acceleratorById, formatKeys, formatShortcutById } from "../shortcuts/format";
 import { finishTabPanelDrag, trackTabPanelDrag } from "../split/drop-zones";
 import { ChannelClasses, ItemButton, useFocusedPane, useStatusBarView } from "../status-bar";
 import { DominoLoader } from "../suite/suite";
@@ -128,6 +128,7 @@ import { SidebarGhost } from "./sidebar-ghost";
 import { workspaceHeaderLogo } from "./sidebar-header-model";
 import { SidebarHeat } from "./sidebar-heat";
 import { SidebarGlyph } from "./sidebar-icons";
+import { workspaceJumpKeys } from "./sidebar-keys";
 import {
     buildLetterKey,
     dotDropSlot,
@@ -169,6 +170,8 @@ import {
     windowButtonsVisible,
     WindowRowPx,
 } from "./window-corner-model";
+import { WorkspaceDotPopover } from "./workspace-dot-popover";
+import { DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
@@ -1749,6 +1752,15 @@ type DotDrag = {
     onMoveKey: (direction: -1 | 1) => void;
 };
 
+type DotHoverProps = {
+    shown: boolean;
+    // A dot of the row is being dragged: no popover.
+    dragging: boolean;
+    onEnter: () => void;
+    onOut: () => void;
+    onLeave: () => void;
+};
+
 function WorkspaceDot({
     entry,
     workspaces,
@@ -1756,11 +1768,13 @@ function WorkspaceDot({
     drag,
     place,
     current,
+    hover,
 }: {
     entry: WorkspaceRailEntry;
     workspaces: SidebarWorkspaces;
     unread: number;
     drag: DotDrag;
+    hover: DotHoverProps;
     // Its place in the row (1 = first), for its ⌥N key.
     place: number;
     // Drawn as the current square: the workspace on screen, unless the new-workspace page holds the row's pending dot.
@@ -1772,6 +1786,7 @@ function WorkspaceDot({
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
     const agent = useAtomValue(AgentStates.getInstance().workspaceAtom(entry.id));
     const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(entry.id));
+    const [anchor, setAnchor] = useState<HTMLButtonElement>(null);
     const choice = workspace?.color ?? entry.color;
     const stops = colourStops(choice);
     const paint = stops.length > 0 ? colourChoiceCss(choice) : "var(--color-secondary)";
@@ -1780,18 +1795,23 @@ function WorkspaceDot({
     const waiting = agent?.state === "waiting";
     const ring = !entry.active && (unread > 0 || waiting);
     const letter = (Array.from(entry.name ?? "")[0] ?? "").toUpperCase();
-    const parts = [entry.name];
+    const attention: string[] = [];
     if (unread > 0) {
-        parts.push(tc("rail.unread", unread));
+        attention.push(tc("rail.unread", unread));
     }
     if (waiting) {
-        parts.push(agentStateTitle(agent));
+        attention.push(agentStateTitle(agent));
     }
     if (coffee != null) {
-        parts.push(t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) }));
+        attention.push(t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) }));
     }
-    const label = parts.join(" · ");
-    const title = isMacOS() && place <= 9 ? t("sidebar.dots.keyHint", { name: label, keys: `⌥${place}` }) : label;
+    const label = [entry.name, ...attention].join(" · ");
+    const showPopover = dotShowsPopover({
+        hovered: hover.shown,
+        dragging: hover.dragging,
+        current,
+        attention: attention.length,
+    });
     const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
         if (drag.takeClick()) {
             return;
@@ -1817,11 +1837,11 @@ function WorkspaceDot({
     };
     return (
         <button
+            ref={setAnchor}
             type="button"
             role="tab"
             aria-selected={entry.active}
             aria-label={label}
-            title={title}
             data-testid="sidebar-workspace-dot"
             data-workspace-id={entry.id}
             data-mt-shortcut={place <= 9 ? "workspace-jump" : undefined}
@@ -1839,7 +1859,22 @@ function WorkspaceDot({
                 } as React.CSSProperties
             }
             onClick={onClick}
-            onPointerDown={entry.saved ? drag.onPointerDown : undefined}
+            onPointerEnter={hover.onEnter}
+            onPointerLeave={hover.onOut}
+            onFocus={hover.onEnter}
+            onBlur={(e) => {
+                const next = e.relatedTarget as HTMLElement;
+                if (next?.closest?.("[data-testid='sidebar-workspace-dots']") != null) {
+                    return;
+                }
+                hover.onLeave();
+            }}
+            onPointerDown={(e) => {
+                hover.onOut();
+                if (entry.saved) {
+                    drag.onPointerDown(e);
+                }
+            }}
             onKeyDown={(e) => {
                 const direction = dotMoveKey(e);
                 if (direction == null || !entry.saved) {
@@ -1861,6 +1896,16 @@ function WorkspaceDot({
             <i className="font-semibold" style={{ background: paint, color: letterColour }}>
                 {current ? letter : null}
             </i>
+            {showPopover && anchor != null ? (
+                <WorkspaceDotPopover
+                    anchor={anchor}
+                    name={entry.name}
+                    stops={stops}
+                    project={dotPopoverProject(workspace)}
+                    attention={attention}
+                    keys={place <= 9 ? formatKeys(workspaceJumpKeys(place, isMacOS())) : ""}
+                />
+            ) : null}
         </button>
     );
 }
@@ -1896,6 +1941,12 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const unread = unreadByWorkspace(notifications);
     const rowRef = useRef<HTMLDivElement>(null);
     const [dragging, setDragging] = useState<{ id: string; offsetX: number }>(null);
+    const [hoverId, setHoverId] = useState<string>(null);
+    const hoverRef = useRef<DotPopoverHover>(null);
+    if (hoverRef.current == null) {
+        hoverRef.current = new DotPopoverHover(setHoverId);
+    }
+    useEffect(() => () => hoverRef.current.dispose(), []);
     const suppressClickRef = useRef<string>(null);
     const savedIdsRef = useRef(workspaces.savedIds);
     savedIdsRef.current = workspaces.savedIds;
@@ -1945,6 +1996,13 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
         },
         onMoveKey: (direction) => moveWorkspaceDot(neighbourMove(savedIdsRef.current, id, direction), true),
     });
+    const hoverOf = (id: string): DotHoverProps => ({
+        shown: hoverId === id,
+        dragging: dragging != null,
+        onEnter: () => hoverRef.current.enter(id),
+        onOut: () => hoverRef.current.out(),
+        onLeave: () => hoverRef.current.leave(),
+    });
     const count = workspaces.entries.length + (draft != null ? 1 : 0);
     const many = manyDots(count);
     const activeId = workspaces.entries.find((e) => e.active)?.id;
@@ -1983,6 +2041,7 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
             )}
             data-testid="sidebar-workspace-dots"
             data-many={many ? "true" : undefined}
+            onPointerLeave={() => hoverRef.current.leave()}
         >
             {workspaces.entries.map((entry, i) => (
                 <WorkspaceDot
@@ -1991,6 +2050,7 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
                     workspaces={workspaces}
                     unread={unread.get(entry.id) ?? 0}
                     drag={dragOf(entry.id)}
+                    hover={hoverOf(entry.id)}
                     place={i + 1}
                     current={entry.active && draft == null}
                 />

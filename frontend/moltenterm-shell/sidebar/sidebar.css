@@ -647,6 +647,41 @@
     text-overflow: ellipsis;
 }
 
+/* The popover above a workspace dot (FR-SHELL-082, #1645): drawn as the menus are, it rises a few pixels into place;
+   reduced motion only fades it in. */
+.mt-sb-dot-pop {
+    min-width: 140px;
+    max-width: 240px;
+    animation: mt-sb-dot-pop-rise var(--mt-duration-fade) var(--mt-ease);
+}
+
+.mt-sb-dot-pop-keys {
+    padding: 0 4px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--mt-radius-control);
+    font-family: inherit;
+    font-size: var(--mt-text-11);
+    line-height: 16px;
+    color: var(--color-secondary);
+}
+
+@keyframes mt-sb-dot-pop-rise {
+    from {
+        transform: translateY(3px);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-dot-pop {
+        animation: mt-fade-in var(--mt-duration-fade) linear;
+    }
+}
+
+.prefers-reduced-motion .mt-sb-dot-pop {
+    animation: mt-fade-in var(--mt-duration-fade) linear;
+}
+
 /* Many workspaces (FR-SHELL-082, #1186): past seven the dots shrink inside their 24 px slots (a 24 px target, WCAG
    2.5.8, #1328), the row scrolls under soft edges and keeps the current square in the middle (sidebar-swipe.ts
    centredScroll). */
