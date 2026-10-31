@@ -300,7 +300,7 @@ export const Shortcuts: Shortcut[] = [
     // there); "o" is free in both families, "k" and "p" are taken (the palette, the 360 pin, Ctrl+Shift+K's focus).
     {
         id: "keep-view",
-        label: "Keep the view in this workspace, or make it temporary",
+        label: "Pin the view in this workspace, or unpin it (make it temporary)",
         category: "Tabs",
         scope: "global",
         keys: "Cmd:Shift:o",
@@ -309,7 +309,7 @@ export const Shortcuts: Shortcut[] = [
     },
     {
         id: "keep-view-other",
-        label: "Keep the view in this workspace, or make it temporary",
+        label: "Pin the view in this workspace, or unpin it (make it temporary)",
         category: "Tabs",
         scope: "global",
         keys: "Ctrl:Shift:o",

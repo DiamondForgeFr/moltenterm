@@ -161,8 +161,8 @@ describe("workspace actions", () => {
         const viewPin = { moves: ["here", "everywhere"] as any, keepMove: "here" as const, keepHint: "⇧⌘O" };
         const pinEntries = buildPaletteEntries({ ...base, viewPin }).filter((e) => e.run.kind === "pinview");
         expect(pinEntries.map((e) => [e.label, e.hint])).toEqual([
-            ["Keep this view in this workspace", "⇧⌘O"],
-            ["Keep this view everywhere", undefined],
+            ["Pin this view in this workspace", "⇧⌘O"],
+            ["Pin this view everywhere", undefined],
         ]);
         expect(pinEntries[1].run).toEqual({ kind: "pinview", move: "everywhere" });
         const pinned = buildPaletteEntries({
@@ -170,8 +170,8 @@ describe("workspace actions", () => {
             viewPin: { moves: ["everywhere", "temporary"], keepMove: "temporary", keepHint: "⇧⌘O" },
         }).filter((e) => e.run.kind === "pinview");
         expect(pinned.map((e) => [e.label, e.hint])).toEqual([
-            ["Keep this view everywhere", undefined],
-            ["Make this view temporary", "⇧⌘O"],
+            ["Pin this view everywhere", undefined],
+            ["Unpin this view (make it temporary)", "⇧⌘O"],
         ]);
         expect(buildPaletteEntries({ ...base }).filter((e) => e.run.kind === "pinview")).toEqual([]);
         const picker = { blockId: "b1", meta: {}, splitKeys: "⌘D" };

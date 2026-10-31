@@ -42,6 +42,11 @@ export const Allowed: { key: RegExp; rules: string[]; reason: string }[] = [
         reason: "tabs of the Web page panel are a browser's tabs, a different object from a view",
     },
     { key: /^shortcuts\.keys\.tab$/, rules: ["tab", "onglet"], reason: "the Tab key" },
+    {
+        key: /^palette\.keywords\./,
+        rules: ["tab", "onglet", "mission-control"],
+        reason: "search words, never shown: people still type the old names (#1670)",
+    },
     { key: /^rail\.tools\.editWidgets$/, rules: ["widget"], reason: "names the widgets.json file" },
     {
         key: /^review\.publish\.sheet\.languageSource\.setting$/,
