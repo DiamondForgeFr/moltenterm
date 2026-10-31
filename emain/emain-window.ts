@@ -169,7 +169,6 @@ export class WaveBrowserWindow extends BaseWindow {
         };
 
         const isTransparent = settings?.["window:transparent"] ?? false;
-        const isBlur = !isTransparent && (settings?.["window:blur"] ?? false);
 
         if (opts.unamePlatform === "darwin") {
             winOpts.titleBarStyle = "hiddenInset";
@@ -179,9 +178,8 @@ export class WaveBrowserWindow extends BaseWindow {
             // MOLTENTERM-PATCH (#1281): created transparent once so a workspace's look can turn see-through without a
             // restart; the tab views keep their opaque background until a look asks otherwise (moltenterm-window-look.ts)
             winOpts.transparent = true;
-            if (!isTransparent && isBlur) {
-                winOpts.vibrancy = "fullscreen-ui";
-            }
+            // MOLTENTERM-PATCH (#1629): no creation-time vibrancy for window:blur (on by default): the look's hud
+            // vibrancy comes with the first view that asks for it, so a saved opaque workspace never opens blurred
         } else if (opts.unamePlatform === "linux") {
             winOpts.titleBarStyle = settings["window:nativetitlebar"] ? "default" : "hidden";
             winOpts.titleBarOverlay = {
@@ -203,10 +201,10 @@ export class WaveBrowserWindow extends BaseWindow {
                 symbolColor: titleBarSymbolColor("#c3c8c2"),
                 height: 32,
             };
+            // MOLTENTERM-PATCH (#1629): no acrylic for window:blur (on by default): the workspace look draws opaque on a
+            // window not created transparent, which would only show the material while resizing
             if (isTransparent) {
                 winOpts.transparent = true;
-            } else if (isBlur) {
-                winOpts.backgroundMaterial = "acrylic";
             } else {
                 winOpts.backgroundColor = opaqueBackground();
             }

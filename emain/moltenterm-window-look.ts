@@ -55,8 +55,8 @@ export function parseLookRequest(value: unknown): WindowLookRequest {
     return { translucent: v.translucent === true, blur: v.blur === true };
 }
 
-// What the window and the sending view become. A window created with Wave's global blur keeps it when the look is
-// opaque; a window created with window:transparent keeps its views clear, as Wave draws them.
+// What the window and the sending view become. The look is the only judge (#1629): window:blur is on by default, so a
+// window keeping Wave's creation-time blur under an opaque look would turn a saved opaque workspace see-through.
 export function applyWindowLook(
     win: LookWindow,
     view: LookView,
@@ -70,15 +70,11 @@ export function applyWindowLook(
     const support = windowLookSupport(look);
     const translucent = request.translucent && support.translucent;
     const blur = translucent && request.blur && support.blur;
-    view.setBackgroundColor(translucent || look?.blur ? ClearViewBg : opaqueBackground());
+    view.setBackgroundColor(translucent ? ClearViewBg : opaqueBackground());
     if (!isActiveView || look?.platform !== "darwin") {
         return true;
     }
-    if (blur) {
-        win.setVibrancy?.(BlurVibrancy);
-    } else {
-        win.setVibrancy?.(look?.blur ? "fullscreen-ui" : null);
-    }
+    win.setVibrancy?.(blur ? BlurVibrancy : null);
     return true;
 }
 

@@ -3,7 +3,8 @@
 
 // The workspace's look (#1281, FR-SHELL-091): how opaque the window's frame and sidebar are, and whether what is
 // behind the window is blurred. Saved on the workspace by default, or on its project so every workspace on that project
-// shares it; the global window:opacity / window:transparent / window:blur settings come last. Kept apart from the
+// shares it; the global window:opacity / window:transparent / window:blur / window:texture settings come last, and their
+// defaults (pkg/wconfig/defaultconfig/settings.json, #1629) are the designed look. Kept apart from the
 // components and from Electron so the rules are tested alone.
 
 import { clampTextureIntensity, isTextureKind, TextureKind, TextureTone } from "./window-texture";
@@ -18,8 +19,8 @@ export const ProjectLooksMetaKey = "molten:projectlooks";
 export const MinOpacity = 0.7;
 export const MinOpacityBlur = 0.5;
 export const OpacityStep = 0.05;
-// Wave's default when window:transparent is on without window:opacity (frontend/app/app.tsx).
-export const GlobalDefaultOpacity = 0.8;
+// window:opacity's default (pkg/wconfig/defaultconfig/settings.json), for a translucent global look without one.
+export const GlobalDefaultOpacity = 0.7;
 
 // texture and intensity (#1294) are absent for no texture; intensity only moves the grain.
 export type WindowLook = { opacity: number; blur: boolean; texture?: TextureKind; intensity?: number };
@@ -97,15 +98,19 @@ export function readProjectLook(clientMeta: Record<string, any>, projectDir: str
     return readProjectLooks(clientMeta)[projectDir] ?? null;
 }
 
-// Wave's global settings: translucent only when window:transparent or window:blur is on.
+// The app's settings: translucent only when window:transparent or window:blur is on; the texture applies either way.
 export function globalLook(settings: Record<string, any>): WindowLook {
     const transparent = settings?.["window:transparent"] === true;
     const blur = settings?.["window:blur"] === true;
+    const texture = lookTexture({
+        texture: settings?.["window:texture"],
+        intensity: settings?.["window:textureintensity"],
+    });
     if (!transparent && !blur) {
-        return OpaqueLook;
+        return { ...OpaqueLook, ...texture };
     }
     const raw = settings?.["window:opacity"];
-    return { opacity: clampOpacity(typeof raw === "number" ? raw : GlobalDefaultOpacity, blur), blur };
+    return { opacity: clampOpacity(typeof raw === "number" ? raw : GlobalDefaultOpacity, blur), blur, ...texture };
 }
 
 // Workspace over project over global.

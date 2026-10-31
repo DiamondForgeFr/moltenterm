@@ -231,9 +231,12 @@ describe("values", () => {
         expect(isChanged(scrollback, undefined)).toBe(false);
         expect(isChanged(scrollback, 2000)).toBe(false);
         expect(isChanged(scrollback, 5000)).toBe(true);
+        const transparent = entry("window:transparent");
+        expect(isChanged(transparent, false)).toBe(false);
+        expect(isChanged(transparent, true)).toBe(true);
         const blur = entry("window:blur");
-        expect(isChanged(blur, false)).toBe(false);
-        expect(isChanged(blur, true)).toBe(true);
+        expect(isChanged(blur, true)).toBe(false);
+        expect(isChanged(blur, false)).toBe(true);
         const gauges = entry("companion:usagegauges");
         expect(isChanged(gauges, [])).toBe(false);
         expect(isChanged(gauges, ["claude"])).toBe(true);

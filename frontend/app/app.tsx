@@ -160,23 +160,10 @@ function AppSettingsUpdater() {
     const windowSettingsAtom = getSettingsPrefixAtom("window");
     const windowSettings = useAtomValue(windowSettingsAtom);
     useEffect(() => {
-        const isTransparentOrBlur =
-            (windowSettings?.["window:transparent"] || windowSettings?.["window:blur"]) ?? false;
-        const opacity = util.boundNumber(windowSettings?.["window:opacity"] ?? 0.8, 0, 1);
+        // MOLTENTERM-PATCH (#1629): the window's translucency is the workspace look's alone (WindowLookApplier, which
+        // reads window:transparent / window:blur / window:opacity as its global layer); Wave's whole-window alpha here
+        // would make a saved opaque workspace see-through under the default blur
         const baseBgColor = windowSettings?.["window:bgcolor"];
-        const mainDiv = document.getElementById("main");
-        // console.log("window settings", windowSettings, isTransparentOrBlur, opacity, baseBgColor, mainDiv);
-        if (isTransparentOrBlur) {
-            mainDiv.classList.add("is-transparent");
-            if (opacity != null) {
-                document.body.style.setProperty("--window-opacity", `${opacity}`);
-            } else {
-                document.body.style.removeProperty("--window-opacity");
-            }
-        } else {
-            mainDiv.classList.remove("is-transparent");
-            document.body.style.removeProperty("--window-opacity");
-        }
         if (baseBgColor != null) {
             document.body.style.setProperty("--main-bg-color", baseBgColor);
         } else {

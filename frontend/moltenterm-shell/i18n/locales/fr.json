@@ -1032,6 +1032,21 @@
                 "label": "Opacité de la fenêtre",
                 "description": "L'opacité d'une fenêtre transparente ou floutée."
             },
+            "window:texture": {
+                "label": "Texture de la fenêtre",
+                "description": "La texture du cadre et de la barre latérale, pour les espaces de travail sans apparence propre.",
+                "options": {
+                    "none": "Aucune",
+                    "grain": "Grain",
+                    "dots": "Points fins",
+                    "lines": "Lignes fines",
+                    "paper": "Papier"
+                }
+            },
+            "window:textureintensity": {
+                "label": "Intensité de la texture",
+                "description": "La force de la texture Grain."
+            },
             "window:bgcolor": {
                 "label": "Fond de la fenêtre",
                 "description": "Une couleur CSS derrière les panneaux, comme #1f1f1f."

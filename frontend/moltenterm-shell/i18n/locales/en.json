@@ -878,6 +878,21 @@
                 "label": "Window opacity",
                 "description": "How opaque a transparent or blurred window is."
             },
+            "window:texture": {
+                "label": "Window texture",
+                "description": "The texture of the frame and the sidebar, for workspaces without a look of their own.",
+                "options": {
+                    "none": "None",
+                    "grain": "Grain",
+                    "dots": "Fine dots",
+                    "lines": "Fine lines",
+                    "paper": "Paper"
+                }
+            },
+            "window:textureintensity": {
+                "label": "Texture intensity",
+                "description": "How strong the Grain texture is."
+            },
             "window:bgcolor": {
                 "label": "Window background",
                 "description": "A CSS colour behind the panels, such as #1f1f1f."

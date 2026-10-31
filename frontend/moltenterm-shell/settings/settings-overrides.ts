@@ -9,7 +9,13 @@
 import { lookForWorkspace } from "../window-look-model";
 import { readWorkspaceProject } from "../workspace-project";
 
-export const WindowLookSettingKeys = ["window:transparent", "window:blur", "window:opacity"];
+export const WindowLookSettingKeys = [
+    "window:transparent",
+    "window:blur",
+    "window:opacity",
+    "window:texture",
+    "window:textureintensity",
+];
 
 // The workspaces whose window look does not come from the app's settings, in the given order.
 export function lookOverriders<T extends { meta?: Record<string, any> }>(
