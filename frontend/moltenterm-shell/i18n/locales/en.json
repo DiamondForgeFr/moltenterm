@@ -9889,5 +9889,23 @@
             "add": "Add a favourite",
             "unknown": "Not available ({id})"
         }
+    },
+    "fileConfine": {
+        "title": "Show something outside the project?",
+        "folderOutside": "{folder} is outside the project {project}.",
+        "fileOutside": "{file}, in {folder}, is outside the project {project}.",
+        "agentAsked": "{name} asked to show it.",
+        "commandAsked": "A command run in a terminal asked to show it.",
+        "open": "Open outside the project",
+        "stay": "Stay",
+        "outsideMarker": "Outside the project",
+        "outsideMarkerTitle": "This panel shows something outside the project {project}",
+        "backToProject": "Back to the project",
+        "goTo": "Go to {name} ({path})",
+        "bookmarkHome": "Home",
+        "bookmarkDesktop": "Desktop",
+        "bookmarkDownloads": "Downloads",
+        "bookmarkDocuments": "Documents",
+        "bookmarkRoot": "Root"
     }
 }

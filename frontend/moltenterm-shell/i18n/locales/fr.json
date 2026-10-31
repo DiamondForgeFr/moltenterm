@@ -9889,5 +9889,23 @@
             "add": "Ajouter un favori",
             "unknown": "Indisponible ({id})"
         }
+    },
+    "fileConfine": {
+        "title": "Afficher un élément hors du projet ?",
+        "folderOutside": "{folder} est hors du projet {project}.",
+        "fileOutside": "{file}, dans {folder}, est hors du projet {project}.",
+        "agentAsked": "{name} a demandé à l'afficher.",
+        "commandAsked": "Une commande lancée dans un terminal a demandé à l'afficher.",
+        "open": "Ouvrir hors du projet",
+        "stay": "Rester",
+        "outsideMarker": "Hors du projet",
+        "outsideMarkerTitle": "Ce panneau affiche un élément hors du projet {project}",
+        "backToProject": "Revenir au projet",
+        "goTo": "Aller à {name} ({path})",
+        "bookmarkHome": "Dossier personnel",
+        "bookmarkDesktop": "Bureau",
+        "bookmarkDownloads": "Téléchargements",
+        "bookmarkDocuments": "Documents",
+        "bookmarkRoot": "Racine"
     }
 }

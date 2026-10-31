@@ -32,7 +32,8 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/genconn"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
-	"github.com/wavetermdev/waveterm/pkg/molten" // MOLTENTERM-PATCH (#300)
+	"github.com/wavetermdev/waveterm/pkg/molten"             // MOLTENTERM-PATCH (#300)
+	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine" // MOLTENTERM-PATCH (#1624)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
@@ -179,6 +180,9 @@ func (ws *WshServer) UpdateWorkspaceTabIdsCommand(ctx context.Context, workspace
 func (ws *WshServer) SetMetaCommand(ctx context.Context, data wshrpc.CommandSetMetaData) error {
 	log.Printf("SetMetaCommand: %s | %v\n", data.ORef, molten.LoggableMeta(data.Meta)) // MOLTENTERM-PATCH (#300): no page URLs or titles in the logs
 	oref := data.ORef
+	if oref.OType == waveobj.OType_Block {
+		data.Meta = moltenFileMeta(ctx, data.Meta) // MOLTENTERM-PATCH (#1624): only a window approves a file panel outside its project
+	}
 	err := wstore.UpdateObjectMeta(ctx, oref, data.Meta, false)
 	if err != nil {
 		return fmt.Errorf("error updating object meta: %w", err)
@@ -226,6 +230,11 @@ func (ws *WshServer) ResolveIdsCommand(ctx context.Context, data wshrpc.CommandR
 func (ws *WshServer) CreateBlockCommand(ctx context.Context, data wshrpc.CommandCreateBlockData) (*waveobj.ORef, error) {
 	ctx = waveobj.ContextWithUpdates(ctx)
 	tabId := data.TabId
+	if data.BlockDef != nil && fileconfine.TouchesFileMeta(data.BlockDef.Meta) { // MOLTENTERM-PATCH (#1624): a panel opened by a terminal says who asked
+		blockDef := *data.BlockDef
+		blockDef.Meta = moltenFileMeta(ctx, blockDef.Meta)
+		data.BlockDef = &blockDef
+	}
 	blockData, err := wcore.CreateBlock(ctx, tabId, data.BlockDef, data.RtOpts)
 	if err != nil {
 		return nil, fmt.Errorf("error creating block: %w", err)

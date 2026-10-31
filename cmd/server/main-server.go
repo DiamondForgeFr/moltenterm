@@ -21,9 +21,10 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/filebackup"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
-	"github.com/wavetermdev/waveterm/pkg/molten"            // MOLTENTERM-PATCH (#19)
-	"github.com/wavetermdev/waveterm/pkg/molten/mission"    // MOLTENTERM-PATCH (#31)
-	"github.com/wavetermdev/waveterm/pkg/molten/stdinwatch" // MOLTENTERM-PATCH (#1043)
+	"github.com/wavetermdev/waveterm/pkg/molten"             // MOLTENTERM-PATCH (#19)
+	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine" // MOLTENTERM-PATCH (#1624)
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"     // MOLTENTERM-PATCH (#31)
+	"github.com/wavetermdev/waveterm/pkg/molten/stdinwatch"  // MOLTENTERM-PATCH (#1043)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/remote/fileshare/wshfs"
@@ -593,6 +594,7 @@ func main() {
 	wcore.StartPanelMoveRoute() // MOLTENTERM-PATCH (#414): a tab's panel dragged onto the tab shown
 	wcore.StartReopenRoute()    // MOLTENTERM-PATCH (#512): the last closed pane or tab comes back
 	wcore.StartViewPinRoute()   // MOLTENTERM-PATCH (#1184): pinned views are read and opened on a project
+	fileconfine.StartRoute()    // MOLTENTERM-PATCH (#1624): the file panels ask where a path really is
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()
