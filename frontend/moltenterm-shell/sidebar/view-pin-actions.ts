@@ -11,11 +11,12 @@ import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { findShortcut } from "../shortcuts/registry";
+import { viewDisplayName } from "../tab-identity-ui";
 import { showToast } from "../toast-store";
 import { SidebarModel } from "./sidebar-store";
 import { keepToggleMove, PinMove, pinMoves, viewMenuPlan } from "./view-menu-model";
 import { isProjectTab, ViewState } from "./view-pins-model";
-import { shownName, ViewPins, ViewRef } from "./view-pins-store";
+import { ViewPins, ViewRef } from "./view-pins-store";
 
 export function keepViewShortcutId(mac = isMacOS()): string {
     return mac ? "keep-view" : "keep-view-other";
@@ -80,7 +81,7 @@ export function currentView(): CurrentView {
         state,
         modified: globalStore.get(pins.modifiedAtom(tabId)),
         projectTab: isProjectTab(tab),
-        name: pin?.name ?? shownName(tab),
+        name: pin?.name ?? viewDisplayName(tab),
     };
 }
 
