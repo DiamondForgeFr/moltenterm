@@ -15,6 +15,7 @@ import {
     Laptop,
     Moon,
     Rocket,
+    Shapes,
     Square,
     Sun,
     SunMoon,
@@ -85,7 +86,7 @@ export function settingsGroupIcon(slug: string): SuiteIconName {
 // The icon of each choice where one says more than the label; a choice missing here has none.
 const OptionIcons: Record<string, Record<string, SuiteIcon>> = {
     "browser:default": { app: AppWindow, installed: ExternalLink },
-    "preview:defaultsort": { name: ArrowDownAZ, modtime: Clock },
+    "preview:defaultsort": { name: ArrowDownAZ, type: Shapes, modtime: Clock },
     "cicd:runs": { local: Laptop, remote: Cloud, cd: Rocket },
     "term:cursor": { block: Square, bar: TextCursor, underline: Underline },
     "moltenterm:view360": { auto: Wand2, always: Eye },

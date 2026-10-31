@@ -1027,19 +1027,24 @@
           "type": "string",
           "enum": [
             "name",
+            "type",
             "modtime"
           ],
-          "description": "The order of a file view's list.",
+          "description": "The order of a new file view's list, folders first; each panel keeps its own.",
           "x-moltenterm": {
             "section": "general",
             "group": "Files and editor",
             "label": "Sort files by",
-            "description": "The order of a file view's list.",
+            "description": "The order of a new file view's list, folders first; each panel keeps its own.",
             "control": "select",
             "options": [
               {
                 "value": "name",
                 "label": "Name"
+              },
+              {
+                "value": "type",
+                "label": "Type"
               },
               {
                 "value": "modtime",
