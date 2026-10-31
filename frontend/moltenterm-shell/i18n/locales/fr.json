@@ -9907,5 +9907,12 @@
         "bookmarkDownloads": "Téléchargements",
         "bookmarkDocuments": "Documents",
         "bookmarkRoot": "Racine"
+    },
+    "fileFilter": {
+        "setByAgent": "Défini par {name}",
+        "setByTerminal": "Défini par le terminal",
+        "searchingRecursive": "Recherche de « {search} » dans tous les sous-dossiers",
+        "truncated": "Seuls les {count} premiers résultats sont listés",
+        "clear": "Effacer le filtre"
     }
 }

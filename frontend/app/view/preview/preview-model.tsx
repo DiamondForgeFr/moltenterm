@@ -26,6 +26,7 @@ import {
     FileConfineGate,
     fileConfineHeaderElems,
 } from "../../../moltenterm-shell/file-confine/file-confine";
+import { FileFilterModel } from "../../../moltenterm-shell/file-filter/file-filter"; // MOLTENTERM-PATCH (#1625)
 import { PreviewView } from "./preview";
 import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
 import type { PreviewEnv } from "./previewenv";
@@ -172,6 +173,7 @@ export class PreviewModel implements ViewModel {
     codeEditKeyDownHandler: (waveEvent: WaveKeyboardEvent) => boolean;
     env: PreviewEnv;
     confine: FileConfineGate; // MOLTENTERM-PATCH (#1624)
+    fileFilter: FileFilterModel; // MOLTENTERM-PATCH (#1625)
 
     constructor({ blockId, nodeModel, tabModel, waveEnv }: ViewModelInitType) {
         this.viewType = "preview";
@@ -179,8 +181,6 @@ export class PreviewModel implements ViewModel {
         this.nodeModel = nodeModel;
         this.tabModel = tabModel;
         this.env = waveEnv;
-        let showHiddenFiles = globalStore.get(this.env.getSettingsKeyAtom("preview:showhiddenfiles")) ?? true;
-        this.showHiddenFiles = atom<boolean>(showHiddenFiles);
         this.refreshVersion = atom(0);
         this.directorySearchActive = atom(false);
         this.previewTextRef = createRef();
@@ -197,6 +197,16 @@ export class PreviewModel implements ViewModel {
             writeMeta: (meta) => this.env.services.object.UpdateObjectMeta(WOS.makeORef("block", blockId), meta),
             onApplied: () => this.clearFileBuffers(),
         });
+        // MOLTENTERM-PATCH (#1625): the filter and the hidden files choice live in the block meta (FR-FILE-002)
+        this.fileFilter = new FileFilterModel({
+            blockAtom: this.blockAtom,
+            shownPathAtom: this.confine.shownPathAtom,
+            rawPathAtom: this.confine.rawPathAtom,
+            showHiddenSettingAtom: this.env.getSettingsKeyAtom("preview:showhiddenfiles"),
+            writeMeta: (meta) => this.env.services.object.UpdateObjectMeta(WOS.makeORef("block", blockId), meta),
+            isFocusedAtom: nodeModel?.isFocused,
+        });
+        this.showHiddenFiles = this.fileFilter.showHiddenAtom;
         this.markdownShowToc = atom(false);
         this.filterOutNowsh = atom(true);
         this.monacoRef = createRef();
@@ -512,11 +522,13 @@ export class PreviewModel implements ViewModel {
 
         this.noPadding = atom(true);
         this.confine.start(); // MOLTENTERM-PATCH (#1624)
+        this.fileFilter.start(); // MOLTENTERM-PATCH (#1625)
     }
 
     // MOLTENTERM-PATCH (#1624)
     dispose() {
         this.confine.dispose();
+        this.fileFilter.dispose(); // MOLTENTERM-PATCH (#1625)
     }
 
     // MOLTENTERM-PATCH (#1624): the header's Back to the project opens the root, which ends the approval

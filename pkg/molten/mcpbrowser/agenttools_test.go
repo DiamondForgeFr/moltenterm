@@ -35,6 +35,16 @@ func TestInitializeTellsTheAgentItsFirstName(t *testing.T) {
 	}
 }
 
+// Claude Code and Codex both get these instructions from the molten browser server (FR-FILE-002 AC-10).
+func TestAgentInstructionsMentionMoltenFiles(t *testing.T) {
+	for _, name := range []string{"", "Olivia"} {
+		got := AgentInstructions(name)
+		if !strings.Contains(got, "molten files") || !strings.Contains(got, "files.md") {
+			t.Fatalf("instructions for %q do not mention molten files: %s", name, got)
+		}
+	}
+}
+
 func TestAgentToolsStayOutOfBrowserBatches(t *testing.T) {
 	if ToolNames()[ToolSendToAgent] || ToolNames()[ToolListAgents] {
 		t.Fatal("browser_batch must not run the handoff tools")

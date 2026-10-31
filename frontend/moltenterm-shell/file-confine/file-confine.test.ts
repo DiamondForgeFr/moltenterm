@@ -229,7 +229,8 @@ describe("FileConfineGate", () => {
         setMeta(f, { file: "/etc", [FileOriginMetaKey]: "command" });
         await settle(f.gate);
         await f.gate.openOutside();
-        expect(f.writes).toEqual([{ [FileApprovedMetaKey]: Root }]);
+        // The filter a `molten files` request kept for Stay is dropped with it (FR-FILE-002).
+        expect(f.writes).toEqual([{ [FileApprovedMetaKey]: Root, "molten:filefilterprev": null }]);
         await settle(f.gate);
         expect(globalStore.get(f.gate.shownPathAtom)).toBe("/etc");
         expect(globalStore.get(f.gate.outsideAtom)).toBe(true);

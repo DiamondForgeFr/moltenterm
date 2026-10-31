@@ -12,6 +12,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget, isBlank } from "@/util/util";
 import { atom, Atom, Getter, PrimitiveAtom } from "jotai";
+import { FileFilterPrevMetaKey, fileFilterStayMeta } from "../file-filter/file-filter";
 import { I18nModel, t } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import {
@@ -349,7 +350,7 @@ export class FileConfineGate {
         globalStore.set(this.pendingAtom, null);
         const approval = { [FileApprovedMetaKey]: pending.root } as MetaType;
         if (pending.apply == null) {
-            await this.deps.writeMeta(approval);
+            await this.deps.writeMeta({ ...approval, [FileFilterPrevMetaKey]: null } as MetaType);
             return;
         }
         await this.deps.writeMeta({ ...pending.apply, ...approval });
@@ -365,6 +366,8 @@ export class FileConfineGate {
         if (pending.apply != null) {
             return;
         }
-        await this.deps.writeMeta(stayMeta(this.blockMeta(), pending.restore));
+        // A `molten files` request also gets the panel's previous filter back (FR-FILE-002).
+        const meta = this.blockMeta();
+        await this.deps.writeMeta({ ...stayMeta(meta, pending.restore), ...fileFilterStayMeta(meta) });
     }
 }
