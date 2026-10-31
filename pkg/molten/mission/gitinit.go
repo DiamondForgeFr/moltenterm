@@ -38,5 +38,15 @@ func (c *Collector) InitGit(req GitInitRequest) (Snapshot, error) {
 	if _, err := c.run(ctx, dir, "git", "init", "--quiet"); err != nil {
 		return Snapshot{}, err
 	}
+	c.forgetGithub(dir)
 	return c.Get(dir, 0, true)
+}
+
+// forgetGithub drops the GitHub read's age: the one made before git init says "not a git repository" and would stay
+// for a minute (minGithubInterval), so the Integration panel would call the new repository unreadable (FR-REV-001
+// AC15) instead of asking for its remote.
+func (c *Collector) forgetGithub(dir string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.stateLocked(dir).snap.GithubAt = 0
 }

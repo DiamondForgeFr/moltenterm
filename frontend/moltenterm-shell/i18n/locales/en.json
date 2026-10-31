@@ -6798,6 +6798,14 @@
             "errorTitle": "GitHub could not be read",
             "errorHint": "gh could not answer. Try again in a moment."
         },
+        "notRepo": {
+            "title": "This folder does not use git yet",
+            "hint": "The Integration panel follows the project's changes with git: its branches and its pull requests. Start tracking this folder with git to see them here.",
+            "action": "Start tracking with git",
+            "confirmTitle": "Start tracking {name} with git?",
+            "confirm": "Start tracking with git",
+            "notNow": "Not now"
+        },
         "check": {
             "button": "Check the agents",
             "buttonTitle": "Ask the agent on each pull request with something left (conflicts, red CI, requested changes, no test report) to check it against its ticket and finish it. The others are skipped; nothing starts without your confirmation.",
