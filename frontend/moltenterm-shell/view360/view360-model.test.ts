@@ -29,14 +29,21 @@ import {
 import { ResizeSettleMs } from "./view360-decision";
 import { View360FixedPxMetaKey, View360FractionsMetaKey, View360MetaKey, View360PinsMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
+import { resetView360Notice, View360NoticeToastId } from "./view360-notice";
 
 const settingAtom = vi.hoisted(() => ({ current: null as unknown }));
 const terminalFloor = vi.hoisted(() => ({ px: null as number }));
+const giveFocus = vi.hoisted(() => ({ calls: [] as string[] }));
 
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
     settingAtom.current = atom<string>("auto");
-    return { getSettingsKeyAtom: () => settingAtom.current };
+    return {
+        getSettingsKeyAtom: () => settingAtom.current,
+        getBlockComponentModel: (blockId: string) => ({
+            viewModel: { giveFocus: () => (giveFocus.calls.push(blockId), true) },
+        }),
+    };
 });
 // The screen's column threshold (#1083): high by default, so the readable-minimum tests below see that rule alone.
 const screenThreshold = vi.hoisted(() => ({ atom: null as unknown }));
@@ -964,4 +971,94 @@ describe("360 view carpet positions per screen width (#1131)", () => {
             });
         });
     }
+});
+
+describe("View360Model first-switch notice and focus (FR-SHELL-066-AC10, #1654)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.mocked(showToast).mockClear();
+        resetView360Notice();
+        giveFocus.calls.length = 0;
+        setThreshold(2);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        setThreshold(8);
+        setSetting("auto");
+    });
+
+    const noticeToasts = () => vi.mocked(showToast).mock.calls.filter((c) => c[0].id === View360NoticeToastId);
+
+    it("announces the first automatic switch while the setting was never chosen, once", () => {
+        setSetting(undefined);
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        pass(model, sizedRow(40, 30, 30), 1600);
+        expect(model.active).toBe(true);
+        expect(noticeToasts()).toHaveLength(1);
+        pass(model, sizedRow(40, 60), 1600);
+        pass(model, sizedRow(40, 30, 30), 1600);
+        expect(noticeToasts()).toHaveLength(1);
+    });
+
+    it("never announces once a choice is stored", () => {
+        setSetting("auto");
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        pass(model, sizedRow(40, 30, 30), 1600);
+        expect(model.active).toBe(true);
+        expect(noticeToasts()).toHaveLength(0);
+    });
+
+    it("keeps the grid beyond the threshold under Keep the grid", () => {
+        setSetting("grid");
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        expect(pass(model, sizedRow(40, 30, 30), 1600)).toBeNull();
+        expect(model.active).toBe(false);
+        expect(noticeToasts()).toHaveLength(0);
+    });
+
+    it("brings the focused panel into view after a switch", () => {
+        setSetting("auto");
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        const three = sizedRow(40, 30, 30);
+        globalStore.set(layoutModel.focusedNode as PrimitiveAtom<LayoutNode>, three.children[1]);
+        const reveal = vi.spyOn(model, "revealBlock");
+        pass(model, three, 1600);
+        vi.runOnlyPendingTimers();
+        expect(reveal).toHaveBeenCalledWith("b-c1");
+        // The panel had no keyboard focus here: the switch does not take it.
+        expect(giveFocus.calls).toEqual([]);
+    });
+
+    it("Keep the grid from the notice gives the focus back to the focused panel once back in the grid", () => {
+        setSetting(undefined);
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        const three = sizedRow(40, 30, 30);
+        globalStore.set(layoutModel.focusedNode as PrimitiveAtom<LayoutNode>, three.children[2]);
+        pass(model, three, 1600);
+        vi.runOnlyPendingTimers();
+        giveFocus.calls.length = 0;
+        model.answerNotice("grid");
+        setSetting("grid");
+        expect(pass(model, three, 1600)).toBeNull();
+        vi.runOnlyPendingTimers();
+        expect(giveFocus.calls).toEqual(["b-c2"]);
+    });
+
+    it("Use 360 from the notice keeps the view and gives the focus back", () => {
+        setSetting(undefined);
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        const three = sizedRow(40, 30, 30);
+        globalStore.set(layoutModel.focusedNode as PrimitiveAtom<LayoutNode>, three.children[2]);
+        pass(model, three, 1600);
+        model.answerNotice("auto");
+        vi.runOnlyPendingTimers();
+        expect(model.active).toBe(true);
+        expect(giveFocus.calls).toEqual(["b-c2"]);
+    });
 });

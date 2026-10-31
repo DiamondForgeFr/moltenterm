@@ -13,6 +13,7 @@ import {
     ExternalLink,
     Eye,
     Laptop,
+    LayoutGrid,
     Moon,
     Rocket,
     Square,
@@ -88,7 +89,7 @@ const OptionIcons: Record<string, Record<string, SuiteIcon>> = {
     "preview:defaultsort": { name: ArrowDownAZ, modtime: Clock },
     "cicd:runs": { local: Laptop, remote: Cloud, cd: Rocket },
     "term:cursor": { block: Square, bar: TextCursor, underline: Underline },
-    "moltenterm:view360": { auto: Wand2, always: Eye },
+    "moltenterm:view360": { auto: Wand2, grid: LayoutGrid, always: Eye },
     "moltenterm:theme": { dark: Moon, light: Sun, system: SunMoon },
 };
 

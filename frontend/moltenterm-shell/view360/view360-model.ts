@@ -6,7 +6,7 @@
 // activeAtom / setActive (#615's setting and tab-bar toggle), layoutAtom and fixed-zone membership (#616's pinning),
 // scrollLeftAtom, visibleColumnIdsAtom and scrollToColumn (#617's scrubber, #618's off-screen throttling).
 
-import { getSettingsKeyAtom } from "@/app/store/global";
+import { getBlockComponentModel, getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { findNode } from "@/layout/lib/layoutNode";
@@ -26,6 +26,7 @@ import { fireAndForget } from "@/util/util";
 import { Atom, atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import type { CSSProperties } from "react";
+import { narrowWindowAtom } from "../narrow-window";
 import { rememberedPanelPx } from "../panel-size/panel-size-model";
 import {
     cachedBlockView,
@@ -37,6 +38,15 @@ import {
 import { showToast } from "../toast-store";
 import { gestureStepEvent, GestureSteps, initialGestureSteps } from "../wheel-gesture";
 import { closeAnchorColumn } from "./carpet-close";
+import {
+    CarpetGroup,
+    GroupAll,
+    groupedPins,
+    groupOffered,
+    GroupPages,
+    groupPinPlan,
+    type GroupPin,
+} from "./carpet-group";
 import {
     canPinBeside,
     CarpetColumnGapPx,
@@ -65,7 +75,6 @@ import {
     splitCarpetColumns,
     visibleCarpetColumnIds,
 } from "./carpet-model";
-import { narrowWindowAtom } from "../narrow-window";
 import {
     besideZonePx,
     effectivePlaces,
@@ -82,15 +91,6 @@ import {
     WheelStepPx,
 } from "./carpet-places";
 import { showPinPlacesToast, showPlacesToast } from "./carpet-places-toast";
-import {
-    CarpetGroup,
-    GroupAll,
-    groupedPins,
-    groupOffered,
-    GroupPages,
-    groupPinPlan,
-    type GroupPin,
-} from "./carpet-group";
 import {
     countBeside,
     handPins,
@@ -145,6 +145,7 @@ import {
     View360PlacesState,
     writePlacesState,
 } from "./view360-meta";
+import { shouldShowView360Notice, showView360Notice, View360NoticeChoice, View360NoticeState } from "./view360-notice";
 
 const SmoothScrollMs = 260;
 // Transitions stay off this long after the last scroll step, so the panels follow the scroll without lag.
@@ -284,6 +285,10 @@ export class View360Model {
     savedFractions: number[] = null;
     // Whether the last layout pass drew the tab in 360 view: leaving it gives the proportions back.
     drawnActive = false;
+    // Whether a pass has drawn the tab yet: the first one is no switch (#1654).
+    drawnOnce = false;
+    // The next switch gives the focus back to the focused panel even when it was elsewhere (an answer in the notice).
+    focusOnNextSwitch = false;
     // Carpet columns dragged during this 360 view, by node id: a drag wins over the remembered proportions.
     carpetPx: Map<string, number> = new Map();
     // The fixed zone's width set by the grip during this 360 view, null while it follows the proportions.
@@ -550,7 +555,7 @@ export class View360Model {
         const countChanged = !first && count !== this.lastColumnCount;
         this.lastColumnCount = count;
         if (!first && this.active !== before && globalStore.get(this.decisionAtom).source === "auto") {
-            globalStore.set(this.signalAtom, globalStore.get(this.signalAtom) + 1);
+            this.signalAutoSwitch();
         }
         if (want === prevOn) {
             this.cancelSettle();
@@ -589,8 +594,63 @@ export class View360Model {
         const before = this.active;
         globalStore.set(this.autoOnAtom, on);
         if (signal && this.active !== before && globalStore.get(this.decisionAtom).source === "auto") {
-            globalStore.set(this.signalAtom, globalStore.get(this.signalAtom) + 1);
+            this.signalAutoSwitch();
         }
+    }
+
+    // The automatic decision switched the view: the calm signal (DS-SHELL-117) and, the first time it goes to 360 view
+    // while the developer never chose, the notice (#1654).
+    private signalAutoSwitch() {
+        globalStore.set(this.signalAtom, globalStore.get(this.signalAtom) + 1);
+        if (!shouldShowView360Notice(globalStore.get(this.settingAtom), this.active, View360NoticeState.shown)) {
+            return;
+        }
+        showView360Notice((choice) => this.answerNotice(choice));
+    }
+
+    // Keep the grid brings the view back to the normal layout once the setting is stored; Use 360 keeps it. Either way
+    // the focused panel gets the focus back from the toast's button.
+    answerNotice(choice: View360NoticeChoice): void {
+        if (choice === "grid" && this.active) {
+            this.focusOnNextSwitch = true;
+            return;
+        }
+        this.keepFocusAcrossSwitch(true);
+    }
+
+    // After a switch (#1654) the focused panel stays in view, the carpet gliding to it, and keeps the keyboard when it
+    // had it (or `force`). Measured before the next render: the DOM still shows where the focus was.
+    private keepFocusAcrossSwitch(force: boolean) {
+        const blockId = globalStore.get(this.layoutModel.focusedNode)?.data?.blockId;
+        if (blockId == null) {
+            return;
+        }
+        const container = this.layoutModel.displayContainerRef?.current;
+        const focusEl = typeof document === "undefined" ? null : document.activeElement;
+        const hadFocus = force || (container != null && focusEl != null && container.contains(focusEl));
+        setTimeout(() => {
+            this.revealBlock(blockId);
+            if (!hadFocus) {
+                return;
+            }
+            const ok = getBlockComponentModel(blockId)?.viewModel?.giveFocus?.();
+            if (!ok) {
+                document.getElementById(`${blockId}-dummy-focus`)?.focus();
+            }
+        }, 0);
+    }
+
+    // Called at the end of a pass that drew the tab: a change between the normal layout and 360 view is a switch.
+    private noteDrawn(active: boolean) {
+        const switched = this.drawnOnce && this.drawnActive !== active;
+        this.drawnOnce = true;
+        this.drawnActive = active;
+        if (!switched) {
+            return;
+        }
+        const force = this.focusOnNextSwitch;
+        this.focusOnNextSwitch = false;
+        this.keepFocusAcrossSwitch(force);
     }
 
     private scheduleSettle() {
@@ -647,10 +707,13 @@ export class View360Model {
                 if (bounds?.width > 0) {
                     if (this.drawnActive) {
                         this.restoreProportions(rootNode);
-                    } else if (!globalStore.get(this.columnsOverAtom)) {
+                    } else if (
+                        !globalStore.get(this.columnsOverAtom) ||
+                        normalizeView360Setting(globalStore.get(this.settingAtom)) === "grid"
+                    ) {
                         this.rememberFractions(rootNode);
                     }
-                    this.drawnActive = false;
+                    this.noteDrawn(false);
                 }
             }
             this.setLayout(null);
@@ -665,7 +728,7 @@ export class View360Model {
             }
             return null;
         }
-        this.drawnActive = true;
+        this.noteDrawn(true);
         const floorPx = currentFirstColumnFloorPx() ?? 0;
         this.fixedNeedPx = floorPx;
         // The grip being dragged sets the floor (#848): below the current one, the drag wins until it ends.
@@ -1027,7 +1090,9 @@ export class View360Model {
     // How many columns the developer pinned to the fixed zone (the chooser says they stay).
     pinnedColumnCount(): number {
         const split = splitCarpetColumns(this.layoutModel.treeState?.rootNode);
-        return split == null ? 0 : partPinnedColumns(split.carpet, handPins(globalStore.get(this.pinsAtom))).pinned.length;
+        return split == null
+            ? 0
+            : partPinnedColumns(split.carpet, handPins(globalStore.get(this.pinsAtom))).pinned.length;
     }
 
     // A 360 × N from a panel (AC5, AC6, AC8): the view keeps its N, the fixed zone and the places take equal parts

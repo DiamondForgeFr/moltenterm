@@ -33,7 +33,6 @@
     "moltenterm:confirmbusyclose": true,
     "moltenterm:releasenotify": true,
     "moltenterm:releasecandidates": false,
-    "moltenterm:view360": "auto",
     "moltenterm:terminalscreenreader": "auto",
     "app:newworkspaceviews": [
         { "namekey": "workspaceViews.names.scoping", "panels": ["agent", "browser", "files"] },

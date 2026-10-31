@@ -997,8 +997,10 @@
             "moltenterm:view360": {
                 "label": "360 view",
                 "description": "When a view fixes its first column and lays the others on a sideways carpet. The view's menu turns it on too.",
+                "unset": "Automatic (asks the first time)",
                 "options": {
                     "auto": "Automatic",
+                    "grid": "Keep the grid",
                     "always": "Always"
                 }
             },
@@ -5730,6 +5732,7 @@
             "heldColumns": "Automatic: more than {count} columns on this screen.",
             "offManual": "Turned off for this view until it is back to this screen's number of columns. It still turns on by itself if the panels no longer fit side by side at all.",
             "offColumns": "Automatic: turns on by itself beyond {count} columns on this screen, or when the panels no longer fit side by side.",
+            "offGrid": "Keep the grid: the panels stay side by side. It turns on by itself only if they no longer fit side by side at all.",
             "clickOn": "Click to turn it on.",
             "clickOff": "Click to leave it: the panels get back the proportions you gave them.",
             "tooltipSingle": "360 view needs a second panel beside the first one.",
@@ -5741,6 +5744,12 @@
             "blockedOne": "The panels don't fit side by side, even at their smallest readable width. Close one column to leave 360 view.",
             "blockedMany": "The panels don't fit side by side, even at their smallest readable width. Close {count} columns to leave 360 view.",
             "blockedOk": "Stay in 360 view"
+        },
+        "notice": {
+            "title": "This view switched to 360 view",
+            "message": "The first column stays fixed and the other panels line up on a carpet that scrolls sideways. You can change this in Settings.",
+            "keepGrid": "Keep the grid",
+            "use360": "Use 360"
         },
         "screens": {
             "title": "Columns per screen",
