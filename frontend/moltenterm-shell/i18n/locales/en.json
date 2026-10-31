@@ -398,9 +398,9 @@
             "projectTabDetail": "where the project stands: agents, branches, CI, releases, actions",
             "newTab": "New view",
             "reopenClosed": "Reopen the last closed pane or view",
-            "keepViewHere": "Keep this view in this workspace",
-            "keepViewEverywhere": "Keep this view everywhere",
-            "makeViewTemporary": "Make this view temporary",
+            "keepViewHere": "Pin this view in this workspace",
+            "keepViewEverywhere": "Pin this view everywhere",
+            "makeViewTemporary": "Unpin this view (make it temporary)",
             "splitPlace": "Split the panel…",
             "splitPlaceDetail": "choose the side: left, right, up or down",
             "newWorkspace": "New workspace",
@@ -429,6 +429,30 @@
             "companionDetail": "the agent of this terminal",
             "sessions": "Sessions",
             "sessionsDetail": "terminals and agents still running"
+        },
+        "keywords": {
+            "agent": "agent",
+            "projectTab": "mission control, dashboard, project, home",
+            "reopenClosed": "undo close, restore, closed tab, closed panel",
+            "splitPlace": "split, new panel, add panel, left, right, up, down",
+            "equalize": "equalize, even, balance, same width, columns, resize, panels",
+            "editWorkspace": "workspace, rename, icon, colour, color, settings, delete, reset",
+            "switchWorkspace": "workspace",
+            "gettingStarted": "onboarding, setup, welcome, tour, first run",
+            "sessions": "sessions, durable, running, agents, ssh, detached, jobs, processes",
+            "settings": "config, preferences",
+            "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
+            "viewPin": "pin, unpin, keep, temporary, view, tab",
+            "missionControl": "project, overview, mission, dashboard, branches, git, ci",
+            "lineMap": "commits, graph, metro",
+            "companion": "agent, companion, usage",
+            "panelSessions": "durable, running, ssh, history, resume",
+            "browserPanel": "web, page, url",
+            "reviewsPanel": "pull request, pr, review, github",
+            "agentCopy": "clipboard, copy",
+            "openInBrowser": "browser, web, hand off, external",
+            "updateTerminals": "update, refresh, restart, outdated, shell, terminal, path, launcher",
+            "commandPanel": "settings, gear, options, command panel"
         }
     },
     "termupdate": {
@@ -1948,8 +1972,8 @@
             "top-field": "Search, go to, open an address",
             "new-view-favorite": "New view with favourite 1 to 4",
             "new-view-favorite-other": "New view with favourite 1 to 4",
-            "keep-view": "Keep the view in this workspace, or make it temporary",
-            "keep-view-other": "Keep the view in this workspace, or make it temporary"
+            "keep-view": "Pin the view in this workspace, or unpin it (make it temporary)",
+            "keep-view-other": "Pin the view in this workspace, or unpin it (make it temporary)"
         }
     },
     "tips": {

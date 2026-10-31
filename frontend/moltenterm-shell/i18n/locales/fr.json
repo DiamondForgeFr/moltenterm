@@ -398,9 +398,9 @@
             "projectTabDetail": "où en est le projet : agents, branches, CI, versions, actions",
             "newTab": "Nouvelle vue",
             "reopenClosed": "Rouvrir le dernier panneau ou la dernière vue fermés",
-            "keepViewHere": "Garder cette vue dans cet espace de travail",
-            "keepViewEverywhere": "Garder cette vue partout",
-            "makeViewTemporary": "Rendre cette vue temporaire",
+            "keepViewHere": "Épingler cette vue dans cet espace de travail",
+            "keepViewEverywhere": "Épingler cette vue partout",
+            "makeViewTemporary": "Désépingler cette vue (la rendre temporaire)",
             "splitPlace": "Diviser le panneau…",
             "splitPlaceDetail": "choisir le côté : gauche, droite, haut ou bas",
             "newWorkspace": "Nouvel espace de travail",
@@ -429,6 +429,30 @@
             "companionDetail": "l'agent de ce terminal",
             "sessions": "Sessions",
             "sessionsDetail": "terminaux et agents encore en cours"
+        },
+        "keywords": {
+            "agent": "agent",
+            "projectTab": "mission control, tableau de bord, projet, accueil",
+            "reopenClosed": "annuler la fermeture, restaurer, rouvrir, vue fermée, panneau fermé, onglet fermé",
+            "splitPlace": "diviser, scinder, nouveau panneau, ajouter un panneau, gauche, droite, haut, bas",
+            "equalize": "égaliser, équilibrer, même largeur, colonnes, redimensionner, panneaux",
+            "editWorkspace": "espace de travail, renommer, icône, couleur, réglages, supprimer, réinitialiser",
+            "switchWorkspace": "espace de travail",
+            "gettingStarted": "prise en main, configuration, bienvenue, visite, premier lancement",
+            "sessions": "sessions, durables, en cours, agents, ssh, détachées, tâches, processus",
+            "settings": "configuration, préférences, paramètres, options",
+            "shortcuts": "touches, raccourcis, aide, aide-mémoire",
+            "viewPin": "épingler, désépingler, garder, temporaire, vue, onglet",
+            "missionControl": "projet, vue d'ensemble, mission, tableau de bord, branches, git, ci",
+            "lineMap": "commits, graphe, métro, lignes",
+            "companion": "agent, compagnon, consommation",
+            "panelSessions": "durables, en cours, ssh, historique, reprendre",
+            "browserPanel": "web, page, url, adresse, navigateur",
+            "reviewsPanel": "pull request, pr, revue, relecture, intégration, github",
+            "agentCopy": "presse-papiers, copier",
+            "openInBrowser": "navigateur, web, passer la main, externe",
+            "updateTerminals": "mettre à jour, actualiser, redémarrer, périmés, shell, terminal, chemin, lanceur",
+            "commandPanel": "réglages, engrenage, options, panneau de commandes"
         }
     },
     "termupdate": {
@@ -1948,8 +1972,8 @@
             "top-field": "Chercher, aller à, ouvrir une adresse",
             "new-view-favorite": "Nouvelle vue avec le favori 1 à 4",
             "new-view-favorite-other": "Nouvelle vue avec le favori 1 à 4",
-            "keep-view": "Garder la vue dans cet espace de travail, ou la rendre temporaire",
-            "keep-view-other": "Garder la vue dans cet espace de travail, ou la rendre temporaire"
+            "keep-view": "Épingler la vue dans cet espace de travail, ou la désépingler (la rendre temporaire)",
+            "keep-view-other": "Épingler la vue dans cet espace de travail, ou la désépingler (la rendre temporaire)"
         }
     },
     "tips": {
