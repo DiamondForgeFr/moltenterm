@@ -19,6 +19,10 @@ import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
 import { chooserKey, chooserListEntries } from "../newview/new-view-model";
 import { formatShortcutById } from "../shortcuts/format";
+import { keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
+import { keepViewKeysLabel } from "../sidebar/view-pin-actions";
+import { isProjectTab } from "../sidebar/view-pins-model";
+import { ViewPins } from "../sidebar/view-pins-store";
 import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
 import { pickerFitsInline, PickerMinPx, pickerPopoverRect, SplitFromMetaKey } from "../split/split-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
@@ -174,7 +178,20 @@ export function usePaletteEntries(picker: PickerSource) {
         fireAndForget(() => BrowserEngineModel.getInstance().ensureLoaded());
     }, []);
     const outdatedTerminals = useAtomValue(TermUpdates.getInstance().countAtom);
+    const pins = ViewPins.getInstance();
+    const viewState = useAtomValue(pins.stateAtom(tabId));
+    const viewModified = useAtomValue(pins.modifiedAtom(tabId));
     const locale = useLocale();
+    const projectTab = isProjectTab(tab);
+    const hasTab = tab != null;
+    const viewPin = useMemo(
+        () => ({
+            moves: hasTab ? pinMoves(viewMenuPlan(viewState, viewModified, projectTab)) : [],
+            keepMove: keepToggleMove(viewState, projectTab),
+            keepHint: keepViewKeysLabel(),
+        }),
+        [viewState, viewModified, projectTab, hasTab, locale]
+    );
     const installedBrowser = browserList?.chosen ?? null;
     const hasBrowserPanel = (tab?.blockids ?? []).some(
         (blockId) => WOS.getObjectValue<Block>(WOS.makeORef("block", blockId))?.meta?.view === MoltentermBrowserView
@@ -201,6 +218,7 @@ export function usePaletteEntries(picker: PickerSource) {
                 outdatedTerminals,
                 picker,
                 shortcutsHint: formatShortcutById("shortcuts"),
+                viewPin,
             }),
         [
             fullConfig,
@@ -215,6 +233,7 @@ export function usePaletteEntries(picker: PickerSource) {
             outdatedTerminals,
             picker,
             locale,
+            viewPin,
         ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home, locale]);

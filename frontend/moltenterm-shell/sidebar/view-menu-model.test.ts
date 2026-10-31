@@ -9,10 +9,12 @@ import {
     dropsAfter,
     isMoveAction,
     keepsUndoKey,
+    keepToggleMove,
     MaxGlyphIcons,
     menuMoveTargets,
     moveBeside,
     paneIcon,
+    pinMoves,
     readViewIcon,
     sameOrder,
     typesText,
@@ -122,6 +124,23 @@ describe("the view menu (FR-SHELL-081)", () => {
         const plan = viewMenuPlan(shownViewState("temporary", true), false, true);
         expect(menuMoveTargets(plan)).toEqual([]);
         expect(plan).toMatchObject({ close: true, closeNote: false, saveOrRevert: false });
+    });
+
+    it("gives the palette the menu's moves, in its order (#1652)", () => {
+        expect(pinMoves(viewMenuPlan("temporary", false))).toEqual(["here", "everywhere"]);
+        expect(pinMoves(viewMenuPlan("workspace", true))).toEqual(["everywhere", "temporary"]);
+        expect(pinMoves(viewMenuPlan("everywhere", false))).toEqual(["here", "temporary"]);
+        expect(pinMoves(viewMenuPlan("temporary", false, true))).toEqual([]);
+    });
+
+    it("toggles temporary and pinned in the workspace with the keep shortcut, nothing else (#1652)", () => {
+        expect(keepToggleMove("temporary")).toBe("here");
+        expect(keepToggleMove("workspace")).toBe("temporary");
+        expect(keepToggleMove("everywhere")).toBeNull();
+        expect(keepToggleMove("temporary", true)).toBeNull();
+        for (const state of ["temporary", "workspace"] as const) {
+            expect(pinMoves(viewMenuPlan(state, false))).toContain(keepToggleMove(state));
+        }
     });
 
     it("heads the menu with the view's real state", () => {

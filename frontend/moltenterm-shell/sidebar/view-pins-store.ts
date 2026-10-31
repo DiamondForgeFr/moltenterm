@@ -96,7 +96,7 @@ function blockMetaOf(get: jotai.Getter, blockId: string): Record<string, any> {
 }
 
 // The name a toast or a copy says: a new workspace's view still named by its key reads in the interface language.
-function shownName(tab: Tab): string {
+export function shownName(tab: Tab): string {
     return viewShownName(tab?.name ?? "", tab?.meta, t);
 }
 

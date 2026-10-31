@@ -398,6 +398,9 @@
             "projectTabDetail": "où en est le projet : agents, branches, CI, versions, actions",
             "newTab": "Nouvelle vue",
             "reopenClosed": "Rouvrir le dernier panneau ou la dernière vue fermés",
+            "keepViewHere": "Garder cette vue dans cet espace de travail",
+            "keepViewEverywhere": "Garder cette vue partout",
+            "makeViewTemporary": "Rendre cette vue temporaire",
             "splitPlace": "Diviser le panneau…",
             "splitPlaceDetail": "choisir le côté : gauche, droite, haut ou bas",
             "newWorkspace": "Nouvel espace de travail",
@@ -1944,7 +1947,9 @@
             "equalize-panels": "Égaliser la largeur des panneaux",
             "top-field": "Chercher, aller à, ouvrir une adresse",
             "new-view-favorite": "Nouvelle vue avec le favori 1 à 4",
-            "new-view-favorite-other": "Nouvelle vue avec le favori 1 à 4"
+            "new-view-favorite-other": "Nouvelle vue avec le favori 1 à 4",
+            "keep-view": "Garder la vue dans cet espace de travail, ou la rendre temporaire",
+            "keep-view-other": "Garder la vue dans cet espace de travail, ou la rendre temporaire"
         }
     },
     "tips": {
@@ -9446,6 +9451,10 @@
             "closedFinishedHint": "Les vues dont l'agent travaille encore restent ouvertes. Les vues rangées de la bibliothèque les ramènent.",
             "noClose": "« {name} » est épinglée et ne se ferme pas",
             "noCloseHint": "Désépinglez-la d'abord, depuis son menu.",
+            "keepKey": {
+                "everywhere": "« {name} » est épinglée partout et le reste",
+                "everywhereHint": "Pour la rendre temporaire ou l'épingler seulement ici, passez par son menu ou la palette de commandes."
+            },
             "noAgent": "Aucun agent de code n'est choisi pour ce projet",
             "pinTitle": "Épingler cette vue…",
             "revertTitle": "Revenir à l'état épinglé",

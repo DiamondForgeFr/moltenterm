@@ -25,6 +25,7 @@ import { reopenLastClosed } from "../reopen/reopen-store";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { openSettings } from "../settings/settings-open";
 import { openShortcutsSheet } from "../shortcuts/shortcuts-keys";
+import { currentPinMoves, currentView, runPinMove } from "../sidebar/view-pin-actions";
 import { enterSplitPlacement, enterSplitPlacementFocused } from "../split/split-place";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { openCurrentWorkspaceEditor } from "../workspace-edit";
@@ -159,6 +160,13 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
         case "equalize":
             equalizeCurrentTab();
             return;
+        case "pinview": {
+            const view = currentView();
+            if (view != null && currentPinMoves(view).includes(run.move)) {
+                runPinMove(view, run.move);
+            }
+            return;
+        }
         case "panelcommands":
             openPanelFromPalette(target.blockId);
             return;

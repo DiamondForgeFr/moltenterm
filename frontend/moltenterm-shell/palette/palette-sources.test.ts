@@ -147,6 +147,37 @@ describe("workspace actions", () => {
         expect(actions[1].hint).toBe(formatShortcutById("reopen-closed"));
     });
 
+    it("offers the view on screen's pin moves, the keep shortcut on its move, never in a split's picker (#1652)", () => {
+        const base = {
+            presets: {},
+            widgets: {},
+            workspaceId: "w1",
+            folder: "",
+            recentFolders: [] as string[],
+            otherFolders: [] as string[],
+            workspaces: [] as any[],
+            home: "/home/me",
+        };
+        const viewPin = { moves: ["here", "everywhere"] as any, keepMove: "here" as const, keepHint: "⇧⌘O" };
+        const pinEntries = buildPaletteEntries({ ...base, viewPin }).filter((e) => e.run.kind === "pinview");
+        expect(pinEntries.map((e) => [e.label, e.hint])).toEqual([
+            ["Keep this view in this workspace", "⇧⌘O"],
+            ["Keep this view everywhere", undefined],
+        ]);
+        expect(pinEntries[1].run).toEqual({ kind: "pinview", move: "everywhere" });
+        const pinned = buildPaletteEntries({
+            ...base,
+            viewPin: { moves: ["everywhere", "temporary"], keepMove: "temporary", keepHint: "⇧⌘O" },
+        }).filter((e) => e.run.kind === "pinview");
+        expect(pinned.map((e) => [e.label, e.hint])).toEqual([
+            ["Keep this view everywhere", undefined],
+            ["Make this view temporary", "⇧⌘O"],
+        ]);
+        expect(buildPaletteEntries({ ...base }).filter((e) => e.run.kind === "pinview")).toEqual([]);
+        const picker = { blockId: "b1", meta: {}, splitKeys: "⌘D" };
+        expect(buildPaletteEntries({ ...base, viewPin, picker }).filter((e) => e.run.kind === "pinview")).toEqual([]);
+    });
+
     it("gives each workspace entry the rail's badge, imported image and logo included (FR-SHELL-031 AC8)", () => {
         const actions = actionEntries([
             {
