@@ -39,6 +39,8 @@ export type OnboardingAgent = {
     found: boolean;
     foundpath?: string;
     installpage?: string;
+    // the catalog's official install commands (pkg/molten/onboarding/agents.go), the first the one Install runs
+    installcommands?: string[];
 };
 
 export type OnboardingAgents = { agents: OnboardingAgent[]; version: string };

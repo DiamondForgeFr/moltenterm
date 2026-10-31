@@ -423,6 +423,8 @@
     flex-direction: column;
     gap: 10px;
     animation: pour-rise 400ms var(--pour-ease) both;
+    /* scrolled into view above the navigation buttons, which float over the scene */
+    scroll-margin-bottom: 96px;
 }
 
 /* Scene 3: the workshop, as the sidebar really is. The spaces slide like the real swipe; the shared row stays. */

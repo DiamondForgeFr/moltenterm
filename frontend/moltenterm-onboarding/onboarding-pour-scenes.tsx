@@ -12,6 +12,13 @@ import { formatKeys, modifierLabel } from "../moltenterm-shell/shortcuts/format"
 import { ShortcutsSheetKey } from "../moltenterm-shell/shortcuts/registry";
 import { GlowRing } from "../moltenterm-shell/suite/suite";
 import { TabActivity, whileShown } from "../moltenterm-shell/tab-activity";
+import {
+    CliInstallStatus,
+    cleanInstallOutput,
+    installPhase,
+    isRunning,
+    isSecretQuestion,
+} from "./onboarding-install-model";
 import { CopyLine, ExternalLink, withCodes } from "./onboarding-parts";
 import { CodexHooksCommand, DeepSeekRecipe, PourAgentCard } from "./onboarding-pour-agents";
 import {
@@ -121,28 +128,37 @@ export function PourScene({ markPath, names }: { markPath: string; names: [strin
 function AgentCardView({
     card,
     heating,
+    installing,
     open,
     onToggle,
+    onInstall,
 }: {
     card: PourAgentCard;
     heating: boolean;
+    installing: boolean;
     open: boolean;
     onToggle: () => void;
+    onInstall: () => void;
 }) {
     const t = useT();
     const status = card.recipe
         ? t("onboarding.pour.agents.status.recipe", { agent: card.agentName })
-        : heating
-          ? t("onboarding.pour.agents.status.looking")
-          : card.ready
-            ? t("onboarding.pour.agents.status.ready")
-            : t("onboarding.pour.agents.status.missing");
+        : installing
+          ? t("onboarding.pour.agents.status.installing")
+          : heating
+            ? t("onboarding.pour.agents.status.looking")
+            : card.ready
+              ? t("onboarding.pour.agents.status.ready")
+              : t("onboarding.pour.agents.status.missing");
+    // Install runs the command; while it runs, the button only opens or closes its details.
+    const act = card.recipe || installing || card.install.length === 0 ? onToggle : onInstall;
     return (
         <div
             className="mt-pour-agent"
             data-agent={card.id}
             data-ready={card.ready ? "" : undefined}
-            data-heating={heating ? "" : undefined}
+            data-heating={heating || installing ? "" : undefined}
+            data-installing={installing ? "" : undefined}
             data-open={open ? "" : undefined}
         >
             <div className="mt-pour-ingot" />
@@ -167,7 +183,11 @@ function AgentCardView({
             </div>
             <div className="mt-auto flex items-center justify-between gap-2">
                 <div className="mt-pour-status flex items-center gap-1.5 text-12 text-muted">
-                    <span className="mt-pour-status-dot" />
+                    {installing ? (
+                        <i className="fa-solid fa-spinner fa-spin text-[var(--pour-hot)]" aria-hidden />
+                    ) : (
+                        <span className="mt-pour-status-dot" />
+                    )}
                     {status}
                 </div>
                 {card.ready && !card.recipe ? null : (
@@ -175,10 +195,18 @@ function AgentCardView({
                         type="button"
                         className="mt-pour-act cursor-pointer"
                         aria-expanded={open}
-                        onClick={onToggle}
+                        onClick={act}
                         data-testid={`pour-act-${card.id}`}
                     >
-                        {t(card.recipe ? "onboarding.pour.agents.configure" : "onboarding.pour.agents.install")}
+                        {t(
+                            card.recipe
+                                ? "onboarding.pour.agents.configure"
+                                : installing
+                                  ? open
+                                      ? "onboarding.pour.agents.hideDetails"
+                                      : "onboarding.pour.agents.showDetails"
+                                  : "onboarding.pour.agents.install"
+                        )}
                     </button>
                 )}
             </div>
@@ -186,57 +214,209 @@ function AgentCardView({
     );
 }
 
-// What Install or Configure opens: the official command to copy and the account it needs, or the DeepSeek recipe.
-// Nothing runs from here (installing in a terminal beside the pour is 1.1.0).
+// The installer's live output, and a field to answer it when it waits for a question (a password, a confirmation).
+function InstallOutput({
+    card,
+    status,
+    onAnswer,
+}: {
+    card: PourAgentCard;
+    status: CliInstallStatus;
+    onAnswer: (text: string) => void;
+}) {
+    const t = useT();
+    const [answer, setAnswer] = useState("");
+    const pre = useRef<HTMLPreElement>(null);
+    const output = cleanInstallOutput(status?.output);
+    const waiting = !!status?.waiting && isRunning(status);
+    useEffect(() => {
+        const el = pre.current;
+        if (el != null) {
+            el.scrollTop = el.scrollHeight;
+        }
+    }, [output]);
+    const send = (e: React.FormEvent) => {
+        e.preventDefault();
+        onAnswer(answer);
+        setAnswer("");
+    };
+    return (
+        <div className="flex flex-col gap-1.5">
+            <pre
+                ref={pre}
+                className="max-h-44 overflow-auto rounded-4 border border-border bg-black/30 px-2.5 py-2 font-mono text-11 leading-4 whitespace-pre-wrap text-secondary"
+                data-testid={`pour-output-${card.id}`}
+                aria-live="polite"
+            >
+                {output || t("onboarding.pour.agents.noOutput")}
+            </pre>
+            {waiting ? (
+                <form className="flex flex-col gap-1.5" onSubmit={send} data-testid={`pour-answer-${card.id}`}>
+                    <label className="text-12 text-secondary" htmlFor={`pour-answer-input-${card.id}`}>
+                        {t("onboarding.pour.agents.asking")}
+                    </label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            id={`pour-answer-input-${card.id}`}
+                            type={isSecretQuestion(status.output) ? "password" : "text"}
+                            value={answer}
+                            autoFocus
+                            autoComplete="off"
+                            onChange={(e) => setAnswer(e.target.value)}
+                            className="min-w-0 flex-1 rounded-4 border border-border bg-transparent px-2 py-1 font-mono text-12 text-primary"
+                        />
+                        <button
+                            type="submit"
+                            className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1 text-12"
+                        >
+                            {t("onboarding.pour.agents.send")}
+                        </button>
+                    </div>
+                </form>
+            ) : null}
+        </div>
+    );
+}
+
+// What Install or Configure opens. Install runs the catalog's command (AC-5, #1667): the loader, the command, Show
+// details for the live output, Cancel; then Ready, or what went wrong with the output and the command to copy. The
+// DeepSeek card shows its recipe.
 function AgentDrawer({
     card,
     claudeReady,
     checking,
+    install,
     onCheck,
+    onInstall,
+    onAnswer,
+    onCancel,
 }: {
     card: PourAgentCard;
     claudeReady: boolean;
     checking: boolean;
+    install: CliInstallStatus;
     onCheck: () => void;
+    onInstall: () => void;
+    onAnswer: (text: string) => void;
+    onCancel: () => void;
 }) {
     const t = useT();
+    const [details, setDetails] = useState(false);
+    const drawer = useRef<HTMLDivElement>(null);
     const account = t(`onboarding.pour.agents.account.${card.account}`, { provider: card.provider });
+    const phase = card.recipe ? "idle" : installPhase(install, card.ready);
+    const running = phase === "running";
+    const failed = phase === "failed" || phase === "notfound";
+    // An installer asking a question opens its output, so it never waits unseen.
+    const showOutput = failed || (running && (details || !!install?.waiting));
+    let title: string;
+    let text: string;
+    if (card.recipe) {
+        title = t("onboarding.pour.agents.recipeTitle", { model: card.name, agent: card.agentName });
+        text = t("onboarding.pour.agents.recipeText", { model: card.name });
+    } else if (running) {
+        title = t("onboarding.pour.agents.installing", { name: card.name });
+        text = t("onboarding.pour.agents.installingText");
+    } else if (phase === "failed") {
+        title = t("onboarding.pour.agents.failedTitle", { name: card.name });
+        text = install?.error
+            ? install.error
+            : install?.exitcode
+              ? t("onboarding.pour.agents.failedCode", { code: String(install.exitcode) })
+              : t("onboarding.pour.agents.failedText");
+    } else if (phase === "notfound") {
+        title = t("onboarding.pour.agents.failedTitle", { name: card.name });
+        text = t("onboarding.pour.agents.notFound", { command: card.command });
+    } else if (phase === "canceled") {
+        title = t("onboarding.pour.agents.installTitle", { name: card.name });
+        text = t("onboarding.pour.agents.canceled");
+    } else {
+        title = t("onboarding.pour.agents.installTitle", { name: card.name });
+        text = t("onboarding.pour.agents.installText");
+    }
+    const commands = card.recipe ? [DeepSeekRecipe.join("\n")] : card.install;
+    // What changes in the drawer (the output opening, a failure) is scrolled into view, above the navigation.
+    useEffect(() => {
+        drawer.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    }, [phase, showOutput]);
     return (
-        <div className="mt-pour-drawer" data-testid={`pour-drawer-${card.id}`}>
-            <div className="text-13 font-semibold">
-                {card.recipe
-                    ? t("onboarding.pour.agents.recipeTitle", { model: card.name, agent: card.agentName })
-                    : t("onboarding.pour.agents.installTitle", { name: card.name })}
+        <div
+            ref={drawer}
+            className="mt-pour-drawer"
+            data-testid={`pour-drawer-${card.id}`}
+            data-phase={phase}
+            role={failed ? "alert" : undefined}
+        >
+            <div className="flex items-center gap-2 text-13 font-semibold">
+                {running ? <i className="fa-solid fa-spinner fa-spin text-[var(--pour-hot)]" aria-hidden /> : null}
+                {title}
             </div>
-            <p className="text-12 leading-5 text-secondary">
-                {card.recipe
-                    ? t("onboarding.pour.agents.recipeText", { model: card.name })
-                    : t("onboarding.pour.agents.installText")}
+            <p className="text-12 leading-5 text-secondary" data-testid={`pour-drawer-text-${card.id}`}>
+                {text}
             </p>
+            {failed ? <p className="text-12 text-secondary">{t("onboarding.pour.agents.fallback")}</p> : null}
             <div className="flex flex-col gap-1.5">
-                {(card.recipe ? [DeepSeekRecipe.join("\n")] : card.install.slice(0, 1)).map((line) => (
+                {commands.slice(0, 1).map((line) => (
                     <CopyLine key={line} text={line} testId={`pour-command-${card.id}`} />
                 ))}
-                {card.install.slice(1).map((line) => (
-                    <div key={line} className="flex flex-col gap-1">
-                        <span className="text-11 text-muted">{t("onboarding.pour.agents.or")}</span>
-                        <CopyLine text={line} />
-                    </div>
-                ))}
+                {running
+                    ? null
+                    : commands.slice(1).map((line) => (
+                          <div key={line} className="flex flex-col gap-1">
+                              <span className="text-11 text-muted">{t("onboarding.pour.agents.or")}</span>
+                              <CopyLine text={line} />
+                          </div>
+                      ))}
             </div>
-            <p className="text-12 text-secondary">{t("onboarding.pour.agents.needs", { account })}</p>
+            {showOutput ? <InstallOutput card={card} status={install} onAnswer={onAnswer} /> : null}
+            {running ? null : (
+                <p className="text-12 text-secondary">{t("onboarding.pour.agents.needs", { account })}</p>
+            )}
             {card.recipe && !claudeReady ? (
                 <p className="text-12 text-secondary">
                     {t("onboarding.pour.agents.recipeNeedsAgent", { agent: card.agentName })}
                 </p>
             ) : null}
-            {card.hooksNote ? (
+            {card.hooksNote && !running ? (
                 <p className="text-12 text-secondary">
                     {withCodes(t("onboarding.pour.agents.hooks"), { command: CodexHooksCommand })}
                 </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-3">
-                {card.recipe ? null : (
+                {running ? (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => setDetails(!details)}
+                            aria-expanded={showOutput}
+                            className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
+                            data-testid={`pour-details-${card.id}`}
+                        >
+                            {t(
+                                showOutput ? "onboarding.pour.agents.hideDetails" : "onboarding.pour.agents.showDetails"
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:text-primary"
+                            data-testid={`pour-cancel-${card.id}`}
+                        >
+                            {t("onboarding.pour.agents.cancel")}
+                        </button>
+                    </>
+                ) : null}
+                {!running && !card.recipe && card.install.length > 0 && phase !== "idle" ? (
+                    <button
+                        type="button"
+                        onClick={onInstall}
+                        className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
+                        data-testid={`pour-retry-${card.id}`}
+                    >
+                        {t("onboarding.pour.agents.tryAgain")}
+                    </button>
+                ) : null}
+                {card.recipe || running ? null : (
                     <button
                         type="button"
                         disabled={checking}
@@ -247,7 +427,7 @@ function AgentDrawer({
                         {checking ? t("onboarding.pour.agents.status.looking") : t("onboarding.pour.agents.checkAgain")}
                     </button>
                 )}
-                {card.installPage ? (
+                {card.installPage && !running ? (
                     <ExternalLink href={card.installPage}>
                         {t(card.recipe ? "onboarding.pour.agents.recipePage" : "onboarding.pour.agents.installPage")}
                     </ExternalLink>
@@ -265,8 +445,12 @@ export function AgentsScene({
     checking,
     open,
     ready,
+    installs,
     onToggle,
     onCheck,
+    onInstall,
+    onAnswer,
+    onCancel,
 }: {
     cards: PourAgentCard[];
     loading: boolean;
@@ -275,8 +459,12 @@ export function AgentsScene({
     open: string;
     // the agent that became ready at the last check, for "{name} is ready"
     ready?: string;
+    installs?: Record<string, CliInstallStatus>;
     onToggle: (id: string) => void;
     onCheck: () => void;
+    onInstall?: (id: string) => void;
+    onAnswer?: (id: string, text: string) => void;
+    onCancel?: (id: string) => void;
 }) {
     const t = useT();
     const found = cards.filter((c) => c.ready).length;
@@ -310,13 +498,25 @@ export function AgentsScene({
                         key={card.id}
                         card={card}
                         heating={checking && !card.ready && !card.recipe}
+                        installing={!card.ready && isRunning(installs?.[card.id])}
                         open={card.id === open}
                         onToggle={() => onToggle(card.id)}
+                        onInstall={() => onInstall?.(card.id)}
                     />
                 ))}
             </div>
-            {openCard ? (
-                <AgentDrawer card={openCard} claudeReady={claudeReady} checking={checking} onCheck={onCheck} />
+            {openCard && !(openCard.ready && !openCard.recipe) ? (
+                <AgentDrawer
+                    key={openCard.id}
+                    card={openCard}
+                    claudeReady={claudeReady}
+                    checking={checking}
+                    install={installs?.[openCard.id]}
+                    onCheck={onCheck}
+                    onInstall={() => onInstall?.(openCard.id)}
+                    onAnswer={(text) => onAnswer?.(openCard.id, text)}
+                    onCancel={() => onCancel?.(openCard.id)}
+                />
             ) : null}
         </div>
     );

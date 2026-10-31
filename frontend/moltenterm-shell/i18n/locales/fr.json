@@ -1397,15 +1397,16 @@
                 "looking": "Recherche des agents en ligne de commande sur cet ordinateur…",
                 "listFailed": "Les agents n'ont pas pu être listés : {error}",
                 "found": {
-                    "none": "MoltenTerm n'a pas encore trouvé d'agent en ligne de commande sur cet ordinateur. Choisissez-en un : sa commande d'installation est prête à copier.",
-                    "one": "MoltenTerm a trouvé un agent en ligne de commande sur cet ordinateur. Un autre vous tente ? Sa commande d'installation est à un clic.",
-                    "other": "MoltenTerm a trouvé {count} agents en ligne de commande sur cet ordinateur. Un autre vous tente ? Sa commande d'installation est à un clic."
+                    "none": "MoltenTerm n'a pas encore trouvé d'agent en ligne de commande sur cet ordinateur. Choisissez-en un : Installer s'en occupe.",
+                    "one": "MoltenTerm a trouvé un agent en ligne de commande sur cet ordinateur. Un autre vous tente ? Il s'installe en un clic.",
+                    "other": "MoltenTerm a trouvé {count} agents en ligne de commande sur cet ordinateur. Un autre vous tente ? Il s'installe en un clic."
                 },
                 "nowReady": "{name} est prêt. Changez d'agent quand vous voulez : l'atelier reste le même.",
                 "status": {
                     "ready": "Prêt",
                     "missing": "Pas installé",
                     "looking": "Recherche…",
+                    "installing": "Installation…",
                     "recipe": "Tourne dans {agent}"
                 },
                 "level": {
@@ -1423,7 +1424,22 @@
                 "install": "Installer",
                 "configure": "Configurer",
                 "installTitle": "Installer {name}",
-                "installText": "Copiez cette commande dans un terminal, puis revenez vérifier. Rien ne s'exécute d'ici.",
+                "installText": "MoltenTerm lance cette commande officielle dans votre shell. La connexion, si l'agent en demande une, vient à son premier démarrage.",
+                "installing": "Installation de {name}…",
+                "installingText": "MoltenTerm lance cette commande officielle dans votre shell, puis vérifie de lui-même.",
+                "showDetails": "Afficher les détails",
+                "hideDetails": "Masquer les détails",
+                "cancel": "Annuler",
+                "noOutput": "Rien d'affiché pour l'instant.",
+                "asking": "L'installateur pose une question. Tapez votre réponse, puis appuyez sur Entrée.",
+                "send": "Envoyer",
+                "failedTitle": "{name} ne s'est pas installé",
+                "failedText": "La commande n'a pas fonctionné.",
+                "failedCode": "La commande n'a pas fonctionné : elle s'est arrêtée avec le code {code}.",
+                "notFound": "La commande est terminée, mais MoltenTerm ne trouve pas encore {command} sur cet ordinateur.",
+                "canceled": "Installation annulée : la commande a été arrêtée.",
+                "fallback": "Vous pouvez lancer la commande vous-même, ou suivre la page d'installation.",
+                "tryAgain": "Réessayer",
                 "or": "Ou :",
                 "needs": "Il vous faut : {account}.",
                 "checkAgain": "Vérifier à nouveau",
@@ -8972,7 +8988,9 @@
         },
         "onboarding": {
             "notDeclined": "{agent} n'a pas été refusé : MoltenTerm installe ses guides au démarrage.",
-            "installFailed": "Les guides de {agent} n'ont pas pu être installés : {detail}"
+            "installFailed": "Les guides de {agent} n'ont pas pu être installés : {detail}",
+            "noInstallCommand": "MoltenTerm n'a pas de commande d'installation pour {agent}.",
+            "installUnsupported": "Installer {agent} depuis MoltenTerm n'est pas encore possible sur ce système : copiez la commande ci-dessous."
         }
     },
     "assistedReview": {

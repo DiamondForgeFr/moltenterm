@@ -3,7 +3,7 @@
 
 // Scene 2 of the pour, "Your agents heat up" (FR-ONB-007 AC-4, AC-5): one card per catalog agent from wavesrv's real
 // detection (FR-ONB-002, pkg/molten/onboarding/agents.go), and a DeepSeek card, a recipe for Claude Code. Install
-// shows the official command to copy: nothing runs from the pour (installing in a terminal beside it is 1.1.0). The
+// runs the official command of wavesrv's catalog (agents.go, #1667), which the card shows and keeps to copy. The
 // provider names are data here and reach the sentences as placeholders (provider-neutral words, #1452).
 
 import { canMorph, catalogAgents, OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
@@ -22,28 +22,14 @@ export type AccountKind = "subscriptionOrKey" | "accountOrKey" | "subscription" 
 type AgentFacts = {
     account: AccountKind;
     provider: string;
-    // The official install commands, verified on 2026-10-31; the first is the one proposed.
-    install: string[];
 };
 
 const Facts: Record<string, AgentFacts> = {
-    [ClaudeCodeId]: {
-        account: "subscriptionOrKey",
-        provider: "Claude",
-        install: ["curl -fsSL https://claude.ai/install.sh | bash"],
-    },
-    [CodexId]: {
-        account: "subscriptionOrKey",
-        provider: "ChatGPT",
-        install: ["npm i -g @openai/codex", "curl -fsSL https://chatgpt.com/codex/install.sh | sh"],
-    },
-    "gemini-cli": { account: "accountOrKey", provider: "Google", install: ["npm install -g @google/gemini-cli"] },
-    "qwen-code": { account: "accountOrKey", provider: "Qwen", install: ["npm i -g @qwen-code/qwen-code"] },
-    kimi: {
-        account: "subscription",
-        provider: "Kimi",
-        install: ["curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"],
-    },
+    [ClaudeCodeId]: { account: "subscriptionOrKey", provider: "Claude" },
+    [CodexId]: { account: "subscriptionOrKey", provider: "ChatGPT" },
+    "gemini-cli": { account: "accountOrKey", provider: "Google" },
+    "qwen-code": { account: "accountOrKey", provider: "Qwen" },
+    kimi: { account: "subscription", provider: "Kimi" },
 };
 
 export const DeepSeekName = "DeepSeek";
@@ -88,7 +74,7 @@ function agentCard(agent: OnboardingAgent): PourAgentCard {
         full: FullIntegrationIds.includes(agent.id),
         account: facts?.account ?? "apiKey",
         provider: facts?.provider ?? agent.name,
-        install: facts?.install ?? [],
+        install: agent.installcommands ?? [],
         installPage: agent.installpage,
         hooksNote: agent.id === CodexId,
     };

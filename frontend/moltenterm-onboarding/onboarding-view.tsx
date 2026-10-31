@@ -26,12 +26,17 @@ import {
 } from "../moltenterm-shell/workspace-project-store";
 import { canMorph, ChosenAgentKey, OnboardingAgents } from "./onboarding-agent-model";
 import {
+    answerCliInstall,
+    cancelCliInstall,
+    cliInstallStatus,
     currentOnboardingState,
     ensureMorphDir,
     listOnboardingAgents,
     onboardingUpdate,
     OnboardingUpdate,
+    startCliInstall,
 } from "./onboarding-client";
+import { CliInstallStatus, isRunning } from "./onboarding-install-model";
 import { OnboardingPour } from "./onboarding-pour";
 import { keptAgent } from "./onboarding-pour-agents";
 import { PourRecord, PourStart } from "./onboarding-pour-model";
@@ -39,6 +44,8 @@ import { projectColour, ProjectFolderKey } from "./onboarding-project-model";
 import { MoltentermOnboardingView } from "./onboarding-state";
 
 export { MoltentermOnboardingView };
+
+const InstallPollMs = 400;
 
 // The palette's agent start, loaded on use: palette-actions opens Getting started, so a static import would loop back
 // into this view.
@@ -64,6 +71,7 @@ export class OnboardingViewModel implements ViewModel {
     agentsAtom = atom(null) as PrimitiveAtom<OnboardingAgents>;
     agentsErrorAtom = atom(null) as PrimitiveAtom<string>;
     checkingAtom = atom(false) as PrimitiveAtom<boolean>;
+    installsAtom = atom({}) as PrimitiveAtom<Record<string, CliInstallStatus>>;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -94,15 +102,16 @@ export class OnboardingViewModel implements ViewModel {
         return onboardingUpdate(update);
     }
 
-    // Scene 2's detection (FR-ONB-002), read again by Check again; a failure says so in the scene.
-    async loadAgents(): Promise<void> {
+    // Scene 2's detection (FR-ONB-002), read again by Check again with the login PATH read again (refresh, #1667); a
+    // failure says so in the scene.
+    async loadAgents(refresh?: boolean): Promise<void> {
         if (globalStore.get(this.checkingAtom)) {
             return;
         }
         globalStore.set(this.checkingAtom, true);
         globalStore.set(this.agentsErrorAtom, null);
         try {
-            globalStore.set(this.agentsAtom, await listOnboardingAgents());
+            globalStore.set(this.agentsAtom, await listOnboardingAgents(refresh));
         } catch (e) {
             globalStore.set(
                 this.agentsErrorAtom,
@@ -110,6 +119,59 @@ export class OnboardingViewModel implements ViewModel {
             );
         } finally {
             globalStore.set(this.checkingAtom, false);
+        }
+    }
+
+    setInstall(status: CliInstallStatus) {
+        globalStore.set(this.installsAtom, { ...globalStore.get(this.installsAtom), [status.id]: status });
+    }
+
+    // Install on a card (FR-ONB-007 AC-5): wavesrv runs the catalog's command for this id; the card follows it, then
+    // MoltenTerm checks again by itself, the login PATH read again.
+    async install(id: string): Promise<void> {
+        if (isRunning(globalStore.get(this.installsAtom)[id])) {
+            return;
+        }
+        try {
+            this.setInstall(await startCliInstall(id));
+        } catch (e) {
+            this.setInstall({ id, state: "failed", error: serverErrorText(e) });
+            return;
+        }
+        await this.followInstall(id);
+    }
+
+    async followInstall(id: string): Promise<void> {
+        while (isRunning(globalStore.get(this.installsAtom)[id])) {
+            await new Promise((resolve) => setTimeout(resolve, InstallPollMs));
+            try {
+                this.setInstall(await cliInstallStatus(id));
+            } catch (e) {
+                console.log("first run: install status failed", e);
+            }
+        }
+        if (globalStore.get(this.installsAtom)[id]?.state === "canceled") {
+            return;
+        }
+        while (globalStore.get(this.checkingAtom)) {
+            await new Promise((resolve) => setTimeout(resolve, InstallPollMs));
+        }
+        await this.loadAgents(true);
+    }
+
+    async answerInstall(id: string, text: string): Promise<void> {
+        try {
+            this.setInstall(await answerCliInstall(id, text));
+        } catch (e) {
+            console.log("first run: install answer failed", e);
+        }
+    }
+
+    async cancelInstall(id: string): Promise<void> {
+        try {
+            this.setInstall(await cancelCliInstall(id));
+        } catch (e) {
+            console.log("first run: install cancel failed", e);
         }
     }
 
@@ -243,6 +305,7 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
     const agents = useAtomValue(model.agentsAtom);
     const agentsError = useAtomValue(model.agentsErrorAtom);
     const checking = useAtomValue(model.checkingAtom);
+    const installs = useAtomValue(model.installsAtom);
     const reduced = useAtomValue(atoms.prefersReducedMotionAtom);
 
     // Reading the login shell's PATH can take seconds on the first call: the detection starts with the first scene.
@@ -261,7 +324,11 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     agentsError={agentsError}
                     checking={checking}
                     onRecord={(record) => model.record(record)}
-                    onCheckAgain={() => fireAndForget(() => model.loadAgents())}
+                    installs={installs}
+                    onCheckAgain={() => fireAndForget(() => model.loadAgents(true))}
+                    onInstall={(id) => fireAndForget(() => model.install(id))}
+                    onAnswerInstall={(id, text) => fireAndForget(() => model.answerInstall(id, text))}
+                    onCancelInstall={(id) => fireAndForget(() => model.cancelInstall(id))}
                     onSkip={() => fireAndForget(() => model.leave())}
                     onStart={(start) => fireAndForget(() => model.start(start))}
                 />
