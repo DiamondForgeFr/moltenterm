@@ -49,7 +49,7 @@ describe("the window title (#1345)", () => {
 
         put("tab:t1", { ...tab, blockids: ["b1"] });
         put("block:b1", { oid: "b1", meta: { view: "term", "cmd:cwd": "/Users/me/src/api" } });
-        expect(doc.title).toBe("MoltenTerm - api");
+        expect(doc.title).toBe("MoltenTerm - Terminal · api");
     });
 
     it("keeps a name the user typed", () => {
@@ -61,7 +61,7 @@ describe("the window title (#1345)", () => {
     });
 
     it("tells the generic name from a typed one", () => {
-        expect(windowTabName({ name: "T3" } as Tab, { view: "preview", file: "/tmp/todo.md" })).toBe("todo.md");
+        expect(windowTabName({ name: "T3" } as Tab, { view: "preview", file: "/tmp/todo.md" })).toBe("Files · todo.md");
         expect(windowTabName({ name: "T3" } as Tab, null)).toBe("T3");
     });
 });

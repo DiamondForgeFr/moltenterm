@@ -5336,6 +5336,8 @@
             "minutes": "{minutes} min",
             "hours": "{hours} h {minutes}"
         },
+        "viewName": "{kind} · {place}",
+        "viewNameNumbered": "{name} {number}",
         "views": {
             "terminal": "Terminal",
             "files": "Fichiers",

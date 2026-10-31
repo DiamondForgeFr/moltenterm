@@ -130,10 +130,49 @@ export function panelTitle(meta: PanelMeta, homeDir = ""): string {
     return viewTitle;
 }
 
-// The name the tab shows: the user's, else its first panel's title, else Wave's own.
+// A view still under Wave's generic name is named after its main panel's kind and place (#1669): "Files · roman" and
+// "Terminal · roman" tell apart two views of the same folder, which the place alone did not.
+export function panelViewName(meta: PanelMeta, homeDir = ""): string {
+    if (meta == null) {
+        return "";
+    }
+    const facts = Views[meta.view ?? ""];
+    const kind = facts ? t(facts.title) : "";
+    const place = panelTitle(meta, homeDir);
+    if (!kind || !place || place === kind) {
+        return place || kind;
+    }
+    return t("tabs.viewName", { kind, place });
+}
+
+// The name the tab shows: the user's, else its first panel's kind and place, else Wave's own.
 export function tabDisplayName(name: string, firstPanel: PanelMeta, homeDir = ""): string {
     if (!isGenericTabName(name)) {
         return name ?? "";
     }
-    return panelTitle(firstPanel, homeDir) || name;
+    return panelViewName(firstPanel, homeDir) || name;
+}
+
+export type ViewNameEntry = { id: string; name: string; derived: boolean };
+
+// Views of one workspace, in its order: a derived name another view already shows takes a number ("Terminal · roman
+// 2"), so a lone view never carries one; a name the user typed (derived false) is never numbered.
+export function numberDuplicateViewNames(entries: ViewNameEntry[]): Map<string, string> {
+    const out = new Map<string, string>();
+    const seen = new Map<string, number>();
+    for (const e of entries) {
+        if (!e.derived) {
+            seen.set(e.name, Math.max(seen.get(e.name) ?? 0, 1));
+        }
+    }
+    for (const e of entries) {
+        if (!e.derived || !e.name) {
+            out.set(e.id, e.name);
+            continue;
+        }
+        const count = (seen.get(e.name) ?? 0) + 1;
+        seen.set(e.name, count);
+        out.set(e.id, count === 1 ? e.name : t("tabs.viewNameNumbered", { name: e.name, number: count }));
+    }
+    return out;
 }
