@@ -36,6 +36,7 @@ var textFieldNames = map[string]bool{
 // English; a field that already holds a code is a code, not a sentence.
 var englishFields = map[string]string{
 	"mission.BranchCiBranch.Error":         "gh's raw error reading a branch's runs, data shown as gh said it (#836)",
+	"fileconfine.CheckResult.Error":        "the OS's error resolving a path, logged and never shown: an unresolvable path counts as outside (#1624)",
 	"pipelinesetup.SurveyReleases.Error":   "gh's raw error, the detail under mc.setup.detect.releasesUnread (#1100)",
 	"pipelinesetup.BoardItem.Why":          "the setup agent's own one-line reason, shown on its card as it wrote it (#1163)",
 	"pipelinesetup.BoardExplain.Note":      "the setup agent's own words beside the highlighted step (#1163)",
