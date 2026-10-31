@@ -1600,12 +1600,12 @@
         },
         "window:textureintensity": {
           "type": "number",
-          "description": "How strong the Grain texture is.",
+          "description": "How strong the window texture is.",
           "x-moltenterm": {
             "section": "appearance",
             "group": "Window",
             "label": "Texture intensity",
-            "description": "How strong the Grain texture is.",
+            "description": "How strong the window texture is.",
             "control": "slider",
             "range": {
               "min": 0.2,
