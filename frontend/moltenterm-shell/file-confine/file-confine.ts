@@ -168,7 +168,7 @@ export function fileConfineHeaderElems(get: Getter, gate: FileConfineGate, onBac
         {
             elemtype: "textbutton",
             text: translate(locale, "fileConfine.backToProject"),
-            className: "grey rounded-4 !py-[2px] !px-[10px] text-11 font-[500]",
+            className: "grey rounded-4 !py-[2px] !px-[10px] !text-11 font-[500]",
             onClick: onBack,
         },
     ];
@@ -183,9 +183,17 @@ export type FileConfineDeps = {
     onApplied?: () => void;
 };
 
-function rawFilePath(block: Block): string {
+// A panel without a path of its own shows the home folder, or the workspace folder once confined (AC-1): wavesrv gives
+// new panels that folder, and a panel created before the project was linked (the starter layout's) follows it.
+export function rawFilePath(block: Block, ws: Workspace, scope: FileConfineScope): string {
     const file = block?.meta?.file;
-    return isBlank(file) ? "~" : file;
+    if (!isBlank(file)) {
+        return file;
+    }
+    if (scope == null) {
+        return "~";
+    }
+    return effectiveWorkspaceFolder(ws) || scope.root;
 }
 
 const ClearOrigin = { [FileOriginMetaKey]: null, [FileOriginNameMetaKey]: null };
@@ -212,7 +220,9 @@ export class FileConfineGate {
             const block = get(deps.blockAtom);
             return fileConfineScope(get(deps.workspaceAtom), block?.meta?.connection);
         });
-        this.rawPathAtom = atom((get) => rawFilePath(get(deps.blockAtom)));
+        this.rawPathAtom = atom((get) =>
+            rawFilePath(get(deps.blockAtom), get(deps.workspaceAtom), get(this.scopeAtom))
+        );
         this.triggerAtom = atom((get) => {
             const scope = get(this.scopeAtom);
             const meta = get(deps.blockAtom)?.meta;
