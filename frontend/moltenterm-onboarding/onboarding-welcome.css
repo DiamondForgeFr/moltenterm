@@ -2,7 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /* The full-frame welcome (FR-SHELL-110, theme proposal #1318 "Premier lancement"): the panel fills the view, a faint
-   molten heat rises behind the text, and the turning light goes round the >_ glyph while MoltenTerm gets ready. */
+   molten heat rises behind the text, and the turning light goes round the MoltenTerm symbol while MoltenTerm gets ready. */
 
 .molten-welcome {
     display: grid;
@@ -31,9 +31,10 @@
     background: var(--mt-surface-2);
 }
 
+/* The symbol's ink keeps the size the earlier two-stroke glyph had. */
 .molten-welcome-glyph > svg {
-    width: 40px;
-    height: 40px;
+    width: 30px;
+    height: 24px;
 }
 
 .molten-welcome-glyph .stop-hot {
