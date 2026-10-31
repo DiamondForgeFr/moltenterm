@@ -18,9 +18,9 @@ import { agentLabel } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { addressOfPage, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
 import { useLocale, useT } from "../i18n/i18n";
-import { tabShownName } from "../project/project-model";
 import { formatShortcutById } from "../shortcuts/format";
-import { panelIcon, PanelMeta, panelTitle, tabDisplayName } from "../tab-identity";
+import { panelIcon, PanelMeta, panelTitle } from "../tab-identity";
+import { useTabIdentity } from "../tab-identity-ui";
 import { SidebarGlyph } from "./sidebar-icons";
 import { fieldContext } from "./top-field-context";
 import type * as TopFieldOpen from "./top-field-open";
@@ -72,14 +72,7 @@ function useFocusFacts() {
     );
     const tabId = useAtomValue(atoms.staticTabId);
     const tab = useAtomValue(useMemo(() => WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)), [tabId]));
-    const firstId = tab?.blockids?.[0];
-    const first = useAtomValue(
-        useMemo(
-            () =>
-                firstId ? WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", firstId)) : (atom(null) as Atom<Block>),
-            [firstId]
-        )
-    );
+    const identity = useTabIdentity(tabId, tab?.name ?? "");
     const agentData = useAtomValue(AgentStates.getInstance().dataAtom);
     useLocale();
     const meta = block?.meta as PanelMeta;
@@ -89,7 +82,7 @@ function useFocusFacts() {
     const agent = blockId ? agentData?.states?.[blockId] : null;
     const panelLabel =
         agent?.agent || agent?.agentname ? agent.firstname || agentLabel(agent) : panelTitle(meta, homeDir());
-    const viewName = tab ? tabDisplayName(tabShownName(tab), first?.meta as PanelMeta, homeDir()) : "";
+    const viewName = tab ? identity.name : "";
     return {
         blockId,
         tabId,

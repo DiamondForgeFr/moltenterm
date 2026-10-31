@@ -56,7 +56,7 @@ import {
     withWorkingTitle,
     WorkingLight,
 } from "../panel-motion/working-light";
-import { ProjectTabMetaKey, tabShownName } from "../project/project-model";
+import { ProjectTabMetaKey } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
 import { ReleaseNotesModel } from "../releases/release-notes-store";
@@ -69,7 +69,14 @@ import { finishTabPanelDrag, trackTabPanelDrag } from "../split/drop-zones";
 import { ChannelClasses, ItemButton, useFocusedPane, useStatusBarView } from "../status-bar";
 import { DominoLoader } from "../suite/suite";
 import "../tab-bar.css";
-import { TabAgentMark, TabAgentName, TabReviewMark, useTabIdentity, useTabTooltip } from "../tab-identity-ui";
+import {
+    TabAgentMark,
+    TabAgentName,
+    TabReviewMark,
+    useTabIdentity,
+    useTabTooltip,
+    viewDisplayName,
+} from "../tab-identity-ui";
 import { ReleaseUpdateButton } from "../update/release-update-ui";
 import { GoldUpdateButton } from "../update/update-dialog";
 import { View360ExitHost } from "../view360/view360-toggle";
@@ -1603,7 +1610,7 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
             </div>
             <div className="flex h-[52px] w-24 flex-col items-center justify-center gap-[5px] self-center rounded-6 bg-white/20 px-1 text-11 text-primary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
                 <ViewGlyph icons={glyph} />
-                <span className="max-w-full truncate">{draft.name || tabShownName(tab, t)}</span>
+                <span className="max-w-full truncate">{draft.name || viewDisplayName(tab)}</span>
             </div>
             <label className="flex flex-col gap-[5px] text-12 text-muted">
                 {t("sidebar.pins.page.name")}

@@ -12,7 +12,8 @@ import { useAtomValue } from "jotai";
 import { memo, useEffect, useState } from "react";
 import { visibleTabIds } from "../hidden-tabs";
 import { useT } from "../i18n/i18n";
-import { ProjectTabMetaKey, tabShownName } from "../project/project-model";
+import { ProjectTabMetaKey } from "../project/project-model";
+import { useTabIdentity } from "../tab-identity-ui";
 import { workspaceShownName } from "../workspace-default-name";
 import { isPinnedTab, TileGridColumns } from "./sidebar-model";
 import { snapshotFits, useSidebarSnapshot } from "./sidebar-snapshot";
@@ -23,8 +24,8 @@ const GhostPinKeys = [ProjectTabMetaKey, PinMetaKey];
 
 function GhostTab({ tabId, tiles }: { tabId: string; tiles: boolean }) {
     const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
-    const t = useT();
     const glyph = useAtomValue(viewGlyphAtom(tabId));
+    const name = useTabIdentity(tabId, tab?.name ?? "").name;
     if (tab == null || (tab.meta as Record<string, any>)?.[GlobalPinMetaKey]) {
         return null;
     }
@@ -35,14 +36,14 @@ function GhostTab({ tabId, tiles }: { tabId: string; tiles: boolean }) {
         return (
             <div className="mt-sb-tile flex h-[52px] min-w-0 flex-col items-center justify-center gap-[5px] rounded-6 bg-white/[0.09] px-1 text-11 text-primary">
                 <ViewGlyph icons={glyph} />
-                <span className="max-w-full truncate">{tabShownName(tab, t)}</span>
+                <span className="max-w-full truncate">{name}</span>
             </div>
         );
     }
     return (
         <div className="flex h-7 min-w-0 items-center gap-2 rounded-6 px-2 text-12 text-secondary">
             <ViewGlyph icons={glyph} small />
-            <span className="truncate">{tabShownName(tab, t)}</span>
+            <span className="truncate">{name}</span>
         </div>
     );
 }
