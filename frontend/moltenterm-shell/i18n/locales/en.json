@@ -2041,7 +2041,8 @@
         "start": {
             "title": "Scope the next change",
             "hintProject": "Scoping is where you frame the work with your agent before it writes code. This page shows the project's repository once its folder has a GitHub remote.",
-            "hintNoProject": "Scoping is where you frame the work with your agent before it writes code. Link a project folder to this workspace: this page then shows its repository or its README.",
+            "hintFolder": "Scoping is where you frame the work with your agent before it starts. A README in this folder shows here.",
+            "hintNoProject": "Scoping is where you frame the work with your agent before it starts. Choose a folder for this workspace: this page then shows its README.",
             "readme": "README of {project}",
             "address": "Start page"
         },
@@ -3444,7 +3445,7 @@
             "gitInitBody": "MoltenTerm runs git init in this folder. It adds an empty repository (a .git folder): your files stay as they are, nothing is committed.",
             "gitInitFailed": "Git could not create the repository.",
             "notRepoTitle": "This folder is not a git repository",
-            "notRepoHint": "The Project panel follows a project through its git history. Initialize git here or choose another folder.",
+            "notRepoHint": "This panel follows a project through its git history. Initialize git here or choose another folder.",
             "initGitHere": "Initialize git here",
             "readingHistory": "Reading the history…",
             "chooseFolder": "Choose another folder",
@@ -9393,7 +9394,7 @@
             "emptyAdd": "Add a panel"
         },
         "emptyWorkspace": {
-            "title": "This workspace has no views yet",
+            "title": "This workspace has no pinned view yet",
             "hint": "A workspace keeps the views of one project here, as tiles. Add the default views, {views}, or make one of your own.",
             "hintNoTemplate": "A workspace keeps the views of one project here, as tiles. Make a view, then pin it here.",
             "addViews": "Add the default views",
@@ -9474,12 +9475,12 @@
         },
         "create": {
             "title": "New workspace",
-            "lede": "One workspace per product: its projects, views, agents and colour.",
+            "lede": "One workspace per project: its folders, views, agents and colour.",
             "name": "Workspace name",
-            "namePlaceholder": "Notulia, MoltenTerm…",
+            "namePlaceholder": "My novel, Portfolio, Thesis…",
             "type": "First project's type",
-            "typePlaceholder": "SaaS, Desktop, CLI, Mobile…",
-            "typeSuggestions": "SaaS, Desktop, CLI, Mobile, Website, API, Library, Extension",
+            "typePlaceholder": "Book, Design, Course, App…",
+            "typeSuggestions": "Book, Design, Course, Research, Website, App, Desktop, Mobile, SaaS, API, CLI, Library, Extension",
             "typeHint": "Shown under the workspace name, in the sidebar and the library.",
             "folder": "First project's folder",
             "chooseFolder": "Choose a folder…",

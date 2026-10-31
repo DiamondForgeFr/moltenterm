@@ -12,9 +12,10 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { useT } from "../i18n/i18n";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
-import { readReadme } from "../workspace-project-store";
+import { findProjectRoot, readReadme } from "../workspace-project-store";
+import { startPageHintKey } from "./browser-start-hint";
 
-type ReadmeState = { dir: string; text: string };
+type ReadmeState = { dir: string; text: string; repo: boolean };
 
 export function BrowserStartPage() {
     const t = useT();
@@ -26,9 +27,9 @@ export function BrowserStartPage() {
             return;
         }
         let live = true;
-        readReadme(dir).then((text) => {
+        Promise.all([readReadme(dir), findProjectRoot(dir)]).then(([text, repo]) => {
             if (live) {
-                setReadme({ dir, text: text ?? "" });
+                setReadme({ dir, text: text ?? "", repo: !!repo });
             }
         });
         return () => {
@@ -56,7 +57,7 @@ export function BrowserStartPage() {
                 <EmptyState
                     icon="compass-drafting"
                     title={t("browser.start.title")}
-                    hint={dir ? t("browser.start.hintProject") : t("browser.start.hintNoProject")}
+                    hint={t(startPageHintKey(dir, readme?.repo ?? false))}
                     testId="browser-start-empty"
                 />
             )}
