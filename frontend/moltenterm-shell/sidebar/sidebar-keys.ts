@@ -10,6 +10,7 @@ import { findShortcut } from "../shortcuts/registry";
 import { sidebarKeyYields } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
 import { switchToNumber } from "./sidebar-switch";
+import { registerKeepViewKeys } from "./view-pin-actions";
 
 export const ToggleSidebarShortcutId = "toggle-sidebar";
 
@@ -60,4 +61,5 @@ export function registerSidebarKeys(keyMap: Map<string, (e: WaveKeyboardEvent) =
             return true;
         });
     });
+    registerKeepViewKeys(keyMap);
 }

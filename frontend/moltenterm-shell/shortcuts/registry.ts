@@ -296,6 +296,26 @@ export const Shortcuts: Shortcut[] = [
         bindings: digits((n) => [`Cmd:${n}`]),
     },
     { id: "rename-tab", label: "Rename the tab", category: "Tabs", scope: "global", keys: "F2" },
+    // #1652: the view on screen, temporary ↔ pinned in its workspace. ⌘ on macOS, Ctrl elsewhere (Wave's Cmd is Alt
+    // there); "o" is free in both families, "k" and "p" are taken (the palette, the 360 pin, Ctrl+Shift+K's focus).
+    {
+        id: "keep-view",
+        label: "Keep the view in this workspace, or make it temporary",
+        category: "Tabs",
+        scope: "global",
+        keys: "Cmd:Shift:o",
+        keywords: ["pin", "unpin", "keep", "temporary", "view"],
+        macOnly: true,
+    },
+    {
+        id: "keep-view-other",
+        label: "Keep the view in this workspace, or make it temporary",
+        category: "Tabs",
+        scope: "global",
+        keys: "Ctrl:Shift:o",
+        keywords: ["pin", "unpin", "keep", "temporary", "view"],
+        notMac: true,
+    },
     // Workspaces
     // #1183: the workspace sidebar (FR-SHELL-079); an editor keeps the key for save.
     {

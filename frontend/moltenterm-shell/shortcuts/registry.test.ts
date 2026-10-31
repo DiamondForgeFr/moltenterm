@@ -217,6 +217,30 @@ describe("reopen the last closed pane or tab (#512)", () => {
     });
 });
 
+describe("keep the view (#1652)", () => {
+    it("takes ⌘⇧O on macOS and Ctrl+Shift+O elsewhere, which nothing else uses", () => {
+        const keep = new Set(["keep-view", "keep-view-other"]);
+        const keys = ["Cmd:Shift:o", "Ctrl:Shift:o"].map(normalizeKeys);
+        const others = Shortcuts.filter((s) => !keep.has(s.id))
+            .flatMap(shortcutBindings)
+            .map(normalizeKeys);
+        expect(others.filter((k) => keys.includes(k))).toEqual([]);
+        expect(
+            keyModelBindings()
+                .map(normalizeKeys)
+                .filter((k) => keys.includes(k))
+        ).toEqual([]);
+        const mac = platformShortcuts(true).map((s) => s.id);
+        const other = platformShortcuts(false).map((s) => s.id);
+        expect(mac).toContain("keep-view");
+        expect(mac).not.toContain("keep-view-other");
+        expect(other).toContain("keep-view-other");
+        expect(other).not.toContain("keep-view");
+        expect(formatShortcutById("keep-view", true)).toBe("⇧⌘O");
+        expect(formatShortcutById("keep-view-other", false)).toBe("Ctrl+Shift+O");
+    });
+});
+
 // The physical keys a binding takes on one platform: Wave's Cmd is Command on macOS and Alt elsewhere, Option is Alt
 // on macOS and Meta elsewhere; a digit by its code or by its key is the same key.
 function physicalKeys(binding: string, mac: boolean): string[] {

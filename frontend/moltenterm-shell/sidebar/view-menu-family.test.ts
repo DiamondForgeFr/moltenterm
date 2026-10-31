@@ -32,7 +32,9 @@ vi.mock("@/app/store/global", () => ({
     globalStore: { get: (a: any): any => (a === "workspace" ? { name: "Acme" } : []) },
 }));
 
+import { acceleratorById } from "../shortcuts/format";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
+import { keepViewShortcutId } from "./view-pin-actions";
 
 const t = (key: string) => key;
 
@@ -63,5 +65,19 @@ describe("the view menu by family (FR-SHELL-107)", () => {
         const make = items.find((i) => i.label === "sidebar.pins.menu.makeTemporary");
         expect(make.tooltip).toBe("sidebar.views.closeNote");
         expect(make.enabled).not.toBe(false);
+    });
+
+    it("shows the keep shortcut on the move it makes, for the view on screen only (#1652)", () => {
+        const keys = acceleratorById(keepViewShortcutId());
+        expect(keys).not.toBe("");
+        const temporary = viewMenuItems(target("temporary"), hooks, t);
+        expect(temporary.find((i) => i.label === "sidebar.pins.menu.pinHere").accelerator).toBe(keys);
+        expect(temporary.find((i) => i.label === "sidebar.pins.menu.pinEverywhere").accelerator).toBeUndefined();
+        const kept = viewMenuItems(target("workspace"), hooks, t);
+        expect(kept.find((i) => i.label === "sidebar.pins.menu.makeTemporary").accelerator).toBe(keys);
+        const everywhere = viewMenuItems(target("everywhere"), hooks, t);
+        expect(everywhere.filter((i) => i.accelerator === keys)).toEqual([]);
+        const elsewhere = viewMenuItems({ ...target("temporary"), active: false }, hooks, t);
+        expect(elsewhere.filter((i) => i.accelerator === keys)).toEqual([]);
     });
 });

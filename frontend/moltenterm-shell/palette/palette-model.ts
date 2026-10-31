@@ -47,6 +47,8 @@ export type PaletteRun =
     | { kind: "splitplace" }
     // Equalize the panel widths of the tab on screen (#825).
     | { kind: "equalize" }
+    // A pin move of the view on screen, as its menu makes it (#1652).
+    | { kind: "pinview"; move: "here" | "everywhere" | "temporary" }
     // The command panel of the pane the palette was opened from, or one of its items (FR-SHELL-047: every action of
     // the panel is also a palette command).
     | { kind: "panelcommands" }

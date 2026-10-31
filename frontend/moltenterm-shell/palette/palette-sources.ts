@@ -13,6 +13,7 @@ import { MoltentermLineMapView } from "../mission/line-map-model";
 import { MoltentermProjectView } from "../project/project-model";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { formatShortcutById } from "../shortcuts/format";
+import type { PinMove } from "../sidebar/view-menu-model";
 import { panelKindRank, terminalBlockDefFrom } from "../split/split-model";
 import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
 import { updateAllDetail } from "../termupdate/termupdate-model";
@@ -94,6 +95,8 @@ export type PaletteSourceInput = {
     picker?: PickerSource;
     // The shortcuts sheet's keys, shown on its entry.
     shortcutsHint?: string;
+    // The pin moves of the view on screen, as its menu offers them, and the move the keep shortcut makes (#1652).
+    viewPin?: { moves: PinMove[]; keepMove: PinMove; keepHint: string };
 };
 
 export type PickerSource = {
@@ -517,6 +520,25 @@ export function termUpdateEntries(count: number): PaletteEntry[] {
     ];
 }
 
+const ViewPinEntries: Record<PinMove, { labelKey: string; icon: string }> = {
+    here: { labelKey: "palette.actions.keepViewHere", icon: "thumbtack" },
+    everywhere: { labelKey: "palette.actions.keepViewEverywhere", icon: "layer-group" },
+    temporary: { labelKey: "palette.actions.makeViewTemporary", icon: "thumbtack-slash" },
+};
+
+// Keep or unpin the view on screen (#1652): the moves its menu offers, the keep shortcut on the one it makes.
+export function viewPinEntries(viewPin: PaletteSourceInput["viewPin"]): PaletteEntry[] {
+    return (viewPin?.moves ?? []).map((move) => ({
+        id: `action:pinview:${move}`,
+        group: "actions",
+        label: t(ViewPinEntries[move].labelKey),
+        icon: ViewPinEntries[move].icon,
+        hint: move === viewPin.keepMove && viewPin.keepHint ? viewPin.keepHint : undefined,
+        keywords: ["pin", "unpin", "keep", "temporary", "view", "tab"],
+        run: { kind: "pinview", move },
+    }));
+}
+
 export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
     const folders = recentFolderList(input.folder, input.recentFolders, input.otherFolders);
     const panels =
@@ -532,6 +554,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...panels,
         ...folderEntries(folders, input.home),
         ...actions,
+        ...(input.picker == null ? viewPinEntries(input.viewPin) : []),
         ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
         ...termUpdateEntries(input.outdatedTerminals),
         ...agentCopyEntries(),

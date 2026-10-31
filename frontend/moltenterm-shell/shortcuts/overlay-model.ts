@@ -28,6 +28,7 @@ export const ReviewView = "molten-review";
 const PlatformVariants: Record<string, string> = {
     "new-view-favorite": "new-view-favorite-other",
     "reopen-closed": "reopen-closed-ctrl",
+    "keep-view": "keep-view-other",
 };
 
 export type OverlayRect = { left: number; top: number; width: number; height: number };

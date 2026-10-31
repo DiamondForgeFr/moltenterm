@@ -16,7 +16,8 @@ import { tCount } from "../i18n/i18n";
 import { acceleratorById } from "../shortcuts/format";
 import { view360MenuItems } from "../view360/view360-toggle";
 import { workspaceShownName } from "../workspace-default-name";
-import { viewMenuHeader, viewMenuPlan } from "./view-menu-model";
+import { keepToggleMove, PinMove, viewMenuHeader, viewMenuPlan } from "./view-menu-model";
+import { keepViewShortcutId, runPinMove } from "./view-pin-actions";
 import { ViewState } from "./view-pins-model";
 import { ViewPins, ViewRef } from "./view-pins-store";
 import { openViewPopover } from "./view-popover";
@@ -79,38 +80,35 @@ function layoutItems(t: TFn): ContextMenuItem[] {
 }
 
 function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
-    const pins = ViewPins.getInstance();
     const plan = viewMenuPlan(target.state, target.modified, target.projectTab);
     const workspace = shownWorkspace(t);
-    const tabId = target.ref.tabId;
+    const run = (move: PinMove) => () => runPinMove(target, move);
+    // The keep shortcut acts on the view on screen: its menu shows the key on the move it makes (#1652).
+    const keepMove = target.active && target.ref.tabId ? keepToggleMove(target.state, target.projectTab) : null;
+    const keys = (move: PinMove) => (move === keepMove ? acceleratorById(keepViewShortcutId()) : undefined);
     const items: ContextMenuItem[] = [];
     if (plan.pinHere) {
         items.push({
             label: t("sidebar.pins.menu.pinHere", { workspace }),
             icon: "thumbtack",
-            click: () => pins.openPinPage(tabId, target.name, "here"),
+            accelerator: keys("here"),
+            click: run("here"),
         });
     }
     if (plan.pinEverywhere) {
-        items.push(
-            target.state === "temporary"
-                ? {
-                      label: t("sidebar.pins.menu.pinEverywhere"),
-                      icon: "layer-group",
-                      click: () => pins.openPinPage(tabId, target.name, "everywhere"),
-                  }
-                : {
-                      label: t("sidebar.pins.menu.pinEverywhereNow"),
-                      icon: "layer-group",
-                      click: () => fireAndForget(() => pins.pinEverywhere(tabId, target.name)),
-                  }
-        );
+        items.push({
+            label: t(
+                target.state === "temporary" ? "sidebar.pins.menu.pinEverywhere" : "sidebar.pins.menu.pinEverywhereNow"
+            ),
+            icon: "layer-group",
+            click: run("everywhere"),
+        });
     }
     if (plan.pinOnlyHere) {
         items.push({
             label: t("sidebar.pins.menu.pinOnlyHere", { workspace }),
             icon: "thumbtack",
-            click: () => fireAndForget(() => pins.pinOnlyHere(tabId, target.ref.pinId)),
+            click: run("here"),
         });
     }
     if (plan.makeTemporary) {
@@ -119,7 +117,8 @@ function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
             // Why a pinned view has no Close: on hover, not as a greyed row (FR-SHELL-107).
             tooltip: plan.closeNote && !target.projectTab ? t("sidebar.views.closeNote") : undefined,
             icon: "thumbtack-slash",
-            click: () => fireAndForget(() => (tabId ? pins.unpin(tabId) : pins.unpinGlobal(target.ref.pinId))),
+            accelerator: keys("temporary"),
+            click: run("temporary"),
         });
     }
     return items;

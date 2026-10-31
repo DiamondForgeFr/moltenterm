@@ -393,6 +393,9 @@
             "projectTabDetail": "where the project stands: agents, branches, CI, releases, actions",
             "newTab": "New view",
             "reopenClosed": "Reopen the last closed pane or view",
+            "keepViewHere": "Keep this view in this workspace",
+            "keepViewEverywhere": "Keep this view everywhere",
+            "makeViewTemporary": "Make this view temporary",
             "splitPlace": "Split the panel…",
             "splitPlaceDetail": "choose the side: left, right, up or down",
             "newWorkspace": "New workspace",
@@ -1921,7 +1924,9 @@
             "equalize-panels": "Equalize panel widths",
             "top-field": "Search, go to, open an address",
             "new-view-favorite": "New view with favourite 1 to 4",
-            "new-view-favorite-other": "New view with favourite 1 to 4"
+            "new-view-favorite-other": "New view with favourite 1 to 4",
+            "keep-view": "Keep the view in this workspace, or make it temporary",
+            "keep-view-other": "Keep the view in this workspace, or make it temporary"
         }
     },
     "tips": {
@@ -9416,6 +9421,10 @@
             "closedFinishedHint": "Views whose agent still works stay open. The library's put-away views bring them back.",
             "noClose": "“{name}” is pinned and does not close",
             "noCloseHint": "Unpin it first, from its menu.",
+            "keepKey": {
+                "everywhere": "“{name}” is pinned everywhere and stays so",
+                "everywhereHint": "To make it temporary or pin it only here, use its menu or the command palette."
+            },
             "noAgent": "No coding agent is set for this project",
             "pinTitle": "Pin this view…",
             "revertTitle": "Back to the pinned state",

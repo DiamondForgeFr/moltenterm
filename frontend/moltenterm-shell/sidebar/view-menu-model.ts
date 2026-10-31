@@ -159,6 +159,39 @@ export function menuMoveTargets(plan: ViewMenuPlan): ViewState[] {
     return rtn;
 }
 
+// The pin moves of the view menu, also offered by the command palette for the view on screen (#1652): "here" is Pin in
+// the workspace (or Pin only in it, from everywhere), in the menu's order.
+export type PinMove = "here" | "everywhere" | "temporary";
+
+export function pinMoves(plan: ViewMenuPlan): PinMove[] {
+    const rtn: PinMove[] = [];
+    if (plan.pinHere || plan.pinOnlyHere) {
+        rtn.push("here");
+    }
+    if (plan.pinEverywhere) {
+        rtn.push("everywhere");
+    }
+    if (plan.makeTemporary) {
+        rtn.push("temporary");
+    }
+    return rtn;
+}
+
+// The keep shortcut toggles temporary ↔ pinned in the workspace (#1652). A view pinned everywhere and the Project
+// tab have no toggle: null.
+export function keepToggleMove(state: ViewState, projectTab = false): PinMove {
+    if (projectTab) {
+        return null;
+    }
+    if (state === "temporary") {
+        return "here";
+    }
+    if (state === "workspace") {
+        return "temporary";
+    }
+    return null;
+}
+
 // The menu's header, "<name> · <state>", in the words of the sidebar's sections.
 export function viewMenuHeader(
     name: string,
