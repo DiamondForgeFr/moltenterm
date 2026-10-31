@@ -97,11 +97,18 @@ const MaterialsInstructions = " What you produce for the developer outside the r
 	"keeps it for the project; `molten material list` lists them. Details: materials.md in the folder `molten docs` " +
 	"prints."
 
+// FilesInstructions: an agent shows what it searched for in its tab's file panel (FR-FILE-002,
+// pkg/molten/agentdocs/files.md), whatever agent CLI it is.
+const FilesInstructions = " When the user asks you to find files in the project, also show them in the file panel of " +
+	"your tab: `molten files [<folder>] --filter <pattern> [--recursive] [--json]` (a case-insensitive substring, or a " +
+	"glob with * ? [) prints the matches and filters the panel. A folder outside the project is asked to the user first. " +
+	"Details: files.md in the folder `molten docs` prints."
+
 // AgentInstructions completes the server's instructions with the agent's own first name (FR-CONT-014): Claude Code
 // puts server instructions in its system prompt, so the agent can sign its briefs and knows it is addressed.
 func AgentInstructions(firstName string) string {
 	rtn := " To hand work to another agent when the user asks (\"send this to Jérôme\"), call list_agents, then " +
-		"send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions
+		"send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions + FilesInstructions
 	if firstName != "" {
 		rtn = fmt.Sprintf(" In MoltenTerm your first name is %s: the user and other agents call you by it, and handoffs you "+
 			"send are signed with it.", firstName) + rtn + SignInstructions

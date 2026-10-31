@@ -8,6 +8,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine"
+	"github.com/wavetermdev/waveterm/pkg/molten/filesearch"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -34,10 +35,12 @@ func moltenFileAsker(ctx context.Context) fileconfine.Asker {
 
 // moltenFileMeta is the meta a block gets from a request (FR-FILE-001): only a window approves a file panel to leave
 // its project, and a file meta written from a terminal says who asked, so the panel names it.
+// A filter written from a terminal names who set it the same way (FR-FILE-002).
 func moltenFileMeta(ctx context.Context, meta waveobj.MetaMapType) waveobj.MetaMapType {
-	if !fileconfine.TouchesFileMeta(meta) {
+	if !fileconfine.TouchesFileMeta(meta) && !filesearch.TouchesFilterMeta(meta) {
 		return meta
 	}
-	rtn, _ := fileconfine.MetaFromAsker(meta, moltenFileAsker(ctx))
-	return rtn
+	asker := moltenFileAsker(ctx)
+	rtn, _ := fileconfine.MetaFromAsker(meta, asker)
+	return filesearch.FilterMetaFromAsker(rtn, asker.IsUi, asker.FirstName)
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/molten"             // MOLTENTERM-PATCH (#19)
 	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine" // MOLTENTERM-PATCH (#1624)
+	"github.com/wavetermdev/waveterm/pkg/molten/filesearch"  // MOLTENTERM-PATCH (#1625)
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"     // MOLTENTERM-PATCH (#31)
 	"github.com/wavetermdev/waveterm/pkg/molten/stdinwatch"  // MOLTENTERM-PATCH (#1043)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -595,6 +596,7 @@ func main() {
 	wcore.StartReopenRoute()    // MOLTENTERM-PATCH (#512): the last closed pane or tab comes back
 	wcore.StartViewPinRoute()   // MOLTENTERM-PATCH (#1184): pinned views are read and opened on a project
 	fileconfine.StartRoute()    // MOLTENTERM-PATCH (#1624): the file panels ask where a path really is
+	filesearch.StartRoute()     // MOLTENTERM-PATCH (#1625): molten files shows an agent's search in its tab's file panel
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()
