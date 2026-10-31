@@ -20,7 +20,6 @@ import { I18nModel, t, useT } from "../moltenterm-shell/i18n/i18n";
 import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
 import {
     chooseMoltentermPath,
-    findProjectRoot,
     linkWorkspaceProject,
     readProjectFacts,
     setWorkspaceFolder,
@@ -182,8 +181,8 @@ export class OnboardingViewModel implements ViewModel {
         return this.run(() => this.finishRun(false));
     }
 
-    // Open my project (AC-8): the folder becomes the workspace's, with the project's name and colour, and a git
-    // repository becomes its project (FR-ONB-004); the run ends and the starter workspace's first view shows.
+    // Open my project (AC-8): the folder becomes the workspace's, with the project's name and colour, and its project
+    // (FR-ONB-004; its repository's root when it is in one); the run ends and the starter workspace's first view shows.
     // Cancelling the folder choice leaves the pour where it is.
     openProject(): Promise<void> {
         return this.run(async () => {
@@ -196,11 +195,10 @@ export class OnboardingViewModel implements ViewModel {
                 return;
             }
             await setWorkspaceFolder(ws.oid, path);
-            const repo = await findProjectRoot(path);
-            if (repo) {
-                await linkWorkspaceProject(ws, repo);
-            }
-            const { name } = await readProjectFacts(repo || path);
+            // Linked like New workspace links its folder (#1642): a folder without git is the project too, else the
+            // default views open their file panel on the home folder.
+            const dir = await linkWorkspaceProject(ws, path);
+            const { name } = await readProjectFacts(dir);
             await WorkspaceService.UpdateWorkspace(ws.oid, name, ws.icon ?? "", projectColour(name), !ws.icon);
             await this.update({ kind: "data", step: "project", data: { [ProjectFolderKey]: path } });
             await this.update({ kind: "step", step: "project", status: "done" });

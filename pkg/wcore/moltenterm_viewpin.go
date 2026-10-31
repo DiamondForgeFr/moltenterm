@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/reopen"
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -23,12 +24,21 @@ import (
 // new tab (a view pinned everywhere opened in a workspace) or in place of a tab's panels (back to the pinned state).
 // The view is made by splits, the way a reopened tab is (reopen.LayoutLeaves, restoreTab).
 
+// A workspace with a folder but no linked project opens its views there (#1642): the project token falls back to the
+// workspace folder, never to the home folder.
 func workspaceProjectDir(ctx context.Context, workspaceId string) string {
 	ws, err := GetWorkspace(ctx, workspaceId)
 	if err != nil || ws == nil {
 		return ""
 	}
-	return ws.Meta.GetString(viewpin.ProjectMetaKey, "")
+	return viewProjectDir(ws.Meta)
+}
+
+func viewProjectDir(meta waveobj.MetaMapType) string {
+	if dir := meta.GetString(viewpin.ProjectMetaKey, ""); dir != "" {
+		return dir
+	}
+	return molten.WorkspaceFolder(meta)
 }
 
 func captureViewPin(ctx context.Context, req viewpin.CaptureRequest) (viewpin.Config, error) {
