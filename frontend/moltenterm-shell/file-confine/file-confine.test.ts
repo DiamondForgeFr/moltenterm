@@ -264,6 +264,16 @@ describe("FileConfineGate", () => {
         expect(where).toContain('"folder":"/tmp"');
     });
 
+    it("a panel without a path of its own shows the workspace folder once confined (AC-1)", async () => {
+        const f = fixture({} as MetaType, workspace(Root, "/p/app/src"));
+        await settle(f.gate);
+        expect(globalStore.get(f.gate.shownPathAtom)).toBe("/p/app/src");
+        expect(globalStore.get(f.gate.pendingAtom)).toBeNull();
+        const free = fixture({} as MetaType, workspace(""));
+        await settle(free.gate);
+        expect(globalStore.get(free.gate.shownPathAtom)).toBe("~");
+    });
+
     it("an approved panel restored after a restart shows its folder with the marker (TC-FILE-004)", async () => {
         const f = fixture({ file: "/etc", [FileApprovedMetaKey]: Root } as MetaType);
         await settle(f.gate);
