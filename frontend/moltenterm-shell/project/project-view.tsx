@@ -68,7 +68,7 @@ export class ProjectViewModel implements ViewModel {
 function ProjectView({ blockId, model }: ViewComponentProps<ProjectViewModel>) {
     const t = useT();
     return (
-        <MissionFrame title={t("project.frameTitle")}>
+        <MissionFrame title={t("project.frameTitle")} gitPanel="project">
             {({ project, snapshot, refresh }) => (
                 <ProjectContent
                     key={project.dir}
