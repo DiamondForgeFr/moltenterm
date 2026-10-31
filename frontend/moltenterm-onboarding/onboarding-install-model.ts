@@ -5,6 +5,8 @@
 // (pkg/molten/onboarding/clinstall.go) and the card follows it. The window sends the agent's id, never a command.
 // Pure, so the rules are tested without a window.
 
+import type { ServerText } from "../moltenterm-shell/i18n/server-text";
+
 // must match pkg/molten/onboarding/clinstall.go
 export const CliInstallCommand = "onboardingcliinstall";
 export const CliInstallStatusCommand = "onboardingcliinstallstatus";
@@ -27,6 +29,7 @@ export type CliInstallStatus = {
     output?: string;
     exitcode?: number;
     error?: string;
+    errortext?: ServerText;
     // the installer printed a question and waits for an answer
     waiting?: boolean;
 };

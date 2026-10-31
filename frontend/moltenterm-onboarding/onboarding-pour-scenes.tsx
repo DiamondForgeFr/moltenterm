@@ -8,6 +8,7 @@ import { modalsModel } from "@/app/store/modalmodel";
 import { MoltentermRepoUrl } from "@/util/moltenterm-identity";
 import { useEffect, useId, useRef, useState } from "react";
 import { useT } from "../moltenterm-shell/i18n/i18n";
+import { serverText } from "../moltenterm-shell/i18n/server-text";
 import { formatKeys, modifierLabel } from "../moltenterm-shell/shortcuts/format";
 import { ShortcutsSheetKey } from "../moltenterm-shell/shortcuts/registry";
 import { GlowRing } from "../moltenterm-shell/suite/suite";
@@ -320,7 +321,7 @@ function AgentDrawer({
     } else if (phase === "failed") {
         title = t("onboarding.pour.agents.failedTitle", { name: card.name });
         text = install?.error
-            ? install.error
+            ? serverText(install.errortext, install.error)
             : install?.exitcode
               ? t("onboarding.pour.agents.failedCode", { code: String(install.exitcode) })
               : t("onboarding.pour.agents.failedText");

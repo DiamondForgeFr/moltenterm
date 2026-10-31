@@ -8990,7 +8990,8 @@
             "notDeclined": "{agent} n'a pas été refusé : MoltenTerm installe ses guides au démarrage.",
             "installFailed": "Les guides de {agent} n'ont pas pu être installés : {detail}",
             "noInstallCommand": "MoltenTerm n'a pas de commande d'installation pour {agent}.",
-            "installUnsupported": "Installer {agent} depuis MoltenTerm n'est pas encore possible sur ce système : copiez la commande ci-dessous."
+            "installUnsupported": "Installer {agent} depuis MoltenTerm n'est pas encore possible sur ce système : copiez la commande ci-dessous.",
+            "installNotRun": "La commande n'a pas pu s'exécuter : {detail}"
         }
     },
     "assistedReview": {
