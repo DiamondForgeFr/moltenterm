@@ -1045,7 +1045,7 @@
             },
             "window:textureintensity": {
                 "label": "Intensité de la texture",
-                "description": "La force de la texture de la fenêtre."
+                "description": "La force de la texture Grain ; les autres textures gardent leur propre force."
             },
             "window:bgcolor": {
                 "label": "Fond de la fenêtre",
