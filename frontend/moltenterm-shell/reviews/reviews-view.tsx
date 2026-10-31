@@ -58,6 +58,7 @@ import {
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
+    reviewsNotRepoText,
     reviewsRetryIsPrimary,
     splitReviews,
 } from "./reviews-model";
@@ -145,7 +146,7 @@ function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
     }, [focus, several, projects, workspace?.oid]);
     const shown = several && filter !== AllProjects ? projects.find((p) => p.id === filter) : null;
     const frame = (
-        <MissionFrame title={t("reviews.viewName")} projectDir={shown?.dir}>
+        <MissionFrame title={t("reviews.viewName")} projectDir={shown?.dir} notRepoText={reviewsNotRepoText}>
             {({ project, snapshot }) => (
                 <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
             )}

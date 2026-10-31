@@ -6834,6 +6834,14 @@
             "errorTitle": "GitHub n'a pas pu être lu",
             "errorHint": "gh n'a pas pu répondre. Réessayez dans un instant."
         },
+        "notRepo": {
+            "title": "Ce dossier n'utilise pas encore git",
+            "hint": "Le panneau Intégration suit les changements du projet avec git : ses branches et ses pull requests. Suivez ce dossier avec git pour les voir ici.",
+            "action": "Suivre avec git",
+            "confirmTitle": "Suivre {name} avec git ?",
+            "confirm": "Suivre avec git",
+            "notNow": "Pas maintenant"
+        },
         "check": {
             "button": "Vérifier les agents",
             "buttonTitle": "Demander à l'agent de chaque pull request où il reste quelque chose (conflits, CI rouge, changements demandés, pas de rapport de test) de la vérifier par rapport à son ticket et de la finir. Les autres sont ignorées ; rien ne démarre sans votre confirmation.",
