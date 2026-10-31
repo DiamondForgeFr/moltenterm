@@ -891,7 +891,7 @@
             },
             "window:textureintensity": {
                 "label": "Texture intensity",
-                "description": "How strong the window texture is."
+                "description": "How strong the Grain texture is; the other textures keep their own strength."
             },
             "window:bgcolor": {
                 "label": "Window background",
