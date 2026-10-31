@@ -3,21 +3,17 @@
 
 // "Add a panel on the left / on the right" (#732), in every panel's menus next to "Split…": a new top-level column
 // beside the panel's column, opening on the picker like a split (FR-SHELL-042). The panels already there keep their
-// size: when the new column does not fit beside them, the tab turns its 360 view on and the column is laid on the
-// carpet at its place, scrolled into view and focused.
+// size when the new column fits beside them. When it does not, the column follows the tab's 360 decision like any
+// other panel added (#1668, FR-SHELL-066): the automatic switch (and its first-switch notice) lays it on the carpet,
+// and under Keep the grid the other columns give width down to their minimums instead.
 
-import { globalStore } from "@/app/store/jotaiStore";
-import * as WOS from "@/app/store/wos";
-import { RpcApi } from "@/app/store/wshclientapi";
-import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
 import { currentFirstColumnFloorPx } from "../panel-size/panel-size-store";
-import { clampFixedPx, DefaultCarpetColumnPx } from "../view360/carpet-model";
+import { DefaultCarpetColumnPx } from "../view360/carpet-model";
 import { normalColumnPxs } from "../view360/view360-decision";
-import { View360FixedPxMetaKey, View360MetaKey } from "../view360/view360-meta";
 import {
     besideColumns,
     besideFit,
@@ -26,15 +22,12 @@ import {
     columnIndexOf,
     type ColumnPlace,
     insertIndexFor,
+    shrinkableColumns,
 } from "./add-beside-model";
 import { addPickerColumn } from "./split";
 
 export const AddBesideLeftIcon = "arrow-left";
 export const AddBesideRightIcon = "arrow-right";
-// The tab's 360 view state can take a round trip to arrive; past this the column is added anyway.
-const View360WaitMs = 10000;
-
-type BesidePlan = { place: ColumnPlace; needs360: boolean; firstPx: number };
 
 function tabWidthPx(layoutModel: LayoutModel): { width: number; gap: number } {
     const view360 = layoutModel.moltenView360;
@@ -45,9 +38,9 @@ function tabWidthPx(layoutModel: LayoutModel): { width: number; gap: number } {
     return { width, gap: view360?.lastEvalGap ?? 0 };
 }
 
-// Where the column goes and whether the tab must go to 360 view for it, read from the layout as it is now. Null when
-// the entry is not offered: no layout, a magnified panel, nothing before the fixed zone.
-function planBeside(layoutModel: LayoutModel, blockId: string, side: BesideSide): BesidePlan {
+// Where the column goes, read from the layout as it is now, with the columns' sizes when it stays in the normal
+// layout. Null when the entry is not offered: no layout, a magnified panel, nothing before the fixed zone.
+function planBeside(layoutModel: LayoutModel, blockId: string, side: BesideSide): ColumnPlace {
     const rootNode = layoutModel?.treeState?.rootNode;
     const node = blockId ? layoutModel?.getNodeByBlockId(blockId) : null;
     if (rootNode == null || node == null || layoutModel.magnifiedNodeId != null) {
@@ -60,8 +53,7 @@ function planBeside(layoutModel: LayoutModel, blockId: string, side: BesideSide)
         if (view360.layout == null && side === "left" && columnIndex === 0) {
             return null;
         }
-        const place = besidePlace(rootNode, node.id, side, view360.layout);
-        return place == null ? null : { place, needs360: false, firstPx: null };
+        return besidePlace(rootNode, node.id, side, view360.layout);
     }
     const place = besidePlace(rootNode, node.id, side, null);
     if (place == null || columnIndex < 0) {
@@ -77,25 +69,25 @@ function planBeside(layoutModel: LayoutModel, blockId: string, side: BesideSide)
     // The floor belongs to whatever ends up first (#848): the first column, or the new one when it goes before it.
     const floor = currentFirstColumnFloorPx() ?? 0;
     const insertIndex = insertIndexFor(columnIndex, side);
-    const sizes = besideFit(
-        columns.map((column, i) => ({
-            px: pxs[i],
-            needPx: i === 0 && insertIndex > 0 ? floor : 0,
-            carpetPx: view360?.columnWidthPx(column) ?? DefaultCarpetColumnPx,
-        })),
-        insertIndex,
-        insertIndex === 0 ? Math.max(DefaultCarpetColumnPx, floor) : DefaultCarpetColumnPx,
-        width,
-        gap
-    );
+    const kept = columns.map((column, i) => ({
+        px: pxs[i],
+        needPx: i === 0 && insertIndex > 0 ? floor : 0,
+        carpetPx: view360?.columnWidthPx(column) ?? DefaultCarpetColumnPx,
+    }));
+    const firstAsk = insertIndex === 0 ? floor : 0;
+    const sizes = besideFit(kept, insertIndex, Math.max(DefaultCarpetColumnPx, firstAsk), width, gap);
     if (sizes != null) {
-        return { place: { ...place, columnSizes: sizes }, needs360: false, firstPx: null };
+        return { ...place, columnSizes: sizes };
     }
-    // In 360 view nothing goes before the fixed zone, which the first column becomes.
-    if (side === "left" && columnIndex === 0) {
-        return null;
+    if (view360?.wantsWithColumns(columns.length + 1, width, gap)) {
+        // The automatic switch takes the column to the carpet; in 360 view nothing goes before the fixed zone, which
+        // the first column becomes.
+        return side === "left" && columnIndex === 0 ? null : place;
     }
-    return { place, needs360: true, firstPx: clampFixedPx(pxs[0], width, floor) };
+    // The tab stays in the grid: the columns give width down to their minimums, the new one an equal share when the
+    // room allows it.
+    const shared = besideFit(shrinkableColumns(kept), insertIndex, firstAsk, width, gap);
+    return shared == null ? place : { ...place, columnSizes: shared };
 }
 
 // The sides offered for the panel's menus.
@@ -104,66 +96,13 @@ export function besideSides(blockId: string): BesideSide[] {
     return (["left", "right"] as BesideSide[]).filter((side) => planBeside(layoutModel, blockId, side) != null);
 }
 
-function waitForWanted(layoutModel: LayoutModel): Promise<void> {
-    const view360 = layoutModel.moltenView360;
-    if (view360 == null || view360.wanted) {
-        return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-        let unsub: () => void = null;
-        const done = () => {
-            clearTimeout(timer);
-            unsub?.();
-            resolve();
-        };
-        const timer = setTimeout(done, View360WaitMs);
-        unsub = globalStore.sub(view360.decisionAtom, () => {
-            if (view360.wanted) {
-                done();
-            }
-        });
-    });
-}
-
-// Turns the tab's 360 view on on demand (#733), the fixed zone at the first column's current width so it keeps its
-// size, in one meta write.
-async function enter360KeepingFirst(layoutModel: LayoutModel, firstPx: number): Promise<void> {
-    const view360 = layoutModel.moltenView360;
-    const tabId = view360?.tabId;
-    if (tabId == null) {
-        return;
-    }
-    const meta: Record<string, unknown> = { [View360MetaKey]: true };
-    if (firstPx > 0) {
-        meta[View360FixedPxMetaKey] = Math.round(firstPx);
-    }
-    await RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("tab", tabId), meta: meta as MetaType });
-    await waitForWanted(layoutModel);
-}
-
 export async function addPanelBeside(blockId: string, side: BesideSide): Promise<string> {
     const layoutModel = getLayoutModelForStaticTab();
-    const plan = planBeside(layoutModel, blockId, side);
-    if (plan == null) {
+    if (planBeside(layoutModel, blockId, side) == null) {
         return null;
-    }
-    if (plan.needs360) {
-        await enter360KeepingFirst(layoutModel, plan.firstPx);
     }
     // Read again once the block exists: the layout may have changed meanwhile.
-    const place = () =>
-        plan.needs360 ? replan360(layoutModel, blockId, side) : planBeside(layoutModel, blockId, side)?.place;
-    return addPickerColumn(layoutModel, blockId, place);
-}
-
-// Once the tab wants 360 view: the place beside the panel (the carpet takes it from there, rewriteAction).
-function replan360(layoutModel: LayoutModel, blockId: string, side: BesideSide): ColumnPlace {
-    const rootNode = layoutModel?.treeState?.rootNode;
-    const node = blockId ? layoutModel?.getNodeByBlockId(blockId) : null;
-    if (rootNode == null || node == null) {
-        return null;
-    }
-    return besidePlace(rootNode, node.id, side, layoutModel.moltenView360?.layout ?? null);
+    return addPickerColumn(layoutModel, blockId, () => planBeside(layoutModel, blockId, side));
 }
 
 export function besideLabel(side: BesideSide): string {
