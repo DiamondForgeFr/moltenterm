@@ -353,3 +353,47 @@ describe("closing a tab (FR-SHELL-061 AC3, AC8)", () => {
         expect(closeTab).toHaveBeenCalledWith("ws", "t1", true);
     });
 });
+
+describe("a temporary view set aside for Undo (#1656)", () => {
+    function tab(id: string, blockIds: string[]) {
+        app.objects[`tab:${id}`] = { oid: id, name: "T1", blockids: blockIds };
+    }
+
+    it("sets aside a view where nothing runs, without closing it", async () => {
+        block("b1", { view: "term" });
+        tab("t1", ["b1"]);
+        const closeTab = vi.fn(async () => true);
+        const setAside = vi.fn(async () => true);
+        expect(await closeTabAskingFirst(closeTab, "ws", "t1", false, { setAside })).toBe(true);
+        expect(setAside).toHaveBeenCalledWith("ws", "t1");
+        expect(closeTab).not.toHaveBeenCalled();
+    });
+
+    it("still asks the busy-close guard first, and keeps the view on Cancel", async () => {
+        block("b1", { view: "term" });
+        tab("t1", ["b1"]);
+        busy("b1");
+        app.answer = false;
+        const closeTab = vi.fn(async () => true);
+        const setAside = vi.fn(async () => true);
+        expect(await closeTabAskingFirst(closeTab, "ws", "t1", false, { setAside })).toBe(false);
+        expect(app.asks).toHaveLength(1);
+        expect(setAside).not.toHaveBeenCalled();
+        app.answer = true;
+        expect(await closeTabAskingFirst(closeTab, "ws", "t1", false, { setAside })).toBe(true);
+        expect(setAside).toHaveBeenCalledWith("ws", "t1");
+        expect(closeTab).not.toHaveBeenCalled();
+    });
+
+    it("closes as before when it cannot be set aside, or when Electron's confirmation is on", async () => {
+        block("b1", { view: "term" });
+        tab("t1", ["b1"]);
+        const closeTab = vi.fn(async () => true);
+        expect(await closeTabAskingFirst(closeTab, "ws", "t1", false, { setAside: async () => false })).toBe(true);
+        expect(closeTab).toHaveBeenCalledWith("ws", "t1", false);
+        const setAside = vi.fn(async () => true);
+        await closeTabAskingFirst(closeTab, "ws", "t1", true, { setAside });
+        expect(setAside).not.toHaveBeenCalled();
+        expect(closeTab).toHaveBeenLastCalledWith("ws", "t1", true);
+    });
+});
