@@ -173,11 +173,34 @@
         margin-top: var(--df-block-gap);
         padding: var(--df-block-pad);
         padding-top: var(--df-block-pad-top);
-        border: 1px solid var(--df-line);
+        border: 1px solid transparent;
         border-radius: var(--df-radius-lg);
-        background: var(--df-surface);
         color: var(--df-text);
         font-family: var(--df-font);
+        isolation: isolate;
+    }
+
+    /* The block's fill and outline, with the pockets cut out (#1615): a pocket is a notch outside the block, so the
+       background the block sits on shows around the chip. SectionBlock measures each pocket's width into
+       --df-notch-top and --df-notch-bottom; unmeasured, a notch is empty and the fill is whole. */
+    .df-block::before {
+        --df-notch-height: calc(var(--df-pocket-height) / 2 + 1px);
+        --df-notch-inset: calc(var(--df-pocket-left) + 1px);
+        content: "";
+        position: absolute;
+        inset: -1px;
+        z-index: -1;
+        border: 1px solid var(--df-line);
+        border-radius: inherit;
+        background: var(--df-surface);
+        pointer-events: none;
+        mask:
+            linear-gradient(#000 0 0) var(--df-notch-inset) 0 / var(--df-notch-top, 0px) var(--df-notch-height)
+                no-repeat,
+            linear-gradient(#000 0 0) right var(--df-notch-inset) bottom 0 / var(--df-notch-bottom, 0px)
+                var(--df-notch-height) no-repeat,
+            linear-gradient(#000 0 0);
+        mask-composite: exclude;
     }
 
     .df-block[data-untitled] {
@@ -227,7 +250,6 @@
         border: 1px solid var(--df-line);
         border-top: 0;
         border-radius: 0 0 var(--df-radius-md) var(--df-radius-md);
-        background: var(--df-surface);
     }
 
     .df-pocket-bottom {

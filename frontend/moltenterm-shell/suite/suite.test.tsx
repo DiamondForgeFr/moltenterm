@@ -180,7 +180,10 @@ describe("DiamondForge suite kit (#658)", () => {
         const css = readFileSync(join(KitDir, "suite.css"), "utf8");
         // A shadow reaches above its box by blur + spread - y offset; zero or less keeps the page clean there.
         const reachAbove = (shadow: string) => {
-            const [, y, blur, spread] = shadow.trim().split(/\s+/).map((v) => parseFloat(v));
+            const [, y, blur, spread] = shadow
+                .trim()
+                .split(/\s+/)
+                .map((v) => parseFloat(v));
             return blur + spread - y;
         };
         const chip = css.match(/\.df-chip \{[^}]*\}/)?.[0] ?? "";
@@ -191,6 +194,21 @@ describe("DiamondForge suite kit (#658)", () => {
         expect(reachAbove(tileShadow.split("),")[1].split("color-mix")[0])).toBeLessThanOrEqual(0);
         const tokens = readFileSync(join(KitDir, "..", "tokens.css"), "utf8");
         expect(tokens).toMatch(/\.df-icon-tile \{\s*--df-tile-ring: 0 0 0 0 transparent;\s*\}/);
+    });
+
+    it("cuts the pockets out of the block: the panel shows around the chip, never the block's fill (#1615)", () => {
+        const css = readFileSync(join(KitDir, "suite.css"), "utf8");
+        const block = css.match(/\.df-block \{[^}]*\}/)?.[0] ?? "";
+        expect(block).toContain("border: 1px solid transparent;");
+        expect(block).not.toContain("background");
+        const fill = css.match(/\.df-block::before \{[^}]*\}/)?.[0] ?? "";
+        expect(fill).toContain("background: var(--df-surface);");
+        expect(fill).toContain("border: 1px solid var(--df-line);");
+        expect(fill).toMatch(/var\(--df-notch-top, 0px\)/);
+        expect(fill).toMatch(/var\(--df-notch-bottom, 0px\)/);
+        expect(fill).toContain("mask-composite: exclude;");
+        const pocket = css.match(/\.df-pocket::before \{[^}]*\}/)?.[0] ?? "";
+        expect(pocket).not.toContain("background");
     });
 
     it("keeps Notulia's dominoes: geometry, 1 s cycle, delays, and still under reduced motion (#739)", () => {
