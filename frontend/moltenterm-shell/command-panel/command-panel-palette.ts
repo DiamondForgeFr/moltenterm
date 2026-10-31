@@ -8,6 +8,7 @@
 import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
 import type { PaletteEntry } from "../palette/palette-model";
+import { paletteKeywords } from "../palette/palette-sources";
 import { openCommandPanel } from "./command-panel-store";
 import { makePanelContext } from "./panel-context";
 import { effectiveValue, FlatPanelEntry, flattenPanel, setItemValue } from "./panel-model";
@@ -34,7 +35,7 @@ export function panelPaletteEntries(blockId: string, hint: string): PaletteEntry
         label: t("cmdpanel.palette.open", { panel: panelName }),
         icon: "sliders",
         hint,
-        keywords: ["settings", "gear", "options", "command panel"],
+        keywords: paletteKeywords("commandPanel"),
         run: { kind: "panelcommands" },
     };
     return [

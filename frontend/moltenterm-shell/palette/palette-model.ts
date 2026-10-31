@@ -110,16 +110,27 @@ function isWordStart(text: string, index: number): boolean {
     return prev === prev.toLowerCase() && cur !== cur.toLowerCase();
 }
 
-// Every query character must appear in order in text, case-insensitively. Each character prefers, from where the
+// Lowercase without accents, one character for one, so match indices still point into the shown text (#1670):
+// "epingler" finds "Épingler".
+function foldChars(text: string): string {
+    let out = "";
+    for (const ch of text.toLowerCase()) {
+        const base = ch.normalize("NFD").replace(/[̀-ͯ]/g, "");
+        out += base.length === ch.length ? base : ch;
+    }
+    return out;
+}
+
+// Every query character must appear in order in text, case- and accent-insensitively. Each character prefers, from where the
 // previous one matched, the next word start over a plain occurrence, so "cc" finds "Claude Code" by its initials.
 // Returns null when the query is not a subsequence of text.
 export function fuzzyMatch(query: string, text: string): PaletteMatch {
-    const q = (query ?? "").trim().toLowerCase();
+    const q = foldChars((query ?? "").trim());
     if (q === "") {
         return { score: 0, indices: [] };
     }
     const source = text ?? "";
-    const lower = source.toLowerCase();
+    const lower = foldChars(source);
     const indices: number[] = [];
     let score = 0;
     let from = 0;
