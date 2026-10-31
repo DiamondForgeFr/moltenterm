@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { canMorph, OnboardingAgents } from "./onboarding-agent-model";
+import { CliInstallStatus } from "./onboarding-install-model";
 import { morphRequests } from "./onboarding-morph-model";
 import { CodexId, headlineAgentNames, keptAgent, newlyReady, pourAgentCards } from "./onboarding-pour-agents";
 import {
@@ -39,9 +40,14 @@ export type PourProps = {
     agents: OnboardingAgents;
     agentsError?: string;
     checking: boolean;
+    // the installs Install started, by agent id
+    installs?: Record<string, CliInstallStatus>;
     initialScene?: number;
     onRecord: (record: PourRecord) => void;
     onCheckAgain: () => void;
+    onInstall?: (id: string) => void;
+    onAnswerInstall?: (id: string, text: string) => void;
+    onCancelInstall?: (id: string) => void;
     onSkip: () => void;
     onStart: (start: PourStart) => void;
 };
@@ -53,9 +59,13 @@ export function OnboardingPour({
     agents,
     agentsError,
     checking,
+    installs,
     initialScene,
     onRecord,
     onCheckAgain,
+    onInstall,
+    onAnswerInstall,
+    onCancelInstall,
     onSkip,
     onStart,
 }: PourProps) {
@@ -236,7 +246,16 @@ export function OnboardingPour({
                         checking={checking}
                         open={state.open}
                         ready={readyName}
+                        installs={installs ?? {}}
                         onToggle={(id) => dispatch({ type: "toggle", card: id })}
+                        onInstall={(id) => {
+                            if (state.open !== id) {
+                                dispatch({ type: "toggle", card: id });
+                            }
+                            onInstall?.(id);
+                        }}
+                        onAnswer={(id, text) => onAnswerInstall?.(id, text)}
+                        onCancel={(id) => onCancelInstall?.(id)}
                         onCheck={onCheckAgain}
                     />
                 ) : null}

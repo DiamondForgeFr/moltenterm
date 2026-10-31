@@ -14,6 +14,13 @@ import {
     OnboardingAgents,
     OnboardingAgentsCommand,
 } from "./onboarding-agent-model";
+import {
+    CliInstallCancelCommand,
+    CliInstallCommand,
+    CliInstallInputCommand,
+    CliInstallStatus,
+    CliInstallStatusCommand,
+} from "./onboarding-install-model";
 import { OnboardingMorphDirCommand } from "./onboarding-morph-model";
 import { OnboardingProjectsCommand, ProjectCandidate } from "./onboarding-project-model";
 import {
@@ -29,6 +36,8 @@ import {
 } from "./onboarding-state";
 
 const OnboardingCallTimeoutMs = 10000;
+// wavesrv gives the login shell up to 8 s to print its PATH
+const OnboardingRefreshTimeoutMs = 20000;
 
 export type OnboardingUpdate =
     | { kind: "welcome" }
@@ -60,17 +69,35 @@ export async function findOnboardingPanel(workspaceId: string): Promise<Onboardi
     return rtn ?? {};
 }
 
-// Reading the login shell's PATH can take seconds on the first call; wavesrv reads it once.
-export async function listOnboardingAgents(): Promise<OnboardingAgents> {
-    const rtn = await TabRpcClient.wshRpcCall(
-        OnboardingAgentsCommand,
-        {},
-        {
-            route: OnboardingRoute,
-            timeout: OnboardingCallTimeoutMs,
-        }
-    );
+// Reading the login shell's PATH can take seconds; wavesrv reads it once, and again with refresh (Check again, the
+// check after an install), so an agent installed after launch is found (#1667).
+export async function listOnboardingAgents(refresh?: boolean): Promise<OnboardingAgents> {
+    const rtn = await TabRpcClient.wshRpcCall(OnboardingAgentsCommand, refresh ? { refresh: true } : {}, {
+        route: OnboardingRoute,
+        timeout: refresh ? OnboardingRefreshTimeoutMs : OnboardingCallTimeoutMs,
+    });
     return rtn ?? { agents: [], version: "" };
+}
+
+function cliInstallCall(command: string, data: { id: string; text?: string }): Promise<CliInstallStatus> {
+    return TabRpcClient.wshRpcCall(command, data, { route: OnboardingRoute, timeout: OnboardingCallTimeoutMs });
+}
+
+// Install runs the agent's catalog command in wavesrv: only the id crosses (FR-ONB-007 AC-5).
+export function startCliInstall(id: string): Promise<CliInstallStatus> {
+    return cliInstallCall(CliInstallCommand, { id });
+}
+
+export function cliInstallStatus(id: string): Promise<CliInstallStatus> {
+    return cliInstallCall(CliInstallStatusCommand, { id });
+}
+
+export function answerCliInstall(id: string, text: string): Promise<CliInstallStatus> {
+    return cliInstallCall(CliInstallInputCommand, { id, text });
+}
+
+export function cancelCliInstall(id: string): Promise<CliInstallStatus> {
+    return cliInstallCall(CliInstallCancelCommand, { id });
 }
 
 export async function installDeclinedAgent(id: string): Promise<OnboardingAgent> {

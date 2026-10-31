@@ -1421,15 +1421,16 @@
                 "looking": "Looking for the command-line agents on this computer…",
                 "listFailed": "The agents could not be listed: {error}",
                 "found": {
-                    "none": "MoltenTerm found no command-line agent on this computer yet. Pick one: its install command is ready to copy.",
-                    "one": "MoltenTerm found one command-line agent on this computer. Another one tempts you? Its install command is one click away.",
-                    "other": "MoltenTerm found {count} command-line agents on this computer. Another one tempts you? Its install command is one click away."
+                    "none": "MoltenTerm found no command-line agent on this computer yet. Pick one: Install sets it up.",
+                    "one": "MoltenTerm found one command-line agent on this computer. Another one tempts you? It installs in one click.",
+                    "other": "MoltenTerm found {count} command-line agents on this computer. Another one tempts you? It installs in one click."
                 },
                 "nowReady": "{name} is ready. Change agents whenever you like: the workshop stays the same.",
                 "status": {
                     "ready": "Ready",
                     "missing": "Not installed",
                     "looking": "Looking…",
+                    "installing": "Installing…",
                     "recipe": "Runs in {agent}"
                 },
                 "level": {
@@ -1447,7 +1448,22 @@
                 "install": "Install",
                 "configure": "Configure",
                 "installTitle": "Install {name}",
-                "installText": "Copy this command into a terminal, then come back and check again. Nothing runs from here.",
+                "installText": "MoltenTerm runs this official command in your shell. Sign-in, if the agent needs one, comes when it first starts.",
+                "installing": "Installing {name}…",
+                "installingText": "MoltenTerm runs this official command in your shell, then checks again by itself.",
+                "showDetails": "Show details",
+                "hideDetails": "Hide details",
+                "cancel": "Cancel",
+                "noOutput": "Nothing printed yet.",
+                "asking": "The installer is asking a question. Type your answer, then press Enter.",
+                "send": "Send",
+                "failedTitle": "{name} did not install",
+                "failedText": "The command did not work.",
+                "failedCode": "The command did not work: it stopped with code {code}.",
+                "notFound": "The command finished, but MoltenTerm cannot find {command} on this computer yet.",
+                "canceled": "Install canceled: the command was stopped.",
+                "fallback": "You can run the command yourself, or follow the install page.",
+                "tryAgain": "Try again",
                 "or": "Or:",
                 "needs": "It needs: {account}.",
                 "checkAgain": "Check again",
@@ -8995,7 +9011,9 @@
         },
         "onboarding": {
             "notDeclined": "{agent} was not declined: MoltenTerm installs its guides at start.",
-            "installFailed": "The guides of {agent} could not be installed: {detail}"
+            "installFailed": "The guides of {agent} could not be installed: {detail}",
+            "noInstallCommand": "MoltenTerm has no install command for {agent}.",
+            "installUnsupported": "Installing {agent} from MoltenTerm is not available on this system yet: copy the command below."
         }
     },
     "assistedReview": {

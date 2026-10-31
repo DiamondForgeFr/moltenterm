@@ -27,21 +27,54 @@ const (
 	MorphDirCommand     = "onboardingmorphdir"
 )
 
-// The pages the step links to when no agent is found; checked on 2026-10-12.
-var agentInstallPages = map[string]string{
-	"claude-code": "https://code.claude.com/docs/en/setup",
-	"codex":       "https://developers.openai.com/codex/cli",
-	"gemini-cli":  "https://github.com/google-gemini/gemini-cli",
-	"qwen-code":   "https://github.com/QwenLM/qwen-code",
-	"kimi":        "https://github.com/MoonshotAI/kimi-cli",
+type agentInstall struct {
+	Page string
+	// The official commands, the first the one Install runs (FR-ONB-007 AC-5): the only commands MoltenTerm ever runs
+	// to install an agent, looked up here by agent id.
+	Commands []string
+}
+
+// The install catalog, pages and commands together so they cannot drift; checked against the vendors' pages on
+// 2026-10-31 (Kimi Code's page moved off the kimi-cli repository, archived on 2026-09-23). The scripts come first:
+// they need no Node.js.
+var agentInstallCatalog = map[string]agentInstall{
+	"claude-code": {
+		Page:     "https://code.claude.com/docs/en/setup",
+		Commands: []string{"curl -fsSL https://claude.ai/install.sh | bash"},
+	},
+	"codex": {
+		Page:     "https://learn.chatgpt.com/docs/codex/cli",
+		Commands: []string{"curl -fsSL https://chatgpt.com/codex/install.sh | sh", "npm i -g @openai/codex"},
+	},
+	"gemini-cli": {
+		Page:     "https://github.com/google-gemini/gemini-cli",
+		Commands: []string{"npm install -g @google/gemini-cli"},
+	},
+	"qwen-code": {
+		Page: "https://github.com/QwenLM/qwen-code",
+		Commands: []string{
+			"curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+			"npm install -g @qwen-code/qwen-code@latest",
+		},
+	},
+	"kimi": {
+		Page:     "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started",
+		Commands: []string{"curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"},
+	},
 }
 
 type AgentEntry struct {
 	molten.AgentStatus
-	Executable  string `json:"executable,omitempty"`
-	Found       bool   `json:"found"`
-	FoundPath   string `json:"foundpath,omitempty"`
-	InstallPage string `json:"installpage,omitempty"`
+	Executable      string   `json:"executable,omitempty"`
+	Found           bool     `json:"found"`
+	FoundPath       string   `json:"foundpath,omitempty"`
+	InstallPage     string   `json:"installpage,omitempty"`
+	InstallCommands []string `json:"installcommands,omitempty"`
+}
+
+type agentsRequest struct {
+	// Refresh reads the login shell's PATH again first (Check again, the check after an install).
+	Refresh bool `json:"refresh,omitempty"`
 }
 
 type AgentsResult struct {
@@ -58,9 +91,10 @@ func ListAgents(env molten.AgentEnv, pathList string, version string) AgentsResu
 	rtn := AgentsResult{Agents: []AgentEntry{}, Version: version}
 	for _, profile := range molten.AgentProfiles {
 		entry := AgentEntry{
-			AgentStatus: profile.Status(env),
-			Executable:  profile.Executable,
-			InstallPage: agentInstallPages[profile.Id],
+			AgentStatus:     profile.Status(env),
+			Executable:      profile.Executable,
+			InstallPage:     agentInstallCatalog[profile.Id].Page,
+			InstallCommands: installCommands(profile.Id),
 		}
 		if profile.Executable != "" {
 			entry.FoundPath = molten.LookPathIn(profile.Executable, pathList)
@@ -113,11 +147,21 @@ func agentEnv() (molten.AgentEnv, error) {
 }
 
 func handleAgents(ctx context.Context, source string, data any) (any, error) {
+	var req agentsRequest
+	if data != nil {
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+	}
 	env, err := agentEnv()
 	if err != nil {
 		return nil, err
 	}
-	return ListAgents(env, molten.LoginPath(), wavebase.WaveVersion), nil
+	path := molten.LoginPath()
+	if req.Refresh {
+		path = molten.RefreshLoginPath()
+	}
+	return ListAgents(env, path, wavebase.WaveVersion), nil
 }
 
 func handleAgentInstall(ctx context.Context, source string, data any) (any, error) {

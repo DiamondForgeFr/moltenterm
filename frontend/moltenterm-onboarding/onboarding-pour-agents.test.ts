@@ -28,6 +28,7 @@ function agent(id: string, name: string, executable: string, found: boolean, ext
         installed: found,
         guides: [],
         installpage: `https://example.invalid/${id}`,
+        installcommands: [`install ${id}`, `npm i -g ${id}`],
         ...extra,
     } as OnboardingAgent;
 }
@@ -57,17 +58,16 @@ describe("the agent cards (FR-ONB-007)", () => {
         expect(claude).toMatchObject({ command: "claude", ready: true, full: true });
         const kimi = cards.find((c) => c.id === "kimi");
         expect(kimi).toMatchObject({ command: "kimi", ready: false, full: false, account: "subscription" });
-        expect(kimi.install[0]).toBe("curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash");
         expect(kimi.installPage).toBe("https://example.invalid/kimi");
     });
 
-    it("installs nothing: the official commands are there to copy", () => {
-        expect(cards.find((c) => c.id === "claude-code").install).toEqual([
-            "curl -fsSL https://claude.ai/install.sh | bash",
-        ]);
-        expect(cards.find((c) => c.id === "codex").install[0]).toBe("npm i -g @openai/codex");
-        expect(cards.find((c) => c.id === "qwen-code").install[0]).toBe("npm i -g @qwen-code/qwen-code");
-        expect(cards.find((c) => c.id === "gemini-cli").install[0]).toBe("npm install -g @google/gemini-cli");
+    it("shows wavesrv's catalog commands, the one Install runs first (#1667)", () => {
+        expect(cards.find((c) => c.id === "kimi").install).toEqual(["install kimi", "npm i -g kimi"]);
+        const bare = pourAgentCards({
+            version: "1",
+            agents: [agent("kimi", "Kimi Code", "kimi", false, { installcommands: undefined })],
+        });
+        expect(bare[0].install).toEqual([]);
     });
 
     it("reminds to approve Codex's hooks in /hooks", () => {
