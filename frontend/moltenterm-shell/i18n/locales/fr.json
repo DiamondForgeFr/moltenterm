@@ -3491,14 +3491,16 @@
             "tryAgain": "Réessayer",
             "folderEmpty": "Ce dossier est vide.",
             "filesInFolder": "Fichiers du dossier",
-            "gitInitTitle": "Initialiser git ici ?",
-            "initializing": "Initialisation…",
-            "initGit": "Initialiser git",
+            "gitInitTitle": "Suivre {name} avec git ?",
+            "initializing": "Démarrage de git…",
+            "initGit": "Suivre avec git",
+            "notNow": "Pas maintenant",
             "gitInitBody": "MoltenTerm lance git init dans ce dossier. Cela ajoute un dépôt vide (un dossier .git) : vos fichiers restent tels quels, rien n'est commité.",
             "gitInitFailed": "Git n'a pas pu créer le dépôt.",
-            "notRepoTitle": "Ce dossier n'est pas un dépôt git",
-            "notRepoHint": "Ce panneau suit un projet à travers son historique git. Initialisez git ici ou choisissez un autre dossier.",
-            "initGitHere": "Initialiser git ici",
+            "notRepoTitle": "Ce dossier n'utilise pas encore git",
+            "notRepoHint": "Ce panneau suit le projet à travers son historique git. Suivez ce dossier avec git pour le voir ici.",
+            "notRepoElsewhere": "Suivez-le avec git depuis le panneau {panel} de cette vue.",
+            "initGitHere": "Suivre avec git",
             "readingHistory": "Lecture de l'historique…",
             "chooseFolder": "Choisir un autre dossier",
             "noGitTitle": "Git n'est pas installé",
@@ -6859,12 +6861,7 @@
             "errorHint": "gh n'a pas pu répondre. Réessayez dans un instant."
         },
         "notRepo": {
-            "title": "Ce dossier n'utilise pas encore git",
-            "hint": "Le panneau Intégration suit les changements du projet avec git : ses branches et ses pull requests. Suivez ce dossier avec git pour les voir ici.",
-            "action": "Suivre avec git",
-            "confirmTitle": "Suivre {name} avec git ?",
-            "confirm": "Suivre avec git",
-            "notNow": "Pas maintenant"
+            "hint": "Le panneau Intégration suit les changements du projet avec git : ses branches et ses pull requests. Suivez ce dossier avec git pour les voir ici."
         },
         "check": {
             "button": "Vérifier les agents",

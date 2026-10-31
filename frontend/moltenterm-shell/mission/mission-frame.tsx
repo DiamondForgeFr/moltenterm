@@ -6,6 +6,7 @@
 // its age and a refresh button.
 
 import { atoms, createBlock } from "@/app/store/global";
+import { useTabModelMaybe } from "@/app/store/tab-model";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
@@ -25,6 +26,7 @@ import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
 import { missionGitInit, useMissionSnapshot } from "./mission-client";
 import { formatAge, MissionSnapshot, PipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
 import { useMissionScope } from "./mission-scope";
+import { GitPanel, GitPanelNameKey, useNotRepoCarrier } from "./not-repo-carrier";
 
 export type ActiveProject = { workspace: Workspace; dir: string; facts: ProjectFacts };
 
@@ -199,27 +201,26 @@ export function MissionHeader({
     );
 }
 
-// The words of the state shown in a folder that does not use git (FR-SHELL-053-AC2), for a panel that says in its own
-// terms why it needs git (FR-REV-001 AC15); without them the Project panel's words. confirmTitle names the folder.
+// The hint of the state shown in a folder that does not use git (FR-SHELL-053-AC2), for a panel that says in its own
+// terms why it needs git (FR-REV-001 AC15); without it the generic hint. The action and its confirmation are the same
+// in every panel (#1671).
 export type NotRepoText = {
-    title: string;
     hint: string;
-    action: string;
-    confirmTitle: string;
-    confirm: string;
-    cancel: string;
 };
 
 // Renders the panel once a project is linked and readable; otherwise the state that explains why, with its fix.
+// gitPanel says which git panel this is, so a view holding several on a folder without git keeps one call to action.
 export function MissionFrame({
     title,
     projectDir,
+    gitPanel,
     notRepoText,
     children,
 }: {
     title: string;
     projectDir?: string;
-    notRepoText?: (dir: string) => NotRepoText;
+    gitPanel?: GitPanel;
+    notRepoText?: NotRepoText;
     children: (props: { project: ActiveProject; snapshot: MissionSnapshot; refresh: () => void }) => React.ReactNode;
 }) {
     const t = useT();
@@ -266,7 +267,8 @@ export function MissionFrame({
                 project={project}
                 gitError={snapshot.giterror}
                 refresh={refresh}
-                notRepoText={notRepoText?.(project.dir)}
+                gitPanel={gitPanel}
+                notRepoText={notRepoText}
             />
         );
     }
@@ -346,17 +348,7 @@ function FolderGlance({ dir }: { dir: string }) {
     );
 }
 
-function GitInitDialog({
-    dir,
-    text,
-    onCancel,
-    onDone,
-}: {
-    dir: string;
-    text?: NotRepoText;
-    onCancel: () => void;
-    onDone: () => void;
-}) {
+function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () => void; onDone: () => void }) {
     const t = useT();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
@@ -383,7 +375,7 @@ function GitInitDialog({
         <DialogFrame
             role="molten-git-init"
             onEscape={busy ? undefined : onCancel}
-            title={text?.confirmTitle ?? t("mc.frame.gitInitTitle")}
+            title={t("mc.frame.gitInitTitle", { name: pathBaseName(dir) })}
             subtitle={dir}
             trapFocus
             buttons={
@@ -395,7 +387,7 @@ function GitInitDialog({
                         onClick={onCancel}
                         disabled={busy}
                     >
-                        {text?.cancel ?? t("common.cancel")}
+                        {t("mc.frame.notNow")}
                     </button>
                     <button
                         type="button"
@@ -406,7 +398,7 @@ function GitInitDialog({
                         data-testid="mission-git-init-confirm"
                     >
                         {busy ? <DominoLoader className="mr-1.5" /> : null}
-                        {busy ? t("mc.frame.initializing") : (text?.confirm ?? t("mc.frame.initGit"))}
+                        {busy ? t("mc.frame.initializing") : t("mc.frame.initGit")}
                         <MoltenWave />
                     </button>
                 </>
@@ -431,30 +423,45 @@ export function GitProblemState({
     project,
     gitError,
     refresh,
+    gitPanel,
     notRepoText,
 }: {
     project: ActiveProject;
     gitError: string;
     refresh: () => void;
+    gitPanel?: GitPanel;
     notRepoText?: NotRepoText;
 }) {
     const t = useT();
     const [confirming, setConfirming] = useState(false);
     const [initialized, setInitialized] = useState(false);
+    const tabId = useTabModelMaybe()?.tabId;
+    const blockId = usePanelBlockId();
+    const problem = gitProblem(gitError);
+    const carrier = useNotRepoCarrier(tabId, project.dir, blockId, problem === "notrepo" ? gitPanel : null);
     useEffect(() => {
         setInitialized(false);
     }, [gitError]);
-    const problem = gitProblem(gitError);
+    if (problem === "notrepo" && carrier != null) {
+        return (
+            <EmptyState
+                icon="code-branch"
+                title={t("mc.frame.notRepoTitle")}
+                hint={t("mc.frame.notRepoElsewhere", { panel: t(GitPanelNameKey[carrier]) })}
+                testId="mission-not-git-pointer"
+            />
+        );
+    }
     if (problem === "notrepo") {
-        // A panel with its own words reads this as a step not taken yet, not a failure: git's output stays out of it.
+        // A step not taken yet, not a failure: git's output stays out of it.
         return (
             <>
                 <EmptyState
                     icon="code-branch"
-                    title={notRepoText?.title ?? t("mc.frame.notRepoTitle")}
+                    title={t("mc.frame.notRepoTitle")}
                     hint={notRepoText?.hint ?? t("mc.frame.notRepoHint")}
                     primary={{
-                        label: notRepoText?.action ?? t("mc.frame.initGitHere"),
+                        label: t("mc.frame.initGitHere"),
                         busy: initialized,
                         busyLabel: t("mc.frame.readingHistory"),
                         onClick: () => setConfirming(true),
@@ -465,7 +472,6 @@ export function GitProblemState({
                         onClick: () => linkProject(project.workspace),
                         testId: "mission-choose-folder",
                     }}
-                    details={notRepoText == null ? gitError : undefined}
                     testId="mission-not-git"
                 >
                     <FolderGlance dir={project.dir} />
@@ -473,7 +479,6 @@ export function GitProblemState({
                 {confirming ? (
                     <GitInitDialog
                         dir={project.dir}
-                        text={notRepoText}
                         onCancel={() => setConfirming(false)}
                         onDone={() => {
                             setConfirming(false);

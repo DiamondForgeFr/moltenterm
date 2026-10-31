@@ -3491,14 +3491,16 @@
             "tryAgain": "Try again",
             "folderEmpty": "This folder is empty.",
             "filesInFolder": "Files in the folder",
-            "gitInitTitle": "Initialize git here?",
-            "initializing": "Initializing…",
-            "initGit": "Initialize git",
+            "gitInitTitle": "Start tracking {name} with git?",
+            "initializing": "Starting git…",
+            "initGit": "Start tracking with git",
+            "notNow": "Not now",
             "gitInitBody": "MoltenTerm runs git init in this folder. It adds an empty repository (a .git folder): your files stay as they are, nothing is committed.",
             "gitInitFailed": "Git could not create the repository.",
-            "notRepoTitle": "This folder is not a git repository",
-            "notRepoHint": "This panel follows a project through its git history. Initialize git here or choose another folder.",
-            "initGitHere": "Initialize git here",
+            "notRepoTitle": "This folder does not use git yet",
+            "notRepoHint": "This panel follows the project through its git history. Start tracking this folder with git to see it here.",
+            "notRepoElsewhere": "Start tracking it with git from the {panel} panel in this view.",
+            "initGitHere": "Start tracking with git",
             "readingHistory": "Reading the history…",
             "chooseFolder": "Choose another folder",
             "noGitTitle": "Git is not installed",
@@ -6859,12 +6861,7 @@
             "errorHint": "gh could not answer. Try again in a moment."
         },
         "notRepo": {
-            "title": "This folder does not use git yet",
-            "hint": "The Integration panel follows the project's changes with git: its branches and its pull requests. Start tracking this folder with git to see them here.",
-            "action": "Start tracking with git",
-            "confirmTitle": "Start tracking {name} with git?",
-            "confirm": "Start tracking with git",
-            "notNow": "Not now"
+            "hint": "The Integration panel follows the project's changes with git: its branches and its pull requests. Start tracking this folder with git to see them here."
         },
         "check": {
             "button": "Check the agents",
