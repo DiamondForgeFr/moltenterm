@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The full-frame welcome (FR-SHELL-110 AC-1): the >_ glyph with the turning light, one molten call to action, and the
+// The full-frame welcome (FR-SHELL-110 AC-1): the MoltenTerm symbol with the turning light, one molten call to action, and the
 // credit to Wave Terminal in About rather than on the welcome.
 
+import { MoltentermMarkPath, MoltentermMarkViewBox } from "@/util/moltenterm-identity";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import en from "../moltenterm-shell/i18n/locales/en.json";
@@ -19,7 +20,15 @@ describe("OnboardingWelcome", () => {
         expect(html).toContain('class="molten-welcome"');
         expect(html).toMatch(/class="molten-welcome-glyph"[^>]*><span class="df-glow" data-on=""/);
         expect(html).toMatch(/<linearGradient id="mt-welcome-[\w-]+"/);
-        expect(html).toMatch(/stroke="url\(#mt-welcome-[\w-]+\)"/);
+        expect(html).toMatch(/fill="url\(#mt-welcome-[\w-]+\)"/);
+    });
+
+    it("draws the MoltenTerm symbol as one filled shape, not the two-stroke >_ (#1617)", () => {
+        const glyph = html.match(/class="molten-welcome-glyph".*?<\/svg>/)[0];
+        expect(glyph.match(/<path /g)).toHaveLength(1);
+        expect(glyph).toContain(`d="${MoltentermMarkPath}"`);
+        expect(glyph).toContain(`viewBox="${MoltentermMarkViewBox}"`);
+        expect(glyph).not.toContain("stroke=");
     });
 
     it("has one molten call to action, with its wave", () => {

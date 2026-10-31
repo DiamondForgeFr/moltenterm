@@ -1,13 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The welcome page, the panel's first (FR-ONB-001), full frame (FR-SHELL-110): the >_ glyph with the turning light,
+// The welcome page, the panel's first (FR-ONB-001), full frame (FR-SHELL-110): the MoltenTerm symbol with the turning light,
 // what MoltenTerm is in a few lines, one molten call to action, the licence and the privacy commitment; the credit to
 // Wave Terminal lives in About. Everything is bundled: no remote font, image or request until the user clicks a link
 // (NFR-ONB-002).
 
 import { modalsModel } from "@/app/store/modalmodel";
-import { MoltentermRepoUrl } from "@/util/moltenterm-identity";
+import { MoltentermMarkPath, MoltentermMarkViewBox, MoltentermRepoUrl } from "@/util/moltenterm-identity";
 import { cn } from "@/util/util";
 import { useId } from "react";
 import { useT } from "../moltenterm-shell/i18n/i18n";
@@ -156,7 +156,7 @@ export function OnboardingWelcome({
     );
 }
 
-// The >_ glyph in molten metal; the light turning round its frame says MoltenTerm is getting ready (stilled under
+// The MoltenTerm symbol in molten metal; the light turning round its frame says MoltenTerm is getting ready (stilled under
 // reduced motion).
 function WelcomeGlyph() {
     // React's ids hold characters a url(#…) reference does not take.
@@ -164,23 +164,15 @@ function WelcomeGlyph() {
     return (
         <div className="molten-welcome-glyph" aria-hidden>
             <GlowRing on />
-            <svg viewBox="0 0 40 40">
+            <svg viewBox={MoltentermMarkViewBox}>
                 <defs>
-                    <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" y1="8" x2="0" y2="32">
+                    <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="235">
                         <stop offset="0" className="stop-hot" />
                         <stop offset=".35" className="stop-mid" />
                         <stop offset="1" className="stop-base" />
                     </linearGradient>
                 </defs>
-                <path
-                    d="M8 11 L18 20 L8 29"
-                    stroke={`url(#${gradientId})`}
-                    strokeWidth="4"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                />
-                <path d="M21 30 H33" stroke={`url(#${gradientId})`} strokeWidth="4" strokeLinecap="round" />
+                <path d={MoltentermMarkPath} fill={`url(#${gradientId})`} />
             </svg>
         </div>
     );
