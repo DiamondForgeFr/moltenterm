@@ -14,10 +14,9 @@ import {
     LayoutTreeInsertNodeAction,
     newLayoutNode,
 } from "@/layout/index";
-import { currentOnboardingState, findOnboardingPanel, setPanelPage } from "./onboarding-client";
+import { findOnboardingPanel, setPanelPage } from "./onboarding-client";
 import { dockAction, PanelNodeSize } from "./onboarding-dock";
-import { FirstRunPage, MoltentermOnboardingView, OnboardingPageMetaKey, reopenPage } from "./onboarding-state";
-import { ShownStepIds } from "./onboarding-steps";
+import { FirstRunPage, MoltentermOnboardingView, OnboardingPageMetaKey } from "./onboarding-state";
 
 function focusBlock(blockId: string): boolean {
     const layoutModel = getLayoutModelForStaticTab();
@@ -59,7 +58,8 @@ async function dockNewPanel(page: FirstRunPage): Promise<string> {
 
 // The workspace keeps one panel: opening again shows it rather than adding a second one.
 export async function openFirstRun(): Promise<void> {
-    const page = reopenPage(currentOnboardingState(), ShownStepIds);
+    // The panel shows the pour from its first scene (FR-ONB-007 AC-9); the page stays in its meta for older panels.
+    const page: FirstRunPage = "welcome";
     const workspaceId = globalStore.get(atoms.workspace)?.oid;
     let found: { tabid?: string; blockid?: string } = {};
     try {

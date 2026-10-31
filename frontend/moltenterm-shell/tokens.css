@@ -11,7 +11,7 @@
    (and the snap of build/cap-radius.ts onto the two radii) until a MoltenTerm patch moves them onto the tokens.
 
    Type        text-11 · text-12 (UI default) · text-13 (panel body) · text-15 · text-20 (section titles) · text-32
-               (onboarding and hero numbers); weights font-normal 400 · font-medium 500 · font-semibold 600 only.
+               (onboarding and hero numbers) · 48, plain CSS only (the first launch's display titles, FR-ONB-007); weights font-normal 400 · font-medium 500 · font-semibold 600 only.
                Mono (font-mono) only for paths, code, hashes and shortcuts.
    Spacing     Tailwind's 4 px grid (1 = 4 px: p-1, p-2, p-3, p-4, p-6, p-8); rows h-row 28 px (menus, lists) and
                h-row-lg 32 px (inputs, tab bar items).
@@ -51,6 +51,8 @@
     --mt-text-15: 15px;
     --mt-text-20: 20px;
     --mt-text-32: 32px;
+    /* Display: the scene titles and the clock of the first launch, full frame (FR-ONB-007). */
+    --mt-text-48: 48px;
 
     --mt-weight-regular: 400;
     --mt-weight-medium: 500;

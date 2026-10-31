@@ -1,46 +1,52 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The first-run panel (FR-ONB-001, DS-ONB-001): a block docked on the left of the tab, so the panes its steps open
-// land on its right, it resizes like any pane and it stays in place across a restart. Its page lives in its block
-// meta; the record of the run lives in the client meta, written by wavesrv.
+// The first-run panel (FR-ONB-001, DS-ONB-001): a block that fills the first tab on a fresh install, or docks on the
+// left of the tab when Getting started opens it again; it resizes like any pane and stays in place across a restart.
+// Its page is the pour (FR-ONB-007, DS-ONB-007), full frame without a pane header; the record of the run lives in the
+// client meta, written by wavesrv.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { ErrorBoundary } from "@/app/element/errorboundary";
-import { ClientModel } from "@/app/store/client-model";
 import { atoms, getApi, replaceBlock } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import { WorkspaceService } from "@/app/store/services";
 import { getActiveTabModel } from "@/app/store/tab-model";
-import * as WOS from "@/app/store/wos";
-import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
-import { useMemo } from "react";
+import { fireAndForget } from "@/util/util";
+import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useEffect } from "react";
 import { I18nModel, t, useT } from "../moltenterm-shell/i18n/i18n";
 import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
-import { MoltenWave } from "../moltenterm-shell/molten-button";
-import { onboardingUpdate, OnboardingUpdate, setPanelPage } from "./onboarding-client";
-import { openBesidePanel } from "./onboarding-open";
 import {
-    FirstRunPage,
-    FirstRunStepId,
-    MoltentermOnboardingView,
-    OnboardingMetaKey,
-    OnboardingPageMetaKey,
-    OnboardingState,
-    pageAfter,
-    pageStep,
-    panelPage,
-    progressLabel,
-    readOnboardingState,
-    reopenPage,
-} from "./onboarding-state";
-import { OnboardingStepper } from "./onboarding-stepper";
-import { findFirstRunStep, FirstRunStep, FirstRunStepContext, ShownStepIds } from "./onboarding-steps";
-import { OnboardingSummary } from "./onboarding-summary";
-import { OnboardingWelcome } from "./onboarding-welcome";
+    chooseMoltentermPath,
+    findProjectRoot,
+    linkWorkspaceProject,
+    readProjectFacts,
+    setWorkspaceFolder,
+} from "../moltenterm-shell/workspace-project-store";
+import { canMorph, ChosenAgentKey, OnboardingAgents } from "./onboarding-agent-model";
+import {
+    currentOnboardingState,
+    ensureMorphDir,
+    listOnboardingAgents,
+    onboardingUpdate,
+    OnboardingUpdate,
+} from "./onboarding-client";
+import { OnboardingPour } from "./onboarding-pour";
+import { keptAgent } from "./onboarding-pour-agents";
+import { PourRecord, PourStart } from "./onboarding-pour-model";
+import { projectColour, ProjectFolderKey } from "./onboarding-project-model";
+import { MoltentermOnboardingView } from "./onboarding-state";
 
 export { MoltentermOnboardingView };
+
+// The palette's agent start, loaded on use: palette-actions opens Getting started, so a static import would loop back
+// into this view.
+async function typeCommand(blockId: string, command: string): Promise<boolean> {
+    const { typeCommandWhenReady } = await import("../moltenterm-shell/palette/palette-actions");
+    return typeCommandWhenReady(blockId, command);
+}
 
 export class OnboardingViewModel implements ViewModel {
     viewType = MoltentermOnboardingView;
@@ -52,20 +58,17 @@ export class OnboardingViewModel implements ViewModel {
         return t("onboarding.viewName");
     });
     noPadding = atom(true);
+    // The pour is full frame (FR-SHELL-110, FR-ONB-007 AC-1): no pane header above it.
+    noHeader = atom(true);
     busyAtom = atom(false) as PrimitiveAtom<boolean>;
     errorAtom = atom(null) as PrimitiveAtom<string>;
-    blockAtom: Atom<Block>;
-    noHeader: Atom<boolean>;
+    agentsAtom = atom(null) as PrimitiveAtom<OnboardingAgents>;
+    agentsErrorAtom = atom(null) as PrimitiveAtom<string>;
+    checkingAtom = atom(false) as PrimitiveAtom<boolean>;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
-        this.blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId));
-        // The welcome is full frame (FR-SHELL-110): no pane header above it; the steps keep theirs.
-        this.noHeader = atom((get) => {
-            const state = readOnboardingState(get(ClientModel.getInstance().clientAtom)?.meta);
-            return panelPage(state, get(this.blockAtom)?.meta?.[OnboardingPageMetaKey], ShownStepIds) === "welcome";
-        });
     }
 
     get viewComponent(): ViewComponent {
@@ -88,25 +91,57 @@ export class OnboardingViewModel implements ViewModel {
         }
     }
 
-    update(update: OnboardingUpdate): Promise<OnboardingState> {
+    update(update: OnboardingUpdate): Promise<unknown> {
         return onboardingUpdate(update);
     }
 
-    goTo(page: FirstRunPage): Promise<void> {
-        return this.run(() => setPanelPage(this.blockId, page));
+    // Scene 2's detection (FR-ONB-002), read again by Check again; a failure says so in the scene.
+    async loadAgents(): Promise<void> {
+        if (globalStore.get(this.checkingAtom)) {
+            return;
+        }
+        globalStore.set(this.checkingAtom, true);
+        globalStore.set(this.agentsErrorAtom, null);
+        try {
+            globalStore.set(this.agentsAtom, await listOnboardingAgents());
+        } catch (e) {
+            globalStore.set(
+                this.agentsErrorAtom,
+                t("onboarding.pour.agents.listFailed", { error: serverErrorText(e) })
+            );
+        } finally {
+            globalStore.set(this.checkingAtom, false);
+        }
     }
 
-    start(): Promise<void> {
-        return this.run(async () => {
-            const state = await this.update({ kind: "welcome" });
-            await setPanelPage(this.blockId, reopenPage(state, ShownStepIds));
+    // What moving on records (FR-ONB-007 AC-9): the welcome as before (Wave's terms, the welcome time), then the agent
+    // step with the agent kept for /morph, or skipped when none is found. Moving on never waits for wavesrv.
+    record(record: PourRecord) {
+        fireAndForget(async () => {
+            try {
+                if (record === "welcome") {
+                    await this.update({ kind: "welcome" });
+                    return;
+                }
+                if (record !== "agents") {
+                    return;
+                }
+                const agent = keptAgent(globalStore.get(this.agentsAtom));
+                if (agent == null) {
+                    await this.update({ kind: "step", step: "agent", status: "skipped" });
+                    return;
+                }
+                await this.update({ kind: "data", step: "agent", data: { [ChosenAgentKey]: agent.id } });
+                await this.update({ kind: "step", step: "agent", status: "done" });
+            } catch (e) {
+                globalStore.set(this.errorAtom, serverErrorText(e));
+            }
         });
     }
 
-    // Skip setup, Leave setup and Close all end the run, then take the panel away; Getting started brings it back.
-    // Closing the last pane of a tab closes the tab, and the window with its last tab: a panel left alone in its tab
-    // gives way to a terminal instead.
-    private async closePanel(): Promise<void> {
+    // Ending the run takes the panel away; Getting started brings it back. Closing the last pane of a tab closes the
+    // tab, and the window with its last tab: a panel left alone in its tab gives way to a terminal instead.
+    async closePanel(): Promise<void> {
         const tabAtom = getActiveTabModel()?.tabAtom;
         const blockCount = tabAtom == null ? 0 : (globalStore.get(tabAtom)?.blockids?.length ?? 0);
         if (blockCount === 1) {
@@ -116,178 +151,123 @@ export class OnboardingViewModel implements ViewModel {
         uxCloseBlock(this.blockId);
     }
 
-    private endAndClose(kind: "leave" | "finish"): Promise<void> {
-        return this.run(async () => {
-            await this.update({ kind });
-            await this.closePanel();
-        });
+    // The run ends; a fresh install's starter workspace gets the template's views as it does (FR-SHELL-110), and
+    // the first of them shows when asked. Asking wavesrv for them again only finds them.
+    async finishRun(openView: boolean): Promise<void> {
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        const starter = !!workspaceId && currentOnboardingState().starterws === workspaceId;
+        await this.update({ kind: "finish" });
+        const tabId = openView && starter ? await WorkspaceService.AddWorkspaceViews(workspaceId) : "";
+        await this.closePanel();
+        if (tabId) {
+            getApi().setActiveTab(tabId);
+        }
     }
 
+    // Skip: the run ends by leave, as the welcome's Skip did; Getting started stays in the Help menu.
     leave(): Promise<void> {
-        return this.endAndClose("leave");
-    }
-
-    finish(): Promise<void> {
-        return this.endAndClose("finish");
-    }
-
-    // The summary's next step (FR-SHELL-110): the run ends, which gives the starter workspace the template's views
-    // before wavesrv answers, then the first of them is shown. Asking for them again only finds them.
-    finishAndOpenView(): Promise<void> {
         return this.run(async () => {
-            await this.update({ kind: "finish" });
-            const workspaceId = globalStore.get(atoms.workspace)?.oid;
-            const tabId = workspaceId ? await WorkspaceService.AddWorkspaceViews(workspaceId) : "";
+            await this.update({ kind: "leave" });
             await this.closePanel();
-            if (tabId) {
-                getApi().setActiveTab(tabId);
-            }
         });
     }
 
-    // Records the step, then moves to the next step not done after it (skipping always moves forward).
-    async moveOn(stepId: FirstRunStepId, status: "done" | "skipped"): Promise<void> {
-        const next = await this.update({ kind: "step", step: stepId, status });
-        await setPanelPage(this.blockId, pageAfter(next, stepId, ShownStepIds));
+    start(start: PourStart): Promise<void> {
+        switch (start) {
+            case "project":
+                return this.openProject();
+            case "morph":
+                return this.tryMorph();
+        }
+        return this.run(() => this.finishRun(false));
     }
 
-    stepContext(step: FirstRunStep, state: OnboardingState): FirstRunStepContext {
-        return {
-            panelBlockId: this.blockId,
-            state,
-            data: state.data[step.id] ?? {},
-            setData: async (patch) => {
-                await this.update({ kind: "data", step: step.id, data: patch });
-            },
-            complete: () => this.run(() => this.moveOn(step.id, "done")),
-            skip: () => this.run(() => this.moveOn(step.id, "skipped")),
-            markDone: async () => {
-                await this.update({ kind: "step", step: step.id, status: "done" });
-            },
-            openBeside: (blockdef) => openBesidePanel(this.blockId, blockdef),
-        };
+    // Open my project (AC-8): the folder becomes the workspace's, with the project's name and colour, and a git
+    // repository becomes its project (FR-ONB-004); the run ends and the starter workspace's first view shows.
+    // Cancelling the folder choice leaves the pour where it is.
+    openProject(): Promise<void> {
+        return this.run(async () => {
+            const ws = globalStore.get(atoms.workspace);
+            if (ws == null) {
+                return;
+            }
+            const path = await chooseMoltentermPath({ kind: "folder", title: t("onboarding.pour.start.folderTitle") });
+            if (!path) {
+                return;
+            }
+            await setWorkspaceFolder(ws.oid, path);
+            const repo = await findProjectRoot(path);
+            if (repo) {
+                await linkWorkspaceProject(ws, repo);
+            }
+            const { name } = await readProjectFacts(repo || path);
+            await WorkspaceService.UpdateWorkspace(ws.oid, name, ws.icon ?? "", projectColour(name), !ws.icon);
+            await this.update({ kind: "data", step: "project", data: { [ProjectFolderKey]: path } });
+            await this.update({ kind: "step", step: "project", status: "done" });
+            await this.finishRun(true);
+        });
+    }
+
+    // Try /morph (AC-8): the agent kept opens in the first morph's scratch folder (FR-ONB-003), in place of the panel;
+    // the pour showed the request to paste before. Without an agent the run ends on the starter workspace's first
+    // view, as the pour said.
+    tryMorph(): Promise<void> {
+        return this.run(async () => {
+            const agent = keptAgent(globalStore.get(this.agentsAtom));
+            if (agent == null || !canMorph(agent) || !agent.executable) {
+                await this.finishRun(true);
+                return;
+            }
+            const dir = await ensureMorphDir();
+            await this.update({ kind: "finish" });
+            const blockId = await replaceBlock(
+                this.blockId,
+                { meta: { view: "term", controller: "shell", "cmd:cwd": dir } },
+                true
+            );
+            await typeCommand(blockId, agent.executable);
+        });
     }
 }
 
-function StepFailed({ error }: { error?: Error }) {
+function PourFailed({ error }: { error?: Error }) {
     const t = useT();
     return (
-        <p className="text-13 text-danger">
+        <p className="p-6 text-13 text-danger">
             {t("onboarding.stepFailed", { error: error?.message ?? t("onboarding.unknownError") })}
         </p>
     );
 }
 
-function StepPage({ model, step, state }: { model: OnboardingViewModel; step: FirstRunStep; state: OnboardingState }) {
-    const t = useT();
-    const ctx = useMemo(() => model.stepContext(step, state), [model, step, state]);
-    const Component = step.component;
-    return (
-        <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4">
-            <div className="flex flex-col gap-1">
-                <span className="text-12 text-muted">{progressLabel(`step:${step.id}`, ShownStepIds)}</span>
-                <h2 className="text-20 leading-6 font-semibold text-primary">{t(step.titleKey)}</h2>
-                {/* A placeholder's own text already says what the step is about. */}
-                {step.placeholder ? null : <p className="text-13 leading-5 text-secondary">{t(step.summaryKey)}</p>}
-            </div>
-            <ErrorBoundary key={step.id} fallback={<StepFailed />}>
-                <Component ctx={ctx} />
-            </ErrorBoundary>
-        </div>
-    );
-}
-
-function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: FirstRunStep; busy: boolean }) {
-    const t = useT();
-    return (
-        <div className="flex items-center gap-2 border-t border-border px-5 py-3" data-box-inset>
-            <button
-                type="button"
-                disabled={busy}
-                onClick={() => model.leave()}
-                className="molten-btn-ghost cursor-pointer rounded-6 px-2 py-1.5 text-12 text-muted hover:text-primary"
-            >
-                {t("onboarding.footer.leave")}
-            </button>
-            {step.placeholder ? (
-                <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => model.run(() => model.moveOn(step.id, "skipped"))}
-                    className="molten-btn ml-auto cursor-pointer rounded-6 px-4 py-1.5 text-12 font-medium"
-                    data-testid="first-run-next"
-                >
-                    {t("onboarding.footer.next")}
-                    <MoltenWave />
-                </button>
-            ) : (
-                <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => model.run(() => model.moveOn(step.id, "skipped"))}
-                    className="molten-btn-secondary ml-auto cursor-pointer rounded-6 px-3 py-1.5 text-12"
-                >
-                    {t("onboarding.footer.skip")}
-                </button>
-            )}
-        </div>
-    );
-}
-
 export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>) {
-    const client = useAtomValue(ClientModel.getInstance().clientAtom);
-    const block = useAtomValue(model.blockAtom);
     const busy = useAtomValue(model.busyAtom);
     const error = useAtomValue(model.errorAtom);
-    // The client changes with every notification: the state, and the step context built on it, change only with the
-    // record, so a step's effects do not run again for unrelated updates.
-    const recordKey = JSON.stringify(client?.meta?.[OnboardingMetaKey] ?? null);
-    const state = useMemo(
-        () => readOnboardingState({ [OnboardingMetaKey]: JSON.parse(recordKey) } as MetaType),
-        [recordKey]
-    );
-    const page = panelPage(state, block?.meta?.[OnboardingPageMetaKey], ShownStepIds);
-    const stepId = pageStep(page);
-    const step = stepId == null ? null : findFirstRunStep(stepId);
+    const agents = useAtomValue(model.agentsAtom);
+    const agentsError = useAtomValue(model.agentsErrorAtom);
+    const checking = useAtomValue(model.checkingAtom);
+    const reduced = useAtomValue(atoms.prefersReducedMotionAtom);
+
+    // Reading the login shell's PATH can take seconds on the first call: the detection starts with the first scene.
+    useEffect(() => {
+        fireAndForget(() => model.loadAgents());
+    }, [model]);
+
     return (
-        <div
-            className="@container flex h-full w-full flex-col overflow-hidden bg-[var(--mt-neutral-panel)] font-[family-name:var(--mt-ui-font)] text-primary"
-            data-first-run-page={page}
-        >
-            {page !== "welcome" ? (
-                <header className="flex shrink-0 items-center border-b border-border px-4 py-2">
-                    <OnboardingStepper state={state} page={page} onGo={(next) => model.goTo(next)} />
-                </header>
-            ) : null}
-            {page === "welcome" ? (
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                    <OnboardingWelcome
-                        busy={busy}
-                        error={error}
-                        onStart={() => model.start()}
-                        onSkip={() => model.leave()}
-                    />
-                </div>
-            ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
-                    {step != null ? <StepPage model={model} step={step} state={state} /> : null}
-                    {page === "summary" ? (
-                        <OnboardingSummary
-                            state={state}
-                            busy={busy}
-                            onGo={(next) => model.goTo(next)}
-                            onClose={() => model.finish()}
-                            onOpenView={() => model.finishAndOpenView()}
-                        />
-                    ) : null}
-                    {error ? (
-                        <p className="mx-auto mt-4 w-full max-w-[560px] text-12 text-danger" role="alert">
-                            {error}
-                        </p>
-                    ) : null}
-                </div>
-            )}
-            {step != null ? <StepFooter model={model} step={step} busy={busy} /> : null}
+        <div className="h-full w-full overflow-hidden font-[family-name:var(--mt-ui-font)]">
+            <ErrorBoundary fallback={<PourFailed />}>
+                <OnboardingPour
+                    reduced={!!reduced}
+                    busy={busy}
+                    error={error}
+                    agents={agents}
+                    agentsError={agentsError}
+                    checking={checking}
+                    onRecord={(record) => model.record(record)}
+                    onCheckAgain={() => fireAndForget(() => model.loadAgents())}
+                    onSkip={() => fireAndForget(() => model.leave())}
+                    onStart={(start) => fireAndForget(() => model.start(start))}
+                />
+            </ErrorBoundary>
         </div>
     );
 }

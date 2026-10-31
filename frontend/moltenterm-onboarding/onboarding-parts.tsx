@@ -76,7 +76,10 @@ export function CopyLine({ text, testId }: { text: string; testId?: string }) {
     };
     return (
         <div className="flex items-center gap-2 rounded-4 border border-border py-1 pr-1 pl-2.5">
-            <code className="min-w-0 flex-1 font-mono text-12 break-words text-primary" data-testid={testId}>
+            <code
+                className="min-w-0 flex-1 font-mono text-12 break-words whitespace-pre-wrap text-primary"
+                data-testid={testId}
+            >
                 {text}
             </code>
             <button

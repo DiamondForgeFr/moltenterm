@@ -1333,152 +1333,203 @@
             "welcome": "Welcome",
             "step": "Step {n} of {total}"
         },
-        "status": {
-            "done": "done",
-            "skipped": "skipped",
-            "notDone": "not done",
-            "doneTitle": "Done",
-            "skippedTitle": "Skipped",
-            "notDoneTitle": "Not done"
-        },
-        "stepper": {
-            "aria": "Setup progress",
-            "welcome": "Welcome",
-            "welcomeTooltip": "What MoltenTerm is",
-            "tooltip": "{label}: {tooltip}",
-            "entryAria": "{label}, {status}"
-        },
-        "steps": {
-            "agent": {
-                "title": "Your agent",
-                "label": "Your agent",
-                "summary": "The coding agents MoltenTerm finds on this computer, and the one you work with."
+        "pour": {
+            "skip": "Skip, I'll explore on my own",
+            "back": "Back",
+            "opening": "Opening your workshop…",
+            "progress": "Scene {n} of {total}: {scene}",
+            "next": {
+                "pour": "Light the forge",
+                "agents": "See the workshop",
+                "workshop": "And then?",
+                "morph": "Let's go",
+                "start": "Enter the workshop"
+            },
+            "scenes": {
+                "pour": "Welcome",
+                "agents": "Your agents",
+                "workshop": "Your workshop",
+                "morph": "It takes your shape",
+                "start": "Ready"
+            },
+            "legal": {
+                "license": "Open source, Apache License 2.0",
+                "licence": "Licence",
+                "privacy": "Privacy",
+                "about": "About"
+            },
+            "pour": {
+                "kicker": "Welcome to MoltenTerm",
+                "titleA": "All your AI agents,",
+                "titleB": "one workshop.",
+                "sub": "{first}, {second} and the others work here together, on your projects, with your own subscriptions. And the workshop takes your shape."
+            },
+            "agents": {
+                "kicker": "Lighting the forge",
+                "titleA": "Your agents",
+                "titleB": "are heating up.",
+                "looking": "Looking for the command-line agents on this computer…",
+                "listFailed": "The agents could not be listed: {error}",
+                "found": {
+                    "none": "MoltenTerm found no command-line agent on this computer yet. Pick one: its install command is ready to copy.",
+                    "one": "MoltenTerm found one command-line agent on this computer. Another one tempts you? Its install command is one click away.",
+                    "other": "MoltenTerm found {count} command-line agents on this computer. Another one tempts you? Its install command is one click away."
+                },
+                "nowReady": "{name} is ready. Change agents whenever you like: the workshop stays the same.",
+                "status": {
+                    "ready": "Ready",
+                    "missing": "Not installed",
+                    "looking": "Looking…",
+                    "recipe": "Runs in {agent}"
+                },
+                "level": {
+                    "full": "Full integration",
+                    "process": "Process detection"
+                },
+                "account": {
+                    "subscriptionOrKey": "{provider} subscription or API key",
+                    "accountOrKey": "{provider} account or API key",
+                    "subscription": "{provider} subscription",
+                    "apiKey": "{provider} API key"
+                },
+                "recipeCommand": "{command} + your key",
+                "hooks": "Approve MoltenTerm's hooks once, in {command}.",
+                "install": "Install",
+                "configure": "Configure",
+                "installTitle": "Install {name}",
+                "installText": "Copy this command into a terminal, then come back and check again. Nothing runs from here.",
+                "or": "Or:",
+                "needs": "It needs: {account}.",
+                "checkAgain": "Check again",
+                "installPage": "Install page ↗",
+                "recipeTitle": "{model} in {agent}",
+                "recipeText": "{model} answers on an endpoint this agent can talk to: start it with these two variables and your {model} key. The page linked below gives the model variables.",
+                "recipeNeedsAgent": "{agent} must be installed first.",
+                "recipePage": "Setup guide ↗"
+            },
+            "workshop": {
+                "kicker": "Your workshop",
+                "titleA": "One workshop,",
+                "titleB": "a workbench per project.",
+                "alt": "Illustration: the MoltenTerm sidebar with three example workspaces, Atlas, Billing and The Book. Each has its colour, its views, its temporary views and its branch; the row at the top is shared by every workspace; tools forged with /morph carry a star; what the workspaces produce collects in the Materials.",
+                "swipe": "Swipe from one workspace to the next, or click the dots at the bottom of the bar.",
+                "search": "Search, open an address…",
+                "agent": "Agent",
+                "spaces": {
+                    "atlas": {
+                        "name": "Atlas",
+                        "tag": "Web",
+                        "branch": "⎇ feat/42-payment · ✓ build"
+                    },
+                    "billing": {
+                        "name": "Billing",
+                        "tag": "API",
+                        "branch": "⎇ fix/77-rounding · ● CI"
+                    },
+                    "book": {
+                        "name": "The Book",
+                        "tag": "Writing",
+                        "branch": "⎇ main · 3,412 words today",
+                        "temp": "chapter-03.md"
+                    }
+                },
+                "tiles": {
+                    "scoping": "Scoping",
+                    "integration": "Integration",
+                    "browser": "Web page",
+                    "clock": "Clock",
+                    "logs": "Logs",
+                    "quotas": "Quotas",
+                    "manuscript": "Manuscript",
+                    "outline": "Outline",
+                    "cover": "Cover",
+                    "words": "Words/day"
+                },
+                "atlas": {
+                    "l1": "fixing the payment…",
+                    "l2": "({tool}): over to you for the review",
+                    "l3": "Jérôme picked up the work",
+                    "view": "Scoping · combined view",
+                    "ticket": "Ticket #42 · payment",
+                    "clock": "Clock · Paris 10:24"
+                },
+                "billing": {
+                    "l1": "the rounding passes",
+                    "l2": "opening the PR…",
+                    "view": "Integration · combined view",
+                    "ci": "Local CI running",
+                    "pr": "PR #77 ready to read",
+                    "logs": "Logs · 0 errors",
+                    "quotas": "Quotas · 62 %"
+                },
+                "book": {
+                    "l1": "tightening chapter 3",
+                    "l2": "cover mock-up → Materials",
+                    "view": "Manuscript · preview",
+                    "chapter": "Chapter 3",
+                    "text": "The forge woke before dawn. In the workshop every tool had its place, and each one told…",
+                    "mock": "Cover · mock-up"
+                },
+                "materials": {
+                    "title": "Materials",
+                    "cover": "Cover mock-up",
+                    "capture": "Capture of the payment flow",
+                    "load": "Load report, API",
+                    "demo": "Onboarding, demo page"
+                },
+                "ideas": {
+                    "spaces": {
+                        "title": "A workspace per project",
+                        "text": "Its colour, its agents, its state. Everything comes back as you left it."
+                    },
+                    "fitted": {
+                        "title": "Fitted for the project",
+                        "text": "Views and combined views: the agent on the left, its tools on the right. The common tools follow you everywhere."
+                    },
+                    "custom": {
+                        "title": "Made to measure",
+                        "text": "For the finest fitting, {morph} forges the tool you are missing."
+                    },
+                    "kept": {
+                        "title": "Nothing is lost",
+                        "text": "Mock-ups, images, artefacts: what each workspace produces stays in your Materials."
+                    }
+                },
+                "coda": "A workshop you fitted out yourself is always nicer.",
+                "codaHot": "And other surprises are waiting for you there."
             },
             "morph": {
-                "title": "Your first morph",
-                "label": "First morph",
-                "summary": "Ask your agent to reshape MoltenTerm, and see the change land."
+                "kicker": "It takes your shape",
+                "titleA": "Missing something?",
+                "titleB": "Ask for it.",
+                "request": "/morph add a Paris · Tokyo clock",
+                "writing": "The agent writes the mod…",
+                "checked": "MoltenTerm checks it, asks you, loads it.",
+                "clockSub": "Paris · Tokyo 18:24",
+                "replay": "Pour again",
+                "undo": "{command} removes it, at any time."
             },
-            "project": {
-                "title": "Your project and your sessions",
-                "label": "Your project",
-                "summary": "Link a workspace to your project folder and find your agent sessions."
-            }
-        },
-        "footer": {
-            "leave": "Leave setup",
-            "next": "Next",
-            "skip": "Skip this step"
-        },
-        "summary": {
-            "doneTitle": "You're set",
-            "leftTitle": "Almost there",
-            "doneText": "MoltenTerm knows your agent, has taken a first shape and works in your project.",
-            "starterViews": "Next, this workspace gets its default views: {views}.",
-            "openView": "Open {view}",
-            "leftText": "The steps you left wait for you. Getting started stays in the Help menu and the command palette."
-        },
-        "welcome": {
-            "title": "Welcome to MoltenTerm",
-            "tagline": "The terminal that takes your shape.",
-            "start": "Set up MoltenTerm",
-            "stepsOne": "1 short step",
-            "stepsOther": "{count} short steps",
-            "skip": "Skip setup",
-            "license": "Open source, Apache License 2.0",
-            "aboutLink": "About",
-            "licenceLink": "Licence",
-            "privacyLink": "Privacy",
-            "points": {
-                "agent": {
-                    "title": "Bring your own agent.",
-                    "text": "MoltenTerm ships no AI. Any coding agent that runs in a terminal works in it, with your own account."
+            "start": {
+                "titleA": "The forge",
+                "titleB": "is hot.",
+                "sub": "Where to start?",
+                "project": {
+                    "title": "Open my project",
+                    "text": "A workspace named after it, the agent ready to start."
                 },
                 "morph": {
-                    "title": "Reshaped by your agent.",
-                    "text": "Ask it with {morph} for a panel, a command or a layout: it writes a mod, MoltenTerm loads it, {undo} takes it back."
+                    "title": "Try {morph}",
+                    "text": "In a scratch folder, risk free."
                 },
-                "sessions": {
-                    "title": "Sessions that survive.",
-                    "text": "Terminals and agents keep running when MoltenTerm quits or updates."
+                "free": {
+                    "title": "Explore freely",
+                    "text": "Getting started stays in the Help menu."
                 },
-                "privacy": {
-                    "title": "No telemetry, no account.",
-                    "text": "MoltenTerm sends no usage data and connects only for what you ask."
-                },
-                "shortcuts": {
-                    "title": "Shortcuts on screen.",
-                    "text": "Hold {hold} or press {press} to see the shortcuts of what is on screen."
-                }
+                "folderTitle": "Your project's folder",
+                "morphHint": "{name} opens in a scratch folder. Paste this request into it:",
+                "morphNoAgent": "No agent is installed yet: go back to install one. Meanwhile MoltenTerm opens your workshop.",
+                "shortcuts": "Hold {hold} or press {press} to see the shortcuts of what is on screen."
             }
-        },
-        "agent": {
-            "guideOutdated": "v{version}, updated at the next start",
-            "guideMissing": "not installed yet",
-            "guideForeign": "a file MoltenTerm did not write is at its place; it is left alone",
-            "notFound": "Not installed",
-            "install": "Install",
-            "declined": "Declined",
-            "found": "Found",
-            "guidesRemoved": "Its molten guides were removed with {command}.",
-            "reinstall": "Install its guides again",
-            "genericTitle": "Another coding agent",
-            "genericInstalled": "Any agent can follow MoltenTerm's instruction file at {path}. Point your agent to it with:",
-            "genericMissing": "Any agent can follow MoltenTerm's instruction file: {command} writes it to {path}. Point your agent to it with:",
-            "genericPaste": "Paste this line into your agent as is, with {placeholder} replaced by your request, in any language.",
-            "noneFound": "No coding agent found on this computer. Install one, then search again.",
-            "noneFoundNote": "MoltenTerm ships no AI and needs no API key: the coding agent you already use reshapes it. You can also skip this step: Getting started offers it again.",
-            "installLink": "Install ↗",
-            "lookAgain": "Search again",
-            "searching": "Searching…",
-            "stillNone": "Searched again: still no coding agent on this computer.",
-            "integration": "When a supported agent starts in a MoltenTerm terminal, MoltenTerm hooks up that run (precise states, usage gauges, the browser) without touching your own settings or credentials.",
-            "settingsLink": "Agent settings",
-            "listFailed": "The agents could not be listed: {error}",
-            "looking": "Looking for the coding agents on this computer…",
-            "intro": "MoltenTerm ships no AI: your own coding agent reshapes it. MoltenTerm installed its guides for the agents it found, so {morph} and the change you want, in your agent, turns into a mod. Pick the agent you work with.",
-            "pick": "Pick an agent",
-            "use": "Use {name}",
-            "noMorphGuide": "Its /morph guide is not installed: step 2 shows what to do."
-        },
-        "morph": {
-            "doneTitle": "MoltenTerm took its first shape: {name}",
-            "callIt": "Call it from any MoltenTerm terminal:",
-            "commandsLater": "Its commands are listed by {command} once it has loaded.",
-            "undo": "{command} removes it, and every change after it can be undone the same way.",
-            "copyBoxMissing": "The copy box is not loaded (safe mode, or disabled in Settings > Mods).",
-            "noAgentIntro": "With a coding agent, {morph} and a plain request (\"add a command that shows the current git branch in a box\") has the agent write a mod: MoltenTerm checks it, asks you before it runs, and loads it. {undo} takes it back.",
-            "copyDemoTitle": "Your first box",
-            "copyBoxIntro": "MoltenTerm ships one mod already, the copy box agents use for anything you have to copy. From any MoltenTerm terminal:",
-            "showCopyBox": "Show a copy box",
-            "copyBoxShown": "There it is, next to this guide.",
-            "installAgent": "Install an agent and pick it in step 1 to try /morph; Getting started brings this step back.",
-            "preparing": "Getting your agent ready…",
-            "termFailed": "The terminal did not start; type {command} in it.",
-            "intro": "Open {name} next to this guide, in a scratch folder of its own, then paste the request into it. The agent writes a mod, MoltenTerm asks you before it runs it, and this step ticks.",
-            "goTo": "Go to {name}",
-            "openBeside": "Open {name} beside this guide",
-            "firstRequest": "Your first request",
-            "alternatives": "Or one of these",
-            "requestsNote": "Paste a request as is; your own requests can be in any language.",
-            "waiting": "Waiting for a new mod… Nothing changes in your projects: {command} takes any morph back."
-        },
-        "project": {
-            "notRepo": "This folder is not a git repository: the Project panel follows git projects.",
-            "connected": "{name} is already connected to the Project panel ({file}).",
-            "connect": "Connect {name} to the Project panel: in your agent, started in this folder, ask for {file} (it reuses the project's scripts and CI) with:",
-            "sessionsTitle": "Your sessions survive",
-            "sessionsText": "Terminals and the agents in them keep running when MoltenTerm quits or updates. When you come back, they are where you left them, and Sessions lists every one still running, local or over SSH.",
-            "openSessions": "Open Sessions",
-            "folderTitle": "Your project folder",
-            "folderText": "This workspace takes its name, a colour and its terminals' folder from your project. A git repository is also linked, so the Project panel shows where it stands.",
-            "editWorkspace": "Edit workspace",
-            "chooseFolder": "Choose a folder…",
-            "scan": "Find my git repositories",
-            "scanning": "Searching your folders…",
-            "scanEmpty": "No git repository found in your folders. Choose your project folder instead.",
-            "link": "Link this folder",
-            "chooseFirst": "Choose a folder first"
         }
     },
     "agent": {

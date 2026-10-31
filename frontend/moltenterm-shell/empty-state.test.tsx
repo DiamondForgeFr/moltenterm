@@ -100,9 +100,10 @@ describe("the surfaces of FR-SHELL-053 use it", () => {
     });
 
     it("onboarding never says a step is not ready", () => {
-        for (const step of ["agent", "morph", "project"]) {
-            const src = read(`../moltenterm-onboarding/onboarding-${step}-step.tsx`);
-            expect(src, step).not.toMatch(/not ready in this version/i);
+        // The pour (FR-ONB-007) replaced the three steps: its scenes offer only what works.
+        for (const file of ["onboarding-pour.tsx", "onboarding-pour-scenes.tsx"]) {
+            const src = read(`../moltenterm-onboarding/${file}`);
+            expect(src, file).not.toMatch(/not ready in this version/i);
         }
     });
 });
