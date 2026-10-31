@@ -2069,7 +2069,8 @@
         "start": {
             "title": "Cadrez le prochain changement",
             "hintProject": "Le Cadrage sert à préparer le travail avec votre agent avant qu'il écrive du code. Cette page affiche le dépôt du projet dès que son dossier a un dépôt distant GitHub.",
-            "hintNoProject": "Le Cadrage sert à préparer le travail avec votre agent avant qu'il écrive du code. Associez un dossier de projet à cet espace de travail : cette page affiche alors son dépôt ou son README.",
+            "hintFolder": "Le Cadrage sert à préparer le travail avec votre agent avant qu'il commence. Un README dans ce dossier s'affiche ici.",
+            "hintNoProject": "Le Cadrage sert à préparer le travail avec votre agent avant qu'il commence. Choisissez un dossier pour cet espace de travail : cette page affiche alors son README.",
             "readme": "README de {project}",
             "address": "Page de départ"
         },
@@ -3472,7 +3473,7 @@
             "gitInitBody": "MoltenTerm lance git init dans ce dossier. Cela ajoute un dépôt vide (un dossier .git) : vos fichiers restent tels quels, rien n'est commité.",
             "gitInitFailed": "Git n'a pas pu créer le dépôt.",
             "notRepoTitle": "Ce dossier n'est pas un dépôt git",
-            "notRepoHint": "Le panneau Projet suit un projet à travers son historique git. Initialisez git ici ou choisissez un autre dossier.",
+            "notRepoHint": "Ce panneau suit un projet à travers son historique git. Initialisez git ici ou choisissez un autre dossier.",
             "initGitHere": "Initialiser git ici",
             "readingHistory": "Lecture de l'historique…",
             "chooseFolder": "Choisir un autre dossier",
@@ -9428,7 +9429,7 @@
             "emptyAdd": "Ajouter un panneau"
         },
         "emptyWorkspace": {
-            "title": "Cet espace de travail n'a pas encore de vue",
+            "title": "Cet espace de travail n'a pas encore de vue épinglée",
             "hint": "Un espace de travail garde ici, en tuiles, les vues d'un projet. Ajoutez les vues par défaut, {views}, ou créez la vôtre.",
             "hintNoTemplate": "Un espace de travail garde ici, en tuiles, les vues d'un projet. Créez une vue, puis épinglez-la ici.",
             "addViews": "Ajouter les vues par défaut",
@@ -9513,12 +9514,12 @@
         },
         "create": {
             "title": "Nouvel espace de travail",
-            "lede": "Un espace de travail par produit : ses projets, ses vues, ses agents et sa couleur.",
+            "lede": "Un espace de travail par projet : ses dossiers, ses vues, ses agents et sa couleur.",
             "name": "Nom de l'espace de travail",
-            "namePlaceholder": "Notulia, MoltenTerm…",
+            "namePlaceholder": "Mon roman, Portfolio, Mémoire…",
             "type": "Type du premier projet",
-            "typePlaceholder": "SaaS, Desktop, CLI, Mobile…",
-            "typeSuggestions": "SaaS, Desktop, CLI, Mobile, Site web, API, Bibliothèque, Extension",
+            "typePlaceholder": "Livre, Design, Cours, Application…",
+            "typeSuggestions": "Livre, Design, Cours, Recherche, Site web, Application, Desktop, Mobile, SaaS, API, CLI, Bibliothèque, Extension",
             "typeHint": "Affiché sous le nom de l'espace de travail, dans la barre latérale et la bibliothèque.",
             "folder": "Dossier du premier projet",
             "chooseFolder": "Choisir un dossier…",
