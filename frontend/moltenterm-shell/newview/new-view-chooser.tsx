@@ -11,12 +11,14 @@ import { useAtomValue } from "jotai";
 import type React from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { useLocale } from "../i18n/i18n";
+import { typeMorphCall } from "../morph/morph-call";
 import { CommandPalette, NewViewChooser } from "../palette/command-palette";
 import { formatKeys } from "../shortcuts/format";
 import { newViewFavoriteBindings } from "../shortcuts/registry";
 import { readWorkspaceProject } from "../workspace-project";
 import { dismissNewView, openInNewView } from "./new-view";
 import {
+    NewViewAgentsMetaKey,
     newViewChoices,
     NewViewFavoritesKey,
     NewViewMetaKey,
@@ -37,6 +39,7 @@ export function NewViewChooserView({ blockId, inputRef }: NewViewChooserViewProp
     const favoritesSetting = useAtomValue(getSettingsKeyAtom(NewViewFavoritesKey));
     const locale = useLocale();
     const runId = block?.meta?.[NewViewRunMetaKey as keyof MetaType] as string;
+    const focusAgents = block?.meta?.[NewViewAgentsMetaKey as keyof MetaType] === true;
     const projectLinked = readWorkspaceProject(ws).dir !== "";
     const choices = useMemo(
         () =>
@@ -67,8 +70,13 @@ export function NewViewChooserView({ blockId, inputRef }: NewViewChooserViewProp
             favoriteKeys: newViewFavoriteBindings(mac).map((k) => formatKeys(k, mac)),
             onOpen: (entry) => fireAndForget(() => openInNewView(entry, blockId)),
             onCancel: () => fireAndForget(() => dismissNewView(blockId)),
+            onAskAgent: async (agent, request) => {
+                await dismissNewView(blockId);
+                await typeMorphCall(agent, request);
+            },
+            focusAgents,
         };
-    }, [favoritesSetting, choices, blockId]);
+    }, [favoritesSetting, choices, blockId, focusAgents]);
     if (runId) {
         return null;
     }

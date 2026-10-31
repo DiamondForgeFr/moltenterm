@@ -16,6 +16,8 @@ export const NewViewMetaKey = "molten:newview";
 // On the launcher block of a new view opened directly on an entry that needs the launcher to start (an agent types
 // its command once the shell runs): the entry's id, run as soon as the block shows.
 export const NewViewRunMetaKey = "molten:newview:run";
+// On the launcher block of a new view opened to start an agent (#1672): the chooser selects its first agent.
+export const NewViewAgentsMetaKey = "molten:newview:agents";
 
 export const TerminalChoiceId = "panel:defwidget@terminal";
 export const WebPageChoiceId = "panel:defwidget@web";
@@ -146,6 +148,16 @@ export function resolveDirect(setting: unknown, choices: PaletteEntry[]): Palett
 }
 
 export const ChooserBlockDef: BlockDef = { meta: { view: "launcher", [NewViewMetaKey]: true } as MetaType };
+
+// The chooser opened to start an agent (#1672): the first agent of its list is selected, nothing starts.
+export const AgentPickerBlockDef: BlockDef = {
+    meta: { view: "launcher", [NewViewMetaKey]: true, [NewViewAgentsMetaKey]: true } as MetaType,
+};
+
+// The index in the chooser's list of its first agent, -1 when it lists none.
+export function firstAgentIndex(list: PaletteEntry[]): number {
+    return (list ?? []).findIndex((e) => e.group === "agents");
+}
 
 // What a new view starts with: a tab holding a block, or an action run without a tab (Sessions, the Project tab).
 export type NewViewStart = { kind: "tab"; blockdef: BlockDef } | { kind: "run"; run: PaletteRun };

@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { PaletteEntry, PaletteKey } from "../palette/palette-model";
 import {
     addFavorite,
+    AgentPickerBlockDef,
     ChooserAction,
     ChooserBlockDef,
     chooserKey,
@@ -14,7 +15,9 @@ import {
     ChooserState,
     DefaultFavoriteIds,
     favoriteIds,
+    firstAgentIndex,
     moveFavorite,
+    NewViewAgentsMetaKey,
     newViewChoices,
     NewViewMetaKey,
     NewViewRunMetaKey,
@@ -231,5 +234,22 @@ describe("the chooser list (#1238, FR-SHELL-107)", () => {
             "folder:/tmp",
             "action:projecttab",
         ]);
+    });
+});
+
+describe("Start an agent (#1672)", () => {
+    it("opens the chooser marked to select its first agent", () => {
+        const meta = AgentPickerBlockDef.meta as Record<string, unknown>;
+        expect(meta.view).toBe("launcher");
+        expect(meta[NewViewMetaKey]).toBe(true);
+        expect(meta[NewViewAgentsMetaKey]).toBe(true);
+        expect((ChooserBlockDef.meta as Record<string, unknown>)[NewViewAgentsMetaKey]).toBeUndefined();
+    });
+
+    it("finds the first agent of the list", () => {
+        const e = (id: string, group: any) => ({ id, group, label: id, icon: "x", run: null }) as PaletteEntry;
+        expect(firstAgentIndex([e("p", "panels"), e("a1", "agents"), e("a2", "agents")])).toBe(1);
+        expect(firstAgentIndex([e("p", "panels")])).toBe(-1);
+        expect(firstAgentIndex(null)).toBe(-1);
     });
 });

@@ -11,8 +11,6 @@ import {
     LibrarySections,
     liveAgents,
     matchesQuery,
-    morphCallText,
-    morphTarget,
     panelAboutKey,
     PublicDownloadUrl,
     putAwayAgentNames,
@@ -218,31 +216,8 @@ describe("workspace agents", () => {
 });
 
 describe("Missing a tool? /morph (#1653)", () => {
-    const a = (blockid: string, extra: any) => ({ blockid, workspaceid: "w", version: 1, ...extra });
-
-    it("types each agent's own morph call followed by a space, never Enter", () => {
-        expect(morphCallText("claude")).toBe("/morph ");
-        expect(morphCallText("codex")).toBe("$morph ");
-        expect(morphCallText("kimi")).toBe("/skill:morph ");
-        expect(morphCallText("gemini")).toBe("/morph ");
-        expect(morphCallText(undefined)).toBe("/morph ");
-        expect(morphCallText("codex")).not.toMatch(/[\r\n]/);
-    });
-
-    it("picks the current view's agent, then a free prompt, then the latest", () => {
-        const busyHere = a("b1", { tabid: "t1", state: "working", started: 1 });
-        const freeThere = a("b2", { tabid: "t2", state: "idle", started: 2 });
-        const freeLater = a("b3", { tabid: "t2", state: "done", started: 3 });
-        const background = a("b4", { tabid: "t3", state: "working", background: true, started: 0 });
-        expect(morphTarget([freeThere, busyHere], "t1").blockid).toBe("b1");
-        expect(morphTarget([busyHere, freeThere, freeLater], "t9").blockid).toBe("b3");
-        expect(morphTarget([busyHere, background], "t9").blockid).toBe("b4");
-        expect(morphTarget([], "t1")).toBeNull();
-        expect(morphTarget(null, "t1")).toBeNull();
-    });
-
     it("has its texts in both languages", () => {
-        for (const key of ["title", "about", "noAgent", "type"]) {
+        for (const key of ["title", "about", "noAgent", "type", "start"]) {
             expect(lookup(en, `library.panels.morph.${key}`)).toBeTruthy();
             expect(lookup(fr, `library.panels.morph.${key}`)).toBeTruthy();
         }
