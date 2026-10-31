@@ -66,13 +66,14 @@ var cliInstallQuietWait = 1500 * time.Millisecond
 var cliInstallDrainWait = 2 * time.Second
 
 type CliInstallStatus struct {
-	Id       string `json:"id"`
-	Command  string `json:"command,omitempty"`
-	State    string `json:"state,omitempty"`
-	Output   string `json:"output,omitempty"`
-	ExitCode int    `json:"exitcode,omitempty"`
-	Error    string `json:"error,omitempty"`
-	Waiting  bool   `json:"waiting,omitempty"`
+	Id        string      `json:"id"`
+	Command   string      `json:"command,omitempty"`
+	State     string      `json:"state,omitempty"`
+	Output    string      `json:"output,omitempty"`
+	ExitCode  int         `json:"exitcode,omitempty"`
+	Error     string      `json:"error,omitempty"`
+	ErrorText *uimsg.Text `json:"errortext,omitempty"`
+	Waiting   bool        `json:"waiting,omitempty"`
 }
 
 type cliInstallRequest struct {
@@ -141,6 +142,9 @@ func (job *cliInstallJob) status() CliInstallStatus {
 		Output:   string(job.output),
 		ExitCode: job.exitCode,
 		Error:    job.errText,
+	}
+	if job.errText != "" {
+		rtn.ErrorText = uimsg.Make("onboarding.installNotRun", "detail", job.errText)
 	}
 	if job.state == CliInstallRunning && len(job.output) > 0 && job.output[len(job.output)-1] != '\n' {
 		rtn.Waiting = time.Since(job.lastOutput) >= cliInstallQuietWait

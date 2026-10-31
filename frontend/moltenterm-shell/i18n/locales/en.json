@@ -9013,7 +9013,8 @@
             "notDeclined": "{agent} was not declined: MoltenTerm installs its guides at start.",
             "installFailed": "The guides of {agent} could not be installed: {detail}",
             "noInstallCommand": "MoltenTerm has no install command for {agent}.",
-            "installUnsupported": "Installing {agent} from MoltenTerm is not available on this system yet: copy the command below."
+            "installUnsupported": "Installing {agent} from MoltenTerm is not available on this system yet: copy the command below.",
+            "installNotRun": "The command could not run: {detail}"
         }
     },
     "assistedReview": {
