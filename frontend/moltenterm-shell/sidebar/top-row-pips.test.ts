@@ -88,6 +88,18 @@ describe("the sidebar's status dots (#1304)", () => {
         }
     });
 
+    it("leave room for the top-row block's name, which is cut by an ellipsis and kept in the tooltip (#1651)", () => {
+        const block = functionSource("TopRowBlock");
+        expect(block).toContain("const showsName = topRowShowsName(fit, active);");
+        expect(block).toMatch(/showsName \? \(\s*<span\s+className=\{cn\("min-w-0 truncate/);
+        expect(block).toContain('showsName && (stacked ? "flex-col gap-[3px] px-1" : "gap-1.5 px-3")');
+        expect(block).toContain("aria-label={summary ? `${pin.name}, ${summary}` : pin.name}");
+        expect(block).toMatch(/"sidebar\.pins\.topTitle", \{\s*name: pin\.name/);
+        const row = functionSource("TopRow");
+        expect(row).toContain("topRowLines(topRowBlocks(pins, instances))");
+        expect(row).toContain("topRowLineFit(width, line.length)");
+    });
+
     it("are not clipped by the top-row block, whose glyph is clipped on its own", () => {
         const block = functionSource("TopRowBlock");
         const button = block.slice(block.indexOf("<button"), block.indexOf("<ViewGlyph"));
