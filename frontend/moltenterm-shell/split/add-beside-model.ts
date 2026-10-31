@@ -132,6 +132,12 @@ export function besideFit(
     return pxs.map((px) => (px / roomAfter) * 100);
 }
 
+// The columns as besideFit sees them when the tab stays in the grid although the new column does not fit beside their
+// carpet widths (#1668, Keep the grid): each keeps only its minimum (its readable minimum, or the first column's floor).
+export function shrinkableColumns(columns: BesideColumn[]): BesideColumn[] {
+    return (columns ?? []).map((column) => ({ ...column, carpetPx: 0 }));
+}
+
 // The index the new column takes among the top-level columns.
 export function insertIndexFor(columnIndex: number, side: BesideSide): number {
     return side === "left" ? columnIndex : columnIndex + 1;

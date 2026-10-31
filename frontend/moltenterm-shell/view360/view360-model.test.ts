@@ -1062,3 +1062,44 @@ describe("View360Model first-switch notice and focus (FR-SHELL-066-AC10, #1654)"
         expect(giveFocus.calls).toEqual(["b-c2"]);
     });
 });
+
+describe("View360Model decision for a column about to be added (#1668)", () => {
+    beforeEach(() => {
+        setThreshold(2);
+    });
+    afterEach(() => {
+        setThreshold(8);
+        setSetting("auto");
+    });
+
+    it("unset or automatic: a third column beyond the threshold wants 360 view, through the automatic decision", () => {
+        for (const setting of [undefined, "auto"]) {
+            setSetting(setting);
+            const { model } = makeModel(null, sizedRow(40, 60));
+            pass(model, sizedRow(40, 60), 1630);
+            expect(model.wantsWithColumns(3, 1630, 8)).toBe(true);
+            expect(model.wantsWithColumns(2, 1630, 8)).toBe(false);
+        }
+    });
+
+    it("Keep the grid: a third column that fits at its readable minimum stays in the grid", () => {
+        setSetting("grid");
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1630);
+        expect(model.wantsWithColumns(3, 1630, 8)).toBe(false);
+    });
+
+    it("Keep the grid: columns that cannot fit even at their readable minimums still go to 360 view", () => {
+        setSetting("grid");
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1200);
+        expect(model.wantsWithColumns(3, 1200, 8)).toBe(true);
+    });
+
+    it("a view turned off by hand stays in the grid while the columns fit", () => {
+        setSetting("auto");
+        const { model } = makeModel(false, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1630);
+        expect(model.wantsWithColumns(3, 1630, 8)).toBe(false);
+    });
+});
