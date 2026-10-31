@@ -30,7 +30,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
-import { HoldToCloseButton } from "../hold-to-close";
+import { HoldToCloseGlyph } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
 import { KeepAwakeStatusItem } from "../keepawake-cup";
 import { coffeeCondition, coffeeSupported, sleepPolicyLabel, SleepPolicySetting } from "../keepawake-model";
@@ -155,8 +155,9 @@ import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
 import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
 import { GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
-import { PinDraft, ViewPins } from "./view-pins-store";
+import { announceClosedViews, ClosedKindView, PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
+import { followSetAside, setAsideView } from "./view-set-aside";
 import {
     frameSizes,
     macButtonDiscs,
@@ -675,21 +676,37 @@ function useViewActions(
     active: boolean,
     pin: ViewPinFacts,
     startRename: () => void,
-    projectTab?: boolean
+    projectTab?: boolean,
+    temporary?: boolean
 ) {
     const env = useWaveEnv<SidebarEnv>();
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
     const confirmClose = useAtomValue(env.getSettingsKeyAtom("tab:confirmclose")) ?? false;
     const close = useCallback(() => {
-        closeTabAskingFirst(getApi().closeTab, ws?.oid, tabId, confirmClose)
+        // A temporary view closes in one click and goes aside for its toast's Undo (#1656); one that really closes
+        // (a worktree answered for, the last view on screen) says so with Undo too, through Put-away views.
+        let setAside = false;
+        const opts = temporary
+            ? {
+                  setAside: async (wsId: string, id: string) => {
+                      setAside = await setAsideView(wsId, id);
+                      return setAside;
+                  },
+              }
+            : undefined;
+        closeTabAskingFirst(getApi().closeTab, ws?.oid, tabId, confirmClose, opts)
             .then((closed) => {
-                if (closed) {
-                    deleteLayoutModelForTab(tabId);
+                if (!closed || setAside) {
+                    return;
+                }
+                deleteLayoutModelForTab(tabId);
+                if (temporary) {
+                    return announceClosedViews(ws?.oid, 1, ClosedKindView);
                 }
             })
             .catch((e) => console.log("closing a view from the sidebar", e));
-    }, [ws?.oid, tabId, confirmClose]);
+    }, [ws?.oid, tabId, confirmClose, temporary]);
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -977,7 +994,7 @@ function ViewRow({
     const glyph = useAtomValue(viewGlyphAtom(tabId));
     const [renaming, setRenaming] = useState(false);
     const startRename = useCallback(() => setRenaming(true), []);
-    const { env, close, onContextMenu } = useViewActions(tabId, active, pin, startRename);
+    const { env, close, onContextMenu } = useViewActions(tabId, active, pin, startRename, false, true);
     useRenameCallback(tabId, env, startRename);
     const badges = useAtomValue(getTabBadgeAtom(tabId, env));
     const trees = useTabTreesTooltip(tabId);
@@ -1071,19 +1088,32 @@ function ViewRow({
                 >
                     <SidebarGlyph name="pin" size={12} />
                 </button>
-                <HoldCloseButton onClose={close} />
+                <ViewCloseButton onClose={close} />
             </span>
         </div>
     );
 }
 
-// The tab's close: a press-and-hold (FR-SHELL-025), shown under the pointer.
-function HoldCloseButton({ onClose }: { onClose: () => void }) {
+// A temporary view's close: one click, its toast's Undo is the safety (#1656, amends FR-SHELL-025's hold for these
+// rows). The glyph and its surface stay the hold button's, so the row looks as before.
+function ViewCloseButton({ onClose }: { onClose: () => void }) {
+    const t = useT();
     return (
-        <HoldToCloseButton
-            className="relative flex h-6 w-6 cursor-pointer items-center justify-center p-0"
-            onClose={() => onClose()}
-        />
+        <button
+            type="button"
+            className="molten-hold molten-hold-close relative flex h-6 w-6 cursor-pointer items-center justify-center p-0"
+            title={t("dialog.closeTab.button")}
+            aria-label={t("dialog.closeTab.button")}
+            data-testid="tab-close"
+            onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+            }}
+        >
+            <span className="molten-hold-disc relative inline-flex h-4 w-4 items-center justify-center rounded-full">
+                <HoldToCloseGlyph />
+            </span>
+        </button>
     );
 }
 
@@ -2468,6 +2498,8 @@ export function WorkspaceSidebar() {
     useEffect(() => {
         ViewPins.getInstance().showClosedFinished(closedFinished);
     }, [closedFinished, activeTabId, ws?.activetabid]);
+    // A view closed in one click waits aside for its toast (#1656): the view on screen shows it and ends it.
+    useEffect(() => followSetAside(activeTabId), [ws, activeTabId]);
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const keepPeek = () => clearTimeout(peekTimerRef.current);
     const endPeek = () => {

@@ -8,6 +8,7 @@ import { isMacOS } from "@/util/platformutil";
 import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
 import { shortcutLabel } from "../menu/menu-model";
+import { ToastDismissReason } from "../toast-model";
 import { dismissToast, showToast } from "../toast-store";
 import { keepsUndoKey, undoKey } from "./view-menu-model";
 
@@ -19,8 +20,13 @@ export function undoKeysLabel(): string {
     return shortcutLabel(isMacOS() ? "Command+Z" : "Control+Z");
 }
 
-// A toast whose Undo is also ⌘Z's while it shows.
-export function showUndoToast(title: string, undo: () => void | Promise<void>, message?: string): string {
+// A toast whose Undo is also ⌘Z's while it shows. onEnd: the toast left, and why ("gone" for ⌘Z's Undo too).
+export function showUndoToast(
+    title: string,
+    undo: () => void | Promise<void>,
+    message?: string,
+    onEnd?: (reason: ToastDismissReason) => void
+): string {
     const entry: PendingUndo = { toastId: null, run: undo };
     entry.toastId = showToast({
         title,
@@ -37,10 +43,11 @@ export function showUndoToast(title: string, undo: () => void | Promise<void>, m
                 },
             },
         ],
-        onDismiss: () => {
+        onDismiss: (reason) => {
             if (pending === entry) {
                 pending = null;
             }
+            onEnd?.(reason);
         },
     });
     pending = entry;

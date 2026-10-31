@@ -242,6 +242,10 @@ export function confirmTerminalClose(blockId: string): Promise<boolean> {
 
 type CloseTabFn = (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>;
 
+// setAside: in place of a close that asks nothing more and removes no worktree, the view only goes aside for its
+// toast's Undo (#1656, view-set-aside.ts); false when it cannot, and the tab closes as usual.
+export type CloseTabOptions = { setAside?: (workspaceId: string, tabId: string) => Promise<boolean> };
+
 // Every close of a whole tab comes here (the tab's × and its hold, its menu, middle-click, Cmd+Shift+W, the vertical
 // tab bar, the last terminal's close), in place of Electron's closeTab: one read of what its terminals run and of the
 // worktrees they are linked to, then one dialog at most. A dialog answered for it is the confirmation, so Electron's own
@@ -250,13 +254,21 @@ export async function closeTabAskingFirst(
     closeTab: CloseTabFn,
     workspaceId: string,
     tabId: string,
-    confirmClose: boolean
+    confirmClose: boolean,
+    opts?: CloseTabOptions
 ): Promise<boolean> {
     if (dialogOpen() || refusePinnedClose(tabId)) {
         return false;
     }
     // A tab that really closes can come back with Cmd+Shift+T (#512).
-    closeTab = recordingTabClose(closeTab);
+    const recorded = recordingTabClose(closeTab);
+    // Electron's own confirmation (tab:confirmclose) keeps the immediate close: it is the answer the developer chose.
+    closeTab = async (wsId, id, confirm) => {
+        if (!confirm && opts?.setAside != null && (await opts.setAside(wsId, id))) {
+            return true;
+        }
+        return recorded(wsId, id, confirm);
+    };
     let blocks: Block[] = [];
     try {
         const tab = await loadAndPinWaveObject<Tab>(makeORef("tab", tabId));
@@ -305,7 +317,11 @@ export async function closeTabAskingFirst(
         }
         return closeTab(workspaceId, tabId, false);
     }
-    return closeTab(workspaceId, tabId, answer === "nothing" ? ownConfirm : false);
+    if (answer !== "nothing") {
+        // A worktree answered for (removed or kept) is not undone: the tab really closes.
+        return recorded(workspaceId, tabId, false);
+    }
+    return closeTab(workspaceId, tabId, ownConfirm);
 }
 
 function PlanLine({ text, warn }: { text: string; warn?: boolean }) {
