@@ -99,7 +99,15 @@ import {
 import { hasPrCounts, PrCounts } from "./pr-counts-model";
 import { AgentsSection } from "./sidebar-agents";
 import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
-import { topRowBlocks, type TopRowBlock as TopRowBlockFacts } from "./sidebar-blocks";
+import {
+    topRowBlocks,
+    TopRowIconWidth,
+    topRowLineFit,
+    topRowLines,
+    topRowShowsName,
+    type TopRowBlock as TopRowBlockFacts,
+    type TopRowLineFit,
+} from "./sidebar-blocks";
 import { CreateWorkspacePage } from "./sidebar-create";
 import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import {
@@ -1321,50 +1329,87 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
     );
     const ref = useRef<HTMLDivElement>(null);
     const { target, over } = useZone("top");
+    const width = useRowWidth(ref, pins.length > 0 || !!target);
     useGlide(ref, pins.map((p) => p.id).join(" "));
     if (pins.length === 0 && !target) {
         return null;
     }
+    // Lines of up to four, each laid out on its own (#1651): a line too narrow for names keeps its active block's name
+    // and shrinks the others to their icon, so the row never grows a line to fit names.
     return (
         <div
             ref={ref}
             className={cn(
-                "mt-sb-zone grid shrink-0 gap-1.5",
+                "mt-sb-zone flex shrink-0 flex-col gap-1.5",
                 target && "is-target",
                 over && "is-over",
                 pins.length === 0 && "mt-sb-zone-empty"
             )}
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(max(40px, calc((100% - 18px) / 4)), 1fr))" }}
             aria-label={t("sidebar.pins.topRowLabel")}
             data-testid="sidebar-top-row"
             data-cap={t("sidebar.views.captionEverywhere")}
             {...zoneProps("top")}
         >
-            {topRowBlocks(pins, instances).map((block) => (
-                <TopRowBlock
-                    key={block.pin.id}
-                    block={block}
-                    active={!!block.tabId && block.tabId === activeTabId}
-                    counts={block.pin.id === pilotagePin ? counts : undefined}
-                    motionKey={`top:${block.pin.id}:${workspaceId}`}
-                />
-            ))}
+            {topRowLines(topRowBlocks(pins, instances)).map((line) => {
+                const fit = topRowLineFit(width, line.length);
+                const isActive = (block: TopRowBlockFacts) => !!block.tabId && block.tabId === activeTabId;
+                const hasActive = line.some(isActive);
+                return (
+                    <div key={line[0].pin.id} className="flex min-w-0 gap-1.5" data-testid="sidebar-top-line">
+                        {line.map((block) => (
+                            <TopRowBlock
+                                key={block.pin.id}
+                                block={block}
+                                active={isActive(block)}
+                                fit={fit}
+                                iconOnlyFixed={fit === "narrow" && hasActive}
+                                counts={block.pin.id === pilotagePin ? counts : undefined}
+                                motionKey={`top:${block.pin.id}:${workspaceId}`}
+                            />
+                        ))}
+                    </div>
+                );
+            })}
         </div>
     );
+}
+
+function useRowWidth(ref: React.RefObject<HTMLElement>, shown: boolean): number {
+    const [width, setWidth] = useState(0);
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (el == null) {
+            return;
+        }
+        setWidth(el.clientWidth);
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(() => setWidth(el.clientWidth));
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [shown]);
+    return width;
 }
 
 function TopRowBlock({
     block,
     active,
+    fit,
+    iconOnlyFixed,
     counts,
     motionKey,
 }: {
     block: TopRowBlockFacts;
     active: boolean;
+    fit: TopRowLineFit;
+    iconOnlyFixed: boolean;
     counts?: PrCounts;
     motionKey: string;
 }) {
     const { pin, tabId, glyph } = block;
+    const showsName = topRowShowsName(fit, active);
+    const stacked = showsName && fit !== "beside";
     const t = useT();
     const hasCounts = hasPrCounts(counts);
     const { fresh } = useCountsMotion(motionKey, hasCounts);
@@ -1395,19 +1440,25 @@ function TopRowBlock({
         <button
             type="button"
             className={cn(
-                "relative flex h-[34px] min-w-0 cursor-pointer items-center justify-center rounded-6 px-1 text-primary transition-colors duration-120 ease-mt",
+                "relative flex min-w-0 cursor-pointer items-center justify-center rounded-6 px-1 text-primary transition-colors duration-120 ease-mt",
+                fit === "beside" ? "h-[34px]" : "h-[44px]",
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
                     : "bg-white/[0.07] hover:bg-white/[0.14]",
                 // The dots' column sits on the right: the glyph keeps clear of it, still centred.
                 hasCounts && "px-[10px]",
+                // A name keeps clear of the corner column on both sides, so the icon and name stay centred (#1651):
+                // beside the icon when the block is wide, under it as on tiles otherwise.
+                showsName && (stacked ? "flex-col gap-[3px] px-1" : "gap-1.5 px-3"),
                 drag?.kind === "top" && drag.id === pin.id && "mt-sb-dragged",
                 dropSideClass(drag, "top", pin.id)
             )}
             aria-label={summary ? `${pin.name}, ${summary}` : pin.name}
             aria-current={active ? "page" : undefined}
             title={title}
+            style={{ flex: iconOnlyFixed && !showsName ? `0 0 ${TopRowIconWidth}px` : "1 1 0" }}
             data-testid="sidebar-top-block"
+            data-fit={fit}
             data-pin-id={pin.id}
             data-tab-id={tabId || undefined}
             {...keyProps(pin.id)}
@@ -1422,6 +1473,15 @@ function TopRowBlock({
         >
             {/* The glyph is clipped on its own: the block lets its corner column show, glows included (#1283). */}
             <ViewGlyph icons={glyph} small={glyph.length > 1} className="max-w-full overflow-hidden" />
+            {showsName ? (
+                <span
+                    className={cn("min-w-0 truncate leading-none", stacked ? "max-w-full text-11" : "text-12")}
+                    data-testid="sidebar-top-name"
+                    aria-hidden
+                >
+                    {pin.name}
+                </span>
+            ) : null}
             <span className="mt-sb-corner is-small" data-testid="sidebar-corner">
                 {modified && tabId ? <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden /> : null}
                 {!modified && tabId ? <TopRowAgentMark tabId={tabId} /> : null}

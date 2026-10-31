@@ -4,7 +4,7 @@
 // A workspace's blocks, read the same by its sidebar and its library card (FR-SHELL-080, FR-SHELL-088, #1307).
 
 import { describe, expect, it } from "vitest";
-import { pinGlyph, topRowBlocks, workspaceBlocks } from "./sidebar-blocks";
+import { pinGlyph, topRowBlocks, topRowLineFit, topRowLines, topRowShowsName, workspaceBlocks } from "./sidebar-blocks";
 import { GlobalPin } from "./view-pins-model";
 
 function pin(id: string, name: string, views: string[], extra: Partial<GlobalPin> = {}): GlobalPin {
@@ -71,5 +71,35 @@ describe("a workspace's blocks (#1307)", () => {
 
     it("are empty for a workspace not loaded yet", () => {
         expect(workspaceBlocks([], null)).toEqual({ top: [], tiles: [] });
+    });
+});
+
+describe("the top row's names (FR-SHELL-080, #1651)", () => {
+    it("cuts the blocks into lines of four", () => {
+        expect(topRowLines([1, 2, 3, 4, 5, 6]).map((line) => line.length)).toEqual([4, 2]);
+        expect(topRowLines([])).toEqual([]);
+        expect(topRowLines(null)).toEqual([]);
+    });
+
+    it("puts names beside the icons when each block gets 88 px, under them from 52 px", () => {
+        expect(topRowLineFit(256, 2)).toBe("beside");
+        expect(topRowLineFit(276, 3)).toBe("beside");
+        expect(topRowLineFit(275, 3)).toBe("stacked");
+        expect(topRowLineFit(256, 4)).toBe("stacked");
+        expect(topRowLineFit(226, 4)).toBe("stacked");
+        expect(topRowLineFit(225, 4)).toBe("narrow");
+        expect(topRowLineFit(400, 4)).toBe("beside");
+    });
+
+    it("names the blocks beside their icons before the row is measured", () => {
+        expect(topRowLineFit(0, 4)).toBe("beside");
+        expect(topRowLineFit(Number.NaN, 4)).toBe("beside");
+    });
+
+    it("keeps the active block's name on a narrow line, the others show their icon", () => {
+        expect(topRowShowsName("beside", false)).toBe(true);
+        expect(topRowShowsName("stacked", false)).toBe(true);
+        expect(topRowShowsName("narrow", true)).toBe(true);
+        expect(topRowShowsName("narrow", false)).toBe(false);
     });
 });
