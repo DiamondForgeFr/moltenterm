@@ -50,5 +50,6 @@
     "term:trimtrailingwhitespace": true,
     "term:durable": false,
     "waveai:showcloudmodes": false,
+    "preview:showhiddenfiles": false,
     "preview:defaultsort": "name"
 }
