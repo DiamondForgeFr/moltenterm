@@ -65,6 +65,11 @@ const Failed = (name = "Backend"): ReviewCheck => ({ name, state: "failure", run
 const WaitingLocal: ReviewCheck = { name: "AI testing / Local CI", state: "untrusted" };
 const StoppedAt = Date.UTC(2026, 9, 28, 13, 7);
 const StoppedLocal: ReviewCheck = { name: "AI testing / Local CI", state: "interrupted", stoppedat: StoppedAt };
+const ElsewhereLocal: ReviewCheck = {
+    name: "AI testing / Local CI",
+    state: "notlocal",
+    startedat: "2026-10-28T13:07:40Z",
+};
 
 function state(input: Partial<CardInput> & { pr: ReviewPr }) {
     return cardState({ agents: [], ...input });
@@ -105,6 +110,7 @@ const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr }
     { kind: "ci-trust", input: { pr: pr({ merge: "failing" }, [WaitingLocal, ...Green]) } },
     { kind: "ci-stopped", input: { pr: pr({ merge: "failing" }, [StoppedLocal, ...Green]) } },
     { kind: "review-required", input: { pr: pr({ merge: "blocked", reviewdecision: "REVIEW_REQUIRED" }) } },
+    { kind: "ci-elsewhere", input: { pr: pr({ merge: "failing" }, [ElsewhereLocal, ...Green]) } },
     { kind: "draft-ready", input: { pr: pr({ draft: true, report: { state: "missing" } }) } },
     {
         kind: "ci-running",
@@ -340,7 +346,7 @@ describe("cardState: the nine states (#1060)", () => {
     });
 
     it("CI running: calm Assisted review, Validate still in the menu, behind is a fact", () => {
-        const w = words(Cases[10].input);
+        const w = words(Cases[11].input);
         expect(w.sentence).toBe("CI running");
         expect(w.why).toBe("2 of 4, Backend, Build");
         expect(w.primary).toBe("Assisted review");
@@ -485,9 +491,9 @@ describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
     });
 
     it("CI running with nothing asked: the state line shows them", () => {
-        const s = state(Cases[10].input);
+        const s = state(Cases[11].input);
         expect([s.kind, s.works, s.motion]).toEqual(["ci-running", true, "state"]);
-        expect(state({ ...Cases[10].input, agents: [Jeanne] }).motion).toBe("state");
+        expect(state({ ...Cases[11].input, agents: [Jeanne] }).motion).toBe("state");
     });
 
     it("nothing works: no dominoes", () => {
@@ -602,6 +608,26 @@ describe("a local CI nothing runs (#1713)", () => {
         expect(unknown.why).toBe("nothing runs it now (AI testing / Local CI)");
     });
 
+    it("no run of it on this computer: calm, neither running nor interrupted, Run it here", () => {
+        const s = state({ pr: pr({ merge: "failing" }, [ElsewhereLocal, ...Green]) });
+        const w = words({ pr: pr({ merge: "failing" }, [ElsewhereLocal, ...Green]) });
+        expect(s.kind).toBe("ci-elsewhere");
+        expect([s.molten, s.works, s.motion]).toEqual([false, false, null]);
+        expect(s.primary.id).toBe("run-ci");
+        expect(w.sentence).toBe("Local CI not running on this computer");
+        expect(w.why).toMatch(/^status posted on .*2026.*, no run of it here \(AI testing \/ Local CI\)$/);
+        expect(w.primary).toBe("Run it here");
+        expect(`${w.sentence} ${w.why}`).not.toMatch(/interrupted|running it/);
+        expect(words({ pr: pr({}, [{ ...ElsewhereLocal, startedat: undefined }, ...Green]) }).why).toBe(
+            "no run of it here (AI testing / Local CI)"
+        );
+    });
+
+    it("GitHub's own running checks come before a status with no run here", () => {
+        const checks: ReviewCheck[] = [ElsewhereLocal, { name: "E2E", state: "pending" }, ...Green];
+        expect(state({ pr: pr({ merge: "running" }, checks) }).kind).toBe("ci-running");
+    });
+
     it("a real failure still wins", () => {
         expect(state({ pr: pr({ merge: "failing" }, [Failed(), WaitingLocal, ...Green.slice(1)]) }).kind).toBe(
             "failing"
@@ -619,6 +645,10 @@ describe("in French", () => {
         );
         expect(words({ pr: pr({}, [WaitingLocal, ...Green]) }).primary).toBe("Approuver les commandes…");
         expect(words({ pr: pr({}, [StoppedLocal, ...Green]) }).primary).toBe("Relancer la CI locale");
+        expect(words({ pr: pr({}, [ElsewhereLocal, ...Green]) }).sentence).toBe(
+            "CI locale non lancée sur cet ordinateur"
+        );
+        expect(words({ pr: pr({}, [ElsewhereLocal, ...Green]) }).primary).toBe("La lancer ici");
     });
 
     it("names the ticket's other branches (#1172)", () => {

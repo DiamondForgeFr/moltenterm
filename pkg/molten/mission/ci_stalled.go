@@ -14,14 +14,18 @@ import (
 // A local CI that nothing runs never reads as running (#1713, FR-MC-011, FR-REV-001). GitHub keeps a pending commit
 // status forever once its poster is gone: the local-<job> statuses of a run whose MoltenTerm stopped, or the "AI
 // testing / Local CI" status an agent posts before `molten ci run` and never updates when the run is refused for
-// untrusted commands or the agent stops. The local CI knows better: no run works on that commit, its commands may wait
-// for the developer's approval, or it has its own verdict. `molten ci status` and the Integration cards say the same.
+// untrusted commands or the agent stops. The local CI knows better: its commands may wait for the developer's
+// approval, its own run on that commit was interrupted, it has its own verdict, or it has no run of it at all (then
+// the status may be another computer's). `molten ci status` and the Integration cards say the same.
 
 const (
 	CiStateUntrusted = "untrusted"
 
 	ReviewCheckInterrupted = "interrupted"
 	ReviewCheckUntrusted   = "untrusted"
+	// No run of it on this computer and the commands approved: it may run on another computer, so it is neither
+	// running nor interrupted here.
+	ReviewCheckNotLocal = "notlocal"
 
 	// A local CI status this recent keeps its running state: its run may be starting.
 	reviewLocalCiGrace = 2 * time.Minute
@@ -137,11 +141,14 @@ func reconcileLocalCi(pr *ReviewPr, facts localCiFacts, now time.Time) {
 			check.State = ReviewCheckUntrusted
 			continue
 		}
-		check.State = ReviewCheckInterrupted
-		check.StoppedAt = started
-		if last != nil && last.Status == CiStateInterrupted && last.FinishedAt > 0 {
+		// Interrupted only on the word of a run record of this computer; without one the status may come from
+		// another computer or a teammate, which nothing here can tell.
+		if last != nil && last.Status == CiStateInterrupted {
+			check.State = ReviewCheckInterrupted
 			check.StoppedAt = last.FinishedAt
+			continue
 		}
+		check.State = ReviewCheckNotLocal
 	}
 	if !changed {
 		return
