@@ -1478,8 +1478,23 @@
                 "signIn": "Se connecter",
                 "signInTitle": "Se connecter à {name}",
                 "signInText": "{name} est sur cet ordinateur. Il vous faut : {account}.",
-                "signInFirstStart": "La connexion se fait à son premier démarrage : lancez {command} dans un terminal et suivez ses étapes.",
-                "signInPage": "Se connecter ou créer un compte ↗",
+                "signInHow": {
+                    "command": "MoltenTerm lance {command} dans un terminal : {name} {opens}.",
+                    "slash": "MoltenTerm démarre {name} dans un terminal : tapez {slash}, puis il {opens}.",
+                    "firstrun": "MoltenTerm démarre {name} dans un terminal : à son premier démarrage, il {opens}."
+                },
+                "signInOpens": {
+                    "browser": "ouvre votre navigateur pour vous connecter",
+                    "device": "affiche un code à saisir dans votre navigateur",
+                    "key": "demande votre clé d'API",
+                    "browserorkey": "propose une connexion dans le navigateur ou une clé d'API"
+                },
+                "signInRunning": "Terminez la connexion dans le terminal : MoltenTerm vérifie à nouveau de lui-même.",
+                "signInEnded": "La commande du terminal est terminée. Pas encore connecté ? Reconnectez-vous, ou vérifiez à nouveau.",
+                "signInFailed": "Le terminal ne s'est pas ouvert : {error}",
+                "signInKey": "Sa connexion, c'est la clé de l'offre : créez-la sur la page du fournisseur, puis mettez-la dans la recette.",
+                "keyPage": "Obtenir la clé ↗",
+                "signInPage": "Créer un compte / voir les offres ↗",
                 "profile": {
                     "checked": "Vérifié le {date}",
                     "checkedStale": "Vérifié le {date} : cela a pu changer, voyez la page de l'éditeur"
@@ -10032,7 +10047,7 @@
             },
             "links": {
                 "site": "Site officiel ↗",
-                "signIn": "Se connecter ou créer un compte ↗",
+                "signIn": "Créer un compte / voir les offres ↗",
                 "docs": "Documentation ↗",
                 "installPage": "Page d'installation ↗"
             },

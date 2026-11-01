@@ -4,8 +4,8 @@
 // Scene 2 of the pour, "Your agents heat up" (FR-ONB-007 AC-4, AC-5): one card per catalog agent from wavesrv's real
 // detection (FR-ONB-002, pkg/molten/onboarding/agents.go), and recipe cards for subscriptions that run in Claude Code
 // (GLM Coding Plan, MiniMax). Install runs the official command of wavesrv's catalog (agents.go, #1667), which the
-// card shows and keeps to copy; then the card says which account the agent needs and opens the vendor's sign-in page
-// (#1680). MoltenTerm offers every agent as a browser offers every search engine: the cards are equal, in the same
+// card shows and keeps to copy; then the card says which account the agent needs and runs the agent's own sign-in in
+// a terminal panel (#1723), the vendor's plans page linked apart. MoltenTerm offers every agent as a browser offers every search engine: the cards are equal, in the same
 // layout, the ones found on this computer first and the others in alphabetical order, never ranked by vendor. The
 // provider names are data here and reach the sentences as placeholders (provider-neutral words, #1452).
 
@@ -15,7 +15,7 @@ import {
     featureWorks,
     type FeatureMatrix,
 } from "../moltenterm-shell/agent-info/agent-features-model";
-import { canMorph, catalogAgents, OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
+import { AgentSignIn, canMorph, catalogAgents, OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 
 export const GlmCardId = "glm";
 export const MiniMaxCardId = "minimax";
@@ -71,7 +71,9 @@ export type AgentRecipe = {
     provider: string;
     account: AccountKind;
     guideUrl: string;
-    signInPage: string;
+    // the plan's page; its key is the sign-in (keyPage), set in the recipe's variables
+    plansPage: string;
+    keyPage: string;
     lines: string[];
 };
 
@@ -82,6 +84,8 @@ function claudeRecipe(baseUrl: string, keyPlaceholder: string): string[] {
 // Checked on 2026-11-01 (#1680): Z.ai's Claude Code page (international endpoint; mainland China uses
 // open.bigmodel.cn, on the same page's Chinese twin) and MiniMax's (api.minimax.io; api.minimax.cn in mainland China;
 // its Coding and Token plans are now the M Plan).
+// Their sign-in, checked on 2026-11-01 for #1723, is the plan's key, made on the key page (Z.ai's API keys,
+// docs.z.ai/devpack/quick-start; MiniMax's Plan Details, platform.minimax.io/docs/m-plan/quickstart).
 // DeepSeek's recipe left the first launch with #1680: it needs an API key, not a subscription.
 export const Recipes: AgentRecipe[] = [
     {
@@ -90,7 +94,8 @@ export const Recipes: AgentRecipe[] = [
         provider: "Z.ai",
         account: "planKey",
         guideUrl: "https://docs.z.ai/devpack/tool/claude",
-        signInPage: "https://z.ai/subscribe",
+        plansPage: "https://z.ai/subscribe",
+        keyPage: "https://z.ai/manage-apikey/apikey-list",
         lines: claudeRecipe("https://api.z.ai/api/anthropic", "<your GLM Coding Plan key>"),
     },
     {
@@ -99,7 +104,8 @@ export const Recipes: AgentRecipe[] = [
         provider: "MiniMax",
         account: "planKey",
         guideUrl: "https://platform.minimax.io/docs/coding-plan/claude-code",
-        signInPage: "https://www.minimax.io/m-plan",
+        plansPage: "https://www.minimax.io/m-plan",
+        keyPage: "https://platform.minimax.io/console/plan",
         lines: claudeRecipe("https://api.minimax.io/anthropic", "<your MiniMax M Plan key>"),
     },
 ];
@@ -118,8 +124,12 @@ export type PourAgentCard = {
     provider: string;
     install: string[];
     installPage?: string;
-    // the vendor's page to sign in or create an account and pick a plan (#1680)
-    signInPage?: string;
+    // the vendor's plans or sign-up page (#1680, #1723)
+    plansPage?: string;
+    // the catalog's sign-in procedure, which Sign in runs in a terminal panel (#1723)
+    signIn?: AgentSignIn;
+    // a recipe's page where its plan's key is made
+    keyPage?: string;
     // wavesrv saw the agent's sign-in (a credentials file it documents); false when it cannot tell
     signedIn?: boolean;
     // the agent a recipe runs in (Claude Code)
@@ -143,7 +153,8 @@ function agentCard(agent: OnboardingAgent, matrix: FeatureMatrix): PourAgentCard
         provider: facts?.provider ?? agent.name,
         install: agent.installcommands ?? [],
         installPage: agent.installpage,
-        signInPage: agent.signinpage,
+        plansPage: agent.planspage,
+        signIn: agent.signin,
         signedIn: !!agent.signedin,
         hooksNote: agent.id === CodexId,
     };
@@ -162,7 +173,8 @@ function recipeCard(recipe: AgentRecipe, list: OnboardingAgents): PourAgentCard 
         provider: recipe.provider,
         install: [],
         installPage: recipe.guideUrl,
-        signInPage: recipe.signInPage,
+        plansPage: recipe.plansPage,
+        keyPage: recipe.keyPage,
         recipe: true,
         recipeLines: recipe.lines,
     };

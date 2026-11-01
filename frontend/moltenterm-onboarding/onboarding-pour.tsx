@@ -51,6 +51,7 @@ import { AgentsScene, PourScene } from "./onboarding-pour-scenes";
 import { SparkField } from "./onboarding-pour-sparks";
 import "./onboarding-pour.css";
 import { ProjectCandidate, WorkspaceColours } from "./onboarding-project-model";
+import type { SignInRun } from "./onboarding-signin-model";
 
 const PourBurstDelayMs = 650;
 const NoProjectColour = WorkspaceColours[0];
@@ -79,6 +80,9 @@ export type PourProps = {
     onInstall?: (id: string) => void;
     onAnswerInstall?: (id: string, text: string) => void;
     onCancelInstall?: (id: string) => void;
+    // the sign-ins Sign in started, and Sign in itself: the agent's own sign-in in a terminal (#1723)
+    signIns?: Record<string, SignInRun>;
+    onSignIn?: (id: string) => void;
     onSkip: () => void;
     // leaving the project scene creates or links its project; null keeps the scene (the error says why)
     onLeaveProject?: (draft: ProjectDraft) => Promise<ProjectResult>;
@@ -109,6 +113,8 @@ export function OnboardingPour({
     onInstall,
     onAnswerInstall,
     onCancelInstall,
+    signIns,
+    onSignIn,
     onSkip,
     onLeaveProject,
     onLaterProject,
@@ -386,6 +392,13 @@ export function OnboardingPour({
                         }}
                         onAnswer={(id, text) => onAnswerInstall?.(id, text)}
                         onCancel={(id) => onCancelInstall?.(id)}
+                        signIns={signIns ?? {}}
+                        onSignIn={(id) => {
+                            if (state.open !== id) {
+                                dispatch({ type: "toggle", card: id });
+                            }
+                            onSignIn?.(id);
+                        }}
                         onCheck={onCheckAgain}
                     />
                 ) : null}
@@ -479,7 +492,9 @@ export function OnboardingPour({
                         className="molten-btn cursor-pointer rounded-4 px-[22px] py-3 text-15 font-semibold aria-disabled:opacity-50"
                         data-testid="first-run-next"
                     >
-                        {working && (isLastScene(state.scene) || sceneId === "project") ? <DominoLoader className="mr-2" /> : null}
+                        {working && (isLastScene(state.scene) || sceneId === "project") ? (
+                            <DominoLoader className="mr-2" />
+                        ) : null}
                         {working && (isLastScene(state.scene) || sceneId === "project")
                             ? t(isLastScene(state.scene) ? "onboarding.pour.opening" : "onboarding.pour.settingUp")
                             : t(nextLabelKey(state.scene))}

@@ -56,6 +56,7 @@ import { OnboardingPour } from "./onboarding-pour";
 import { keptAgent } from "./onboarding-pour-agents";
 import { PourRecord } from "./onboarding-pour-model";
 import { ProjectCandidate, projectCandidates, projectColour, ProjectFolderKey } from "./onboarding-project-model";
+import { AgentSignInModel } from "./onboarding-signin";
 import { MoltentermOnboardingView } from "./onboarding-state";
 
 export { MoltentermOnboardingView };
@@ -204,6 +205,19 @@ export class OnboardingViewModel implements ViewModel {
             await new Promise((resolve) => setTimeout(resolve, InstallPollMs));
         }
         await this.loadAgents(true);
+    }
+
+    // Sign in on a card (AC-5b, #1723): the agent's own sign-in in a terminal beside the panel; the card follows the
+    // detection that sees it.
+    async signIn(id: string): Promise<void> {
+        const agent = globalStore.get(this.agentsAtom)?.agents?.find((a) => a.id === id);
+        if (agent?.signin == null) {
+            return;
+        }
+        await AgentSignInModel.getInstance().start(
+            { id, name: agent.name, signIn: agent.signin },
+            { besideBlockId: this.blockId, onList: (list) => globalStore.set(this.agentsAtom, list) }
+        );
     }
 
     async answerInstall(id: string, text: string): Promise<void> {
@@ -395,6 +409,7 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
     const agentsError = useAtomValue(model.agentsErrorAtom);
     const checking = useAtomValue(model.checkingAtom);
     const installs = useAtomValue(model.installsAtom);
+    const signIns = useAtomValue(AgentSignInModel.getInstance().runsAtom);
     const candidates = useAtomValue(model.candidatesAtom);
     const scanning = useAtomValue(model.scanningAtom);
     const reduced = useAtomValue(atoms.prefersReducedMotionAtom);
@@ -431,6 +446,8 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     onInstall={(id) => fireAndForget(() => model.install(id))}
                     onAnswerInstall={(id, text) => fireAndForget(() => model.answerInstall(id, text))}
                     onCancelInstall={(id) => fireAndForget(() => model.cancelInstall(id))}
+                    signIns={signIns}
+                    onSignIn={(id) => fireAndForget(() => model.signIn(id))}
                     onSkip={() => fireAndForget(() => model.leave())}
                     onLeaveProject={(draft) => model.leaveProject(draft)}
                     onLaterProject={() => model.laterProject()}

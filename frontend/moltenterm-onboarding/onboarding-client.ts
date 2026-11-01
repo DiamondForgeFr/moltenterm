@@ -13,6 +13,7 @@ import {
     OnboardingAgentInstallCommand,
     OnboardingAgents,
     OnboardingAgentsCommand,
+    OnboardingAgentSignInCommand,
 } from "./onboarding-agent-model";
 import {
     CliInstallCancelCommand,
@@ -108,6 +109,17 @@ export function answerCliInstall(id: string, text: string): Promise<CliInstallSt
 
 export function cancelCliInstall(id: string): Promise<CliInstallStatus> {
     return cliInstallCall(CliInstallCancelCommand, { id });
+}
+
+// Sign in (#1723): the id and the line printed above the command cross, never a command; wavesrv answers the
+// terminal's meta, built from its catalog.
+export async function agentSignInMeta(id: string, note: string): Promise<MetaType> {
+    const rtn = await TabRpcClient.wshRpcCall(
+        OnboardingAgentSignInCommand,
+        { id, note },
+        { route: OnboardingRoute, timeout: OnboardingRefreshTimeoutMs }
+    );
+    return rtn?.meta;
 }
 
 export async function installDeclinedAgent(id: string): Promise<OnboardingAgent> {

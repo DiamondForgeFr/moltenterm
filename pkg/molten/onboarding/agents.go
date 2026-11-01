@@ -32,8 +32,10 @@ type agentInstall struct {
 	// The official commands, the first the one Install runs (FR-ONB-007 AC-5): the only commands MoltenTerm ever runs
 	// to install an agent, looked up here by agent id.
 	Commands []string
-	// The vendor's page to sign in or create an account and pick a plan (#1680).
-	SignInPage string
+	// The vendor's plans or sign-up page (#1680), never a download page (#1723).
+	PlansPage string
+	// How the agent signs in from its CLI (#1723), the procedure Sign in runs in a terminal panel.
+	SignIn agentSignIn
 	// The files whose mere existence the vendor documents as a sign-in (#1680), relative to the agent's folder; nil when
 	// the sign-in lives in the system keychain or nowhere documented. MoltenTerm never opens them and never starts the
 	// agent to ask: a file found means signed in, none found means it cannot tell.
@@ -79,26 +81,33 @@ func signedIn(env molten.AgentEnv, install agentInstall) bool {
 // 2026-10-31 (Kimi Code's page moved off the kimi-cli repository, archived on 2026-09-23), and on 2026-11-01 for the
 // subscription CLIs of #1680 (Antigravity CLI replaced Gemini CLI for personal Google accounts on 2026-06-18, Gemini
 // CLI's README says; Gemini CLI stays for Code Assist Standard/Enterprise and paid API keys). The scripts come first:
-// they need no Node.js or Python.
+// they need no Node.js or Python. The sign-in procedures were checked on the vendors' docs on SignInCheckedOn (#1723),
+// each with its sources.
 var agentInstallCatalog = map[string]agentInstall{
 	"claude-code": {
-		Page:       "https://code.claude.com/docs/en/setup",
-		Commands:   []string{"curl -fsSL https://claude.ai/install.sh | bash"},
-		SignInPage: "https://claude.com/pricing",
+		Page:      "https://code.claude.com/docs/en/setup",
+		Commands:  []string{"curl -fsSL https://claude.ai/install.sh | bash"},
+		PlansPage: "https://claude.com/pricing",
+		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"auth", "login"}, Opens: SignInOpensBrowser,
+			Sources: []string{"https://code.claude.com/docs/en/authentication", "https://code.claude.com/docs/en/cli-reference"}},
 		// macOS keeps it in the keychain: the file only proves a sign-in, its absence nothing.
 		Credentials: credentialsIn("CLAUDE_CONFIG_DIR", ".claude", ".credentials.json"),
 	},
 	"codex": {
-		Page:       "https://learn.chatgpt.com/docs/codex/cli",
-		Commands:   []string{"curl -fsSL https://chatgpt.com/codex/install.sh | sh", "npm i -g @openai/codex"},
-		SignInPage: "https://learn.chatgpt.com/docs/pricing",
+		Page:      "https://learn.chatgpt.com/docs/codex/cli",
+		Commands:  []string{"curl -fsSL https://chatgpt.com/codex/install.sh | sh", "npm i -g @openai/codex"},
+		PlansPage: "https://learn.chatgpt.com/docs/pricing",
+		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"login"}, Opens: SignInOpensBrowser,
+			Sources: []string{"https://developers.openai.com/codex/auth"}},
 		// cli_auth_credentials_store may put it in the keyring instead.
 		Credentials: credentialsIn("CODEX_HOME", ".codex", "auth.json"),
 	},
 	"gemini-cli": {
-		Page:       "https://github.com/google-gemini/gemini-cli",
-		Commands:   []string{"npm install -g @google/gemini-cli"},
-		SignInPage: "https://codeassist.google/products/business",
+		Page:      "https://github.com/google-gemini/gemini-cli",
+		Commands:  []string{"npm install -g @google/gemini-cli"},
+		PlansPage: "https://codeassist.google/products/business",
+		SignIn: agentSignIn{Kind: SignInKindFirstRun, Opens: SignInOpensBrowser,
+			Sources: []string{"https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/authentication.mdx"}},
 	},
 	"qwen-code": {
 		Page: "https://github.com/QwenLM/qwen-code",
@@ -107,19 +116,28 @@ var agentInstallCatalog = map[string]agentInstall{
 			"npm install -g @qwen-code/qwen-code@latest",
 		},
 		// Qwen OAuth's free tier ended on 2026-04-15: Alibaba Cloud's Coding Plan or a key, kept in settings files.
-		SignInPage: "https://modelstudio.console.alibabacloud.com/?tab=coding-plan#/efm/coding-plan-index",
+		PlansPage: "https://modelstudio.console.alibabacloud.com/?tab=coding-plan#/efm/coding-plan-index",
+		// The qwen auth command is gone: /auth picks a provider and takes its key.
+		SignIn: agentSignIn{Kind: SignInKindSlash, Slash: "/auth", Opens: SignInOpensKey,
+			Sources: []string{"https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/"}},
 	},
 	"kimi": {
-		Page:        "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started",
-		Commands:    []string{"curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"},
-		SignInPage:  "https://www.kimi.com/membership/pricing",
+		Page:      "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started",
+		Commands:  []string{"curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"},
+		PlansPage: "https://www.kimi.com/membership/pricing",
+		// No kimi login command: /login offers Kimi Code's sign-in (a code to enter in the browser) or a platform key.
+		SignIn: agentSignIn{Kind: SignInKindSlash, Slash: "/login", Opens: SignInOpensDevice,
+			Sources: []string{"https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html"}},
 		Credentials: credentialsIn("KIMI_CODE_HOME", ".kimi-code", filepath.Join("credentials", "*.json")),
 	},
 	molten.AgentIdAntigravity: {
 		Page:     "https://antigravity.google/docs/install?tab=cli",
 		Commands: []string{"curl -fsSL https://antigravity.google/cli/install.sh | bash"},
 		// The sign-in lives in the system keychain only.
-		SignInPage: "https://antigravity.google/pricing",
+		PlansPage: "https://antigravity.google/docs/plans",
+		// No login command or /login: agy opens Google's sign-in when it starts without a saved one.
+		SignIn: agentSignIn{Kind: SignInKindFirstRun, Opens: SignInOpensBrowser,
+			Sources: []string{"https://antigravity.google/docs/install/"}},
 	},
 	molten.AgentIdCopilot: {
 		Page: "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli",
@@ -129,25 +147,34 @@ var agentInstallCatalog = map[string]agentInstall{
 			"brew install --cask copilot-cli",
 		},
 		// The keychain by default; config.json exists without a sign-in.
-		SignInPage: "https://github.com/features/copilot/plans",
+		PlansPage: "https://github.com/features/copilot/plans",
+		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"login"}, Opens: SignInOpensBrowser,
+			Sources: []string{"https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli"}},
 	},
 	molten.AgentIdCursor: {
 		Page:     "https://cursor.com/docs/cli/installation",
 		Commands: []string{"curl https://cursor.com/install -fsS | bash"},
 		// "Stored securely" where the docs do not say.
-		SignInPage: "https://cursor.com/pricing",
+		PlansPage: "https://cursor.com/pricing",
+		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"login"}, Opens: SignInOpensBrowser,
+			Sources: []string{"https://cursor.com/docs/cli/reference/authentication"}},
 	},
 	molten.AgentIdGrok: {
-		Page:       "https://docs.x.ai/build/overview",
-		Commands:   []string{"curl -fsSL https://x.ai/cli/install.sh | bash"},
-		SignInPage: "https://grok.com/plans",
+		Page:      "https://docs.x.ai/build/overview",
+		Commands:  []string{"curl -fsSL https://x.ai/cli/install.sh | bash"},
+		PlansPage: "https://grok.com/plans",
+		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"login"}, Opens: SignInOpensBrowser,
+			Sources: []string{"https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/02-authentication.md"}},
 		// GROK_HOME holds the auth (settings reference); the official installer checks auth.json for it.
 		Credentials: credentialsIn("GROK_HOME", ".grok", "auth.json"),
 	},
 	molten.AgentIdVibe: {
-		Page:       "https://docs.mistral.ai/mistral-vibe/introduction/install",
-		Commands:   []string{"curl -LsSf https://mistral.ai/vibe/install.sh | bash", "uv tool install mistral-vibe"},
-		SignInPage: "https://mistral.ai/pricing",
+		Page:      "https://docs.mistral.ai/mistral-vibe/introduction/install",
+		Commands:  []string{"curl -LsSf https://mistral.ai/vibe/install.sh | bash", "uv tool install mistral-vibe"},
+		PlansPage: "https://mistral.ai/pricing",
+		// --setup runs the first start's wizard again: a browser sign-in with the Mistral account, or an API key.
+		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"--setup"}, Opens: SignInOpensBrowserOrKey,
+			Sources: []string{"https://docs.mistral.ai/vibe/code/cli/install-setup"}},
 		// An API key goes to the keyring, or to .env without one; the browser sign-in's place is not documented.
 		Credentials: credentialsIn("VIBE_HOME", ".vibe", ".env"),
 	},
@@ -155,12 +182,13 @@ var agentInstallCatalog = map[string]agentInstall{
 
 type AgentEntry struct {
 	molten.AgentStatus
-	Executable      string   `json:"executable,omitempty"`
-	Found           bool     `json:"found"`
-	FoundPath       string   `json:"foundpath,omitempty"`
-	InstallPage     string   `json:"installpage,omitempty"`
-	InstallCommands []string `json:"installcommands,omitempty"`
-	SignInPage      string   `json:"signinpage,omitempty"`
+	Executable      string       `json:"executable,omitempty"`
+	Found           bool         `json:"found"`
+	FoundPath       string       `json:"foundpath,omitempty"`
+	InstallPage     string       `json:"installpage,omitempty"`
+	InstallCommands []string     `json:"installcommands,omitempty"`
+	PlansPage       string       `json:"planspage,omitempty"`
+	SignIn          *AgentSignIn `json:"signin,omitempty"`
 	// A credentials file the vendor documents is there; false when MoltenTerm cannot tell, never proof of the contrary.
 	SignedIn bool `json:"signedin,omitempty"`
 	// The Library's agent page (#1699): the vendor's links, the profile, and how the copy found comes off.
@@ -194,7 +222,8 @@ func ListAgents(env molten.AgentEnv, pathList string, version string) AgentsResu
 			Executable:       profile.Executable,
 			InstallPage:      agentInstallCatalog[profile.Id].Page,
 			InstallCommands:  installCommands(profile.Id),
-			SignInPage:       agentInstallCatalog[profile.Id].SignInPage,
+			PlansPage:        agentInstallCatalog[profile.Id].PlansPage,
+			SignIn:           signInEntry(profile),
 			UninstallMethods: uninstallMethods(profile.Id),
 		}
 		if facts, ok := agentFactsCatalog[profile.Id]; ok {
