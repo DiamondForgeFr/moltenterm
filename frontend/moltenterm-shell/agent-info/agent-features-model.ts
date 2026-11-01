@@ -27,7 +27,8 @@ export type FeatureReason =
     | "noskills"
     | "notdetected"
     | "agentspecific"
-    | "modelunverified";
+    | "modelunverified"
+    | "provider";
 export type FeatureInfo = { id: string; name: string; requires?: string[] };
 export type FeatureSupport = {
     level: FeatureLevel;
@@ -47,7 +48,19 @@ export type AgentFeatures = {
     guidecall?: string;
     features: Record<string, FeatureSupport>;
 };
-export type FeatureMatrix = { asof: string; features: FeatureInfo[]; agents: AgentFeatures[] };
+// providers: an agent run behind another provider (FR-AGC-008), apart from the agents so that no list offers it.
+export type ProviderFeatures = {
+    agent: string;
+    provider: string;
+    name: string;
+    features: Record<string, FeatureSupport>;
+};
+export type FeatureMatrix = {
+    asof: string;
+    features: FeatureInfo[];
+    agents: AgentFeatures[];
+    providers?: ProviderFeatures[];
+};
 
 const Unknown: FeatureSupport = { level: "none", reason: "noadapter" };
 // The call of an agent whose row gives none: the slash command most agents use.

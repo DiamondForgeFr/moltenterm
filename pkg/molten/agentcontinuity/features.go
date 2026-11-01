@@ -41,6 +41,8 @@ const (
 	ReasonNotDetected     = "notdetected"
 	ReasonAgentSpecific   = "agentspecific"
 	ReasonModelUnverified = "modelunverified"
+	// ReasonProvider: the agent runs behind another provider, which does not offer it (FR-AGC-008).
+	ReasonProvider = "provider"
 )
 
 // The MoltenTerm features of the matrix (the rows of the #1681 audit).
@@ -75,7 +77,7 @@ const (
 )
 
 var validLevels = []string{LevelNative, LevelAdapted, LevelProcessOnly, LevelNone}
-var validReasons = []string{ReasonNoAdapter, ReasonNoHooks, ReasonNoMcp, ReasonNoSkills, ReasonNotDetected, ReasonAgentSpecific, ReasonModelUnverified}
+var validReasons = []string{ReasonNoAdapter, ReasonNoHooks, ReasonNoMcp, ReasonNoSkills, ReasonNotDetected, ReasonAgentSpecific, ReasonModelUnverified, ReasonProvider}
 
 // FeatureInfo is one MoltenTerm feature. Requires: the agent capabilities it cannot be native or adapted without.
 type FeatureInfo struct {
@@ -140,11 +142,23 @@ type AgentFeatures struct {
 	Features  map[string]FeatureSupport `json:"features"`
 }
 
+// ProviderFeatures is the row of an agent run behind another provider (FR-AGC-008 AC-3): Claude Code talking to GLM
+// or MiniMax through ANTHROPIC_BASE_URL. Agent is the agent's row it starts from, Provider the name
+// molten.AgentProviders gives; the cells say what is wrong or missing behind that provider.
+type ProviderFeatures struct {
+	Agent    string                    `json:"agent"`
+	Provider string                    `json:"provider"`
+	Name     string                    `json:"name"`
+	Features map[string]FeatureSupport `json:"features"`
+}
+
 // FeatureMatrix is what molten agent list --features --json prints and the molten:agentfeatures route answers.
+// Providers: the rows of agents run behind another provider, apart from Agents so that no list offers them as agents.
 type FeatureMatrix struct {
-	AsOf     string          `json:"asof"`
-	Features []FeatureInfo   `json:"features"`
-	Agents   []AgentFeatures `json:"agents"`
+	AsOf      string             `json:"asof"`
+	Features  []FeatureInfo      `json:"features"`
+	Agents    []AgentFeatures    `json:"agents"`
+	Providers []ProviderFeatures `json:"providers,omitempty"`
 }
 
 // FindFeature returns a feature of AllFeatures, or nil.
@@ -167,6 +181,11 @@ func (r *Registry) Matrix() FeatureMatrix {
 	for _, p := range PlannedAgents {
 		row := AgentFeatures{Id: p.Id, Name: p.Name, Features: copyFeatures(p.Features)}
 		rtn.Agents = append(rtn.Agents, withGuideProfile(row, p.Executable))
+	}
+	for _, p := range ProviderRows {
+		if a := r.Find(p.Agent); a != nil {
+			rtn.Providers = append(rtn.Providers, providerRow(a, p.Provider))
+		}
 	}
 	return rtn
 }
@@ -366,3 +385,27 @@ var openCodeFeatures = plannedFeatures(map[string]FeatureSupport{
 	FeatTermCopy:     {Level: LevelAdapted, Note: "margin glyphs of its profile", Adapter: "FS/term-copy/agent-copy-profiles.ts"},
 	FeatBusyClose:    shellBusyClose,
 })
+
+// ProviderRows are the agents run behind another provider the matrix describes (FR-AGC-008 AC-3): the providers
+// #1680's recipes set up behind Claude Code. molten.AgentProviders recognises more; their runs are named and their
+// gauges hidden the same way, but only these rows were checked against the providers' documentation.
+var ProviderRows = []struct{ Agent, Provider string }{
+	{molten.AgentIdClaude, "GLM"},
+	{molten.AgentIdClaude, "MiniMax"},
+}
+
+// providerCells is what changes behind a provider: Anthropic's plan gauges do not apply and nothing reads the
+// provider's own usage; the models and effort levels offered are Anthropic's, which the provider maps to its own.
+var providerCells = map[string]FeatureSupport{
+	FeatUsage:  {Level: LevelNone, Reason: ReasonProvider, Note: "Anthropic's plan gauges do not apply behind the provider and its own usage is not read: the gauges are hidden for the run"},
+	FeatEffort: {Level: LevelAdapted, Reason: ReasonModelUnverified, Note: "the models and effort levels offered are Anthropic's; the provider maps them to its own models", Adapter: "agentcontinuity/effort.go, agentstate.go (Provider)"},
+}
+
+// providerRow is the agent's row with the provider's cells.
+func providerRow(a AgentAdapter, provider string) ProviderFeatures {
+	features := copyFeatures(a.Features())
+	for k, v := range providerCells {
+		features[k] = v
+	}
+	return ProviderFeatures{Agent: a.Id(), Provider: provider, Name: fmt.Sprintf("%s via %s", a.Name(), provider), Features: features}
+}

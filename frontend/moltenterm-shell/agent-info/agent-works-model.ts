@@ -99,6 +99,7 @@ const ReasonKeys = new Set([
     "notdetected",
     "agentspecific",
     "modelunverified",
+    "provider",
 ]);
 
 export function reasonKey(reason: string): string {

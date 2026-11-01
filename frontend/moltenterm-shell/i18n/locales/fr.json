@@ -9273,7 +9273,8 @@
             "noskills": "il ne lit pas les guides de MoltenTerm",
             "notdetected": "MoltenTerm ne le reconnaît pas encore",
             "agentspecific": "propre à un autre agent",
-            "modelunverified": "pas encore vérifié avec ce modèle"
+            "modelunverified": "pas encore vérifié avec ce modèle",
+            "provider": "le fournisseur derrière l'agent ne le propose pas"
         }
     },
     "agentInfo": {
