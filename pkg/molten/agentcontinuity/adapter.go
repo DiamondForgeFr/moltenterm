@@ -116,6 +116,9 @@ type AgentAdapter interface {
 	Exit() ExitSequence
 	// Capabilities holds every capability of AllCapabilities.
 	Capabilities() map[string]Capability
+	// Features holds how every MoltenTerm feature of AllFeatures works with the agent (FR-AGC-001), checked against
+	// Capabilities.
+	Features() map[string]FeatureSupport
 	// Launch is the agent's launcher (#318), nil while it has none.
 	Launch() agentlaunch.LaunchAdapter
 	// Transcripts is the companion's reader of the agent's sessions, nil while it has none.

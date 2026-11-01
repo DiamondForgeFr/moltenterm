@@ -27,6 +27,10 @@ and it hands its work to the agent of that first name with a brief (goal, contex
 MoltenTerm's data folder, after you allow it. Its instructions tell the agent its own first name. From a shell, the
 same is `molten agent list --active` and `molten agent send <name> --goal "..."`.
 
+Which MoltenTerm feature works with which agent, and why one does not: `molten agent list --features` (one line per
+feature, one column per agent: N native, A adapted, P process only, - none, then the reasons), `--features --json`
+for the data. Check it before relying on a feature with an agent other than Claude Code or Codex.
+
 What you already have is left alone and listed as such: your own hooks for a state, your own `SessionStart` hook
 running `molten agent session` or `molten agent hook`, your own `-c notify=...`, your own `molten-browser` server,
 `--strict-mcp-config`. For Codex, an event you already have hooks for (in a `config.toml` or a `hooks.json`) gets

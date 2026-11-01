@@ -39,3 +39,39 @@ func TestFormatMoltenAgentListings(t *testing.T) {
 		t.Errorf("json %s %v", data, err)
 	}
 }
+
+// TC-AGC-002: one line per feature, one column per agent, then why each cell is not native.
+func TestFormatMoltenFeatureMatrix(t *testing.T) {
+	m := agentcontinuity.Default().Matrix()
+	out := formatMoltenFeatureMatrix(m)
+	lines := strings.Split(out, "\n")
+	if fields := strings.Fields(lines[0]); len(fields) < 7 || fields[0] != "FEATURE" || fields[1] != "claude" || fields[2] != "codex" || fields[len(fields)-1] != "NAME" {
+		t.Fatalf("header %q", lines[0])
+	}
+	if fields := strings.Fields(lines[1]); fields[0] != "detect" || fields[1] != "N" || fields[2] != "N" || fields[3] != "P" || fields[4] != "-" {
+		t.Errorf("detect row %q", lines[1])
+	}
+	for _, f := range agentcontinuity.AllFeatures {
+		if !strings.Contains(out, "\n"+f.Id+" ") {
+			t.Errorf("no row for %s", f.Id)
+		}
+	}
+	for _, want := range []string{
+		"N native, A adapted, P process only, - none; checked " + agentcontinuity.MatrixAsOf,
+		"codex statusline: none (agentspecific): ",
+		"kimi detect: none (notdetected): not in molten.AgentKinds [#1680]",
+		"gemini state: process-only (nohooks): ",
+		"other features none (noadapter: MoltenTerm has no adapter for Gemini CLI yet)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("features output misses %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "claude state:") {
+		t.Error("a native cell is listed with the reasons")
+	}
+	data, err := json.Marshal(m)
+	if err != nil || !strings.Contains(string(data), `"level":"adapted"`) || !strings.Contains(string(data), `"features":[{"id":"detect"`) {
+		t.Errorf("json %v", err)
+	}
+}
