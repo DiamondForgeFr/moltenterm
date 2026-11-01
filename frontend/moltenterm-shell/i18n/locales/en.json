@@ -9033,7 +9033,8 @@
             "installUnsupported": "Installing {agent} from MoltenTerm is not available on this system yet: copy the command below.",
             "installNotRun": "The command could not run: {detail}",
             "noUninstallCommand": "MoltenTerm has no documented uninstall for this copy of {agent}.",
-            "uninstallUnsupported": "Uninstalling {agent} from MoltenTerm is not available on this system yet: follow the vendor's instructions."
+            "uninstallUnsupported": "Uninstalling {agent} from MoltenTerm is not available on this system yet: follow the vendor's instructions.",
+            "trashFailed": "{path} could not be moved to the trash ({detail}): MoltenTerm stopped there and left the rest as it was."
         }
     },
     "assistedReview": {
@@ -9993,8 +9994,8 @@
                 "confirmCommand": "MoltenTerm runs this official command:",
                 "confirmRemoves": "It removes:",
                 "keeps": "Your settings and sign-in stay on this computer.",
-                "removeConfig": "Also delete my {name} settings and sign-in",
-                "removeConfigWarn": "These folders hold your settings, history and sign-in: they cannot be recovered.",
+                "removeConfig": "Also move my {name} settings and sign-in to the trash",
+                "removeConfigWarn": "They go to the trash: you can take them back from there until you empty it.",
                 "confirm": "Uninstall",
                 "running": "Uninstalling {name}…",
                 "done": "{name} is uninstalled. Install it again here whenever you like.",
@@ -10012,7 +10013,16 @@
                     "uv": "uv",
                     "script": "its install script",
                     "test": "a test uninstaller"
-                }
+                },
+                "holdsIntro": "These folders hold {what}.",
+                "holds": {
+                    "claude-code": "your settings, your sign-in, your conversation history, your project memories, and the plugins and skills you installed",
+                    "qwen-code": "your settings, with the model providers and API keys saved in them",
+                    "kimi": "your settings, your sign-in, your sessions and logs, and the skills and plugins you installed",
+                    "other": "your settings and your sign-in"
+                },
+                "confirmTrash": "Moved to the trash:",
+                "trashed": "Moved to the trash: {paths}. Take them back from the trash if you need them."
             },
             "helpChooseTitle": "Three questions to find agents that fit you",
             "choose": {

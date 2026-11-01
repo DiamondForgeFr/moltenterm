@@ -81,6 +81,10 @@ type CliInstallStatus struct {
 	Error     string      `json:"error,omitempty"`
 	ErrorText *uimsg.Text `json:"errortext,omitempty"`
 	Waiting   bool        `json:"waiting,omitempty"`
+	// An uninstall's ticked settings folders: the ones moved to the trash, and the one that could not move.
+	Trashed        []string    `json:"trashed,omitempty"`
+	TrashFailed    string      `json:"trashfailed,omitempty"`
+	TrashErrorText *uimsg.Text `json:"trasherrortext,omitempty"`
 }
 
 type cliInstallRequest struct {
@@ -102,6 +106,10 @@ type cliInstallJob struct {
 	pid        int
 	term       pty.Pty
 	done       chan struct{}
+	// runs once the command succeeded, before the job says so (the uninstall's trash)
+	after    func() ([]string, *trashFailure)
+	trashed  []string
+	trashErr *trashFailure
 }
 
 var cliJobsLock sync.Mutex
@@ -155,6 +163,11 @@ func (job *cliInstallJob) status() CliInstallStatus {
 	if job.errText != "" {
 		rtn.ErrorText = uimsg.Make("onboarding.installNotRun", "detail", job.errText)
 	}
+	rtn.Trashed = job.trashed
+	if job.trashErr != nil {
+		rtn.TrashFailed = job.trashErr.Path
+		rtn.TrashErrorText = uimsg.Make("onboarding.trashFailed", "path", job.trashErr.Path, "detail", job.trashErr.Err.Error())
+	}
 	if job.state == CliInstallRunning && len(job.output) > 0 && job.output[len(job.output)-1] != '\n' {
 		rtn.Waiting = time.Since(job.lastOutput) >= cliInstallQuietWait
 	}
@@ -193,6 +206,19 @@ func (job *cliInstallJob) finish(waitErr error) {
 			job.errText = waitErr.Error()
 		}
 	}
+}
+
+func (job *cliInstallJob) isCanceled() bool {
+	job.lock.Lock()
+	defer job.lock.Unlock()
+	return job.canceled
+}
+
+func (job *cliInstallJob) setTrashed(moved []string, failure *trashFailure) {
+	job.lock.Lock()
+	defer job.lock.Unlock()
+	job.trashed = moved
+	job.trashErr = failure
 }
 
 func (job *cliInstallJob) terminal() pty.Pty {
@@ -234,16 +260,17 @@ func StartCliInstall(id string) (CliInstallStatus, error) {
 		return CliInstallStatus{}, uimsg.Errorf(uimsg.Make("onboarding.installUnsupported", "agent", profile.Name),
 			"installing %s from MoltenTerm is not available on this system", profile.Name)
 	}
-	return startCliJob(profile.Id, CliJobInstall, commands[0])
+	return startCliJob(profile.Id, CliJobInstall, commands[0], nil)
 }
 
 // startCliJob runs a catalog command for the agent, or returns the job of that agent already running: an install and
 // an uninstall of one agent never run together.
-func startCliJob(id string, kind string, command string) (CliInstallStatus, error) {
+func startCliJob(id string, kind string, command string, after func() ([]string, *trashFailure)) (CliInstallStatus, error) {
 	job := &cliInstallJob{
 		id:         id,
 		kind:       kind,
 		command:    command,
+		after:      after,
 		state:      CliInstallRunning,
 		lastOutput: time.Now(),
 		done:       make(chan struct{}),
@@ -300,6 +327,9 @@ func (job *cliInstallJob) start() error {
 		case <-time.After(cliInstallDrainWait):
 		}
 		term.Close()
+		if waitErr == nil && job.after != nil && !job.isCanceled() {
+			job.setTrashed(job.after())
+		}
 		job.finish(waitErr)
 		close(job.done)
 		log.Printf("molten: %s of %s ended: %v\n", job.kind, job.id, waitErr)

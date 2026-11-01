@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -108,13 +109,70 @@ func TestUninstallNeverRunsAnUndocumentedCommand(t *testing.T) {
 	}
 }
 
-func TestUninstallCommandLineAddsTheSettingsOnlyWhenTicked(t *testing.T) {
+func TestUninstallTrashesTheSettingsOnlyWhenTicked(t *testing.T) {
 	u := AgentUninstall{Method: UninstallNative, Command: "rm -f x", Config: []string{"~/.claude", "~/.claude.json"}}
-	if got := uninstallCommandLine("claude-code", u, "/h", false); got != "rm -f x" {
-		t.Fatalf("unticked: %q", got)
+	if configTrash(u, "/h", false) != nil {
+		t.Fatal("unticked settings would be touched")
 	}
-	if got := uninstallCommandLine("claude-code", u, "/h", true); got != "rm -f x && rm -rf '/h/.claude' '/h/.claude.json'" {
-		t.Fatalf("ticked: %q", got)
+	if configTrash(AgentUninstall{Method: UninstallNpm, Command: "npm un -g x"}, "/h", true) != nil {
+		t.Fatal("settings the vendor does not document would be touched")
+	}
+	if configTrash(u, "/h", true) == nil {
+		t.Fatal("ticked settings are not moved")
+	}
+	for id, removal := range agentRemovalCatalog {
+		if len(removal.Config) > 0 && removal.ConfigHolds == "" {
+			t.Fatalf("%s: settings folders without the words saying what they hold", id)
+		}
+	}
+}
+
+func trashedPath(home string, name string) string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, ".Trash", name)
+	}
+	return filepath.Join(home, ".local", "share", "Trash", "files", name)
+}
+
+func TestTrashAllMovesToTheTrashAndStopsAtTheFirstFailure(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", "")
+	settings := filepath.Join(home, ".claude")
+	writeExe(t, filepath.Join(settings, "settings.json"))
+	writeExe(t, filepath.Join(home, ".claude.json"))
+	moved, failure := trashAll(home, []string{"~/.claude", "~/.missing", "~/.claude.json"})
+	if failure != nil || len(moved) != 2 {
+		t.Fatalf("moved %v, failure %v", moved, failure)
+	}
+	if _, err := os.Stat(settings); !os.IsNotExist(err) {
+		t.Fatal("the settings folder is still in place")
+	}
+	if _, err := os.Stat(filepath.Join(trashedPath(home, ".claude"), "settings.json")); err != nil {
+		t.Fatalf("the settings folder is not in the trash: %v", err)
+	}
+	if runtime.GOOS == "linux" {
+		if _, err := os.Stat(filepath.Join(home, ".local", "share", "Trash", "info", ".claude.trashinfo")); err != nil {
+			t.Fatalf("no trashinfo to put it back: %v", err)
+		}
+	}
+
+	// A second .claude goes in under another name; a folder that cannot move stops the rest.
+	writeExe(t, filepath.Join(settings, "settings.json"))
+	locked := filepath.Join(home, "locked")
+	writeExe(t, filepath.Join(locked, ".kimi-code", "config.toml"))
+	if err := os.Chmod(locked, 0500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(locked, 0755) })
+	moved, failure = trashAll(home, []string{"~/.claude", "~/locked/.kimi-code", "~/.claude.json"})
+	if failure == nil || failure.Path != "~/locked/.kimi-code" || len(moved) != 1 {
+		t.Fatalf("moved %v, failure %v", moved, failure)
+	}
+	if _, err := os.Stat(filepath.Join(locked, ".kimi-code", "config.toml")); err != nil {
+		t.Fatal("the folder that could not move is gone")
+	}
+	if _, err := os.Stat(trashedPath(home, ".claude 2")); err != nil {
+		t.Fatalf("the second .claude is not in the trash under another name: %v", err)
 	}
 }
 
@@ -133,6 +191,10 @@ func TestCliUninstallRunsTheFakeUninstaller(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv(TestUninstallDirEnv, dir)
+	t.Setenv("XDG_DATA_HOME", "")
+	fakeHome := filepath.Join(dir, "home")
+	writeExe(t, filepath.Join(fakeHome, ".claude", "settings.json"))
+	writeExe(t, filepath.Join(home, ".claude", "settings.json"))
 	t.Setenv(molten.LoginPathEnv, bin+":/usr/bin:/bin")
 	molten.RefreshLoginPath()
 	env := molten.AgentEnv{Home: home, DataDir: t.TempDir(), Getenv: os.Getenv}
@@ -151,15 +213,27 @@ func TestCliUninstallRunsTheFakeUninstaller(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Kind != CliJobUninstall || !strings.HasSuffix(status.Command, "--config") {
+	if status.Kind != CliJobUninstall || strings.Contains(status.Command, "rm -rf") {
 		t.Fatalf("start = %+v", status)
 	}
 	status = waitCliStatus(t, "claude-code", "end", ended)
 	if status.State != CliInstallSucceeded || !strings.Contains(status.Output, "Claude Code removed") {
 		t.Fatalf("status = %+v", status)
 	}
+	if len(status.Trashed) != 1 || status.Trashed[0] != "~/.claude" || status.TrashFailed != "" {
+		t.Fatalf("trashed %v, failed %q", status.Trashed, status.TrashFailed)
+	}
+	if _, err := os.Stat(filepath.Join(fakeHome, ".claude")); !os.IsNotExist(err) {
+		t.Fatal("the fake settings are still in place")
+	}
+	if _, err := os.Stat(trashedPath(fakeHome, ".claude")); err != nil {
+		t.Fatalf("the fake settings are not in the trash: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude")); err != nil {
+		t.Fatal("the HOME's own settings were touched by a fake uninstall")
+	}
 	raw, err := os.ReadFile(marks)
-	if err != nil || strings.TrimSpace(string(raw)) != "args: --config" {
+	if err != nil || strings.TrimSpace(string(raw)) != "args:" {
 		t.Fatalf("the fake uninstaller got %q (%v)", raw, err)
 	}
 	if molten.LookPathIn("claude", bin) != "" {

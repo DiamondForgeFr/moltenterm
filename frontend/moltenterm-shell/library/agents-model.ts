@@ -61,14 +61,22 @@ export function manualUninstallCommands(agent: OnboardingAgent): AgentUninstall[
     });
 }
 
-// What the confirmation names: the program's files, then, ticked only, the settings and sign-in folders.
-export function uninstallRemoves(uninstall: AgentUninstall, removeConfig: boolean): string[] {
-    const files = uninstall?.removes ?? [];
-    return removeConfig ? [...files, ...(uninstall?.config ?? [])] : files;
+// What the confirmation names: the program's files the command removes, and, ticked only, the settings and sign-in
+// folders wavesrv moves to the trash (never deleted).
+export function uninstallRemoves(
+    uninstall: AgentUninstall,
+    removeConfig: boolean
+): { files: string[]; trash: string[] } {
+    return { files: uninstall?.removes ?? [], trash: removeConfig ? (uninstall?.config ?? []) : [] };
 }
 
 export function canRemoveConfig(uninstall: AgentUninstall): boolean {
     return (uninstall?.config ?? []).length > 0;
+}
+
+// The plain words for what the settings folders hold; an agent without its own sentence gets the general one.
+export function configHoldsKey(uninstall: AgentUninstall): string {
+    return uninstall?.configholdskey || "library.agents.uninstall.holds.other";
 }
 
 export type PriceLine = {
