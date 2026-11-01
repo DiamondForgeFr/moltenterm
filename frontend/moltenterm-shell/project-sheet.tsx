@@ -11,8 +11,9 @@ import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useState } from "react";
+import { useFeatureMatrix } from "./agent-info/agent-features-model";
 import {
-    CodingAgentIds,
+    codingAgentIds,
     CodingAgentModel,
     codingAgentName,
     rememberedProjectAgent,
@@ -330,6 +331,7 @@ function AgentBlock({ dir }: { dir: string }) {
     const t = useT();
     const model = CodingAgentModel.getInstance();
     const choices = useAtomValue(model.choicesAtom);
+    const matrix = useFeatureMatrix();
     const [chosen, setChosen] = useState<string>(() => rememberedProjectAgent(dir) ?? DefaultAgent);
     useEffect(() => {
         model.refresh(dir);
@@ -344,7 +346,7 @@ function AgentBlock({ dir }: { dir: string }) {
                 ? t("projectSheet.agentDefault", { agent: codingAgentName(fallback) })
                 : t("projectSheet.agentDefaultNone"),
         },
-        ...CodingAgentIds.map((id) => ({ value: id, label: codingAgentName(id) })),
+        ...codingAgentIds(matrix).map((id) => ({ value: id, label: codingAgentName(id) })),
     ];
     const select = (value: string) => {
         setChosen(value);

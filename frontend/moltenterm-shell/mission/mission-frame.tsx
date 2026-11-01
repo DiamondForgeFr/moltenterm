@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { DialogFrame } from "../dialog-frame";
 import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { t, useT } from "../i18n/i18n";
@@ -24,7 +25,7 @@ import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
 import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
 import { missionGitInit, useMissionSnapshot } from "./mission-client";
-import { formatAge, MissionSnapshot, PipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
+import { formatAge, MissionSnapshot, pipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
 import { useMissionScope } from "./mission-scope";
 import { GitPanel, GitPanelNameKey, useNotRepoCarrier } from "./not-repo-carrier";
 
@@ -90,6 +91,7 @@ function openProjectTerminal(dir: string) {
 // A project without a valid pipeline still shows its history; the banner says how the user's agent connects it.
 export function PipelineBanner({ dir, report }: { dir: string; report: PipelineReport }) {
     const t = useT();
+    const matrix = useFeatureMatrix();
     const stage = pipelineStage(report);
     if (stage === "loading" || stage === "valid") {
         return null;
@@ -125,7 +127,7 @@ export function PipelineBanner({ dir, report }: { dir: string; report: PipelineR
                     <div className="mt-0.5 text-secondary">{t("mc.frame.connectBody")}</div>
                 )}
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-11 text-muted">
-                    {PipelineInvocations.map((i) => (
+                    {pipelineInvocations(matrix).map((i) => (
                         <span key={i.invocation}>
                             {i.agent}: <code className="text-secondary">{i.invocation}</code>
                         </span>

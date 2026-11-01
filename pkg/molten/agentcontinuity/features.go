@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 // The compatibility matrix (FR-AGC-001, DS-AGC-001): for every known agent, how each MoltenTerm feature works with
@@ -124,12 +126,16 @@ type FeatureSupport struct {
 	Issue   string `json:"issue,omitempty"`
 }
 
-// AgentFeatures is one agent's row. Adapter: the agent has an agentcontinuity adapter.
+// AgentFeatures is one agent's row. Adapter: the agent has an agentcontinuity adapter. Profile: its guide and catalog
+// profile id (molten.AgentProfiles, the onboarding catalog), which differs from Id for some agents ("claude-code");
+// GuideCall: how the agent calls a molten guide, {name} the guide's name (FR-AGC-003: the interface reads both here).
 type AgentFeatures struct {
-	Id       string                    `json:"id"`
-	Name     string                    `json:"name"`
-	Adapter  bool                      `json:"adapter"`
-	Features map[string]FeatureSupport `json:"features"`
+	Id        string                    `json:"id"`
+	Name      string                    `json:"name"`
+	Adapter   bool                      `json:"adapter"`
+	Profile   string                    `json:"profile,omitempty"`
+	GuideCall string                    `json:"guidecall,omitempty"`
+	Features  map[string]FeatureSupport `json:"features"`
 }
 
 // FeatureMatrix is what molten agent list --features --json prints and the molten:agentfeatures route answers.
@@ -153,12 +159,27 @@ func FindFeature(id string) *FeatureInfo {
 func (r *Registry) Matrix() FeatureMatrix {
 	rtn := FeatureMatrix{AsOf: MatrixAsOf, Features: slices.Clone(AllFeatures)}
 	for _, a := range r.Adapters() {
-		rtn.Agents = append(rtn.Agents, AgentFeatures{Id: a.Id(), Name: a.Name(), Adapter: true, Features: a.Features()})
+		row := AgentFeatures{Id: a.Id(), Name: a.Name(), Adapter: true, Features: a.Features()}
+		rtn.Agents = append(rtn.Agents, withGuideProfile(row, a.Executable()))
 	}
 	for _, p := range PlannedAgents {
-		rtn.Agents = append(rtn.Agents, AgentFeatures{Id: p.Id, Name: p.Name, Features: copyFeatures(p.Features)})
+		row := AgentFeatures{Id: p.Id, Name: p.Name, Features: copyFeatures(p.Features)}
+		rtn.Agents = append(rtn.Agents, withGuideProfile(row, p.Executable))
 	}
 	return rtn
+}
+
+// withGuideProfile finds the agent's guide profile by its program, the one name both lists share.
+func withGuideProfile(row AgentFeatures, executable string) AgentFeatures {
+	for _, p := range molten.AgentProfiles {
+		if executable == "" || p.Executable != executable {
+			continue
+		}
+		row.Profile = p.Id
+		row.GuideCall, _, _ = strings.Cut(p.Invocation, " ")
+		return row
+	}
+	return row
 }
 
 // checkFeatures refuses a row that leaves a feature out, declares an unknown one, level or reason, misses the reason,

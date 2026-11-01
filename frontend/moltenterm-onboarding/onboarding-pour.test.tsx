@@ -6,9 +6,13 @@
 import { MoltentermMarkPath } from "@/util/moltenterm-identity";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { setTestMatrix } from "../moltenterm-shell/agent-info/agent-features-fixture";
 import type { OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 import { OnboardingPour, PourProps } from "./onboarding-pour";
 import { StartScene } from "./onboarding-pour-scenes";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const noop = () => {};
 

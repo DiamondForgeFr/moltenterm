@@ -3,10 +3,14 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { agentEffortTitle, agentModelEffortLabel, agentModelTitle, AgentStateInfo } from "../agent-state-model";
 import { agentSection, EffortAction, effortItem, feedbackFor } from "./agent-commands";
 import { choiceValueLabel } from "./panel-model";
 import { PanelChoice, PanelFeedback } from "./panel-types";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const claude: AgentStateInfo = {
     blockid: "b1",

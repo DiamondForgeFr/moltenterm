@@ -4,11 +4,15 @@
 import { getDefaultStore } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentStates } from "../agent-state-store";
 import { AgentBar, MinuteClock, RowAgentLine } from "./reviews-agent-bar";
 import type { ReviewPr } from "./reviews-model";
 import { UpcomingAnswers } from "./reviews-upcoming-client";
 import { AgentBarFacts } from "./reviews-upcoming-model";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const Now = new Date(2026, 9, 16, 12, 0).getTime();
 const Started = Now - 12.5 * 60_000;

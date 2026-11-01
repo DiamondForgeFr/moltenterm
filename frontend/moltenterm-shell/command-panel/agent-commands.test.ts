@@ -12,6 +12,7 @@ vi.mock("@/app/store/global", () => ({
     refocusNode: () => {},
 }));
 
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentStateInfo } from "../agent-state-model";
 import {
     agentSection,
@@ -26,6 +27,9 @@ import { panelCapabilities } from "./panel-context";
 import { matchingProviders } from "./panel-registry";
 import { PanelAction, PanelChoice, PanelContext, PanelFeedback } from "./panel-types";
 import { AgentProvider } from "./providers/agent";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const claude: AgentStateInfo = { blockid: "b1", agent: "claude", agentname: "Claude Code", state: "idle", version: 1 };
 const codex: AgentStateInfo = { blockid: "b1", agent: "codex", agentname: "Codex", state: "idle", version: 1 };

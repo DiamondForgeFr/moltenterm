@@ -2,9 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
 import { morphCall, morphCallText, morphTarget, workspaceMorphTarget } from "./morph-call-model";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 function lookup(dict: any, key: string): unknown {
     return key.split(".").reduce((o, k) => (o == null ? undefined : o[k]), dict);

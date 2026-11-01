@@ -7,6 +7,7 @@
 
 import { MoltentermMarkPath } from "@/util/moltenterm-identity";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useFeatureMatrix } from "../moltenterm-shell/agent-info/agent-features-model";
 import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { canMorph, OnboardingAgents } from "./onboarding-agent-model";
@@ -75,7 +76,8 @@ export function OnboardingPour({
     const root = useRef<HTMLDivElement>(null);
     const canvas = useRef<HTMLCanvasElement>(null);
     const sparks = useRef<SparkField>(null);
-    const cards = useMemo(() => pourAgentCards(agents), [agents]);
+    const matrix = useFeatureMatrix();
+    const cards = useMemo(() => pourAgentCards(agents, matrix), [agents, matrix]);
     const previousCards = useRef(cards);
     const sceneId = PourScenes[state.scene];
 

@@ -21,12 +21,16 @@ vi.mock("@/app/store/global", () => ({
     refocusNode: () => {},
 }));
 
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentInputInfo, agentSection, ClaudeCommands, CodexCommands, modelItem, ModelItemId } from "./agent-commands";
 import { AgentInputs } from "./agent-input-store";
 import { choiceValueLabel } from "./panel-model";
 import { PanelChoice } from "./panel-types";
 import { agentProviderSections } from "./providers/agent";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const claude: AgentStateInfo = {
     blockid: "b1",

@@ -6,6 +6,7 @@
 
 import { cn, makeIconClass } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
+import { agentTakesModes } from "../command-panel/agent-commands";
 import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
@@ -396,7 +397,7 @@ export function BulkDialog({
     const items = frozen ?? bulkItems(action, sessions, command);
     const text = bulkConfirmText(action, items, command);
     const reachable = items.filter((i) => !i.skip).length;
-    const hasClaude = items.some((i) => !i.skip && i.session.agent === "claude");
+    const takesModes = items.some((i) => !i.skip && agentTakesModes(i.session.agent));
     const close = () => onClose(done);
     // The dialog can go while its run goes on (the view closes, or every session it lists ended): the run then
     // reports through onUnseen instead (#439).
@@ -462,7 +463,7 @@ export function BulkDialog({
                     />
                 </div>
             ) : null}
-            {action === "restart" && phase === "confirm" && hasClaude ? (
+            {action === "restart" && phase === "confirm" && takesModes ? (
                 <div className="flex flex-col gap-1.5">
                     <span className="text-secondary">{t("sessions.dialog.permissionMode")}</span>
                     <SegmentedControl

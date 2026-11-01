@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it, vi } from "vitest";
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import type { CodingAgentChoice } from "../coding-agent/coding-agent";
 import {
     attachCandidates,
@@ -14,6 +15,9 @@ import {
     readCompanionAgentMemory,
     shellAtPrompt,
 } from "./companion-attach";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 vi.mock("@/app/store/global", () => ({ atoms: {}, createBlockSplitHorizontally: vi.fn() }));
 vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: {} }));

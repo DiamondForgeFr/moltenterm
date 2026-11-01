@@ -10,6 +10,7 @@
 
 import {
     AgentInputResult,
+    agentTakesModes,
     ClaudeCommands,
     CodexCommands,
     InterruptAction,
@@ -292,10 +293,10 @@ export async function runBulkItem(
                 return endResult(s.id, await runners.end(s));
             case "restart": {
                 // Only Claude Code takes a permission mode: the others keep their own settings.
-                const mode = s.agent === "claude" ? opts.mode || undefined : undefined;
+                const mode = agentTakesModes(s.agent) ? opts.mode || undefined : undefined;
                 const out = await runners.restart({ blockid: s.blockid, agent: s.agent, mode });
                 const result = restartResult(s.id, out);
-                if (result.kind === "done" && opts.mode && s.agent !== "claude") {
+                if (result.kind === "done" && opts.mode && !agentTakesModes(s.agent)) {
                     result.message += ` ${t("sessions.bulk.keptOwnMode", { agent: agentLabel(s) })}`;
                 }
                 return result;

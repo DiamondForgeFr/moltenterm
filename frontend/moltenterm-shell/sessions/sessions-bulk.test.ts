@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it, vi } from "vitest";
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentInputResult } from "../command-panel/agent-commands";
 import {
     BulkCommands,
@@ -22,6 +23,9 @@ import {
     unseenBulkSummary,
 } from "./sessions-bulk";
 import { agentCell, atPrompt, DurableSession, lastActive, runningCommand, sessionName } from "./sessions-model";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const Home = "/Users/me";
 

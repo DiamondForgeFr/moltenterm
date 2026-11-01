@@ -11,6 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { answerAgentHandoff } from "../agent-handoff";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { AgentInfoModel } from "../agent-info/agent-info-store";
 import { AgentStates } from "../agent-state-store";
 import { setAgentSite } from "../browser/browser-agent";
@@ -265,6 +266,7 @@ function LinkRowView({ row, agent, props }: { row: LinkRow; agent: AgentLinkInfo
 
 function AgentSection({ agent, props }: { agent: AgentLinkInfo; props: MenuProps }) {
     const t = useT();
+    const matrix = useFeatureMatrix();
     return (
         <section className="border-b border-border pb-2 last:border-b-0" data-testid="agent-links-agent">
             <div className="flex items-baseline gap-2">
@@ -275,7 +277,7 @@ function AgentSection({ agent, props }: { agent: AgentLinkInfo; props: MenuProps
                     <span className="shrink-0 text-11 text-secondary">{t("agentLinks.otherAgent")}</span>
                 ) : null}
             </div>
-            {agentLinkRows(agent).map((row) => (
+            {agentLinkRows(agent, matrix).map((row) => (
                 <LinkRowView key={row.link.key} row={row} agent={agent} props={props} />
             ))}
         </section>
