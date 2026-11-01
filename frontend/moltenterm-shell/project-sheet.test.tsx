@@ -34,7 +34,7 @@ vi.mock("./coding-agent/coding-agent", async () => {
         },
     });
     return {
-        CodingAgentIds: ["claude", "codex"],
+        codingAgentIds: () => ["claude", "codex"],
         codingAgentName: (id: string) => (id === "claude" ? "Claude Code" : id === "codex" ? "Codex" : id),
         CodingAgentModel: { getInstance: () => ({ choicesAtom, refresh: () => {} }) },
         rememberedProjectAgent: (dir: string) => (dir === "/code/desk" ? "claude" : undefined),

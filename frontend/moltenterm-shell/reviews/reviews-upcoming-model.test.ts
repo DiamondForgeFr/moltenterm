@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentStatesData } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
@@ -21,6 +22,9 @@ import {
     upcomingFocusBranch,
     upcomingRows,
 } from "./reviews-upcoming-model";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const Now = new Date(2026, 9, 15, 20, 53).getTime();
 

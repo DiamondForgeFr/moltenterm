@@ -5,6 +5,7 @@
 // agents on branches (pkg/molten/mission/upcoming.go), the window adds what its agent-state store knows now (state,
 // first name), so a bar turns from working to waiting at once. Kept apart from the components to be tested alone.
 
+import { agentDisplayName, currentFeatureMatrix } from "../agent-info/agent-features-model";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction } from "../i18n/i18n";
@@ -293,8 +294,10 @@ export function panelFacts(blockId: string, info: AgentStateInfo, placed?: Branc
     return facts;
 }
 
-// The tools' own names, when the parent's state does not give one (codingAgentName, without its store).
-const AgentNames: Record<string, string> = { claude: "Claude Code", codex: "Codex" };
+// The tools' own names, when the parent's state does not give one: their rows of the compatibility matrix (FR-AGC-003).
+function toolName(agent: string): string {
+    return agent ? agentDisplayName(currentFeatureMatrix(), agent) : "";
+}
 
 const SubagentBarStates: Record<SubagentState, BarState> = { running: "working", quiet: "idle", done: "done" };
 
@@ -322,16 +325,12 @@ function subagentFacts(a: BranchAgent, states: AgentStatesData): AgentBarFacts {
 // A signed background agent's (#1603): its CLI, as data, never in a sentence.
 export function subagentDetails(facts: AgentBarFacts): string {
     if (facts?.kind === "background" && facts.signed) {
-        return facts.agentName || AgentNames[facts.agent] || facts.agent || "";
+        return facts.agentName || toolName(facts.agent);
     }
     if (facts?.kind !== "subagent") {
         return "";
     }
-    return [
-        facts.agentName || AgentNames[facts.agent] || facts.agent,
-        modelDisplayName(facts.model),
-        (facts.description ?? "").trim(),
-    ]
+    return [facts.agentName || toolName(facts.agent), modelDisplayName(facts.model), (facts.description ?? "").trim()]
         .filter((s) => !!s)
         .join(" · ");
 }

@@ -79,6 +79,7 @@ vi.mock("../../mission/line-map-store", () => ({
 }));
 vi.mock("../../shortcuts/format", () => ({ formatShortcutById: (id: string) => (id === "companion" ? "⌘⇧J" : "") }));
 
+import { setTestMatrix } from "../../agent-info/agent-features-fixture";
 import { toggleCompanion } from "../../companion/companion-open";
 import { activeScope, canReset, effectiveValue, resetItem, setItemValue } from "../panel-model";
 import { collectPanel } from "../panel-registry";
@@ -86,6 +87,9 @@ import { PanelContext, PanelItem, PanelSection } from "../panel-types";
 import { CodingAgentViews } from "./coding-agent";
 import { MoltenProvider, MoltenProviders } from "./molten";
 import { companionSections, lineMapSections, sessionsSections } from "./molten-widgets";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 function ctx(view: string, caps: string[], extra: Partial<PanelContext> = {}): PanelContext {
     return {

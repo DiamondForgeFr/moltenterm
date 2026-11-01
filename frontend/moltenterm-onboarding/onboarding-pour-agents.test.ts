@@ -4,6 +4,7 @@
 // Scene 2's cards from the real detection (FR-ONB-007 AC-4, AC-5).
 
 import { describe, expect, it } from "vitest";
+import { setTestMatrix } from "../moltenterm-shell/agent-info/agent-features-fixture";
 import type { OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 import {
     foundSentenceKey,
@@ -17,6 +18,9 @@ import {
     readyCount,
     Recipes,
 } from "./onboarding-pour-agents";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 function agent(id: string, name: string, executable: string, found: boolean, extra: Partial<OnboardingAgent> = {}) {
     return {

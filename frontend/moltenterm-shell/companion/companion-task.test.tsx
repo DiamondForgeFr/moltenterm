@@ -3,6 +3,7 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { CompanionView } from "./companion-model";
 import { WorkspaceTaskCard, WorkspaceTaskCardProps } from "./companion-task";
 import {
@@ -16,6 +17,9 @@ import {
     taskSummary,
     TaskView,
 } from "./companion-task-model";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 vi.mock("@/app/store/global", () => ({ createBlockSplitHorizontally: vi.fn() }));
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: vi.fn(() => () => {}) }));

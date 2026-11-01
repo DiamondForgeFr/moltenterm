@@ -6,6 +6,8 @@
 // agents are told apart by what MoltenTerm detected and by their MCP client's name; the per-agent steps (what to type
 // to restart an MCP server) are adapters below, with a generic fallback for any other agent.
 
+import { currentFeatureMatrix, featureWorks, type FeatureMatrix } from "../agent-info/agent-features-model";
+
 // must match pkg/molten/agentlinkwire/agentlinkwire.go
 export const AgentLinksRouteId = "molten:agentlinks";
 export const AgentLinksStateCommand = "moltenagentlinkstate";
@@ -171,10 +173,13 @@ export function addServerHint(agent: string): { key: string; command: string } {
 // The links of one agent, with a "not started" molten-browser row when it has none.
 export type LinkRow = { link: LinkInfo; notStarted?: boolean };
 
-export function agentLinkRows(agent: AgentLinkInfo): LinkRow[] {
+// The "not started" row is offered to an agent the browser server works with, as the compatibility matrix says
+// (FR-AGC-003): telling another agent to add it would not help.
+export function agentLinkRows(agent: AgentLinkInfo, matrix: FeatureMatrix = currentFeatureMatrix()): LinkRow[] {
     const links = agent.links ?? [];
     const rows: LinkRow[] = links.map((link) => ({ link }));
-    if (!links.some((l) => l.server === BrowserServer)) {
+    const offered = featureWorks(matrix, agent.agent, "browsermcp");
+    if (offered && !links.some((l) => l.server === BrowserServer)) {
         rows.unshift({ link: { key: "notstarted", server: BrowserServer, state: null }, notStarted: true });
     }
     return rows;

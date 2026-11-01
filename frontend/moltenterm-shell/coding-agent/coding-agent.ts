@@ -14,6 +14,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
+import { agentDisplayName, agentsWith, currentFeatureMatrix, FeatureMatrix } from "../agent-info/agent-features-model";
 import type { AgentStatesData } from "../agent-state-model";
 import { CommandPanelModel } from "../command-panel/command-panel-store";
 import { t } from "../i18n/i18n";
@@ -25,8 +26,11 @@ const RouteId = "molten:agentchoice";
 const GetCommand = "moltenagentchoice";
 const GetTimeoutMs = 8000;
 
-// The agents the flows can start, in the default order, before wavesrv says which are installed.
-export const CodingAgentIds = ["claude", "codex"];
+// The agents the flows can start, in the default order, before wavesrv says which are installed: those the
+// compatibility matrix gives an agent that runs tasks (FR-AGC-003).
+export function codingAgentIds(matrix: FeatureMatrix = currentFeatureMatrix()): string[] {
+    return agentsWith(matrix, "runner");
+}
 
 export type CodingAgent = { id: string; name: string; installed: boolean; command?: string };
 
@@ -48,13 +52,7 @@ export type CodingAgentChoice = {
 };
 
 export function codingAgentName(id: string): string {
-    switch (id) {
-        case "claude":
-            return "Claude Code";
-        case "codex":
-            return "Codex";
-    }
-    return id ?? "";
+    return agentDisplayName(currentFeatureMatrix(), id);
 }
 
 export function fetchCodingAgent(dir: string, agent?: string): Promise<CodingAgentChoice> {
@@ -75,7 +73,12 @@ function storedChoices(): Record<string, string> {
 // The project's own choice, undefined when it follows the default.
 export function rememberedProjectAgent(dir: string): string {
     const id = dir ? storedChoices()[dir] : null;
-    return CodingAgentIds.includes(id) ? id : undefined;
+    if (!id) {
+        return undefined;
+    }
+    // Before the matrix is read the stored choice stands: it was one of the agents offered when it was made.
+    const matrix = currentFeatureMatrix();
+    return matrix == null || codingAgentIds(matrix).includes(id) ? id : undefined;
 }
 
 // What This project sets and resets in the panels' options: no agent forgets the project's choice.
@@ -172,7 +175,7 @@ export function useKnownCodingAgents(): CodingAgent[] {
 // started by absolute path, through an alias or from another folder runs while detection says none is installed.
 export function runningCodingAgents(states: AgentStatesData): string[] {
     const ids = new Set(Object.values(states?.states ?? {}).map((info) => info?.agent));
-    return CodingAgentIds.filter((id) => ids.has(id));
+    return codingAgentIds().filter((id) => ids.has(id));
 }
 
 // The item's secondary text: the agent missing, else what no choice gives.
@@ -199,7 +202,7 @@ export function codingAgentDetail(choice: CodingAgentChoice, running: string[] =
 
 export function codingAgentOptions(choice: CodingAgentChoice, running: string[] = []) {
     const agents: CodingAgent[] =
-        choice?.agents ?? CodingAgentIds.map((id) => ({ id, name: codingAgentName(id), installed: true }));
+        choice?.agents ?? codingAgentIds().map((id) => ({ id, name: codingAgentName(id), installed: true }));
     return agents.map((a) => {
         let detail: string = undefined;
         if (!a.installed) {

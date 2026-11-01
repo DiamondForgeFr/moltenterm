@@ -4,6 +4,7 @@
 // The workspace task checkpoint (FR-CONT-007, DS-CONT-008): what wavesrv keeps of a workspace's task
 // (pkg/molten/agentcontinuity/checkpoint), and the pure rules of the companion's "Workspace task" section.
 
+import { agentDisplayName, currentFeatureMatrix } from "../agent-info/agent-features-model";
 import { t } from "../i18n/i18n";
 import { CompanionView, sessionRelation } from "./companion-model";
 
@@ -44,25 +45,9 @@ export type TaskView = {
 
 export type TaskChanged = { workspaceid: string; updated: number; updatedby?: string };
 
-const AgentNames: Record<string, string> = {
-    claude: "Claude Code",
-    codex: "Codex",
-    gemini: "Gemini CLI",
-    kimi: "Kimi Code",
-    qwen: "Qwen Code",
-    antigravity: "Antigravity CLI",
-    copilot: "GitHub Copilot CLI",
-    cursor: "Cursor CLI",
-    grok: "Grok Build",
-    vibe: "Mistral Vibe",
-    opencode: "OpenCode",
-};
-
+// The agent's name from its row of the compatibility matrix (FR-AGC-003), its id when the matrix does not know it.
 export function agentName(agent: string): string {
-    if (!agent) {
-        return "";
-    }
-    return AgentNames[agent] ?? agent;
+    return agentDisplayName(currentFeatureMatrix(), agent);
 }
 
 // Who wrote a version or a section: auto (with the agent its session was), the user, or an agent (<agent>:<session>).

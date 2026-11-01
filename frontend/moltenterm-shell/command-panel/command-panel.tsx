@@ -15,6 +15,7 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { autoUpdate, flip, offset, Placement, shift, size } from "@floating-ui/react";
 import { atom, Atom, useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { EqualizeShortcutId } from "../equalize/equalize-actions";
@@ -733,6 +734,8 @@ function CommandPanel({ open }: CommandPanelProps) {
     const [running, setRunning] = useState<string>(null);
     const runningRef = useRef<string>(null);
     const sources = useAtomValue(model.sourcesAtom);
+    // The sections read the compatibility matrix when they are built: they are built again once it lands.
+    const matrix = useFeatureMatrix();
     // Mirrors pending for steps fired before React renders again (clicks in one task, key auto-repeat).
     const pendingRef = useRef<Record<string, number>>({});
     const [lockedPlacement, setLockedPlacement] = useState<Placement>(null);
@@ -769,7 +772,7 @@ function CommandPanel({ open }: CommandPanelProps) {
 
     const ctx = useMemo(
         () => makePanelContext(blockId),
-        [blockId, block, fullConfig, agentBlockId, agent, tick, sources]
+        [blockId, block, fullConfig, agentBlockId, agent, tick, sources, matrix]
     );
     const collected = useMemo(() => (ctx ? collectPanel(ctx) : { sections: [], suggestions: [] }), [ctx]);
     const node = layoutModel?.getNodeByBlockId(blockId);

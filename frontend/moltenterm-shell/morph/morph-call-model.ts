@@ -4,32 +4,21 @@
 // Asking the workspace's agent for a missing tool with /morph (#1653, #1672): the Library's "Missing a tool?" card
 // and the ⌘T launcher's empty result share these rules. Pure functions, tested without the app.
 
+import { currentFeatureMatrix, featureWorks, guideCall, type FeatureMatrix } from "../agent-info/agent-features-model";
 import { agentPromptState, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import { workspaceAgents } from "../library/library-model";
 
-// Each agent's own call of the morph guide, by agent state id (pkg/molten/agentdocs/mod-format.md). An agent MoltenTerm
-// installs no guide for has no call (#1680): the request goes to it as plain text.
-const MorphCalls: Record<string, string> = {
-    claude: "/morph",
-    codex: "$morph",
-    gemini: "/morph",
-    qwen: "/morph",
-    kimi: "/skill:morph",
-    // OpenCode has no guide of its own: it reads Claude Code's skills folder, as before #1680.
-    opencode: "/morph",
-    antigravity: "/morph",
-    copilot: "/morph",
-    cursor: "/morph",
-    grok: "/morph",
-    vibe: "/morph",
-};
-
+// Each agent's own call of the morph guide (pkg/molten/agentdocs/mod-format.md), from its row of the compatibility
+// matrix (FR-AGC-003). An agent the guides do not work with has no call (#1680): the request goes to it as plain text.
 // The agent named nowhere yet (no state id) is taken as one with the guides.
-export function morphCall(agent: string): string {
+export function morphCall(agent: string, matrix: FeatureMatrix = currentFeatureMatrix()): string {
     if (!agent) {
         return "/morph";
     }
-    return MorphCalls[agent] ?? "";
+    if (!featureWorks(matrix, agent, "guides")) {
+        return "";
+    }
+    return guideCall(matrix, agent, "morph");
 }
 
 // What is typed into the agent's terminal: the call, a space and the request, never Enter, so the developer completes

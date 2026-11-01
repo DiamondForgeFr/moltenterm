@@ -8,6 +8,7 @@
 
 import { atoms, globalStore } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { currentFeatureMatrix, featureWorks } from "../../agent-info/agent-features-model";
 import { AgentStates } from "../../agent-state-store";
 import { CodingAgentModel } from "../../coding-agent/coding-agent";
 import { IntegrateKey, IntegrateOffKey } from "../../companion/companion-integration-model";
@@ -51,12 +52,6 @@ import {
 } from "../panel-types";
 
 const UsageRpcTimeoutMs = 12000;
-// The agents whose plan usage the companion reads (pkg/molten/usage).
-const UsageAgents = new Set(["claude", "codex"]);
-// The agent with an experimental source to choose (FR-SHELL-028).
-const UsageSourceAgent = "claude";
-// The agents MoltenTerm's launcher integrates (pkg/molten/agentlaunch).
-const IntegratedAgents = new Set(["claude", "codex"]);
 
 // The choices of widget-options.ts carry English labels; the panel shows them in the interface language.
 function choiceLabel(prefix: string, c: { value: string; label: string }): string {
@@ -104,7 +99,8 @@ function integrationItems(agent: string): PanelItem[] {
             scopes: [settingsBinding<boolean>(IntegrateKey, true, "global")],
         },
     ];
-    if (!IntegratedAgents.has(agent)) {
+    // The agents MoltenTerm's launcher integrates (pkg/molten/agentlaunch), as the compatibility matrix says.
+    if (!featureWorks(currentFeatureMatrix(), agent, "launcher")) {
         return items;
     }
     const agentOff = (): string[] => {
@@ -143,7 +139,9 @@ export function companionSections(ctx: PanelContext): PanelSection[] {
     }
     const agent = globalStore.get(AgentStates.getInstance().blockAtom(target))?.agent;
     const items: PanelItem[] = [];
-    if (UsageAgents.has(agent)) {
+    const matrix = currentFeatureMatrix();
+    // The agents whose plan usage the companion reads (pkg/molten/usage), as the compatibility matrix says.
+    if (featureWorks(matrix, agent, "usage")) {
         const gaugesOn = settingIncludes("companion:usagegauges", agent);
         // Per agent and in the settings: Everywhere is the only scope it has.
         const gauges: ScopeBinding<boolean> = {
@@ -162,8 +160,9 @@ export function companionSections(ctx: PanelContext): PanelSection[] {
             defaultValue: false,
             scopes: [gauges],
         });
-        // The experimental source is offered only while the gauges show, as in the companion.
-        if (agent === UsageSourceAgent && gaugesOn) {
+        // The experimental source is offered only while the gauges show, as in the companion, and to an agent whose
+        // usage comes through the status line relay: the endpoint is the other source it can choose (FR-SHELL-028).
+        if (featureWorks(matrix, agent, "statusline") && gaugesOn) {
             items.push({
                 id: "companion:usagesource",
                 type: "choice",

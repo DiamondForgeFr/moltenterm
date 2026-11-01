@@ -9,6 +9,12 @@
 // layout, the ones found on this computer first and the others in alphabetical order, never ranked by vendor. The
 // provider names are data here and reach the sentences as placeholders (provider-neutral words, #1452).
 
+import {
+    agentRowByProfile,
+    currentFeatureMatrix,
+    featureWorks,
+    type FeatureMatrix,
+} from "../moltenterm-shell/agent-info/agent-features-model";
 import { canMorph, catalogAgents, OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 
 export const GlmCardId = "glm";
@@ -17,9 +23,12 @@ export const ClaudeCodeId = "claude-code";
 export const CodexId = "codex";
 export const GeminiCliId = "gemini-cli";
 
-// The agents MoltenTerm hooks up fully when they start in its terminals (precise states, usage, the browser); the
-// others are recognised by their process.
-export const FullIntegrationIds = [ClaudeCodeId, CodexId];
+// An agent MoltenTerm hooks up fully when it starts in its terminals: its precise state works, as the compatibility
+// matrix says (FR-AGC-003); the others are recognised by their process. Catalog ids are the matrix rows' profiles.
+export function fullIntegration(matrix: FeatureMatrix, catalogId: string): boolean {
+    const row = agentRowByProfile(matrix, catalogId);
+    return row != null && featureWorks(matrix, row.id, "state");
+}
 
 // Keys of onboarding.pour.agents.account.<kind>, each with a {provider} placeholder.
 export type AccountKind =
@@ -122,14 +131,14 @@ export type PourAgentCard = {
     hooksNote?: boolean;
 };
 
-function agentCard(agent: OnboardingAgent): PourAgentCard {
+function agentCard(agent: OnboardingAgent, matrix: FeatureMatrix): PourAgentCard {
     const facts = Facts[agent.id];
     return {
         id: agent.id,
         name: agent.name,
         command: agent.executable || agent.id,
         ready: agent.found,
-        full: FullIntegrationIds.includes(agent.id),
+        full: fullIntegration(matrix, agent.id),
         account: facts?.account ?? "apiKey",
         provider: facts?.provider ?? agent.name,
         install: agent.installcommands ?? [],
@@ -161,13 +170,17 @@ function recipeCard(recipe: AgentRecipe, list: OnboardingAgents): PourAgentCard 
 
 // Every card is equal: the agents found on this computer first, then all the others, recipes included, by name. Gemini
 // CLI shows only when found (Antigravity CLI has the card for personal Google accounts).
-export function pourAgentCards(list: OnboardingAgents): PourAgentCard[] {
+export function pourAgentCards(
+    list: OnboardingAgents,
+    matrix: FeatureMatrix = currentFeatureMatrix()
+): PourAgentCard[] {
     if (list == null) {
         return [];
     }
+    const card = (a: OnboardingAgent) => agentCard(a, matrix);
     const agents = catalogAgents(list).filter((a) => a.found || a.id !== GeminiCliId);
-    const found = agents.filter((a) => a.found).map(agentCard);
-    const others = [...agents.filter((a) => !a.found).map(agentCard), ...Recipes.map((r) => recipeCard(r, list))].sort(
+    const found = agents.filter((a) => a.found).map(card);
+    const others = [...agents.filter((a) => !a.found).map(card), ...Recipes.map((r) => recipeCard(r, list))].sort(
         (a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" })
     );
     return [...found, ...others];

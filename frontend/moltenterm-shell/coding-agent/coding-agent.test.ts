@@ -3,6 +3,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { describe, expect, it, vi } from "vitest";
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentStatesData, EmptyAgentStates } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { effectiveValue } from "../command-panel/panel-model";
@@ -17,6 +18,9 @@ import {
     fetchCodingAgent,
     runningCodingAgents,
 } from "./coding-agent";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 vi.mock("./coding-agent", async (importOriginal) => {
     const actual = await importOriginal<typeof import("./coding-agent")>();

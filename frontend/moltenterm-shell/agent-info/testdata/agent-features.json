@@ -1,0 +1,800 @@
+{
+    "asof": "2026-11-01",
+    "features": [
+        {
+            "id": "detect",
+            "name": "Process detection"
+        },
+        {
+            "id": "state",
+            "name": "Precise state (working, waiting, done)",
+            "requires": ["hooks"]
+        },
+        {
+            "id": "hooksoffer",
+            "name": "Set up hooks offer",
+            "requires": ["hooks"]
+        },
+        {
+            "id": "launcher",
+            "name": "Launcher integration, nothing of the user's edited"
+        },
+        {
+            "id": "usage",
+            "name": "Plan usage gauges",
+            "requires": ["quota"]
+        },
+        {
+            "id": "statusline",
+            "name": "Status line relay",
+            "requires": ["hooks"]
+        },
+        {
+            "id": "approvals",
+            "name": "Coffee approvals (answer permissions)",
+            "requires": ["hooks"]
+        },
+        {
+            "id": "turnnotify",
+            "name": "End of turn notification",
+            "requires": ["hooks"]
+        },
+        {
+            "id": "browsermcp",
+            "name": "molten-browser MCP (browser, list_agents, send_to_agent)",
+            "requires": ["mcp"]
+        },
+        {
+            "id": "instructions",
+            "name": "MoltenTerm instructions (first name, signature, materials)",
+            "requires": ["mcp"]
+        },
+        {
+            "id": "handoff",
+            "name": "Handoffs and first names"
+        },
+        {
+            "id": "signature",
+            "name": "Commit and PR signature"
+        },
+        {
+            "id": "materials",
+            "name": "Materials (molten material add)"
+        },
+        {
+            "id": "filepanel",
+            "name": "Driven file panel (molten files)"
+        },
+        {
+            "id": "guides",
+            "name": "/morph, mods, /molten-pipeline, /molten-bug"
+        },
+        {
+            "id": "modparts",
+            "name": "Agent parts of a mod"
+        },
+        {
+            "id": "resume",
+            "name": "Linked session, resume, Continue with",
+            "requires": ["resume"]
+        },
+        {
+            "id": "briefing",
+            "name": "Briefing at launch",
+            "requires": ["briefing"]
+        },
+        {
+            "id": "effort",
+            "name": "Effort and model",
+            "requires": ["models"]
+        },
+        {
+            "id": "commands",
+            "name": "Agent commands and permission modes"
+        },
+        {
+            "id": "companion",
+            "name": "Companion (session, recap, sub-agents)",
+            "requires": ["transcript"]
+        },
+        {
+            "id": "runner",
+            "name": "Agent that runs tasks (AI review, release notes, Mission Control)",
+            "requires": ["initialprompt"]
+        },
+        {
+            "id": "reviewsession",
+            "name": "Review session (molten-review MCP, read-only)",
+            "requires": ["mcp"]
+        },
+        {
+            "id": "onboarding",
+            "name": "First-run card and install"
+        },
+        {
+            "id": "worktreename",
+            "name": "Agent name in a worktree"
+        },
+        {
+            "id": "termcopy",
+            "name": "Copy from the terminal"
+        },
+        {
+            "id": "busyclose",
+            "name": "Busy agent guard on close"
+        }
+    ],
+    "agents": [
+        {
+            "id": "claude",
+            "name": "Claude Code",
+            "adapter": true,
+            "profile": "claude-code",
+            "guidecall": "/{name}",
+            "features": {
+                "approvals": {
+                    "level": "native",
+                    "note": "PermissionRequest hook to molten agent permission",
+                    "adapter": "agentintegration.go, keepawake/approve.go"
+                },
+                "briefing": {
+                    "level": "native",
+                    "note": "--append-system-prompt-file",
+                    "adapter": "agentcontinuity/claude.go"
+                },
+                "browsermcp": {
+                    "level": "adapted",
+                    "note": "stdio server molten mcp browser added for the run with --mcp-config",
+                    "adapter": "mcpbrowser/agenttools.go, agentlaunch/claudemcp.go"
+                },
+                "busyclose": {
+                    "level": "native",
+                    "note": "the agent's state",
+                    "adapter": "FS/busy-close-model.ts"
+                },
+                "commands": {
+                    "level": "native",
+                    "note": "command table and permission modes",
+                    "adapter": "FS/command-panel/agent-commands.ts, termupdate/agentinputwatch.go"
+                },
+                "companion": {
+                    "level": "native",
+                    "note": "transcripts in ~/.claude/projects",
+                    "adapter": "companion/adapter.go, companion/roots.go"
+                },
+                "detect": {
+                    "level": "native",
+                    "note": "process name, versioned binary path",
+                    "adapter": "agentstate.go (AgentKinds), agentproc.go"
+                },
+                "effort": {
+                    "level": "native",
+                    "note": "types /effort; Claude's models",
+                    "adapter": "agentcontinuity/effort.go, termupdate/agenteffort.go"
+                },
+                "filepanel": {
+                    "level": "adapted",
+                    "note": "molten files, known from the guides and the MCP instructions",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-files.go, filesearch"
+                },
+                "guides": {
+                    "level": "native",
+                    "note": "Claude skills (/morph)",
+                    "adapter": "agents.go, agentguides.go"
+                },
+                "handoff": {
+                    "level": "native",
+                    "note": "send through the MCP or molten agent send; the brief is typed into the receiver's terminal",
+                    "adapter": "agenthandoff/brief.go, agentnames/agentnames.go"
+                },
+                "hooksoffer": {
+                    "level": "native",
+                    "note": "snippet for ~/.claude/settings.json",
+                    "adapter": "agenthooks.go, attention/agenthookoffer.go"
+                },
+                "instructions": {
+                    "level": "adapted",
+                    "note": "carried by the MCP server's instructions; without the MCP the agent knows neither its first name nor to sign",
+                    "adapter": "mcpbrowser/agenttools.go (AgentInstructions)"
+                },
+                "launcher": {
+                    "level": "native",
+                    "note": "--settings and --mcp-config for the run",
+                    "adapter": "agentlaunch/claude.go, agentlaunch/claudemcp.go"
+                },
+                "materials": {
+                    "level": "adapted",
+                    "note": "molten material add, known from the MCP instructions",
+                    "adapter": "materials/guard.go"
+                },
+                "modparts": {
+                    "level": "native",
+                    "note": "CLAUDE_CODE_PLUGIN_DIRS, .claude-plugin",
+                    "adapter": "agentparts/agentparts.go"
+                },
+                "onboarding": {
+                    "level": "native",
+                    "note": "catalog entry from its guide profile",
+                    "adapter": "onboarding/agents.go"
+                },
+                "resume": {
+                    "level": "native",
+                    "note": "--resume \u003cid\u003e, --continue",
+                    "adapter": "agentcontinuity/claude.go, companion/resume.go"
+                },
+                "reviewsession": {
+                    "level": "native",
+                    "note": "--strict-mcp-config, --allowedTools mcp__molten-review, --disallowedTools",
+                    "adapter": "reviewsession/command.go, agentlaunch/review.go"
+                },
+                "runner": {
+                    "level": "native",
+                    "note": "claude -p",
+                    "adapter": "agentchoice/agentchoice.go"
+                },
+                "signature": {
+                    "level": "adapted",
+                    "note": "molten agent whoami --trailer and sign-pr, which the agent must remember; model and effort from the companion",
+                    "adapter": "agentsign/agentsign.go"
+                },
+                "state": {
+                    "level": "native",
+                    "note": "SessionStart, UserPromptSubmit, PostToolUse, Notification, Stop and Subagent hooks",
+                    "adapter": "agentintegration.go, agenthook/hook.go"
+                },
+                "statusline": {
+                    "level": "native",
+                    "note": "statusLine wrapped by molten agent statusline -- \u003ccmd\u003e",
+                    "adapter": "agentstatusline.go, agentlaunch/claude.go"
+                },
+                "termcopy": {
+                    "level": "native",
+                    "note": "margin glyphs, /copy",
+                    "adapter": "FS/term-copy/agent-copy-profiles.ts"
+                },
+                "turnnotify": {
+                    "level": "native",
+                    "note": "Stop and Notification hooks",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-agentnotify.go"
+                },
+                "usage": {
+                    "level": "native",
+                    "note": "status line rate_limits, then OAuth usage",
+                    "adapter": "usage/claudestatusline.go, usage/adapters.go"
+                },
+                "worktreename": {
+                    "level": "native",
+                    "note": "its own .claude/worktrees folder",
+                    "adapter": "agentstate.go (WorktreesDir), mission/upcoming_attribution.go"
+                }
+            }
+        },
+        {
+            "id": "codex",
+            "name": "Codex",
+            "adapter": true,
+            "profile": "codex",
+            "guidecall": "${name}",
+            "features": {
+                "approvals": {
+                    "level": "adapted",
+                    "note": "PermissionRequest hook given with -c, running once trusted in /hooks",
+                    "adapter": "agentlaunch/codexpermission.go, keepawake/approve.go"
+                },
+                "briefing": {
+                    "level": "native",
+                    "note": "-c developer_instructions",
+                    "adapter": "agentcontinuity/codex.go"
+                },
+                "browsermcp": {
+                    "level": "adapted",
+                    "note": "-c mcp_servers.molten-browser for the run",
+                    "adapter": "mcpbrowser/agenttools.go, agentlaunch/codex.go"
+                },
+                "busyclose": {
+                    "level": "native",
+                    "note": "the agent's state",
+                    "adapter": "FS/busy-close-model.ts"
+                },
+                "commands": {
+                    "level": "adapted",
+                    "note": "local command table, no permission modes",
+                    "adapter": "FS/command-panel/agent-commands.ts"
+                },
+                "companion": {
+                    "level": "adapted",
+                    "note": "$CODEX_HOME/sessions, whose rollout format is undocumented",
+                    "adapter": "companion/adapter.go, companion/roots.go"
+                },
+                "detect": {
+                    "level": "native",
+                    "note": "process name and path hints",
+                    "adapter": "agentstate.go (AgentKinds), agentproc.go"
+                },
+                "effort": {
+                    "level": "adapted",
+                    "note": "keyboard shortcuts, levels from the models cache",
+                    "adapter": "agentcontinuity/effort.go, termupdate/agenteffort.go"
+                },
+                "filepanel": {
+                    "level": "adapted",
+                    "note": "molten files, known from the guides and the MCP instructions",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-files.go, filesearch"
+                },
+                "guides": {
+                    "level": "adapted",
+                    "note": "skills in ~/.agents/skills, called $morph",
+                    "adapter": "agents.go, agentguides.go"
+                },
+                "handoff": {
+                    "level": "adapted",
+                    "note": "send through the MCP or a reply line (sandbox); the brief is typed into the receiver's terminal",
+                    "adapter": "agenthandoff/brief.go, agentnames/agentnames.go"
+                },
+                "hooksoffer": {
+                    "level": "native",
+                    "note": "snippet for config.toml",
+                    "adapter": "agenthooks.go, attention/agenthookoffer.go"
+                },
+                "instructions": {
+                    "level": "adapted",
+                    "note": "carried by the MCP server's instructions",
+                    "adapter": "mcpbrowser/agenttools.go (AgentInstructions)"
+                },
+                "launcher": {
+                    "level": "adapted",
+                    "note": "-c notify, -c mcp_servers, -c hooks.* and -c tui.notifications for the run",
+                    "adapter": "agentlaunch/codex.go, agentlaunch/codexhooks.go"
+                },
+                "materials": {
+                    "level": "adapted",
+                    "note": "molten material add, known from the MCP instructions",
+                    "adapter": "materials/guard.go"
+                },
+                "modparts": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "a mod's agent parts are Claude Code plugins"
+                },
+                "onboarding": {
+                    "level": "native",
+                    "note": "catalog entry from its guide profile",
+                    "adapter": "onboarding/agents.go"
+                },
+                "resume": {
+                    "level": "native",
+                    "note": "codex resume \u003cid\u003e, codex fork",
+                    "adapter": "agentcontinuity/codex.go, companion/resume.go"
+                },
+                "reviewsession": {
+                    "level": "adapted",
+                    "note": "--sandbox read-only",
+                    "adapter": "reviewsession/command.go, agentlaunch/review.go"
+                },
+                "runner": {
+                    "level": "native",
+                    "note": "codex exec -",
+                    "adapter": "agentchoice/agentchoice.go"
+                },
+                "signature": {
+                    "level": "adapted",
+                    "note": "molten agent whoami --trailer and sign-pr, which the agent must remember",
+                    "adapter": "agentsign/agentsign.go"
+                },
+                "state": {
+                    "level": "adapted",
+                    "note": "notify reports done; the state hooks given with -c hooks.* run once the developer trusted them in /hooks; waiting from the PermissionRequest hook and Codex's notifications",
+                    "adapter": "agentlaunch/codexhooks.go, agentintegration.go"
+                },
+                "statusline": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "the status line relay is Claude Code's; Codex's usage comes from its session log"
+                },
+                "termcopy": {
+                    "level": "adapted",
+                    "note": "margin glyphs of its profile",
+                    "adapter": "FS/term-copy/agent-copy-profiles.ts"
+                },
+                "turnnotify": {
+                    "level": "adapted",
+                    "note": "notify payload",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-agentnotify.go"
+                },
+                "usage": {
+                    "level": "adapted",
+                    "note": "token_count of the session log, then codex app-server",
+                    "adapter": "usage/codexappserver.go, usage/adapters.go"
+                },
+                "worktreename": {
+                    "level": "process-only",
+                    "reason": "agentspecific",
+                    "note": "Codex has no worktree folder of its own; named from its process",
+                    "adapter": "agentstate.go, mission/upcoming_attribution.go"
+                }
+            }
+        },
+        {
+            "id": "gemini",
+            "name": "Gemini CLI",
+            "adapter": false,
+            "profile": "gemini-cli",
+            "guidecall": "/{name}",
+            "features": {
+                "approvals": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "briefing": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "browsermcp": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "busyclose": {
+                    "level": "process-only",
+                    "reason": "nohooks",
+                    "note": "the shell integration's running command; works for any program",
+                    "adapter": "FS/busy-close-model.ts"
+                },
+                "commands": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "companion": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "detect": {
+                    "level": "process-only",
+                    "reason": "noadapter",
+                    "note": "process name and path hints of molten.AgentKinds",
+                    "adapter": "agentstate.go (AgentKinds), agentproc.go"
+                },
+                "effort": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "filepanel": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "guides": {
+                    "level": "adapted",
+                    "note": "TOML commands",
+                    "adapter": "agents.go, agentguides.go"
+                },
+                "handoff": {
+                    "level": "process-only",
+                    "reason": "nomcp",
+                    "note": "receives a brief typed into its terminal; sends only with molten agent send",
+                    "adapter": "agenthandoff/brief.go"
+                },
+                "hooksoffer": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "instructions": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "launcher": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "materials": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "modparts": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "onboarding": {
+                    "level": "adapted",
+                    "note": "catalog entry from its guide profile; Antigravity replaces it for individual accounts",
+                    "adapter": "onboarding/agents.go",
+                    "issue": "#1680"
+                },
+                "resume": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "reviewsession": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "runner": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "signature": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "state": {
+                    "level": "process-only",
+                    "reason": "nohooks",
+                    "note": "working and idle from the terminal's activity; molten agent state --agent \u003cid\u003e also accepts it",
+                    "adapter": "attention/procwatch.go"
+                },
+                "statusline": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "termcopy": {
+                    "level": "adapted",
+                    "note": "margin glyphs of its profile",
+                    "adapter": "FS/term-copy/agent-copy-profiles.ts"
+                },
+                "turnnotify": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "usage": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "worktreename": {
+                    "level": "process-only",
+                    "reason": "noadapter",
+                    "note": "named from its process",
+                    "adapter": "agentstate.go, mission/upcoming_attribution.go"
+                }
+            }
+        },
+        {
+            "id": "kimi",
+            "name": "Kimi Code",
+            "adapter": false,
+            "profile": "kimi",
+            "guidecall": "/skill:{name}",
+            "features": {
+                "approvals": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "briefing": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "browsermcp": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "busyclose": {
+                    "level": "process-only",
+                    "reason": "nohooks",
+                    "note": "the shell integration's running command; works for any program",
+                    "adapter": "FS/busy-close-model.ts"
+                },
+                "commands": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "companion": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "detect": {
+                    "level": "none",
+                    "reason": "notdetected",
+                    "note": "not in molten.AgentKinds",
+                    "issue": "#1680"
+                },
+                "effort": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "filepanel": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "guides": {
+                    "level": "adapted",
+                    "note": "Kimi skill (/skill:morph)",
+                    "adapter": "agents.go, agentguides.go"
+                },
+                "handoff": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "hooksoffer": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "instructions": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "launcher": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "materials": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "modparts": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "onboarding": {
+                    "level": "adapted",
+                    "note": "catalog entry from its guide profile; the card promises a process detection Kimi Code does not have yet",
+                    "adapter": "onboarding/agents.go",
+                    "issue": "#1680"
+                },
+                "resume": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "reviewsession": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "runner": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "signature": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "state": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "statusline": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "termcopy": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "turnnotify": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "usage": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "worktreename": {
+                    "level": "none",
+                    "reason": "noadapter"
+                }
+            }
+        },
+        {
+            "id": "opencode",
+            "name": "OpenCode",
+            "adapter": false,
+            "features": {
+                "approvals": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "briefing": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "browsermcp": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "busyclose": {
+                    "level": "process-only",
+                    "reason": "nohooks",
+                    "note": "the shell integration's running command; works for any program",
+                    "adapter": "FS/busy-close-model.ts"
+                },
+                "commands": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "companion": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "detect": {
+                    "level": "process-only",
+                    "reason": "noadapter",
+                    "note": "process name and path hints of molten.AgentKinds",
+                    "adapter": "agentstate.go (AgentKinds), agentproc.go"
+                },
+                "effort": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "filepanel": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "guides": {
+                    "level": "none",
+                    "reason": "noskills",
+                    "note": "no molten guides profile"
+                },
+                "handoff": {
+                    "level": "process-only",
+                    "reason": "nomcp",
+                    "note": "receives a brief typed into its terminal; sends only with molten agent send",
+                    "adapter": "agenthandoff/brief.go"
+                },
+                "hooksoffer": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "instructions": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "launcher": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "materials": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "modparts": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "onboarding": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "resume": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "reviewsession": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "runner": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "signature": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "state": {
+                    "level": "process-only",
+                    "reason": "nohooks",
+                    "note": "working and idle from the terminal's activity; molten agent state --agent \u003cid\u003e also accepts it",
+                    "adapter": "attention/procwatch.go"
+                },
+                "statusline": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "termcopy": {
+                    "level": "adapted",
+                    "note": "margin glyphs of its profile",
+                    "adapter": "FS/term-copy/agent-copy-profiles.ts"
+                },
+                "turnnotify": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "usage": {
+                    "level": "none",
+                    "reason": "noadapter"
+                },
+                "worktreename": {
+                    "level": "process-only",
+                    "reason": "noadapter",
+                    "note": "named from its process",
+                    "adapter": "agentstate.go, mission/upcoming_attribution.go"
+                }
+            }
+        }
+    ]
+}

@@ -4,6 +4,7 @@
 // What the collector in wavesrv answers (pkg/molten/mission), and its translation into the shapes the ported Notulia
 // modules read. Kept apart from the components so the rules can be tested without the app.
 
+import { guideCalls, type FeatureMatrix } from "../agent-info/agent-features-model";
 import { t } from "../i18n/i18n";
 import { DefaultTagPrefix } from "../releases/versions";
 import { GithubRelease, Milestone, PullRequest, WorkflowRun } from "./github";
@@ -264,16 +265,11 @@ export function prsByBranch(prs: readonly PullRequest[]): Map<string, { number: 
     return new Map((prs ?? []).map((pr) => [pr.headRefName, { number: pr.number, url: pr.url }]));
 }
 
-// How to start the molten-pipeline guide in each agent (`molten agent list` shows the same).
-// must match the invocations in pkg/molten/agents.go
-export const PipelineInvocations = [
-    {
-        agent: "Claude Code, Gemini CLI, Qwen Code, Antigravity CLI, GitHub Copilot CLI, Cursor CLI, Grok Build, Mistral Vibe",
-        invocation: "/molten-pipeline",
-    },
-    { agent: "Codex", invocation: "$molten-pipeline" },
-    { agent: "Kimi Code", invocation: "/skill:molten-pipeline" },
-];
+// How to start the molten-pipeline guide in each agent the guides work with (`molten agent list` shows the same), from
+// the compatibility matrix (FR-AGC-003).
+export function pipelineInvocations(matrix: FeatureMatrix): { agent: string; invocation: string }[] {
+    return guideCalls(matrix, "molten-pipeline").map((g) => ({ agent: g.agents.join(", "), invocation: g.call }));
+}
 
 export type PipelineStage = "loading" | "absent" | "invalid" | "valid";
 

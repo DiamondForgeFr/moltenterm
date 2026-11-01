@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { matrixWith, RealMatrix, setTestMatrix } from "../agent-info/agent-features-fixture";
 import {
     addServerHint,
     agentLinkRows,
@@ -19,6 +20,9 @@ import {
     versionNoteKey,
     waitingHandoffs,
 } from "./agent-links-model";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 function link(over: Partial<LinkInfo>): LinkInfo {
     return { key: "molten-browser:1", server: "molten-browser", state: "connected", controllable: true, ...over };
@@ -68,9 +72,32 @@ describe("agent links model", () => {
     });
 
     it("adds a not started row when the agent has no molten-browser", () => {
-        const rows = agentLinkRows({ links: [link({ server: "molten-review", key: "molten-review:3" })] });
-        expect(rows.map((r) => (r.notStarted ? "notstarted" : r.link.server))).toEqual(["notstarted", "molten-review"]);
-        expect(agentLinkRows({ links: [link({})] }).some((r) => r.notStarted)).toBe(false);
+        const review = link({ server: "molten-review", key: "molten-review:3" });
+        for (const agent of ["claude", "codex"]) {
+            const rows = agentLinkRows({ agent, links: [review] });
+            expect(rows.map((r) => (r.notStarted ? "notstarted" : r.link.server))).toEqual([
+                "notstarted",
+                "molten-review",
+            ]);
+        }
+        expect(agentLinkRows({ agent: "claude", links: [link({})] }).some((r) => r.notStarted)).toBe(false);
+    });
+
+    // FR-AGC-003 AC-2: the row follows the matrix, not a list of agents.
+    it("offers the browser server to the agents the matrix gives it, a new one included", () => {
+        const review = link({ server: "molten-review", key: "molten-review:3" });
+        const offered = (agent: string, matrix = RealMatrix) =>
+            agentLinkRows({ agent, links: [review] }, matrix).some((r) => r.notStarted);
+        expect(offered("opencode")).toBe(false);
+        expect(offered("aider")).toBe(false);
+        expect(offered(undefined)).toBe(false);
+        const aider = matrixWith({
+            id: "aider",
+            name: "Aider",
+            adapter: true,
+            features: { browsermcp: { level: "adapted", note: "added for the run", adapter: "fake" } },
+        });
+        expect(offered("aider", aider)).toBe(true);
     });
 
     it("offers Reconnect and Stop only where MoltenTerm reaches the server", () => {

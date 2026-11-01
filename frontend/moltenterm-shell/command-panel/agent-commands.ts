@@ -6,6 +6,7 @@
 // says when a command is refused. wavesrv holds the authoritative tables and checks every action against them; this
 // copy gives the labels and the order. Nothing is greyed out: a refusal explains itself.
 
+import { currentFeatureMatrix, featureWorks } from "../agent-info/agent-features-model";
 import { agentCallName, agentLabel, agentProviderName, AgentStateInfo, agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import type { ServerText } from "../i18n/server-text";
@@ -263,12 +264,26 @@ const Tables: Record<string, { commands: AgentCommandDef[]; modes: boolean; effo
     codex: { commands: CodexCommands, modes: false, effort: "codex" },
 };
 
+// The agent's table, offered only where the compatibility matrix says its commands work (FR-AGC-003): the tables are
+// the adapter the matrix points to, not the list of the agents that have one.
+function agentTable(agent: string): { commands: AgentCommandDef[]; modes: boolean; effort?: EffortStyle } {
+    if (!agent || !featureWorks(currentFeatureMatrix(), agent, "commands")) {
+        return null;
+    }
+    return Tables[agent] ?? null;
+}
+
 export function agentCommandTable(agent: string): AgentCommandDef[] {
-    return Tables[agent]?.commands ?? null;
+    return agentTable(agent)?.commands ?? null;
 }
 
 export function hasAgentCommands(agent: AgentStateInfo): boolean {
-    return agent?.agent != null && Tables[agent.agent] != null;
+    return agentTable(agent?.agent) != null;
+}
+
+// The agent takes a permission mode at restart (Claude Code's Shift+Tab modes); the others keep their own settings.
+export function agentTakesModes(agent: string): boolean {
+    return agentTable(agent)?.modes === true;
 }
 
 // Claude Code's permission modes in its Shift+Tab order; the last two show only once the agent drew them (they
@@ -456,7 +471,7 @@ export function agentSection(
     info: AgentInputInfo,
     handlers: AgentCommandHandlers
 ): PanelSection {
-    const table = Tables[agent?.agent];
+    const table = agentTable(agent?.agent);
     if (table == null) {
         return null;
     }
