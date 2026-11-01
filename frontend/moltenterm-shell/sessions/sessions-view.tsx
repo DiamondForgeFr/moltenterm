@@ -26,6 +26,7 @@ import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { sessionRowDragProps } from "../split/drop-zones";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { copyText } from "../term-copy/term-copy";
 import { previousLoginBlockIds, TermUpdateOutcome, updateAllSummary } from "../termupdate/termupdate-model";
@@ -578,7 +579,12 @@ function SessionRow({
                     busy && "pointer-events-auto opacity-100"
                 )}
             >
-                {busy ? <span className="px-1 text-11 whitespace-nowrap text-muted">{busy}</span> : null}
+                {busy ? (
+                    <span className="px-1 text-11 whitespace-nowrap text-muted">
+                        <DominoLoader className="mr-1" />
+                        {busy}
+                    </span>
+                ) : null}
                 {canReconnect(session) ? (
                     <button
                         type="button"
@@ -1231,6 +1237,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                     )}
                 >
                     <span className="shrink-0 text-12 whitespace-nowrap text-secondary" aria-live="polite">
+                        {data == null ? <DominoLoader className="mr-1.5" /> : null}
                         {data == null ? t("sessions.view.loading") : sessionsSummary(data)}
                     </span>
                     {filtered && sessions.length > 0 ? (

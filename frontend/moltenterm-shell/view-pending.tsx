@@ -10,6 +10,7 @@ import { getApi, globalStore } from "@/app/store/global";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { EmptyState } from "./empty-state";
 import { useT } from "./i18n/i18n";
+import { DominoLoader } from "./suite/suite";
 import { workspaceShownName } from "./workspace-default-name";
 
 export type ViewPendingPhase = "loading" | "retrying" | "failed" | "stopped";
@@ -118,9 +119,7 @@ export function PendingSurface({ phase, workspaceName: storedName, onReload, onD
                         {workspaceName}
                     </div>
                 ) : null}
-                <div className="molten-view-pending-line" aria-hidden>
-                    <span />
-                </div>
+                <DominoLoader size="large" />
                 <p className="text-12 leading-[18px] text-muted">{Captions[phase] ? t(Captions[phase]) : ""}</p>
             </div>
         </div>

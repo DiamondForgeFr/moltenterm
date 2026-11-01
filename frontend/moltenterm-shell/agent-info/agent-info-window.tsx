@@ -43,6 +43,7 @@ import { usePaneStatus } from "../pane-status";
 import { AgentAvatar, agentDisplayName, agentDoing, AgentGlyph, WorkingDominoes } from "../sidebar/sidebar-agents";
 import { agentRowLook } from "../sidebar/sidebar-agents-model";
 import type { PaneState } from "../status-bar-model";
+import { DominoLoader } from "../suite/suite";
 import { always, TabActivity } from "../tab-activity";
 import { useTabIdentity } from "../tab-identity-ui";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
@@ -363,7 +364,12 @@ function ToolkitSection({ ctx }: { ctx: AgentInfoContext }) {
     return (
         <section data-testid="agent-info-toolkit">
             <h5 className={SectionTitle}>{t("agentInfo.toolkit.title", { name })}</h5>
-            {note ? <div className="px-2 py-1 text-12 text-muted">{note}</div> : null}
+            {note ? (
+                <div className="px-2 py-1 text-12 text-muted">
+                    {load.status === "loading" ? <DominoLoader className="mr-1.5" /> : null}
+                    {note}
+                </div>
+            ) : null}
             {servers.length > 0 ? (
                 <>
                     <SubTitle label={t("agentInfo.toolkit.servers")} count={servers.length} />

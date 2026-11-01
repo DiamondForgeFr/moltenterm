@@ -36,7 +36,7 @@ export type SyncStatus = { running?: boolean; error?: string };
 
 function Dot({ tone }: { tone: StripTone }) {
     if (tone === "running") {
-        return <RunningDot />;
+        return <RunningDot className="mt-dominos-icon" />;
     }
     return <span className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", ToneDot[tone])} aria-hidden />;
 }

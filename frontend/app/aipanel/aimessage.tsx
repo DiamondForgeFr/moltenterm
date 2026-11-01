@@ -5,6 +5,7 @@
 import { cn } from "@/util/util";
 import { memo, useEffect, useRef } from "react";
 import { WaveStreamdown } from "../../moltenterm-shell/lazy/streamdown-lazy"; // MOLTENTERM-PATCH (#453): shiki/katex/mermaid on demand
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 import { getFileIcon } from "./ai-utils";
 import { AIFeedbackButtons } from "./aifeedbackbuttons";
 import { AIToolUseGroup } from "./aitooluse";
@@ -42,11 +43,8 @@ const AIThinking = memo(
                     {isWaitingApproval ? (
                         <i className="fa fa-clock text-base text-yellow-500"></i>
                     ) : (
-                        <div className="animate-pulse flex items-center">
-                            <i className="fa fa-circle text-[10px]"></i>
-                            <i className="fa fa-circle text-[10px] mx-1"></i>
-                            <i className="fa fa-circle text-[10px]"></i>
-                        </div>
+                        // MOLTENTERM-PATCH (#1714): the agent works = domino (DS-SHELL-154)
+                        <DominoLoader className="text-muted" />
                     )}
                     {message && <span className="text-sm text-muted">{message}</span>}
                 </div>

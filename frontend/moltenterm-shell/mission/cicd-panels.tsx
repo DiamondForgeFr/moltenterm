@@ -11,6 +11,7 @@ import { TFunction, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { ReviewsModel } from "../reviews/reviews-store";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
@@ -86,19 +87,21 @@ export function Problem({ text }: { text: string }) {
     return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-danger">{text}</div>;
 }
 
-export function Notice({ text }: { text: string }) {
-    return <div className="rounded-4 border border-border bg-hover px-3 py-2 text-12 text-secondary">{text}</div>;
+// busy: the notice says what loads or runs, after the inline dominoes (DS-SHELL-154).
+export function Notice({ text, busy }: { text: string; busy?: boolean }) {
+    return (
+        <div className="rounded-4 border border-border bg-hover px-3 py-2 text-12 text-secondary">
+            {busy ? <DominoLoader className="mr-1.5" /> : null}
+            {text}
+        </div>
+    );
 }
 
+// The room of the rows to come, with the card-size dominoes in it (DS-SHELL-154: waiting = domino, no skeleton).
 function Placeholder({ rows }: { rows: number }) {
     return (
-        <div className="flex flex-col gap-3 p-3" aria-busy="true">
-            {Array.from({ length: rows }, (_, i) => (
-                <div key={i} className="flex flex-col gap-1.5">
-                    <div className="h-4 w-3/4 mt-step-blink rounded-4 bg-hover" />
-                    <div className="h-3 w-1/2 mt-step-blink rounded-4 bg-hover" />
-                </div>
-            ))}
+        <div className="flex items-center justify-center p-3" style={{ minHeight: rows * 46 }} aria-busy="true">
+            <DominoLoader size="card" />
         </div>
     );
 }
@@ -196,7 +199,11 @@ type RunLogView = { text: string; error: string; failedonly?: boolean; truncated
 export function RunLogBlock({ log }: { log: RunLogView }) {
     const t = useT();
     if (log == null) {
-        return <div className="h-16 mt-step-blink rounded-4 bg-hover" aria-busy="true" />;
+        return (
+            <div className="flex h-16 items-center justify-center rounded-4 bg-hover" aria-busy="true">
+                <DominoLoader size="card" />
+            </div>
+        );
     }
     if (log.error) {
         return <Problem text={log.error} />;

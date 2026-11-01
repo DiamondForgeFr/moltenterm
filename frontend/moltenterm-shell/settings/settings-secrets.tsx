@@ -11,6 +11,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import { PageCard, PageRowClass } from "./settings-page";
 
@@ -256,7 +257,7 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
             >
                 {sorted.length === 0 ? (
                     <div className="flex items-center gap-3 px-5 py-4 text-12 text-muted">
-                        <i className="fa fa-solid fa-key text-icon-14" aria-hidden />
+                        {loading ? <DominoLoader /> : <i className="fa fa-solid fa-key text-icon-14" aria-hidden />}
                         {loading ? t("settings.secrets.loading") : t("settings.secrets.none")}
                     </div>
                 ) : (

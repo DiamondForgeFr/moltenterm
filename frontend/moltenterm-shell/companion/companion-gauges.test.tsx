@@ -333,10 +333,12 @@ describe("Codex plan usage", () => {
         });
     });
 
-    it("turns the Refresh icon while a read runs", () => {
+    it("shows the dominoes in place of the Refresh icon while a read runs (DS-SHELL-154)", () => {
         const html = renderToStaticMarkup(<PlanUsageBody view={gaugesView(codex, now)} refreshing {...noop} />);
         expect(html).toContain('aria-busy="true"');
-        expect(html).toContain("fa-rotate-right fa-spin");
-        expect(markup(codex)).not.toContain("fa-spin");
+        expect(html).toContain("df-domino-loader mt-dominos-icon");
+        expect(html).not.toContain("fa-rotate-right");
+        expect(markup(codex)).toContain("fa-rotate-right");
+        expect(markup(codex)).not.toContain("df-domino-loader");
     });
 });

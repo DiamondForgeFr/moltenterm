@@ -97,6 +97,7 @@ import {
     scrollScript,
     shouldRestore,
 } from "./browser-lifecycle";
+import { LinkCopy } from "./browser-link-copy";
 import { BrowserLoadModel, reloadAction, runReload, TabLoad } from "./browser-loading";
 import {
     activateTab,
@@ -128,14 +129,13 @@ import {
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
-import { LinkCopy } from "./browser-link-copy";
 import { pageOpenTarget, WindowOpenSystem, WindowOpenTab, type SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
 import {
     browserLinkStates,
     isSharedTab,
-    listFailureOf,
     ListFailure,
+    listFailureOf,
     moveQuestion,
     noAgentReason,
     ofTab,
@@ -644,7 +644,11 @@ export class BrowserViewModel implements ViewModel {
                 menu.push({ type: "separator" });
             }
             if (tab != null && addressOfPage(tab.url)) {
-                menu.push({ label: t("browser.tabMenu.copyLink"), icon: "link", click: () => this.copyTabLink(tab.id) });
+                menu.push({
+                    label: t("browser.tabMenu.copyLink"),
+                    icon: "link",
+                    click: () => this.copyTabLink(tab.id),
+                });
             }
             menu.push(...(await this.shareItems(tab)));
             const engine = this.engineMenuItems(tab);
@@ -2082,7 +2086,10 @@ function ReloadingPlaceholder({ model, tab }: { model: BrowserViewModel; tab: Br
                     <i className="fa fa-solid fa-globe text-icon-20 text-secondary" />
                 )}
                 {tab.title ? <div className="max-w-full truncate text-12 text-primary">{tab.title}</div> : null}
-                <div className="text-12 text-muted">{t("browser.reloading")}</div>
+                <div className="text-12 text-muted">
+                    <DominoLoader className="mr-1.5" />
+                    {t("browser.reloading")}
+                </div>
             </div>
         </div>
     );

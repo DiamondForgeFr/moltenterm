@@ -21,6 +21,7 @@ import { codingAgentName } from "../coding-agent/coding-agent";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { AskBox } from "./review-actions-view";
@@ -129,6 +130,7 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
             <AnswersSection model={review} />
             <CommentsPanel model={review} />
             <div className="mt-auto text-11 text-muted" title={worktree.worktree?.worktree ?? worktree.error}>
+                {worktree.state !== "ready" && worktree.state !== "failed" ? <DominoLoader className="mr-1.5" /> : null}
                 {worktree.state === "ready"
                     ? worktree.worktree.kind === "agent"
                         ? t("review.ai.worktreeAgent")
@@ -283,7 +285,10 @@ function AiStatus({
         case "starting":
             return (
                 <div className="flex flex-col gap-1.5">
-                    <p className="text-muted">{t("review.ai.starting")}</p>
+                    <p className="text-muted">
+                        <DominoLoader className="mr-1.5" />
+                        {t("review.ai.starting")}
+                    </p>
                     {waiting}
                 </div>
             );

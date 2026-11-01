@@ -10,6 +10,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
+import { DominoLoader } from "../suite/suite";
 import { filterFiles } from "./companion-files-model";
 import {
     CompanionDiff,
@@ -254,7 +255,12 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
         return <div className="px-3 text-12 text-danger">{error}</div>;
     }
     if (diff == null) {
-        return <div className="px-3 text-12 text-muted">{t("companion.loading")}</div>;
+        return (
+            <div className="px-3 text-12 text-muted">
+                <DominoLoader className="mr-1.5" />
+                {t("companion.loading")}
+            </div>
+        );
     }
     const lines = diff.diff ? diff.diff.replace(/\n$/, "").split("\n") : [];
     return (

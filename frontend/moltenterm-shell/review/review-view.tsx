@@ -17,6 +17,7 @@ import { MonacoDiffViewer } from "../lazy/monaco-lazy";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { PrSignature, usePrAgents } from "../reviews/pr-signature";
+import { DominoLoader, LoadingState } from "../suite/suite";
 import { CommentsStrip, SelectionOverlay } from "./review-actions-view";
 import { ReviewFile, ReviewState } from "./review-client";
 import { isReviewDone } from "./review-done";
@@ -204,6 +205,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                     testId="review-layout"
                 />
                 <span className="ml-auto text-muted" data-testid="review-viewed-count">
+                    {loading ? <DominoLoader className="mr-1.5" /> : null}
                     {loading ? t("review.view.reading") : t("review.view.viewedCount", { viewed, total })}
                 </span>
             </div>
@@ -323,7 +325,10 @@ function FilesPanel({ model }: { model: ReviewViewModel }) {
                 </div>
             ) : null}
             {result == null && loading ? (
-                <div className="px-3 py-2 text-12 text-muted">{t("review.view.reading")}</div>
+                <div className="px-3 py-2 text-12 text-muted">
+                    <DominoLoader className="mr-1.5" />
+                    {t("review.view.reading")}
+                </div>
             ) : null}
             {result != null && result.files.length === 0 ? (
                 <div className="px-3 py-2 text-12 text-muted">{t("review.view.noFile")}</div>
@@ -590,11 +595,7 @@ function DiffBody({
         );
     }
     if (view.loading) {
-        return (
-            <div className="flex flex-1 items-center justify-center text-12 text-muted">
-                {t("review.view.readingFile", { path: file.path })}
-            </div>
-        );
+        return <LoadingState caption={t("review.view.readingFile", { path: file.path })} />;
     }
     if (collapsed) {
         const binary = collapsed === "binary" || view.result?.binary;

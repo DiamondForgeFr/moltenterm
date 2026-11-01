@@ -218,6 +218,7 @@ function NotificationRow({
                                 }}
                                 className={i === 0 ? MainActionClass : OtherActionClass}
                             >
+                                {running[`${entry.id}:${action.id}`] ? <DominoLoader className="mr-1.5" /> : null}
                                 {running[`${entry.id}:${action.id}`]
                                     ? t("notif.center.running")
                                     : notificationActionLabel(action)}

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { useFeatureMatrix } from "../moltenterm-shell/agent-info/agent-features-model";
 import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
+import { DominoLoader } from "../moltenterm-shell/suite/suite";
 import { OnboardingAgents } from "./onboarding-agent-model";
 import {
     defaultAgentId,
@@ -478,6 +479,7 @@ export function OnboardingPour({
                         className="molten-btn cursor-pointer rounded-4 px-[22px] py-3 text-15 font-semibold aria-disabled:opacity-50"
                         data-testid="first-run-next"
                     >
+                        {working && (isLastScene(state.scene) || sceneId === "project") ? <DominoLoader className="mr-2" /> : null}
                         {working && (isLastScene(state.scene) || sceneId === "project")
                             ? t(isLastScene(state.scene) ? "onboarding.pour.opening" : "onboarding.pour.settingUp")
                             : t(nextLabelKey(state.scene))}

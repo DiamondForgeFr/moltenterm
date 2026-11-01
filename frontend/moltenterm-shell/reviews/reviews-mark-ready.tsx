@@ -124,6 +124,7 @@ export function MarkReadyConfirm({
                     className="molten-btn flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12"
                     data-testid="reviews-mark-ready-yes"
                 >
+                    {state.phase === "sending" ? <DominoLoader /> : null}
                     {state.phase === "sending" ? t("reviews.ready.sending") : t("reviews.ready.confirmButton")}
                     <MoltenWave />
                 </button>

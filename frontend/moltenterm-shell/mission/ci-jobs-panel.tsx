@@ -441,7 +441,7 @@ export function CiJobsTab({
         return <Problem text={error} />;
     }
     if (catalogue == null) {
-        return <Notice text={t("mc.jobs.ui.loading")} />;
+        return <Notice text={t("mc.jobs.ui.loading")} busy />;
     }
     const undescribed =
         catalogue.workflows.some((wf) => wf.jobs.some((j) => !j.description)) ||

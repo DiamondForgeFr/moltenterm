@@ -13,6 +13,7 @@ import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { getLocale, t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { ReviewComment, ReviewCommentAction, ReviewCommentKind, ReviewCommentMessage } from "./review-client";
 import {
     canDiscuss,
@@ -381,6 +382,7 @@ function DiscussBox({ model, comment }: { model: ReviewTabModel; comment: Review
                     onClick={send}
                     data-testid="review-discuss-send"
                 >
+                    {sending ? <DominoLoader className="mr-1.5" /> : null}
                     {sending ? t("review.ask.sending") : t("review.ask.send")}
                     <MoltenWave />
                 </button>
@@ -389,7 +391,11 @@ function DiscussBox({ model, comment }: { model: ReviewTabModel; comment: Review
                 <p
                     className={cn(
                         "text-11",
-                        outcome.tone === "ok" ? "text-success" : outcome.tone === "warn" ? "text-warning" : "text-danger"
+                        outcome.tone === "ok"
+                            ? "text-success"
+                            : outcome.tone === "warn"
+                              ? "text-warning"
+                              : "text-danger"
                     )}
                     data-testid="review-discuss-outcome"
                 >

@@ -351,7 +351,7 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
         }
     }, [state?.current]);
     if (state == null) {
-        return <Notice text={t("mc.ciLocal.reading")} />;
+        return <Notice text={t("mc.ciLocal.reading")} busy />;
     }
     const shown = state.runs.find((r) => r.id === selected) ?? running ?? state.runs[0];
     // A run the project's commands are not trusted for yet opens the trust prompt, which starts it once trusted.

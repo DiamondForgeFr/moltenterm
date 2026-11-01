@@ -16,6 +16,7 @@ import { useWordPhrase } from "../i18n/phrase";
 import { useMissionSnapshot } from "../mission/mission-client";
 import { ProjectChip } from "../sidebar/project-chips";
 import { projectLabel, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
+import { DominoLoader } from "../suite/suite";
 import { workspaceShownName } from "../workspace-default-name";
 import { openProjectSheet } from "../workspace-edit";
 import { useCardContext } from "./reviews-agent-bar";
@@ -148,7 +149,11 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
                     onClick={() => setRefreshKey((k) => k + 1)}
                     className="ml-auto flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
                 >
-                    <i className={cn("fa fa-solid fa-rotate text-11", loading && "fa-spin mt-step-spin")} />
+                    {loading ? (
+                        <DominoLoader className="mt-dominos-icon" />
+                    ) : (
+                        <i className="fa fa-solid fa-rotate text-11" />
+                    )}
                 </button>
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">

@@ -13,6 +13,7 @@ import * as jotai from "jotai";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import * as React from "react";
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 import { BlockEnv } from "./blockenv";
 
 function formatElapsedTime(elapsedMs: number): string {
@@ -235,7 +236,11 @@ export const ConnStatusOverlay = React.memo(
                     <div className={clsx("connstatus-status-icon-wrapper", { "has-error": showError || showWshError })}>
                         {showIcon && <i className="fa-solid fa-triangle-exclamation"></i>}
                         <div className="connstatus-status ellipsis">
-                            <div className="connstatus-status-text">{statusText}</div>
+                            <div className="connstatus-status-text">
+                                {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                                {connStatus.status == "connecting" ? <DominoLoader className="mr-1.5" /> : null}
+                                {statusText}
+                            </div>
                             {(showError || showWshError) && (
                                 <OverlayScrollbarsComponent
                                     className="connstatus-error"

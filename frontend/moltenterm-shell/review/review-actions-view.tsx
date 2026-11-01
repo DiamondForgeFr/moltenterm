@@ -11,6 +11,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { TFunction, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { ReviewCommentKind } from "./review-client";
 import { CommentCard, KindToggle } from "./review-comments-view";
 import { anchorLabel, commentsOfFile, linesLabel, sideLabel } from "./review-selection";
@@ -311,6 +312,7 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
                     onClick={send}
                     data-testid="review-ask-send"
                 >
+                    {ask.sending ? <DominoLoader className="mr-1.5" /> : null}
                     {ask.sending ? t("review.ask.sending") : t("review.ask.send")}
                     <MoltenWave />
                 </button>

@@ -8,6 +8,7 @@
 import { cn } from "@/util/util";
 import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
+import { DominoLoader } from "./suite/suite";
 
 export type EmptyStateAction = {
     label: string;
@@ -26,6 +27,8 @@ export type EmptyStateAction = {
 export type EmptyStateProps = {
     // A Font Awesome icon name, drawn at 20 px.
     icon: string;
+    // Something loads or works for this state: the card-size dominoes take the icon's place (DS-SHELL-154).
+    loading?: boolean;
     title: string;
     // One sentence.
     hint?: string;
@@ -60,6 +63,7 @@ function ActionButton({ action, primary }: { action: EmptyStateAction; primary: 
             title={action.title}
             data-testid={action.testId}
         >
+            {action.busy ? <DominoLoader /> : null}
             {action.busy && action.busyLabel ? action.busyLabel : action.label}
             {action.menu ? <i className="fa fa-solid fa-chevron-down text-11" aria-hidden /> : null}
             {primary ? <MoltenWave /> : null}
@@ -69,6 +73,7 @@ function ActionButton({ action, primary }: { action: EmptyStateAction; primary: 
 
 export function EmptyState({
     icon,
+    loading,
     title,
     hint,
     primary,
@@ -92,7 +97,11 @@ export function EmptyState({
             data-role="molten-empty-state"
         >
             <div className="flex w-full max-w-[360px] flex-col items-center gap-2 text-center">
-                <i className={cn("fa fa-solid text-icon-20 text-muted", `fa-${icon}`)} aria-hidden />
+                {loading ? (
+                    <DominoLoader size="card" />
+                ) : (
+                    <i className={cn("fa fa-solid text-icon-20 text-muted", `fa-${icon}`)} aria-hidden />
+                )}
                 <div className="text-13 leading-5 font-semibold text-primary" role="heading" aria-level={2}>
                     {title}
                 </div>

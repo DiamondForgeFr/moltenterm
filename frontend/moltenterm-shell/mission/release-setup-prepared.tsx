@@ -11,6 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useT, useTCount } from "../i18n/i18n";
 import { openWebLink } from "../open-web-link";
+import { DominoLoader } from "../suite/suite";
 import { DiffView } from "./release-setup";
 import { setupPrStatus } from "./release-setup-client";
 import { FlowDiagram } from "./release-setup-diagram";
@@ -562,6 +563,7 @@ export function PrFollow({
         >
             <span className={ChipClass}>{t("mc.setup.prepared.followTitle", { number })}</span>
             <p className={cn("text-12", tone)} data-testid="prepared-follow-line">
+                {status == null ? <DominoLoader className="mr-1.5" /> : null}
                 {status == null
                     ? t("mc.setup.prepared.follow.reading", { number })
                     : t(prFollowKey(status), {

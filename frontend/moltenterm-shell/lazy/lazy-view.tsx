@@ -6,14 +6,14 @@
 // again (frontend/moltenterm-shell/build/entry-guard.ts).
 
 import { cn } from "@/util/util";
+import { LoadingState } from "../suite/suite";
 
 export function LazyViewLoading({ label, className }: { label: string; className?: string }) {
     return (
-        <div
-            className={cn("flex h-full w-full items-center justify-center text-12 text-muted select-none", className)}
-            data-testid="lazy-view-loading"
-        >
-            {label}
-        </div>
+        <LoadingState
+            caption={label}
+            className={cn("h-full w-full select-none", className)}
+            testId="lazy-view-loading"
+        />
     );
 }

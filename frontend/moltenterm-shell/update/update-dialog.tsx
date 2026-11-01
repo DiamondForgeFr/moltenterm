@@ -12,6 +12,7 @@ import { DialogFrame } from "../dialog-frame";
 import { getLocale, useT } from "../i18n/i18n";
 import { readableSubject } from "../mission/versions";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { groupNotes, restartWarning, TerminalSummary, updateLabel } from "./update-model";
 import { GoldUpdateModel, readTerminals } from "./update-store";
 
@@ -86,6 +87,7 @@ function UpdateDialog() {
                         onClick={() => fireAndForget(() => model.apply(offer, "now"))}
                         className={cn("molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12", busy && "opacity-60")}
                     >
+                        {busy ? <DominoLoader className="mr-1.5" /> : null}
                         {busy ? t("update.dialog.preparing") : t("update.dialog.now")}
                         <MoltenWave />
                     </button>
@@ -101,6 +103,7 @@ function UpdateDialog() {
                 <NoteList title={t("update.dialog.other")} notes={groups.other} />
                 <div className="mt-3 rounded-4 border border-warning/40 bg-warning/10 px-3 py-2 text-12">
                     <div className="text-primary">
+                        {terminals ? null : <DominoLoader className="mr-1.5" />}
                         {terminals ? restartWarning(terminals) : t("update.dialog.lookingTerminals")}
                     </div>
                     {terminals?.running.length ? (

@@ -25,6 +25,7 @@ import { useFloatingInPlace } from "../../moltenterm-shell/floating-in-place"; /
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
 import { MoltentermAddPanel } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#49)
 import { MoltentermDevChannelText } from "../../moltenterm-shell/status-bar-model"; // MOLTENTERM-PATCH (#107)
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 export type WidgetsEnv = WaveEnvSubset<{
     isDev: WaveEnv["isDev"];
@@ -204,7 +205,8 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement, placement 
                 <div className="p-4">
                     {loading ? (
                         <div className="flex items-center justify-center p-8">
-                            <i className="fa fa-solid fa-spinner fa-spin text-2xl text-muted"></i>
+                            {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                            <DominoLoader size="card" />
                         </div>
                     ) : apps.length === 0 ? (
                         <div className="text-muted text-sm p-4 text-center">{t("wave.apps.none")}</div>

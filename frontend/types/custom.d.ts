@@ -297,6 +297,7 @@ declare global {
         tone?: "neutral" | "warning" | "danger";
         title?: string;
         icon?: string;
+        busy?: boolean; // MOLTENTERM-PATCH (#1714): the pill draws the domino loader (DS-SHELL-154)
         onClick?: () => void;
     };
 

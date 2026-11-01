@@ -45,6 +45,7 @@ import { terminalBodyMenuTail } from "../../../moltenterm-shell/command-panel/bl
 import { I18nModel, t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { acceleratorById } from "../../../moltenterm-shell/shortcuts/format";
 import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
+import { DominoLoader } from "../../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 import {
     copyText,
     plainSelectionText,
@@ -184,9 +185,9 @@ export class TermViewModel implements ViewModel {
                 if (isRestarting) {
                     rtn.push({
                         elemtype: "iconbutton",
-                        icon: "refresh",
+                        // MOLTENTERM-PATCH (#1714): restarting = domino, not a spinning icon (DS-SHELL-154)
+                        icon: React.createElement(DominoLoader, { className: "mt-dominos-icon" }),
                         iconColor: "var(--success-color)",
-                        iconSpin: true,
                         title: t("wave.term.restartingCommand"), // MOLTENTERM-PATCH (#623)
                         noAction: true,
                     });

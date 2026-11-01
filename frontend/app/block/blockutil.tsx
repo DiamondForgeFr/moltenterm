@@ -265,6 +265,7 @@ export const HeaderTextElem = React.memo(({ elem, preview }: { elem: HeaderElem;
                 tone={elem.tone ?? "neutral"}
                 title={elem.title}
                 icon={elem.icon}
+                busy={elem.busy} // MOLTENTERM-PATCH (#1714)
                 onClick={elem.onClick}
                 className="shrink-0"
             />

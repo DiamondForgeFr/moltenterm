@@ -9,6 +9,7 @@
 
 import { cn, makeIconClass } from "@/util/util";
 import type { MouseEvent } from "react";
+import { DominoLoader } from "../suite/suite";
 import type { PillTone } from "./header-model";
 import "./header.css";
 
@@ -18,6 +19,8 @@ export type PillProps = {
     title?: string;
     dot?: boolean;
     icon?: string;
+    // Something loads or works: the inline dominoes take the icon's place (DS-SHELL-154).
+    busy?: boolean;
     // The whole pill as a button (open the session options, stop multi input).
     onClick?: () => void;
     // A trailing action ("Go"), its own button.
@@ -38,6 +41,7 @@ export function Pill({
     title,
     dot,
     icon,
+    busy,
     onClick,
     action,
     actionLabel,
@@ -49,7 +53,8 @@ export function Pill({
     const body = (
         <>
             {dot ? <span className="molten-pill-dot" aria-hidden /> : null}
-            {icon ? <i className={cn(makeIconClass(icon, false), "molten-pill-icon")} aria-hidden /> : null}
+            {busy ? <DominoLoader /> : null}
+            {icon && !busy ? <i className={cn(makeIconClass(icon, false), "molten-pill-icon")} aria-hidden /> : null}
             <span className="molten-pill-label">{label}</span>
         </>
     );

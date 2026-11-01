@@ -23,6 +23,7 @@ import { EmptyState, EmptyStateAction } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { always, TabActivity, whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { readWorkspaceProject } from "../workspace-project";
@@ -380,6 +381,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         const empty = (
             <EmptyState
                 icon={StatusIcons[view?.status] ?? "book-open"}
+                loading={view?.status == null || view.status === "loading"}
                 title={message.title}
                 hint={message.detail}
                 secondary={
@@ -834,7 +836,10 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                 {shown ? (
                     <AnswerMarkdown markdown={markdown} />
                 ) : (
-                    <div className="text-12 text-muted">{t("companion.loading")}</div>
+                    <div className="text-12 text-muted">
+                        <DominoLoader className="mr-1.5" />
+                        {t("companion.loading")}
+                    </div>
                 )}
             </div>
         </>

@@ -14,6 +14,7 @@ import { useAtomValue } from "jotai";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
@@ -540,7 +541,11 @@ function GaugesHeader({
                     aria-label={t("companion.gauges.refresh")}
                     aria-busy={refreshing || undefined}
                 >
-                    <i className={cn("fa fa-solid fa-rotate-right", refreshing && "fa-spin")} aria-hidden="true" />
+                    {refreshing ? (
+                        <DominoLoader className="mt-dominos-icon" />
+                    ) : (
+                        <i className="fa fa-solid fa-rotate-right" aria-hidden="true" />
+                    )}
                 </button>
                 <button type="button" className={GhostButton} onClick={onHide}>
                     {t("companion.gauges.hideShort")}
