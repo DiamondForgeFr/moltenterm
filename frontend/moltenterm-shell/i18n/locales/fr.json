@@ -9766,6 +9766,7 @@
                 "about": "Demandez-le à votre agent avec {morph} : il construit le panneau qu'il vous faut.",
                 "noAgent": "Lancez un agent de code, puis demandez-lui l'outil avec /morph.",
                 "start": "Lancer un agent",
+                "startOther": "Lancer un autre agent",
                 "type": "Écrire {morph} dans {agent}",
                 "aboutPlain": "Demandez-le à votre agent : décrivez-lui le panneau qu'il vous faut.",
                 "typePlain": "Aller à {agent}"
@@ -10264,6 +10265,7 @@
             "askTitle": "Écrit {text} dans le terminal de {agent}, sans l'envoyer",
             "noAgent": "Aucun agent dans cet espace.",
             "start": "Lancer un agent",
+            "startOther": "Lancer un autre agent",
             "startTitle": "Affiche les agents que vous pouvez lancer ; rien ne démarre avant que vous en ouvriez un"
         },
         "hint": {
@@ -10307,5 +10309,41 @@
         "searchingRecursive": "Recherche de « {search} » dans tous les sous-dossiers",
         "truncated": "Seuls les {count} premiers résultats sont listés",
         "clear": "Effacer le filtre"
+    },
+    "agc": {
+        "gate": {
+            "thisAgent": "Cet agent",
+            "notHere": "Indisponible avec cet agent",
+            "showTerminal": "Afficher son terminal",
+            "commands": {
+                "label": "Commandes de l'agent",
+                "none": "MoltenTerm ne peut pas taper les commandes de {agent} à votre place : il ne les connaît pas encore.",
+                "alt": "Tapez-les dans le terminal de {agent} : son aide les liste."
+            },
+            "effort": {
+                "none": "MoltenTerm ne peut pas changer l'effort ni le modèle de {agent}.",
+                "alt": "Choisissez-les dans {agent} lui-même, ou lancez un autre agent : la fiche de chaque agent dit ce qui marche avec lui."
+            },
+            "resume": {
+                "none": "MoltenTerm ne peut pas reprendre les sessions précédentes de {agent}.",
+                "alt": "Utilisez la commande de reprise de {agent} dans son terminal, ou lancez un autre agent : la fiche de chaque agent dit ce qui marche avec lui."
+            },
+            "morph": {
+                "none": "{agent} ne peut pas utiliser les guides de MoltenTerm : /morph n'y marcherait pas.",
+                "alt": "Lancez un autre agent pour demander l'outil : la fiche de chaque agent dit ce qui marche avec lui."
+            },
+            "send": {
+                "none": "MoltenTerm ne donne pas à {agent} ses outils de navigateur et d'agents : il ne peut ni naviguer, ni lister les agents, ni passer la main de lui-même.",
+                "alt": "Les autres agents peuvent toujours lui passer du travail, tapé dans son terminal. Pour envoyer du travail depuis lui, lancez molten agent send dans un terminal."
+            },
+            "review": {
+                "none": "{agent} ne peut pas exécuter les tâches de MoltenTerm (revue IA, notes de version).",
+                "alt": "Choisissez un autre agent pour cette tâche, ou faites la revue de la pull request vous-même."
+            },
+            "usage": {
+                "none": "MoltenTerm ne peut pas lire l'usage du forfait de {agent}.",
+                "alt": "La page ou la commande d'usage de {agent} l'affiche."
+            }
+        }
     }
 }

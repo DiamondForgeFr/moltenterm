@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
-import { morphCall, morphCallText, morphTarget, workspaceMorphTarget } from "./morph-call-model";
+import { morphCall, morphCallText, morphChoice, morphTarget, workspaceMorphTarget } from "./morph-call-model";
 
 // The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
 setTestMatrix();
@@ -73,9 +73,26 @@ describe("morph target (#1653, #1672)", () => {
     });
 });
 
+describe("morph choice (FR-AGC-005)", () => {
+    const canMorph = (agent: string) => agent !== "opencode";
+
+    it("sends the call only to an agent that runs MoltenTerm's guides, the current view's first", () => {
+        const opencodeHere = a("b1", { tabid: "t1", agent: "opencode", state: "idle", started: 3 });
+        const claudeThere = a("b2", { tabid: "t2", agent: "claude", state: "idle", started: 1 });
+        expect(morphChoice([opencodeHere, claudeThere], "t1", canMorph)).toEqual({ agent: claudeThere, unable: null });
+    });
+
+    it("names the agent it would have gone to when none can take it, so the hint says why", () => {
+        const opencode = a("b1", { tabid: "t1", agent: "opencode", state: "idle", started: 3 });
+        expect(morphChoice([opencode], "t1", canMorph)).toEqual({ agent: null, unable: opencode });
+        expect(morphChoice([], "t1", canMorph)).toEqual({ agent: null, unable: null });
+        expect(morphChoice(null, "t1", canMorph)).toEqual({ agent: null, unable: null });
+    });
+});
+
 describe("launcher hint texts (#1672)", () => {
     it("has its texts in both languages with the same placeholders", () => {
-        for (const key of ["ask", "askTitle", "noAgent", "start", "startTitle"]) {
+        for (const key of ["ask", "askTitle", "noAgent", "start", "startOther", "startTitle"]) {
             const e = lookup(en, `newView.morph.${key}`) as string;
             const f = lookup(fr, `newView.morph.${key}`) as string;
             expect(e, key).toBeTruthy();
