@@ -80,7 +80,9 @@ func TestFeatureMatrixCells(t *testing.T) {
 		{"gemini", FeatState, LevelProcessOnly, ReasonNoHooks},
 		{"gemini", FeatGuides, LevelAdapted, ""},
 		{"gemini", FeatBrowserMcp, LevelNone, ReasonNoAdapter},
-		{"kimi", FeatDetect, LevelNone, ReasonNotDetected},
+		{"kimi", FeatDetect, LevelProcessOnly, ReasonNoAdapter},
+		{"copilot", FeatGuides, LevelAdapted, ""},
+		{"cursor", FeatResume, LevelNone, ReasonNoAdapter},
 		{"kimi", FeatBusyClose, LevelProcessOnly, ReasonNoHooks},
 		{"opencode", FeatGuides, LevelNone, ReasonNoSkills},
 		{"opencode", FeatDetect, LevelProcessOnly, ReasonNoAdapter},
@@ -90,9 +92,6 @@ func TestFeatureMatrixCells(t *testing.T) {
 		if got.Level != c.level || got.Reason != c.reason {
 			t.Errorf("%s %s: %s (%s), want %s (%s)", c.agent, c.feature, got.Level, got.Reason, c.level, c.reason)
 		}
-	}
-	if rows["kimi"][FeatDetect].Issue != "#1680" {
-		t.Errorf("kimi detection names its ticket: %+v", rows["kimi"][FeatDetect])
 	}
 }
 
@@ -222,7 +221,7 @@ func TestFeaturesRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"asof":"` + MatrixAsOf + `"`, `"id":"claude"`, `"adapter":true`, `"level":"process-only"`, `"reason":"notdetected"`, `"requires":["hooks"]`} {
+	for _, want := range []string{`"asof":"` + MatrixAsOf + `"`, `"id":"claude"`, `"adapter":true`, `"level":"process-only"`, `"reason":"noskills"`, `"requires":["hooks"]`} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("route answer misses %s", want)
 		}
