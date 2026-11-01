@@ -3,8 +3,8 @@
 
 // The frontend part of the adapter conformance suite (FR-AGC-006): every cell of the compatibility matrix whose code
 // lives here (an FS/ adapter) is checked against that code, for every agent of the matrix. The matrix comes from
-// agent-features.golden.json, which pkg/molten/agentcontinuity's TestMatrixGolden keeps equal to wavesrv's; its
-// TestConformanceCoherence requires a case here, by title, for each such cell.
+// agent-features.json (the matrix the build ships), which pkg/molten/agentcontinuity's TestMatrixGolden keeps equal
+// to wavesrv's; its TestConformanceCoherence requires a case here, by title, for each such cell.
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -20,7 +20,7 @@ import { agentCommandTable, hasAgentCommands } from "../command-panel/agent-comm
 import { agentCopyProfile } from "../term-copy/agent-copy-profiles";
 import { setTestMatrix } from "./agent-features-fixture";
 import { featureWorks, type FeatureMatrix } from "./agent-features-model";
-import Golden from "./agent-features.golden.json";
+import Golden from "./agent-features.json";
 
 const Matrix = Golden as FeatureMatrix;
 setTestMatrix(Matrix);
