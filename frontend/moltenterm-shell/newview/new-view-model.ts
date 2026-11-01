@@ -7,6 +7,7 @@
 
 import { fillsPanel, PaletteEntry, PaletteKey, PaletteRun } from "../palette/palette-model";
 import { actionEntries, agentEntries, InstalledAgent, pickerPanelEntries } from "../palette/palette-sources";
+import { suggestionPanels, ViewSuggestions } from "../workspace-views/view-suggestions";
 
 export const NewViewOpenKey = "app:newviewopen";
 export const NewViewFavoritesKey = "app:newviewfavorites";
@@ -59,6 +60,31 @@ export function newViewChoices(input: NewViewChoiceInput): PaletteEntry[] {
 // may hold. Workspace actions, settings and "New tab" (which only opened yet another view, #1238) stay in the palette.
 export function chooserListEntries(entries: PaletteEntry[]): PaletteEntry[] {
     return entries.filter((e) => fillsPanel(e.run) || ChoiceActionIds.includes(e.id));
+}
+
+export const SuggestionIdPrefix = "suggestion:";
+
+// The chooser's Suggestions section (FR-SHELL-138), first in its list so ↓ from the favourites reaches it: each
+// combination by its name, its panels' icons and labels, which the search also matches.
+export function suggestionEntries(tr: (key: string) => string): PaletteEntry[] {
+    return ViewSuggestions.map((s) => {
+        const panels = suggestionPanels(s);
+        const labels = panels.map((p) => tr(p.labelKey));
+        return {
+            id: `${SuggestionIdPrefix}${s.id}`,
+            group: "suggestions",
+            label: tr(s.nameKey),
+            detail: labels.join(" · "),
+            icon: "table-cells-large",
+            panelIcons: panels.map((p) => p.icon),
+            keywords: labels,
+            run: { kind: "suggestion", id: s.id },
+        } satisfies PaletteEntry;
+    });
+}
+
+export function isSuggestion(entry: PaletteEntry): boolean {
+    return entry?.run?.kind === "suggestion";
 }
 
 function idList(setting: unknown): string[] {

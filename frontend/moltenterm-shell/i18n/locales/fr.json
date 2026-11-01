@@ -382,7 +382,8 @@
             "folders": "Dossiers récents",
             "actions": "Espace de travail",
             "panel": "Ce panneau",
-            "agentsIn": "Agents dans {folder}"
+            "agentsIn": "Agents dans {folder}",
+            "suggestions": "Suggestions"
         },
         "panelNames": {
             "terminal": "Terminal",
@@ -1390,16 +1391,18 @@
             "progress": "Écran {n} sur {total} : {scene}",
             "next": {
                 "pour": "Allumer la forge",
-                "agents": "Voir l'atelier",
-                "workshop": "Et ensuite ?",
-                "morph": "C'est parti",
+                "agents": "Mon projet",
+                "project": "Composer ma vue",
+                "view": "Choisir sa place",
+                "place": "C'est prêt",
                 "start": "Entrer dans l'atelier"
             },
             "scenes": {
                 "pour": "Bienvenue",
                 "agents": "Vos agents",
-                "workshop": "Votre atelier",
-                "morph": "Il prend votre forme",
+                "project": "Votre projet",
+                "view": "Votre première vue",
+                "place": "Sa place",
                 "start": "C'est prêt"
             },
             "legal": {
@@ -1412,7 +1415,8 @@
                 "kicker": "Bienvenue dans MoltenTerm",
                 "titleA": "Tous vos agents IA,",
                 "titleB": "un seul atelier.",
-                "sub": "{first}, {second} et les autres travaillent ici ensemble, sur vos projets, avec vos abonnements. Et l'atelier prend votre forme."
+                "sub": "{first}, {second} et les autres travaillent ici ensemble, sur vos projets, avec vos abonnements. Et l'atelier prend votre forme.",
+                "steps": "En quatre gestes, on l'installe ensemble : vos agents, votre projet, votre première vue, sa place."
             },
             "agents": {
                 "kicker": "On allume la forge",
@@ -1490,128 +1494,109 @@
                     "toCards": "Revenir aux cartes"
                 }
             },
-            "workshop": {
-                "kicker": "Votre atelier",
-                "titleA": "Un atelier,",
-                "titleB": "un établi par projet.",
-                "alt": "Illustration : la barre latérale de MoltenTerm avec trois espaces de travail d'exemple, Atlas, Billing et Le Livre. Chacun a sa couleur, ses vues, ses vues temporaires et sa branche ; la ligne du haut est commune à tous les espaces ; les outils forgés avec /morph portent une étoile ; ce que produisent les espaces se range dans les Matériaux.",
-                "swipe": "Glissez d'un espace à l'autre, ou cliquez sur les points en bas de la barre.",
-                "search": "Rechercher, ouvrir une adresse…",
-                "agent": "Agent",
-                "spaces": {
-                    "atlas": {
-                        "name": "Atlas",
-                        "tag": "Web",
-                        "branch": "⎇ feat/42-paiement · ✓ build"
-                    },
-                    "billing": {
-                        "name": "Billing",
-                        "tag": "API",
-                        "branch": "⎇ fix/77-arrondis · ● CI"
-                    },
-                    "book": {
-                        "name": "Le Livre",
-                        "tag": "Écriture",
-                        "branch": "⎇ main · 3 412 mots aujourd'hui",
-                        "temp": "chapitre-03.md"
-                    }
-                },
-                "tiles": {
-                    "scoping": "Cadrage",
-                    "integration": "Intégration",
-                    "browser": "Page web",
-                    "clock": "Horloge",
-                    "logs": "Logs",
-                    "quotas": "Quotas",
-                    "manuscript": "Manuscrit",
-                    "outline": "Plan",
-                    "cover": "Couverture",
-                    "words": "Mots/jour"
-                },
-                "atlas": {
-                    "l1": "je corrige le paiement…",
-                    "l2": "({tool}) : à toi pour la relecture",
-                    "l3": "Jérôme a repris le travail",
-                    "view": "Cadrage · vue combinée",
-                    "ticket": "Ticket #42 · paiement",
-                    "clock": "Horloge · Paris 10:24"
-                },
-                "billing": {
-                    "l1": "les arrondis passent",
-                    "l2": "j'ouvre la PR…",
-                    "view": "Intégration · vue combinée",
-                    "ci": "CI locale en cours",
-                    "pr": "PR #77 prête à relire",
-                    "logs": "Logs · 0 erreur",
-                    "quotas": "Quotas · 62 %"
-                },
-                "book": {
-                    "l1": "je resserre le chapitre 3",
-                    "l2": "maquette de couverture → Matériaux",
-                    "view": "Manuscrit · aperçu",
-                    "chapter": "Chapitre 3",
-                    "text": "La forge s'éveillait avant l'aube. Dans l'atelier, chaque outil avait sa place, et chacun racontait…",
-                    "mock": "Couverture · maquette"
-                },
-                "materials": {
-                    "title": "Matériaux",
-                    "cover": "Maquette de couverture",
-                    "capture": "Capture du parcours de paiement",
-                    "load": "Rapport de charge, API",
-                    "demo": "Onboarding, page de démo"
-                },
-                "ideas": {
-                    "spaces": {
-                        "title": "Un espace par projet",
-                        "text": "Sa couleur, ses agents, son état. Tout revient tel que vous l'avez laissé."
-                    },
-                    "fitted": {
-                        "title": "Aménagé pour le projet",
-                        "text": "Des vues et des vues combinées : l'agent à gauche, ses outils à droite. Les outils communs vous suivent partout."
-                    },
-                    "custom": {
-                        "title": "Sur mesure",
-                        "text": "Pour l'aménagement le plus fin, {morph} forge l'outil qu'il vous manque."
-                    },
-                    "kept": {
-                        "title": "Rien ne se perd",
-                        "text": "Maquettes, images, artefacts : ce que chaque espace produit reste dans vos Matériaux."
-                    }
-                },
-                "coda": "Un atelier qu'on a aménagé soi-même, c'est toujours plus agréable.",
-                "codaHot": "Et d'autres surprises vous y attendent."
-            },
-            "morph": {
-                "kicker": "Il prend votre forme",
-                "titleA": "Il vous manque quelque chose ?",
-                "titleB": "Demandez-le.",
-                "request": "/morph ajoute une horloge Paris · Tokyo",
-                "writing": "L'agent écrit le mod…",
-                "checked": "MoltenTerm le vérifie, vous demande, le charge.",
-                "clockSub": "Paris · Tokyo 18:24",
-                "replay": "Couler à nouveau",
-                "undo": "{command} le retire, à tout moment."
-            },
             "start": {
                 "titleA": "La forge",
                 "titleB": "est chaude.",
-                "sub": "Par où commencer ?",
-                "project": {
-                    "title": "Ouvrir mon projet",
-                    "text": "Un espace à son nom, l'agent prêt à démarrer."
+                "noProject": "Un espace sans projet",
+                "noProjectHint": "Lier un projet reste dans le menu de l'espace",
+                "noView": "Pas encore de vue",
+                "noViewHint": "{keys} en propose",
+                "pinnedEverywhere": "Disponible dans tous vos espaces de travail",
+                "pinnedHere": "Épinglée dans {workspace}",
+                "morph": "Il vous manque un outil ? Demandez-le à votre agent avec {morph}. Ce que vous ajoutez se range dans la Bibliothèque.",
+                "nextTitle": "Vos prochaines vues :",
+                "nextText": "{keys} ou le bouton « + Nouvelle vue ». Une nouvelle vue est temporaire ; épinglez-la pour la garder.",
+                "nextExample": "Pour un projet de développement, épinglez par exemple une vue pour la conception, une pour les tâches de sécurité, une pour le pilotage du projet. Chacun s'organise comme il veut !"
+            },
+            "later": "Plus tard",
+            "settingUp": "Préparation…",
+            "project": {
+                "kicker": "Votre projet",
+                "titleA": "Sur quoi",
+                "titleB": "travaillez-vous ?",
+                "new": {
+                    "title": "Créer un projet",
+                    "text": "Un nouveau dossier, prêt pour vos agents.",
+                    "name": "Nouveau dossier",
+                    "placeholder": "mon-projet",
+                    "in": "Dans",
+                    "where": "Choisir où…",
+                    "git": "Suivre ses versions avec git",
+                    "will": "{path} sera créé.",
+                    "willGit": "{path} sera créé, avec git.",
+                    "nameFirst": "Nommez d'abord le dossier."
                 },
-                "morph": {
-                    "title": "Essayer {morph}",
-                    "text": "Dans un dossier brouillon, sans risque."
+                "find": {
+                    "title": "Retrouver mon projet",
+                    "text": "Un dossier qui existe déjà sur cet ordinateur.",
+                    "found": "Trouvés sur cet ordinateur",
+                    "recent": "récent",
+                    "repo": "dépôt",
+                    "scanning": "Recherche de vos projets…",
+                    "none": "Aucun projet trouvé pour l'instant. Cherchez son dossier.",
+                    "hint": "Vos dossiers récents d'abord, puis les dépôts trouvés.",
+                    "elsewhere": "Chercher un autre dossier…"
                 },
-                "free": {
-                    "title": "Explorer librement",
-                    "text": "Premiers pas reste dans le menu Aide."
+                "chip": "Votre espace de travail :",
+                "chipNone": "au nom du projet",
+                "today": "aujourd'hui",
+                "dayAgo": "il y a 1 j",
+                "daysAgo": "il y a {n} j",
+                "whereTitle": "Où créer le projet",
+                "findTitle": "Le dossier de votre projet",
+                "taken": "Un dossier {name} existe déjà dans {where}. Choisissez un autre nom."
+            },
+            "view": {
+                "kicker": "Votre première vue",
+                "titleA": "Composez-la,",
+                "titleB": "elle se monte.",
+                "sub": "Votre espace est vide : c'est vous qui l'aménagez. Choisissez ce que l'agent a sous la main.",
+                "left": "À gauche, l'agent",
+                "right": "À droite, ses outils",
+                "presets": "Toutes prêtes",
+                "name": "Son nom",
+                "agentLater": "Un agent, à choisir plus tard",
+                "hints": {
+                    "browser": "localhost, la doc",
+                    "files": "le dossier du projet",
+                    "integration": "PR et CI",
+                    "project": "l'aperçu"
                 },
-                "folderTitle": "Le dossier de votre projet",
-                "morphHint": "{name} s'ouvre dans un dossier brouillon. Collez-y cette demande :",
-                "morphNoAgent": "Aucun agent n'est encore installé : revenez en arrière pour en installer un. En attendant, MoltenTerm ouvre votre atelier.",
-                "shortcuts": "Maintenez {hold} ou appuyez sur {press} pour voir les raccourcis de ce qui est à l'écran."
+                "unnamed": "Sans nom",
+                "temporary": "Vue temporaire",
+                "slot": "La place d'un agent dans cette vue",
+                "start": "Démarrer {agent}",
+                "startAny": "Démarrer un agent",
+                "noTools": "Juste l'agent. Ajoutez un outil à gauche.",
+                "myWorkspace": "Mon espace",
+                "sample": {
+                    "search": "Rechercher…",
+                    "topEmpty": "Rangée du haut · vide",
+                    "empty": "Aucune vue épinglée ici. + Nouvelle vue, ou {keys}",
+                    "newView": "+ Nouvelle vue",
+                    "ci": "CI locale en cours",
+                    "pr": "PR #42 prête à relire",
+                    "branch": "main · à jour"
+                }
+            },
+            "place": {
+                "kicker": "Sa place",
+                "titleA": "Où ranger",
+                "titleB": " ?",
+                "everywhere": {
+                    "title": "Disponible dans tous vos espaces de travail, y compris les prochains",
+                    "text": "En haut de la barre, partout. Chaque espace l'ouvre sur son propre projet."
+                },
+                "workspace": {
+                    "title": "Épinglée dans {workspace} uniquement",
+                    "text": "Une tuile de cet espace. Les autres ne la voient pas."
+                },
+                "editable": "Tout reste modifiable ensuite.",
+                "next": "Billing",
+                "capMine": "{workspace}, votre projet",
+                "capNext": "{workspace}, un prochain espace",
+                "legendEverywhere": "{name} rejoint la rangée du haut, la même dans chaque espace. Dans {workspace} elle s'ouvre sur {workspace}, dans {other} sur {other}.",
+                "legendWorkspace": "{name} devient une tuile de {workspace}. {other} ne la voit pas ; vous pourrez l'épingler partout plus tard, depuis son menu."
             }
         }
     },
@@ -9552,9 +9537,9 @@
         },
         "emptyWorkspace": {
             "title": "Cet espace de travail n'a pas encore de vue épinglée",
-            "hint": "Un espace de travail garde ici, en tuiles, les vues d'un projet. Ajoutez les vues par défaut, {views}, ou créez la vôtre.",
-            "hintNoTemplate": "Un espace de travail garde ici, en tuiles, les vues d'un projet. Créez une vue, puis épinglez-la ici.",
-            "addViews": "Ajouter les vues par défaut",
+            "hint": "Un espace de travail garde ici, en tuiles, les vues d'un projet. C'est vous qui l'aménagez : créez une vue avec Nouvelle vue ({keys}), ou ajoutez les vues de votre modèle, {views}.",
+            "hintNoTemplate": "Un espace de travail garde ici, en tuiles, les vues d'un projet. C'est vous qui l'aménagez : créez une vue avec Nouvelle vue ({keys}), puis épinglez-la ici.",
+            "addViews": "Ajouter les vues de mon modèle",
             "newView": "Nouvelle vue"
         },
         "pins": {
@@ -9628,7 +9613,8 @@
             "slot": {
                 "text": "La place d'un agent dans cette vue",
                 "start": "Démarrer un agent",
-                "startTitle": "Démarrer ici l'agent de code de ce projet"
+                "startTitle": "Démarrer ici l'agent de code de ce projet",
+                "startAgent": "Démarrer {agent}"
             }
         },
         "dots": {
@@ -10241,7 +10227,12 @@
             "scoping": "Cadrage",
             "integration": "Intégration",
             "pilotage": "Pilotage",
-            "view": "Vue"
+            "view": "Vue",
+            "preview": "Aperçu",
+            "code": "Code",
+            "delivery": "Livraison",
+            "myView": "Ma vue",
+            "agentOnly": "Agent"
         },
         "panels": {
             "agent": "Agent",

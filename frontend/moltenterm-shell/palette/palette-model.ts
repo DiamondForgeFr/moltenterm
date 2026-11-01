@@ -8,10 +8,11 @@
 import { t } from "../i18n/i18n";
 import type { WorkspaceIconSource } from "../workspace-icon-model";
 
-// "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed.
-export type PaletteGroupId = "agents" | "panels" | "folders" | "actions" | "panel";
+// "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed. "suggestions":
+// the ready-made combinations a new view's chooser offers above its list (FR-SHELL-138); no other list holds them.
+export type PaletteGroupId = "suggestions" | "agents" | "panels" | "folders" | "actions" | "panel";
 
-export const PaletteGroupOrder: PaletteGroupId[] = ["agents", "panels", "folders", "actions", "panel"];
+export const PaletteGroupOrder: PaletteGroupId[] = ["suggestions", "agents", "panels", "folders", "actions", "panel"];
 
 // The picker of a split panel puts the panel kinds first (FR-SHELL-042, DS-SHELL-066).
 export const PickerGroupOrder: PaletteGroupId[] = ["panels", "agents", "folders", "actions"];
@@ -52,7 +53,9 @@ export type PaletteRun =
     // The command panel of the pane the palette was opened from, or one of its items (FR-SHELL-047: every action of
     // the panel is also a palette command).
     | { kind: "panelcommands" }
-    | { kind: "panelcommand"; entryId: string };
+    | { kind: "panelcommand"; entryId: string }
+    // A ready-made combination of panels (FR-SHELL-138), by its id in workspace-views/view-suggestions.ts.
+    | { kind: "suggestion"; id: string };
 
 // The entries that open something in the palette's pane; the others act elsewhere (a tab, a sheet, a workspace).
 export function fillsPanel(run: PaletteRun): boolean {
@@ -78,6 +81,8 @@ export type PaletteEntry = {
     // In a split's picker: how to reach the entry from the keyboard ("⌘D co ↵"), and its own global shortcut.
     keyPath?: string;
     shortcut?: string;
+    // A suggestion's panels, their icons shown before its detail (FR-SHELL-138).
+    panelIcons?: string[];
     run: PaletteRun;
 };
 
@@ -232,6 +237,7 @@ export function filterPalette(
 }
 
 export const DefaultGroupTitleKeys: Record<PaletteGroupId, string> = {
+    suggestions: "palette.groups.suggestions",
     agents: "palette.groups.agents",
     panels: "palette.groups.panels",
     folders: "palette.groups.folders",

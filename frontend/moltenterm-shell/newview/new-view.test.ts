@@ -59,6 +59,7 @@ vi.mock("@/layout/index", () => ({
 }));
 vi.mock("@/util/platformutil", () => ({ isMacOS: () => h.mac }));
 vi.mock("../palette/palette-actions", () => ({ runPaletteEntry: h.run }));
+vi.mock("../sidebar/view-pins-store", () => ({ ViewPins: { getInstance: () => ({ createView: vi.fn() }) } }));
 
 import { dismissNewView, openFavorite, openInNewView, openNewView, registerNewViewKeys } from "./new-view";
 import { ChooserBlockDef, NewViewRunMetaKey } from "./new-view-model";

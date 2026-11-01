@@ -170,13 +170,20 @@ func workspaceViewTabs(views []wconfig.NewWorkspaceViewType) []workspaceViewTab 
 }
 
 // createWorkspaceWithViews makes a workspace holding only the template's views, the first one active, in one
-// transaction (#1315): Wave's first tab is never made, so nothing of it is left to remove. Without a valid view, the
-// workspace gets Wave's usual first tab. A workspace made from the template gets no Project tab on its own
-// (mission.TemplateViewsMetaKey): its views already show the project.
+// transaction (#1315): Wave's first tab is never made, so nothing of it is left to remove. Without a valid view (the
+// built-in template is empty since #1709), the workspace gets Wave's usual first tab and shows its empty state. Either
+// way it gets no Project tab on its own (mission.TemplateViewsMetaKey): the user composes its views.
 func createWorkspaceWithViews(ctx context.Context, name string, icon string, color string, applyDefaults bool, views []wconfig.NewWorkspaceViewType) (*waveobj.Workspace, error) {
 	tabs := workspaceViewTabs(views)
 	if len(tabs) == 0 {
-		return CreateWorkspace(ctx, name, icon, color, applyDefaults, false)
+		ws, err := CreateWorkspace(ctx, name, icon, color, applyDefaults, false)
+		if err != nil {
+			return nil, err
+		}
+		if err := setTemplateMark(ctx, ws.OID); err != nil {
+			return nil, err
+		}
+		return GetWorkspace(ctx, ws.OID)
 	}
 	ws := &waveobj.Workspace{
 		OID:    uuid.NewString(),

@@ -13,45 +13,73 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import { WorkspaceService } from "@/app/store/services";
 import { getActiveTabModel } from "@/app/store/tab-model";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
-import { I18nModel, t, useT } from "../moltenterm-shell/i18n/i18n";
+import { I18nModel, t, useLocale, useT } from "../moltenterm-shell/i18n/i18n";
 import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
+import { missionGitInit } from "../moltenterm-shell/mission/mission-client";
+import { ViewPins } from "../moltenterm-shell/sidebar/view-pins-store";
+import { workspaceShownName } from "../moltenterm-shell/workspace-default-name";
+import { readRecentFolders } from "../moltenterm-shell/workspace-project";
 import {
     chooseMoltentermPath,
     linkWorkspaceProject,
     readProjectFacts,
     setWorkspaceFolder,
 } from "../moltenterm-shell/workspace-project-store";
-import { canMorph, ChosenAgentKey, OnboardingAgents } from "./onboarding-agent-model";
+import { suggestionConfig } from "../moltenterm-shell/workspace-views/view-suggestions";
+import { ChosenAgentKey, OnboardingAgents } from "./onboarding-agent-model";
 import {
     answerCliInstall,
     cancelCliInstall,
     cliInstallStatus,
-    currentOnboardingState,
-    ensureMorphDir,
     listOnboardingAgents,
     onboardingUpdate,
     OnboardingUpdate,
+    scanProjectCandidates,
     startCliInstall,
 } from "./onboarding-client";
+import {
+    cleanFolderName,
+    defaultProjectsFolder,
+    FirstViewPlan,
+    projectTarget,
+    ProjectDraft,
+    ProjectResult,
+    shownPath,
+} from "./onboarding-first-view-model";
 import { CliInstallStatus, isRunning } from "./onboarding-install-model";
 import { OnboardingPour } from "./onboarding-pour";
 import { keptAgent } from "./onboarding-pour-agents";
-import { PourRecord, PourStart } from "./onboarding-pour-model";
-import { projectColour, ProjectFolderKey } from "./onboarding-project-model";
+import { PourRecord } from "./onboarding-pour-model";
+import { ProjectCandidate, projectCandidates, projectColour, ProjectFolderKey } from "./onboarding-project-model";
 import { MoltentermOnboardingView } from "./onboarding-state";
 
 export { MoltentermOnboardingView };
 
 const InstallPollMs = 400;
+// The view step's data: the panels of the view made, and where it was pinned.
+export const ViewPanelsKey = "panels";
+export const ViewPlaceKey = "place";
 
-// The palette's agent start, loaded on use: palette-actions opens Getting started, so a static import would loop back
-// into this view.
-async function typeCommand(blockId: string, command: string): Promise<boolean> {
-    const { typeCommandWhenReady } = await import("../moltenterm-shell/palette/palette-actions");
-    return typeCommandWhenReady(blockId, command);
+function homeDir(): string {
+    try {
+        return getApi()?.getHomeDir?.() ?? "";
+    } catch {
+        return "";
+    }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+    try {
+        const info = await RpcApi.FileInfoCommand(TabRpcClient, { info: { path } });
+        return info != null && !info.notfound;
+    } catch {
+        return false;
+    }
 }
 
 export class OnboardingViewModel implements ViewModel {
@@ -72,6 +100,10 @@ export class OnboardingViewModel implements ViewModel {
     agentsErrorAtom = atom(null) as PrimitiveAtom<string>;
     checkingAtom = atom(false) as PrimitiveAtom<boolean>;
     installsAtom = atom({}) as PrimitiveAtom<Record<string, CliInstallStatus>>;
+    candidatesAtom = atom([]) as PrimitiveAtom<ProjectCandidate[]>;
+    scanningAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The project the scene set last: going back and on again without a change links nothing twice.
+    lastProject: { path: string; result: ProjectResult } = null;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -119,6 +151,21 @@ export class OnboardingViewModel implements ViewModel {
             );
         } finally {
             globalStore.set(this.checkingAtom, false);
+        }
+    }
+
+    // The project scene's candidates (FR-ONB-004): the workspace's recent folders, then the repositories wavesrv
+    // finds under the home folder, read only.
+    async loadCandidates(): Promise<void> {
+        globalStore.set(this.scanningAtom, true);
+        const recent = readRecentFolders(globalStore.get(atoms.workspace));
+        globalStore.set(this.candidatesAtom, projectCandidates(recent, []));
+        try {
+            globalStore.set(this.candidatesAtom, projectCandidates(recent, await scanProjectCandidates()));
+        } catch (e) {
+            console.log("first run: project scan failed", e);
+        } finally {
+            globalStore.set(this.scanningAtom, false);
         }
     }
 
@@ -200,32 +247,102 @@ export class OnboardingViewModel implements ViewModel {
         });
     }
 
+    // The computer's own folder chooser, which offers its own New folder action; null when cancelled.
+    async chooseFolder(purpose: "where" | "find", current: string): Promise<string> {
+        const title = t(purpose === "where" ? "onboarding.pour.project.whereTitle" : "onboarding.pour.project.findTitle");
+        try {
+            return (await chooseMoltentermPath({ kind: "folder", title, defaultPath: current || homeDir() })) || null;
+        } catch (e) {
+            globalStore.set(this.errorAtom, serverErrorText(e));
+            return null;
+        }
+    }
+
+    // Leaving the project scene (FR-ONB-007 P-4): Create a project makes its folder (refused when the name is taken
+    // there) and, when asked, its git repository (#1650, #1671: never inside another repository); Find links the
+    // folder chosen. Either way the folder becomes the workspace's, with the project's name and colour, as Open my
+    // project did (FR-ONB-004). null keeps the scene, the error saying why.
+    async leaveProject(draft: ProjectDraft): Promise<ProjectResult> {
+        if (globalStore.get(this.busyAtom)) {
+            return null;
+        }
+        const path = projectTarget(draft);
+        const ws = globalStore.get(atoms.workspace);
+        if (!path || ws == null) {
+            return null;
+        }
+        if (this.lastProject?.path === path) {
+            return this.lastProject.result;
+        }
+        globalStore.set(this.busyAtom, true);
+        globalStore.set(this.errorAtom, null);
+        try {
+            if (draft.mode === "new") {
+                if (await pathExists(path)) {
+                    throw new Error(
+                        t("onboarding.pour.project.taken", {
+                            name: cleanFolderName(draft.name),
+                            where: shownPath(draft.location, homeDir()),
+                        })
+                    );
+                }
+                await RpcApi.FileMkdirCommand(TabRpcClient, { info: { path } });
+                if (draft.git) {
+                    await missionGitInit(path).catch((e) => console.log("first run: git init", e?.message ?? e));
+                }
+            }
+            await setWorkspaceFolder(ws.oid, path);
+            const dir = await linkWorkspaceProject(ws, path);
+            const { name } = await readProjectFacts(dir);
+            const colour = projectColour(name);
+            await WorkspaceService.UpdateWorkspace(ws.oid, name, ws.icon ?? "", colour, !ws.icon);
+            await this.update({ kind: "data", step: "project", data: { [ProjectFolderKey]: path } });
+            await this.update({ kind: "step", step: "project", status: "done" });
+            const result: ProjectResult = { name, path: shownPath(dir, homeDir()), colour };
+            this.lastProject = { path, result };
+            return result;
+        } catch (e) {
+            globalStore.set(this.errorAtom, serverErrorText(e));
+            return null;
+        } finally {
+            globalStore.set(this.busyAtom, false);
+        }
+    }
+
+    laterProject() {
+        fireAndForget(async () => {
+            try {
+                await this.update({ kind: "step", step: "project", status: "skipped" });
+            } catch (e) {
+                console.log("first run: project skipped", e);
+            }
+        });
+    }
+
     // Ending the run takes the panel away; Getting started brings it back. Closing the last pane of a tab closes the
-    // tab, and the window with its last tab: a panel left alone in its tab gives way to a terminal instead.
-    async closePanel(): Promise<void> {
-        const tabAtom = getActiveTabModel()?.tabAtom;
-        const blockCount = tabAtom == null ? 0 : (globalStore.get(tabAtom)?.blockids?.length ?? 0);
-        if (blockCount === 1) {
+    // tab, and the window with its last tab: a panel left alone in its tab gives way to a terminal instead, unless the
+    // run made a view to show, which then takes its place.
+    async closePanel(viewTabId?: string): Promise<void> {
+        const tab = getActiveTabModel()?.tabAtom;
+        const tabValue = tab == null ? null : globalStore.get(tab);
+        const alone = (tabValue?.blockids?.length ?? 0) === 1;
+        if (viewTabId) {
+            getApi().setActiveTab(viewTabId);
+            const ws = globalStore.get(atoms.workspace);
+            if (alone && ws != null && tabValue != null) {
+                await getApi().closeTab(ws.oid, tabValue.oid, false);
+                return;
+            }
+        }
+        if (alone) {
             await replaceBlock(this.blockId, { meta: { view: "term", controller: "shell" } }, true);
             return;
         }
         uxCloseBlock(this.blockId);
     }
 
-    // The run ends; a fresh install's starter workspace gets the template's views as it does (FR-SHELL-110), and
-    // the first of them shows when asked. Asking wavesrv for them again only finds them.
-    async finishRun(openView: boolean): Promise<void> {
-        const workspaceId = globalStore.get(atoms.workspace)?.oid;
-        const starter = !!workspaceId && currentOnboardingState().starterws === workspaceId;
-        await this.update({ kind: "finish" });
-        const tabId = openView && starter ? await WorkspaceService.AddWorkspaceViews(workspaceId) : "";
-        await this.closePanel();
-        if (tabId) {
-            getApi().setActiveTab(tabId);
-        }
-    }
-
-    // Skip: the run ends by leave, as the welcome's Skip did; Getting started stays in the Help menu.
+    // Skip: the run ends by leave, as the welcome's Skip did; no view is made and Getting started stays in the Help
+    // menu.
     leave(): Promise<void> {
         return this.run(async () => {
             await this.update({ kind: "leave" });
@@ -233,59 +350,29 @@ export class OnboardingViewModel implements ViewModel {
         });
     }
 
-    start(start: PourStart): Promise<void> {
-        switch (start) {
-            case "project":
-                return this.openProject();
-            case "morph":
-                return this.tryMorph();
-        }
-        return this.run(() => this.finishRun(false));
-    }
-
-    // Open my project (AC-8): the folder becomes the workspace's, with the project's name and colour, and its project
-    // (FR-ONB-004; its repository's root when it is in one); the run ends and the starter workspace's first view shows.
-    // Cancelling the folder choice leaves the pour where it is.
-    openProject(): Promise<void> {
+    // Enter the workshop (FR-ONB-009): the view the user built, made now in this workspace, pinned where they chose and
+    // shown first; without one (Later on the view) the workspace shows its empty state. Nothing starts: the agent's
+    // place waits for a click.
+    start(plan: FirstViewPlan): Promise<void> {
         return this.run(async () => {
-            const ws = globalStore.get(atoms.workspace);
-            if (ws == null) {
-                return;
+            let viewTabId: string = null;
+            if (plan != null) {
+                viewTabId = await ViewPins.getInstance().createView({
+                    config: suggestionConfig(plan.panels, plan.agentId),
+                    scope: plan.place,
+                    name: plan.name,
+                    nameKey: plan.nameKey,
+                    background: true,
+                });
+                await this.update({
+                    kind: "data",
+                    step: "view",
+                    data: { [ViewPanelsKey]: plan.panels, [ViewPlaceKey]: plan.place },
+                });
             }
-            const path = await chooseMoltentermPath({ kind: "folder", title: t("onboarding.pour.start.folderTitle") });
-            if (!path) {
-                return;
-            }
-            await setWorkspaceFolder(ws.oid, path);
-            // Linked like New workspace links its folder (#1642): a folder without git is the project too, else the
-            // default views open their file panel on the home folder.
-            const dir = await linkWorkspaceProject(ws, path);
-            const { name } = await readProjectFacts(dir);
-            await WorkspaceService.UpdateWorkspace(ws.oid, name, ws.icon ?? "", projectColour(name), !ws.icon);
-            await this.update({ kind: "data", step: "project", data: { [ProjectFolderKey]: path } });
-            await this.update({ kind: "step", step: "project", status: "done" });
-            await this.finishRun(true);
-        });
-    }
-
-    // Try /morph (AC-8): the agent kept opens in the first morph's scratch folder (FR-ONB-003), in place of the panel;
-    // the pour showed the request to paste before. Without an agent the run ends on the starter workspace's first
-    // view, as the pour said.
-    tryMorph(): Promise<void> {
-        return this.run(async () => {
-            const agent = keptAgent(globalStore.get(this.agentsAtom));
-            if (agent == null || !canMorph(agent) || !agent.executable) {
-                await this.finishRun(true);
-                return;
-            }
-            const dir = await ensureMorphDir();
+            await this.update({ kind: "step", step: "view", status: plan != null ? "done" : "skipped" });
             await this.update({ kind: "finish" });
-            const blockId = await replaceBlock(
-                this.blockId,
-                { meta: { view: "term", controller: "shell", "cmd:cwd": dir } },
-                true
-            );
-            await typeCommand(blockId, agent.executable);
+            await this.closePanel(viewTabId);
         });
     }
 }
@@ -306,11 +393,19 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
     const agentsError = useAtomValue(model.agentsErrorAtom);
     const checking = useAtomValue(model.checkingAtom);
     const installs = useAtomValue(model.installsAtom);
+    const candidates = useAtomValue(model.candidatesAtom);
+    const scanning = useAtomValue(model.scanningAtom);
     const reduced = useAtomValue(atoms.prefersReducedMotionAtom);
+    const ws = useAtomValue(atoms.workspace);
+    const locale = useLocale();
+    const tr = useT();
+    const home = homeDir();
 
-    // Reading the login shell's PATH can take seconds on the first call: the detection starts with the first scene.
+    // Reading the login shell's PATH can take seconds on the first call: the detection starts with the first scene,
+    // and the folder scan with it.
     useEffect(() => {
         fireAndForget(() => model.loadAgents());
+        fireAndForget(() => model.loadCandidates());
     }, [model]);
 
     return (
@@ -323,6 +418,11 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     agents={agents}
                     agentsError={agentsError}
                     checking={checking}
+                    home={home}
+                    projectsFolder={defaultProjectsFolder(home, locale)}
+                    candidates={candidates}
+                    scanning={scanning}
+                    workspaceName={workspaceShownName(ws?.name, tr)}
                     onRecord={(record) => model.record(record)}
                     installs={installs}
                     onCheckAgain={() => fireAndForget(() => model.loadAgents(true))}
@@ -330,7 +430,10 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     onAnswerInstall={(id, text) => fireAndForget(() => model.answerInstall(id, text))}
                     onCancelInstall={(id) => fireAndForget(() => model.cancelInstall(id))}
                     onSkip={() => fireAndForget(() => model.leave())}
-                    onStart={(start) => fireAndForget(() => model.start(start))}
+                    onLeaveProject={(draft) => model.leaveProject(draft)}
+                    onLaterProject={() => model.laterProject()}
+                    onChooseFolder={(purpose, current) => model.chooseFolder(purpose, current)}
+                    onStart={(plan) => fireAndForget(() => model.start(plan))}
                 />
             </ErrorBoundary>
         </div>

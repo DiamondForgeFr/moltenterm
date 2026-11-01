@@ -122,8 +122,9 @@ func TestCreateWorkspaceWithViewsEmptyTemplate(t *testing.T) {
 		if tab.Meta[ViewPendingMetaKey] != nil || len(tab.BlockIds) != 1 {
 			t.Fatalf("Wave's first tab with its terminal: %+v", tab)
 		}
-		if ws.Meta.GetBool(mission.TemplateViewsMetaKey, false) {
-			t.Fatalf("a workspace without template views keeps its Project tab: %v", ws.Meta)
+		// #1709: the user composes the views, so no Project tab comes on its own either.
+		if !ws.Meta.GetBool(mission.TemplateViewsMetaKey, false) {
+			t.Fatalf("a workspace without template views gets no Project tab unasked: %v", ws.Meta)
 		}
 	}
 }

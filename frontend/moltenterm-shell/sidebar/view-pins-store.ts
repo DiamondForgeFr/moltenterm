@@ -24,7 +24,8 @@ import { viewDisplayName } from "../tab-identity-ui";
 import { dismissToast, showToast } from "../toast-store";
 import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
-import { ViewPendingMetaKey } from "../workspace-views/workspace-views-model";
+import { AgentSlotAgentMetaKey } from "../workspace-views/view-suggestions";
+import { ViewNameKeyMetaKey, ViewPendingMetaKey } from "../workspace-views/workspace-views-model";
 import { localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
 import { showUndoToast } from "./sidebar-undo";
 import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
@@ -469,6 +470,53 @@ export class ViewPins {
             { workspaceid: globalStore.get(atoms.workspaceId), ...req },
             { route: ViewPinRoute, timeout: BuildTimeoutMs }
         );
+    }
+
+    // A view made from panels the user chose (FR-ONB-009, FR-SHELL-138), on this workspace's project and shown at once:
+    // temporary, pinned here (a tile keeping its configuration) or pinned everywhere (a pin of the top row, this
+    // workspace's instance made now). A name key is stored as the name, so it follows the interface language until
+    // the view is renamed; a typed name is kept as typed. Returns the view's tab.
+    async createView(req: {
+        config: PinConfig;
+        scope: ViewState;
+        name?: string;
+        nameKey?: string;
+        tabId?: string;
+        // a new tab that does not take the screen yet; the caller shows it
+        background?: boolean;
+    }): Promise<string> {
+        const nameKey = req.name?.trim() ? null : req.nameKey;
+        const tabmeta: Record<string, any> = nameKey ? { [ViewNameKeyMetaKey]: nameKey } : {};
+        const shown = nameKey ? t(nameKey) : req.name.trim();
+        let tabName = nameKey ?? shown;
+        if (req.scope === "workspace") {
+            tabmeta[PinMetaKey] = PinWorkspace;
+            tabmeta[PinConfigMetaKey] = req.config;
+        }
+        if (req.scope === "everywhere") {
+            const pin: GlobalPin = {
+                id: makeGlobalPinId(Date.now(), Math.random()),
+                name: shown,
+                rev: 1,
+                config: req.config,
+            };
+            if (nameKey) {
+                pin.namekey = nameKey;
+            }
+            await this.writeGlobalPins([...this.globalPins(), pin]);
+            tabmeta[GlobalPinMetaKey] = pin.id;
+            tabmeta[GlobalPinRevMetaKey] = pin.rev;
+            delete tabmeta[ViewNameKeyMetaKey];
+            tabName = shown;
+        }
+        if (!req.tabId) {
+            const built = await this.build({ name: tabName, tabmeta, config: req.config, background: req.background });
+            return built?.tabid ?? null;
+        }
+        await this.build({ tabid: req.tabId, config: req.config });
+        await this.setTabMeta(req.tabId, tabmeta);
+        await RpcApi.UpdateTabNameCommand(TabRpcClient, req.tabId, tabName);
+        return req.tabId;
     }
 
     openPinPage(tabId: string, name: string, scope: PinScope = "here") {
@@ -1044,9 +1092,30 @@ export function refusePinnedClose(tabId: string): boolean {
 
 // "Start an agent" in an agent slot of a view pinned everywhere: the project's coding agent, typed into the slot's
 // terminal once its shell runs. A project without a supported agent says so.
+// The agent the user picked for this slot in the first launch (FR-ONB-009): its command comes from the agent catalog,
+// never from the meta, which a terminal can write; null when the slot names none or the agent is no longer found.
+async function slotAgentCommand(blockId: string): Promise<string> {
+    const id = WOS.getObjectValue<Block>(WOS.makeORef("block", blockId))?.meta?.[AgentSlotAgentMetaKey];
+    if (typeof id !== "string" || id === "") {
+        return null;
+    }
+    const { listOnboardingAgents } = await import("../../moltenterm-onboarding/onboarding-client");
+    const agent = ((await listOnboardingAgents())?.agents ?? []).find((a) => a.id === id);
+    return agent?.found && agent.executable ? agent.executable : null;
+}
+
 export async function startAgentInSlot(blockId: string): Promise<void> {
     const dir = readWorkspaceProject(globalStore.get(atoms.workspace)).dir;
     try {
+        const picked = await slotAgentCommand(blockId);
+        if (picked) {
+            await RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("block", blockId),
+                meta: { [AgentSlotMetaKey]: null } as MetaType,
+            });
+            await typeCommandWhenReady(blockId, picked);
+            return;
+        }
         const agent = pipelineAgentOf(await fetchCodingAgent(dir), globalStore.get(atoms.fullConfigAtom)?.presets);
         if (agent.state === "missing") {
             showToast({ kind: "warning", title: t("codingAgent.missing", { agent: agent.name }) });

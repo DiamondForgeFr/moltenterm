@@ -16,9 +16,11 @@ export const OnboardingUpdateCommand = "onboardingupdate";
 export const OnboardingStateCommand = "onboardingstate";
 export const OnboardingPanelCommand = "onboardingpanel";
 
+// The steps the panel's pages walk through; the record also keeps the first view's step (#1709), which has no page.
 export const FirstRunStepIds = ["agent", "morph", "project"] as const;
+export const RecordedStepIds = [...FirstRunStepIds, "view"] as const;
 
-export type FirstRunStepId = (typeof FirstRunStepIds)[number];
+export type FirstRunStepId = (typeof RecordedStepIds)[number];
 export type FirstRunStepStatus = "todo" | "done" | "skipped";
 export type OnboardingDoneBy = "" | "finish" | "leave" | "closed" | "env" | "existing";
 
@@ -60,7 +62,7 @@ function num(value: unknown): number {
 }
 
 function isStepId(value: string): value is FirstRunStepId {
-    return (FirstRunStepIds as readonly string[]).includes(value);
+    return (RecordedStepIds as readonly string[]).includes(value);
 }
 
 // Whether wavesrv has written a record yet.
