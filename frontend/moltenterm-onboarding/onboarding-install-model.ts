@@ -12,6 +12,8 @@ export const CliInstallCommand = "onboardingcliinstall";
 export const CliInstallStatusCommand = "onboardingcliinstallstatus";
 export const CliInstallInputCommand = "onboardingcliinstallinput";
 export const CliInstallCancelCommand = "onboardingcliinstallcancel";
+// must match pkg/molten/onboarding/agentpage.go: the Library's Uninstall (#1699), followed with the commands above
+export const CliUninstallCommand = "onboardingcliuninstall";
 
 // The terminal's escape sequences: titles (OSC), colours and cursor moves (CSI), and the short ones.
 const Esc = "\\u001b";
@@ -24,6 +26,7 @@ export type CliInstallState = "" | "running" | "succeeded" | "failed" | "cancele
 
 export type CliInstallStatus = {
     id: string;
+    kind?: "install" | "uninstall";
     command?: string;
     state?: CliInstallState;
     output?: string;

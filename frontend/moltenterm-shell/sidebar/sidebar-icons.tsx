@@ -108,6 +108,13 @@ const Paths = {
             <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
         </>
     ),
+    // A command-line agent (#1699): a prompt in a window.
+    agents: (
+        <>
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="m7 10 3 2.5L7 15M12.5 15H17" />
+        </>
+    ),
 };
 
 export type SidebarGlyphName = keyof typeof Paths;

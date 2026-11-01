@@ -20,6 +20,7 @@ import {
     CliInstallInputCommand,
     CliInstallStatus,
     CliInstallStatusCommand,
+    CliUninstallCommand,
 } from "./onboarding-install-model";
 import { OnboardingMorphDirCommand } from "./onboarding-morph-model";
 import { OnboardingProjectsCommand, ProjectCandidate } from "./onboarding-project-model";
@@ -79,13 +80,22 @@ export async function listOnboardingAgents(refresh?: boolean): Promise<Onboardin
     return rtn ?? { agents: [], version: "" };
 }
 
-function cliInstallCall(command: string, data: { id: string; text?: string }): Promise<CliInstallStatus> {
+function cliInstallCall(
+    command: string,
+    data: { id: string; text?: string; removeconfig?: boolean }
+): Promise<CliInstallStatus> {
     return TabRpcClient.wshRpcCall(command, data, { route: OnboardingRoute, timeout: OnboardingCallTimeoutMs });
 }
 
 // Install runs the agent's catalog command in wavesrv: only the id crosses (FR-ONB-007 AC-5).
 export function startCliInstall(id: string): Promise<CliInstallStatus> {
     return cliInstallCall(CliInstallCommand, { id });
+}
+
+// Uninstall (#1699): the id and the tick for the settings folders cross, never a command; wavesrv finds the method
+// again from the copy it sees.
+export function startCliUninstall(id: string, removeConfig: boolean): Promise<CliInstallStatus> {
+    return cliInstallCall(CliUninstallCommand, removeConfig ? { id, removeconfig: true } : { id });
 }
 
 export function cliInstallStatus(id: string): Promise<CliInstallStatus> {

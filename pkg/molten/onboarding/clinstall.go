@@ -41,6 +41,12 @@ const (
 	CliInstallCancelCommand = "onboardingcliinstallcancel"
 )
 
+// What a job runs: the install, or the uninstall of the Library's agent page (#1699). One job per agent at a time.
+const (
+	CliJobInstall   = "install"
+	CliJobUninstall = "uninstall"
+)
+
 const (
 	CliInstallRunning   = "running"
 	CliInstallSucceeded = "succeeded"
@@ -67,6 +73,7 @@ var cliInstallDrainWait = 2 * time.Second
 
 type CliInstallStatus struct {
 	Id        string      `json:"id"`
+	Kind      string      `json:"kind,omitempty"`
 	Command   string      `json:"command,omitempty"`
 	State     string      `json:"state,omitempty"`
 	Output    string      `json:"output,omitempty"`
@@ -84,6 +91,7 @@ type cliInstallRequest struct {
 type cliInstallJob struct {
 	lock       sync.Mutex
 	id         string
+	kind       string
 	command    string
 	state      string
 	output     []byte
@@ -137,6 +145,7 @@ func (job *cliInstallJob) status() CliInstallStatus {
 	defer job.lock.Unlock()
 	rtn := CliInstallStatus{
 		Id:       job.id,
+		Kind:     job.kind,
 		Command:  job.command,
 		State:    job.state,
 		Output:   string(job.output),
@@ -225,9 +234,16 @@ func StartCliInstall(id string) (CliInstallStatus, error) {
 		return CliInstallStatus{}, uimsg.Errorf(uimsg.Make("onboarding.installUnsupported", "agent", profile.Name),
 			"installing %s from MoltenTerm is not available on this system", profile.Name)
 	}
+	return startCliJob(profile.Id, CliJobInstall, commands[0])
+}
+
+// startCliJob runs a catalog command for the agent, or returns the job of that agent already running: an install and
+// an uninstall of one agent never run together.
+func startCliJob(id string, kind string, command string) (CliInstallStatus, error) {
 	job := &cliInstallJob{
-		id:         profile.Id,
-		command:    commands[0],
+		id:         id,
+		kind:       kind,
+		command:    command,
 		state:      CliInstallRunning,
 		lastOutput: time.Now(),
 		done:       make(chan struct{}),
@@ -255,7 +271,7 @@ func (job *cliInstallJob) start() error {
 		return fmt.Errorf("starting the install: %w", err)
 	}
 	job.setProcess(cmd.Process.Pid, term)
-	log.Printf("molten: installing %s with %q (pid %d)\n", job.id, job.command, cmd.Process.Pid)
+	log.Printf("molten: %s of %s with %q (pid %d)\n", job.kind, job.id, job.command, cmd.Process.Pid)
 	drained := make(chan struct{})
 	go func() {
 		defer func() {
@@ -286,7 +302,7 @@ func (job *cliInstallJob) start() error {
 		term.Close()
 		job.finish(waitErr)
 		close(job.done)
-		log.Printf("molten: install of %s ended: %v\n", job.id, waitErr)
+		log.Printf("molten: %s of %s ended: %v\n", job.kind, job.id, waitErr)
 	}()
 	return nil
 }

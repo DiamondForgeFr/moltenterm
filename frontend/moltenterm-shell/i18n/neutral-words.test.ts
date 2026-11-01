@@ -16,6 +16,8 @@ export const PlatformOnlyKeys: Record<string, string> = {
     // #1030: the constraint comes from one platform's installer format (MSI), which only takes numbers after the dash;
     // saying "installers" alone would hide why a format is unavailable for every other target.
     "mc.setup.reason.msiNumeric": "MSI installers are a Windows format",
+    // #1699: the vendor's own statement of the systems it targets, a weak point of the agent's profile.
+    "library.agents.profiles.vibe.w2": "Mistral Vibe's docs state the systems it is built for",
 };
 
 export function machineWordProblems(entries: [string, string][]): string[] {
