@@ -48,11 +48,17 @@ func TestMatrixGoldenForInterface(t *testing.T) {
 // FR-AGC-003: a row carries its guide profile and the call of a guide, found by the agent's program.
 func TestMatrixRowsCarryGuideProfile(t *testing.T) {
 	want := map[string][2]string{
-		molten.AgentIdClaude:   {"claude-code", "/{name}"},
-		molten.AgentIdCodex:    {"codex", "${name}"},
-		molten.AgentIdGemini:   {"gemini-cli", "/{name}"},
-		molten.AgentIdKimi:     {"kimi", "/skill:{name}"},
-		molten.AgentIdOpenCode: {"", ""},
+		molten.AgentIdClaude:      {"claude-code", "/{name}"},
+		molten.AgentIdCodex:       {"codex", "${name}"},
+		molten.AgentIdGemini:      {"gemini-cli", "/{name}"},
+		molten.AgentIdKimi:        {"kimi", "/skill:{name}"},
+		molten.AgentIdOpenCode:    {"", ""},
+		molten.AgentIdQwen:        {"qwen-code", "/{name}"},
+		molten.AgentIdAntigravity: {"antigravity", "/{name}"},
+		molten.AgentIdCopilot:     {"copilot", "/{name}"},
+		molten.AgentIdCursor:      {"cursor", "/{name}"},
+		molten.AgentIdGrok:        {"grok", "/{name}"},
+		molten.AgentIdVibe:        {"vibe", "/{name}"},
 	}
 	for _, a := range Default().Matrix().Agents {
 		if got := [2]string{a.Profile, a.GuideCall}; got != want[a.Id] {

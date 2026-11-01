@@ -711,6 +711,9 @@
             "id": "qwen",
             "name": "Qwen Code",
             "adapter": false,
+            "profile": "qwen-code",
+            "command": "qwen",
+            "guidecall": "/{name}",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -966,6 +969,9 @@
             "id": "antigravity",
             "name": "Antigravity CLI",
             "adapter": false,
+            "profile": "antigravity",
+            "command": "agy",
+            "guidecall": "/{name}",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -1093,6 +1099,9 @@
             "id": "copilot",
             "name": "GitHub Copilot CLI",
             "adapter": false,
+            "profile": "copilot",
+            "command": "copilot",
+            "guidecall": "/{name}",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -1220,6 +1229,9 @@
             "id": "cursor",
             "name": "Cursor CLI",
             "adapter": false,
+            "profile": "cursor",
+            "command": "agent",
+            "guidecall": "/{name}",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -1347,6 +1359,9 @@
             "id": "grok",
             "name": "Grok Build",
             "adapter": false,
+            "profile": "grok",
+            "command": "grok",
+            "guidecall": "/{name}",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -1474,6 +1489,9 @@
             "id": "vibe",
             "name": "Mistral Vibe",
             "adapter": false,
+            "profile": "vibe",
+            "command": "vibe",
+            "guidecall": "/{name}",
             "features": {
                 "approvals": {
                     "level": "none",

@@ -48,9 +48,12 @@ describe("the interface reads the matrix (FR-AGC-003)", () => {
             "/morph",
             "/morph",
         ]);
-        // PipelineInvocations (Qwen Code joins when the matrix has its row, FR-AGC-002)
+        // PipelineInvocations (Qwen Code and the subscription CLIs joined with their rows, #1680)
         expect(pipelineInvocations(RealMatrix)).toEqual([
-            { agent: "Claude Code, Gemini CLI", invocation: "/molten-pipeline" },
+            {
+                agent: "Claude Code, Gemini CLI, Qwen Code, Antigravity CLI, GitHub Copilot CLI, Cursor CLI, Grok Build, Mistral Vibe",
+                invocation: "/molten-pipeline",
+            },
             { agent: "Codex", invocation: "$molten-pipeline" },
             { agent: "Kimi Code", invocation: "/skill:molten-pipeline" },
         ]);
@@ -78,7 +81,9 @@ describe("the interface reads the matrix (FR-AGC-003)", () => {
             expect(fullIntegration(matrix, "aider")).toBe(true);
             expect(agentName("aider")).toBe("Aider");
             expect(guideCall(matrix, "aider", "morph")).toBe("/morph");
-            expect(pipelineInvocations(matrix)[0].agent).toBe("Claude Code, Gemini CLI, Aider");
+            expect(pipelineInvocations(matrix)[0].agent).toBe(
+                "Claude Code, Gemini CLI, Qwen Code, Antigravity CLI, GitHub Copilot CLI, Cursor CLI, Grok Build, Mistral Vibe, Aider"
+            );
             // No command table for it: the matrix cell alone does not invent one.
             expect(agentCommandTable("aider")).toBeNull();
         } finally {
