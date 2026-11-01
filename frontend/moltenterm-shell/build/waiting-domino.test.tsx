@@ -31,7 +31,6 @@ const BusyKeyName =
 export const SpinnerAllowed: Record<string, string> = {
     "frontend/util/util.ts": "makeIconClass maps the +spin modifier to Font Awesome's class: the mechanism, not a usage",
     "frontend/app/block/connectionbutton.tsx": "Wave's shouldSpin is never set true; connecting draws its dots",
-    "frontend/moltenterm-onboarding/onboarding-pour-scenes.tsx": "agent install cards of the first launch: #1712",
 };
 
 // file → why it shows a busy label without drawing the loader itself.
