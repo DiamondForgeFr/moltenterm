@@ -4,18 +4,18 @@
 // Asking the workspace's agent for a missing tool with /morph (#1653, #1672): the Library's "Missing a tool?" card
 // and the ⌘T launcher's empty result share these rules. Pure functions, tested without the app.
 
-import { currentFeatureMatrix, featureWorks, guideCall, type FeatureMatrix } from "../agent-info/agent-features-model";
+import { agentRow, currentFeatureMatrix, guideCall, type FeatureMatrix } from "../agent-info/agent-features-model";
 import { agentPromptState, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import { workspaceAgents } from "../library/library-model";
 
 // Each agent's own call of the morph guide (pkg/molten/agentdocs/mod-format.md), from its row of the compatibility
-// matrix (FR-AGC-003). An agent the guides do not work with has no call (#1680): the request goes to it as plain text.
+// matrix (FR-AGC-003). An agent the matrix does not know has no call (#1680): the request goes to it as plain text.
 // The agent named nowhere yet (no state id) is taken as one with the guides.
 export function morphCall(agent: string, matrix: FeatureMatrix = currentFeatureMatrix()): string {
     if (!agent) {
         return "/morph";
     }
-    if (!featureWorks(matrix, agent, "guides")) {
+    if (agentRow(matrix, agent) == null) {
         return "";
     }
     return guideCall(matrix, agent, "morph");
