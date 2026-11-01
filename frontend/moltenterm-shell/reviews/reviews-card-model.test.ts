@@ -61,6 +61,10 @@ const Rebase: PrTask = { kind: "rebase", name: "Jeanne", blockId: "jeanne", head
 const Fix: PrTask = { kind: "investigate", name: "Salomé", blockId: "salome", head: "abc1234", at: 1 };
 
 const Failed = (name = "Backend"): ReviewCheck => ({ name, state: "failure", runid: 7 });
+// #1713: the agent's "AI testing / Local CI" status, as wavesrv rereads it with the local CI.
+const WaitingLocal: ReviewCheck = { name: "AI testing / Local CI", state: "untrusted" };
+const StoppedAt = Date.UTC(2026, 9, 28, 13, 7);
+const StoppedLocal: ReviewCheck = { name: "AI testing / Local CI", state: "interrupted", stoppedat: StoppedAt };
 
 function state(input: Partial<CardInput> & { pr: ReviewPr }) {
     return cardState({ agents: [], ...input });
@@ -98,6 +102,8 @@ const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr }
     },
     { kind: "conflicts", input: { pr: pr({ merge: "conflicts" }) } },
     { kind: "failing", input: { pr: pr({ merge: "failing" }, [Failed(), ...Green.slice(1)]), rerunnable: true } },
+    { kind: "ci-trust", input: { pr: pr({ merge: "failing" }, [WaitingLocal, ...Green]) } },
+    { kind: "ci-stopped", input: { pr: pr({ merge: "failing" }, [StoppedLocal, ...Green]) } },
     { kind: "review-required", input: { pr: pr({ merge: "blocked", reviewdecision: "REVIEW_REQUIRED" }) } },
     { kind: "draft-ready", input: { pr: pr({ draft: true, report: { state: "missing" } }) } },
     {
@@ -334,7 +340,7 @@ describe("cardState: the nine states (#1060)", () => {
     });
 
     it("CI running: calm Assisted review, Validate still in the menu, behind is a fact", () => {
-        const w = words(Cases[8].input);
+        const w = words(Cases[10].input);
         expect(w.sentence).toBe("CI running");
         expect(w.why).toBe("2 of 4, Backend, Build");
         expect(w.primary).toBe("Assisted review");
@@ -445,6 +451,8 @@ describe("one orange button per card, only on the developer's turn", () => {
             "interrupted",
             "conflicts",
             "failing",
+            "ci-trust",
+            "ci-stopped",
             "review-required",
             "draft-ready",
             "ready",
@@ -477,9 +485,9 @@ describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
     });
 
     it("CI running with nothing asked: the state line shows them", () => {
-        const s = state(Cases[8].input);
+        const s = state(Cases[10].input);
         expect([s.kind, s.works, s.motion]).toEqual(["ci-running", true, "state"]);
-        expect(state({ ...Cases[8].input, agents: [Jeanne] }).motion).toBe("state");
+        expect(state({ ...Cases[10].input, agents: [Jeanne] }).motion).toBe("state");
     });
 
     it("nothing works: no dominoes", () => {
@@ -563,9 +571,55 @@ describe("the other branches of the PR's ticket (#1172)", () => {
     });
 });
 
+describe("a local CI nothing runs (#1713)", () => {
+    it("waiting for approval: the developer's turn, Approve the commands, never CI running", () => {
+        const s = state({ pr: pr({ merge: "failing" }, [WaitingLocal, ...Green]) });
+        const w = words({ pr: pr({ merge: "failing" }, [WaitingLocal, ...Green]) });
+        expect(s.turn).toBe("yours");
+        expect(s.primary.id).toBe("approve-commands");
+        expect(s.molten).toBe(true);
+        expect(w.sentence).toBe("Local CI waiting for your approval");
+        expect(w.why).toBe("its commands must be approved before the CI runs (AI testing / Local CI)");
+        expect(w.primary).toBe("Approve the commands…");
+        expect(w.facts.some((f) => f.includes("running"))).toBe(false);
+    });
+
+    it("waiting for approval comes before an interrupted check and GitHub's running ones", () => {
+        const checks: ReviewCheck[] = [WaitingLocal, StoppedLocal, { name: "E2E", state: "pending" }, ...Green];
+        expect(state({ pr: pr({ merge: "running" }, checks) }).kind).toBe("ci-trust");
+        expect(state({ pr: pr({ merge: "running" }, checks.slice(1)) }).kind).toBe("ci-stopped");
+    });
+
+    it("interrupted: when it was last heard of, and Run the local CI again", () => {
+        const s = state({ pr: pr({ merge: "failing" }, [StoppedLocal, ...Green]) });
+        const w = words({ pr: pr({ merge: "failing" }, [StoppedLocal, ...Green]) });
+        expect(s.kind).toBe("ci-stopped");
+        expect(s.primary.id).toBe("run-ci");
+        expect(w.sentence).toBe("Local CI interrupted");
+        expect(w.why).toMatch(/^last heard of on .*2026.*, nothing runs it now \(AI testing \/ Local CI\)$/);
+        expect(w.primary).toBe("Run the local CI again");
+        const unknown = words({ pr: pr({}, [{ ...StoppedLocal, stoppedat: undefined }, ...Green]) });
+        expect(unknown.why).toBe("nothing runs it now (AI testing / Local CI)");
+    });
+
+    it("a real failure still wins", () => {
+        expect(state({ pr: pr({ merge: "failing" }, [Failed(), WaitingLocal, ...Green.slice(1)]) }).kind).toBe(
+            "failing"
+        );
+    });
+});
+
 describe("in French", () => {
     beforeAll(() => I18nModel.getInstance().setLanguageSetting("fr"));
     afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
+
+    it("words a local CI nothing runs (#1713)", () => {
+        expect(words({ pr: pr({}, [WaitingLocal, ...Green]) }).sentence).toBe(
+            "CI locale en attente de votre approbation"
+        );
+        expect(words({ pr: pr({}, [WaitingLocal, ...Green]) }).primary).toBe("Approuver les commandes…");
+        expect(words({ pr: pr({}, [StoppedLocal, ...Green]) }).primary).toBe("Relancer la CI locale");
+    });
 
     it("names the ticket's other branches (#1172)", () => {
         expect(words({ pr: pr(), others: [{ branch: "test/1101-local" }] }).facts).toContain(

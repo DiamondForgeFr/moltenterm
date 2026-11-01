@@ -94,7 +94,8 @@ func (a *TrustAsks) take(dir string) map[string]string {
 	return ask.blocks
 }
 
-// trustNotice is the one notification of a folder whose commands wait for the developer's approval.
+// trustNotice is the one notification of a folder whose commands wait for the developer's approval. It says the CI is
+// blocked and its action approves (#1713): read as something to look at, it was archived and the CI stayed blocked.
 func trustNotice(dir string, blocks []string, workspaceId string) molten.NotificationInput {
 	project := filepath.Base(dir)
 	args := map[string]any{"dir": dir}
@@ -105,12 +106,12 @@ func trustNotice(dir string, blocks []string, workspaceId string) molten.Notific
 		Key:         TrustNotificationKey(dir),
 		Source:      TrustNotificationSource,
 		Kind:        "warning",
-		Title:       fmt.Sprintf("%s's commands need your approval", project),
+		Title:       fmt.Sprintf("%s's CI is blocked until you approve its commands", project),
 		TitleText:   uimsg.Make("notif.trust.title", "project", project),
-		Message:     fmt.Sprintf("A run was refused: MoltenTerm runs the commands declared in %s only once you trusted them. Nothing ran.", dir),
+		Message:     fmt.Sprintf("Nothing runs until you approve the commands declared in %s: approve them, then the refused run can start again.", dir),
 		MessageText: uimsg.Make("notif.trust.message", "dir", dir),
 		WorkspaceId: workspaceId,
-		Actions: []molten.NotificationAction{{Id: "review", Label: "Review the commands", Kind: "gesture", Gesture: TrustReviewGesture,
+		Actions: []molten.NotificationAction{{Id: "review", Label: "Approve the commands…", Kind: "gesture", Gesture: TrustReviewGesture,
 			Args: args, LabelText: uimsg.Make("notif.trust.review")}},
 	}
 }

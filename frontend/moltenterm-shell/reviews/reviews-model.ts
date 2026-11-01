@@ -19,16 +19,22 @@ export const MoltentermReviewsView = "molten-reviews";
 // must match the constants in pkg/molten/mission/reviews.go
 export type ReviewMerge = "clean" | "behind" | "conflicts" | "blocked" | "failing" | "running" | "unknown";
 export type ReviewReportState = "present" | "missing" | "unknown";
-export type ReviewCheckState = CheckState | "none";
+// A local CI check nothing runs (#1713, pkg/molten/mission/ci_stalled.go): interrupted, or waiting for the approval
+// of the project's commands.
+export type CheckRunState = CheckState | "interrupted" | "untrusted";
+export type ReviewCheckState = CheckRunState | "none";
 
 export type ReviewCheck = {
     name: string;
-    state: CheckState;
+    state: CheckRunState;
     local?: boolean;
     workflow?: string;
     url?: string;
     runid?: number;
     jobid?: number;
+    startedat?: string;
+    // ms; an interrupted local CI check's last sign of life
+    stoppedat?: number;
 };
 
 export type ReviewCi = {
@@ -36,6 +42,8 @@ export type ReviewCi = {
     success: number;
     failure: number;
     pending: number;
+    interrupted?: number;
+    untrusted?: number;
     checks: ReviewCheck[];
 };
 
@@ -398,17 +406,19 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
     return { kind: "failed", text: phrase(keys.failed, vars) };
 }
 
-const CheckStateKeys: Record<CheckState, string> = {
+const CheckStateKeys: Record<CheckRunState, string> = {
     success: "reviews.ci.state.success",
     failure: "reviews.ci.state.failure",
     pending: "reviews.ci.state.pending",
     neutral: "reviews.ci.state.neutral",
+    interrupted: "reviews.ci.state.interrupted",
+    untrusted: "reviews.ci.state.untrusted",
 };
 
 // The checks shown by name before "+N" (#797).
 const NamedChecks = 2;
 
-export function checksOf(ci: ReviewCi, state: CheckState): ReviewCheck[] {
+export function checksOf(ci: ReviewCi, state: CheckRunState): ReviewCheck[] {
     return (ci?.checks ?? []).filter((c) => c.state === state);
 }
 
@@ -527,6 +537,12 @@ export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: strin
     const parts: string[] = [];
     if (ci.pending > 0) {
         parts.push(t("reviews.ci.running", { count: ci.pending }));
+    }
+    if ((ci.untrusted ?? 0) > 0) {
+        parts.push(t("reviews.ci.untrusted", { count: ci.untrusted }));
+    }
+    if ((ci.interrupted ?? 0) > 0) {
+        parts.push(t("reviews.ci.interrupted", { count: ci.interrupted }));
     }
     if (ci.success > 0) {
         parts.push(t("reviews.ci.passed", { count: ci.success }));

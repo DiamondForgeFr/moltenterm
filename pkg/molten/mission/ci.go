@@ -45,6 +45,8 @@ const (
 	ciCommandTimeout   = 2 * time.Minute
 	ciStatusesTimeout  = 30 * time.Second
 	ciPublishScopeNote = "on the developer's machine"
+	// A run writes its record at least this often (#1713): one MoltenTerm left behind tells when it stopped.
+	ciHeartbeat = 30 * time.Second
 )
 
 type CiJobRecord struct {
@@ -77,6 +79,8 @@ type CiRunRecord struct {
 	// Why the run stopped before its jobs (the worktree or ci.prepare failed).
 	Error     string      `json:"error,omitempty"`
 	ErrorText *uimsg.Text `json:"errortext,omitempty"`
+	// The run's last heartbeat while it runs (#1713); an interrupted run finished at its last sign of life.
+	SeenAt int64 `json:"seenat,omitempty"`
 }
 
 type CiVerdict struct {
@@ -104,6 +108,9 @@ type CiCodeVerdict struct {
 	Failed  []string             `json:"failed,omitempty"`
 	Missing []string             `json:"missing,omitempty"`
 	Jobs    map[string]CiVerdict `json:"jobs"`
+	// Why a code not run yet has no verdict (#1713): the run on it that was interrupted, and when it stopped.
+	RunId     string `json:"runid,omitempty"`
+	StoppedAt int64  `json:"stoppedat,omitempty"`
 }
 
 type CiState struct {
@@ -311,6 +318,9 @@ func (c *Ci) runs(dir string) []CiRunRecord {
 		}
 		if rec.Status == CiStateRunning && (active == nil || active.runId != rec.Id) {
 			rec.Status = CiStateInterrupted
+			if rec.FinishedAt == 0 {
+				rec.FinishedAt = lastSignOfLife(rec)
+			}
 			for i := range rec.Jobs {
 				if rec.Jobs[i].Status == CiStateRunning || rec.Jobs[i].Status == CiStateQueued {
 					rec.Jobs[i].Status = CiStateInterrupted
@@ -322,6 +332,15 @@ func (c *Ci) runs(dir string) []CiRunRecord {
 	}
 	sort.Slice(runs, func(i, j int) bool { return runs[i].StartedAt > runs[j].StartedAt })
 	return runs
+}
+
+// lastSignOfLife: when a run left behind was last known to run (its heartbeat, a job's start or end, its start).
+func lastSignOfLife(rec CiRunRecord) int64 {
+	last := max(rec.StartedAt, rec.SeenAt)
+	for _, job := range rec.Jobs {
+		last = max(last, job.StartedAt, job.FinishedAt)
+	}
+	return last
 }
 
 func (c *Ci) prune(dir string) {
@@ -427,8 +446,20 @@ func (c *Ci) resolveTarget(ctx context.Context, project string, branch string, f
 	return target, nil
 }
 
-// StatusFrom is Status on the HEAD of the caller's checkout when no revision is named.
+// StatusFrom is `molten ci status`: Status on the HEAD of the caller's checkout when no revision is named, and for a
+// code not run yet, why (#1713).
 func (c *Ci) StatusFrom(dir string, rev string, from string) (CiCodeVerdict, error) {
+	verdict, err := c.statusFrom(dir, rev, from)
+	if err != nil {
+		return verdict, err
+	}
+	if pipeline, perr := readCiPipeline(filepath.Clean(dir)); perr == nil {
+		c.explainNotRun(filepath.Clean(dir), pipeline, &verdict)
+	}
+	return verdict, nil
+}
+
+func (c *Ci) statusFrom(dir string, rev string, from string) (CiCodeVerdict, error) {
 	if rev != "" || from == "" {
 		return c.Status(dir, rev)
 	}
@@ -678,12 +709,42 @@ func (p *ciRunProgress) setJob(name string, change func(job *CiJobRecord)) CiRun
 	})
 }
 
+// heartbeat writes the run's record every ciHeartbeat until stopped, so a long job still leaves a recent sign of life.
+func (c *Ci) heartbeat(progress *ciRunProgress) func() {
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		defer func() {
+			panichandler.PanicHandler("molten:mission:ci:heartbeat", recover())
+		}()
+		ticker := time.NewTicker(ciHeartbeat)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				progress.update(func(r *CiRunRecord) { r.SeenAt = c.now().UnixMilli() })
+			}
+		}
+	}()
+	var once sync.Once
+	// Waits for the beat to end: the run's release must come after its last write.
+	return func() {
+		once.Do(func() { close(done) })
+		<-stopped
+	}
+}
+
 func (c *Ci) execute(rec CiRunRecord, pipeline *molten.Pipeline, jobs []molten.PipelineJob) {
 	defer func() {
 		panichandler.PanicHandler("molten:mission:ci", recover())
 	}()
 	defer c.release(rec.Dir, rec.Id)
 	progress := &ciRunProgress{rec: rec, ci: c}
+	stopBeat := c.heartbeat(progress)
+	defer stopBeat()
 	tree, err := c.prepare(rec, pipeline)
 	if err != nil {
 		progress.update(func(r *CiRunRecord) {

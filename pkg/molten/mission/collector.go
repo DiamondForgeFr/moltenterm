@@ -679,6 +679,10 @@ func Start() {
 		if rec.Status != CiStateRunning {
 			go groups.Refreshed()
 		}
+		// The Integration cards read the local CI's statuses with it (#1713): a run that starts or ends shows at once.
+		if rec.Status != CiStateRunning || ciRunJustStarted(rec) {
+			go reviews.CiChanged(rec.Dir)
+		}
 	})
 	runs.UseCi(ci)
 	runs.UseAgentEnv(func(dir string) []string { return agentchoice.Resolve(dir, "").RunEnv() })
@@ -705,6 +709,7 @@ func Start() {
 	useCurrentWork(runs, ci)
 	reviews = MakeReviews(collector, ExecRunner, publishReviews)
 	reviews.notify = attention.PublishNotification
+	reviews.ci = ci
 	worktrees := MakeWorktrees(ExecRunner, nil)
 	runs.UseWorktrees(worktrees, dataDir)
 	// Launching a PR's or a branch's version from Reviews (FR-REV-031).

@@ -6,6 +6,7 @@
 // and the "…" menu. Everything else is a muted fact. Pure, so the sections (#1061), the merge queue (#1062) and the
 // motion (#1063) read the same state. Sentences are phrases (key + vars), worded where they show.
 
+import { getLocale } from "../i18n/i18n";
 import { phrase, type Phrase } from "../i18n/phrase";
 import { batchStatePhrase } from "./reviews-batch-agent";
 import type { BatchItem, BatchRun } from "./reviews-batch-model";
@@ -21,6 +22,8 @@ export const CardStateKinds = [
     "interrupted",
     "conflicts",
     "failing",
+    "ci-trust",
+    "ci-stopped",
     "review-required",
     "draft-ready",
     "ci-running",
@@ -61,6 +64,8 @@ export type CardActionId =
     | "open-work"
     | "stop"
     | "rerun"
+    | "approve-commands"
+    | "run-ci"
     | "launch"
     | "github";
 
@@ -139,6 +144,8 @@ const Tones: Record<CardStateKind, CardTone> = {
     interrupted: "you",
     conflicts: "broken",
     failing: "broken",
+    "ci-trust": "you",
+    "ci-stopped": "you",
     "review-required": "you",
     "draft-ready": "you",
     "ci-running": "running",
@@ -152,6 +159,8 @@ const Turns: Record<CardStateKind, CardTurn> = {
     interrupted: "yours",
     conflicts: "blocked",
     failing: "blocked",
+    "ci-trust": "yours",
+    "ci-stopped": "yours",
     "review-required": "yours",
     "draft-ready": "yours",
     "ci-running": "waiting",
@@ -276,6 +285,13 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     if (input.taskState === "stuck") {
         return "interrupted";
     }
+    // #1713: a local CI nothing runs is the developer's to unblock, never "CI running".
+    if (checksOf(pr.ci, "untrusted").length > 0) {
+        return "ci-trust";
+    }
+    if (checksOf(pr.ci, "interrupted").length > 0) {
+        return "ci-stopped";
+    }
     if (pr.merge === "blocked" && (reviewRequired(pr) || !ciPending(pr))) {
         return "review-required";
     }
@@ -286,6 +302,11 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
         return "draft-ready";
     }
     return "ready";
+}
+
+// When a local CI check was last heard of, in the interface's language.
+function stoppedWhen(ms: number): string {
+    return new Intl.DateTimeFormat(getLocale(), { dateStyle: "medium", timeStyle: "short" }).format(new Date(ms));
 }
 
 function taskWhat(task: PrTask): Phrase {
@@ -591,6 +612,28 @@ export function cardState(input: CardInput): CardState {
                 AssistedReview(),
                 Github(),
             ];
+            break;
+        }
+        case "ci-trust": {
+            const waiting = checksOf(pr.ci, "untrusted");
+            said.add("ci");
+            sentence = phrase("reviews.card.state.ciTrust");
+            why = phrase("reviews.card.why.ciTrust", { names: checkNames(waiting) });
+            primary = action("approve-commands", "reviews.card.action.approveCommands");
+            menu = [AssistedReview(), mergeAction(input, null), Github()];
+            break;
+        }
+        case "ci-stopped": {
+            const stopped = checksOf(pr.ci, "interrupted");
+            const at = Math.max(0, ...stopped.map((c) => c.stoppedat ?? 0));
+            said.add("ci");
+            sentence = phrase("reviews.card.state.ciStopped");
+            why =
+                at > 0
+                    ? phrase("reviews.card.why.ciStopped", { when: stoppedWhen(at), names: checkNames(stopped) })
+                    : phrase("reviews.card.why.ciStoppedUnknown", { names: checkNames(stopped) });
+            primary = action("run-ci", "reviews.card.action.runCi");
+            menu = [AssistedReview(), mergeAction(input, null), Github()];
             break;
         }
         case "review-required":

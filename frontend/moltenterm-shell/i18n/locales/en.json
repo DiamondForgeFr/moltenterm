@@ -6210,7 +6210,7 @@
             "yoursTitle": "No agent works on this draft and its branch has not moved lately: it is yours to finish or mark ready.",
             "status": "On the board: {status}"
         },
-        "trustReview": "Review the commands",
+        "trustReview": "Approve the commands…",
         "trustReviewTitle": "{name} was refused a run: review and trust {project}'s commands"
     },
     "reviews": {
@@ -6840,6 +6840,8 @@
             "running": "{count} running",
             "passed": "{count} passed",
             "skipped": "{count} skipped",
+            "untrusted": "{count} waiting for your approval",
+            "interrupted": "{count} interrupted",
             "label": "CI {parts}",
             "failedLabel": "CI: {names} failed",
             "more": "{names} +{count}",
@@ -6848,7 +6850,9 @@
                 "success": "passed",
                 "failure": "failed",
                 "pending": "running",
-                "neutral": "skipped"
+                "neutral": "skipped",
+                "interrupted": "interrupted",
+                "untrusted": "waiting for your approval"
             },
             "rerun": {
                 "button": "Rerun failed jobs",
@@ -6980,6 +6984,8 @@
                 "reviewRequired": "Review required",
                 "blockedRule": "Blocked by a rule",
                 "draftReady": "Draft to test",
+                "ciTrust": "Local CI waiting for your approval",
+                "ciStopped": "Local CI interrupted",
                 "ciRunning": "CI running",
                 "mergeChecking": "GitHub is checking the merge",
                 "ready": "Ready to merge",
@@ -7007,9 +7013,14 @@
                 "approval": "GitHub awaits an approval",
                 "reasons": "{reasons}",
                 "yours": "yours",
-                "running": "{count} of {total}, {names}"
+                "running": "{count} of {total}, {names}",
+                "ciTrust": "its commands must be approved before the CI runs ({names})",
+                "ciStopped": "last heard of on {when}, nothing runs it now ({names})",
+                "ciStoppedUnknown": "nothing runs it now ({names})"
             },
             "action": {
+                "approveCommands": "Approve the commands…",
+                "runCi": "Run the local CI again",
                 "answer": "Answer {name}",
                 "follow": "Follow {name}",
                 "relaunch": "Relaunch {name}",
@@ -7026,7 +7037,12 @@
                 "markReady": "Mark ready for review",
                 "markReadyMenu": "Mark ready for review: the PR leaves draft"
             },
+            "ciRun": {
+                "notStarted": "The local CI did not start."
+            },
             "actionTitle": {
+                "approveCommands": "Open the project's declared commands to approve them. Approving starts nothing.",
+                "runCi": "Run the local CI on {branch}, asking for the approval of the commands first when it is missing",
                 "answer": "Show {name}'s terminal: it is waiting for your answer",
                 "follow": "Show {name}'s terminal",
                 "relaunch": "Send the same task to {name} again, in its session, with the pull request as it is now",
@@ -8817,9 +8833,9 @@
                 }
             },
             "trust": {
-                "title": "{project}'s commands need your approval",
-                "message": "A run was refused: MoltenTerm runs the commands declared in {dir} only once you trusted them. Nothing ran.",
-                "review": "Review the commands"
+                "title": "{project}'s CI is blocked until you approve its commands",
+                "message": "Nothing runs until you approve the commands declared in {dir}: approve them, then the refused run can start again.",
+                "review": "Approve the commands…"
             }
         },
         "companion": {

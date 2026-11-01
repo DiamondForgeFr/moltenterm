@@ -30,8 +30,10 @@ const (
 	moltenCiStatusGreen      = "success"
 	moltenCiStatusRed        = "failure"
 	moltenCiStatusRunning    = "running"
+	moltenCiStatusUntrusted  = "untrusted"
+	moltenCiStatusStopped    = "interrupted"
 	moltenCiExitNotRun       = 2
-	moltenCiUntrustedMessage = "the commands declared in %s are not trusted yet, so nothing ran: MoltenTerm asked the developer to approve them (open the notification or the Review the commands button), then run this command again"
+	moltenCiUntrustedMessage = "the commands declared in %s are not trusted yet, so nothing ran: the local CI is blocked until the developer approves them in MoltenTerm (the notification's or the Integration card's Approve the commands button), then run this command again"
 )
 
 type moltenCiJob struct {
@@ -55,6 +57,9 @@ type moltenCiVerdict struct {
 	Status  string   `json:"status"`
 	Failed  []string `json:"failed,omitempty"`
 	Missing []string `json:"missing,omitempty"`
+	// An interrupted run on that code and when it stopped (ms), #1713.
+	RunId     string `json:"runid,omitempty"`
+	StoppedAt int64  `json:"stoppedat,omitempty"`
 }
 
 var moltenCiForce bool
@@ -176,6 +181,14 @@ func formatMoltenCiVerdict(v moltenCiVerdict) string {
 		return fmt.Sprintf("local CI red on %s: %s", moltenCiShort(v.Sha), strings.Join(v.Failed, ", "))
 	case moltenCiStatusRunning:
 		return fmt.Sprintf("local CI running on %s", moltenCiShort(v.Sha))
+	case moltenCiStatusUntrusted:
+		return fmt.Sprintf("local CI waiting for approval of the commands on %s: nothing runs until the developer approves them in MoltenTerm (Approve the commands), then run `molten ci run`", moltenCiShort(v.Sha))
+	case moltenCiStatusStopped:
+		stopped := "at an unknown time"
+		if v.StoppedAt > 0 {
+			stopped = "at " + time.UnixMilli(v.StoppedAt).Format("2006-01-02 15:04")
+		}
+		return fmt.Sprintf("local CI interrupted on %s: run %s stopped %s and nothing runs it; run it again with `molten ci run`", moltenCiShort(v.Sha), v.RunId, stopped)
 	}
 	return fmt.Sprintf("local CI not run yet on %s: %s", moltenCiShort(v.Sha), strings.Join(v.Missing, ", "))
 }
