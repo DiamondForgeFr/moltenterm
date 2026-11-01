@@ -67,6 +67,21 @@ function digits(make: (n: number) => string[]): string[] {
     return rtn;
 }
 
+// A browser key on macOS (id) and elsewhere (id-other), the first keys shown and the rest after "or".
+function browserShortcuts(id: string, label: string, mac: string[], other: string[], keywords: string[]): Shortcut[] {
+    const base = { label, category: "Browser" as ShortcutCategory, scope: "browser" as ShortcutScope, keywords };
+    return [
+        { ...base, id, keys: mac[0], alt: mac.length > 1 ? mac.slice(1) : undefined, macOnly: true },
+        {
+            ...base,
+            id: `${id}-other`,
+            keys: other[0],
+            alt: other.length > 1 ? other.slice(1) : undefined,
+            notMac: true,
+        },
+    ];
+}
+
 // The direct shortcuts of the new view's favourites (FR-SHELL-089): one per position, ⌥⌘1…⌥⌘4 on macOS, Alt+Shift+1…4
 // elsewhere.
 export const NewViewFavoriteKeyCount = 4;
@@ -412,22 +427,24 @@ export const Shortcuts: Shortcut[] = [
     // Browser
     { id: "browser-new-tab", label: "New browser tab", category: "Browser", scope: "browser", keys: "Cmd:t" },
     { id: "browser-close-tab", label: "Close the browser tab", category: "Browser", scope: "browser", keys: "Cmd:w" },
-    { id: "browser-reload", label: "Reload the page", category: "Browser", scope: "browser", keys: "Cmd:r" },
-    {
-        id: "browser-hard-reload",
-        label: "Reload ignoring the cache",
-        category: "Browser",
-        scope: "browser",
-        keys: "Cmd:Shift:r",
-    },
-    {
-        id: "browser-address",
-        label: "Go to the address bar",
-        category: "Browser",
-        scope: "browser",
-        keys: "Cmd:l",
-        keywords: ["url"],
-    },
+    // #1722: the usual browser keys, which win over the window's while the page has the focus (browser-keys.ts). ⌘ on
+    // macOS; elsewhere Ctrl, and Alt with the arrows, as browsers do (Wave's Cmd is Alt there).
+    ...browserShortcuts("browser-reload", "Reload the page", ["Cmd:r", "F5"], ["Ctrl:r", "F5"], ["refresh"]),
+    ...browserShortcuts(
+        "browser-hard-reload",
+        "Reload ignoring the cache",
+        ["Cmd:Shift:r", "Shift:F5"],
+        ["Ctrl:Shift:r", "Ctrl:F5", "Shift:F5"],
+        ["refresh", "cache"]
+    ),
+    ...browserShortcuts("browser-back", "Previous page", ["Cmd:[", "Cmd:ArrowLeft"], ["Alt:ArrowLeft"], ["back"]),
+    ...browserShortcuts("browser-forward", "Next page", ["Cmd:]", "Cmd:ArrowRight"], ["Alt:ArrowRight"], ["forward"]),
+    ...browserShortcuts("browser-find", "Find in the page", ["Cmd:f"], ["Ctrl:f"], ["find", "search"]),
+    ...browserShortcuts("browser-zoom-in", "Zoom in on the page", ["Cmd:+", "Cmd:="], ["Ctrl:+", "Ctrl:="], ["zoom"]),
+    ...browserShortcuts("browser-zoom-out", "Zoom out of the page", ["Cmd:-"], ["Ctrl:-"], ["zoom"]),
+    ...browserShortcuts("browser-zoom-reset", "Actual size of the page", ["Cmd:0"], ["Ctrl:0"], ["zoom", "100"]),
+    ...browserShortcuts("browser-address", "Go to the address bar", ["Cmd:l"], ["Ctrl:l"], ["url"]),
+    ...browserShortcuts("browser-stop", "Stop loading the page", ["Escape"], ["Escape"], ["stop"]),
     // Agents
     {
         id: "companion",

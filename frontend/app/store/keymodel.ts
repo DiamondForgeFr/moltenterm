@@ -21,10 +21,11 @@ import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
 import * as keyutil from "@/util/keyutil";
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
-import { isWindows } from "@/util/platformutil";
+import { isMacOS, isWindows } from "@/util/platformutil"; // MOLTENTERM-PATCH (#1722): isMacOS
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { browserPageKeys, routeBrowserPageKey } from "../../moltenterm-shell/browser/browser-keys"; // MOLTENTERM-PATCH (#1722)
 import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { openNewPanel } from "../../moltenterm-shell/newpanel/new-panel"; // MOLTENTERM-PATCH (#1241)
@@ -510,7 +511,13 @@ function registerControlShiftStateUpdateHandler() {
 }
 
 function registerElectronReinjectKeyHandler() {
-    getApi().onReinjectKey((event: WaveKeyboardEvent) => {
+    getApi().onReinjectKey((event: WaveKeyboardEvent, guestId?: number) => {
+        // MOLTENTERM-PATCH (#1722): a key held back from a page goes to the browser panel holding that page first, even
+        // when the layout's focused panel is another one
+        const pages = document.querySelectorAll("webview") as any;
+        if (routeBrowserPageKey(event, guestId, pages, (id) => getBlockComponentModel(id)?.viewModel as any)) {
+            return;
+        }
         appHandleKeyDown(event);
     });
 }
@@ -831,6 +838,7 @@ function registerGlobalKeys() {
     // MOLTENTERM-PATCH (#210): the browser panel reloads its page ignoring the cache; left to the app menu, a page
     // with the focus would reload the whole MoltenTerm tab instead.
     allKeys.push("Cmd:Shift:r");
+    allKeys.push(...browserPageKeys(isMacOS())); // MOLTENTERM-PATCH (#1722): reload, back, find, zoom, address, F5
     getApi().registerGlobalWebviewKeys(allKeys);
 
     const splitBlockKeys = new Map<string, KeyHandler>();
