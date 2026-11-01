@@ -19,9 +19,10 @@ export const MoltentermReviewsView = "molten-reviews";
 // must match the constants in pkg/molten/mission/reviews.go
 export type ReviewMerge = "clean" | "behind" | "conflicts" | "blocked" | "failing" | "running" | "unknown";
 export type ReviewReportState = "present" | "missing" | "unknown";
-// A local CI check nothing runs (#1713, pkg/molten/mission/ci_stalled.go): interrupted, or waiting for the approval
-// of the project's commands.
-export type CheckRunState = CheckState | "interrupted" | "untrusted";
+// A local CI check nothing here runs (#1713, pkg/molten/mission/ci_stalled.go): interrupted (a run of this computer
+// stopped), waiting for the approval of the project's commands, or with no run on this computer (it may run on
+// another one).
+export type CheckRunState = CheckState | "interrupted" | "untrusted" | "notlocal";
 export type ReviewCheckState = CheckRunState | "none";
 
 export type ReviewCheck = {
@@ -44,6 +45,7 @@ export type ReviewCi = {
     pending: number;
     interrupted?: number;
     untrusted?: number;
+    notlocal?: number;
     checks: ReviewCheck[];
 };
 
@@ -413,6 +415,7 @@ const CheckStateKeys: Record<CheckRunState, string> = {
     neutral: "reviews.ci.state.neutral",
     interrupted: "reviews.ci.state.interrupted",
     untrusted: "reviews.ci.state.untrusted",
+    notlocal: "reviews.ci.state.notlocal",
 };
 
 // The checks shown by name before "+N" (#797).
@@ -543,6 +546,9 @@ export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: strin
     }
     if ((ci.interrupted ?? 0) > 0) {
         parts.push(t("reviews.ci.interrupted", { count: ci.interrupted }));
+    }
+    if ((ci.notlocal ?? 0) > 0) {
+        parts.push(t("reviews.ci.notlocal", { count: ci.notlocal }));
     }
     if (ci.success > 0) {
         parts.push(t("reviews.ci.passed", { count: ci.success }));

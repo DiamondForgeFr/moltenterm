@@ -6842,6 +6842,7 @@
             "skipped": "{count} skipped",
             "untrusted": "{count} waiting for your approval",
             "interrupted": "{count} interrupted",
+            "notlocal": "{count} not running on this computer",
             "label": "CI {parts}",
             "failedLabel": "CI: {names} failed",
             "more": "{names} +{count}",
@@ -6852,7 +6853,8 @@
                 "pending": "running",
                 "neutral": "skipped",
                 "interrupted": "interrupted",
-                "untrusted": "waiting for your approval"
+                "untrusted": "waiting for your approval",
+                "notlocal": "not running on this computer"
             },
             "rerun": {
                 "button": "Rerun failed jobs",
@@ -6986,6 +6988,7 @@
                 "draftReady": "Draft to test",
                 "ciTrust": "Local CI waiting for your approval",
                 "ciStopped": "Local CI interrupted",
+                "ciElsewhere": "Local CI not running on this computer",
                 "ciRunning": "CI running",
                 "mergeChecking": "GitHub is checking the merge",
                 "ready": "Ready to merge",
@@ -7016,11 +7019,14 @@
                 "running": "{count} of {total}, {names}",
                 "ciTrust": "its commands must be approved before the CI runs ({names})",
                 "ciStopped": "last heard of on {when}, nothing runs it now ({names})",
-                "ciStoppedUnknown": "nothing runs it now ({names})"
+                "ciStoppedUnknown": "nothing runs it now ({names})",
+                "ciElsewhere": "status posted on {when}, no run of it here ({names})",
+                "ciElsewhereUnknown": "no run of it here ({names})"
             },
             "action": {
                 "approveCommands": "Approve the commands…",
                 "runCi": "Run the local CI again",
+                "runCiHere": "Run it here",
                 "answer": "Answer {name}",
                 "follow": "Follow {name}",
                 "relaunch": "Relaunch {name}",

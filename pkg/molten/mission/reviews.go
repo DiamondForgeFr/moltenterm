@@ -118,9 +118,11 @@ type ReviewCi struct {
 	Success int    `json:"success"`
 	Failure int    `json:"failure"`
 	Pending int    `json:"pending"`
-	// Local CI checks nothing runs (#1713): interrupted, or waiting for the approval of the project's commands.
+	// Local CI checks nothing here runs (#1713): interrupted, waiting for the approval of the project's commands, or
+	// with no run on this computer.
 	Interrupted int           `json:"interrupted,omitempty"`
 	Untrusted   int           `json:"untrusted,omitempty"`
+	NotLocal    int           `json:"notlocal,omitempty"`
 	Checks      []ReviewCheck `json:"checks"`
 }
 
@@ -339,7 +341,7 @@ func SummarizeReviewChecks(rollup []ghReviewRollup) ReviewCi {
 // countReviewCi counts the checks by state and names the whole: a failure first, then what runs, then what nothing
 // runs.
 func countReviewCi(ci *ReviewCi) {
-	ci.Success, ci.Failure, ci.Pending, ci.Interrupted, ci.Untrusted = 0, 0, 0, 0, 0
+	ci.Success, ci.Failure, ci.Pending, ci.Interrupted, ci.Untrusted, ci.NotLocal = 0, 0, 0, 0, 0, 0
 	for _, check := range ci.Checks {
 		switch check.State {
 		case ReviewCheckSuccess:
@@ -352,6 +354,8 @@ func countReviewCi(ci *ReviewCi) {
 			ci.Interrupted++
 		case ReviewCheckUntrusted:
 			ci.Untrusted++
+		case ReviewCheckNotLocal:
+			ci.NotLocal++
 		}
 	}
 	ci.State = ReviewCheckNone
@@ -364,6 +368,8 @@ func countReviewCi(ci *ReviewCi) {
 		ci.State = ReviewCheckUntrusted
 	case ci.Interrupted > 0:
 		ci.State = ReviewCheckInterrupted
+	case ci.NotLocal > 0:
+		ci.State = ReviewCheckNotLocal
 	case ci.Success > 0:
 		ci.State = ReviewCheckSuccess
 	case len(ci.Checks) > 0:

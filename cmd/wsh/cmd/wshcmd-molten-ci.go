@@ -188,9 +188,10 @@ func formatMoltenCiVerdict(v moltenCiVerdict) string {
 		if v.StoppedAt > 0 {
 			stopped = "at " + time.UnixMilli(v.StoppedAt).Format("2006-01-02 15:04")
 		}
-		return fmt.Sprintf("local CI interrupted on %s: run %s stopped %s and nothing runs it; run it again with `molten ci run`", moltenCiShort(v.Sha), v.RunId, stopped)
+		return fmt.Sprintf("local CI interrupted on %s: run %s on this computer stopped %s and nothing runs it; run it again with `molten ci run`", moltenCiShort(v.Sha), v.RunId, stopped)
 	}
-	return fmt.Sprintf("local CI not run yet on %s: %s", moltenCiShort(v.Sha), strings.Join(v.Missing, ", "))
+	// #1713: no run here says nothing of another computer or a teammate, so it is never called interrupted.
+	return fmt.Sprintf("local CI not run yet on this computer on %s: %s (run it here with `molten ci run`)", moltenCiShort(v.Sha), strings.Join(v.Missing, ", "))
 }
 
 // With no branch or revision named, wavesrv tests the HEAD of from, the caller's checkout, not of the project folder.

@@ -18,8 +18,12 @@ func TestFormatMoltenCiVerdictSaysWhyNothingRan(t *testing.T) {
 		t.Errorf("untrusted: %s", untrusted)
 	}
 	stopped := formatMoltenCiVerdict(moltenCiVerdict{Sha: "c20e0078", Status: moltenCiStatusStopped, RunId: "r1", StoppedAt: 1793552653092})
-	if !strings.Contains(stopped, "interrupted on c20e007: run r1 stopped at 2026-") || !strings.Contains(stopped, "molten ci run") {
+	if !strings.Contains(stopped, "interrupted on c20e007: run r1 on this computer stopped at 2026-") || !strings.Contains(stopped, "molten ci run") {
 		t.Errorf("interrupted: %s", stopped)
+	}
+	notRun := formatMoltenCiVerdict(moltenCiVerdict{Sha: "c20e0078", Status: "missing", Missing: []string{"unit"}})
+	if !strings.Contains(notRun, "not run yet on this computer on c20e007: unit") || strings.Contains(notRun, "interrupted") {
+		t.Errorf("no run here is not an interruption: %s", notRun)
 	}
 	if unknown := formatMoltenCiVerdict(moltenCiVerdict{Sha: "c20e0078", Status: moltenCiStatusStopped}); !strings.Contains(unknown, "at an unknown time") {
 		t.Errorf("interrupted, no time: %s", unknown)

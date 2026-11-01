@@ -25,6 +25,7 @@ export const CardStateKinds = [
     "ci-trust",
     "ci-stopped",
     "review-required",
+    "ci-elsewhere",
     "draft-ready",
     "ci-running",
     "ready",
@@ -147,6 +148,7 @@ const Tones: Record<CardStateKind, CardTone> = {
     "ci-trust": "you",
     "ci-stopped": "you",
     "review-required": "you",
+    "ci-elsewhere": "wait",
     "draft-ready": "you",
     "ci-running": "running",
     ready: "ready",
@@ -162,6 +164,7 @@ const Turns: Record<CardStateKind, CardTurn> = {
     "ci-trust": "yours",
     "ci-stopped": "yours",
     "review-required": "yours",
+    "ci-elsewhere": "yours",
     "draft-ready": "yours",
     "ci-running": "waiting",
     ready: "ready",
@@ -171,7 +174,7 @@ const Turns: Record<CardStateKind, CardTurn> = {
 // (#1085): their card shows the dominoes.
 const CalmKinds = new Set<CardStateKind>(["agent-working", "ci-running"]);
 // A draft left to its agent (#1212) asks nothing of the developer either, but nothing works on it: calm, no dominoes.
-const QuietKinds = new Set<CardStateKind>([...CalmKinds, "agent-finish"]);
+const QuietKinds = new Set<CardStateKind>([...CalmKinds, "agent-finish", "ci-elsewhere"]);
 
 // agentLineMoves: an agent line shows the dominoes (reviews-agent-bar.tsx) while its agent works or runs in the
 // background, unless it tells a stopped task. The card reads the same so it never shows a second animation.
@@ -297,6 +300,10 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     }
     if (ciPending(pr) || pr.merge === "unknown") {
         return "ci-running";
+    }
+    // No run of it on this computer: it may run on another one, so neither running nor interrupted (#1713).
+    if (checksOf(pr.ci, "notlocal").length > 0) {
+        return "ci-elsewhere";
     }
     if (pr.draft) {
         return "draft-ready";
@@ -634,6 +641,22 @@ export function cardState(input: CardInput): CardState {
                     : phrase("reviews.card.why.ciStoppedUnknown", { names: checkNames(stopped) });
             primary = action("run-ci", "reviews.card.action.runCi");
             menu = [AssistedReview(), mergeAction(input, null), Github()];
+            break;
+        }
+        case "ci-elsewhere": {
+            const elsewhere = checksOf(pr.ci, "notlocal");
+            const posted = Math.max(0, ...elsewhere.map((c) => Date.parse(c.startedat ?? "") || 0));
+            said.add("ci");
+            sentence = phrase("reviews.card.state.ciElsewhere");
+            why =
+                posted > 0
+                    ? phrase("reviews.card.why.ciElsewhere", {
+                          when: stoppedWhen(posted),
+                          names: checkNames(elsewhere),
+                      })
+                    : phrase("reviews.card.why.ciElsewhereUnknown", { names: checkNames(elsewhere) });
+            primary = action("run-ci", "reviews.card.action.runCiHere");
+            menu = [AssistedReview(), mergeAction(input, null), Launch(), Github()];
             break;
         }
         case "review-required":

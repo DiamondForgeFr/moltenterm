@@ -71,22 +71,35 @@ func TestReconcileLocalCiWaitingForApproval(t *testing.T) {
 func TestReconcileLocalCiInterrupted(t *testing.T) {
 	now := time.Date(2026, 11, 1, 18, 0, 0, 0, time.UTC)
 	posted := now.Add(-4 * 24 * time.Hour)
+	// A run of this computer on that commit left behind: interrupted, at its last sign of life.
 	pr := stalledPr(posted)
-	reconcileLocalCi(&pr, localCiFacts{}, now)
+	run := CiRunRecord{Id: "r1", Sha: stalledHead, Status: CiStateInterrupted, StartedAt: posted.UnixMilli(), FinishedAt: posted.Add(time.Hour).UnixMilli()}
+	reconcileLocalCi(&pr, localCiFacts{runs: []CiRunRecord{run}}, now)
 	check := checkNamed(t, pr, "AI testing / Local CI")
-	if check.State != ReviewCheckInterrupted || check.StoppedAt != posted.UnixMilli() {
-		t.Fatalf("interrupted when last heard of: %+v", check)
+	if check.State != ReviewCheckInterrupted || check.StoppedAt != run.FinishedAt {
+		t.Fatalf("interrupted at the run's last sign of life: %+v", check)
 	}
 	if pr.Ci.Interrupted != 1 || pr.Ci.Pending != 0 {
 		t.Fatalf("counts: %+v", pr.Ci)
 	}
+}
 
-	// A local run on that commit left behind: it stopped at its last sign of life.
-	pr = stalledPr(posted)
-	run := CiRunRecord{Id: "r1", Sha: stalledHead, Status: CiStateInterrupted, StartedAt: posted.UnixMilli(), FinishedAt: posted.Add(time.Hour).UnixMilli()}
-	reconcileLocalCi(&pr, localCiFacts{runs: []CiRunRecord{run}}, now)
-	if got := checkNamed(t, pr, "AI testing / Local CI").StoppedAt; got != run.FinishedAt {
-		t.Fatalf("stopped at the run's end, got %d", got)
+// No run record here, commands approved: the status may be another computer's or a teammate's, so it is neither
+// running nor interrupted; it keeps when it was posted.
+func TestReconcileLocalCiNotOnThisComputer(t *testing.T) {
+	now := time.Date(2026, 11, 1, 18, 0, 0, 0, time.UTC)
+	posted := now.Add(-4 * 24 * time.Hour)
+	other := CiRunRecord{Id: "r0", Sha: "0000000000000000000000000000000000000000", Status: CiStateInterrupted, FinishedAt: posted.UnixMilli()}
+	for _, facts := range []localCiFacts{{}, {runs: []CiRunRecord{other}}} {
+		pr := stalledPr(posted)
+		reconcileLocalCi(&pr, facts, now)
+		check := checkNamed(t, pr, "AI testing / Local CI")
+		if check.State != ReviewCheckNotLocal || check.StoppedAt != 0 || check.StartedAt != posted.Format(time.RFC3339) {
+			t.Fatalf("not on this computer: %+v", check)
+		}
+		if pr.Ci.NotLocal != 1 || pr.Ci.Pending != 0 || pr.Ci.Interrupted != 0 || pr.Ci.State != ReviewCheckNotLocal {
+			t.Fatalf("counts: %+v", pr.Ci)
+		}
 	}
 }
 
@@ -126,8 +139,8 @@ func TestReconcileLocalCiTakesTheLocalVerdict(t *testing.T) {
 	pr := stalledPr(posted)
 	run := CiRunRecord{Id: "r3", Sha: stalledHead, Status: CiStateSuccess, FinishedAt: posted.Add(-time.Hour).UnixMilli()}
 	reconcileLocalCi(&pr, localCiFacts{runs: []CiRunRecord{run}}, now)
-	if got := checkNamed(t, pr, "AI testing / Local CI").State; got != ReviewCheckInterrupted {
-		t.Fatalf("an older verdict: interrupted, got %s", got)
+	if got := checkNamed(t, pr, "AI testing / Local CI").State; got != ReviewCheckNotLocal {
+		t.Fatalf("an older verdict: no run of it here, got %s", got)
 	}
 }
 
@@ -171,8 +184,8 @@ func TestReconcileAnswerOnlyWithALocalCi(t *testing.T) {
 	now := time.Now()
 	answer := ReviewsAnswer{Dir: dir, Ready: []ReviewPr{stalledPr(now.Add(-time.Hour))}}
 	reconcileAnswerLocalCi(c, &answer, now)
-	if got := checkNamed(t, answer.Ready[0], "AI testing / Local CI").State; got != ReviewCheckInterrupted {
-		t.Fatalf("trusted, nothing runs: interrupted, got %s", got)
+	if got := checkNamed(t, answer.Ready[0], "AI testing / Local CI").State; got != ReviewCheckNotLocal {
+		t.Fatalf("trusted, no run here: not on this computer, got %s", got)
 	}
 	plain := ReviewsAnswer{Dir: t.TempDir(), Ready: []ReviewPr{stalledPr(now.Add(-time.Hour))}}
 	reconcileAnswerLocalCi(c, &plain, now)

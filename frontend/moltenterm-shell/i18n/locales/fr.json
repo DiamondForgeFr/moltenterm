@@ -6842,6 +6842,7 @@
             "skipped": "{count} ignorée(s)",
             "untrusted": "{count} en attente de votre approbation",
             "interrupted": "{count} interrompue(s)",
+            "notlocal": "{count} non lancée(s) sur cet ordinateur",
             "label": "CI {parts}",
             "failedLabel": "CI : {names} en échec",
             "more": "{names} +{count}",
@@ -6852,7 +6853,8 @@
                 "pending": "en cours",
                 "neutral": "ignorée",
                 "interrupted": "interrompue",
-                "untrusted": "en attente de votre approbation"
+                "untrusted": "en attente de votre approbation",
+                "notlocal": "non lancée sur cet ordinateur"
             },
             "rerun": {
                 "button": "Relancer les jobs en échec",
@@ -6986,6 +6988,7 @@
                 "draftReady": "Brouillon à tester",
                 "ciTrust": "CI locale en attente de votre approbation",
                 "ciStopped": "CI locale interrompue",
+                "ciElsewhere": "CI locale non lancée sur cet ordinateur",
                 "ciRunning": "CI en cours",
                 "mergeChecking": "GitHub vérifie la fusion",
                 "ready": "Prête à fusionner",
@@ -7016,11 +7019,14 @@
                 "running": "{count} sur {total}, {names}",
                 "ciTrust": "ses commandes doivent être approuvées avant que la CI tourne ({names})",
                 "ciStopped": "dernière nouvelle le {when}, plus rien ne la fait tourner ({names})",
-                "ciStoppedUnknown": "plus rien ne la fait tourner ({names})"
+                "ciStoppedUnknown": "plus rien ne la fait tourner ({names})",
+                "ciElsewhere": "statut publié le {when}, aucun lancement ici ({names})",
+                "ciElsewhereUnknown": "aucun lancement ici ({names})"
             },
             "action": {
                 "approveCommands": "Approuver les commandes…",
                 "runCi": "Relancer la CI locale",
+                "runCiHere": "La lancer ici",
                 "answer": "Répondre à {name}",
                 "follow": "Suivre {name}",
                 "relaunch": "Relancer {name}",
