@@ -6,7 +6,7 @@
 // view starts with, the keys of the chooser) as pure functions, tested without the app; new-view.ts carries them out.
 
 import { fillsPanel, PaletteEntry, PaletteKey, PaletteRun } from "../palette/palette-model";
-import { actionEntries, agentEntries, pickerPanelEntries } from "../palette/palette-sources";
+import { actionEntries, agentEntries, InstalledAgent, pickerPanelEntries } from "../palette/palette-sources";
 
 export const NewViewOpenKey = "app:newviewopen";
 export const NewViewFavoritesKey = "app:newviewfavorites";
@@ -37,6 +37,8 @@ function currentChoiceId(id: string): string {
 
 export type NewViewChoiceInput = {
     presets: { [key: string]: MetaType };
+    // The catalog's agents with whether each is on this computer: the found ones without a preset are offered (#1680).
+    installedAgents?: InstalledAgent[];
     widgets: { [key: string]: WidgetConfigType };
     workspaceId: string;
     projectLinked?: boolean;
@@ -48,7 +50,7 @@ export function newViewChoices(input: NewViewChoiceInput): PaletteEntry[] {
     const actions = actionEntries([], input.projectLinked ?? false).filter((e) => ChoiceActionIds.includes(e.id));
     return [
         ...pickerPanelEntries(input.widgets, input.workspaceId, null, input.projectLinked ?? false),
-        ...agentEntries(input.presets),
+        ...agentEntries(input.presets, input.installedAgents),
         ...actions,
     ];
 }

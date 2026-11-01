@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import type { AgentStateInfo } from "../agent-state-model";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
@@ -162,6 +163,7 @@ function usePickerSource(host: CommandPaletteHost, blockId: string): PickerSourc
 // Also the sidebar's top field (#1187): every palette command stays reachable from it.
 export function usePaletteEntries(picker: PickerSource) {
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
+    const installedAgents = useKnownCodingAgents();
     const ws = useAtomValue(atoms.workspace);
     const [others, setOthers] = useState<OtherWorkspaces>({ list: [], folders: [] });
     const wsId = ws?.oid;
@@ -211,6 +213,7 @@ export function usePaletteEntries(picker: PickerSource) {
         () =>
             buildPaletteEntries({
                 presets: fullConfig?.presets,
+                installedAgents,
                 widgets: fullConfig?.widgets,
                 workspaceId: wsId,
                 folder,
@@ -228,6 +231,7 @@ export function usePaletteEntries(picker: PickerSource) {
             }),
         [
             fullConfig,
+            installedAgents,
             wsId,
             folder,
             recentKey,

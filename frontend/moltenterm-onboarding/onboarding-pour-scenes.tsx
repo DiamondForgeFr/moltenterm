@@ -14,14 +14,14 @@ import { ShortcutsSheetKey } from "../moltenterm-shell/shortcuts/registry";
 import { GlowRing } from "../moltenterm-shell/suite/suite";
 import { TabActivity, whileShown } from "../moltenterm-shell/tab-activity";
 import {
-    CliInstallStatus,
     cleanInstallOutput,
+    CliInstallStatus,
     installPhase,
     isRunning,
     isSecretQuestion,
 } from "./onboarding-install-model";
 import { CopyLine, ExternalLink, withCodes } from "./onboarding-parts";
-import { CodexHooksCommand, DeepSeekRecipe, PourAgentCard } from "./onboarding-pour-agents";
+import { CodexHooksCommand, needsSignIn, PourAgentCard } from "./onboarding-pour-agents";
 import {
     MaterialsDelayMs,
     PourStart,
@@ -148,11 +148,15 @@ function AgentCardView({
           ? t("onboarding.pour.agents.status.installing")
           : heating
             ? t("onboarding.pour.agents.status.looking")
-            : card.ready
-              ? t("onboarding.pour.agents.status.ready")
-              : t("onboarding.pour.agents.status.missing");
-    // Install runs the command; while it runs, the button only opens or closes its details.
-    const act = card.recipe || installing || card.install.length === 0 ? onToggle : onInstall;
+            : card.ready && card.signedIn
+              ? t("onboarding.pour.agents.status.signedIn")
+              : card.ready
+                ? t("onboarding.pour.agents.status.ready")
+                : t("onboarding.pour.agents.status.missing");
+    // Install runs the command; while it runs, the button only opens or closes its details. A found agent whose sign-in
+    // MoltenTerm did not see opens its sign-in step (#1680).
+    const signIn = needsSignIn(card);
+    const act = card.recipe || signIn || installing || card.install.length === 0 ? onToggle : onInstall;
     return (
         <div
             className="mt-pour-agent"
@@ -191,7 +195,7 @@ function AgentCardView({
                     )}
                     {status}
                 </div>
-                {card.ready && !card.recipe ? null : (
+                {card.ready && !card.recipe && !signIn ? null : (
                     <button
                         type="button"
                         className="mt-pour-act cursor-pointer"
@@ -202,11 +206,13 @@ function AgentCardView({
                         {t(
                             card.recipe
                                 ? "onboarding.pour.agents.configure"
-                                : installing
-                                  ? open
-                                      ? "onboarding.pour.agents.hideDetails"
-                                      : "onboarding.pour.agents.showDetails"
-                                  : "onboarding.pour.agents.install"
+                                : signIn
+                                  ? "onboarding.pour.agents.signIn"
+                                  : installing
+                                    ? open
+                                        ? "onboarding.pour.agents.hideDetails"
+                                        : "onboarding.pour.agents.showDetails"
+                                    : "onboarding.pour.agents.install"
                         )}
                     </button>
                 )}
@@ -281,7 +287,7 @@ function InstallOutput({
 
 // What Install or Configure opens. Install runs the catalog's command (AC-5, #1667): the loader, the command, Show
 // details for the live output, Cancel; then Ready, or what went wrong with the output and the command to copy. The
-// DeepSeek card shows its recipe.
+// recipe cards show their recipe.
 function AgentDrawer({
     card,
     claudeReady,
@@ -335,7 +341,7 @@ function AgentDrawer({
         title = t("onboarding.pour.agents.installTitle", { name: card.name });
         text = t("onboarding.pour.agents.installText");
     }
-    const commands = card.recipe ? [DeepSeekRecipe.join("\n")] : card.install;
+    const commands = card.recipe ? [(card.recipeLines ?? []).join("\n")] : card.install;
     // What changes in the drawer (the output opening, a failure) is scrolled into view, above the navigation.
     useEffect(() => {
         drawer.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
@@ -433,6 +439,46 @@ function AgentDrawer({
                         {t(card.recipe ? "onboarding.pour.agents.recipePage" : "onboarding.pour.agents.installPage")}
                     </ExternalLink>
                 ) : null}
+                {card.signInPage && !running ? (
+                    <ExternalLink href={card.signInPage}>{t("onboarding.pour.agents.signInPage")}</ExternalLink>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
+// The step after the install (#1680): the agent is on this computer, it now needs an account with its vendor. MoltenTerm
+// never starts the agent to find out: it only looks for the credentials file the vendor documents, and where there is
+// none to look for, says the sign-in comes at the first start.
+function SignInStep({ card, checking, onCheck }: { card: PourAgentCard; checking: boolean; onCheck: () => void }) {
+    const t = useT();
+    const drawer = useRef<HTMLDivElement>(null);
+    const account = t(`onboarding.pour.agents.account.${card.account}`, { provider: card.provider });
+    useEffect(() => {
+        drawer.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    }, []);
+    return (
+        <div ref={drawer} className="mt-pour-drawer" data-testid={`pour-signin-${card.id}`}>
+            <div className="text-13 font-semibold">{t("onboarding.pour.agents.signInTitle", { name: card.name })}</div>
+            <p className="text-12 leading-5 text-secondary">
+                {t("onboarding.pour.agents.signInText", { name: card.name, account })}
+            </p>
+            <p className="text-12 leading-5 text-secondary">
+                {withCodes(t("onboarding.pour.agents.signInFirstStart"), { command: card.command })}
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+                {card.signInPage ? (
+                    <ExternalLink href={card.signInPage}>{t("onboarding.pour.agents.signInPage")}</ExternalLink>
+                ) : null}
+                <button
+                    type="button"
+                    disabled={checking}
+                    onClick={onCheck}
+                    className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
+                    data-testid="pour-signin-check"
+                >
+                    {checking ? t("onboarding.pour.agents.status.looking") : t("onboarding.pour.agents.checkAgain")}
+                </button>
             </div>
         </div>
     );
@@ -470,6 +516,17 @@ export function AgentsScene({
     const t = useT();
     const found = cards.filter((c) => c.ready).length;
     const openCard = cards.find((c) => c.id === open);
+    const cardView = (card: PourAgentCard) => (
+        <AgentCardView
+            key={card.id}
+            card={card}
+            heating={checking && !card.ready && !card.recipe}
+            installing={!card.ready && isRunning(installs?.[card.id])}
+            open={card.id === open}
+            onToggle={() => onToggle(card.id)}
+            onInstall={() => onInstall?.(card.id)}
+        />
+    );
     const claudeReady = cards.some((c) => c.id === "claude-code" && c.ready);
     let sub: string;
     if (error) {
@@ -493,19 +550,10 @@ export function AgentsScene({
             <p className="mt-pour-sub" role="status">
                 {sub}
             </p>
-            <div className="mt-pour-forge">
-                {cards.map((card) => (
-                    <AgentCardView
-                        key={card.id}
-                        card={card}
-                        heating={checking && !card.ready && !card.recipe}
-                        installing={!card.ready && isRunning(installs?.[card.id])}
-                        open={card.id === open}
-                        onToggle={() => onToggle(card.id)}
-                        onInstall={() => onInstall?.(card.id)}
-                    />
-                ))}
-            </div>
+            <div className="mt-pour-forge">{cards.map(cardView)}</div>
+            {openCard && needsSignIn(openCard) ? (
+                <SignInStep key={openCard.id} card={openCard} checking={checking} onCheck={onCheck} />
+            ) : null}
             {openCard && !(openCard.ready && !openCard.recipe) ? (
                 <AgentDrawer
                     key={openCard.id}

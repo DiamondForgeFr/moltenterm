@@ -262,9 +262,16 @@ The `generic` file is never installed at start: it is for an agent outside the l
 | `gemini-cli` | command `~/.gemini/commands/morph.toml` | `/morph <request>` |
 | `qwen-code` | command `~/.qwen/commands/morph.md` | `/morph <request>` |
 | `kimi` | skill `~/.kimi-code/skills/morph/SKILL.md` | `/skill:morph <request>` |
+| `antigravity` | skill `~/.gemini/config/skills/morph/SKILL.md` | `/morph <request>` |
+| `copilot` | skill `~/.copilot/skills/morph/SKILL.md` (`$COPILOT_HOME/skills/`) | `/morph <request>` |
+| `cursor` | skill `~/.cursor/skills/morph/SKILL.md` | `/morph <request>` |
+| `grok` | skill `~/.grok/skills/morph/SKILL.md` | `/morph <request>` |
+| `vibe` | skill `~/.vibe/skills/morph/SKILL.md` (`$VIBE_HOME/skills/`) | `/morph <request>` |
 | `generic` | file `<data>/molten/agents/morph.md` | "Read <file> and follow it with my request: …" |
 
-The agents follow the SaaSFoundryAI agent catalog. `~/.agents/skills/` is also read by Gemini CLI and Kimi.
+The agents follow the SaaSFoundryAI agent catalog. `~/.agents/skills/` is also read by Gemini CLI, Kimi, GitHub
+Copilot CLI, Cursor, Grok Build and Mistral Vibe. Gemini CLI is kept for those who have it (Code Assist Standard or
+Enterprise, paid API keys); personal Google accounts use Antigravity CLI (`agy`) since 2026-06-18.
 `/morph` replaced `/molten-feature`: `molten agent install` deletes a `molten-feature` guide that molten wrote, and
 leaves a file of the same name that someone else wrote.
 

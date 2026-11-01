@@ -49,6 +49,12 @@ const AgentNames: Record<string, string> = {
     codex: "Codex",
     gemini: "Gemini CLI",
     kimi: "Kimi Code",
+    qwen: "Qwen Code",
+    antigravity: "Antigravity CLI",
+    copilot: "GitHub Copilot CLI",
+    cursor: "Cursor CLI",
+    grok: "Grok Build",
+    vibe: "Mistral Vibe",
     opencode: "OpenCode",
 };
 

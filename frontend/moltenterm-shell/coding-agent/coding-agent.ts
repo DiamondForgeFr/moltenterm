@@ -12,7 +12,8 @@ import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { atom, PrimitiveAtom } from "jotai";
+import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useEffect } from "react";
 import type { AgentStatesData } from "../agent-state-model";
 import { CommandPanelModel } from "../command-panel/command-panel-store";
 import { t } from "../i18n/i18n";
@@ -150,6 +151,21 @@ export class CodingAgentModel {
             }
         });
     }
+}
+
+// Every agent MoltenTerm knows with whether it is on this computer, from the last answer for no folder in particular:
+// the launcher offers the found ones that have no preset (#1680). Reads it again when old.
+export function knownCodingAgents(): CodingAgent[] {
+    return CodingAgentModel.getInstance().choiceOf("")?.known ?? [];
+}
+
+export function useKnownCodingAgents(): CodingAgent[] {
+    const model = CodingAgentModel.getInstance();
+    const choices = useAtomValue(model.choicesAtom);
+    useEffect(() => {
+        model.choiceOf("");
+    }, [model]);
+    return choices[""]?.choice?.known;
 }
 
 // The supported agents running in a pane (FR-SHELL-100). wavesrv only finds the programs on the login PATH, so an agent

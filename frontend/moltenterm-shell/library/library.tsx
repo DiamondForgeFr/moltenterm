@@ -380,7 +380,9 @@ function MorphCard({ workspaceId, tabId }: { workspaceId: string; tabId: string 
             </div>
             <p>
                 {agent
-                    ? t("library.panels.morph.about", { morph: morphCall(agent.agent) })
+                    ? morphCall(agent.agent)
+                        ? t("library.panels.morph.about", { morph: morphCall(agent.agent) })
+                        : t("library.panels.morph.aboutPlain")
                     : t("library.panels.morph.noAgent")}
             </p>
             {agent ? (
@@ -393,7 +395,9 @@ function MorphCard({ workspaceId, tabId }: { workspaceId: string; tabId: string 
                         fireAndForget(() => typeMorphCall(agent));
                     }}
                 >
-                    {t("library.panels.morph.type", { morph: morphCall(agent.agent), agent: agentCallName(agent) })}
+                    {morphCall(agent.agent)
+                        ? t("library.panels.morph.type", { morph: morphCall(agent.agent), agent: agentCallName(agent) })
+                        : t("library.panels.morph.typePlain", { agent: agentCallName(agent) })}
                 </button>
             ) : (
                 <button

@@ -7,11 +7,29 @@
 import { agentPromptState, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import { workspaceAgents } from "../library/library-model";
 
-// Each agent's own call of the morph guide (pkg/molten/agentdocs/mod-format.md); the others use /morph.
-const MorphCalls: Record<string, string> = { codex: "$morph", kimi: "/skill:morph" };
+// Each agent's own call of the morph guide, by agent state id (pkg/molten/agentdocs/mod-format.md). An agent MoltenTerm
+// installs no guide for has no call (#1680): the request goes to it as plain text.
+const MorphCalls: Record<string, string> = {
+    claude: "/morph",
+    codex: "$morph",
+    gemini: "/morph",
+    qwen: "/morph",
+    kimi: "/skill:morph",
+    // OpenCode has no guide of its own: it reads Claude Code's skills folder, as before #1680.
+    opencode: "/morph",
+    antigravity: "/morph",
+    copilot: "/morph",
+    cursor: "/morph",
+    grok: "/morph",
+    vibe: "/morph",
+};
 
+// The agent named nowhere yet (no state id) is taken as one with the guides.
 export function morphCall(agent: string): string {
-    return MorphCalls[agent] ?? "/morph";
+    if (!agent) {
+        return "/morph";
+    }
+    return MorphCalls[agent] ?? "";
 }
 
 // What is typed into the agent's terminal: the call, a space and the request, never Enter, so the developer completes
@@ -19,7 +37,8 @@ export function morphCall(agent: string): string {
 export function morphCallText(agent: string, request?: string): string {
     // eslint-disable-next-line no-control-regex
     const clean = (request ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").trim();
-    return `${morphCall(agent)} ${clean}`;
+    const call = morphCall(agent);
+    return call ? `${call} ${clean}` : clean;
 }
 
 // The workspace's agent the call goes to, or null when the workspace has none.

@@ -514,7 +514,7 @@ func TestListWritesNothing(t *testing.T) {
 	for _, l := range listings {
 		ids = append(ids, l.Id)
 	}
-	if !reflect.DeepEqual(ids, []string{"claude", "codex", "gemini", "kimi", "opencode"}) {
+	if !reflect.DeepEqual(ids, []string{"claude", "codex", "gemini", "kimi", "qwen", "opencode", "antigravity", "copilot", "cursor", "grok", "vibe"}) {
 		t.Fatalf("ids %v", ids)
 	}
 	claude, codex, gemini := listings[0], listings[1], listings[2]

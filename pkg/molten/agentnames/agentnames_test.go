@@ -22,7 +22,7 @@ func TestNamesAreUniqueAndNoAgentName(t *testing.T) {
 			t.Fatalf("bad name %q", n)
 		}
 	}
-	for _, agent := range []string{"claude", "codex", "gemini", "kimi"} {
+	for _, agent := range []string{"claude", "codex", "gemini", "kimi", "qwen", "antigravity", "agy", "copilot", "cursor", "grok", "vibe", "mistral"} {
 		if seen[agent] {
 			t.Fatalf("%s is an agent's name", agent)
 		}

@@ -24,7 +24,8 @@ func TestFeatureMatrixCoversEveryAgent(t *testing.T) {
 		ids = append(ids, a.Id)
 		rows[a.Id] = a
 	}
-	want := []string{molten.AgentIdClaude, molten.AgentIdCodex, molten.AgentIdGemini, molten.AgentIdKimi, molten.AgentIdOpenCode}
+	want := []string{molten.AgentIdClaude, molten.AgentIdCodex, molten.AgentIdGemini, molten.AgentIdKimi, molten.AgentIdQwen, molten.AgentIdOpenCode,
+		molten.AgentIdAntigravity, molten.AgentIdCopilot, molten.AgentIdCursor, molten.AgentIdGrok, molten.AgentIdVibe}
 	if !reflect.DeepEqual(ids, want) {
 		t.Fatalf("matrix agents %v, want %v", ids, want)
 	}
