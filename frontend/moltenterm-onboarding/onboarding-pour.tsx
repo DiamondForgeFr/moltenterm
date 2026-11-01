@@ -243,6 +243,7 @@ export function OnboardingPour({
                 {sceneId === "agents" ? (
                     <AgentsScene
                         cards={cards}
+                        list={agents}
                         loading={agents == null && !agentsError}
                         error={agentsError}
                         checking={checking}

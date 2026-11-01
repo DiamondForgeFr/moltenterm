@@ -1476,7 +1476,19 @@
                 "signInTitle": "Se connecter à {name}",
                 "signInText": "{name} est sur cet ordinateur. Il vous faut : {account}.",
                 "signInFirstStart": "La connexion se fait à son premier démarrage : lancez {command} dans un terminal et suivez ses étapes.",
-                "signInPage": "Se connecter ou créer un compte ↗"
+                "signInPage": "Se connecter ou créer un compte ↗",
+                "profile": {
+                    "checked": "Vérifié le {date}",
+                    "checkedStale": "Vérifié le {date} : cela a pu changer, voyez la page de l'éditeur"
+                },
+                "choose": {
+                    "lead": "Vous hésitez ? Trois questions pour vous aider.",
+                    "highlighted": "Les cartes entourées correspondent à vos réponses. Les autres restent tout aussi disponibles.",
+                    "match": "Correspond à vos réponses",
+                    "again": "Changer mes réponses",
+                    "clear": "Effacer",
+                    "toCards": "Revenir aux cartes"
+                }
             },
             "workshop": {
                 "kicker": "Votre atelier",

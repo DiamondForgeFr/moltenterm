@@ -10,6 +10,19 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AgentWorks } from "../moltenterm-shell/agent-info/agent-works";
 import { useT } from "../moltenterm-shell/i18n/i18n";
 import { serverText } from "../moltenterm-shell/i18n/server-text";
+import { ChoosePath, type ChooseLook } from "../moltenterm-shell/library/agents-choose";
+import {
+    answerChooseState,
+    backChooseState,
+    ChooseQuestionCount,
+    hasProfile,
+    isStale,
+    libraryAgents,
+    priceText,
+    startChooseState,
+    suggestedIds,
+    type ChooseState,
+} from "../moltenterm-shell/library/agents-model";
 import { formatKeys, modifierLabel } from "../moltenterm-shell/shortcuts/format";
 import { ShortcutsSheetKey } from "../moltenterm-shell/shortcuts/registry";
 import { GlowRing } from "../moltenterm-shell/suite/suite";
@@ -21,6 +34,7 @@ import {
     isRunning,
     isSecretQuestion,
 } from "./onboarding-install-model";
+import type { AgentFacts, OnboardingAgents } from "./onboarding-agent-model";
 import { CopyLine, ExternalLink, withCodes } from "./onboarding-parts";
 import { CodexHooksCommand, needsSignIn, PourAgentCard } from "./onboarding-pour-agents";
 import {
@@ -37,6 +51,15 @@ import { WorkspaceColours } from "./onboarding-project-model";
 
 export const MoltentermLicenseUrl = `${MoltentermRepoUrl}/blob/main/LICENSE`;
 export const MoltentermPrivacyUrl = `${MoltentermRepoUrl}/blob/main/PRIVACY.md`;
+
+const PourChooseLook: ChooseLook = {
+    answer: "mt-pour-act",
+    link: "mt-pour-link",
+    cards: "mt-pour-choose-cards",
+    card: "mt-pour-choose-card",
+    list: "mt-pour-choose-list",
+    icon: "mt-pour-choose-icon",
+};
 
 // The mark's path padded so its stroke and glow are not clipped (the identity's own viewBox is 0 0 298 235).
 const MarkViewBox = "-6 -6 310 247";
@@ -127,8 +150,36 @@ export function PourScene({ markPath, names }: { markPath: string; names: [strin
     );
 }
 
+// The short profile of FR-ONB-008 (#1697): what the agent is good for, its cost line as the vendor's page shows it, and
+// the date the facts were checked. The full profile is the agent's Library page.
+function CardProfile({ profile }: { profile: AgentFacts }) {
+    const t = useT();
+    if (!hasProfile(profile)) {
+        return null;
+    }
+    const price = priceText(t, profile);
+    return (
+        <div className="flex flex-col gap-0.5 text-11" data-testid="pour-card-profile">
+            {profile.goodforkey ? <span className="text-primary">{t(profile.goodforkey)}</span> : null}
+            {price ? <span className="text-secondary">{price}</span> : null}
+            {profile.checkedon ? (
+                <span className="text-muted" data-testid="pour-card-checked">
+                    {t(
+                        isStale(profile.checkedon, new Date())
+                            ? "onboarding.pour.agents.profile.checkedStale"
+                            : "onboarding.pour.agents.profile.checked",
+                        { date: profile.checkedon }
+                    )}
+                </span>
+            ) : null}
+        </div>
+    );
+}
+
 function AgentCardView({
     card,
+    profile,
+    suggested,
     heating,
     installing,
     open,
@@ -136,6 +187,8 @@ function AgentCardView({
     onInstall,
 }: {
     card: PourAgentCard;
+    profile?: AgentFacts;
+    suggested?: boolean;
     heating: boolean;
     installing: boolean;
     open: boolean;
@@ -166,8 +219,14 @@ function AgentCardView({
             data-heating={heating || installing ? "" : undefined}
             data-installing={installing ? "" : undefined}
             data-open={open ? "" : undefined}
+            data-suggested={suggested ? "" : undefined}
         >
             <div className="mt-pour-ingot" />
+            {suggested ? (
+                <span className="mt-pour-match" data-testid={`pour-match-${card.id}`}>
+                    {t("onboarding.pour.agents.choose.match")}
+                </span>
+            ) : null}
             <div className="text-15 font-semibold">{card.name}</div>
             <div className="-mt-1.5 font-mono text-11 text-secondary">
                 {card.recipe
@@ -183,6 +242,7 @@ function AgentCardView({
                     </span>
                 ) : null}
             </div>
+            <CardProfile profile={profile} />
             <div className="mt-auto flex items-center justify-between gap-2">
                 <div className="mt-pour-status flex items-center gap-1.5 text-12 text-muted">
                     {installing ? (
@@ -485,6 +545,8 @@ function SignInStep({ card, checking, onCheck }: { card: PourAgentCard; checking
 // Scene 2, your agents heat up (AC-4, AC-5): the real detection, as cards.
 export function AgentsScene({
     cards,
+    list,
+    initialChoose,
     loading,
     error,
     checking,
@@ -498,6 +560,10 @@ export function AgentsScene({
     onCancel,
 }: {
     cards: PourAgentCard[];
+    // wavesrv's listing, for the profiles and Help me choose (#1697)
+    list?: OnboardingAgents;
+    // where Help me choose starts (tests): a step below 3 opens the path, 3 shows the cards with the suggestions
+    initialChoose?: ChooseState;
     loading: boolean;
     error?: string;
     checking: boolean;
@@ -512,12 +578,30 @@ export function AgentsScene({
     onCancel?: (id: string) => void;
 }) {
     const t = useT();
+    // Help me choose (FR-ONB-008 AC-6 to AC-9): offered, never opened by itself; the answers stay in this scene.
+    const [choose, setChoose] = useState<ChooseState>(initialChoose ?? null);
+    const [pathOpen, setPathOpen] = useState(initialChoose != null && initialChoose.step < ChooseQuestionCount);
+    const rows = libraryAgents(list);
+    const profiles = new Map(rows.map((r) => [r.card.id, r.agent.profile]));
+    const suggested = pathOpen ? [] : suggestedIds(rows, choose);
     const found = cards.filter((c) => c.ready).length;
     const openCard = cards.find((c) => c.id === open);
+    const startPath = () => {
+        setChoose(startChooseState());
+        setPathOpen(true);
+    };
+    const closePath = () => {
+        setPathOpen(false);
+        if (choose != null && choose.step < ChooseQuestionCount) {
+            setChoose(null);
+        }
+    };
     const cardView = (card: PourAgentCard) => (
         <AgentCardView
             key={card.id}
             card={card}
+            profile={profiles.get(card.id)}
+            suggested={suggested.includes(card.id)}
             heating={checking && !card.ready && !card.recipe}
             installing={!card.ready && isRunning(installs?.[card.id])}
             open={card.id === open}
@@ -548,11 +632,77 @@ export function AgentsScene({
             <p className="mt-pour-sub" role="status">
                 {sub}
             </p>
-            <div className="mt-pour-forge">{cards.map(cardView)}</div>
-            {openCard && needsSignIn(openCard) ? (
+            {rows.length > 0 && !pathOpen ? (
+                <div className="mt-pour-choose-entry" data-testid="pour-choose-entry">
+                    {suggested.length > 0 ? (
+                        <span className="text-12 text-secondary" data-testid="pour-choose-highlighted">
+                            {t("onboarding.pour.agents.choose.highlighted")}
+                        </span>
+                    ) : (
+                        <span className="text-12 text-secondary">{t("onboarding.pour.agents.choose.lead")}</span>
+                    )}
+                    <button
+                        type="button"
+                        className="mt-pour-act cursor-pointer"
+                        data-testid="pour-choose-open"
+                        title={t("library.agents.helpChooseTitle")}
+                        onClick={startPath}
+                    >
+                        {t(suggested.length > 0 ? "onboarding.pour.agents.choose.again" : "library.agents.helpChoose")}
+                    </button>
+                    {suggested.length > 0 ? (
+                        <button
+                            type="button"
+                            className="mt-pour-link cursor-pointer"
+                            data-testid="pour-choose-clear"
+                            onClick={() => setChoose(null)}
+                        >
+                            {t("onboarding.pour.agents.choose.clear")}
+                        </button>
+                    ) : null}
+                </div>
+            ) : null}
+            {pathOpen && choose != null ? (
+                <section className="mt-pour-drawer mt-pour-choose" data-testid="pour-choose">
+                    <div className="flex items-center justify-between gap-2">
+                        <b className="text-14">{t("library.agents.choose.title")}</b>
+                        <button
+                            type="button"
+                            className="mt-pour-link cursor-pointer"
+                            data-testid="pour-choose-close"
+                            onClick={closePath}
+                        >
+                            {t("onboarding.pour.agents.choose.toCards")}
+                        </button>
+                    </div>
+                    <ChoosePath
+                        rows={rows}
+                        state={choose}
+                        look={PourChooseLook}
+                        testId="pour-choose"
+                        endActions={
+                            <button
+                                type="button"
+                                className="mt-pour-act cursor-pointer"
+                                data-testid="pour-choose-cards"
+                                onClick={closePath}
+                            >
+                                {t("onboarding.pour.agents.choose.toCards")}
+                            </button>
+                        }
+                        onAnswer={(answers) => setChoose(answerChooseState(choose, answers))}
+                        onBack={() => setChoose(backChooseState(choose))}
+                        onRestart={() => setChoose(startChooseState())}
+                    />
+                    <p className="text-11 text-secondary">{t("library.agents.choose.private")}</p>
+                </section>
+            ) : (
+                <div className="mt-pour-forge">{cards.map(cardView)}</div>
+            )}
+            {!pathOpen && openCard && needsSignIn(openCard) ? (
                 <SignInStep key={openCard.id} card={openCard} checking={checking} onCheck={onCheck} />
             ) : null}
-            {openCard && !(openCard.ready && !openCard.recipe) ? (
+            {!pathOpen && openCard && !(openCard.ready && !openCard.recipe) ? (
                 <AgentDrawer
                     key={openCard.id}
                     card={openCard}
