@@ -28,6 +28,7 @@ import { RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { relationClass } from "./reviews-forecast";
 import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
+import { approveCommands, runLocalCiAgain } from "./reviews-local-ci";
 import { launchTargetOfPr } from "./reviews-launch-model";
 import { MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import { blockersText, RebaseAsk, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
@@ -113,6 +114,10 @@ function actionTitle(action: CardAction, pr: ReviewPr, name: Phrase): Phrase {
             return phrase("reviews.card.actionTitle.rebase", { base: pr.base });
         case "investigate":
             return phrase("reviews.card.actionTitle.investigate", { blockers: blockersText(pr) });
+        case "approve-commands":
+            return phrase("reviews.card.actionTitle.approveCommands");
+        case "run-ci":
+            return phrase("reviews.card.actionTitle.runCi", { branch: pr.branch });
     }
     return null;
 }
@@ -286,6 +291,12 @@ export function ReviewRow({
                 return;
             case "rerun":
                 rerun.ask();
+                return;
+            case "approve-commands":
+                runPhrase(action.id, () => approveCommands(dir));
+                return;
+            case "run-ci":
+                runPhrase(action.id, () => runLocalCiAgain(dir, pr.branch));
                 return;
             case "launch":
                 LaunchModel.getInstance().ask(dir, launchTargetOfPr(pr));

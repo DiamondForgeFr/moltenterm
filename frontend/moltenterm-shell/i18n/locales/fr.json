@@ -6195,7 +6195,7 @@
             "yoursTitle": "Aucun agent ne travaille sur ce brouillon et sa branche n'a pas bougé récemment : il est à vous de le finir ou de le marquer prêt.",
             "status": "Sur le tableau : {status}"
         },
-        "trustReview": "Examiner les commandes",
+        "trustReview": "Approuver les commandes…",
         "trustReviewTitle": "Un lancement de {name} a été refusé : examinez les commandes de {project} et faites-leur confiance"
     },
     "reviews": {
@@ -6825,6 +6825,8 @@
             "running": "{count} en cours",
             "passed": "{count} réussie(s)",
             "skipped": "{count} ignorée(s)",
+            "untrusted": "{count} en attente de votre approbation",
+            "interrupted": "{count} interrompue(s)",
             "label": "CI {parts}",
             "failedLabel": "CI : {names} en échec",
             "more": "{names} +{count}",
@@ -6833,7 +6835,9 @@
                 "success": "réussie",
                 "failure": "en échec",
                 "pending": "en cours",
-                "neutral": "ignorée"
+                "neutral": "ignorée",
+                "interrupted": "interrompue",
+                "untrusted": "en attente de votre approbation"
             },
             "rerun": {
                 "button": "Relancer les jobs en échec",
@@ -6965,6 +6969,8 @@
                 "reviewRequired": "Revue requise",
                 "blockedRule": "Bloquée par une règle",
                 "draftReady": "Brouillon à tester",
+                "ciTrust": "CI locale en attente de votre approbation",
+                "ciStopped": "CI locale interrompue",
                 "ciRunning": "CI en cours",
                 "mergeChecking": "GitHub vérifie la fusion",
                 "ready": "Prête à fusionner",
@@ -6992,9 +6998,14 @@
                 "approval": "GitHub attend une approbation",
                 "reasons": "{reasons}",
                 "yours": "à vous",
-                "running": "{count} sur {total}, {names}"
+                "running": "{count} sur {total}, {names}",
+                "ciTrust": "ses commandes doivent être approuvées avant que la CI tourne ({names})",
+                "ciStopped": "dernière nouvelle le {when}, plus rien ne la fait tourner ({names})",
+                "ciStoppedUnknown": "plus rien ne la fait tourner ({names})"
             },
             "action": {
+                "approveCommands": "Approuver les commandes…",
+                "runCi": "Relancer la CI locale",
                 "answer": "Répondre à {name}",
                 "follow": "Suivre {name}",
                 "relaunch": "Relancer {name}",
@@ -7011,7 +7022,12 @@
                 "markReady": "Passer en revue",
                 "markReadyMenu": "Passer en revue : la PR quitte le brouillon"
             },
+            "ciRun": {
+                "notStarted": "La CI locale n'a pas démarré."
+            },
             "actionTitle": {
+                "approveCommands": "Ouvre les commandes déclarées du projet pour les approuver. Approuver ne lance rien.",
+                "runCi": "Lance la CI locale sur {branch}, en demandant d'abord l'approbation des commandes si elle manque",
                 "answer": "Afficher le terminal de {name} : il attend votre réponse",
                 "follow": "Afficher le terminal de {name}",
                 "relaunch": "Renvoyer la même tâche à {name}, dans sa session, avec la pull request telle qu'elle est",
@@ -8802,9 +8818,9 @@
                 }
             },
             "trust": {
-                "title": "Les commandes de {project} attendent votre approbation",
-                "message": "Un lancement a été refusé : MoltenTerm ne lance les commandes déclarées dans {dir} qu'une fois que vous leur faites confiance. Rien n'a été lancé.",
-                "review": "Examiner les commandes"
+                "title": "La CI de {project} est bloquée tant que vous n'approuvez pas ses commandes",
+                "message": "Rien ne tourne tant que vous n'approuvez pas les commandes déclarées dans {dir} : approuvez-les, puis le lancement refusé pourra repartir.",
+                "review": "Approuver les commandes…"
             }
         },
         "companion": {

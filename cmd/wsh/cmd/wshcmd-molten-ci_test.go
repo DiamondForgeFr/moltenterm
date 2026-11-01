@@ -11,6 +11,21 @@ import (
 	"testing"
 )
 
+// #1713: a code with no verdict says why, so an agent knows whether to wait, ask for the approval or run again.
+func TestFormatMoltenCiVerdictSaysWhyNothingRan(t *testing.T) {
+	untrusted := formatMoltenCiVerdict(moltenCiVerdict{Sha: "c20e0078", Status: moltenCiStatusUntrusted})
+	if !strings.Contains(untrusted, "waiting for approval of the commands on c20e007") || !strings.Contains(untrusted, "Approve the commands") {
+		t.Errorf("untrusted: %s", untrusted)
+	}
+	stopped := formatMoltenCiVerdict(moltenCiVerdict{Sha: "c20e0078", Status: moltenCiStatusStopped, RunId: "r1", StoppedAt: 1793552653092})
+	if !strings.Contains(stopped, "interrupted on c20e007: run r1 stopped at 2026-") || !strings.Contains(stopped, "molten ci run") {
+		t.Errorf("interrupted: %s", stopped)
+	}
+	if unknown := formatMoltenCiVerdict(moltenCiVerdict{Sha: "c20e0078", Status: moltenCiStatusStopped}); !strings.Contains(unknown, "at an unknown time") {
+		t.Errorf("interrupted, no time: %s", unknown)
+	}
+}
+
 // An agent that discovers the CLI through `molten help` must find how to start the local CI (#383).
 func TestMoltenHelpListsTheLocalCi(t *testing.T) {
 	out := formatMoltenHelp(nil)
