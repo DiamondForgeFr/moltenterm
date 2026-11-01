@@ -9264,13 +9264,13 @@
             "none": "not yet"
         },
         "reason": {
-            "noadapter": "MoltenTerm has no integration for this agent yet.",
-            "nohooks": "The agent does not tell MoltenTerm what it is doing.",
-            "nomcp": "The agent cannot use MoltenTerm's tools yet.",
-            "noskills": "The agent cannot read MoltenTerm's guides.",
-            "notdetected": "MoltenTerm does not recognise this agent yet.",
-            "agentspecific": "This one belongs to another agent; this agent has its own way.",
-            "modelunverified": "Not checked yet with this model."
+            "noadapter": "MoltenTerm has no integration for it",
+            "nohooks": "the agent does not report what it does",
+            "nomcp": "it cannot use MoltenTerm's tools",
+            "noskills": "it cannot read MoltenTerm's guides",
+            "notdetected": "MoltenTerm does not recognise it yet",
+            "agentspecific": "another agent's own feature",
+            "modelunverified": "not checked with this model yet"
         }
     },
     "agentInfo": {

@@ -9264,13 +9264,13 @@
             "none": "pas encore"
         },
         "reason": {
-            "noadapter": "MoltenTerm n'a pas encore d'intégration pour cet agent.",
-            "nohooks": "L'agent ne dit pas à MoltenTerm ce qu'il fait.",
-            "nomcp": "L'agent ne peut pas encore utiliser les outils de MoltenTerm.",
-            "noskills": "L'agent ne sait pas lire les guides de MoltenTerm.",
-            "notdetected": "MoltenTerm ne reconnaît pas encore cet agent.",
-            "agentspecific": "Celle-ci est propre à un autre agent ; cet agent a sa propre façon de faire.",
-            "modelunverified": "Pas encore vérifié avec ce modèle."
+            "noadapter": "MoltenTerm n'a pas d'intégration pour lui",
+            "nohooks": "l'agent ne dit pas ce qu'il fait",
+            "nomcp": "il ne peut pas utiliser les outils de MoltenTerm",
+            "noskills": "il ne lit pas les guides de MoltenTerm",
+            "notdetected": "MoltenTerm ne le reconnaît pas encore",
+            "agentspecific": "propre à un autre agent",
+            "modelunverified": "pas encore vérifié avec ce modèle"
         }
     },
     "agentInfo": {
