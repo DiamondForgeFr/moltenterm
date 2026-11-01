@@ -107,7 +107,7 @@ func TestEveryCatalogAgentInstalls(t *testing.T) {
 		if a.Id == molten.GenericAgentId {
 			continue
 		}
-		if !strings.HasPrefix(a.InstallPage, "https://") || !strings.HasPrefix(a.SignInPage, "https://") || len(a.InstallCommands) == 0 {
+		if !strings.HasPrefix(a.InstallPage, "https://") || !strings.HasPrefix(a.PlansPage, "https://") || a.SignIn == nil || len(a.InstallCommands) == 0 {
 			t.Errorf("%s: no install page or command: %+v", a.Id, a)
 		}
 		if molten.MatchAgentCommand(a.Executable) == "" {

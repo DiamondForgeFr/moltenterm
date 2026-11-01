@@ -13,7 +13,8 @@ import type { AgentFacts, AgentUninstall, OnboardingAgent } from "../../moltente
 import { installPhase, isRunning, type CliInstallStatus } from "../../moltenterm-onboarding/onboarding-install-model";
 import { CopyLine, ExternalLink, withCodes } from "../../moltenterm-onboarding/onboarding-parts";
 import type { PourAgentCard } from "../../moltenterm-onboarding/onboarding-pour-agents";
-import { InstallOutput } from "../../moltenterm-onboarding/onboarding-pour-scenes";
+import { InstallOutput, SignInBody } from "../../moltenterm-onboarding/onboarding-pour-scenes";
+import { AgentSignInModel } from "../../moltenterm-onboarding/onboarding-signin";
 import { useT } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
@@ -296,7 +297,7 @@ function LinksBlock({ card, agent }: { card: PourAgentCard; agent: OnboardingAge
     const t = useT();
     const links: [string, string][] = [
         [agent.site, "library.agents.links.site"],
-        [card.signInPage, "library.agents.links.signIn"],
+        [card.plansPage, "library.agents.links.signIn"],
         [agent.docs, "library.agents.links.docs"],
         [card.installPage !== agent.docs ? card.installPage : null, "library.agents.links.installPage"],
     ];
@@ -615,8 +616,11 @@ export function UninstallBlock({
     );
 }
 
-function StatusBlock({ card, agent }: { card: PourAgentCard; agent: OnboardingAgent }) {
+export function StatusBlock({ card, agent }: { card: PourAgentCard; agent: OnboardingAgent }) {
     const t = useT();
+    const model = LibraryAgentsModel.getInstance();
+    const checking = useAtomValue(model.checkingAtom);
+    const runs = useAtomValue(AgentSignInModel.getInstance().runsAtom);
     const account = t(`onboarding.pour.agents.account.${card.account}`, { provider: card.provider });
     return (
         <Block title={t("library.agents.sections.status")} testId="library-agent-state">
@@ -630,6 +634,17 @@ function StatusBlock({ card, agent }: { card: PourAgentCard; agent: OnboardingAg
             </div>
             <p>{t("onboarding.pour.agents.needs", { account })}</p>
             {card.ready && !card.signedIn ? <p>{t("library.agents.signInUnseen")}</p> : null}
+            {card.ready && !card.signedIn && card.signIn ? (
+                <SignInBody
+                    card={card}
+                    run={runs[card.id]}
+                    checking={checking}
+                    onSignIn={() => fireAndForget(() => model.signIn(card.id))}
+                    onCheck={() => fireAndForget(() => model.load(true))}
+                    buttonClass="mt-lib-btn"
+                    testId="library-agent-signin"
+                />
+            ) : null}
         </Block>
     );
 }

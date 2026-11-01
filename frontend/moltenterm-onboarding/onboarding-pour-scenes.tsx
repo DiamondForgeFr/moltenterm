@@ -35,6 +35,7 @@ import {
 } from "./onboarding-install-model";
 import { CopyLine, ExternalLink, withCodes } from "./onboarding-parts";
 import { CodexHooksCommand, needsSignIn, PourAgentCard } from "./onboarding-pour-agents";
+import { isSignInActive, signInHowKey, signInOpensKey, type SignInRun } from "./onboarding-signin-model";
 
 export const MoltentermLicenseUrl = `${MoltentermRepoUrl}/blob/main/LICENSE`;
 export const MoltentermPrivacyUrl = `${MoltentermRepoUrl}/blob/main/PRIVACY.md`;
@@ -175,6 +176,7 @@ function AgentCardView({
     open,
     onToggle,
     onInstall,
+    onSignIn,
 }: {
     card: PourAgentCard;
     profile?: AgentFacts;
@@ -184,6 +186,7 @@ function AgentCardView({
     open: boolean;
     onToggle: () => void;
     onInstall: () => void;
+    onSignIn: () => void;
 }) {
     const t = useT();
     const status = card.recipe
@@ -198,9 +201,9 @@ function AgentCardView({
                 ? t("onboarding.pour.agents.status.ready")
                 : t("onboarding.pour.agents.status.missing");
     // Install runs the command; while it runs, the button only opens or closes its details. A found agent whose sign-in
-    // MoltenTerm did not see opens its sign-in step (#1680).
+    // MoltenTerm did not see runs the agent's own sign-in in a terminal and opens its step (#1680, #1723).
     const signIn = needsSignIn(card);
-    const act = card.recipe || signIn || installing || card.install.length === 0 ? onToggle : onInstall;
+    const act = signIn ? onSignIn : card.recipe || installing || card.install.length === 0 ? onToggle : onInstall;
     return (
         <div
             className="mt-pour-agent"
@@ -427,6 +430,7 @@ function AgentDrawer({
             {running ? null : (
                 <p className="text-12 text-secondary">{t("onboarding.pour.agents.needs", { account })}</p>
             )}
+            {card.recipe ? <p className="text-12 text-secondary">{t("onboarding.pour.agents.signInKey")}</p> : null}
             {card.recipe && !claudeReady ? (
                 <p className="text-12 text-secondary">
                     {t("onboarding.pour.agents.recipeNeedsAgent", { agent: card.agentName })}
@@ -487,18 +491,106 @@ function AgentDrawer({
                         {t(card.recipe ? "onboarding.pour.agents.recipePage" : "onboarding.pour.agents.installPage")}
                     </ExternalLink>
                 ) : null}
-                {card.signInPage && !running ? (
-                    <ExternalLink href={card.signInPage}>{t("onboarding.pour.agents.signInPage")}</ExternalLink>
+                {card.keyPage ? (
+                    <ExternalLink href={card.keyPage}>{t("onboarding.pour.agents.keyPage")}</ExternalLink>
+                ) : null}
+                {card.plansPage && !running ? (
+                    <ExternalLink href={card.plansPage}>{t("onboarding.pour.agents.signInPage")}</ExternalLink>
                 ) : null}
             </div>
         </div>
     );
 }
 
-// The step after the install (#1680): the agent is on this computer, it now needs an account with its vendor. MoltenTerm
-// never starts the agent to find out: it only looks for the credentials file the vendor documents, and where there is
-// none to look for, says the sign-in comes at the first start.
-function SignInStep({ card, checking, onCheck }: { card: PourAgentCard; checking: boolean; onCheck: () => void }) {
+// What Sign in does, for the first launch's step and the Library's agent page (#1723): the one line saying what will
+// happen, where the sign-in stands, Sign in (again), Check again and the plans page apart. MoltenTerm never starts the
+// agent before the click; it sees a sign-in only from the credentials file the vendor documents.
+export function SignInBody({
+    card,
+    run,
+    checking,
+    onSignIn,
+    onCheck,
+    buttonClass,
+    testId,
+}: {
+    card: PourAgentCard;
+    run?: SignInRun;
+    checking: boolean;
+    onSignIn: () => void;
+    onCheck: () => void;
+    buttonClass: string;
+    testId: string;
+}) {
+    const t = useT();
+    const active = isSignInActive(run);
+    const how = card.signIn
+        ? withCodes(t(signInHowKey(card.signIn), { name: card.name, opens: t(signInOpensKey(card.signIn)) }), {
+              command: card.signIn.command,
+              slash: card.signIn.slash ?? "",
+          })
+        : null;
+    return (
+        <>
+            {how ? (
+                <p className="text-12 leading-5 text-secondary" data-testid={`${testId}-how`}>
+                    {how}
+                </p>
+            ) : null}
+            {run?.state === "running" ? (
+                <p className="flex items-center gap-2 text-12 text-secondary" role="status">
+                    <DominoLoader className="text-[var(--pour-hot)]" />
+                    {t("onboarding.pour.agents.signInRunning")}
+                </p>
+            ) : null}
+            {run?.state === "ended" ? (
+                <p className="text-12 text-secondary" role="status">
+                    {t("onboarding.pour.agents.signInEnded")}
+                </p>
+            ) : null}
+            {run?.state === "failed" ? (
+                <p className="text-12 text-secondary" role="alert">
+                    {t("onboarding.pour.agents.signInFailed", { error: run.error ?? "" })}
+                </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+                {card.signIn && !active ? (
+                    <button type="button" onClick={onSignIn} className={buttonClass} data-testid={`${testId}-run`}>
+                        {t("onboarding.pour.agents.signIn")}
+                    </button>
+                ) : null}
+                <button
+                    type="button"
+                    disabled={checking}
+                    onClick={onCheck}
+                    className={buttonClass}
+                    data-testid={`${testId}-check`}
+                >
+                    {checking ? t("onboarding.pour.agents.status.looking") : t("onboarding.pour.agents.checkAgain")}
+                </button>
+                {card.plansPage ? (
+                    <ExternalLink href={card.plansPage}>{t("onboarding.pour.agents.signInPage")}</ExternalLink>
+                ) : null}
+            </div>
+        </>
+    );
+}
+
+// The step after the install (#1680): the agent is on this computer, it now needs an account with its vendor; Sign in
+// on the card opened its terminal (#1723).
+function SignInStep({
+    card,
+    run,
+    checking,
+    onSignIn,
+    onCheck,
+}: {
+    card: PourAgentCard;
+    run?: SignInRun;
+    checking: boolean;
+    onSignIn: () => void;
+    onCheck: () => void;
+}) {
     const t = useT();
     const drawer = useRef<HTMLDivElement>(null);
     const account = t(`onboarding.pour.agents.account.${card.account}`, { provider: card.provider });
@@ -511,23 +603,15 @@ function SignInStep({ card, checking, onCheck }: { card: PourAgentCard; checking
             <p className="text-12 leading-5 text-secondary">
                 {t("onboarding.pour.agents.signInText", { name: card.name, account })}
             </p>
-            <p className="text-12 leading-5 text-secondary">
-                {withCodes(t("onboarding.pour.agents.signInFirstStart"), { command: card.command })}
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-                {card.signInPage ? (
-                    <ExternalLink href={card.signInPage}>{t("onboarding.pour.agents.signInPage")}</ExternalLink>
-                ) : null}
-                <button
-                    type="button"
-                    disabled={checking}
-                    onClick={onCheck}
-                    className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
-                    data-testid="pour-signin-check"
-                >
-                    {checking ? t("onboarding.pour.agents.status.looking") : t("onboarding.pour.agents.checkAgain")}
-                </button>
-            </div>
+            <SignInBody
+                card={card}
+                run={run}
+                checking={checking}
+                onSignIn={onSignIn}
+                onCheck={onCheck}
+                buttonClass="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
+                testId="pour-signin"
+            />
         </div>
     );
 }
@@ -548,6 +632,8 @@ export function AgentsScene({
     onInstall,
     onAnswer,
     onCancel,
+    signIns,
+    onSignIn,
 }: {
     cards: PourAgentCard[];
     // wavesrv's listing, for the profiles and Help me choose (#1697)
@@ -566,6 +652,10 @@ export function AgentsScene({
     onInstall?: (id: string) => void;
     onAnswer?: (id: string, text: string) => void;
     onCancel?: (id: string) => void;
+    // the sign-ins Sign in started, by agent id (#1723)
+    signIns?: Record<string, SignInRun>;
+    // opens the agent's step and runs its sign-in in a terminal
+    onSignIn?: (id: string) => void;
 }) {
     const t = useT();
     // Help me choose (FR-ONB-008 AC-6 to AC-9): offered, never opened by itself; the answers stay in this scene.
@@ -597,6 +687,7 @@ export function AgentsScene({
             open={card.id === open}
             onToggle={() => onToggle(card.id)}
             onInstall={() => onInstall?.(card.id)}
+            onSignIn={() => onSignIn?.(card.id)}
         />
     );
     const claudeReady = cards.some((c) => c.id === "claude-code" && c.ready);
@@ -690,7 +781,14 @@ export function AgentsScene({
                 <div className="mt-pour-forge">{cards.map(cardView)}</div>
             )}
             {!pathOpen && openCard && needsSignIn(openCard) ? (
-                <SignInStep key={openCard.id} card={openCard} checking={checking} onCheck={onCheck} />
+                <SignInStep
+                    key={openCard.id}
+                    card={openCard}
+                    run={signIns?.[openCard.id]}
+                    checking={checking}
+                    onSignIn={() => onSignIn?.(openCard.id)}
+                    onCheck={onCheck}
+                />
             ) : null}
             {!pathOpen && openCard && !(openCard.ready && !openCard.recipe) ? (
                 <AgentDrawer

@@ -18,7 +18,9 @@ import {
     startCliUninstall,
 } from "../../moltenterm-onboarding/onboarding-client";
 import { isRunning, type CliInstallStatus } from "../../moltenterm-onboarding/onboarding-install-model";
+import { AgentSignInModel } from "../../moltenterm-onboarding/onboarding-signin";
 import { serverErrorText } from "../i18n/server-text";
+import { SidebarModel } from "../sidebar/sidebar-store";
 import {
     answerChooseState,
     backChooseState,
@@ -177,6 +179,20 @@ export class LibraryAgentsModel {
             await new Promise((resolve) => setTimeout(resolve, JobPollMs));
         }
         await this.load(true);
+    }
+
+    // Sign in (#1723): the Library gives way to the terminal running the agent's own sign-in in the current tab; the
+    // page shows what the detection then sees.
+    async signIn(id: string): Promise<void> {
+        const agent = globalStore.get(this.listAtom)?.agents?.find((a) => a.id === id);
+        if (agent?.signin == null) {
+            return;
+        }
+        SidebarModel.getInstance().closeLibrary();
+        await AgentSignInModel.getInstance().start(
+            { id, name: agent.name, signIn: agent.signin },
+            { onList: (list) => globalStore.set(this.listAtom, list) }
+        );
     }
 
     async answer(id: string, text: string): Promise<void> {

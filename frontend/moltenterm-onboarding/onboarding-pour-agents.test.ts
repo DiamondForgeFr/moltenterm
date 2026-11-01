@@ -127,7 +127,9 @@ describe("the agent cards (FR-ONB-007)", () => {
         expect(minimax.recipeLines).toContain("export ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic");
         for (const r of Recipes) {
             expect(r.lines.at(-1)).toBe("claude");
-            expect(r.signInPage).toMatch(/^https:\/\//);
+            expect(r.plansPage).toMatch(/^https:\/\//);
+            expect(r.keyPage).toMatch(/^https:\/\//);
+            expect(r.plansPage).not.toMatch(/download|install/);
             expect(r.guideUrl).toMatch(/^https:\/\//);
         }
     });
@@ -136,14 +138,23 @@ describe("the agent cards (FR-ONB-007)", () => {
         const signed = pourAgentCards({
             ...List,
             agents: List.agents.map((a) =>
-                a.id === "codex" ? { ...a, signedin: true, signinpage: "https://example.invalid/in" } : a
+                a.id === "codex"
+                    ? {
+                          ...a,
+                          signedin: true,
+                          planspage: "https://example.invalid/plans",
+                          signin: { kind: "command" as const, command: "codex login", opens: "browser" as const },
+                      }
+                    : a
             ),
         });
         expect(needsSignIn(signed.find((c) => c.id === "codex"))).toBe(false);
         expect(needsSignIn(signed.find((c) => c.id === "claude-code"))).toBe(true);
         expect(needsSignIn(signed.find((c) => c.id === "kimi"))).toBe(false);
         expect(needsSignIn(signed.find((c) => c.id === "glm"))).toBe(false);
-        expect(signed.find((c) => c.id === "codex").signInPage).toBe("https://example.invalid/in");
+        const codex = signed.find((c) => c.id === "codex");
+        expect(codex.plansPage).toBe("https://example.invalid/plans");
+        expect(codex.signIn).toMatchObject({ kind: "command", command: "codex login" });
     });
 
     it("counts the agents found for the sentence above the cards", () => {

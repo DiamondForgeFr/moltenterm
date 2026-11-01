@@ -7,6 +7,22 @@
 // must match pkg/molten/onboarding/agents.go
 export const OnboardingAgentsCommand = "onboardingagents";
 export const OnboardingAgentInstallCommand = "onboardingagentinstall";
+// must match pkg/molten/onboarding/signin.go
+export const OnboardingAgentSignInCommand = "onboardingagentsignin";
+export const SignInBlockMetaKey = "molten:agentsignin";
+
+export type SignInKind = "command" | "slash" | "firstrun";
+export type SignInOpens = "browser" | "device" | "key" | "browserorkey";
+
+// must match pkg/molten/onboarding/signin.go: the catalog's procedure, the command the terminal runs
+export type AgentSignIn = {
+    kind: SignInKind;
+    command: string;
+    slash?: string;
+    opens?: SignInOpens;
+    checkedon?: string;
+    sources?: string[];
+};
 
 export const GenericAgentId = "generic";
 // The step's data key holding the id of the agent the user works with.
@@ -41,8 +57,10 @@ export type OnboardingAgent = {
     installpage?: string;
     // the catalog's official install commands (pkg/molten/onboarding/agents.go), the first the one Install runs
     installcommands?: string[];
-    // the vendor's page to sign in or create an account (#1680)
-    signinpage?: string;
+    // the vendor's plans or sign-up page (#1680), never a download page (#1723)
+    planspage?: string;
+    // how the agent signs in from its CLI (#1723)
+    signin?: AgentSignIn;
     // wavesrv saw the agent's documented credentials file; false when it cannot tell, never a proof of the contrary
     signedin?: boolean;
     // the vendor's product page and docs (#1699)

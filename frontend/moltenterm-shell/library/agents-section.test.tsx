@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { OnboardingAgent } from "../../moltenterm-onboarding/onboarding-agent-model";
 import type { PourAgentCard } from "../../moltenterm-onboarding/onboarding-pour-agents";
-import { AgentCard, InstallBlock, TrashReport, UninstallBlock, UninstallConfirm } from "./agents-section";
+import { AgentCard, InstallBlock, StatusBlock, TrashReport, UninstallBlock, UninstallConfirm } from "./agents-section";
 
 const Card: PourAgentCard = {
     id: "claude-code",
@@ -115,5 +115,28 @@ describe("the domino loader while an install or uninstall runs (#1712)", () => {
         );
         expect(uninstalling).toMatch(new RegExp(`${Domino.source}Uninstalling Claude Code…`));
         expect(renderToStaticMarkup(<UninstallBlock card={Card} agent={Found} job={null} />)).not.toMatch(Domino);
+    });
+});
+
+describe("Sign in on the agent's page (#1723)", () => {
+    const Found = { id: "claude-code", name: "Claude Code", found: true } as unknown as OnboardingAgent;
+    const Unseen: PourAgentCard = {
+        ...Card,
+        signedIn: false,
+        plansPage: "https://claude.com/pricing",
+        signIn: { kind: "command", command: "claude auth login", opens: "browser" },
+    };
+
+    it("runs the agent's own sign-in, says what will happen, and links the plans apart", () => {
+        const html = renderToStaticMarkup(<StatusBlock card={Unseen} agent={Found} />);
+        expect(html).toContain("claude auth login</code> in a terminal: Claude Code opens your browser to sign in.");
+        expect(html).toContain('data-testid="library-agent-signin-run"');
+        expect(html).toContain('href="https://claude.com/pricing"');
+        expect(html).toContain("Create an account / see plans");
+    });
+
+    it("offers nothing once the sign-in is seen", () => {
+        const html = renderToStaticMarkup(<StatusBlock card={{ ...Unseen, signedIn: true }} agent={Found} />);
+        expect(html).not.toContain("library-agent-signin");
     });
 });

@@ -1478,8 +1478,23 @@
                 "signIn": "Sign in",
                 "signInTitle": "Sign in to {name}",
                 "signInText": "{name} is on this computer. It needs: {account}.",
-                "signInFirstStart": "The sign-in happens when it first starts: run {command} in a terminal and follow its steps.",
-                "signInPage": "Sign in or create an account ↗",
+                "signInHow": {
+                    "command": "MoltenTerm runs {command} in a terminal: {name} {opens}.",
+                    "slash": "MoltenTerm starts {name} in a terminal: type {slash}, then it {opens}.",
+                    "firstrun": "MoltenTerm starts {name} in a terminal: on its first start it {opens}."
+                },
+                "signInOpens": {
+                    "browser": "opens your browser to sign in",
+                    "device": "shows a code to enter in your browser",
+                    "key": "asks for your API key",
+                    "browserorkey": "offers a browser sign-in or an API key"
+                },
+                "signInRunning": "Finish the sign-in in the terminal: MoltenTerm checks again by itself.",
+                "signInEnded": "The terminal's command ended. Not signed in yet? Sign in again, or check again.",
+                "signInFailed": "The terminal did not open: {error}",
+                "signInKey": "Its sign-in is the plan's key: make it on the vendor's page, then put it in the recipe.",
+                "keyPage": "Get the key ↗",
+                "signInPage": "Create an account / see plans ↗",
                 "profile": {
                     "checked": "Checked on {date}",
                     "checkedStale": "Checked on {date}: this may have changed, check the vendor's page"
@@ -10032,7 +10047,7 @@
             },
             "links": {
                 "site": "Official site ↗",
-                "signIn": "Sign in or create an account ↗",
+                "signIn": "Create an account / see plans ↗",
                 "docs": "Docs ↗",
                 "installPage": "Install page ↗"
             },
