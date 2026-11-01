@@ -129,11 +129,13 @@ type FeatureSupport struct {
 // AgentFeatures is one agent's row. Adapter: the agent has an agentcontinuity adapter. Profile: its guide and catalog
 // profile id (molten.AgentProfiles, the onboarding catalog), which differs from Id for some agents ("claude-code");
 // GuideCall: how the agent calls a molten guide, {name} the guide's name (FR-AGC-003: the interface reads both here).
+// Command: the program that starts it, which tells the agent of a launcher preset (FR-AGC-004).
 type AgentFeatures struct {
 	Id        string                    `json:"id"`
 	Name      string                    `json:"name"`
 	Adapter   bool                      `json:"adapter"`
 	Profile   string                    `json:"profile,omitempty"`
+	Command   string                    `json:"command,omitempty"`
 	GuideCall string                    `json:"guidecall,omitempty"`
 	Features  map[string]FeatureSupport `json:"features"`
 }
@@ -169,8 +171,9 @@ func (r *Registry) Matrix() FeatureMatrix {
 	return rtn
 }
 
-// withGuideProfile finds the agent's guide profile by its program, the one name both lists share.
+// withGuideProfile sets the agent's program and finds its guide profile by it, the one name both lists share.
 func withGuideProfile(row AgentFeatures, executable string) AgentFeatures {
+	row.Command = executable
 	for _, p := range molten.AgentProfiles {
 		if executable == "" || p.Executable != executable {
 			continue

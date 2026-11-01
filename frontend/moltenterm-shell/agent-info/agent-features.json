@@ -8,12 +8,16 @@
         {
             "id": "state",
             "name": "Precise state (working, waiting, done)",
-            "requires": ["hooks"]
+            "requires": [
+                "hooks"
+            ]
         },
         {
             "id": "hooksoffer",
             "name": "Set up hooks offer",
-            "requires": ["hooks"]
+            "requires": [
+                "hooks"
+            ]
         },
         {
             "id": "launcher",
@@ -22,32 +26,44 @@
         {
             "id": "usage",
             "name": "Plan usage gauges",
-            "requires": ["quota"]
+            "requires": [
+                "quota"
+            ]
         },
         {
             "id": "statusline",
             "name": "Status line relay",
-            "requires": ["hooks"]
+            "requires": [
+                "hooks"
+            ]
         },
         {
             "id": "approvals",
             "name": "Coffee approvals (answer permissions)",
-            "requires": ["hooks"]
+            "requires": [
+                "hooks"
+            ]
         },
         {
             "id": "turnnotify",
             "name": "End of turn notification",
-            "requires": ["hooks"]
+            "requires": [
+                "hooks"
+            ]
         },
         {
             "id": "browsermcp",
             "name": "molten-browser MCP (browser, list_agents, send_to_agent)",
-            "requires": ["mcp"]
+            "requires": [
+                "mcp"
+            ]
         },
         {
             "id": "instructions",
             "name": "MoltenTerm instructions (first name, signature, materials)",
-            "requires": ["mcp"]
+            "requires": [
+                "mcp"
+            ]
         },
         {
             "id": "handoff",
@@ -76,17 +92,23 @@
         {
             "id": "resume",
             "name": "Linked session, resume, Continue with",
-            "requires": ["resume"]
+            "requires": [
+                "resume"
+            ]
         },
         {
             "id": "briefing",
             "name": "Briefing at launch",
-            "requires": ["briefing"]
+            "requires": [
+                "briefing"
+            ]
         },
         {
             "id": "effort",
             "name": "Effort and model",
-            "requires": ["models"]
+            "requires": [
+                "models"
+            ]
         },
         {
             "id": "commands",
@@ -95,17 +117,23 @@
         {
             "id": "companion",
             "name": "Companion (session, recap, sub-agents)",
-            "requires": ["transcript"]
+            "requires": [
+                "transcript"
+            ]
         },
         {
             "id": "runner",
             "name": "Agent that runs tasks (AI review, release notes, Mission Control)",
-            "requires": ["initialprompt"]
+            "requires": [
+                "initialprompt"
+            ]
         },
         {
             "id": "reviewsession",
             "name": "Review session (molten-review MCP, read-only)",
-            "requires": ["mcp"]
+            "requires": [
+                "mcp"
+            ]
         },
         {
             "id": "onboarding",
@@ -130,6 +158,7 @@
             "name": "Claude Code",
             "adapter": true,
             "profile": "claude-code",
+            "command": "claude",
             "guidecall": "/{name}",
             "features": {
                 "approvals": {
@@ -274,6 +303,7 @@
             "name": "Codex",
             "adapter": true,
             "profile": "codex",
+            "command": "codex",
             "guidecall": "${name}",
             "features": {
                 "approvals": {
@@ -419,6 +449,7 @@
             "name": "Gemini CLI",
             "adapter": false,
             "profile": "gemini-cli",
+            "command": "gemini",
             "guidecall": "/{name}",
             "features": {
                 "approvals": {
@@ -550,6 +581,7 @@
             "name": "Kimi Code",
             "adapter": false,
             "profile": "kimi",
+            "command": "kimi",
             "guidecall": "/skill:{name}",
             "features": {
                 "approvals": {
@@ -673,6 +705,7 @@
             "id": "opencode",
             "name": "OpenCode",
             "adapter": false,
+            "command": "opencode",
             "features": {
                 "approvals": {
                     "level": "none",

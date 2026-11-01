@@ -5,10 +5,12 @@
 // panels (widgets.json), recent folders (FR-SHELL-009) and workspace actions. Pure, so the rules are tested without
 // the app.
 
+import { agentRow, agentRowByCommand, type FeatureMatrix } from "../agent-info/agent-features-model";
+import { agentWorks, pickerSummary } from "../agent-info/agent-works-model";
 import { AiIcon } from "../ai-icon";
 import { addressUrl, browserBlockDef, looksLikeAddress } from "../browser/browser-model";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
-import { t } from "../i18n/i18n";
+import { getLocale, t } from "../i18n/i18n";
 import { FallbackLanguage, languageText } from "../i18n/i18n-core";
 import { MoltentermLineMapView } from "../mission/line-map-model";
 import { MoltentermProjectView } from "../project/project-model";
@@ -103,6 +105,8 @@ export type PaletteSourceInput = {
     presets: { [key: string]: MetaType };
     // The catalog's agents with whether each is on this computer (#1680).
     installedAgents?: InstalledAgent[];
+    // The compatibility matrix the agents' rows say what works from (FR-AGC-004); absent, they say nothing.
+    matrix?: FeatureMatrix;
     widgets: { [key: string]: WidgetConfigType };
     workspaceId: string;
     // Where new blocks of the workspace start (effectiveWorkspaceFolder), "" when it has none.
@@ -190,6 +194,15 @@ export function readAgentPresets(presets: { [key: string]: MetaType }): AgentPre
     return rtn;
 }
 
+// An agent's row says, in a few words, what works with it (FR-AGC-004): the preset's agent, else its program's.
+function agentWorksDetail(matrix: FeatureMatrix, p: AgentPreset): string {
+    if (matrix == null) {
+        return undefined;
+    }
+    const row = agentRow(matrix, p.id) ?? agentRowByCommand(matrix, p.command);
+    return pickerSummary(agentWorks(matrix, row?.id ?? p.id), t, getLocale());
+}
+
 // An agent of MoltenTerm's catalog found on this computer (wavesrv's agent choice, pkg/molten/agentchoice): the
 // agents without a preset of their own are offered too (#1680), after the presets, under their own name and program.
 // A preset of the same id, hidden or not, or with the same program, wins: the developer's configuration decides.
@@ -221,11 +234,16 @@ export function installedAgentPresets(
     return rtn;
 }
 
-export function agentEntries(presets: { [key: string]: MetaType }, installed?: InstalledAgent[]): PaletteEntry[] {
+export function agentEntries(
+    presets: { [key: string]: MetaType },
+    installed?: InstalledAgent[],
+    matrix?: FeatureMatrix
+): PaletteEntry[] {
     return [...readAgentPresets(presets), ...installedAgentPresets(presets, installed)].map((p) => ({
         id: `agent:${p.id}`,
         group: "agents",
         label: p.name,
+        detail: agentWorksDetail(matrix, p),
         icon: p.icon,
         color: p.color || undefined,
         cli: p.command,
@@ -607,7 +625,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         .filter((e) => e.id !== "action:sessions")
         .map((e) => (e.id === "action:shortcuts" && input.shortcutsHint ? { ...e, hint: input.shortcutsHint } : e));
     const entries = [
-        ...agentEntries(input.presets, input.installedAgents),
+        ...agentEntries(input.presets, input.installedAgents, input.matrix),
         ...panels,
         ...folderEntries(folders, input.home),
         ...actions,

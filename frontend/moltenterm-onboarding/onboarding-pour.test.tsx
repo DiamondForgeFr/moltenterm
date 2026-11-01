@@ -103,8 +103,11 @@ describe("OnboardingPour (FR-ONB-007)", () => {
         expect(html).toMatch(/data-agent="kimi">/);
         expect(html).toContain("$ claude");
         expect(html).toContain("$ kimi");
-        expect(html).toContain("Full integration");
-        expect(html).toContain("Process detection");
+        // What works, from the matrix (FR-AGC-004), the same lines for every agent, the details closed.
+        expect(html).toContain("MoltenTerm follows:</span> its state, approvals, and plan usage");
+        expect(html).toContain("Not yet:</span> approvals, plan usage, and the browser");
+        expect(html).toContain('data-testid="agent-works-toggle"');
+        expect(html).not.toContain('data-testid="agent-works-details"');
         expect(html).toContain("Kimi subscription");
         expect(html).toContain("Not installed");
         expect(html).toContain('data-testid="pour-act-kimi"');

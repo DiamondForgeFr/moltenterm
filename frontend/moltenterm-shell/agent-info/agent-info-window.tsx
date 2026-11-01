@@ -59,6 +59,7 @@ import {
     type ToolkitPlugin,
     type ToolkitSkill,
 } from "./agent-toolkit-model";
+import { AgentWorks } from "./agent-works";
 import { SubagentsSection } from "./subagents-section";
 
 export const PlainButton =
@@ -404,6 +405,23 @@ function ToolkitSection({ ctx }: { ctx: AgentInfoContext }) {
     );
 }
 
+// What works with the agent's tool (FR-AGC-004), the same words as its card at first run.
+function WorksSection({ ctx }: { ctx: AgentInfoContext }) {
+    const t = useT();
+    const agent = ctx.info?.agent;
+    if (!agent) {
+        return null;
+    }
+    return (
+        <section data-testid="agent-info-works">
+            <h5 className={SectionTitle}>
+                {t("agentWorks.sectionTitle", { name: agentTool(ctx.info) || agentDisplayName(ctx.info) })}
+            </h5>
+            <AgentWorks agent={agent} className="px-2 text-12" />
+        </section>
+    );
+}
+
 function CommandsSection({ ctx }: { ctx: AgentInfoContext }) {
     const t = useT();
     const tc = useTCount();
@@ -568,6 +586,7 @@ export const AgentInfoSections: AgentInfoSection[] = [
     { key: "pages", column: "main", Component: PagesSection },
     { key: "view", column: "main", Component: ViewSection },
     { key: "commands", column: "main", Component: CommandsSection },
+    { key: "works", column: "side", Component: WorksSection },
     { key: "toolkit", column: "side", Component: ToolkitSection },
 ];
 

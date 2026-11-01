@@ -7,6 +7,7 @@
 import { modalsModel } from "@/app/store/modalmodel";
 import { MoltentermRepoUrl } from "@/util/moltenterm-identity";
 import { useEffect, useId, useRef, useState } from "react";
+import { AgentWorks } from "../moltenterm-shell/agent-info/agent-works";
 import { useT } from "../moltenterm-shell/i18n/i18n";
 import { serverText } from "../moltenterm-shell/i18n/server-text";
 import { formatKeys, modifierLabel } from "../moltenterm-shell/shortcuts/format";
@@ -175,11 +176,7 @@ function AgentCardView({
             </div>
             <div className="flex flex-col gap-0.5 text-11 text-secondary">
                 <span>{t(`onboarding.pour.agents.account.${card.account}`, { provider: card.provider })}</span>
-                {card.recipe ? null : (
-                    <span className={card.full ? "font-medium text-[var(--pour-hot)]" : "text-muted"}>
-                        {t(card.full ? "onboarding.pour.agents.level.full" : "onboarding.pour.agents.level.process")}
-                    </span>
-                )}
+                {card.recipe ? null : <AgentWorks agent={card.id} className="mt-0.5" />}
                 {card.hooksNote && card.ready ? (
                     <span className="text-muted" data-testid="pour-codex-hooks">
                         {withCodes(t("onboarding.pour.agents.hooks"), { command: CodexHooksCommand })}
