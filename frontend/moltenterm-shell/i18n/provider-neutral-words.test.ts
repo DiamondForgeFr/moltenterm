@@ -27,7 +27,8 @@ export const ProviderSubjectKeys: Record<string, string> = {
     "mc.branches.tool.codex": "names the tool that made a worktree",
     // The setting is the Claude Code adapter's own: it reads that tool's sign-in against that provider's endpoint.
     "settings.items.companion:usageclaudeoauth.label": "the setting belongs to one adapter's undocumented endpoint",
-    "settings.items.companion:usageclaudeoauth.description": "the setting belongs to one adapter's undocumented endpoint",
+    "settings.items.companion:usageclaudeoauth.description":
+        "the setting belongs to one adapter's undocumented endpoint",
     // A mod's Claude Code part is a plugin of that product: the trust prompt must say what runs where.
     "molten.trust.partWarning": "the part is a Claude Code plugin",
     "molten.trust.partTitle": "the part is a Claude Code plugin",
@@ -36,9 +37,20 @@ export const ProviderSubjectKeys: Record<string, string> = {
     "molten.trust.partWrittenFor": "the part targets a Claude Code version",
 };
 
+// key prefix → why every key under it names providers.
+export const ProviderSubjectPrefixes: Record<string, string> = {
+    // An agent's profile on its Library page (#1699, FR-ONB-008): its vendor's facts, the vendor and its products are
+    // the subject of every sentence.
+    "library.agents.profiles.": "an agent's own profile, from its vendor's pages",
+};
+
+function providerSubject(key: string): boolean {
+    return ProviderSubjectKeys[key] != null || Object.keys(ProviderSubjectPrefixes).some((p) => key.startsWith(p));
+}
+
 export function providerWordProblems(entries: [string, string][]): string[] {
     return entries
-        .filter(([key, text]) => ProviderSubjectKeys[key] == null && ProviderWords.test(text))
+        .filter(([key, text]) => !providerSubject(key) && ProviderWords.test(text))
         .map(([key, text]) => `${key}: ${text}`);
 }
 

@@ -163,6 +163,12 @@ type AgentEntry struct {
 	SignInPage      string   `json:"signinpage,omitempty"`
 	// A credentials file the vendor documents is there; false when MoltenTerm cannot tell, never proof of the contrary.
 	SignedIn bool `json:"signedin,omitempty"`
+	// The Library's agent page (#1699): the vendor's links, the profile, and how the copy found comes off.
+	Site             string           `json:"site,omitempty"`
+	Docs             string           `json:"docs,omitempty"`
+	Profile          *AgentFacts      `json:"profile,omitempty"`
+	Uninstall        *AgentUninstall  `json:"uninstall,omitempty"`
+	UninstallMethods []AgentUninstall `json:"uninstallmethods,omitempty"`
 }
 
 type agentsRequest struct {
@@ -184,16 +190,25 @@ func ListAgents(env molten.AgentEnv, pathList string, version string) AgentsResu
 	rtn := AgentsResult{Agents: []AgentEntry{}, Version: version}
 	for _, profile := range molten.AgentProfiles {
 		entry := AgentEntry{
-			AgentStatus:     profile.Status(env),
-			Executable:      profile.Executable,
-			InstallPage:     agentInstallCatalog[profile.Id].Page,
-			InstallCommands: installCommands(profile.Id),
-			SignInPage:      agentInstallCatalog[profile.Id].SignInPage,
+			AgentStatus:      profile.Status(env),
+			Executable:       profile.Executable,
+			InstallPage:      agentInstallCatalog[profile.Id].Page,
+			InstallCommands:  installCommands(profile.Id),
+			SignInPage:       agentInstallCatalog[profile.Id].SignInPage,
+			UninstallMethods: uninstallMethods(profile.Id),
+		}
+		if facts, ok := agentFactsCatalog[profile.Id]; ok {
+			entry.Site = facts.Site
+			entry.Docs = facts.Docs
+			entry.Profile = &facts
 		}
 		if profile.Executable != "" {
 			entry.FoundPath = molten.LookPathIn(profile.Executable, pathList)
 			entry.Found = entry.FoundPath != ""
 			entry.SignedIn = entry.Found && signedIn(env, agentInstallCatalog[profile.Id])
+			if u, ok := matchUninstall(profile.Id, env.Home, entry.FoundPath); ok {
+				entry.Uninstall = &u
+			}
 		}
 		rtn.Agents = append(rtn.Agents, entry)
 	}

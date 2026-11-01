@@ -222,7 +222,8 @@ function AgentCardView({
 }
 
 // The installer's live output, and a field to answer it when it waits for a question (a password, a confirmation).
-function InstallOutput({
+// The Library's agent pages show it too, for their install and uninstall (#1699).
+export function InstallOutput({
     card,
     status,
     onAnswer,

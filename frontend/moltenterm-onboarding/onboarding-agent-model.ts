@@ -45,6 +45,56 @@ export type OnboardingAgent = {
     signinpage?: string;
     // wavesrv saw the agent's documented credentials file; false when it cannot tell, never a proof of the contrary
     signedin?: boolean;
+    // the vendor's product page and docs (#1699)
+    site?: string;
+    docs?: string;
+    // the vendor's uninstall for the way the copy found was installed; available only when it is documented
+    uninstall?: AgentUninstall;
+    // every way the catalog knows, documented or not, for the manual instructions
+    uninstallmethods?: AgentUninstall[];
+    // the plain-words profile (#1697), any field may be missing
+    profile?: AgentFacts;
+};
+
+// must match pkg/molten/onboarding/agentpage.go
+export type AgentUninstall = {
+    method: string;
+    // the vendor's command, verbatim; empty when the vendor documents none for this method
+    command?: string;
+    // false: the reverse of the install, which the vendor does not document; shown by hand, never run
+    documented?: boolean;
+    removes?: string[];
+    source?: string;
+    // the user's own settings and sign-in folders the vendor says to delete for a full removal; never removed unticked
+    config?: string[];
+    configsource?: string;
+    available?: boolean;
+};
+
+export type FactAnswer = "yes" | "no" | "notstated";
+
+// the cheapest plan that unlocks the CLI, as the vendor's page shows it; no amount when the vendor does not state it
+export type AgentPrice = { amount?: string; currency?: string; period?: string; plan?: string; notekey?: string };
+
+// must match pkg/molten/onboarding/agentfacts.go (FR-ONB-008 AC-4): sentences are i18n keys, the rest is data
+export type AgentFacts = {
+    checkedon?: string;
+    pricingpage?: string;
+    modelspage?: string;
+    freetier?: FactAnswer;
+    from?: AgentPrice;
+    models?: string[];
+    goodforkey?: string;
+    strengthkeys?: string[];
+    weakkeys?: string[];
+    speedkey?: string;
+    limitskey?: string;
+    notekey?: string;
+    notepage?: string;
+    beyondcode?: Record<string, FactAnswer>;
+    uses?: string[];
+    includedin?: string[];
+    sources?: string[];
 };
 
 export type OnboardingAgents = { agents: OnboardingAgent[]; version: string };

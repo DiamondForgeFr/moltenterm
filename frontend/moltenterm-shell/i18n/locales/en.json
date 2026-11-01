@@ -9031,7 +9031,9 @@
             "installFailed": "The guides of {agent} could not be installed: {detail}",
             "noInstallCommand": "MoltenTerm has no install command for {agent}.",
             "installUnsupported": "Installing {agent} from MoltenTerm is not available on this system yet: copy the command below.",
-            "installNotRun": "The command could not run: {detail}"
+            "installNotRun": "The command could not run: {detail}",
+            "noUninstallCommand": "MoltenTerm has no documented uninstall for this copy of {agent}.",
+            "uninstallUnsupported": "Uninstalling {agent} from MoltenTerm is not available on this system yet: follow the vendor's instructions."
         }
     },
     "assistedReview": {
@@ -9665,6 +9667,11 @@
             "openInViewTitle": "Open {name} in the Settings view of this workspace"
         },
         "sections": {
+            "agents": {
+                "label": "Agents",
+                "title": "Agents",
+                "sub": "Every coding agent MoltenTerm works with, on equal terms: what each one is good at, what it costs, installing and removing it."
+            },
             "workspaces": {
                 "label": "Workspaces",
                 "title": "All workspaces",
@@ -9894,6 +9901,273 @@
             "copy": "Copy the download link",
             "copied": "Download link copied",
             "failed": "The link could not be copied"
+        },
+        "agents": {
+            "helpChoose": "Help me choose",
+            "checkAgain": "Check again",
+            "checking": "Checking…",
+            "listFailed": "The agents could not be listed: {error}",
+            "looking": "Looking for the agents on this computer…",
+            "back": "All agents",
+            "open": "Open the page of {name}",
+            "status": {
+                "missing": "Not installed",
+                "signedin": "Installed, signed in",
+                "signinunseen": "Installed, sign-in not seen"
+            },
+            "foundAt": "Installed at {path}",
+            "signInUnseen": "MoltenTerm did not see a sign-in. The system keychain may hold it: the agent asks when it starts if it needs one.",
+            "sections": {
+                "status": "On this computer",
+                "profile": "In plain words",
+                "works": "What works in MoltenTerm",
+                "links": "Links",
+                "install": "Install",
+                "uninstall": "Uninstall"
+            },
+            "profile": {
+                "models": "Models behind it",
+                "modelsPage": "Models page ↗",
+                "goodFor": "Good for",
+                "strengths": "Strengths",
+                "weak": "Weak points",
+                "price": "Price",
+                "speed": "Speed",
+                "limits": "Limits",
+                "beyond": "Beyond code",
+                "pricingPage": "Official pricing ↗",
+                "checkedOn": "Checked on {date}. Prices and plans change: the vendor's page is the reference.",
+                "stale": "Checked more than 90 days ago: this may have changed, check the vendor's page.",
+                "notePage": "Read the terms ↗"
+            },
+            "price": {
+                "free": "Free to start",
+                "freeThen": "Free to start, then from {amount} {currency} / {period} · {plan}",
+                "from": "From {amount} {currency} / {period} · {plan}",
+                "freeThenBare": "Free to start, then from {amount} {currency} / {period}",
+                "fromBare": "From {amount} {currency} / {period}",
+                "freeNotStated": "Whether a free plan runs it: not stated by the vendor.",
+                "notstated": "Price not stated by the vendor"
+            },
+            "period": {
+                "month": "month",
+                "year": "year"
+            },
+            "beyond": {
+                "writing": "Writing",
+                "research": "Research",
+                "images": "Images",
+                "voice": "Voice",
+                "yes": "yes",
+                "no": "no",
+                "notstated": "not stated",
+                "item": "{kind}: {answer}"
+            },
+            "works": {
+                "loading": "Reading the compatibility list…",
+                "pending": "The detail of what works with {name} in MoltenTerm comes with the compatibility list.",
+                "summary": "With {name}, {native} of {total} MoltenTerm features work fully, {adapted} work adapted and {limited} through its process only.",
+                "asof": "Checked on {date}."
+            },
+            "links": {
+                "site": "Official site ↗",
+                "signIn": "Sign in or create an account ↗",
+                "docs": "Docs ↗",
+                "installPage": "Install page ↗"
+            },
+            "cancel": "Cancel",
+            "failedCode": "The command stopped with code {code}.",
+            "install": {
+                "text": "MoltenTerm runs this official command in your shell, then checks again by itself.",
+                "button": "Install {name}",
+                "running": "Installing {name}…",
+                "failed": "The install did not work.",
+                "notFound": "The command finished, but MoltenTerm cannot find {command} on this computer yet.",
+                "canceled": "Install canceled: the command was stopped.",
+                "none": "MoltenTerm has no install command for {name}: follow its install page."
+            },
+            "uninstall": {
+                "text": "Removes {name} the way its vendor documents for this copy ({method}).",
+                "button": "Uninstall {name}…",
+                "confirmTitle": "Uninstall {name}?",
+                "confirmCommand": "MoltenTerm runs this official command:",
+                "confirmRemoves": "It removes:",
+                "keeps": "Your settings and sign-in stay on this computer.",
+                "removeConfig": "Also delete my {name} settings and sign-in",
+                "removeConfigWarn": "These folders hold your settings, history and sign-in: they cannot be recovered.",
+                "confirm": "Uninstall",
+                "running": "Uninstalling {name}…",
+                "done": "{name} is uninstalled. Install it again here whenever you like.",
+                "stillFound": "The command finished, but {command} is still on this computer, at {path}: another copy may be installed.",
+                "failed": "The uninstall did not work.",
+                "canceled": "Uninstall canceled: the command was stopped.",
+                "manualText": "MoltenTerm removes nothing itself here: its vendor documents no uninstall for this copy, or MoltenTerm cannot tell how it was installed. Use the command that matches how you installed it, or the vendor's docs.",
+                "manualNone": "The vendor documents no uninstall command.",
+                "undocumented": "Not documented by the vendor: the reverse of this install.",
+                "source": "Vendor's instructions ↗",
+                "method": {
+                    "native": "its own installer",
+                    "npm": "npm",
+                    "brew": "Homebrew",
+                    "uv": "uv",
+                    "script": "its install script",
+                    "test": "a test uninstaller"
+                }
+            },
+            "helpChooseTitle": "Three questions to find agents that fit you",
+            "choose": {
+                "title": "Help me choose",
+                "step": "Question {n} of 3",
+                "back": "Back",
+                "skip": "Skip",
+                "again": "Start again",
+                "close": "Close",
+                "private": "Your answers stay in this window: nothing is recorded or sent.",
+                "noneMatch": "No agent matches all three answers. Change one answer, or look at every agent below.",
+                "otherMatches": {
+                    "one": "See the other match",
+                    "other": "See the {count} other matches"
+                },
+                "openPage": "See its page",
+                "goal": {
+                    "question": "What do you want to do first?",
+                    "answers": {
+                        "code": "Code in a project",
+                        "write-research": "Write, research and plan",
+                        "first-try": "Try AI for the first time",
+                        "dontknow": "I don't know yet"
+                    }
+                },
+                "budget": {
+                    "question": "How much do you want to spend each month?",
+                    "answers": {
+                        "free": "Nothing for now",
+                        "around-20": "Up to about 20",
+                        "more": "More, for heavy daily use",
+                        "dontknow": "I don't know"
+                    }
+                },
+                "already": {
+                    "question": "Do you already pay for one of these?",
+                    "answers": {
+                        "none": "None"
+                    }
+                },
+                "reasons": {
+                    "already-paid": "You already pay for it: {plan} includes this agent.",
+                    "free-to-start": "Free to start, no card needed for the first steps.",
+                    "within-budget": "Within your budget: from {amount} {currency} / month.",
+                    "goal-code": "Made for coding in a project.",
+                    "goal-write-research": "Its vendor's app also writes and researches with the same account.",
+                    "goal-first-try": "Easy first steps: a free plan and a chat app to get used to AI."
+                },
+                "combine": {
+                    "two": "In MoltenTerm you can use both: agents pass work to each other by first name, so {a} can plan while {b} codes.",
+                    "one": "You can add a second agent later: in MoltenTerm agents pass work to each other by first name, for example one plans and another codes."
+                }
+            },
+            "profiles": {
+                "antigravity": {
+                    "goodFor": "Trying an agent for free with a Google account, and Gemini for research, images and voice.",
+                    "s1": "A free plan that includes the CLI.",
+                    "s2": "Paid plans add Claude models next to Gemini.",
+                    "s3": "The Gemini app (deep research, images, voice) comes with every Google AI plan.",
+                    "w1": "No published quota numbers; the free quota refreshes once a week.",
+                    "w2": "18 or older, listed countries only.",
+                    "speed": "No figures published; the Flash models are labelled fast.",
+                    "limits": "No quota numbers: a weekly quota on the free plan; on Pro and Ultra a quota refreshed every five hours up to a weekly limit. Limits depend on capacity and may change.",
+                    "note": "Google's terms limit use through third-party apps on personal plans.",
+                    "billing": "free plan with a weekly quota"
+                },
+                "claude-code": {
+                    "goodFor": "Long, careful work on a real project, and writing or research in the Claude app with the same subscription.",
+                    "s1": "Built by the makers of its models (Opus, Sonnet, Haiku), with a very large working memory.",
+                    "s2": "One subscription covers Claude Code and the Claude app (writing, deep research, voice).",
+                    "s3": "Runs on every desktop system, in the terminal and in editors.",
+                    "w1": "No free access to Claude Code: it starts with the Pro plan.",
+                    "w2": "Usage resets every 5 hours and every week, without published numbers.",
+                    "speed": "Relative only: Haiku is the fastest, Opus and Fable the slowest; no figures.",
+                    "limits": "Usage limits every 5 hours and every week, larger on Max and Ultra; no absolute numbers published.",
+                    "billing": "17 USD/month billed yearly"
+                },
+                "codex": {
+                    "goodFor": "Starting for free with a ChatGPT account, then coding with a choice of OpenAI models.",
+                    "s1": "Included in every ChatGPT plan, the free one too (light tasks).",
+                    "s2": "Pick a model per task, from the most capable to the most economical.",
+                    "s3": "The same account works in ChatGPT for writing, images and voice.",
+                    "w1": "Free and Go only get the smallest model, with unpublished limits.",
+                    "w2": "Limits are estimates; weekly limits may apply.",
+                    "speed": "Standard, Fast and Ultrafast modes, the faster ones using more of the allowance; no measured figures.",
+                    "limits": "Messages per 5 hours vary by model (estimates); weekly limits may also apply; Pro has no five-hour limit.",
+                    "billing": "Plus at 20 USD/month unlocks the larger models"
+                },
+                "copilot": {
+                    "goodFor": "Projects on GitHub, and trying models from several vendors with one subscription.",
+                    "s1": "The CLI is in every plan, the free one included.",
+                    "s2": "Models from Anthropic, OpenAI, Google, xAI and others, switchable at any time.",
+                    "s3": "Works with GitHub issues and pull requests from the terminal.",
+                    "w1": "The free plan picks the model for you and its allowance is not quantified.",
+                    "w2": "On company plans the organisation must turn the CLI on.",
+                    "speed": "Not stated by the vendor.",
+                    "limits": "Counted in AI credits, by tokens and model; a monthly allowance per plan, then paid per credit.",
+                    "billing": "free for verified teachers and popular open-source maintainers"
+                },
+                "cursor": {
+                    "goodFor": "People who already use Cursor, or hold The X Subscription, and want the same agent in the terminal.",
+                    "s1": "Plan, Ask and Agent modes, and a hand-off to a cloud agent.",
+                    "s2": "Higher plans open frontier models from several vendors.",
+                    "s3": "The subscription also includes Grok chat, images and voice.",
+                    "w1": "The 8 USD plan has Grok and Composer models only.",
+                    "w2": "No official page says which plan the CLI needs; pool sizes are relative only.",
+                    "speed": "No figures; each Cursor model has a paid Fast variant.",
+                    "limits": "A weekly pool for Cursor's own models, larger on higher plans; other vendors' models are billed at API price.",
+                    "billing": "Grok and Composer models only; Claude, GPT and Gemini from Premium (30 USD) at API price on top"
+                },
+                "grok": {
+                    "goodFor": "Fast coding with xAI's models, or with your own local model, in an open-source agent.",
+                    "s1": "Open source; also runs with a local model.",
+                    "s2": "Plan mode: you approve the plan before any change.",
+                    "s3": "Its coding model is fast (100+ tokens a second, per xAI).",
+                    "w1": "The plan that unlocks the CLI and its limits are not stated.",
+                    "w2": "Coding shares one weekly pool with chat, images and voice.",
+                    "speed": "The Build model is served at over 100 tokens per second, the vendor says; no figure for the others.",
+                    "limits": "On paid plans, one weekly usage pool shared with chat, images and voice; no cap specific to Build published.",
+                    "billing": "xAI does not say which plan unlocks the CLI; it also runs on an API key or a local model"
+                },
+                "kimi": {
+                    "goodFor": "Long coding tasks with an open-weight model, plus deep research and slides in the Kimi app.",
+                    "s1": "Open-weight model with a very large working memory.",
+                    "s2": "Also runs inside Claude Code, officially documented.",
+                    "s3": "Membership includes deep research, documents and slides.",
+                    "w1": "No free access: Kimi Code starts with Plus.",
+                    "w2": "Coding shares one monthly pool with every other Kimi feature.",
+                    "speed": "A Highspeed variant runs 2 to 3 times faster than the standard one; no tokens-per-second figure.",
+                    "limits": "A rolling 5-hour window, no weekly limit on new plans; one quota shared by every device and tool.",
+                    "billing": "180 USD billed yearly"
+                },
+                "vibe": {
+                    "goodFor": "A European vendor, a free start, and a chat app that also writes, researches and makes images.",
+                    "s1": "A free plan with limited coding sessions.",
+                    "s2": "Open source, works offline with a local model.",
+                    "s3": "The same account covers the Vibe chat app (documents, research, images, voice).",
+                    "w1": "No published numbers for usage limits.",
+                    "w2": "Built first for macOS and Linux; Windows works but is not the target.",
+                    "speed": "Not stated; paid plans promise faster responses.",
+                    "limits": "No numbers: limited sessions on the free plan, generous use on Pro and Team, then pay as you go at API rates.",
+                    "billing": "excluding taxes; 5.99 USD for verified students"
+                },
+                "qwen-code": {
+                    "goodFor": "A small budget, and freedom to plug in Qwen, other vendors' or local models.",
+                    "s1": "Open source; speaks OpenAI, Anthropic, Gemini and Qwen APIs and local models.",
+                    "s2": "The cheapest paid entry of the catalog.",
+                    "s3": "The same plan also works in Claude Code and other tools.",
+                    "w1": "The free tier ended on 2026-04-15.",
+                    "w2": "Plans are for interactive use only, and can't be cancelled.",
+                    "speed": "Not stated by the vendor.",
+                    "limits": "Coding Plan Pro: up to 6,000 requests per 5 hours and 45,000 per week; the Token Plan counts monthly credits.",
+                    "billing": "limited-time price (8 USD normally); Singapore region only"
+                }
+            }
         }
     },
     "workspaceViews": {

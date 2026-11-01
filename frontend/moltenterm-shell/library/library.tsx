@@ -76,6 +76,7 @@ import {
     writeLastSettingsTab,
 } from "./library-model";
 import "./library.css";
+import { AgentsSection } from "./agents-section";
 import { MaterialsSection, useMaterialsDrawer, useMaterialsNewCount } from "./materials-section";
 import { mountChannels, type ChannelsHandle } from "./settings-channels";
 import {
@@ -1312,6 +1313,7 @@ export function Library({
                     ) : null}
                 </div>
                 <div className="mt-lib-body">
+                    {section === "agents" ? <AgentsSection /> : null}
                     {section === "workspaces" ? <WorkspacesSection entries={entries} /> : null}
                     {section === "panels" ? <PanelsSection onApps={onApps} /> : null}
                     {section === "ai" ? <SentToAiSection entries={entries} query={query} /> : null}

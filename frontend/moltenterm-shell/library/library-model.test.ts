@@ -37,6 +37,7 @@ describe("library sections (FR-SHELL-088)", () => {
             }
         }
         expect(LibrarySections.map((s) => s.id)).toEqual([
+            "agents",
             "workspaces",
             "panels",
             "ai",
@@ -48,8 +49,9 @@ describe("library sections (FR-SHELL-088)", () => {
 
     it("walks the navigation with the arrows, round the ends", () => {
         expect(librarySectionAt("workspaces", 1)).toBe("panels");
-        expect(librarySectionAt("workspaces", -1)).toBe("settings");
-        expect(librarySectionAt("settings", 1)).toBe("workspaces");
+        expect(librarySectionAt("workspaces", -1)).toBe("agents");
+        expect(librarySectionAt("agents", -1)).toBe("settings");
+        expect(librarySectionAt("settings", 1)).toBe("agents");
     });
 
     it("explains each built-in panel kind in plain words, in both languages", () => {
