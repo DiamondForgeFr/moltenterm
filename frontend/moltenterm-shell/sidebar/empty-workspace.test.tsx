@@ -53,7 +53,8 @@ describe("EmptyWorkspaceState", () => {
 });
 
 describe("templateViewsText", () => {
-    const tr = (key: string) => ({ "workspaceViews.names.scoping": "Cadrage", "workspaceViews.names.pilotage": "Pilotage" })[key] ?? key;
+    const tr = (key: string) =>
+        ({ "workspaceViews.names.scoping": "Cadrage", "workspaceViews.names.pilotage": "Pilotage" })[key] ?? key;
     const views = [
         { namekey: "workspaceViews.names.scoping", panels: ["agent"] },
         { namekey: "workspaceViews.names.pilotage", panels: ["project"] },

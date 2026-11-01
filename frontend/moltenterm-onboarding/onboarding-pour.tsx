@@ -16,13 +16,14 @@ import {
     defaultAgentId,
     FirstViewPlan,
     firstViewPlan,
-    projectTarget,
     ProjectDraft,
     ProjectResult,
+    projectTarget,
     readyAgents,
     suggestedNameKey,
 } from "./onboarding-first-view-model";
 import { CliInstallStatus } from "./onboarding-install-model";
+import { headlineAgentNames, newlyReady, pourAgentCards } from "./onboarding-pour-agents";
 import {
     chipOf,
     FirstViewScene,
@@ -32,7 +33,6 @@ import {
     ReadyScene,
     viewParts,
 } from "./onboarding-pour-build";
-import { headlineAgentNames, newlyReady, pourAgentCards } from "./onboarding-pour-agents";
 import {
     heatStates,
     initialPourState,
@@ -48,8 +48,8 @@ import {
 } from "./onboarding-pour-model";
 import { AgentsScene, PourScene } from "./onboarding-pour-scenes";
 import { SparkField } from "./onboarding-pour-sparks";
-import { ProjectCandidate, WorkspaceColours } from "./onboarding-project-model";
 import "./onboarding-pour.css";
+import { ProjectCandidate, WorkspaceColours } from "./onboarding-project-model";
 
 const PourBurstDelayMs = 650;
 const NoProjectColour = WorkspaceColours[0];

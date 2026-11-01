@@ -65,7 +65,11 @@ type EmptyWorkspaceStateProps = {
 export function EmptyWorkspaceState({ viewsText, busy, error, onAddViews, onNewView }: EmptyWorkspaceStateProps) {
     const t = useT();
     const keys = formatShortcutById("new-tab");
-    const newView = { label: t("sidebar.emptyWorkspace.newView"), testId: "empty-workspace-new-view", onClick: onNewView };
+    const newView = {
+        label: t("sidebar.emptyWorkspace.newView"),
+        testId: "empty-workspace-new-view",
+        onClick: onNewView,
+    };
     const addViews = {
         label: t("sidebar.emptyWorkspace.addViews"),
         busy,
