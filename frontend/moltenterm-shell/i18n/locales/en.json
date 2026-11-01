@@ -9273,7 +9273,8 @@
             "noskills": "it cannot read MoltenTerm's guides",
             "notdetected": "MoltenTerm does not recognise it yet",
             "agentspecific": "another agent's own feature",
-            "modelunverified": "not checked with this model yet"
+            "modelunverified": "not checked with this model yet",
+            "provider": "the provider behind the agent does not offer it"
         }
     },
     "agentInfo": {

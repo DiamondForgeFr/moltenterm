@@ -1615,5 +1615,293 @@
                 }
             }
         }
+    ],
+    "providers": [
+        {
+            "agent": "claude",
+            "provider": "GLM",
+            "name": "Claude Code via GLM",
+            "features": {
+                "approvals": {
+                    "level": "native",
+                    "note": "PermissionRequest hook to molten agent permission",
+                    "adapter": "agentintegration.go, keepawake/approve.go"
+                },
+                "briefing": {
+                    "level": "native",
+                    "note": "--append-system-prompt-file",
+                    "adapter": "agentcontinuity/claude.go"
+                },
+                "browsermcp": {
+                    "level": "adapted",
+                    "note": "stdio server molten mcp browser added for the run with --mcp-config",
+                    "adapter": "mcpbrowser/agenttools.go, agentlaunch/claudemcp.go"
+                },
+                "busyclose": {
+                    "level": "native",
+                    "note": "the agent's state",
+                    "adapter": "FS/busy-close-model.ts"
+                },
+                "commands": {
+                    "level": "native",
+                    "note": "command table and permission modes",
+                    "adapter": "FS/command-panel/agent-commands.ts, termupdate/agentinputwatch.go"
+                },
+                "companion": {
+                    "level": "native",
+                    "note": "transcripts in ~/.claude/projects",
+                    "adapter": "companion/adapter.go, companion/roots.go"
+                },
+                "detect": {
+                    "level": "native",
+                    "note": "process name, versioned binary path",
+                    "adapter": "agentstate.go (AgentKinds), agentproc.go"
+                },
+                "effort": {
+                    "level": "adapted",
+                    "reason": "modelunverified",
+                    "note": "the models and effort levels offered are Anthropic's; the provider maps them to its own models",
+                    "adapter": "agentcontinuity/effort.go, agentstate.go (Provider)"
+                },
+                "filepanel": {
+                    "level": "adapted",
+                    "note": "molten files, known from the guides and the MCP instructions",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-files.go, filesearch"
+                },
+                "guides": {
+                    "level": "native",
+                    "note": "Claude skills (/morph)",
+                    "adapter": "agents.go, agentguides.go"
+                },
+                "handoff": {
+                    "level": "native",
+                    "note": "send through the MCP or molten agent send; the brief is typed into the receiver's terminal",
+                    "adapter": "agenthandoff/brief.go, agentnames/agentnames.go"
+                },
+                "hooksoffer": {
+                    "level": "native",
+                    "note": "snippet for ~/.claude/settings.json",
+                    "adapter": "agenthooks.go, attention/agenthookoffer.go"
+                },
+                "instructions": {
+                    "level": "adapted",
+                    "note": "carried by the MCP server's instructions; without the MCP the agent knows neither its first name nor to sign",
+                    "adapter": "mcpbrowser/agenttools.go (AgentInstructions)"
+                },
+                "launcher": {
+                    "level": "native",
+                    "note": "--settings and --mcp-config for the run",
+                    "adapter": "agentlaunch/claude.go, agentlaunch/claudemcp.go"
+                },
+                "materials": {
+                    "level": "adapted",
+                    "note": "molten material add, known from the MCP instructions",
+                    "adapter": "materials/guard.go"
+                },
+                "modparts": {
+                    "level": "native",
+                    "note": "CLAUDE_CODE_PLUGIN_DIRS, .claude-plugin",
+                    "adapter": "agentparts/agentparts.go"
+                },
+                "onboarding": {
+                    "level": "native",
+                    "note": "catalog entry from its guide profile",
+                    "adapter": "onboarding/agents.go"
+                },
+                "resume": {
+                    "level": "native",
+                    "note": "--resume \u003cid\u003e, --continue",
+                    "adapter": "agentcontinuity/claude.go, companion/resume.go"
+                },
+                "reviewsession": {
+                    "level": "native",
+                    "note": "--strict-mcp-config, --allowedTools mcp__molten-review, --disallowedTools",
+                    "adapter": "reviewsession/command.go, agentlaunch/review.go"
+                },
+                "runner": {
+                    "level": "native",
+                    "note": "claude -p",
+                    "adapter": "agentchoice/agentchoice.go"
+                },
+                "signature": {
+                    "level": "adapted",
+                    "note": "molten agent whoami --trailer and sign-pr, which the agent must remember; model and effort from the companion",
+                    "adapter": "agentsign/agentsign.go"
+                },
+                "state": {
+                    "level": "native",
+                    "note": "SessionStart, UserPromptSubmit, PostToolUse, Notification, Stop and Subagent hooks",
+                    "adapter": "agentintegration.go, agenthook/hook.go"
+                },
+                "statusline": {
+                    "level": "native",
+                    "note": "statusLine wrapped by molten agent statusline -- \u003ccmd\u003e",
+                    "adapter": "agentstatusline.go, agentlaunch/claude.go"
+                },
+                "termcopy": {
+                    "level": "native",
+                    "note": "margin glyphs, /copy",
+                    "adapter": "FS/term-copy/agent-copy-profiles.ts"
+                },
+                "turnnotify": {
+                    "level": "native",
+                    "note": "Stop and Notification hooks",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-agentnotify.go"
+                },
+                "usage": {
+                    "level": "none",
+                    "reason": "provider",
+                    "note": "Anthropic's plan gauges do not apply behind the provider and its own usage is not read: the gauges are hidden for the run"
+                },
+                "worktreename": {
+                    "level": "native",
+                    "note": "its own .claude/worktrees folder",
+                    "adapter": "agentstate.go (WorktreesDir), mission/upcoming_attribution.go"
+                }
+            }
+        },
+        {
+            "agent": "claude",
+            "provider": "MiniMax",
+            "name": "Claude Code via MiniMax",
+            "features": {
+                "approvals": {
+                    "level": "native",
+                    "note": "PermissionRequest hook to molten agent permission",
+                    "adapter": "agentintegration.go, keepawake/approve.go"
+                },
+                "briefing": {
+                    "level": "native",
+                    "note": "--append-system-prompt-file",
+                    "adapter": "agentcontinuity/claude.go"
+                },
+                "browsermcp": {
+                    "level": "adapted",
+                    "note": "stdio server molten mcp browser added for the run with --mcp-config",
+                    "adapter": "mcpbrowser/agenttools.go, agentlaunch/claudemcp.go"
+                },
+                "busyclose": {
+                    "level": "native",
+                    "note": "the agent's state",
+                    "adapter": "FS/busy-close-model.ts"
+                },
+                "commands": {
+                    "level": "native",
+                    "note": "command table and permission modes",
+                    "adapter": "FS/command-panel/agent-commands.ts, termupdate/agentinputwatch.go"
+                },
+                "companion": {
+                    "level": "native",
+                    "note": "transcripts in ~/.claude/projects",
+                    "adapter": "companion/adapter.go, companion/roots.go"
+                },
+                "detect": {
+                    "level": "native",
+                    "note": "process name, versioned binary path",
+                    "adapter": "agentstate.go (AgentKinds), agentproc.go"
+                },
+                "effort": {
+                    "level": "adapted",
+                    "reason": "modelunverified",
+                    "note": "the models and effort levels offered are Anthropic's; the provider maps them to its own models",
+                    "adapter": "agentcontinuity/effort.go, agentstate.go (Provider)"
+                },
+                "filepanel": {
+                    "level": "adapted",
+                    "note": "molten files, known from the guides and the MCP instructions",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-files.go, filesearch"
+                },
+                "guides": {
+                    "level": "native",
+                    "note": "Claude skills (/morph)",
+                    "adapter": "agents.go, agentguides.go"
+                },
+                "handoff": {
+                    "level": "native",
+                    "note": "send through the MCP or molten agent send; the brief is typed into the receiver's terminal",
+                    "adapter": "agenthandoff/brief.go, agentnames/agentnames.go"
+                },
+                "hooksoffer": {
+                    "level": "native",
+                    "note": "snippet for ~/.claude/settings.json",
+                    "adapter": "agenthooks.go, attention/agenthookoffer.go"
+                },
+                "instructions": {
+                    "level": "adapted",
+                    "note": "carried by the MCP server's instructions; without the MCP the agent knows neither its first name nor to sign",
+                    "adapter": "mcpbrowser/agenttools.go (AgentInstructions)"
+                },
+                "launcher": {
+                    "level": "native",
+                    "note": "--settings and --mcp-config for the run",
+                    "adapter": "agentlaunch/claude.go, agentlaunch/claudemcp.go"
+                },
+                "materials": {
+                    "level": "adapted",
+                    "note": "molten material add, known from the MCP instructions",
+                    "adapter": "materials/guard.go"
+                },
+                "modparts": {
+                    "level": "native",
+                    "note": "CLAUDE_CODE_PLUGIN_DIRS, .claude-plugin",
+                    "adapter": "agentparts/agentparts.go"
+                },
+                "onboarding": {
+                    "level": "native",
+                    "note": "catalog entry from its guide profile",
+                    "adapter": "onboarding/agents.go"
+                },
+                "resume": {
+                    "level": "native",
+                    "note": "--resume \u003cid\u003e, --continue",
+                    "adapter": "agentcontinuity/claude.go, companion/resume.go"
+                },
+                "reviewsession": {
+                    "level": "native",
+                    "note": "--strict-mcp-config, --allowedTools mcp__molten-review, --disallowedTools",
+                    "adapter": "reviewsession/command.go, agentlaunch/review.go"
+                },
+                "runner": {
+                    "level": "native",
+                    "note": "claude -p",
+                    "adapter": "agentchoice/agentchoice.go"
+                },
+                "signature": {
+                    "level": "adapted",
+                    "note": "molten agent whoami --trailer and sign-pr, which the agent must remember; model and effort from the companion",
+                    "adapter": "agentsign/agentsign.go"
+                },
+                "state": {
+                    "level": "native",
+                    "note": "SessionStart, UserPromptSubmit, PostToolUse, Notification, Stop and Subagent hooks",
+                    "adapter": "agentintegration.go, agenthook/hook.go"
+                },
+                "statusline": {
+                    "level": "native",
+                    "note": "statusLine wrapped by molten agent statusline -- \u003ccmd\u003e",
+                    "adapter": "agentstatusline.go, agentlaunch/claude.go"
+                },
+                "termcopy": {
+                    "level": "native",
+                    "note": "margin glyphs, /copy",
+                    "adapter": "FS/term-copy/agent-copy-profiles.ts"
+                },
+                "turnnotify": {
+                    "level": "native",
+                    "note": "Stop and Notification hooks",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-agentnotify.go"
+                },
+                "usage": {
+                    "level": "none",
+                    "reason": "provider",
+                    "note": "Anthropic's plan gauges do not apply behind the provider and its own usage is not read: the gauges are hidden for the run"
+                },
+                "worktreename": {
+                    "level": "native",
+                    "note": "its own .claude/worktrees folder",
+                    "adapter": "agentstate.go (WorktreesDir), mission/upcoming_attribution.go"
+                }
+            }
+        }
     ]
 }
