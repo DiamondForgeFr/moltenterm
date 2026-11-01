@@ -9029,7 +9029,8 @@
             "installUnsupported": "Installer {agent} depuis MoltenTerm n'est pas encore possible sur ce système : copiez la commande ci-dessous.",
             "installNotRun": "La commande n'a pas pu s'exécuter : {detail}",
             "noUninstallCommand": "MoltenTerm n'a pas de désinstallation documentée pour cette copie de {agent}.",
-            "uninstallUnsupported": "Désinstaller {agent} depuis MoltenTerm n'est pas encore possible sur ce système : suivez les instructions de l'éditeur."
+            "uninstallUnsupported": "Désinstaller {agent} depuis MoltenTerm n'est pas encore possible sur ce système : suivez les instructions de l'éditeur.",
+            "trashFailed": "{path} n'a pas pu être mis à la corbeille ({detail}) : MoltenTerm s'est arrêté là et a laissé le reste tel quel."
         }
     },
     "assistedReview": {
@@ -10032,8 +10033,8 @@
                 "confirmCommand": "MoltenTerm lance cette commande officielle :",
                 "confirmRemoves": "Elle enlève :",
                 "keeps": "Vos réglages et votre connexion restent sur cet ordinateur.",
-                "removeConfig": "Supprimer aussi mes réglages et ma connexion {name}",
-                "removeConfigWarn": "Ces dossiers gardent vos réglages, votre historique et votre connexion : ils ne pourront pas être récupérés.",
+                "removeConfig": "Mettre aussi à la corbeille mes réglages et ma connexion {name}",
+                "removeConfigWarn": "Ils vont à la corbeille : vous pouvez les y reprendre tant que vous ne la videz pas.",
                 "confirm": "Désinstaller",
                 "running": "Désinstallation de {name}…",
                 "done": "{name} est désinstallé. Réinstallez-le ici quand vous voulez.",
@@ -10051,7 +10052,16 @@
                     "uv": "uv",
                     "script": "son script d'installation",
                     "test": "un désinstallateur de test"
-                }
+                },
+                "holdsIntro": "Ces dossiers gardent {what}.",
+                "holds": {
+                    "claude-code": "vos réglages, votre connexion, l'historique de vos conversations, les mémoires de vos projets, et les plugins et skills que vous avez installés",
+                    "qwen-code": "vos réglages, avec les fournisseurs de modèles et les clés d'API qui y sont enregistrés",
+                    "kimi": "vos réglages, votre connexion, vos sessions et journaux, et les skills et plugins que vous avez installés",
+                    "other": "vos réglages et votre connexion"
+                },
+                "confirmTrash": "Mis à la corbeille :",
+                "trashed": "Mis à la corbeille : {paths}. Reprenez-les dans la corbeille si vous en avez besoin."
             },
             "helpChooseTitle": "Trois questions pour trouver les agents qui vous vont",
             "choose": {

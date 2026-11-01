@@ -68,6 +68,8 @@ export type AgentUninstall = {
     // the user's own settings and sign-in folders the vendor says to delete for a full removal; never removed unticked
     config?: string[];
     configsource?: string;
+    // the i18n key saying in plain words what those folders hold
+    configholdskey?: string;
     available?: boolean;
 };
 

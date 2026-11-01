@@ -26,6 +26,7 @@ import {
     ChooseGoals,
     ChooseNone,
     ChooseSubscriptions,
+    configHoldsKey,
     hasProfile,
     installStatus,
     isStale,
@@ -406,9 +407,9 @@ function InstallBlock({ card, job }: { card: PourAgentCard; job: CliInstallStatu
     );
 }
 
-function RemovesList({ paths }: { paths: string[] }) {
+function RemovesList({ paths, testId }: { paths: string[]; testId: string }) {
     return (
-        <ul className="mt-lib-aglist font-mono text-11" data-testid="library-agent-uninstall-removes">
+        <ul className="mt-lib-aglist font-mono text-11" data-testid={testId}>
             {paths.map((p) => (
                 <li key={p}>{p}</li>
             ))}
@@ -442,7 +443,27 @@ function ManualUninstall({ agent }: { agent: OnboardingAgent }) {
     );
 }
 
-function UninstallConfirm({
+// What the uninstall did with the ticked settings folders: moved to the trash, or where it stopped.
+export function TrashReport({ job }: { job: CliInstallStatus }) {
+    const t = useT();
+    if (!job?.trashed?.length && !job?.trashfailed) {
+        return null;
+    }
+    return (
+        <div className="flex flex-col gap-1" data-testid="library-agent-trash-report">
+            {job.trashed?.length ? (
+                <p>{t("library.agents.uninstall.trashed", { paths: job.trashed.join(", ") })}</p>
+            ) : null}
+            {job.trashfailed ? (
+                <p className="mt-lib-agwarn">{serverText(job.trasherrortext, job.trashfailed)}</p>
+            ) : null}
+        </div>
+    );
+}
+
+// The confirmation opens unticked every time (the block mounts it anew): moving the settings to the trash is asked
+// each time, never remembered.
+export function UninstallConfirm({
     card,
     uninstall,
     onCancel,
@@ -454,15 +475,22 @@ function UninstallConfirm({
     const t = useT();
     const [removeConfig, setRemoveConfig] = useState(false);
     const model = LibraryAgentsModel.getInstance();
+    const removes = uninstallRemoves(uninstall, removeConfig);
     return (
         <div className="mt-lib-ask" role="group" data-lib-escape="" data-testid="library-agent-uninstall-confirm">
             <b className="text-primary">{t("library.agents.uninstall.confirmTitle", { name: card.name })}</b>
             <span className="text-11 text-secondary">{t("library.agents.uninstall.confirmCommand")}</span>
             <CopyLine text={uninstall.command} testId="library-agent-uninstall-command" />
-            {uninstall.removes?.length ? (
+            {removes.files.length ? (
                 <>
                     <span className="text-11 text-secondary">{t("library.agents.uninstall.confirmRemoves")}</span>
-                    <RemovesList paths={uninstallRemoves(uninstall, removeConfig)} />
+                    <RemovesList paths={removes.files} testId="library-agent-uninstall-removes" />
+                </>
+            ) : null}
+            {removes.trash.length ? (
+                <>
+                    <span className="text-11 text-secondary">{t("library.agents.uninstall.confirmTrash")}</span>
+                    <RemovesList paths={removes.trash} testId="library-agent-uninstall-trash" />
                 </>
             ) : null}
             {canRemoveConfig(uninstall) ? (
@@ -476,7 +504,8 @@ function UninstallConfirm({
                     />
                     <span>
                         {t("library.agents.uninstall.removeConfig", { name: card.name })}
-                        <span className="block text-11 text-secondary">
+                        <span className="block text-11 text-secondary" data-testid="library-agent-uninstall-holds">
+                            {t("library.agents.uninstall.holdsIntro", { what: t(configHoldsKey(uninstall)) })}{" "}
                             {t(
                                 removeConfig
                                     ? "library.agents.uninstall.removeConfigWarn"
@@ -584,6 +613,7 @@ function UninstallBlock({ card, agent, job }: { card: PourAgentCard; agent: Onbo
     return (
         <Block title={t("library.agents.sections.uninstall")} testId="library-agent-uninstall">
             {body}
+            <TrashReport job={job} />
         </Block>
     );
 }

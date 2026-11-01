@@ -35,6 +35,10 @@ export type CliInstallStatus = {
     errortext?: ServerText;
     // the installer printed a question and waits for an answer
     waiting?: boolean;
+    // an uninstall's ticked settings folders moved to the trash, and the one that could not move (#1699)
+    trashed?: string[];
+    trashfailed?: string;
+    trasherrortext?: ServerText;
 };
 
 // What the card shows: the install running, done and found (Ready), or one of the ways it did not work.

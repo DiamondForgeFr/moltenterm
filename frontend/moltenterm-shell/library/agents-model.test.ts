@@ -6,6 +6,7 @@ import type { AgentFacts, OnboardingAgent, OnboardingAgents } from "../../molten
 import {
     agentStatusKind,
     chooseAgents,
+    configHoldsKey,
     installStatus,
     isStale,
     libraryAgents,
@@ -109,8 +110,12 @@ describe("library agents", () => {
 
     it("names the settings folders only when ticked", () => {
         const u = { method: "native", command: "rm", removes: ["~/.local/bin/claude"], config: ["~/.claude"] };
-        expect(uninstallRemoves(u, false)).toEqual(["~/.local/bin/claude"]);
-        expect(uninstallRemoves(u, true)).toEqual(["~/.local/bin/claude", "~/.claude"]);
+        expect(uninstallRemoves(u, false)).toEqual({ files: ["~/.local/bin/claude"], trash: [] });
+        expect(uninstallRemoves(u, true)).toEqual({ files: ["~/.local/bin/claude"], trash: ["~/.claude"] });
+        expect(configHoldsKey(u)).toBe("library.agents.uninstall.holds.other");
+        expect(configHoldsKey({ ...u, configholdskey: "library.agents.uninstall.holds.claude-code" })).toBe(
+            "library.agents.uninstall.holds.claude-code"
+        );
     });
 
     it("tells an uninstall from an install, and a copy still there after the command", () => {

@@ -20,7 +20,7 @@ import (
 // Uninstall. Uninstall runs only the vendor's documented command for the way the copy found was installed, recognised
 // from where its executable lives, through the install's job (clinstall.go): the window sends the agent's id and a
 // tick, never a command, and the first-run route answers windows only. The user's own settings and sign-in folders go
-// only when ticked, and only where the vendor documents deleting them.
+// only when ticked, only where the vendor documents deleting them, and to the system trash (trash.go), never deleted.
 
 // must match frontend/moltenterm-onboarding/onboarding-install-model.ts
 const CliUninstallCommand = "onboardingcliuninstall"
@@ -58,6 +58,8 @@ type agentRemoval struct {
 	// The settings and sign-in folders the vendor says to delete for a full removal: never touched unticked.
 	Config       []string
 	ConfigSource string
+	// the i18n key saying in plain words what those folders hold
+	ConfigHolds string
 }
 
 // Checked on 2026-11-01 (#1697's research, the vendors' pages and install scripts): only Claude Code, Gemini CLI,
@@ -82,6 +84,7 @@ var agentRemovalCatalog = map[string]agentRemoval{
 		},
 		Config:       []string{"~/.claude", "~/.claude.json"},
 		ConfigSource: "https://code.claude.com/docs/en/setup#uninstall-claude-code",
+		ConfigHolds:  "library.agents.uninstall.holds.claude-code",
 	},
 	"qwen-code": {
 		Methods: []uninstallMethod{
@@ -97,6 +100,7 @@ var agentRemovalCatalog = map[string]agentRemoval{
 		// The uninstaller keeps ~/.qwen; the page says to delete it by hand for a full removal.
 		Config:       []string{"~/.qwen"},
 		ConfigSource: "https://qwenlm.github.io/qwen-code-docs/en/users/support/Uninstall/",
+		ConfigHolds:  "library.agents.uninstall.holds.qwen-code",
 	},
 	"kimi": {
 		Methods: []uninstallMethod{
@@ -110,6 +114,7 @@ var agentRemovalCatalog = map[string]agentRemoval{
 		},
 		Config:       []string{"~/.kimi-code"},
 		ConfigSource: "https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/data-locations.html",
+		ConfigHolds:  "library.agents.uninstall.holds.kimi",
 	},
 	"codex": {
 		Methods: []uninstallMethod{
@@ -146,14 +151,15 @@ var agentRemovalCatalog = map[string]agentRemoval{
 // AgentUninstall is one way out, as the page shows it; Available only for the method that matches the copy found
 // and has a documented command.
 type AgentUninstall struct {
-	Method       string   `json:"method"`
-	Command      string   `json:"command,omitempty"`
-	Documented   bool     `json:"documented,omitempty"`
-	Removes      []string `json:"removes,omitempty"`
-	Source       string   `json:"source,omitempty"`
-	Config       []string `json:"config,omitempty"`
-	ConfigSource string   `json:"configsource,omitempty"`
-	Available    bool     `json:"available,omitempty"`
+	Method         string   `json:"method"`
+	Command        string   `json:"command,omitempty"`
+	Documented     bool     `json:"documented,omitempty"`
+	Removes        []string `json:"removes,omitempty"`
+	Source         string   `json:"source,omitempty"`
+	Config         []string `json:"config,omitempty"`
+	ConfigSource   string   `json:"configsource,omitempty"`
+	ConfigHoldsKey string   `json:"configholdskey,omitempty"`
+	Available      bool     `json:"available,omitempty"`
 }
 
 type cliUninstallRequest struct {
@@ -209,6 +215,7 @@ func (r agentRemoval) view(m uninstallMethod) AgentUninstall {
 	if m.Documented {
 		rtn.Config = r.Config
 		rtn.ConfigSource = r.ConfigSource
+		rtn.ConfigHoldsKey = r.ConfigHolds
 	}
 	return rtn
 }
@@ -232,12 +239,13 @@ func matchUninstall(id string, home string, foundPath string) (AgentUninstall, b
 	}
 	if script := testUninstallScript(id); script != "" {
 		return AgentUninstall{
-			Method:     UninstallTest,
-			Command:    "sh " + shellQuote(script),
-			Documented: true,
-			Removes:    []string{foundPath},
-			Config:     agentRemovalCatalog[id].Config,
-			Available:  true,
+			Method:         UninstallTest,
+			Command:        "sh " + shellQuote(script),
+			Documented:     true,
+			Removes:        []string{foundPath},
+			Config:         agentRemovalCatalog[id].Config,
+			ConfigHoldsKey: agentRemovalCatalog[id].ConfigHolds,
+			Available:      true,
 		}, true
 	}
 	resolved, err := filepath.EvalSymlinks(foundPath)
@@ -266,23 +274,18 @@ func uninstallMethods(id string) []AgentUninstall {
 	return rtn
 }
 
-// uninstallCommandLine is what runs: the method's command, then, ticked, the removal of the vendor's documented
-// settings folders, only once the command succeeded.
-func uninstallCommandLine(id string, u AgentUninstall, home string, removeConfig bool) string {
-	if u.Method == UninstallTest {
-		if removeConfig {
-			return u.Command + " --config"
-		}
-		return u.Command
-	}
+// configTrash is what runs once the command succeeded when the settings folders are ticked: they go to the system
+// trash, never deleted. A fake uninstaller's settings live in its own folder's home, never the developer's.
+func configTrash(u AgentUninstall, home string, removeConfig bool) func() ([]string, *trashFailure) {
 	if !removeConfig || len(u.Config) == 0 {
-		return u.Command
+		return nil
 	}
-	var paths []string
-	for _, p := range u.Config {
-		paths = append(paths, shellQuote(homePath(home, p)))
+	if u.Method == UninstallTest {
+		home = filepath.Join(os.Getenv(TestUninstallDirEnv), "home")
 	}
-	return u.Command + " && rm -rf " + strings.Join(paths, " ")
+	return func() ([]string, *trashFailure) {
+		return trashAll(home, u.Config)
+	}
 }
 
 // StartCliUninstall finds the agent's copy again on the login PATH and runs its method's documented command. The
@@ -309,7 +312,7 @@ func StartCliUninstall(id string, removeConfig bool) (CliInstallStatus, error) {
 		return CliInstallStatus{}, uimsg.Errorf(uimsg.Make("onboarding.noUninstallCommand", "agent", profile.Name),
 			"MoltenTerm has no documented uninstall for this copy of %s", profile.Name)
 	}
-	return startCliJob(profile.Id, CliJobUninstall, uninstallCommandLine(profile.Id, u, home, removeConfig))
+	return startCliJob(profile.Id, CliJobUninstall, u.Command, configTrash(u, home, removeConfig))
 }
 
 func handleCliUninstall(ctx context.Context, source string, data any) (any, error) {
