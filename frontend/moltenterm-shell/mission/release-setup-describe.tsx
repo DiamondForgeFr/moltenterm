@@ -9,6 +9,7 @@
 import { cn } from "@/util/util";
 import { ReactNode } from "react";
 import { useT } from "../i18n/i18n";
+import { DominoLoader } from "../suite/suite";
 import {
     branchChoices,
     describeDefaults,
@@ -195,11 +196,16 @@ export function DescribeStep({
                         onSelect={() => startModel(chosenModel)}
                         label={t("mc.setup.describe.model")}
                         sub={
-                            models == null
-                                ? t("mc.setup.describe.modelsReading")
-                                : models.length === 0
-                                  ? t("mc.setup.describe.noModels")
-                                  : t("mc.setup.describe.modelSub")
+                            models == null ? (
+                                <>
+                                    <DominoLoader className="mr-1" />
+                                    {t("mc.setup.describe.modelsReading")}
+                                </>
+                            ) : models.length === 0 ? (
+                                t("mc.setup.describe.noModels")
+                            ) : (
+                                t("mc.setup.describe.modelSub")
+                            )
                         }
                         testId="setup-from-model"
                     />

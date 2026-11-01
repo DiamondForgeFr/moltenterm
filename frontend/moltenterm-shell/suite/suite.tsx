@@ -169,9 +169,20 @@ function snapDomino(bar: Element) {
     }
 }
 
+// Waiting = domino (DS-UI-WAIT, #1714): every place the user waits for an action or an agent works shows this loader,
+// sized for its place. "inline" sits in a button, a line of text or a panel header, in the text colour; "card" is the
+// accent chain at half size, for a card, a row or a section that waits; "large" is the accent chain of a panel's first
+// draw (LoadingState). A determinate progress bar is the only other waiting sign, for work that knows its share done.
+export type DominoSize = "inline" | "card" | "large";
+
+const DominoSizeClass: Record<DominoSize, string> = {
+    inline: "df-domino-loader",
+    card: "df-dominos df-dominos-card",
+    large: "df-dominos",
+};
+
 export type DominoLoaderProps = {
-    // "inline" fits a button or a line of text in the text colour; "large" is the accent chain of a loading state.
-    size?: "inline" | "large";
+    size?: DominoSize;
     // Names what works when the loader stands alone (a status); without it the loader is hidden from assistive tech,
     // because a text next to it already says it.
     label?: string;
@@ -184,7 +195,7 @@ export type DominoLoaderProps = {
 export function DominoLoader({ size = "inline", label, className }: DominoLoaderProps) {
     return (
         <span
-            className={joinClasses(size === "large" ? "df-dominos" : "df-domino-loader", className)}
+            className={joinClasses(DominoSizeClass[size] ?? DominoSizeClass.inline, className)}
             role={label ? "status" : undefined}
             aria-label={label || undefined}
             aria-hidden={label ? undefined : true}

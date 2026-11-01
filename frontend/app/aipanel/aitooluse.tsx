@@ -3,11 +3,11 @@
 // MOLTENTERM-PATCH (#1339): Tailwind greys replaced by the Coulée surface, line and text tokens.
 
 import { BlockModel } from "@/app/block/block-model";
-import { Modal } from "@/app/modals/modal";
 import { recordTEvent } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useRef, useState } from "react";
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 import { WaveUIMessagePart } from "./aitypes";
 import { RestoreBackupModal } from "./restorebackupmodal";
 import { WaveAIModel } from "./waveai-model";
@@ -120,11 +120,7 @@ interface AIToolUseBatchItemProps {
 const AIToolUseBatchItem = memo(({ part, effectiveApproval }: AIToolUseBatchItemProps) => {
     const statusIcon = part.data.status === "completed" ? "✓" : part.data.status === "error" ? "✗" : "•";
     const statusColor =
-        part.data.status === "completed"
-            ? "text-success"
-            : part.data.status === "error"
-              ? "text-error"
-              : "text-muted";
+        part.data.status === "completed" ? "text-success" : part.data.status === "error" ? "text-error" : "text-muted";
     const effectiveErrorMessage = part.data.errormessage || (effectiveApproval === "timeout" ? "Not approved" : null);
 
     return (
@@ -330,7 +326,8 @@ const AIToolProgress = memo(({ part }: AIToolProgressProps) => {
     return (
         <div className="flex flex-col gap-1 p-2 rounded bg-surface-2/60 border border-line">
             <div className="flex items-center gap-2">
-                <i className="fa fa-spinner fa-spin text-muted"></i>
+                {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                <DominoLoader className="text-muted" />
                 <div className="font-semibold">{progressData.toolname}</div>
             </div>
             {progressData.statuslines && progressData.statuslines.length > 0 && (

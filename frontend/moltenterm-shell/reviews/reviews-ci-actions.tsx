@@ -11,6 +11,7 @@ import { useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { phrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { checkNames, checksOf, ReviewPr } from "./reviews-model";
 import { ReviewsModel } from "./reviews-store";
 
@@ -99,6 +100,7 @@ export function RerunConfirm({ pr, state }: { pr: ReviewPr; state: RerunState })
                     className="molten-btn flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12"
                     data-testid="reviews-rerun-yes"
                 >
+                    {state.phase === "sending" ? <DominoLoader /> : null}
                     {state.phase === "sending" ? t("reviews.ci.rerun.sending") : t("reviews.ci.rerun.confirmButton")}
                     <MoltenWave />
                 </button>

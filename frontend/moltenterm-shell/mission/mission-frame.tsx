@@ -194,9 +194,11 @@ export function MissionHeader({
                     onClick={onRefresh}
                     className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
                 >
-                    <i
-                        className={cn("fa fa-solid fa-rotate text-11", snapshot?.refreshing && "fa-spin mt-step-spin")}
-                    />
+                    {snapshot?.refreshing ? (
+                        <DominoLoader className="mt-dominos-icon" />
+                    ) : (
+                        <i className="fa fa-solid fa-rotate text-11" />
+                    )}
                 </button>
             </div>
         </div>

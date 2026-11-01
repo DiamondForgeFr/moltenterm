@@ -154,7 +154,7 @@ describe("pending page (#450)", () => {
         const loading = makePendingPageHtml({ phase: "loading", workspaceName: "<b>A</b>" });
         expect(loading).not.toContain("<script");
         expect(loading).toContain("&#60;b&#62;A&#60;/b&#62;");
-        expect(loading).toContain('class="line"');
+        expect(loading).toContain('class="dominos"');
         expect(loading).not.toContain("Reload");
         const failed = makePendingPageHtml({ phase: "failed", workspaceName: "A" });
         expect(failed).toContain('href="moltenterm-pending://reload"');
@@ -166,7 +166,7 @@ describe("pending page (#450)", () => {
         expect(stopped).toContain("The window stopped several times");
         expect(stopped).toContain("Your sessions keep running.");
         expect(stopped).toContain('href="moltenterm-pending://reload"');
-        expect(stopped).not.toContain('class="line"');
+        expect(stopped).not.toContain('class="dominos"');
     });
 
     it("reads in the interface language and never names the machine (#665)", () => {

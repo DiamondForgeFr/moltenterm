@@ -214,7 +214,12 @@ function TicketPicker({
                     </option>
                 ))}
             </select>
-            {tickets == null ? <span className="text-11 text-muted">{t("mc.setup.pr.ticketsLoading")}</span> : null}
+            {tickets == null ? (
+                <span className="text-11 text-muted">
+                    <DominoLoader className="mr-1" />
+                    {t("mc.setup.pr.ticketsLoading")}
+                </span>
+            ) : null}
             {error ? <span className="text-11 text-warning">{error}</span> : null}
             {choice.ticket > 0 ? null : (
                 <input
@@ -367,7 +372,10 @@ function IgnoredNote({ ignored }: { ignored: SetupPrIgnored[] }) {
         return null;
     }
     return (
-        <div className="flex flex-col gap-1 rounded-4 border border-border px-3 py-2 text-12" data-testid="setup-pr-ignored">
+        <div
+            className="flex flex-col gap-1 rounded-4 border border-border px-3 py-2 text-12"
+            data-testid="setup-pr-ignored"
+        >
             {ignored.map((rule) => (
                 <p key={rule.source + "\u0000" + rule.pattern} className="text-secondary">
                     {t(rule.shared ? "mc.setup.pr.ignored.shared" : "mc.setup.pr.ignored.local", {

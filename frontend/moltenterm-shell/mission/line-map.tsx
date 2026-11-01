@@ -21,6 +21,7 @@ import { AgentStates } from "../agent-state-store";
 import { t as translate, useLocale, useT } from "../i18n/i18n";
 import { openWebLink } from "../open-web-link";
 import { ciVerdictView } from "../status-bar-model";
+import { DominoLoader } from "../suite/suite";
 import { filterBranches } from "../widget-options";
 import { CiBranch } from "./ci-model";
 import { releaseNotesText } from "./github";
@@ -639,7 +640,12 @@ function Detail({
                     </div>
                     {model.earlier.slice(0, EarlierListed).map((s) => (
                         <div key={s.name} className="flex items-baseline gap-2">
-                            <span className={cn("font-medium", s.kind === "public" ? "text-[var(--mt-chart-1)]" : "text-primary")}>
+                            <span
+                                className={cn(
+                                    "font-medium",
+                                    s.kind === "public" ? "text-[var(--mt-chart-1)]" : "text-primary"
+                                )}
+                            >
                                 {s.name}
                             </span>
                             <span className="text-muted">{formatDay(s.at)}</span>
@@ -1194,10 +1200,12 @@ export function LineMap({
                     </div>
                 ) : (
                     <div
-                        className={cn("w-full mt-step-blink bg-hover/40", full && "h-full")}
+                        className={cn("flex w-full items-center justify-center", full && "h-full")}
                         style={full ? undefined : { height: OverviewHeight }}
                         aria-busy="true"
-                    />
+                    >
+                        <DominoLoader size="card" />
+                    </div>
                 )}
             </div>
             {hover && model ? (

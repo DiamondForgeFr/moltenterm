@@ -13,6 +13,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { labelled, useT } from "./i18n/i18n";
 import { InlineCodeText, plainInlineText } from "./inline-code";
+import { DominoLoader } from "./suite/suite";
 import { bellOrder, Toast, ToastDismissMs, ToastStackPlace, toastStackPlace, ToastText, toneOf } from "./toast-model";
 import { Toasts } from "./toast-store";
 import "./toast.css";
@@ -189,6 +190,7 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
                                 onClick={() => run(action.id, action.run)}
                                 className={i === 0 ? FirstActionClass : OtherActionClass}
                             >
+                                {running === action.id ? <DominoLoader className="mr-1.5" /> : null}
                                 {running === action.id
                                     ? t("notif.center.running")
                                     : ((shown as ToastText).actionLabels?.[action.id] ?? action.label)}

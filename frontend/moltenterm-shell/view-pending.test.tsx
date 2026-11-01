@@ -54,7 +54,7 @@ describe("pending state (FR-PERF-004, DS-PERF-005)", () => {
         expect(html).toContain("absolute inset-0");
         expect(html).toContain("bg-background");
         expect(html).toMatch(/font-semibold[^"]*"[^>]*>Client A</);
-        expect(html).toContain("molten-view-pending-line");
+        expect(html).toContain("df-dominos");
         expect(html).toContain('role="status"');
         expect(html).toContain("Opening…");
         expect(html).not.toContain("Reload");
@@ -74,7 +74,7 @@ describe("pending state (FR-PERF-004, DS-PERF-005)", () => {
         expect(html).toContain('data-testid="view-pending-reload"');
         expect(html).toContain("molten-btn");
         expect(html).toContain('data-testid="view-pending-dismiss"');
-        expect(html).not.toContain("molten-view-pending-line");
+        expect(html).not.toContain("df-dominos");
     });
 
     it("Reload and Dismiss go to the main process; Dismiss also hides it at once", () => {
@@ -97,7 +97,7 @@ describe("pending state (FR-PERF-004, DS-PERF-005)", () => {
 
     it("the surface without a name (a tab view's own pending state) keeps the line", () => {
         const html = renderToStaticMarkup(<PendingSurface phase="loading" />);
-        expect(html).toContain("molten-view-pending-line");
+        expect(html).toContain("df-dominos");
         expect(html).not.toContain("font-semibold");
     });
 });

@@ -24,6 +24,7 @@ import { MissionSnapshot } from "../mission/mission-model";
 import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
 import { readProjects } from "../sidebar/workspace-projects";
+import { DominoLoader } from "../suite/suite";
 import { useCardContext } from "./reviews-agent-bar";
 import { ReviewsAskQueue } from "./reviews-ask-queue";
 import { BatchBanner, BatchConfirmDialog, BatchPointer } from "./reviews-batch";
@@ -276,13 +277,12 @@ function ReviewsBody({
 
 function Loading() {
     return (
-        <div className="flex flex-col gap-3 p-3" aria-busy="true" data-testid="reviews-loading">
-            {[0, 1, 2].map((i) => (
-                <div key={i} className="flex flex-col gap-1.5">
-                    <div className="h-4 w-3/4 mt-step-blink rounded-4 bg-hover" />
-                    <div className="h-3 w-1/2 mt-step-blink rounded-4 bg-hover" />
-                </div>
-            ))}
+        <div
+            className="flex min-h-[138px] items-center justify-center p-3"
+            aria-busy="true"
+            data-testid="reviews-loading"
+        >
+            <DominoLoader size="card" />
         </div>
     );
 }

@@ -7,6 +7,7 @@ import { atoms } from "@/store/global";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useState } from "react";
 import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 const NotRunningView = memo(() => {
     return (
@@ -49,7 +50,8 @@ const LoadingView = memo(() => {
     return (
         <div className="w-full h-full flex items-center justify-center bg-background">
             <div className="flex flex-col items-center gap-6">
-                <i className="fa fa-spinner fa-spin text-6xl text-secondary" />
+                {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                <DominoLoader size="large" />
                 <p className="text-base text-secondary">Loading data...</p>
             </div>
         </div>

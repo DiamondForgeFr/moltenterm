@@ -5,6 +5,7 @@
 // and Clean branches are calm bordered secondaries of the same size, and an action under way reads as running.
 
 import { cn } from "@/util/util";
+import { DominoLoader } from "../suite/suite";
 
 export const ActionPrimaryClass =
     "molten-btn flex cursor-pointer items-center gap-2 rounded-6 px-3 py-1.5 text-12 font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-50";
@@ -15,13 +16,8 @@ export const ActionSecondaryClass =
 export const ActionRunningClass =
     "flex cursor-pointer items-center gap-2 rounded-6 border border-accent/50 px-3 py-1.5 text-12 whitespace-nowrap text-primary transition-colors duration-120 ease-mt hover:bg-hover";
 
-// The pulsing dot of an action under way, in steps (mt-step-ping in moltenterm-shell.css); still under reduced motion
-// (the media query and MoltenTerm's setting).
+// The sign of an action under way: the inline dominoes in the accent (DS-SHELL-154, #1714; it was a pulsing dot). They
+// stand still under reduced motion (the media query and MoltenTerm's setting).
 export function RunningDot({ className }: { className?: string }) {
-    return (
-        <span className={cn("relative flex h-1.5 w-1.5 text-accent", className)} aria-hidden>
-            <span className="mt-step-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-0" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
-        </span>
-    );
+    return <DominoLoader className={cn("text-accent", className)} />;
 }

@@ -31,7 +31,7 @@ export function Option({
     selected: boolean;
     onSelect: () => void;
     label: string;
-    sub?: string;
+    sub?: React.ReactNode;
     tag?: string;
     testId?: string;
 }) {

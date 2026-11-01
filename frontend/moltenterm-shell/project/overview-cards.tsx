@@ -33,6 +33,7 @@ import { usePaneStatus } from "../pane-status";
 import { useBatchRun } from "../reviews/reviews-batch-client";
 import { formatShortcutById } from "../shortcuts/format";
 import { blockFolder, makePaneView } from "../status-bar-model";
+import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
 import { useWorkingBeat } from "../working-beat";
 import {
@@ -102,18 +103,12 @@ function useNow(active: boolean): number {
     return now;
 }
 
+// What runs shows the dominoes at icon size (DS-SHELL-154); the other tones keep their dot.
 function Dot({ tone, className }: { tone: CardTone; className?: string }) {
-    return (
-        <span
-            className={cn(
-                "inline-block h-2 w-2 shrink-0 rounded-full",
-                ToneDot[tone],
-                tone === "running" && "mt-step-blink",
-                className
-            )}
-            aria-hidden
-        />
-    );
+    if (tone === "running") {
+        return <DominoLoader className={cn("mt-dominos-icon text-[var(--mt-state-working)]", className)} />;
+    }
+    return <span className={cn("inline-block h-2 w-2 shrink-0 rounded-full", ToneDot[tone], className)} aria-hidden />;
 }
 
 function StatusLine({ line, testId }: { line: NowLine; testId: string }) {

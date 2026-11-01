@@ -290,6 +290,7 @@ export class PreviewModel implements ViewModel {
                         elemtype: "pill",
                         text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.loading"),
                         tone: "neutral",
+                        busy: true, // MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154)
                     }); // MOLTENTERM-PATCH (#750)
                 } else if (fileInfo.data.readonly) {
                     viewTextChildren.push({

@@ -96,6 +96,7 @@ function StartAgentButton({ pr, onStart }: { pr: ReviewCleanupPr; onStart: Start
                         onClick={start}
                         data-testid="validate-others-start"
                     >
+                        {starting ? <DominoLoader className="mr-1.5" /> : null}
                         {starting ? t("review.validate.others.starting") : t("review.validate.others.start")}
                         <MoltenWave />
                     </button>

@@ -84,6 +84,7 @@ function DialogButtons({
                 disabled={busy}
                 aria-busy={busy}
             >
+                {busy ? <DominoLoader className="mr-1.5" /> : null}
                 {busy ? (busyLabel ?? t("sessions.bulk.end.running")) : confirm}
                 <MoltenWave />
             </button>

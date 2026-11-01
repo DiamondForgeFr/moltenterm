@@ -603,6 +603,12 @@
         animation-delay: 0.125s;
     }
 
+    /* The card size: the accent chain at half size, for a card, a row or a section that waits (#1714). zoom, unlike a
+       transform, gives the layout the drawn size, and the chain keeps its motion and its still pose. */
+    .df-dominos.df-dominos-card {
+        zoom: 0.5;
+    }
+
     .df-domino-loader {
         position: relative;
         display: inline-block;

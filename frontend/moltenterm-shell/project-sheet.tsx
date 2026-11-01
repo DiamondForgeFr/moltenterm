@@ -27,7 +27,7 @@ import { MoltentermProjectView } from "./project/project-model";
 import { currentProjectId, projectLabel, readProjects, WorkspaceProjectEntry } from "./sidebar/workspace-projects";
 import { projectDraftProblem, projectTypeSuggestions } from "./sidebar/workspace-projects-edit";
 import { editWorkspaceProject, removeWorkspaceProject } from "./sidebar/workspace-projects-edit-store";
-import { ToggleGroup, ToggleOption } from "./suite/suite";
+import { DominoLoader, ToggleGroup, ToggleOption } from "./suite/suite";
 import { projectSheetBlocks } from "./workspace-edit-model";
 import { LogoField, ResultLine, SheetSection, useProjectLogos } from "./workspace-edit-sheet";
 import { pathBaseName, projectLogoOf, readWorkspaceProject } from "./workspace-project";
@@ -305,6 +305,7 @@ function PipelineBlock({
         <SheetSection title={t("projectSheet.pipeline")} concept="ci" scope="project" block="pipeline">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1 basis-48 text-12 text-muted" data-role="pipeline-status">
+                    {status == null ? <DominoLoader className="mr-1.5" /> : null}
                     {status ?? t("projectSheet.pipelineUnknown")}
                     {facts?.harness ? ` · ${facts.harness}` : ""}
                 </div>

@@ -19,6 +19,7 @@ import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
 import { keptButtonLabel, lossLines, panelLines } from "../review/review-stepper";
+import { DominoLoader } from "../suite/suite";
 import { CalmButton, MoltenButton, MoreButton, RailColours, SentenceClasses } from "./reviews-card";
 import { LeftoverAsks, useLeftoverAsks } from "./reviews-leftover-asks";
 import { heldByLiveOwner, leftoverAway, unreachableOwner } from "./reviews-leftover-owner-model";
@@ -242,6 +243,7 @@ function LeftoverCard({ target, state, repoUrl }: { target: Target; state: Lefto
                         onClick={() => fireAndForget(() => model.cleanUp(target))}
                         data-testid="reviews-leftover-clean"
                     >
+                        {state.busy ? <DominoLoader className="mr-1.5" /> : null}
                         {state.busy ? t("reviewsAgents.leftovers.cleaning") : t("reviewsAgents.leftovers.clean")}
                         <MoltenWave />
                     </button>

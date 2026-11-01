@@ -32,6 +32,7 @@ import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
 import { recordingTabClose } from "./reopen/reopen-store";
 import { refusePinnedClose } from "./sidebar/view-pins-store";
+import { DominoLoader } from "./suite/suite";
 import {
     ClosePlanView,
     closePlanView,
@@ -448,7 +449,11 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
                         onDone();
                         fireAndForget(() =>
                             closeAskingRunning(
-                                request.blockId, request.close, request.action ?? "pane", running, request.cancelled
+                                request.blockId,
+                                request.close,
+                                request.action ?? "pane",
+                                running,
+                                request.cancelled
                             )
                         );
                         return;
@@ -585,6 +590,7 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
                             }
                             onClick={onRemove}
                         >
+                            {step === "working" ? <DominoLoader className="mr-1.5" /> : null}
                             {step === "working" ? t("worktree.close.removing") : t("worktree.close.remove")}
                             <MoltenWave />
                         </button>
@@ -606,7 +612,10 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
                 <RunningList items={running} heading={t("worktree.close.stops")} />
             ) : null}
             {plan == null && error == null && notice == null ? (
-                <div className="text-muted">{t("worktree.close.reading")}</div>
+                <div className="text-muted">
+                    <DominoLoader className="mr-1.5" />
+                    {t("worktree.close.reading")}
+                </div>
             ) : null}
             {plan != null && (step === "plan" || step === "working") ? <PlanFacts plan={plan} view={view} /> : null}
             {plan != null && step === "confirm" ? (
@@ -675,7 +684,10 @@ function TabCloseRowView({
                 )}
             </div>
             {row.plan == null && row.error == null ? (
-                <div className="text-muted">{t("worktree.close.reading")}</div>
+                <div className="text-muted">
+                    <DominoLoader className="mr-1.5" />
+                    {t("worktree.close.reading")}
+                </div>
             ) : null}
             {row.plan != null && !row.removed ? <PlanFacts plan={row.plan} view={view} /> : null}
             {row.plan != null && !row.removed && row.choice === "remove" && view.canDeleteBranch ? (
@@ -818,6 +830,7 @@ export function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; 
                     className={remove.length > 0 || busy ? DangerButton : AccentButton}
                     onClick={onClose}
                 >
+                    {step === "working" ? <DominoLoader className="mr-1.5" /> : null}
                     {step === "working" ? t("worktree.close.removing") : closeLabel}
                     <MoltenWave />
                 </button>

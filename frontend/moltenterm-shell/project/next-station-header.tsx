@@ -18,6 +18,7 @@ import { latestRun } from "../mission/mission-model";
 import { ReleaseMenu, ReleaseSetupEntry } from "../mission/release-menu";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { DominoLoader } from "../suite/suite";
 import { WorkspaceIcon } from "../workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "../workspace-icon-model";
 import {
@@ -213,7 +214,10 @@ export function NextStationHeader({
                             ) : null}
                             {schedule?.then ? <StationScheduleText schedule={schedule} /> : null}
                         </div>
-                        <span className="text-13 text-secondary">{station?.note ?? t("project.station.reading")}</span>
+                        <span className="text-13 text-secondary">
+                            {station?.note == null ? <DominoLoader className="mr-1.5" /> : null}
+                            {station?.note ?? t("project.station.reading")}
+                        </span>
                     </div>
                 </div>
                 <div className="hidden w-px self-stretch bg-border @min-[42rem]:block" aria-hidden />

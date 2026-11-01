@@ -207,7 +207,7 @@ export function makePendingPageHtml(state: ViewPendingState): string {
     const reload = escapeHtml(mt("shell.pending.reload"));
     const body = failed
         ? `<div class="name">${title}</div><p class="caption">${caption}</p><a class="btn" href="${PendingPageReloadUrl}">${reload}</a>`
-        : `<div class="name">${name}</div><div class="line" role="progressbar" aria-label="${openingLabel}"><span></span></div><p class="caption">${caption}</p>`;
+        : `<div class="name">${name}</div><div class="dominos" role="status" aria-label="${openingLabel}">${"<span></span>".repeat(8)}</div><p class="caption">${caption}</p>`;
     return `<!doctype html><html lang="${escapeHtml(mainLocale())}"><head><meta charset="utf-8"><title>MoltenTerm</title><style>
 :root{--accent:rgb(255,124,13);--bg:color-mix(in srgb,var(--accent) 4%,rgb(31,31,31));--text:color-mix(in srgb,var(--accent) 3%,rgb(247,247,247));--muted:color-mix(in srgb,var(--accent) 6%,rgb(146,146,146));--line:color-mix(in srgb,color-mix(in srgb,var(--accent) 6%,rgb(198,198,198)) 16%,transparent)}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-user-select:none;user-select:none;cursor:default}
@@ -215,15 +215,25 @@ body{display:flex;align-items:center;justify-content:center}
 main{display:flex;flex-direction:column;align-items:center;gap:10px;max-width:360px;text-align:center;animation:in .12s ease-out}
 .name{font-weight:600;font-size:13px;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .caption{margin:0;font-size:12px;color:var(--muted)}
-.line{position:relative;width:160px;height:2px;border-radius:1px;background:var(--line);overflow:hidden}
-.line span{position:absolute;inset:0 auto 0 0;width:40%;border-radius:1px;background:var(--accent);opacity:.7;animation:sweep 1.4s ease-in-out infinite}
+.dominos{position:relative;width:110px;height:44px}
+.dominos span{position:absolute;top:calc(50% - 3.5px);height:7px;width:25px;background:var(--accent);box-shadow:2px 2px 3px 0 rgba(0,0,0,.25);animation:dominos 1s ease infinite}
+${DominoBars}
 .btn{margin-top:6px;padding:6px 12px;border-radius:6px;background:var(--accent);color:#1f1208;font-size:12px;font-weight:500;text-decoration:none;cursor:pointer}
 .btn:hover{background:color-mix(in srgb,var(--accent) 80%,white)}
-@keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+@keyframes dominos{50%{opacity:.7}75%{transform:rotate(90deg)}80%{opacity:1}}
 @keyframes in{from{opacity:0}to{opacity:1}}
-@media (prefers-reduced-motion:reduce){.line span{width:100%;animation:none;opacity:.5}main{animation:none}}
+@media (prefers-reduced-motion:reduce){.dominos span{animation:none;transform:rotate(var(--still,0deg))}main{animation:none}}
 </style></head><body><main data-molten-view-pending="${state.phase}">${body}</main></body></html>`;
 }
+
+// The suite's large falling dominoes (DS-SHELL-154, #1714), as suite.css draws them in the renderer: the page is
+// static HTML shown before the renderer exists, so it carries its own copy of the geometry, the 1 s cycle, the delays
+// and the still pose of reduced motion.
+const DominoDelays = [0, 0.915, 0.79, 0.665, 0.54, 0.425, 0.3, 0.125];
+const DominoBars = DominoDelays.map(
+    (delay, i) =>
+        `.dominos span:nth-child(${i + 1}){left:${10 + i * 10}px;animation-delay:${delay}s;--still:${Math.round((i * 90) / 7)}deg}`
+).join("\n");
 
 export type PendingPage = {
     view: WebContentsView;
