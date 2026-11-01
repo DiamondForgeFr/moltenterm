@@ -73,12 +73,7 @@ function storedChoices(): Record<string, string> {
 // The project's own choice, undefined when it follows the default.
 export function rememberedProjectAgent(dir: string): string {
     const id = dir ? storedChoices()[dir] : null;
-    if (!id) {
-        return undefined;
-    }
-    // Before the matrix is read the stored choice stands: it was one of the agents offered when it was made.
-    const matrix = currentFeatureMatrix();
-    return matrix == null || codingAgentIds(matrix).includes(id) ? id : undefined;
+    return codingAgentIds().includes(id) ? id : undefined;
 }
 
 // What This project sets and resets in the panels' options: no agent forgets the project's choice.
