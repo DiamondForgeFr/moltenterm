@@ -37,6 +37,9 @@ type AgentStateRequest struct {
 	Start   bool   `json:"start,omitempty"`
 	// Subagent: the report is a sub-agent's (its agent_id), not the pane's main session's (#1092).
 	Subagent string `json:"subagent,omitempty"`
+	// Provider: the host Claude Code talks to when it is not Anthropic's (FR-AGC-008, provider.go); a start report
+	// without one says the run talks to Anthropic.
+	Provider string `json:"provider,omitempty"`
 }
 
 // ValidAgentState and ValidAgentId accept what molten.ValidAgentState and molten.ValidAgentId accept, without a

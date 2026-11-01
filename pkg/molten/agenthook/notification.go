@@ -36,6 +36,8 @@ type HookInput struct {
 	AgentId             string `json:"agent_id"`
 	AgentType           string `json:"agent_type"`
 	AgentTranscriptPath string `json:"agent_transcript_path"`
+	// Provider is not in the input: runHook sets the provider host the hook's env names (provider.go).
+	Provider string `json:"-"`
 }
 
 // IsIdlePromptMessage tells whether a notification's text is Claude Code's "waiting for your input" after a finished

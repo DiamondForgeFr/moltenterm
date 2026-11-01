@@ -428,6 +428,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.subagents = nil
 		a.markDirtyLocked(req.BlockId)
 	}
+	a.providerLocked(req, rec)
 	if !req.TurnEnd {
 		a.hookedLocked(req.BlockId, rec.agent)
 		if req.State == molten.AgentStateDone && req.Subagent == "" {
@@ -553,6 +554,11 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		ModelName:   rec.settings.ModelName,
 		Effort:      rec.settings.Effort,
 	}
+	if rec.settings.Provider != "" {
+		info.Provider = rec.settings.Provider
+		info.ProviderName = molten.ProviderDisplayName(rec.settings.Provider)
+		info.NativeProvider = molten.NativeProviderName(rec.agent)
+	}
 	a.heldInfoLocked(blockId, rec, &info)
 	subagentsInfo(rec, &info)
 	return info
@@ -570,6 +576,24 @@ func (a *agentStates) setSettings(blockId string, agent string, settings molten.
 	rec.settings = settings
 	a.markDirtyLocked(blockId)
 	return true
+}
+
+// providerLocked records the provider a Claude Code report names (FR-AGC-008). A start report tells the run's
+// provider, none for Anthropic; a later report may only name one (a user's own `molten agent state` hooks never
+// send a start).
+func (a *agentStates) providerLocked(req molten.AgentStateRequest, rec *agentRecord) {
+	if rec.agent != molten.AgentIdClaude || req.Subagent != "" || req.TurnEnd {
+		return
+	}
+	host := molten.CleanProviderHost(req.Provider)
+	if !req.Start && host == "" {
+		return
+	}
+	if rec.settings.Provider == host {
+		return
+	}
+	rec.settings.Provider = host
+	a.markDirtyLocked(req.BlockId)
 }
 
 // clearEffort forgets the run's effort level: MoltenTerm just changed it and the agent has not reported the new one.

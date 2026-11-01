@@ -41,6 +41,11 @@ export type AgentStateInfo = {
     model?: string;
     modelname?: string;
     effort?: string;
+    // FR-AGC-008: the host the run talks to when it is not its agent's own provider, its name ("GLM", else the host)
+    // and the agent's own provider ("Anthropic"), whose plan gauges, models and effort levels do not apply then.
+    provider?: string;
+    providername?: string;
+    nativeprovider?: string;
     // How many sub-agents of the session run (#1092). background: state is working only because of them; the main
     // session's prompt is idle and takes a message.
     subagents?: number;
@@ -173,6 +178,43 @@ export const AgentStateDotClasses: Record<string, string> = {
 // a first name. Must match AgentLabel in pkg/molten/agentstate.go.
 export function agentLabel(info: AgentStateInfo, fallback = "Agent"): string {
     const kind = info?.agentname || info?.agent || fallback;
+    const first = (info?.firstname ?? "").trim();
+    return first ? `${first} · ${kind}` : kind;
+}
+
+// The provider a run talks to when it is not its agent's own (FR-AGC-008), "" otherwise.
+export function agentProviderName(info: AgentStateInfo): string {
+    if (!info?.provider) {
+        return "";
+    }
+    return (info.providername || info.provider).trim();
+}
+
+// The agent's tool with the provider behind it: "Claude Code via GLM", the tool alone without one.
+export function agentToolName(info: AgentStateInfo, fallback = ""): string {
+    const tool = (info?.agentname || info?.agent || fallback).trim();
+    const provider = agentProviderName(info);
+    if (!tool || !provider) {
+        return tool;
+    }
+    return t("agent.viaProvider", { agent: tool, provider });
+}
+
+// What the tool's name shows on hover behind another provider: where the requests go.
+export function agentProviderTitle(info: AgentStateInfo): string {
+    if (!agentProviderName(info)) {
+        return "";
+    }
+    const agent = (info.agentname || info.agent || "").trim();
+    if (!info.nativeprovider) {
+        return t("agent.providerHostTitle", { agent, host: info.provider });
+    }
+    return t("agent.providerTitle", { agent, host: info.provider, native: info.nativeprovider });
+}
+
+// agentLabel with the provider behind the run (FR-AGC-008): "Jérôme · Claude Code via GLM".
+export function agentProviderLabel(info: AgentStateInfo, fallback = "Agent"): string {
+    const kind = agentToolName(info, fallback) || fallback;
     const first = (info?.firstname ?? "").trim();
     return first ? `${first} · ${kind}` : kind;
 }

@@ -106,6 +106,7 @@ func runHook(ha HookArgs, env Env) (bool, int) {
 		return false, 0
 	}
 	input := ReadHookInput(env.Stdin)
+	input.Provider = ProviderHostFor(ha.Agent, env.Getenv)
 	caller, done := makeHookCaller(token)
 	defer done()
 	if err := RunHookEvent(input, ha.Agent, blockId, caller); err != nil {
@@ -206,7 +207,7 @@ func subagentEvent(input HookInput, agent string, blockId string, call HookCalle
 func sessionStart(input HookInput, agent string, blockId string, call HookCaller) error {
 	var errs []string
 	if input.Source != sessionSourceCompact {
-		req := AgentStateRequest{BlockId: blockId, State: AgentStateIdle, Agent: agent, Start: true}
+		req := AgentStateRequest{BlockId: blockId, State: AgentStateIdle, Agent: agent, Start: true, Provider: input.Provider}
 		if err := call(AgentStateSetCommand, AgentStatesRoute, req); err != nil {
 			errs = append(errs, err.Error())
 		}

@@ -296,6 +296,9 @@ type AgentStateRequest struct {
 	// Subagent: the report is about a sub-agent of the pane's session (its agent_id, #1092), never the main session's
 	// state: working means it runs, done that it stopped.
 	Subagent string `json:"subagent,omitempty"`
+	// Provider: the host Claude Code talks to when it is not Anthropic's (FR-AGC-008); a Start report without one says
+	// the run talks to Anthropic, another report without one changes nothing.
+	Provider string `json:"provider,omitempty"`
 }
 
 // AgentStateSeenRequest: the window showed the block's done agent, at Version of its state.
@@ -328,6 +331,13 @@ type AgentStateInfo struct {
 	Model     string `json:"model,omitempty"`
 	ModelName string `json:"modelname,omitempty"`
 	Effort    string `json:"effort,omitempty"`
+	// Provider, ProviderName: the host the run talks to when it is not Anthropic's and how MoltenTerm names it
+	// (FR-AGC-008: "GLM", else the host), "" for Anthropic. Anthropic's plan gauges, models and effort levels do not
+	// apply to such a run. NativeProvider names the agent's own provider then ("Anthropic"), for the windows to say
+	// what does not apply.
+	Provider       string `json:"provider,omitempty"`
+	ProviderName   string `json:"providername,omitempty"`
+	NativeProvider string `json:"nativeprovider,omitempty"`
 	// Subagents: how many sub-agents of the session run now, as its hooks report them (#1092). Background: State is
 	// working only because of them, the main session's prompt is idle (or done) and takes a message.
 	Subagents  int  `json:"subagents,omitempty"`
@@ -336,11 +346,13 @@ type AgentStateInfo struct {
 	Cleared bool `json:"cleared,omitempty"`
 }
 
-// AgentSettings is a run's model and effort level as its agent reports them (#549); "" fields are unknown.
+// AgentSettings is a run's model and effort level as its agent reports them (#549); "" fields are unknown. Provider:
+// the host a Claude Code run talks to when it is not Anthropic's (FR-AGC-008), "" for Anthropic.
 type AgentSettings struct {
 	Model     string
 	ModelName string
 	Effort    string
+	Provider  string
 }
 
 // AgentRunInfo is what the agent companion (DS-SHELL-019) needs of a block's agent: which one, and since when it runs.

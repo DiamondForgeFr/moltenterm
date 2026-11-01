@@ -67,6 +67,7 @@ func moltenAgentStateRun(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 	}
-	req := agenthook.AgentStateRequest{BlockId: blockId, State: state, Agent: moltenAgentStateAgent, Message: message}
+	req := agenthook.AgentStateRequest{BlockId: blockId, State: state, Agent: moltenAgentStateAgent, Message: message,
+		Provider: agenthook.ProviderHostFor(moltenAgentStateAgent, os.Getenv)}
 	return agenthook.SendAgentState(token, req)
 }

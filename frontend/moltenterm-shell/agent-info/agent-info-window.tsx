@@ -19,7 +19,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AgentLinksPanel } from "../agent-links/agent-links-menu";
 import { BlockLinks } from "../agent-links/agent-links-model";
 import { AgentLinks } from "../agent-links/agent-links-store";
-import { agentEffortPart, agentModelPart, agentStateLabel, type AgentStateInfo } from "../agent-state-model";
+import {
+    agentEffortPart,
+    agentModelPart,
+    agentProviderTitle,
+    agentStateLabel,
+    agentToolName,
+    type AgentStateInfo,
+} from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import {
     AgentTab,
@@ -111,7 +118,11 @@ function FactsSection({ ctx }: { ctx: AgentInfoContext }) {
     const place = [wsName, project].filter(Boolean).join(" · ");
     return (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2" data-testid="agent-info-facts">
-            <Fact label={t("agentInfo.fact.tool")} value={agentTool(info)} />
+            <Fact
+                label={t("agentInfo.fact.tool")}
+                value={agentToolName(info)}
+                title={agentProviderTitle(info) || undefined}
+            />
             <Fact label={t("agentInfo.fact.model")} value={model} />
             <Fact label={t("agentInfo.fact.effort")} value={effort} />
             <Fact label={t("agentInfo.fact.workspace")} value={place} />
@@ -262,10 +273,9 @@ function SubTitle({ label, count }: { label: string; count: number }) {
 function ServerLine({ row }: { row: ServerRow }) {
     const t = useT();
     const live = row.origin === "molten";
-    const stateText = live
-        ? t(`agentInfo.mcpState.${row.state}`)
-        : t(`agentInfo.toolkit.state.${row.state}`);
-    const short = row.state === "needsapproval" || row.state === "off" ? t(`agentInfo.toolkit.stateShort.${row.state}`) : "";
+    const stateText = live ? t(`agentInfo.mcpState.${row.state}`) : t(`agentInfo.toolkit.state.${row.state}`);
+    const short =
+        row.state === "needsapproval" || row.state === "off" ? t(`agentInfo.toolkit.stateShort.${row.state}`) : "";
     return (
         <div className={Line} title={stateText} data-testid="agent-info-server">
             <span
@@ -274,7 +284,12 @@ function ServerLine({ row }: { row: ServerRow }) {
                     (live ? McpDot : ConfigDot)[row.state] ?? "bg-secondary"
                 )}
             />
-            <span className={cn("min-w-0 truncate font-mono text-11", row.state === "off" ? "text-muted" : "text-primary")}>
+            <span
+                className={cn(
+                    "min-w-0 truncate font-mono text-11",
+                    row.state === "off" ? "text-muted" : "text-primary"
+                )}
+            >
                 {row.name}
             </span>
             <span className="min-w-0 truncate text-11 text-muted">
@@ -297,11 +312,7 @@ function ServerLine({ row }: { row: ServerRow }) {
 function SkillLine({ skill }: { skill: ToolkitSkill }) {
     const t = useT();
     return (
-        <div
-            className={cn(Line, "items-start")}
-            title={skill.description || skill.name}
-            data-testid="agent-info-skill"
-        >
+        <div className={cn(Line, "items-start")} title={skill.description || skill.name} data-testid="agent-info-skill">
             <span className="min-w-0 shrink-0 font-mono text-11 text-primary">{skill.name}</span>
             <span className="min-w-0 flex-1 truncate text-11 text-muted">{skill.description}</span>
             <span className="shrink-0 text-11 text-muted">{originLabel(t, skill.scope, skill.plugin)}</span>
@@ -583,7 +594,11 @@ function AgentHead({ info }: { info: AgentStateInfo }) {
                 <div
                     className={cn(
                         "truncate text-12",
-                        look === "waiting" ? "text-[var(--mt-state-waiting)]" : look === "error" ? "text-danger" : "text-muted"
+                        look === "waiting"
+                            ? "text-[var(--mt-state-waiting)]"
+                            : look === "error"
+                              ? "text-danger"
+                              : "text-muted"
                     )}
                 >
                     {[agentStateLabel(info.state), agentDoing(info)]
