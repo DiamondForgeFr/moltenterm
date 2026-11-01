@@ -120,7 +120,10 @@ describe("the project and view choices (FR-ONB-007 P-4, FR-ONB-009)", () => {
     it("keeps the project draft and what leaving the scene set", () => {
         let state = pourReduce(initialPourState(2), { type: "project", patch: { mode: "new", name: "atlas" } });
         expect(state.project).toMatchObject({ mode: "new", name: "atlas", git: true });
-        state = pourReduce(state, { type: "projectSet", result: { name: "Atlas", path: "~/Projets/atlas", colour: "#fff" } });
+        state = pourReduce(state, {
+            type: "projectSet",
+            result: { name: "Atlas", path: "~/Projets/atlas", colour: "#fff" },
+        });
         expect(state.projectSet?.name).toBe("Atlas");
     });
 

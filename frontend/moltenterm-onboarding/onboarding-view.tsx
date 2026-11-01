@@ -46,9 +46,9 @@ import {
     cleanFolderName,
     defaultProjectsFolder,
     FirstViewPlan,
-    projectTarget,
     ProjectDraft,
     ProjectResult,
+    projectTarget,
     shownPath,
 } from "./onboarding-first-view-model";
 import { CliInstallStatus, isRunning } from "./onboarding-install-model";
@@ -249,7 +249,9 @@ export class OnboardingViewModel implements ViewModel {
 
     // The computer's own folder chooser, which offers its own New folder action; null when cancelled.
     async chooseFolder(purpose: "where" | "find", current: string): Promise<string> {
-        const title = t(purpose === "where" ? "onboarding.pour.project.whereTitle" : "onboarding.pour.project.findTitle");
+        const title = t(
+            purpose === "where" ? "onboarding.pour.project.whereTitle" : "onboarding.pour.project.findTitle"
+        );
         try {
             return (await chooseMoltentermPath({ kind: "folder", title, defaultPath: current || homeDir() })) || null;
         } catch (e) {

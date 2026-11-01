@@ -158,7 +158,11 @@ describe("the end of the run (FR-ONB-009)", () => {
         expect(store.createView).toHaveBeenCalledTimes(1);
         const req = store.createView.mock.calls[0][0];
         expect(req).toMatchObject({ scope: "everywhere", nameKey: "workspaceViews.names.scoping", background: true });
-        expect(req.config.panes[0]).toMatchObject({ view: "term", "molten:agentslot": true, "molten:slotagent": "codex" });
+        expect(req.config.panes[0]).toMatchObject({
+            view: "term",
+            "molten:agentslot": true,
+            "molten:slotagent": "codex",
+        });
         expect(store.onboardingUpdate).toHaveBeenCalledWith({ kind: "finish" });
         expect(store.setActiveTab).toHaveBeenCalledWith("view-tab");
         expect(store.closeTab).toHaveBeenCalledWith("ws1", "tab1", false);

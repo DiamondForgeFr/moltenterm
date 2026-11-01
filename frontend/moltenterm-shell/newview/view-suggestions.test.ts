@@ -57,7 +57,10 @@ describe("the launcher's Suggestions (FR-SHELL-138)", () => {
         const scoping = suggestionConfig(ViewSuggestions[0].panels);
         expect(scoping.panes.map((p) => p.view)).toEqual(["term", "molten-browser", "preview"]);
         expect(scoping.panes[0]).toEqual({ view: "term", controller: "shell", "molten:agentslot": true });
-        expect(scoping.tree).toEqual({ dir: "row", children: [{ pane: 0 }, { dir: "column", children: [{ pane: 1 }, { pane: 2 }] }] });
+        expect(scoping.tree).toEqual({
+            dir: "row",
+            children: [{ pane: 0 }, { dir: "column", children: [{ pane: 1 }, { pane: 2 }] }],
+        });
         const pilotage = suggestionConfig(ViewSuggestions[1].panels);
         expect(pilotage.tree).toEqual({ dir: "row", children: [{ pane: 0 }, { pane: 1 }] });
         expect(suggestionConfig(["agent"], "codex").panes[0]["molten:slotagent"]).toBe("codex");

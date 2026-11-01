@@ -15,16 +15,16 @@ import {
     cleanFolderName,
     FirstViewTools,
     matchingSuggestion,
-    projectTarget,
     ProjectDraft,
     ProjectResult,
+    projectTarget,
     shownPath,
     ViewPlace,
 } from "./onboarding-first-view-model";
 import { withCodes } from "./onboarding-parts";
-import { ProjectCandidate, projectColour, WorkspaceColours } from "./onboarding-project-model";
-import { PourMark } from "./onboarding-pour-scenes";
 import "./onboarding-pour-build.css";
+import { PourMark } from "./onboarding-pour-scenes";
+import { ProjectCandidate, projectColour, WorkspaceColours } from "./onboarding-project-model";
 
 // The workspace a project becomes, as its chip shows it.
 export type ProjectChip = { name: string; colour: string };
@@ -46,7 +46,12 @@ function Title({ a, b }: { a: string; b: string }) {
 // A folder's name as the workspace takes it when nothing in the project names it otherwise (readProjectFacts): the
 // folder's own name, so the chip shows the name and colour the workspace gets.
 export function previewName(folder: string): string {
-    return (folder ?? "").replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? "";
+    return (
+        (folder ?? "")
+            .replace(/[/\\]+$/, "")
+            .split(/[/\\]/)
+            .pop() ?? ""
+    );
 }
 
 export function chipOf(path: string): ProjectChip {
@@ -130,7 +135,12 @@ export function ProjectScene({
                         </div>
                         <div className="mt-pb-row">
                             <span className="mt-pour-lbl">{t(`${p}.new.in`)}</span>
-                            <span className="mt-pb-field" data-mono="" title={draft.location} data-testid="pour-project-in">
+                            <span
+                                className="mt-pb-field"
+                                data-mono=""
+                                title={draft.location}
+                                data-testid="pour-project-in"
+                            >
                                 {shownPath(draft.location, home)}
                             </span>
                             <button
@@ -432,7 +442,7 @@ export function FirstViewScene({
                             >
                                 <i className={makeIconClass(tool.icon, true)} />
                                 {t(tool.labelKey)}
-                                <small>{t(`${v}.hints.${tool.hintKey}`)}</small>
+                                <small>{t(`${v}.hints.${tool.kind}`)}</small>
                             </button>
                         ))}
                     </div>

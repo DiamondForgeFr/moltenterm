@@ -25,6 +25,7 @@ import {
     type ChooseState,
 } from "../moltenterm-shell/library/agents-model";
 import { GlowRing } from "../moltenterm-shell/suite/suite";
+import type { AgentFacts, OnboardingAgents } from "./onboarding-agent-model";
 import {
     cleanInstallOutput,
     CliInstallStatus,
@@ -32,7 +33,6 @@ import {
     isRunning,
     isSecretQuestion,
 } from "./onboarding-install-model";
-import type { AgentFacts, OnboardingAgents } from "./onboarding-agent-model";
 import { CopyLine, ExternalLink, withCodes } from "./onboarding-parts";
 import { CodexHooksCommand, needsSignIn, PourAgentCard } from "./onboarding-pour-agents";
 

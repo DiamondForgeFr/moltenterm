@@ -9,12 +9,13 @@ import { findSuggestion, ViewSuggestions } from "../moltenterm-shell/workspace-v
 import type { OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 import { catalogAgents } from "./onboarding-agent-model";
 
-// The tools the view may hold on the right of its agent, in the mock-up's order; up to MaxTools at once.
-export const FirstViewTools: { kind: string; labelKey: string; icon: string; hintKey: string }[] = [
-    { kind: "browser", labelKey: "workspaceViews.panels.browser", icon: "globe", hintKey: "browser" },
-    { kind: "files", labelKey: "workspaceViews.panels.files", icon: "folder-open", hintKey: "files" },
-    { kind: "integration", labelKey: "workspaceViews.panels.integration", icon: "code-pull-request", hintKey: "integration" },
-    { kind: "project", labelKey: "workspaceViews.panels.project", icon: "gauge", hintKey: "project" },
+// The tools the view may hold on the right of its agent, in the mock-up's order; up to MaxTools at once. Each one's
+// hint is the key onboarding.pour.view.hints.<kind>.
+export const FirstViewTools: { kind: string; labelKey: string; icon: string }[] = [
+    { kind: "browser", labelKey: "workspaceViews.panels.browser", icon: "globe" },
+    { kind: "files", labelKey: "workspaceViews.panels.files", icon: "folder-open" },
+    { kind: "integration", labelKey: "workspaceViews.panels.integration", icon: "code-pull-request" },
+    { kind: "project", labelKey: "workspaceViews.panels.project", icon: "gauge" },
 ];
 export const MaxTools = 3;
 const ToolKinds = FirstViewTools.map((t) => t.kind);
