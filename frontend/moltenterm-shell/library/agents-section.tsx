@@ -393,7 +393,7 @@ function InstallBlock({ card, job }: { card: PourAgentCard; job: CliInstallStatu
                         ) : (
                             <button
                                 type="button"
-                                className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"
+                                className="molten-btn cursor-pointer rounded-4 px-3 py-1.5 text-12"
                                 data-testid="library-agent-install-button"
                                 onClick={() => fireAndForget(() => model.install(card.id))}
                             >
@@ -520,7 +520,7 @@ export function UninstallConfirm({
             <div className="flex flex-wrap items-center gap-1.5">
                 <button
                     type="button"
-                    className="molten-btn molten-btn-destructive cursor-pointer rounded px-3 py-1.5 text-xs"
+                    className="molten-btn molten-btn-destructive cursor-pointer rounded-4 px-3 py-1.5 text-12"
                     data-testid="library-agent-uninstall-go"
                     onClick={() => {
                         onCancel();
