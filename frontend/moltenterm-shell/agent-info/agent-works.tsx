@@ -37,9 +37,14 @@ function DetailLine({ detail }: { detail: WorksDetail }) {
         <li className="flex items-start gap-1.5" data-testid="agent-works-detail" data-level={detail.level}>
             <span className={cn("mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full", dot)} aria-hidden />
             <span className="min-w-0">
-                <span className="text-primary">{t(`agentWorks.feature.${detail.feature}`)}</span>
-                <span className="text-muted"> · {t(detailLevelKey(detail))}</span>
-                {detail.reason ? <span className="block text-muted">{t(reasonKey(detail.reason))}</span> : null}
+                <span className="inline-block text-primary first-letter:uppercase">
+                    {t(`agentWorks.feature.${detail.feature}`)}
+                </span>
+                <span className="text-muted">
+                    {" · "}
+                    {t(detailLevelKey(detail))}
+                    {detail.reason ? ` — ${t(reasonKey(detail.reason))}` : ""}
+                </span>
             </span>
         </li>
     );
