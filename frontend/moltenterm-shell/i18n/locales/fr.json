@@ -1434,10 +1434,6 @@
                     "installing": "Installation…",
                     "recipe": "Tourne dans {agent}"
                 },
-                "level": {
-                    "full": "Intégration complète",
-                    "process": "Détection du processus"
-                },
                 "account": {
                     "subscriptionOrKey": "Abonnement {provider} ou clé d'API",
                     "accountOrKey": "Compte {provider} ou clé d'API",
@@ -9233,6 +9229,49 @@
         "reloadedMessage": "Son processus d'affichage a été arrêté ({cause}). Vos sessions ont continué de tourner.",
         "reloadedMessagePlain": "Son processus d'affichage a été arrêté. Vos sessions ont continué de tourner.",
         "showLog": "Afficher le journal"
+    },
+    "agentWorks": {
+        "follows": "MoltenTerm suit :",
+        "uses": "Il peut utiliser :",
+        "notYet": "Pas encore :",
+        "partly": "{feature} (en partie)",
+        "details": "Ce qui marche",
+        "hideDetails": "Masquer le détail",
+        "sectionTitle": "Ce qui marche avec {name}",
+        "unknown": "MoltenTerm ne connaît pas encore cet agent.",
+        "unknownShort": "Pas encore connu",
+        "picker": {
+            "works": "Marche avec {features}",
+            "notYet": "pas encore : {features}"
+        },
+        "feature": {
+            "state": "son état",
+            "approvals": "les autorisations",
+            "usage": "l'usage du forfait",
+            "browsermcp": "le navigateur",
+            "handoff": "les passations",
+            "guides": "les guides",
+            "turnnotify": "l'avis de fin de tour",
+            "resume": "la reprise d'une session",
+            "effort": "l'effort et le modèle",
+            "companion": "le compagnon",
+            "runner": "les tâches de MoltenTerm"
+        },
+        "level": {
+            "native": "marche",
+            "adapted": "marche, par un contournement",
+            "partly": "en partie, depuis son terminal",
+            "none": "pas encore"
+        },
+        "reason": {
+            "noadapter": "MoltenTerm n'a pas encore d'intégration pour cet agent.",
+            "nohooks": "L'agent ne dit pas à MoltenTerm ce qu'il fait.",
+            "nomcp": "L'agent ne peut pas encore utiliser les outils de MoltenTerm.",
+            "noskills": "L'agent ne sait pas lire les guides de MoltenTerm.",
+            "notdetected": "MoltenTerm ne reconnaît pas encore cet agent.",
+            "agentspecific": "Celle-ci est propre à un autre agent ; cet agent a sa propre façon de faire.",
+            "modelunverified": "Pas encore vérifié avec ce modèle."
+        }
     },
     "agentInfo": {
         "title": "Tout sur {name}",

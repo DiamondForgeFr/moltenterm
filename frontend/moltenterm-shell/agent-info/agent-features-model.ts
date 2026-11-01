@@ -36,13 +36,14 @@ export type FeatureSupport = {
     adapter?: string;
     issue?: string;
 };
-// profile: the agent's guide and catalog profile id ("claude-code"); guidecall: how it calls a guide, {name} the
-// guide's name ("${name}").
+// profile: the agent's guide and catalog profile id ("claude-code"); command: the program that starts it; guidecall:
+// how it calls a guide, {name} the guide's name ("${name}").
 export type AgentFeatures = {
     id: string;
     name: string;
     adapter: boolean;
     profile?: string;
+    command?: string;
     guidecall?: string;
     features: Record<string, FeatureSupport>;
 };
@@ -72,6 +73,15 @@ export function agentRowByProfile(matrix: FeatureMatrix, profile: string): Agent
         return null;
     }
     return matrix?.agents?.find((a) => a.profile === profile) ?? agentRow(matrix, profile);
+}
+
+// The row of the program a launcher preset runs ("claude --model opus", "/usr/local/bin/codex"), or null.
+export function agentRowByCommand(matrix: FeatureMatrix, command: string): AgentFeatures {
+    const program = (command ?? "").trim().split(/\s+/)[0]?.split("/").pop();
+    if (!program) {
+        return null;
+    }
+    return matrix?.agents?.find((a) => a.command === program) ?? null;
 }
 
 // agentFeature is one cell; an agent or a feature the matrix does not know works as none, never as supported.

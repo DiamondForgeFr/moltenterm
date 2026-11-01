@@ -12,6 +12,7 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import type { AgentStateInfo } from "../agent-state-model";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
@@ -190,6 +191,7 @@ export function usePaletteEntries(picker: PickerSource) {
     const viewState = useAtomValue(pins.stateAtom(tabId));
     const viewModified = useAtomValue(pins.modifiedAtom(tabId));
     const locale = useLocale();
+    const matrix = useFeatureMatrix();
     const projectTab = isProjectTab(tab);
     const hasTab = tab != null;
     const viewPin = useMemo(
@@ -214,6 +216,7 @@ export function usePaletteEntries(picker: PickerSource) {
             buildPaletteEntries({
                 presets: fullConfig?.presets,
                 installedAgents,
+                matrix,
                 widgets: fullConfig?.widgets,
                 workspaceId: wsId,
                 folder,
@@ -244,6 +247,7 @@ export function usePaletteEntries(picker: PickerSource) {
             picker,
             locale,
             viewPin,
+            matrix,
         ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home, locale]);

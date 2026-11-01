@@ -1434,10 +1434,6 @@
                     "installing": "Installing…",
                     "recipe": "Runs in {agent}"
                 },
-                "level": {
-                    "full": "Full integration",
-                    "process": "Process detection"
-                },
                 "account": {
                     "subscriptionOrKey": "{provider} subscription or API key",
                     "accountOrKey": "{provider} account or API key",
@@ -9233,6 +9229,49 @@
         "reloadedMessage": "Its display process was ended ({cause}). Your sessions kept running.",
         "reloadedMessagePlain": "Its display process was ended. Your sessions kept running.",
         "showLog": "Show log"
+    },
+    "agentWorks": {
+        "follows": "MoltenTerm follows:",
+        "uses": "It can use:",
+        "notYet": "Not yet:",
+        "partly": "{feature} (partly)",
+        "details": "What works",
+        "hideDetails": "Hide details",
+        "sectionTitle": "What works with {name}",
+        "unknown": "MoltenTerm does not know this agent yet.",
+        "unknownShort": "Not known yet",
+        "picker": {
+            "works": "Works with {features}",
+            "notYet": "not yet: {features}"
+        },
+        "feature": {
+            "state": "its state",
+            "approvals": "approvals",
+            "usage": "plan usage",
+            "browsermcp": "the browser",
+            "handoff": "handoffs",
+            "guides": "guides",
+            "turnnotify": "end-of-turn notices",
+            "resume": "resuming a session",
+            "effort": "effort and model",
+            "companion": "the companion",
+            "runner": "MoltenTerm's own tasks"
+        },
+        "level": {
+            "native": "works",
+            "adapted": "works, through a workaround",
+            "partly": "partly, from its terminal",
+            "none": "not yet"
+        },
+        "reason": {
+            "noadapter": "MoltenTerm has no integration for this agent yet.",
+            "nohooks": "The agent does not tell MoltenTerm what it is doing.",
+            "nomcp": "The agent cannot use MoltenTerm's tools yet.",
+            "noskills": "The agent cannot read MoltenTerm's guides.",
+            "notdetected": "MoltenTerm does not recognise this agent yet.",
+            "agentspecific": "This one belongs to another agent; this agent has its own way.",
+            "modelunverified": "Not checked yet with this model."
+        }
     },
     "agentInfo": {
         "title": "Everything about {name}",
