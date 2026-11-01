@@ -157,6 +157,9 @@
             "id": "claude",
             "name": "Claude Code",
             "adapter": true,
+            "profile": "claude-code",
+            "command": "claude",
+            "guidecall": "/{name}",
             "features": {
                 "approvals": {
                     "level": "native",
@@ -299,6 +302,9 @@
             "id": "codex",
             "name": "Codex",
             "adapter": true,
+            "profile": "codex",
+            "command": "codex",
+            "guidecall": "${name}",
             "features": {
                 "approvals": {
                     "level": "adapted",
@@ -442,6 +448,9 @@
             "id": "gemini",
             "name": "Gemini CLI",
             "adapter": false,
+            "profile": "gemini-cli",
+            "command": "gemini",
+            "guidecall": "/{name}",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -571,6 +580,9 @@
             "id": "kimi",
             "name": "Kimi Code",
             "adapter": false,
+            "profile": "kimi",
+            "command": "kimi",
+            "guidecall": "/skill:{name}",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -826,6 +838,7 @@
             "id": "opencode",
             "name": "OpenCode",
             "adapter": false,
+            "command": "opencode",
             "features": {
                 "approvals": {
                     "level": "none",

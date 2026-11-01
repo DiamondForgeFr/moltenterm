@@ -170,7 +170,12 @@ export class AgentFeaturesModel {
         this.loading = true;
         fireAndForget(async () => {
             try {
-                this.setMatrix(await fetchFeatureMatrix());
+                const matrix = await fetchFeatureMatrix();
+                // An empty answer would leave every agent without features: the build's matrix stands instead.
+                if (!matrix?.agents?.length) {
+                    throw new Error("empty matrix");
+                }
+                this.setMatrix(matrix);
             } catch (e) {
                 this.retryAt = Date.now() + RetryMs;
                 console.log("[agent-features] the matrix could not be read", e);

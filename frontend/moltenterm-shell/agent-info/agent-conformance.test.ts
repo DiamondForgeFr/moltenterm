@@ -18,10 +18,12 @@ vi.mock("@/app/store/global", () => ({
 import { runningInTerminal } from "../busy-close-model";
 import { agentCommandTable, hasAgentCommands } from "../command-panel/agent-commands";
 import { agentCopyProfile } from "../term-copy/agent-copy-profiles";
+import { setTestMatrix } from "./agent-features-fixture";
 import { featureWorks, type FeatureMatrix } from "./agent-features-model";
 import Golden from "./agent-features.golden.json";
 
 const Matrix = Golden as FeatureMatrix;
+setTestMatrix(Matrix);
 const AgentIds = Matrix.agents.map((a) => a.id);
 
 // The features delivered by frontend code, each with its check below.
