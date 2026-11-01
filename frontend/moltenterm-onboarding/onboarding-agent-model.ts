@@ -41,6 +41,10 @@ export type OnboardingAgent = {
     installpage?: string;
     // the catalog's official install commands (pkg/molten/onboarding/agents.go), the first the one Install runs
     installcommands?: string[];
+    // the vendor's page to sign in or create an account (#1680)
+    signinpage?: string;
+    // wavesrv saw the agent's documented credentials file; false when it cannot tell, never a proof of the contrary
+    signedin?: boolean;
 };
 
 export type OnboardingAgents = { agents: OnboardingAgent[]; version: string };

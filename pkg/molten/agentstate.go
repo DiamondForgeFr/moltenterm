@@ -50,6 +50,13 @@ const (
 	AgentIdGemini   = "gemini"
 	AgentIdOpenCode = "opencode"
 	AgentIdKimi     = "kimi"
+	AgentIdQwen     = "qwen"
+	// The subscription CLIs of #1680: recognised by their process, no hooks yet.
+	AgentIdAntigravity = "antigravity"
+	AgentIdCopilot     = "copilot"
+	AgentIdCursor      = "cursor"
+	AgentIdGrok        = "grok"
+	AgentIdVibe        = "vibe"
 )
 
 type AgentKind struct {
@@ -70,6 +77,17 @@ var AgentKinds = []AgentKind{
 	{Id: AgentIdCodex, Name: "Codex", Commands: []string{"codex"}, ProcessHints: []string{"@openai/codex", "/bin/codex"}},
 	{Id: AgentIdGemini, Name: "Gemini CLI", Commands: []string{"gemini"}, ProcessHints: []string{"@google/gemini-cli", "/bin/gemini"}},
 	{Id: AgentIdOpenCode, Name: "OpenCode", Commands: []string{"opencode"}, ProcessHints: []string{"opencode-ai", "/bin/opencode"}},
+	// Kimi Code and Qwen Code had cards saying "recognised by their process" without a row here (#1681, fixed by #1680).
+	{Id: AgentIdKimi, Name: "Kimi Code", Commands: []string{"kimi"}, ProcessHints: []string{"/kimi-code/", "/bin/kimi"}},
+	{Id: AgentIdQwen, Name: "Qwen Code", Commands: []string{"qwen"}, ProcessHints: []string{"@qwen-code/qwen-code", "/bin/qwen"}},
+	// #1680, checked against the vendors' docs on 2026-11-01. Cursor CLI's program is `agent` (`cursor-agent` before); its
+	// installer keeps the versions in ~/.local/share/cursor-agent/. Mistral Vibe is a Python program (uv tool install
+	// mistral-vibe), its process an interpreter of uv's tools/mistral-vibe/ folder.
+	{Id: AgentIdAntigravity, Name: "Antigravity CLI", Commands: []string{"agy"}, ProcessHints: []string{"/bin/agy"}},
+	{Id: AgentIdCopilot, Name: "GitHub Copilot CLI", Commands: []string{"copilot"}, ProcessHints: []string{"@github/copilot", "/bin/copilot"}},
+	{Id: AgentIdCursor, Name: "Cursor CLI", Commands: []string{"agent", "cursor-agent"}, ProcessHints: []string{"/cursor-agent/"}},
+	{Id: AgentIdGrok, Name: "Grok Build", Commands: []string{"grok"}, ProcessHints: []string{"/bin/grok"}},
+	{Id: AgentIdVibe, Name: "Mistral Vibe", Commands: []string{"vibe"}, ProcessHints: []string{"/mistral-vibe/", "/bin/vibe"}},
 }
 
 var agentIdRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)

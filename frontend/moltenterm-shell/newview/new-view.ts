@@ -9,6 +9,7 @@ import { atoms, getApi, getSettingsKeyAtom, globalStore, replaceBlock, WOS } fro
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { isMacOS } from "@/util/platformutil";
 import { fireAndForget } from "@/util/util";
+import { knownCodingAgents } from "../coding-agent/coding-agent";
 import { runPaletteEntry } from "../palette/palette-actions";
 import { fillsPanel, PaletteEntry } from "../palette/palette-model";
 import { newViewFavoriteBindings } from "../shortcuts/registry";
@@ -31,6 +32,7 @@ export function currentNewViewChoices(): PaletteEntry[] {
     const ws = globalStore.get(atoms.workspace);
     return newViewChoices({
         presets: fullConfig?.presets,
+        installedAgents: knownCodingAgents(),
         widgets: fullConfig?.widgets,
         workspaceId: ws?.oid,
         projectLinked: readWorkspaceProject(ws).dir !== "",

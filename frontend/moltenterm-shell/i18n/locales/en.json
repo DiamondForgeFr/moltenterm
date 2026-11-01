@@ -1428,6 +1428,7 @@
                 "nowReady": "{name} is ready. Change agents whenever you like: the workshop stays the same.",
                 "status": {
                     "ready": "Ready",
+                    "signedIn": "Ready, signed in",
                     "missing": "Not installed",
                     "looking": "Looking…",
                     "installing": "Installing…",
@@ -1441,7 +1442,10 @@
                     "subscriptionOrKey": "{provider} subscription or API key",
                     "accountOrKey": "{provider} account or API key",
                     "subscription": "{provider} subscription",
-                    "apiKey": "{provider} API key"
+                    "apiKey": "{provider} API key",
+                    "accountFree": "{provider} account, the free plan included",
+                    "planKey": "{provider} plan, with its key",
+                    "enterpriseOrKey": "{provider} Standard or Enterprise, or a paid API key"
                 },
                 "recipeCommand": "{command} + your key",
                 "hooks": "Approve MoltenTerm's hooks once, in {command}.",
@@ -1471,7 +1475,12 @@
                 "recipeTitle": "{model} in {agent}",
                 "recipeText": "{model} answers on an endpoint this agent can talk to: start it with these two variables and your {model} key. The page linked below gives the model variables.",
                 "recipeNeedsAgent": "{agent} must be installed first.",
-                "recipePage": "Setup guide ↗"
+                "recipePage": "Setup guide ↗",
+                "signIn": "Sign in",
+                "signInTitle": "Sign in to {name}",
+                "signInText": "{name} is on this computer. It needs: {account}.",
+                "signInFirstStart": "The sign-in happens when it first starts: run {command} in a terminal and follow its steps.",
+                "signInPage": "Sign in or create an account ↗"
             },
             "workshop": {
                 "kicker": "Your workshop",
@@ -9710,7 +9719,9 @@
                 "about": "Ask your agent with {morph}: it builds the panel you need.",
                 "noAgent": "Start a coding agent, then ask it for the tool with /morph.",
                 "start": "Start an agent",
-                "type": "Type {morph} in {agent}"
+                "type": "Type {morph} in {agent}",
+                "aboutPlain": "Ask your agent: tell it the panel you need.",
+                "typePlain": "Go to {agent}"
             },
             "about": {
                 "terminal": "A shell in the current project's folder.",
@@ -9926,6 +9937,7 @@
         "favoritesAria": "Favourites",
         "morph": {
             "ask": "Ask {agent} with {morph}",
+            "askPlain": "Ask {agent}",
             "askTitle": "Types {text} in {agent}'s terminal, without sending it",
             "noAgent": "No agent in this workspace.",
             "start": "Start an agent",

@@ -51,7 +51,9 @@ export function NewViewMorphHint({ query, onAsk, onStartAgent, actionRef }: NewV
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={ask}
                 >
-                    {t("newView.morph.ask", { agent: name, morph: morphCall(agent.agent) })}
+                    {morphCall(agent.agent)
+                        ? t("newView.morph.ask", { agent: name, morph: morphCall(agent.agent) })
+                        : t("newView.morph.askPlain", { agent: name })}
                     <MoltenWave />
                 </button>
             </div>

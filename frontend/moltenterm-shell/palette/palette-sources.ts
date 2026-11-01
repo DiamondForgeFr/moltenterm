@@ -101,6 +101,8 @@ export type PaletteWorkspace = {
 
 export type PaletteSourceInput = {
     presets: { [key: string]: MetaType };
+    // The catalog's agents with whether each is on this computer (#1680).
+    installedAgents?: InstalledAgent[];
     widgets: { [key: string]: WidgetConfigType };
     workspaceId: string;
     // Where new blocks of the workspace start (effectiveWorkspaceFolder), "" when it has none.
@@ -188,8 +190,39 @@ export function readAgentPresets(presets: { [key: string]: MetaType }): AgentPre
     return rtn;
 }
 
-export function agentEntries(presets: { [key: string]: MetaType }): PaletteEntry[] {
-    return readAgentPresets(presets).map((p) => ({
+// An agent of MoltenTerm's catalog found on this computer (wavesrv's agent choice, pkg/molten/agentchoice): the
+// agents without a preset of their own are offered too (#1680), after the presets, under their own name and program.
+// A preset of the same id, hidden or not, or with the same program, wins: the developer's configuration decides.
+export type InstalledAgent = { id: string; name: string; command?: string; installed?: boolean };
+
+export function installedAgentPresets(
+    presets: { [key: string]: MetaType },
+    installed: InstalledAgent[]
+): AgentPreset[] {
+    const taken = new Set<string>();
+    for (const key of Object.keys(presets ?? {})) {
+        if (key.startsWith(AgentPresetPrefix)) {
+            taken.add(key.slice(AgentPresetPrefix.length));
+        }
+    }
+    for (const p of readAgentPresets(presets)) {
+        taken.add(p.command.split(/\s+/)[0]);
+    }
+    const rtn: AgentPreset[] = [];
+    for (const agent of installed ?? []) {
+        const command = agent?.command || agent?.id;
+        if (!agent?.installed || !command || taken.has(agent.id) || taken.has(command)) {
+            continue;
+        }
+        taken.add(agent.id);
+        taken.add(command);
+        rtn.push({ id: agent.id, name: agent.name || agent.id, command, icon: AiIcon, color: "", order: 0 });
+    }
+    return rtn;
+}
+
+export function agentEntries(presets: { [key: string]: MetaType }, installed?: InstalledAgent[]): PaletteEntry[] {
+    return [...readAgentPresets(presets), ...installedAgentPresets(presets, installed)].map((p) => ({
         id: `agent:${p.id}`,
         group: "agents",
         label: p.name,
@@ -574,7 +607,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         .filter((e) => e.id !== "action:sessions")
         .map((e) => (e.id === "action:shortcuts" && input.shortcutsHint ? { ...e, hint: input.shortcutsHint } : e));
     const entries = [
-        ...agentEntries(input.presets),
+        ...agentEntries(input.presets, input.installedAgents),
         ...panels,
         ...folderEntries(folders, input.home),
         ...actions,

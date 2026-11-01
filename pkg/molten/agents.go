@@ -134,6 +134,12 @@ func tomlMultiline(text string) string {
 	return strings.ReplaceAll(text, `"""`, `""\"`)
 }
 
+// The request is said in words, as for Codex: these agents' docs document no argument placeholder (#1680).
+func renderPlainSkill(guide AgentGuide, body string, marker string, extra ...string) string {
+	body = strings.ReplaceAll(body, agentRequestPlaceholder, "The request is the text the user wrote after `/"+guide.Name+"` in their message.")
+	return markdownWithFrontmatter(skillFrontmatter(guide, extra...), marker, body)
+}
+
 var AgentProfiles = []AgentProfile{
 	{
 		Id:         "claude-code",
@@ -159,7 +165,9 @@ var AgentProfiles = []AgentProfile{
 			return filepath.Join(env.Home, ".agents", "skills", name, "SKILL.md")
 		},
 		render: func(guide AgentGuide, body string, marker string) string {
-			body = strings.ReplaceAll(body, agentRequestPlaceholder, "The request is the text the user wrote after `$"+guide.Name+"` in their message.")
+			// ~/.agents/skills is also read by Gemini CLI, Kimi, Copilot CLI, Cursor, Grok Build and Mistral Vibe (#1680),
+			// which call the skill with /<name>: the sentence names both calls.
+			body = strings.ReplaceAll(body, agentRequestPlaceholder, "The request is the text the user wrote after `$"+guide.Name+"` (or `/"+guide.Name+"`) in their message.")
 			return markdownWithFrontmatter(skillFrontmatter(guide), marker, body)
 		},
 	},
@@ -203,6 +211,75 @@ var AgentProfiles = []AgentProfile{
 		render: func(guide AgentGuide, body string, marker string) string {
 			body = strings.ReplaceAll(body, agentRequestPlaceholder, "$ARGUMENTS")
 			return markdownWithFrontmatter(skillFrontmatter(guide), marker, body)
+		},
+	},
+	// The subscription CLIs of #1680, their user-level skill folders checked against the vendors' docs on 2026-11-01:
+	// each calls a skill with /<name>. Antigravity CLI shares ~/.gemini/config/skills with the Antigravity app.
+	{
+		Id:         AgentIdAntigravity,
+		Executable: "agy",
+		Name:       "Antigravity CLI",
+		Invocation: "/{name} <request>",
+		Format:     "skill",
+		path: func(env AgentEnv, name string) string {
+			return filepath.Join(env.Home, ".gemini", "config", "skills", name, "SKILL.md")
+		},
+		render: func(guide AgentGuide, body string, marker string) string {
+			return renderPlainSkill(guide, body, marker)
+		},
+	},
+	{
+		Id:         AgentIdCopilot,
+		Executable: "copilot",
+		Name:       "GitHub Copilot CLI",
+		Invocation: "/{name} <request>",
+		Format:     "skill",
+		path: func(env AgentEnv, name string) string {
+			return filepath.Join(envOr(env, "COPILOT_HOME", filepath.Join(env.Home, ".copilot")), "skills", name, "SKILL.md")
+		},
+		render: func(guide AgentGuide, body string, marker string) string {
+			return renderPlainSkill(guide, body, marker)
+		},
+	},
+	{
+		// Cursor's docs give ~/.cursor/skills for Cursor's agent; its CLI page does not say whether the CLI reads them.
+		Id:         AgentIdCursor,
+		Executable: "agent",
+		Name:       "Cursor CLI",
+		Invocation: "/{name} <request>",
+		Format:     "skill",
+		path: func(env AgentEnv, name string) string {
+			return filepath.Join(env.Home, ".cursor", "skills", name, "SKILL.md")
+		},
+		render: func(guide AgentGuide, body string, marker string) string {
+			return renderPlainSkill(guide, body, marker)
+		},
+	},
+	{
+		Id:         AgentIdGrok,
+		Executable: "grok",
+		Name:       "Grok Build",
+		Invocation: "/{name} <request>",
+		Format:     "skill",
+		path: func(env AgentEnv, name string) string {
+			return filepath.Join(env.Home, ".grok", "skills", name, "SKILL.md")
+		},
+		render: func(guide AgentGuide, body string, marker string) string {
+			return renderPlainSkill(guide, body, marker, "user-invocable: true", "disable-model-invocation: true")
+		},
+	},
+	{
+		// A Vibe skill is a slash command only with user-invocable: true.
+		Id:         AgentIdVibe,
+		Executable: "vibe",
+		Name:       "Mistral Vibe",
+		Invocation: "/{name} <request>",
+		Format:     "skill",
+		path: func(env AgentEnv, name string) string {
+			return filepath.Join(envOr(env, "VIBE_HOME", filepath.Join(env.Home, ".vibe")), "skills", name, "SKILL.md")
+		},
+		render: func(guide AgentGuide, body string, marker string) string {
+			return renderPlainSkill(guide, body, marker, "user-invocable: true")
 		},
 	},
 	{

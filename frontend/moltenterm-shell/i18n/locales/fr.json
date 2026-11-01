@@ -1428,6 +1428,7 @@
                 "nowReady": "{name} est prêt. Changez d'agent quand vous voulez : l'atelier reste le même.",
                 "status": {
                     "ready": "Prêt",
+                    "signedIn": "Prêt, connecté",
                     "missing": "Pas installé",
                     "looking": "Recherche…",
                     "installing": "Installation…",
@@ -1441,7 +1442,10 @@
                     "subscriptionOrKey": "Abonnement {provider} ou clé d'API",
                     "accountOrKey": "Compte {provider} ou clé d'API",
                     "subscription": "Abonnement {provider}",
-                    "apiKey": "Clé d'API {provider}"
+                    "apiKey": "Clé d'API {provider}",
+                    "accountFree": "Compte {provider}, offre gratuite comprise",
+                    "planKey": "Forfait {provider}, avec sa clé",
+                    "enterpriseOrKey": "{provider} Standard ou Enterprise, ou une clé d'API payante"
                 },
                 "recipeCommand": "{command} + votre clé",
                 "hooks": "Approuvez une fois les hooks de MoltenTerm, dans {command}.",
@@ -1471,7 +1475,12 @@
                 "recipeTitle": "{model} dans {agent}",
                 "recipeText": "{model} répond sur une adresse que cet agent sait joindre : lancez-le avec ces deux variables et votre clé {model}. La page liée ci-dessous donne les variables du modèle.",
                 "recipeNeedsAgent": "{agent} doit d'abord être installé.",
-                "recipePage": "Guide de configuration ↗"
+                "recipePage": "Guide de configuration ↗",
+                "signIn": "Se connecter",
+                "signInTitle": "Se connecter à {name}",
+                "signInText": "{name} est sur cet ordinateur. Il vous faut : {account}.",
+                "signInFirstStart": "La connexion se fait à son premier démarrage : lancez {command} dans un terminal et suivez ses étapes.",
+                "signInPage": "Se connecter ou créer un compte ↗"
             },
             "workshop": {
                 "kicker": "Votre atelier",
@@ -9710,7 +9719,9 @@
                 "about": "Demandez-le à votre agent avec {morph} : il construit le panneau qu'il vous faut.",
                 "noAgent": "Lancez un agent de code, puis demandez-lui l'outil avec /morph.",
                 "start": "Lancer un agent",
-                "type": "Écrire {morph} dans {agent}"
+                "type": "Écrire {morph} dans {agent}",
+                "aboutPlain": "Demandez-le à votre agent : décrivez-lui le panneau qu'il vous faut.",
+                "typePlain": "Aller à {agent}"
             },
             "about": {
                 "terminal": "Un shell dans le dossier du projet courant.",
@@ -9926,6 +9937,7 @@
         "favoritesAria": "Favoris",
         "morph": {
             "ask": "Demander à {agent} avec {morph}",
+            "askPlain": "Demander à {agent}",
             "askTitle": "Écrit {text} dans le terminal de {agent}, sans l'envoyer",
             "noAgent": "Aucun agent dans cet espace.",
             "start": "Lancer un agent",

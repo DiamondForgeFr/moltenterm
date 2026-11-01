@@ -6,14 +6,16 @@
 import { describe, expect, it } from "vitest";
 import type { OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 import {
-    DeepSeekCardId,
-    DeepSeekRecipe,
     foundSentenceKey,
+    GlmCardId,
     headlineAgentNames,
     keptAgent,
+    MiniMaxCardId,
+    needsSignIn,
     newlyReady,
     pourAgentCards,
     readyCount,
+    Recipes,
 } from "./onboarding-pour-agents";
 
 function agent(id: string, name: string, executable: string, found: boolean, extra: Partial<OnboardingAgent> = {}) {
@@ -41,6 +43,11 @@ const List: OnboardingAgents = {
         agent("gemini-cli", "Gemini CLI", "gemini", false),
         agent("qwen-code", "Qwen Code", "qwen", false),
         agent("kimi", "Kimi Code", "kimi", false),
+        agent("antigravity", "Antigravity CLI", "agy", false),
+        agent("copilot", "GitHub Copilot CLI", "copilot", false),
+        agent("cursor", "Cursor CLI", "agent", false),
+        agent("grok", "Grok Build", "grok", false),
+        agent("vibe", "Mistral Vibe", "vibe", false),
         agent("generic", "Generic coding agent", "", false),
     ],
 };
@@ -48,9 +55,42 @@ const List: OnboardingAgents = {
 describe("the agent cards (FR-ONB-007)", () => {
     const cards = pourAgentCards(List);
 
-    it("shows every catalog agent, found ones first, then DeepSeek, without the generic profile", () => {
-        expect(cards.map((c) => c.id)).toEqual(["claude-code", "codex", "gemini-cli", "qwen-code", "kimi", "deepseek"]);
+    it("shows the agents found first, then every other card by name, never ranked by vendor (#1680)", () => {
+        expect(cards.map((c) => c.id)).toEqual([
+            "claude-code",
+            "codex",
+            "antigravity",
+            "cursor",
+            "copilot",
+            "glm",
+            "grok",
+            "kimi",
+            "minimax",
+            "vibe",
+            "qwen-code",
+        ]);
         expect(readyCount(cards)).toBe(2);
+    });
+
+    it("keeps Gemini CLI's card only for those who have it (Antigravity CLI took over personal accounts)", () => {
+        expect(cards.some((c) => c.id === "gemini-cli")).toBe(false);
+        const withGemini = pourAgentCards({
+            ...List,
+            agents: List.agents.map((a) => (a.id === "gemini-cli" ? { ...a, found: true } : a)),
+        });
+        expect(withGemini.find((c) => c.id === "gemini-cli")).toMatchObject({
+            ready: true,
+            account: "enterpriseOrKey",
+        });
+    });
+
+    it("says which account each new agent needs", () => {
+        const account = (id: string) => cards.find((c) => c.id === id)?.account;
+        expect(account("antigravity")).toBe("accountFree");
+        expect(account("copilot")).toBe("accountFree");
+        expect(account("cursor")).toBe("subscription");
+        expect(account("grok")).toBe("accountOrKey");
+        expect(account("vibe")).toBe("accountFree");
     });
 
     it("gives each its command, readiness and integration level", () => {
@@ -74,11 +114,32 @@ describe("the agent cards (FR-ONB-007)", () => {
         expect(cards.filter((c) => c.hooksNote).map((c) => c.id)).toEqual(["codex"]);
     });
 
-    it("offers DeepSeek as a Claude Code recipe to configure", () => {
-        const deepseek = cards.find((c) => c.id === DeepSeekCardId);
-        expect(deepseek).toMatchObject({ recipe: true, ready: false, command: "claude", account: "apiKey" });
-        expect(DeepSeekRecipe).toContain("export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic");
-        expect(DeepSeekRecipe.at(-1)).toBe("claude");
+    it("offers GLM Coding Plan and MiniMax as Claude Code recipes, and no DeepSeek card (#1680)", () => {
+        expect(cards.some((c) => c.id === "deepseek")).toBe(false);
+        const glm = cards.find((c) => c.id === GlmCardId);
+        expect(glm).toMatchObject({ recipe: true, ready: false, command: "claude", account: "planKey" });
+        expect(glm.recipeLines).toContain("export ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic");
+        const minimax = cards.find((c) => c.id === MiniMaxCardId);
+        expect(minimax.recipeLines).toContain("export ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic");
+        for (const r of Recipes) {
+            expect(r.lines.at(-1)).toBe("claude");
+            expect(r.signInPage).toMatch(/^https:\/\//);
+            expect(r.guideUrl).toMatch(/^https:\/\//);
+        }
+    });
+
+    it("offers the sign-in step to a found agent whose sign-in MoltenTerm did not see", () => {
+        const signed = pourAgentCards({
+            ...List,
+            agents: List.agents.map((a) =>
+                a.id === "codex" ? { ...a, signedin: true, signinpage: "https://example.invalid/in" } : a
+            ),
+        });
+        expect(needsSignIn(signed.find((c) => c.id === "codex"))).toBe(false);
+        expect(needsSignIn(signed.find((c) => c.id === "claude-code"))).toBe(true);
+        expect(needsSignIn(signed.find((c) => c.id === "kimi"))).toBe(false);
+        expect(needsSignIn(signed.find((c) => c.id === "glm"))).toBe(false);
+        expect(signed.find((c) => c.id === "codex").signInPage).toBe("https://example.invalid/in");
     });
 
     it("counts the agents found for the sentence above the cards", () => {

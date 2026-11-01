@@ -10,6 +10,7 @@ import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import type React from "react";
 import { useEffect, useMemo, useRef } from "react";
+import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { useLocale } from "../i18n/i18n";
 import { typeMorphCall } from "../morph/morph-call";
 import { CommandPalette, NewViewChooser } from "../palette/command-palette";
@@ -38,6 +39,7 @@ export function NewViewChooserView({ blockId, inputRef }: NewViewChooserViewProp
     const ws = useAtomValue(atoms.workspace);
     const favoritesSetting = useAtomValue(getSettingsKeyAtom(NewViewFavoritesKey));
     const locale = useLocale();
+    const installedAgents = useKnownCodingAgents();
     const runId = block?.meta?.[NewViewRunMetaKey as keyof MetaType] as string;
     const focusAgents = block?.meta?.[NewViewAgentsMetaKey as keyof MetaType] === true;
     const projectLinked = readWorkspaceProject(ws).dir !== "";
@@ -45,11 +47,12 @@ export function NewViewChooserView({ blockId, inputRef }: NewViewChooserViewProp
         () =>
             newViewChoices({
                 presets: fullConfig?.presets,
+                installedAgents,
                 widgets: fullConfig?.widgets,
                 workspaceId: ws?.oid,
                 projectLinked,
             }),
-        [fullConfig, ws?.oid, projectLinked, locale]
+        [fullConfig, installedAgents, ws?.oid, projectLinked, locale]
     );
     const started = useRef(false);
     useEffect(() => {

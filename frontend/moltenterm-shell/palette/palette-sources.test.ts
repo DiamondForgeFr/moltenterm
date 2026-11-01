@@ -59,6 +59,25 @@ describe("agent presets", () => {
         expect(agentEntries(DefaultAgents).map((e) => e.icon)).toEqual(["sparkles", "sparkles"]);
     });
 
+    it("offers the catalog's agents found on this computer that have no preset, after the presets (#1680)", () => {
+        const installed = [
+            { id: "claude", name: "Claude Code", command: "claude", installed: true },
+            { id: "cursor", name: "Cursor CLI", command: "agent", installed: true },
+            { id: "grok", name: "Grok Build", command: "grok", installed: false },
+            { id: "hidden", name: "Hidden", command: "hid", installed: true },
+            { id: "vibe", name: "Mistral Vibe", command: "vibe", installed: true },
+        ];
+        const presets = { ...DefaultAgents, "agent@hidden": { "display:hidden": true, "agent:command": "hid" } };
+        const entries = agentEntries(presets, installed);
+        expect(entries.map((e) => e.id)).toEqual(["agent:claude", "agent:codex", "agent:cursor", "agent:vibe"]);
+        expect(entries[2]).toMatchObject({
+            label: "Cursor CLI",
+            cli: "agent",
+            run: { kind: "agent", command: "agent" },
+        });
+        expect(agentEntries(DefaultAgents)).toHaveLength(2);
+    });
+
     it("shows the command as the CLI equivalent", () => {
         const [claude] = agentEntries(DefaultAgents);
         expect(claude).toMatchObject({ group: "agents", label: "Claude Code", cli: "claude" });

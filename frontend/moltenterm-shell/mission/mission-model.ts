@@ -267,7 +267,10 @@ export function prsByBranch(prs: readonly PullRequest[]): Map<string, { number: 
 // How to start the molten-pipeline guide in each agent (`molten agent list` shows the same).
 // must match the invocations in pkg/molten/agents.go
 export const PipelineInvocations = [
-    { agent: "Claude Code, Gemini CLI, Qwen Code", invocation: "/molten-pipeline" },
+    {
+        agent: "Claude Code, Gemini CLI, Qwen Code, Antigravity CLI, GitHub Copilot CLI, Cursor CLI, Grok Build, Mistral Vibe",
+        invocation: "/molten-pipeline",
+    },
     { agent: "Codex", invocation: "$molten-pipeline" },
     { agent: "Kimi Code", invocation: "/skill:molten-pipeline" },
 ];

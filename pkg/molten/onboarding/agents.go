@@ -32,23 +32,73 @@ type agentInstall struct {
 	// The official commands, the first the one Install runs (FR-ONB-007 AC-5): the only commands MoltenTerm ever runs
 	// to install an agent, looked up here by agent id.
 	Commands []string
+	// The vendor's page to sign in or create an account and pick a plan (#1680).
+	SignInPage string
+	// The files whose mere existence the vendor documents as a sign-in (#1680), relative to the agent's folder; nil when
+	// the sign-in lives in the system keychain or nowhere documented. MoltenTerm never opens them and never starts the
+	// agent to ask: a file found means signed in, none found means it cannot tell.
+	Credentials func(env molten.AgentEnv) []string
+}
+
+// credentialsIn is the agent folder's files: under the folder an environment variable names, else under home.
+func credentialsIn(envVar string, homeDir string, files ...string) func(env molten.AgentEnv) []string {
+	return func(env molten.AgentEnv) []string {
+		dir := filepath.Join(env.Home, homeDir)
+		if env.Getenv != nil && env.Getenv(envVar) != "" {
+			dir = env.Getenv(envVar)
+		}
+		var rtn []string
+		for _, f := range files {
+			rtn = append(rtn, filepath.Join(dir, f))
+		}
+		return rtn
+	}
+}
+
+// signedIn tells whether one of the agent's documented credentials files exists; a pattern may name several (Kimi
+// Code keeps one file per account).
+func signedIn(env molten.AgentEnv, install agentInstall) bool {
+	if install.Credentials == nil {
+		return false
+	}
+	for _, pattern := range install.Credentials(env) {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			continue
+		}
+		for _, m := range matches {
+			if info, err := os.Stat(m); err == nil && info.Mode().IsRegular() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // The install catalog, pages and commands together so they cannot drift; checked against the vendors' pages on
-// 2026-10-31 (Kimi Code's page moved off the kimi-cli repository, archived on 2026-09-23). The scripts come first:
-// they need no Node.js.
+// 2026-10-31 (Kimi Code's page moved off the kimi-cli repository, archived on 2026-09-23), and on 2026-11-01 for the
+// subscription CLIs of #1680 (Antigravity CLI replaced Gemini CLI for personal Google accounts on 2026-06-18, Gemini
+// CLI's README says; Gemini CLI stays for Code Assist Standard/Enterprise and paid API keys). The scripts come first:
+// they need no Node.js or Python.
 var agentInstallCatalog = map[string]agentInstall{
 	"claude-code": {
-		Page:     "https://code.claude.com/docs/en/setup",
-		Commands: []string{"curl -fsSL https://claude.ai/install.sh | bash"},
+		Page:       "https://code.claude.com/docs/en/setup",
+		Commands:   []string{"curl -fsSL https://claude.ai/install.sh | bash"},
+		SignInPage: "https://claude.com/pricing",
+		// macOS keeps it in the keychain: the file only proves a sign-in, its absence nothing.
+		Credentials: credentialsIn("CLAUDE_CONFIG_DIR", ".claude", ".credentials.json"),
 	},
 	"codex": {
-		Page:     "https://learn.chatgpt.com/docs/codex/cli",
-		Commands: []string{"curl -fsSL https://chatgpt.com/codex/install.sh | sh", "npm i -g @openai/codex"},
+		Page:       "https://learn.chatgpt.com/docs/codex/cli",
+		Commands:   []string{"curl -fsSL https://chatgpt.com/codex/install.sh | sh", "npm i -g @openai/codex"},
+		SignInPage: "https://learn.chatgpt.com/docs/pricing",
+		// cli_auth_credentials_store may put it in the keyring instead.
+		Credentials: credentialsIn("CODEX_HOME", ".codex", "auth.json"),
 	},
 	"gemini-cli": {
-		Page:     "https://github.com/google-gemini/gemini-cli",
-		Commands: []string{"npm install -g @google/gemini-cli"},
+		Page:       "https://github.com/google-gemini/gemini-cli",
+		Commands:   []string{"npm install -g @google/gemini-cli"},
+		SignInPage: "https://codeassist.google/products/business",
 	},
 	"qwen-code": {
 		Page: "https://github.com/QwenLM/qwen-code",
@@ -56,10 +106,50 @@ var agentInstallCatalog = map[string]agentInstall{
 			"curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
 			"npm install -g @qwen-code/qwen-code@latest",
 		},
+		// Qwen OAuth's free tier ended on 2026-04-15: Alibaba Cloud's Coding Plan or a key, kept in settings files.
+		SignInPage: "https://modelstudio.console.alibabacloud.com/?tab=coding-plan#/efm/coding-plan-index",
 	},
 	"kimi": {
-		Page:     "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started",
-		Commands: []string{"curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"},
+		Page:        "https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started",
+		Commands:    []string{"curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"},
+		SignInPage:  "https://www.kimi.com/membership/pricing",
+		Credentials: credentialsIn("KIMI_CODE_HOME", ".kimi-code", filepath.Join("credentials", "*.json")),
+	},
+	molten.AgentIdAntigravity: {
+		Page:     "https://antigravity.google/docs/install?tab=cli",
+		Commands: []string{"curl -fsSL https://antigravity.google/cli/install.sh | bash"},
+		// The sign-in lives in the system keychain only.
+		SignInPage: "https://antigravity.google/pricing",
+	},
+	molten.AgentIdCopilot: {
+		Page: "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli",
+		Commands: []string{
+			"curl -fsSL https://gh.io/copilot-install | bash",
+			"npm install -g @github/copilot",
+			"brew install --cask copilot-cli",
+		},
+		// The keychain by default; config.json exists without a sign-in.
+		SignInPage: "https://github.com/features/copilot/plans",
+	},
+	molten.AgentIdCursor: {
+		Page:     "https://cursor.com/docs/cli/installation",
+		Commands: []string{"curl https://cursor.com/install -fsS | bash"},
+		// "Stored securely" where the docs do not say.
+		SignInPage: "https://cursor.com/pricing",
+	},
+	molten.AgentIdGrok: {
+		Page:       "https://docs.x.ai/build/overview",
+		Commands:   []string{"curl -fsSL https://x.ai/cli/install.sh | bash"},
+		SignInPage: "https://grok.com/plans",
+		// GROK_HOME holds the auth (settings reference); the official installer checks auth.json for it.
+		Credentials: credentialsIn("GROK_HOME", ".grok", "auth.json"),
+	},
+	molten.AgentIdVibe: {
+		Page:       "https://docs.mistral.ai/mistral-vibe/introduction/install",
+		Commands:   []string{"curl -LsSf https://mistral.ai/vibe/install.sh | bash", "uv tool install mistral-vibe"},
+		SignInPage: "https://mistral.ai/pricing",
+		// An API key goes to the keyring, or to .env without one; the browser sign-in's place is not documented.
+		Credentials: credentialsIn("VIBE_HOME", ".vibe", ".env"),
 	},
 }
 
@@ -70,6 +160,9 @@ type AgentEntry struct {
 	FoundPath       string   `json:"foundpath,omitempty"`
 	InstallPage     string   `json:"installpage,omitempty"`
 	InstallCommands []string `json:"installcommands,omitempty"`
+	SignInPage      string   `json:"signinpage,omitempty"`
+	// A credentials file the vendor documents is there; false when MoltenTerm cannot tell, never proof of the contrary.
+	SignedIn bool `json:"signedin,omitempty"`
 }
 
 type agentsRequest struct {
@@ -95,10 +188,12 @@ func ListAgents(env molten.AgentEnv, pathList string, version string) AgentsResu
 			Executable:      profile.Executable,
 			InstallPage:     agentInstallCatalog[profile.Id].Page,
 			InstallCommands: installCommands(profile.Id),
+			SignInPage:      agentInstallCatalog[profile.Id].SignInPage,
 		}
 		if profile.Executable != "" {
 			entry.FoundPath = molten.LookPathIn(profile.Executable, pathList)
 			entry.Found = entry.FoundPath != ""
+			entry.SignedIn = entry.Found && signedIn(env, agentInstallCatalog[profile.Id])
 		}
 		rtn.Agents = append(rtn.Agents, entry)
 	}

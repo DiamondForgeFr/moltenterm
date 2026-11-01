@@ -22,6 +22,22 @@ describe("morph call (#1653, #1672)", () => {
         expect(morphCall("codex")).toBe("$morph");
     });
 
+    it("calls /morph in the subscription CLIs, and gives an unknown agent the plain request (#1680)", () => {
+        for (const agent of ["antigravity", "copilot", "cursor", "grok", "vibe"]) {
+            expect(morphCall(agent)).toBe("/morph");
+        }
+        expect(morphCall("someagent")).toBe("");
+        expect(morphCallText("someagent", " kanban\nboard ")).toBe("kanban board");
+        for (const key of [
+            "newView.morph.askPlain",
+            "library.panels.morph.aboutPlain",
+            "library.panels.morph.typePlain",
+        ]) {
+            expect(typeof lookup(en, key)).toBe("string");
+            expect(typeof lookup(fr, key)).toBe("string");
+        }
+    });
+
     it("adds what was typed in the launcher, never anything that would send it", () => {
         expect(morphCallText("claude", "kanban board")).toBe("/morph kanban board");
         expect(morphCallText("codex", "  kanban  ")).toBe("$morph kanban");

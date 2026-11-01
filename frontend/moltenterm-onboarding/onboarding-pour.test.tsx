@@ -92,7 +92,7 @@ describe("OnboardingPour (FR-ONB-007)", () => {
         expect(morph).toContain("data-poured");
     });
 
-    it("lists the agents from the detection, ready or not installed, with DeepSeek to configure", () => {
+    it("lists the agents from the detection, ready or not installed, with the plan recipes to configure", () => {
         const html = render({ initialScene: 1 });
         expect(html).toContain("MoltenTerm found 2 command-line agents on this computer.");
         expect(html).toMatch(/data-agent="claude-code" data-ready=""/);
@@ -104,8 +104,11 @@ describe("OnboardingPour (FR-ONB-007)", () => {
         expect(html).toContain("Kimi subscription");
         expect(html).toContain("Not installed");
         expect(html).toContain('data-testid="pour-act-kimi"');
-        expect(html).not.toContain('data-testid="pour-act-claude-code"');
-        expect(html).toMatch(/data-testid="pour-act-deepseek"[^>]*>Configure/);
+        // found, its sign-in not seen: the sign-in step (#1680)
+        expect(html).toMatch(/data-testid="pour-act-claude-code"[^>]*>Sign in/);
+        expect(html).toMatch(/data-testid="pour-act-glm"[^>]*>Configure/);
+        expect(html).toMatch(/data-testid="pour-act-minimax"[^>]*>Configure/);
+        expect(html).not.toContain('data-testid="pour-act-deepseek"');
         expect(html).toContain('data-testid="pour-codex-hooks"');
         expect(html).toContain("/hooks");
     });

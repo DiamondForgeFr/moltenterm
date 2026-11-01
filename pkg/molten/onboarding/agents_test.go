@@ -96,6 +96,67 @@ func TestListAgents(t *testing.T) {
 	}
 }
 
+// Every agent of the catalog has its install page and official command (#1680), and is recognised by its process.
+func TestEveryCatalogAgentInstalls(t *testing.T) {
+	t.Setenv(TestInstallDirEnv, "")
+	env := testAgentEnv(t)
+	bin := filepath.Join(env.Home, "bin")
+	fakeExecutable(t, bin, "agent")
+	result := ListAgents(env, bin, "1.0.0")
+	for _, a := range result.Agents {
+		if a.Id == molten.GenericAgentId {
+			continue
+		}
+		if !strings.HasPrefix(a.InstallPage, "https://") || !strings.HasPrefix(a.SignInPage, "https://") || len(a.InstallCommands) == 0 {
+			t.Errorf("%s: no install page or command: %+v", a.Id, a)
+		}
+		if molten.MatchAgentCommand(a.Executable) == "" {
+			t.Errorf("%s: %s is not recognised as an agent", a.Id, a.Executable)
+		}
+	}
+	if cursor := findEntry(t, result, molten.AgentIdCursor); !cursor.Found || cursor.Invocation != "/morph <request>" {
+		t.Errorf("cursor entry %+v", cursor)
+	}
+	for _, id := range []string{molten.AgentIdAntigravity, molten.AgentIdCopilot, molten.AgentIdGrok, molten.AgentIdVibe} {
+		if molten.FindAgentKind(id) == nil {
+			t.Errorf("%s: no process detection", id)
+		}
+		if e := findEntry(t, result, id); e.Found || e.Invocation != "/morph <request>" {
+			t.Errorf("%s entry %+v", id, e)
+		}
+	}
+}
+
+// A found agent is signed in when a credentials file its vendor documents exists; MoltenTerm only looks for the file
+// (#1680). Without one, or for an agent not found, it cannot tell.
+func TestSignedInFromCredentialsFiles(t *testing.T) {
+	env := testAgentEnv(t)
+	kimiHome := filepath.Join(env.Home, "kimi-elsewhere")
+	env.Getenv = func(name string) string { return map[string]string{"KIMI_CODE_HOME": kimiHome}[name] }
+	bin := filepath.Join(env.Home, "bin")
+	for _, exe := range []string{"claude", "codex", "kimi", "agy"} {
+		fakeExecutable(t, bin, exe)
+	}
+	write := func(path string) {
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(env.Home, ".codex", "auth.json"))
+	write(filepath.Join(kimiHome, "credentials", "kimi-code.json"))
+	write(filepath.Join(env.Home, ".grok", "auth.json"))
+	result := ListAgents(env, bin, "1.0.0")
+	want := map[string]bool{"claude-code": false, "codex": true, "kimi": true, molten.AgentIdAntigravity: false, molten.AgentIdGrok: false}
+	for id, signed := range want {
+		if e := findEntry(t, result, id); e.SignedIn != signed {
+			t.Errorf("%s signed in %v, want %v", id, e.SignedIn, signed)
+		}
+	}
+}
+
 func TestInstallDeclinedAgent(t *testing.T) {
 	env := testAgentEnv(t)
 	if _, err := InstallDeclinedAgent(env, "codex", "1.0.0"); err == nil {

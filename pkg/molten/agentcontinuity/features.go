@@ -302,10 +302,34 @@ var geminiFeatures = plannedFeatures(map[string]FeatureSupport{
 })
 
 var kimiFeatures = plannedFeatures(map[string]FeatureSupport{
-	FeatDetect:     {Level: LevelNone, Reason: ReasonNotDetected, Note: "not in molten.AgentKinds", Issue: "#1680"},
-	FeatGuides:     {Level: LevelAdapted, Note: "Kimi skill (/skill:morph)", Adapter: "agents.go, agentguides.go"},
-	FeatOnboarding: {Level: LevelAdapted, Note: "catalog entry from its guide profile; the card promises a process detection Kimi Code does not have yet", Adapter: "onboarding/agents.go", Issue: "#1680"},
-	FeatBusyClose:  shellBusyClose,
+	FeatDetect:       processDetected,
+	FeatState:        processState,
+	FeatHandoff:      processHandoff,
+	FeatGuides:       {Level: LevelAdapted, Note: "Kimi skill (/skill:morph)", Adapter: "agents.go, agentguides.go"},
+	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile", Adapter: "onboarding/agents.go"},
+	FeatWorktreeName: processWorktreeName,
+	FeatBusyClose:    shellBusyClose,
+})
+
+var qwenFeatures = plannedFeatures(map[string]FeatureSupport{
+	FeatDetect:       processDetected,
+	FeatState:        processState,
+	FeatHandoff:      processHandoff,
+	FeatGuides:       {Level: LevelAdapted, Note: "Qwen skill", Adapter: "agents.go, agentguides.go"},
+	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile", Adapter: "onboarding/agents.go"},
+	FeatWorktreeName: processWorktreeName,
+	FeatBusyClose:    shellBusyClose,
+})
+
+// The subscription CLIs of #1680 share one row: recognised by their process, a skill in their user folder.
+var subscriptionCliFeatures = plannedFeatures(map[string]FeatureSupport{
+	FeatDetect:       processDetected,
+	FeatState:        processState,
+	FeatHandoff:      processHandoff,
+	FeatGuides:       {Level: LevelAdapted, Note: "skill in its user skills folder, called /morph", Adapter: "agents.go, agentguides.go"},
+	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile, with a sign-in step", Adapter: "onboarding/agents.go"},
+	FeatWorktreeName: processWorktreeName,
+	FeatBusyClose:    shellBusyClose,
 })
 
 var openCodeFeatures = plannedFeatures(map[string]FeatureSupport{

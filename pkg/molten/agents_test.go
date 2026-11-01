@@ -21,7 +21,7 @@ func testAgentEnv(t *testing.T) AgentEnv {
 }
 
 func TestAgentProfilesFollowTheCatalog(t *testing.T) {
-	want := "claude-code,codex,gemini-cli,qwen-code,kimi,generic"
+	want := "claude-code,codex,gemini-cli,qwen-code,kimi,antigravity,copilot,cursor,grok,vibe,generic"
 	ids := []string{}
 	for _, p := range AgentProfiles {
 		ids = append(ids, p.Id)
@@ -36,7 +36,7 @@ func TestAgentProfilesFollowTheCatalog(t *testing.T) {
 
 func TestAgentPaths(t *testing.T) {
 	env := AgentEnv{Home: "/h", DataDir: "/d", Getenv: func(name string) string {
-		return map[string]string{"KIMI_CODE_HOME": "/k"}[name]
+		return map[string]string{"KIMI_CODE_HOME": "/k", "COPILOT_HOME": "/c", "VIBE_HOME": "/v"}[name]
 	}}
 	cases := map[string]string{
 		"claude-code": "/h/.claude/skills/morph/SKILL.md",
@@ -44,6 +44,11 @@ func TestAgentPaths(t *testing.T) {
 		"gemini-cli":  "/h/.gemini/commands/morph.toml",
 		"qwen-code":   "/h/.qwen/commands/morph.md",
 		"kimi":        "/k/skills/morph/SKILL.md",
+		"antigravity": "/h/.gemini/config/skills/morph/SKILL.md",
+		"copilot":     "/c/skills/morph/SKILL.md",
+		"cursor":      "/h/.cursor/skills/morph/SKILL.md",
+		"grok":        "/h/.grok/skills/morph/SKILL.md",
+		"vibe":        "/v/skills/morph/SKILL.md",
 		"generic":     "/d/molten/agents/morph.md",
 	}
 	for id, want := range cases {
@@ -61,6 +66,11 @@ func TestAgentRenderings(t *testing.T) {
 		"gemini-cli":  "{{args}}",
 		"qwen-code":   "{{args}}",
 		"kimi":        "$ARGUMENTS",
+		"antigravity": "after `/morph`",
+		"copilot":     "after `/morph`",
+		"cursor":      "after `/morph`",
+		"grok":        "after `/morph`",
+		"vibe":        "after `/morph`",
 		"generic":     "pointed you to this file",
 	}
 	for _, p := range AgentProfiles {
@@ -228,6 +238,11 @@ func TestPipelineGuideForEveryAgent(t *testing.T) {
 		"gemini-cli":  "/h/.gemini/commands/molten-pipeline.toml",
 		"qwen-code":   "/h/.qwen/commands/molten-pipeline.md",
 		"kimi":        "/h/.kimi-code/skills/molten-pipeline/SKILL.md",
+		"antigravity": "/h/.gemini/config/skills/molten-pipeline/SKILL.md",
+		"copilot":     "/h/.copilot/skills/molten-pipeline/SKILL.md",
+		"cursor":      "/h/.cursor/skills/molten-pipeline/SKILL.md",
+		"grok":        "/h/.grok/skills/molten-pipeline/SKILL.md",
+		"vibe":        "/h/.vibe/skills/molten-pipeline/SKILL.md",
 		"generic":     "/d/molten/agents/molten-pipeline.md",
 	}
 	for _, p := range AgentProfiles {

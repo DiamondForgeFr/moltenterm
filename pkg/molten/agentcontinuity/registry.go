@@ -29,7 +29,14 @@ const plannedReason = "no adapter yet (FR-CONT-013, #333)"
 var PlannedAgents = []PlannedAgent{
 	{Id: molten.AgentIdGemini, Name: "Gemini CLI", Executable: "gemini", Reason: plannedReason, Features: geminiFeatures},
 	{Id: molten.AgentIdKimi, Name: "Kimi Code", Executable: "kimi", Reason: plannedReason, Features: kimiFeatures},
+	{Id: molten.AgentIdQwen, Name: "Qwen Code", Executable: "qwen", Reason: plannedReason, Features: qwenFeatures},
 	{Id: molten.AgentIdOpenCode, Name: "OpenCode", Executable: "opencode", Reason: plannedReason, Features: openCodeFeatures},
+	// The subscription CLIs of #1680: started from the launcher and the companion, recognised by their process.
+	{Id: molten.AgentIdAntigravity, Name: "Antigravity CLI", Executable: "agy", Reason: plannedReason, Features: subscriptionCliFeatures},
+	{Id: molten.AgentIdCopilot, Name: "GitHub Copilot CLI", Executable: "copilot", Reason: plannedReason, Features: subscriptionCliFeatures},
+	{Id: molten.AgentIdCursor, Name: "Cursor CLI", Executable: "agent", Reason: plannedReason, Features: subscriptionCliFeatures},
+	{Id: molten.AgentIdGrok, Name: "Grok Build", Executable: "grok", Reason: plannedReason, Features: subscriptionCliFeatures},
+	{Id: molten.AgentIdVibe, Name: "Mistral Vibe", Executable: "vibe", Reason: plannedReason, Features: subscriptionCliFeatures},
 }
 
 var validSupports = []string{SupportDocumented, SupportUndocumented, SupportUnavailable}
