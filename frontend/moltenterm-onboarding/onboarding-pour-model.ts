@@ -2,16 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // What the first launch, "the pour" (FR-ONB-007, DS-ONB-007), decides, kept apart from its components so the rules are
-// tested without a window: the five scenes, the keys that move between them, what each move records and the three
-// starts of the last scene.
+// tested without a window: the six scenes (#1709), the keys that move between them, what each move records, and the
+// choices of the project, first-view and place scenes (FR-ONB-009).
 
-export const PourScenes = ["pour", "agents", "workshop", "morph", "start"] as const;
+import {
+    DefaultPlace,
+    DefaultProjectMode,
+    DefaultToolsSuggestion,
+    presetTools,
+    ProjectDraft,
+    ProjectResult,
+    toggleTool,
+    ViewPlace,
+} from "./onboarding-first-view-model";
+
+export const PourScenes = ["pour", "agents", "project", "view", "place", "start"] as const;
 export type PourScene = (typeof PourScenes)[number];
 export const PourSceneCount = PourScenes.length;
-
-export const PourStarts = ["project", "morph", "free"] as const;
-export type PourStart = (typeof PourStarts)[number];
-export const DefaultStart: PourStart = "project";
 
 // The main button's text on each scene, keys of onboarding.pour.next.<scene>.
 export function nextLabelKey(scene: number): string {
@@ -25,8 +32,18 @@ export function clampScene(scene: number): number {
     return Math.max(0, Math.min(PourSceneCount - 1, Math.trunc(scene)));
 }
 
+export function sceneIndex(id: PourScene): number {
+    return PourScenes.indexOf(id);
+}
+
 export function isLastScene(scene: number): boolean {
     return clampScene(scene) === PourSceneCount - 1;
+}
+
+// Later skips only the project step, or the view and its place (P-1).
+export function offersLater(scene: number): boolean {
+    const id = PourScenes[clampScene(scene)];
+    return id === "project" || id === "view";
 }
 
 export type HeatState = "done" | "now" | "cold";
@@ -60,8 +77,8 @@ export function pourKeyAction(
     return null;
 }
 
-// What a move forward out of a scene records (FR-ONB-007 AC-9): the welcome when scene 1 is passed, the agent step when
-// scene 2 is.
+// What a move forward out of a scene records at once (FR-ONB-007 AC-9): the welcome when scene 1 is passed, the agent
+// step when scene 2 is. The project scene records when its project is set (P-7), the view when the run ends.
 export type PourRecord = "welcome" | "agents" | null;
 
 export function recordOnLeaving(scene: number): PourRecord {
@@ -74,42 +91,110 @@ export function recordOnLeaving(scene: number): PourRecord {
     return null;
 }
 
-// The pour's own state: the scene, a visit count that replays a scene's animations each time it shows, the start
-// chosen on the last scene and the agent card whose install or recipe is open.
-export type PourState = { scene: number; visit: number; start: PourStart; open: string };
+// The pour's own state: the scene, a visit count that replays a scene's animations each time it shows, the agent card
+// whose install or recipe is open, and what the project, view and place scenes hold.
+export type PourState = {
+    scene: number;
+    visit: number;
+    open: string;
+    project: ProjectDraft;
+    // the project the scene set when left; null until then, and after Later
+    projectSet: ProjectResult;
+    projectSkipped: boolean;
+    tools: string[];
+    viewName: string;
+    // the user typed the name: it no longer follows the tools
+    named: boolean;
+    agent: string;
+    place: ViewPlace;
+    viewSkipped: boolean;
+};
 
 export type PourAction =
     | { type: "next" }
     | { type: "back" }
     | { type: "goto"; scene: number }
-    | { type: "choose"; start: PourStart }
-    | { type: "toggle"; card: string };
+    | { type: "toggle"; card: string }
+    | { type: "project"; patch: Partial<ProjectDraft> }
+    | { type: "projectSet"; result: ProjectResult }
+    | { type: "laterProject" }
+    | { type: "tool"; kind: string }
+    | { type: "preset"; id: string }
+    | { type: "name"; text: string }
+    | { type: "agent"; id: string }
+    | { type: "place"; place: ViewPlace }
+    | { type: "laterView" };
 
 export function initialPourState(scene = 0): PourState {
-    return { scene: clampScene(scene), visit: 0, start: DefaultStart, open: null };
+    return {
+        scene: clampScene(scene),
+        visit: 0,
+        open: null,
+        project: { mode: DefaultProjectMode, name: "", location: "", git: true, found: "" },
+        projectSet: null,
+        projectSkipped: false,
+        tools: presetTools(DefaultToolsSuggestion),
+        viewName: "",
+        named: false,
+        agent: null,
+        place: DefaultPlace,
+        viewSkipped: false,
+    };
 }
 
+// Showing the project or the view scene again takes back its Later.
 function show(state: PourState, scene: number): PourState {
     const next = clampScene(scene);
     if (next === state.scene) {
         return state;
     }
-    return { ...state, scene: next, visit: state.visit + 1 };
+    const rtn = { ...state, scene: next, visit: state.visit + 1 };
+    if (PourScenes[next] === "project") {
+        rtn.projectSkipped = false;
+    }
+    if (PourScenes[next] === "view") {
+        rtn.viewSkipped = false;
+    }
+    return rtn;
 }
 
-// Next on the last scene runs the chosen start, which is the view's: the state does not move.
+// Next on the last scene ends the run, which is the view's: the state does not move. Back from the last scene after
+// Later on the view goes to the view scene, its place having been skipped.
 export function pourReduce(state: PourState, action: PourAction): PourState {
     switch (action.type) {
         case "next":
             return show(state, state.scene + 1);
         case "back":
+            if (PourScenes[state.scene] === "start" && state.viewSkipped) {
+                return show(state, sceneIndex("view"));
+            }
             return show(state, state.scene - 1);
         case "goto":
             return show(state, action.scene);
-        case "choose":
-            return PourStarts.includes(action.start) ? { ...state, start: action.start } : state;
         case "toggle":
             return { ...state, open: state.open === action.card ? null : action.card };
+        case "project":
+            return { ...state, project: { ...state.project, ...action.patch } };
+        case "projectSet":
+            return { ...state, projectSet: action.result, projectSkipped: false };
+        case "laterProject": {
+            const rtn = show({ ...state, projectSet: null }, sceneIndex("view"));
+            return { ...rtn, projectSkipped: true };
+        }
+        case "tool":
+            return { ...state, tools: toggleTool(state.tools, action.kind) };
+        case "preset":
+            return { ...state, tools: presetTools(action.id), named: false, viewName: "" };
+        case "name":
+            return { ...state, viewName: action.text, named: action.text.trim() !== "" };
+        case "agent":
+            return { ...state, agent: action.id };
+        case "place":
+            return { ...state, place: action.place === "workspace" ? "workspace" : "everywhere" };
+        case "laterView": {
+            const rtn = show(state, sceneIndex("start"));
+            return { ...rtn, viewSkipped: true };
+        }
     }
     return state;
 }
@@ -119,13 +204,3 @@ export function pourReduce(state: PourState, action: PourAction): PourState {
 export function sparksAllowed(reduced: boolean, documentHidden: boolean): boolean {
     return !reduced && !documentHidden;
 }
-
-// The /morph demo types one character every TypeMs, then the agent "writes" for WriteMs before the panel pours.
-export const TypeMs = 45;
-export const TypePauseMs = 350;
-export const WriteMs = 900;
-// The workshop's spaces slide on their own every SlideMs (SlideReducedMs under reduced motion).
-export const SlideMs = 3200;
-export const SlideReducedMs = 6000;
-// The Materials popover opens this long after the third space arrives.
-export const MaterialsDelayMs = 1300;

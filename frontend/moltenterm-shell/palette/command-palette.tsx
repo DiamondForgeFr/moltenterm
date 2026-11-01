@@ -20,7 +20,7 @@ import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
-import { chooserKey, chooserListEntries, firstAgentIndex } from "../newview/new-view-model";
+import { chooserKey, chooserListEntries, firstAgentIndex, suggestionEntries } from "../newview/new-view-model";
 import { NewViewMorphHint } from "../newview/new-view-morph-hint";
 import { formatShortcutById } from "../shortcuts/format";
 import { keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
@@ -360,6 +360,13 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
             <span className="shrink-0 whitespace-nowrap">
                 <Highlighted text={entry.label} indices={indices} />
             </span>
+            {entry.panelIcons?.length ? (
+                <span className="flex shrink-0 items-center gap-1 text-11 text-muted" aria-hidden>
+                    {entry.panelIcons.map((icon, i) => (
+                        <i key={i} className={makeIconClass(icon, true)} />
+                    ))}
+                </span>
+            ) : null}
             {entry.detail && <span className="min-w-0 truncate text-12 text-muted">{entry.detail}</span>}
             {aside && (
                 <span
@@ -401,12 +408,13 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 : [],
         [host, blockId, searching]
     );
+    const locale = useLocale();
     const listed = useMemo(() => {
         const all = searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries;
-        const base = newView != null ? chooserListEntries(all) : all;
+        const base = newView != null ? [...suggestionEntries(t), ...chooserListEntries(all)] : all;
         const address = addressEntry(query);
         return address != null ? [address, ...base] : base;
-    }, [entries, panelEntries, searching, query, newView]);
+    }, [entries, panelEntries, searching, query, newView, locale]);
     const sections = useMemo(() => filterPalette(listed, query, titles, order), [listed, query, titles, order]);
     const flat = useMemo(() => flattenSections(sections), [sections]);
     const input = inputRef ?? ownInputRef;

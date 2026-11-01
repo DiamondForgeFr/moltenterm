@@ -19,6 +19,7 @@ import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { typeCommandWhenReady } from "../palette/palette-actions";
 import { readResumeAgent, ResumeAgentMetaKey } from "../reopen/reopen-model";
+import { AgentSlotAgentMetaKey } from "../workspace-views/view-suggestions";
 import { AgentSlotMetaKey } from "./view-pins-model";
 import { startAgentInSlot } from "./view-pins-store";
 
@@ -42,10 +43,36 @@ function useResumeAgent(blockId: string, value: unknown) {
     }, [blockId, command]);
 }
 
+// The name of the agent the first launch picked for this slot (FR-ONB-009), from the agent catalog; null when the slot
+// names none, so it offers any agent.
+function useSlotAgentName(value: unknown): string {
+    const id = typeof value === "string" ? value : "";
+    const [name, setName] = useState<string>(null);
+    useEffect(() => {
+        setName(null);
+        if (!id) {
+            return;
+        }
+        let live = true;
+        fireAndForget(async () => {
+            const { listOnboardingAgents } = await import("../../moltenterm-onboarding/onboarding-client");
+            const agent = ((await listOnboardingAgents())?.agents ?? []).find((a) => a.id === id && a.found);
+            if (live && agent != null) {
+                setName(agent.name);
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [id]);
+    return name;
+}
+
 export function AgentSlotBanner({ blockId, meta }: { blockId: string; meta: Record<string, any> }) {
     const t = useT();
     const agent = useAtomValue(AgentStates.getInstance().blockAtom(blockId));
     const [starting, setStarting] = useState(false);
+    const picked = useSlotAgentName(meta?.[AgentSlotAgentMetaKey]);
     useResumeAgent(blockId, meta?.[ResumeAgentMetaKey]);
     if (meta?.[AgentSlotMetaKey] !== true || agent != null) {
         return null;
@@ -68,7 +95,7 @@ export function AgentSlotBanner({ blockId, meta }: { blockId: string; meta: Reco
                     startAgentInSlot(blockId).finally(() => setStarting(false));
                 }}
             >
-                {t("sidebar.pins.slot.start")}
+                {picked ? t("sidebar.pins.slot.startAgent", { agent: picked }) : t("sidebar.pins.slot.start")}
                 <MoltenWave />
             </button>
         </div>

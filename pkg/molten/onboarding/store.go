@@ -45,38 +45,6 @@ func withStateLock[T any](fn func() (T, error)) (T, error) {
 	return fn()
 }
 
-// The starter workspace's views (FR-SHELL-110) are made by pkg/wcore, which starts the first run and imports this
-// package.
-var starterViews struct {
-	lock sync.Mutex
-	add  func(ctx context.Context, workspaceId string) error
-}
-
-// UseStarterViews sets what gives the starter workspace the new-workspace template's views when the run ends.
-func UseStarterViews(add func(ctx context.Context, workspaceId string) error) {
-	starterViews.lock.Lock()
-	defer starterViews.lock.Unlock()
-	starterViews.add = add
-}
-
-func starterViewsAdder() func(ctx context.Context, workspaceId string) error {
-	starterViews.lock.Lock()
-	defer starterViews.lock.Unlock()
-	return starterViews.add
-}
-
-// addStarterViews runs once the record is written: the window that ended the run finds the views when its call
-// returns. A failure is logged; the run stays done.
-func addStarterViews(ctx context.Context, workspaceId string) {
-	add := starterViewsAdder()
-	if workspaceId == "" || add == nil {
-		return
-	}
-	if err := add(ctx, workspaceId); err != nil {
-		log.Printf("molten: first run: the starter workspace's views: %v\n", err)
-	}
-}
-
 // PanelLocation is where a workspace's first-run panel is.
 type PanelLocation struct {
 	TabId   string `json:"tabid,omitempty"`
@@ -181,7 +149,6 @@ func decideAndWrite(ctx context.Context, decide decideFn) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, err
 	}
-	addStarterViews(ctx, outcome.StarterViews)
 	if outcome.Write || outcome.SetTos {
 		publishClientUpdate(ctx)
 	}

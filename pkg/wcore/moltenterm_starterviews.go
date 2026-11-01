@@ -8,23 +8,17 @@ import (
 	"fmt"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
-	"github.com/wavetermdev/waveterm/pkg/molten/onboarding"
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
-	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
-// The template's views in a workspace that already exists (FR-SHELL-110, #1347): a fresh install's starter workspace
-// when its first run ends, and any workspace whose empty state the developer answers with "Add the default views".
-// They are made as a new workspace's are (moltenterm_workspaceviews.go): pinned there, pending, opened on the
-// workspace's project the first time a window shows them.
-
-func init() {
-	onboarding.UseStarterViews(addStarterViews)
-}
+// The template's views in a workspace that already exists (FR-SHELL-110, #1347): any workspace whose empty state the
+// developer answers with "Add my template views", when they saved one in Preferences. They are made as a new
+// workspace's are (moltenterm_workspaceviews.go): pinned there, pending, opened on the workspace's project the first
+// time a window shows them. Since #1709 the starter workspace no longer gets them when its first run ends: it holds
+// the view the user built in the first launch, or nothing.
 
 func currentTemplate() []wconfig.NewWorkspaceViewType {
 	return wconfig.GetWatcher().GetFullConfig().Settings.AppNewWorkspaceViews
@@ -35,13 +29,9 @@ func setTemplateMark(ctx context.Context, wsId string) error {
 	return wstore.UpdateObjectMeta(ctx, oref, waveobj.MetaMapType{mission.TemplateViewsMetaKey: true}, false)
 }
 
-// markTemplateWorkspace marks the starter workspace as made from the template when its first run starts, so linking
-// a project during First steps adds no Project tab (#1315): its views come when the run ends. A template without a
-// valid view leaves the workspace as Wave makes it.
+// markTemplateWorkspace marks the starter workspace when its first run starts, so linking a project during the first
+// launch adds no Project tab (#1315, #1709): the user composes its views.
 func markTemplateWorkspace(ctx context.Context, wsId string) error {
-	if len(workspaceViewTabs(currentTemplate())) == 0 {
-		return nil
-	}
 	return setTemplateMark(ctx, wsId)
 }
 
@@ -123,21 +113,4 @@ func AddWorkspaceViews(ctx context.Context, wsId string) (string, error) {
 		return "", fmt.Errorf("adding the default views: %w", err)
 	}
 	return tabId, nil
-}
-
-// addStarterViews is the end of a fresh install's first run: the windows learn of the new views before the record
-// says the run is done.
-func addStarterViews(ctx context.Context, wsId string) error {
-	ctx = waveobj.ContextWithUpdates(ctx)
-	if _, err := AddWorkspaceViews(ctx, wsId); err != nil {
-		return err
-	}
-	updates := waveobj.ContextGetUpdatesRtn(ctx)
-	func() {
-		defer func() {
-			panichandler.PanicHandler("addStarterViews:SendUpdateEvents", recover())
-		}()
-		wps.Broker.SendUpdateEvents(updates)
-	}()
-	return nil
 }

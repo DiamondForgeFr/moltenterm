@@ -14,8 +14,10 @@ const OldPanelName = /\b(Reviews|Revues)\b|\b(Reviews|review) list\b|liste des r
 // "Pilotage par un agent" is the browser tab an agent drives, not the panel.
 const FormerPanelName = /Control room|\bPilotage\b(?! par un agent)/i;
 
-// The default view that holds the panel is named Control room / Pilotage (#1315): a view name, not the panel's.
-const ViewNameKeys = new Set(["workspaceViews.names.pilotage"]);
+// The default view that holds the panel is named Control room / Pilotage (#1315): a view name, not the panel's. The
+// first launch's example of next views (#1709) speaks of steering the project, "le pilotage du projet", in the words
+// the developer approved.
+const ViewNameKeys = new Set(["workspaceViews.names.pilotage", "onboarding.pour.start.nextExample"]);
 
 const PanelNameKeys = [
     "reviews.viewName",

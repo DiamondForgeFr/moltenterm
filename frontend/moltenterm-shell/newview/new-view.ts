@@ -13,7 +13,9 @@ import { knownCodingAgents } from "../coding-agent/coding-agent";
 import { runPaletteEntry } from "../palette/palette-actions";
 import { fillsPanel, PaletteEntry } from "../palette/palette-model";
 import { newViewFavoriteBindings } from "../shortcuts/registry";
+import { ViewPins } from "../sidebar/view-pins-store";
 import { readWorkspaceProject } from "../workspace-project";
+import { findSuggestion, suggestionConfig } from "../workspace-views/view-suggestions";
 import {
     AgentPickerBlockDef,
     newViewChoices,
@@ -97,10 +99,36 @@ export async function dismissNewView(blockId: string): Promise<void> {
     await getApi().closeTab(ws.oid, tab.oid, false);
 }
 
+// A suggestion (FR-SHELL-138) fills the new view with its panels, agent left and graphics right, on the workspace's
+// project: a temporary view named by its key, its agent slot waiting for a click. A chooser split meanwhile keeps its
+// neighbours: the suggestion then opens as a view of its own and the chooser's pane goes.
+export async function openSuggestion(id: string, blockId?: string): Promise<void> {
+    const suggestion = findSuggestion(id);
+    const config = suggestionConfig(suggestion?.panels);
+    if (config == null) {
+        return;
+    }
+    const tab = activeTab();
+    const alone = blockId != null && tab != null && (tab.blockids ?? []).length === 1 && tab.blockids[0] === blockId;
+    await ViewPins.getInstance().createView({
+        config,
+        scope: "temporary",
+        nameKey: suggestion.nameKey,
+        tabId: alone ? tab.oid : undefined,
+    });
+    if (blockId != null && !alone) {
+        await dismissNewView(blockId);
+    }
+}
+
 // An entry picked in the chooser fills the view; one that opens nothing in a panel (Sessions, the Project tab) runs,
 // and the empty view goes.
 export async function openInNewView(entry: PaletteEntry, blockId: string): Promise<void> {
     if (entry == null) {
+        return;
+    }
+    if (entry.run.kind === "suggestion") {
+        await openSuggestion(entry.run.id, blockId);
         return;
     }
     if (fillsPanel(entry.run)) {

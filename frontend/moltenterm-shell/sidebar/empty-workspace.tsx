@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // A workspace without a view of its own (FR-SHELL-110, audit #1316 F5): where its tiles would be, what a workspace is,
-// why this one shows none and how to start, with two actions: the template's views (FR-SHELL-092) or a view of one's
-// own. Nothing is added until the developer asks; the first run, which gives a fresh install's starter workspace its
-// views when it ends, keeps the place quiet meanwhile.
+// why this one shows none and how to start. Since #1709 the user arranges it: New view (⌘T, with its suggestions,
+// FR-SHELL-138) is the molten action, and "Add my template views" shows beside it only when the user saved a template
+// in Preferences (FR-SHELL-092). Nothing is added until the developer asks; the first run keeps the place quiet.
 
 import { ClientModel } from "@/app/store/client-model";
 import { atoms } from "@/app/store/global";
@@ -16,6 +16,7 @@ import { EmptyState } from "../empty-state";
 import { useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openNewView } from "../newview/new-view";
+import { formatShortcutById } from "../shortcuts/format";
 import { templateViewsText, useTemplateViews } from "../workspace-views/template-views";
 
 export function EmptyWorkspace() {
@@ -63,6 +64,7 @@ type EmptyWorkspaceStateProps = {
 
 export function EmptyWorkspaceState({ viewsText, busy, error, onAddViews, onNewView }: EmptyWorkspaceStateProps) {
     const t = useT();
+    const keys = formatShortcutById("new-tab");
     const newView = { label: t("sidebar.emptyWorkspace.newView"), testId: "empty-workspace-new-view", onClick: onNewView };
     const addViews = {
         label: t("sidebar.emptyWorkspace.addViews"),
@@ -76,11 +78,11 @@ export function EmptyWorkspaceState({ viewsText, busy, error, onAddViews, onNewV
             title={t("sidebar.emptyWorkspace.title")}
             hint={
                 viewsText
-                    ? t("sidebar.emptyWorkspace.hint", { views: viewsText })
-                    : t("sidebar.emptyWorkspace.hintNoTemplate")
+                    ? t("sidebar.emptyWorkspace.hint", { views: viewsText, keys })
+                    : t("sidebar.emptyWorkspace.hintNoTemplate", { keys })
             }
-            primary={viewsText ? addViews : newView}
-            secondary={viewsText ? newView : null}
+            primary={newView}
+            secondary={viewsText ? addViews : null}
             alert={error}
             compact
             className="px-2 pt-4 pb-2"

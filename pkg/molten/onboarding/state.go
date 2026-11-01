@@ -38,6 +38,7 @@ const (
 	StepAgent   = "agent"
 	StepMorph   = "morph"
 	StepProject = "project"
+	StepView    = "view"
 
 	StatusTodo    = "todo"
 	StatusDone    = "done"
@@ -67,8 +68,8 @@ const (
 // Read once by wavesrv when it starts, then unset (store.go); test instances set it (UPSTREAM.md, "Toolchain").
 const SkipVarName = "MOLTENTERM_SKIP_ONBOARDING"
 
-// StepIds are the first run's steps, in order (#162, #163, #165).
-var StepIds = []string{StepAgent, StepMorph, StepProject}
+// StepIds are the first run's steps, in order (#162, #163, #165; the first view, #1709).
+var StepIds = []string{StepAgent, StepMorph, StepProject, StepView}
 
 // A step's data lives in the client meta, which every window receives on each change: it stays small.
 const MaxStepDataBytes = 16 * 1024
@@ -109,14 +110,13 @@ type StartFacts struct {
 }
 
 // Outcome is what a start or an update changes: the state to write (when Write), Wave's terms record, the layout of
-// the first tab, the notification to publish and the starter workspace that gets the template's views now.
+// the first tab and the notification to publish.
 type Outcome struct {
-	Write        bool
-	State        State
-	SetTos       bool
-	Layout       string
-	Announce     string
-	StarterViews string
+	Write    bool
+	State    State
+	SetTos   bool
+	Layout   string
+	Announce string
 }
 
 // SkipRequested reads MOLTENTERM_SKIP_ONBOARDING: "1" or "true" (any case) skip the first run, anything else does not.
@@ -201,7 +201,7 @@ func DecideStart(facts StartFacts, nowMs int64, version string) Outcome {
 		if !facts.TosAgreed && facts.FirstTabEmpty {
 			layout = LayoutStarter
 		}
-		return withStarterViews(Outcome{Write: true, State: state, SetTos: !facts.TosAgreed, Layout: layout})
+		return forgetStarter(Outcome{Write: true, State: state, SetTos: !facts.TosAgreed, Layout: layout})
 	}
 	if !facts.HasState && facts.TosAgreed {
 		state := markDone(newState(nowMs), ByExisting, nowMs, version)
@@ -222,20 +222,19 @@ func DecideStart(facts StartFacts, nowMs int64, version string) Outcome {
 	return Outcome{}
 }
 
-// withStarterViews hands the starter workspace over once the run is done: it gets the template's views now, and the
-// record forgets it, so ending again (an update sent twice, Getting started reopened) adds nothing.
-func withStarterViews(outcome Outcome) Outcome {
+// forgetStarter drops the starter workspace from the record once the run is done (#1709: it gets no template views
+// then), so a later run never treats it as a fresh install's.
+func forgetStarter(outcome Outcome) Outcome {
 	if !outcome.Write || !outcome.State.Done || outcome.State.StarterWs == "" {
 		return outcome
 	}
-	outcome.StarterViews = outcome.State.StarterWs
 	outcome.State.StarterWs = ""
 	return outcome
 }
 
 func closedOutcome(state State, tosAgreed bool, nowMs int64, version string) Outcome {
 	state = markDone(cloneState(state), ByClosed, nowMs, version)
-	return withStarterViews(Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: AnnounceLeft})
+	return forgetStarter(Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: AnnounceLeft})
 }
 
 // DecideClosed is rule 4 while MoltenTerm runs: the last panel of a run not done was closed.
@@ -316,7 +315,7 @@ func ApplyUpdate(state State, hasState bool, tosAgreed bool, update Update, nowM
 			}
 		}
 		state = markDone(state, by, nowMs, version)
-		return withStarterViews(Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: announce}), nil
+		return forgetStarter(Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: announce}), nil
 	}
 	return Outcome{}, fmt.Errorf("unknown first run update %q", update.Kind)
 }

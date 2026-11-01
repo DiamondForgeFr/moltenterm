@@ -382,7 +382,8 @@
             "folders": "Recent folders",
             "actions": "Workspace",
             "panel": "This panel",
-            "agentsIn": "Agents in {folder}"
+            "agentsIn": "Agents in {folder}",
+            "suggestions": "Suggestions"
         },
         "panelNames": {
             "terminal": "Terminal",
@@ -1390,16 +1391,18 @@
             "progress": "Scene {n} of {total}: {scene}",
             "next": {
                 "pour": "Light the forge",
-                "agents": "See the workshop",
-                "workshop": "And then?",
-                "morph": "Let's go",
+                "agents": "My project",
+                "project": "Compose my view",
+                "view": "Choose its place",
+                "place": "It's ready",
                 "start": "Enter the workshop"
             },
             "scenes": {
                 "pour": "Welcome",
                 "agents": "Your agents",
-                "workshop": "Your workshop",
-                "morph": "It takes your shape",
+                "project": "Your project",
+                "view": "Your first view",
+                "place": "Its place",
                 "start": "Ready"
             },
             "legal": {
@@ -1412,7 +1415,8 @@
                 "kicker": "Welcome to MoltenTerm",
                 "titleA": "All your AI agents,",
                 "titleB": "one workshop.",
-                "sub": "{first}, {second} and the others work here together, on your projects, with your own subscriptions. And the workshop takes your shape."
+                "sub": "{first}, {second} and the others work here together, on your projects, with your own subscriptions. And the workshop takes your shape.",
+                "steps": "In four gestures we set it up together: your agents, your project, your first view, its place."
             },
             "agents": {
                 "kicker": "Lighting the forge",
@@ -1490,128 +1494,109 @@
                     "toCards": "Back to the cards"
                 }
             },
-            "workshop": {
-                "kicker": "Your workshop",
-                "titleA": "One workshop,",
-                "titleB": "a workbench per project.",
-                "alt": "Illustration: the MoltenTerm sidebar with three example workspaces, Atlas, Billing and The Book. Each has its colour, its views, its temporary views and its branch; the row at the top is shared by every workspace; tools forged with /morph carry a star; what the workspaces produce collects in the Materials.",
-                "swipe": "Swipe from one workspace to the next, or click the dots at the bottom of the bar.",
-                "search": "Search, open an address…",
-                "agent": "Agent",
-                "spaces": {
-                    "atlas": {
-                        "name": "Atlas",
-                        "tag": "Web",
-                        "branch": "⎇ feat/42-payment · ✓ build"
-                    },
-                    "billing": {
-                        "name": "Billing",
-                        "tag": "API",
-                        "branch": "⎇ fix/77-rounding · ● CI"
-                    },
-                    "book": {
-                        "name": "The Book",
-                        "tag": "Writing",
-                        "branch": "⎇ main · 3,412 words today",
-                        "temp": "chapter-03.md"
-                    }
-                },
-                "tiles": {
-                    "scoping": "Scoping",
-                    "integration": "Integration",
-                    "browser": "Web page",
-                    "clock": "Clock",
-                    "logs": "Logs",
-                    "quotas": "Quotas",
-                    "manuscript": "Manuscript",
-                    "outline": "Outline",
-                    "cover": "Cover",
-                    "words": "Words/day"
-                },
-                "atlas": {
-                    "l1": "fixing the payment…",
-                    "l2": "({tool}): over to you for the review",
-                    "l3": "Jérôme picked up the work",
-                    "view": "Scoping · combined view",
-                    "ticket": "Ticket #42 · payment",
-                    "clock": "Clock · Paris 10:24"
-                },
-                "billing": {
-                    "l1": "the rounding passes",
-                    "l2": "opening the PR…",
-                    "view": "Integration · combined view",
-                    "ci": "Local CI running",
-                    "pr": "PR #77 ready to read",
-                    "logs": "Logs · 0 errors",
-                    "quotas": "Quotas · 62 %"
-                },
-                "book": {
-                    "l1": "tightening chapter 3",
-                    "l2": "cover mock-up → Materials",
-                    "view": "Manuscript · preview",
-                    "chapter": "Chapter 3",
-                    "text": "The forge woke before dawn. In the workshop every tool had its place, and each one told…",
-                    "mock": "Cover · mock-up"
-                },
-                "materials": {
-                    "title": "Materials",
-                    "cover": "Cover mock-up",
-                    "capture": "Capture of the payment flow",
-                    "load": "Load report, API",
-                    "demo": "Onboarding, demo page"
-                },
-                "ideas": {
-                    "spaces": {
-                        "title": "A workspace per project",
-                        "text": "Its colour, its agents, its state. Everything comes back as you left it."
-                    },
-                    "fitted": {
-                        "title": "Fitted for the project",
-                        "text": "Views and combined views: the agent on the left, its tools on the right. The common tools follow you everywhere."
-                    },
-                    "custom": {
-                        "title": "Made to measure",
-                        "text": "For the finest fitting, {morph} forges the tool you are missing."
-                    },
-                    "kept": {
-                        "title": "Nothing is lost",
-                        "text": "Mock-ups, images, artefacts: what each workspace produces stays in your Materials."
-                    }
-                },
-                "coda": "A workshop you fitted out yourself is always nicer.",
-                "codaHot": "And other surprises are waiting for you there."
-            },
-            "morph": {
-                "kicker": "It takes your shape",
-                "titleA": "Missing something?",
-                "titleB": "Ask for it.",
-                "request": "/morph add a Paris · Tokyo clock",
-                "writing": "The agent writes the mod…",
-                "checked": "MoltenTerm checks it, asks you, loads it.",
-                "clockSub": "Paris · Tokyo 18:24",
-                "replay": "Pour again",
-                "undo": "{command} removes it, at any time."
-            },
             "start": {
                 "titleA": "The forge",
                 "titleB": "is hot.",
-                "sub": "Where to start?",
-                "project": {
-                    "title": "Open my project",
-                    "text": "A workspace named after it, the agent ready to start."
+                "noProject": "A workspace without a project",
+                "noProjectHint": "Link a project stays in the workspace's menu",
+                "noView": "No view yet",
+                "noViewHint": "{keys} suggests some",
+                "pinnedEverywhere": "Available in all your workspaces",
+                "pinnedHere": "Pinned in {workspace}",
+                "morph": "Missing a tool? Ask your agent with {morph}. What you add goes to the Library.",
+                "nextTitle": "Your next views:",
+                "nextText": "{keys} or the “+ New view” button. A new view is temporary; pin it to keep it.",
+                "nextExample": "For a development project, pin for instance one view for design, one for security tasks, one for steering the project. Everyone organises it their own way!"
+            },
+            "later": "Later",
+            "settingUp": "Setting it up…",
+            "project": {
+                "kicker": "Your project",
+                "titleA": "What are you",
+                "titleB": "working on?",
+                "new": {
+                    "title": "Create a project",
+                    "text": "A new folder, ready for your agents.",
+                    "name": "New folder",
+                    "placeholder": "my-project",
+                    "in": "In",
+                    "where": "Choose where…",
+                    "git": "Track its versions with git",
+                    "will": "{path} will be created.",
+                    "willGit": "{path} will be created, with git.",
+                    "nameFirst": "Name the folder first."
                 },
-                "morph": {
-                    "title": "Try {morph}",
-                    "text": "In a scratch folder, risk free."
+                "find": {
+                    "title": "Find my project",
+                    "text": "A folder that already exists on this computer.",
+                    "found": "Found on this computer",
+                    "recent": "recent",
+                    "repo": "repository",
+                    "scanning": "Looking for your projects…",
+                    "none": "No project found yet. Look for its folder.",
+                    "hint": "Your recent folders first, then the repositories found.",
+                    "elsewhere": "Look for another folder…"
                 },
-                "free": {
-                    "title": "Explore freely",
-                    "text": "Getting started stays in the Help menu."
+                "chip": "Your workspace:",
+                "chipNone": "named after the project",
+                "today": "today",
+                "dayAgo": "1 day ago",
+                "daysAgo": "{n} days ago",
+                "whereTitle": "Where to create the project",
+                "findTitle": "Your project's folder",
+                "taken": "A folder named {name} already exists in {where}. Choose another name."
+            },
+            "view": {
+                "kicker": "Your first view",
+                "titleA": "Compose it,",
+                "titleB": "it assembles.",
+                "sub": "Your workspace is empty: you arrange it. Choose what the agent has at hand.",
+                "left": "On the left, the agent",
+                "right": "On the right, its tools",
+                "presets": "Ready-made",
+                "name": "Its name",
+                "agentLater": "An agent, to choose later",
+                "hints": {
+                    "browser": "localhost, the docs",
+                    "files": "the project's folder",
+                    "integration": "PRs and CI",
+                    "project": "the overview"
                 },
-                "folderTitle": "Your project's folder",
-                "morphHint": "{name} opens in a scratch folder. Paste this request into it:",
-                "morphNoAgent": "No agent is installed yet: go back to install one. Meanwhile MoltenTerm opens your workshop.",
-                "shortcuts": "Hold {hold} or press {press} to see the shortcuts of what is on screen."
+                "unnamed": "Untitled",
+                "temporary": "Temporary view",
+                "slot": "An agent's place in this view",
+                "start": "Start {agent}",
+                "startAny": "Start an agent",
+                "noTools": "Just the agent. Add a tool on the left.",
+                "myWorkspace": "My workspace",
+                "sample": {
+                    "search": "Search…",
+                    "topEmpty": "Top row · empty",
+                    "empty": "No view pinned here. + New view, or {keys}",
+                    "newView": "+ New view",
+                    "ci": "Local CI running",
+                    "pr": "PR #42 ready to review",
+                    "branch": "main · up to date"
+                }
+            },
+            "place": {
+                "kicker": "Its place",
+                "titleA": "Where do you keep",
+                "titleB": "?",
+                "everywhere": {
+                    "title": "Available in all your workspaces, including the next ones",
+                    "text": "At the top of the sidebar, everywhere. Each workspace opens it on its own project."
+                },
+                "workspace": {
+                    "title": "Pinned in {workspace} only",
+                    "text": "A tile of this workspace. The others do not see it."
+                },
+                "editable": "Everything can be changed later.",
+                "next": "Billing",
+                "capMine": "{workspace}, your project",
+                "capNext": "{workspace}, a next workspace",
+                "legendEverywhere": "{name} joins the top row, the same in every workspace. In {workspace} it opens on {workspace}, in {other} on {other}.",
+                "legendWorkspace": "{name} becomes a tile of {workspace}. {other} does not see it; you can pin it everywhere later, from its menu."
             }
         }
     },
@@ -9552,9 +9537,9 @@
         },
         "emptyWorkspace": {
             "title": "This workspace has no pinned view yet",
-            "hint": "A workspace keeps the views of one project here, as tiles. Add the default views, {views}, or make one of your own.",
-            "hintNoTemplate": "A workspace keeps the views of one project here, as tiles. Make a view, then pin it here.",
-            "addViews": "Add the default views",
+            "hint": "A workspace keeps the views of one project here, as tiles. You arrange it: make a view with New view ({keys}), or add your template's views, {views}.",
+            "hintNoTemplate": "A workspace keeps the views of one project here, as tiles. You arrange it: make a view with New view ({keys}), then pin it here.",
+            "addViews": "Add my template views",
             "newView": "New view"
         },
         "pins": {
@@ -9628,7 +9613,8 @@
             "slot": {
                 "text": "An agent's place in this view",
                 "start": "Start an agent",
-                "startTitle": "Start this project's coding agent here"
+                "startTitle": "Start this project's coding agent here",
+                "startAgent": "Start {agent}"
             }
         },
         "dots": {
@@ -10241,7 +10227,12 @@
             "scoping": "Scoping",
             "integration": "Integration",
             "pilotage": "Control room",
-            "view": "View"
+            "view": "View",
+            "preview": "Preview",
+            "code": "Code",
+            "delivery": "Delivery",
+            "myView": "My view",
+            "agentOnly": "Agent"
         },
         "panels": {
             "agent": "Agent",

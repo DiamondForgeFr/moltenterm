@@ -15,8 +15,8 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wconfig/defaultconfig"
 )
 
-// #1305: the default template is Scoping (agent, web page, files) and Integration (project, integration panel), named
-// by dictionary keys.
+// #1709: MoltenTerm makes no view on the user's behalf, so the built-in template is empty; Scoping and Control room
+// are suggestions of the new-view launcher (FR-SHELL-138).
 func TestDefaultNewWorkspaceViews(t *testing.T) {
 	barr, err := defaultconfig.ConfigFS.ReadFile("settings.json")
 	if err != nil {
@@ -26,15 +26,8 @@ func TestDefaultNewWorkspaceViews(t *testing.T) {
 	if err := json.Unmarshal(barr, &settings); err != nil {
 		t.Fatalf("parse default settings: %v", err)
 	}
-	views := settings.AppNewWorkspaceViews
-	if len(views) != 2 {
-		t.Fatalf("default views %v", views)
-	}
-	if views[0].NameKey != "workspaceViews.names.scoping" || !slices.Equal(views[0].Panels, []string{"agent", "browser", "files"}) {
-		t.Fatalf("scoping %+v", views[0])
-	}
-	if views[1].NameKey != "workspaceViews.names.pilotage" || !slices.Equal(views[1].Panels, []string{"project", "integration"}) {
-		t.Fatalf("integration %+v", views[1])
+	if views := settings.AppNewWorkspaceViews; len(views) != 0 {
+		t.Fatalf("the built-in template is empty, got %v", views)
 	}
 }
 

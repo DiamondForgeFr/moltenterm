@@ -22,6 +22,11 @@ var viewNamesEnglish = map[string]string{
 	"workspaceViews.names.scoping":     "Scoping",
 	"workspaceViews.names.integration": "Integration",
 	"workspaceViews.names.pilotage":    "Control room",
+	"workspaceViews.names.preview":     "Preview",
+	"workspaceViews.names.code":        "Code",
+	"workspaceViews.names.delivery":    "Delivery",
+	"workspaceViews.names.myView":      "My view",
+	"workspaceViews.names.agentOnly":   "Agent",
 	DefaultViewNameKey:                 "View",
 }
 

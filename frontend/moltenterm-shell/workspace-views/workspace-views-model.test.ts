@@ -73,9 +73,13 @@ describe("names of a new workspace's views (#1305)", () => {
 });
 
 describe("the template", () => {
-    it("defaults to Scoping and Control room (#1315)", () => {
-        const views = readTemplate((builtinDefaults as Record<string, unknown>)[NewWorkspaceViewsKey]);
-        expect(views).toEqual([
+    // #1709: MoltenTerm makes no view on the user's behalf; Scoping and Control room are suggestions (FR-SHELL-138).
+    it("defaults to no view", () => {
+        expect(readTemplate((builtinDefaults as Record<string, unknown>)[NewWorkspaceViewsKey])).toEqual([]);
+    });
+
+    it("names a saved template's views in the interface language (#1315)", () => {
+        const views = readTemplate([
             { namekey: "workspaceViews.names.scoping", panels: ["agent", "browser", "files"] },
             { namekey: "workspaceViews.names.pilotage", panels: ["project", "integration"] },
         ]);

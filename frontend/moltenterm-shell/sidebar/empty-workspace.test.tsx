@@ -20,11 +20,12 @@ function render(viewsText: string, error?: string) {
 }
 
 describe("EmptyWorkspaceState", () => {
-    it("offers the default views as the molten action, and a new view beside it", () => {
+    // #1709: the user arranges the workspace; a template they saved is offered beside, never first.
+    it("offers a new view as the molten action, and a saved template's views beside it", () => {
         const html = render("Scoping and Control room");
         expect(html).toContain('data-testid="empty-workspace"');
-        expect(html).toMatch(/class="molten-btn [^"]*"[^>]*data-testid="empty-workspace-add-views"/);
-        expect(html).toMatch(/class="molten-btn-secondary [^"]*"[^>]*data-testid="empty-workspace-new-view"/);
+        expect(html).toMatch(/class="molten-btn [^"]*"[^>]*data-testid="empty-workspace-new-view"/);
+        expect(html).toMatch(/class="molten-btn-secondary [^"]*"[^>]*data-testid="empty-workspace-add-views"/);
         expect(html.match(/class="molten-btn /g)).toHaveLength(1);
     });
 
@@ -43,7 +44,7 @@ describe("EmptyWorkspaceState", () => {
             const keys = dict.sidebar.emptyWorkspace;
             expect(keys.title).toBeTruthy();
             expect(keys.hint).toContain("{views}");
-            expect(keys.hintNoTemplate).toBeTruthy();
+            expect(keys.hintNoTemplate).toContain("{keys}");
             expect(keys.addViews).toBeTruthy();
             expect(keys.newView).toBeTruthy();
         }
