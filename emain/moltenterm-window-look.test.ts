@@ -9,7 +9,14 @@ vi.mock("./moltenterm-privileged-ipc", () => ({ onAppIpc: () => {}, handleAppIpc
 // The dark theme's opaque colour (moltenterm-theme.test.ts covers the light one).
 vi.mock("./moltenterm-theme", () => ({ opaqueBackground: () => "#222222" }));
 
-import { applyWindowLook, parseLookRequest, windowLookSupport } from "./moltenterm-window-look";
+import {
+    applyActiveViewLook,
+    applyWindowLook,
+    noteWindowCreatedLook,
+    parseLookRequest,
+    receiveWindowLook,
+    windowLookSupport,
+} from "./moltenterm-window-look";
 
 const Mac = { transparent: true, blur: false, platform: "darwin" };
 
@@ -83,5 +90,54 @@ describe("a workspace's look in Electron main (FR-SHELL-091, DS-SHELL-131)", () 
         expect(applyWindowLook(makeWindow(true), makeView(), true, Mac, { translucent: true, blur: false })).toBe(
             false
         );
+    });
+});
+
+// #1711: the window's blur after a switch is the shown view's, whatever the order the views' requests came in.
+describe("a workspace switch and the window's blur (#1711)", () => {
+    const Blur = { translucent: true, blur: true };
+    const Opaque = { translucent: false, blur: false };
+
+    function makeMacWindow() {
+        const win = makeWindow();
+        noteWindowCreatedLook(win, true, false, "darwin");
+        return win;
+    }
+
+    function lastVibrancy(win: ReturnType<typeof makeWindow>) {
+        return win.setVibrancy.mock.lastCall?.[0];
+    }
+
+    it("gives the window the blur of a view coming back on screen that sends nothing more", () => {
+        const win = makeMacWindow();
+        const opaqueWs = makeView();
+        const blurredWs = makeView();
+        receiveWindowLook(win, blurredWs, false, Mac, Blur);
+        receiveWindowLook(win, opaqueWs, true, Mac, Opaque);
+        expect(lastVibrancy(win)).toBeNull();
+        applyActiveViewLook(win, blurredWs);
+        expect(lastVibrancy(win)).toBe("hud");
+    });
+
+    it("keeps the last switch's look when a view left behind sends late", () => {
+        const win = makeMacWindow();
+        const a = makeView();
+        const b = makeView();
+        const c = makeView();
+        receiveWindowLook(win, c, false, Mac, Blur);
+        receiveWindowLook(win, a, true, Mac, Blur);
+        // b comes on screen while its look still reads opaque, and the user moves on to c before b sends its blur
+        applyActiveViewLook(win, b);
+        receiveWindowLook(win, b, true, Mac, Opaque);
+        applyActiveViewLook(win, c);
+        receiveWindowLook(win, b, false, Mac, Blur);
+        expect(lastVibrancy(win)).toBe("hud");
+        expect(c.setBackgroundColor).toHaveBeenLastCalledWith("#00000000");
+    });
+
+    it("leaves the window alone for a view that has not asked for a look yet", () => {
+        const win = makeMacWindow();
+        expect(applyActiveViewLook(win, makeView())).toBe(false);
+        expect(win.setVibrancy).not.toHaveBeenCalled();
     });
 });

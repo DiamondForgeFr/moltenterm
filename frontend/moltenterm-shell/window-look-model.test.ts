@@ -12,6 +12,7 @@ import {
     lookForWorkspace,
     lookScope,
     lookTexture,
+    lookToApply,
     lookWrites,
     MinOpacity,
     MinOpacityBlur,
@@ -191,6 +192,14 @@ describe("switching workspaces switches the look (#1281, TC-SHELL-211)", () => {
         expect(isTranslucent(OpaqueLook)).toBe(false);
         expect(isTranslucent({ opacity: 0.9, blur: false })).toBe(true);
         expect(isTranslucent({ opacity: 1, blur: true })).toBe(true);
+    });
+
+    it("applies nothing before the window's support is known, so a new view never drops the blur (#1711)", () => {
+        const designed = { opacity: 0.7, blur: true, texture: "paper" as const, intensity: 0.5 };
+        const guessed = effectiveLook(designed, false, { translucent: false, blur: false }).look;
+        expect(lookToApply(guessed, null)).toBeNull();
+        const drawn = effectiveLook(designed, false, Supported).look;
+        expect(lookToApply(drawn, Supported)).toEqual(designed);
     });
 });
 
