@@ -43,6 +43,7 @@ var englishFields = map[string]string{
 	"pipelinesetup.BoardRefusal.Detail":     "`molten pipeline setup` output, agent-facing (#1163)",
 	"mission.SetupAgentRequest.Why":         "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
 	"mission.SetupAgentRequest.Note":        "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
+	"onboarding.agentSignInRequest.Note":    "a line the frontend already translated (signInNote), printed above the sign-in command (#1723)",
 	"review.MergePlan.Warnings":             "check ids (MergeCheck codes), worded by the Validate sheet",
 	"review.MergeRecord.Error":              "gh's raw error (tokens masked), the detail under Code, which the sheet words",
 	"review.Forecast.Error":                 "a code (ForecastError…) the Reviews list words under reviews.forecast.error.*",
