@@ -1435,7 +1435,6 @@
                     "signedIn": "Prêt, connecté",
                     "missing": "Pas installé",
                     "looking": "Recherche…",
-                    "installing": "Installation…",
                     "recipe": "Tourne dans {agent}"
                 },
                 "account": {

@@ -1435,7 +1435,6 @@
                     "signedIn": "Ready, signed in",
                     "missing": "Not installed",
                     "looking": "Looking…",
-                    "installing": "Installing…",
                     "recipe": "Runs in {agent}"
                 },
                 "account": {

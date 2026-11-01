@@ -24,7 +24,7 @@ import {
     suggestedIds,
     type ChooseState,
 } from "../moltenterm-shell/library/agents-model";
-import { GlowRing } from "../moltenterm-shell/suite/suite";
+import { DominoLoader, GlowRing } from "../moltenterm-shell/suite/suite";
 import type { AgentFacts, OnboardingAgents } from "./onboarding-agent-model";
 import {
     cleanInstallOutput,
@@ -189,7 +189,7 @@ function AgentCardView({
     const status = card.recipe
         ? t("onboarding.pour.agents.status.recipe", { agent: card.agentName })
         : installing
-          ? t("onboarding.pour.agents.status.installing")
+          ? t("onboarding.pour.agents.installing", { name: card.name })
           : heating
             ? t("onboarding.pour.agents.status.looking")
             : card.ready && card.signedIn
@@ -233,10 +233,10 @@ function AgentCardView({
                 ) : null}
             </div>
             <CardProfile profile={profile} />
-            <div className="mt-auto flex items-center justify-between gap-2">
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
                 <div className="mt-pour-status flex items-center gap-1.5 text-12 text-muted">
                     {installing ? (
-                        <i className="fa-solid fa-spinner fa-spin text-[var(--pour-hot)]" aria-hidden />
+                        <DominoLoader className="text-[var(--pour-hot)]" />
                     ) : (
                         <span className="mt-pour-status-dot" />
                     )}
@@ -403,7 +403,7 @@ function AgentDrawer({
             role={failed ? "alert" : undefined}
         >
             <div className="flex items-center gap-2 text-13 font-semibold">
-                {running ? <i className="fa-solid fa-spinner fa-spin text-[var(--pour-hot)]" aria-hidden /> : null}
+                {running ? <DominoLoader className="text-[var(--pour-hot)]" /> : null}
                 {title}
             </div>
             <p className="text-12 leading-5 text-secondary" data-testid={`pour-drawer-text-${card.id}`}>

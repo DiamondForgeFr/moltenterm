@@ -88,10 +88,13 @@ describe("Install on a card (FR-ONB-007 AC-5)", () => {
         expect(html).toMatch(/data-testid="pour-act-kimi"[^>]*>Install</);
     });
 
-    it("shows a loader with the command, Show details and Cancel while it runs", () => {
+    it("shows the domino loader with the command, Show details and Cancel while it runs (#1712)", () => {
         const html = scene({ id: "kimi", state: "running", command: KimiCommand, output: "Downloading\n" });
         expect(html).toContain("Installing Kimi Code…");
-        expect(html).toContain("fa-spinner");
+        expect(html).toMatch(
+            /mt-pour-status[^>]*><span class="df-domino-loader[^"]*"[^>]*>(<span><\/span>)+<\/span>Installing Kimi Code…/
+        );
+        expect(html).not.toContain("fa-spinner");
         expect(html).toContain('data-installing=""');
         expect(html).toContain(KimiCommand);
         expect(html).toContain('data-testid="pour-details-kimi"');

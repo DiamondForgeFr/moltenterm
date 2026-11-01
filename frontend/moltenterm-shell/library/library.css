@@ -1530,8 +1530,14 @@
     background: var(--mt-state-info);
 }
 
+/* An install or uninstall that runs shows the app's working dominoes (#1712) in place of the state dot. */
 .mt-lib-agstate[data-state="running"]::before {
-    background: var(--mt-state-running);
+    display: none;
+}
+
+.mt-lib-agstate[data-state="running"] .df-domino-loader,
+.mt-lib-agdom {
+    color: var(--mt-state-running);
 }
 
 .mt-lib-agpage {

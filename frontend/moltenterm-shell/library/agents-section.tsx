@@ -17,6 +17,8 @@ import { InstallOutput } from "../../moltenterm-onboarding/onboarding-pour-scene
 import { useT } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
+import { DominoLoader } from "../suite/suite";
+import { ChoosePath, LibraryChooseLook } from "./agents-choose";
 import {
     agentStatusKind,
     BeyondCodeKinds,
@@ -36,7 +38,6 @@ import {
     uninstallStatus,
     type LibraryAgent,
 } from "./agents-model";
-import { ChoosePath, LibraryChooseLook } from "./agents-choose";
 import { LibraryAgentsModel, type ChooseState } from "./agents-store";
 
 function StatusChip({ card }: { card: PourAgentCard }) {
@@ -49,7 +50,7 @@ function StatusChip({ card }: { card: PourAgentCard }) {
     );
 }
 
-function AgentCard({ row, job }: { row: LibraryAgent; job: CliInstallStatus }) {
+export function AgentCard({ row, job }: { row: LibraryAgent; job: CliInstallStatus }) {
     const t = useT();
     const { card } = row;
     const running = isRunning(job);
@@ -82,6 +83,7 @@ function AgentCard({ row, job }: { row: LibraryAgent; job: CliInstallStatus }) {
             <div className="flex items-center gap-2">
                 {running ? (
                     <span className="mt-lib-agstate" data-state="running">
+                        <DominoLoader />
                         {t(
                             job.kind === "uninstall"
                                 ? "library.agents.uninstall.running"
@@ -336,7 +338,7 @@ function jobFailure(
     return t(fallbackKey);
 }
 
-function InstallBlock({ card, job }: { card: PourAgentCard; job: CliInstallStatus }) {
+export function InstallBlock({ card, job }: { card: PourAgentCard; job: CliInstallStatus }) {
     const t = useT();
     const model = LibraryAgentsModel.getInstance();
     const phase = installPhase(job, card.ready);
@@ -350,7 +352,8 @@ function InstallBlock({ card, job }: { card: PourAgentCard; job: CliInstallStatu
                 <p>{t("library.agents.install.none", { name: card.name })}</p>
             ) : (
                 <>
-                    <p>
+                    <p className="flex items-center gap-2">
+                        {running ? <DominoLoader className="mt-lib-agdom" /> : null}
                         {t(running ? "library.agents.install.running" : "library.agents.install.text", {
                             name: card.name,
                         })}
@@ -531,7 +534,15 @@ export function UninstallConfirm({
     );
 }
 
-function UninstallBlock({ card, agent, job }: { card: PourAgentCard; agent: OnboardingAgent; job: CliInstallStatus }) {
+export function UninstallBlock({
+    card,
+    agent,
+    job,
+}: {
+    card: PourAgentCard;
+    agent: OnboardingAgent;
+    job: CliInstallStatus;
+}) {
     const t = useT();
     const model = LibraryAgentsModel.getInstance();
     const [asking, setAsking] = useState(false);
@@ -553,7 +564,8 @@ function UninstallBlock({ card, agent, job }: { card: PourAgentCard; agent: Onbo
     } else {
         body = (
             <>
-                <p>
+                <p className="flex items-center gap-2">
+                    {running ? <DominoLoader className="mt-lib-agdom" /> : null}
                     {t(running ? "library.agents.uninstall.running" : "library.agents.uninstall.text", {
                         name: card.name,
                         method: t(`library.agents.uninstall.method.${agent.uninstall?.method ?? "native"}`),
