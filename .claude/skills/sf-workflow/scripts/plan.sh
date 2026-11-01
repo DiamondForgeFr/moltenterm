@@ -23,10 +23,20 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
+# Read one key of one step block. The block ends at the next step or top-level
+# key, so a key the step does not declare is never read from the step after it.
+step_value() {
+  awk -v step="$2" -v key="$3" -v q="'" '
+    /^[^ #]/ { inside = 0 }
+    /^  [^ #]/ { inside = ($1 == step ":"); next }
+    inside && $1 == key ":" { v = $2; gsub("[\"" q "]", "", v); print v; exit }
+  ' "$1"
+}
+
 # Extract configuration
-PLAN_ENABLED=$(grep -A 10 "^  plan:" "$CONFIG_FILE" | grep "enabled:" | awk '{print $2}')
-PLAN_DEPTH=$(grep -A 10 "^  plan:" "$CONFIG_FILE" | grep "depth:" | awk '{print $2}' | tr -d '"')
-PLAN_APPROVAL=$(grep -A 10 "^  plan:" "$CONFIG_FILE" | grep "approval:" | awk '{print $2}')
+PLAN_ENABLED=$(step_value "$CONFIG_FILE" plan enabled)
+PLAN_DEPTH=$(step_value "$CONFIG_FILE" plan depth)
+PLAN_APPROVAL=$(step_value "$CONFIG_FILE" plan approval)
 
 echo "==================================================================="
 echo " PLAN PHASE - Complexity: $COMPLEXITY"

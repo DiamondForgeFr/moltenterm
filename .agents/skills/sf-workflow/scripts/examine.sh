@@ -23,11 +23,12 @@ This phase is ONLY for COMPLEX tickets requiring security and quality review.
 
 ## Adversarial Review Process
 
-1. **Launch 3 parallel review agents:**
+1. **Launch 3 parallel `review` delegations** (SKILL.md → Delegation routing):
    ```
-   /task general-purpose "security review: analyze code for OWASP top 10 vulnerabilities"
-   /task general-purpose "logic review: identify edge cases, race conditions, logic flaws"
-   /task general-purpose "performance review: identify bottlenecks, N+1 queries, inefficiencies"
+   sf agents route --task review --provider <current-agent>   # names the sf-<tier> agent
+   review: "security review: analyze code for OWASP top 10 vulnerabilities"
+   review: "logic review: identify edge cases, race conditions, logic flaws"
+   review: "performance review: identify bottlenecks, N+1 queries, inefficiencies"
    ```
 
 2. **Security Analysis (OWASP Top 10):**

@@ -10,22 +10,30 @@ When delegation is available and authorized, assign independent work to agents; 
 execute the same steps sequentially. A sequential self-review is not an independent review:
 report that limitation and retain any required human review. Tool names in legacy examples
 describe capabilities, not required APIs. Use the user's current request as skill arguments.
-Do not assume Claude Code hooks, model selection, tool permissions or credentials transfer.
+Do not assume Claude Code hooks, tool permissions or credentials transfer.
 Run preconditions explicitly, and stop to report a missing capability when no equivalent exists.
+When a workflow step names a task kind, resolve its tier with
+`sf agents route --task <kind> --provider <current-agent>` and delegate the step to the
+`sf-<tier>` agent it names: that agent carries its own model and effort, so never name a
+model or an effort yourself. When the route fails or the agent cannot delegate, run the step
+in the session.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
 The project manifest and workflow rules take precedence over generic skill examples,
 including branch names, commit formats, staging, pushing and approval requirements.
 Legacy /task examples name roles: use native delegation if available and authorized,
 or perform the role's work sequentially with the review limitation stated above.
 
+Who builds a ticket, and the consent behind it, follow "Session orchestration and delegated ticket delivery" in the project instructions (`AGENTS.md`); read the `delegation:` line of `sf status --agent-friendly --no-network`.
+
 ## Parallel implementation and Git worktrees
 
-Propose parallel worktrees only when the user's request contains independent writing streams
-that can be delivered concurrently. Read-only exploration and review may use parallel agents
-without separate worktrees. Work with sequential dependencies, overlapping file ownership or
-unclear boundaries must use one feature worktree and sequential execution.
+Open a worktree per ticket when the recorded delegation is `allowed`, or when the developer
+asks for parallel work, and only for independent writing streams that can be delivered
+concurrently. Read-only exploration and review may use parallel agents without separate
+worktrees. Work with sequential dependencies, overlapping file ownership or unclear boundaries
+must use one feature worktree and sequential execution.
 
-Before proposing parallel implementation, read `.saasfoundry.json` and use
+Before opening a worktree, read `.saasfoundry.json` and use
 `workflow.workingBranch`; never hardcode a branch name. Keep the primary checkout on that
 configured working branch. Do not let feature workers write in the primary checkout while
 parallel worktrees are active.
@@ -33,8 +41,9 @@ parallel worktrees are active.
 For each independent writing stream, define one ticket, branch and worktree path, plus its owned
 files and dependency boundary. Start from a synchronized configured working branch. Each worker
 must stay inside its assigned worktree and ownership boundary, preserve other agents' changes
-and never revert unrelated work. The agent proposes this execution shape; the user retains
-control when parallel implementation was not already authorized. If authorization, clean
+and never revert unrelated work. The recorded delegation authorizes ticket delivery only: for
+any other parallel writing stream, and for tickets when it is not `allowed` or the current
+request says otherwise, propose this execution shape and wait for the answer. If clean
 separation, Git support or a synchronized base is unavailable, explain the constraint and use
 one worktree or sequential execution.
 
@@ -43,8 +52,6 @@ return to the primary checkout, check out and synchronize the configured working
 the merge, then remove the completed worktree and local branch only when they are merged and no
 longer in use. Never remove or overwrite user-owned worktrees, branches, uncommitted changes,
 stashes or credentials implicitly.
-
-
 
 # Fix Grammar
 

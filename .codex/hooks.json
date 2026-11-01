@@ -19,6 +19,17 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "p=$(cat); case \"$p\" in *sf-*) ;; *) exit 0;; esac; d=\"${CLAUDE_PROJECT_DIR:-.}\"; run() { printf %s \"$p\" | \"$@\" agents outcome capture --host codex >/dev/null 2>&1; exit 0; }; for c in \"$d/node_modules/.bin/saasfoundryai\" \"$d/node_modules/.bin/sf\"; do [ -x \"$c\" ] && run \"$c\"; done; [ -f \"$d/bin/sf.js\" ] && grep -q '\"name\": \"saasfoundryai-cli\"' \"$d/package.json\" 2>/dev/null && run node \"$d/bin/sf.js\"; command -v saasfoundryai >/dev/null 2>&1 && run saasfoundryai; exit 0",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }
