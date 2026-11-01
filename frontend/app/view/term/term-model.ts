@@ -57,6 +57,9 @@ import { getBlockingCommand } from "./shellblocking";
 import { computeTheme, DefaultTermTheme, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
 
+// MOLTENTERM-PATCH (#1714): the restarting button's icon, the dominoes at icon size (DS-SHELL-154).
+const RestartingDominoes = () => React.createElement(DominoLoader, { className: "mt-dominos-icon" });
+
 export class TermViewModel implements ViewModel {
     viewType: string;
     nodeModel: BlockNodeModel;
@@ -186,7 +189,7 @@ export class TermViewModel implements ViewModel {
                     rtn.push({
                         elemtype: "iconbutton",
                         // MOLTENTERM-PATCH (#1714): restarting = domino, not a spinning icon (DS-SHELL-154)
-                        icon: React.createElement(DominoLoader, { className: "mt-dominos-icon" }),
+                        icon: React.createElement(RestartingDominoes),
                         iconColor: "var(--success-color)",
                         title: t("wave.term.restartingCommand"), // MOLTENTERM-PATCH (#623)
                         noAction: true,
