@@ -9766,6 +9766,7 @@
                 "about": "Ask your agent with {morph}: it builds the panel you need.",
                 "noAgent": "Start a coding agent, then ask it for the tool with /morph.",
                 "start": "Start an agent",
+                "startOther": "Start another agent",
                 "type": "Type {morph} in {agent}",
                 "aboutPlain": "Ask your agent: tell it the panel you need.",
                 "typePlain": "Go to {agent}"
@@ -10264,6 +10265,7 @@
             "askTitle": "Types {text} in {agent}'s terminal, without sending it",
             "noAgent": "No agent in this workspace.",
             "start": "Start an agent",
+            "startOther": "Start another agent",
             "startTitle": "Shows the agents you can start; nothing starts until you open one"
         },
         "hint": {
@@ -10307,5 +10309,41 @@
         "searchingRecursive": "Searching every subfolder for “{search}”",
         "truncated": "Only the first {count} matches are listed",
         "clear": "Clear the filter"
+    },
+    "agc": {
+        "gate": {
+            "thisAgent": "This agent",
+            "notHere": "Not available with this agent",
+            "showTerminal": "Show its terminal",
+            "commands": {
+                "label": "Agent commands",
+                "none": "MoltenTerm cannot type {agent}'s commands for you: it does not know them yet.",
+                "alt": "Type them in {agent}'s terminal: its own help lists them."
+            },
+            "effort": {
+                "none": "MoltenTerm cannot change {agent}'s effort or model.",
+                "alt": "Choose them in {agent} itself, or start another agent: each agent's card says what works with it."
+            },
+            "resume": {
+                "none": "MoltenTerm cannot resume {agent}'s earlier sessions.",
+                "alt": "Use {agent}'s own resume command in its terminal, or start another agent: each agent's card says what works with it."
+            },
+            "morph": {
+                "none": "{agent} cannot use MoltenTerm's guides, so /morph would not work there.",
+                "alt": "Start another agent to ask for the tool: each agent's card says what works with it."
+            },
+            "send": {
+                "none": "MoltenTerm does not give {agent} its browser and agent tools: it cannot browse, list the agents or hand work over by itself.",
+                "alt": "Other agents can still hand it work, typed into its terminal. To send work from it, run molten agent send in a terminal."
+            },
+            "review": {
+                "none": "{agent} cannot run MoltenTerm's tasks (AI review, release notes).",
+                "alt": "Pick another agent for this task, or review the pull request yourself."
+            },
+            "usage": {
+                "none": "MoltenTerm cannot read {agent}'s plan usage.",
+                "alt": "{agent}'s own usage page or command shows it."
+            }
+        }
     }
 }

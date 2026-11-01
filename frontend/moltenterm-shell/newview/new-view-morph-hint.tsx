@@ -10,11 +10,13 @@ import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import type React from "react";
 import { useEffect, useMemo } from "react";
+import { actionGate, gateMessage, morphWorks } from "../agent-info/agent-action-gate";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { agentCallName, type AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { morphCall, morphCallText, workspaceMorphTarget } from "../morph/morph-call-model";
+import { morphCall, morphCallText, workspaceMorphChoice } from "../morph/morph-call-model";
 
 type NewViewMorphHintProps = {
     query: string;
@@ -29,7 +31,11 @@ export function NewViewMorphHint({ query, onAsk, onStartAgent, actionRef }: NewV
     const data = useAtomValue(AgentStates.getInstance().dataAtom);
     const wsId = useAtomValue(atoms.workspaceId);
     const tabId = useAtomValue(atoms.staticTabId);
-    const agent = useMemo(() => workspaceMorphTarget(data, wsId, tabId), [data, wsId, tabId]);
+    const matrix = useFeatureMatrix();
+    const { agent, unable } = useMemo(
+        () => workspaceMorphChoice(data, wsId, tabId, (id) => morphWorks(matrix, id)),
+        [data, wsId, tabId, matrix]
+    );
     const ask = () => fireAndForget(() => onAsk(agent, query));
     const action = agent ? ask : onStartAgent;
     useEffect(() => {
@@ -61,7 +67,11 @@ export function NewViewMorphHint({ query, onAsk, onStartAgent, actionRef }: NewV
     }
     return (
         <div className="flex flex-col gap-2 px-3.5 pb-3" data-testid="new-view-morph">
-            <span className="text-12 text-muted">{t("newView.morph.noAgent")}</span>
+            <span className="text-12 text-muted" data-testid={unable ? "new-view-morph-unable" : undefined}>
+                {unable
+                    ? gateMessage(actionGate(matrix, unable.agent, "morph"), unable.agentname)
+                    : t("newView.morph.noAgent")}
+            </span>
             <button
                 type="button"
                 className={btn}
@@ -70,7 +80,7 @@ export function NewViewMorphHint({ query, onAsk, onStartAgent, actionRef }: NewV
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onStartAgent}
             >
-                {t("newView.morph.start")}
+                {unable ? t("newView.morph.startOther") : t("newView.morph.start")}
                 <MoltenWave />
             </button>
         </div>

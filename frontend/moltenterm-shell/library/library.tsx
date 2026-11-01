@@ -18,12 +18,14 @@ import { isWindows } from "@/util/platformutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { actionGate, gateMessage, morphWorks } from "../agent-info/agent-action-gate";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { agentCallName, agentStateMessage } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { BrowserActiveMetaKey } from "../browser/browser-model";
 import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { typeMorphCall } from "../morph/morph-call";
-import { morphCall, workspaceMorphTarget } from "../morph/morph-call-model";
+import { morphCall, workspaceMorphChoice } from "../morph/morph-call-model";
 import { openAgentPicker } from "../newview/new-view";
 import { MoltentermNotifications } from "../notifications-store";
 import { focusMoltentermView, makeViewInActiveTabAtom } from "../open-view";
@@ -56,6 +58,7 @@ import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
 import { viewNameText } from "../workspace-views/workspace-views-model";
+import { AgentsSection } from "./agents-section";
 import {
     libraryAddAsk,
     libraryEscapeStep,
@@ -76,7 +79,6 @@ import {
     writeLastSettingsTab,
 } from "./library-model";
 import "./library.css";
-import { AgentsSection } from "./agents-section";
 import { MaterialsSection, useMaterialsDrawer, useMaterialsNewCount } from "./materials-section";
 import { mountChannels, type ChannelsHandle } from "./settings-channels";
 import {
@@ -370,7 +372,11 @@ function WorkspacesSection({ entries }: { entries: WorkspaceRailEntry[] }) {
 function MorphCard({ workspaceId, tabId }: { workspaceId: string; tabId: string }) {
     const t = useT();
     const data = useAtomValue(AgentStates.getInstance().dataAtom);
-    const agent = useMemo(() => workspaceMorphTarget(data, workspaceId, tabId), [data, workspaceId, tabId]);
+    const matrix = useFeatureMatrix();
+    const { agent, unable } = useMemo(
+        () => workspaceMorphChoice(data, workspaceId, tabId, (id) => morphWorks(matrix, id)),
+        [data, workspaceId, tabId, matrix]
+    );
     return (
         <div className="mt-lib-pcard" data-testid="library-morph-card">
             <div className="flex items-center gap-2 font-semibold text-primary">
@@ -379,12 +385,14 @@ function MorphCard({ workspaceId, tabId }: { workspaceId: string; tabId: string 
                 </i>
                 <span className="truncate">{t("library.panels.morph.title")}</span>
             </div>
-            <p>
+            <p data-testid={unable ? "library-morph-unable" : undefined}>
                 {agent
                     ? morphCall(agent.agent)
                         ? t("library.panels.morph.about", { morph: morphCall(agent.agent) })
                         : t("library.panels.morph.aboutPlain")
-                    : t("library.panels.morph.noAgent")}
+                    : unable
+                      ? gateMessage(actionGate(matrix, unable.agent, "morph"), unable.agentname)
+                      : t("library.panels.morph.noAgent")}
             </p>
             {agent ? (
                 <button
@@ -410,7 +418,7 @@ function MorphCard({ workspaceId, tabId }: { workspaceId: string; tabId: string 
                         openAgentPicker();
                     }}
                 >
-                    {t("library.panels.morph.start")}
+                    {unable ? t("library.panels.morph.startOther") : t("library.panels.morph.start")}
                 </button>
             )}
         </div>

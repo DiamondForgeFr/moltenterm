@@ -35,6 +35,32 @@ export function workspaceMorphTarget(data: AgentStatesData, workspaceId: string,
     return morphTarget(workspaceAgents(data, workspaceId), tabId);
 }
 
+// Where the call goes when the agents' guides differ (FR-AGC-005): agent, the best of those that run MoltenTerm's
+// guides; unable, the one it would have gone to when none of them can, so the card says why instead of typing a call
+// the agent does not know. canMorph reads the compatibility matrix (agent-action-gate.ts).
+export type MorphChoice = { agent: AgentStateInfo; unable: AgentStateInfo };
+
+export function morphChoice(
+    agents: AgentStateInfo[],
+    tabId: string,
+    canMorph: (agent: string) => boolean
+): MorphChoice {
+    const agent = morphTarget(
+        (agents ?? []).filter((a) => canMorph(a.agent)),
+        tabId
+    );
+    return { agent, unable: agent == null ? morphTarget(agents, tabId) : null };
+}
+
+export function workspaceMorphChoice(
+    data: AgentStatesData,
+    workspaceId: string,
+    tabId: string,
+    canMorph: (agent: string) => boolean
+): MorphChoice {
+    return morphChoice(workspaceAgents(data, workspaceId), tabId, canMorph);
+}
+
 // The agent the call is typed into: the current view's first, then one whose prompt is free, then the latest.
 export function morphTarget(agents: AgentStateInfo[], tabId: string): AgentStateInfo {
     const free = (a: AgentStateInfo) => (agentPromptState(a) === "working" ? 0 : 1);

@@ -132,11 +132,12 @@ describe("agent command tables", () => {
 });
 
 describe("agent provider", () => {
-    it("matches a terminal running Claude Code or Codex, not a plain shell", () => {
+    // FR-AGC-005: an agent without a command table gets the section too, saying what does not work with it.
+    it("matches a terminal running an agent, not a plain shell", () => {
         expect(matchingProviders(ctxOf(claude), [AgentProvider])).toHaveLength(1);
         expect(matchingProviders(ctxOf(codex), [AgentProvider])).toHaveLength(1);
         expect(matchingProviders(ctxOf(null), [AgentProvider])).toHaveLength(0);
-        expect(matchingProviders(ctxOf({ ...claude, agent: "gemini" }), [AgentProvider])).toHaveLength(0);
+        expect(matchingProviders(ctxOf({ ...claude, agent: "gemini" }), [AgentProvider])).toHaveLength(1);
         expect(matchingProviders(ctxOf(claude, "preview"), [AgentProvider])).toHaveLength(0);
     });
 

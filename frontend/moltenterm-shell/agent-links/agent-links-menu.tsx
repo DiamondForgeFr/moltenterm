@@ -11,6 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { answerAgentHandoff } from "../agent-handoff";
+import { gateMessage, useActionGate } from "../agent-info/agent-action-gate";
 import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { AgentInfoModel } from "../agent-info/agent-info-store";
 import { AgentStates } from "../agent-state-store";
@@ -168,6 +169,9 @@ function LinkRowView({ row, agent, props }: { row: LinkRow; agent: AgentLinkInfo
     const actions = linkActions(link);
     const hint = needsAgentStep(row) ? repairHint(agent.agent, !!agent.main) : null;
     const add = row.notStarted && link.server === "molten-browser" ? addServerHint(agent.agent) : null;
+    // MoltenTerm does not give this agent the server (FR-AGC-005): say what it cannot do and how work still reaches it.
+    const sendGate = useActionGate(agent.agent, "send");
+    const unable = add != null && !sendGate.works ? gateMessage(sendGate, agent.agentname) : "";
     const versionKey = versionNoteKey(link);
     const confirmId = `${agent.pid ?? ""}:${link.key}`;
     const control = (action: LinkAction) => {
@@ -250,6 +254,11 @@ function LinkRowView({ row, agent, props }: { row: LinkRow; agent: AgentLinkInfo
                             {t("agentLinks.action.typeMcp")}
                         </button>
                     ) : null}
+                </div>
+            ) : null}
+            {unable ? (
+                <div className="pl-4 text-11 text-secondary" data-testid="agent-links-unable">
+                    {unable}
                 </div>
             ) : null}
             {add ? (
