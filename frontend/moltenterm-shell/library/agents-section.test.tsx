@@ -6,8 +6,9 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import type { OnboardingAgent } from "../../moltenterm-onboarding/onboarding-agent-model";
 import type { PourAgentCard } from "../../moltenterm-onboarding/onboarding-pour-agents";
-import { TrashReport, UninstallConfirm } from "./agents-section";
+import { AgentCard, InstallBlock, TrashReport, UninstallBlock, UninstallConfirm } from "./agents-section";
 
 const Card: PourAgentCard = {
     id: "claude-code",
@@ -66,5 +67,53 @@ describe("uninstall confirmation", () => {
         expect(stopped).toContain("~/.claude.json could not be moved to the trash");
         expect(stopped).toContain("left the rest as it was");
         expect(renderToStaticMarkup(<TrashReport job={{ id: "x", state: "succeeded" }} />)).toBe("");
+    });
+});
+
+describe("the domino loader while an install or uninstall runs (#1712)", () => {
+    const Domino = /<span class="df-domino-loader[^"]*"[^>]*>(<span><\/span>)+<\/span>/;
+    const Missing: PourAgentCard = {
+        ...Card,
+        ready: false,
+        install: ["curl -fsSL https://claude.ai/install.sh | bash"],
+    };
+    const Found = {
+        id: "claude-code",
+        name: "Claude Code",
+        found: true,
+        uninstall: Uninstall,
+    } as unknown as OnboardingAgent;
+
+    it("shows it on the card with Installing or Uninstalling, and the state dot otherwise", () => {
+        const installing = renderToStaticMarkup(
+            <AgentCard row={{ card: Missing, agent: Found }} job={{ id: "claude-code", state: "running" }} />
+        );
+        expect(installing).toMatch(new RegExp(`data-state="running">${Domino.source}Installing Claude Code…`));
+        const uninstalling = renderToStaticMarkup(
+            <AgentCard
+                row={{ card: Card, agent: Found }}
+                job={{ id: "claude-code", kind: "uninstall", state: "running" }}
+            />
+        );
+        expect(uninstalling).toMatch(new RegExp(`data-state="running">${Domino.source}Uninstalling Claude Code…`));
+        const idle = renderToStaticMarkup(<AgentCard row={{ card: Missing, agent: Found }} job={null} />);
+        expect(idle).not.toMatch(Domino);
+    });
+
+    it("shows it on the page's Install and Uninstall blocks only while they run", () => {
+        const running = renderToStaticMarkup(
+            <InstallBlock card={Missing} job={{ id: "claude-code", state: "running" }} />
+        );
+        expect(running).toMatch(new RegExp(`${Domino.source}Installing Claude Code…`));
+        expect(renderToStaticMarkup(<InstallBlock card={Missing} job={null} />)).not.toMatch(Domino);
+        const uninstalling = renderToStaticMarkup(
+            <UninstallBlock
+                card={Card}
+                agent={Found}
+                job={{ id: "claude-code", kind: "uninstall", state: "running" }}
+            />
+        );
+        expect(uninstalling).toMatch(new RegExp(`${Domino.source}Uninstalling Claude Code…`));
+        expect(renderToStaticMarkup(<UninstallBlock card={Card} agent={Found} job={null} />)).not.toMatch(Domino);
     });
 });
