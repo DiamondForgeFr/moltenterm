@@ -4,12 +4,13 @@
 // The compatibility matrix (FR-AGC-001, DS-AGC-002): how each MoltenTerm feature works with each coding agent, held by
 // wavesrv's agent adapters (pkg/molten/agentcontinuity/features.go). The interface reads it here instead of keeping
 // its own agent lists (FR-AGC-003, #1684): which agents a surface offers an action to, their names and how they call
-// a guide. An agent the matrix does not know, or a matrix not read yet, offers nothing.
+// a guide. An agent the matrix does not know offers nothing; before wavesrv answers, the build's matrix stands.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
+import BuiltMatrixJson from "./agent-features.json";
 
 // must match pkg/molten/agentcontinuity/featuresroute.go
 const RouteId = "molten:agentfeatures";
@@ -118,11 +119,17 @@ export function guideCalls(matrix: FeatureMatrix, guide: string): { agents: stri
     return rtn;
 }
 
-// The matrix wavesrv answered, read once: it is static data (no poller, no event). Read again after a failure.
+// The matrix shipped in the build: the interface offers what it offered before from the first render, the route only
+// refreshes it (TestMatrixGoldenForInterface keeps this file equal to the route's answer).
+export const BuiltMatrix = BuiltMatrixJson as FeatureMatrix;
+
+// The matrix wavesrv answered, read once: it is static data (no poller, no event). Read again after a failure; until
+// then the build's matrix stands.
 export class AgentFeaturesModel {
     private static instance: AgentFeaturesModel = null;
 
-    matrixAtom = atom(null) as PrimitiveAtom<FeatureMatrix>;
+    matrixAtom = atom(BuiltMatrix) as PrimitiveAtom<FeatureMatrix>;
+    refreshed = false;
     loading = false;
     retryAt = 0;
 
@@ -135,21 +142,19 @@ export class AgentFeaturesModel {
         return AgentFeaturesModel.instance;
     }
 
-    // current answers the matrix it has and reads it when it has none; surfaces that render read matrixAtom.
+    // current answers the matrix it has and asks wavesrv's once; surfaces that render read matrixAtom.
     current(): FeatureMatrix {
-        const matrix = globalStore.get(this.matrixAtom);
-        if (matrix == null) {
-            this.load();
-        }
-        return matrix;
+        this.load();
+        return globalStore.get(this.matrixAtom);
     }
 
     setMatrix(matrix: FeatureMatrix) {
+        this.refreshed = true;
         globalStore.set(this.matrixAtom, matrix);
     }
 
     load() {
-        if (this.loading || Date.now() < this.retryAt) {
+        if (this.refreshed || this.loading || Date.now() < this.retryAt) {
             return;
         }
         this.loading = true;
@@ -174,9 +179,7 @@ export function useFeatureMatrix(): FeatureMatrix {
     const model = AgentFeaturesModel.getInstance();
     const matrix = useAtomValue(model.matrixAtom, { store: globalStore });
     useEffect(() => {
-        if (matrix == null) {
-            model.load();
-        }
-    }, [matrix]);
+        model.load();
+    }, []);
     return matrix;
 }

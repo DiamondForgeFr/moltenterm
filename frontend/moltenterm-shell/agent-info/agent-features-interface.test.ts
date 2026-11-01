@@ -86,14 +86,9 @@ describe("the interface reads the matrix (FR-AGC-003)", () => {
         }
     });
 
-    it("offers nothing before the matrix is read", () => {
-        setTestMatrix(null);
-        try {
-            expect(agentsWith(null, "runner")).toEqual([]);
-            expect(agentCommandTable("claude")).toBeNull();
-            expect(agentName("claude")).toBe("claude");
-        } finally {
-            setTestMatrix(RealMatrix);
-        }
+    it("offers nothing to an agent without a row, or with no matrix at all", () => {
+        expect(agentsWith(null, "runner")).toEqual([]);
+        expect(agentCommandTable("aider")).toBeNull();
+        expect(agentName("aider")).toBe("aider");
     });
 });

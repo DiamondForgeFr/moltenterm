@@ -6,14 +6,15 @@ package agentcontinuity
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
-// The matrix the interface's tests read (FR-AGC-003): they prove the interface behaves as before with wavesrv's real
-// matrix, so the copy they read must be this one.
-const matrixGolden = "../../../frontend/moltenterm-shell/agent-info/testdata/agent-features.json"
+// The matrix shipped in the interface's build (FR-AGC-003): the interface starts from it before the route answers, and
+// its tests prove it behaves as before with it, so it must be this one.
+const matrixGolden = "../../../frontend/moltenterm-shell/agent-info/agent-features.json"
 
 func TestMatrixGoldenForInterface(t *testing.T) {
 	data, err := json.MarshalIndent(Default().Matrix(), "", "    ")
@@ -31,8 +32,16 @@ func TestMatrixGoldenForInterface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(have) != string(data) {
-		t.Errorf("the matrix the interface's tests read changed (MOLTEN_UPDATE_GOLDEN=1 rewrites it)")
+	// Compared as data: a formatter may lay the file out its own way.
+	var haveData, wantData any
+	if err := json.Unmarshal(have, &haveData); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &wantData); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(haveData, wantData) {
+		t.Errorf("the matrix the interface ships changed (MOLTEN_UPDATE_GOLDEN=1 rewrites it)")
 	}
 }
 
