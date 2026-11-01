@@ -64,7 +64,7 @@ var codexCapabilities = map[string]Capability{
 	CapTranscript:    {Support: SupportUndocumented, Note: "$CODEX_HOME/sessions documented; the rollout file layout is source only and migrating", InUse: true},
 	CapQuota:         {Support: SupportUndocumented, Note: "token_count rate_limits in the session log (#263), else the app-server", InUse: true},
 	CapMcp:           {Support: SupportDocumented, Note: "-c mcp_servers.<name> for the run (FR-SHELL-038, #320)"},
-	CapHooks:         {Support: SupportDocumented, Note: "notify for the run, around the user's own, through the #320 launcher; hooks need the user's trust and are not added", InUse: true},
+	CapHooks:         {Support: SupportDocumented, Note: "notify for the run, around the user's own, through the #320 launcher; the state hooks and the PermissionRequest hook given with -c hooks.* for the run (#988), which Codex runs once the developer trusted them in /hooks", InUse: true},
 }
 
 var codexConfigModelRegex = regexp.MustCompile(`^model\s*=\s*"([^"\\]*)"\s*(#.*)?$`)
@@ -229,6 +229,10 @@ func (codexAdapter) Exit() ExitSequence {
 
 func (codexAdapter) Capabilities() map[string]Capability {
 	return copyCapabilities(codexCapabilities)
+}
+
+func (codexAdapter) Features() map[string]FeatureSupport {
+	return copyFeatures(codexFeatures)
 }
 
 // Launch: Codex's launcher (#320).

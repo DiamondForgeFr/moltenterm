@@ -109,6 +109,83 @@ func formatMoltenAgentListings(listings []agentcontinuity.AgentListing) string {
 	return sb.String()
 }
 
+// --features: the compatibility matrix (FR-AGC-001), for agents and developers alike; English, parsed by agents.
+var moltenAgentListFeatures bool
+
+func init() {
+	moltenAgentListCmd.Flags().BoolVar(&moltenAgentListFeatures, "features", false, "print which MoltenTerm feature works with which agent (native, adapted, process-only, none) and why; --json for the data")
+}
+
+func moltenAgentFeaturesRun() error {
+	matrix := agentcontinuity.Default().Matrix()
+	if moltenJson {
+		return moltenWriteJson(matrix)
+	}
+	WriteStdout("%s", formatMoltenFeatureMatrix(matrix))
+	return nil
+}
+
+func moltenLevelMark(level string) string {
+	switch level {
+	case agentcontinuity.LevelNative:
+		return "N"
+	case agentcontinuity.LevelAdapted:
+		return "A"
+	case agentcontinuity.LevelProcessOnly:
+		return "P"
+	}
+	return "-"
+}
+
+// formatMoltenFeatureMatrix prints one line per feature and one column per agent, then why each cell is not native.
+// The cells that are none only for want of an adapter are counted per agent rather than listed one by one.
+func formatMoltenFeatureMatrix(m agentcontinuity.FeatureMatrix) string {
+	var sb strings.Builder
+	tw := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(tw, "FEATURE")
+	for _, a := range m.Agents {
+		fmt.Fprintf(tw, "\t%s", a.Id)
+	}
+	fmt.Fprintf(tw, "\tNAME\n")
+	for _, f := range m.Features {
+		fmt.Fprintf(tw, "%s", f.Id)
+		for _, a := range m.Agents {
+			fmt.Fprintf(tw, "\t%s", moltenLevelMark(a.Features[f.Id].Level))
+		}
+		fmt.Fprintf(tw, "\t%s\n", f.Name)
+	}
+	tw.Flush()
+	fmt.Fprintf(&sb, "N native, A adapted, P process only, - none; checked %s; details with --features --json\n", m.AsOf)
+	for _, a := range m.Agents {
+		noAdapter := 0
+		for _, f := range m.Features {
+			c := a.Features[f.Id]
+			if c.Level == agentcontinuity.LevelNative {
+				continue
+			}
+			if c.Level == agentcontinuity.LevelNone && c.Reason == agentcontinuity.ReasonNoAdapter && c.Note == "" {
+				noAdapter++
+				continue
+			}
+			fmt.Fprintf(&sb, "%s %s: %s", a.Id, f.Id, c.Level)
+			if c.Reason != "" {
+				fmt.Fprintf(&sb, " (%s)", c.Reason)
+			}
+			if c.Note != "" {
+				fmt.Fprintf(&sb, ": %s", c.Note)
+			}
+			if c.Issue != "" {
+				fmt.Fprintf(&sb, " [%s]", c.Issue)
+			}
+			sb.WriteString("\n")
+		}
+		if noAdapter > 0 {
+			fmt.Fprintf(&sb, "%s: %d other features none (%s: MoltenTerm has no adapter for %s yet)\n", a.Id, noAdapter, agentcontinuity.ReasonNoAdapter, a.Name)
+		}
+	}
+	return sb.String()
+}
+
 // moltenNamedModels counts the models offered besides the agent's default.
 func moltenNamedModels(models []agentcontinuity.ModelChoice) int {
 	count := 0

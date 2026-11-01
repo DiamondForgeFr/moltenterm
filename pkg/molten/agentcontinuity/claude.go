@@ -131,6 +131,10 @@ func (claudeAdapter) Capabilities() map[string]Capability {
 	return copyCapabilities(claudeCapabilities)
 }
 
+func (claudeAdapter) Features() map[string]FeatureSupport {
+	return copyFeatures(claudeFeatures)
+}
+
 func (claudeAdapter) Launch() agentlaunch.LaunchAdapter {
 	return agentlaunch.FindAdapter(molten.AgentIdClaude)
 }

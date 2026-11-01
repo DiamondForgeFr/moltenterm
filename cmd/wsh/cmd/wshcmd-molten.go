@@ -216,7 +216,7 @@ var moltenAgentCmd = &cobra.Command{
 
 var moltenAgentListCmd = &cobra.Command{
 	Use:     "list",
-	Short:   "list the agents running now by first name (--active for those only), then the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed",
+	Short:   "list the agents running now by first name (--active for those only), then the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed; --features prints which MoltenTerm feature works with which agent",
 	Args:    cobra.NoArgs,
 	RunE:    moltenWrap(moltenAgentListRun),
 	PreRunE: preRunSetupRpcClient,
@@ -1037,6 +1037,9 @@ func moltenAgentEnv() (molten.AgentEnv, error) {
 }
 
 func moltenAgentListRun(cmd *cobra.Command, args []string) error {
+	if moltenAgentListFeatures {
+		return moltenAgentFeaturesRun()
+	}
 	// The agents running now, by first name (FR-CONT-015): first, since they are who an agent hands work to.
 	active, activeErr := moltenActiveAgents()
 	if moltenAgentListActive {
@@ -1374,6 +1377,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"i18n check <file> [--lang <code>]", "check a language pack's dictionary as MoltenTerm loads it"},
 	{"i18n status", "the interface languages and how many strings each lacks"},
 	{"agent list", "the coding agents (installed, version, capabilities) and where the molten guides are installed"},
+	{"agent list --features", "which MoltenTerm feature works with which agent (native, adapted, process-only, none) and why"},
 	{"agent install <agent>", "install /morph, /molten-pipeline and /molten-bug for a coding agent"},
 	{"agent remove <agent>", "remove the molten guides from a coding agent, and stop installing them at start"},
 	{"project link [folder]", "link this workspace to its project (default: this terminal's folder)"},

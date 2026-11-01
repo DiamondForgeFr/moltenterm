@@ -648,6 +648,7 @@ func UseStarter(start func()) {
 func Start() {
 	agentchoice.Start()
 	agentcontinuity.StartToolkitRoute()
+	agentcontinuity.StartFeaturesRoute()
 	dataDir := wavebase.GetWaveDataDir()
 	// The groups (FR-MC-026) follow every collector refresh and every CI run's end; set before the route takes requests.
 	var groups *Groups
