@@ -320,7 +320,9 @@ describe("Codex plan usage", () => {
     });
 
     it("gives Codex's own reasons", () => {
-        expect(usageReasonText("waiting", "codex")).toBe("Waiting for the agent: the limits come with its next response");
+        expect(usageReasonText("waiting", "codex")).toBe(
+            "Waiting for the agent: the limits come with its next response"
+        );
         expect(usageReasonText("noplan", "codex")).toBe("The agent reports no plan limits for this sign-in");
         expect(usageReasonText("format", "codex")).toBe(usageReasonText("format"));
         expect(usageReasonText("noplan", "claude")).toBe("Not on a Pro or Max plan");

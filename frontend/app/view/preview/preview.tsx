@@ -10,6 +10,8 @@ import { isBlank, makeConnRoute } from "@/util/util";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { memo, Suspense, useEffect } from "react"; // MOLTENTERM-PATCH (#1624)
 import { FileConfineConfirm } from "../../../moltenterm-shell/file-confine/file-confine-confirm"; // MOLTENTERM-PATCH (#1624)
+import { t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154)
+import { LazyViewLoading } from "../../../moltenterm-shell/lazy/lazy-view"; // MOLTENTERM-PATCH (#1714)
 import { CSVView } from "./csvview";
 import { DirectoryPreview } from "./preview-directory";
 import { CodeEditPreview } from "./preview-edit";
@@ -111,7 +113,7 @@ function PreviewView(props: PreviewViewProps) {
     return (
         <>
             {shownPath != null && (
-                <Suspense fallback={<CenteredDiv>Loading...</CenteredDiv>}>
+                <Suspense fallback={<LazyViewLoading label={t("wave.editor.loading")} />}>
                     <PreviewContent {...props} />
                 </Suspense>
             )}

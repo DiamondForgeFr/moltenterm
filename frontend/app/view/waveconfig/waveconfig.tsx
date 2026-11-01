@@ -13,6 +13,8 @@ import { cn } from "@/util/util";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import { memo, useCallback, useEffect } from "react";
+import { t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#1714)
+import { LazyViewLoading } from "../../../moltenterm-shell/lazy/lazy-view"; // MOLTENTERM-PATCH (#1714)
 import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 interface ConfigSidebarProps {
@@ -287,9 +289,8 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                             )}
                             <div className="flex-1 min-h-0">
                                 {isLoading ? (
-                                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                                        Loading...
-                                    </div>
+                                    // MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154)
+                                    <LazyViewLoading label={t("wave.editor.loading")} />
                                 ) : selectedFile.visualComponent &&
                                   (!selectedFile.hasJsonView || activeTab === "visual") ? (
                                     (() => {

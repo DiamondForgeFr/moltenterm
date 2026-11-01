@@ -23,6 +23,8 @@ import { useAtomValue } from "jotai";
 import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cameThroughPortal } from "../../moltenterm-shell/block-portal-events"; // MOLTENTERM-PATCH (#1070)
 import { focusHandoffActive } from "../../moltenterm-shell/browser/focus-handoff"; // MOLTENTERM-PATCH (#268)
+import { t } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154)
+import { LazyViewLoading } from "../../moltenterm-shell/lazy/lazy-view"; // MOLTENTERM-PATCH (#1714)
 import { offCarpetAtom, PanelBlockIdContext } from "../../moltenterm-shell/view360/offcarpet-model"; // MOLTENTERM-PATCH (#618)
 import "./block.scss";
 import { BlockEnv } from "./blockenv";
@@ -80,7 +82,7 @@ const BlockSubBlock = memo(({ nodeModel, viewModel }: FullSubBlockProps) => {
     return (
         <div key="content" className={clsx("block-content", { "block-no-padding": noPadding })} ref={contentRef}>
             <ErrorBoundary>
-                <Suspense fallback={<CenteredDiv>Loading...</CenteredDiv>}>{viewElem}</Suspense>
+                <Suspense fallback={<LazyViewLoading label={t("wave.editor.loading")} />}>{viewElem}</Suspense>
             </ErrorBoundary>
         </div>
     );
@@ -283,7 +285,7 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
                 <ErrorBoundary>
                     {/* MOLTENTERM-PATCH (#618): the view's hooks find their panel (offcarpet-model.ts) */}
                     <PanelBlockIdContext.Provider value={nodeModel.blockId}>
-                        <Suspense fallback={<CenteredDiv>Loading...</CenteredDiv>}>{viewElem}</Suspense>
+                        <Suspense fallback={<LazyViewLoading label={t("wave.editor.loading")} />}>{viewElem}</Suspense>
                     </PanelBlockIdContext.Provider>
                 </ErrorBoundary>
             </div>

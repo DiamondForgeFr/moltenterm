@@ -63,6 +63,15 @@ export const BusyLabelAllowed: Record<string, string> = {
     "frontend/moltenterm-shell/library/agents-section.tsx": "agent install cards of Library › Agents: #1712",
 };
 
+// A busy text written in the code rather than through a key (Wave's surfaces): "Loading...", "Saving…".
+export const LiteralBusyPattern = /(>|["'`])\s*(Loading|Saving|Deleting|Adding|Connecting|Starting)\b[^"'`<]*(\.\.\.|…)/;
+
+// file → why its literal busy text needs no loader.
+export const LiteralBusyAllowed: Record<string, string> = {
+    "frontend/app/treeview/treeview.tsx": "a tree row's label, only used by the component preview server",
+    "frontend/app/element/markdown.tsx": "Mermaid's placeholder text, written into the diagram's node while it renders",
+};
+
 function sourceFiles(): string[] {
     const files: string[] = [];
     for (const dir of SourceDirs) {
@@ -139,6 +148,18 @@ describe("waiting = domino (DS-SHELL-154, #1714)", () => {
                 found.push(`${f.path}: ${used.join(", ")}`);
             }
         }
+        expect(found).toEqual([]);
+    });
+
+    it("draws the loader next to a literal busy text (Wave's untranslated Loading...)", () => {
+        const found = files
+            .filter(
+                (f) =>
+                    LiteralBusyAllowed[f.path] == null &&
+                    LiteralBusyPattern.test(stripComments(f.src)) &&
+                    !LoaderPattern.test(f.src)
+            )
+            .map((f) => f.path);
         expect(found).toEqual([]);
     });
 
