@@ -34,7 +34,15 @@ import {
     useReleaseFacts,
 } from "./mission-client";
 import { labelRecord } from "./mission-i18n";
-import { latestRun, ManualCheckFailure, PipelineDef, ReleasePhase, RunRecord, UntrustedInfo } from "./mission-model";
+import {
+    CoverageItem,
+    latestRun,
+    ManualCheckFailure,
+    PipelineDef,
+    ReleasePhase,
+    RunRecord,
+    UntrustedInfo,
+} from "./mission-model";
 import {
     ActionOutcome,
     PendingLock,
@@ -194,7 +202,47 @@ export async function sendAction(
     return { outcome, failure: outcome === "asked" ? failure : null };
 }
 
+// What a phase's button shows once its action came back: notice is an i18n key, worded at render.
+export type CheckState = { unproved: ManualCheckFailure; notice: string; done: boolean };
+
+// Sends the action and says what to show next. A manual step's check runs again on every send that is not forced
+// (#1717): the warning shows the latest list, never the first one; current stays shown while another action of the
+// card keeps this one from being sent.
+export async function checkStep(
+    lock: PendingLock,
+    key: string,
+    actions: ReleasePanelActions,
+    action: PhaseAction,
+    force: boolean,
+    current: ManualCheckFailure
+): Promise<CheckState> {
+    const { outcome, failure } = await sendAction(lock, key, actions, action, force);
+    if (outcome === "refused") {
+        return { unproved: current, notice: "mc.releaseRun.actionRefused", done: false };
+    }
+    if (outcome === "asked" && failure != null) {
+        return { unproved: failure, notice: null, done: false };
+    }
+    if (outcome === "asked") {
+        return { unproved: null, notice: "mc.releaseRun.trustFirst", done: false };
+    }
+    return { unproved: null, notice: null, done: true };
+}
+
 const MaxUncoveredShown = 12;
+
+function UncoveredReason({ item, since }: { item: CoverageItem; since: string }) {
+    const t = useT();
+    if (!item.subject) {
+        return null;
+    }
+    const vars = { type: item.type, subject: item.subject, since };
+    return (
+        <span className="block text-11 text-muted" data-testid="release-run-uncovered-why">
+            {since ? t("mc.releaseRun.uncoveredWhy", vars) : t("mc.releaseRun.uncoveredWhyFirst", vars)}
+        </span>
+    );
+}
 
 // A public changelog section that leaves out changes since the last public release (#1142): listed, to be confirmed.
 export function UncoveredNote({ failure }: { failure: ManualCheckFailure }) {
@@ -217,6 +265,7 @@ export function UncoveredNote({ failure }: { failure: ManualCheckFailure }) {
                         <li key={item.ticket ? `#${item.ticket}` : item.text} className="break-words">
                             {item.ticket ? <span className="mr-1.5 font-mono text-11">#{item.ticket}</span> : null}
                             {item.text}
+                            <UncoveredReason item={item} since={failure.since} />
                         </li>
                     ))}
                 </ul>
@@ -226,6 +275,9 @@ export function UncoveredNote({ failure }: { failure: ManualCheckFailure }) {
                     </span>
                 ) : null}
                 <span>{t("mc.releaseRun.uncoveredHint")}</span>
+                <span className="break-all text-11 text-muted">
+                    {t("mc.releaseRun.uncoveredRead", { dir: failure.dir })}
+                </span>
             </div>
         </div>
     );
@@ -272,31 +324,26 @@ function ActionButton({
     const [error, setError] = useState<string>(null);
     const [notice, setNotice] = useState<string>(null); // an i18n key, worded at render: the language may change meanwhile
     const [unproved, setUnproved] = useState<ManualCheckFailure>(null);
+    const [forcing, setForcing] = useState(false);
     const confirm = action.kind === "step" || action.kind === "dispatch" ? action.confirm : null;
     const key = `${plain ? "redo" : "action"}:${action.label}`;
     const busy = lock.pending === key;
-    const go = (force?: boolean) =>
+    // The warning stays up while its check runs again: the list is replaced by the new one, or goes once recorded.
+    const go = (force: boolean) =>
         fireAndForget(async () => {
             setError(null);
             setNotice(null);
-            setUnproved(null);
+            setForcing(force);
             try {
-                const { outcome, failure } = await sendAction(lock, key, actions, action, force);
-                if (outcome === "refused") {
+                const next = await checkStep(lock, key, actions, action, force, unproved);
+                if (next.notice === "mc.releaseRun.actionRefused") {
                     logReleaseAction(`${action.label}: not sent, another action of the card is under way`);
-                    setNotice("mc.releaseRun.actionRefused");
-                    return;
                 }
-                if (outcome === "asked" && failure != null) {
+                setUnproved(next.unproved);
+                setNotice(next.notice);
+                if (next.done || next.unproved != null) {
                     setConfirming(false);
-                    setUnproved(failure);
-                    return;
                 }
-                if (outcome === "asked") {
-                    setNotice("mc.releaseRun.trustFirst");
-                    return;
-                }
-                setConfirming(false);
             } catch (e) {
                 const text = serverErrorText(e) || t("mc.releaseRun.actionFailed");
                 logReleaseAction(`${action.label}: ${text}`);
@@ -305,50 +352,20 @@ function ActionButton({
         });
     if (unproved != null) {
         return (
-            <div className="mt-3 flex flex-col gap-2" data-testid="release-run-unproved">
-                {unproved.uncovered?.length > 0 ? (
-                    <UncoveredNote failure={unproved} />
-                ) : (
-                    <p className="flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-warning">
-                        <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
-                        <span className="min-w-0 break-words">
-                            {unproved.missing
-                                ? t("mc.releaseRun.uncheckedMissing", { path: unproved.path, dir: unproved.dir })
-                                : t("mc.releaseRun.uncheckedLacks", {
-                                      path: unproved.path,
-                                      contains: unproved.contains,
-                                      dir: unproved.dir,
-                                  })}
-                        </span>
-                    </p>
-                )}
-                <div className="flex justify-end gap-2">
-                    <button
-                        type="button"
-                        disabled={lock.pending !== ""}
-                        className={PlainButton}
-                        onClick={() => setUnproved(null)}
-                    >
-                        {t("common.cancel")}
-                    </button>
-                    <button
-                        type="button"
-                        disabled={lock.pending !== ""}
-                        aria-busy={busy}
-                        className={cn(PlainButton, "inline-flex items-center")}
-                        onClick={() => go(true)}
-                        data-testid="release-run-mark-anyway"
-                    >
-                        {busy ? <DominoLoader className="mr-1.5" /> : null}
-                        {busy ? (action.busy ?? action.label) : t("mc.releaseRun.markDoneAnyway")}
-                    </button>
-                </div>
-                {error ? (
-                    <p className="text-right text-12 text-danger" role="alert">
-                        {error}
-                    </p>
-                ) : null}
-            </div>
+            <UnprovedWarning
+                failure={unproved}
+                locked={lock.pending !== ""}
+                busy={busy ? (forcing ? "force" : "check") : null}
+                busyLabel={action.busy ?? action.label}
+                notice={notice}
+                error={error}
+                onCancel={() => {
+                    setUnproved(null);
+                    setNotice(null);
+                }}
+                onCheckAgain={() => go(false)}
+                onForce={() => go(true)}
+            />
         );
     }
     return (
@@ -374,12 +391,97 @@ function ActionButton({
                     disabled={lock.pending !== ""}
                     aria-busy={busy}
                     className={cn(plain ? PlainButton : AccentButton, "inline-flex items-center")}
-                    onClick={() => (confirm && !confirming ? setConfirming(true) : go())}
+                    onClick={() => (confirm && !confirming ? setConfirming(true) : go(false))}
                     data-testid={plain ? "release-run-redo" : "release-run-action"}
                 >
                     {busy ? <DominoLoader className="mr-1.5" /> : null}
                     {busy ? (action.busy ?? action.label) : confirming ? t("common.confirm") : action.label}
                     {plain ? null : <MoltenWave />}
+                </button>
+            </div>
+            {notice ? (
+                <p className="text-right text-12 text-warning" role="status" data-testid="release-run-notice">
+                    {t(notice)}
+                </p>
+            ) : null}
+            {error ? (
+                <p className="text-right text-12 text-danger" role="alert">
+                    {error}
+                </p>
+            ) : null}
+        </div>
+    );
+}
+
+// A manual step whose check failed (#1095): what is missing, then cancel, check again (#1717) or mark it done anyway.
+export function UnprovedWarning({
+    failure,
+    locked,
+    busy,
+    busyLabel,
+    notice,
+    error,
+    onCancel,
+    onCheckAgain,
+    onForce,
+}: {
+    failure: ManualCheckFailure;
+    locked: boolean;
+    // Which of the warning's buttons sent the action under way.
+    busy: "check" | "force" | null;
+    busyLabel: string;
+    notice?: string;
+    error?: string;
+    onCancel: () => void;
+    onCheckAgain: () => void;
+    onForce: () => void;
+}) {
+    const t = useT();
+    return (
+        <div className="mt-3 flex flex-col gap-2" data-testid="release-run-unproved">
+            {failure.uncovered?.length > 0 ? (
+                <UncoveredNote failure={failure} />
+            ) : (
+                <p className="flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-warning">
+                    <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
+                    <span className="min-w-0 break-words">
+                        {failure.missing
+                            ? t("mc.releaseRun.uncheckedMissing", { path: failure.path, dir: failure.dir })
+                            : t("mc.releaseRun.uncheckedLacks", {
+                                  path: failure.path,
+                                  contains: failure.contains,
+                                  dir: failure.dir,
+                              })}
+                    </span>
+                </p>
+            )}
+            <div className="flex justify-end gap-2">
+                <button type="button" disabled={locked} className={PlainButton} onClick={onCancel}>
+                    {t("common.cancel")}
+                </button>
+                <button
+                    type="button"
+                    disabled={locked}
+                    aria-busy={busy === "check"}
+                    className={cn(PlainButton, "inline-flex items-center")}
+                    onClick={onCheckAgain}
+                    data-testid="release-run-check-again"
+                >
+                    <PendingLabel
+                        busy={busy === "check"}
+                        label={t("mc.releaseRun.checking")}
+                        idle={t("mc.releaseRun.checkAgain")}
+                    />
+                </button>
+                <button
+                    type="button"
+                    disabled={locked}
+                    aria-busy={busy === "force"}
+                    className={cn(PlainButton, "inline-flex items-center")}
+                    onClick={onForce}
+                    data-testid="release-run-mark-anyway"
+                >
+                    <PendingLabel busy={busy === "force"} label={busyLabel} idle={t("mc.releaseRun.markDoneAnyway")} />
                 </button>
             </div>
             {notice ? (

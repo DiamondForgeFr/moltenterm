@@ -119,7 +119,8 @@ func (r *Runs) checkCoverage(dir string, changelog string, step molten.PipelineS
 		return nil
 	}
 	failure.Since, failure.Version = since, session.Version
-	failure.Uncovered = release.UncoveredItems(section, items, molten.ChangelogLang(changelog))
+	earlier := release.ChangelogEarlier(string(data), session.Version, heading)
+	failure.Uncovered = release.NotCitedEarlier(release.UncoveredItems(section, items, molten.ChangelogLang(changelog)), earlier)
 	if len(failure.Uncovered) == 0 {
 		return nil
 	}
