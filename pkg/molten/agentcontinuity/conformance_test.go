@@ -126,15 +126,31 @@ var conformanceCases = map[string]map[string][]string{
 		FeatBusyClose:  {frontBusyClose},
 	},
 	molten.AgentIdKimi: {
+		FeatDetect:     {refContinuity + "TestPlannedAgentConformance"},
 		FeatGuides:     {guideConf},
 		FeatOnboarding: {onboardingConf},
 		FeatBusyClose:  {frontBusyClose},
 	},
+	molten.AgentIdQwen:        subscriptionCliCases,
+	molten.AgentIdAntigravity: subscriptionCliCases,
+	molten.AgentIdCopilot:     subscriptionCliCases,
+	molten.AgentIdCursor:      subscriptionCliCases,
+	molten.AgentIdGrok:        subscriptionCliCases,
+	molten.AgentIdVibe:        subscriptionCliCases,
 	molten.AgentIdOpenCode: {
 		FeatDetect:    {refContinuity + "TestPlannedAgentConformance"},
 		FeatTermCopy:  {frontTermCopy},
 		FeatBusyClose: {frontBusyClose},
 	},
+}
+
+// subscriptionCliCases: the planned agents of #1680 (and Qwen Code), detected from their process, given the guides and a
+// first-run card.
+var subscriptionCliCases = map[string][]string{
+	FeatDetect:     {refContinuity + "TestPlannedAgentConformance"},
+	FeatGuides:     {guideConf},
+	FeatOnboarding: {onboardingConf},
+	FeatBusyClose:  {frontBusyClose},
 }
 
 // cellWorks: MoltenTerm offers the feature with the agent (native or adapted).
@@ -554,10 +570,16 @@ type guideCase struct {
 }
 
 var guideConformance = map[string]guideCase{
-	molten.AgentIdClaude: {"claude-code", ".claude/skills/morph/SKILL.md", ".claude/skills", "---\nname: morph\n", "/morph <request>"},
-	molten.AgentIdCodex:  {"codex", ".agents/skills/morph/SKILL.md", ".agents/skills", "---\nname: morph\n", "$morph <request>"},
-	molten.AgentIdGemini: {"gemini-cli", ".gemini/commands/morph.toml", ".gemini/commands", "# ", "/morph <request>"},
-	molten.AgentIdKimi:   {"kimi", ".kimi-code/skills/morph/SKILL.md", ".kimi-code/skills", "---\nname: morph\n", "/skill:morph <request>"},
+	molten.AgentIdClaude:      {"claude-code", ".claude/skills/morph/SKILL.md", ".claude/skills", "---\nname: morph\n", "/morph <request>"},
+	molten.AgentIdCodex:       {"codex", ".agents/skills/morph/SKILL.md", ".agents/skills", "---\nname: morph\n", "$morph <request>"},
+	molten.AgentIdGemini:      {"gemini-cli", ".gemini/commands/morph.toml", ".gemini/commands", "# ", "/morph <request>"},
+	molten.AgentIdKimi:        {"kimi", ".kimi-code/skills/morph/SKILL.md", ".kimi-code/skills", "---\nname: morph\n", "/skill:morph <request>"},
+	molten.AgentIdQwen:        {"qwen-code", ".qwen/commands/morph.md", ".qwen/commands", "---\ndescription: ", "/morph <request>"},
+	molten.AgentIdAntigravity: {molten.AgentIdAntigravity, ".gemini/config/skills/morph/SKILL.md", ".gemini/config/skills", "---\nname: morph\n", "/morph <request>"},
+	molten.AgentIdCopilot:     {molten.AgentIdCopilot, ".copilot/skills/morph/SKILL.md", ".copilot/skills", "---\nname: morph\n", "/morph <request>"},
+	molten.AgentIdCursor:      {molten.AgentIdCursor, ".cursor/skills/morph/SKILL.md", ".cursor/skills", "---\nname: morph\n", "/morph <request>"},
+	molten.AgentIdGrok:        {molten.AgentIdGrok, ".grok/skills/morph/SKILL.md", ".grok/skills", "---\nname: morph\n", "/morph <request>"},
+	molten.AgentIdVibe:        {molten.AgentIdVibe, ".vibe/skills/morph/SKILL.md", ".vibe/skills", "---\nname: morph\n", "/morph <request>"},
 }
 
 // FR-AGC-006: the guides render in the agent's format and land in its place under a fake HOME, nowhere else.

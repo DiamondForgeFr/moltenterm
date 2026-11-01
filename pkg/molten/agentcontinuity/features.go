@@ -315,7 +315,7 @@ var qwenFeatures = plannedFeatures(map[string]FeatureSupport{
 	FeatDetect:       processDetected,
 	FeatState:        processState,
 	FeatHandoff:      processHandoff,
-	FeatGuides:       {Level: LevelAdapted, Note: "Qwen skill", Adapter: "agents.go, agentguides.go"},
+	FeatGuides:       {Level: LevelAdapted, Note: "custom command in ~/.qwen/commands", Adapter: "agents.go, agentguides.go"},
 	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile", Adapter: "onboarding/agents.go"},
 	FeatWorktreeName: processWorktreeName,
 	FeatBusyClose:    shellBusyClose,

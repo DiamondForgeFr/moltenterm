@@ -48,7 +48,7 @@ func TestFormatMoltenFeatureMatrix(t *testing.T) {
 	if fields := strings.Fields(lines[0]); len(fields) < 7 || fields[0] != "FEATURE" || fields[1] != "claude" || fields[2] != "codex" || fields[len(fields)-1] != "NAME" {
 		t.Fatalf("header %q", lines[0])
 	}
-	if fields := strings.Fields(lines[1]); fields[0] != "detect" || fields[1] != "N" || fields[2] != "N" || fields[3] != "P" || fields[4] != "-" {
+	if fields := strings.Fields(lines[1]); fields[0] != "detect" || fields[1] != "N" || fields[2] != "N" || fields[3] != "P" || fields[4] != "P" {
 		t.Errorf("detect row %q", lines[1])
 	}
 	for _, f := range agentcontinuity.AllFeatures {
@@ -59,7 +59,7 @@ func TestFormatMoltenFeatureMatrix(t *testing.T) {
 	for _, want := range []string{
 		"N native, A adapted, P process only, - none; checked " + agentcontinuity.MatrixAsOf,
 		"codex statusline: none (agentspecific): ",
-		"kimi detect: none (notdetected): not in molten.AgentKinds [#1680]",
+		"kimi detect: process-only (noadapter): ",
 		"gemini state: process-only (nohooks): ",
 		"other features none (noadapter: MoltenTerm has no adapter for Gemini CLI yet)",
 	} {
