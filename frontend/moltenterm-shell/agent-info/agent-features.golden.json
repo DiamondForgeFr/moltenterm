@@ -516,7 +516,7 @@
                 },
                 "onboarding": {
                     "level": "adapted",
-                    "note": "catalog entry from its guide profile; Antigravity replaces it for individual accounts",
+                    "note": "catalog entry from its guide profile, shown only when found: Antigravity CLI replaces it for individual accounts",
                     "adapter": "onboarding/agents.go",
                     "issue": "#1680"
                 },
@@ -601,8 +601,9 @@
                 "detect": {
                     "level": "process-only",
                     "reason": "noadapter",
-                    "note": "process name and path hints of molten.AgentKinds",
-                    "adapter": "agentstate.go (AgentKinds), agentproc.go"
+                    "note": "process name and path hints of molten.AgentKinds, since #1680",
+                    "adapter": "agentstate.go (AgentKinds), agentproc.go",
+                    "issue": "#1680"
                 },
                 "effort": {
                     "level": "none",
@@ -741,7 +742,7 @@
                 },
                 "guides": {
                     "level": "adapted",
-                    "note": "custom command in ~/.qwen/commands",
+                    "note": "Markdown custom commands in ~/.qwen/commands",
                     "adapter": "agents.go, agentguides.go"
                 },
                 "handoff": {
@@ -995,7 +996,7 @@
                 },
                 "guides": {
                     "level": "adapted",
-                    "note": "skill in its user skills folder, called /morph",
+                    "note": "skills in the agent's user folder, called /morph with the request said in words",
                     "adapter": "agents.go, agentguides.go"
                 },
                 "handoff": {
@@ -1026,7 +1027,7 @@
                 },
                 "onboarding": {
                     "level": "adapted",
-                    "note": "catalog entry from its guide profile, with a sign-in step",
+                    "note": "catalog entry from its guide profile, sign-in read from the credentials file the vendor documents",
                     "adapter": "onboarding/agents.go"
                 },
                 "resume": {
@@ -1122,7 +1123,7 @@
                 },
                 "guides": {
                     "level": "adapted",
-                    "note": "skill in its user skills folder, called /morph",
+                    "note": "skills in the agent's user folder, called /morph with the request said in words",
                     "adapter": "agents.go, agentguides.go"
                 },
                 "handoff": {
@@ -1153,7 +1154,7 @@
                 },
                 "onboarding": {
                     "level": "adapted",
-                    "note": "catalog entry from its guide profile, with a sign-in step",
+                    "note": "catalog entry from its guide profile, sign-in read from the credentials file the vendor documents",
                     "adapter": "onboarding/agents.go"
                 },
                 "resume": {
@@ -1249,7 +1250,7 @@
                 },
                 "guides": {
                     "level": "adapted",
-                    "note": "skill in its user skills folder, called /morph",
+                    "note": "skills in the agent's user folder, called /morph with the request said in words",
                     "adapter": "agents.go, agentguides.go"
                 },
                 "handoff": {
@@ -1280,7 +1281,7 @@
                 },
                 "onboarding": {
                     "level": "adapted",
-                    "note": "catalog entry from its guide profile, with a sign-in step",
+                    "note": "catalog entry from its guide profile, sign-in read from the credentials file the vendor documents",
                     "adapter": "onboarding/agents.go"
                 },
                 "resume": {
@@ -1376,7 +1377,7 @@
                 },
                 "guides": {
                     "level": "adapted",
-                    "note": "skill in its user skills folder, called /morph",
+                    "note": "skills in the agent's user folder, called /morph with the request said in words",
                     "adapter": "agents.go, agentguides.go"
                 },
                 "handoff": {
@@ -1407,7 +1408,7 @@
                 },
                 "onboarding": {
                     "level": "adapted",
-                    "note": "catalog entry from its guide profile, with a sign-in step",
+                    "note": "catalog entry from its guide profile, sign-in read from the credentials file the vendor documents",
                     "adapter": "onboarding/agents.go"
                 },
                 "resume": {
@@ -1503,7 +1504,7 @@
                 },
                 "guides": {
                     "level": "adapted",
-                    "note": "skill in its user skills folder, called /morph",
+                    "note": "skills in the agent's user folder, called /morph with the request said in words",
                     "adapter": "agents.go, agentguides.go"
                 },
                 "handoff": {
@@ -1534,7 +1535,7 @@
                 },
                 "onboarding": {
                     "level": "adapted",
-                    "note": "catalog entry from its guide profile, with a sign-in step",
+                    "note": "catalog entry from its guide profile, sign-in read from the credentials file the vendor documents",
                     "adapter": "onboarding/agents.go"
                 },
                 "resume": {

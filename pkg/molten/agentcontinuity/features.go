@@ -295,14 +295,14 @@ var geminiFeatures = plannedFeatures(map[string]FeatureSupport{
 	FeatState:        processState,
 	FeatHandoff:      processHandoff,
 	FeatGuides:       {Level: LevelAdapted, Note: "TOML commands", Adapter: "agents.go, agentguides.go"},
-	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile; Antigravity replaces it for individual accounts", Adapter: "onboarding/agents.go", Issue: "#1680"},
+	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile, shown only when found: Antigravity CLI replaces it for individual accounts", Adapter: "onboarding/agents.go", Issue: "#1680"},
 	FeatWorktreeName: processWorktreeName,
 	FeatTermCopy:     {Level: LevelAdapted, Note: "margin glyphs of its profile", Adapter: "FS/term-copy/agent-copy-profiles.ts"},
 	FeatBusyClose:    shellBusyClose,
 })
 
 var kimiFeatures = plannedFeatures(map[string]FeatureSupport{
-	FeatDetect:       processDetected,
+	FeatDetect:       {Level: LevelProcessOnly, Reason: ReasonNoAdapter, Note: "process name and path hints of molten.AgentKinds, since #1680", Adapter: "agentstate.go (AgentKinds), agentproc.go", Issue: "#1680"},
 	FeatState:        processState,
 	FeatHandoff:      processHandoff,
 	FeatGuides:       {Level: LevelAdapted, Note: "Kimi skill (/skill:morph)", Adapter: "agents.go, agentguides.go"},
@@ -315,19 +315,20 @@ var qwenFeatures = plannedFeatures(map[string]FeatureSupport{
 	FeatDetect:       processDetected,
 	FeatState:        processState,
 	FeatHandoff:      processHandoff,
-	FeatGuides:       {Level: LevelAdapted, Note: "custom command in ~/.qwen/commands", Adapter: "agents.go, agentguides.go"},
+	FeatGuides:       {Level: LevelAdapted, Note: "Markdown custom commands in ~/.qwen/commands", Adapter: "agents.go, agentguides.go"},
 	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile", Adapter: "onboarding/agents.go"},
 	FeatWorktreeName: processWorktreeName,
 	FeatBusyClose:    shellBusyClose,
 })
 
-// The subscription CLIs of #1680 share one row: recognised by their process, a skill in their user folder.
+// The subscription CLIs of #1680 (Antigravity CLI, Copilot CLI, Cursor CLI, Grok Build, Mistral Vibe) share a row:
+// recognised by their process, guides as skills in their user folder, a catalog card with a sign-in step.
 var subscriptionCliFeatures = plannedFeatures(map[string]FeatureSupport{
 	FeatDetect:       processDetected,
 	FeatState:        processState,
 	FeatHandoff:      processHandoff,
-	FeatGuides:       {Level: LevelAdapted, Note: "skill in its user skills folder, called /morph", Adapter: "agents.go, agentguides.go"},
-	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile, with a sign-in step", Adapter: "onboarding/agents.go"},
+	FeatGuides:       {Level: LevelAdapted, Note: "skills in the agent's user folder, called /morph with the request said in words", Adapter: "agents.go, agentguides.go"},
+	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile, sign-in read from the credentials file the vendor documents", Adapter: "onboarding/agents.go"},
 	FeatWorktreeName: processWorktreeName,
 	FeatBusyClose:    shellBusyClose,
 })

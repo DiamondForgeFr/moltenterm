@@ -93,6 +93,9 @@ func TestFeatureMatrixCells(t *testing.T) {
 			t.Errorf("%s %s: %s (%s), want %s (%s)", c.agent, c.feature, got.Level, got.Reason, c.level, c.reason)
 		}
 	}
+	if rows["kimi"][FeatDetect].Issue != "#1680" {
+		t.Errorf("kimi detection names its ticket: %+v", rows["kimi"][FeatDetect])
+	}
 }
 
 // The Codex hooks note said hooks "are not added" after #988 added them (#1681 audit).
@@ -221,7 +224,7 @@ func TestFeaturesRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"asof":"` + MatrixAsOf + `"`, `"id":"claude"`, `"adapter":true`, `"level":"process-only"`, `"reason":"noskills"`, `"requires":["hooks"]`} {
+	for _, want := range []string{`"asof":"` + MatrixAsOf + `"`, `"id":"claude"`, `"adapter":true`, `"level":"process-only"`, `"reason":"noadapter"`, `"requires":["hooks"]`} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("route answer misses %s", want)
 		}
