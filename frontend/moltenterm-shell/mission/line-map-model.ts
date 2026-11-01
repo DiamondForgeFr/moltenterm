@@ -17,7 +17,7 @@ import { channelOfTag, DefaultTagPrefix, parseVersion, VersionRules } from "../r
 import { CiBranch, CiVerdictStatus } from "./ci-model";
 import { GithubRelease, Milestone, PullRequest } from "./github";
 import { BuildMarker, LocalBuild, placeBuildMarkers } from "./line-map-builds";
-import { MissionGit, RawCommit, toTreeData } from "./mission-model";
+import { MissionGit, RawCommit, RawTag, toTreeData } from "./mission-model";
 import { ReleaseSession } from "./release-model";
 import { isPrereleaseTag, readableSubject, releaseState, treeRules } from "./versions";
 
@@ -300,11 +300,16 @@ export function stationKind(name: string, rules: VersionRules): StationKind {
 // from the tag, the first commit develop has, merged from develop (second parent), or copied from develop by a
 // rebase or a cherry-pick (same subject and author date). Failing all, the last develop commit before the tag.
 // A develop commit committed after the tag cannot be what the tag shipped (a fix picked back from main, say).
+// contained maps a tag's sha to the newest develop commit it contains, as wavesrv computed it (Tag.Source, #1727): it
+// is the answer when known, since main's history alone misses an rc branch's (cut from develop, its release commit
+// merged into main). A newer copy still beats it: a rebased or cherry-picked main contains no recent develop commit.
 export function makeSourceFinder(
     trunk: readonly RawCommit[],
-    release: readonly RawCommit[]
+    release: readonly RawCommit[],
+    contained?: ReadonlyMap<string, string>
 ): (tag: { sha: string; at: number }) => RawCommit {
     const onTrunk = new Map(trunk.map((c) => [c.sha, c]));
+    const trunkIndex = new Map(trunk.map((c, i) => [c.sha, i]));
     const copies = new Map<string, RawCommit>();
     for (const c of trunk) {
         if (c.authordate) {
@@ -312,35 +317,50 @@ export function makeSourceFinder(
         }
     }
     const releaseIndex = new Map(release.map((c, i) => [c.sha, i]));
-    return (tag) => {
+    const fromRelease = (tag: { sha: string; at: number }): RawCommit => {
         const before = (c: RawCommit) => (c != null && time(c.date) <= tag.at + SourceSlack ? c : null);
+        const from = releaseIndex.get(tag.sha);
+        if (from == null) {
+            return null;
+        }
+        for (let i = from; i < Math.min(release.length, from + SourceSearchDepth); i++) {
+            const c = release[i];
+            const hit =
+                before(onTrunk.get(c.sha)) ??
+                (c.parents?.length > 1 ? before(onTrunk.get(c.parents[1])) : null) ??
+                (c.authordate ? before(copies.get(`${c.subject}\u0000${c.authordate}`)) : null);
+            if (hit) {
+                return hit;
+            }
+        }
+        return null;
+    };
+    return (tag) => {
         const exact = onTrunk.get(tag.sha);
         if (exact) {
             return exact;
         }
-        const from = releaseIndex.get(tag.sha);
-        if (from != null) {
-            for (let i = from; i < Math.min(release.length, from + SourceSearchDepth); i++) {
-                const c = release[i];
-                const hit =
-                    before(onTrunk.get(c.sha)) ??
-                    (c.parents?.length > 1 ? before(onTrunk.get(c.parents[1])) : null) ??
-                    (c.authordate ? before(copies.get(`${c.subject}\u0000${c.authordate}`)) : null);
-                if (hit) {
-                    return hit;
-                }
-            }
+        const known = onTrunk.get(contained?.get(tag.sha));
+        const found = fromRelease(tag);
+        if (known && found) {
+            return trunkIndex.get(found.sha) < trunkIndex.get(known.sha) ? found : known;
         }
-        return trunk.find((c) => time(c.date) <= tag.at) ?? null;
+        return known ?? found ?? trunk.find((c) => time(c.date) <= tag.at) ?? null;
     };
 }
 
 export function stationSource(
-    tag: { sha: string; at: number },
+    tag: { sha: string; at: number; source?: string },
     trunk: readonly RawCommit[],
     release: readonly RawCommit[]
 ): RawCommit {
-    return makeSourceFinder(trunk, release)(tag);
+    const contained = tag.source ? new Map([[tag.sha, tag.source]]) : undefined;
+    return makeSourceFinder(trunk, release, contained)(tag);
+}
+
+// The sources wavesrv computed, by tag commit (Tag.Source in pkg/molten/mission/git.go).
+function containedSources(tags: readonly RawTag[]): Map<string, string> {
+    return new Map(tags.filter((t) => t.source).map((t) => [t.sha, t.source]));
 }
 
 export function buildLineMap(input: LineMapInput): LineMapModel {
@@ -389,7 +409,8 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     const rules = treeRules(tree);
     const released = new Set((input.releases ?? []).filter((r) => !r.isDraft).map((r) => r.tagName));
     const all: LineMapStation[] = [];
-    const findSource = single ? null : makeSourceFinder(trunkCommits, releaseCommits);
+    const contained = containedSources(tree.tags);
+    const findSource = single ? null : makeSourceFinder(trunkCommits, releaseCommits, contained);
     for (const tag of tree.tags) {
         const kind = stationKind(tag.name, rules);
         const at = time(tag.date);
@@ -443,7 +464,7 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
             trunk: trunkCommits,
             release: releaseCommits,
             stations: all,
-            findSource: makeSourceFinder(trunkCommits, releaseCommits),
+            findSource: makeSourceFinder(trunkCommits, releaseCommits, contained),
             start,
             trunkRead: TrunkCommitsRead,
         }),

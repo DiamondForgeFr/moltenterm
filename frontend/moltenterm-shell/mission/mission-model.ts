@@ -25,6 +25,8 @@ export type RawTag = {
     date: string;
     notes: string | null;
     notesInternal: string | null;
+    // The newest trunk commit the tag contains, when wavesrv computed it (Tag.Source in pkg/molten/mission/git.go).
+    source?: string;
 };
 
 export type RawBranch = {
@@ -51,7 +53,14 @@ export type TreeData = {
     rcFormat?: string;
 };
 
-export type MissionTag = { name: string; sha: string; date: string; notes?: string; notesinternal?: string };
+export type MissionTag = {
+    name: string;
+    sha: string;
+    date: string;
+    notes?: string;
+    notesinternal?: string;
+    source?: string;
+};
 
 // must match Merge in pkg/molten/mission/git.go
 export type MissionMerge = {
@@ -220,6 +229,7 @@ export function toTreeData(git: MissionGit): TreeData {
             date: t.date,
             notes: t.notes || null,
             notesInternal: t.notesinternal || null,
+            source: t.source || undefined,
         })),
     };
 }
