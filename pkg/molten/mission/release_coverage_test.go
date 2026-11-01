@@ -103,6 +103,29 @@ func TestPublicChangelogSectionCoversTheCandidates(t *testing.T) {
 	}
 }
 
+// #1717: a ticket an earlier section cites shipped in that release, though the range lists it again.
+func TestPublicChangelogSectionLeavesOutTicketsOfEarlierSections(t *testing.T) {
+	r, dir := makeChangelogFixture(t)
+	res := startRelease(t, r, dir, ReleaseChannelPublic, "v1.1.0")
+	waitRun(t, r, dir, res.Run.Id)
+
+	writeChangelog(t, dir, "docs/changelog.md", "# Changelog\n\n## [1.1.0] - 2026-11-01\n\n- Import a board (#22).\n\n## [1.0.1]\n\n- A patch.\n- Export the board ([#20](https://github.com/o/r/issues/20)).\n")
+	partial, err := r.RunReleaseStep(ReleaseStepRequest{Dir: dir, Tag: "v1.1.0", Step: "changelog-en"})
+	if err != nil || partial.Unproved == nil || len(partial.Unproved.Uncovered) != 1 {
+		t.Fatalf("only #21 is missing: %+v %v", partial.Unproved, err)
+	}
+	item := partial.Unproved.Uncovered[0]
+	if item.Ticket != 21 || item.Type != "fix" || item.Subject != "fix(#21): the crash on start" || partial.Unproved.Since != "v1.0.1" {
+		t.Fatalf("the item says why it is listed: %+v", partial.Unproved)
+	}
+
+	writeChangelog(t, dir, "docs/changelog.md", "# Changelog\n\n## [1.1.0] - 2026-11-01\n\n- Import a board (#22).\n\n## [1.0.1]\n\n- A patch (#21).\n- Export the board (#20).\n")
+	done, err := r.RunReleaseStep(ReleaseStepRequest{Dir: dir, Tag: "v1.1.0", Step: "changelog-en"})
+	if err != nil || done.Run == nil || done.Unproved != nil {
+		t.Fatalf("the earlier section cites the rest: recorded at once: %+v %v", done, err)
+	}
+}
+
 func TestCandidateChangelogSectionStartsAtThePreviousCandidate(t *testing.T) {
 	r, dir := makeChangelogFixture(t)
 	res := startRelease(t, r, dir, ReleaseChannelRc, "v1.1.0-3")

@@ -367,8 +367,9 @@ export type ManualCheckFailure = {
     version?: string;
 };
 
-// must match CoverageItem in pkg/molten/release/coverage.go: a ticket, or a commit claiming none (ticket absent).
-export type CoverageItem = { ticket?: number; text: string; url?: string };
+// must match CoverageItem in pkg/molten/release/coverage.go: a ticket, or a commit claiming none (ticket absent);
+// type and subject are its newest commit's in the range, why it is listed (#1717).
+export type CoverageItem = { ticket?: number; text: string; url?: string; type?: string; subject?: string };
 
 export type RunResult = { run?: RunRecord; untrusted?: UntrustedInfo; unproved?: ManualCheckFailure };
 

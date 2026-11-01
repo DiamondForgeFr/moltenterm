@@ -33,6 +33,9 @@ type CoverageItem struct {
 	// What its commits said.
 	Text string `json:"text"`
 	Url  string `json:"url,omitempty"`
+	// Why it is listed (#1717): the conventional type and the full subject of its newest commit in the range.
+	Type    string `json:"type,omitempty"`
+	Subject string `json:"subject,omitempty"`
 }
 
 func (i CoverageItem) String() string {
@@ -96,7 +99,7 @@ func CoverageItems(subjects []string, base string) []CoverageItem {
 		refs := commitTickets(subject)
 		if len(refs) == 0 {
 			if text != "" && !slices.ContainsFunc(items, func(i CoverageItem) bool { return i.Ticket == 0 && i.Text == text }) {
-				items = append(items, CoverageItem{Text: text})
+				items = append(items, CoverageItem{Text: text, Type: c.Type, Subject: subject})
 			}
 			continue
 		}
@@ -105,7 +108,7 @@ func CoverageItems(subjects []string, base string) []CoverageItem {
 				continue
 			}
 			index[n] = len(items)
-			item := CoverageItem{Ticket: n, Text: text}
+			item := CoverageItem{Ticket: n, Text: text, Type: c.Type, Subject: subject}
 			if base != "" {
 				item.Url = fmt.Sprintf("%s/issues/%d", base, n)
 			}
@@ -119,6 +122,40 @@ func CoverageItems(subjects []string, base string) []CoverageItem {
 // one, from the first heading naming the version, to the next heading of the same level or above.
 func ChangelogSection(text string, version string, heading string) (string, bool) {
 	lines := strings.Split(text, "\n")
+	start, end, ok := sectionSpan(lines, version, heading)
+	if !ok {
+		return "", false
+	}
+	return strings.Join(lines[start:end], "\n"), true
+}
+
+// ChangelogEarlier is what follows the section of a version: the sections of the releases before it; "" without one.
+func ChangelogEarlier(text string, version string, heading string) string {
+	lines := strings.Split(text, "\n")
+	_, end, ok := sectionSpan(lines, version, heading)
+	if !ok {
+		return ""
+	}
+	return strings.Join(lines[end:], "\n")
+}
+
+// NotCitedEarlier leaves out the tickets an earlier section already cites (#1717): they shipped in that release, though
+// the range lists them again under another hash, when a conflict changed their patch on the way back.
+func NotCitedEarlier(items []CoverageItem, earlier string) []CoverageItem {
+	if strings.TrimSpace(earlier) == "" {
+		return items
+	}
+	var rtn []CoverageItem
+	for _, item := range items {
+		if item.Ticket > 0 && mentionsTicket(earlier, item.Ticket) {
+			continue
+		}
+		rtn = append(rtn, item)
+	}
+	return rtn
+}
+
+func sectionSpan(lines []string, version string, heading string) (int, int, bool) {
 	// A candidate's heading is not the public version's: 1.1.0-2 and 1.1.0-rc.2 (#1155) do not name 1.1.0.
 	versionRegex := regexp.MustCompile(`(^|[^0-9.])` + regexp.QuoteMeta(version) + `($|[^0-9.-]|-[^0-9r]|-r($|[^c])|-rc($|[^.]))`)
 	start, level := -1, 0
@@ -141,7 +178,7 @@ func ChangelogSection(text string, version string, heading string) (string, bool
 		break
 	}
 	if start < 0 {
-		return "", false
+		return 0, 0, false
 	}
 	end := len(lines)
 	for i := start + 1; i < len(lines); i++ {
@@ -151,7 +188,7 @@ func ChangelogSection(text string, version string, heading string) (string, bool
 			break
 		}
 	}
-	return strings.Join(lines[start:end], "\n"), true
+	return start, end, true
 }
 
 func normalizedWords(s string) string {

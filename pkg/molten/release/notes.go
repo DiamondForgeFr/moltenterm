@@ -30,6 +30,12 @@ const (
 
 	// The ticket titles of a range larger than this many tickets outside its milestone are not looked up one by one.
 	maxTicketLookups = 60
+
+	// How far back the previous release's history is read for the equivalents of the range's commits (#1717): they
+	// were rebased or cherry-picked onto it just before its tag, so they are among its newest commits.
+	maxShippedCommits = 3000
+
+	rangeFieldSep = "\x1f"
 )
 
 var trailingTicketRegex = regexp.MustCompile(`\s*\(#\d+(?:\s*,\s*#\d+)*\)\s*$`)
@@ -257,19 +263,40 @@ func (e *Env) gatherNotesFacts(ctx context.Context, wt string, p *Project, tag s
 }
 
 // rangeSubjects: the commit subjects since a release ("" for the whole history) up to HEAD, newest first, merges
-// excluded.
+// excluded, and so are the commits the release already holds under another hash (#1717).
 func (e *Env) rangeSubjects(ctx context.Context, wt string, since string) ([]string, error) {
-	rangeArg := "HEAD"
-	if since != "" {
-		rangeArg = since + "..HEAD"
-	}
-	args := []string{"log", "--no-merges", "--format=%s", rangeArg}
 	// A fork's upstream history is not the project's own: the first release would otherwise list every upstream
 	// commit since the beginning.
+	var notUpstream []string
 	if remotes, _ := e.gitLines(ctx, wt, "remote"); slices.Contains(remotes, "upstream") {
-		args = append(args, "--not", "--remotes=upstream")
+		notUpstream = []string{"--not", "--remotes=upstream"}
 	}
-	return e.gitLines(ctx, wt, args...)
+	if since == "" {
+		return e.gitLines(ctx, wt, append([]string{"log", "--no-merges", "--format=%s", "HEAD"}, notUpstream...)...)
+	}
+	// A release merged to the main branch under other hashes (rebased, cherry-picked) and synced back leaves develop
+	// with the original commits while the tag holds their equivalents: since..HEAD lists what the release shipped
+	// again. --cherry-pick drops the equivalents of the same patch the tag holds beside HEAD; once the tag is merged
+	// into HEAD it sees none, so the commits are also matched on what a rebase or a cherry-pick keeps, even through a
+	// conflict: the author date and the subject.
+	lines, err := e.gitLines(ctx, wt, append([]string{"log", "--no-merges", "--right-only", "--cherry-pick", "--format=%at%x1f%s", since + "...HEAD"}, notUpstream...)...)
+	if err != nil {
+		return nil, err
+	}
+	shipped := map[string]bool{}
+	released, _ := e.gitLines(ctx, wt, append([]string{"log", "--no-merges", "-n", strconv.Itoa(maxShippedCommits), "--format=%at%x1f%s", since}, notUpstream...)...)
+	for _, line := range released {
+		shipped[line] = true
+	}
+	var subjects []string
+	for _, line := range lines {
+		if shipped[line] {
+			continue
+		}
+		_, subject, _ := strings.Cut(line, rangeFieldSep)
+		subjects = append(subjects, subject)
+	}
+	return subjects, nil
 }
 
 func noteLine(subject string) string {
