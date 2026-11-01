@@ -428,6 +428,78 @@
     scroll-margin-bottom: 96px;
 }
 
+/* Help me choose (FR-ONB-008, #1697): offered above the cards; the path takes the grid's place, then the cards come
+   back in their own order with the suggestions outlined, never moved. */
+.mt-pour-choose-entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 12px;
+    width: min(860px, 100%);
+}
+
+.mt-pour-link {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+    text-decoration: underline;
+    text-decoration-color: var(--mt-line-2);
+    text-underline-offset: 2px;
+}
+
+.mt-pour-link:hover {
+    color: var(--mt-text-1);
+}
+
+.mt-pour-choose-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+}
+
+.mt-pour-choose-card {
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-panel);
+    background: var(--pour-iron-2);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: var(--mt-text-12);
+}
+
+.mt-pour-choose-list {
+    margin: 0;
+    padding-left: 16px;
+    list-style: disc;
+    color: var(--mt-text-2);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mt-pour-choose-icon {
+    display: inline-flex;
+    color: var(--pour-hot);
+}
+
+.mt-pour-agent[data-suggested] {
+    border-color: var(--pour-molten);
+    box-shadow: 0 0 0 1px var(--pour-molten);
+}
+
+.mt-pour-match {
+    align-self: flex-start;
+    font-size: var(--mt-text-11);
+    color: var(--mt-action-text);
+    border: 1px solid color-mix(in srgb, var(--pour-molten) 50%, transparent);
+    border-radius: var(--mt-radius-control);
+    padding: 0 6px;
+}
+
 /* Scene 3: the workshop, as the sidebar really is. The spaces slide like the real swipe; the shared row stays. */
 .mt-pour-win {
     width: min(840px, 100%);

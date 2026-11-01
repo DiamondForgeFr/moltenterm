@@ -307,3 +307,46 @@ export function chooseAgents(rows: LibraryAgent[], answers: ChooseAnswers, seed:
     ];
     return { shown: all.slice(0, ChooseShown), others: all.slice(ChooseShown) };
 }
+
+// The path's state, shared by the Library and the first launch (FR-ONB-008): steps 0 to 2 are the questions, 3 the
+// suggestions. The answers stay in the window that asked them.
+export const ChooseQuestionCount = 3;
+export type ChooseState = { step: number; answers: ChooseAnswers; seed: number };
+
+// A new draw at each opening, so ties never come in the same order (choice.json rule 4).
+export function startChooseState(seed: number = Math.floor(Math.random() * 2 ** 31)): ChooseState {
+    return { step: 0, answers: {}, seed };
+}
+
+export function answerChooseState(state: ChooseState, answers: ChooseAnswers): ChooseState {
+    if (state == null || state.step >= ChooseQuestionCount) {
+        return state;
+    }
+    return { ...state, answers: { ...state.answers, ...answers }, step: state.step + 1 };
+}
+
+export function backChooseState(state: ChooseState): ChooseState {
+    if (state == null || state.step === 0) {
+        return state;
+    }
+    return { ...state, step: state.step - 1 };
+}
+
+// The cards the first launch highlights once the path ends: the shown suggestions only, the grid's order untouched.
+export function suggestedIds(rows: LibraryAgent[], state: ChooseState): string[] {
+    if (state == null || state.step < ChooseQuestionCount) {
+        return [];
+    }
+    return chooseAgents(rows, state.answers, state.seed).shown.map((s) => s.row.card.id);
+}
+
+export function priceText(t: (key: string, vars?: Record<string, string>) => string, profile: AgentFacts): string {
+    const line = priceLine(profile);
+    if (line == null) {
+        return "";
+    }
+    const vars = line.vars
+        ? { ...line.vars, plan: line.vars.plan ?? "", period: t(`library.agents.period.${line.vars.period}`) }
+        : undefined;
+    return t(`library.agents.price.${line.key}`, vars);
+}

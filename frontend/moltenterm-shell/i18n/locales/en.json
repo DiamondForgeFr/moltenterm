@@ -1476,7 +1476,19 @@
                 "signInTitle": "Sign in to {name}",
                 "signInText": "{name} is on this computer. It needs: {account}.",
                 "signInFirstStart": "The sign-in happens when it first starts: run {command} in a terminal and follow its steps.",
-                "signInPage": "Sign in or create an account ↗"
+                "signInPage": "Sign in or create an account ↗",
+                "profile": {
+                    "checked": "Checked on {date}",
+                    "checkedStale": "Checked on {date}: this may have changed, check the vendor's page"
+                },
+                "choose": {
+                    "lead": "Not sure which one to take? Three questions help.",
+                    "highlighted": "The outlined cards match your answers. The others stay just as available.",
+                    "match": "Matches your answers",
+                    "again": "Change my answers",
+                    "clear": "Clear",
+                    "toCards": "Back to the cards"
+                }
             },
             "workshop": {
                 "kicker": "Your workshop",

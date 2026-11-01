@@ -19,7 +19,14 @@ import {
 } from "../../moltenterm-onboarding/onboarding-client";
 import { isRunning, type CliInstallStatus } from "../../moltenterm-onboarding/onboarding-install-model";
 import { serverErrorText } from "../i18n/server-text";
-import type { ChooseAnswers, Matrix } from "./agents-model";
+import {
+    answerChooseState,
+    backChooseState,
+    startChooseState,
+    type ChooseAnswers,
+    type ChooseState,
+    type Matrix,
+} from "./agents-model";
 
 const JobPollMs = 500;
 
@@ -31,8 +38,7 @@ const FeaturesTimeoutMs = 4000;
 // "absent": this wavesrv does not serve the matrix yet.
 export type MatrixState = Matrix | "absent";
 
-// step 0 to 2: the questions; 3: the suggestions
-export type ChooseState = { step: number; answers: ChooseAnswers; seed: number };
+export type { ChooseState };
 
 export class LibraryAgentsModel {
     private static instance: LibraryAgentsModel = null;
@@ -64,10 +70,9 @@ export class LibraryAgentsModel {
         globalStore.set(this.openAtom, id);
     }
 
-    // A new draw at each opening, so ties never come in the same order (choice.json rule 4).
     startChoose() {
         globalStore.set(this.openAtom, null);
-        globalStore.set(this.chooseAtom, { step: 0, answers: {}, seed: Math.floor(Math.random() * 2 ** 31) });
+        globalStore.set(this.chooseAtom, startChooseState());
     }
 
     closeChoose() {
@@ -75,19 +80,11 @@ export class LibraryAgentsModel {
     }
 
     answerChoose(answers: ChooseAnswers) {
-        const state = globalStore.get(this.chooseAtom);
-        if (state == null) {
-            return;
-        }
-        globalStore.set(this.chooseAtom, { ...state, answers: { ...state.answers, ...answers }, step: state.step + 1 });
+        globalStore.set(this.chooseAtom, answerChooseState(globalStore.get(this.chooseAtom), answers));
     }
 
     backChoose() {
-        const state = globalStore.get(this.chooseAtom);
-        if (state == null || state.step === 0) {
-            return;
-        }
-        globalStore.set(this.chooseAtom, { ...state, step: state.step - 1 });
+        globalStore.set(this.chooseAtom, backChooseState(globalStore.get(this.chooseAtom)));
     }
 
     async load(refresh?: boolean): Promise<void> {

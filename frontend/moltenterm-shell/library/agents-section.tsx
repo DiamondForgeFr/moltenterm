@@ -14,18 +14,13 @@ import { installPhase, isRunning, type CliInstallStatus } from "../../moltenterm
 import { CopyLine, ExternalLink, withCodes } from "../../moltenterm-onboarding/onboarding-parts";
 import type { PourAgentCard } from "../../moltenterm-onboarding/onboarding-pour-agents";
 import { InstallOutput } from "../../moltenterm-onboarding/onboarding-pour-scenes";
-import { useT, useTCount } from "../i18n/i18n";
+import { useT } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
 import {
     agentStatusKind,
     BeyondCodeKinds,
     canRemoveConfig,
-    chooseAgents,
-    ChooseBudgets,
-    ChooseGoals,
-    ChooseNone,
-    ChooseSubscriptions,
     configHoldsKey,
     hasProfile,
     installStatus,
@@ -34,13 +29,14 @@ import {
     manualUninstallCommands,
     matrixSummary,
     priceLine,
+    priceText,
     uninstallOffer,
     uninstallPhase,
     uninstallRemoves,
     uninstallStatus,
-    type ChooseSuggestion,
     type LibraryAgent,
 } from "./agents-model";
+import { ChoosePath, LibraryChooseLook } from "./agents-choose";
 import { LibraryAgentsModel, type ChooseState } from "./agents-store";
 
 function StatusChip({ card }: { card: PourAgentCard }) {
@@ -131,17 +127,6 @@ function KeyList({ keys }: { keys: string[] }) {
             ))}
         </ul>
     );
-}
-
-export function priceText(t: (key: string, vars?: Record<string, string>) => string, profile: AgentFacts): string {
-    const line = priceLine(profile);
-    if (line == null) {
-        return "";
-    }
-    const vars = line.vars
-        ? { ...line.vars, plan: line.vars.plan ?? "", period: t(`library.agents.period.${line.vars.period}`) }
-        : undefined;
-    return t(`library.agents.price.${line.key}`, vars);
 }
 
 function PriceText({ profile }: { profile: AgentFacts }) {
@@ -671,165 +656,6 @@ function AgentPage({ row, job }: { row: LibraryAgent; job: CliInstallStatus }) {
     );
 }
 
-function ChooseQuestion({ step }: { step: number }) {
-    const t = useT();
-    const model = LibraryAgentsModel.getInstance();
-    let question: string;
-    let answers: { label: string; pick: () => void; id: string }[];
-    if (step === 0) {
-        question = t("library.agents.choose.goal.question");
-        answers = ChooseGoals.map((g) => ({
-            id: g,
-            label: t(`library.agents.choose.goal.answers.${g}`),
-            pick: () => model.answerChoose({ goal: g }),
-        }));
-    } else if (step === 1) {
-        question = t("library.agents.choose.budget.question");
-        answers = ChooseBudgets.map((b) => ({
-            id: b,
-            label: t(`library.agents.choose.budget.answers.${b}`),
-            pick: () => model.answerChoose({ budget: b }),
-        }));
-    } else {
-        question = t("library.agents.choose.already.question");
-        answers = [
-            ...ChooseSubscriptions.map((s) => ({
-                id: s.id,
-                label: s.label,
-                pick: () => model.answerChoose({ already: s.id }),
-            })),
-            {
-                id: ChooseNone,
-                label: t("library.agents.choose.already.answers.none"),
-                pick: () => model.answerChoose({ already: ChooseNone }),
-            },
-        ];
-    }
-    return (
-        <div className="flex flex-col gap-2" data-testid="library-choose-question" data-step={step}>
-            <span className="text-11 text-secondary">{t("library.agents.choose.step", { n: String(step + 1) })}</span>
-            <b className="text-14 text-primary">{question}</b>
-            <div className="flex flex-wrap gap-1.5">
-                {answers.map((a) => (
-                    <button
-                        key={a.id}
-                        type="button"
-                        className="mt-lib-btn"
-                        data-testid="library-choose-answer"
-                        data-answer={a.id}
-                        onClick={a.pick}
-                    >
-                        {a.label}
-                    </button>
-                ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-                {step > 0 ? (
-                    <button type="button" className="mt-lib-link" onClick={() => model.backChoose()}>
-                        {t("library.agents.choose.back")}
-                    </button>
-                ) : null}
-                <button
-                    type="button"
-                    className="mt-lib-link"
-                    data-testid="library-choose-skip"
-                    onClick={() => model.answerChoose({})}
-                >
-                    {t("library.agents.choose.skip")}
-                </button>
-            </div>
-        </div>
-    );
-}
-
-function ChooseCard({ suggestion }: { suggestion: ChooseSuggestion }) {
-    const t = useT();
-    const { row, reasons } = suggestion;
-    return (
-        <div className="mt-lib-pcard" data-testid="library-choose-suggestion" data-agent={row.card.id}>
-            <div className="flex items-center gap-2 font-semibold text-primary">
-                <i className="mt-lib-pic" aria-hidden>
-                    <SidebarGlyph name="agents" size={16} />
-                </i>
-                <span className="truncate">{row.card.name}</span>
-            </div>
-            <ul className="mt-lib-aglist">
-                {reasons.map((r) => (
-                    <li key={r.key}>{t(r.key, r.vars)}</li>
-                ))}
-            </ul>
-            <span className="text-11 text-secondary">{priceText(t, row.agent.profile)}</span>
-            <button
-                type="button"
-                className="mt-lib-btn"
-                data-testid="library-choose-open"
-                onClick={() => LibraryAgentsModel.getInstance().open(row.card.id)}
-            >
-                {t("library.agents.choose.openPage")}
-            </button>
-        </div>
-    );
-}
-
-function ChooseResults({ rows, state }: { rows: LibraryAgent[]; state: ChooseState }) {
-    const t = useT();
-    const tc = useTCount();
-    const model = LibraryAgentsModel.getInstance();
-    const [showOthers, setShowOthers] = useState(false);
-    const result = chooseAgents(rows, state.answers, state.seed);
-    const names = result.shown.map((s) => s.row.card.name);
-    return (
-        <div className="flex flex-col gap-3" data-testid="library-choose-results">
-            {result.shown.length === 0 ? (
-                <p data-testid="library-choose-none">{t("library.agents.choose.noneMatch")}</p>
-            ) : (
-                <div className="mt-lib-pcards">
-                    {result.shown.map((s) => (
-                        <ChooseCard key={s.row.card.id} suggestion={s} />
-                    ))}
-                </div>
-            )}
-            {result.others.length > 0 && !showOthers ? (
-                <button
-                    type="button"
-                    className="mt-lib-link self-start"
-                    data-testid="library-choose-others"
-                    onClick={() => setShowOthers(true)}
-                >
-                    {tc("library.agents.choose.otherMatches", result.others.length)}
-                </button>
-            ) : null}
-            {showOthers ? (
-                <div className="mt-lib-pcards">
-                    {result.others.map((s) => (
-                        <ChooseCard key={s.row.card.id} suggestion={s} />
-                    ))}
-                </div>
-            ) : null}
-            {names.length > 0 ? (
-                <p>
-                    {names.length === 2
-                        ? t("library.agents.choose.combine.two", { a: names[0], b: names[1] })
-                        : t("library.agents.choose.combine.one")}
-                </p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-3">
-                <button type="button" className="mt-lib-link" onClick={() => model.backChoose()}>
-                    {t("library.agents.choose.back")}
-                </button>
-                <button
-                    type="button"
-                    className="mt-lib-link"
-                    data-testid="library-choose-again"
-                    onClick={() => model.startChoose()}
-                >
-                    {t("library.agents.choose.again")}
-                </button>
-            </div>
-        </div>
-    );
-}
-
 function ChoosePanel({ rows, state }: { rows: LibraryAgent[]; state: ChooseState }) {
     const t = useT();
     const model = LibraryAgentsModel.getInstance();
@@ -851,7 +677,25 @@ function ChoosePanel({ rows, state }: { rows: LibraryAgent[]; state: ChooseState
                     {t("library.agents.choose.close")}
                 </button>
             </div>
-            {state.step < 3 ? <ChooseQuestion step={state.step} /> : <ChooseResults rows={rows} state={state} />}
+            <ChoosePath
+                rows={rows}
+                state={state}
+                look={LibraryChooseLook}
+                testId="library-choose"
+                action={(row) => (
+                    <button
+                        type="button"
+                        className="mt-lib-btn"
+                        data-testid="library-choose-open"
+                        onClick={() => model.open(row.card.id)}
+                    >
+                        {t("library.agents.choose.openPage")}
+                    </button>
+                )}
+                onAnswer={(answers) => model.answerChoose(answers)}
+                onBack={() => model.backChoose()}
+                onRestart={() => model.startChoose()}
+            />
             <p className="text-11 text-secondary">{t("library.agents.choose.private")}</p>
         </section>
     );

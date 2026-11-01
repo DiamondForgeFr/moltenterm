@@ -232,6 +232,10 @@ on the ticket of the release.
 - [ ] Every file is there: 2 dmg, 2 zip, 2 AppImage, 2 deb, `latest-mac.yml`, `latest-linux.yml`,
       `latest-linux-arm64.yml`, four macOS `.blockmap` files and `SHA256SUMS.txt`. Public output also includes
       `macos-verification.json`. `scripts/moltenterm-release-files.sh` refuses an inconsistent inventory.
+- [ ] Agent profiles refreshed (FR-ONB-008): every vendor page of the agent catalog (`pkg/molten/onboarding/agentfacts.go`)
+      re-read; prices, free tiers, plans, models and region limits updated; checked date set. Then
+      `MOLTENTERM_RC_DATE=<the candidate's date, YYYY-MM-DD> go test -run '^TestAgentProfilesFreshForRelease$' ./pkg/molten/onboarding/`
+      lists every entry checked more than 30 days before the candidate. Tick this item only when it lists nothing.
 - [ ] `sha256sum --ignore-missing -c SHA256SUMS.txt` (`shasum -a 256 -c` on macOS) passes on the downloaded files.
 - [ ] Once the release key exists: `SHA256SUMS.txt.asc` and a `.asc` per AppImage and deb are there, and
       `gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt` says "Good signature" and names the fingerprint of "The release
