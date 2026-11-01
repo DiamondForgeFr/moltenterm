@@ -5,8 +5,8 @@
 // workspace's look: the frame and the sidebar take the opacity as CSS alpha (html.mt-translucent, --mt-window-alpha,
 // sidebar.css), the panels stay opaque, and a texture (#1294, window-texture.ts) lies on the same surfaces as
 // --mt-frame-texture; Electron main is told only whether this view lets the desktop through and whether the window
-// blurs it, and is told again when the view comes on screen, so a workspace switch switches the look. The rules are
-// window-look-model.ts.
+// blurs it, and keeps that request for when the view comes on screen, so a workspace switch switches the look (#1711).
+// The rules are window-look-model.ts.
 
 import { ClientModel } from "@/app/store/client-model";
 import { atoms, getApi, getSettingsPrefixAtom } from "@/app/store/global";
@@ -25,6 +25,7 @@ import {
     lookScope,
     LookSource,
     LookSupport,
+    lookToApply,
     lookWrites,
     OpaqueReason,
     peekAlpha,
@@ -148,10 +149,9 @@ function drawLook(look: WindowLook) {
     }
 }
 
+// Sent hidden or not: Electron main keeps each view's last request and applies it when the view comes on screen
+// (#1711), so the window never waits for this view to send again after a switch.
 function tellWindow(look: WindowLook) {
-    if (document.visibilityState !== "visible") {
-        return;
-    }
     getApi().setWindowLook?.({ translucent: isTranslucent(look), blur: isTranslucent(look) && look.blur });
 }
 
@@ -179,14 +179,15 @@ export function WindowLookApplier() {
             query?.removeEventListener?.("change", onQuery);
         };
     }, []);
-    const drawn = shown.drawn;
+    const support = useAtomValue(model.supportAtom);
+    const drawn = lookToApply(shown.drawn, support);
     useEffect(() => {
+        if (drawn == null) {
+            return;
+        }
         drawLook(drawn);
         tellWindow(drawn);
-        const onVisible = () => tellWindow(drawn);
-        document.addEventListener("visibilitychange", onVisible);
-        return () => document.removeEventListener("visibilitychange", onVisible);
-    }, [drawn.opacity, drawn.blur, drawn.texture, drawn.intensity, ws?.oid]);
+    }, [drawn == null, drawn?.opacity, drawn?.blur, drawn?.texture, drawn?.intensity, ws?.oid]);
     return null;
 }
 

@@ -14,7 +14,6 @@
 import { ClientService, ObjectService } from "@/app/store/services";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { fireAndForget } from "@/util/util";
-import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { getGlobalIsQuitting, getGlobalIsRelaunching } from "./emain-activity";
 import { isDev } from "./emain-platform";
 import { getOrCreateWebViewForTab, WaveTabView } from "./emain-tabview";
@@ -23,6 +22,7 @@ import { getAllWaveWindows, getWaveWindowById, getWaveWindowByWebContentsId } fr
 import { ElectronWshClient } from "./emain-wsh";
 import { ActionRun, isSuperseded, readinessDeadlineMs } from "./moltenterm-action-queue";
 import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { acquireReadyView, awaitViewInitialized } from "./moltenterm-spare-ready";
 import {
     beginShowingTabView,
@@ -49,6 +49,7 @@ import {
     ViewPendingController,
     ViewPendingState,
 } from "./moltenterm-view-pending";
+import { applyActiveViewLook } from "./moltenterm-window-look";
 import { MoltentermReinitTimeoutMs, nextWaveReady, withTimeout } from "./moltenterm-workspace-switch";
 
 // false restores the previous behaviour where the host changed it, for one release: a new tab is shown at once while it
@@ -489,6 +490,8 @@ function activateTabView(win: WaveBrowserWindow, tabView: WaveTabView, oldActive
     }
     noteTabViewLeftScreen(oldActiveView);
     noteTabViewLeftScreenForBudget(oldActiveView);
+    // the window takes the shown workspace's look at once (#1711)
+    applyActiveViewLook(win, tabView);
 }
 
 function restoreActiveTabView(win: WaveBrowserWindow, oldActiveView: WaveTabView) {
@@ -498,6 +501,7 @@ function restoreActiveTabView(win: WaveBrowserWindow, oldActiveView: WaveTabView
     registry.activate(win.waveWindowId, oldActiveView, "given back after a failed show");
     if (oldActiveView != null) {
         oldActiveView.isActiveTab = true;
+        applyActiveViewLook(win, oldActiveView);
     }
 }
 

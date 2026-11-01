@@ -5,8 +5,9 @@
 // Electron main only whether its view must let the desktop through and whether the window blurs it. A window can be
 // see-through only if it was created transparent: on macOS every window is (emain-window.ts), elsewhere only when
 // window:transparent was on at its creation. The blur is a vibrancy, macOS only, changed at runtime. Only the window's
-// own tab views are heard, and only the view on screen changes the window's vibrancy; each view sends again when it
-// comes on screen, so the look follows the workspace shown.
+// own tab views are heard, and only the view on screen changes the window's vibrancy. Each view's last request is kept
+// and applied to the window when that view becomes the active one (#1711): a switch never depends on the view sending
+// again once it is on screen, and a request from a view already left (a fast switch) never lands on the window.
 
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { getWaveWindowByWebContentsId } from "./emain-window";
@@ -35,6 +36,7 @@ type LookView = {
 };
 
 const created = new WeakMap<object, CreatedLook>();
+const requested = new WeakMap<object, WindowLookRequest>();
 
 export function noteWindowCreatedLook(win: object, transparent: boolean, blur: boolean, platform: string) {
     created.set(win, { transparent, blur, platform });
@@ -74,8 +76,35 @@ export function applyWindowLook(
     if (!isActiveView || look?.platform !== "darwin") {
         return true;
     }
-    win.setVibrancy?.(blur ? BlurVibrancy : null);
-    return true;
+    win.setVibrancy?.(blur ? BlurVibrancy : null);    return true;
+}
+
+// A view's request, kept for when it comes on screen, and applied now.
+export function receiveWindowLook(
+    win: LookWindow,
+    view: LookView,
+    isActiveView: boolean,
+    look: CreatedLook,
+    request: WindowLookRequest
+): boolean {
+    if (view == null || request == null) {
+        return false;
+    }
+    requested.set(view, request);
+    return applyWindowLook(win, view, isActiveView, look, request);
+}
+
+// The view that just became the window's active one brings its own look: the window's vibrancy is the shown view's,
+// whatever the views left on the way sent. A view that has not asked yet keeps its opaque creation background.
+export function applyActiveViewLook(win: LookWindow, view: LookView): boolean {
+    if (win == null || view == null) {
+        return false;
+    }
+    const request = requested.get(view);
+    if (request == null) {
+        return false;
+    }
+    return applyWindowLook(win, view, true, created.get(win), request);
 }
 
 let initialized = false;
@@ -93,6 +122,6 @@ export function initMoltentermWindowLook() {
         if (win == null || view == null) {
             return;
         }
-        applyWindowLook(win, view, win.activeTabView === view, created.get(win), parseLookRequest(value));
+        receiveWindowLook(win, view, win.activeTabView === view, created.get(win), parseLookRequest(value));
     });
 }

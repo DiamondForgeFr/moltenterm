@@ -170,6 +170,12 @@ export function effectiveLook(
     return { look: { opacity: clampOpacity(wanted.opacity, blur), blur, ...lookTexture(wanted) }, reason: null };
 }
 
+// The look a tab view draws and sends to Electron main, or nothing yet: until main has said what this window supports
+// the look reads as opaque, and drawn and sent that guess drops the window's blur while the view is on screen (#1711).
+export function lookToApply(drawn: WindowLook, support: LookSupport): WindowLook {
+    return support == null ? null : drawn;
+}
+
 // The ink a drawn look's texture takes (window-texture.ts): dark over a see-through frame, light over an opaque one.
 export function textureTone(drawn: WindowLook): TextureTone {
     return isTranslucent(drawn) ? "dark" : "light";
