@@ -13,6 +13,7 @@ import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { OptMagnifyButton } from "@/app/block/blockutil";
 import { Button } from "@/app/element/button";
 import { IconButton } from "@/app/element/iconbutton";
+import { Search, useSearch } from "@/app/element/search";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi, getSettingsKeyAtom, openLink as openInterfaceLink, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -23,6 +24,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab, type NodeModel } from "@/layout/index";
 import { checkKeyPressed } from "@/util/keyutil";
+import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
@@ -98,7 +100,29 @@ import {
     shouldRestore,
 } from "./browser-lifecycle";
 import { LinkCopy } from "./browser-link-copy";
-import { BrowserLoadModel, reloadAction, runReload, TabLoad } from "./browser-loading";
+import {
+    browserKeyAction,
+    BrowserKeyAddress,
+    BrowserKeyBack,
+    BrowserKeyFind,
+    BrowserKeyForward,
+    BrowserKeyHardReload,
+    BrowserKeyReload,
+    BrowserKeyStop,
+    BrowserKeyZoomIn,
+    BrowserKeyZoomOut,
+    BrowserKeyZoomReset,
+    nextZoomStep,
+} from "./browser-keys";
+import {
+    BrowserLoadModel,
+    reloadAction,
+    ReloadIgnoringCache,
+    ReloadNormal,
+    ReloadStop,
+    runReload,
+    TabLoad,
+} from "./browser-loading";
 import {
     activateTab,
     addressOfPage,
@@ -199,6 +223,8 @@ export class BrowserViewModel implements ViewModel {
     tabBlockIdsAtom: Atom<string[]>;
     webviews = new Map<string, WebviewTag>();
     urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
+    // The find bar (#1722), set by the view while it is mounted.
+    searchAtoms: SearchAtoms;
     persistTimer: ReturnType<typeof setTimeout> = null;
     blockAtom: Atom<Block>;
     handledOpenIds = new Set<string>();
@@ -1226,20 +1252,124 @@ export class BrowserViewModel implements ViewModel {
             this.closeTab(this.state().activeId);
             return true;
         }
-        if (checkKeyPressed(e, "Cmd:Shift:r")) {
-            this.reloadActive(true);
-            return true;
+        // With the focus on the panel's own controls, back, forward and Escape stay the address field's editing keys.
+        const action = browserKeyAction(e, isMacOS());
+        if (action == null || action === BrowserKeyBack || action === BrowserKeyForward || action === BrowserKeyStop) {
+            return false;
         }
-        if (checkKeyPressed(e, "Cmd:r")) {
-            this.reloadActive(false);
-            return true;
+        return this.runKeyAction(action);
+    }
+
+    // A key held back from the page (#1722): the browser's shortcuts win over the window's while the page has the focus.
+    pageKeyDownHandler(e: WaveKeyboardEvent): boolean {
+        if (globalStore.get(atoms.modalOpen)) {
+            return false;
         }
-        if (checkKeyPressed(e, "Cmd:l")) {
-            this.urlInputRef.current?.focus();
-            this.urlInputRef.current?.select();
-            return true;
+        const action = browserKeyAction(e, isMacOS());
+        if (action == null) {
+            return false;
+        }
+        return this.runKeyAction(action);
+    }
+
+    // The shortcut always loads the page again, as browsers do; the Reload button stops a page that is loading.
+    runKeyAction(action: string): boolean {
+        const id = this.state().activeId;
+        const webview = this.webviews.get(id);
+        switch (action) {
+            case BrowserKeyReload:
+            case BrowserKeyHardReload:
+                if (this.errors.error(id) != null && !this.loads.isLoading(id)) {
+                    this.retryTab(id);
+                    return true;
+                }
+                runReload(webview, action === BrowserKeyHardReload ? ReloadIgnoringCache : ReloadNormal);
+                return true;
+            case BrowserKeyBack:
+            case BrowserKeyForward:
+                this.goInHistory(webview, action === BrowserKeyBack ? -1 : 1);
+                return true;
+            case BrowserKeyFind:
+                return this.openFind();
+            case BrowserKeyZoomIn:
+            case BrowserKeyZoomOut: {
+                const current = this.zoomPercent();
+                if (current != null) {
+                    this.setZoom(nextZoomStep(current, action === BrowserKeyZoomIn ? 1 : -1));
+                }
+                return true;
+            }
+            case BrowserKeyZoomReset:
+                this.setZoom(100);
+                return true;
+            case BrowserKeyAddress:
+                // With the sidebar on, the panel shows no input: its address is the sidebar's top field, as a click on
+                // the address opens it (FR-SHELL-083).
+                if (this.urlInputRef.current == null) {
+                    this.nodeModel.focusNode();
+                    return openTopField();
+                }
+                this.urlInputRef.current.focus();
+                this.urlInputRef.current.select();
+                return true;
+            case BrowserKeyStop:
+                if (this.searchAtoms != null && globalStore.get(this.searchAtoms.isOpen)) {
+                    globalStore.set(this.searchAtoms.isOpen, false);
+                    return true;
+                }
+                if (!this.loads.isLoading(id)) {
+                    return false;
+                }
+                runReload(webview, ReloadStop);
+                return true;
         }
         return false;
+    }
+
+    // A <webview> throws before its first dom-ready.
+    goInHistory(webview: WebviewTag, direction: 1 | -1): void {
+        try {
+            if (direction < 0 && webview?.canGoBack()) webview.goBack();
+            if (direction > 0 && webview?.canGoForward()) webview.goForward();
+        } catch (e) {
+            console.log("browser history failed", e);
+        }
+    }
+
+    openFind(): boolean {
+        if (this.searchAtoms == null || this.findTab(this.state().activeId)?.engine) {
+            return false;
+        }
+        if (globalStore.get(this.searchAtoms.isOpen)) {
+            globalStore.set(this.searchAtoms.focusInput, (globalStore.get(this.searchAtoms.focusInput) as number) + 1);
+        } else {
+            globalStore.set(this.searchAtoms.isOpen, true);
+        }
+        return true;
+    }
+
+    findInActivePage(text: string, opts: { findNext: boolean; forward?: boolean }): void {
+        const webview = this.activeWebview();
+        if (webview == null) {
+            return;
+        }
+        try {
+            if (text) {
+                webview.findInPage(text, opts);
+            } else {
+                webview.stopFindInPage("clearSelection");
+            }
+        } catch (e) {
+            console.log("browser find failed", e);
+        }
+    }
+
+    noteFoundInPage(tabId: string, result: { matches?: number; activeMatchOrdinal?: number }): void {
+        if (this.searchAtoms == null || tabId !== this.state().activeId || result == null) {
+            return;
+        }
+        globalStore.set(this.searchAtoms.resultsCount, result.matches ?? 0);
+        globalStore.set(this.searchAtoms.resultsIndex, Math.max(0, (result.activeMatchOrdinal ?? 1) - 1));
     }
 
     // Whether a tab's page is on screen: the panel's active tab, in a tab view that shows.
@@ -1385,11 +1515,19 @@ function TabWebview({
             menu.push(...splitMenuItems(model.blockId));
             ContextMenuModel.getInstance().showContextMenu(menu, event);
         });
+        // A new panel focuses its page before the page's first dom-ready, when getWebContentsId still throws: the focus
+        // is reported at dom-ready instead (#1722), or emain never holds back the page's keys (⌘R did nothing).
         const onFocus = (e: FocusEvent) => {
-            if (keepUserFocus(webview.getWebContentsId(), webview, e.relatedTarget as HTMLElement)) {
-                return;
+            let webContentsId: number = null;
+            try {
+                webContentsId = webview.getWebContentsId();
+            } catch {}
+            if (webContentsId != null) {
+                if (keepUserFocus(webContentsId, webview, e.relatedTarget as HTMLElement)) {
+                    return;
+                }
+                getApi().setWebviewFocus(webContentsId);
             }
-            getApi().setWebviewFocus(webview.getWebContentsId());
             model.nodeModel.focusNode();
         };
         const onBlur = () => getApi().setWebviewFocus(null);
@@ -1421,6 +1559,9 @@ function TabWebview({
             offHeld?.();
             offHeld = onInputHeld(webview.getWebContentsId(), () => model.agents.noteHeldInput(tab.id));
             registerWebview(model.blockId, tab.id, webview.getWebContentsId());
+            if (document.activeElement === webview) {
+                getApi().setWebviewFocus(webview.getWebContentsId());
+            }
             getApi().setContextMenuGuest?.(webview.getWebContentsId(), model.state().activeId === tab.id);
             reportWebviewShown(
                 model.blockId,
@@ -1459,12 +1600,15 @@ function TabWebview({
         webview.addEventListener("did-stop-loading", onStopLoading);
         webview.addEventListener("did-fail-load", onFailLoad);
         webview.addEventListener("page-favicon-updated", onFavicon);
+        const onFoundInPage = (e: any) => model.noteFoundInPage(tab.id, e.result);
+        webview.addEventListener("found-in-page", onFoundInPage);
         return () => {
             offHeld?.();
             webview.removeEventListener("did-start-loading", onStartLoading);
             webview.removeEventListener("did-stop-loading", onStopLoading);
             webview.removeEventListener("did-fail-load", onFailLoad);
             webview.removeEventListener("page-favicon-updated", onFavicon);
+            webview.removeEventListener("found-in-page", onFoundInPage);
             document.removeEventListener("visibilitychange", onVisibility);
             removeContextMenu?.();
             const session = ContextMenuModel.getInstance().session;
@@ -1793,7 +1937,12 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                       "rotate-right",
                       t("browser.nav.reload"),
                       (e) => model.reloadActive(e.shiftKey),
-                      t("browser.nav.reloadTitle", { shortcut: "Cmd+R", hardShortcut: "Cmd+Shift+R" }),
+                      t("browser.nav.reloadTitle", {
+                          shortcut: formatShortcutById(isMacOS() ? "browser-reload" : "browser-reload-other"),
+                          hardShortcut: formatShortcutById(
+                              isMacOS() ? "browser-hard-reload" : "browser-hard-reload-other"
+                          ),
+                      }),
                       "mt-focus-only molten-fold-3"
                   )}
             <span className="mt-focus-only molten-fold-2 flex shrink-0 items-center">
@@ -2137,6 +2286,13 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const offCarpet = useAtomValue(offCarpetAtom(model.blockId));
     const viewShown = isShowing(activity);
     const blockMeta = block?.meta;
+    // Find in page (#1722): Wave's find bar over the page, searching the shown page.
+    const pagesRef = useRef<HTMLDivElement>(null);
+    const searchProps = useSearch({ anchorRef: pagesRef, viewModel: model });
+    const searchValue = useAtomValue(searchProps.searchValue) as string;
+    searchProps.onSearch = (text: string) => model.findInActivePage(text, { findNext: true });
+    searchProps.onNext = () => model.findInActivePage(searchValue, { findNext: false, forward: true });
+    searchProps.onPrev = () => model.findInActivePage(searchValue, { findNext: false, forward: false });
     useEffect(() => {
         for (const id of Object.keys(discarded)) {
             if (shouldRestore(id === state.activeId, viewShown && !offCarpet, agentTabs[id] != null)) {
@@ -2185,7 +2341,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <SitePermissionBar permissions={model.sitePermissions} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
-            <div className="molten-browser-pages relative min-h-0 flex-1">
+            <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
                 {state.tabs.map((tab) =>
                     tab.engine ? (
                         tab.id === state.activeId ? (
@@ -2209,6 +2365,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 <ActiveErrorPage model={model} tabId={state.activeId} />
                 <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
             </div>
+            <Search {...searchProps} />
         </div>
     );
 }

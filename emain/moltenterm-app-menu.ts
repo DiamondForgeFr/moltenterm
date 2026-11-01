@@ -53,9 +53,10 @@ export function makeMoltentermSettingsMenuItem(targetOf: (window: electron.BaseW
 }
 
 // One meaning per shortcut: ⇧⌘R is the Web page panel's reload ignoring the cache (keymodel.ts, #210), so on macOS the
-// view reloads with ⌥⌘R. Elsewhere Wave's Cmd is Alt: the panel's key is Alt+Shift+R and Ctrl+Shift+R stays free.
+// view reloads with ⌥⌘R. Elsewhere the panel takes Ctrl+Shift+R as browsers do (#1722), so the view reloads with
+// Ctrl+Alt+R.
 export function reloadViewAccelerator(platform: string): string {
-    return platform === "darwin" ? "Option+Command+R" : "Shift+Control+R";
+    return platform === "darwin" ? "Option+Command+R" : "Control+Alt+R";
 }
 
 function zoomItem(label: string, accelerator: string, action: WindowAction, hidden = false): MenuItem {

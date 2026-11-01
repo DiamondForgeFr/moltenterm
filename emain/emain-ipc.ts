@@ -311,12 +311,26 @@ export function initIpcHandlers() {
         if (focusedId == null) {
             return;
         }
-        const parentWc = event.sender;
         const webviewWc = liveWebContentsFromId(focusedId); // MOLTENTERM-PATCH (#928)
         if (webviewWc == null) {
             webviewFocusId = null;
             return;
         }
+        registerWebviewKeys(webviewWc, event.sender);
+    });
+
+    // MOLTENTERM-PATCH (#1722): every page gets the handler when it is created, and a page that has the keyboard focus
+    // counts as focused even when the window never reported it (a page focused before its first dom-ready, or focused
+    // again by a click while it was still the window's active element): ⌘R and the other browser keys did nothing.
+    electron.app.on("web-contents-created", (_event, wc) => {
+        if (wc.getType() !== "webview") {
+            return;
+        }
+        registerWebviewKeys(wc, null);
+    });
+
+    function registerWebviewKeys(webviewWc: Electron.WebContents, reportedParent: Electron.WebContents) {
+        const focusedId = webviewWc.id;
         if (!hasBeforeInputRegisteredMap.get(focusedId)) {
             hasBeforeInputRegisteredMap.set(focusedId, true);
             webviewWc.on("before-input-event", (e, input) => {
@@ -325,9 +339,13 @@ export function initIpcHandlers() {
                 if (isAgentInput(webviewWc.id, input)) {
                     return;
                 }
+                const parentWc = reportedParent ?? webviewWc.hostWebContents;
+                if (parentWc == null || parentWc.isDestroyed()) {
+                    return;
+                }
                 let waveEvent = keyutil.adaptFromElectronKeyEvent(input);
                 handleCtrlShiftState(parentWc, waveEvent);
-                if (webviewFocusId != focusedId) {
+                if (webviewFocusId != focusedId && !webviewWc.isFocused()) {
                     return;
                 }
                 sendKeyNotice(parentWc, waveEvent); // MOLTENTERM-PATCH (#1242): the shortcut overlay's hold and close
@@ -337,7 +355,8 @@ export function initIpcHandlers() {
                 for (let keyDesc of webviewKeys) {
                     if (keyutil.checkKeyPressed(waveEvent, keyDesc)) {
                         e.preventDefault();
-                        parentWc.send("reinject-key", waveEvent);
+                        // MOLTENTERM-PATCH (#1722): the page's id lets the window hand the key to the panel holding it
+                        parentWc.send("reinject-key", waveEvent, webviewWc.id);
                         console.log("webview reinject-key", keyDesc);
                         return;
                     }
@@ -347,7 +366,7 @@ export function initIpcHandlers() {
                 hasBeforeInputRegisteredMap.delete(focusedId);
             });
         }
-    });
+    }
 
     onAppIpc("register-global-webview-keys", (event, keys: string[]) => {
         webviewKeys = keys ?? [];
