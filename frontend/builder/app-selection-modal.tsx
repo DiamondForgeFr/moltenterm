@@ -10,6 +10,7 @@ import * as WOS from "@/store/wos";
 import { formatRelativeTime } from "@/util/util";
 import { useEffect, useState } from "react";
 import { MoltenWave } from "../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
+import { DominoLoader } from "../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 const MaxAppNameLength = 50;
 const AppNameRegex = /^[a-zA-Z0-9_-]+$/;
@@ -177,7 +178,11 @@ export function AppSelectionModal() {
     if (loading) {
         return (
             <FlexiModal className="min-w-[600px] w-[600px]">
-                <div className="text-center py-8">Loading apps...</div>
+                <div className="text-center py-8">
+                    {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                    <DominoLoader className="mr-1.5" />
+                    Loading apps...
+                </div>
             </FlexiModal>
         );
     }

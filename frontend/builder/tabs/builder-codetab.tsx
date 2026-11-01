@@ -10,6 +10,7 @@ import { useAtomValue } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import { memo, useEffect } from "react";
 import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 const BuilderCodeTab = memo(() => {
     const model = BuilderAppPanelModel.getInstance();
@@ -64,7 +65,11 @@ const BuilderCodeTab = memo(() => {
     if (isLoading) {
         return (
             <div className="w-full h-full flex items-center justify-center">
-                <div className="text-secondary">Loading app.go...</div>
+                <div className="text-secondary">
+                    {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                    <DominoLoader className="mr-1.5" />
+                    Loading app.go...
+                </div>
             </div>
         );
     }

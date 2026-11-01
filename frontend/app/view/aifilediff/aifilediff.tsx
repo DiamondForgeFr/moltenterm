@@ -10,6 +10,7 @@ import { globalStore } from "@/store/jotaiStore";
 import { base64ToString } from "@/util/util";
 import * as jotai from "jotai";
 import { useEffect } from "react";
+import { DominoLoader } from "../../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 type DiffData = {
     original: string;
@@ -118,7 +119,11 @@ function AiFileDiffView({ blockId, model }: ViewComponentProps<AiFileDiffViewMod
     if (loading) {
         return (
             <div className="flex items-center justify-center w-full h-full">
-                <div className="text-secondary">Loading diff...</div>
+                <div className="text-secondary">
+                    {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                    <DominoLoader className="mr-1.5" />
+                    Loading diff...
+                </div>
             </div>
         );
     }
