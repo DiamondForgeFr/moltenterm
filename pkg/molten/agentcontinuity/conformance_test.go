@@ -33,7 +33,7 @@ const repoRoot = "../../.."
 
 // MatrixGoldenPath is the matrix as JSON for the frontend's conformance test, which cannot ask wavesrv; TestMatrixGolden
 // keeps it in step (MOLTENTERM_UPDATE_GOLDEN=1 rewrites it).
-const MatrixGoldenPath = "frontend/moltenterm-shell/agent-info/agent-features.golden.json"
+const MatrixGoldenPath = "frontend/moltenterm-shell/agent-info/agent-features.json"
 
 // FrontendConformanceTest checks the cells whose code lives in the frontend (FS/ adapters).
 const FrontendConformanceTest = "frontend/moltenterm-shell/agent-info/agent-conformance.test.ts"

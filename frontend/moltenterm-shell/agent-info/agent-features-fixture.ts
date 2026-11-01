@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // For tests: wavesrv's real compatibility matrix, the build's copy pkg/molten/agentcontinuity's
-// TestMatrixGoldenForInterface keeps equal to what the molten:agentfeatures route answers (MOLTEN_UPDATE_GOLDEN=1
+// TestMatrixGolden keeps equal to what the molten:agentfeatures route answers (MOLTENTERM_UPDATE_GOLDEN=1
 // rewrites it).
 
 import { AgentFeaturesModel, BuiltMatrix, type AgentFeatures, type FeatureMatrix } from "./agent-features-model";
