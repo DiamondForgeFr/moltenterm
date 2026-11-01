@@ -19,6 +19,30 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "sf-.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "p=$(cat); case \"$p\" in *sf-*) ;; *) exit 0;; esac; d=\"${CLAUDE_PROJECT_DIR:-.}\"; run() { printf %s \"$p\" | \"$@\" agents outcome capture --host claude-code >/dev/null 2>&1; exit 0; }; for c in \"$d/node_modules/.bin/saasfoundryai\" \"$d/node_modules/.bin/sf\"; do [ -x \"$c\" ] && run \"$c\"; done; [ -f \"$d/bin/sf.js\" ] && grep -q '\"name\": \"saasfoundryai-cli\"' \"$d/package.json\" 2>/dev/null && run node \"$d/bin/sf.js\"; command -v saasfoundryai >/dev/null 2>&1 && run saasfoundryai; exit 0",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "p=$(cat); case \"$p\" in *sf-*) ;; *) exit 0;; esac; d=\"${CLAUDE_PROJECT_DIR:-.}\"; run() { printf %s \"$p\" | \"$@\" agents outcome capture --host claude-code >/dev/null 2>&1; exit 0; }; for c in \"$d/node_modules/.bin/saasfoundryai\" \"$d/node_modules/.bin/sf\"; do [ -x \"$c\" ] && run \"$c\"; done; [ -f \"$d/bin/sf.js\" ] && grep -q '\"name\": \"saasfoundryai-cli\"' \"$d/package.json\" 2>/dev/null && run node \"$d/bin/sf.js\"; command -v saasfoundryai >/dev/null 2>&1 && run saasfoundryai; exit 0",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   },
   "permissions": {
@@ -46,7 +70,26 @@
       "mcp__molten-browser__find",
       "mcp__molten-browser__tabs_context",
       "mcp__claude_ai_Notion__notion-fetch",
-      "mcp__claude_ai_Notion__notion-search"
+      "mcp__claude_ai_Notion__notion-search",
+      "Bash(.claude/skills/sf-tool-github-projects/github-projects-cli.sh status *)",
+      "Bash(.claude/skills/sf-tool-github-projects/github-projects-cli.sh get-ticket *)",
+      "Bash(.claude/skills/sf-tool-github-projects/github-projects-cli.sh get-labels *)",
+      "Bash(.claude/skills/sf-tool-github-projects/github-projects-cli.sh get-complexity *)",
+      "Bash(.claude/skills/sf-tool-github-projects/github-projects-cli.sh get-parent *)",
+      "Bash(.claude/skills/sf-tool-github-projects/github-projects-cli.sh get-issue-type *)",
+      "Bash(.claude/skills/sf-tool-github-projects/github-projects-cli.sh list *)",
+      "Bash(.claude/skills/sf-tool-github-projects/github-projects-cli.sh list-incomplete-children *)",
+      "Bash(sf agents delegation status)",
+      "Bash(sf agents delegation status *)",
+      "Bash(sf agents route *)",
+      "Bash(sf agents routing report)",
+      "Bash(sf agents routing report *)"
+    ],
+    "ask": [
+      "Bash(sf agents route --record*)",
+      "Bash(sf agents route * --record*)",
+      "Bash(sf agents route --retry-of*)",
+      "Bash(sf agents route * --retry-of*)"
     ]
   }
 }

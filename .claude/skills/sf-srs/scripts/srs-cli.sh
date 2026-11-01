@@ -44,13 +44,18 @@ Actions:
                                     and implementation evidence before mutation,
                                     then reuses exact canonical FR tickets.
                                     `--dry-run` previews without writing.
-  apply-update [--patch <path>] [--manifest]
-                                    Apply a conversational eval-hook patch
-                                    (ADD-only : new UR / new FR / new DS / new TC)
-                                    to the configured backend. Reads patch JSON
-                                    from stdin when --patch is omitted. Used by
-                                    the `sf-srs` eval hook after user accepts
-                                    the proposed diff — see SKILL.md.
+  apply-update [--patch <path>] [--dry-run] [--manifest]
+                                    Apply a conversational eval-hook patch to the
+                                    configured backend: add-ur / add-fr / add-ds /
+                                    add-tc / add-nfr add an item where `write` would
+                                    have put it; update-fr changes an existing FR in
+                                    place (its page, its row in the version and
+                                    feature FR tables, one change line). --dry-run
+                                    (update-fr only) prints the old → new plan and
+                                    writes nothing. Reads patch JSON from stdin when
+                                    --patch is omitted. Used by the `sf-srs` eval
+                                    hook after user accepts the proposed diff — see
+                                    SKILL.md.
   eval  [--path <dir>] [--root-page <id>] [--threshold <pct>] [--json] [--manifest]
                                     Score SRS freshness vs. codebase (batch).
                                     Lists FR pages under the configured root,

@@ -11,10 +11,7 @@ steps:
     enabled: true
     depth: "deep"
     agents: 7  # 6-10 parallel agents
-    agentTypes:
-      - explore-codebase
-      - explore-docs
-      - websearch  # Research best practices
+    taskKind: exploration  # codebase, docs and web research alike
   plan:
     enabled: true
     depth: "comprehensive"  # Detailed plan with dependencies
@@ -23,9 +20,12 @@ steps:
     enabled: true
     mandatory: true  # Always required
     detailed: true  # More granular subtasks
+  execute:
+    taskKind: multi-file-feature  # delivery once decomposed: each subtask states its file set, expected result and check
   examine:
     enabled: true  # Adversarial review MANDATORY
     agents: 3  # Parallel review agents
+    taskKind: review
     checks:
       - security  # OWASP top 10
       - logic  # Logic flaws
@@ -46,10 +46,10 @@ aiInstructions: |
   This is a complex/critical feature. Apply maximum rigor:
 
   **Analyze Phase (DEEP):**
-  - ADAPTIVE AGENT LAUNCHING: Launch 6-10 parallel agents
-  - explore-codebase (multiple): Find patterns, files, utilities
-  - explore-docs: Research library documentation
-  - websearch: Research best practices, gotchas, security concerns
+  - ADAPTIVE AGENT LAUNCHING: Launch 6-10 parallel `exploration` delegations (SKILL.md → Delegation routing)
+  - Codebase (multiple): Find patterns, files, utilities
+  - Documentation: Research library documentation
+  - Web: Research best practices, gotchas, security concerns
   - Document ALL findings with file:line references
   - Identify dependencies, risks, and edge cases
   - BE SMART: Don't blindly launch all agents, think about what you need
@@ -67,6 +67,8 @@ aiInstructions: |
 
   **Execute Phase:**
   - Create granular subtasks with clear acceptance criteria
+  - A delegated subtask names its task kind, file set, expected result and check (SKILL.md → Delegation routing)
+  - Delegated, the delivery is a `multi-file-feature` delegation once the subtasks are decomposed; planning stays in the session (SKILL.md → Delegated ticket delivery)
   - Use TodoCreate to track progress
   - Implement following the plan exactly
   - NEVER deviate from approved plan
@@ -84,7 +86,7 @@ aiInstructions: |
   - Post test results as comment
 
   **Examine Phase (ADVERSARIAL REVIEW):**
-  - Launch 3 parallel review agents
+  - Launch 3 parallel `review` delegations
   - Security analysis: OWASP top 10 vulnerabilities
   - Logic flaws: Edge cases, race conditions
   - Performance: Bottlenecks, N+1 queries

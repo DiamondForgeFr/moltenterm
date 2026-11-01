@@ -19,6 +19,8 @@ steps:
     enabled: false  # Optional, auto-create if >3 files
     mandatory: false
     threshold: 3  # Create subtasks if >3 files impacted
+  execute:
+    taskKind: scoped-edit  # delivery of a small task: a low ticket may touch up to three files, and stays a scoped-edit by design
   examine:
     enabled: false  # No adversarial review
   tests:
@@ -53,6 +55,7 @@ aiInstructions: |
   - Clear variable names over comments
   - Stay STRICTLY in scope
   - NO refactoring beyond requirements
+  - Delegated, the delivery is a `scoped-edit` delegation (SKILL.md → Delegated ticket delivery)
 
   **Validate Phase:**
   - Lint + typecheck only

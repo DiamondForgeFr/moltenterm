@@ -30,8 +30,8 @@ Preparation phase — detect complexity, analyze context, plan implementation, v
 
 - [ ] **Detect complexity (suggestion):** `.claude/skills/sf-workflow/scripts/detect-complexity.sh <ticket>`
 - [ ] **Persist the label (mandatory):** `.claude/skills/sf-workflow/workflow-cli.sh retag <ticket> <bug|low|medium|complex>`
-- [ ] **Analyze:** `.claude/skills/sf-workflow/scripts/analyze.sh <ticket> <complexity>` — follow its guidance
-- [ ] **Plan:** `.claude/skills/sf-workflow/scripts/plan.sh <ticket> <complexity>` — follow its guidance; post + await approval for medium/complex
+- [ ] **Analyze:** `.claude/skills/sf-workflow/scripts/analyze.sh <ticket> <complexity>` — follow its guidance; analysis delegations are `exploration` (SKILL.md → Delegation routing)
+- [ ] **Plan:** `.claude/skills/sf-workflow/scripts/plan.sh <ticket> <complexity>` — follow its guidance; post + await approval for medium/complex; a delegated plan is `planning`
 - [ ] **Challenge the specs** — ask questions, surface edge cases, propose alternatives
 - [ ] **Ticket completeness** — problem/need, acceptance criteria, technical context, complexity tag
 - [ ] **Wait for validation** — the developer's approval of the plan doubles as pickup confirmation
