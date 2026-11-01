@@ -58,7 +58,7 @@ const PourChooseLook: ChooseLook = {
     cards: "mt-pour-choose-cards",
     card: "mt-pour-choose-card",
     list: "mt-pour-choose-list",
-    icon: "mt-pour-choose-icon",
+    glyph: "mt-pour-choose-glyph",
 };
 
 // The mark's path padded so its stroke and glow are not clipped (the identity's own viewBox is 0 0 298 235).

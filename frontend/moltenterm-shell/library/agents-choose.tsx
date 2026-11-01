@@ -22,7 +22,7 @@ import {
     type LibraryAgent,
 } from "./agents-model";
 
-export type ChooseLook = { answer: string; link: string; cards: string; card: string; list: string; icon: string };
+export type ChooseLook = { answer: string; link: string; cards: string; card: string; list: string; glyph: string };
 
 export const LibraryChooseLook: ChooseLook = {
     answer: "mt-lib-btn",
@@ -30,7 +30,7 @@ export const LibraryChooseLook: ChooseLook = {
     cards: "mt-lib-pcards",
     card: "mt-lib-pcard",
     list: "mt-lib-aglist",
-    icon: "mt-lib-pic",
+    glyph: "mt-lib-pic",
 };
 
 type Answer = { id: string; label: string; answers: ChooseAnswers };
@@ -126,7 +126,7 @@ function ChooseCard({
     return (
         <div className={look.card} data-testid={`${testId}-suggestion`} data-agent={row.card.id}>
             <div className="flex items-center gap-2 font-semibold text-primary">
-                <i className={look.icon} aria-hidden>
+                <i className={look.glyph} aria-hidden>
                     <SidebarGlyph name="agents" size={16} />
                 </i>
                 <span className="truncate">{row.card.name}</span>
