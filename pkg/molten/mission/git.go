@@ -41,6 +41,9 @@ const maxMerges = 60
 const maxMergeCommits = 150
 const mergeLogLimit = 4000
 
+// The newest tags get their trunk source computed (#1727): one git call each, the older stations are listed, not drawn.
+const maxTagSources = 30
+
 type Commit struct {
 	Sha     string `json:"sha"`
 	Date    string `json:"date"`
@@ -89,6 +92,9 @@ type Tag struct {
 	Date          string `json:"date"`
 	Notes         string `json:"notes,omitempty"`
 	NotesInternal string `json:"notesinternal,omitempty"`
+	// Source is the newest commit of the trunk's first-parent history that the tag contains (#1727): what the line
+	// map's station connects to. Empty when none of the trunk's commits read is in the tag, or the tag was not looked at.
+	Source string `json:"source,omitempty"`
 }
 
 type GitSnapshot struct {
@@ -317,6 +323,60 @@ func (g *gitReader) tags() []Tag {
 		})
 	}
 	return tags
+}
+
+// tagSources sets each recent tag's Source: the newest commit of the trunk's first-parent history (trunk, newest first,
+// as trunkBranch read it) that the tag contains. Along that history, a commit the tag contains has all the older ones
+// in it too, so the commits the tag lacks are the newest ones, and the source is the first commit after them. That
+// holds whatever carried the trunk to the release branch: a direct merge, or an rc branch cut from the trunk, with the
+// release branch merged into it and its release commit, whose history the release branch's first parents never walk.
+// --first-parent only narrows the trunk's side: the tag's whole history is excluded, merges included.
+func (g *gitReader) tagSources(tags []Tag, baseRef string, trunk []Commit) {
+	if baseRef == "" || len(trunk) == 0 {
+		return
+	}
+	oldest, err := time.Parse(time.RFC3339, trunk[len(trunk)-1].Date)
+	onTrunk := map[string]bool{}
+	for _, c := range trunk {
+		onTrunk[c.Sha] = true
+	}
+	known := map[string]string{}
+	looked := 0
+	for i := range tags {
+		tag := &tags[i]
+		if onTrunk[tag.Sha] {
+			tag.Source = tag.Sha
+			continue
+		}
+		if source, ok := known[tag.Sha]; ok {
+			tag.Source = source
+			continue
+		}
+		// A tag made before the oldest trunk commit read cannot hold any of them.
+		if at, perr := time.Parse(time.RFC3339, tag.Date); err == nil && perr == nil && at.Before(oldest) {
+			continue
+		}
+		if looked >= maxTagSources {
+			break
+		}
+		looked++
+		out, rerr := g.out("rev-list", "--first-parent", "-n", strconv.Itoa(len(trunk)), "--end-of-options", baseRef, "^"+tag.Sha)
+		if rerr != nil {
+			// Unknown, not "every commit": the line map falls back to its own reading.
+			continue
+		}
+		lacking := map[string]bool{}
+		for _, sha := range strings.Fields(out) {
+			lacking[sha] = true
+		}
+		for _, c := range trunk {
+			if !lacking[c.Sha] {
+				tag.Source = c.Sha
+				break
+			}
+		}
+		known[tag.Sha] = tag.Source
+	}
 }
 
 // IsPrereleaseTag is Notulia's rule: a release candidate is a version with a suffix (v1.2.0-3), read after the
@@ -587,6 +647,13 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 	long := g.longLivedOf([]string{snap.Trunk, snap.Release}, molten.RcBranchPattern(dir))
 	snap.Branches = append(snap.Branches, g.featureBranches(baseRef, skip, long)...)
 	snap.Tags = g.tags()
+	if snap.Release != snap.Trunk {
+		for _, b := range snap.Branches {
+			if b.Name == snap.Trunk {
+				g.tagSources(snap.Tags, baseRef, b.Commits)
+			}
+		}
+	}
 	snap.Ahead = g.ahead(releaseRef, baseRef)
 	snap.LastPublic = g.lastPublic()
 	if snap.LastPublic != "" && baseRef != "" {

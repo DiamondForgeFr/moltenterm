@@ -318,6 +318,50 @@ describe("where develop was pushed to main", () => {
         expect(stationSource({ sha: "elsewhere", at: at("2026-10-02T12:00:00Z") }, develop, []).sha).toBe("d2");
         expect(stationSource({ sha: "elsewhere", at: at("2026-09-01T00:00:00Z") }, develop, [])).toBeNull();
     });
+
+    // #1727: rc-1.1.0 cut from develop at d2, main merged into it, its release commit "rel" merged into main ("mt").
+    // main's history alone reaches only an older merge of d1; wavesrv's source, the newest develop commit the tag
+    // contains, wins.
+    const rcMain = [
+        c("mt", "2026-10-04T10:00:00Z", "Merge pull request #1122 from rc-1.1.0", { parents: ["m1", "rel"] }),
+        c("m1", "2026-10-01T11:00:00Z", "Merge branch 'develop'", { parents: ["m0", "d1"] }),
+    ];
+
+    it("is the source wavesrv found when main's history misses the rc branch", () => {
+        const tag = { sha: "mt", at: at("2026-10-04T10:00:00Z") };
+        expect(stationSource(tag, develop, rcMain).sha).toBe("d1");
+        expect(stationSource({ ...tag, source: "d2" }, develop, rcMain).sha).toBe("d2");
+    });
+
+    it("keeps a newer copy over the source of a rebased main", () => {
+        const main = [
+            c("rel", "2026-10-04T10:00:00Z", "chore(release): v1.0.0-2"),
+            c("copy", "2026-10-04T09:59:00Z", "feat(#2): b", { authordate: "2026-10-02T09:00:00Z" }),
+        ];
+        const tag = { sha: "rel", at: at("2026-10-04T10:00:00Z"), source: "d1" };
+        expect(stationSource(tag, develop, main).sha).toBe("d2");
+    });
+
+    it("ignores a source develop's history read does not hold", () => {
+        const tag = { sha: "mt", at: at("2026-10-04T10:00:00Z"), source: "gone" };
+        expect(stationSource(tag, develop, rcMain).sha).toBe("d1");
+    });
+
+    it("draws the station from the tag's source in the line map", () => {
+        const git = withTrunk(
+            makeGit({ tags: [{ name: "v1.1.0", sha: "mt", date: "2026-10-04T10:00:00Z", source: "d2" }] }),
+            develop,
+            rcMain
+        );
+        const model = buildLineMap({ git, now: NOW, days: 21 });
+        expect(model.stations[0].source?.sha).toBe("d2");
+        const without = buildLineMap({
+            git: { ...git, tags: [{ name: "v1.1.0", sha: "mt", date: "2026-10-04T10:00:00Z" }] },
+            now: NOW,
+            days: 21,
+        });
+        expect(without.stations[0].source?.sha).toBe("d1");
+    });
 });
 
 describe("the terminus", () => {

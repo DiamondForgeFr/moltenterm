@@ -80,6 +80,95 @@ func TestCollectGitLinearHasNoMerges(t *testing.T) {
 	}
 }
 
+func revParse(t *testing.T, dir string, ref string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", ref)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git rev-parse %s: %v", ref, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func tagSource(t *testing.T, snap *GitSnapshot, name string) string {
+	t.Helper()
+	tag := tagNamed(snap, name)
+	if tag == nil {
+		t.Fatalf("no tag %s: %+v", name, snap.Tags)
+	}
+	return tag.Source
+}
+
+// A tag's source (#1727) with SaaSFoundry's rc flow: rc-1.1.0 is cut from develop at C, main is merged into it
+// (reconcile), the release commit follows, rc-1.1.0 is merged into main and tagged, and main is synced back into
+// develop. The tag's second parent is the release commit, which develop's first parents never reach: the source is C.
+// v1.0.0, merged straight from develop, has develop's head of the time as its source.
+func TestCollectGitTagSourceThroughAnRcBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	dir := t.TempDir()
+	gitRun(t, dir, "init", "-q", "-b", "main")
+	commit(t, dir, "a.txt", "feat(#1): first")
+	gitRun(t, dir, "checkout", "-q", "-b", "develop")
+	commit(t, dir, "b.txt", "feat(#2): second")
+	direct := revParse(t, dir, "HEAD")
+	gitRun(t, dir, "checkout", "-q", "main")
+	gitRun(t, dir, "merge", "-q", "--no-ff", "-m", "Merge branch 'develop'", "develop")
+	gitRun(t, dir, "tag", "-a", "v1.0.0", "-m", "v1.0.0")
+	commit(t, dir, "h.txt", "fix(#3): hotfix on main")
+
+	gitRun(t, dir, "checkout", "-q", "develop")
+	commit(t, dir, "c.txt", "feat(#4): the cut")
+	cut := revParse(t, dir, "HEAD")
+	gitRun(t, dir, "checkout", "-q", "-b", "rc-1.1.0")
+	gitRun(t, dir, "merge", "-q", "--no-ff", "-m", "sync release candidate with master", "main")
+	commit(t, dir, "v.txt", "chore(release): v1.1.0")
+	gitRun(t, dir, "checkout", "-q", "develop")
+	commit(t, dir, "d.txt", "feat(#5): after the cut")
+	gitRun(t, dir, "checkout", "-q", "main")
+	gitRun(t, dir, "merge", "-q", "--no-ff", "-m", "Merge pull request #1122 from rc-1.1.0", "rc-1.1.0")
+	gitRun(t, dir, "tag", "-a", "v1.1.0", "-m", "v1.1.0")
+	gitRun(t, dir, "checkout", "-q", "develop")
+	gitRun(t, dir, "merge", "-q", "--no-ff", "-m", "Merge pull request #1123 from main", "main")
+
+	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Trunk != "develop" || snap.Release != "main" {
+		t.Fatalf("branches: trunk %q release %q", snap.Trunk, snap.Release)
+	}
+	if got := tagSource(t, snap, "v1.1.0"); got != cut {
+		t.Errorf("v1.1.0's source: %q, want the cut %q", got, cut)
+	}
+	if got := tagSource(t, snap, "v1.0.0"); got != direct {
+		t.Errorf("v1.0.0's source: %q, want develop's head when it was merged %q", got, direct)
+	}
+}
+
+// A tag on a develop commit is its own source; in a single-branch project no source is computed.
+func TestCollectGitTagSourceOnTheTrunk(t *testing.T) {
+	dir := makeGitFlowRepo(t)
+	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc := tagNamed(snap, "v1.1.0-1"); rc == nil || rc.Source == "" || rc.Source != rc.Sha {
+		t.Errorf("a tag on develop: %+v", rc)
+	}
+	single := makeMergeRepo(t)
+	gitRun(t, single, "tag", "v1.0.0")
+	snap, err = CollectGit(context.Background(), plainRunner, single, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := tagNamed(snap, "v1.0.0"); got == nil || got.Source != "" {
+		t.Errorf("a single-branch project's tag: %+v", got)
+	}
+}
+
 func TestParseHistoryKeepsTabsInSubjects(t *testing.T) {
 	commits := parseHistory([]string{"abc\t2026-10-01T10:00:00+02:00\t2026-09-30T09:00:00+02:00\tp1 p2\tMerge\tit", "short"})
 	if len(commits) != 1 || commits[0].Subject != "Merge\tit" || strings.Join(commits[0].Parents, ",") != "p1,p2" {
