@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentsign"
 	"github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
 )
@@ -65,13 +66,14 @@ func init() {
 	moltenAgentCmd.AddCommand(moltenAgentSignPrCmd)
 }
 
-// moltenSignatureOf: the model's display name when the agent gave one, else its id.
+// moltenSignatureOf: the model's display name when the agent gave one, else its id. A run behind another provider
+// signs as "Claude Code via GLM" (FR-AGC-008).
 func moltenSignatureOf(e handoffwire.AgentEntry) agentsign.Signature {
 	model := e.ModelName
 	if model == "" {
 		model = e.Model
 	}
-	return agentsign.Signature{FirstName: e.FirstName, Agent: e.AgentName, Model: model, Effort: e.Effort}
+	return agentsign.Signature{FirstName: e.FirstName, Agent: molten.AgentToolSignature(e.AgentName, e.Provider), Model: model, Effort: e.Effort}
 }
 
 func moltenWhoamiOf(list handoffwire.ListResult) (MoltenWhoami, error) {

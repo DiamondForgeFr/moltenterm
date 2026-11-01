@@ -277,6 +277,9 @@ func (m *Manager) activeParties(ctx context.Context) []activeAgent {
 		}
 		e := activeAgent{AgentEntry: entryOf(m.party(run.BlockId, run, true, loc), run.State), blockId: run.BlockId}
 		e.Model, e.ModelName, e.Effort = run.Settings.Model, run.Settings.ModelName, run.Settings.Effort
+		if run.Settings.Provider != "" {
+			e.Provider, e.ProviderName = run.Settings.Provider, molten.KnownProviderName(run.Settings.Provider)
+		}
 		rtn = append(rtn, e)
 	}
 	sort.Slice(rtn, func(i, j int) bool {

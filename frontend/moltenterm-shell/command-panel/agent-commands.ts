@@ -6,7 +6,7 @@
 // says when a command is refused. wavesrv holds the authoritative tables and checks every action against them; this
 // copy gives the labels and the order. Nothing is greyed out: a refusal explains itself.
 
-import { agentCallName, agentLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
+import { agentCallName, agentLabel, agentProviderName, AgentStateInfo, agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import type { ServerText } from "../i18n/server-text";
 import { termupdateMessage } from "../termupdate/termupdate-text";
@@ -323,11 +323,12 @@ export function modelItem(
         });
     }
     const models = info?.models ?? [];
+    const behind = nativeListNote(agent, "model");
     for (const m of models) {
         options.push({
             id: `model:${m.id}`,
             label: m.label,
-            detail: t("cmdpanel.agent.savedDefault"),
+            detail: behind || t("cmdpanel.agent.savedDefault"),
             checked: false,
             run: () => handlers.setModel?.(m.id),
         });
@@ -350,6 +351,19 @@ export function modelItem(
     };
 }
 
+// FR-AGC-008: behind another provider, the models and levels MoltenTerm offers are the agent's own provider's; each
+// says so ("Anthropic level: GLM may ignore it"). "" for a run that talks to its own provider.
+function nativeListNote(agent: AgentStateInfo, kind: "model" | "level"): string {
+    const provider = agentProviderName(agent);
+    const native = (agent?.nativeprovider ?? "").trim();
+    if (!provider || !native) {
+        return "";
+    }
+    return kind === "model"
+        ? t("cmdpanel.agent.nativeModel", { native, provider })
+        : t("cmdpanel.agent.nativeLevel", { native, provider });
+}
+
 function effortDetail(style: EffortStyle, level: string): string {
     if (style === "codex" || level === "max") {
         return t("cmdpanel.agent.thisSession");
@@ -367,10 +381,11 @@ export function effortItem(
 ): PanelChoice {
     const current = agent?.effort || info?.effort || "";
     const levels = info?.efforts ?? [];
+    const behind = nativeListNote(agent, "level");
     let options: PanelChoiceOption[] = levels.map((level) => ({
         id: `effort:${level}`,
         label: level,
-        detail: effortDetail(style, level),
+        detail: behind || effortDetail(style, level),
         checked: level === current,
         run: () => handlers.setEffort?.(level),
     }));

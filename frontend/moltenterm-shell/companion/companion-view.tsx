@@ -16,7 +16,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useId, useMemo, useState } from "react";
-import { agentLabel } from "../agent-state-model";
+import { agentProviderLabel, agentProviderName } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { CodingAgentModel } from "../coding-agent/coding-agent";
 import { EmptyState, EmptyStateAction } from "../empty-state";
@@ -38,7 +38,7 @@ import {
     tabAttachCandidates,
 } from "./companion-attach";
 import { FilesSection } from "./companion-files";
-import { PlanUsageSection } from "./companion-gauges";
+import { PlanUsageSection, ProviderUsageNote } from "./companion-gauges";
 import { IntegratedBadge, IntegrationDetails } from "./companion-integration";
 import {
     CompanionAnswer,
@@ -228,7 +228,12 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const target = useAtomValue(model.targetAtom);
     const agentState = useBlockAgentState(target);
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
-    const { view, error, viewId, setView } = useCompanion(target);
+    const companion = useCompanion(target);
+    const { error, viewId, setView } = companion;
+    // Behind another provider (FR-AGC-008) the agent's plan usage and usage page are not this session's.
+    const provider =
+        companion.view?.agent && agentState?.agent === companion.view.agent ? agentProviderName(agentState) : "";
+    const view = provider && companion.view?.usage != null ? { ...companion.view, usage: undefined } : companion.view;
     const [history, setHistory] = useAtom(model.historyAtom);
     const [integrationOpen, setIntegrationOpen] = useAtom(model.integrationAtom);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
@@ -330,7 +335,11 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         );
     }
     // The plan usage stays in view while the companion asks which session is the terminal's (v7 D4).
-    const usage = view?.usage != null && view.agent ? <PlanUsageSection target={target} agent={view.agent} /> : null;
+    const usage = provider ? (
+        <ProviderUsageNote provider={provider} native={agentState?.nativeprovider ?? ""} />
+    ) : view?.usage != null && view.agent ? (
+        <PlanUsageSection target={target} agent={view.agent} />
+    ) : null;
     if (history) {
         return (
             <WithUsage usage={usage}>
@@ -396,7 +405,9 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
             <SessionBar
                 view={view}
-                name={agentState?.firstname ? agentLabel(agentState) : view.agentname}
+                name={
+                    agentState?.firstname || provider ? agentProviderLabel(agentState, view.agentname) : view.agentname
+                }
                 onHistory={() => setHistory(true)}
                 onIntegration={() => setIntegrationOpen(true)}
                 onBackToCurrent={() =>

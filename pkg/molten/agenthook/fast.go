@@ -134,7 +134,7 @@ func runState(sa StateArgs, env Env) (bool, int) {
 			return true, 0
 		}
 	}
-	req := AgentStateRequest{BlockId: blockId, State: sa.State, Agent: sa.Agent, Message: message}
+	req := AgentStateRequest{BlockId: blockId, State: sa.State, Agent: sa.Agent, Message: message, Provider: ProviderHostFor(sa.Agent, env.Getenv)}
 	if err := SendAgentState(token, req); err != nil {
 		fmt.Fprintf(env.Stderr, "molten: %v\n", err)
 		return true, 1
@@ -162,8 +162,10 @@ func MakeStatusLineSender(getenv func(string) string, cacheDir string) StatusLin
 	if token == "" || blockId == "" {
 		return nil
 	}
+	provider := ProviderHost(getenv)
 	return func(req AgentStatusLineRequest) {
 		req.BlockId = blockId
+		req.Provider = provider
 		if claims, err := ParseTokenClaims(token); err == nil && claims.BlockId != "" {
 			req.BlockId = claims.BlockId
 		}

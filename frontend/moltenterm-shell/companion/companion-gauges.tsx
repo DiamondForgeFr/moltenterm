@@ -239,6 +239,29 @@ export function PlanUsageSection({ target, agent }: { target: string; agent: str
     );
 }
 
+// FR-AGC-008: a session behind another provider has none of its agent's plan gauges; one muted line says why, in place
+// of the section.
+export function ProviderUsageNote({ provider, native }: { provider: string; native: string }) {
+    const t = useT();
+    const hint = native
+        ? t("companion.gauges.providerHint", { provider, native })
+        : t("companion.gauges.providerHintPlain", { provider });
+    return (
+        <div
+            className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-11 text-muted"
+            data-testid="companion-plan-usage"
+            data-state="provider"
+            title={hint}
+        >
+            <i className="fa fa-solid fa-gauge" aria-hidden="true" />
+            <span>
+                {t("companion.gauges.provider", { provider })}
+                <span className="sr-only">: {hint}</span>
+            </span>
+        </div>
+    );
+}
+
 export type PlanUsageActions = {
     onShow: () => void;
     onHide: () => void;

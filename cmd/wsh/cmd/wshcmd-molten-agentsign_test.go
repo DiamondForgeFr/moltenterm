@@ -25,6 +25,20 @@ func TestMoltenWhoamiClaudeCode(t *testing.T) {
 	}
 }
 
+// FR-AGC-008: a run behind another provider names it in its signature; an unknown host stays off the PR.
+func TestMoltenWhoamiBehindAProvider(t *testing.T) {
+	you := handoffwire.AgentEntry{FirstName: "Valentin", Agent: "claude", AgentName: "Claude Code", Model: "glm-4.6", Effort: "high", Provider: "api.z.ai", ProviderName: "GLM", You: true}
+	w, err := moltenWhoamiOf(handoffwire.ListResult{You: &you})
+	if err != nil || w.Trailer != "Molten-Agent: Valentin (Claude Code via GLM, glm-4.6, high)" {
+		t.Fatalf("whoami: %+v %v", w, err)
+	}
+	you.Provider, you.ProviderName = "llm.corp.internal", ""
+	w, _ = moltenWhoamiOf(handoffwire.ListResult{You: &you})
+	if w.Line != "Valentin · Claude Code via another provider · glm-4.6 · high" {
+		t.Fatalf("whoami: %+v", w)
+	}
+}
+
 func TestMoltenWhoamiCodexWithoutDisplayName(t *testing.T) {
 	you := handoffwire.AgentEntry{FirstName: "Jérôme", Agent: "codex", AgentName: "Codex", Model: "gpt-5.5-codex", Effort: "high", You: true}
 	w, err := moltenWhoamiOf(handoffwire.ListResult{You: &you})

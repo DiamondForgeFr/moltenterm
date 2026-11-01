@@ -32,9 +32,10 @@ func (m *Manager) HandleStatusLine(req molten.AgentStatusLineRequest) (molten.Ag
 	// The model and effort level are the pane's header (#549), shown whatever the plan usage setting; the agent
 	// states store only marks a change.
 	if m.setSettings != nil {
-		m.setSettings(req.BlockId, molten.AgentIdClaude, molten.AgentSettings{Model: req.Model, ModelName: req.ModelName, Effort: req.Effort})
+		m.setSettings(req.BlockId, molten.AgentIdClaude, molten.AgentSettings{Model: req.Model, ModelName: req.ModelName, Effort: req.Effort, Provider: molten.CleanProviderHost(req.Provider)})
 	}
-	if !usage.GaugesOn(m.currentSettings(), "claude") {
+	// A session behind another provider (FR-AGC-008) has no Anthropic plan: its windows, if any, are not the plan's.
+	if req.Provider != "" || !usage.GaugesOn(m.currentSettings(), "claude") {
 		return molten.AgentStatusLineResponse{Kept: false}, nil
 	}
 	now, delay := m.admitStatusLine(req)

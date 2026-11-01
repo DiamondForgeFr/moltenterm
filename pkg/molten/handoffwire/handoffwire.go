@@ -81,6 +81,10 @@ type AgentEntry struct {
 	Model     string `json:"model,omitempty"`
 	ModelName string `json:"modelname,omitempty"`
 	Effort    string `json:"effort,omitempty"`
+	// Provider: the host the run talks to when it is not its agent's own provider (FR-AGC-008); ProviderName: its
+	// provider's name when MoltenTerm knows it, "" for a host it does not.
+	Provider     string `json:"provider,omitempty"`
+	ProviderName string `json:"providername,omitempty"`
 }
 
 type ListResult struct {
