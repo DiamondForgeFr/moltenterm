@@ -270,13 +270,30 @@ export type RebaseResult = {
     agentmissing?: boolean;
     agentsource?: string;
     agents?: { id: string; name: string; installed: boolean }[];
+    // The lead agent that owns the work (#1779): the result is about it; leadfolder and leadguessed say where its
+    // session would resume and whether that is only the CLI's most recent session of the folder.
+    lead?: boolean;
+    leadfolder?: string;
+    leadguessed?: boolean;
+};
+
+// The lead agent that owns a PR (#1779, FR-REV-022 AC19): named by the PR's signature, else by the sub-agent registry's
+// parent session. agent is its CLI's id when known (a sub-agent's), agentName the CLI as signed; blockId is the
+// registry's parent terminal, which wavesrv looks up again.
+export type LeadFacts = {
+    name: string;
+    agent?: string;
+    agentName?: string;
+    blockId?: string;
+    source: "signature" | "subagent";
 };
 
 // asked: the agent has it (name), note when the developer still has a step or should know where it went; offer: no
 // agent on the branch, the developer chooses how one starts (agent: the one that would, result: wavesrv's offer with
-// the agents to switch to); info and failed: a line. text is worded where it shows (wordPhrase, #1058).
+// the agents to switch to); leadgone (#1779): the lead that owns the work no longer runs and its session can be
+// resumed (result says where); info and failed: a line. text is worded where it shows (wordPhrase, #1058).
 export type RebaseOutcome = {
-    kind: "asked" | "offer" | "info" | "failed";
+    kind: "asked" | "offer" | "leadgone" | "info" | "failed";
     name?: string;
     blockId?: string;
     agent?: string;
@@ -353,11 +370,21 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
     };
     switch (result.status) {
         case "started":
+            if (result.lead) {
+                return { kind: "asked", name, text: phrase("reviews.lead.started", vars), note: true };
+            }
             if (result.hidden) {
                 return { kind: "asked", name, text: phrase(keys.startedHidden, vars), note: true };
             }
             return { kind: "asked", name, text: phrase(keys.asked, vars), note: what === "investigate" };
+        case "queued":
+            return { kind: "asked", name, text: phrase("reviews.lead.queued", vars), note: true };
+        case "leadgone":
+            return { kind: "leadgone", name, text: phrase("reviews.lead.gone", vars), result };
         case "sent": {
+            if (result.lead) {
+                return { kind: "asked", name, text: phrase("reviews.lead.sent", vars), note: true };
+            }
             const other = notChosen(result, name);
             return {
                 kind: "asked",

@@ -257,6 +257,9 @@ export function ReviewRow({
                 );
                 return;
             case "resume":
+                ask(action.id, "finish", () => model.askFinish(dir, pr, repo, true, card.lead));
+                return;
+            case "new-agent":
                 ask(action.id, "finish", () => model.askFinish(dir, pr, repo, true));
                 return;
             case "rebase":
