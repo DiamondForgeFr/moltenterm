@@ -66,6 +66,11 @@ const (
 	IntegrationCoffeeApproval = "coffeeapproval"
 	// Codex's own terminal notifications for what waits for the user, sent as OSC 9 whatever the focus (#988).
 	IntegrationNotifications = "notifications"
+	// A project whose folder holds its code repository (FR-SHELL-105): the folder as an extra working directory, the
+	// start note, and the run started in the repository (#1777).
+	IntegrationProjectFolder = "projectfolder"
+	IntegrationProjectNote   = "projectnote"
+	IntegrationProjectStart  = "projectstart"
 )
 
 // IntegrationItem is one thing added to a run, or left out (Reason says why, in plain words). NameText and ReasonText

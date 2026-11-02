@@ -59,12 +59,15 @@ func TestMoltenLaunchSettingsStepAside(t *testing.T) {
 func TestMoltenLaunchSettingsNotConnected(t *testing.T) {
 	connected := make(chan bool, 1)
 	connected <- false
-	settings, relay := moltenLaunchSettings(connected, time.Now().Add(time.Second))
+	settings, relay, places := moltenLaunchSettings(connected, time.Now().Add(time.Second))
 	if ok := <-relay; ok {
 		t.Fatalf("relay must say not connected")
 	}
 	if s := <-settings; s != nil {
 		t.Fatalf("settings %+v", s)
+	}
+	if p := <-places; p != (agentlaunch.ProjectPlaces{}) {
+		t.Fatalf("places %+v", p)
 	}
 }
 
