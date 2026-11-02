@@ -176,9 +176,12 @@ func moltenProjectLinkRun(cmd *cobra.Command, args []string) error {
 		molten.WorkspaceRecentFoldersMetaKey: molten.PushRecentFolder(meta[molten.WorkspaceRecentFoldersMetaKey], dir),
 	}
 	logo :=moltenMetaString(meta, molten.ProjectLogoMetaKey)
-	// A logo chosen for another project would now stand for the wrong one.
+	// A logo chosen for another project would now stand for the wrong one, and so would its code repository.
 	if moltenMetaString(meta, molten.ProjectMetaKey) != dir || moltenProjectNoLogo {
 		logo = ""
+	}
+	if moltenMetaString(meta, molten.ProjectMetaKey) != dir {
+		update[molten.ProjectRepoMetaKey] = nil
 	}
 	if moltenProjectLogo != "" {
 		logo, err = moltenProjectCheckLogo(moltenProjectLogo, dir)
@@ -232,7 +235,7 @@ func moltenProjectUnlinkRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	dir := moltenMetaString(meta, molten.ProjectMetaKey)
-	err = moltenProjectSetMeta(oref, map[string]any{molten.ProjectMetaKey: nil, molten.ProjectLogoMetaKey: nil, molten.ProjectLogoOfferMetaKey: nil})
+	err = moltenProjectSetMeta(oref, map[string]any{molten.ProjectMetaKey: nil, molten.ProjectRepoMetaKey: nil, molten.ProjectLogoMetaKey: nil, molten.ProjectLogoOfferMetaKey: nil})
 	if err != nil {
 		return err
 	}
@@ -256,7 +259,7 @@ func moltenProjectShowRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	status := moltenMakeProjectStatus(oref, moltenMetaString(meta, molten.ProjectMetaKey), moltenMetaString(meta, molten.ProjectLogoMetaKey))
+	status := moltenMakeProjectStatus(oref, molten.WorkspaceRepoOfMap(meta), moltenMetaString(meta, molten.ProjectLogoMetaKey))
 	if moltenJson {
 		return moltenWriteJson(status)
 	}
@@ -278,7 +281,7 @@ func moltenProjectLogoRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	dir := moltenMetaString(meta, molten.ProjectMetaKey)
+	dir := molten.WorkspaceRepoOfMap(meta)
 	if dir == "" {
 		return fmt.Errorf("this workspace is not linked to a project; link it with: molten project link [folder]")
 	}
@@ -447,7 +450,7 @@ func moltenProjectValidateDir(args []string) (string, error) {
 	}
 	if oref, err := moltenProjectWorkspace(); err == nil {
 		if meta, err := moltenProjectGetMeta(oref); err == nil {
-			if dir := moltenMetaString(meta, molten.ProjectMetaKey); dir != "" {
+			if dir := molten.WorkspaceRepoOfMap(meta); dir != "" {
 				return dir, nil
 			}
 		}

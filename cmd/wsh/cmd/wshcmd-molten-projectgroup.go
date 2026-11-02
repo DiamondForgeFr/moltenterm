@@ -85,7 +85,7 @@ func moltenProjectGroupRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	status := MoltenProjectGroupStatus{Workspace: oref.OID, Dir: moltenMetaString(meta, molten.ProjectMetaKey)}
+	status := MoltenProjectGroupStatus{Workspace: oref.OID, Dir: molten.WorkspaceRepoOfMap(meta)}
 	status.Linked = status.Dir != ""
 	if status.Linked {
 		info := molten.ReadProject(status.Dir)

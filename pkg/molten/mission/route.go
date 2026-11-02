@@ -392,6 +392,13 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.collector.InitGit(req)
 	}
+	if command == ReposCommand {
+		var req ReposRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return FindRepos(req)
+	}
 	if command == GithubRunLogCommand || command == GithubRunRerunCommand {
 		return l.handleGithubRun(command, data)
 	}

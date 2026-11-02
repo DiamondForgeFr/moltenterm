@@ -145,7 +145,8 @@ func moltenSameFolder(a string, b string) bool {
 	return errA == nil && errB == nil && realA == realB
 }
 
-// The folder this terminal's workspace is linked to; empty when unknown (not in a MoltenTerm terminal, not linked).
+// The repository this terminal's workspace is linked to (its project's code repository, else its folder); empty when
+// unknown (not in a MoltenTerm terminal, not linked).
 func moltenCiLinkedDir() string {
 	oref, err := moltenProjectWorkspace()
 	if err != nil {
@@ -155,7 +156,7 @@ func moltenCiLinkedDir() string {
 	if err != nil {
 		return ""
 	}
-	return moltenMetaString(meta, molten.ProjectMetaKey)
+	return molten.WorkspaceRepoOfMap(meta)
 }
 
 func moltenCiRequest(command string, data any, out any) error {

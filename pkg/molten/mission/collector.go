@@ -73,6 +73,7 @@ const (
 	TreePrsCommand          = "moltenmissiontreeprs"
 	WorkCommand             = "moltenmissionwork"
 	GitInitCommand          = "moltenmissiongitinit"
+	ReposCommand            = "moltenmissionrepos"
 	// The release setup (FR-MC-036): draft, refine with the coding agent, write on the developer's click.
 	SetupDraftCommand  = "moltenmissionsetupdraft"
 	SetupRefineCommand = "moltenmissionsetuprefine"

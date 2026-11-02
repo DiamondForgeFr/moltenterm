@@ -416,14 +416,15 @@ func ResolveNotification(ctx context.Context, key string) error {
 	return nil
 }
 
-// ProjectWorkspace is the workspace linked to a project folder, if one is.
+// ProjectWorkspace is the workspace linked to a project, if one is: dir is its repository (what the Git features and
+// their notifications name) or its folder.
 func ProjectWorkspace(ctx context.Context, dir string) string {
 	workspaces, err := wstore.DBGetAllObjsByType[*waveobj.Workspace](ctx, waveobj.OType_Workspace)
 	if err != nil {
 		return ""
 	}
 	for _, ws := range workspaces {
-		if ws.Meta.GetString(molten.ProjectMetaKey, "") == dir {
+		if ws.Meta.GetString(molten.ProjectMetaKey, "") == dir || molten.WorkspaceRepo(ws.Meta) == dir {
 			return ws.OID
 		}
 	}
