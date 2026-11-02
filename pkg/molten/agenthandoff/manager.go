@@ -312,6 +312,9 @@ func (m *Manager) List(ctx context.Context, req ListRequest) (ListResult, error)
 		}
 		rtn.Agents = append(rtn.Agents, entry)
 	}
+	if rtn.You != nil {
+		rtn.Caller = m.callerOf(blockId, req.Folder, rtn.You.Folder)
+	}
 	return rtn, nil
 }
 

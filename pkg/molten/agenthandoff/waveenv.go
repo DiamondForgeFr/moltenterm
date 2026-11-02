@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
+	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -53,6 +54,10 @@ func (waveEnv) Runs() []molten.AgentRunInfo {
 
 func (waveEnv) Run(blockId string) (molten.AgentRunInfo, bool) {
 	return attention.AgentRun(blockId)
+}
+
+func (waveEnv) Subagents(blockId string) []companion.SubagentIdentity {
+	return companion.PaneSubagents(blockId)
 }
 
 func (waveEnv) Locate(ctx context.Context, blockId string) (Location, error) {
