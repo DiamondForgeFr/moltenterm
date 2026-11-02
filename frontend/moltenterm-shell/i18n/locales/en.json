@@ -9542,7 +9542,9 @@
             "resting": "at rest",
             "goTo": "Go to {name}'s view",
             "expand": "Show what {name} is linked to",
-            "collapse": "Hide what {name} is linked to"
+            "collapse": "Hide what {name} is linked to",
+            "projectTitle": "Runs in {project}",
+            "outsideTitle": "Runs in {folder}, outside this workspace's projects"
         },
         "view": {
             "equalize": "Equalize panel widths",

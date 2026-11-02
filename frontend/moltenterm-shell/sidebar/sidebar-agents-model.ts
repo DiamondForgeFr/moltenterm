@@ -5,7 +5,9 @@
 // those at work first. A view where an agent runs stays listed as a view (#1246).
 
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { pathBaseName } from "../workspace-project";
 import type { SidebarTabSplit } from "./sidebar-model";
+import { projectLabel, type WorkspaceProjectEntry } from "./workspace-projects";
 
 const RowOrder: Record<string, number> = { working: 0, waiting: 1, error: 2, idle: 3, done: 4 };
 
@@ -39,6 +41,45 @@ export function agentRowLook(info: AgentStateInfo): AgentRowLook {
             return info.state;
     }
     return "idle";
+}
+
+// The project chip on an agent's name line (FR-SHELL-084, #1746): shown only when the workspace holds two projects or
+// more. The agent's terminal folder names its project: the project whose folder holds it, the longest match when
+// projects nest, never the workspace's default project. An agent outside every project shows its folder's name,
+// muted. Nothing without a folder.
+export type AgentProjectLabel = { text: string; outside: boolean };
+
+export function agentProjectLabel(folder: string, projects: WorkspaceProjectEntry[]): AgentProjectLabel {
+    if (projects == null || projects.length < 2) {
+        return null;
+    }
+    const here = trimPath(folder);
+    if (here === "") {
+        return null;
+    }
+    let owner: WorkspaceProjectEntry = null;
+    for (const p of projects) {
+        const dir = trimPath(p.dir);
+        if (dir === "" || !holds(dir, here)) {
+            continue;
+        }
+        if (owner == null || dir.length > trimPath(owner.dir).length) {
+            owner = p;
+        }
+    }
+    if (owner != null) {
+        return { text: projectLabel(owner), outside: false };
+    }
+    const text = pathBaseName(here);
+    return text === "" ? null : { text, outside: true };
+}
+
+function trimPath(path: string): string {
+    return (path ?? "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+function holds(dir: string, path: string): boolean {
+    return path === dir || path.startsWith(`${dir}/`);
 }
 
 export type SidebarSections = SidebarTabSplit & { agents: AgentStateInfo[] };

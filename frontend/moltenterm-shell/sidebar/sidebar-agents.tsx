@@ -5,6 +5,7 @@
 // ones. A row says who, what it is doing and its state; its twisty opens its sub-agents, the agents it is linked to,
 // then the link to everything about it. Tools, MCP servers, pages and commands stay in that window, not in the tree.
 
+import { getBlockMetaKeyAtom } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
@@ -28,9 +29,16 @@ import { useCompanionFollow } from "../companion/companion-follow";
 import type { CompanionView } from "../companion/companion-model";
 import { useT, useTCount } from "../i18n/i18n";
 import { DominoLoader } from "../suite/suite";
-import { agentRowLook, agentRowTarget, type AgentTreeSection } from "./sidebar-agents-model";
+import {
+    agentProjectLabel,
+    agentRowLook,
+    agentRowTarget,
+    type AgentProjectLabel,
+    type AgentTreeSection,
+} from "./sidebar-agents-model";
 import "./sidebar-agents.css";
 import { SidebarGlyph } from "./sidebar-icons";
+import type { WorkspaceProjectEntry } from "./workspace-projects";
 
 const AgentPaths = {
     sub: (
@@ -282,14 +290,49 @@ export function agentDisplayName(info: AgentStateInfo): string {
     return (info?.firstname || info?.agentname || info?.agent || "").trim();
 }
 
-function AgentBlock({ info, active }: { info: AgentStateInfo; active: boolean }) {
+// The name line: the first name, then the agent's project as a label chip when the workspace holds several (#1746). The
+// chip takes the ellipsis; the first name stays whole unless it alone outgrows the row.
+export function AgentNameLine({ name, label }: { name: string; label: AgentProjectLabel }) {
+    const t = useT();
+    if (label == null) {
+        return <span className="mt-sb-agent-nm">{name}</span>;
+    }
+    const title = label.outside
+        ? t("sidebar.agents.outsideTitle", { folder: label.text })
+        : t("sidebar.agents.projectTitle", { project: label.text });
+    return (
+        <span className="mt-sb-agent-nm-line">
+            <span className="mt-sb-agent-nm">{name}</span>
+            <span
+                className={cn("mt-sb-agent-proj", label.outside && "is-outside")}
+                title={title}
+                data-testid="sidebar-agent-project"
+                data-outside={label.outside ? "true" : undefined}
+            >
+                {label.text}
+            </span>
+        </span>
+    );
+}
+
+function AgentBlock({
+    info,
+    active,
+    projects,
+}: {
+    info: AgentStateInfo;
+    active: boolean;
+    projects: WorkspaceProjectEntry[];
+}) {
     const t = useT();
     const trees = useAtomValue(AgentInfoModel.getInstance().treesAtom);
+    const folder = useAtomValue(getBlockMetaKeyAtom(info.blockid, "cmd:cwd")) ?? "";
     const tree = trees[info.blockid];
     const open = !!tree?.open;
     const look = agentRowLook(info);
     const name = agentDisplayName(info);
     const doing = agentDoing(info);
+    const label = agentProjectLabel(folder, projects);
     const go = () => fireAndForget(() => goToAgent(agentRowTarget(info)));
     const toggleLabel = t(open ? "sidebar.agents.collapse" : "sidebar.agents.expand", { name });
     return (
@@ -336,7 +379,7 @@ function AgentBlock({ info, active }: { info: AgentStateInfo; active: boolean })
                 </button>
                 <AgentAvatar info={info} />
                 <span className="mt-sb-agent-tx">
-                    <span className="mt-sb-agent-nm">{name}</span>
+                    <AgentNameLine name={name} label={label} />
                     <span className="mt-sb-agent-ss">{doing}</span>
                 </span>
                 {look === "working" ? <WorkingDominoes label={agentStateLabel("working")} /> : null}
@@ -346,7 +389,15 @@ function AgentBlock({ info, active }: { info: AgentStateInfo; active: boolean })
     );
 }
 
-export function AgentsSection({ agents, activeTabId }: { agents: AgentStateInfo[]; activeTabId: string }) {
+export function AgentsSection({
+    agents,
+    activeTabId,
+    projects,
+}: {
+    agents: AgentStateInfo[];
+    activeTabId: string;
+    projects?: WorkspaceProjectEntry[];
+}) {
     const t = useT();
     const tc = useTCount();
     if (agents.length === 0) {
@@ -366,7 +417,7 @@ export function AgentsSection({ agents, activeTabId }: { agents: AgentStateInfo[
             </div>
             <div className="flex flex-col gap-px">
                 {agents.map((a) => (
-                    <AgentBlock key={a.blockid} info={a} active={a.tabid === activeTabId} />
+                    <AgentBlock key={a.blockid} info={a} active={a.tabid === activeTabId} projects={projects} />
                 ))}
             </div>
         </div>

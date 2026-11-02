@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import {
+    agentProjectLabel,
     agentRowLook,
     agentRowTarget,
     MaxKeptTrees,
@@ -13,6 +14,79 @@ import {
     toggleTree,
     workspaceAgents,
 } from "./sidebar-agents-model";
+import type { WorkspaceProjectEntry } from "./workspace-projects";
+
+const Desktop: WorkspaceProjectEntry = { id: "p1", type: "desktop", dir: "/Users/x/notulia-desktop", branch: "" };
+const Website: WorkspaceProjectEntry = { id: "p2", type: "website", dir: "/Users/x/notulia-web", branch: "" };
+
+describe("agentProjectLabel (FR-SHELL-084, #1746)", () => {
+    it("shows nothing with one project, even for an agent inside it", () => {
+        expect(agentProjectLabel("/Users/x/notulia-web/src", [Website])).toBeNull();
+    });
+
+    it("shows nothing without projects", () => {
+        expect(agentProjectLabel("/Users/x/notulia-web", [])).toBeNull();
+        expect(agentProjectLabel("/Users/x/notulia-web", undefined)).toBeNull();
+    });
+
+    it("names the project the agent runs in, not the workspace's first one", () => {
+        expect(agentProjectLabel("/Users/x/notulia-web", [Desktop, Website])).toEqual({
+            text: "website",
+            outside: false,
+        });
+        expect(agentProjectLabel("/Users/x/notulia-desktop/src/main", [Desktop, Website])).toEqual({
+            text: "desktop",
+            outside: false,
+        });
+    });
+
+    it("takes the longest project when projects nest", () => {
+        const app = { id: "p3", type: "", dir: "/Users/x/notulia-web/packages/app", branch: "" };
+        expect(agentProjectLabel("/Users/x/notulia-web/packages/app/lib", [Website, app])).toEqual({
+            text: "app",
+            outside: false,
+        });
+        expect(agentProjectLabel("/Users/x/notulia-web/docs", [Website, app])).toEqual({
+            text: "website",
+            outside: false,
+        });
+    });
+
+    it("does not match a folder that only shares a name prefix with a project", () => {
+        expect(agentProjectLabel("/Users/x/notulia-web-old", [Desktop, Website])).toEqual({
+            text: "notulia-web-old",
+            outside: true,
+        });
+    });
+
+    it("shows the folder's name, muted, for an agent outside every project", () => {
+        expect(agentProjectLabel("/tmp/scratch/agent-run", [Desktop, Website])).toEqual({
+            text: "agent-run",
+            outside: true,
+        });
+    });
+
+    it("names a project without a type by its folder", () => {
+        const untyped = { id: "p4", type: "", dir: "/Users/x/tools/cli", branch: "" };
+        expect(agentProjectLabel("/Users/x/tools/cli/cmd", [Website, untyped])).toEqual({
+            text: "cli",
+            outside: false,
+        });
+    });
+
+    it("reads Windows paths and trailing separators", () => {
+        const win = [
+            { id: "w1", type: "desktop", dir: "C:\\work\\desktop", branch: "" },
+            { id: "w2", type: "website", dir: "C:\\work\\web\\", branch: "" },
+        ];
+        expect(agentProjectLabel("C:\\work\\web\\src\\", win)).toEqual({ text: "website", outside: false });
+    });
+
+    it("shows nothing when the agent's folder is unknown", () => {
+        expect(agentProjectLabel("", [Desktop, Website])).toBeNull();
+        expect(agentProjectLabel(undefined, [Desktop, Website])).toBeNull();
+    });
+});
 
 function info(blockid: string, state: any, extra: Partial<AgentStateInfo> = {}): AgentStateInfo {
     return { blockid, state, version: 1, agent: "claude", workspaceid: "ws1", ...extra };
