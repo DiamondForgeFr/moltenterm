@@ -5575,6 +5575,11 @@
             "chosenNote": "Chosen in the Release menu; the public release {tag} is on its way.",
             "onItsWay": "The public release {tag} is on its way.",
             "nothing": "Nothing to release yet.",
+            "planned": "Planned — milestone {milestone}, {open}, nothing on {trunk} yet",
+            "open": {
+                "one": "{count} open",
+                "other": "{count} open"
+            },
             "toDecide": "to decide",
             "choice": "A choice, not a calculation: pick the number in the Release menu.",
             "levels": {

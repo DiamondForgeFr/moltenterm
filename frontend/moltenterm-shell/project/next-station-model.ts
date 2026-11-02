@@ -10,13 +10,13 @@ import { CiState } from "../mission/ci-model";
 import { Milestone, milestoneKey } from "../mission/github";
 import { MissionGit, PipelineDef, RawCommit, toTreeData } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
-import { readableSubject, releaseState, treeRules } from "../mission/versions";
-import { DefaultTagPrefix } from "../releases/versions";
+import { readableSubject, releaseState, tagVersion, treeRules } from "../mission/versions";
+import { compareVersions, DefaultTagPrefix, parseBase, Version } from "../releases/versions";
 import { commitKind, pendingCommits } from "./overview-cards-model";
 
 const TickerMax = 40;
 
-export type NextStationState = "decision" | "derived" | "chosen" | "nothing";
+export type NextStationState = "decision" | "derived" | "chosen" | "planned" | "nothing";
 
 export type NextStation = {
     // "v1.2.0"; null when nothing justifies a release.
@@ -66,7 +66,7 @@ export function nextStation(
     milestones?: readonly Milestone[],
     now: number = Date.now()
 ): NextStation {
-    const station = plainStation(git, session);
+    const station = plainStation(git, session, milestones);
     if (station == null || milestones == null) {
         return station;
     }
@@ -88,14 +88,14 @@ function scheduledStation(station: NextStation, schedule: StationSchedule): Next
     return { ...station, chip: schedule.chip, urgent: schedule.urgent, chiptitle: schedule.title, note };
 }
 
-function plainStation(git: MissionGit, session: ReleaseSession): NextStation {
+function plainStation(git: MissionGit, session: ReleaseSession, milestones?: readonly Milestone[]): NextStation {
     if (git == null) {
         return null;
     }
     const tree = toTreeData(git);
     const rules = treeRules(tree);
     const prefix = rules.tagprefix || DefaultTagPrefix;
-    const { next } = releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], rules);
+    const { next, lastPublic: last } = releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], rules);
     // Picking the number happens in the Release menu: a public release on its way carries the chosen one.
     if (session?.channel === "public" && session.tag) {
         const decided = next.how !== "derived" || next.version !== session.version;
@@ -109,7 +109,15 @@ function plainStation(git: MissionGit, session: ReleaseSession): NextStation {
         };
     }
     if (next.how === "nothing" || !next.version) {
-        return { tag: null, state: "nothing", chip: null, note: next.reason || t("project.station.nothing") };
+        const floor = last ? parseBase(tagVersion(last.name.trim(), prefix)) : null;
+        return (
+            plannedStation(git, prefix, milestones, floor) ?? {
+                tag: null,
+                state: "nothing",
+                chip: null,
+                note: next.reason || t("project.station.nothing"),
+            }
+        );
     }
     if (next.how === "decision") {
         return {
@@ -131,6 +139,45 @@ function plainStation(git: MissionGit, session: ReleaseSession): NextStation {
 
 function levelLabel(level: string): string {
     return level ? t(`project.station.levels.${level}`) : null;
+}
+
+// When the commits justify no release, the station is the open milestone that names the next version (FR-MC-021,
+// #1751): the nearest due date first, else the lowest version. Buckets like "Later" name no version and never count.
+function plannedStation(
+    git: MissionGit,
+    prefix: string,
+    milestones: readonly Milestone[],
+    floor: Version
+): NextStation {
+    const milestone = plannedMilestone(milestones, floor);
+    if (milestone == null) {
+        return null;
+    }
+    return {
+        tag: prefix + milestoneKey(milestone.title),
+        state: "planned",
+        chip: t("project.station.toDecide"),
+        note: t("project.station.planned", {
+            milestone: milestone.title,
+            open: tCount("project.station.open", milestone.open_issues ?? 0),
+            trunk: git.trunk || t("project.theTrunk"),
+        }),
+    };
+}
+
+function plannedMilestone(milestones: readonly Milestone[], floor: Version): Milestone {
+    const named = (milestones ?? [])
+        .filter((m) => m != null)
+        .map((m) => ({ m, version: parseBase(milestoneKey(m.title)) }))
+        .filter(({ version }) => version != null && (floor == null || compareVersions(version, floor) > 0));
+    const dated = named
+        .filter(({ m }) => m.due_on)
+        .sort((a, b) => utcDay(a.m.due_on).localeCompare(utcDay(b.m.due_on)) || compareVersions(a.version, b.version));
+    if (dated.length > 0) {
+        return dated[0].m;
+    }
+    const lowest = [...named].sort((a, b) => compareVersions(a.version, b.version));
+    return lowest[0]?.m ?? null;
 }
 
 export type StationSchedule = {

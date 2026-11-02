@@ -92,7 +92,13 @@ export type LineMapTerminus = NextStation & { waiting: number };
 // The next version is a button (FR-MC-022, #1384) when a release can be set up: something waits on the trunk and no
 // release is under way. The action orange is for what clicks, so the ring is neutral otherwise.
 export function canSetUpRelease(terminus: LineMapTerminus, session: ReleaseSession): boolean {
-    return terminus != null && terminus.state !== "nothing" && terminus.tag != null && session == null;
+    return (
+        terminus != null &&
+        terminus.state !== "nothing" &&
+        terminus.state !== "planned" &&
+        terminus.tag != null &&
+        session == null
+    );
 }
 
 export type LineMapModel = {
