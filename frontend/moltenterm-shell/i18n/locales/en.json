@@ -4124,7 +4124,10 @@
                 "reconcileHint": "Does nothing when {release} is already in the RC branch's history; refused when {release} holds a commit the trunk lacks, so nothing is ever lost.",
                 "labels": "Version labels",
                 "labelsHint": "Lines outside the version files that show the version ({version}); the kept ones are bumped with it.",
-                "labelManual": "No pattern finds this line alone: you bump it by hand, in a step before the cut."
+                "labelManual": "No pattern finds this line alone: you bump it by hand, in a step before the cut.",
+                "notLabel": "Not a version label",
+                "notLabelDone": "Dismissed: recorded in .molten/project.json, it is not offered again.",
+                "notLabelUndo": "Undo"
             },
             "why": {
                 "title": "Why this flow",
@@ -4319,6 +4322,7 @@
                 "reason": {
                     "protected": "{branch} is protected: releases go through a pull request.",
                     "labels": "Version labels found outside the version files: {count}. The release can bump them.",
+                    "notlabels": "Lines dismissed as not version labels: {count}. They are not offered again.",
                     "template": "Steps written by an earlier version of MoltenTerm differ from what it writes now.",
                     "customised": "You changed steps MoltenTerm wrote: keep yours or take its version. A choice you write is not offered again.",
                     "adjusted": "Your adjusted choices write these steps differently.",

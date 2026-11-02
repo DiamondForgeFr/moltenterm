@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
@@ -51,6 +52,108 @@ var labelTextExts = map[string]bool{".md": true, ".mdx": true, ".ts": true, ".mt
 
 var labelSkipDirs = map[string]bool{"node_modules": true, ".git": true, "dist": true, "build": true, "cache": true,
 	".cache": true, "coverage": true, "releases": true}
+
+// Manifests name their own package's version (#1791): docs/package.json's "0.0.0" is the docs site's, not the
+// product's. One that is not a declared version file holds a label only where it says the current version.
+var packageManifests = map[string]bool{"package.json": true, "package-lock.json": true, "npm-shrinkwrap.json": true,
+	"composer.json": true, "deno.json": true, "jsr.json": true, "bower.json": true, "app.json": true,
+	"manifest.json": true, "pubspec.yaml": true, "chart.yaml": true}
+
+func isPackageManifest(rel string) bool {
+	return packageManifests[strings.ToLower(filepath.Base(rel))]
+}
+
+func isMarkdown(rel string) bool {
+	ext := strings.ToLower(filepath.Ext(rel))
+	return ext == ".md" || ext == ".mdx"
+}
+
+// fenceOf reads a Markdown fence line: its character and length ("```yaml" gives '`', 3); 0 when the line is none.
+func fenceOf(line string) (byte, int) {
+	trimmed := strings.TrimLeft(line, " \t")
+	for _, c := range []byte{'`', '~'} {
+		n := 0
+		for n < len(trimmed) && trimmed[n] == c {
+			n++
+		}
+		if n >= 3 {
+			return c, n
+		}
+	}
+	return 0, 0
+}
+
+// codeFence follows the fenced code blocks of a Markdown file (#1791): an example inside one ("version: 0.1.0" in
+// a mod format illustration) is not a label of the project.
+type codeFence struct {
+	char byte
+	size int
+}
+
+// inCode reads one line: true for the fence lines and every line between them.
+func (cf *codeFence) inCode(line string) bool {
+	c, n := fenceOf(line)
+	if cf.char == 0 {
+		if c != 0 {
+			cf.char, cf.size = c, n
+			return true
+		}
+		return false
+	}
+	// A closing fence is the same character, at least as long, with nothing after it.
+	if c == cf.char && n >= cf.size && strings.TrimSpace(strings.TrimLeft(line, " \t")[n:]) == "" {
+		cf.char, cf.size = 0, 0
+	}
+	return true
+}
+
+// NotLabelOf is how versions.notlabels names a label the developer dismissed: its file and its line as it reads, so
+// the dismissal holds when lines above it move.
+func NotLabelOf(l VersionLabel) molten.PipelineNotLabel {
+	return molten.PipelineNotLabel{Path: l.Path, Text: l.Text}
+}
+
+func dismissedLabel(not []molten.PipelineNotLabel, l VersionLabel) bool {
+	for _, n := range not {
+		if n.Path == l.Path && n.Text == l.Text {
+			return true
+		}
+	}
+	return false
+}
+
+// withoutDismissed: the kept labels the developer did not dismiss in the same choices.
+func withoutDismissed(f Facts, o Options) []LabelChoice {
+	if len(o.NotLabels) == 0 {
+		return o.Labels
+	}
+	rtn := []LabelChoice{}
+	for _, c := range o.Labels {
+		gone := false
+		for _, l := range f.Labels {
+			gone = gone || (l.Path == c.Path && l.Line == c.Line && dismissedLabel(o.NotLabels, l))
+		}
+		if !gone {
+			rtn = append(rtn, c)
+		}
+	}
+	return rtn
+}
+
+// withNotLabels adds the dismissals not recorded yet, after the recorded ones.
+func withNotLabels(recorded []molten.PipelineNotLabel, added []molten.PipelineNotLabel) []molten.PipelineNotLabel {
+	rtn := append([]molten.PipelineNotLabel(nil), recorded...)
+	for _, n := range added {
+		known := false
+		for _, r := range rtn {
+			known = known || r == n
+		}
+		if !known && n.Path != "" && n.Text != "" {
+			rtn = append(rtn, n)
+		}
+	}
+	return rtn
+}
 
 func isChangelogName(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), "changelog")
@@ -115,7 +218,8 @@ func splitLabel(line string, start int, end int) (string, string, string, bool) 
 }
 
 // DetectLabels finds the version labels of the project: lines holding the current version, short enough to be a
-// label, or naming it after the word "version". Changelogs, notes and the declared files are history, not labels.
+// label, or naming it after the word "version". Changelogs, notes and the declared files are history, not labels;
+// neither are Markdown code blocks, nor another package's manifest naming its own version (#1791).
 func DetectLabels(dir string, current string, skip map[string]bool) []VersionLabel {
 	rtn := []VersionLabel{}
 	for _, rel := range labelFiles(dir) {
@@ -131,11 +235,16 @@ func DetectLabels(dir string, current string, skip map[string]bool) []VersionLab
 		if err != nil || bytes.IndexByte(data, 0) >= 0 {
 			continue
 		}
+		markdown, manifest := isMarkdown(rel), isPackageManifest(rel)
+		var fence codeFence
 		scanner := bufio.NewScanner(bytes.NewReader(data))
 		scanner.Buffer(make([]byte, 0, 64<<10), maxLabelFileBytes)
 		for n := 1; scanner.Scan(); n++ {
+			if markdown && fence.inCode(scanner.Text()) {
+				continue
+			}
 			before, version, after, ok := labelOf(scanner.Text(), current)
-			if !ok {
+			if !ok || (manifest && version != current) {
 				continue
 			}
 			label := VersionLabel{Path: rel, Line: n, Version: version, Text: strings.TrimSpace(scanner.Text())}

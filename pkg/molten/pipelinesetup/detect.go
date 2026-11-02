@@ -177,8 +177,12 @@ func DetectWith(dir string, report molten.PipelineReport) Facts {
 		for _, c := range f.Changelogs {
 			skip[c.Path] = true
 		}
+		var dismissed []molten.PipelineNotLabel
+		if p != nil && p.Versions != nil {
+			dismissed = p.Versions.NotLabels
+		}
 		for _, l := range DetectLabels(dir, current, skip) {
-			if !declaredLabel(f.VersionFiles, l) {
+			if !declaredLabel(f.VersionFiles, l) && !dismissedLabel(dismissed, l) {
 				f.Labels = append(f.Labels, l)
 			}
 		}
