@@ -190,13 +190,26 @@ export function firstAgentIndex(list: PaletteEntry[]): number {
 // On the launcher block of a new panel (#1742): the id of the entry the chooser selects first, taken from the focus.
 export const NewViewPreselectMetaKey = "molten:newview:preselect";
 
+// On the launcher block of a new panel (#1742): the chooser says Escape cancels the new panel, not a new view.
+export const NewViewPanelMetaKey = "molten:newview:panel";
+
 // The chooser a new panel opens with: the entry of the focused panel's type selected when there is one, otherwise the
 // chooser's own first favourite.
-export function chooserBlockDef(preselectId: string): BlockDef {
-    if (!preselectId) {
-        return ChooserBlockDef;
+export function panelChooserBlockDef(preselectId: string): BlockDef {
+    const meta: Record<string, unknown> = { ...ChooserBlockDef.meta, [NewViewPanelMetaKey]: true };
+    if (preselectId) {
+        meta[NewViewPreselectMetaKey] = preselectId;
     }
-    return { meta: { ...ChooserBlockDef.meta, [NewViewPreselectMetaKey]: preselectId } as MetaType };
+    return { meta: meta as MetaType };
+}
+
+// What the chooser's footer and its dialog's label call the thing Escape cancels: a new view, or a new panel.
+export function chooserFooterKey(inPanel: boolean): string {
+    return inPanel ? "palette.footer.cancelNewPanel" : "palette.footer.cancelNewView";
+}
+
+export function chooserAriaKey(inPanel: boolean): string {
+    return inPanel ? "newView.ariaPanel" : "newView.aria";
 }
 
 // The page panel's view is "molten-browser", Wave's one-page web view "web": both are a page to the developer.

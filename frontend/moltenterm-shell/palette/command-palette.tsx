@@ -21,6 +21,8 @@ import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
 import {
+    chooserAriaKey,
+    chooserFooterKey,
     chooserKey,
     chooserListEntries,
     chooserPreselect,
@@ -90,6 +92,8 @@ export type NewViewChooser = {
     focusAgents?: boolean;
     // Opened as a new panel (#1742): the id of the entry selected first, a favourite or a row of the list.
     preselect?: string;
+    // A new panel's chooser: Escape cancels the new panel, which the footer and the dialog's label say.
+    inPanel?: boolean;
 };
 
 type OtherWorkspaces = { list: PaletteWorkspace[]; folders: string[] };
@@ -625,7 +629,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             )}
             style={pickerInPane && !inPopover ? { minHeight: PickerMinPx } : undefined}
             role="dialog"
-            aria-label={t(newView != null ? "newView.aria" : "palette.ariaPalette")}
+            aria-label={t(newView != null ? chooserAriaKey(newView.inPanel === true) : "palette.ariaPalette")}
             data-role={pickerInPane ? (inPopover ? "split-picker-popover" : "split-picker") : undefined}
         >
             {newView != null ? (
@@ -695,7 +699,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                     <span>← → {t("newView.hint.choose")}</span>
                     <span>↵ {t("newView.hint.open")}</span>
                     <span>↓ {t("newView.hint.all")}</span>
-                    <span>esc {t("palette.footer.cancelNewView")}</span>
+                    <span>esc {t(chooserFooterKey(newView.inPanel === true))}</span>
                 </div>
             ) : (
                 <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted">

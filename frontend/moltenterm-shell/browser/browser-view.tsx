@@ -58,7 +58,7 @@ import { showToast } from "../toast-store";
 import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { CarpetHeaderButton } from "../view360/view360-places";
-import { takeAddressFocus } from "./address-focus";
+import { AddressHold, takeAddressFocus } from "./address-focus";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
@@ -184,9 +184,6 @@ import { TestContextChip } from "./test-context";
 export { MoltentermBrowserView };
 
 const PersistDelayMs = 400;
-// How long a page panel opened from a chooser keeps the focus on its address field against the block's own focusing of
-// the page (#1742): the block asks a few frames after the panel mounts.
-const AddressWishMs = 3000;
 // Below this row width (#1439) Forward, Reload and Magnify join Share and Open in <browser> in the row's "⋯"; the
 // value mirrors the last container query of browser.css.
 const FoldNavPx = 340;
@@ -227,8 +224,9 @@ export class BrowserViewModel implements ViewModel {
     tabBlockIdsAtom: Atom<string[]>;
     webviews = new Map<string, WebviewTag>();
     urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
-    // Until when giveFocus goes to the address field instead of the page (#1742); 0 for a panel nobody asked for.
-    addressWantedUntil = 0;
+    // A panel opened from a chooser's Web page keeps the focus on its address field until the developer acts or an address
+    // has loaded (#1742); idle for every other panel.
+    addressHold = new AddressHold();
     // The find bar (#1722), set by the view while it is mounted.
     searchAtoms: SearchAtoms;
     persistTimer: ReturnType<typeof setTimeout> = null;
@@ -256,7 +254,7 @@ export class BrowserViewModel implements ViewModel {
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
         if (takeAddressFocus(blockId)) {
-            this.addressWantedUntil = Date.now() + AddressWishMs;
+            this.addressHold.start();
         }
         this.nodeModel = nodeModel;
         this.tabId = tabModel?.tabId ?? null;
@@ -1237,20 +1235,16 @@ export class BrowserViewModel implements ViewModel {
     }
 
     // The panel was opened from a chooser's Web page (#1742): the address field, not the page, takes the focus the block
-    // gives the panel while it settles (AddressWishMs).
+    // gives the panel, until the hold lets go.
     wantAddressFocus(): void {
-        this.addressWantedUntil = Date.now() + AddressWishMs;
+        this.addressHold.start();
         refocusNode(this.blockId);
-    }
-
-    addressWished(): boolean {
-        return Date.now() < this.addressWantedUntil;
     }
 
     // The block asks for the focus when the panel takes the layout's, and again a frame later when the first answer was
     // no: handing the page the focus then would take it back from the address field.
     giveFocus(): boolean {
-        if (this.addressWished() && this.focusAddress()) {
+        if (this.addressHold.holds && this.focusAddress()) {
             return true;
         }
         // The engine choice's primary button holds the focus while the bar is up (DS-BRW-007).
@@ -1444,6 +1438,7 @@ export class BrowserViewModel implements ViewModel {
         this.lifecycle.dispose();
         this.agents.dispose();
         this.linkCopy.dispose();
+        this.addressHold.stop();
     }
 }
 
@@ -1576,6 +1571,7 @@ function TabWebview({
         const onStopLoading = () => {
             model.loads.noteStop(tab.id);
             model.errors.noteStop(tab.id);
+            model.addressHold.noteLoadStopped(model.findTab(tab.id)?.url);
         };
         const onFailLoad = (e: any) => {
             if (!isPageFailure(e)) {
@@ -2359,7 +2355,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     // A page panel opened from a chooser asked for its address field (#1742): when the block's own focus came before the
     // field could take it, it takes it now.
     useEffect(() => {
-        if (model.addressWished() && isFocused) {
+        if (model.addressHold.holds && isFocused) {
             model.giveFocus();
         }
     }, [model, isFocused]);

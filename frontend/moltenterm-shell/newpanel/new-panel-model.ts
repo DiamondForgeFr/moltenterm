@@ -7,8 +7,8 @@
 
 import type { LayoutNode } from "@/layout/lib/types";
 import {
-    chooserBlockDef,
     newViewStart,
+    panelChooserBlockDef,
     preselectEntryId,
     resolveDirect,
     TerminalChoiceId,
@@ -78,7 +78,7 @@ export function newPanelContent(setting: unknown, choices: PaletteEntry[], focus
         return { kind: "terminal" };
     }
     if (direct == null) {
-        return { kind: "block", blockdef: chooserBlockDef(preselectEntryId(focusedView, choices)) };
+        return { kind: "block", blockdef: panelChooserBlockDef(preselectEntryId(focusedView, choices)) };
     }
     const start = newViewStart(direct);
     return start.kind === "tab" ? { kind: "block", blockdef: start.blockdef } : { kind: "run", run: start.run };

@@ -378,7 +378,8 @@
             "close": "close",
             "cancelSplit": "cancel the split",
             "clear": "clear",
-            "cancelNewView": "cancel the new view"
+            "cancelNewView": "cancel the new view",
+            "cancelNewPanel": "cancel the new panel"
         },
         "groups": {
             "agents": "Agents",
@@ -10333,6 +10334,7 @@
     },
     "newView": {
         "aria": "New view: choose what it holds",
+        "ariaPanel": "New panel: choose what it holds",
         "favoritesAria": "Favourites",
         "morph": {
             "ask": "Ask {agent} with {morph}",
