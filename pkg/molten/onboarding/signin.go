@@ -64,6 +64,10 @@ type agentSignIn struct {
 	Opens string
 	// the vendor's pages the procedure comes from
 	Sources []string
+	// The vendor's documented status command, after the executable, run once when the sign-in command ended with 0
+	// (#1733); nil when none is documented, and the successful exit is then the proof.
+	StatusArgs    []string
+	StatusSources []string
 }
 
 // AgentSignIn is what the card shows: Command is the line the terminal runs, without the fake of the tests.

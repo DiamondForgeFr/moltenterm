@@ -504,7 +504,8 @@ function AgentDrawer({
 
 // What Sign in does, for the first launch's step and the Library's agent page (#1723): the one line saying what will
 // happen, where the sign-in stands, Sign in (again), Check again and the plans page apart. MoltenTerm never starts the
-// agent before the click; it sees a sign-in only from the credentials file the vendor documents.
+// agent before the click; it sees a sign-in from the credentials file the vendor documents, or from the sign-in run
+// here once wavesrv confirmed its end (#1733).
 export function SignInBody({
     card,
     run,
@@ -546,6 +547,16 @@ export function SignInBody({
             {run?.state === "ended" ? (
                 <p className="text-12 text-secondary" role="status">
                     {t("onboarding.pour.agents.signInEnded")}
+                </p>
+            ) : null}
+            {run?.state === "signedin" ? (
+                <p className="text-12 text-secondary" role="status" data-testid={`${testId}-done`}>
+                    {t("onboarding.pour.agents.signInDone")}
+                </p>
+            ) : null}
+            {run?.state === "notfinished" ? (
+                <p className="text-12 text-secondary" role="alert" data-testid={`${testId}-notfinished`}>
+                    {t("onboarding.pour.agents.signInNotFinished", { code: String(run.exitCode ?? "") })}
                 </p>
             ) : null}
             {run?.state === "failed" ? (
