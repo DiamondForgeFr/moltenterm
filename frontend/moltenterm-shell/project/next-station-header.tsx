@@ -318,6 +318,7 @@ export function NextStationHeader({
                     git={git}
                     tag={station?.tag}
                     counts={counts}
+                    planned={station?.state === "planned" ? station : null}
                     onClose={() => setShipOpen(false)}
                 />
             ) : null}

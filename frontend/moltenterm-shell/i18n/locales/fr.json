@@ -2960,6 +2960,7 @@
             "nextTitle": "Suivante",
             "changeNotYet": "1 changement sur {trunk} pas encore sur {release}.",
             "changesNotYet": "{count} changements sur {trunk} pas encore sur {release}.",
+            "plannedNothing": "Prévue, rien encore sur {trunk}.",
             "timeWindow": "Fenêtre de temps",
             "showLastDays": "Afficher les {days} derniers jours",
             "daysShort": "{days} j",

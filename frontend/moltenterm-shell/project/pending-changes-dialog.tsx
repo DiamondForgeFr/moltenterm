@@ -13,16 +13,27 @@ import { useLocale, useT, useTCount } from "../i18n/i18n";
 import type { MissionGit } from "../mission/mission-model";
 import { HistoryPollMs, MergedHistoryStore } from "../reviews/merged-history-model";
 import { DominoLoader } from "../suite/suite";
-import { countsLine, githubBase, WaitingCounts } from "./next-station-model";
+import { countsLine, githubBase, NextStation, WaitingCounts } from "./next-station-model";
 import { pendingCommits } from "./overview-cards-model";
 import { ShipListView } from "./ship-list";
 import { flatGroups, shipList } from "./ship-list-model";
+
+// The planned station's line and its due date, above the list: the version waits for a milestone, not for commits.
+function PlannedNote({ station }: { station: NextStation }) {
+    return (
+        <div className="px-2 pb-2 text-12 text-secondary" data-testid="pending-changes-planned">
+            <p>{station.note}</p>
+            {station.chiptitle ? <p className="text-muted">{station.chiptitle}</p> : null}
+        </div>
+    );
+}
 
 export function PendingChangesDialog({
     dir,
     git,
     tag,
     counts,
+    planned,
     onClose,
 }: {
     dir: string;
@@ -30,6 +41,8 @@ export function PendingChangesDialog({
     // The release it waits for; null when no version is due.
     tag: string;
     counts: WaitingCounts;
+    // The planned station the dialog opens from; null for a release the commits justify.
+    planned: NextStation;
     onClose: () => void;
 }) {
     const t = useT();
@@ -114,12 +127,13 @@ export function PendingChangesDialog({
                     </div>
                 ) : null}
                 <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-                    {list.groups.length === 0 ? (
+                    {planned ? <PlannedNote station={planned} /> : null}
+                    {list.groups.length > 0 ? (
+                        <ShipListView groups={list.groups} />
+                    ) : planned ? null : (
                         <p className="px-2 text-12 text-muted" data-testid="pending-changes-empty">
                             {t("project.ship.none", { trunk })}
                         </p>
-                    ) : (
-                        <ShipListView groups={list.groups} />
                     )}
                 </div>
             </div>
