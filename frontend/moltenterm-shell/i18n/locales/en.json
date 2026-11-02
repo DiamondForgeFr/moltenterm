@@ -5935,7 +5935,7 @@
             "unpinButton": "Unpin, back to the carpet",
             "pinnedBadge": "pinned",
             "refusedTitle": "No room to pin beside",
-            "refusedMessage": "The fixed zone takes at most half of the window. Unpin a panel, widen the window, or pin it in the first column."
+            "refusedMessage": "Panels pinned side by side must fit in half of the window at their smallest width. Unpin a panel, widen the window, or pin it in the first column."
         },
         "places": {
             "button": "Store on the carpet",

@@ -58,8 +58,8 @@ import {
     CarpetScrollVar,
     carpetSplitPlace,
     clampColumnPx,
+    clampEntryFixedPx,
     clampFixedDragPx,
-    clampFixedPx,
     clampScroll,
     columnLeadLeaf,
     computeCarpetLayout,
@@ -760,19 +760,22 @@ export class View360Model {
         const besidePx = besideZonePx(pinned.filter((p) => p.pin.mode === "beside").map(pinWidthPx));
         const shownPlaces = places == null ? null : effectivePlaces(places, bounds.width, fixedNeedPx, besidePx);
         // The developer's proportions (#1083): the fixed zone keeps the first column's share of the width, unless the
-        // grip moved it during this view.
+        // grip moved it during this view. Taken from the normal layout, it opens within half of the window unless the
+        // floor needs more (#1745): only the grip widens it further.
+        const remembered = rememberedFixedPx(fractions, bounds.width, this.gapPx());
         let fixedPx =
             this.dragFixedPx ??
             this.grippedFixedPx ??
             (shownPlaces != null ? placesFixedPx(bounds.width, shownPlaces, fixedNeedPx, besidePx) : null) ??
-            rememberedFixedPx(fractions, bounds.width, this.gapPx()) ??
+            (remembered != null ? clampEntryFixedPx(remembered, bounds.width, fixedNeedPx) : null) ??
             this.storedFixedPx();
         if (fixedPx == null) {
             // Entering the view, the fixed zone keeps the first column's normal width, then holds it while panels
             // are laid on the carpet.
             const total = rootNode.children.reduce((acc, c) => acc + c.size, 0);
-            fixedPx = split.carpet.length && total > 0 ? (split.fixed.size / total) * bounds.width : bounds.width;
-            this.savedFixedPx = clampFixedPx(fixedPx, bounds.width, fixedNeedPx);
+            const firstPx = split.carpet.length && total > 0 ? (split.fixed.size / total) * bounds.width : bounds.width;
+            this.savedFixedPx = clampEntryFixedPx(firstPx, bounds.width, fixedNeedPx);
+            fixedPx = this.savedFixedPx;
             // Saved at once (#614 follow-up): before, the width chosen on entering was kept only once dragged.
             const tabId = this.tabId;
             const px = this.savedFixedPx;
@@ -1261,7 +1264,7 @@ export class View360Model {
         if (sideBySide.length <= 1 || this.layout == null) {
             return fixedDragBoundsPx(width, this.fixedNeedPx);
         }
-        return sideColumnBoundsPx(width, this.fixedNeedPx, this.layout.fixed.width - column.rect.width);
+        return sideColumnBoundsPx(width, this.layout.fixed.width - column.rect.width);
     }
 
     // Why the handle sizing this fixed column cannot move right now, or null when it can (#829): it says so on hover.
@@ -1675,7 +1678,7 @@ export class View360Model {
             if (column == null) {
                 return true;
             }
-            // The column takes what the others leave of half of the window, never less than its minimum.
+            // The column takes what the others leave of the zone's cap, never less than its minimum.
             const { min, max } = this.fixedColumnBounds(container.width, column, sideBySide);
             const px = Math.round(Math.min(Math.max(x - column.rect.left, min), max));
             if (column.mode === "first") {
