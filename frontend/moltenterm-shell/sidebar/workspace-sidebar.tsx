@@ -2134,7 +2134,7 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
                 <span
                     data-testid="sidebar-letter-chip"
                     title={t("rail.letterChip", { letter: letter.toUpperCase() })}
-                    className="shrink-0 rounded border border-line px-1.5 text-11 leading-5 font-semibold text-primary"
+                    className="shrink-0 rounded-4 border border-line px-1.5 text-11 leading-5 font-semibold text-primary"
                 >
                     {letter.toUpperCase()}
                 </span>
