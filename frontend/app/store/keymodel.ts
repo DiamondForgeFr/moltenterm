@@ -30,13 +30,17 @@ import { blockIdOfPage, browserPageKeys, routeBrowserPageKey } from "../../molte
 import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { openNewPanel } from "../../moltenterm-shell/newpanel/new-panel"; // MOLTENTERM-PATCH (#1241)
-import { runWithKeyOrigin } from "../../moltenterm-shell/newpanel/new-panel-focus"; // MOLTENTERM-PATCH (#1742)
+import { placementFallbackBlockId, runWithKeyOrigin } from "../../moltenterm-shell/newpanel/new-panel-focus"; // MOLTENTERM-PATCH (#1742, #1759)
 import { installPointerTracker } from "../../moltenterm-shell/newpanel/pointer-tracker"; // MOLTENTERM-PATCH (#1241)
 import { openNewView, registerNewViewKeys } from "../../moltenterm-shell/newview/new-view"; // MOLTENTERM-PATCH (#1232)
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
+import { stepFind } from "../../moltenterm-shell/shortcuts/find-step"; // MOLTENTERM-PATCH (#1759)
+import { stepPanel } from "../../moltenterm-shell/shortcuts/panel-step"; // MOLTENTERM-PATCH (#1759)
+import { registerWindowKeys } from "../../moltenterm-shell/shortcuts/window-keys"; // MOLTENTERM-PATCH (#1759)
+import { keyboardFocusInTerminal } from "../../moltenterm-shell/shortcuts/window-keys-focus"; // MOLTENTERM-PATCH (#1759)
 import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys"; // MOLTENTERM-PATCH (#1183)
-import { registerTopFieldKeys } from "../../moltenterm-shell/sidebar/top-field-store"; // MOLTENTERM-PATCH (#1187)
+import { openTopFieldFromKey, registerTopFieldKeys } from "../../moltenterm-shell/sidebar/top-field-store"; // MOLTENTERM-PATCH (#1187, #1759)
 import {
     announceClosedViews,
     ClosedKindView,
@@ -543,6 +547,16 @@ function countTermBlocks(): number {
     return count;
 }
 
+// MOLTENTERM-PATCH (#1759): the focused panel's find bar, open, goes to its next or previous match (FR-SHELL-139 AC10);
+// false when it is closed or the panel has none
+function stepFindInFocusedPanel(direction: 1 | -1): boolean {
+    const searchAtoms = getBlockComponentModel(placementFallbackBlockId())?.viewModel?.searchAtoms;
+    if (searchAtoms == null) {
+        return false;
+    }
+    return stepFind(searchAtoms.isOpen, globalStore.get(searchAtoms.isOpen), direction);
+}
+
 function registerGlobalKeys() {
     globalKeyMap.set("Cmd:]", () => {
         // MOLTENTERM-PATCH (#1744): back and forward are the page's while the focus is in a browser panel (FR-SHELL-139)
@@ -727,6 +741,11 @@ function registerGlobalKeys() {
         return false;
     });
     globalKeyMap.set("Cmd:g", () => {
+        // MOLTENTERM-PATCH (#1759): ⌘G is find next while a find bar is open in the focused panel; off macOS it is Alt+G
+        // and stays the connection (Ctrl+G is find next there, window-keys.ts)
+        if (isMacOS() && stepFindInFocusedPanel(1)) {
+            return true;
+        }
         const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
         if (bcm.openSwitchConnection != null) {
             revealPanelOnCarpet(getFocusedBlockInStaticTab()); // MOLTENTERM-PATCH (#747)
@@ -845,6 +864,20 @@ function registerGlobalKeys() {
     registerBrowserHistoryKeys(globalKeyMap); // MOLTENTERM-PATCH (#1744): Alt+← and Alt+→ off macOS
     // MOLTENTERM-PATCH (#1187): Cmd+L and Cmd+K open the sidebar's top field
     registerTopFieldKeys(globalKeyMap);
+    // MOLTENTERM-PATCH (#1759, FR-SHELL-139): off macOS the browser's Ctrl+T, N, W, Shift+W and L (not in a terminal), F6,
+    // previous / next panel, find next / previous (frontend/moltenterm-shell/shortcuts/window-keys.ts)
+    registerWindowKeys(globalKeyMap, isMacOS(), {
+        newPanel: () => {
+            fireAndForget(handleCmdT);
+        },
+        newView: openNewView,
+        closePanel: genericClose,
+        closeView: simpleCloseStaticTab,
+        topField: openTopFieldFromKey,
+        findStep: stepFindInFocusedPanel,
+        stepPanel,
+        inTerminal: keyboardFocusInTerminal,
+    });
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
     allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");

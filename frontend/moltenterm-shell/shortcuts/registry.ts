@@ -57,6 +57,9 @@ export type Shortcut = {
     macOnly?: boolean;
     // Keys that exist off macOS only (Ctrl+Shift+T as well as Cmd+Shift+T, #512).
     notMac?: boolean;
+    // A key a terminal's program needs (Ctrl+W deletes a word, F6 is htop's sort): bound only while the keyboard focus is
+    // not in a terminal (window-keys.ts, #1759).
+    outsideTerminal?: boolean;
 };
 
 export const ShortcutsSheetKey = "Cmd:/";
@@ -160,6 +163,28 @@ export const Shortcuts: Shortcut[] = [
         keywords: ["add panel", "pointer", "beside", "terminal", "web page", "chooser"],
     },
     { id: "close-panel", label: "Close the panel", category: "Panels", scope: "global", keys: "Cmd:w" },
+    // #1759: off macOS the browser's Ctrl keys beside the Alt ones, wherever a terminal does not need them
+    // (FR-SHELL-139 AC8).
+    {
+        id: "new-panel-ctrl",
+        label: "New panel (outside a terminal)",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:t",
+        keywords: ["add panel", "new panel", "pointer", "beside", "terminal", "web page", "chooser", "new tab"],
+        notMac: true,
+        outsideTerminal: true,
+    },
+    {
+        id: "close-panel-ctrl",
+        label: "Close the panel (outside a terminal)",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:w",
+        keywords: ["close tab"],
+        notMac: true,
+        outsideTerminal: true,
+    },
     {
         id: "magnify",
         label: "Magnify the panel",
@@ -238,6 +263,47 @@ export const Shortcuts: Shortcut[] = [
         alt: ["Ctrl:Shift:PageDown"],
         keywords: ["360", "carpet", "scroll", "radar", "tab", "tabs"],
     },
+    // #1759: a panel is a browser tab, so a browser's previous and next tab keys (⌘⌥← ⌘⌥→ in Chrome and Firefox on
+    // macOS, Ctrl+PageUp and Ctrl+PageDown everywhere) go to the previous and next panel, in any view and in a terminal
+    // too (FR-SHELL-139 AC9).
+    {
+        id: "previous-panel",
+        label: "Previous panel",
+        category: "Panels",
+        scope: "global",
+        keys: "Cmd:Alt:ArrowLeft",
+        alt: ["Ctrl:PageUp"],
+        keywords: ["tab", "previous tab", "switch panel", "left"],
+        macOnly: true,
+    },
+    {
+        id: "previous-panel-other",
+        label: "Previous panel",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:PageUp",
+        keywords: ["tab", "previous tab", "switch panel", "left"],
+        notMac: true,
+    },
+    {
+        id: "next-panel",
+        label: "Next panel",
+        category: "Panels",
+        scope: "global",
+        keys: "Cmd:Alt:ArrowRight",
+        alt: ["Ctrl:PageDown"],
+        keywords: ["tab", "next tab", "switch panel", "right"],
+        macOnly: true,
+    },
+    {
+        id: "next-panel-other",
+        label: "Next panel",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:PageDown",
+        keywords: ["tab", "next tab", "switch panel", "right"],
+        notMac: true,
+    },
     { id: "refocus", label: "Focus the panel again", category: "Panels", scope: "global", keys: "Cmd:i" },
     {
         id: "connection",
@@ -255,9 +321,61 @@ export const Shortcuts: Shortcut[] = [
         keys: "Cmd:f",
         keywords: ["find"],
     },
+    // #1759: find next and previous while the focused panel's find bar is open (FR-SHELL-139 AC10). ⌘G is also the
+    // connection's key, which it keeps with no find bar open: this entry names the second use without a binding of its
+    // own. Off macOS Alt+G is always the connection; Ctrl+G is the shell's in a terminal.
+    {
+        id: "find-next",
+        label: "Find next (while a search bar is open)",
+        category: "Panels",
+        scope: "global",
+        keys: "Cmd:g",
+        bindings: [],
+        keywords: ["find", "search", "next match"],
+        macOnly: true,
+    },
+    {
+        id: "find-previous",
+        label: "Find previous (while a search bar is open)",
+        category: "Panels",
+        scope: "global",
+        keys: "Shift:Cmd:g",
+        keywords: ["find", "search", "previous match"],
+        macOnly: true,
+    },
+    {
+        id: "find-next-ctrl",
+        label: "Find next (while a search bar is open, outside a terminal)",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:g",
+        keywords: ["find", "search", "next match"],
+        notMac: true,
+        outsideTerminal: true,
+    },
+    {
+        id: "find-previous-ctrl",
+        label: "Find previous (while a search bar is open, outside a terminal)",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:Shift:g",
+        keywords: ["find", "search", "previous match"],
+        notMac: true,
+        outsideTerminal: true,
+    },
     // Tabs
     // The id stays "new-tab" (the menu, the sidebar and the onboarding read it); the action is a new view (#1742: ⌘N).
     { id: "new-tab", label: "New tab", category: "Tabs", scope: "global", keys: "Cmd:n" },
+    {
+        id: "new-tab-ctrl",
+        label: "New view (outside a terminal)",
+        category: "Tabs",
+        scope: "global",
+        keys: "Ctrl:n",
+        keywords: ["new view", "new window"],
+        notMac: true,
+        outsideTerminal: true,
+    },
     // #1232: a new view already holding favourite 1 to 4 of its chooser (FR-SHELL-089), by key code like ⌥1…⌥9. Off
     // macOS Wave's Cmd is Alt, so ⌥⌘digit would be Alt+digit (a tab) and Ctrl+Alt+digit is the Workspace menu's.
     {
@@ -281,6 +399,16 @@ export const Shortcuts: Shortcut[] = [
         notMac: true,
     },
     { id: "close-tab", label: "Close the tab", category: "Tabs", scope: "global", keys: "Cmd:Shift:w" },
+    {
+        id: "close-tab-ctrl",
+        label: "Close the view (outside a terminal)",
+        category: "Tabs",
+        scope: "global",
+        keys: "Ctrl:Shift:w",
+        keywords: ["close window", "close view"],
+        notMac: true,
+        outsideTerminal: true,
+    },
     // #1744: a browser's reopen key, panels and views in one closing order (FR-SHELL-077, FR-SHELL-139).
     {
         id: "reopen-closed",
@@ -369,6 +497,29 @@ export const Shortcuts: Shortcut[] = [
         scope: "global",
         keys: "Cmd:l",
         keywords: ["top field", "search", "address", "url", "omnibox", "go to", "palette"],
+    },
+    // #1759: the browsers' Ctrl+L (off macOS) and F6 reach the address bar, here the top field, wherever a terminal does
+    // not need them (FR-SHELL-139 AC8).
+    {
+        id: "top-field-ctrl",
+        label: "Search, go to, open an address (outside a terminal)",
+        category: "Workspaces",
+        scope: "global",
+        keys: "Ctrl:l",
+        alt: ["F6"],
+        keywords: ["top field", "search", "address", "url", "omnibox", "go to", "palette"],
+        notMac: true,
+        outsideTerminal: true,
+    },
+    {
+        id: "top-field-f6",
+        label: "Search, go to, open an address (outside a terminal)",
+        category: "Workspaces",
+        scope: "global",
+        keys: "F6",
+        keywords: ["top field", "search", "address", "url", "omnibox", "go to", "palette"],
+        macOnly: true,
+        outsideTerminal: true,
     },
     {
         id: "workspace-number",
