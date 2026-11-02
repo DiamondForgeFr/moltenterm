@@ -66,6 +66,7 @@ export const MissionBranchesAutoDeleteCommand = "moltenmissionbranchesautodelete
 export const MissionBranchesCloseCommand = "moltenmissionbranchesclose";
 export const MissionTreePrsCommand = "moltenmissiontreeprs";
 export const MissionGitInitCommand = "moltenmissiongitinit";
+export const MissionReposCommand = "moltenmissionrepos";
 // must match pkg/molten/mission/github_run.go
 export const MissionGithubRunLogCommand = "moltenmissionghrunlog";
 export const MissionGithubRunRerunCommand = "moltenmissionghrunrerun";
@@ -80,6 +81,18 @@ const MissionPollMs = 15000;
 export function missionGitInit(dir: string): Promise<MissionSnapshot> {
     return TabRpcClient.wshRpcCall(
         MissionGitInitCommand,
+        { dir },
+        { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
+    );
+}
+
+// The Git repositories of a project's folder (FR-SHELL-105): the choices of its code repository. self: the folder is
+// itself a repository, the only one listed.
+export type MissionReposAnswer = { dir: string; repos: string[]; self: boolean };
+
+export function missionRepos(dir: string): Promise<MissionReposAnswer> {
+    return TabRpcClient.wshRpcCall(
+        MissionReposCommand,
         { dir },
         { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
     );

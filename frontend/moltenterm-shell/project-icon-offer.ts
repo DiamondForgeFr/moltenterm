@@ -75,8 +75,15 @@ export function makeIconOffer(input: IconOfferInput): ToastInput {
 }
 
 // Looks for the project's images and shows the offer when there is one; the toast's id, or "" when nothing is offered.
-export async function offerProjectIcon(ws: Workspace, dir: string): Promise<string> {
-    const [logos, facts] = await Promise.all([findProjectLogos(dir), readProjectFacts(dir)]);
+// dir: the project's folder, which the offer is remembered for; repo: its code repository, where the images and the
+// name are looked for first (the folder's own images follow).
+export async function offerProjectIcon(ws: Workspace, dir: string, repo = dir): Promise<string> {
+    const places = repo === dir ? [dir] : [repo, dir];
+    const [found, facts] = await Promise.all([
+        Promise.all(places.map((place) => findProjectLogos(place))),
+        readProjectFacts(repo),
+    ]);
+    const logos = [...new Set(found.flatMap((list) => list ?? []))];
     const toast = makeIconOffer({
         workspaceId: ws.oid,
         workspaceName: workspaceShownName(ws.name, t) ?? "",

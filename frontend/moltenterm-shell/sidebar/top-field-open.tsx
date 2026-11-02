@@ -432,7 +432,7 @@ export function OpenField({
     const [loaded, setLoaded] = useState<LoadedSources>({ views: [], workspaces: [] });
     const agentData = useAtomValue(AgentStates.getInstance().dataAtom);
     const { entries } = usePaletteEntries(null);
-    const dir = readWorkspaceProject(ws).dir;
+    const dir = readWorkspaceProject(ws).repo;
     const reviews = useListedReviewsAnswer(dir);
     const place = usePopoverPlace(boxRef, true);
     const searching = query.trim() !== "";

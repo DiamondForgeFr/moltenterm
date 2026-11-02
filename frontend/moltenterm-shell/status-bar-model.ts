@@ -113,7 +113,10 @@ export function statusBarFolder(meta: PaneBlockMeta, ws: Workspace): StatusBarFo
     if (pane !== "") {
         return { folder: pane, fromPane: true };
     }
-    return { folder: effectiveWorkspaceFolder(ws) || readWorkspaceProject(ws).dir, fromPane: false };
+    const project = readWorkspaceProject(ws);
+    const folder = effectiveWorkspaceFolder(ws) || project.dir;
+    // A project's folder holds its context; the branch, PR and CI the bar shows are its repository's.
+    return { folder: folder === project.dir ? project.repo : folder, fromPane: false };
 }
 
 export type CiVerdictView = { status: string; label: string; iconClass: string };
@@ -171,7 +174,7 @@ function paneBranchLabel(state: PaneState): string {
 
 // state is the answer for folder, or null while it is asked (or for a folder of another tree).
 export function makePaneView(folder: string, state: PaneState, ws: Workspace): PaneView {
-    const linkedDir = readWorkspaceProject(ws).dir;
+    const linkedDir = readWorkspaceProject(ws).repo;
     const project = state?.project || state?.root || folder;
     const linked =
         linkedDir !== "" && (state?.project ? state.project === linkedDir : checkPathInside(folder, linkedDir));

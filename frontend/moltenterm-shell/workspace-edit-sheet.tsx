@@ -20,7 +20,13 @@ import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { BlockScopeTag, SettingsScopeKind } from "./settings/settings-scope";
 import { SidebarModel } from "./sidebar/sidebar-store";
-import { currentProjectId, projectLabel, readProjects, WorkspaceProjectEntry } from "./sidebar/workspace-projects";
+import {
+    currentProjectId,
+    projectLabel,
+    projectRepoDir,
+    readProjects,
+    WorkspaceProjectEntry,
+} from "./sidebar/workspace-projects";
 import { DominoLoader, SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
 import { suiteIcon, SuiteIconName } from "./suite/suite-icons";
 import { OpacityField, useLookScope } from "./window-look-field";
@@ -50,7 +56,14 @@ import {
 import { RailBadgeClass, WorkspaceIcon, workspaceImageUrl } from "./workspace-icon";
 import { hasImportedIcon, iconKindLabel, workspaceIconSource } from "./workspace-icon-model";
 import { logoPalette } from "./workspace-logo-palette";
-import { effectiveWorkspaceFolder, pathBaseName, projectLogoOf, readWorkspaceProject } from "./workspace-project";
+import {
+    effectiveWorkspaceFolder,
+    MaxProjectLogos,
+    pathBaseName,
+    projectLogoOf,
+    readWorkspaceProject,
+    repositoryLabel,
+} from "./workspace-project";
 import { WorkspaceFolderLine, WorkspaceProjectBlock } from "./workspace-project-section";
 import {
     chooseMoltentermPath,
@@ -433,8 +446,10 @@ export function LogoField({
     );
 }
 
-export function useProjectLogos(projectDir: string): string[] {
+// The images that could stand for the project: the repository's first (the app's icon), then the folder's own.
+export function useProjectLogos(projectDir: string, repoDir?: string): string[] {
     const [logos, setLogos] = useState<string[]>([]);
+    const repo = repoDir || projectDir;
     useEffect(() => {
         setLogos([]);
         if (projectDir === "") {
@@ -442,15 +457,17 @@ export function useProjectLogos(projectDir: string): string[] {
         }
         let live = true;
         fireAndForget(async () => {
-            const found = await findProjectLogos(projectDir);
+            const places = repo === projectDir ? [projectDir] : [repo, projectDir];
+            const lists = await Promise.all(places.map((dir) => findProjectLogos(dir)));
+            const found = [...new Set(lists.flatMap((list) => list ?? []))].slice(0, MaxProjectLogos);
             if (live) {
-                setLogos(found ?? []);
+                setLogos(found);
             }
         });
         return () => {
             live = false;
         };
-    }, [projectDir]);
+    }, [projectDir, repo]);
     return logos;
 }
 
@@ -523,7 +540,7 @@ export function UseProjectLogoField({ ws, logo }: { ws: Workspace; logo: string 
 // The project's logo as Identity offers it: none without a linked project or an image in it.
 function useWorkspaceProjectLogo(ws: Workspace): string {
     const project = readWorkspaceProject(ws);
-    const found = useProjectLogos(project.dir);
+    const found = useProjectLogos(project.dir, project.repo);
     if (project.dir === "") {
         return "";
     }
@@ -804,6 +821,7 @@ function AppearancePart({ ws }: { ws: Workspace }) {
 // One project of the Projects block: its name, folder and followed branch, and the way to its Project sheet.
 function ProjectRow({ ws, project, current }: { ws: Workspace; project: WorkspaceProjectEntry; current: boolean }) {
     const t = useT();
+    const repo = projectRepoDir(project);
     return (
         <li className="flex flex-wrap items-center gap-x-2 gap-y-1" data-project={project.id}>
             <div className="min-w-0 flex-1 basis-40">
@@ -820,6 +838,7 @@ function ProjectRow({ ws, project, current }: { ws: Workspace; project: Workspac
                 </div>
                 <div className="truncate font-mono text-11 text-muted" title={project.dir}>
                     {project.dir || t("projectSheet.noFolder")}
+                    {repo !== project.dir ? ` › ${repositoryLabel(project.dir, repo)}` : ""}
                 </div>
             </div>
             <button

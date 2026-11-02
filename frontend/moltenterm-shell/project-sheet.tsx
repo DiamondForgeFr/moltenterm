@@ -23,8 +23,15 @@ import { DialogFrame } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { openMoltentermView } from "./open-view";
+import { RepositoryField } from "./project-repository";
 import { MoltentermProjectView } from "./project/project-model";
-import { currentProjectId, projectLabel, readProjects, WorkspaceProjectEntry } from "./sidebar/workspace-projects";
+import {
+    currentProjectId,
+    projectLabel,
+    projectRepoDir,
+    readProjects,
+    WorkspaceProjectEntry,
+} from "./sidebar/workspace-projects";
 import { projectDraftProblem, projectTypeSuggestions } from "./sidebar/workspace-projects-edit";
 import { editWorkspaceProject, removeWorkspaceProject } from "./sidebar/workspace-projects-edit-store";
 import { DominoLoader, ToggleGroup, ToggleOption } from "./suite/suite";
@@ -83,16 +90,19 @@ function useProjectFacts(dir: string): ProjectFacts {
     return facts;
 }
 
+// facts: the project's folder; repoGone: the repository chosen inside it is not there anymore.
 function RepositoryBlock({
     ws,
     project,
     facts,
+    repoGone,
     projectCount,
     isCurrent,
 }: {
     ws: Workspace;
     project: WorkspaceProjectEntry;
     facts: ProjectFacts;
+    repoGone: boolean;
     projectCount: number;
     isCurrent: boolean;
 }) {
@@ -126,6 +136,17 @@ function RepositoryBlock({
             }
             await editWorkspaceProject(project.id, { type: project.type, dir: folder, branch: project.branch }, ws);
         });
+    // The repository inside the folder (#1777): saved as soon as it is chosen. Two projects of the workspace may share
+    // a folder when their repositories differ.
+    const chooseRepo = (repo: string) => {
+        const draft = { type: project.type, dir: project.dir, branch: project.branch, repo };
+        const problem = projectDraftProblem(ws, draft, project.id);
+        if (problem != null) {
+            setError(t(problem));
+            return;
+        }
+        run(() => editWorkspaceProject(project.id, draft, ws));
+    };
     const leave = () =>
         run(() => (exit === "remove" ? removeWorkspaceProject(project.id, ws) : unlinkWorkspaceProject(ws.oid)));
     return (
@@ -160,9 +181,23 @@ function RepositoryBlock({
                         {exit === "remove" ? t("sidebar.project.remove") : t("workspace.project.unlink")}
                     </button>
                 </div>
+                <div className="text-12 text-muted">{t("projectSheet.folderHint")}</div>
                 {facts != null && !facts.exists ? (
                     <div className="text-12 text-warning">{t("workspace.project.folderGone")}</div>
                 ) : null}
+                {project.dir && facts?.exists !== false ? (
+                    <div className="mt-2 min-w-0">
+                        <RepositoryField
+                            dir={project.dir}
+                            value={project.repo ?? ""}
+                            onChange={chooseRepo}
+                            labelClassName={FieldLabelClass}
+                            selectClassName={cn(InputClass, "cursor-pointer")}
+                            hintClassName="mt-1 text-12 text-muted"
+                        />
+                    </div>
+                ) : null}
+                {repoGone ? <div className="text-12 text-warning">{t("projectRepo.gone")}</div> : null}
                 {error ? (
                     <div role="alert" className="text-12 text-danger">
                         {error}
@@ -188,7 +223,7 @@ function DetailsBlock({ ws, project }: { ws: Workspace; project: WorkspaceProjec
         if (type == null && branch == null) {
             return;
         }
-        const draft = { type: shownType, dir: project.dir, branch: shownBranch };
+        const draft = { type: shownType, dir: project.dir, branch: shownBranch, repo: project.repo };
         const problem = projectDraftProblem(ws, draft, project.id);
         if (problem != null) {
             setError(t(problem));
@@ -259,7 +294,7 @@ function DetailsBlock({ ws, project }: { ws: Workspace; project: WorkspaceProjec
 // The project's logo, chosen here only (FR-SHELL-105). The workspace's Identity decides whether its icon shows it.
 function LogoBlock({ ws, project }: { ws: Workspace; project: WorkspaceProjectEntry }) {
     const t = useT();
-    const found = useProjectLogos(project.dir);
+    const found = useProjectLogos(project.dir, projectRepoDir(project));
     const linked = readWorkspaceProject(ws);
     const current = projectLogoOf(linked, project.dir, found);
     const inUse = linked.logo !== "";
@@ -387,7 +422,11 @@ export function ProjectSheet({
     const t = useT();
     const [ws] = useWaveObjectValue<Workspace>(makeORef("workspace", workspaceId));
     const project = sheetProject(ws, projectId);
-    const facts = useProjectFacts(project?.dir ?? "");
+    const repoDir = project ? projectRepoDir(project) : "";
+    const separate = project != null && repoDir !== project.dir;
+    const repoFacts = useProjectFacts(repoDir);
+    const folderFacts = useProjectFacts(separate ? project.dir : "");
+    const facts = separate ? folderFacts : repoFacts;
     if (ws == null) {
         return null;
     }
@@ -435,15 +474,16 @@ export function ProjectSheet({
                         ws={ws}
                         project={project}
                         facts={facts}
+                        repoGone={separate && repoFacts != null && !repoFacts.exists}
                         projectCount={projects.length}
                         isCurrent={isCurrent}
                     />
                     <DetailsBlock key={project.id} ws={ws} project={project} />
                     {blocks.includes("logo") ? <LogoBlock ws={ws} project={project} /> : null}
                     {blocks.includes("pipeline") ? (
-                        <PipelineBlock facts={facts} isCurrent={isCurrent} onClose={onClose} />
+                        <PipelineBlock facts={repoFacts} isCurrent={isCurrent} onClose={onClose} />
                     ) : null}
-                    {blocks.includes("agent") ? <AgentBlock dir={project.dir} /> : null}
+                    {blocks.includes("agent") ? <AgentBlock dir={repoDir} /> : null}
                 </>
             )}
         </DialogFrame>

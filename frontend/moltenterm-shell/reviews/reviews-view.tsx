@@ -23,7 +23,7 @@ import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-f
 import { MissionSnapshot } from "../mission/mission-model";
 import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
-import { readProjects } from "../sidebar/workspace-projects";
+import { projectRepoDir, readProjects } from "../sidebar/workspace-projects";
 import { DominoLoader } from "../suite/suite";
 import { useCardContext } from "./reviews-agent-bar";
 import { ReviewsAskQueue } from "./reviews-ask-queue";
@@ -155,7 +155,7 @@ function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
     const frame = (
         <MissionFrame
             title={t("reviews.viewName")}
-            projectDir={shown?.dir}
+            projectDir={shown ? projectRepoDir(shown) : undefined}
             gitPanel="integration"
             notRepoText={reviewsNotRepoText()}
         >

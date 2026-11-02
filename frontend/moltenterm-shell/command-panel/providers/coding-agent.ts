@@ -45,7 +45,7 @@ export function codingAgentDir(ctx: PanelContext): string {
     if (pipeline != null) {
         return pipeline.dir;
     }
-    return readWorkspaceProject(globalStore.get(atoms.workspace)).dir;
+    return readWorkspaceProject(globalStore.get(atoms.workspace)).repo;
 }
 
 function projectBinding(dir: string): ScopeBinding<string> {

@@ -15,7 +15,7 @@ import { useT } from "../i18n/i18n";
 import { useWordPhrase } from "../i18n/phrase";
 import { useMissionSnapshot } from "../mission/mission-client";
 import { ProjectChip } from "../sidebar/project-chips";
-import { projectLabel, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
+import { projectLabel, projectRepoDir, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
 import { DominoLoader } from "../suite/suite";
 import { workspaceShownName } from "../workspace-default-name";
 import { openProjectSheet } from "../workspace-edit";
@@ -74,19 +74,17 @@ function ProjectProbe({
     onReport: (id: string, report: ProjectReport) => void;
 }) {
     // The collector's snapshot drives the asks, as in the full list: its GitHub read lands there first.
-    const { snapshot } = useMissionSnapshot(project.dir);
-    const { answer, error, refresh } = useReviews(project.dir, snapshot);
+    const dir = projectRepoDir(project);
+    const { snapshot } = useMissionSnapshot(dir);
+    const { answer, error, refresh } = useReviews(dir, snapshot);
     const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     const asks = useAtomValue(ReviewsModel.getInstance().rebaseAsksAtom);
-    const ctx = useCardContext(project.dir);
+    const ctx = useCardContext(dir);
     const listed = useMemo(() => {
         const split = splitReviews(answer, readied);
         return [...split.ready, ...split.drafts];
     }, [answer, readied]);
-    const cards = useMemo(
-        () => cardStates(listed, asks, (n) => rebaseAskKey(project.dir, n), ctx),
-        [listed, asks, project.dir, ctx]
-    );
+    const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
     useEffect(() => {
         if (refreshKey > 0) {
             refresh();
@@ -98,9 +96,9 @@ function ProjectProbe({
             return;
         }
         const empty = reviewsEmptyState(answer);
-        const rows = listed.map((pr) => ({ projectId: project.id, dir: project.dir, pr, card: cards[pr.number] }));
+        const rows = listed.map((pr) => ({ projectId: project.id, dir, pr, card: cards[pr.number] }));
         onReport(project.id, { rows, loaded: true, note: empty?.title });
-    }, [answer, error, listed, cards, project.id, project.dir]);
+    }, [answer, error, listed, cards, project.id, dir]);
     return null;
 }
 
@@ -136,7 +134,12 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="reviews-all-projects">
             {linked.map((p) => (
-                <ProjectProbe key={`${p.id}:${p.dir}`} project={p} refreshKey={refreshKey} onReport={onReport} />
+                <ProjectProbe
+                    key={`${p.id}:${projectRepoDir(p)}`}
+                    project={p}
+                    refreshKey={refreshKey}
+                    onReport={onReport}
+                />
             ))}
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <span className="text-12 text-secondary">

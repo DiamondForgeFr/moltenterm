@@ -122,6 +122,21 @@ describe("statusBarFolder", () => {
     it("has nothing for a workspace without folder or project", () => {
         expect(statusBarFolder({ view: "web" }, workspace({})).folder).toBe("");
     });
+
+    it("describes a project's repository, not its folder, when the project keeps its code in one (#1777)", () => {
+        const client = { "molten:project": "/clients/ofpis", "molten:projectrepo": "/clients/ofpis/app" };
+        expect(statusBarFolder(null, workspace(client)).folder).toBe("/clients/ofpis/app");
+        expect(statusBarFolder(null, workspace({ ...client, "molten:folder": "/clients/ofpis" })).folder).toBe(
+            "/clients/ofpis/app"
+        );
+        expect(statusBarFolder(null, workspace({ ...client, "molten:folder": "/clients/ofpis/docs" })).folder).toBe(
+            "/clients/ofpis/docs"
+        );
+        expect(statusBarFolder({ view: "term", "cmd:cwd": "/clients/ofpis" }, workspace(client)).folder).toBe(
+            "/clients/ofpis"
+        );
+        expect(statusBarFolder(null, workspace({ "molten:project": "/clients/ofpis" })).folder).toBe("/clients/ofpis");
+    });
 });
 
 const devState: PaneState = {

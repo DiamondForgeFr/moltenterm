@@ -11,7 +11,9 @@ import { useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { RepositoryField } from "../project-repository";
 import { workspaceShownName } from "../workspace-default-name";
+import { checkAbsolutePath } from "../workspace-project";
 import { chooseMoltentermPath } from "../workspace-project-store";
 import { ProjectPage, SidebarModel } from "./sidebar-store";
 import { ProjectDraft, projectLabel, readProjects } from "./workspace-projects";
@@ -27,6 +29,16 @@ const SecondaryButton =
 // Keys typed in the form stay in it: the window's shortcuts (⌘S, ⌥1…) would act behind it.
 function keepKeys(e: React.KeyboardEvent) {
     e.stopPropagation();
+}
+
+// The folder once typing has paused: the repositories are looked for in it, not in every partial path.
+function useSettled(value: string): string {
+    const [settled, setSettled] = useState(value);
+    useEffect(() => {
+        const timer = setTimeout(() => setSettled(value), 300);
+        return () => clearTimeout(timer);
+    }, [value]);
+    return settled;
 }
 
 export function ProjectPageView({ page }: { page: ProjectPage }) {
@@ -50,6 +62,7 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
     const edited = editing ? projects.find((p) => p.id === page.id) : null;
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const draft = page.draft;
+    const settledDir = useSettled(draft.dir);
     const change = (next: Partial<ProjectDraft>) => {
         setError(null);
         model.updateProjectDraft(next);
@@ -62,7 +75,7 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
                 defaultPath: draft.dir || undefined,
             });
             if (folder) {
-                change({ dir: folder });
+                change({ dir: folder, repo: "" });
             }
         });
     const run = (action: () => Promise<void>) => {
@@ -151,7 +164,7 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
                         placeholder={t("sidebar.project.folderPlaceholder")}
                         spellCheck={false}
                         data-testid="sidebar-project-folder"
-                        onChange={(e) => change({ dir: e.target.value })}
+                        onChange={(e) => change({ dir: e.target.value, repo: "" })}
                     />
                     <button
                         type="button"
@@ -164,6 +177,16 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
                     </button>
                 </span>
             </label>
+            {checkAbsolutePath(settledDir) && settledDir === draft.dir ? (
+                <RepositoryField
+                    dir={settledDir}
+                    value={draft.repo ?? ""}
+                    onChange={(repo) => change({ repo })}
+                    labelClassName={LabelClass}
+                    selectClassName={cn(FieldClass, "cursor-pointer")}
+                    hintClassName="mt-1 text-11 leading-4 text-muted"
+                />
+            ) : null}
             <label className={LabelClass}>
                 {t("sidebar.project.branch")}
                 <input

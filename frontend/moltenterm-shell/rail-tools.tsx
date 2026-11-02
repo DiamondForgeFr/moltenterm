@@ -182,7 +182,7 @@ function SessionsToolButton({ onHover }: { onHover: RailHover }) {
 // The rail keeps the counts fresh without the view; the view's own asks feed the same store.
 function ReviewsToolButton({ onHover }: { onHover: RailHover }) {
     const workspace = useAtomValue(atoms.workspace);
-    const dir = readWorkspaceProject(workspace).dir;
+    const dir = readWorkspaceProject(workspace).repo;
     useReviewsRailWatch(dir);
     const answer = useListedReviewsAnswer(dir);
     const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
