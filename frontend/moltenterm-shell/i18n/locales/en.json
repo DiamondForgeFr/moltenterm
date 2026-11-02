@@ -159,7 +159,10 @@
             "viewWeb": "Web page",
             "viewHelp": "Help",
             "viewTips": "Tips",
-            "viewProcesses": "Processes"
+            "viewProcesses": "Processes",
+            "errorTitle": "This panel stopped after an error",
+            "errorBody": "The rest of the view keeps working. Close the panel, or open the view again to restart it.",
+            "errorClose": "Close panel"
         },
         "processes": {
             "load": "Load",

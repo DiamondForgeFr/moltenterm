@@ -159,7 +159,10 @@
             "viewWeb": "Page web",
             "viewHelp": "Aide",
             "viewTips": "Astuces",
-            "viewProcesses": "Processus"
+            "viewProcesses": "Processus",
+            "errorTitle": "Ce panneau s'est arrêté sur une erreur",
+            "errorBody": "Le reste de la vue continue de fonctionner. Fermez le panneau, ou rouvrez la vue pour le relancer.",
+            "errorClose": "Fermer le panneau"
         },
         "processes": {
             "load": "Charge",
