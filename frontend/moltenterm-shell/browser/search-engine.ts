@@ -5,7 +5,9 @@
 // the sidebar's top field and the panel launcher, like Wave's web view. One setting, web:defaultsearch, read at each
 // search, so a change in the settings screen, settings.json or `wsh setconfig` applies without a restart.
 
-import { atoms } from "@/app/store/global";
+// global-atoms, not global: browser-model imports this file, and global's graph leads back to browser-model through the
+// carpet's radar, so importing global here left MoltentermBrowserView undefined in the modules loaded meanwhile.
+import { atoms } from "@/app/store/global-atoms";
 import { globalStore } from "@/app/store/jotaiStore";
 
 export const DefaultSearchSettingKey = "web:defaultsearch";

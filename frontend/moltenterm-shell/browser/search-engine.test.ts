@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { atoms } from "@/app/store/global";
+import { atoms } from "@/app/store/global-atoms";
 import { globalStore } from "@/app/store/jotaiStore";
 import type { PrimitiveAtom } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,9 +9,10 @@ import { fieldResults } from "../sidebar/top-field-model";
 import { addressUrl, toBrowserUrl } from "./browser-model";
 import { DefaultSearchTemplate, searchUrl, webSearchTemplate } from "./search-engine";
 
-vi.mock("@/app/store/global", async () => {
+vi.mock("@/app/store/global-atoms", async (importOriginal) => {
     const { atom } = await import("jotai");
-    return { atoms: { settingsAtom: atom({}) } };
+    const original = await importOriginal<typeof import("@/app/store/global-atoms")>();
+    return { ...original, atoms: { settingsAtom: atom({}) } };
 });
 
 const settings = () => atoms.settingsAtom as unknown as PrimitiveAtom<Record<string, unknown>>;
