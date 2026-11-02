@@ -5575,6 +5575,11 @@
             "chosenNote": "Choisi dans le menu Release ; la version publique {tag} est en route.",
             "onItsWay": "La version publique {tag} est en route.",
             "nothing": "Rien à publier pour l'instant.",
+            "planned": "Prévue — jalon {milestone}, {open}, rien encore sur {trunk}",
+            "open": {
+                "one": "{count} ouvert",
+                "other": "{count} ouverts"
+            },
             "toDecide": "à décider",
             "choice": "Un choix, pas un calcul : choisissez le numéro dans le menu Release.",
             "levels": {

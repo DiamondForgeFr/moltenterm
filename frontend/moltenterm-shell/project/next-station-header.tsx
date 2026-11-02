@@ -45,6 +45,7 @@ const ChipClass: Record<NextStationState, string> = {
     decision: WarningChipClass,
     chosen: "border-accent/50 bg-[color-mix(in_srgb,var(--mt-accent)_10%,transparent)] text-primary",
     derived: "border-border text-secondary",
+    planned: "border-border text-secondary",
     nothing: "border-border text-muted",
 };
 
