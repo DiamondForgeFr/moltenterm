@@ -14,17 +14,19 @@ import { writeSettings } from "./command-panel/bindings";
 import { useT } from "./i18n/i18n";
 import "./keepawake-cup.css";
 import {
-    coffeeCondition,
     coffeeSupported,
+    holdLine,
     keepAwakeActive,
-    keepAwakeCount,
-    keepAwakeIndicatorLabel,
+    keepAwakeCountLabel,
+    KeepAwakeHold,
+    keepAwakeHolds,
     sleepPolicyLabel,
     SleepPolicySetting,
 } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
 import { useNow, usePlatform } from "./keepawake-ui";
 import { MenuPopover } from "./mission/menu-popover";
+import { showPanel } from "./review/review-panels";
 import { localizeCatalog, settingChoices, settingsCatalog } from "./settings/settings-catalog";
 import { ChoiceRows } from "./settings/settings-choice-rows";
 import { openSettingsKey } from "./settings/settings-open";
@@ -96,12 +98,88 @@ function PolicyChoices() {
     );
 }
 
+const HoldIcons: Record<KeepAwakeHold["kind"], string> = {
+    terminal: "fa-terminal",
+    coffee: "fa-mug-hot",
+    work: "fa-gear",
+};
+
+const RowButtonClass =
+    "shrink-0 cursor-pointer rounded-6 border border-border px-1.5 text-11 text-secondary hover:bg-hover hover:text-primary";
+
+// One reason of the menu (#1780): what it is, what it does, and its actions: Show for a terminal, Stop where ending it
+// is MoltenTerm's to do (a terminal's bare keep-awake, a coffee).
+function HoldRow({ hold, onClose }: { hold: KeepAwakeHold; onClose: () => void }) {
+    const t = useT();
+    const model = KeepAwakeModel.getInstance();
+    const stop = () => {
+        fireAndForget(async () => {
+            try {
+                if (hold.kind === "terminal") {
+                    await model.stopTerminal(hold.blockid);
+                } else if (hold.kind === "coffee") {
+                    await model.setCoffee(hold.workspaceid, false);
+                }
+            } catch (err) {
+                console.log("keep-awake stop:", err);
+            }
+        });
+    };
+    return (
+        <li className="flex items-start gap-2 text-12" data-testid="keepawake-hold" data-kind={hold.kind}>
+            <i
+                className={cn(
+                    "fa fa-solid mt-[3px] w-3 text-center text-11 text-[var(--color-awake)]",
+                    HoldIcons[hold.kind]
+                )}
+                aria-hidden
+            />
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-primary">{hold.label}</span>
+                {hold.detail ? (
+                    <span className="line-clamp-2 text-11 text-muted" title={hold.detail}>
+                        {hold.detail}
+                    </span>
+                ) : null}
+            </span>
+            {hold.kind === "terminal" ? (
+                <button
+                    type="button"
+                    className={RowButtonClass}
+                    aria-label={t("keepawake.row.showLabel", { name: hold.label })}
+                    onClick={() => {
+                        onClose();
+                        fireAndForget(() => showPanel(hold.blockid));
+                    }}
+                >
+                    {t("keepawake.row.show")}
+                </button>
+            ) : null}
+            {hold.canStop ? (
+                <button
+                    type="button"
+                    className={RowButtonClass}
+                    aria-label={
+                        hold.kind === "coffee"
+                            ? t("keepawake.railStop", { name: hold.label })
+                            : t("keepawake.row.stopLabel", { name: hold.label })
+                    }
+                    onClick={stop}
+                >
+                    {t("keepawake.stop")}
+                </button>
+            ) : null}
+        </li>
+    );
+}
+
 export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose: () => void }) {
     const t = useT();
     const model = KeepAwakeModel.getInstance();
     const state = useAtomValue(model.stateAtom);
     const active = keepAwakeActive(state);
     const now = useNow(active);
+    const holds = keepAwakeHolds(state, now);
     return (
         <MenuPopover
             anchor={anchor}
@@ -114,30 +192,17 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
             <div className="flex flex-col gap-1 px-3 pt-3" data-testid="keepawake-now">
                 <div className="text-12 font-medium text-primary">{t("keepawake.popover.title")}</div>
                 {active ? (
-                    <div className="text-12 text-[var(--color-awake)]">{keepAwakeIndicatorLabel(state, now)}</div>
+                    <div className="text-12 text-[var(--color-awake)]">{keepAwakeCountLabel(holds.length)}</div>
                 ) : (
                     <div className="text-12 text-muted">{t("keepawake.cupIdle")}</div>
                 )}
-                {state.coffees.map((coffee) => {
-                    const name = workspaceShownName(coffee.workspacename, t) || t("keepawake.workspace");
-                    return (
-                        <div key={coffee.workspaceid} className="flex items-center gap-2 text-12">
-                            <i className="fa fa-solid fa-mug-hot text-11 text-[var(--color-awake)]" aria-hidden />
-                            <span className="min-w-0 flex-1 truncate text-primary">
-                                {name}
-                                <span className="text-muted"> · {coffeeCondition(coffee, now)}</span>
-                            </span>
-                            <button
-                                type="button"
-                                className="shrink-0 cursor-pointer rounded-6 border border-border px-1.5 text-11 text-secondary hover:bg-hover hover:text-primary"
-                                aria-label={t("keepawake.railStop", { name })}
-                                onClick={() => fireAndForget(() => model.setCoffee(coffee.workspaceid, false))}
-                            >
-                                {t("keepawake.stop")}
-                            </button>
-                        </div>
-                    );
-                })}
+                {holds.length > 0 ? (
+                    <ul className="flex flex-col gap-1 pt-1" aria-label={keepAwakeCountLabel(holds.length)}>
+                        {holds.map((hold) => (
+                            <HoldRow key={hold.key} hold={hold} onClose={onClose} />
+                        ))}
+                    </ul>
+                ) : null}
             </div>
             <PolicyChoices />
             <div className="border-t border-border px-3 py-2">
@@ -160,7 +225,9 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
 // The cup stays in the window row while nothing keeps the computer awake (calm), so coffee mode can be turned back on.
 // aria-pressed is the current workspace's coffee, the thing a click changes, and the icon itself says it: coloured,
 // with waving steam, while on (#1470); a background would read as hover. The text brightens a little while something
-// else holds. The workspace sidebar (#1183) draws it as a 28 px icon button, with a count when more than one thing holds.
+// else holds. The workspace sidebar (#1183) draws it as a 28 px icon button. When more than one reason holds, their
+// number sits to the left of the cup as plain calm text, never a round badge: a badge reads as "something needs your
+// answer", which only the bell means (#1780).
 export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status" | "sidebar" }) {
     const t = useT();
     const platform = usePlatform();
@@ -174,15 +241,17 @@ export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status"
         return null;
     }
     const on = coffee != null;
-    const active = keepAwakeActive(state);
-    const count = keepAwakeCount(state);
+    const holds = keepAwakeHolds(state);
+    const count = holds.length;
+    const active = count > 0;
     const sidebar = variant === "sidebar";
     const name = workspaceShownName(workspace?.name, t) || t("keepawake.thisWorkspace");
     const title = [
         t("keepawake.cupTitle", {
             state: t(on ? "keepawake.cupCoffeeOn" : "keepawake.cupCoffeeOff"),
-            reason: active ? keepAwakeIndicatorLabel(state) : t("keepawake.cupIdle"),
+            reason: active ? keepAwakeCountLabel(count) : t("keepawake.cupIdle"),
         }),
+        ...holds.map((h) => `• ${holdLine(h)}`),
         t("keepawake.indicatorPolicy", { policy: sleepPolicyLabel(policy ?? "") }),
         t("keepawake.cupHint"),
     ].join("\n");
@@ -218,16 +287,20 @@ export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status"
                 className={cn(
                     "flex cursor-pointer items-center gap-1 rounded-6 hover:bg-hover hover:text-primary",
                     active ? "text-[var(--color-awake)]" : "text-muted",
-                    sidebar ? "relative h-7 w-7 shrink-0 justify-center transition-colors duration-120 ease-mt" : "px-1"
+                    sidebar
+                        ? cn(
+                              "h-7 shrink-0 justify-center transition-colors duration-120 ease-mt",
+                              count > 1 ? "min-w-7 px-1" : "w-7"
+                          )
+                        : "px-1"
                 )}
             >
-                <CupIcon on={on} className={sidebar ? "text-icon-14" : "text-11"} />
-                {count > 1 && !sidebar ? <span>{count}</span> : null}
-                {count > 1 && sidebar ? (
-                    <span className="pointer-events-none absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary/85 px-[3px] text-11 leading-none font-semibold text-[var(--mt-text-inverse)] tabular-nums">
+                {count > 1 ? (
+                    <span data-testid="keepawake-count" className="text-11 leading-none text-muted tabular-nums">
                         {count}
                     </span>
                 ) : null}
+                <CupIcon on={on} className={sidebar ? "text-icon-14" : "text-11"} />
             </button>
             {anchor ? (
                 <KeepAwakePopover

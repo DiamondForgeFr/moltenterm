@@ -2707,18 +2707,29 @@
             "letSleepDetail": "Les blocages des terminaux sont arrêtés ; cet ordinateur se met en veille comme prévu et le travail reprend au réveil.",
             "unsetDetail": "Le premier terminal qui demande à rester éveillé vous demande de choisir."
         },
-        "byTerminals": {
-            "one": "un terminal a demandé à rester éveillé",
-            "other": "{count} terminaux ont demandé à rester éveillés"
+        "reasonsCount": {
+            "one": "{count} raison garde cet ordinateur éveillé",
+            "other": "{count} raisons gardent cet ordinateur éveillé"
         },
-        "byYou": {
-            "one": "à votre demande dans {name}",
-            "other": "à votre demande dans {count} espaces de travail"
+        "row": {
+            "terminal": "Terminal dans « {name} »",
+            "left": "encore {time}",
+            "coffee": "à votre demande, jusqu'à la fin de son travail",
+            "coffeeWhy": "à votre demande, jusqu'à la fin de son travail : {why}",
+            "coffeeEnding": "à votre demande, son travail est terminé : fin dans {time}",
+            "workLabel": "MoltenTerm",
+            "work": "jusqu'à la fin du travail",
+            "workWhy": "jusqu'à la fin du travail : {why}",
+            "workEnding": "le travail est terminé : fin dans {time}",
+            "show": "Afficher",
+            "showLabel": "Afficher {name}",
+            "stopLabel": "Ne plus garder cet ordinateur éveillé depuis {name}"
         },
-        "byWork": "du travail est en cours",
-        "byWorkWhy": "du travail est en cours ({why})",
-        "byWorkEnding": "travail terminé, fin dans {time}",
-        "indicatorLabel": "Cet ordinateur est gardé éveillé : {reasons}",
+        "left": {
+            "seconds": "{count} s",
+            "minutes": "{count} min",
+            "hours": "{hours} h {minutes}"
+        },
         "cupIdle": "Cet ordinateur n'est pas gardé éveillé",
         "cupCoffeeOn": "Café activé",
         "cupCoffeeOff": "Café désactivé",

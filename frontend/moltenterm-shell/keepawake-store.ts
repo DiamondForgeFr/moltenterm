@@ -25,6 +25,7 @@ import {
     KeepAwakeRoute,
     KeepAwakeState,
     KeepAwakeStateCommand,
+    KeepAwakeStopCommand,
     SleepPolicy,
     SleepPolicyGesture,
 } from "./keepawake-model";
@@ -178,6 +179,11 @@ export class KeepAwakeModel {
 
     async setOverride(blockId: string, policy: "allow" | "letsleep" | ""): Promise<void> {
         this.apply(await this.call(KeepAwakeOverrideCommand, { blockid: blockId, policy }));
+    }
+
+    // Ends a terminal's bare keep-awake process (the menu's Stop on its row, #1780); a wrapped command is never ended.
+    async stopTerminal(blockId: string): Promise<void> {
+        this.apply(await this.call(KeepAwakeStopCommand, { blockid: blockId }));
     }
 
     async setPolicy(policy: SleepPolicy): Promise<void> {

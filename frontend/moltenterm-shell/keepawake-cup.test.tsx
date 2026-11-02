@@ -19,6 +19,7 @@ vi.mock("@/app/store/global", async () => {
 vi.mock("@/util/platformutil", () => ({ PLATFORM: "darwin" }));
 vi.mock("./command-panel/bindings", () => ({ writeSettings: vi.fn() }));
 vi.mock("./settings/settings-open", () => ({ openSettingsKey: vi.fn() }));
+vi.mock("./review/review-panels", () => ({ showPanel: vi.fn() }));
 vi.mock("./mission/menu-popover", () => ({
     MenuPopover: ({ children }: { children: React.ReactNode }) => <div data-testid="menu-popover">{children}</div>,
 }));
@@ -93,7 +94,7 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
 
     it("starts its tooltip with the state of coffee mode (#1470)", () => {
         setState({ hold: true, coffees: [{ workspaceid: "ws1", workspacename: "Alpha", since: 1, working: true }] });
-        expect(item()).toContain('title="Coffee mode on · Keeping this computer awake:');
+        expect(item()).toContain('title="Coffee mode on · 1 reason keeps this computer awake');
         setState({});
         expect(item()).toContain('title="Coffee mode off · Not keeping this computer awake');
     });
@@ -132,7 +133,7 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
         Hoisted.policy = "untilworkends";
         setState({ attempts: [attempt({})] });
         const html = item();
-        expect(html).toContain("Coffee mode off · Keeping this computer awake: a terminal asked to stay awake");
+        expect(html).toContain("Coffee mode off · 1 reason keeps this computer awake\n• A terminal · caffeinate");
         expect(html).toContain("Energy setting: Until work ends");
         expect(html).toContain("Click: on/off · Right-click: options");
         expect(html).not.toContain("Open Preferences");
@@ -145,11 +146,34 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
         expect(html).not.toContain("<a ");
     });
 
-    it("counts only when more than one thing keeps it awake", () => {
+    it("counts only when more than one reason keeps it awake, the number the tooltip and the menu give (#1780)", () => {
         setState({ attempts: [attempt({})] });
-        expect(item()).not.toContain("tabular-nums");
+        expect(item()).not.toContain('data-testid="keepawake-count"');
+        setState({
+            hold: true,
+            coffees: [{ workspaceid: "a", since: 1, working: true }],
+            policyholding: true,
+            attempts: [attempt({})],
+        });
+        for (const html of [item(), item("status")]) {
+            expect(html).toMatch(/data-testid="keepawake-count"[^>]*>3</);
+            expect(html).toContain("3 reasons keep this computer awake");
+        }
+        const menu = renderToStaticMarkup(<KeepAwakePopover anchor={{} as Element} onClose={() => {}} />);
+        expect(menu).toContain("3 reasons keep this computer awake");
+        expect(menu.match(/data-testid="keepawake-hold"/g)).toHaveLength(3);
+    });
+
+    it("writes the count as calm text to the left of the cup, never a badge (#1780)", () => {
         setState({ hold: true, coffees: [{ workspaceid: "a", since: 1, working: true }], attempts: [attempt({})] });
-        expect(item()).toContain(">2<");
+        for (const html of [item(), item("status")]) {
+            const count = html.indexOf('data-testid="keepawake-count"');
+            expect(count).toBeGreaterThan(-1);
+            expect(count).toBeLessThan(html.indexOf('data-testid="keepawake-cup-icon"'));
+            const span = html.slice(html.lastIndexOf("<span", count), html.indexOf(">", count));
+            expect(span).toContain("text-muted");
+            expect(span).not.toMatch(/rounded-full|absolute|bg-/);
+        }
     });
 });
 
@@ -177,10 +201,44 @@ describe("keep-awake popover (FR-SHELL-103, #1408)", () => {
     it("says once why the computer is kept awake, naming the agent by its first name only (#1550)", () => {
         setState({ hold: true, policyholding: true, policyworking: true, policyreasons: ["Adrien: working"] });
         const html = popover();
-        expect(html).toContain("Keeping this computer awake: work is running (Adrien: working)");
+        expect(html).toContain("1 reason keeps this computer awake");
+        expect(html).toContain("until the work ends: Adrien: working");
         expect(html).not.toContain("Holding this computer awake");
-        expect(html.match(/Keeping this computer awake/g)).toHaveLength(1);
+        expect(html.match(/Adrien/g)).toHaveLength(2);
         expect(html).not.toContain("Claude Code");
+    });
+
+    it("lists one row per reason with its actions: Show and Stop on a terminal, Stop on a coffee, none on the setting (#1780)", () => {
+        const now = 5_000_000;
+        vi.spyOn(Date, "now").mockReturnValue(now);
+        setState({
+            hold: true,
+            attempts: [
+                attempt({
+                    blockid: "b1",
+                    tabname: "Scoping",
+                    args: ["-i", "-t", "600"],
+                    endsat: now + 600_000,
+                    stoppable: true,
+                }),
+            ],
+            coffees: [{ workspaceid: "a", workspacename: "Beta", since: 1, working: true }],
+            policyholding: true,
+            policyworking: true,
+        });
+        const html = popover();
+        const rows = html.split('data-testid="keepawake-hold"').slice(1);
+        expect(rows).toHaveLength(3);
+        expect(rows[0]).toContain("Terminal in “Scoping”");
+        expect(rows[0]).toContain("caffeinate -i -t 600 · 10 min left");
+        expect(rows[0]).toContain(">Show<");
+        expect(rows[0]).toContain('aria-label="Stop keeping this computer awake from Terminal in “Scoping”"');
+        expect(rows[1]).toContain("Stop keeping this computer awake for Beta");
+        expect(rows[1]).not.toContain(">Show<");
+        expect(rows[2]).toContain("MoltenTerm");
+        expect(rows[2]).not.toContain(">Stop<");
+        expect(html).not.toContain("a terminal asked to stay awake");
+        vi.restoreAllMocks();
     });
 
     it("links to Preferences only through a discreet More settings button", () => {

@@ -2707,18 +2707,29 @@
             "letSleepDetail": "Terminals' blocks are stopped; this computer sleeps as planned and the work goes on after wake.",
             "unsetDetail": "The first terminal that asks to stay awake asks you to choose."
         },
-        "byTerminals": {
-            "one": "a terminal asked to stay awake",
-            "other": "{count} terminals asked to stay awake"
+        "reasonsCount": {
+            "one": "{count} reason keeps this computer awake",
+            "other": "{count} reasons keep this computer awake"
         },
-        "byYou": {
-            "one": "at your request in {name}",
-            "other": "at your request in {count} workspaces"
+        "row": {
+            "terminal": "Terminal in “{name}”",
+            "left": "{time} left",
+            "coffee": "at your request, until its work ends",
+            "coffeeWhy": "at your request, until its work ends: {why}",
+            "coffeeEnding": "at your request, its work is done: ending in {time}",
+            "workLabel": "MoltenTerm",
+            "work": "until the work ends",
+            "workWhy": "until the work ends: {why}",
+            "workEnding": "the work is done: ending in {time}",
+            "show": "Show",
+            "showLabel": "Show {name}",
+            "stopLabel": "Stop keeping this computer awake from {name}"
         },
-        "byWork": "work is running",
-        "byWorkWhy": "work is running ({why})",
-        "byWorkEnding": "work done, ending in {time}",
-        "indicatorLabel": "Keeping this computer awake: {reasons}",
+        "left": {
+            "seconds": "{count} s",
+            "minutes": "{count} min",
+            "hours": "{hours} h {minutes}"
+        },
         "indicatorPolicy": "Energy setting: {policy}",
         "cupIdle": "Not keeping this computer awake",
         "cupHint": "Click: on/off · Right-click: options",

@@ -15,20 +15,22 @@ import {
     coffeeTooltip,
     EmptyKeepAwakeState,
     formatCountdown,
+    formatTimeLeft,
+    holdLine,
     keepAwakeActive,
     KeepAwakeAttempt,
     keepAwakeCount,
-    keepAwakeIndicatorLabel,
-    keepAwakeReasons,
+    keepAwakeCountLabel,
+    keepAwakeHolds,
     keepAwakeSessions,
     KeepAwakeState,
     policyHoldingLine,
     railCoffeeLabel,
     reasonsText,
     sessionWhere,
-    SleepPolicySetting,
     sleepPolicyDetail,
     sleepPolicyLabel,
+    SleepPolicySetting,
 } from "./keepawake-model";
 import { settingsCatalog } from "./settings/settings-catalog";
 
@@ -111,13 +113,15 @@ describe("keep-awake model", () => {
         expect(coffeeOf(s, "b")).toBeNull();
     });
 
-    it("counts MoltenTerm once and each session whose block went through (FR-SHELL-022-AC7)", () => {
+    it("counts one reason per row of the menu: terminals let through, coffees, the setting (#1780)", () => {
         const s = state({
             hold: true,
             coffees: [
                 { workspaceid: "a", since: 1, working: true },
                 { workspaceid: "b", since: 2, working: true },
             ],
+            policyholding: true,
+            policyworking: true,
             attempts: [
                 attempt({ id: "1", blockid: "b1" }),
                 attempt({ id: "2", blockid: "b1" }),
@@ -125,8 +129,76 @@ describe("keep-awake model", () => {
                 attempt({ id: "4", blockid: "b3" }),
             ],
         });
-        expect(keepAwakeCount(s)).toBe(3);
+        const holds = keepAwakeHolds(s, 0);
+        expect(holds.map((h) => h.key)).toEqual(["terminal:b1", "terminal:b3", "coffee:a", "coffee:b", "work"]);
+        expect(keepAwakeCount(s)).toBe(holds.length);
+        expect(keepAwakeHolds(s).length).toBe(holds.length);
         expect(keepAwakeCount(state({}))).toBe(0);
+        expect(keepAwakeCount(state({ attempts: [attempt({ outcome: "neutralised" })] }))).toBe(0);
+        // A hold wavesrv reports without a coffee or the setting is still one reason, never zero.
+        expect(keepAwakeHolds(state({ hold: true })).map((h) => h.label)).toEqual(["MoltenTerm"]);
+    });
+
+    it("counts the developer's case of #1780 as the menu lists it", () => {
+        const s = state({
+            hold: true,
+            attempts: [
+                attempt({
+                    blockid: "b1",
+                    tabname: "Scoping",
+                    workspacename: "MoltenTerm",
+                    args: ["-i", "-t", "9600"],
+                    endsat: 9_600_000,
+                    stoppable: true,
+                }),
+            ],
+            coffees: [
+                { workspaceid: "ws", workspacename: "MoltenTerm", since: 1, working: true, reasons: ["Léa: working"] },
+            ],
+            policyholding: true,
+            policyworking: true,
+            policyreasons: ["Alexis: working", "Arthur: working"],
+        });
+        const lines = keepAwakeHolds(s, 0).map(holdLine);
+        expect(lines).toEqual([
+            "Terminal in “Scoping” · caffeinate -i -t 9600 · 2 h 40 left · MoltenTerm",
+            "MoltenTerm · at your request, until its work ends: Léa: working",
+            "MoltenTerm · until the work ends: Alexis: working, Arthur: working",
+        ]);
+        expect(keepAwakeCountLabel(lines.length)).toBe("3 reasons keep this computer awake");
+        expect(keepAwakeCountLabel(1)).toBe("1 reason keeps this computer awake");
+    });
+
+    it("offers Show on terminals and Stop only where MoltenTerm can end the hold (#1780)", () => {
+        const s = state({
+            attempts: [
+                attempt({ id: "1", blockid: "bare", stoppable: true }),
+                attempt({ id: "2", blockid: "wrapped", tool: "caffeinate", args: ["-i", "make"] }),
+            ],
+            coffees: [{ workspaceid: "a", since: 1, working: false, endsat: 90_000 }],
+            policyholding: true,
+            policyendsat: 60_000,
+        });
+        const holds = keepAwakeHolds(s, 0);
+        expect(holds.map((h) => [h.kind, h.canStop])).toEqual([
+            ["terminal", true],
+            ["terminal", false],
+            ["coffee", true],
+            ["work", false],
+        ]);
+        expect(holds[0].blockid).toBe("bare");
+        expect(holds[1].detail).toBe("caffeinate -i make");
+        expect(holds[2].detail).toBe("at your request, its work is done: ending in 1:30");
+        expect(holds[3].detail).toBe("the work is done: ending in 1:00");
+        expect(holds.find((h) => h.blockid === "bare").label).toBe("A terminal");
+    });
+
+    it("says how long a hold still lasts, rounded up", () => {
+        expect(formatTimeLeft(45_000, 0)).toBe("45 s");
+        expect(formatTimeLeft(61_000, 0)).toBe("2 min");
+        expect(formatTimeLeft(9_600_000, 0)).toBe("2 h 40");
+        expect(formatTimeLeft(3_660_000, 0)).toBe("1 h 01");
+        expect(formatTimeLeft(0, 5_000)).toBe("0 s");
     });
 
     it("lists the sessions with their blocks and overrides", () => {
@@ -190,37 +262,17 @@ describe("keep-awake model", () => {
         expect(keepAwakeActive(state({ hold: true }))).toBe(true);
     });
 
-    it("names what keeps it awake, with plurals (FR-SHELL-103-AC2, AC4)", () => {
-        const coffee = { workspaceid: "a", workspacename: "Alpha", since: 1, working: true };
-        expect(keepAwakeReasons(state({ attempts: [attempt({})] }))).toEqual(["a terminal asked to stay awake"]);
-        expect(
-            keepAwakeReasons(
-                state({
-                    hold: true,
-                    attempts: [attempt({ id: "1", blockid: "b1" }), attempt({ id: "2", blockid: "b2" })],
-                    coffees: [coffee],
-                    policyholding: true,
-                })
-            )
-        ).toEqual(["2 terminals asked to stay awake", "at your request in Alpha", "work is running"]);
-        const working = state({
-            policyholding: true,
-            policyworking: true,
-            policyreasons: ["Adrien: working"],
-        });
-        expect(keepAwakeIndicatorLabel(working, 0)).toBe(
-            "Keeping this computer awake: work is running (Adrien: working)"
-        );
-        expect(keepAwakeIndicatorLabel(state({ policyholding: true, policyworking: true }), 0)).toBe(
-            "Keeping this computer awake: work is running"
-        );
-        expect(keepAwakeIndicatorLabel(state({ policyholding: true, policyendsat: 60_000 }), 0)).toBe(
-            "Keeping this computer awake: work done, ending in 1:00"
-        );
-        expect(keepAwakeReasons(state({ coffees: [coffee, { ...coffee, workspaceid: "b" }] }))).toEqual([
-            "at your request in 2 workspaces",
+    it("names what keeps it awake, one row per reason (FR-SHELL-103-AC2, AC4, #1780)", () => {
+        const working = state({ policyholding: true, policyworking: true, policyreasons: ["Adrien: working"] });
+        expect(keepAwakeHolds(working, 0).map(holdLine)).toEqual(["MoltenTerm · until the work ends: Adrien: working"]);
+        expect(keepAwakeHolds(state({ policyholding: true, policyworking: true }), 0).map(holdLine)).toEqual([
+            "MoltenTerm · until the work ends",
         ]);
-        const s = state({ attempts: [attempt({})] });
-        expect(keepAwakeIndicatorLabel(s)).toBe("Keeping this computer awake: a terminal asked to stay awake");
+        const coffee = { workspaceid: "a", workspacename: "Alpha", since: 1, working: true };
+        expect(
+            keepAwakeHolds(state({ coffees: [coffee, { ...coffee, workspaceid: "b", workspacename: "Beta" }] })).map(
+                (h) => h.label
+            )
+        ).toEqual(["Alpha", "Beta"]);
     });
 });
