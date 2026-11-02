@@ -26,7 +26,9 @@ const (
 	// The live keys of the current project, which every panel already follows. must match liveUpdate in
 	// frontend/moltenterm-shell/sidebar/workspace-projects.ts
 	LiveProjectMetaKey = "molten:project"
-	LiveTypeMetaKey    = "molten:projecttype"
+	// The code repository inside the live project's folder (#1777). must match ProjectRepoMetaKey in pkg/molten
+	LiveRepoMetaKey = "molten:projectrepo"
+	LiveTypeMetaKey = "molten:projecttype"
 	LiveFolderMetaKey  = "molten:folder"
 	LogoOfferMetaKey   = "molten:projectlogooffer"
 
@@ -54,6 +56,8 @@ type Project struct {
 	Dir    string
 	Branch string
 	Logo   string
+	// Repo: the code repository chosen inside Dir, "" for none (#1777).
+	Repo string
 }
 
 func str(value any) string {
@@ -83,7 +87,7 @@ func storedProjects(meta waveobj.MetaMapType) []Project {
 			continue
 		}
 		seen[id] = true
-		rtn = append(rtn, Project{Id: id, Type: str(item["type"]), Dir: str(item["dir"]), Branch: str(item["branch"]), Logo: str(item["logo"])})
+		rtn = append(rtn, Project{Id: id, Type: str(item["type"]), Dir: str(item["dir"]), Branch: str(item["branch"]), Logo: str(item["logo"]), Repo: str(item["repo"])})
 	}
 	return rtn
 }
@@ -92,19 +96,19 @@ func storedProjects(meta waveobj.MetaMapType) []Project {
 // which the workspace editor and `molten project link` write; a workspace without a list reads as one project made of
 // those keys. must match readProjects in frontend/moltenterm-shell/sidebar/workspace-projects.ts
 func ReadProjects(meta waveobj.MetaMapType) []Project {
-	liveType, liveDir := str(meta[LiveTypeMetaKey]), str(meta[LiveProjectMetaKey])
+	liveType, liveDir, liveRepo := str(meta[LiveTypeMetaKey]), str(meta[LiveProjectMetaKey]), str(meta[LiveRepoMetaKey])
 	stored := storedProjects(meta)
 	if stored == nil {
 		if liveDir == "" && liveType == "" {
 			return nil
 		}
-		return []Project{{Id: FirstProjectId, Type: liveType, Dir: liveDir}}
+		return []Project{{Id: FirstProjectId, Type: liveType, Dir: liveDir, Repo: liveRepo}}
 	}
 	currentId := currentOf(meta, stored)
 	rtn := make([]Project, len(stored))
 	for i, p := range stored {
 		if p.Id == currentId {
-			p.Type, p.Dir = liveType, liveDir
+			p.Type, p.Dir, p.Repo = liveType, liveDir, liveRepo
 		}
 		rtn[i] = p
 	}
@@ -155,6 +159,9 @@ func ListValue(projects []Project) []any {
 		if p.Logo != "" {
 			value["logo"] = p.Logo
 		}
+		if p.Repo != "" {
+			value["repo"] = p.Repo
+		}
 		rtn[i] = value
 	}
 	return rtn
@@ -174,6 +181,7 @@ func LiveUpdate(p Project) waveobj.MetaMapType {
 	return waveobj.MetaMapType{
 		CurrentProjectMetaKey: p.Id,
 		LiveProjectMetaKey:    nilIfEmpty(p.Dir),
+		LiveRepoMetaKey:       nilIfEmpty(p.Repo),
 		LiveTypeMetaKey:       nilIfEmpty(p.Type),
 		LiveFolderMetaKey:     nilIfEmpty(p.Dir),
 		LogoOfferMetaKey:      nilIfEmpty(p.Dir),
@@ -202,8 +210,9 @@ func holds(dir string, path string) bool {
 }
 
 // ProjectOfDir is the project whose folder holds dir: the longest match, with a "/" boundary, so Notulia does not
-// hold Notulia-website. "" when no project holds it. must match agentProjectLabel in
-// frontend/moltenterm-shell/sidebar/sidebar-agents-model.ts
+// hold Notulia-website. A project with a repository inside its folder matches by it too, which is longer: of several
+// projects sharing a client's folder, the one whose repository holds dir owns it (#1777). "" when no project holds it.
+// must match agentProjectLabel in frontend/moltenterm-shell/sidebar/sidebar-agents-model.ts
 func ProjectOfDir(projects []Project, dir string) string {
 	here := trimPath(dir)
 	if here == "" {
@@ -211,15 +220,27 @@ func ProjectOfDir(projects []Project, dir string) string {
 	}
 	owner, ownerLen := "", -1
 	for _, p := range projects {
-		pd := trimPath(p.Dir)
-		if pd == "" || !holds(pd, here) {
-			continue
-		}
-		if len(pd) > ownerLen {
-			owner, ownerLen = p.Id, len(pd)
+		matched := matchLength(p, here)
+		if matched > ownerLen {
+			owner, ownerLen = p.Id, matched
 		}
 	}
 	return owner
+}
+
+// matchLength is how much of dir a project's places hold: its repository first, else its folder; -1 for none.
+func matchLength(p Project, here string) int {
+	pd := trimPath(p.Dir)
+	if pd == "" {
+		return -1
+	}
+	if repo := trimPath(p.Repo); repo != "" && repo != pd && holds(pd, repo) && holds(repo, here) {
+		return len(repo)
+	}
+	if holds(pd, here) {
+		return len(pd)
+	}
+	return -1
 }
 
 // ReadTabProjects reads {tabId: projectId} from the workspace's meta.

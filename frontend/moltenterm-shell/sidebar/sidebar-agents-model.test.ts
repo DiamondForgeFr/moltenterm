@@ -52,6 +52,18 @@ describe("agentProjectLabel (FR-SHELL-084, #1746)", () => {
         });
     });
 
+    it("names, among the projects of one client folder, the one whose repository the agent runs in (#1777)", () => {
+        const web = { id: "p1", type: "web", dir: "/c/ofpis", branch: "", repo: "/c/ofpis/app" };
+        const api = { id: "p2", type: "api", dir: "/c/ofpis", branch: "", repo: "/c/ofpis/api" };
+        const docs = { id: "p3", type: "docs", dir: "/c/ofpis", branch: "" };
+        expect(agentProjectLabel("/c/ofpis/api/src", [web, api, docs])).toEqual({ text: "api", outside: false });
+        expect(agentProjectLabel("/c/ofpis/app", [web, api, docs])).toEqual({ text: "web", outside: false });
+        expect(agentProjectLabel("/c/ofpis/mails", [web, api, docs])).toEqual({ text: "web", outside: false });
+        expect(agentProjectLabel("/c/ofpis/app/x", [docs, web])).toEqual({ text: "web", outside: false });
+        const elsewhere = { id: "p4", type: "x", dir: "/c/ofpis", branch: "", repo: "/other/app" };
+        expect(agentProjectLabel("/other/app/x", [elsewhere, docs])).toEqual({ text: "x", outside: true });
+    });
+
     it("does not match a folder that only shares a name prefix with a project", () => {
         expect(agentProjectLabel("/Users/x/notulia-web-old", [Desktop, Website])).toEqual({
             text: "notulia-web-old",
