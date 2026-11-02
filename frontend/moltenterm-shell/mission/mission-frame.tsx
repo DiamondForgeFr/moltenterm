@@ -18,10 +18,12 @@ import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { t, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { useFolderRepositories } from "../project-repository";
 import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
-import { pathBaseName, readWorkspaceProject } from "../workspace-project";
+import { openProjectSheet } from "../workspace-edit";
+import { pathBaseName, readWorkspaceProject, repositoryLabel } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
 import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
 import { missionGitInit, useMissionSnapshot } from "./mission-client";
@@ -444,6 +446,7 @@ export function GitProblemState({
     const blockId = usePanelBlockId();
     const problem = gitProblem(gitError);
     const carrier = useNotRepoCarrier(tabId, project.dir, blockId, problem === "notrepo" ? gitPanel : null);
+    const inside = useFolderRepositories(problem === "notrepo" ? project.dir : "");
     useEffect(() => {
         setInitialized(false);
     }, [gitError]);
@@ -455,6 +458,32 @@ export function GitProblemState({
                 hint={t("mc.frame.notRepoElsewhere", { panel: t(GitPanelNameKey[carrier]) })}
                 testId="mission-not-git-pointer"
             />
+        );
+    }
+    if (problem === "notrepo" && inside.repos?.length > 0 && !inside.self) {
+        // A folder that holds repositories is the project's context (#1777): its code repository is the next step, not
+        // a git init in the folder.
+        return (
+            <EmptyState
+                icon="code-branch"
+                title={t("mc.frame.notRepoTitle")}
+                hint={t("projectRepo.found", {
+                    repos: inside.repos.map((repo) => repositoryLabel(project.dir, repo)).join(", "),
+                })}
+                primary={{
+                    label: t("projectSheet.open"),
+                    onClick: () => openProjectSheet(undefined, undefined, project.workspace?.oid),
+                    testId: "mission-choose-repo",
+                }}
+                secondary={{
+                    label: t("mc.frame.chooseFolder"),
+                    onClick: () => linkProject(project.workspace),
+                    testId: "mission-choose-folder",
+                }}
+                testId="mission-not-git-repos"
+            >
+                <FolderGlance dir={project.dir} />
+            </EmptyState>
         );
     }
     if (problem === "notrepo") {

@@ -9316,7 +9316,8 @@
         "noneFound": "Aucun : pas de dépôt Git trouvé dans le dossier",
         "hint": "Les agents démarrent dans le dépôt, avec le dossier à portée de main. Intégration, Projet et CI lisent le dépôt.",
         "folderIsRepo": "Le dossier est lui-même le dépôt.",
-        "gone": "Le dépôt choisi n'est plus dans le dossier : choisissez-en un autre, ou aucun."
+        "gone": "Le dépôt choisi n'est plus dans le dossier : choisissez-en un autre, ou aucun.",
+        "found": "Ce dossier contient le contexte du projet, et des dépôts Git : {repos}. Choisissez le dépôt de code du projet : les agents y démarrent et ce panneau le lit."
     },
     "hang": {
         "title": "La fenêtre n'a pas répondu pendant {seconds} s",
