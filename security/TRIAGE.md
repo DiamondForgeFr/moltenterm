@@ -28,7 +28,11 @@ targets. These numbers describe scanner evidence, not an exploit count or a clai
   do not include them. x/crypto is used for other APIs, including SSH; that does not make OpenPGP present. All recorded
   findings contain only the module/version frame. Mark **only this module-level condition** nonapplicable; never
   apply this review to an imported package or called symbol. Keep the SSH handshake/key-policy fixture and rerun the
-  source matrix on graph changes.
+  source matrix on graph changes. The record changed on 2026-11-02 (#1797): it gained a fixed x/crypto version, the
+  untagged pseudo-version `0.58.1-0.20261009181718-2f1f834330b2`, and a separate `golang.org/x/crypto/openpgp`
+  module entry, so the dated review no longer matched and the scan blocked develop. `go list -deps` on darwin, linux,
+  windows and Tsunami still lists no `openpgp` package, and the findings still carry only the module frame: the
+  review now binds the new fingerprint and range. Move to the first tagged x/crypto release past that version.
 
 ## Documentation/tooling boundary
 
