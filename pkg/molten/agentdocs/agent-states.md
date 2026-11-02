@@ -90,7 +90,9 @@ Any other event reports nothing. An event fired inside a sub-agent carries its `
 `PostToolUse` or `Stop` is the sub-agent's work, never the session's state. While the session is idle or done and
 its sub-agents run, the pane shows working with "N sub-agents running", and its prompt still takes a handoff
 (`send_to_agent`). A sub-agent's `Notification` that waits is the pane's waiting: its question shows in the
-session's terminal.
+session's terminal. When the session's turn ends (its `Stop`, an error, an interrupt), the sub-agents it counted are
+forgotten, since a finished or interrupted sub-agent does not always report its stop: one that still runs counts again
+at its next tool.
 
 ```
 molten agent state <working|waiting|done|error|idle> [--agent <name>] [--message <text>] [--stdin]

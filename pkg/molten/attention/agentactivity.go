@@ -149,6 +149,9 @@ func (a *agentStates) settleActivity() {
 		if p != nil && now.Sub(p.lastOut) < activityQuiet {
 			continue
 		}
+		// The turn ended without a hook (an interrupt, the only activity working a hooked pane gets): its sub-agents'
+		// stops may never come (#1771).
+		a.forgetSubagentsLocked(blockId, rec)
 		a.setStateLocked(blockId, rec, molten.AgentStateIdle, "")
 	}
 }
