@@ -16,6 +16,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
@@ -123,6 +124,12 @@ type RestartResult struct {
 	AgentMissing bool                `json:"agentmissing,omitempty"`
 	AgentSource  string              `json:"agentsource,omitempty"`
 	Agents       []agentchoice.Agent `json:"agents,omitempty"`
+	// Lead (#1779): the result is about the lead agent that owns the work (FirstName, Agent, AgentName name it, BlockId
+	// and TabId place it). With RestartLeadGone, LeadFolder is where its session would resume and LeadGuessed tells it
+	// would be the CLI's most recent session of that folder, not one known for sure.
+	Lead        bool   `json:"lead,omitempty"`
+	LeadFolder  string `json:"leadfolder,omitempty"`
+	LeadGuessed bool   `json:"leadguessed,omitempty"`
 }
 
 // RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now; Gone:
@@ -175,6 +182,16 @@ type RestartEnv struct {
 	Gh           GhRunner
 	HoldState    func(blockId string, state string, message string, text *uimsg.Text)
 	ReleaseState func(blockId string, state string, message string, text *uimsg.Text)
+	// The lead agent that owns a PR (#1779, lead.go): FindLead says which running agent a LeadQuery names, SendLead gives
+	// it MoltenTerm's own brief through the handoffs (the developer's click is the approval), LeadSession says how a lead
+	// that no longer runs is resumed, PreferName gives a resumed terminal the lead's first name back. LeadStartWait and
+	// LeadStartPoll bound the wait for a resumed lead's prompt (the defaults when zero).
+	FindLead      func(ctx context.Context, q agenthandoff.LeadQuery) (agenthandoff.LeadFound, bool)
+	SendLead      func(ctx context.Context, req agenthandoff.AppRequest) (agenthandoff.AppSent, error)
+	LeadSession   func(ctx context.Context, name string, agent string, dir string) (LeadSession, bool)
+	PreferName    func(blockId string, name string)
+	LeadStartWait time.Duration
+	LeadStartPoll time.Duration
 }
 
 type Restarter struct {
@@ -188,6 +205,12 @@ type Restarter struct {
 func MakeRestarter(store *Store, env RestartEnv) *Restarter {
 	if env.Now == nil {
 		env.Now = time.Now
+	}
+	if env.LeadStartWait <= 0 {
+		env.LeadStartWait = defaultLeadStartWait
+	}
+	if env.LeadStartPoll <= 0 {
+		env.LeadStartPoll = defaultLeadStartPoll
 	}
 	return &Restarter{env: env, store: store, running: map[PrKey]bool{}}
 }

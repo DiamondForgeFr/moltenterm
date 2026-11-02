@@ -72,6 +72,12 @@ func (s *Service) AskReleaseResolve(ctx context.Context, req ReleaseResolveReque
 // liveRestartEnv: Mission Control's worktree terminals, the agent states, the guarded typing path of the handoffs and
 // the review sessions' way of opening a terminal.
 func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
+	env := baseLiveRestartEnv(git)
+	liveLeadEnv(&env)
+	return env
+}
+
+func baseLiveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 	return RestartEnv{
 		Git:       git,
 		DataDir:   wavebase.GetWaveDataDir(),

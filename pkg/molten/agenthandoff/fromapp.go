@@ -28,11 +28,35 @@ const (
 	errAppNotStarted = "the agent handoffs are not started"
 )
 
-// AppRequest is a request MoltenTerm writes to the agent in ToBlockId.
+// AppRequest is a request MoltenTerm writes to the agent in ToBlockId. Closing replaces the brief's ending, which asks
+// for the outcome line, when MoltenTerm does not follow that line (#1779).
 type AppRequest struct {
 	ToBlockId string
 	Goal      string
 	Context   string
+	Closing   string
+}
+
+// LeadQuery names the lead agent a piece of work belongs to (#1779). FirstName and Agent come from the work's
+// signature, BlockId from the sub-agent registry's parent session; ProjectDir is the project the work belongs to.
+type LeadQuery struct {
+	FirstName  string
+	BlockId    string
+	Agent      string
+	ProjectDir string
+}
+
+// LeadFound is the running agent a LeadQuery names, and where it is.
+type LeadFound struct {
+	BlockId     string
+	FirstName   string
+	Agent       string
+	AgentName   string
+	State       string
+	TabId       string
+	WorkspaceId string
+	Folder      string
+	ProjectDir  string
 }
 
 // AppSent is where a request went: its delivery status (StatusDelivered, StatusTyped or StatusQueued), the receiver's
@@ -71,6 +95,51 @@ func SendFromApp(ctx context.Context, req AppRequest) (AppSent, error) {
 	return m.SendFromApp(ctx, req)
 }
 
+// FindLead says which running agent a LeadQuery names, through the running handoffs.
+func FindLead(ctx context.Context, q LeadQuery) (LeadFound, bool) {
+	Start()
+	m := sharedManager()
+	if m == nil {
+		return LeadFound{}, false
+	}
+	return m.FindLead(ctx, q)
+}
+
+// FindLead resolves the lead among the running local agents. A session whose terminal the registry names is the lead
+// whatever its name; a signature's first name only counts for an agent of the same CLI in the same project, since
+// first names are given again once a session ends and another session may hold it now.
+func (m *Manager) FindLead(ctx context.Context, q LeadQuery) (LeadFound, bool) {
+	active := m.activeParties(ctx)
+	var found activeAgent
+	switch {
+	case q.BlockId != "":
+		for _, e := range active {
+			if e.blockId == q.BlockId {
+				found = e
+				break
+			}
+		}
+	case cleanLine(q.FirstName) != "":
+		e, ok := resolve(active, cleanLine(q.FirstName))
+		if !ok || (q.Agent != "" && e.Agent != q.Agent) {
+			return LeadFound{}, false
+		}
+		found = e
+	}
+	if found.blockId == "" {
+		return LeadFound{}, false
+	}
+	loc, err := m.env.Locate(ctx, found.blockId)
+	if err != nil || !loc.Local {
+		return LeadFound{}, false
+	}
+	if q.BlockId == "" && q.ProjectDir != "" && loc.ProjectDir != "" && !samePath(loc.ProjectDir, q.ProjectDir) {
+		return LeadFound{}, false
+	}
+	return LeadFound{BlockId: found.blockId, FirstName: found.FirstName, Agent: found.Agent, AgentName: found.AgentName,
+		State: found.State, TabId: loc.TabId, WorkspaceId: loc.WorkspaceId, Folder: loc.Folder, ProjectDir: loc.ProjectDir}, true
+}
+
 // OutcomePathOf is the outcome line's path of a brief.
 func OutcomePathOf(briefPath string) string {
 	if briefPath == "" {
@@ -96,6 +165,7 @@ func (m *Manager) SendFromApp(ctx context.Context, req AppRequest) (AppSent, err
 	if err != nil {
 		return AppSent{}, err
 	}
+	brief.Closing = cut(cleanBlock(req.Closing), maxContextLen)
 	from := Party{FirstName: AppName, App: true}
 	to := m.party(req.ToBlockId, run, true, loc)
 	path, err := writeBrief(m.env.DataDir(), from, to, brief, m.now())
@@ -129,6 +199,11 @@ func renderAppBrief(to Party, b Brief, now time.Time, outcomePath string) string
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n## Then\n\n")
+	if b.Closing != "" {
+		sb.WriteString(b.Closing)
+		sb.WriteString("\n")
+		return sb.String()
+	}
 	fmt.Fprintf(&sb, "Last, write one line to %s: what you did. When you leave something for the developer (a question, "+
 		"a decision, work to finish first), start the line with `needs you:` and say why in a few words, in the developer's "+
 		"language. Then end your turn: MoltenTerm shows the developer that line and takes them to your terminal.\n", outcomePath)
