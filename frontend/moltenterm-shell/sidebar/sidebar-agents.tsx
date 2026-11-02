@@ -157,17 +157,17 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
     const t = useT();
     const tc = useTCount();
     const model = AgentInfoModel.getInstance();
-    const seenAll = useAtomValue(model.seenSubsAtom);
-    const trees = useAtomValue(model.treesAtom);
+    const seen = useAtomValue(model.seenAtom(info.blockid));
+    const tree = useAtomValue(model.treeAtom(info.blockid));
     const [allRunning, setAllRunning] = useState(false);
     const rows = subagentRows(companion);
     const now = useSubagentNow(rows);
-    const groups = subagentGroups(rows, now, !!companion?.ended, seenAll[info.blockid]);
+    const groups = subagentGroups(rows, now, !!companion?.ended, seen);
     const doneCount = groups.lingering.length;
     if (groups.running.length + doneCount === 0) {
         return null;
     }
-    const shut = !!trees[info.blockid]?.shut?.subs;
+    const shut = !!tree.shut?.subs;
     const running = allRunning ? groups.running : groups.running.slice(0, MaxRunningSubRows);
     const more = groups.running.length - running.length;
     const open = (s: SubagentRow) => model.openSub(info.blockid, s.id);
@@ -325,9 +325,8 @@ function AgentBlock({
     projects: WorkspaceProjectEntry[];
 }) {
     const t = useT();
-    const trees = useAtomValue(AgentInfoModel.getInstance().treesAtom);
+    const tree = useAtomValue(AgentInfoModel.getInstance().treeAtom(info.blockid));
     const folder = useAtomValue(getBlockMetaKeyAtom(info.blockid, "cmd:cwd")) ?? "";
-    const tree = trees[info.blockid];
     const open = !!tree?.open;
     const look = agentRowLook(info);
     const name = agentDisplayName(info);

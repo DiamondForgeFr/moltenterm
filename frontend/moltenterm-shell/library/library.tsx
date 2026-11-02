@@ -60,6 +60,7 @@ import type { WorkspaceRailEntry } from "../workspace-rail-model";
 import { viewNameText } from "../workspace-views/workspace-views-model";
 import { AgentsSection } from "./agents-section";
 import {
+    lastSettingsTab,
     libraryAddAsk,
     libraryEscapeStep,
     LibrarySection,
@@ -69,15 +70,14 @@ import {
     matchesQuery,
     panelAboutKey,
     putAwayAgentNames,
-    readLastSettingsTab,
     SentRow,
     SettingsOverviewTab,
     sharedAgentGroups,
     suggestClipboardText,
     whenText,
     workspaceAgents,
-    writeLastSettingsTab,
 } from "./library-model";
+import { LibraryPrefs } from "./library-prefs";
 import "./library.css";
 import { MaterialsSection, useMaterialsDrawer, useMaterialsNewCount } from "./materials-section";
 import { mountChannels, type ChannelsHandle } from "./settings-channels";
@@ -1154,13 +1154,10 @@ export function Library({
     const tc = useTCount();
     const [query, setQuery] = useState("");
     const [suggest, setSuggest] = useState(false);
-    const [settingsBlock, setSettingsBlockState] = useState<SettingsSectionId>(() =>
-        readLastSettingsTab(window.localStorage, SettingsSectionIds)
-    );
-    const setSettingsBlock = (block: SettingsSectionId) => {
-        writeLastSettingsTab(window.localStorage, block);
-        setSettingsBlockState(block);
-    };
+    const prefs = LibraryPrefs.getInstance();
+    const savedSettingsTab = useAtomValue(prefs.settingsTabAtom);
+    const settingsBlock = lastSettingsTab(savedSettingsTab, SettingsSectionIds);
+    const setSettingsBlock = (block: SettingsSectionId) => prefs.setSettingsTab(block);
     const rootRef = useRef<HTMLDivElement>(null);
     const info = LibrarySections.find((s) => s.id === section) ?? LibrarySections[0];
     const reopenKeys = formatShortcutById("reopen-closed");

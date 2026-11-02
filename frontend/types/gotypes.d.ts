@@ -1499,6 +1499,8 @@ declare global {
         "moltenterm:codingagent"?: string;
         "moltenterm:reviewssort"?: string;
         "moltenterm:reviewsfolds"?: {[key: string]: boolean};
+        "moltenterm:settingstab"?: string;
+        "moltenterm:materialsseen"?: {[key: string]: number};
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

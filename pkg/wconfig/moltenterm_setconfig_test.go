@@ -57,3 +57,33 @@ func TestSetBaseConfigValueConcurrentWritesKeepEveryKey(t *testing.T) {
 		}
 	}
 }
+
+// #1763: the page sends the materials' seen times as JSON numbers (float64 once decoded); they are kept as whole ms.
+func TestSetBaseConfigValueKeepsLibraryPrefs(t *testing.T) {
+	configDir := t.TempDir()
+	previous := wavebase.ConfigHome_VarCache
+	wavebase.ConfigHome_VarCache = configDir
+	t.Cleanup(func() { wavebase.ConfigHome_VarCache = previous })
+
+	if err := WriteWaveHomeConfigFile(SettingsFile, waveobj.MetaMapType{}); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	seen := map[string]any{"proj-a": float64(1793640000123), "proj-b": float64(1)}
+	if err := SetBaseConfigValue(waveobj.MetaMapType{"moltenterm:materialsseen": seen, "moltenterm:settingstab": "agents"}); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	m, cerrs := ReadWaveHomeConfigFile(SettingsFile)
+	if len(cerrs) > 0 {
+		t.Fatalf("read: %v", cerrs[0])
+	}
+	if m["moltenterm:settingstab"] != "agents" {
+		t.Fatalf("settingstab: %v", m["moltenterm:settingstab"])
+	}
+	got, _ := m["moltenterm:materialsseen"].(map[string]any)
+	if got["proj-a"] != float64(1793640000123) || got["proj-b"] != float64(1) {
+		t.Fatalf("materialsseen: %s", fmt.Sprint(m["moltenterm:materialsseen"]))
+	}
+	if err := SetBaseConfigValue(waveobj.MetaMapType{"moltenterm:materialsseen": map[string]any{"x": "soon"}}); err == nil {
+		t.Fatalf("a seen time that is not a number was accepted")
+	}
+}

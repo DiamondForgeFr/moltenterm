@@ -49,30 +49,12 @@ export function libraryEscapeStep(suggestOpen: boolean): LibraryEscapeStep {
 }
 
 // Settings' tab row (#1592): Overview, the blocks as compact cards, then one tab per block. Settings reopens on the
-// tab last used, on this computer; Overview the first time, or when the remembered block no longer exists.
+// tab last used (the setting moltenterm:settingstab, library-prefs.ts); Overview the first time, or when the
+// remembered block no longer exists.
 export const SettingsOverviewTab = "overview";
 
-const LastSettingsTabKey = "moltenterm:library-settings-tab";
-
-type TabStorage = Pick<Storage, "getItem" | "setItem">;
-
-export function readLastSettingsTab<T extends string>(storage: TabStorage, blocks: readonly T[]): T {
-    let saved: string = null;
-    try {
-        saved = storage?.getItem(LastSettingsTabKey);
-    } catch {
-        return null;
-    }
+export function lastSettingsTab<T extends string>(saved: string, blocks: readonly T[]): T {
     return blocks.find((b) => b === saved) ?? null;
-}
-
-// null is Overview.
-export function writeLastSettingsTab(storage: TabStorage, block: string) {
-    try {
-        storage?.setItem(LastSettingsTabKey, block ?? SettingsOverviewTab);
-    } catch {
-        // A storage that refuses writes only loses the remembered tab.
-    }
 }
 
 export function librarySectionAt(section: LibrarySection, step: number): LibrarySection {

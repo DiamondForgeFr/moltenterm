@@ -1524,6 +1524,25 @@
             "order": 138
           }
         },
+        "moltenterm:settingstab": {
+          "type": "string",
+          "description": "The tab the Settings screen opens on: the one the developer chose last (overview when unset). Set by the screen's tabs",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 139
+          }
+        },
+        "moltenterm:materialsseen": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object",
+          "description": "When the developer last saw each project's materials, by project, in milliseconds since 1970: newer materials are counted as new in the library. Set by opening the materials section",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 140
+          }
+        },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {

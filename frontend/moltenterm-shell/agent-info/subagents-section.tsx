@@ -63,13 +63,13 @@ export function SubagentsSection({
     const t = useT();
     const tc = useTCount();
     const locale = useLocale();
-    const seenAll = useAtomValue(AgentInfoModel.getInstance().seenSubsAtom);
+    const seen = useAtomValue(AgentInfoModel.getInstance().seenAtom(blockId));
     const [open, setOpen] = useState(false);
     const rows = subagentRows(companion);
     if (rows.length === 0) {
         return null;
     }
-    const groups = subagentCardGroups(rows, seenAll[blockId]);
+    const groups = subagentCardGroups(rows, seen);
     const now = Date.now();
     const days = subagentDays(groups.finished, now);
     const allToday = days.length === 1 && days[0].daysAgo === 0;

@@ -7,7 +7,7 @@ import {
     agentProjectLabel,
     agentRowLook,
     agentRowTarget,
-    MaxKeptTrees,
+    readTreeState,
     readTreeStates,
     sidebarSections,
     toggleSection,
@@ -180,29 +180,28 @@ describe("agentRowTarget", () => {
 
 describe("tree states", () => {
     it("opens a tree and shuts its sections independently, each kept", () => {
-        let s = toggleTree({}, "a");
-        expect(s.a.open).toBe(true);
-        s = toggleSection(s, "a", "subs");
-        expect(s.a.shut).toEqual({ subs: true });
-        s = toggleSection(s, "a", "links");
-        expect(s.a.shut).toEqual({ subs: true, links: true });
-        s = toggleSection(s, "a", "subs");
-        expect(s.a.shut).toEqual({ subs: false, links: true });
-        s = toggleTree(s, "a");
-        expect(s.a).toEqual({ open: false, shut: { subs: false, links: true } });
+        let s = toggleTree(null);
+        expect(s.open).toBe(true);
+        s = toggleSection(s, "subs");
+        expect(s.shut).toEqual({ subs: true });
+        s = toggleSection(s, "links");
+        expect(s.shut).toEqual({ subs: true, links: true });
+        s = toggleSection(s, "subs");
+        expect(s.shut).toEqual({ subs: false, links: true });
+        s = toggleTree(s);
+        expect(s).toEqual({ open: false, shut: { subs: false, links: true } });
     });
 
-    it("keeps the latest trees only", () => {
-        let s = {};
-        for (let i = 0; i < MaxKeptTrees + 10; i++) {
-            s = toggleTree(s, `b${i}`);
-        }
-        expect(Object.keys(s)).toHaveLength(MaxKeptTrees);
-        expect(s).toHaveProperty(`b${MaxKeptTrees + 9}`);
-        expect(s).not.toHaveProperty("b0");
+    it("reads a terminal's stored state defensively", () => {
+        expect(readTreeState(null)).toBeNull();
+        expect(readTreeState("open")).toBeNull();
+        expect(readTreeState({ open: true, shut: { links: true, other: true } })).toEqual({
+            open: true,
+            shut: { links: true },
+        });
     });
 
-    it("reads stored states defensively", () => {
+    it("reads the old stored map defensively", () => {
         expect(readTreeStates(null)).toEqual({});
         expect(readTreeStates([1])).toEqual({});
         expect(readTreeStates({ a: { open: true, shut: { subs: true, other: true } }, b: 3 })).toEqual({

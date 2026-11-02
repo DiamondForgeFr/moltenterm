@@ -144,6 +144,8 @@ const (
 	ConfigKey_MoltentermCodingAgent          = "moltenterm:codingagent"
 	ConfigKey_MoltentermReviewsSort          = "moltenterm:reviewssort"
 	ConfigKey_MoltentermReviewsFolds         = "moltenterm:reviewsfolds"
+	ConfigKey_MoltentermSettingsTab          = "moltenterm:settingstab"
+	ConfigKey_MoltentermMaterialsSeen        = "moltenterm:materialsseen"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"

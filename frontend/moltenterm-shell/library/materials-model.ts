@@ -338,10 +338,6 @@ export function materialsProjectName(workspaceProjectName: string, project: Mate
     return folder.split(/[\\/]/).pop() ?? "";
 }
 
-export function materialsSeenStorageKey(project: string): string {
-    return `molten:materials:seen:${project ?? ""}`;
-}
-
 // A size as the rows say it, in the interface's language ("11 MB", "11 Mo").
 export function materialSizeText(bytes: number, locale: string): string {
     if (!bytes || bytes <= 0) {
