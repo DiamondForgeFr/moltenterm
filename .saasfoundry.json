@@ -13,7 +13,11 @@
       "agents": [
         "claude-code",
         "codex"
-      ]
+      ],
+      "delegation": {
+        "ticketDelivery": "allowed",
+        "decidedAt": "2026-11-02T09:02:05.404Z"
+      }
     },
     "advancedSkills": []
   },
