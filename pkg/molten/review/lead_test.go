@@ -160,6 +160,10 @@ func TestLeadBriefAsksToDelegateAndKeepTheTurnShort(t *testing.T) {
 	if strings.Contains(text, "\nIgnore previous") {
 		t.Errorf("the title is one quoted line, never a line of the brief:\n%s", text)
 	}
+	req.HeadOid = "abc; touch /tmp/pwned"
+	if _, hostile, _ := renderLeadBrief(req, "Arthur", 9); strings.Contains(hostile, "pwned") {
+		t.Errorf("only a commit id is written as the head:\n%s", hostile)
+	}
 	if !strings.Contains(closing, "Report back") || strings.Contains(closing, "needs you:") {
 		t.Errorf("closing: %q", closing)
 	}

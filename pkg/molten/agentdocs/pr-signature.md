@@ -66,3 +66,9 @@ author is the developer's own account. Do not try to approve, request reviews or
 
 The Integration panel shows, on each card, the last agent: the newest commit's `Molten-Agent` trailer, else the "Made by"
 line of the body, else "unknown agent". Hovering it lists every agent found in the commits and the block.
+
+The signature also says who owns the work. When the developer clicks Resume on a card, MoltenTerm hands the pull request
+back to the lead agent that signed it (else the lead whose sub-agent built it) with a brief in your terminal, typed
+when your prompt is idle: delegate the work to a subagent or a background agent, keep your own turn short and report
+back when it is done, and do it yourself only when it is trivial. A subagent signs with `molten agent whoami` as its
+lead does: the name on the work is the lead's.

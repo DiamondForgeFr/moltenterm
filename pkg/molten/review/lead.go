@@ -302,7 +302,7 @@ func renderLeadBrief(req FinishRequest, leadName string, ticket int) (string, st
 		fmt.Fprintf(&b, " %s", cleanLeadText(req.Url, 300))
 	}
 	fmt.Fprintf(&b, "\n- Repository: %s\n- Branch: %s into %s\n", req.Repo, req.HeadRef, req.BaseRef)
-	if req.HeadOid != "" {
+	if isOid(req.HeadOid) {
 		fmt.Fprintf(&b, "- Head when asked: %s\n", req.HeadOid)
 	}
 	if ticket > 0 {
