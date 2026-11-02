@@ -29,6 +29,11 @@
         var(--pour-iron-0);
     outline: none;
     container-type: size;
+    /* The scene and the footer share the frame as two rows (#1732): the scene scrolls in its own row and ends above the
+       buttons, so no card ever slides under them. */
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .mt-pour-sparks {
@@ -77,11 +82,20 @@
 }
 
 .mt-pour-scene {
-    position: absolute;
-    inset: 0;
+    position: relative;
     z-index: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 72px 24px 96px;
+    padding: 72px 24px 24px;
+    /* Scrolled content fades out under the heat bars and before the footer instead of showing through them. */
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 44px,
+        #000 72px,
+        #000 calc(100% - 20px),
+        transparent 100%
+    );
     display: grid;
     place-items: center;
     animation: pour-scene-in 700ms var(--pour-ease) both;
@@ -157,10 +171,8 @@
 }
 
 .mt-pour-nav {
-    position: absolute;
-    bottom: 26px;
-    left: 0;
-    right: 0;
+    position: relative;
+    padding: 12px 0 26px;
     z-index: 5;
     display: flex;
     flex-direction: column;
