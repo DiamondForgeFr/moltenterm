@@ -17,8 +17,11 @@ import {
     BrowserKeyZoomIn,
     BrowserKeyZoomOut,
     BrowserKeyZoomReset,
+    BrowserKeyTarget,
     browserPageKeys,
     nextZoomStep,
+    pageHistoryKey,
+    registerHistoryKeys,
     routeBrowserPageKey,
 } from "./browser-keys";
 
@@ -119,6 +122,79 @@ describe("the keys held back from a page", () => {
             for (const k of [mac.keys, ...(mac.alt ?? [])]) expect(browserPageKeys(true)).toContain(k);
             for (const k of [other.keys, ...(other.alt ?? [])]) expect(browserPageKeys(false)).toContain(k);
         }
+    });
+});
+
+describe("the window's back and forward keys (#1744, FR-SHELL-139)", () => {
+    const browser = (answer = true) => {
+        const seen: number[] = [];
+        return {
+            seen,
+            model: {
+                viewType: "molten-browser",
+                historyKeyHandler: (direction: 1 | -1) => (seen.push(direction), answer),
+            } as BrowserKeyTarget,
+        };
+    };
+    const focus = (blockId: string, models: Record<string, BrowserKeyTarget>) => ({
+        focusedBlockId: () => blockId,
+        modelOf: (id: string) => models[id],
+    });
+
+    it("hands back and forward to the browser panel that holds the focus, page or controls", () => {
+        const b = browser();
+        expect(pageHistoryKey(-1, focus("b", { b: b.model }))).toBe(true);
+        expect(pageHistoryKey(1, focus("b", { b: b.model }))).toBe(true);
+        expect(b.seen).toEqual([-1, 1]);
+    });
+
+    it("lets the browser panel keep the key even when its page has no history, so a view never switches from a page", () => {
+        const b = browser(true);
+        expect(pageHistoryKey(-1, focus("b", { b: b.model }))).toBe(true);
+    });
+
+    it("leaves the key to the window when the focus is in a terminal or any other panel", () => {
+        const b = browser();
+        const models = { b: b.model, t: { viewType: "term" } as BrowserKeyTarget };
+        expect(pageHistoryKey(-1, focus("t", models))).toBe(false);
+        expect(pageHistoryKey(1, focus("t", models))).toBe(false);
+        expect(b.seen).toEqual([]);
+    });
+
+    it("leaves the key to the window when no panel holds the focus (the sidebar, the top field) or the panel is unknown", () => {
+        const b = browser();
+        expect(pageHistoryKey(-1, focus(null, { b: b.model }))).toBe(false);
+        expect(pageHistoryKey(-1, focus("gone", { b: b.model }))).toBe(false);
+        expect(b.seen).toEqual([]);
+    });
+
+    it("leaves the key to the window when the panel declines it (a dialog is open)", () => {
+        const b = browser(false);
+        expect(pageHistoryKey(1, focus("b", { b: b.model }))).toBe(false);
+        expect(b.seen).toEqual([1]);
+    });
+
+    it("binds Alt+← and Alt+→ off macOS only, by direction", () => {
+        const answered: number[] = [];
+        const linux = new Map<string, (e: WaveKeyboardEvent) => boolean>();
+        registerHistoryKeys(linux, false, (direction) => (answered.push(direction), true));
+        expect([...linux.keys()]).toEqual(["Alt:ArrowLeft", "Alt:ArrowRight"]);
+        linux.get("Alt:ArrowLeft")(null);
+        linux.get("Alt:ArrowRight")(null);
+        expect(answered).toEqual([-1, 1]);
+        const mac = new Map<string, (e: WaveKeyboardEvent) => boolean>();
+        registerHistoryKeys(mac, true, () => true);
+        expect([...mac.keys()]).toEqual([]);
+    });
+
+    it("keeps the keys the registry and the page table agree on", () => {
+        setKeyUtilPlatform("darwin");
+        expect(browserKeyAction(key("[", { meta: true }, true), true)).toBe(BrowserKeyBack);
+        expect(browserKeyAction(key("]", { meta: true, shift: true }, true), true)).toBeNull();
+        expect(findShortcut("browser-back").keys).toBe("Cmd:[");
+        expect(findShortcut("browser-forward-other").keys).toBe("Alt:ArrowRight");
+        expect(findShortcut("previous-tab").keys).toBe("Cmd:[");
+        expect(findShortcut("previous-tab").alt).toEqual(["Shift:Cmd:["]);
     });
 });
 

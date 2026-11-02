@@ -26,6 +26,7 @@ import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { browserPageKeys, routeBrowserPageKey } from "../../moltenterm-shell/browser/browser-keys"; // MOLTENTERM-PATCH (#1722)
+import { registerBrowserHistoryKeys, windowHistoryKey } from "../../moltenterm-shell/browser/browser-history-window"; // MOLTENTERM-PATCH (#1744)
 import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { openNewPanel } from "../../moltenterm-shell/newpanel/new-panel"; // MOLTENTERM-PATCH (#1241)
@@ -541,6 +542,10 @@ function countTermBlocks(): number {
 
 function registerGlobalKeys() {
     globalKeyMap.set("Cmd:]", () => {
+        // MOLTENTERM-PATCH (#1744): back and forward are the page's while the focus is in a browser panel (FR-SHELL-139)
+        if (windowHistoryKey(1)) {
+            return true;
+        }
         switchTab(1);
         return true;
     });
@@ -549,6 +554,9 @@ function registerGlobalKeys() {
         return true;
     });
     globalKeyMap.set("Cmd:[", () => {
+        if (windowHistoryKey(-1)) {
+            return true; // MOLTENTERM-PATCH (#1744)
+        }
         switchTab(-1);
         return true;
     });
@@ -830,6 +838,7 @@ function registerGlobalKeys() {
     // MOLTENTERM-PATCH (#1183): Cmd+S hides or shows the workspace sidebar
     registerSidebarKeys(globalKeyMap);
     registerNewViewKeys(globalKeyMap); // MOLTENTERM-PATCH (#1232)
+    registerBrowserHistoryKeys(globalKeyMap); // MOLTENTERM-PATCH (#1744): Alt+← and Alt+→ off macOS
     // MOLTENTERM-PATCH (#1187): Cmd+L and Cmd+K open the sidebar's top field
     registerTopFieldKeys(globalKeyMap);
     const allKeys = Array.from(globalKeyMap.keys());
