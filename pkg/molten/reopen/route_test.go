@@ -6,6 +6,7 @@ package reopen
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -47,6 +48,66 @@ func TestReopenLastWalksBackThroughTheCloses(t *testing.T) {
 	}
 	if res, err := ReopenLast(ctx, store, stacks, ReopenRequest{WorkspaceId: "w", TabId: "t"}); err != nil || res.Reopened {
 		t.Fatalf("nothing to reopen: %+v %v", res, err)
+	}
+}
+
+// #1744: a browser reopens the last closed tab or window, whichever closed last; panels and views share one order.
+func TestReopenLastKeepsOneClosingOrderForPanelsAndViews(t *testing.T) {
+	var restored []string
+	fail := false
+	store, stacks := fakeStore(&restored, &fail), MakeStacks()
+	ctx := context.Background()
+	closes := []RecordRequest{
+		{Kind: KindPane, WorkspaceId: "w", TabId: "t1", BlockId: "a"},
+		{Kind: KindTab, WorkspaceId: "w", TabId: "t2"},
+		{Kind: KindPane, WorkspaceId: "w", TabId: "t1", BlockId: "b"},
+		{Kind: KindTab, WorkspaceId: "w", TabId: "t1"},
+		{Kind: KindPane, WorkspaceId: "other", TabId: "t9", BlockId: "z"},
+	}
+	for _, req := range closes {
+		if _, err := Record(ctx, store, stacks, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{"tab", "bpane", "tab", "apane"}
+	for _, name := range want {
+		res, err := ReopenLast(ctx, store, stacks, ReopenRequest{WorkspaceId: "w", TabId: "t"})
+		if err != nil || !res.Reopened || res.Name != name {
+			t.Fatalf("reopen: %+v %v, want %s", res, err, name)
+		}
+	}
+	if res, err := ReopenLast(ctx, store, stacks, ReopenRequest{WorkspaceId: "w", TabId: "t"}); err != nil || res.Reopened {
+		t.Fatalf("this workspace has nothing left: %+v %v", res, err)
+	}
+	if stacks.Len("other") != 1 {
+		t.Fatal("another workspace keeps its own closes")
+	}
+}
+
+// The panels and the views are trimmed on their own counts, so a flood of one kind never reorders or evicts the other.
+func TestReopenKeepsTheOrderWhenOneKindOverflows(t *testing.T) {
+	var restored []string
+	fail := false
+	store, stacks := fakeStore(&restored, &fail), MakeStacks()
+	ctx := context.Background()
+	record := func(req RecordRequest) {
+		if _, err := Record(ctx, store, stacks, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	record(RecordRequest{Kind: KindTab, WorkspaceId: "w", TabId: "view"})
+	for i := 0; i < StackSize+3; i++ {
+		record(RecordRequest{Kind: KindPane, WorkspaceId: "w", TabId: "t", BlockId: fmt.Sprintf("p%02d", i)})
+	}
+	for i := 0; i < StackSize; i++ {
+		res, err := ReopenLast(ctx, store, stacks, ReopenRequest{WorkspaceId: "w", TabId: "t"})
+		want := fmt.Sprintf("p%02dpane", StackSize+2-i)
+		if err != nil || res.Name != want {
+			t.Fatalf("reopen %d: %+v %v, want %s", i, res, err, want)
+		}
+	}
+	if res, err := ReopenLast(ctx, store, stacks, ReopenRequest{WorkspaceId: "w", TabId: "t"}); err != nil || res.Name != "tab" {
+		t.Fatalf("the view closed first is still there: %+v %v", res, err)
 	}
 }
 
