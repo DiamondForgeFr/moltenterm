@@ -43,6 +43,7 @@ import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys
 import { openTopFieldFromKey, registerTopFieldKeys } from "../../moltenterm-shell/sidebar/top-field-store"; // MOLTENTERM-PATCH (#1187, #1759)
 import {
     announceClosedViews,
+    ClosedKindCleared,
     ClosedKindView,
     pinnedViewKeepsTab,
 } from "../../moltenterm-shell/sidebar/view-pins-store"; // MOLTENTERM-PATCH (#1185, #1345)
@@ -157,12 +158,22 @@ function simpleCloseStaticTab() {
     const confirmClose = globalStore.get(getSettingsKeyAtom("tab:confirmclose")) ?? false;
     // MOLTENTERM-PATCH (#134, #489): a tab holding terminals linked to worktrees, or in which something runs, asks once
     // for all of them
-    closeTabAskingFirst(getApi().closeTab, workspaceId, tabId, confirmClose)
+    // MOLTENTERM-PATCH (#1760): a pinned view closes in every project of the workspace: the toast counts the views
+    let closedCount = 1;
+    closeTabAskingFirst(getApi().closeTab, workspaceId, tabId, confirmClose, {
+        closed: (count) => {
+            closedCount = count;
+        },
+    })
         .then((didClose) => {
             if (didClose) {
                 deleteLayoutModelForTab(tabId);
                 // MOLTENTERM-PATCH (#1345): the view now on screen says so with Undo, so Cmd+Z after Cmd+W reopens it
-                return announceClosedViews(workspaceId, 1, ClosedKindView);
+                return announceClosedViews(
+                    workspaceId,
+                    closedCount,
+                    closedCount > 1 ? ClosedKindCleared : ClosedKindView
+                );
             }
         })
         .catch((e) => {
