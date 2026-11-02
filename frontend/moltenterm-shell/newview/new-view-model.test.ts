@@ -9,8 +9,9 @@ import {
     addFavorite,
     AgentPickerBlockDef,
     ChooserAction,
+    chooserAriaKey,
     ChooserBlockDef,
-    chooserBlockDef,
+    chooserFooterKey,
     chooserKey,
     chooserListEntries,
     chooserPreselect,
@@ -22,9 +23,11 @@ import {
     NewViewAgentsMetaKey,
     newViewChoices,
     NewViewMetaKey,
+    NewViewPanelMetaKey,
     NewViewPreselectMetaKey,
     NewViewRunMetaKey,
     newViewStart,
+    panelChooserBlockDef,
     removeFavorite,
     replaceFavorite,
     resolveDirect,
@@ -303,7 +306,51 @@ describe("a new panel's chooser starts on the focused type (#1742)", () => {
 
     it("marks the launcher of a new panel with the entry to select, and only that one", () => {
         expect((ChooserBlockDef.meta as Record<string, unknown>)[NewViewPreselectMetaKey]).toBeUndefined();
-        expect((chooserBlockDef("panel:x").meta as Record<string, unknown>)[NewViewPreselectMetaKey]).toBe("panel:x");
-        expect(chooserBlockDef(null)).toBe(ChooserBlockDef);
+        const meta = (id: string) => panelChooserBlockDef(id).meta as Record<string, unknown>;
+        expect(meta("panel:x")[NewViewPreselectMetaKey]).toBe("panel:x");
+        expect(meta(null)[NewViewPreselectMetaKey]).toBeUndefined();
+        expect(meta("")[NewViewPreselectMetaKey]).toBeUndefined();
+    });
+});
+
+describe("a new panel's chooser says it cancels a new panel (#1742)", () => {
+    it("marks the launcher of a new panel, and no other chooser", () => {
+        const meta = (def: BlockDef) => def.meta as Record<string, unknown>;
+        expect(meta(panelChooserBlockDef(null))[NewViewPanelMetaKey]).toBe(true);
+        expect(meta(panelChooserBlockDef("panel:x"))[NewViewPanelMetaKey]).toBe(true);
+        expect(meta(ChooserBlockDef)[NewViewPanelMetaKey]).toBeUndefined();
+        expect(meta(AgentPickerBlockDef)[NewViewPanelMetaKey]).toBeUndefined();
+        expect(meta(panelChooserBlockDef(null))[NewViewMetaKey]).toBe(true);
+    });
+
+    it("is read from the launcher's mark by the chooser and drawn by the palette's footer and label", () => {
+        const source = (file: string) => fs.readFileSync(path.resolve(__dirname, file), "utf8");
+        expect(source("./new-view-chooser.tsx")).toContain("NewViewPanelMetaKey");
+        expect(source("./new-view-chooser.tsx")).toContain("inPanel,");
+        expect(source("../palette/command-palette.tsx")).toContain("chooserFooterKey(newView.inPanel === true)");
+        expect(source("../palette/command-palette.tsx")).toContain("chooserAriaKey(newView.inPanel === true)");
+    });
+
+    it("words the footer and the dialog's label with the panel for a panel, with the view for a view", () => {
+        expect(chooserFooterKey(true)).toBe("palette.footer.cancelNewPanel");
+        expect(chooserFooterKey(false)).toBe("palette.footer.cancelNewView");
+        expect(chooserAriaKey(true)).toBe("newView.ariaPanel");
+        expect(chooserAriaKey(false)).toBe("newView.aria");
+        for (const locale of ["en", "fr"]) {
+            const strings = JSON.parse(
+                fs.readFileSync(path.resolve(__dirname, `../i18n/locales/${locale}.json`), "utf8")
+            ) as Record<string, any>;
+            const read = (key: string) => key.split(".").reduce((node, part) => node?.[part], strings);
+            for (const key of [
+                chooserFooterKey(true),
+                chooserFooterKey(false),
+                chooserAriaKey(true),
+                chooserAriaKey(false),
+            ]) {
+                expect(typeof read(key), `${locale} ${key}`).toBe("string");
+            }
+            expect(read(chooserFooterKey(true))).not.toBe(read(chooserFooterKey(false)));
+            expect(read(chooserAriaKey(true))).not.toBe(read(chooserAriaKey(false)));
+        }
     });
 });

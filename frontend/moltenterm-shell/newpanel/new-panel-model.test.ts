@@ -9,10 +9,11 @@ import { describe, expect, it } from "vitest";
 import { rowEqualizeOps } from "../equalize/equalize-rules";
 import {
     ChooserBlockDef,
-    chooserBlockDef,
     newViewChoices,
     NewViewMetaKey,
+    NewViewPanelMetaKey,
     NewViewPreselectMetaKey,
+    panelChooserBlockDef,
     TerminalChoiceId,
     WebPageChoiceId,
 } from "../newview/new-view-model";
@@ -172,8 +173,8 @@ describe("what the new panel holds (#1241, FR-SHELL-089)", () => {
     const choices = newViewChoices({ presets: DefaultAgents, widgets: DefaultWidgets, workspaceId: "ws1" });
 
     it("opens the chooser by default and for an unknown type", () => {
-        expect(newPanelContent(undefined, choices)).toEqual({ kind: "block", blockdef: ChooserBlockDef });
-        expect(newPanelContent("panel:gone", choices)).toEqual({ kind: "block", blockdef: ChooserBlockDef });
+        expect(newPanelContent(undefined, choices)).toEqual({ kind: "block", blockdef: panelChooserBlockDef(null) });
+        expect(newPanelContent("panel:gone", choices)).toEqual({ kind: "block", blockdef: panelChooserBlockDef(null) });
     });
 
     it("opens today's terminal directly when the setting is Terminal", () => {
@@ -229,7 +230,10 @@ describe("the chooser selects the focused panel's type (#1742, FR-SHELL-086)", (
 
     it("selects nothing from the focus when there is none, or its type is not in the chooser", () => {
         for (const view of [undefined, null, "", "launcher", "tips", "no-such-view"]) {
-            expect(newPanelContent(undefined, choices, view)).toEqual({ kind: "block", blockdef: ChooserBlockDef });
+            expect(newPanelContent(undefined, choices, view)).toEqual({
+                kind: "block",
+                blockdef: panelChooserBlockDef(null),
+            });
         }
     });
 
@@ -250,10 +254,13 @@ describe("the chooser selects the focused panel's type (#1742, FR-SHELL-086)", (
         expect(direct.blockdef.meta[NewViewPreselectMetaKey as keyof MetaType]).toBeUndefined();
     });
 
-    it("keeps the launcher marked as a new view chooser, so Escape closes it", () => {
-        const def = chooserBlockDef(TerminalChoiceId);
-        expect(def.meta.view).toBe("launcher");
-        expect(def.meta[NewViewMetaKey as keyof MetaType]).toBe(true);
+    it("keeps the launcher marked as a new view chooser, so Escape closes it, and as a panel's, so it says so", () => {
+        for (const def of [panelChooserBlockDef(TerminalChoiceId), panelChooserBlockDef(null)]) {
+            expect(def.meta.view).toBe("launcher");
+            expect(def.meta[NewViewMetaKey as keyof MetaType]).toBe(true);
+            expect(def.meta[NewViewPanelMetaKey as keyof MetaType]).toBe(true);
+        }
+        expect(ChooserBlockDef.meta[NewViewPanelMetaKey as keyof MetaType]).toBeUndefined();
     });
 });
 

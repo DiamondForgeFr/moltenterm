@@ -23,6 +23,7 @@ import {
     newViewChoices,
     NewViewFavoritesKey,
     NewViewMetaKey,
+    NewViewPanelMetaKey,
     NewViewPreselectMetaKey,
     NewViewRunMetaKey,
     resolveFavorites,
@@ -44,6 +45,7 @@ export function NewViewChooserView({ blockId, inputRef }: NewViewChooserViewProp
     const runId = block?.meta?.[NewViewRunMetaKey as keyof MetaType] as string;
     const focusAgents = block?.meta?.[NewViewAgentsMetaKey as keyof MetaType] === true;
     const preselect = block?.meta?.[NewViewPreselectMetaKey as keyof MetaType] as string;
+    const inPanel = block?.meta?.[NewViewPanelMetaKey as keyof MetaType] === true;
     const projectLinked = readWorkspaceProject(ws).dir !== "";
     const choices = useMemo(
         () =>
@@ -81,8 +83,9 @@ export function NewViewChooserView({ blockId, inputRef }: NewViewChooserViewProp
             },
             focusAgents,
             preselect,
+            inPanel,
         };
-    }, [favoritesSetting, choices, blockId, focusAgents, preselect]);
+    }, [favoritesSetting, choices, blockId, focusAgents, preselect, inPanel]);
     if (runId) {
         return null;
     }
