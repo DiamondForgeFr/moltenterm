@@ -146,7 +146,7 @@ describe("workspace actions", () => {
         ]);
         expect(actions.map((a) => a.label)).toEqual([
             "New view",
-            "Reopen the last closed pane or view",
+            "Reopen the last closed panel or view",
             "Split the panel…",
             "Equalize panels",
             "New workspace",
@@ -249,7 +249,7 @@ describe("workspace actions", () => {
         expect(actions.map((a) => a.label)).toEqual([
             "Project view",
             "New view",
-            "Reopen the last closed pane or view",
+            "Reopen the last closed panel or view",
             "Split the panel…",
             "Equalize panels",
             "New workspace",

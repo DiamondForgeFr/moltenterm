@@ -25,8 +25,8 @@ import { isMacOS, isWindows } from "@/util/platformutil"; // MOLTENTERM-PATCH (#
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
-import { browserPageKeys, routeBrowserPageKey } from "../../moltenterm-shell/browser/browser-keys"; // MOLTENTERM-PATCH (#1722)
 import { registerBrowserHistoryKeys, windowHistoryKey } from "../../moltenterm-shell/browser/browser-history-window"; // MOLTENTERM-PATCH (#1744)
+import { browserPageKeys, routeBrowserPageKey } from "../../moltenterm-shell/browser/browser-keys"; // MOLTENTERM-PATCH (#1722)
 import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { openNewPanel } from "../../moltenterm-shell/newpanel/new-panel"; // MOLTENTERM-PATCH (#1241)

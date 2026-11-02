@@ -256,7 +256,12 @@ describe("the browser's reflexes: window = view, tab = panel (#1744, FR-SHELL-13
             s.category === "Browser" && /^browser-(back|forward)/.test(s.id);
         const mac = platformShortcuts(true).filter(history);
         const other = platformShortcuts(false).filter(history);
-        expect(mac.flatMap((s) => [s.keys, ...(s.alt ?? [])])).toEqual(["Cmd:[", "Cmd:ArrowLeft", "Cmd:]", "Cmd:ArrowRight"]);
+        expect(mac.flatMap((s) => [s.keys, ...(s.alt ?? [])])).toEqual([
+            "Cmd:[",
+            "Cmd:ArrowLeft",
+            "Cmd:]",
+            "Cmd:ArrowRight",
+        ]);
         expect(other.flatMap((s) => [s.keys, ...(s.alt ?? [])])).toEqual(["Alt:ArrowLeft", "Alt:ArrowRight"]);
     });
 
