@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
+	"github.com/wavetermdev/waveterm/pkg/molten/reopen"
+	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -64,6 +66,64 @@ func TestRemovingAProjectTurnsADuplicatePinnedViewIntoATemporaryViewOrDropsItsUn
 	if ws.Meta.HasKey(projectviews.SlotsMetaKey) || ws.Meta.HasKey(projectviews.TabProjectsMetaKey) {
 		t.Fatalf("one project left maps nothing: %v", ws.Meta)
 	}
+}
+
+func TestAReopenedTileComesBackToItsProjectAndItsSlot(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
+	tile := addProjectTab(t, ctx, wsId, "Cadrage", commandTileMeta(), notuliaDir)
+	slot := projectviews.ReadSlots(workspaceOf(t, ctx, wsId).Meta)[tile]
+	if slot == "" {
+		t.Fatal("the tile has a slot")
+	}
+	recorded := moltenTabMetaWithProject(workspaceOf(t, ctx, wsId), tile, reopenCleanMeta(t, ctx, tile))
+	if recorded[projectviews.SlotHintMetaKey] != slot || recorded[projectviews.ViewProjectHintMetaKey] != "p1" {
+		t.Fatalf("the record carries the project and the slot: %v", recorded)
+	}
+	// Made again while the other project is current: it still goes back to its own project and slot.
+	if err := wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Workspace, wsId), projectviews.LiveUpdate(projectviews.Project{Id: "p2", Type: "Website", Dir: notuliaWebsiteDir}), false); err != nil {
+		t.Fatal(err)
+	}
+	again, err := createTabObj(ctx, wsId, "Cadrage", recorded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := workspaceOf(t, ctx, wsId)
+	if projectviews.ReadTabProjects(ws.Meta)[again.OID] != "p1" || projectviews.ReadSlots(ws.Meta)[again.OID] != slot {
+		t.Fatalf("back in p1 with its slot: %v", ws.Meta)
+	}
+	if stored, _ := wstore.DBGet[*waveobj.Tab](ctx, again.OID); stored.Meta.HasKey(projectviews.SlotHintMetaKey) || stored.Meta.HasKey(projectviews.ViewProjectHintMetaKey) {
+		t.Fatalf("the hints never stay on the tab: %v", stored.Meta)
+	}
+}
+
+func TestInstancesPinnedTogetherShareTheSlotTheWindowNames(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
+	a := addProjectTab(t, ctx, wsId, "a", nil, notuliaDir)
+	b := addProjectTab(t, ctx, wsId, "b", nil, notuliaDir)
+	for _, id := range []string{a, b} {
+		patch := waveobj.MetaMapType{viewpin.PinMetaKey: viewpin.PinWorkspace, viewpin.PinConfigMetaKey: pinnedTabMeta()[viewpin.PinConfigMetaKey], projectviews.SlotHintMetaKey: "sShared"}
+		if err := wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Tab, id), patch, false); err != nil {
+			t.Fatal(err)
+		}
+		MoltenTabMetaChanged(ctx, id, patch)
+		if stored, _ := wstore.DBGet[*waveobj.Tab](ctx, id); stored.Meta.HasKey(projectviews.SlotHintMetaKey) {
+			t.Fatalf("the hint never stays on the tab: %v", stored.Meta)
+		}
+	}
+	slots := projectviews.ReadSlots(workspaceOf(t, ctx, wsId).Meta)
+	if slots[a] != "sShared" || slots[b] != "sShared" {
+		t.Fatalf("both are instances of one slot: %v", slots)
+	}
+}
+
+func reopenCleanMeta(t *testing.T, ctx context.Context, tabId string) waveobj.MetaMapType {
+	t.Helper()
+	tab, _ := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+	return reopen.CleanMeta(tab.Meta)
 }
 
 // A workspace the first part migrated (its temporary views mapped, its pinned views shared) gets its pinned views'

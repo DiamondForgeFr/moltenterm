@@ -15,6 +15,7 @@ export const HiddenTabsMetaKey = "molten:hiddentabs";
 // must match pkg/molten/projectviews/projectviews.go
 export const TabProjectsMetaKey = "molten:tabprojects";
 export const ActiveByProjectMetaKey = "molten:projectactivetab";
+export const SlotsMetaKey = "molten:viewslots";
 // must match readProjects and currentProjectId in sidebar/workspace-projects.ts, which this module cannot import
 const ProjectsMetaKey = "molten:projects";
 const CurrentProjectMetaKey = "molten:currentproject";
@@ -65,6 +66,32 @@ export function tabProjectsOf(ws: { meta?: Record<string, any> }): Record<string
         }
     }
     return rtn;
+}
+
+// {tabId: slot}: the instances of one tile in the workspace's projects share a slot, which closes, renames and saves as
+// one view (#1760).
+export function tabSlotsOf(ws: { meta?: Record<string, any> }): Record<string, string> {
+    const value = ws?.meta?.[SlotsMetaKey];
+    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+        return {};
+    }
+    const rtn: Record<string, string> = {};
+    for (const [tabId, slot] of Object.entries(value)) {
+        if (typeof slot === "string" && slot !== "") {
+            rtn[tabId] = slot;
+        }
+    }
+    return rtn;
+}
+
+// The tabs of a tile's slot in the workspace, the tab itself included; a tab without a slot is alone.
+export function slotMembers(ws: WorkspaceLike, tabId: string): string[] {
+    const slots = tabSlotsOf(ws);
+    const slot = slots[tabId];
+    if (slot == null) {
+        return [tabId];
+    }
+    return (ws?.tabids ?? []).filter((id) => slots[id] === slot);
 }
 
 // The project that owns a tab: "" when every project shows it.

@@ -5130,6 +5130,11 @@
                 "subtitle": "Les fermer arrête ce qui tourne dans leurs terminaux. Les vues pourront revenir, pas ce qui y tournait.",
                 "confirm": "Tout fermer quand même"
             },
+            "shared": {
+                "title": "Fermer « {name} » pour tous les projets ?",
+                "subtitle": "« {name} » est partagée par les projets de cet espace de travail ({projects}). La fermer la ferme pour tous. Épinglez-la de nouveau pour la retrouver.",
+                "confirm": "Fermer pour tous les projets"
+            },
             "tab": {
                 "title": "Fermer cette vue ?",
                 "titleNamed": "Fermer la vue « {name} » ?",
@@ -9531,6 +9536,7 @@
             "typeTitleMany": "Projet courant : {type} · {count} projets dans cet espace de travail",
             "switched": "Projet courant : {project}",
             "switchedHint": "Les nouveaux agents démarrent dans son dossier.",
+            "followed": "Projet : {project}",
             "activityItem": "{count} {state}",
             "activityLine": "{project} · {activity}",
             "added": "{project} ajouté",
@@ -9623,7 +9629,6 @@
             "changeIcon": "Changer l'icône…",
             "duplicate": "Dupliquer",
             "close": "Fermer",
-            "closeNote": "Épinglée : rendez-la temporaire pour la fermer",
             "renameTitle": "Renommer",
             "iconTitle": "Icône de « {name} »",
             "iconChoice": "Icône {icon}",
@@ -9661,8 +9666,6 @@
                 "other": "{count} vues terminées fermées"
             },
             "closedFinishedHint": "Les vues dont l'agent travaille encore restent ouvertes. Les vues rangées de la bibliothèque les ramènent.",
-            "noClose": "« {name} » est épinglée et ne se ferme pas",
-            "noCloseHint": "Désépinglez-la d'abord, depuis son menu.",
             "keepKey": {
                 "everywhere": "« {name} » est épinglée partout et le reste",
                 "everywhereHint": "Pour la rendre temporaire ou l'épingler seulement ici, passez par son menu ou la palette de commandes."

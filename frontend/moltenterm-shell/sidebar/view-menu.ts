@@ -114,8 +114,6 @@ function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
     if (plan.makeTemporary) {
         items.push({
             label: t("sidebar.pins.menu.makeTemporary"),
-            // Why a pinned view has no Close: on hover, not as a greyed row (FR-SHELL-107).
-            tooltip: plan.closeNote && !target.projectTab ? t("sidebar.views.closeNote") : undefined,
             icon: "thumbtack-slash",
             accelerator: keys("temporary"),
             click: run("temporary"),

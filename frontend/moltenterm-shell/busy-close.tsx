@@ -98,7 +98,12 @@ export function useRestoreFocus() {
 
 function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
     const t = useT();
-    const text = busyCloseText(request.action, request.tabName ?? workspaceShownName(request.name, t), request.quits);
+    const text = busyCloseText(
+        request.action,
+        request.tabName ?? workspaceShownName(request.name, t),
+        request.quits,
+        request.projects?.join(", ")
+    );
     const cancelRef = useRef<HTMLButtonElement>(null);
     const blockAtom = request.blockId
         ? getWaveObjectAtom<Block>(makeORef("block", request.blockId))

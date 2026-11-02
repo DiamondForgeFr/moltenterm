@@ -8,6 +8,7 @@
 // removing anything. Closing what runs (FR-SHELL-061, #489): the same closes read what they would stop first, and ask
 // in one dialog, the worktree dialog when a worktree is linked too (busy-close.tsx).
 
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getWaveObjectAtom, loadAndPinWaveObject, makeORef } from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
@@ -31,8 +32,10 @@ import { serverErrorText, serverText } from "./i18n/server-text";
 import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
 import { recordingTabClose } from "./reopen/reopen-store";
-import { refusePinnedClose } from "./sidebar/view-pins-store";
+import { PinnedClosePlan } from "./sidebar/pinned-close-model";
+import { pinnedClosePlanOf, showSurvivor } from "./sidebar/view-pins-store";
 import { DominoLoader } from "./suite/suite";
+import { viewDisplayName } from "./tab-identity-ui";
 import {
     ClosePlanView,
     closePlanView,
@@ -245,7 +248,82 @@ type CloseTabFn = (workspaceId: string, tabId: string, confirmClose: boolean) =>
 
 // setAside: in place of a close that asks nothing more and removes no worktree, the view only goes aside for its
 // toast's Undo (#1656, view-set-aside.ts); false when it cannot, and the tab closes as usual.
-export type CloseTabOptions = { setAside?: (workspaceId: string, tabId: string) => Promise<boolean> };
+// closed: told how many views really closed (a pinned view closes in every project of the workspace, #1760).
+export type CloseTabOptions = {
+    setAside?: (workspaceId: string, tabId: string) => Promise<boolean>;
+    closed?: (count: number) => void;
+};
+
+// A pinned view closes for every project of the workspace (FR-SHELL-080, #1760): its confirmation, when the workspace
+// holds two projects or more, names them and is the same dialog as the busy-close list when something runs in an
+// instance, so there is at most one. The view on screen closes last, after another view took the screen.
+async function closePinnedViews(
+    closeTab: CloseTabFn,
+    workspaceId: string,
+    tabId: string,
+    plan: PinnedClosePlan,
+    opts?: CloseTabOptions
+): Promise<boolean> {
+    const recorded = recordingTabClose(closeTab);
+    const blocks: Block[] = [];
+    // An instance made for a project that never showed it has no panel: closing it is not recorded, so Undo never
+    // brings back an empty view (the project makes it again when it next shows the pinned view).
+    const placeholders = new Set<string>();
+    for (const id of plan.tabIds) {
+        try {
+            const tab = await loadAndPinWaveObject<Tab>(makeORef("tab", id));
+            if (!!tab?.meta?.["molten:viewsibling"] && (tab.blockids?.length ?? 0) === 0) {
+                placeholders.add(id);
+            }
+            for (const blockId of tab?.blockids ?? []) {
+                const block = await loadAndPinWaveObject<Block>(makeORef("block", blockId));
+                if (block != null) {
+                    blocks.push(block);
+                }
+            }
+        } catch (e) {
+            console.log("panels of the pinned view being closed", e);
+        }
+    }
+    const running = busyCloseEnabled()
+        ? await readRunning(blocks.filter((b) => !answeredRecently(b.oid)).map(closingTerminalOf))
+        : [];
+    if (plan.confirm || running.length > 0) {
+        if (dialogOpen()) {
+            return false;
+        }
+        const tab = await loadAndPinWaveObject<Tab>(makeORef("tab", tabId));
+        const answered = await askBusyClose({
+            action: plan.confirm ? "shared" : "tab",
+            running,
+            tabId,
+            tabName: viewDisplayName(tab),
+            projects: plan.projects,
+        });
+        if (!answered) {
+            return false;
+        }
+    }
+    const own = globalStore.get(atoms.staticTabId);
+    const closingOwn = plan.tabIds.includes(own);
+    if (closingOwn) {
+        await showSurvivor(plan.tabIds);
+    }
+    let count = 0;
+    for (const id of [...plan.tabIds.filter((id) => id !== own), ...(closingOwn ? [own] : [])]) {
+        try {
+            if (await (placeholders.has(id) ? closeTab : recorded)(workspaceId, id, false)) {
+                if (!placeholders.has(id)) {
+                    count++;
+                }
+            }
+        } catch (e) {
+            console.log("closing an instance of a pinned view", e);
+        }
+    }
+    opts?.closed?.(count);
+    return count > 0;
+}
 
 // Every close of a whole tab comes here (the tab's × and its hold, its menu, middle-click, Cmd+Shift+W, the vertical
 // tab bar, the last terminal's close), in place of Electron's closeTab: one read of what its terminals run and of the
@@ -258,8 +336,12 @@ export async function closeTabAskingFirst(
     confirmClose: boolean,
     opts?: CloseTabOptions
 ): Promise<boolean> {
-    if (dialogOpen() || refusePinnedClose(tabId)) {
+    if (dialogOpen()) {
         return false;
+    }
+    const pinned = pinnedClosePlanOf(tabId);
+    if (pinned.tabIds.length > 1 || pinned.confirm) {
+        return closePinnedViews(closeTab, workspaceId, tabId, pinned, opts);
     }
     // A tab that really closes can come back with Cmd+Shift+T (#512).
     const recorded = recordingTabClose(closeTab);

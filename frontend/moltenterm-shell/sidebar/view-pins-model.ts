@@ -29,6 +29,11 @@ export const GlobalPinRevMetaKey = "molten:pinrev";
 // A temporary view made from a changed view pinned everywhere (#1272): the pin it came from, for Update the pinned
 // view. Any move of the view clears it.
 export const ForkedFromMetaKey = "molten:forkedfrom";
+// A patch of a tab's meta that pins instances together names the slot they share (#1760): wavesrv moves it into the
+// workspace's slots. must match SlotHintMetaKey in pkg/molten/projectviews/projectviews.go
+export const SlotHintMetaKey = "molten:viewslot";
+// An instance made for a project that never showed it: it has no panel until it is shown.
+export const InstanceMetaKey = "molten:viewsibling";
 // The client's meta: the views pinned everywhere, in the top row's order.
 export const GlobalPinsMetaKey = "molten:globalpins";
 

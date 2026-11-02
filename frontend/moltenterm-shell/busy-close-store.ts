@@ -189,6 +189,8 @@ export type BusyCloseRequest = {
     blockId?: string;
     tabId?: string;
     tabName?: string;
+    // The projects a pinned view is shared by, named in the confirmation of its close (action "shared", #1760).
+    projects?: string[];
     // Asked by Electron main (FR-SHELL-062): the app's or the workspace's name, a window close that quits, and the
     // durable sessions a quit keeps.
     name?: string;

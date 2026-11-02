@@ -120,9 +120,8 @@ export type ViewMenuPlan = {
     pinEverywhere: boolean;
     pinOnlyHere: boolean;
     makeTemporary: boolean;
+    // Every view closes; a pinned one closes for every project of the workspace (#1760).
     close: boolean;
-    // A pinned view says it closes only once made temporary.
-    closeNote: boolean;
     // A temporary view made from a changed view pinned everywhere, while its pin exists (#1272).
     updatePinned: boolean;
 };
@@ -138,8 +137,7 @@ export function viewMenuPlan(state: ViewState, modified: boolean, projectTab = f
         pinEverywhere: moves.includes("everywhere"),
         pinOnlyHere: state === "everywhere" && moves.includes("workspace"),
         makeTemporary: moves.includes("temporary"),
-        close: temporary || projectTab,
-        closeNote: !temporary && !projectTab,
+        close: true,
         updatePinned: temporary && fromPin && !projectTab,
     };
 }
