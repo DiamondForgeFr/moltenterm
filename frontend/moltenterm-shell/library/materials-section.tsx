@@ -32,6 +32,7 @@ import { workspaceShownName } from "../workspace-default-name";
 import { logoUrl, pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { readProjectFacts } from "../workspace-project-store";
 import { libraryAddAsk, whenText } from "./library-model";
+import { LibraryPrefs } from "./library-prefs";
 import {
     CardRect,
     filterMaterials,
@@ -70,7 +71,6 @@ import {
     MaterialsRecovered,
     MaterialsRecoverTimeoutMs,
     MaterialsRoute,
-    materialsSeenStorageKey,
     materialStateChip,
     MaterialsView,
     materialTitleIsHost,
@@ -120,38 +120,19 @@ async function copyText(text: string, doneKey: string): Promise<void> {
 // The drawer of the workspace the developer is in, kept current by the registry's event (scoped to the drawer).
 export { useMaterialsDrawer } from "./use-materials-drawer";
 
-function readSeen(project: string): number {
-    try {
-        return Number(window.localStorage.getItem(materialsSeenStorageKey(project))) || 0;
-    } catch {
-        return 0;
-    }
-}
-
-function writeSeen(project: string, at: number) {
-    try {
-        window.localStorage.setItem(materialsSeenStorageKey(project), String(at));
-    } catch {
-        // A refused storage only loses the count's memory.
-    }
-}
-
 // The grey count on the section's entry (AC12): it goes when the section opens, and what is seen while it is open
-// stays seen.
+// stays seen. When it was last seen is a setting (library-prefs.ts), the same in every view and after a restart.
 export function useMaterialsNewCount(view: MaterialsView, open: boolean): number {
     const project = view?.project?.key ?? "";
-    const [seen, setSeen] = useState<number>(() => readSeen(project));
-    useEffect(() => {
-        setSeen(readSeen(project));
-    }, [project]);
+    const prefs = LibraryPrefs.getInstance();
+    const seenAll = useAtomValue(prefs.seenAtom);
+    const seen = seenAll[project] ?? 0;
     useEffect(() => {
         if (!open || view == null) {
             return;
         }
         const mark = () => {
-            const now = Date.now();
-            writeSeen(project, now);
-            setSeen(now);
+            prefs.markSeen(project, Date.now(), newMaterialsCount(view.materials, prefs.seenAt(project)) > 0);
         };
         mark();
         return mark;

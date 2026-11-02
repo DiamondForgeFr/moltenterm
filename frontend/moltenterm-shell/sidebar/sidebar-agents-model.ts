@@ -95,54 +95,48 @@ export function agentRowTarget(info: AgentStateInfo): { workspaceid: string; tab
     return { workspaceid: info?.workspaceid, tabid: info?.tabid, blockid: info?.blockid };
 }
 
-// What the developer opened or closed in an agent's tree, kept per agent terminal: the tree itself, and each section.
+// What the developer opened or closed in an agent's tree, kept on the agent terminal's block (#1763): the tree
+// itself, and each section.
 export type AgentTreeSection = "subs" | "links";
 export type AgentTreeState = { open?: boolean; shut?: Partial<Record<AgentTreeSection, boolean>> };
 export type AgentTreeStates = Record<string, AgentTreeState>;
 
-export const MaxKeptTrees = 100;
-
-export function toggleTree(states: AgentTreeStates, blockId: string): AgentTreeStates {
-    const cur = states?.[blockId] ?? {};
-    return keepRecent({ ...states, [blockId]: { ...cur, open: !cur.open } }, blockId);
+export function toggleTree(state: AgentTreeState): AgentTreeState {
+    const cur = state ?? {};
+    return { ...cur, open: !cur.open };
 }
 
-export function toggleSection(states: AgentTreeStates, blockId: string, section: AgentTreeSection): AgentTreeStates {
-    const cur = states?.[blockId] ?? {};
-    const shut = { ...(cur.shut ?? {}), [section]: !cur.shut?.[section] };
-    return keepRecent({ ...states, [blockId]: { ...cur, shut } }, blockId);
+export function toggleSection(state: AgentTreeState, section: AgentTreeSection): AgentTreeState {
+    const cur = state ?? {};
+    return { ...cur, shut: { ...(cur.shut ?? {}), [section]: !cur.shut?.[section] } };
 }
 
-// Agent terminals come and go: only the latest MaxKeptTrees states are kept, the one just changed last.
-function keepRecent(states: AgentTreeStates, changed: string): AgentTreeStates {
-    const { [changed]: own, ...rest } = states;
-    const keys = Object.keys(rest);
-    const kept = keys.slice(Math.max(0, keys.length - (MaxKeptTrees - 1)));
-    const rtn: AgentTreeStates = {};
-    for (const k of kept) {
-        rtn[k] = rest[k];
+export function readTreeState(raw: unknown): AgentTreeState {
+    if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+        return null;
     }
-    rtn[changed] = own;
-    return rtn;
+    const v = raw as Record<string, any>;
+    const shut: AgentTreeState["shut"] = {};
+    if (v.shut?.subs === true) {
+        shut.subs = true;
+    }
+    if (v.shut?.links === true) {
+        shut.links = true;
+    }
+    return { open: v.open === true, shut };
 }
 
+// The map earlier versions kept in localStorage, by agent terminal.
 export function readTreeStates(raw: unknown): AgentTreeStates {
     if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
         return {};
     }
     const rtn: AgentTreeStates = {};
     for (const [k, v] of Object.entries(raw as Record<string, any>)) {
-        if (v == null || typeof v !== "object") {
-            continue;
+        const state = readTreeState(v);
+        if (state != null) {
+            rtn[k] = state;
         }
-        const shut: AgentTreeState["shut"] = {};
-        if (v.shut?.subs === true) {
-            shut.subs = true;
-        }
-        if (v.shut?.links === true) {
-            shut.links = true;
-        }
-        rtn[k] = { open: v.open === true, shut };
     }
     return rtn;
 }

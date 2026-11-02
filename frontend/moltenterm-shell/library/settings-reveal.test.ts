@@ -490,8 +490,8 @@ describe("Settings has one navigation (#1592)", () => {
     });
 
     it("reopens on the last tab without a reveal", () => {
-        expect(library).toContain("readLastSettingsTab(window.localStorage, SettingsSectionIds)");
-        expect(library).toContain("writeLastSettingsTab(window.localStorage, block)");
+        expect(library).toContain("lastSettingsTab(savedSettingsTab, SettingsSectionIds)");
+        expect(library).toContain("prefs.setSettingsTab(block)");
         const effect = library.slice(library.indexOf("const restored = firstLayoutRef.current"));
         expect(effect.indexOf("if (restored) {")).toBeLessThan(effect.indexOf("runSettingsReveal("));
     });

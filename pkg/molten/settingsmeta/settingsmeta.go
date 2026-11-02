@@ -305,6 +305,9 @@ var settings = []Setting{
 	// The Integration panel's sort and folds (#1758): its switch and section headers are their control.
 	hidden("moltenterm:reviewssort"),
 	hidden("moltenterm:reviewsfolds"),
+	// The Settings screen's last tab and the materials seen (#1763): the screen's tabs and the materials section set them.
+	hidden("moltenterm:settingstab"),
+	hidden("moltenterm:materialsseen"),
 }
 
 func init() {

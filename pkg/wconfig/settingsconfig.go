@@ -247,6 +247,10 @@ type SettingsType struct {
 	MoltentermReviewsSort  string          `json:"moltenterm:reviewssort,omitempty" jsonschema:"enum=state,enum=merge" jsonschema_description:"How the Integration panel sorts its pull requests: state (by state, the default when unset) or merge (the suggested merge order, which reruns the fewest CI runs). Set by the panel's switch"`
 	MoltentermReviewsFolds map[string]bool `json:"moltenterm:reviewsfolds,omitempty" jsonschema_description:"The Integration panel's sections the developer opened (true) or folded (false), by section: yours, ready, agents, blocked, waiting, notes, leftovers, upcoming, merged. A section not listed follows its default. Set by the sections' headers"`
 
+	// MOLTENTERM-PATCH (#1763): the Settings screen's last tab and the materials seen per project, kept after a restart (frontend/moltenterm-shell/library/library-prefs.ts).
+	MoltentermSettingsTab   string           `json:"moltenterm:settingstab,omitempty" jsonschema_description:"The tab the Settings screen opens on: the one the developer chose last (overview when unset). Set by the screen's tabs"`
+	MoltentermMaterialsSeen map[string]int64 `json:"moltenterm:materialsseen,omitempty" jsonschema_description:"When the developer last saw each project's materials, by project, in milliseconds since 1970: newer materials are counted as new in the library. Set by opening the materials section"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 

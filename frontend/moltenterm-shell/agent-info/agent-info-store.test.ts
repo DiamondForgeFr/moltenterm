@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({ call: vi.fn(), subscribe: vi.fn(), onEvent: nu
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: mocks.subscribe }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: { wshRpcCall: mocks.call } }));
 vi.mock("@/util/util", () => ({ fireAndForget: (fn: () => Promise<void>) => { void fn(); } }));
+vi.mock("@/app/store/global", () => ({ atoms: {}, getBlockMetaKeyAtom: () => null }));
+vi.mock("@/app/store/wos", () => ({ makeORef: (otype: string, oid: string) => `${otype}:${oid}` }));
+vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: {} }));
 
 import { AgentInfoModel } from "./agent-info-store";
 

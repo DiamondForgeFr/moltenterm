@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
 import {
+    lastSettingsTab,
     libraryAddAsk,
     libraryEscapeStep,
     librarySectionAt,
@@ -14,13 +15,12 @@ import {
     panelAboutKey,
     PublicDownloadUrl,
     putAwayAgentNames,
-    readLastSettingsTab,
     sentToAiRows,
+    SettingsOverviewTab,
     sharedAgentGroups,
     suggestClipboardText,
     whenText,
     workspaceAgents,
-    writeLastSettingsTab,
 } from "./library-model";
 
 function lookup(dict: any, key: string): unknown {
@@ -263,36 +263,17 @@ describe("Escape in the library (#1406, #1548)", () => {
 
 describe("Settings reopens on the last tab (#1592)", () => {
     const blocks = ["general", "keyboard"] as const;
-    function memory(): Pick<Storage, "getItem" | "setItem"> {
-        const m = new Map<string, string>();
-        return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v) };
-    }
 
     it("opens on Overview the first time", () => {
-        expect(readLastSettingsTab(memory(), blocks)).toBeNull();
+        expect(lastSettingsTab(null, blocks)).toBeNull();
     });
 
     it("reopens on the block last opened, and on Overview once it was chosen again", () => {
-        const s = memory();
-        writeLastSettingsTab(s, "keyboard");
-        expect(readLastSettingsTab(s, blocks)).toBe("keyboard");
-        writeLastSettingsTab(s, null);
-        expect(readLastSettingsTab(s, blocks)).toBeNull();
+        expect(lastSettingsTab("keyboard", blocks)).toBe("keyboard");
+        expect(lastSettingsTab(SettingsOverviewTab, blocks)).toBeNull();
     });
 
-    it("falls back to Overview for a block that no longer exists or a storage that fails", () => {
-        const s = memory();
-        writeLastSettingsTab(s, "gone");
-        expect(readLastSettingsTab(s, blocks)).toBeNull();
-        const failing = {
-            getItem: (): string => {
-                throw new Error("denied");
-            },
-            setItem: () => {
-                throw new Error("denied");
-            },
-        };
-        expect(() => writeLastSettingsTab(failing, "general")).not.toThrow();
-        expect(readLastSettingsTab(failing, blocks)).toBeNull();
+    it("falls back to Overview for a block that no longer exists", () => {
+        expect(lastSettingsTab("gone", blocks)).toBeNull();
     });
 });

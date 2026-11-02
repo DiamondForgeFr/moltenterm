@@ -5,10 +5,18 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { Provider } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/app/store/global", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    getBlockMetaKeyAtom: (await import("./block-meta-fake")).fakeBlocks.getBlockMetaKeyAtom,
+}));
+vi.mock("@/app/store/wshclientapi", async () => ({ RpcApi: (await import("./block-meta-fake")).fakeBlocks.rpc }));
+
 import type { AgentStateInfo } from "../agent-state-model";
 import type { CompanionSubagent, CompanionView } from "../companion/companion-model";
 import { subagentCardGroups, subagentGroups, subagentRows } from "./agent-info-model";
 import { AgentInfoModel } from "./agent-info-store";
+import { fakeBlocks as fake } from "./block-meta-fake";
 import { SubagentsSection } from "./subagents-section";
 
 const Info = { blockid: "b1", state: "idle" } as AgentStateInfo;
@@ -31,7 +39,12 @@ function html(subagents: CompanionSubagent[]): string {
     );
 }
 
-beforeEach(() => globalStore.set(AgentInfoModel.getInstance().seenSubsAtom, {}));
+beforeEach(() => {
+    fake.reset();
+    fake.set("b1", { view: "term" });
+    fake.set("b2", { view: "term" });
+    AgentInfoModel.resetInstance();
+});
 
 describe("SubagentsSection (#1542)", () => {
     it("draws nothing without sub-agents", () => {
@@ -76,7 +89,8 @@ describe("markSubSeen (#1542)", () => {
         model.markSubSeen("b1", row);
         model.markSubSeen("", row);
         model.markSubSeen("b2", null);
-        expect(globalStore.get(model.seenSubsAtom)).toEqual({ b1: { x: `${row.started}:${row.ended}` } });
+        expect(globalStore.get(model.seenAtom("b1"))).toEqual({ x: `${row.started}:${row.ended}` });
+        expect(globalStore.get(model.seenAtom("b2"))).toEqual({});
     });
 
     it("keeps a later failure visible after opening and closing a running subagent", () => {
@@ -84,13 +98,13 @@ describe("markSubSeen (#1542)", () => {
         model.openSub("b1", "z");
         model.closeSub();
         const row = subagentRows(view([sub("z", "failed", Now)]))[0];
-        const seen = globalStore.get(model.seenSubsAtom).b1;
+        const seen = globalStore.get(model.seenAtom("b1"));
         expect(subagentGroups([row], Now, false, seen).lingering).toEqual([row]);
         expect(subagentCardGroups([row], seen).unseen).toEqual([row]);
         model.markSubSeen("b1", row);
-        expect(subagentGroups([row], Now, false, globalStore.get(model.seenSubsAtom).b1).lingering).toEqual([]);
+        expect(subagentGroups([row], Now, false, globalStore.get(model.seenAtom("b1"))).lingering).toEqual([]);
         const later = { ...row, ended: Now + 1 };
-        expect(subagentGroups([later], Now + 1, false, globalStore.get(model.seenSubsAtom).b1).lingering).toEqual([
+        expect(subagentGroups([later], Now + 1, false, globalStore.get(model.seenAtom("b1"))).lingering).toEqual([
             later,
         ]);
     });
@@ -100,31 +114,23 @@ describe("markSubSeen (#1542)", () => {
         const running = subagentRows(view([sub("z", "running")]))[0];
         model.openSub("b1", "z");
         model.markSubSeen("b1", running);
-        expect(globalStore.get(model.seenSubsAtom).b1).toBeUndefined();
+        expect(globalStore.get(model.seenAtom("b1"))).toEqual({});
         const failed = { ...running, state: "error" as const, ended: Now };
         model.markSubSeen("b1", failed);
-        expect(subagentCardGroups([failed], globalStore.get(model.seenSubsAtom).b1).unseen).toEqual([]);
+        expect(subagentCardGroups([failed], globalStore.get(model.seenAtom("b1"))).unseen).toEqual([]);
         expect(globalStore.get(model.openSubAtom)).toEqual({ blockId: "b1", id: "z" });
         model.closeSub();
     });
 
-    it("persists a failure occurrence across a model restart and ignores legacy generic seen flags", () => {
-        const stored = new Map<string, string>([["molten:sidebar:seensubs", JSON.stringify({ b1: { z: true } })]]);
-        vi.stubGlobal("localStorage", {
-            getItem: (key: string) => stored.get(key) ?? null,
-            setItem: (key: string, value: string) => stored.set(key, value),
-        });
-        try {
-            (AgentInfoModel as any).instance = null;
-            const first = AgentInfoModel.getInstance();
-            const row = subagentRows(view([sub("z", "failed", Now)]))[0];
-            expect(subagentCardGroups([row], globalStore.get(first.seenSubsAtom).b1).unseen).toEqual([row]);
-            first.markSubSeen("b1", row);
-            (AgentInfoModel as any).instance = null;
-            const restarted = AgentInfoModel.getInstance();
-            expect(subagentCardGroups([row], globalStore.get(restarted.seenSubsAtom).b1).unseen).toEqual([]);
-        } finally {
-            vi.unstubAllGlobals();
-        }
+    it("persists a failure occurrence across a model restart and ignores legacy generic seen flags", async () => {
+        fake.set("b1", { "molten:sidebar:seensubs": { z: true } });
+        const first = AgentInfoModel.getInstance();
+        const row = subagentRows(view([sub("z", "failed", Now)]))[0];
+        expect(subagentCardGroups([row], globalStore.get(first.seenAtom("b1"))).unseen).toEqual([row]);
+        first.markSubSeen("b1", row);
+        await Promise.resolve();
+        AgentInfoModel.resetInstance();
+        const restarted = AgentInfoModel.getInstance();
+        expect(subagentCardGroups([row], globalStore.get(restarted.seenAtom("b1"))).unseen).toEqual([]);
     });
 });
