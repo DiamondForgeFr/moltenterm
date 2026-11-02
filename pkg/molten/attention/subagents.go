@@ -19,6 +19,11 @@ import (
 //
 // The set is what the hooks said, never a guess: a sub-agent whose stop was never reported (a killed agent) is
 // forgotten with the run, at the session's next start, or when the set is full.
+//
+// A stop is not always reported (#1771): Codex's sub-agents finish their task and wait, idle, for the parent's next
+// message, so no SubagentStop comes, and an interrupted turn reports nothing. When the main session's turn ends
+// (subagentsTurnEnd), the set is forgotten: a sub-agent that still runs reports its next tool and counts again, one
+// that ended no longer shows "N sub-agents running" next to an empty list.
 
 const (
 	maxTrackedSubagents = 64
@@ -49,6 +54,12 @@ func (a *agentStates) subagentLocked(blockId string, rec *agentRecord, id string
 	}
 	rec.subagents[id] = true
 	a.markDirtyLocked(blockId)
+}
+
+// subagentsTurnEnd tells whether a report of the main session ends its turn: done, error or idle. Waiting and
+// working are the turn going on.
+func subagentsTurnEnd(state string) bool {
+	return state == molten.AgentStateDone || state == molten.AgentStateError || state == molten.AgentStateIdle
 }
 
 func (a *agentStates) forgetSubagentsLocked(blockId string, rec *agentRecord) {

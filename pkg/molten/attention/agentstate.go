@@ -445,7 +445,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		return nil, "", nil
 	}
 	rec.fromActivity = false
-	if req.Start {
+	if req.Start || subagentsTurnEnd(req.State) {
 		a.forgetSubagentsLocked(req.BlockId, rec)
 	}
 	if req.Start && (previous == molten.AgentStateWorking || previous == molten.AgentStateWaiting) {
