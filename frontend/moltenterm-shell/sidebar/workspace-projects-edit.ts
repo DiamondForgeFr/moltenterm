@@ -106,6 +106,10 @@ export function editProjectUpdate(
         return null;
     }
     const edited = entryOf(id, draft);
+    // The logo chosen for the project stays with it while its folder does (#1760).
+    if (projects[at].logo && sameDir(projects[at].dir, edited.dir)) {
+        edited.logo = projects[at].logo;
+    }
     const next = projects.map((p, i) => (i === at ? edited : p));
     const update: Record<string, any> = { [ProjectsMetaKey]: listValue(next) };
     if (id !== currentProjectId(ws)) {
