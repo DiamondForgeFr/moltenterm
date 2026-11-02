@@ -178,6 +178,29 @@ func TestRemoveMovesTheViewsAndTurnsDuplicatesIntoTemporaryViews(t *testing.T) {
 	}
 }
 
+func TestRemoveKeepsTheInstanceTheDeveloperWorkedIn(t *testing.T) {
+	tabs := []TabInfo{
+		{Id: "held-placeholder", Project: "p1", Slot: "s1", Placeholder: true},
+		{Id: "real", Project: "p2", Slot: "s1"},
+		{Id: "real-pin", Project: "p2", Pin: "g1"},
+		{Id: "held-pin", Project: "p1", Pin: "g1", Placeholder: true},
+		{Id: "moved-placeholder", Project: "p2", Slot: "s2", Placeholder: true},
+		{Id: "held-real", Project: "p1", Slot: "s2"},
+		{Id: "real2", Project: "p2", Slot: "s3"},
+		{Id: "held-real3", Project: "p1", Slot: "s3"},
+	}
+	plan := PlanRemove(RemoveInput{Tabs: tabs, Removed: "p2", NewCurrent: "p1"})
+	if !reflect.DeepEqual(plan.Drop, []string{"held-placeholder", "held-pin", "moved-placeholder"}) {
+		t.Fatalf("the placeholders go, the real instances stay: %v", plan.Drop)
+	}
+	if !reflect.DeepEqual(plan.Temporary, []string{"real2"}) {
+		t.Fatalf("two real instances: the moved one becomes a temporary view: %v", plan.Temporary)
+	}
+	if plan.Move["real"] != "p1" || plan.Move["real-pin"] != "p1" {
+		t.Fatalf("the real instances move: %v", plan.Move)
+	}
+}
+
 func TestRemoveKeepsAPinnedViewThatHasNoTwin(t *testing.T) {
 	tabs := []TabInfo{
 		{Id: "a", Project: "p1", Slot: "s1"},
