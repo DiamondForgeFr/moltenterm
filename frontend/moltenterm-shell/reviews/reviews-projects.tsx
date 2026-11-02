@@ -37,7 +37,7 @@ export function ProjectChips({
     filter: string;
 }) {
     const t = useT();
-    const choose = (id: string) => ReviewsProjectFilter.getInstance().set(workspaceId, id);
+    const choose = (id: string) => ReviewsProjectFilter.getInstance().choose(workspaceId, id);
     const chip = (id: string, label: string) => (
         <ProjectChip
             key={id}

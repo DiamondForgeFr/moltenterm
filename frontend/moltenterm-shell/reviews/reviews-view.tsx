@@ -67,7 +67,13 @@ import { CardMotion } from "./reviews-motion";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
-import { AllProjects, projectOfDir, resolveProjectFilter, ReviewsProjectFilter } from "./reviews-projects-model";
+import {
+    AllProjects,
+    projectOfDir,
+    resolveProjectFilter,
+    ReviewsProjectFilter,
+    storedProjectFilter,
+} from "./reviews-projects-model";
 import { AfterMergeLine, MergeQueueBlock } from "./reviews-queue";
 import {
     cardRelations,
@@ -136,7 +142,7 @@ function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
     const filters = useAtomValue(ReviewsProjectFilter.getInstance().filtersAtom);
     const focus = useAtomValue(ReviewsModel.getInstance().focusAtom);
     const projects = useMemo(() => readProjects(workspace), [workspace]);
-    const filter = resolveProjectFilter(filters[workspace?.oid], projects);
+    const filter = resolveProjectFilter(storedProjectFilter(filters, workspace), projects);
     const several = projects.length > 1;
     // A PR another surface asked for (a notification, the review tab) opens on its project's chip.
     useEffect(() => {

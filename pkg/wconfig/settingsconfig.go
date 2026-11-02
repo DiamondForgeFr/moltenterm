@@ -29,6 +29,9 @@ const ProfilesFile = "profiles.json"
 
 var configWriteLock sync.Mutex
 
+// MOLTENTERM-PATCH (#1758): held across SetBaseConfigValue's read-merge-write; configWriteLock only covers the write.
+var setBaseConfigLock sync.Mutex
+
 const AnySchema = `
 {
   "type": "object",
@@ -986,6 +989,10 @@ func convertConfigMap(val any, ctype reflect.Type) (any, bool) {
 }
 
 func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
+	// MOLTENTERM-PATCH (#1758): two writes at once (two toggles clicked in a row) each read the file before the other
+	// wrote it, and the later one dropped the earlier key; the read, merge and write now run one at a time.
+	setBaseConfigLock.Lock()
+	defer setBaseConfigLock.Unlock()
 	m, cerrs := ReadWaveHomeConfigFile(SettingsFile)
 	if len(cerrs) > 0 {
 		return fmt.Errorf("error reading config file: %v", cerrs[0])
