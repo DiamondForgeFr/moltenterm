@@ -356,11 +356,11 @@
             "package": "golang.org/x/crypto",
             "version": "v0.58.0",
             "occurrence": ".",
-            "affectedRange": "[{\"package\":\"golang.org/x/crypto\",\"ranges\":[{\"type\":\"SEMVER\",\"events\":[{\"introduced\":\"0\"}]}]}]",
+            "affectedRange": "[{\"package\":\"golang.org/x/crypto\",\"ranges\":[{\"type\":\"SEMVER\",\"events\":[{\"introduced\":\"0\"},{\"fixed\":\"0.58.1-0.20261009181718-2f1f834330b2\"}]}]},{\"package\":\"golang.org/x/crypto/openpgp\",\"ranges\":[{\"type\":\"SEMVER\",\"events\":[{\"introduced\":\"0\"}]}]}]",
             "surface": "shipped-runtime",
             "reachability": "module",
             "severity": "unknown",
-            "advisoryFingerprint": "f277b0400996200a7d5034c676661cd8cf18adeab1fdc5d0dc369e456ddf1fad",
+            "advisoryFingerprint": "bde8769150ec1368d9a8dbd61fbbde52296de692c57147e02e3ae295e1981f11",
             "targets": [
                 "darwin/arm64/cgo0",
                 "darwin/amd64/cgo0",
@@ -381,7 +381,7 @@
             "reason": "Only a module/version frame is present across scanned targets; affected OpenPGP packages are not imported. This review cannot match a future package or symbol finding.",
             "evidence": ["security/TRIAGE.md", "https://pkg.go.dev/vuln/GO-2026-5932"],
             "owner": "AGachet",
-            "action": "Rerun both Go graphs/target matrix on dependency/import changes; keep SSH handshake/key-policy regression.",
+            "action": "Rerun both Go graphs/target matrix on dependency/import changes; keep SSH handshake/key-policy regression. Move x/crypto past the fixed version once a tagged release ships (#1797).",
             "reviewBy": "2026-11-17"
         },
         {
