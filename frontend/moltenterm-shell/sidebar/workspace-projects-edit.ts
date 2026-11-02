@@ -4,6 +4,7 @@
 // The rules of adding, editing and removing a workspace's projects (FR-SHELL-087). Apart from workspace-projects.ts so
 // only the project page, loaded on demand, carries them (NFR-PERF-003, bundle.initialJsMB).
 
+import { ProjectRepoMetaKey } from "../workspace-project";
 import { ProjectTypeMetaKey } from "./sidebar-model";
 import {
     currentProjectId,
@@ -11,6 +12,7 @@ import {
     listValue,
     liveUpdate,
     ProjectDraft,
+    projectRepoDir,
     ProjectsMetaKey,
     readProjects,
     str,
@@ -42,8 +44,18 @@ function sameDir(a: string, b: string): boolean {
     return a !== "" && b !== "" && trim(a) === trim(b);
 }
 
-// Why a draft cannot be saved, as an i18n key, or null. A project needs a type or a folder, and a folder is one
-// project of the workspace at most.
+// The project as a draft or an entry names it: its type, folder, branch and the repository it chose, if any.
+function entryOf(id: string, draft: ProjectDraft): WorkspaceProjectEntry {
+    const entry: WorkspaceProjectEntry = { id, type: str(draft.type), dir: str(draft.dir), branch: str(draft.branch) };
+    const repo = str(draft.repo);
+    if (repo !== "") {
+        entry.repo = repo;
+    }
+    return entry;
+}
+
+// Why a draft cannot be saved, as an i18n key, or null. A project needs a type or a folder, and a folder with a
+// repository is one project of the workspace at most: another repository of the same folder is another project.
 export function projectDraftProblem(
     ws: { meta?: Record<string, any> },
     draft: ProjectDraft,
@@ -57,7 +69,8 @@ export function projectDraftProblem(
     if (type.length > ProjectTypeMaxLength) {
         return "sidebar.project.typeTooLong";
     }
-    if (readProjects(ws).some((p) => p.id !== editingId && sameDir(p.dir, dir))) {
+    const repo = projectRepoDir({ dir, repo: str(draft?.repo) });
+    if (readProjects(ws).some((p) => p.id !== editingId && sameDir(p.dir, dir) && sameDir(projectRepoDir(p), repo))) {
         return "sidebar.project.folderTaken";
     }
     return null;
@@ -70,12 +83,7 @@ export function addProjectUpdate(
     draft: ProjectDraft
 ): { id: string; update: Record<string, any> } {
     const projects = readProjects(ws);
-    const project: WorkspaceProjectEntry = {
-        id: nextProjectId(projects),
-        type: str(draft.type),
-        dir: str(draft.dir),
-        branch: str(draft.branch),
-    };
+    const project = entryOf(nextProjectId(projects), draft);
     const next = [...projects, project];
     if (projects.length === 0) {
         return { id: project.id, update: { [ProjectsMetaKey]: listValue(next), ...liveUpdate(project) } };
@@ -97,7 +105,7 @@ export function editProjectUpdate(
     if (at < 0) {
         return null;
     }
-    const edited: WorkspaceProjectEntry = { id, type: str(draft.type), dir: str(draft.dir), branch: str(draft.branch) };
+    const edited = entryOf(id, draft);
     const next = projects.map((p, i) => (i === at ? edited : p));
     const update: Record<string, any> = { [ProjectsMetaKey]: listValue(next) };
     if (id !== currentProjectId(ws)) {
@@ -107,6 +115,8 @@ export function editProjectUpdate(
     update[ProjectTypeMetaKey] = edited.type || null;
     if (!sameDir(projects[at].dir, edited.dir)) {
         Object.assign(update, liveUpdate(edited));
+    } else if (str(projects[at].repo) !== str(edited.repo)) {
+        update[ProjectRepoMetaKey] = edited.repo || null;
     }
     return update;
 }

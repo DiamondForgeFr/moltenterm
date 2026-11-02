@@ -167,7 +167,7 @@ export function useFocusedPane(): FocusedPane {
     const { folder, fromPane } = statusBarFolder(meta, ws);
     const link = fromPane ? (meta?.["molten:worktree"] ?? "") : "";
     const state = usePaneStatus(folder, fromPane ? blockId : null, link);
-    useWarmLinkedProject(readWorkspaceProject(ws).dir);
+    useWarmLinkedProject(readWorkspaceProject(ws).repo);
     return {
         ws,
         pane: folder ? makePaneView(folder, state, ws) : null,

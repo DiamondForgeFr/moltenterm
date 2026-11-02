@@ -20,7 +20,7 @@ type ReadmeState = { dir: string; text: string; repo: boolean };
 export function BrowserStartPage() {
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
-    const dir = readWorkspaceProject(ws).dir;
+    const dir = readWorkspaceProject(ws).repo;
     const [readme, setReadme] = useState<ReadmeState>(null);
     useEffect(() => {
         if (!dir) {

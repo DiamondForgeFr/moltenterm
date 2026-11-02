@@ -57,6 +57,18 @@ describe("Pilotage across projects (FR-SHELL-087)", () => {
         expect(projectOfDir(Projects, "/elsewhere")).toBeNull();
     });
 
+    it("finds a project by its repository first, then by its folder (#1777)", () => {
+        const client = [
+            { id: "a", type: "Web", dir: "/c/ofpis", branch: "", repo: "/c/ofpis/app" },
+            { id: "b", type: "API", dir: "/c/ofpis", branch: "", repo: "/c/ofpis/api" },
+            { id: "c", type: "Docs", dir: "/c/ofpis", branch: "" },
+        ];
+        expect(projectOfDir(client, "/c/ofpis/api")?.id).toBe("b");
+        expect(projectOfDir(client, "/c/ofpis/app")?.id).toBe("a");
+        expect(projectOfDir(client, "/c/ofpis")?.id).toBe("c");
+        expect(projectOfDir(client.slice(0, 2), "/c/ofpis")?.id).toBe("a");
+    });
+
     it("merges every project's rows into the turn lanes, in project order", () => {
         const lanes = projectLanes(Projects, {
             p2: [row("p2", 7, "yours"), row("p2", 9, "waiting")],

@@ -6,6 +6,7 @@ import {
     currentProject,
     projectChipLabel,
     projectLabel,
+    projectRepoDir,
     readProjects,
     switchProjectUpdate,
 } from "./workspace-projects";
@@ -145,5 +146,114 @@ describe("workspace projects (FR-SHELL-087)", () => {
         expect(currentProject(after).dir).toBe("/p/notulia-mobile");
         const other = removeProjectUpdate(Notulia, "p3");
         expect(other["molten:project"]).toBeUndefined();
+    });
+});
+
+describe("a project's folder and its code repository (#1777)", () => {
+    const Client = {
+        meta: {
+            "molten:project": "/clients/ofpis",
+            "molten:projectrepo": "/clients/ofpis/app",
+            "molten:projecttype": "Web",
+            "molten:currentproject": "p1",
+            "molten:projects": [
+                { id: "p1", type: "Web", dir: "/clients/ofpis", branch: "main", repo: "/clients/ofpis/app" },
+                { id: "p2", type: "API", dir: "/clients/ofpis", repo: "/clients/ofpis/code/api" },
+                { id: "p3", type: "Docs", dir: "/clients/ofpis" },
+            ],
+        },
+    };
+
+    it("reads the repository of each project, with a key only when one is chosen", () => {
+        const projects = readProjects(Client);
+        expect(projects.map((p) => p.repo)).toEqual(["/clients/ofpis/app", "/clients/ofpis/code/api", undefined]);
+        expect(projects.map(projectRepoDir)).toEqual([
+            "/clients/ofpis/app",
+            "/clients/ofpis/code/api",
+            "/clients/ofpis",
+        ]);
+        expect("repo" in projects[2]).toBe(false);
+        expect(readProjects({ meta: { "molten:project": "/p/shop" } })).toEqual([
+            { id: "p1", type: "", dir: "/p/shop", branch: "" },
+        ]);
+        const live = { meta: { "molten:project": "/p/shop", "molten:projectrepo": "/p/shop/app" } };
+        expect(readProjects(live)[0].repo).toBe("/p/shop/app");
+    });
+
+    it("takes the current project's repository from the live key", () => {
+        const ws = { meta: { ...Client.meta, "molten:projectrepo": "/clients/ofpis/other" } };
+        expect(readProjects(ws)[0].repo).toBe("/clients/ofpis/other");
+        const none = { meta: { ...Client.meta, "molten:projectrepo": undefined } };
+        expect("repo" in readProjects(none)[0]).toBe(false);
+    });
+
+    it("switches to a project's repository with its folder, and back", () => {
+        const update = switchProjectUpdate(Client, "p2");
+        expect(update["molten:projectrepo"]).toBe("/clients/ofpis/code/api");
+        expect(update["molten:projects"][0]).toEqual({
+            id: "p1",
+            type: "Web",
+            dir: "/clients/ofpis",
+            branch: "main",
+            repo: "/clients/ofpis/app",
+        });
+        const after = apply(Client.meta, update);
+        expect(currentProject(after)).toMatchObject({ id: "p2", repo: "/clients/ofpis/code/api" });
+        const docs = apply(after.meta, switchProjectUpdate(after, "p3"));
+        expect(docs.meta["molten:projectrepo"]).toBeUndefined();
+        expect(projectRepoDir(currentProject(docs))).toBe("/clients/ofpis");
+        expect(switchProjectUpdate(Client, "p1")).toBeNull();
+    });
+
+    it("lets two projects share a folder when their repositories differ", () => {
+        const draft = (repo: string) => ({ type: "New", dir: "/clients/ofpis/", branch: "", repo });
+        expect(projectDraftProblem(Client, draft("/clients/ofpis/app"))).toBe("sidebar.project.folderTaken");
+        expect(projectDraftProblem(Client, draft("/clients/ofpis/code/api"))).toBe("sidebar.project.folderTaken");
+        expect(projectDraftProblem(Client, draft(""))).toBe("sidebar.project.folderTaken");
+        expect(projectDraftProblem(Client, draft("/clients/ofpis/mobile"))).toBeNull();
+        expect(projectDraftProblem(Client, draft("/clients/ofpis/app"), "p1")).toBeNull();
+        expect(projectDraftProblem(Client, { type: "Docs", dir: "/clients/ofpis", branch: "" }, "p3")).toBeNull();
+        const other = { type: "X", dir: "/clients/elsewhere", branch: "", repo: "/clients/ofpis/app" };
+        expect(projectDraftProblem(Client, other)).toBeNull();
+    });
+
+    it("adds a project with its repository", () => {
+        const draft = { type: "Mobile", dir: "/clients/ofpis", branch: "", repo: "/clients/ofpis/mobile" };
+        const added = addProjectUpdate(Client, draft);
+        expect(added.update["molten:projects"][3]).toEqual({
+            id: "p4",
+            type: "Mobile",
+            dir: "/clients/ofpis",
+            repo: "/clients/ofpis/mobile",
+        });
+        expect(added.update["molten:projectrepo"]).toBeUndefined();
+        const first = addProjectUpdate({ meta: {} }, { type: "Web", dir: "/c", branch: "", repo: "/c/app" });
+        expect(first.update["molten:projectrepo"]).toBe("/c/app");
+        const bare = addProjectUpdate({ meta: {} }, { type: "Web", dir: "/c", branch: "" });
+        expect(bare.update["molten:projectrepo"]).toBeNull();
+        expect(bare.update["molten:projects"]).toEqual([{ id: "p1", type: "Web", dir: "/c" }]);
+    });
+
+    it("edits only the repository: the current project's live key, not its working folder", () => {
+        const draft = { type: "Web", dir: "/clients/ofpis", branch: "main" };
+        const own = editProjectUpdate(Client, "p1", { ...draft, repo: "/clients/ofpis/mobile" });
+        expect(own["molten:projectrepo"]).toBe("/clients/ofpis/mobile");
+        expect(own["molten:folder"]).toBeUndefined();
+        expect(own["molten:project"]).toBeUndefined();
+        const cleared = editProjectUpdate(Client, "p1", draft);
+        expect(cleared["molten:projectrepo"]).toBeNull();
+        const unchanged = editProjectUpdate(Client, "p1", { ...draft, repo: "/clients/ofpis/app" });
+        expect("molten:projectrepo" in unchanged).toBe(false);
+        const other = editProjectUpdate(Client, "p2", { type: "API", dir: "/clients/ofpis", branch: "", repo: "" });
+        expect("molten:projectrepo" in other).toBe(false);
+        expect(readProjects(apply(Client.meta, other))[1].repo).toBeUndefined();
+    });
+
+    it("drops the repository when the folder changes", () => {
+        const moved = editProjectUpdate(Client, "p1", { type: "Web", dir: "/clients/new", branch: "" });
+        expect(moved["molten:project"]).toBe("/clients/new");
+        expect(moved["molten:projectrepo"]).toBeNull();
+        const after = apply(Client.meta, moved);
+        expect(projectRepoDir(currentProject(after))).toBe("/clients/new");
     });
 });

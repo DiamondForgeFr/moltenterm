@@ -223,7 +223,7 @@ export const CompanionProvider: CommandProvider = {
 };
 
 function activeProjectDir(): string {
-    return readWorkspaceProject(globalStore.get(atoms.workspace)).dir;
+    return readWorkspaceProject(globalStore.get(atoms.workspace)).repo;
 }
 
 // The project's remembered window of the full map, shared by its line maps.

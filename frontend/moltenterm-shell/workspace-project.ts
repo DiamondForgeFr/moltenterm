@@ -7,6 +7,9 @@
 
 // must match the keys in pkg/molten/project.go
 export const ProjectMetaKey = "molten:project";
+// The code repository inside the project's folder (#1777): the folder holds the project's context, the repository is
+// what agents and the Git features work on. Unset, the folder is the repository. must match pkg/molten/projectrepo.go
+export const ProjectRepoMetaKey = "molten:projectrepo";
 export const ProjectLogoMetaKey = "molten:projectlogo";
 // The project the logo was last offered for: the offer is made once per link, never again after a "no".
 export const ProjectLogoOfferMetaKey = "molten:projectlogooffer";
@@ -67,17 +70,53 @@ export const LogoCandidatePaths = [
 
 export const LogoExtensions = ["svg", "png", "ico", "jpg", "jpeg", "webp", "gif"];
 
-export type WorkspaceProject = { dir: string; logo: string; logoOffer: string; logoChoice?: string };
+// dir: the project's folder (its context, the Files panel); repo: the repository the agents and the Git features work
+// on, which is dir unless the project has one inside it (always set by readWorkspaceProject).
+export type WorkspaceProject = { dir: string; repo?: string; logo: string; logoOffer: string; logoChoice?: string };
 
 function metaString(meta: Record<string, any>, key: string): string {
     const value = meta?.[key];
     return typeof value === "string" ? value : "";
 }
 
+// The repository of a project whose folder is dir and whose chosen repository is repo: the chosen one when it lies
+// inside the folder and is not the folder itself, else the folder (same rule as ProjectRepoOf in pkg/molten).
+export function projectRepoOf(dir: string, repo: string): string {
+    if (!dir || !repo || !checkAbsolutePath(repo)) {
+        return dir ?? "";
+    }
+    if (trimTrailingSeparators(repo) === trimTrailingSeparators(dir) || !checkPathInside(repo, dir)) {
+        return dir;
+    }
+    return trimTrailingSeparators(repo);
+}
+
+// A repository named from the project's folder: "app", "code/api".
+export function repositoryLabel(dir: string, repo: string): string {
+    const base = trimTrailingSeparators(dir ?? "");
+    if (base === "" || repo === base || !checkPathInside(repo, base)) {
+        return repo;
+    }
+    return repo.slice(base.length).replace(/^[/\\]+/, "");
+}
+
+// The values a repository choice offers, in order: the repositories found, plus the one already chosen when it is not
+// among them (moved deeper than the search looks, or gone), so the choice always shows what is stored.
+export function repositoryValues(dir: string, found: readonly string[], chosen: string): string[] {
+    const values = [...(found ?? [])];
+    const current = projectRepoOf(dir, chosen);
+    if (current !== dir && !values.includes(current)) {
+        values.push(current);
+    }
+    return values;
+}
+
 export function readWorkspaceProject(ws: Workspace): WorkspaceProject {
     const meta = ws?.meta as Record<string, any>;
+    const dir = metaString(meta, ProjectMetaKey);
     return {
-        dir: metaString(meta, ProjectMetaKey),
+        dir,
+        repo: projectRepoOf(dir, metaString(meta, ProjectRepoMetaKey)),
         logo: metaString(meta, ProjectLogoMetaKey),
         logoOffer: metaString(meta, ProjectLogoOfferMetaKey),
         logoChoice: metaString(meta, ProjectLogoChoiceMetaKey),
@@ -261,17 +300,24 @@ export function shouldOfferLogo(project: WorkspaceProject, logos: string[], hasI
     );
 }
 
-// The meta written when a workspace is linked: a logo chosen for another project would stand for the wrong one.
+// The meta written when a workspace is linked: a logo chosen for another project would stand for the wrong one, and
+// so would its repository.
 export function linkUpdate(current: WorkspaceProject, dir: string): Record<string, any> {
     const update: Record<string, any> = { [ProjectMetaKey]: dir };
     if (current.dir !== dir) {
         update[ProjectLogoMetaKey] = null;
+        update[ProjectRepoMetaKey] = null;
     }
     return update;
 }
 
 export function unlinkUpdate(): Record<string, any> {
-    return { [ProjectMetaKey]: null, [ProjectLogoMetaKey]: null, [ProjectLogoOfferMetaKey]: null };
+    return {
+        [ProjectMetaKey]: null,
+        [ProjectRepoMetaKey]: null,
+        [ProjectLogoMetaKey]: null,
+        [ProjectLogoOfferMetaKey]: null,
+    };
 }
 
 export function logoUrl(endpoint: string, path: string): string {

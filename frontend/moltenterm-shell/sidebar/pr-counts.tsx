@@ -47,7 +47,7 @@ export type AreaBlock = { key: string; tabId: string; configViews?: string[] };
 // answers fresh (useReviewsRailWatch, useWorkspacePrStatesWatch): no poll of its own.
 export function useWorkspacePrCounts(): PrCounts {
     const workspace = useAtomValue(atoms.workspace);
-    const dir = readWorkspaceProject(workspace).dir;
+    const dir = readWorkspaceProject(workspace).repo;
     const answer = useListedReviewsAnswer(dir);
     const model = ReviewsModel.getInstance();
     const readied = useAtomValue(model.readiedAtom);

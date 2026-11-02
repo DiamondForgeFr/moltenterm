@@ -32,9 +32,10 @@ import { GitPanel, GitPanelNameKey, useNotRepoCarrier } from "./not-repo-carrier
 export type ActiveProject = { workspace: Workspace; dir: string; facts: ProjectFacts };
 
 // With a folder, that project of the workspace (Pilotage's project filter, FR-SHELL-087) instead of the current one.
+// The dir is the project's repository, which the Git features read: its folder only when it has no repository inside.
 export function useActiveProject(projectDir?: string): ActiveProject {
     const workspace = useAtomValue(atoms.workspace);
-    const dir = projectDir ?? readWorkspaceProject(workspace).dir;
+    const dir = projectDir ?? readWorkspaceProject(workspace).repo;
     const { value: facts, setValue: setFacts } = useMissionScope<ProjectFacts>(dir, null);
     useEffect(() => {
         setFacts(null);

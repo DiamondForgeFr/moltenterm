@@ -242,7 +242,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const agentChoices = useAtomValue(CodingAgentModel.getInstance().choicesAtom);
     const client = useAtomValue(ClientModel.getInstance().clientAtom);
     const [customOpen, setCustomOpen] = useState(false);
-    const projectDir = readWorkspaceProject(workspace).dir ?? "";
+    const projectDir = readWorkspaceProject(workspace).repo ?? "";
     useEffect(() => CodingAgentModel.getInstance().refresh(projectDir), [projectDir]);
     const plan = companionStartPlan(
         agentChoices[projectDir]?.choice,

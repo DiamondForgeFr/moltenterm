@@ -150,7 +150,7 @@ export function useTestContext(url: string, workspaceDir: string): TestContextAn
 export function TestContextChip({ url }: { url: string }) {
     const t = useT();
     const workspace = useAtomValue(atoms.workspace);
-    const workspaceDir = readWorkspaceProject(workspace).dir;
+    const workspaceDir = readWorkspaceProject(workspace).repo;
     const answer = useTestContext(url, workspaceDir);
     const [anchor, setAnchor] = useState<HTMLElement>(null);
     const view = chipView(answer, t);

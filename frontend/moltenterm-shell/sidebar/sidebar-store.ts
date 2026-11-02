@@ -22,8 +22,8 @@ import {
     sameTabSplit,
     SidebarDefaultWidth,
     sidebarEnabled,
-    SidebarHiddenMetaKey,
     sidebarFloats,
+    SidebarHiddenMetaKey,
     SidebarSettingKey,
     SidebarTabSplit,
     SidebarWidthMetaKey,
@@ -174,6 +174,9 @@ export class SidebarModel {
             project == null
                 ? { type: "", dir: "", branch: "" }
                 : { type: project.type, dir: project.dir, branch: project.branch };
+        if (project?.repo) {
+            draft.repo = project.repo;
+        }
         globalStore.set(this.projectPageAtom, {
             id: project?.id,
             workspaceId: globalStore.get(atoms.workspace)?.oid,

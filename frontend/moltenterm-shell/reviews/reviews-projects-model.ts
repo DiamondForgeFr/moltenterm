@@ -9,7 +9,7 @@ import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
-import type { WorkspaceProjectEntry } from "../sidebar/workspace-projects";
+import { projectRepoDir, type WorkspaceProjectEntry } from "../sidebar/workspace-projects";
 import type { CardState, CardTurn } from "./reviews-card-model";
 import type { ReviewPr } from "./reviews-model";
 import { TurnOrder } from "./reviews-sections-model";
@@ -27,12 +27,17 @@ export function resolveProjectFilter(stored: string, projects: readonly Workspac
     return stored != null && projects.some((p) => p.id === stored) ? stored : AllProjects;
 }
 
-// The project a PR another surface asked for belongs to, by its folder; null when none of the workspace's.
+// The project a PR another surface asked for belongs to, by its repository (its folder when it has none of its own);
+// null when none of the workspace's.
 export function projectOfDir(projects: readonly WorkspaceProjectEntry[], dir: string): WorkspaceProjectEntry {
     if (!dir) {
         return null;
     }
-    return projects.find((p) => p.dir !== "" && p.dir === dir) ?? null;
+    return (
+        projects.find((p) => p.dir !== "" && projectRepoDir(p) === dir) ??
+        projects.find((p) => p.dir !== "" && p.dir === dir) ??
+        null
+    );
 }
 
 // Every project's rows merged into the turn lanes, in the workspace's project order, then by PR number within one

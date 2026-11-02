@@ -7,7 +7,14 @@
 // and agents start in follow the current project unchanged. A workspace without the list reads as one project made of
 // those keys. Kept apart from the components so the rules can be tested without the app.
 
-import { pathBaseName, ProjectLogoOfferMetaKey, ProjectMetaKey, WorkspaceFolderMetaKey } from "../workspace-project";
+import {
+    pathBaseName,
+    ProjectLogoOfferMetaKey,
+    ProjectMetaKey,
+    ProjectRepoMetaKey,
+    projectRepoOf,
+    WorkspaceFolderMetaKey,
+} from "../workspace-project";
 import { ProjectTypeMetaKey } from "./sidebar-model";
 
 // must match pkg/molten/mission/projects_migrate.go
@@ -16,12 +23,19 @@ export const CurrentProjectMetaKey = "molten:currentproject";
 // The id the one project of a workspace without a list gets.
 export const FirstProjectId = "p1";
 
-export type WorkspaceProjectEntry = { id: string; type: string; dir: string; branch: string };
+// dir: the project's folder, its context and where the Files panel opens. repo: the code repository chosen inside it
+// (#1777), "" for none; the repository a project's agents and Git features work on is projectRepoDir.
+export type WorkspaceProjectEntry = { id: string; type: string; dir: string; branch: string; repo?: string };
 
-export type ProjectDraft = { type: string; dir: string; branch: string };
+export type ProjectDraft = { type: string; dir: string; branch: string; repo?: string };
 
 export function str(value: any): string {
     return typeof value === "string" ? value.trim() : "";
+}
+
+// The repository the project's agents and the Git features work on: the chosen one inside its folder, else the folder.
+export function projectRepoDir(project: { dir: string; repo?: string }): string {
+    return projectRepoOf(project?.dir ?? "", project?.repo ?? "");
 }
 
 function storedProjects(meta: Record<string, any>): WorkspaceProjectEntry[] {
@@ -37,13 +51,29 @@ function storedProjects(meta: Record<string, any>): WorkspaceProjectEntry[] {
             continue;
         }
         seen.add(id);
-        rtn.push({ id, type: str(item?.type), dir: str(item?.dir), branch: str(item?.branch) });
+        rtn.push(withRepo({ id, type: str(item?.type), dir: str(item?.dir), branch: str(item?.branch) }, item?.repo));
     }
     return rtn.length > 0 ? rtn : null;
 }
 
-function liveCurrent(meta: Record<string, any>): { type: string; dir: string } {
-    return { type: str(meta?.[ProjectTypeMetaKey]), dir: str(meta?.[ProjectMetaKey]) };
+// The entry with its repository, a key only when one is chosen: a project without one reads and writes as before.
+function withRepo(entry: WorkspaceProjectEntry, repo: any): WorkspaceProjectEntry {
+    const chosen = str(repo);
+    const rtn = { ...entry };
+    if (chosen === "") {
+        delete rtn.repo;
+        return rtn;
+    }
+    rtn.repo = chosen;
+    return rtn;
+}
+
+function liveCurrent(meta: Record<string, any>): { type: string; dir: string; repo: string } {
+    return {
+        type: str(meta?.[ProjectTypeMetaKey]),
+        dir: str(meta?.[ProjectMetaKey]),
+        repo: str(meta?.[ProjectRepoMetaKey]),
+    };
 }
 
 // The id of the current project: the stored one when the list holds it, else the first project.
@@ -66,11 +96,11 @@ export function readProjects(ws: { meta?: Record<string, any> }): WorkspaceProje
         if (live.dir === "" && live.type === "") {
             return [];
         }
-        return [{ id: FirstProjectId, type: live.type, dir: live.dir, branch: "" }];
+        return [withRepo({ id: FirstProjectId, type: live.type, dir: live.dir, branch: "" }, live.repo)];
     }
     const wanted = str(meta?.[CurrentProjectMetaKey]);
     const currentId = stored.some((p) => p.id === wanted) ? wanted : stored[0].id;
-    return stored.map((p) => (p.id === currentId ? { ...p, type: live.type, dir: live.dir } : p));
+    return stored.map((p) => (p.id === currentId ? withRepo({ ...p, type: live.type, dir: live.dir }, live.repo) : p));
 }
 
 export function currentProject(ws: { meta?: Record<string, any> }): WorkspaceProjectEntry {
@@ -99,6 +129,9 @@ export function listValue(projects: WorkspaceProjectEntry[]): Record<string, str
         if (p.branch) {
             value.branch = p.branch;
         }
+        if (p.repo) {
+            value.repo = p.repo;
+        }
         return value;
     });
 }
@@ -107,6 +140,7 @@ export function liveUpdate(project: WorkspaceProjectEntry): Record<string, any> 
     return {
         [CurrentProjectMetaKey]: project.id,
         [ProjectMetaKey]: project.dir || null,
+        [ProjectRepoMetaKey]: project.repo || null,
         [ProjectTypeMetaKey]: project.type || null,
         // New terminals and agents start in the project's root, not in a folder of the project left.
         [WorkspaceFolderMetaKey]: project.dir || null,

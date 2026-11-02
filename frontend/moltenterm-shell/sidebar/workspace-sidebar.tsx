@@ -2155,8 +2155,8 @@ function LibraryButton() {
     const sessions = useAtomValue(DurableSessions.getInstance().badgeAtom);
     const open = useAtomValue(model.libraryAtom) != null;
     const appsOpen = useAtomValue(model.appsOpenAtom);
-    useReviewsRailWatch(readWorkspaceProject(workspace).dir);
-    useWorkspacePrStatesWatch(readWorkspaceProject(workspace).dir);
+    useReviewsRailWatch(readWorkspaceProject(workspace).repo);
+    useWorkspacePrStatesWatch(readWorkspaceProject(workspace).repo);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const showApps = env.isDev() || (fullConfig?.settings?.["feature:waveappbuilder"] ?? false);
     const dot = libraryDot(sessions, hasConfigErrors);

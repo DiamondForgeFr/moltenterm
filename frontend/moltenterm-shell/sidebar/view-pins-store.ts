@@ -1106,7 +1106,7 @@ async function slotAgentCommand(blockId: string): Promise<string> {
 }
 
 export async function startAgentInSlot(blockId: string): Promise<void> {
-    const dir = readWorkspaceProject(globalStore.get(atoms.workspace)).dir;
+    const dir = readWorkspaceProject(globalStore.get(atoms.workspace)).repo;
     try {
         const picked = await slotAgentCommand(blockId);
         if (picked) {
