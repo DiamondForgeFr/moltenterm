@@ -1497,6 +1497,8 @@ declare global {
         "moltenterm:view360"?: string;
         "moltenterm:terminalscreenreader"?: string;
         "moltenterm:codingagent"?: string;
+        "moltenterm:reviewssort"?: string;
+        "moltenterm:reviewsfolds"?: {[key: string]: boolean};
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

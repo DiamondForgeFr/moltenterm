@@ -107,7 +107,7 @@ export function LeftoversSection({
                 count={targets.length}
                 hint={t("reviewsAgents.leftovers.hint")}
                 open={open}
-                onToggle={() => ReviewsFolds.getInstance().set(dir, "leftovers", !open)}
+                onToggle={() => ReviewsFolds.getInstance().set("leftovers", !open)}
                 testId="reviews-leftovers-toggle"
             >
                 {targets.length > 1 ? (

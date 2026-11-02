@@ -240,6 +240,10 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#845): the coding agent MoltenTerm starts, by default for every project (pkg/molten/agentchoice).
 	MoltentermCodingAgent string `json:"moltenterm:codingagent,omitempty" jsonschema:"enum=claude,enum=codex" jsonschema_description:"The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes; the companion's Start the agent here) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced"`
 
+	// MOLTENTERM-PATCH (#1758): the Integration panel's sort and folded sections, the same in every view and after a restart (frontend/moltenterm-shell/reviews/reviews-order-store.ts).
+	MoltentermReviewsSort  string          `json:"moltenterm:reviewssort,omitempty" jsonschema:"enum=state,enum=merge" jsonschema_description:"How the Integration panel sorts its pull requests: state (by state, the default when unset) or merge (the suggested merge order, which reruns the fewest CI runs). Set by the panel's switch"`
+	MoltentermReviewsFolds map[string]bool `json:"moltenterm:reviewsfolds,omitempty" jsonschema_description:"The Integration panel's sections the developer opened (true) or folded (false), by section: yours, ready, agents, blocked, waiting, notes, leftovers, upcoming, merged. A section not listed follows its default. Set by the sections' headers"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 

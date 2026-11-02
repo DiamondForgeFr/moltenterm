@@ -84,7 +84,7 @@ export function NotesSection({
                 title={t("review.notes.title")}
                 count={notes == null ? "" : all.length}
                 open={sectionIsOpen}
-                onToggle={() => ReviewsFolds.getInstance().set(dir, "notes", !sectionIsOpen)}
+                onToggle={() => ReviewsFolds.getInstance().set("notes", !sectionIsOpen)}
                 testId="reviews-notes-toggle"
             >
                 {all.length > 0 && sectionIsOpen ? (

@@ -454,7 +454,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         }
         globalStore.set(model.focusAtom, null);
         if (!turnOpen(turn)) {
-            ReviewsFolds.getInstance().set(dir, turn, true);
+            ReviewsFolds.getInstance().openForNow(dir, turn);
         }
         setSelected(focus.number);
         setMarked(focus.number);
@@ -475,7 +475,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     }, [selected, folds]);
     useEffect(() => {
         if (notesAsk != null) {
-            ReviewsFolds.getInstance().set(dir, "notes", true);
+            ReviewsFolds.getInstance().openForNow(dir, "notes");
         }
     }, [notesAsk, dir]);
     const openReview = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr, answer.repo));
@@ -483,7 +483,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const goToCard = (number: number) => {
         const turn = sectionOf(sections, number);
         if (turn != null && !turnOpen(turn)) {
-            ReviewsFolds.getInstance().set(dir, turn, true);
+            ReviewsFolds.getInstance().openForNow(dir, turn);
         }
         setSelected(number);
         requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>(`[data-pr="${number}"]`)?.focus());
@@ -656,7 +656,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                                 count={count > 0 ? count : undefined}
                                 hint={text.hint ? t(text.hint) : undefined}
                                 open={isOpen}
-                                onToggle={() => ReviewsFolds.getInstance().set(dir, section.turn, !isOpen)}
+                                onToggle={() => ReviewsFolds.getInstance().set(section.turn, !isOpen)}
                                 testId={`reviews-section-${section.turn}-toggle`}
                                 working={
                                     section.prs.some((pr) => cards[pr.number]?.works)

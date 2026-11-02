@@ -115,7 +115,7 @@ export function UpcomingSection({
     );
     const waiting = upcomingWaitingCount(entries);
     const open = sectionOpen(folds, dir, "upcoming", defaultOpen || waiting > 0);
-    const setOpen = (value: boolean) => ReviewsFolds.getInstance().set(dir, "upcoming", value);
+    const setOpen = (value: boolean) => ReviewsFolds.getInstance().set("upcoming", value);
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
     const [marked, setMarked] = useState<string>(null);
