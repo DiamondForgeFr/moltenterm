@@ -9721,19 +9721,19 @@
         },
         "address": {
             "goTo": "Go to",
-            "inPanel": "in the panel {host}",
-            "beside": "Open beside",
+            "inPage": "in this page",
+            "inPageHost": "in this page · {host}",
+            "newPanel": "New panel",
             "inThisView": "in this view",
             "newView": "New view",
             "temporary": "temporary",
             "addToView": "Add to this view"
         },
         "hint": {
-            "anAddress": "An address:",
-            "thisPanel": "this panel",
-            "beside": "beside",
-            "newView": "new view",
-            "inThisView": "in this view"
+            "anAddress": "An address or words:",
+            "thisPage": "this page",
+            "newPanel": "new panel",
+            "newView": "new view"
         },
         "where": {
             "workspace": "go to the workspace",

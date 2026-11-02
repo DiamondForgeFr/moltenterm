@@ -1307,7 +1307,7 @@ export class BrowserViewModel implements ViewModel {
                 // the address opens it (FR-SHELL-083).
                 if (this.urlInputRef.current == null) {
                     this.nodeModel.focusNode();
-                    return openTopField();
+                    return openTopField(this.blockId);
                 }
                 this.urlInputRef.current.focus();
                 this.urlInputRef.current.select();
@@ -1827,7 +1827,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
                 data-testid="browser-address"
                 onClick={() => {
                     model.nodeModel.focusNode();
-                    openTopField();
+                    openTopField(model.blockId);
                 }}
                 onContextMenu={(e) => {
                     e.stopPropagation();

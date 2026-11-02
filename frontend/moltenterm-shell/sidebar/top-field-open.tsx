@@ -5,7 +5,16 @@
 // screen, or on the first ⌘L or click when that comes first (top-field.tsx), so it stays out of the JS every tab
 // view loads up front (NFR-PERF-003, bundle.initialJsMB).
 
-import { atoms, createBlock, getApi, getBlockComponentModel, globalStore, refocusNode, WOS } from "@/app/store/global";
+import {
+    atoms,
+    createBlock,
+    getApi,
+    getBlockComponentModel,
+    globalStore,
+    refocusNode,
+    replaceBlock,
+    WOS,
+} from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -42,6 +51,7 @@ import {
     AddressMode,
     enterRun,
     fieldHint,
+    FieldKeys,
     fieldResults,
     FieldRow,
     FieldRun,
@@ -218,16 +228,27 @@ async function openInNewView(url: string): Promise<void> {
 
 type BrowserNavigable = { navigate?: (url: string) => void };
 
-async function openAddress(url: string, mode: AddressMode, focus: FocusFactsValue): Promise<void> {
-    if (mode === "here" && focus.isPage && focus.blockId) {
-        const model = getBlockComponentModel(focus.blockId)?.viewModel as BrowserNavigable;
-        if (typeof model?.navigate === "function") {
-            model.navigate(url);
-            refocusNode(focus.blockId);
-            return;
-        }
+function navigateFocusedPage(url: string, focus: FocusFactsValue): boolean {
+    if (!focus.isPage || !focus.blockId) {
+        return false;
     }
-    if (mode === "beside" && focus.blockId) {
+    const model = getBlockComponentModel(focus.blockId)?.viewModel as BrowserNavigable;
+    if (typeof model?.navigate !== "function") {
+        return false;
+    }
+    model.navigate(url);
+    refocusNode(focus.blockId);
+    return true;
+}
+
+// A new page panel in the current view: in place of an empty launcher panel, as the palette does, else to the right of
+// the panel that had the focus (agent left, graphics right), else wherever the view puts a new panel.
+async function openInNewPanel(url: string, focus: FocusFactsValue): Promise<void> {
+    if (focus.blockId && focus.isLauncher) {
+        await replaceBlock(focus.blockId, browserBlockDef(url), true);
+        return;
+    }
+    if (focus.blockId) {
         const oref = await RpcApi.CreateBlockCommand(TabRpcClient, {
             tabid: focus.tabId,
             blockdef: browserBlockDef(url),
@@ -238,11 +259,20 @@ async function openAddress(url: string, mode: AddressMode, focus: FocusFactsValu
         focusWhenPlaced(blockIdOfORef(oref));
         return;
     }
-    if (mode === "beside") {
-        await createBlock(browserBlockDef(url));
+    await createBlock(browserBlockDef(url));
+}
+
+// A view is only created on the developer's explicit choice (Shift+Enter): a page that cannot be driven any more falls
+// back to a panel of the view, never to a new view (#1743).
+async function openAddress(url: string, mode: AddressMode, focus: FocusFactsValue): Promise<void> {
+    if (mode === "newview") {
+        await openInNewView(url);
         return;
     }
-    await openInNewView(url);
+    if (mode === "here" && navigateFocusedPage(url, focus)) {
+        return;
+    }
+    await openInNewPanel(url, focus);
 }
 
 type TermLike = { termRef?: { current?: { terminal?: { clear: () => void } } } };
@@ -286,6 +316,10 @@ async function runField(run: FieldRun, alt: boolean, focus: FocusFactsValue): Pr
             return;
         }
     }
+}
+
+function keysOf(e: { altKey: boolean; metaKey: boolean; shiftKey: boolean; ctrlKey: boolean }): FieldKeys {
+    return { alt: e.altKey, meta: e.metaKey, shift: e.shiftKey, ctrl: e.ctrlKey };
 }
 
 function RowLetter({ letter }: { letter: FieldRow["letter"] }) {
@@ -478,7 +512,7 @@ export function OpenField({
     useEffect(() => {
         listRef.current?.querySelector(`[data-index="${selected}"]`)?.scrollIntoView({ block: "nearest" });
     }, [selected]);
-    const run = (row: FieldRow, keys: { alt?: boolean; meta?: boolean }) => {
+    const run = (row: FieldRow, keys: FieldKeys) => {
         const next = enterRun(row, keys);
         if (next == null) {
             return;
@@ -520,7 +554,7 @@ export function OpenField({
         }
         e.preventDefault();
         e.stopPropagation();
-        run(res.flat[selected], { alt: e.altKey, meta: e.metaKey || e.ctrlKey });
+        run(res.flat[selected], keysOf(e));
     };
     let index = 0;
     const popover =
@@ -553,9 +587,7 @@ export function OpenField({
                                               index={i}
                                               selected={i === selected}
                                               onHover={setSelected}
-                                              onRun={(r, ev) =>
-                                                  run(r, { alt: ev.altKey, meta: ev.metaKey || ev.ctrlKey })
-                                              }
+                                              onRun={(r, ev) => run(r, keysOf(ev))}
                                           />
                                       );
                                   })}

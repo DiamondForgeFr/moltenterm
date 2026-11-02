@@ -377,22 +377,37 @@ export function updateTab(state: BrowserState, id: string, patch: Partial<Omit<B
     return changed ? { ...state, tabs } : state;
 }
 
+const SchemeUrlRe = /^[a-z][a-z0-9+.-]*:\/\//i;
+const BareSchemeRe = /^(about|file|data):/i;
+// After the host: an optional port, then an optional path, query or fragment (#1743: `example.com?q=1` and
+// `localhost:3000#top` are addresses, they were searched).
+const HostTail = String.raw`(:\d{1,5})?([/?#]\S*)?$`;
+const LocalHostRes = [
+    new RegExp(String.raw`^localhost${HostTail}`, "i"),
+    new RegExp(String.raw`^\d{1,3}(\.\d{1,3}){3}${HostTail}`),
+    new RegExp(String.raw`^\[[0-9a-f:.]+\]${HostTail}`, "i"),
+];
+const WebHostRe = new RegExp(String.raw`^[^/?#\s]+\.[a-z]{2,}${HostTail}`, "i");
+
+// The URL of text that is an address: as typed with a scheme, http for localhost and IP addresses (a local server
+// rarely speaks https), https for any other host. null: words.
+function addressOf(text: string): string {
+    if (SchemeUrlRe.test(text) || BareSchemeRe.test(text)) {
+        return text;
+    }
+    if (LocalHostRes.some((re) => re.test(text))) {
+        return "http://" + text;
+    }
+    return WebHostRe.test(text) ? "https://" + text : null;
+}
+
 // What the user types in the address bar: a URL, a host, or words to search.
 export function toBrowserUrl(input: string, searchTemplate = "https://duckduckgo.com/?q=%s"): string {
     const text = input.trim();
     if (text === "") {
         return null;
     }
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text) || /^(about|file|data):/i.test(text)) {
-        return text;
-    }
-    if (
-        !/\s/.test(text) &&
-        (/^localhost(:\d+)?(\/|$)/i.test(text) || /^[^/\s]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(text))
-    ) {
-        return (/^localhost/i.test(text) ? "http://" : "https://") + text;
-    }
-    return searchTemplate.replace("%s", encodeURIComponent(text));
+    return addressOf(text) ?? searchTemplate.replace("%s", encodeURIComponent(text));
 }
 
 // The address as the bar shows it at rest (FR-SHELL-086): without the web scheme and a lone trailing slash; other
@@ -406,28 +421,18 @@ export function shownAddress(url: string): string {
     return bare.replace(/^([^/?#]+)\/$/, "$1");
 }
 
-// Text that is an address rather than words to search: a scheme, localhost, an IP, or a host with a dot and no space.
-// Shared by the sidebar's top field (#1187) and the panel launcher (#1229).
+// Text that is an address rather than words to search: a scheme, localhost, an IPv4 or bracketed IPv6 address, or a
+// host with a dot, with no space. Shared by the sidebar's top field (#1187) and the panel launcher (#1229).
 export function looksLikeAddress(text: string): boolean {
     const s = (text ?? "").trim();
     if (s === "" || /\s/.test(s)) {
         return false;
     }
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) || /^(about|file|data):/i.test(s)) {
-        return true;
-    }
-    if (/^localhost(:\d+)?(\/|$)/i.test(s) || /^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(s)) {
-        return true;
-    }
-    return /^[^/\s]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(s);
+    return addressOf(s) != null;
 }
 
 export function addressUrl(text: string): string {
-    const s = (text ?? "").trim();
-    if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(s)) {
-        return "http://" + s;
-    }
-    return toBrowserUrl(s);
+    return toBrowserUrl(text ?? "");
 }
 
 // A tab names its page: its title, or its host while the title is unknown.

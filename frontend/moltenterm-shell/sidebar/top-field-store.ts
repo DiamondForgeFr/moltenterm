@@ -6,6 +6,7 @@
 // its address bar, and ⌘K stays the terminal's clear (#1219). With the sidebar off ⌘L is the page's address bar only.
 // The palette's ⌘⇧K opens the same field (FR-SHELL-113, palette/palette-keys.ts).
 
+import { getFocusedBlockId } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import * as jotai from "jotai";
 import { modalIsOpen } from "../modal-open";
@@ -20,6 +21,9 @@ export class TopFieldModel {
     openAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
     // Bumped on each open, so a second ⌘L while open selects the text again.
     openCountAtom = jotai.atom(0) as jotai.PrimitiveAtom<number>;
+    // The panel that had the focus when the field opened, kept until it closes (#1743): the field takes the keyboard
+    // focus, and Enter must still go to the page the developer was on, not to wherever the focus moved meanwhile.
+    originAtom = jotai.atom(null) as jotai.PrimitiveAtom<string>;
 
     private constructor() {}
 
@@ -34,13 +38,17 @@ export class TopFieldModel {
         return globalStore.get(this.openAtom);
     }
 
-    open(): boolean {
+    // from: the panel that asks for the field, when it focuses itself in the same breath (a page's ⌘L or its address).
+    open(from?: string): boolean {
         const sidebar = SidebarModel.getInstance();
         if (!sidebar.isEnabled()) {
             return false;
         }
         if (sidebar.isHidden()) {
             sidebar.setPeek(true);
+        }
+        if (from != null || !this.isOpen()) {
+            globalStore.set(this.originAtom, from ?? getFocusedBlockId() ?? null);
         }
         globalStore.set(this.openCountAtom, globalStore.get(this.openCountAtom) + 1);
         globalStore.set(this.openAtom, true);
@@ -49,6 +57,7 @@ export class TopFieldModel {
 
     close(): void {
         globalStore.set(this.openAtom, false);
+        globalStore.set(this.originAtom, null);
     }
 
     // Closed from outside the field (its key pressed again): a sidebar that peeked in for it hides again, as on Escape.
@@ -61,8 +70,8 @@ export class TopFieldModel {
     }
 }
 
-export function openTopField(): boolean {
-    return TopFieldModel.getInstance().open();
+export function openTopField(from?: string): boolean {
+    return TopFieldModel.getInstance().open(from);
 }
 
 function openFromKey(): boolean {
