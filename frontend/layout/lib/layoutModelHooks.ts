@@ -9,6 +9,8 @@ import { CSSProperties, useCallback, useEffect, useState } from "react";
 import { getLayoutStateAtomFromTab } from "./layoutAtom";
 import { LayoutModel } from "./layoutModel";
 import { LayoutNode, NodeModel, TileLayoutContents } from "./types";
+// MOLTENTERM-PATCH (#1739): the layout follows the tab's blocks, whatever deleted one
+import { watchGoneBlockLeaves } from "../../moltenterm-shell/gone-block-leaves";
 
 const layoutModelMap: Map<string, LayoutModel> = new Map();
 
@@ -23,15 +25,17 @@ function getLayoutModelForTab(tabAtom: Atom<Tab>): LayoutModel {
         }
     }
     const layoutModel = new LayoutModel(tabAtom, globalStore.get, globalStore.set);
-    
+
     const staticTabId = globalStore.get(atoms.staticTabId);
     if (tabId === staticTabId) {
         const layoutStateAtom = getLayoutStateAtomFromTab(tabAtom, globalStore.get);
         globalStore.sub(layoutStateAtom, () => {
             layoutModel.onBackendUpdate();
         });
+        // MOLTENTERM-PATCH (#1739): a block deleted without the layout being told takes its leaf with it
+        watchGoneBlockLeaves(globalStore, tabAtom, layoutModel);
     }
-    
+
     layoutModelMap.set(tabId, layoutModel);
     return layoutModel;
 }
