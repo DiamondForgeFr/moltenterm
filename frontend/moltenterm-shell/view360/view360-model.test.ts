@@ -707,6 +707,38 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         }
     });
 
+    it("lets the grip widen the fixed zone past half of a wide window, and again after the drag set the floor (#1745)", () => {
+        terminalFloor.px = null;
+        try {
+            const root = rowOf(2);
+            const { model, layoutModel } = makeModel(true, root);
+            Object.assign(layoutModel, {
+                displayContainerRef: { current: { getBoundingClientRect: () => ({ left: 0, width: 1600 }) } },
+                setter: vi.fn(),
+                pendingTreeAction: { throttledValueAtom: null },
+            });
+            model.evaluate(root, boundsOf(1600));
+            // Entering, the zone opens at the first column's half of the normal layout.
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(800);
+            const grip = model.rootResizeHandles(root, 10, [])[0];
+            expect(model.onResizeMove(grip, 800)).toBe(true);
+            expect(model.onResizeEnd()).toBe(true);
+            expect(terminalFloor.px).toBe(800);
+            // The floor the first drag set at half does not hold the next drag there.
+            expect(model.onResizeMove(grip, 1100)).toBe(true);
+            expect(model.dragFixedPx).toBe(1100);
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1100);
+            expect(model.onResizeMove(grip, 1500)).toBe(true);
+            expect(model.dragFixedPx).toBe(1600 - CarpetReservePx);
+            expect(model.onResizeEnd()).toBe(true);
+            // The width is kept once the drag ends.
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1600 - CarpetReservePx);
+            expect(model.gripNoRoom()).toBeNull();
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
     it("says on the grip why it cannot move when the window leaves no room (#829)", () => {
         const root = rowOf(2);
         const { model } = makeModel(true, root);

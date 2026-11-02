@@ -5935,7 +5935,7 @@
             "unpinButton": "Désépingler, retour sur le tapis",
             "pinnedBadge": "épinglé",
             "refusedTitle": "Pas de place pour épingler à côté",
-            "refusedMessage": "La zone fixe occupe au plus la moitié de la fenêtre. Désépinglez un panneau, élargissez la fenêtre ou épinglez-le dans la première colonne."
+            "refusedMessage": "Épinglés côte à côte, les panneaux doivent tenir dans la moitié de la fenêtre à leur largeur minimale. Désépinglez un panneau, élargissez la fenêtre ou épinglez-le dans la première colonne."
         },
         "places": {
             "button": "Ranger sur le tapis",
