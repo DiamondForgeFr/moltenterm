@@ -462,6 +462,10 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 	if plan.ShowMade >= 0 && plan.ShowMade < len(made) {
 		tabId = made[plan.ShowMade]
 	}
+	// An instance whose source went meanwhile leaves nothing to show: the project gets a new view, never a blank one.
+	if tabId == "" {
+		plan.NewView = true
+	}
 	if plan.NewView {
 		newId, err := CreateTab(ctx, req.WorkspaceId, "", true, false)
 		if err != nil {
