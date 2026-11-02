@@ -1252,7 +1252,8 @@ export class BrowserViewModel implements ViewModel {
             this.closeTab(this.state().activeId);
             return true;
         }
-        // With the focus on the panel's own controls, back, forward and Escape stay the address field's editing keys.
+        // With the focus on the panel's own controls, ⌘← ⌘→ and Escape stay the address field's editing keys; ⌘[ ⌘] and
+        // Alt+← Alt+→ reach historyKeyHandler through the window's key map (#1744).
         const action = browserKeyAction(e, isMacOS());
         if (action == null || action === BrowserKeyBack || action === BrowserKeyForward || action === BrowserKeyStop) {
             return false;
@@ -1270,6 +1271,17 @@ export class BrowserViewModel implements ViewModel {
             return false;
         }
         return this.runKeyAction(action);
+    }
+
+    // The window's ⌘[ and ⌘] (Alt+← and Alt+→ off macOS) while the focus is in this panel, its page or its own controls
+    // (#1744, FR-SHELL-139). The panel keeps the key even with no history to go to: a browser does nothing there, and the
+    // keys never switch views from a page. ⌘⇧[ and ⌘⇧] still do.
+    historyKeyHandler(direction: 1 | -1): boolean {
+        if (globalStore.get(atoms.modalOpen)) {
+            return false;
+        }
+        this.goInHistory(this.webviews.get(this.state().activeId), direction);
+        return true;
     }
 
     // The shortcut always loads the page again, as browsers do; the Reload button stops a page that is loading.

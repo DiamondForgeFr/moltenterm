@@ -79,7 +79,49 @@ export function nextZoomStep(percent: number, direction: 1 | -1): number {
     return BrowserZoomSteps[0];
 }
 
-export type BrowserKeyTarget = { viewType: string; pageKeyDownHandler?: (e: WaveKeyboardEvent) => boolean };
+export type BrowserKeyTarget = {
+    viewType: string;
+    pageKeyDownHandler?: (e: WaveKeyboardEvent) => boolean;
+    historyKeyHandler?: (direction: 1 | -1) => boolean;
+};
+
+// Back and forward from the window's own keys (#1744, FR-SHELL-139): a browser window is a view and its tab a panel, so
+// ⌘[ and ⌘] (Alt+← and Alt+→ off macOS) are the page's while the focus is in a browser panel, its page or its own
+// controls, and switch views anywhere else.
+export type HistoryFocus = {
+    // The panel that holds the DOM focus, not the one the layout believes is focused: a click on the sidebar leaves the
+    // layout's focus behind, and the key must then keep switching views.
+    focusedBlockId: () => string;
+    modelOf: (blockId: string) => BrowserKeyTarget;
+};
+
+// true: the browser panel holding the focus took the key (it never falls through to a view switch, even with no history
+// to go to, as in a browser); false: the window handles it.
+export function pageHistoryKey(direction: 1 | -1, focus: HistoryFocus): boolean {
+    const blockId = focus.focusedBlockId();
+    if (blockId == null) {
+        return false;
+    }
+    const model = focus.modelOf(blockId);
+    if (model?.historyKeyHandler == null) {
+        return false;
+    }
+    return model.historyKeyHandler(direction);
+}
+
+// Alt+← and Alt+→ are the browsers' own back and forward off macOS, where the window's ⌘[ and ⌘] are Alt+[ and Alt+],
+// keys no browser answers. Nothing else binds them, so a focus outside a browser panel leaves them to the program.
+export function registerHistoryKeys(
+    keyMap: Map<string, (e: WaveKeyboardEvent) => boolean>,
+    mac: boolean,
+    onKey: (direction: 1 | -1) => boolean
+): void {
+    if (mac) {
+        return;
+    }
+    keyMap.set("Alt:ArrowLeft", () => onKey(-1));
+    keyMap.set("Alt:ArrowRight", () => onKey(1));
+}
 
 type PageElement = { getWebContentsId(): number; closest(selector: string): { getAttribute(name: string): string } };
 
