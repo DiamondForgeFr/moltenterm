@@ -89,6 +89,8 @@ const (
 	SetupTicketsCommand = "moltenmissionsetuptickets"
 	// Step 3 follows the pull request the setup opened (#1104): read only.
 	SetupPrStatusCommand = "moltenmissionsetupprstatus"
+	// The developer takes the setup's draft out of draft (#1788): step 3's Mark ready, or its notification's.
+	SetupPrReadyCommand = "moltenmissionsetupprready"
 	// The stepper's step 1 and its answers kept between openings (FR-MC-038).
 	SetupSurveyCommand  = "moltenmissionsetupsurvey"
 	SetupAnswersCommand = "moltenmissionsetupanswers"

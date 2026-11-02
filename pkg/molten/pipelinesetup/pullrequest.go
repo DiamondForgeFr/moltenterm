@@ -24,8 +24,9 @@ import (
 
 // The setup's write goes through a pull request (FR-MC-036, #1098): a tracked file of the developer's checkout never
 // changes. MoltenTerm checks origin/<trunk> out in a worktree of its own, writes and validates the files there, makes
-// one commit in the project's format, pushes a new branch and opens a draft pull request to the PR target branch. The
-// developer merges it when they agree. The same commit can be taken as a patch instead (a project not on GitHub).
+// one commit in the project's format, pushes a new branch and opens a pull request to the PR target branch, a draft
+// only when the project's workflow tests by hand first (#1788, prroute.go). The developer merges it when they agree.
+// The same commit can be taken as a patch instead (a project not on GitHub).
 
 const (
 	PrModePr    = "pr"
@@ -145,6 +146,8 @@ type PrJob struct {
 	Commit   string     `json:"commit,omitempty"`
 	PrUrl    string     `json:"prurl,omitempty"`
 	PrNumber int        `json:"prnumber,omitempty"`
+	// The pull request waits as a draft for the developer's hand test (#1788); otherwise it is open for review.
+	Draft    bool       `json:"draft,omitempty"`
 	Patch    string     `json:"patch,omitempty"`
 	Files    []string   `json:"files"`
 	// The technical documentation's backend page, once written (FR-MC-043).
@@ -525,20 +528,25 @@ func numberOfUrl(url string) int {
 	return n
 }
 
-func (s *Setup) createTicket(ctx context.Context, dir string, title string, kind string) (int, error) {
-	body := "Declares the project's release pipeline in `.molten/project.json`, drafted by MoltenTerm's release setup and reviewed in its pull request."
-	if kind == PrKindUpdate {
-		body = "Updates the project's release pipeline in `.molten/project.json` to what this version of MoltenTerm writes, reviewed in its pull request."
+// createTicket: through the project's ticket tool when it has one (#1788), on its board as an internal task of low
+// complexity; otherwise a plain issue. internal: the ticket carries nature:internal.
+func (s *Setup) createTicket(ctx context.Context, dir string, base string, title string, kind string) (int, bool, error) {
+	title = strings.TrimSpace(title)
+	body := ticketBody(kind)
+	if tool := sfTicketToolOf(dir); tool != "" {
+		if n, ok := s.createSfTicket(ctx, dir, base, tool, title, body); ok {
+			return n, true, nil
+		}
 	}
-	out, err := s.Run(ctx, dir, "gh", "issue", "create", "--title", strings.TrimSpace(title), "--body", body)
+	out, err := s.Run(ctx, dir, "gh", "issue", "create", "--title", title, "--body", body)
 	if err != nil {
-		return 0, fail(PrFailureTicket, errText(err, nil))
+		return 0, false, fail(PrFailureTicket, errText(err, nil))
 	}
 	n := numberOfUrl(string(out))
 	if n == 0 {
-		return 0, fail(PrFailureTicket, trimOutput(string(out)))
+		return 0, false, fail(PrFailureTicket, trimOutput(string(out)))
 	}
-	return n, nil
+	return n, false, nil
 }
 
 func (s *Setup) treesDir() string {
@@ -552,6 +560,7 @@ func (s *Setup) treesDir() string {
 // patch. The worktree is removed whatever happens; the folder opened is never written.
 func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFiles, req PrRequest, job *PrJob) error {
 	ticket := req.Ticket
+	internal := false
 	required, _ := ticketRequired(dir)
 	if required && ticket == 0 && req.Mode == PrModePr && req.CreateTicket {
 		title := strings.TrimSpace(req.NewTicket)
@@ -561,11 +570,11 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 		s.stepState(job, PrStepTicket, PrStateRunning, "")
 		n := s.createdTicket(dir, job.Kind)
 		if n == 0 {
-			created, err := s.createTicket(ctx, dir, title, job.Kind)
+			created, viaTool, err := s.createTicket(ctx, dir, b.Commit, title, job.Kind)
 			if err != nil {
 				return err
 			}
-			n = created
+			n, internal = created, viaTool
 			s.rememberTicket(dir, job.Kind, n)
 		}
 		ticket = n
@@ -688,7 +697,13 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 	}
 	s.stepState(job, PrStepPr, PrStateRunning, "")
 	body := prBody(job, b, files, ticket, required)
-	created, err := s.Run(ctx, dir, "gh", "pr", "create", "--draft", "--base", job.Target, "--head", branch, "--title", subject, "--body", body)
+	draft := s.prOpensDraft(ctx, dir, ticket, internal)
+	args := []string{"pr", "create"}
+	if draft {
+		args = append(args, "--draft")
+	}
+	args = append(args, "--base", job.Target, "--head", branch, "--title", subject, "--body", body)
+	created, err := s.Run(ctx, dir, "gh", args...)
 	if err != nil {
 		return fail(PrFailurePr, errText(err, nil))
 	}
@@ -697,10 +712,13 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 		url = strings.TrimSpace(lines[len(lines)-1])
 	}
 	n := numberOfUrl(url)
-	s.update(job, func(j *PrJob) { j.PrUrl, j.PrNumber = url, n })
+	s.update(job, func(j *PrJob) { j.PrUrl, j.PrNumber, j.Draft = url, n, draft })
 	s.stepState(job, PrStepPr, PrStateDone, "#"+strconv.Itoa(n))
 	s.linkDocToPr(job, files, git, tree, branch, commit, url)
 	s.writeTechDoc(ctx, job, files, url)
+	if draft && n > 0 && s.OnDraftPr != nil {
+		s.OnDraftPr(dir, n, url, job.Target)
+	}
 	return nil
 }
 

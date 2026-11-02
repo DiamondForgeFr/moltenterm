@@ -27,6 +27,16 @@ type fakeForge struct {
 	issues   [][]string
 	prFails  bool
 	issueNum string
+	// What gh issue view answers for a picked ticket's labels (#1788).
+	labels string
+	// The project's ticket tool, run for real by bash (#1788).
+	tools [][]string
+}
+
+func (f *fakeForge) toolCalls() [][]string {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return append([][]string{}, f.tools...)
 }
 
 func (f *fakeForge) calls() ([][]string, [][]string) {
@@ -56,6 +66,20 @@ func (f *fakeForge) runner(t *testing.T, rules string) Runner {
 		}
 		if name == "gh" && len(args) >= 2 && args[0] == "issue" && args[1] == "list" {
 			return []byte(`[{"number":7,"title":"Declare the release pipeline"}]`), nil
+		}
+		if name == "gh" && len(args) >= 2 && args[0] == "issue" && args[1] == "view" {
+			if f.labels == "" {
+				return []byte(`{"labels":[]}`), nil
+			}
+			return []byte(f.labels), nil
+		}
+		if name == "bash" {
+			f.lock.Lock()
+			f.tools = append(f.tools, args)
+			f.lock.Unlock()
+			cmd := exec.CommandContext(ctx, "bash", args...)
+			cmd.Dir = dir
+			return cmd.Output()
 		}
 		return inner(ctx, dir, name, args...)
 	}
@@ -133,7 +157,7 @@ func workingCopy(t *testing.T, dir string) string {
 	return gitOut(t, dir, "status", "--porcelain") + gitOut(t, dir, "rev-parse", "HEAD")
 }
 
-func TestWriteOpensADraftPullRequestAndLeavesTheCheckoutAlone(t *testing.T) {
+func TestWriteOpensAPullRequestAndLeavesTheCheckoutAlone(t *testing.T) {
 	dir := protectedRepository(t)
 	forge := &fakeForge{}
 	s := prSetup(t, forge, protectedRules(t))
@@ -168,7 +192,7 @@ func TestWriteOpensADraftPullRequestAndLeavesTheCheckoutAlone(t *testing.T) {
 		t.Fatalf("prs %v, issues %v", prs, issues)
 	}
 	args := strings.Join(prs[0], " ")
-	if !strings.Contains(args, "--draft --base develop --head feature/7-release-pipeline") || !strings.Contains(args, "Resolves #7") {
+	if strings.Contains(args, "--draft") || !strings.Contains(args, "pr create --base develop --head feature/7-release-pipeline") || !strings.Contains(args, "Resolves #7") || job.Draft {
 		t.Fatalf("gh pr create %s", args)
 	}
 	gitIn(t, dir, "fetch", "--quiet", "origin")

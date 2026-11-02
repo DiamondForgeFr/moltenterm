@@ -13,7 +13,9 @@ import { useT, useTCount } from "../i18n/i18n";
 import { openWebLink } from "../open-web-link";
 import { DominoLoader } from "../suite/suite";
 import { DiffView } from "./release-setup";
-import { setupPrStatus } from "./release-setup-client";
+import { serverErrorText } from "../i18n/server-text";
+import { MoltenWave } from "../molten-button";
+import { setupPrReady, setupPrStatus } from "./release-setup-client";
 import { FlowDiagram } from "./release-setup-diagram";
 import {
     flowModel,
@@ -542,10 +544,28 @@ export function PrFollow({
     onOpenReviews: (dir: string, number: number) => void;
 }) {
     const t = useT();
+    const [marking, setMarking] = useState(false);
+    const [marked, setMarked] = useState(false);
+    const [markError, setMarkError] = useState<string>(null);
     if (!(job?.prnumber > 0) || job.failure != null || !job.finished) {
         return null;
     }
     const number = String(job.prnumber);
+    // A draft waits for the developer's hand test (#1788): taking it out of draft is their click.
+    const canMarkReady = status?.state === "open" && status.draft && !marked && !!job.prurl;
+    const markReady = () =>
+        fireAndForget(async () => {
+            setMarking(true);
+            setMarkError(null);
+            try {
+                await setupPrReady(dir, job.prurl);
+                setMarked(true);
+            } catch (e) {
+                setMarkError(serverErrorText(e));
+            } finally {
+                setMarking(false);
+            }
+        });
     const tone =
         status == null
             ? "text-muted"
@@ -575,7 +595,25 @@ export function PrFollow({
                       })}
             </p>
             {error ? <p className="text-11 text-warning">{t("mc.setup.prepared.follow.unread")}</p> : null}
+            {markError ? (
+                <p className="text-11 text-warning" role="alert" data-testid="prepared-mark-ready-error">
+                    {markError}
+                </p>
+            ) : null}
             <div className="flex flex-wrap gap-1.5">
+                {canMarkReady ? (
+                    <button
+                        type="button"
+                        className="molten-btn cursor-pointer rounded-6 px-3 py-1 text-11"
+                        disabled={marking}
+                        onClick={markReady}
+                        data-testid="prepared-mark-ready"
+                    >
+                        {marking ? <DominoLoader className="mr-1.5" /> : null}
+                        {marking ? t("mc.setup.prepared.markingReady") : t("mc.setup.prepared.markReady")}
+                        <MoltenWave />
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     className={SmallButton}

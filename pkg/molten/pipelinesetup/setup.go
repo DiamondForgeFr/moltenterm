@@ -150,6 +150,8 @@ type Setup struct {
 	DocBackends []TechDocBackend
 	// Where the pipeline templates are kept on this computer (FR-MC-042); "" keeps none.
 	TemplatesDir string
+	// Called once a pull request opened as a draft (#1788): wavesrv follows it and says when it waits for the developer.
+	OnDraftPr func(dir string, number int, url string, target string)
 
 	jobLock sync.Mutex
 	jobs    map[string]*PrJob

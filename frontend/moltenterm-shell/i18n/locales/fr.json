@@ -4426,7 +4426,8 @@
                 "copyAgain": "Le copier à nouveau",
                 "patchReady": "Le patch est copié : appliquez-le avec git am là où votre projet reçoit les changements.",
                 "copied": "Copié à nouveau.",
-                "done": "Pull request #{number} ouverte en brouillon. Le menu Release utilise le pipeline une fois qu’elle est fusionnée dans {target}.",
+                "done": "Pull request #{number} ouverte pour votre revue. Le menu Release utilise le pipeline une fois qu’elle est fusionnée dans {target}.",
+                "doneDraft": "Pull request #{number} ouverte en brouillon : le workflow de votre projet teste un changement à la main avant sa revue, elle vous attend donc. Marquez-la prête une fois testée ; une notification vous prévient quand ses vérifications sont terminées. Le menu Release utilise le pipeline une fois qu’elle est fusionnée dans {target}.",
                 "openPr": "Ouvrir #{number}",
                 "pushedOnly": "{branch} est poussée. origin n’est pas sur GitHub : ouvrez-y la pull request vers {target}.",
                 "prepareAgain": "Préparer à nouveau",
@@ -4442,7 +4443,7 @@
                     "write": "les fichiers écrits là et validés",
                     "commit": "un commit",
                     "push": "poussé sur origin",
-                    "pr": "la pull request ouverte en brouillon vers {target}",
+                    "pr": "la pull request ouverte vers {target}",
                     "patch": "le patch créé",
                     "doc": "la documentation technique écrite dans sa page"
                 },
@@ -4860,6 +4861,7 @@
                 "followTitle": "Pull request #{number}",
                 "follow": {
                     "reading": "Lecture de #{number} sur GitHub…",
+                    "runningReady": "La pull request #{number} est ouverte pour revue : ses vérifications tournent (encore {pending}).",
                     "running": "Pull request brouillon #{number} : ses vérifications tournent (encore {pending}).",
                     "failed": "#{number} : {failed} vérifications en échec. Ouvrez-la pour voir pourquoi ; rien n’est fusionné.",
                     "green": "#{number} est prête et ses vérifications sont vertes : fusionnez-la dans {target} quand vous êtes d’accord.",
@@ -4871,7 +4873,10 @@
                     "unread": "GitHub n’a pas pu être lu à l’instant : MoltenTerm réessaie."
                 },
                 "openReviews": "Ouvrir #{number} dans le panneau Intégration",
-                "openGithub": "Ouvrir sur GitHub"
+                "openGithub": "Ouvrir sur GitHub",
+                "markReady": "Marquer prête",
+                "markingReady": "Marquage en cours…",
+                "noPrAddress": "Cette notification ne nomme aucune pull request."
             },
             "state": {
                 "noAgent": {
@@ -8761,6 +8766,7 @@
                 "prBusy": "Une pull request de la configuration de release est déjà en préparation pour ce projet.",
                 "prUnknown": "Cette pull request n’est plus suivie : préparez-la à nouveau.",
                 "ticketsUnread": "Les tickets ouverts n’ont pas pu être lus : {detail}",
+                "prReadyFailed": "La pull request n’a pas pu être marquée prête : {detail}",
                 "noGit": "Ce projet n’est pas un dépôt git avec sa branche de travail : il n’y a rien sur quoi ouvrir une pull request.",
                 "ticketNeeded": "Le format de commit du projet nomme un ticket : choisissez-en un ou créez-en un.",
                 "includeConflict": "Vos modifications non commitées de {path} sont en conflit avec {ref} : commitez-les ou rebasez-les d’abord, ou laissez-les de côté.",
@@ -8795,6 +8801,15 @@
                 "stopped": "Sa carte d'exécution montre à quelle étape, et la fin de son journal.",
                 "showBuild": "Voir le build",
                 "showInFolder": "Afficher dans le dossier"
+            },
+            "setup": {
+                "prReadyTitle": "La pull request #{number} de la configuration de release est prête pour votre revue",
+                "prReady": "Les vérifications de #{number} sont vertes. Elle est en brouillon parce que le workflow de votre projet teste un changement à la main avant sa revue : marquez-la prête une fois testée, puis fusionnez-la dans {target}.",
+                "prReadyNoChecks": "#{number} ne lance aucune vérification. Elle est en brouillon parce que le workflow de votre projet teste un changement à la main avant sa revue : marquez-la prête une fois testée, puis fusionnez-la dans {target}.",
+                "prFailedTitle": "La pull request #{number} de la configuration de release a des vérifications en échec",
+                "prFailed": "#{number} est encore en brouillon : ouvrez-la pour voir pourquoi. Rien n’est fusionné dans {target}.",
+                "markReady": "Marquer prête",
+                "open": "Ouvrir"
             },
             "worktree": {
                 "keptTitle": "Le worktree {name} est toujours sur le disque",

@@ -400,7 +400,7 @@ export function prFollowKey(status: SetupPrStatus): string {
     }
     switch (status.checks) {
         case "pending":
-            return "mc.setup.prepared.follow.running";
+            return status.draft ? "mc.setup.prepared.follow.running" : "mc.setup.prepared.follow.runningReady";
         case "failure":
             return "mc.setup.prepared.follow.failed";
         case "success":
