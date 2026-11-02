@@ -57,8 +57,23 @@ export function agentProjectLabel(folder: string, projects: WorkspaceProjectEntr
     if (here === "") {
         return null;
     }
+    const owner = projectOfFolder(folder, projects);
+    if (owner != null) {
+        return { text: projectLabel(owner), outside: false };
+    }
+    const text = pathBaseName(here);
+    return text === "" ? null : { text, outside: true };
+}
+
+// The project whose folder holds `folder`, the longest match when projects nest; null when none does. must match
+// ProjectOfDir in pkg/molten/projectviews/projectviews.go
+export function projectOfFolder(folder: string, projects: WorkspaceProjectEntry[]): WorkspaceProjectEntry {
+    const here = trimPath(folder);
     let owner: WorkspaceProjectEntry = null;
-    for (const p of projects) {
+    if (here === "") {
+        return null;
+    }
+    for (const p of projects ?? []) {
         const dir = trimPath(p.dir);
         if (dir === "" || !holds(dir, here)) {
             continue;
@@ -67,11 +82,7 @@ export function agentProjectLabel(folder: string, projects: WorkspaceProjectEntr
             owner = p;
         }
     }
-    if (owner != null) {
-        return { text: projectLabel(owner), outside: false };
-    }
-    const text = pathBaseName(here);
-    return text === "" ? null : { text, outside: true };
+    return owner;
 }
 
 function trimPath(path: string): string {

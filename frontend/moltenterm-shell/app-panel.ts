@@ -14,6 +14,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { appPanelStep, PanelMatch, sameViewMatch, viewIsPinned } from "./app-panel-model";
+import { projectTabIds } from "./hidden-tabs";
 import { showTabFromHere } from "./opener-tab";
 import { readGlobalPins } from "./sidebar/view-pins-model";
 
@@ -52,7 +53,8 @@ async function panelIn(tab: Tab, match: PanelMatch): Promise<string> {
 
 async function panelElsewhere(activeTabId: string, match: PanelMatch): Promise<{ tabId: string; blockId: string }> {
     const ws = globalStore.get(atoms.workspace);
-    for (const tabId of ws?.tabids ?? []) {
+    // The panel of another project's view would switch the project: only the current project's views are searched (#1760).
+    for (const tabId of projectTabIds(ws)) {
         if (tabId === activeTabId) {
             continue;
         }

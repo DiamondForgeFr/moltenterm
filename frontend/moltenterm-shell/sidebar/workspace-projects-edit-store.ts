@@ -6,9 +6,15 @@
 
 import { t } from "../i18n/i18n";
 import { showToast } from "../toast-store";
-import { ProjectDraft, projectLabel } from "./workspace-projects";
-import { addProjectUpdate, editProjectUpdate, removeProjectUpdate } from "./workspace-projects-edit";
-import { activeWorkspace, writeMeta } from "./workspace-projects-store";
+import { ProjectDraft, projectLabel, readProjects } from "./workspace-projects";
+import { addProjectUpdate, editProjectUpdate } from "./workspace-projects-edit";
+import {
+    activeWorkspace,
+    callProjectViews,
+    ProjectAssignCommand,
+    ProjectRemoveCommand,
+    writeMeta,
+} from "./workspace-projects-store";
 
 export async function addWorkspaceProject(draft: ProjectDraft): Promise<void> {
     const ws = activeWorkspace();
@@ -17,6 +23,8 @@ export async function addWorkspaceProject(draft: ProjectDraft): Promise<void> {
     }
     const { update } = addProjectUpdate(ws, draft);
     await writeMeta(ws, update);
+    // With a second project the workspace's views get theirs: the first project keeps them unless their panels say otherwise.
+    await callProjectViews(ProjectAssignCommand, { workspaceid: ws.oid });
     showToast({
         kind: "success",
         title: t("sidebar.project.added", {
@@ -35,10 +43,11 @@ export async function editWorkspaceProject(id: string, draft: ProjectDraft, ws =
     await writeMeta(ws, update);
 }
 
+// The project's views go to the project that takes over; none closes (#1760).
 export async function removeWorkspaceProject(id: string, ws = activeWorkspace()): Promise<void> {
-    const update = ws == null ? null : removeProjectUpdate(ws, id);
-    if (update == null) {
+    const projects = ws == null ? [] : readProjects(ws);
+    if (projects.length < 2 || !projects.some((p) => p.id === id)) {
         return;
     }
-    await writeMeta(ws, update);
+    await callProjectViews(ProjectRemoveCommand, { workspaceid: ws.oid, projectid: id });
 }

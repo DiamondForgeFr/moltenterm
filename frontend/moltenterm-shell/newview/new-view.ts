@@ -20,6 +20,7 @@ import { fireAndForget } from "@/util/util";
 import { AddressTarget, requestAddressFocus } from "../browser/address-focus";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { knownCodingAgents } from "../coding-agent/coding-agent";
+import { projectTabIds } from "../hidden-tabs";
 import { runPaletteEntry } from "../palette/palette-actions";
 import { fillsPanel, PaletteEntry } from "../palette/palette-model";
 import { newViewFavoriteBindings } from "../shortcuts/registry";
@@ -102,7 +103,7 @@ export async function dismissNewView(blockId: string): Promise<void> {
         }
         return;
     }
-    if (tab == null || ws == null || (ws.tabids?.length ?? 0) <= 1) {
+    if (tab == null || ws == null || projectTabIds(ws).length <= 1) {
         await replaceBlock(blockId, TerminalBlockDef, true);
         return;
     }

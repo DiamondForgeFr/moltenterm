@@ -28,6 +28,7 @@ import { AgentStates } from "../agent-state-store";
 import { browserBlockDef } from "../browser/browser-model";
 import { blockIdOfORef, focusWhenPlaced } from "../browser/focus-placed";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
+import { visibleTabIds } from "../hidden-tabs";
 import { useT } from "../i18n/i18n";
 import { usePaletteEntries } from "../palette/command-palette";
 import { runPaletteEntry } from "../palette/palette-actions";
@@ -65,7 +66,6 @@ import { TopFieldModel } from "./top-field-store";
 
 const BlurCloseMs = 120;
 const MaxTabsLoaded = 300;
-const HiddenTabsMetaKey = "molten:hiddentabs";
 
 type TFn = (key: string, vars?: Record<string, any>) => string;
 async function loadObject<T extends WaveObj>(oref: string): Promise<T> {
@@ -124,10 +124,10 @@ async function loadSources(t: TFn, activeId: string): Promise<LoadedSources> {
             continue;
         }
         const here = ws.oid === activeId;
-        const hidden = new Set<string>((ws.meta as Record<string, any>)?.[HiddenTabsMetaKey] ?? []);
         const wsName = workspaceShownName(ws.name, t) || t("rail.unsavedWorkspace");
-        for (const tabId of ws.tabids ?? []) {
-            if (hidden.has(tabId) || loaded >= MaxTabsLoaded) {
+        // A workspace's views are those of its current project (#1760): a view of another project would switch it.
+        for (const tabId of visibleTabIds(ws)) {
+            if (loaded >= MaxTabsLoaded) {
                 continue;
             }
             loaded++;

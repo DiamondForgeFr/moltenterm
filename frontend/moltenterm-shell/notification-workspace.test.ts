@@ -70,4 +70,22 @@ describe("workspaceLabel", () => {
         expect(label).toMatchObject({ image: "d-0123456789ab.png", logo: "icon.svg", icon: "rocket" });
         expect(workspaceLabel("gone", Known, "a").image).toBe("");
     });
+
+    it("names the project of the view a notification comes from (#1760)", () => {
+        const product = ws("m", "Notulia", "/work/Notulia");
+        const meta = product.meta as Record<string, any>;
+        meta["molten:projects"] = [
+            { id: "p1", type: "Desktop", dir: "/work/Notulia" },
+            { id: "p2", type: "Website", dir: "/work/Notulia-website" },
+        ];
+        meta["molten:currentproject"] = "p1";
+        meta["molten:projecttype"] = "Desktop";
+        meta["molten:tabprojects"] = { onSite: "p2", onDesktop: "p1" };
+        const known = new Map([["m", product]]);
+        expect(workspaceLabel("m", known, "m", "onSite").project).toBe("Website");
+        expect(workspaceLabelText(workspaceLabel("m", known, "m", "onSite"))).toBe("Notulia · Website");
+        expect(workspaceLabel("m", known, "m", "onDesktop").project).toBe("Desktop");
+        expect(workspaceLabel("m", known, "m", "shared").project).toBe("");
+        expect(workspaceLabel("m", known, "m").project).toBe("");
+    });
 });

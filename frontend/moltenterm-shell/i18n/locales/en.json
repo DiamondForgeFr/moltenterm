@@ -9515,6 +9515,8 @@
             "typeTitleMany": "Current project: {type} · {count} projects in this workspace",
             "switched": "Current project: {project}",
             "switchedHint": "New agents start in its folder.",
+            "activityItem": "{count} {state}",
+            "activityLine": "{project} · {activity}",
             "added": "{project} added",
             "addedHint": "The Integration panel follows its pull requests. Choose it in the header to work in it.",
             "addTitle": "Add a project to {name}",

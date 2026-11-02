@@ -13,7 +13,7 @@ import { getTabBadgeAtom } from "@/app/store/badge";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { getTabModelByTabId } from "@/app/store/tab-model";
-import { makeORef, useWaveObjectValue } from "@/app/store/wos";
+import { getObjectValue, makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -28,8 +28,9 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentInfoHost } from "../agent-info/agent-info-host";
-import { agentStateTitle } from "../agent-state-model";
+import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { visibleTabIds } from "../hidden-tabs";
 import { HoldToCloseGlyph } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
 import { KeepAwakeStatusItem } from "../keepawake-cup";
@@ -104,6 +105,7 @@ import {
     useWorkspacePrStatesWatch,
 } from "./pr-counts";
 import { hasPrCounts, PrCounts } from "./pr-counts-model";
+import { activityText, otherProjectsActivity, ProjectActivity, topActivityState } from "./project-activity";
 import { AgentsSection } from "./sidebar-agents";
 import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
 import {
@@ -291,18 +293,25 @@ function runProjectCall(call: () => Promise<void>) {
 
 // The project menu of the header (FR-SHELL-087): switch the current project, add one, and what the current one means.
 // It replaces the rail's visual-only "Group with…" (FR-MC-032).
-function projectMenuItems(ws: Workspace, t: (key: string, vars?: Record<string, any>) => string): ContextMenuItem[] {
+function projectMenuItems(
+    ws: Workspace,
+    t: (key: string, vars?: Record<string, any>) => string,
+    activity: ProjectActivity[]
+): ContextMenuItem[] {
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const projects = readProjects(ws);
     const current = currentProjectId(ws);
     const items: ContextMenuItem[] = [{ label: t("sidebar.project.menuTitle", { name }), type: "header" }];
     for (const project of projects) {
+        const own = activity.find((a) => a.project.id === project.id);
         items.push({
             label: projectChipLabel(project),
             type: "checkbox",
             checked: project.id === current,
-            // The menu's note, where it applies: the current project is where new agents start.
-            sublabel: project.id === current ? t("sidebar.project.currentNote") : undefined,
+            // The menu's note, where it applies: the current project is where new agents start; another project's
+            // agents are said here, as its views are out of sight (#1760).
+            sublabel:
+                project.id === current ? t("sidebar.project.currentNote") : own ? activityText(own.counts) : undefined,
             click: () => runProjectCall(() => switchWorkspaceProject(project.id)),
         });
     }
@@ -588,6 +597,31 @@ export function SidebarContentStrip() {
     );
 }
 
+// One dot per other project whose agents are at work, waiting or failed, in the colour of the most urgent state: the
+// views of a project out of sight are not on screen, its agents still count (#1760).
+function ProjectActivityDots({ activity, title }: { activity: ProjectActivity[]; title: string }) {
+    return (
+        <span
+            className="inline-flex shrink-0 items-center gap-[3px]"
+            role="img"
+            aria-label={title}
+            data-testid="sidebar-project-activity"
+        >
+            {activity.map((a) => {
+                const state = topActivityState(a.counts);
+                return (
+                    <span
+                        key={a.project.id}
+                        className={cn("inline-block h-2 w-2 shrink-0 rounded-full", AgentStateDotClasses[state])}
+                        data-state={state}
+                        data-project={a.project.id}
+                    />
+                );
+            })}
+        </span>
+    );
+}
+
 function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const t = useT();
     const platform = usePlatform();
@@ -602,9 +636,25 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const current = currentProject(ws);
     const type = projects.length > 1 ? projectLabel(current) : (current?.type ?? "");
     const logo = workspaceHeaderLogo(ws);
+    const agentStates = useAtomValue(AgentStates.getInstance().dataAtom);
+    const activity = useMemo(
+        () =>
+            otherProjectsActivity(
+                ws,
+                projects,
+                Object.values(agentStates?.states ?? {}),
+                (blockId) => getObjectValue<Block>(makeORef("block", blockId))?.meta?.["cmd:cwd"] ?? ""
+            ),
+        [ws, agentStates]
+    );
+    const activityTitle = activity
+        .map((a) =>
+            t("sidebar.project.activityLine", { project: projectLabel(a.project), activity: activityText(a.counts) })
+        )
+        .join("\n");
     const openProjectMenu = (anchor: HTMLElement) => {
         setProjectMenuOpen(true);
-        showMenuUnder(anchor, projectMenuItems(ws, t), () => setProjectMenuOpen(false));
+        showMenuUnder(anchor, projectMenuItems(ws, t, activity), () => setProjectMenuOpen(false));
     };
     const openMenu = (anchor: HTMLElement) => {
         if (entry == null || !entry.saved) {
@@ -636,9 +686,9 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
                     type="button"
                     className="mt-sb-type inline-flex h-[22px] min-w-0 shrink cursor-pointer items-center gap-[3px] overflow-hidden rounded-6 px-1.5 text-12 whitespace-nowrap text-muted transition-colors duration-120 ease-mt"
                     title={
-                        projects.length > 1
+                        (projects.length > 1
                             ? t("sidebar.project.typeTitleMany", { type, count: projects.length })
-                            : t("sidebar.project.typeTitleOne", { type })
+                            : t("sidebar.project.typeTitleOne", { type })) + (activityTitle ? `\n${activityTitle}` : "")
                     }
                     aria-haspopup="menu"
                     aria-expanded={projectMenuOpen}
@@ -646,6 +696,7 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
                     onClick={(e) => openProjectMenu(e.currentTarget)}
                 >
                     <span className="truncate">{type}</span>
+                    {activity.length > 0 ? <ProjectActivityDots activity={activity} title={activityTitle} /> : null}
                     <SidebarGlyph name="chev" size={11} />
                 </button>
             ) : null}
@@ -1225,8 +1276,7 @@ function rowName(list: HTMLElement, tabId: string): string {
 }
 
 function visibleOrder(ws: Workspace): string[] {
-    const hidden = new Set<string>((ws?.meta as Record<string, any>)?.["molten:hiddentabs"] ?? []);
-    return (ws?.tabids ?? []).filter((id) => !hidden.has(id));
+    return visibleTabIds(ws);
 }
 
 // The tab a view dropped after the last temporary row lands before: the one following it in the workspace's order.
