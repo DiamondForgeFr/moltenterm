@@ -289,6 +289,24 @@ export function sideBySideOf(toggle: boolean, inlineDiffSetting: boolean): boole
     return !inlineDiffSetting;
 }
 
+// The diff's render time is a measure for whoever works on MoltenTerm (FR-REV-033): Developer mode only, null otherwise.
+export function shownRenderMs(ms: number, developerMode: boolean): number {
+    return developerMode ? ms : null;
+}
+
+// A new file has no old side: its diff is one column whatever the toggle (FR-REV-033), drawn inline without the empty
+// red line Monaco otherwise shows for the empty original (its true inline view leaves a whole-file insertion alone).
+export function diffLayoutOf(
+    status: ReviewFileStatus,
+    toggle: boolean,
+    inlineDiffSetting: boolean
+): { sideBySide: boolean; trueInline: boolean } {
+    if (status === "added") {
+        return { sideBySide: false, trueInline: true };
+    }
+    return { sideBySide: sideBySideOf(toggle, inlineDiffSetting), trueInline: false };
+}
+
 export function shortOid(oid: string): string {
     return (oid ?? "").slice(0, 7);
 }

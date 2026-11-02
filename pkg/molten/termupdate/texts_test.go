@@ -58,12 +58,18 @@ func TestAgentInputCodes(t *testing.T) {
 	out = ask(f, AgentInputRequest{Action: agentcontinuity.ActionClear})
 	checkText(t, "no agent", out.MessageText, "termupdate.input.noagent", map[string]string{"agent": "Claude Code"})
 
+	// #1024: a terminal whose shell ended, or that was closed, has no agent any more.
 	f = claudeInputTerm()
 	f.procs = nil
-	out = ask(f, AgentInputRequest{BlockId: "nope", Action: agentcontinuity.ActionClear})
-	if out.MessageText == nil || !strings.HasPrefix(out.MessageText.Code, "termupdate.input.") || !strings.HasSuffix(out.Message, " Nothing was typed.") {
-		t.Errorf("unreadable: %+v", out)
+	out = ask(f, AgentInputRequest{Action: agentcontinuity.ActionClear})
+	checkText(t, "shell ended", out.MessageText, "termupdate.input.terminalgone", nil)
+	if out.Reason != InputReasonTerminalGone || strings.Contains(out.Message, "b1") {
+		t.Errorf("shell ended: %+v", out)
 	}
+	f = claudeInputTerm()
+	f.closed = true
+	out = ask(f, AgentInputRequest{Action: agentcontinuity.ActionClear})
+	checkText(t, "closed", out.MessageText, "termupdate.input.terminalgone", nil)
 
 	f = claudeInputTerm()
 	out = ask(f, AgentInputRequest{Action: agentcontinuity.ActionPermissionMode, Mode: "nope"})

@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "electron";
-// MOLTENTERM-PATCH (#849): every sendSync is timed, and the page answers Electron main's heartbeat
+// MOLTENTERM-PATCH (#849, #973): every sendSync is timed, and the page answers Electron main's heartbeat
 import {
     HangCopyChannel,
     HangDiagnosticsChannel,
     HangPingChannel,
     HangPongChannel,
+    ShowLogChannel,
     timedSendSync,
     WindowHangChannel,
+    WindowReloadedChannel,
 } from "./moltenterm-hang-ipc";
 import { SlowSyncIpcMs } from "./moltenterm-hang-model";
 
@@ -78,17 +80,23 @@ contextBridge.exposeInMainWorld("api", {
     installAppUpdate: () => ipcRenderer.send("install-app-update"),
     onMenuItemAbout: (callback) => ipcRenderer.on("menu-item-about", callback),
     updateWindowControlsOverlay: (rect) => ipcRenderer.send("update-window-controls-overlay", rect),
-    onReinjectKey: (callback) => ipcRenderer.on("reinject-key", (_event, waveEvent) => callback(waveEvent)),
+    // MOLTENTERM-PATCH (#1722): a key sent back from a page carries the page's webContents id
+    onReinjectKey: (callback) =>
+        ipcRenderer.on("reinject-key", (_event, waveEvent, guestId) => callback(waveEvent, guestId)),
     setWebviewFocus: (focused: number) => ipcRenderer.send("webview-focus", focused),
     registerGlobalWebviewKeys: (keys) => ipcRenderer.send("register-global-webview-keys", keys),
     onControlShiftStateUpdate: (callback) =>
         ipcRenderer.on("control-shift-state-update", (_event, state) => callback(state)),
+    // MOLTENTERM-PATCH (#1242): a focused web page's modifier keys, chords and Escape, for the shortcut overlay
+    onMoltentermKeyNotice: (callback: (waveEvent: WaveKeyboardEvent) => void) =>
+        ipcRenderer.on("moltenterm-key-notice", (_event, waveEvent) => callback(waveEvent)),
     createWorkspace: () => ipcRenderer.send("create-workspace"),
     switchWorkspace: (workspaceId) => ipcRenderer.send("switch-workspace", workspaceId),
     deleteWorkspace: (workspaceId) => ipcRenderer.send("delete-workspace", workspaceId),
     resetWorkspace: (workspaceId) => ipcRenderer.send("reset-workspace", workspaceId), // MOLTENTERM-PATCH (#222)
+    undoWorkspace: (undoId, workspaceId) => ipcRenderer.send("undo-workspace", undoId, workspaceId), // MOLTENTERM-PATCH (#1324)
     setActiveTab: (tabId) => ipcRenderer.send("set-active-tab", tabId),
-    createTab: () => ipcRenderer.send("create-tab"),
+    createTab: (blockDef?: BlockDef) => ipcRenderer.send("create-tab", blockDef ? { blockdef: blockDef } : undefined), // MOLTENTERM-PATCH (#1232): a new view may start with a given block
     closeTab: (workspaceId, tabId, confirmClose) => ipcRenderer.invoke("close-tab", workspaceId, tabId, confirmClose),
     setWindowInitStatus: (status) => ipcRenderer.send("set-window-init-status", status),
     onWaveInit: (callback) => ipcRenderer.on("wave-init", (_event, initOpts) => callback(initOpts)),
@@ -96,10 +104,17 @@ contextBridge.exposeInMainWorld("api", {
     sendLog: (log) => ipcRenderer.send("fe-log", log),
     onQuicklook: (filePath: string) => ipcRenderer.send("quicklook", filePath),
     openNativePath: (filePath: string) => ipcRenderer.send("open-native-path", filePath),
-    captureScreenshot: (rect: Rectangle) => ipcRenderer.invoke("capture-screenshot", rect),
+    revealNativePath: (filePath: string) => ipcRenderer.send("reveal-native-path", filePath), // MOLTENTERM-PATCH (#1575)
+    captureScreenshot: (rect: Rectangle, opts?: { width?: number }) => ipcRenderer.invoke("capture-screenshot", rect, opts), // MOLTENTERM-PATCH (#1545): optional thumbnail width
     setKeyboardChordMode: () => ipcRenderer.send("set-keyboard-chord-mode"),
     clearWebviewStorage: (webContentsId: number) => ipcRenderer.invoke("clear-webview-storage", webContentsId),
     setWaveAIOpen: (isOpen: boolean) => ipcRenderer.send("set-waveai-open", isOpen),
+    // MOLTENTERM-PATCH (#1216, #1279, #1293): the window buttons show with the sidebar, on the window row's centre line or inside the floating panel (DS-SHELL-127)
+    setWindowButtons: (state: { visible: boolean; zoom: number; peekGap?: number } | null) =>
+        ipcRenderer.send("moltenterm-window-buttons", state),
+    // MOLTENTERM-PATCH (#1281): the workspace's look, see-through and blur (emain/moltenterm-window-look.ts)
+    setWindowLook: (look: { translucent: boolean; blur: boolean }) => ipcRenderer.send("moltenterm-window-look", look),
+    getWindowLookSupport: () => ipcRenderer.invoke("moltenterm-window-look-support"),
     closeBuilderWindow: () => ipcRenderer.send("close-builder-window"),
     incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) =>
         ipcRenderer.send("increment-term-commands", opts),
@@ -122,12 +137,29 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#300): a browser panel tab's webview, for the agents' DevTools controller (emain/moltenterm-browseragent.ts)
     moltentermRegisterWebview: (blockId: string, browserTabId: string, webContentsId: number) =>
         ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId),
+    // MOLTENTERM-PATCH (#971): an agent's click is about to reach a webview, which must not take the window's focus
+    onMoltentermAgentPress: (callback: (webContentsId: number, pressing: boolean) => void) => {
+        const listener = (_event, webContentsId: number, pressing: boolean) => callback(webContentsId, pressing);
+        ipcRenderer.on("moltenterm-agent-press", listener);
+        return () => ipcRenderer.removeListener("moltenterm-agent-press", listener);
+    },
+    // MOLTENTERM-PATCH (#971): the user's click or key in a page an agent drives was held back
+    onMoltentermAgentInputHeld: (callback: (webContentsId: number) => void) => {
+        const listener = (_event, webContentsId: number) => callback(webContentsId);
+        ipcRenderer.on("moltenterm-agent-input-held", listener);
+        return () => ipcRenderer.removeListener("moltenterm-agent-input-held", listener);
+    },
     // MOLTENTERM-PATCH (#663): the user's answer to a page's permission question (emain/moltenterm-site-permissions.ts)
     moltentermSitePermissionAnswer: (requestId: string, decision: string) =>
         ipcRenderer.send("moltenterm-site-permission-answer", requestId, decision),
     // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
     onMoltentermGettingStarted: (callback: () => void) =>
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
+    // MOLTENTERM-PATCH (#1350): the app menu's View and Help items (emain/moltenterm-view-menu.ts)
+    onMoltentermAppMenuCommand: (callback: (command: string) => void) =>
+        ipcRenderer.on("moltenterm-app-menu-command", (_event, command) => callback(command)),
+    // MOLTENTERM-PATCH (#1325): the app menu's Settings… (emain/moltenterm-app-menu.ts)
+    onMoltentermOpenSettings: (callback: () => void) => ipcRenderer.on("moltenterm-open-settings", () => callback()),
     // MOLTENTERM-PATCH (#294, #743): the app menu's Edit Workspace…, or a workspace just created (emain/moltenterm-workspace-menu.ts)
     onMoltentermEditWorkspace: (callback: (workspaceId?: string) => void) =>
         ipcRenderer.on("moltenterm-edit-workspace", (_event, workspaceId) => callback(workspaceId)),
@@ -145,6 +177,9 @@ contextBridge.exposeInMainWorld("api", {
     moltentermGetWindowActivity: () => sendSync("moltenterm-window-activity-get"),
     onMoltentermWindowActivity: (callback) =>
         ipcRenderer.on("moltenterm-window-activity", (_event, activity) => callback(activity)),
+    // MOLTENTERM-PATCH (#1083): the screen the window is on, for the 360 view's threshold (emain/moltenterm-screen.ts)
+    moltentermGetScreen: () => sendSync("moltenterm-screen-get"),
+    onMoltentermScreen: (callback) => ipcRenderer.on("moltenterm-screen", (_event, info) => callback(info)),
     // MOLTENTERM-PATCH (#459, #618): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
     moltentermWebviewShown: (
         blockId: string,
@@ -184,6 +219,14 @@ contextBridge.exposeInMainWorld("api", {
     },
     moltentermHangDiagnostics: () => ipcRenderer.invoke(HangDiagnosticsChannel),
     moltentermHangCopy: (text: string) => ipcRenderer.invoke(HangCopyChannel, text),
+    // MOLTENTERM-PATCH (#973): the window was reloaded after its renderer was lost, and the log that says why
+    // (emain/moltenterm-renderer-gone.ts)
+    onMoltentermWindowReloaded: (callback: (notice: any) => void) => {
+        const listener = (_event, notice) => callback(notice);
+        ipcRenderer.on(WindowReloadedChannel, listener);
+        return () => ipcRenderer.removeListener(WindowReloadedChannel, listener);
+    },
+    moltentermShowLog: () => ipcRenderer.invoke(ShowLogChannel),
 });
 
 // Custom event for "new-window"

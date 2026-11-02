@@ -30,8 +30,10 @@ const (
 	moltenCiStatusGreen      = "success"
 	moltenCiStatusRed        = "failure"
 	moltenCiStatusRunning    = "running"
+	moltenCiStatusUntrusted  = "untrusted"
+	moltenCiStatusStopped    = "interrupted"
 	moltenCiExitNotRun       = 2
-	moltenCiUntrustedMessage = "the project's commands are not trusted yet: start the local CI once from Mission Control (CI/CD › CI local) to review and trust them"
+	moltenCiUntrustedMessage = "the commands declared in %s are not trusted yet, so nothing ran: the local CI is blocked until the developer approves them in MoltenTerm (the notification's or the Integration card's Approve the commands button), then run this command again"
 )
 
 type moltenCiJob struct {
@@ -40,11 +42,14 @@ type moltenCiJob struct {
 }
 
 type moltenCiRun struct {
-	Id     string        `json:"id"`
-	Sha    string        `json:"sha"`
-	Status string        `json:"status"`
-	Error  string        `json:"error,omitempty"`
-	Jobs   []moltenCiJob `json:"jobs"`
+	Id       string        `json:"id"`
+	Sha      string        `json:"sha"`
+	Branch   string        `json:"branch,omitempty"`
+	Detached bool          `json:"detached,omitempty"`
+	Heads    []string      `json:"heads,omitempty"`
+	Status   string        `json:"status"`
+	Error    string        `json:"error,omitempty"`
+	Jobs     []moltenCiJob `json:"jobs"`
 }
 
 type moltenCiVerdict struct {
@@ -52,6 +57,9 @@ type moltenCiVerdict struct {
 	Status  string   `json:"status"`
 	Failed  []string `json:"failed,omitempty"`
 	Missing []string `json:"missing,omitempty"`
+	// An interrupted run on that code and when it stopped (ms), #1713.
+	RunId     string `json:"runid,omitempty"`
+	StoppedAt int64  `json:"stoppedat,omitempty"`
 }
 
 var moltenCiForce bool
@@ -72,7 +80,7 @@ var moltenCiStatusCmd = &cobra.Command{
 
 var moltenCiRunCmd = &cobra.Command{
 	Use:     "run [branch]",
-	Short:   "run the local CI on a branch (default: the checked-out one) and wait for its result",
+	Short:   "run the local CI on a branch (default: the one checked out in this folder's worktree) and wait for its result",
 	Args:    cobra.MaximumNArgs(1),
 	RunE:    moltenWrap(moltenCiRunRun),
 	PreRunE: preRunSetupRpcClient,
@@ -89,18 +97,29 @@ func init() {
 }
 
 func moltenCiProjectDir() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
+	dir, _, err := moltenCiCwdCheckout()
+	return dir, err
+}
+
+// moltenCiCheckout is the project folder (where trust, verdicts and runs are kept) and the git checkout containing
+// cwd, whose HEAD a run or a status with no branch targets (#1072): from a linked worktree they differ.
+func moltenCiCheckout(cwd string, linked func() string) (string, string, error) {
 	root := molten.FindGitRoot(cwd)
 	if root == "" {
-		return "", fmt.Errorf("%s is not inside a git project", cwd)
+		return "", "", fmt.Errorf("%s is not inside a git project", cwd)
 	}
 	if !molten.IsWorktreeCheckout(root) {
-		return root, nil
+		return root, root, nil
 	}
-	return moltenCiResolveDir(root, moltenCiLinkedDir()), nil
+	return moltenCiResolveDir(root, linked()), root, nil
+}
+
+func moltenCiCwdCheckout() (string, string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", "", err
+	}
+	return moltenCiCheckout(cwd, moltenCiLinkedDir)
 }
 
 // The project's trust, verdicts and runs are kept per folder, and Mission Control shows the workspace's linked one:
@@ -126,7 +145,8 @@ func moltenSameFolder(a string, b string) bool {
 	return errA == nil && errB == nil && realA == realB
 }
 
-// The folder this terminal's workspace is linked to; empty when unknown (not in a MoltenTerm terminal, not linked).
+// The repository this terminal's workspace is linked to (its project's code repository, else its folder); empty when
+// unknown (not in a MoltenTerm terminal, not linked).
 func moltenCiLinkedDir() string {
 	oref, err := moltenProjectWorkspace()
 	if err != nil {
@@ -136,7 +156,7 @@ func moltenCiLinkedDir() string {
 	if err != nil {
 		return ""
 	}
-	return moltenMetaString(meta, molten.ProjectMetaKey)
+	return molten.WorkspaceRepoOfMap(meta)
 }
 
 func moltenCiRequest(command string, data any, out any) error {
@@ -162,21 +182,57 @@ func formatMoltenCiVerdict(v moltenCiVerdict) string {
 		return fmt.Sprintf("local CI red on %s: %s", moltenCiShort(v.Sha), strings.Join(v.Failed, ", "))
 	case moltenCiStatusRunning:
 		return fmt.Sprintf("local CI running on %s", moltenCiShort(v.Sha))
+	case moltenCiStatusUntrusted:
+		return fmt.Sprintf("local CI waiting for approval of the commands on %s: nothing runs until the developer approves them in MoltenTerm (Approve the commands), then run `molten ci run`", moltenCiShort(v.Sha))
+	case moltenCiStatusStopped:
+		stopped := "at an unknown time"
+		if v.StoppedAt > 0 {
+			stopped = "at " + time.UnixMilli(v.StoppedAt).Format("2006-01-02 15:04")
+		}
+		return fmt.Sprintf("local CI interrupted on %s: run %s on this computer stopped %s and nothing runs it; run it again with `molten ci run`", moltenCiShort(v.Sha), v.RunId, stopped)
 	}
-	return fmt.Sprintf("local CI not run yet on %s: %s", moltenCiShort(v.Sha), strings.Join(v.Missing, ", "))
+	// #1713: no run here says nothing of another computer or a teammate, so it is never called interrupted.
+	return fmt.Sprintf("local CI not run yet on this computer on %s: %s (run it here with `molten ci run`)", moltenCiShort(v.Sha), strings.Join(v.Missing, ", "))
+}
+
+// With no branch or revision named, wavesrv tests the HEAD of from, the caller's checkout, not of the project folder.
+func moltenCiRunRequest(dir string, from string, args []string) map[string]any {
+	req := map[string]any{"dir": dir, "force": moltenCiForce}
+	if len(args) == 1 {
+		req["branch"] = args[0]
+	} else {
+		req["from"] = from
+	}
+	if moltenCiOnly != "" {
+		req["only"] = strings.Split(moltenCiOnly, ",")
+	}
+	return req
+}
+
+func moltenCiStatusRequest(dir string, from string, args []string) map[string]any {
+	if len(args) == 1 {
+		return map[string]any{"dir": dir, "rev": args[0]}
+	}
+	return map[string]any{"dir": dir, "from": from}
+}
+
+func formatMoltenCiTarget(run moltenCiRun) string {
+	if run.Branch != "" {
+		return run.Branch
+	}
+	if len(run.Heads) > 0 {
+		return fmt.Sprintf("detached HEAD (%s)", strings.Join(run.Heads, ", "))
+	}
+	return "detached HEAD"
 }
 
 func moltenCiStatusRun(cmd *cobra.Command, args []string) error {
-	dir, err := moltenCiProjectDir()
+	dir, from, err := moltenCiCwdCheckout()
 	if err != nil {
 		return err
 	}
-	rev := ""
-	if len(args) == 1 {
-		rev = args[0]
-	}
 	var verdict moltenCiVerdict
-	if err := moltenCiRequest(moltenCiStatusCommand, map[string]any{"dir": dir, "rev": rev}, &verdict); err != nil {
+	if err := moltenCiRequest(moltenCiStatusCommand, moltenCiStatusRequest(dir, from, args), &verdict); err != nil {
 		return err
 	}
 	switch verdict.Status {
@@ -194,17 +250,11 @@ func moltenCiStatusRun(cmd *cobra.Command, args []string) error {
 }
 
 func moltenCiRunRun(cmd *cobra.Command, args []string) error {
-	dir, err := moltenCiProjectDir()
+	dir, from, err := moltenCiCwdCheckout()
 	if err != nil {
 		return err
 	}
-	req := map[string]any{"dir": dir, "force": moltenCiForce}
-	if len(args) == 1 {
-		req["branch"] = args[0]
-	}
-	if moltenCiOnly != "" {
-		req["only"] = strings.Split(moltenCiOnly, ",")
-	}
+	req := moltenCiRunRequest(dir, from, args)
 	var started struct {
 		Run       *moltenCiRun `json:"run"`
 		Untrusted any          `json:"untrusted"`
@@ -213,10 +263,10 @@ func moltenCiRunRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if started.Untrusted != nil || started.Run == nil {
-		return fmt.Errorf("%s", moltenCiUntrustedMessage)
+		return fmt.Errorf(moltenCiUntrustedMessage, dir)
 	}
 	if !moltenJson {
-		WriteStdout("local CI %s on %s: %d job(s)\n", started.Run.Id, moltenCiShort(started.Run.Sha), len(started.Run.Jobs))
+		WriteStdout("local CI %s on %s @ %s: %d job(s)\n", started.Run.Id, formatMoltenCiTarget(*started.Run), moltenCiShort(started.Run.Sha), len(started.Run.Jobs))
 	}
 	told := map[string]string{}
 	for {

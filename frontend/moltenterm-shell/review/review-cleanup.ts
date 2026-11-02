@@ -25,7 +25,9 @@ export type ReviewCleanupStepId =
     | "local-branch"
     | "remote-branch"
     | "local-trunk"
-    | "other-prs";
+    | "other-prs"
+    // #1121: the PR's local copies the request names (the Leftovers group only, never Validate's sheet).
+    | "copy-branches";
 
 export type ReviewCleanupState = "done" | "skipped" | "failed";
 // planned: a step of Validate's plan sheet, before the merge (pkg/molten/review/postmerge.go).
@@ -44,7 +46,14 @@ export const ReviewCleanupSteps: ReviewCleanupStepId[] = [
 ];
 
 // must match WorktreeRisk in pkg/molten/mission/worktree.go
-export type ReviewWorktreeRisk = { sha: string; changecount: number; unpushed: number; ignoredfilecount: number };
+export type ReviewWorktreeRisk = {
+    sha: string;
+    changecount: number;
+    unpushed: number;
+    ignoredfilecount: number;
+    // #1121: the worktree's lock is held by a process that ended; wavesrv checks it again before removing.
+    endedlock?: boolean;
+};
 
 // must match WorktreeLoss in pkg/molten/review/loss.go; commitcount -1: git could not tell.
 export type ReviewWorktreeLoss = {
@@ -135,18 +144,25 @@ export type ReviewCleanupRequest = {
     worktreeconfirmed?: ReviewWorktreeRisk;
     // Remove again on the folder a worktree step left (code leftover, #716); wavesrv only removes the one it recorded.
     leftover?: string;
+    // #1121, the Leftovers group: a PR closed without merging whose content is on the base, and the PR's local copies.
+    closed?: boolean;
+    copies?: string[];
 };
 
 export function runReviewCleanup(req: ReviewCleanupRequest): Promise<ReviewCleanupResult> {
     return TabRpcClient.wshRpcCall(CleanupCommand, req, { route: ReviewRoute, timeout: CleanupTimeoutMs });
 }
 
+// Removing a kept agent worktree also deletes origin's branch, after the local one (#1132): wavesrv keeps it while
+// the worktree or the local branch stays.
+const AgentTreeSteps: ReviewCleanupStepId[] = ["agent-worktree", "local-branch", "remote-branch"];
+
 // confirmAgentWorktree removes the kept agent worktree and its branch, losing what the developer was shown (the risk).
 export function confirmAgentWorktree(
     req: Omit<ReviewCleanupRequest, "steps" | "worktreeconfirmed">,
     risk: ReviewWorktreeRisk
 ): Promise<ReviewCleanupResult> {
-    return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"], worktreeconfirmed: risk });
+    return runReviewCleanup({ ...req, steps: AgentTreeSteps, worktreeconfirmed: risk });
 }
 
 // removeKeptWorktree removes a kept worktree once the sheet closed the panels still open in it: the agent worktree
@@ -162,7 +178,7 @@ export function removeKeptWorktree(
     if (step.code === "kept" && step.confirm != null) {
         return confirmAgentWorktree(req, step.confirm);
     }
-    return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"] });
+    return runReviewCleanup({ ...req, steps: AgentTreeSteps });
 }
 
 // removeLeftover removes again the folder a worktree step left after git unregistered the worktree (#716).

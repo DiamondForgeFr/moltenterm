@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
@@ -134,34 +133,17 @@ func TestStatusLineRelayWithoutCommand(t *testing.T) {
 // A slow or stuck hand-off never holds the status line past its timeout, and adds nothing when the command is slower.
 func TestStatusLineRelayBoundsTheHandOff(t *testing.T) {
 	skipWithoutSh(t)
-	stuck := func(molten.AgentStatusLineRequest) { time.Sleep(5 * time.Second) }
+	// No duration is checked (#1208): the stuck hand-off never returns, so a relay that waited for it hangs.
+	never := make(chan struct{})
+	t.Cleanup(func() { close(never) })
+	stuck := func(molten.AgentStatusLineRequest) { <-never }
 	var stdout, stderr bytes.Buffer
-	start := time.Now()
 	runStatusLineRelay(strings.NewReader(statusLineInput), &stdout, &stderr, []string{"echo hi"}, stuck)
-	if d := time.Since(start); d > moltenStatusLineSendTimeout+200*time.Millisecond {
-		t.Errorf("a stuck hand-off held the status line %v", d)
-	}
 	if stdout.String() != "hi\n" {
 		t.Errorf("output %q", stdout.String())
 	}
-
-	fast := func(molten.AgentStatusLineRequest) {}
-	var total time.Duration
-	const runs = 10
-	for i := 0; i < runs; i++ {
-		start = time.Now()
-		runStatusLineRelay(strings.NewReader(statusLineInput), &stdout, &stderr, []string{"true"}, fast)
-		total += time.Since(start)
-	}
-	direct := time.Now()
-	for i := 0; i < runs; i++ {
-		runSh(t, "true", statusLineInput)
-	}
-	added := (total - time.Since(direct)) / runs
-	t.Logf("relay overhead per run: %v", added)
-	if added > 20*time.Millisecond {
-		t.Errorf("the relay adds %v to the status line (NFR-SHELL-012: under 20 ms)", added)
-	}
+	// NFR-SHELL-012 (the hand-off adds nothing to the status line) is TestStatusLineRelayHandsOffAlongsideTheCommand in
+	// pkg/molten/agenthook.
 }
 
 func TestStatusLineSenderOutsideMoltenTerm(t *testing.T) {

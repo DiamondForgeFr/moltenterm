@@ -1,8 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The previous / next carpet panel shortcuts (FR-SHELL-068-AC3): in 360 view they move the carpet one panel at a time
-// and focus that panel. Outside 360 view they leave the key to the focused panel.
+// The previous / next carpet panel shortcuts (FR-SHELL-068-AC3, FR-SHELL-126-AC1): in 360 view they move the carpet one
+// panel at a time, wrapping at the ends, and focus that panel. They are bound to Ctrl+Shift+PageUp / PageDown and to
+// Ctrl+Shift+Tab / Ctrl+Tab (the registry's alt keys), wherever the focus is, a terminal included. Outside 360 view
+// they leave the key to the focused panel.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
@@ -14,7 +16,7 @@ import { makeRadarFactsAtom, radarColumns } from "./radar-store";
 export const CarpetPreviousShortcutId = "carpet-previous";
 export const CarpetNextShortcutId = "carpet-next";
 
-// Returns false when the tab is not in 360 view or there is nowhere to go, so the key goes on to the panel.
+// Returns false when the tab is not in 360 view, so the key goes on to the panel.
 export function stepCarpet(layoutModel: LayoutModel, dir: -1 | 1): boolean {
     const view360 = layoutModel?.moltenView360;
     const layout = view360?.layout;
@@ -28,7 +30,7 @@ export function stepCarpet(layoutModel: LayoutModel, dir: -1 | 1): boolean {
     const columnIds = layout.columns.map((c) => c.nodeId);
     const target = stepCarpetColumn(columnIds, current, dir, visibleIds);
     if (target == null) {
-        return current != null;
+        return false;
     }
     const columns = radarColumns(rootNode, layout);
     const blockIds = columns.flatMap((c) => c.leaves.map((l) => l.blockId));

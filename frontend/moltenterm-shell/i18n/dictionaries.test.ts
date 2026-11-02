@@ -31,9 +31,9 @@ function sourceFiles(dir: string): string[] {
     return out;
 }
 
-// Literal keys passed to t(), mt() or useT()'s function (named t): t("a.b"), t('a.b', …).
+// Literal keys passed to t(), mt(), phrase() or useT()'s function (named t): t("a.b"), t('a.b', …).
 export function literalKeys(source: string): string[] {
-    return [...source.matchAll(/\b(?:t|mt)\(\s*["']([A-Za-z][\w-]*(?:\.[\w:-]+)+)["']/g)].map((m) => m[1]);
+    return [...source.matchAll(/\b(?:t|mt|phrase)\(\s*["']([A-Za-z][\w-]*(?:\.[\w:-]+)+)["']/g)].map((m) => m[1]);
 }
 
 describe("shipped dictionaries", () => {
@@ -57,6 +57,13 @@ describe("shipped dictionaries", () => {
         it(`${code} has no key English lacks`, () => {
             expect(flattenKeys(dict).filter((k) => resolveKey(en, k) == null)).toEqual([]);
         });
+        if (/^fr(-|$)/.test(code)) {
+            // French sets a no-break space (U+00A0) before a colon, so it never starts a line (#1379).
+            it(`${code} puts a no-break space, never a plain one, before a colon`, () => {
+                const plain = flattenKeys(dict).filter((k) => / :/.test(resolveKey(dict, k)));
+                expect(plain).toEqual([]);
+            });
+        }
     }
 
     it("every key the code asks for exists in en.json", () => {
@@ -64,7 +71,7 @@ describe("shipped dictionaries", () => {
         for (const dir of ScannedDirs) {
             for (const file of sourceFiles(path.join(Root, dir))) {
                 const source = fs.readFileSync(file, "utf8");
-                if (!/\b(?:t|mt)\(/.test(source)) continue;
+                if (!/\b(?:t|mt|phrase)\(/.test(source)) continue;
                 for (const key of literalKeys(source)) {
                     if (resolveKey(en, key) == null) unknown.push(`${path.relative(Root, file)}: ${key}`);
                 }

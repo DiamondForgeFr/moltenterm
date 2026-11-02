@@ -201,7 +201,7 @@ describe("More (FR-SHELL-045-AC2, DS-SHELL-081)", () => {
         const items = railWorkspaceMenu(base());
         expect(labels(items)).toEqual([
             "Edit workspace…",
-            "Open Project tab",
+            "Open Project view",
             "Keep the Mac awake while it works",
             "# Group",
             "Group with…",
@@ -221,6 +221,19 @@ describe("More (FR-SHELL-045-AC2, DS-SHELL-081)", () => {
         expect(items[2]).toMatchObject({ type: "checkbox", checked: true });
         expect(labels(items)).toContain("Stop grouping");
         expect(labels(items).indexOf("Remove from group")).toBe(labels(items).indexOf("Stop grouping") + 1);
+    });
+
+    it("turns the sidebar's keep-awake entry into a link that shows the current option (FR-SHELL-103)", () => {
+        const menu = base();
+        menu.coffee = undefined;
+        menu.energy = { label: "Keep awake…", current: "Until work ends", onOpen: vi.fn() };
+        const items = railWorkspaceMenu(menu);
+        expect(labels(items)).toContain("Keep awake…");
+        const link = items.find((i) => i.label === "Keep awake…");
+        expect(link.type).toBeUndefined();
+        expect(link).toMatchObject({ sublabel: "Until work ends" });
+        link.click();
+        expect(menu.energy.onOpen).toHaveBeenCalledTimes(1);
     });
 
     it("leaves out what does not apply and disables the last workspace's delete with its reason", () => {

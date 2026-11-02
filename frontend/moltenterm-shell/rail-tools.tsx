@@ -11,17 +11,10 @@ import { atoms } from "@/app/store/global";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { AppsFloatingWindow, WidgetsEnv } from "@/app/workspace/widgets";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
-import {
-    autoUpdate,
-    FloatingPortal,
-    offset,
-    shift,
-    useDismiss,
-    useFloating,
-    useInteractions,
-} from "@floating-ui/react";
+import { autoUpdate, FloatingPortal, offset, shift, useDismiss, useInteractions } from "@floating-ui/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
+import { useFloatingInPlace } from "./floating-in-place";
 import { useLocale, useT } from "./i18n/i18n";
 import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
@@ -31,6 +24,7 @@ import { ReviewsRailBadges } from "./reviews/reviews-rail-badge";
 import { ReviewsModel } from "./reviews/reviews-store";
 import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
 import { DurableSessions } from "./sessions/sessions-store";
+import { openSettings } from "./settings/settings-open";
 import { MoltentermTipsView } from "./tips/tips-view";
 import { readWorkspaceProject } from "./workspace-project";
 
@@ -110,7 +104,7 @@ function OverflowFlyout({
     onClose: () => void;
     env: WidgetsEnv;
 }) {
-    const { refs, floatingStyles, context } = useFloating({
+    const { refs, floatingStyles, context } = useFloatingInPlace({
         open: true,
         onOpenChange: onClose,
         placement: FlyoutPlacement,
@@ -150,9 +144,9 @@ function OverflowFlyout({
 }
 
 const BadgeToneClasses: Record<RailBadge["tone"], string> = {
-    waiting: "bg-warning text-black",
-    error: "bg-error text-white",
-    accent: "bg-[var(--mt-state-working)] text-black",
+    waiting: "bg-[var(--mt-state-waiting)] text-[var(--mt-state-fg)]",
+    error: "bg-error text-[var(--mt-state-blocked-fg)]",
+    accent: "bg-[var(--mt-state-running)] text-[var(--mt-state-running-fg)]",
 };
 
 // The Sessions view (FR-SHELL-020), with the number of agents running in durable sessions, coloured by the most urgent
@@ -188,7 +182,7 @@ function SessionsToolButton({ onHover }: { onHover: RailHover }) {
 // The rail keeps the counts fresh without the view; the view's own asks feed the same store.
 function ReviewsToolButton({ onHover }: { onHover: RailHover }) {
     const workspace = useAtomValue(atoms.workspace);
-    const dir = readWorkspaceProject(workspace).dir;
+    const dir = readWorkspaceProject(workspace).repo;
     useReviewsRailWatch(dir);
     const answer = useListedReviewsAnswer(dir);
     const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
@@ -266,10 +260,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
                 {
                     label: t("rail.tools.editWidgets"),
                     icon: "pen",
-                    click: () =>
-                        fireAndForget(() =>
-                            env.createBlock({ meta: { view: "waveconfig", file: "widgets.json" } }, false, true)
-                        ),
+                    click: () => fireAndForget(() => openSettings("widgets.json")),
                 },
             ],
             e
@@ -330,7 +321,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
                 label={t(hasConfigErrors ? "rail.tools.settingsErrors" : "rail.tools.settings")}
                 icon="gear"
                 onHover={onHover}
-                open={() => env.createBlock({ meta: { view: SettingsView } }, false, true)}
+                open={() => openSettings()}
             >
                 {hasConfigErrors ? (
                     <span

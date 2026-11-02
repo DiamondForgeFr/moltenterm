@@ -6,6 +6,7 @@ import { I18nModel } from "../i18n/i18n";
 import {
     batchConfirmKey,
     BatchItem,
+    batchMethodShown,
     batchPlan,
     batchPlanCostText,
     batchReasonText,
@@ -19,7 +20,6 @@ import {
     canWithdraw,
     queueItem,
     queueOrder,
-    toggleBatchSelection,
 } from "./reviews-batch-model";
 import { Forecast } from "./reviews-forecast-model";
 import { ReviewPr } from "./reviews-model";
@@ -142,7 +142,7 @@ describe("batch merge model", () => {
     it("builds the start request in the modal's order, with its method", () => {
         const prs = [pr(1, { tickettitle: "Ticket one", ticket: 11 }), pr(2)];
         const plan = batchPlan(forecastOf(prs, [[1, 2]]), prs, prs, "develop");
-        const req = batchStartRequest("/p", "a/b", "develop", plan, "ws1");
+        const req = batchStartRequest("/p", "a/b", "develop", plan, "rebase", "ws1");
         expect(req.prs.map((p) => p.number)).toEqual(plan.steps.map((s) => s.pr.number));
         expect(req.prs.find((p) => p.number === 1)).toMatchObject({
             headref: "feature/1-x",
@@ -150,12 +150,12 @@ describe("batch merge model", () => {
             title: "Ticket one",
             ticket: 11,
         });
-        expect(req.method).toBe("squash");
+        expect(req.method).toBe("rebase");
         expect(req.workspaceid).toBe("ws1");
         expect(req.tabname).toBe("Merge queue");
         expect(req.source).toBe("batch");
         expect(req.order).toEqual(plan.steps.map((s) => s.pr.number));
-        expect(batchStartRequest("/p", "a/b", "develop", plan, "ws1", [3, 2, 1]).order).toEqual([3, 2, 1]);
+        expect(batchStartRequest("/p", "a/b", "develop", plan, "rebase", "ws1", [3, 2, 1]).order).toEqual([3, 2, 1]);
     });
 
     // FR-REV-026 AC2: the order sent on a join covers the PRs still in the queue and the ones joining.
@@ -170,6 +170,21 @@ describe("batch merge model", () => {
         expect(queueOrder(forecast, prs, queue, [3])).toEqual([3, 1]);
         expect(queueOrder(forecast, prs, null, [1, 2])).toEqual([2, 1]);
         expect(queueOrder({ ...forecast, state: "" }, prs, queue, [3])).toEqual([]);
+    });
+
+    // #1059: the list's order leaves out a PR already conflicting with the base; the batch still rebases it, last.
+    it("keeps the PRs already conflicting with the base, after the order", () => {
+        const prs = [pr(1, { merge: "conflicts" }), pr(2), pr(3)];
+        const forecast = forecastOf(prs, [[2, 3]]);
+        const plan = batchPlan(forecast, prs, prs, "develop");
+        expect(plan.steps.map((s) => s.pr.number)).toEqual([3, 2, 1]);
+        expect(plan.steps.map((s) => s.rank)).toEqual([1, 2, 3]);
+        expect(plan.steps[2]).toMatchObject({
+            rebase: true,
+            reason: "Already conflicts with develop: rebase in any order",
+        });
+        expect(plan.cost).toBe(1);
+        expect(queueOrder(forecast, prs, null, [1, 2, 3])).toEqual([3, 2, 1]);
     });
 
     it("finds a PR still in the queue, which can be withdrawn until its merge starts", () => {
@@ -194,11 +209,6 @@ describe("batch merge model", () => {
         expect(batchConfirmKey("Escape")).toBe("cancel");
         expect(batchConfirmKey("a")).toBeNull();
         expect(batchConfirmKey("Tab")).toBeNull();
-    });
-
-    it("toggles a PR in and out of the selection", () => {
-        expect(toggleBatchSelection([], 3)).toEqual([3]);
-        expect(toggleBatchSelection([3, 4], 3)).toEqual([4]);
     });
 
     it("titles the banner with the progress and names the PR in progress", () => {
@@ -249,6 +259,9 @@ describe("batch merge model", () => {
             "Merged: #1, #2. Not merged: #3 (Validation cancelled), #4 (Pushed after your validation: back to review). 1 CI run redone."
         );
         expect(batchSummary({ ...r, kept: "unpushed" })).toContain("commits not pushed");
+        expect(batchSummary({ ...r, stale: [{ path: "/data/worktrees/p-1/batch-merge-2", kept: "inuse" }] })).toContain(
+            "The copy batch-merge-2 of an earlier merge queue is in use by a terminal or a program: it is kept."
+        );
         expect(batchTitle({ ...r, state: "cancelled" })).toBe("Merge queue cancelled: 2 of 4 PRs merged");
     });
 
@@ -306,7 +319,26 @@ describe("batch merge model", () => {
     it("words the banner in French", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         expect(batchTitle(run())).toBe(
-            "File de fusion : 5 PR validées — 1 sur 5 fusionnées, #2 est en cours de rebase"
+            "File de fusion\u00a0: 5 PR validées — 1 sur 5 fusionnées, #2 est en cours de rebase"
         );
+    });
+
+    // #957: the modal's method is the repository's remembered one until the developer picks another it allows.
+    it("shows the repository's default method, the pick over it, and none while unknown", () => {
+        const methods = { methods: ["merge", "rebase"] as ("merge" | "rebase")[], method: "rebase" as const };
+        expect(batchMethodShown(null, "merge")).toBeNull();
+        expect(batchMethodShown(methods, null)).toBe("rebase");
+        expect(batchMethodShown(methods, "merge")).toBe("merge");
+        expect(batchMethodShown(methods, "squash")).toBe("rebase");
+        expect(batchMethodShown({ methods: ["squash"], method: "squash", queue: true }, "merge")).toBe("squash");
+    });
+
+    it("words a PR stopped because GitHub no longer allows its method", () => {
+        const item = { number: 3, state: "stopped", reason: "method", names: ["rebase"] } as BatchItem;
+        expect(batchReasonText(item, "develop")).toBe(
+            "GitHub no longer allows the method shown (rebase): nothing was merged. Add it again with an allowed method."
+        );
+        I18nModel.getInstance().setLanguageSetting("fr");
+        expect(batchReasonText(item, "develop")).toContain("rebase");
     });
 });

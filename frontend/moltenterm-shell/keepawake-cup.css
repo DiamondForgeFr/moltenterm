@@ -1,0 +1,128 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: Apache-2.0 */
+
+/* The keep-awake cup (FR-SHELL-103, DS-SHELL-151, #1470): the mug is drawn in SVG and its three steam lines are
+   separate boxes, so they can move on their own.
+   - Off: the cup is neutral and its steam stands still, calm. Hover only brightens the text and shows the button's
+     hover background, never a lit icon: "on" is the icon's colour, not a background.
+   - On (data-on, aria-pressed true): the cup takes the running state colour (incandescent, not the action orange: being
+     kept awake is a state) and the steam waves.
+   Cost (#473, #1388, #1399): the steam lines are painted once and moved by transform only, with keyframes of their own
+   and no delay, so the compositor runs them without a main-thread paint per frame. The cycle is 4 s, played at 15
+   frames a second (steps(30) on each of its two 2 s halves): the dominoes' grid, which the working light's 1/30 s grid
+   contains. keepawake-cup.tsx puts the start back onto a whole cycle, so the steam changes only on frames the dominoes
+   already draw. A trace showed that what costs main-thread frames (about 4 a second for a 2 s cycle, 1.3 for a 10 s
+   one) is each keyframe boundary, not the steps and not the number of lines, so the cycle is slow: a gentle sway.
+   No container query is involved. The rules sit under no-preference: with the system's reduced motion, MoltenTerm's
+   own setting or an inactive view the steam stands still and the colour alone says on. */
+
+.mt-cup {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1em;
+    height: 1em;
+}
+
+.mt-cup-body {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.mt-cup-steam {
+    position: absolute;
+    top: 3%;
+    width: 19%;
+    height: 34%;
+    opacity: 0.55;
+}
+
+.mt-cup-steam > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.mt-cup-steam-1 {
+    left: 11%;
+}
+
+.mt-cup-steam-2 {
+    left: 31%;
+}
+
+.mt-cup-steam-3 {
+    left: 51%;
+}
+
+.mt-cup[data-on] {
+    color: var(--mt-state-running);
+}
+
+.mt-cup[data-on] .mt-cup-steam {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .mt-cup[data-on] .mt-cup-steam {
+        animation-duration: 4s;
+        animation-timing-function: steps(30);
+        animation-iteration-count: infinite;
+        animation-delay: 0s;
+    }
+
+    .mt-cup[data-on] .mt-cup-steam-1 {
+        animation-name: mt-cup-steam-1;
+    }
+
+    .mt-cup[data-on] .mt-cup-steam-2 {
+        animation-name: mt-cup-steam-2;
+    }
+
+    .mt-cup[data-on] .mt-cup-steam-3 {
+        animation-name: mt-cup-steam-3;
+    }
+}
+
+.prefers-reduced-motion .mt-cup[data-on] .mt-cup-steam,
+:root[data-mt-motion="still"] .mt-cup[data-on] .mt-cup-steam {
+    animation: none;
+}
+
+@keyframes mt-cup-steam-1 {
+    0%,
+    100% {
+        opacity: 0.6;
+        transform: translate(-0.045em, 0);
+    }
+    50% {
+        opacity: 1;
+        transform: translate(0.045em, -0.09em);
+    }
+}
+
+@keyframes mt-cup-steam-2 {
+    0%,
+    100% {
+        opacity: 1;
+        transform: translate(0.045em, -0.09em);
+    }
+    50% {
+        opacity: 0.6;
+        transform: translate(-0.045em, 0);
+    }
+}
+
+@keyframes mt-cup-steam-3 {
+    0%,
+    100% {
+        opacity: 0.6;
+        transform: translate(-0.045em, 0);
+    }
+    50% {
+        opacity: 1;
+        transform: translate(0.045em, -0.09em);
+    }
+}

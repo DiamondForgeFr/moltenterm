@@ -1,0 +1,9 @@
+{
+    "id": 24043198,
+    "name": "Protect release branches and require SaaSFoundry gate",
+    "target": "branch",
+    "enforcement": "active",
+    "conditions": { "ref_name": { "exclude": [], "include": ["refs/heads/develop", "refs/heads/master"] } },
+    "bypass_actors": [],
+    "current_user_can_bypass": "never"
+}

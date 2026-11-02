@@ -5,25 +5,60 @@
 // panels (widgets.json), recent folders (FR-SHELL-009) and workspace actions. Pure, so the rules are tested without
 // the app.
 
+import { agentRow, agentRowByCommand, type FeatureMatrix } from "../agent-info/agent-features-model";
+import { agentWorks, pickerSummary } from "../agent-info/agent-works-model";
+import { AiIcon } from "../ai-icon";
+import { addressUrl, browserBlockDef, looksLikeAddress } from "../browser/browser-model";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
-import { t } from "../i18n/i18n";
+import { getLocale, t } from "../i18n/i18n";
+import { FallbackLanguage, languageText } from "../i18n/i18n-core";
 import { MoltentermLineMapView } from "../mission/line-map-model";
 import { MoltentermProjectView } from "../project/project-model";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { formatShortcutById } from "../shortcuts/format";
+import type { PinMove } from "../sidebar/view-menu-model";
 import { panelKindRank, terminalBlockDefFrom } from "../split/split-model";
 import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
 import { updateAllDetail } from "../termupdate/termupdate-model";
 import { workspaceShownName } from "../workspace-default-name";
-import { PaletteEntry, PaletteGroupId, PickerGroupOrder, shortestSelectingPrefix } from "./palette-model";
+import {
+    AddressEntryId,
+    PaletteEntry,
+    PaletteGroupId,
+    PickerGroupOrder,
+    shortestSelectingPrefix,
+} from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
 // agents.json, the user's in presets.json or presets/*.json of the config folder (a mod can ship one later).
 export const AgentPresetPrefix = "agent@";
 export const AgentCommandKey = "agent:command";
-export const DefaultAgentIcon = "robot";
 
 export const MaxRecentFolders = 8;
+
+export const PaletteKeywordsPrefix = "palette.keywords.";
+
+function keywordList(text: string): string[] {
+    return (text ?? "")
+        .split(",")
+        .map((w) => w.trim())
+        .filter((w) => w !== "");
+}
+
+// The words an entry is found by beyond its label (#1670), translated like the label: palette.keywords.<name> is a
+// comma-separated list in each language. The current language's words come first, then English's, since people type
+// the English word in any language ("pin" in French). ids are identifiers that stay as they are (an agent id, a
+// browser id, a workspace's name).
+export function paletteKeywords(name: string, ...ids: string[]): string[] {
+    const key = PaletteKeywordsPrefix + name;
+    const shown = t(key);
+    const words = [
+        ...(shown === key ? [] : keywordList(shown)),
+        ...keywordList(languageText(FallbackLanguage, key)),
+        ...ids.filter((s) => s),
+    ];
+    return [...new Set(words)];
+}
 
 // Wave's widget labels are lowercase words made for small tiles; the palette names the built-in panels in full.
 const PanelNameKeys: Record<string, string> = {
@@ -35,6 +70,25 @@ const PanelNameKeys: Record<string, string> = {
     "defwidget@sysinfo": "palette.panelNames.sysinfo",
     "defwidget@processviewer": "palette.panelNames.processes",
 };
+
+// "Open <address>" when the typed text is an address (#1229): a web page panel on it, read as the top field reads it.
+export function addressEntry(query: string): PaletteEntry {
+    const text = (query ?? "").trim();
+    if (!looksLikeAddress(text)) {
+        return null;
+    }
+    const url = addressUrl(text);
+    if (url == null) {
+        return null;
+    }
+    return {
+        id: AddressEntryId,
+        group: "panels",
+        label: t("palette.openAddress", { address: text }),
+        icon: "globe",
+        run: { kind: "widget", blockdef: browserBlockDef(url) },
+    };
+}
 
 export type PaletteWorkspace = {
     id: string;
@@ -49,6 +103,10 @@ export type PaletteWorkspace = {
 
 export type PaletteSourceInput = {
     presets: { [key: string]: MetaType };
+    // The catalog's agents with whether each is on this computer (#1680).
+    installedAgents?: InstalledAgent[];
+    // The compatibility matrix the agents' rows say what works from (FR-AGC-004); absent, they say nothing.
+    matrix?: FeatureMatrix;
     widgets: { [key: string]: WidgetConfigType };
     workspaceId: string;
     // Where new blocks of the workspace start (effectiveWorkspaceFolder), "" when it has none.
@@ -68,6 +126,8 @@ export type PaletteSourceInput = {
     picker?: PickerSource;
     // The shortcuts sheet's keys, shown on its entry.
     shortcutsHint?: string;
+    // The pin moves of the view on screen, as its menu offers them, and the move the keep shortcut makes (#1652).
+    viewPin?: { moves: PinMove[]; keepMove: PinMove; keepHint: string };
 };
 
 export type PickerSource = {
@@ -125,7 +185,7 @@ export function readAgentPresets(presets: { [key: string]: MetaType }): AgentPre
             id,
             name: str(meta["display:name"]) || id,
             command,
-            icon: str(meta["display:icon"]) || DefaultAgentIcon,
+            icon: AiIcon,
             color: str(meta["display:color"]),
             order: num(meta["display:order"], 0),
         });
@@ -134,15 +194,60 @@ export function readAgentPresets(presets: { [key: string]: MetaType }): AgentPre
     return rtn;
 }
 
-export function agentEntries(presets: { [key: string]: MetaType }): PaletteEntry[] {
-    return readAgentPresets(presets).map((p) => ({
+// An agent's row says, in a few words, what works with it (FR-AGC-004): the preset's agent, else its program's.
+function agentWorksDetail(matrix: FeatureMatrix, p: AgentPreset): string {
+    if (matrix == null) {
+        return undefined;
+    }
+    const row = agentRow(matrix, p.id) ?? agentRowByCommand(matrix, p.command);
+    return pickerSummary(agentWorks(matrix, row?.id ?? p.id), t, getLocale());
+}
+
+// An agent of MoltenTerm's catalog found on this computer (wavesrv's agent choice, pkg/molten/agentchoice): the
+// agents without a preset of their own are offered too (#1680), after the presets, under their own name and program.
+// A preset of the same id, hidden or not, or with the same program, wins: the developer's configuration decides.
+export type InstalledAgent = { id: string; name: string; command?: string; installed?: boolean };
+
+export function installedAgentPresets(
+    presets: { [key: string]: MetaType },
+    installed: InstalledAgent[]
+): AgentPreset[] {
+    const taken = new Set<string>();
+    for (const key of Object.keys(presets ?? {})) {
+        if (key.startsWith(AgentPresetPrefix)) {
+            taken.add(key.slice(AgentPresetPrefix.length));
+        }
+    }
+    for (const p of readAgentPresets(presets)) {
+        taken.add(p.command.split(/\s+/)[0]);
+    }
+    const rtn: AgentPreset[] = [];
+    for (const agent of installed ?? []) {
+        const command = agent?.command || agent?.id;
+        if (!agent?.installed || !command || taken.has(agent.id) || taken.has(command)) {
+            continue;
+        }
+        taken.add(agent.id);
+        taken.add(command);
+        rtn.push({ id: agent.id, name: agent.name || agent.id, command, icon: AiIcon, color: "", order: 0 });
+    }
+    return rtn;
+}
+
+export function agentEntries(
+    presets: { [key: string]: MetaType },
+    installed?: InstalledAgent[],
+    matrix?: FeatureMatrix
+): PaletteEntry[] {
+    return [...readAgentPresets(presets), ...installedAgentPresets(presets, installed)].map((p) => ({
         id: `agent:${p.id}`,
         group: "agents",
         label: p.name,
+        detail: agentWorksDetail(matrix, p),
         icon: p.icon,
         color: p.color || undefined,
         cli: p.command,
-        keywords: ["agent", p.id],
+        keywords: paletteKeywords("agent", p.id),
         run: { kind: "agent", command: p.command },
     }));
 }
@@ -165,7 +270,6 @@ export function panelEntries(widgets: { [key: string]: WidgetConfigType }, works
             detail: w.description || undefined,
             icon: w.icon || "browser",
             color: w.color || undefined,
-            hint: key === "defwidget@terminal" ? formatShortcutById("new-panel") || undefined : undefined,
             keywords: [w.label, w.blockdef?.meta?.view].filter((s) => s),
             run: { kind: "widget", blockdef: w.blockdef },
         }));
@@ -212,7 +316,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             label: t("palette.actions.projectTab"),
             detail: t("palette.actions.projectTabDetail"),
             icon: "gauge",
-            keywords: ["mission control", "dashboard", "project", "home"],
+            keywords: paletteKeywords("projectTab"),
             run: { kind: "projecttab" },
         });
     }
@@ -231,7 +335,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             label: t("palette.actions.reopenClosed"),
             icon: "rotate-left",
             hint: formatShortcutById("reopen-closed") || undefined,
-            keywords: ["undo close", "restore", "closed tab", "closed panel"],
+            keywords: paletteKeywords("reopenClosed"),
             run: { kind: "reopenclosed" },
         },
         {
@@ -241,7 +345,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             detail: t("palette.actions.splitPlaceDetail"),
             icon: "table-cells-large",
             hint: formatShortcutById("split-place") || undefined,
-            keywords: ["split", "new panel", "add panel", "left", "right", "up", "down"],
+            keywords: paletteKeywords("splitPlace"),
             run: { kind: "splitplace" },
         },
         {
@@ -251,7 +355,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             detail: t("equalize.commandDetail"),
             icon: "table-columns",
             hint: formatShortcutById("equalize-panels") || undefined,
-            keywords: ["equalize", "even", "balance", "same width", "columns", "resize", "panels"],
+            keywords: paletteKeywords("equalize"),
             run: { kind: "equalize" },
         },
         {
@@ -267,7 +371,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             label: t("palette.actions.editWorkspace"),
             detail: t("palette.actions.editWorkspaceDetail"),
             icon: "pencil",
-            keywords: ["workspace", "rename", "icon", "colour", "color", "settings", "delete", "reset"],
+            keywords: paletteKeywords("editWorkspace"),
             run: { kind: "editworkspace" },
         }
     );
@@ -282,7 +386,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             icon: ws.icon || "circle",
             color: ws.color || undefined,
             badge: { icon: ws.icon || "circle", color: ws.color ?? "", image: ws.image ?? "", logo: ws.logo ?? "" },
-            keywords: ["workspace", ws.name, workspaceShownName(ws.name, t)],
+            keywords: paletteKeywords("switchWorkspace", ws.name, workspaceShownName(ws.name, t)),
             run: { kind: "switchworkspace", workspaceId: ws.id },
         });
     }
@@ -292,7 +396,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         label: t("palette.actions.gettingStarted"),
         detail: t("palette.actions.gettingStartedDetail"),
         icon: "compass",
-        keywords: ["onboarding", "setup", "welcome", "tour", "first run"],
+        keywords: paletteKeywords("gettingStarted"),
         run: { kind: "gettingstarted" },
     });
     rtn.push({
@@ -301,7 +405,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         label: t("palette.actions.sessions"),
         detail: t("palette.actions.sessionsDetail"),
         icon: "layer-group",
-        keywords: ["sessions", "durable", "running", "agents", "ssh", "detached", "jobs", "processes"],
+        keywords: paletteKeywords("sessions"),
         run: { kind: "sessions" },
     });
     rtn.push({
@@ -309,7 +413,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         group: "actions",
         label: t("palette.actions.settings"),
         icon: "gear",
-        keywords: ["config", "preferences"],
+        keywords: paletteKeywords("settings"),
         run: { kind: "settings" },
     });
     rtn.push(shortcutsEntry());
@@ -324,22 +428,20 @@ export function shortcutsEntry(hint?: string): PaletteEntry {
         label: t("palette.actions.shortcuts"),
         icon: "keyboard",
         hint: hint || undefined,
-        keywords: ["keys", "keybindings", "hotkeys", "help", "cheat sheet"],
+        keywords: paletteKeywords("shortcuts"),
         run: { kind: "shortcuts" },
     };
 }
 
 // The words people type for a panel kind that are not in its name (DS-SHELL-084): "git" or "branches" finds Mission
-// Control, "url" the browser.
-const PickerKeywords: Record<string, string[]> = {
-    [MoltentermProjectView]: ["mission", "dashboard", "branches", "git", "ci"],
-    "molten-browser": ["web", "page", "url"],
-    "molten-reviews": ["pull request", "pr", "review", "github"],
-    [MoltentermSessionsView]: ["history", "resume"],
-    [MoltentermCompanionView]: ["agent", "usage"],
+// Control, "url" the browser. The built-in panels below carry theirs; these are for the configured panels' kinds.
+const PickerKeywords: Record<string, string> = {
+    "molten-browser": "browserPanel",
+    "molten-reviews": "reviewsPanel",
 };
 
-// The panel kinds a split's picker offers first (DS-SHELL-066, DS-SHELL-084), in a fixed order: the configured
+// The panel kinds a split's picker offers first, and with no source panel the launcher's and the new view
+// chooser's panels (#1273) (DS-SHELL-066, DS-SHELL-084), in a fixed order: the configured
 // panels, with the terminal and the file browser opened where the source panel is, then Mission Control's overview
 // and its line map, the source terminal's companion, and Sessions.
 export function pickerPanelEntries(
@@ -376,7 +478,7 @@ export function pickerPanelEntries(
             label: t("palette.panels.missionControl"),
             detail: t(projectLinked ? "palette.panels.missionControlDetail" : "palette.panels.noProject"),
             icon: "gauge",
-            keywords: ["project", "overview"],
+            keywords: paletteKeywords("missionControl"),
             run: { kind: "widget", blockdef: { meta: { view: MoltentermProjectView } } },
         },
         {
@@ -385,7 +487,7 @@ export function pickerPanelEntries(
             label: t("palette.panels.lineMap"),
             detail: t(projectLinked ? "palette.panels.lineMapDetail" : "palette.panels.noProject"),
             icon: "train-subway",
-            keywords: ["commits", "graph", "metro"],
+            keywords: paletteKeywords("lineMap"),
             run: { kind: "widget", blockdef: { meta: { view: MoltentermLineMapView } } },
         }
     );
@@ -397,7 +499,7 @@ export function pickerPanelEntries(
             detail: t("palette.panels.companionDetail"),
             icon: "book-open",
             shortcut: source.companionKeys || undefined,
-            keywords: ["agent", "companion"],
+            keywords: paletteKeywords("companion"),
             run: {
                 kind: "widget",
                 blockdef: {
@@ -412,7 +514,7 @@ export function pickerPanelEntries(
         label: t("palette.panels.sessions"),
         detail: t("palette.panels.sessionsDetail"),
         icon: "layer-group",
-        keywords: ["durable", "running", "ssh"],
+        keywords: paletteKeywords("panelSessions"),
         run: { kind: "widget", blockdef: { meta: { view: MoltentermSessionsView } } },
     });
     const viewOf = (e: PaletteEntry) => (e.run.kind === "widget" ? e.run.blockdef?.meta?.view : "");
@@ -421,7 +523,9 @@ export function pickerPanelEntries(
         .sort((a, b) => a.rank - b.rank || a.order - b.order)
         .map((r) => {
             const extra = PickerKeywords[viewOf(r.entry)];
-            return extra == null ? r.entry : { ...r.entry, keywords: [...(r.entry.keywords ?? []), ...extra] };
+            return extra == null
+                ? r.entry
+                : { ...r.entry, keywords: [...(r.entry.keywords ?? []), ...paletteKeywords(extra)] };
         });
 }
 
@@ -449,7 +553,7 @@ export function agentCopyEntries(): PaletteEntry[] {
         detail: t("palette.actions.agentCopyDetail", { command: p.copyCommand, agent: p.name }),
         icon: "copy",
         hint: p.copyCommand,
-        keywords: ["clipboard", "copy", "osc 52", p.id],
+        keywords: paletteKeywords("agentCopy", "osc 52", p.id),
         run: { kind: "focusorigin" },
     }));
 }
@@ -467,7 +571,7 @@ export function browserEntries(browser: { id: string; name: string }, hasBrowser
             detail: t("palette.actions.openInBrowserDetail"),
             icon: "arrow-up-right-from-square",
             cli: `molten open <url> --browser ${browser.id === "custom" ? "installed" : browser.id}`,
-            keywords: ["browser", "web", "hand off", "external", browser.id],
+            keywords: paletteKeywords("openInBrowser", browser.id),
             run: { kind: "openinbrowser" },
         },
     ];
@@ -485,10 +589,29 @@ export function termUpdateEntries(count: number): PaletteEntry[] {
             label: t("palette.actions.updateTerminals"),
             detail: updateAllDetail(count),
             icon: "arrows-rotate",
-            keywords: ["update", "refresh", "restart", "outdated", "shell", "terminal", "path", "launcher"],
+            keywords: paletteKeywords("updateTerminals"),
             run: { kind: "updateterminals" },
         },
     ];
+}
+
+const ViewPinEntries: Record<PinMove, { labelKey: string; icon: string }> = {
+    here: { labelKey: "palette.actions.keepViewHere", icon: "thumbtack" },
+    everywhere: { labelKey: "palette.actions.keepViewEverywhere", icon: "layer-group" },
+    temporary: { labelKey: "palette.actions.makeViewTemporary", icon: "thumbtack-slash" },
+};
+
+// Keep or unpin the view on screen (#1652): the moves its menu offers, the keep shortcut on the one it makes.
+export function viewPinEntries(viewPin: PaletteSourceInput["viewPin"]): PaletteEntry[] {
+    return (viewPin?.moves ?? []).map((move) => ({
+        id: `action:pinview:${move}`,
+        group: "actions",
+        label: t(ViewPinEntries[move].labelKey),
+        icon: ViewPinEntries[move].icon,
+        hint: move === viewPin.keepMove && viewPin.keepHint ? viewPin.keepHint : undefined,
+        keywords: paletteKeywords("viewPin"),
+        run: { kind: "pinview", move },
+    }));
 }
 
 export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
@@ -496,16 +619,17 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
     const panels =
         input.picker != null
             ? pickerPanelEntries(input.widgets, input.workspaceId, input.picker, input.projectLinked)
-            : panelEntries(input.widgets, input.workspaceId);
+            : pickerPanelEntries(input.widgets, input.workspaceId, null, input.projectLinked);
     const actions = actionEntries(input.workspaces, input.projectLinked)
-        // The picker lists Sessions with the panels already.
-        .filter((e) => input.picker == null || e.id !== "action:sessions")
+        // The panels list Sessions already (#1273).
+        .filter((e) => e.id !== "action:sessions")
         .map((e) => (e.id === "action:shortcuts" && input.shortcutsHint ? { ...e, hint: input.shortcutsHint } : e));
     const entries = [
-        ...agentEntries(input.presets),
+        ...agentEntries(input.presets, input.installedAgents, input.matrix),
         ...panels,
         ...folderEntries(folders, input.home),
         ...actions,
+        ...(input.picker == null ? viewPinEntries(input.viewPin) : []),
         ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
         ...termUpdateEntries(input.outdatedTerminals),
         ...agentCopyEntries(),

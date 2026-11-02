@@ -9,6 +9,7 @@
 
 import type { I18nVars } from "../i18n/i18n-core";
 import { serverText } from "../i18n/server-text";
+import { viewNameText } from "../workspace-views/workspace-views-model";
 import type {
     ReviewCleanupPanel,
     ReviewCleanupPr,
@@ -204,6 +205,10 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
             return t(`review.validate.outcome.merged.${methodOf(record.method)}`, vars);
         case "queuetimeout":
             return t("review.validate.outcome.queuetimeout", { minutes: record.minutes ?? 0 });
+        case "methodrefused":
+            return t("review.validate.outcome.methodrefused", {
+                method: t(`review.validate.method.${methodOf(record.method)}`),
+            });
         case "check":
             return t("review.validate.outcome.check", { reason: blockingText(t, record.blocking) });
         case "cifailed":
@@ -461,7 +466,7 @@ export function keptButtonLabel(t: Translate, step: ReviewCleanupStepResult): st
 }
 
 export function panelName(t: Translate, panel: ReviewCleanupPanel): string {
-    const tab = panel.tab || t("review.validate.panels.untitled");
+    const tab = viewNameText(panel.tab, t) || t("review.validate.panels.untitled");
     return panel.workspace ? t("review.validate.panels.inWorkspace", { tab, workspace: panel.workspace }) : tab;
 }
 

@@ -361,3 +361,266 @@ func TestHistoryKeepsTheClaudeCodePart(t *testing.T) {
 		t.Fatalf(".gitignore after undo: %q", got)
 	}
 }
+
+func historyTestSymlink(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(link), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlink creation requires privileges: %v", err)
+		}
+		t.Fatal(err)
+	}
+}
+
+func TestHistoryRejectsIncludedSymlinks(t *testing.T) {
+	for _, rel := range []string{"m/helper", "m/inward", "m/linked-dir", "m/broken", "m/.mcp.json", "m/.lsp.json", "m/.gitignore", "m/agents/claude-code/.claude-plugin", "m/agents/claude-code/.claude-plugin/plugin.json"} {
+		t.Run(rel, func(t *testing.T) {
+			f := makeHistoryFixture(t)
+			f.write("m/main.js", "original")
+			outside := filepath.Join(t.TempDir(), "outside")
+			if err := os.WriteFile(outside, []byte("sentinel"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			target := outside
+			if rel == "m/linked-dir" {
+				target = filepath.Dir(outside)
+			} else if rel == "m/inward" {
+				target = filepath.Join(f.modsDir, "m/main.js")
+			} else if rel == "m/broken" {
+				target += ".missing"
+			}
+			historyTestSymlink(t, target, filepath.Join(f.modsDir, rel))
+			if _, err := f.h.Record(HistoryKindStart, nil, 0, f.now); err == nil {
+				t.Fatal("included links must fail recording")
+			}
+			if entries, err := f.h.Entries(); err != nil || len(entries) != 0 {
+				t.Fatalf("failed record created an entry: %v, %v", entries, err)
+			}
+			if data, err := os.ReadFile(outside); err != nil || string(data) != "sentinel" {
+				t.Fatalf("outside file changed: %q, %v", data, err)
+			}
+		})
+	}
+}
+
+func TestHistoryIgnoredSymlinksStayIgnored(t *testing.T) {
+	f := makeHistoryFixture(t)
+	f.write("m/main.js", "original")
+	f.write("m/agents/claude-code/.claude-plugin/plugin.json", "{}")
+	f.record(HistoryKindStart)
+	for _, rel := range []string{"m/.editor", "m/editor~", "m/editor.swp", "m/editor.tmp", "m/agents/claude-code/.claude-plugin/types"} {
+		historyTestSymlink(t, t.TempDir(), filepath.Join(f.modsDir, rel))
+	}
+	if f.record(HistoryKindChange, "m") {
+		t.Fatal("ignored symlinks must not change snapshot identity")
+	}
+}
+
+func TestHistoryRejectsUnsafeRootsAndState(t *testing.T) {
+	for _, location := range []string{"mods", "history", "state", "state-parent", "broken-state", "marker"} {
+		t.Run(location, func(t *testing.T) {
+			f := makeHistoryFixture(t)
+			f.write("m/main.js", "original")
+			f.setState(`{"enabled":["m"]}`)
+			f.record(HistoryKindStart)
+			var link string
+			switch location {
+			case "mods":
+				link = f.modsDir
+			case "history":
+				link = f.h.Dir
+			case "state", "broken-state":
+				link = f.stateFile
+			case "state-parent":
+				link = filepath.Dir(f.stateFile)
+			case "marker":
+				link = filepath.Join(f.h.Dir, historyRestoringMarker)
+				if err := os.WriteFile(link, []byte("old"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			target := link + ".original"
+			if err := os.Rename(link, target); err != nil {
+				t.Fatal(err)
+			}
+			if location == "broken-state" {
+				target += ".missing"
+			}
+			historyTestSymlink(t, target, link)
+			if _, err := f.h.Record(HistoryKindChange, nil, 0, f.now); err == nil {
+				t.Fatal("managed links must fail even when content is otherwise unchanged")
+			}
+			if _, _, err := f.h.Undo(f.now); err == nil {
+				t.Fatal("managed links must fail undo")
+			}
+			if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+				t.Fatalf("rejected operation changed the link: %v, %v", info, err)
+			}
+		})
+	}
+}
+
+func TestHistoryRestorePreflightKeepsAllMods(t *testing.T) {
+	for _, corruption := range []string{"later-mod", "snapshot-state", "current-state", "snapshot-root", "snapshot-mods", "missing-mods", "current-file"} {
+		t.Run(corruption, func(t *testing.T) {
+			f := makeHistoryFixture(t)
+			f.write("a/main.js", "a1")
+			f.write("z/main.js", "z1")
+			f.setState(`{"enabled":["a"]}`)
+			f.record(HistoryKindStart)
+			f.write("a/main.js", "a2")
+			f.write("z/main.js", "z2")
+			f.write("added/main.js", "must survive")
+			f.setState(`{"enabled":["z"]}`)
+			f.record(HistoryKindChange, "a", "z", "added")
+			snapshot := filepath.Join(f.h.Dir, "1")
+			var unsafe string
+			switch corruption {
+			case "later-mod":
+				unsafe = filepath.Join(snapshot, historyModsDir, "z/main.js")
+			case "snapshot-state":
+				unsafe = filepath.Join(snapshot, StateFileName)
+			case "current-state":
+				unsafe = f.stateFile
+			case "snapshot-root":
+				unsafe = snapshot
+			case "snapshot-mods", "missing-mods":
+				unsafe = filepath.Join(snapshot, historyModsDir)
+			case "current-file":
+				unsafe = filepath.Join(f.modsDir, "z/unsafe")
+			}
+			if err := os.RemoveAll(unsafe); err != nil {
+				t.Fatal(err)
+			}
+			if corruption != "missing-mods" {
+				historyTestSymlink(t, filepath.Join(t.TempDir(), "missing"), unsafe)
+			}
+			if runtime.GOOS != "windows" {
+				if err := os.Chmod(filepath.Join(f.modsDir, "a/main.js"), 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			modes := make(map[string]os.FileMode)
+			for _, rel := range []string{"a/main.js", "z/main.js", "added/main.js"} {
+				info, err := os.Stat(filepath.Join(f.modsDir, rel))
+				if err != nil {
+					t.Fatal(err)
+				}
+				modes[rel] = info.Mode().Perm()
+			}
+			beforeEntries, err := os.ReadDir(f.h.Dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			metadata := make(map[string]string)
+			for _, seq := range []string{"1", "2"} {
+				file := filepath.Join(f.h.Dir, seq, historyEntryFile)
+				if data, err := os.ReadFile(file); err == nil {
+					metadata[file] = string(data)
+				}
+			}
+			stateLink := ""
+			if corruption == "current-state" {
+				stateLink, err = os.Readlink(f.stateFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, _, err := f.h.Undo(f.now); err == nil {
+				t.Fatal("unsafe complete restore plan must fail")
+			}
+			for rel, want := range map[string]string{"a/main.js": "a2", "z/main.js": "z2", "added/main.js": "must survive"} {
+				if got := f.read(rel); got != want {
+					t.Fatalf("preflight failure changed %s: %q", rel, got)
+				}
+				assertFileMode(t, filepath.Join(f.modsDir, rel), modes[rel])
+			}
+			if corruption == "current-state" {
+				if link, err := os.Readlink(f.stateFile); err != nil || link != stateLink {
+					t.Fatalf("preflight changed state link: %q, %v", link, err)
+				}
+			} else if data, err := os.ReadFile(f.stateFile); err != nil || string(data) != `{"enabled":["z"]}` {
+				t.Fatalf("preflight changed enabled state: %q, %v", data, err)
+			}
+			afterEntries, err := os.ReadDir(f.h.Dir)
+			if err != nil || fmt.Sprint(afterEntries) != fmt.Sprint(beforeEntries) {
+				t.Fatalf("preflight changed history entries: %v, %v", afterEntries, err)
+			}
+			for file, want := range metadata {
+				if data, err := os.ReadFile(file); err != nil || string(data) != want {
+					t.Fatalf("preflight changed history metadata: %s, %v", file, err)
+				}
+			}
+			if _, err := os.Lstat(filepath.Join(f.h.Dir, historyRestoringMarker)); !os.IsNotExist(err) {
+				t.Fatalf("preflight wrote a restoring marker: %v", err)
+			}
+			children, err := os.ReadDir(f.modsDir)
+			if err != nil || len(children) != 3 {
+				t.Fatalf("preflight left staging files: %v, %v", children, err)
+			}
+		})
+	}
+}
+
+func TestHistoryRegularHashCompatibility(t *testing.T) {
+	requireUnixModes(t)
+	f := makeHistoryFixture(t)
+	f.write("m/main.js", "old")
+	if err := os.Chmod(filepath.Join(f.modsDir, "m/main.js"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := f.h.currentHash()
+	if err != nil || hash != "483d19f2cc1d339c711701724b7259a9b0ca45ec88a32dddfb2acace23c90fb4" {
+		t.Fatalf("ordinary file hash no longer matches the existing format: %s, %v", hash, err)
+	}
+}
+
+func TestHistoryRejectsMismatchedMetadataSequence(t *testing.T) {
+	for _, seq := range []int{0, -1, 20} {
+		t.Run(fmt.Sprint(seq), func(t *testing.T) {
+			f := makeHistoryFixture(t)
+			f.write("m/main.js", "keep")
+			f.record(HistoryKindStart)
+			file := filepath.Join(f.h.Dir, "1", historyEntryFile)
+			if err := os.WriteFile(file, []byte(fmt.Sprintf(`{"seq":%d,"kind":"start"}`, seq)), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.h.Entries(); err == nil {
+				t.Fatal("mismatched metadata sequence must fail")
+			}
+			if _, _, err := f.h.Undo(f.now); err == nil || f.read("m/main.js") != "keep" {
+				t.Fatalf("corrupt metadata must not restore anything: %v", err)
+			}
+		})
+	}
+}
+
+func TestHistoryLegacyStateAndUnownedTemporaryPaths(t *testing.T) {
+	f := makeHistoryFixture(t)
+	f.write("m/main.js", "old")
+	f.record(HistoryKindStart) // Old snapshots may have no mods.json.
+	f.write("m/main.js", "new")
+	f.setState(`{"enabled":["m"]}`)
+	f.record(HistoryKindChange, "m")
+	f.write(".restore-m/sentinel", "unowned mod staging")
+	stateTmp := f.stateFile + ".tmp"
+	if err := os.WriteFile(stateTmp, []byte("unowned state staging"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	f.undo()
+	if f.read("m/main.js") != "old" || f.read(".restore-m/sentinel") != "unowned mod staging" {
+		t.Fatal("restore changed the wrong files")
+	}
+	if data, err := os.ReadFile(f.stateFile); err != nil || string(data) != "{\"enabled\": []}\n" {
+		t.Fatalf("legacy enabled state = %q, %v", data, err)
+	}
+	if data, err := os.ReadFile(stateTmp); err != nil || string(data) != "unowned state staging" {
+		t.Fatalf("restore changed unowned state staging: %q, %v", data, err)
+	}
+	if _, err := os.Lstat(filepath.Join(f.h.Dir, historyRestoringMarker)); !os.IsNotExist(err) {
+		t.Fatalf("successful undo left its marker: %v", err)
+	}
+}

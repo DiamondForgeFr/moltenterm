@@ -22,10 +22,13 @@ var versionNameRegex = regexp.MustCompile(`^v?\d+\.\d+(\.\d+)?([-+.][0-9A-Za-z.-
 
 var agentRuntimes = map[string]bool{"node": true, "bun": true, "deno": true}
 
+// Mistral Vibe runs in Python (#1680): python, python3, python3.12...
+var pythonNameRegex = regexp.MustCompile(`^python(\d+(\.\d+)?)?$`)
+
 // AgentProcessCandidate tells whether a process name may hide an agent; only those are looked at more closely.
 func AgentProcessCandidate(command string) bool {
 	base := filepath.Base(command)
-	return versionNameRegex.MatchString(base) || agentRuntimes[base]
+	return versionNameRegex.MatchString(base) || agentRuntimes[base] || pythonNameRegex.MatchString(base)
 }
 
 // MatchAgentProcess returns the agent a process runs, from its executable path and arguments.

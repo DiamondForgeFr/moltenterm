@@ -16,9 +16,11 @@ export const OnboardingUpdateCommand = "onboardingupdate";
 export const OnboardingStateCommand = "onboardingstate";
 export const OnboardingPanelCommand = "onboardingpanel";
 
+// The steps the panel's pages walk through; the record also keeps the first view's step (#1709), which has no page.
 export const FirstRunStepIds = ["agent", "morph", "project"] as const;
+export const RecordedStepIds = [...FirstRunStepIds, "view"] as const;
 
-export type FirstRunStepId = (typeof FirstRunStepIds)[number];
+export type FirstRunStepId = (typeof RecordedStepIds)[number];
 export type FirstRunStepStatus = "todo" | "done" | "skipped";
 export type OnboardingDoneBy = "" | "finish" | "leave" | "closed" | "env" | "existing";
 
@@ -32,6 +34,8 @@ export type OnboardingState = {
     steps: Partial<Record<FirstRunStepId, FirstRunStepStatus>>;
     data: Partial<Record<FirstRunStepId, Record<string, any>>>;
     lastversion: string;
+    // The starter workspace of a fresh install, until its run ends (FR-SHELL-110).
+    starterws: string;
 };
 
 export type FirstRunPage = "welcome" | "summary" | `step:${FirstRunStepId}`;
@@ -46,6 +50,7 @@ export const EmptyOnboardingState: OnboardingState = {
     steps: {},
     data: {},
     lastversion: "",
+    starterws: "",
 };
 
 function isRecord(value: unknown): value is Record<string, any> {
@@ -57,7 +62,7 @@ function num(value: unknown): number {
 }
 
 function isStepId(value: string): value is FirstRunStepId {
-    return (FirstRunStepIds as readonly string[]).includes(value);
+    return (RecordedStepIds as readonly string[]).includes(value);
 }
 
 // Whether wavesrv has written a record yet.
@@ -97,6 +102,7 @@ export function readOnboardingState(meta: MetaType): OnboardingState {
         steps,
         data,
         lastversion: typeof raw.lastversion === "string" ? raw.lastversion : "",
+        starterws: typeof raw.starterws === "string" ? raw.starterws : "",
     };
 }
 

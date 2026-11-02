@@ -7,6 +7,7 @@ import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { FlexDirection, LayoutTreeActionType, type LayoutNode } from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { rememberPanelWidth } from "../panel-size/panel-size-store";
 import { showToast } from "../toast-store";
 import { EqualizeAutoMetaKey, EqualizeModel, treeShape } from "./equalize-model";
 
@@ -30,7 +31,8 @@ function makeModel(auto: boolean, rootNode: LayoutNode) {
     } as unknown as Tab) as PrimitiveAtom<Tab>;
     const view360 = {
         layout: null as unknown,
-        layoutAtom: atom(null),
+        layoutAtom: atom(null) as PrimitiveAtom<unknown>,
+        equalizeParts: vi.fn((): number => null),
         dragFixedPx: null,
         dragColumn: null,
         dragPin: null,
@@ -149,6 +151,38 @@ describe("EqualizeModel", () => {
         globalStore.set(tabAtom, { oid: "tab-1", meta: { [EqualizeAutoMetaKey]: true } } as unknown as Tab);
         expect(globalStore.get(model.pendingAutoAtom)).toBeNull();
         expect(model.auto).toBe(true);
+    });
+
+    it("in 360 view, gives the fixed zone and the places equal parts and records the place width (#1479)", () => {
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a", 70), leaf("b", 30)],
+        };
+        const { model, layoutModel, view360 } = makeModel(false, root);
+        view360.layout = { columns: [{ nodeId: "b", x: 0, width: 400 }], fixedColumns: [{ nodeId: "a" }] };
+        view360.equalizeParts.mockReturnValueOnce(900);
+        model.equalize();
+        expect(view360.equalizeParts).toHaveBeenCalled();
+        expect(layoutModel.treeReducer).not.toHaveBeenCalled();
+        expect(layoutModel.updateTree).toHaveBeenCalledWith(false);
+        expect(rememberPanelWidth).toHaveBeenCalledWith("term", 900);
+    });
+
+    it("with auto on in 360 view, evens out the parts again after a layout pass (#1479)", async () => {
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a"), leaf("b"), leaf("c")],
+        };
+        const { layoutModel, view360 } = makeModel(true, root);
+        view360.layout = { columns: [{ nodeId: "b", x: 0, width: 400 }], fixedColumns: [{ nodeId: "a" }] };
+        view360.equalizeParts.mockReturnValueOnce(700);
+        globalStore.set(view360.layoutAtom, { pass: 1 });
+        await vi.waitFor(() => expect(layoutModel.updateTree).toHaveBeenCalledWith(false), { timeout: 30000 });
+        expect(view360.equalizeParts).toHaveBeenCalled();
     });
 
     it("describes the tree's shape without its sizes", () => {

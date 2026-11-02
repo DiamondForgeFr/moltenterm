@@ -106,6 +106,8 @@ type SessionInfo struct {
 	// Ticket, Complexity: the ticket the main agent works on and its complexity label (#601).
 	Ticket     int    `json:"ticket,omitempty"`
 	Complexity string `json:"complexity,omitempty"`
+	// LastPrompt: when the user's latest prompt was typed, the start of the agent's current turn (FR-SHELL-104).
+	LastPrompt int64 `json:"lastprompt,omitempty"`
 	// Earlier: the user chose an earlier session of the pane in the history; the agent's hook reported a newer one.
 	Earlier bool `json:"earlier,omitempty"`
 	// LivePath: with Earlier, the session the agent runs now.
@@ -149,6 +151,10 @@ type CompanionView struct {
 	Topics    []TopicInfo    `json:"topics,omitempty"`
 	Subagents []SubagentInfo `json:"subagents,omitempty"`
 	Activity  *ActivityInfo  `json:"activity,omitempty"`
+	// Commands: the programs the main agent ran in a shell, in the order it first ran them (FR-SHELL-084).
+	Commands []string `json:"commands,omitempty"`
+	// CommandCounts: how many shell calls ran each of Commands (#1543).
+	CommandCounts map[string]int `json:"commandcounts,omitempty"`
 	// Earlier: the pane's earlier sessions, newest first, the one shown left out (#600).
 	Earlier []EarlierSession `json:"earlier,omitempty"`
 }
@@ -217,29 +223,35 @@ type Manager struct {
 	// The complexity of the tickets the agents work on (#601, tickets.go), by folder and ticket, and the gh calls running.
 	complexities  map[string]*complexityEntry
 	ticketLookups int
+	// The pull requests of the topics' branches (#991, branchprs.go), by folder and branch, and the gh calls running.
+	prBranches map[string]*branchPREntry
+	prLookups  int
 	// The process links and settings follow of the agents' runs (processlink.go), by block, and which rollouts are
 	// sub-agents'.
 	tracks        map[string]*runTrack
 	subagentPaths map[string]bool
+	// identityAdapters: the adapters PaneSubagents reads with, one per agent (#1035).
+	identityAdapters map[string]Adapter
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
-	runOf         func(blockId string) (molten.AgentRunInfo, bool)
-	setSettings   func(blockId string, agent string, settings molten.AgentSettings)
-	integrationOf func(blockId string) (molten.AgentIntegrationReport, bool)
-	allRuns       func() []molten.AgentRunInfo
-	blockInfo     func(blockId string) (blockInfo, error)
-	ticketLabels  func(ctx context.Context, dir string, number int) ([]string, error)
-	publish       func(view CompanionView)
-	publishUsage  func(info UsageInfo)
-	writeGauges   func(agents []string) error
-	writeSetting  func(key string, value any) error
-	adapterFor    func(agent string) Adapter
-	openFiles     func(pid int32) []string
-	procTable     func() (*proctree.Table, error)
-	settings      func() *wconfig.SettingsType
-	now           func() time.Time
-	tick          time.Duration
-	idleTick      time.Duration
+	runOf          func(blockId string) (molten.AgentRunInfo, bool)
+	setSettings    func(blockId string, agent string, settings molten.AgentSettings)
+	integrationOf  func(blockId string) (molten.AgentIntegrationReport, bool)
+	allRuns        func() []molten.AgentRunInfo
+	blockInfo      func(blockId string) (blockInfo, error)
+	ticketLabels   func(ctx context.Context, dir string, number int) ([]string, error)
+	branchPRLookup func(ctx context.Context, dir string, branch string) ([]PRLink, error)
+	publish        func(view CompanionView)
+	publishUsage   func(info UsageInfo)
+	writeGauges    func(agents []string) error
+	writeSetting   func(key string, value any) error
+	adapterFor     func(agent string) Adapter
+	openFiles      func(pid int32) []string
+	procTable      func() (*proctree.Table, error)
+	settings       func() *wconfig.SettingsType
+	now            func() time.Time
+	tick           time.Duration
+	idleTick       time.Duration
 }
 
 func MakeManager() *Manager {
@@ -1256,16 +1268,60 @@ func (w *watcher) readAgentFacts() {
 	if w.session == nil {
 		return
 	}
+	if fetch {
+		w.readFolderBranch(dir)
+	}
 	if fetch && reader != nil {
 		w.readSubagents(reader)
 	}
 	w.session.ResolveTickets(func(number int, wanted bool) (string, bool) {
 		return w.m.ticketComplexity(dir, number, fetch && wanted)
 	})
+	prDir := w.session.Cwd
+	if prDir == "" {
+		prDir = dir
+	}
+	w.session.ResolveBranchPRs(func(branch string) []PRLink {
+		return w.m.branchPRs(prDir, branch, fetch)
+	})
+	w.readSessionName()
+}
+
+// readSessionName takes the name the agent keeps outside the transcript (Codex's session index, #991): a stat a
+// pass, the index read again only when it changed.
+func (w *watcher) readSessionName() {
+	namer, ok := w.adapter.(SessionNamer)
+	if !ok || w.session.Id == "" {
+		return
+	}
+	if name, ok := namer.SessionName(w.path, w.session.Id); ok {
+		w.session.SetSessionName(name, false)
+	}
+}
+
+// readFolderBranch reads the main agent's branch from its session's folder (where its adapter reads it works, #1476;
+// else its records' cwd, else the pane's), not from the branch its records name (#967).
+func (w *watcher) readFolderBranch(paneDir string) {
+	dir := w.session.Cwd
+	if reader, ok := w.adapter.(WorkFolderReader); ok && w.path != "" {
+		if folder, ok := reader.WorkFolder(w.path); ok {
+			dir = folder
+		}
+	}
+	if dir == "" {
+		dir = paneDir
+	}
+	if dir == "" {
+		return
+	}
+	w.session.SetFolderBranch(FolderBranch(dir))
 }
 
 // readSubagents reads the running sub-agents' own transcripts: the meta files only while one's agent id is unknown.
 func (w *watcher) readSubagents(reader SubagentReader) {
+	if finder, ok := reader.(SubagentFinder); ok {
+		w.findSubagents(finder)
+	}
 	running := w.session.runningSubagents()
 	var ids map[string]string
 	for _, sa := range running {
@@ -1286,6 +1342,34 @@ func (w *watcher) readSubagents(reader SubagentReader) {
 		if facts, ok := reader.ReadSubagent(w.path, agentId); ok {
 			w.session.SetSubagentFacts(sa.callId, facts)
 		}
+	}
+}
+
+// findSubagents looks, while sub-agents run, for the agents they started (#986), and for the thread of a running one
+// whose start gave none (the session's own children).
+func (w *watcher) findSubagents(finder SubagentFinder) {
+	running := w.session.runningSubagents()
+	if len(running) == 0 {
+		return
+	}
+	var parents []string
+	since := int64(0)
+	unlinked := false
+	for _, sa := range running {
+		if sa.agentId != "" {
+			parents = append(parents, sa.agentId)
+		} else {
+			unlinked = true
+		}
+		if sa.started > 0 && (since == 0 || sa.started < since) {
+			since = sa.started
+		}
+	}
+	if unlinked && w.session.Id != "" {
+		parents = append(parents, w.session.Id)
+	}
+	for _, f := range finder.FindSubagents(w.path, parents, since) {
+		w.session.AddFoundSubagent(f)
 	}
 }
 
@@ -1803,6 +1887,7 @@ func (w *watcher) view(elide bool) CompanionView {
 		Effort:   w.session.Effort(),
 	}
 	v.Session.Ticket, v.Session.Complexity = w.session.Ticket()
+	v.Session.LastPrompt = w.session.LastPromptAt()
 	if w.status == StatusUnsupportedFormat {
 		return v
 	}
@@ -1823,6 +1908,8 @@ func (w *watcher) view(elide bool) CompanionView {
 	v.Topics = w.session.Topics()
 	v.Subagents = w.session.Subagents()
 	v.Activity = w.session.Activity()
+	v.Commands = w.session.Commands()
+	v.CommandCounts = w.session.CommandCounts()
 	return v
 }
 

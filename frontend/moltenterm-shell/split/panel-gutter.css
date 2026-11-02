@@ -1,0 +1,98 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The gutter between panels (FR-SHELL-086): an Arc-like pill centred in the gap, vertical between columns and
+   horizontal between stacked panels; shown only on hover and while dragged (#1216), taller then. Wave's accent line,
+   shown on hover after a delay, gives way to it. */
+.tile-layout .resize-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+/* The handle is wider than the gap and would reach over both panels' edges (#1216): only the gap itself, all of it,
+   takes the pointer. Its hover and presses still land on the handle. */
+.tile-layout .resize-handle::before {
+    content: "";
+    position: absolute;
+    pointer-events: auto;
+}
+
+.tile-layout .resize-handle.flex-row::before {
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: var(--gap-size-px);
+    transform: translateX(-50%);
+}
+
+.tile-layout .resize-handle.flex-column::before {
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: var(--gap-size-px);
+    transform: translateY(-50%);
+}
+
+.tile-layout .resize-handle .line {
+    display: none;
+}
+
+.tile-layout .resize-handle .mt-gutter-pill {
+    flex: none;
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    pointer-events: none;
+    transition:
+        width var(--mt-duration-fast) var(--mt-ease),
+        height var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+/* The pill's thickness has the parity of the gap (4 px in an even gap, 3 px in an odd one) so the room left on each
+   side is a whole number of device pixels (#1240): a 3 px pill in an 8 px gap left 2.5 px on each side. */
+.tile-layout .resize-handle {
+    --mt-grip-w: calc(4px - mod(var(--gap-size-px), 2px));
+}
+
+.tile-layout .resize-handle.flex-row .mt-gutter-pill {
+    width: var(--mt-grip-w);
+    height: 26px;
+}
+
+.tile-layout .resize-handle.flex-column .mt-gutter-pill {
+    width: 26px;
+    height: var(--mt-grip-w);
+}
+
+.tile-layout .resize-handle:hover .mt-gutter-pill,
+.tile-layout .resize-handle.mt-gutter-active .mt-gutter-pill {
+    background: color-mix(in srgb, var(--mt-veil) 55%, transparent);
+}
+
+.tile-layout .resize-handle.flex-row:hover .mt-gutter-pill,
+.tile-layout .resize-handle.flex-row.mt-gutter-active .mt-gutter-pill {
+    height: 44px;
+}
+
+.tile-layout .resize-handle.flex-column:hover .mt-gutter-pill,
+.tile-layout .resize-handle.flex-column.mt-gutter-active .mt-gutter-pill {
+    width: 44px;
+}
+
+/* A handle that cannot move (#829) keeps a calm pill and no hover. */
+.tile-layout .resize-handle.mt-handle-stuck .mt-gutter-pill,
+.tile-layout .resize-handle.mt-handle-stuck:hover .mt-gutter-pill {
+    height: 26px;
+    background: transparent;
+}
+
+.tile-layout .resize-handle.mt-handle-stuck:hover .mt-gutter-pill {
+    background: color-mix(in srgb, var(--mt-veil) 12%, transparent);
+}
+
+.tile-layout .resize-handle.flex-column.mt-handle-stuck .mt-gutter-pill {
+    width: 26px;
+    height: var(--mt-grip-w);
+}

@@ -56,7 +56,8 @@ func makeCiFixture(t *testing.T, ci string) (*Ci, string) {
 
 func waitCi(t *testing.T, c *Ci, dir string, runId string) CiRunRecord {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	// Generous: it only bounds a failing run (#1208).
+	deadline := time.Now().Add(time.Minute)
 	for time.Now().Before(deadline) {
 		if c.activeRun(dir) == nil {
 			rec, err := c.readRecord(dir, runId)
@@ -178,7 +179,7 @@ func TestCiFailedJobStopsItsLane(t *testing.T) {
 }
 
 func TestCiCancelAndPrepare(t *testing.T) {
-	c, dir := makeCiFixture(t, `{"prepare":{"run":"echo preparing"},"jobs":[{"name":"slow","run":"sleep 30"}]}`)
+	c, dir := makeCiFixture(t, `{"prepare":{"run":"echo preparing"},"jobs":[{"name":"slow","run":"sleep 3600"}]}`)
 	res, err := c.Start(CiRunRequest{Dir: dir})
 	if err != nil || res.Run == nil {
 		t.Fatalf("start: %+v %v", res, err)
@@ -186,10 +187,10 @@ func TestCiCancelAndPrepare(t *testing.T) {
 	if _, err := c.Start(CiRunRequest{Dir: dir, Force: true}); err == nil || !strings.Contains(err.Error(), "in progress") {
 		t.Fatalf("one run at a time: %v", err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if rec, _ := c.readRecord(dir, res.Run.Id); rec.Jobs[0].Status == CiStateRunning {
-			break
+	deadline := time.Now().Add(time.Minute)
+	for rec, _ := c.readRecord(dir, res.Run.Id); len(rec.Jobs) == 0 || rec.Jobs[0].Status != CiStateRunning; rec, _ = c.readRecord(dir, res.Run.Id) {
+		if time.Now().After(deadline) {
+			t.Fatal("the slow job never ran")
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -231,6 +232,75 @@ func TestCiRunsABranchCheckedOutInAnotherWorktree(t *testing.T) {
 	}
 	if status, _ := c.Status(dir, "develop"); status.Status != CiVerdictMissing {
 		t.Fatalf("the project's own branch has not run: %+v", status)
+	}
+}
+
+// #1072: the main checkout is on branch A, a linked worktree on branch B. `molten ci run` with no branch, from the
+// worktree, sends the project folder (the main checkout) and the worktree as From: the run must test B's head and
+// say so, never the main checkout's HEAD under "no branch".
+func TestCiRunWithNoBranchTestsTheCallersWorktree(t *testing.T) {
+	c, dir := makeCiFixture(t, `{"jobs":[{"name":"b","run":"test -f b.txt"}]}`)
+	gitIn(t, dir, "checkout", "-q", "-b", "fix/1189-a")
+	os.WriteFile(filepath.Join(dir, "main.txt"), []byte("a\n"), 0644)
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "main checkout")
+	worktree := filepath.Join(t.TempDir(), "wt")
+	gitIn(t, dir, "worktree", "add", "-q", "-b", "dependabot/b", worktree, "develop")
+	os.WriteFile(filepath.Join(worktree, "b.txt"), []byte("b\n"), 0644)
+	gitIn(t, worktree, "add", "-A")
+	gitIn(t, worktree, "commit", "-q", "-m", "add b")
+	headB := gitIn(t, worktree, "rev-parse", "HEAD")
+
+	if status, err := c.StatusFrom(dir, "", worktree); err != nil || status.Sha != headB || status.Status != CiVerdictMissing {
+		t.Fatalf("status from the worktree before the run: %+v %v", status, err)
+	}
+	rec := startCi(t, c, dir, CiRunRequest{From: worktree})
+	if rec.Status != CiStateSuccess || rec.Sha != headB || rec.Branch != "dependabot/b" || rec.Detached {
+		t.Fatalf("the run must test the worktree's branch B: %+v", rec)
+	}
+	if status, err := c.StatusFrom(dir, "", worktree); err != nil || status.Status != CiStateSuccess {
+		t.Fatalf("status from the worktree after the run: %+v %v", status, err)
+	}
+	if status, err := c.StatusFrom(dir, "", dir); err != nil || status.Status != CiVerdictMissing || status.Sha == headB {
+		t.Fatalf("the main checkout's own HEAD has not run: %+v %v", status, err)
+	}
+
+	gitIn(t, worktree, "checkout", "-q", "--detach", "HEAD~1")
+	detached := gitIn(t, worktree, "rev-parse", "HEAD")
+	res, err := c.Start(CiRunRequest{Dir: dir, From: worktree, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec = waitCi(t, c, dir, res.Run.Id)
+	if rec.Sha != detached || rec.Branch != "" || !rec.Detached || !reflect.DeepEqual(rec.Heads, []string{"develop"}) {
+		t.Fatalf("a detached HEAD runs on its commit, labelled with the branch at it: %+v", rec)
+	}
+	if got := c.branchOf(rec); got != "develop" {
+		t.Fatalf("{branch} of a detached run is the one branch at its commit, not the main checkout's: %q", got)
+	}
+
+	rec = startCi(t, c, dir, CiRunRequest{Force: true})
+	if rec.Sha != gitIn(t, dir, "rev-parse", "HEAD") || rec.Branch != "fix/1189-a" {
+		t.Fatalf("with no From, the project folder's checkout, labelled: %+v", rec)
+	}
+}
+
+// #1072: a folder of another repository is not a checkout of the project: refused, nothing guessed.
+func TestCiRunRefusesACheckoutOfAnotherRepository(t *testing.T) {
+	c, dir := makeCiFixture(t, `{"jobs":[{"name":"a","run":"true"}]}`)
+	other := t.TempDir()
+	gitIn(t, other, "init", "-q", "-b", "develop")
+	gitIn(t, other, "commit", "-q", "--allow-empty", "-m", "other")
+	for _, from := range []string{other, t.TempDir(), "relative"} {
+		if res, err := c.Start(CiRunRequest{Dir: dir, From: from}); err == nil {
+			t.Fatalf("from %s: want a refusal, got %+v", from, res)
+		}
+		if _, err := c.StatusFrom(dir, "", from); err == nil {
+			t.Fatalf("status from %s: want a refusal", from)
+		}
+	}
+	if runs := c.runs(dir); len(runs) != 0 {
+		t.Fatalf("nothing may run: %+v", runs)
 	}
 }
 

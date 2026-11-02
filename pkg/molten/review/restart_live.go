@@ -52,9 +52,32 @@ func (s *Service) AskInvestigate(ctx context.Context, req InvestigateRequest) (R
 	return s.restarter.AskInvestigate(ctx, req)
 }
 
+// AskFinish is Check the agents in the Reviews list (#954), for one PR.
+func (s *Service) AskFinish(ctx context.Context, req FinishRequest) (RestartResult, error) {
+	if s.restarter == nil {
+		return RestartResult{}, rebaseUnavailableError()
+	}
+	return s.restarter.AskFinish(ctx, req)
+}
+
+// AskReleaseResolve is the developer's click on Analyze and resolve or Investigate together on a failed release step
+// (#945).
+func (s *Service) AskReleaseResolve(ctx context.Context, req ReleaseResolveRequest) (RestartResult, error) {
+	if s.restarter == nil {
+		return RestartResult{}, rebaseUnavailableError()
+	}
+	return s.restarter.AskReleaseResolve(ctx, req)
+}
+
 // liveRestartEnv: Mission Control's worktree terminals, the agent states, the guarded typing path of the handoffs and
 // the review sessions' way of opening a terminal.
 func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
+	env := baseLiveRestartEnv(git)
+	liveLeadEnv(&env)
+	return env
+}
+
+func baseLiveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 	return RestartEnv{
 		Git:       git,
 		DataDir:   wavebase.GetWaveDataDir(),
@@ -67,13 +90,15 @@ func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 		TypePrompt: func(ctx context.Context, blockId string, line string) RestartTypeOutcome {
 			out := termupdate.TypeHandoffLine(ctx, blockId, line)
 			if out.Result == termupdate.InputSent {
-				return RestartTypeOutcome{Sent: true, Submitted: out.Submitted, Message: out.Message}
+				return RestartTypeOutcome{Sent: true, Submitted: out.Submitted, Message: out.Message, MessageText: out.MessageText}
 			}
 			switch out.Reason {
 			case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
-				return RestartTypeOutcome{Retry: true, Message: out.Message}
+				return RestartTypeOutcome{Retry: true, Message: out.Message, MessageText: out.MessageText}
+			case termupdate.InputReasonTerminalGone:
+				return RestartTypeOutcome{Gone: true, Message: out.Message, MessageText: out.MessageText}
 			}
-			return RestartTypeOutcome{Message: out.Message}
+			return RestartTypeOutcome{Message: out.Message, MessageText: out.MessageText}
 		},
 		OpenTerminal:   reviewsession.OpenTerminal,
 		AgentInstalled: agentchoice.Installed,

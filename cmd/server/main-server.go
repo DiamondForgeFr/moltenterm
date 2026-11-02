@@ -21,8 +21,11 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/filebackup"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
-	"github.com/wavetermdev/waveterm/pkg/molten"         // MOLTENTERM-PATCH (#19)
-	"github.com/wavetermdev/waveterm/pkg/molten/mission" // MOLTENTERM-PATCH (#31)
+	"github.com/wavetermdev/waveterm/pkg/molten"             // MOLTENTERM-PATCH (#19)
+	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine" // MOLTENTERM-PATCH (#1624)
+	"github.com/wavetermdev/waveterm/pkg/molten/filesearch"  // MOLTENTERM-PATCH (#1625)
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"     // MOLTENTERM-PATCH (#31)
+	"github.com/wavetermdev/waveterm/pkg/molten/stdinwatch"  // MOLTENTERM-PATCH (#1043)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/remote/fileshare/wshfs"
@@ -103,14 +106,14 @@ func stdinReadWatch() {
 	defer func() {
 		panichandler.PanicHandler("stdinReadWatch", recover())
 	}()
-	buf := make([]byte, 1024)
-	for {
-		_, err := os.Stdin.Read(buf)
-		if err != nil {
-			doShutdown(fmt.Sprintf("stdin closed/error (%v)", err))
-			break
-		}
-	}
+	// MOLTENTERM-PATCH (#1043): a read error other than EOF quits only when the parent is gone too; while it runs,
+	// wavesrv logs the error with a goroutine dump and watches the parent instead of quitting the whole app
+	stdinwatch.Watch(stdinwatch.Config{
+		Stdin:       os.Stdin,
+		ParentAlive: stdinwatch.ParentWatcher(),
+		Shutdown:    doShutdown,
+		Logf:        log.Printf,
+	})
 }
 
 func startConfigWatcher() {
@@ -545,6 +548,10 @@ func main() {
 	}
 	if firstLaunch {
 		log.Printf("first launch detected")
+		// MOLTENTERM-PATCH (#1337): the Coulée terminal theme is the default of a fresh install only
+		if err := wconfig.SeedFirstLaunchTermTheme(); err != nil {
+			log.Printf("error seeding the terminal theme: %v\n", err)
+		}
 	}
 	// MOLTENTERM-PATCH (#132): saved web panes move to the browser panel before any window loads them
 	err = wcore.MigrateLegacyWebBlocks()
@@ -587,6 +594,12 @@ func main() {
 	wcore.StartWorkspaceOrderRoute()
 	wcore.StartPanelMoveRoute() // MOLTENTERM-PATCH (#414): a tab's panel dragged onto the tab shown
 	wcore.StartReopenRoute()    // MOLTENTERM-PATCH (#512): the last closed pane or tab comes back
+	wcore.StartViewPinRoute()   // MOLTENTERM-PATCH (#1184): pinned views are read and opened on a project
+	fileconfine.StartRoute()    // MOLTENTERM-PATCH (#1624): the file panels ask where a path really is
+	filesearch.StartRoute()     // MOLTENTERM-PATCH (#1625): molten files shows an agent's search in its tab's file panel
+	// MOLTENTERM-PATCH (#1760): a project switch shows the project's own views; once, meta only, the views get their
+	// projects before any window shows a workspace
+	wcore.StartProjectViews()
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()

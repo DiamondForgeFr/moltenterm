@@ -6,7 +6,8 @@
 // shows when its situation is resolved, and can be archived; the Archived tab keeps them until cleared. What arrives
 // shows as a toast instead of opening the panel (FR-SHELL-055), each subject says only what the user chose, and the
 // work running in every project shows on top, with a progress ring on the bell. What needs an answer opens the panel
-// on itself in the focused window (#790, notification-attention.ts).
+// on itself in the focused window (#790, notification-attention.ts). What each subject may say is set in Preferences ›
+// Notifications, which the panel links to (FR-SHELL-106, notification-settings.tsx).
 
 import { atoms, createBlock, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -15,29 +16,32 @@ import { useAtomValue } from "jotai";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
+import { AgentLinksGesture } from "./agent-links/agent-links-model";
+import { openAgentLinksGesture } from "./agent-links/agent-links-store";
 import { startAgentSeen } from "./agent-seen";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT, useTCount } from "./i18n/i18n";
+import { registerSetupPrGestures } from "./mission/release-setup-gestures";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
+import { TrustApprovalHost } from "./mission/trust-approval";
 import { checkAnswered } from "./notification-attention";
 import {
     badgeCount,
-    Delivery,
-    DeliveryLabels,
     MaxRenderedRows,
     notificationSourceLabel,
     NotificationSubject,
-    NotificationSubjects,
     subjectOf,
 } from "./notification-rules";
+import { openNotificationSettings } from "./notification-settings";
 import { startNotificationToasts } from "./notification-toasts";
 import { workspaceLabel, WorkspaceLabel } from "./notification-workspace";
 import { WorkspaceChip } from "./notification-workspace-chip";
 import {
     activeEntries,
     archivedEntries,
+    checkClickable,
     checkUnread,
     displayActions,
     formatAge,
@@ -85,6 +89,8 @@ function registerBuiltInGestures(): () => void {
             return { ok: true };
         }),
         registerNotificationGesture(AgentHandoffGesture, answerAgentHandoff),
+        registerNotificationGesture(AgentLinksGesture, openAgentLinksGesture),
+        registerSetupPrGestures(),
     ];
     return () => unregister.forEach((fn) => fn());
 }
@@ -119,7 +125,7 @@ function NotificationRow({
     const actions = displayActions(entry);
     const tone = toneOf(entry.kind);
     const anyRunning = actions.some((a) => running[`${entry.id}:${a.id}`]);
-    const hasOrigin = !!(entry.workspaceid || entry.tabid || entry.blockid);
+    const hasOrigin = checkClickable(entry);
     const subject = subjectOf(entry.source);
     const t = useT();
     const rowRef = useRef<HTMLDivElement>(null);
@@ -214,6 +220,7 @@ function NotificationRow({
                                 }}
                                 className={i === 0 ? MainActionClass : OtherActionClass}
                             >
+                                {running[`${entry.id}:${action.id}`] ? <DominoLoader className="mr-1.5" /> : null}
                                 {running[`${entry.id}:${action.id}`]
                                     ? t("notif.center.running")
                                     : notificationActionLabel(action)}
@@ -369,67 +376,6 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
     );
 }
 
-function SettingsView({ highlight }: { highlight: NotificationSubject }) {
-    const t = useT();
-    const model = MoltentermNotifications.getInstance();
-    const prefs = useAtomValue(model.prefsAtom, { store: globalStore });
-    const panelPolicy = useAtomValue(model.panelPolicyAtom, { store: globalStore });
-    return (
-        <div className="flex flex-col gap-1 px-3 py-2" data-testid="notification-settings">
-            <label className="flex cursor-pointer items-start gap-2 rounded-4 px-2 py-1.5 hover:bg-hover">
-                <input
-                    type="checkbox"
-                    data-testid="notification-panel-policy"
-                    checked={panelPolicy === "all"}
-                    onChange={(e) => model.setPanelPolicy(e.target.checked ? "all" : "answers")}
-                    className="mt-0.5 cursor-pointer accent-[var(--color-accent)]"
-                />
-                <span className="min-w-0 flex-1">
-                    <span className="block text-primary">{t("notif.settings.openPanel")}</span>
-                    <span className="block text-11 text-muted">{t("notif.settings.openPanelHint")}</span>
-                </span>
-            </label>
-            <div className="pt-1 pb-1 text-12 text-secondary">{t("notif.settings.intro")}</div>
-            {NotificationSubjects.map((subject) => {
-                const chosen = prefs[subject.id] ?? "notify";
-                return (
-                    <div
-                        key={subject.id}
-                        className={cn(
-                            "flex items-center gap-2 rounded-4 px-2 py-1.5",
-                            highlight === subject.id && "bg-accent/10 ring-1 ring-accent/40"
-                        )}
-                    >
-                        <span className="min-w-0 flex-1 truncate text-primary">{t(subject.labelKey)}</span>
-                        <div
-                            role="radiogroup"
-                            aria-label={t(subject.labelKey)}
-                            className="flex rounded-4 border border-border p-0.5"
-                        >
-                            {(["notify", "quiet", "off"] as Delivery[]).map((delivery) => (
-                                <button
-                                    key={delivery}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={chosen === delivery}
-                                    onClick={() => model.setDelivery(subject.id, delivery)}
-                                    className={cn(
-                                        "cursor-pointer rounded-6 px-2 py-0.5 text-12",
-                                        chosen === delivery ? "bg-hover text-primary" : "text-muted hover:text-primary"
-                                    )}
-                                >
-                                    {t(DeliveryLabels[delivery])}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                );
-            })}
-            <div className="pt-1 text-11 text-muted">{t("notif.settings.footer")}</div>
-        </div>
-    );
-}
-
 export function NotificationCenter() {
     const t = useT();
     const tc = useTCount();
@@ -444,8 +390,7 @@ export function NotificationCenter() {
     const errors = useAtomValue(model.errorsAtom, { store: globalStore });
     const work = useRunningWork();
     const [panelOpen, setPanelOpen] = useState(false);
-    const [tab, setTab] = useState<"active" | "archived" | "settings">("active");
-    const [highlight, setHighlight] = useState<NotificationSubject>(null);
+    const [tab, setTab] = useState<"active" | "archived">("active");
     // The notifications the panel opened by itself for (#790): highlighted, and it closes once they are answered.
     const [selfOpenedFor, setSelfOpenedFor] = useState<string[]>([]);
     const [highlightIds, setHighlightIds] = useState<string[]>([]);
@@ -470,7 +415,11 @@ export function NotificationCenter() {
     const placePanel = () => {
         const rect = bellRef.current?.getBoundingClientRect();
         if (rect != null) {
-            setAnchor({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+            // The 380 px panel stays inside the window when the bell sits on its left, in the sidebar (#1183).
+            setAnchor({
+                top: rect.bottom + 4,
+                right: Math.max(8, Math.min(window.innerWidth - rect.right, window.innerWidth - 388)),
+            });
         }
     };
 
@@ -478,7 +427,6 @@ export function NotificationCenter() {
     const close = () => {
         setPanelOpen(false);
         setTab("active");
-        setHighlight(null);
         setSelfOpenedFor([]);
         setHighlightIds([]);
         model.settleSeen();
@@ -500,6 +448,14 @@ export function NotificationCenter() {
         }
         lastCountRef.current = count;
     }, [count]);
+
+    // A toast that timed out went into the bell (#1403): the count pulses as it lands.
+    const landed = useAtomValue(Toasts.getInstance().landedAtom, { store: globalStore });
+    useEffect(() => {
+        if (landed > 0) {
+            setPulse((p) => p + 1);
+        }
+    }, [landed]);
 
     // A notification that needs an answer opens the panel on it (notification-toasts.ts decides which, #790). A panel
     // the user opened stays theirs: the entry is only highlighted.
@@ -620,11 +576,11 @@ export function NotificationCenter() {
                         key={pulse}
                         data-testid="notification-count"
                         className={cn(
-                            "molten-notification-count pointer-events-none absolute flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-12 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
+                            "molten-notification-count pointer-events-none absolute flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 text-12 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
                             pulse > 0 && "molten-notification-count-arrive",
-                            // The wider "9+" pill sits further right so it only overlaps the bell's corner; higher,
-                            // the window's top edge would cut its ring.
-                            count > 9 ? "-top-1 -right-3" : "-top-1 -right-2"
+                            // The wider "9+" pill sits further right so it only overlaps the bell's corner. Never
+                            // above the button's top (#1235): the Spaces frame puts the bell at the window's edge.
+                            count > 9 ? "top-0 -right-2.5" : "top-0 -right-1"
                         )}
                     >
                         {badgeCount(count)}
@@ -634,7 +590,8 @@ export function NotificationCenter() {
                 ) : null}
             </button>
             <DepSyncHost />
-            {createPortal(<ToastStack onOpenCenter={openForUser} />, document.body)}
+            <TrustApprovalHost />
+            {createPortal(<ToastStack onOpenCenter={openForUser} bellRef={bellRef} />, document.body)}
             {/* Portaled to the body: inside the tab bar the panel would sit under the blocks' stacking context. */}
             {panelOpen && anchor
                 ? createPortal(
@@ -688,24 +645,22 @@ export function NotificationCenter() {
                                       {t("notif.center.markAllRead")}
                                   </button>
                               ) : null}
+                              {/* The levels live in Preferences › Notifications, their one home (FR-SHELL-106). */}
                               <button
                                   type="button"
                                   title={t("notif.center.settingsTitle")}
-                                  aria-label={t("notif.center.settingsLabel")}
+                                  data-testid="notification-settings-link"
                                   onClick={() => {
-                                      setHighlight(null);
-                                      setTab(tab === "settings" ? "active" : "settings");
+                                      close();
+                                      openNotificationSettings();
                                   }}
-                                  className={cn(
-                                      "cursor-pointer rounded-6 px-1 py-0.5 text-12 hover:bg-hover hover:text-primary",
-                                      tab === "settings" ? "text-primary" : "text-muted"
-                                  )}
+                                  className="inline-flex cursor-pointer items-center gap-1 rounded-6 px-1.5 py-0.5 text-12 text-muted hover:bg-hover hover:text-primary"
                               >
-                                  <i className="fa fa-solid fa-gear" />
+                                  {t("notif.center.settingsLink")}
+                                  <i className="fa fa-solid fa-chevron-right text-10" aria-hidden />
                               </button>
                           </div>
                           <div className="overflow-y-auto">
-                              {tab === "settings" ? <SettingsView highlight={highlight} /> : null}
                               {showWork ? (
                                   <div className="border-b border-border">
                                       <div className="px-3 pt-2 text-11 font-medium tracking-wide text-muted uppercase">
@@ -725,46 +680,45 @@ export function NotificationCenter() {
                                       ))}
                                   </div>
                               ) : null}
-                              {tab !== "settings" && shown.length === 0 && !showWork ? (
+                              {shown.length === 0 && !showWork ? (
                                   <div className="px-3 py-6 text-center text-secondary">
                                       {t(tab === "archived" ? "notif.center.emptyArchived" : "notif.center.empty")}
                                   </div>
                               ) : null}
-                              {tab !== "settings"
-                                  ? shown.map((entry) => (
-                                        <RowBoundary key={entry.id}>
-                                            <NotificationRow
-                                                entry={entry}
-                                                label={workspaceLabel(
-                                                    entry.workspaceid,
-                                                    workspaces,
-                                                    currentWorkspace?.oid
-                                                )}
-                                                now={now}
-                                                archived={tab === "archived"}
-                                                highlighted={highlightIds.includes(entry.id)}
-                                                running={running}
-                                                error={errors[entry.id]}
-                                                onOpen={() => {
-                                                    setPanelOpen(false);
-                                                    fireAndForget(() => model.open(entry));
-                                                }}
-                                                onAction={(action) => {
-                                                    if (action.kind === "open") {
-                                                        setPanelOpen(false);
-                                                    }
-                                                    fireAndForget(() => model.runAction(entry, action));
-                                                }}
-                                                onArchive={() => model.archive([entry.id])}
-                                                onSilence={(subject) => {
-                                                    setHighlight(subject);
-                                                    setTab("settings");
-                                                }}
-                                            />
-                                        </RowBoundary>
-                                    ))
-                                  : null}
-                              {tab !== "settings" && hidden > 0 ? (
+                              {shown.map((entry) => (
+                                  <RowBoundary key={entry.id}>
+                                      <NotificationRow
+                                          entry={entry}
+                                          label={workspaceLabel(
+                                              entry.workspaceid,
+                                              workspaces,
+                                              currentWorkspace?.oid,
+                                              entry.tabid
+                                          )}
+                                          now={now}
+                                          archived={tab === "archived"}
+                                          highlighted={highlightIds.includes(entry.id)}
+                                          running={running}
+                                          error={errors[entry.id]}
+                                          onOpen={() => {
+                                              setPanelOpen(false);
+                                              fireAndForget(() => model.open(entry));
+                                          }}
+                                          onAction={(action) => {
+                                              if (action.kind === "open") {
+                                                  setPanelOpen(false);
+                                              }
+                                              fireAndForget(() => model.runAction(entry, action));
+                                          }}
+                                          onArchive={() => model.archive([entry.id])}
+                                          onSilence={(subject) => {
+                                              close();
+                                              openNotificationSettings(subject);
+                                          }}
+                                      />
+                                  </RowBoundary>
+                              ))}
+                              {hidden > 0 ? (
                                   <div className="px-3 py-2 text-center text-12 text-muted">
                                       {t("notif.center.more", { count: hidden })}
                                   </div>

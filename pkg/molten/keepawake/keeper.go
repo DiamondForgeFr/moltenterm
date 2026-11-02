@@ -14,6 +14,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
 // Env is what the keeper needs from wavesrv, injected so tests run without it.
@@ -29,6 +30,8 @@ type Env struct {
 	Publish      func(state State)
 	ProcessAlive func(pid int32) bool
 	ProcessName  func(pid int32) string
+	// Terminate asks a process to end (SIGTERM where signals exist).
+	Terminate func(pid int32) error
 	// Async runs work that must not hold a shim's answer; nil runs it at once (tests).
 	Async func(fn func())
 	// Sessions: the agent sessions of these workspaces, and whether their prompts are answered (FR-SHELL-063).
@@ -221,9 +224,11 @@ func (k *Keeper) recordAttempt(req ShimRequest, policy string, late bool) (ShimA
 	}
 	k.nextId++
 	id := strconv.FormatInt(k.nextId, 10)
+	now := k.env.Now()
+	endsAt, stoppable := attemptLimits(req.Tool, req.Args, now)
 	k.attempts = append(k.attempts, Attempt{
 		Id: id, BlockId: req.BlockId, Tool: req.Tool, Args: clipArgs(req.Args), Pid: req.Pid, ParentPid: req.ParentPid,
-		Since: k.env.Now().UnixMilli(), Outcome: outcome,
+		Since: now.UnixMilli(), Outcome: outcome, EndsAt: endsAt, Stoppable: stoppable,
 	})
 	if len(k.attempts) > MaxAttempts {
 		k.attempts = k.attempts[len(k.attempts)-MaxAttempts:]
@@ -243,7 +248,7 @@ func askNotification(tool string, parentName string, wsId string, tabName string
 	}
 	where := ""
 	if tabName != "" {
-		where = " in " + tabName
+		where = " in " + wconfig.ViewNameText(tabName)
 	}
 	message := fmt.Sprintf("%s%s ran %s. Choose once what MoltenTerm does with such requests: let them through, keep "+
 		"%s awake itself until the work ends, or let it sleep.", who, where, tool, computerName())
@@ -276,6 +281,91 @@ func askNotification(tool string, parentName string, wsId string, tabName string
 			action("letsleep", "Let it sleep", uimsg.Make("keepawake.notice.letsleep"), PolicyLetSleep),
 		},
 	}
+}
+
+// attemptLimits reads what the menu tells of an attempt (#1780): when it ends by itself, and whether ending its process
+// stops only the keep-awake. Only a bare caffeinate qualifies: a wrapped command or systemd-inhibit (which always wraps
+// one) is the user's work.
+func attemptLimits(tool string, args []string, now time.Time) (int64, bool) {
+	if tool != ToolCaffeinate {
+		return 0, false
+	}
+	call := ParseCaffeinate(args)
+	if call.Invalid || len(call.Command) > 0 {
+		return 0, false
+	}
+	if call.Timeout > 0 {
+		return now.Add(call.Timeout).UnixMilli(), true
+	}
+	return 0, true
+}
+
+// StopBlock ends the keep-awake processes a terminal let through, the menu's Stop on its row (#1780). Only stoppable
+// attempts are ended, and only while the pid still runs the tool that reported: a pid the system reused for another
+// program is left alone.
+func (k *Keeper) StopBlock(ctx context.Context, req StopRequest) (State, error) {
+	if req.BlockId == "" {
+		return k.State(), fmt.Errorf("no terminal given")
+	}
+	if k.env.Terminate == nil {
+		return k.State(), fmt.Errorf("cannot end processes here")
+	}
+	targets := k.stoppableAttempts(req.BlockId)
+	if len(targets) == 0 {
+		return k.State(), fmt.Errorf("nothing to stop in this terminal")
+	}
+	var stopped []string
+	var firstErr error
+	for _, a := range targets {
+		if k.env.ProcessName != nil && k.env.ProcessName(a.Pid) != a.Tool {
+			stopped = append(stopped, a.Id)
+			continue
+		}
+		if err := k.env.Terminate(a.Pid); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		stopped = append(stopped, a.Id)
+	}
+	k.dropAttempts(stopped)
+	k.publishIfChanged()
+	if firstErr != nil {
+		return k.State(), fmt.Errorf("stopping the keep-awake: %w", firstErr)
+	}
+	return k.State(), nil
+}
+
+func (k *Keeper) stoppableAttempts(blockId string) []Attempt {
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	var rtn []Attempt
+	for _, a := range k.attempts {
+		if a.BlockId == blockId && a.Outcome == OutcomeAllowed && a.Stoppable {
+			rtn = append(rtn, a)
+		}
+	}
+	return rtn
+}
+
+func (k *Keeper) dropAttempts(ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	drop := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		drop[id] = true
+	}
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	kept := k.attempts[:0]
+	for _, a := range k.attempts {
+		if !drop[a.Id] {
+			kept = append(kept, a)
+		}
+	}
+	k.attempts = kept
 }
 
 // SetOverride sets or removes a session's own policy.

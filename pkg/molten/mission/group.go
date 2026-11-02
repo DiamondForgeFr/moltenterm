@@ -152,7 +152,7 @@ func linksInOrder(workspaces []*waveobj.Workspace, stored []string) []molten.Gro
 	links := []molten.GroupLink{}
 	for _, id := range railorder.ApplyOrder(listed, stored) {
 		ws := byId[id]
-		dir := ws.Meta.GetString(molten.ProjectMetaKey, "")
+		dir := molten.WorkspaceRepo(ws.Meta)
 		if dir == "" {
 			continue
 		}

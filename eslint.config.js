@@ -20,6 +20,8 @@ export default [
 
     {
         ignores: [
+            // MOLTENTERM-PATCH (#820): relative to this checkout, including when it is itself a worktree.
+            ".claude/worktrees/**",
             "**/node_modules/**",
             "**/dist/**",
             "**/build/**",

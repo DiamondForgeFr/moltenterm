@@ -95,6 +95,7 @@ const (
 	MergeCodeNewWarning     = "newwarning"
 	MergeCodeNewRed         = "newred"
 	MergeCodeMergeError     = "mergeerror"
+	MergeCodeMethodRefused  = "methodrefused"
 	MergeCodeUpdateError    = "updateerror"
 	MergeCodeStopped        = "stopped"
 	MergeCodeCiTimeout      = "citimeout"
@@ -185,13 +186,15 @@ type MergePlan struct {
 	Behind bool `json:"behind,omitempty"`
 	// Methods: the merge methods allowed, in GitHub's order; Method: the default (#673). MethodRule: what narrowed them
 	// (MethodRule…); Queue: a merge queue merges the PR, with its own method.
-	Methods    []string            `json:"methods"`
-	Method     string              `json:"method"`
-	MethodRule string              `json:"methodrule,omitempty"`
-	Queue      bool                `json:"queue,omitempty"`
-	Checks     []MergeCheck        `json:"checks"`
-	Steps      []MergeStep         `json:"steps"`
-	Cleanup    []CleanupStepResult `json:"cleanup"`
+	Methods    []string `json:"methods"`
+	Method     string   `json:"method"`
+	MethodRule string   `json:"methodrule,omitempty"`
+	Queue      bool     `json:"queue,omitempty"`
+	// MethodRefused: the repository's remembered method GitHub no longer allows; the sheet says what replaces it (#957).
+	MethodRefused string              `json:"methodrefused,omitempty"`
+	Checks        []MergeCheck        `json:"checks"`
+	Steps         []MergeStep         `json:"steps"`
+	Cleanup       []CleanupStepResult `json:"cleanup"`
 	// CanMerge: no check fails or waits; Blocking: the id of the first one that does (AC4).
 	CanMerge bool   `json:"canmerge"`
 	Blocking string `json:"blocking,omitempty"`
@@ -360,8 +363,8 @@ func shortHead(oid string) string {
 }
 
 // runGh names the repository in every call (the ghArgs rule of pkg/molten/release): gh resolves a remote named
-// upstream before origin. With --repo, gh pr merge --delete-branch also leaves the local checkout and branch alone:
-// those are the cleanup's (FR-REV-013), which checks them first.
+// upstream before origin. The local checkout and branch, and the remote branch, are the cleanup's (FR-REV-013),
+// which checks them first.
 func (m *Merger) runGh(ctx context.Context, dir string, repo string, args ...string) ([]byte, error) {
 	if m.gh == nil {
 		return nil, noGhError()
@@ -652,6 +655,7 @@ func (m *Merger) Plan(ctx context.Context, req MergePlanRequest) (MergePlan, err
 	}
 	methods := m.planMethods(ctx, req.Dir, req.Repo, pr.BaseRefName)
 	plan.Methods, plan.Method, plan.MethodRule, plan.Queue = methods.methods, methods.method, methods.rule, methods.queue
+	plan.MethodRefused = methods.refused
 	plan.Steps = planSteps(plan)
 	plan.Cleanup = currentPostMerge().Plan(ctx, plan.mergedPr("", ""))
 	if plan.Cleanup == nil {
@@ -782,11 +786,7 @@ func (m *Merger) Merge(req MergeRequest) (MergeRecord, error) {
 		record.Overridden = plan.Warnings
 	}
 	// The developer's choice is the repository's next default, whatever GitHub then answers.
-	if !plan.Queue {
-		if err := m.store.SetLastMergeMethod(plan.Repo, plan.Method); err != nil {
-			log.Printf("%s %s: the merge method could not be kept: %v\n", logPrefix, plan.Repo, err)
-		}
-	}
+	m.keepChosenMethod(plan.Repo, plan.Method, plan.Queue)
 	m.record(req.PrKey, record)
 	ctx, cancel := context.WithTimeout(context.Background(), m.ciTimeout+10*time.Minute)
 	run.cancel = cancel
@@ -903,13 +903,17 @@ func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 	record.State = MergeMerging
 	record.Head = head
 	m.record(k, record)
-	_, err = m.runGh(ctx, plan.Dir, plan.Repo, mergeArgs(strconv.Itoa(plan.Number), record.Method, plan.Queue, head)...)
+	_, err = m.runGh(ctx, plan.Dir, plan.Repo, mergeArgs(strconv.Itoa(plan.Number), record.Method, head)...)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "head branch was modified") {
 			m.end(k, record, MergeRefused, RefusedHeadMoved, MergeCodeGithubMoved, err)
 			return
 		}
 		m.forgetMethods(plan.Repo)
+		if methodRefusedError(err) {
+			m.end(k, record, MergeFailed, "", MergeCodeMethodRefused, err)
+			return
+		}
 		m.end(k, record, MergeFailed, "", MergeCodeMergeError, err)
 		return
 	}

@@ -57,12 +57,18 @@ describe("design tokens lint (FR-SHELL-044 AC1, TC-SHELL-093)", () => {
         ["font-weight: 600;", 0],
         ["font-weight: 700;", 1],
         ["font-weight: bold;", 1],
-        ["border-radius: var(--mt-radius-6);", 0],
-        ["border-radius: 0 var(--mt-radius-4) var(--mt-radius-4) 0;", 0],
+        ["border-radius: var(--mt-radius-panel);", 0],
+        ["border-radius: 0 var(--mt-radius-control) var(--mt-radius-control) 0;", 0],
+        ["border-radius: var(--block-border-radius, var(--mt-radius-panel));", 0],
+        ["border-radius: var(--df-radius-md);", 0],
         ["border-radius: 9999px;", 0],
         ["border-radius: 50%;", 0],
-        ["border-radius: calc(var(--block-border-radius) - 1px);", 0],
+        ["border-radius: calc(var(--block-border-radius) - 1px);", 1],
         ["border-radius: 5px;", 1],
+        ["border-radius: 4px;", 1],
+        ["border-radius: var(--mt-radius-3);", 1],
+        ["border-radius: var(--mt-radius-10);", 1],
+        ["border-top-left-radius: var(--my-radius);", 1],
         ["transition: opacity var(--mt-duration-fast) var(--mt-ease);", 0],
         ["transition: opacity var(--mt-duration-fast) var(--mt-ease) calc(140ms + 70ms * var(--i));", 0],
         ["transition: none;", 0],
@@ -92,6 +98,13 @@ describe("design tokens lint (FR-SHELL-044 AC1, TC-SHELL-093)", () => {
         ['<div className="rounded-md" />', 1],
         ['<div className="rounded-[10px]" />', 1],
         ['<div className="rounded-l" />', 1],
+        ['<div className="rounded-4 rounded-l-6 hover:rounded-t-4" />', 0],
+        ['<div className="rounded-3" />', 1],
+        ['<div className="rounded-2" />', 1],
+        ['<div className="rounded-8" />', 1],
+        ['<div className="rounded-10" />', 1],
+        ['<div className="rounded-l-3" />', 1],
+        ['<div className="md:rounded-12" />', 1],
         ['<div className="transition-colors duration-120 ease-mt hover:bg-hover" />', 0],
         ['<div className="transition-colors hover:bg-hover" />', 1],
         ['<div className="transition-opacity duration-150 ease-mt" />', 2],
@@ -103,6 +116,50 @@ describe("design tokens lint (FR-SHELL-044 AC1, TC-SHELL-093)", () => {
         ['const url = "https://example.com"; // rounded', 0],
     ])("TSX %s → %i finding(s)", (src, count) => {
         expect(lintTs("x.tsx", src)).toHaveLength(count);
+    });
+
+    it.each([
+        [":root { --mt-x: #ff7c0d; }", 0],
+        [":where(:root) { --df-x: #ffffff; }", 0],
+        ["@media (prefers-reduced-motion: reduce) { :root { --mt-x: #000; } }", 0],
+        [".a { --mt-x: #ff7c0d; }", 1],
+        [".a { color: #eee; }", 1],
+        [".a { color: var(--mt-text-1, #f7f7f7); }", 1],
+        [".a { border: 1px solid #333336; }", 1],
+        [".a { background: linear-gradient(#fff, #000a); }", 2],
+        [".a { color: var(--mt-text-1); background: rgb(0 0 0 / 0.5); }", 0],
+        [".a { mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); }", 0],
+        [".a { -webkit-mask: linear-gradient(90deg, transparent, #000 14px); }", 0],
+        ["/* #1339 and #fff in a comment */ .a { color: red; }", 0],
+    ])("CSS colour %s → %i finding(s) (FR-SHELL-119)", (src, count) => {
+        expect(lintCss("x.css", src).filter((f) => f.rule.startsWith("hard-coded colour"))).toHaveLength(count);
+    });
+
+    it.each([
+        ['<div className="text-[#e5e7eb]" />', 1],
+        ['<div className="bg-[#333]" />', 1],
+        ['const c = "#ff7c0d";', 1],
+        ['const c = "#000000";', 1],
+        ['<div style={{ background: "conic-gradient(#ff453a, #ffe900)" }} />', 2],
+        ['const s = `.x { fill: #82a9ee; }`;', 1],
+        ['console.log("[#490] could not read", e);', 0],
+        ['const s = "rebase of #1107";', 0],
+        ["// a #fff comment\nconst x = 1;", 0],
+        ['<div className="text-[var(--mt-chart-1)]" />', 0],
+    ])("TSX colour %s → %i finding(s) (FR-SHELL-119)", (src, count) => {
+        expect(lintTs("moltenterm-shell/x.tsx", src).filter((f) => f.rule.startsWith("hard-coded colour"))).toHaveLength(count);
+    });
+
+    it("lets the listed colour data files hold their hex values", () => {
+        expect(lintTs("moltenterm-shell/workspace-colour.ts", 'const c = "#ff453a";')).toEqual([]);
+        expect(lintTs("moltenterm-shell/other.ts", 'const c = "#ff453a";')).toHaveLength(1);
+    });
+
+    it("names the file, the line and the hex of a colour finding", () => {
+        const css = ".a {\n    color: var(--mt-text-1);\n    border-color: #9a3412;\n}\n";
+        expect(lintCss("moltenterm-shell/x.css", css).map(formatFinding)).toEqual([
+            "moltenterm-shell/x.css:3: border-color: #9a3412 (hard-coded colour (use a token))",
+        ]);
     });
 
     it("names the line of a TSX finding", () => {

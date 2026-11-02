@@ -90,9 +90,12 @@ func (r *Runs) complete(rec *RunRecord, code int) {
 
 // Serialize each lifecycle transaction, including cancellation, without holding the watcher-map lock or
 // invoking subscribers under this lock. Otherwise a stale poll can overwrite a cancellation request.
+//
+// Keyed by the run id alone: a path-derived key differs between a caller holding a symlink that was retargeted and one
+// holding the real project, so a build's handoff and a List refresh no longer excluded each other and the refresh
+// overwrote the fresh record as lost (#1477). Ids carry a timestamp and a random suffix.
 func (r *Runs) recordLock(dir, id string) *sync.Mutex {
-	key := r.recordDir(dir, id)
-	lock, _ := r.recordLocks.LoadOrStore(key, &sync.Mutex{})
+	lock, _ := r.recordLocks.LoadOrStore(id, &sync.Mutex{})
 	return lock.(*sync.Mutex)
 }
 

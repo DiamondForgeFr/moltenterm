@@ -10,6 +10,7 @@
 import { cn } from "@/util/util";
 import { t, useT } from "../i18n/i18n";
 import { formatWhen, NextReleaseView, ReleaseBar, ReleasesView, ReleaseView } from "../project/overview-cards-model";
+import { DominoLoader } from "../suite/suite";
 
 const BarClasses: Record<ReleaseBar["key"], string> = {
     feat: "bg-[var(--mt-chart-features)]",
@@ -43,12 +44,11 @@ function Bar({ bar, index }: { bar: ReleaseBar; index: number }) {
     );
 }
 
+// The room of the rows to come, with the card-size dominoes in it (DS-SHELL-154: waiting = domino, no skeleton).
 function Waiting({ rows }: { rows: number }) {
     return (
-        <div className="flex flex-col gap-2" aria-busy="true">
-            {Array.from({ length: rows }, (_, i) => (
-                <div key={i} className="h-5 w-full mt-step-blink rounded-4 bg-hover" />
-            ))}
+        <div className="flex items-center justify-center" style={{ minHeight: rows * 28 }} aria-busy="true">
+            <DominoLoader size="card" />
         </div>
     );
 }

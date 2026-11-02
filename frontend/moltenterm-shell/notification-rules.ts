@@ -60,6 +60,7 @@ const SourceLabels: Record<MoltentermNotificationSource, string> = {
     ci: "notif.source.ci",
     release: "notif.source.release",
     deps: "notif.source.deps",
+    trust: "notif.source.trust",
 };
 
 // The source as a row shows it; an unknown one as stored.

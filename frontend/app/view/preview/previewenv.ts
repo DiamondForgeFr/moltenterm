@@ -25,6 +25,7 @@ export type PreviewEnv = WaveEnvSubset<{
     };
     atoms: {
         fullConfigAtom: WaveEnv["atoms"]["fullConfigAtom"];
+        workspace: WaveEnv["atoms"]["workspace"]; // MOLTENTERM-PATCH (#1624): its project confines the panel
     };
     services: {
         object: WaveEnv["services"]["object"];

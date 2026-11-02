@@ -23,7 +23,7 @@ import {
     setWasActive,
 } from "./emain-activity";
 import { createBuilderWindow, getAllBuilderWindows, getBuilderWindowByWebContentsId } from "./emain-builder";
-import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-platform";
+import { unamePlatform } from "./emain-platform";
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { handleCtrlShiftState } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
@@ -33,12 +33,14 @@ import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browserag
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
+import { initNativePathIpc } from "./moltenterm-native-path"; // MOLTENTERM-PATCH (#1575)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
 import { initMoltentermAccessibility } from "./moltenterm-accessibility"; // MOLTENTERM-PATCH (#808)
+import { initMoltentermWindowButtons } from "./moltenterm-window-buttons"; // MOLTENTERM-PATCH (#1216)
 import { liveWebContentsFromId } from "./moltenterm-webcontents-id"; // MOLTENTERM-PATCH (#928)
-
-const electronApp = electron.app;
+import { initMoltentermWindowLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
+import { sendKeyNotice } from "./moltenterm-key-notice"; // MOLTENTERM-PATCH (#1242)
 
 let webviewFocusId: number = null;
 let webviewKeys: string[] = [];
@@ -207,6 +209,8 @@ function saveImageFileWithNativeDialog(
 // MOLTENTERM-PATCH (#371): owned, captured context-menu actions.
 export function initIpcHandlers() {
     initMoltentermAccessibility(); // MOLTENTERM-PATCH (#808): read-only OS accessibility state.
+    initMoltentermWindowButtons(); // MOLTENTERM-PATCH (#1216): the window buttons follow the hidden sidebar.
+    initMoltentermWindowLook(); // MOLTENTERM-PATCH (#1281): the workspace's opacity and blur.
     initMoltentermContextMenu(async (host, guest, source, valid) => {
         const result = await getUrlInSession(guest.session, source);
         if (!valid()) {
@@ -217,31 +221,21 @@ export function initIpcHandlers() {
     });
     initMoltentermDialogs(); // MOLTENTERM-PATCH (#30): folder and image pickers of the Moltenterm shell
     initMoltentermUpdate(); // MOLTENTERM-PATCH (#64): gold updates
-    // MOLTENTERM-PATCH (#300, #302): a user's click or key in an agent's tab takes over, and a download the agent's tab
-    // starts waits for the user's Allow (route molten:browseragent)
-    initMoltentermBrowserAgent(
-        (blockId, browserTabId) =>
-            fireAndForget(() =>
-                ElectronWshClient.wshRpcCall(
-                    "moltenbrowseragentcontrol",
-                    { blockid: blockId, browsertabid: browserTabId, action: "takeover" },
-                    { route: "molten:browseragent", noresponse: true }
-                )
-            ),
-        async (blockId, browserTabId, host) => {
-            try {
-                const answer = await ElectronWshClient.wshRpcCall(
-                    "moltenbrowseragentdownload",
-                    { blockid: blockId, browsertabid: browserTabId, host },
-                    { route: "molten:browseragent", timeout: 130000 }
-                );
-                return answer?.allow === true;
-            } catch (e) {
-                console.log("molten browser agent: download answer failed", e);
-                return false;
-            }
+    // MOLTENTERM-PATCH (#300, #302, #971): a download the agent's tab starts waits for the user's Allow (route
+    // molten:browseragent); taking a tab over is the user's explicit act in the panel, never a click in the page
+    initMoltentermBrowserAgent(async (blockId, browserTabId, host) => {
+        try {
+            const answer = await ElectronWshClient.wshRpcCall(
+                "moltenbrowseragentdownload",
+                { blockid: blockId, browsertabid: browserTabId, host },
+                { route: "molten:browseragent", timeout: 130000 }
+            );
+            return answer?.allow === true;
+        } catch (e) {
+            console.log("molten browser agent: download answer failed", e);
+            return false;
         }
-    );
+    });
     // MOLTENTERM-PATCH (#663): one scheme rule for every link handed to the system (emain/moltenterm-external-links.ts)
     onAppIpc("open-external", (event, url) => {
         fireAndForget(() => openExternalLink(url, event.sender));
@@ -277,12 +271,22 @@ export function initIpcHandlers() {
         event.returnValue = retVal;
     });
 
-    handleAppIpc("capture-screenshot", async (event, rect) => {
+    handleAppIpc("capture-screenshot", async (event, rect, opts?: { width?: number }) => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
         if (!tabView) {
             throw new Error("No tab view found for the given webContents id");
         }
-        const image = await tabView.webContents.capturePage(rect);
+        let image = await tabView.webContents.capturePage(rect);
+        // MOLTENTERM-PATCH (#1545): a thumbnail for the 360 view's peeks and tab previews, resized here and sent as a
+        // JPEG, so the renderer never holds full-size captures of every carpet panel.
+        const thumbWidth = Number(opts?.width);
+        if (Number.isFinite(thumbWidth) && thumbWidth > 0) {
+            const width = Math.min(Math.round(thumbWidth), 1024);
+            if (image.getSize().width > width) {
+                image = image.resize({ width, quality: "good" });
+            }
+            return `data:image/jpeg;base64,${image.toJPEG(72).toString("base64")}`;
+        }
         const base64String = image.toPNG().toString("base64");
         return `data:image/png;base64,${base64String}`;
     });
@@ -307,12 +311,26 @@ export function initIpcHandlers() {
         if (focusedId == null) {
             return;
         }
-        const parentWc = event.sender;
         const webviewWc = liveWebContentsFromId(focusedId); // MOLTENTERM-PATCH (#928)
         if (webviewWc == null) {
             webviewFocusId = null;
             return;
         }
+        registerWebviewKeys(webviewWc, event.sender);
+    });
+
+    // MOLTENTERM-PATCH (#1722): every page gets the handler when it is created, and a page that has the keyboard focus
+    // counts as focused even when the window never reported it (a page focused before its first dom-ready, or focused
+    // again by a click while it was still the window's active element): ⌘R and the other browser keys did nothing.
+    electron.app.on("web-contents-created", (_event, wc) => {
+        if (wc.getType() !== "webview") {
+            return;
+        }
+        registerWebviewKeys(wc, null);
+    });
+
+    function registerWebviewKeys(webviewWc: Electron.WebContents, reportedParent: Electron.WebContents) {
+        const focusedId = webviewWc.id;
         if (!hasBeforeInputRegisteredMap.get(focusedId)) {
             hasBeforeInputRegisteredMap.set(focusedId, true);
             webviewWc.on("before-input-event", (e, input) => {
@@ -321,18 +339,24 @@ export function initIpcHandlers() {
                 if (isAgentInput(webviewWc.id, input)) {
                     return;
                 }
-                let waveEvent = keyutil.adaptFromElectronKeyEvent(input);
-                handleCtrlShiftState(parentWc, waveEvent);
-                if (webviewFocusId != focusedId) {
+                const parentWc = reportedParent ?? webviewWc.hostWebContents;
+                if (parentWc == null || parentWc.isDestroyed()) {
                     return;
                 }
+                let waveEvent = keyutil.adaptFromElectronKeyEvent(input);
+                handleCtrlShiftState(parentWc, waveEvent);
+                if (webviewFocusId != focusedId && !webviewWc.isFocused()) {
+                    return;
+                }
+                sendKeyNotice(parentWc, waveEvent); // MOLTENTERM-PATCH (#1242): the shortcut overlay's hold and close
                 if (input.type != "keyDown") {
                     return;
                 }
                 for (let keyDesc of webviewKeys) {
                     if (keyutil.checkKeyPressed(waveEvent, keyDesc)) {
                         e.preventDefault();
-                        parentWc.send("reinject-key", waveEvent);
+                        // MOLTENTERM-PATCH (#1722): the page's id lets the window hand the key to the panel holding it
+                        parentWc.send("reinject-key", waveEvent, webviewWc.id);
                         console.log("webview reinject-key", keyDesc);
                         return;
                     }
@@ -342,7 +366,7 @@ export function initIpcHandlers() {
                 hasBeforeInputRegisteredMap.delete(focusedId);
             });
         }
-    });
+    }
 
     onAppIpc("register-global-webview-keys", (event, keys: string[]) => {
         webviewKeys = keys ?? [];
@@ -409,17 +433,7 @@ export function initIpcHandlers() {
         }
     });
 
-    onAppIpc("open-native-path", (event, filePath: string) => {
-        console.log("open-native-path", filePath);
-        filePath = filePath.replace("~", electronApp.getPath("home"));
-        fireAndForget(() =>
-            callWithOriginalXdgCurrentDesktopAsync(() =>
-                electron.shell.openPath(filePath).then((excuse) => {
-                    if (excuse) console.error(`Failed to open ${filePath} in native application: ${excuse}`);
-                })
-            )
-        );
-    });
+    initNativePathIpc(); // MOLTENTERM-PATCH (#1575): native open and reveal are separate guarded actions
 
     onAppIpc("set-window-init-status", (event, status: "ready" | "wave-ready") => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);

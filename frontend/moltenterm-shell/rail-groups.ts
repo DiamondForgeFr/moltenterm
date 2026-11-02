@@ -8,7 +8,7 @@
 // Local groups (FR-MC-032) are units too, drawn as products; unlike a project product's, their members may leave them
 // by a move outside the group (railorder Rail.Move).
 
-import { t } from "./i18n/i18n";
+import { labelled, t } from "./i18n/i18n";
 import { GroupMember, GroupMemberState, GroupWorst, isProductGroup, ProjectGroup } from "./mission/group-model";
 import { isLocalKey, localGroupName, localKey, LocalRailGroup } from "./rail-local-groups";
 import { RailMove } from "./workspace-order";
@@ -403,12 +403,12 @@ export function productHoverText(unit: RailProductUnit, groups: ProjectGroup[] =
     if (unit.local != null) {
         for (const entry of unit.entries) {
             const state = workspaceMemberState(groups, entry.id);
-            lines.push(state != null ? `${entry.name}: ${memberStateText(state)}` : entry.name);
+            lines.push(state != null ? labelled(entry.name, memberStateText(state)) : entry.name);
         }
         return lines.join("\n");
     }
     for (const entry of unit.entries) {
-        lines.push(`${entry.name}: ${memberStateText(memberOfWorkspace(unit.group, entry.id)?.state)}`);
+        lines.push(labelled(entry.name, memberStateText(memberOfWorkspace(unit.group, entry.id)?.state)));
     }
     return lines.join("\n");
 }

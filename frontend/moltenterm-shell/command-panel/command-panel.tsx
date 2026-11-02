@@ -12,13 +12,15 @@ import * as WOS from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
-import { autoUpdate, flip, offset, Placement, shift, size, useFloating } from "@floating-ui/react";
+import { autoUpdate, flip, offset, Placement, shift, size } from "@floating-ui/react";
 import { atom, Atom, useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { EqualizeShortcutId } from "../equalize/equalize-actions";
-import { t, useT } from "../i18n/i18n";
+import { useFloatingInPlace } from "../floating-in-place";
+import { labelled, t, useT } from "../i18n/i18n";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { addPanelBeside, besideIcon, besideLabel, besideSides } from "../split/add-beside";
@@ -103,7 +105,7 @@ function rowAccessibleName(row: PanelRow, scopes: Record<string, PanelScopeId>, 
         return row.title;
     }
     if (row.kind === "option") {
-        return row.breadcrumb ? `${row.breadcrumb}: ${row.option.label}` : row.option.label;
+        return row.breadcrumb ? labelled(row.breadcrumb, row.option.label) : row.option.label;
     }
     const item = row.item;
     const parts = [item.label];
@@ -732,6 +734,8 @@ function CommandPanel({ open }: CommandPanelProps) {
     const [running, setRunning] = useState<string>(null);
     const runningRef = useRef<string>(null);
     const sources = useAtomValue(model.sourcesAtom);
+    // The sections read the compatibility matrix when they are built: they are built again once it lands.
+    const matrix = useFeatureMatrix();
     // Mirrors pending for steps fired before React renders again (clicks in one task, key auto-repeat).
     const pendingRef = useRef<Record<string, number>>({});
     const [lockedPlacement, setLockedPlacement] = useState<Placement>(null);
@@ -768,7 +772,7 @@ function CommandPanel({ open }: CommandPanelProps) {
 
     const ctx = useMemo(
         () => makePanelContext(blockId),
-        [blockId, block, fullConfig, agentBlockId, agent, tick, sources]
+        [blockId, block, fullConfig, agentBlockId, agent, tick, sources, matrix]
     );
     const collected = useMemo(() => (ctx ? collectPanel(ctx) : { sections: [], suggestions: [] }), [ctx]);
     const node = layoutModel?.getNodeByBlockId(blockId);
@@ -843,7 +847,7 @@ function CommandPanel({ open }: CommandPanelProps) {
     useEffect(() => {
         listRef.current?.querySelector(`[data-index="${selected}"]`)?.scrollIntoView({ block: "nearest" });
     }, [selected]);
-    const { refs, floatingStyles, isPositioned, placement } = useFloating({
+    const { refs, floatingStyles, isPositioned, placement } = useFloatingInPlace({
         open: true,
         placement: lockedPlacement ?? placementFor(open),
         strategy: "fixed",
@@ -1298,12 +1302,12 @@ function CommandPanel({ open }: CommandPanelProps) {
             aria-label={t("cmdpanel.aria.commands", { panel: panelName })}
             data-role="command-panel"
             data-blockid-for={blockId}
+            data-placed={isPositioned || undefined}
             className="molten-cmdpanel flex flex-col overflow-hidden rounded-4 border border-line-strong bg-surface-2 shadow-command"
             style={{
                 ...floatingStyles,
                 width: PanelWidthPx,
                 maxWidth: "calc(100vw - 16px)",
-                visibility: isPositioned ? "visible" : "hidden",
             }}
             onKeyDown={onKeyDown}
             onKeyUp={(e) => e.stopPropagation()}
@@ -1436,8 +1440,9 @@ function CommandPanel({ open }: CommandPanelProps) {
                     </div>
                 )}
             </div>
+            {/* Wraps rather than clips: a long named close action (French) leaves Dismiss no room on one line. */}
             <div
-                className="flex shrink-0 items-center gap-0.5 border-t border-line px-1 py-1"
+                className="flex shrink-0 flex-wrap items-center gap-0.5 border-t border-line px-1 py-1"
                 role="group"
                 aria-label={t("cmdpanel.aria.actions")}
             >

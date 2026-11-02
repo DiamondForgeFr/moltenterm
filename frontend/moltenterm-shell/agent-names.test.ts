@@ -43,10 +43,10 @@ describe("agent first names (FR-CONT-014)", () => {
             "",
             actions
         );
-        expect(menu[0].submenu[0].sublabel).toBe("Set up the MoltenTerm browser for Claude Code");
-        expect(menu[0].submenu.slice(0, 2).map((i) => i.label)).toEqual([
-            "Alice · Claude Code — app",
-            "Jérôme · Claude Code — app",
-        ]);
+        const entries = menu[1].submenu.filter((i) => i.type !== "separator");
+        expect(entries[0].sublabel).toBe(
+            "Alice is not connected to MoltenTerm's browser: restart its session to connect it"
+        );
+        expect(entries.map((i) => i.label)).toEqual(["Alice · Claude Code — app", "Jérôme · Claude Code — app"]);
     });
 });

@@ -94,8 +94,15 @@ describe("reading what a close stops (FR-SHELL-061)", () => {
             { blockId: "p1", meta: { view: "preview" }, tabId: "t1" },
         ]);
         expect(running).toEqual([
-            { blockId: "b3", kind: "agent", label: "Codex", state: "working", workspace: "Work", tab: "api" },
-            { blockId: "b1", kind: "command", label: "npm run dev", workspace: "Work", tab: "api" },
+            {
+                blockId: "b3",
+                kind: "agent",
+                label: "Codex",
+                state: "working",
+                workspace: "Work",
+                tab: "Terminal · api",
+            },
+            { blockId: "b1", kind: "command", label: "npm run dev", workspace: "Work", tab: "Terminal · api" },
         ]);
         expect(app.statusCalls).toEqual(["b1", "b2", "b3"]);
     });
@@ -128,6 +135,8 @@ describe("reading what a close stops (FR-SHELL-061)", () => {
         ];
         app.rtinfo.b1 = busyShell("cat");
         const running = await readWorkspaceRunning("ws", "Notes");
-        expect(running).toEqual([{ blockId: "b1", kind: "command", label: "cat", workspace: "Notes", tab: "api" }]);
+        expect(running).toEqual([
+            { blockId: "b1", kind: "command", label: "cat", workspace: "Notes", tab: "Terminal · api" },
+        ]);
     });
 });

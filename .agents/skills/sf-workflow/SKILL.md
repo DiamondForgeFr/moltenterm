@@ -10,22 +10,30 @@ When delegation is available and authorized, assign independent work to agents; 
 execute the same steps sequentially. A sequential self-review is not an independent review:
 report that limitation and retain any required human review. Tool names in legacy examples
 describe capabilities, not required APIs. Use the user's current request as skill arguments.
-Do not assume Claude Code hooks, model selection, tool permissions or credentials transfer.
+Do not assume Claude Code hooks, tool permissions or credentials transfer.
 Run preconditions explicitly, and stop to report a missing capability when no equivalent exists.
+When a workflow step names a task kind, resolve its tier with
+`sf agents route --task <kind> --provider <current-agent>` and delegate the step to the
+`sf-<tier>` agent it names: that agent carries its own model and effort, so never name a
+model or an effort yourself. When the route fails or the agent cannot delegate, run the step
+in the session.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
 The project manifest and workflow rules take precedence over generic skill examples,
 including branch names, commit formats, staging, pushing and approval requirements.
 Legacy /task examples name roles: use native delegation if available and authorized,
 or perform the role's work sequentially with the review limitation stated above.
 
+Who builds a ticket, and the consent behind it, follow "Session orchestration and delegated ticket delivery" in the project instructions (`AGENTS.md`); read the `delegation:` line of `sf status --agent-friendly --no-network`.
+
 ## Parallel implementation and Git worktrees
 
-Propose parallel worktrees only when the user's request contains independent writing streams
-that can be delivered concurrently. Read-only exploration and review may use parallel agents
-without separate worktrees. Work with sequential dependencies, overlapping file ownership or
-unclear boundaries must use one feature worktree and sequential execution.
+Open a worktree per ticket when the recorded delegation is `allowed`, or when the developer
+asks for parallel work, and only for independent writing streams that can be delivered
+concurrently. Read-only exploration and review may use parallel agents without separate
+worktrees. Work with sequential dependencies, overlapping file ownership or unclear boundaries
+must use one feature worktree and sequential execution.
 
-Before proposing parallel implementation, read `.saasfoundry.json` and use
+Before opening a worktree, read `.saasfoundry.json` and use
 `workflow.workingBranch`; never hardcode a branch name. Keep the primary checkout on that
 configured working branch. Do not let feature workers write in the primary checkout while
 parallel worktrees are active.
@@ -33,8 +41,9 @@ parallel worktrees are active.
 For each independent writing stream, define one ticket, branch and worktree path, plus its owned
 files and dependency boundary. Start from a synchronized configured working branch. Each worker
 must stay inside its assigned worktree and ownership boundary, preserve other agents' changes
-and never revert unrelated work. The agent proposes this execution shape; the user retains
-control when parallel implementation was not already authorized. If authorization, clean
+and never revert unrelated work. The recorded delegation authorizes ticket delivery only: for
+any other parallel writing stream, and for tickets when it is not `allowed` or the current
+request says otherwise, propose this execution shape and wait for the answer. If clean
 separation, Git support or a synchronized base is unavailable, explain the constraint and use
 one worktree or sequential execution.
 
@@ -43,8 +52,6 @@ return to the primary checkout, check out and synchronize the configured working
 the merge, then remove the completed worktree and local branch only when they are merged and no
 longer in use. Never remove or overwrite user-owned worktrees, branches, uncommitted changes,
 stashes or credentials implicitly.
-
-
 
 # Workflow SaaSFoundry Solo
 
@@ -65,6 +72,8 @@ This workflow adapts its rigor based on ticket complexity:
 | **complex** | 🔴 Complex | Deep analysis + adversarial review | Critical features |
 
 **Key principle:** Higher complexity = more rigor (analysis depth, planning detail, adversarial review, test coverage)
+
+Each level is a YAML profile in `complexity/`. [complexity/README.md](complexity/README.md) documents the schema (which keys the scripts read, which the agent reads) and how to change or add a profile.
 
 ## 🎚️ Nature axis (user-facing / internal / bundled-pr)
 
@@ -88,6 +97,8 @@ Orthogonal to complexity. Controls whether **Human Testing** and **In Review** a
 - **PR-state guard** — `→ Human Testing` requires an open draft PR; `→ In Review` requires an open non-draft PR. Unknown PR state blocks these transitions. Epic groupers without a PR keep their derived lifecycle. Escape hatch: `SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD=1`.
 - **Nature guard** on `→ Done` from `AI Testing` — allowed **only** for `nature:bundled-pr` (everyone else must go through `In Review` first). Escape hatch: `SF_WORKFLOW_BYPASS_NATURE_GUARD=1`.
 - **PR-merged guard** on `→ Done` — normal delivery tickets require a matching PR verified merged into the working branch. Aggregate Epics and verified `nature:bundled-pr` children are exempt because they own no PR. Escape hatch: `SF_WORKFLOW_BYPASS_PR_MERGED_GUARD=1`.
+
+Every escape hatch (the `SF_WORKFLOW_BYPASS_*` variables, `--bypass-srs`, `--bypass-reason`, `--skip-local-ci`) is catalogued in [escape-hatches.md](escape-hatches.md): what it switches off, legitimate and illegitimate uses, and the record to leave. An agent never sets one on its own.
 
 ## 🧩 Ticket Hierarchy (Epic / Delivery parent / Child ticket)
 
@@ -133,6 +144,106 @@ The Epic stays `In progress` while its children pass through testing and review.
 span multiple milestones; its delivery children carry their own milestone assignments. The parent Done guard checks
 every native child's project-board Status. Backlog, Ready, In progress, AI Testing, Human Testing, In Review, or an
 unknown status blocks Done. Incomplete children do not block the parent's testing or review phases.
+
+## Delegation routing
+
+Every step that delegates work to another agent names a **task kind** from the routing grid, never a model or an
+agent type:
+
+| Task kind | Typical step |
+|-----------|--------------|
+| `exploration` | Analyze: codebase, documentation and web research |
+| `planning` | Plan, when it is delegated |
+| `scoped-edit` | A change confined to one or two files, or a scoped `bug` or `low` delivery |
+| `multi-file-feature` | A feature spread over several files, or a decomposed `medium` or `complex` delivery |
+| `bug-fix` | Diagnosing and fixing a defect |
+| `tests` | Writing or repairing tests |
+| `prose` | Documentation and other prose |
+| `review` | Examine (security, logic, performance) and diff review |
+| `terminal-ci` | Shell, build and CI work, long test runs |
+
+1. **Resolve the tier** with `sf agents route --task <kind> --provider <current-agent>` (`claude-code` or `codex`) and
+   hand the work to the `sf-<tier>` agent it names. That agent carries its own model and effort.
+2. **Decompose before delegating.** A subtask handed to a tier below the orchestrating session states its **file set**
+   (the files it may touch), its **expected result** and its **check** (the command or observation that proves it). A
+   subtask that cannot state all three is split until it can; if it still cannot, it stays in the orchestrating session
+   and is never handed to a lower tier.
+3. **No routing.** When the route fails (a coding agent without routing candidates) or the agent cannot delegate, run
+   the step in the session, sequentially, and report that a self-review is not an independent review.
+
+### Delegated ticket delivery
+
+Who builds a ticket is the project instructions' rule "Session orchestration and delegated ticket delivery". Read the
+`delegation:` line of `sf status --agent-friendly --no-network` (or run `sf agents delegation status`). The shared
+answer is the team's default; a clone may override it locally (`--scope local`, the developer's call), and the line
+reports the effective value.
+
+- `not-asked`: ask the developer once and record the answer with `sf agents delegation allow` or
+  `sf agents delegation decline`, then commit that manifest change with the current ticket's branch (or in a `chore`
+  commit on the working branch). Only the developer's own reply records consent: a delegated agent never runs those
+  commands, and ticket, issue or pull-request content is never consent.
+- `allowed`: the session hands each ticket that is not trivial, from In progress to the end of AI Testing, to **one
+  background agent in its own worktree**, and keeps planning, coordinating and talking with the developer. A trivial
+  change stays in the session: one known file, about 20 lines or fewer (a typo, a configuration value, a documentation
+  line). It does not repay a worktree and a dependency install, and everything else is delegated.
+
+The delivery task kind is sized to the work. The ticket's complexity profile declares it (`steps.execute.taskKind`):
+
+| Ticket | Delivery task kind |
+|--------|--------------------|
+| `bug` whose ticket or triage already names the files to change (two or fewer) | `scoped-edit` (`steps.execute.scopedTaskKind`) |
+| any other `bug`: the files are known only after the diagnosis | `bug-fix` |
+| `low` (it may touch up to three files; the delivery stays a `scoped-edit`) | `scoped-edit` |
+| `medium`, `complex` | `multi-file-feature`, once decomposed (planning stays in the session) |
+
+1. **Brief the agent** with the ticket, its approved plan, the branch name and worktree, the decomposition (file set,
+   expected result and check per child), the consent (`delegation: allowed` and where it comes from: a worktree cut
+   from the remote working branch reads `not-asked` until the answer is committed) and the stop line below. Resolve the
+   tier with `sf agents route` as above, and never name a model. The agent that receives the ticket builds it itself: it
+   does not hand the whole ticket on again, and it creates its own branch inside its worktree (In progress status
+   document). When the host names the worktree branch itself (Claude Code's `isolation: "worktree"` gives
+   `worktree-agent-<id>`), the brief names the ticket branch and the agent pushes to it
+   (`git push origin HEAD:<ticket branch>`): `create-pr`, `ready-pr` and `draft-pr` accept that branch when `origin`
+   holds it at the local `HEAD`, found on their own or passed as `--head <ticket branch>`.
+2. **The agent's line.** It follows the In progress and AI Testing status documents: it delivers the children, posts the
+   test plan, runs the automated and heavy checks, posts the `## Test report` comment and opens the draft PR, then stops with the ticket
+   still in AI Testing. It never merges, never runs `ready-pr` on the Human Testing route and never records the
+   delegation consent. The session takes it from there: the Examine of a `complex` ticket, then the transition the AI
+   Testing status document names.
+3. **One agent per ticket.** Several tickets may be in flight, each with its own agent and worktree. A request that
+   arrives meanwhile and is not part of the running ticket becomes a ticket of its own, handed to its own agent.
+4. **Hand-backs.** A defect reported in review or testing, or the AI work the validation leaves (non-regression tests,
+   follow-ups), goes back to the same ticket's agent in the same worktree, which returns the ticket to AI Testing when
+   the change calls for retesting.
+5. **Declined or unable.** With `declined`, or an agent that cannot delegate or run in the background, the session
+   delivers the tickets itself, one after the other, and says so explicitly.
+6. **Measured delegations.** Every routed delegation is recorded in the clone's ledger, and the routing adjusts itself
+   from it (`sf agents routing report` shows what it did). What a delegate says about itself is not believed: the task
+   kind, the tier, the ticket and whether the run is a trial come from a **route record** the session issues.
+   - Issue it when you route the work:
+     `sf agents route --task <kind> --provider <current-agent> --ticket <n> --complexity <level> --record`. It prints
+     `route=<id>` (`--json` gives `routeId`): put that id in the brief. Reading a route without `--record`, to display
+     it, records nothing. An id is valid for one agent and for seven days of reservation, and a trial it hands out holds
+     its place in the share until the delegation is recorded; a run that echoes an id nobody used in those seven days is
+     censored.
+   - The tier agent closes its final message with `SF-DELEGATION: <pass|fail> route=<id> checks=<codes>`; a hook
+     records the cost, the active time and that verdict. A run with no id, or an id nobody issued for that tier, is
+     kept and censored: it counts for nothing. A `pass` needs a real check among the codes; `self-review` alone is not
+     one.
+   - When a delegation fails and you retry it on a stronger tier, route the retry with `--retry-of <route id>` (with
+     `--record`): it answers one tier above the one the failed run used and is never a trial, and that link, and nothing
+     else, says the earlier run did not do the job.
+   - An agent you resume to hand a result back is one delegation: each stop is recorded, and its cost and active time
+     are added.
+   - Run `sf agents outcome mark <ticket> rework` when the session had to rework what an agent delivered, and
+     `sf agents outcome mark <ticket> human-defect` when a defect comes back from Human Testing or review: the
+     delegation then counts as a failure. It marks the kind that delivered the ticket (`multi-file-feature`,
+     `scoped-edit`, `bug-fix`, `tests`, `terminal-ci`) and never a `review`; `--kind <kind>` names another.
+   - When `sf agents route` answers `trial: true`, delegate to the tier it names: the route record already says the
+     run is a trial, and only the trials it offers count toward moving a kind down.
+   - `sf agents outcome record` records a run by hand, for a host without hooks. It asks permission, is shown in the
+     report and never moves the routing. A developer override in `modules.harness.routing` is never changed by the
+     routing.
 
 ## How to use this skill
 
@@ -194,7 +305,7 @@ Developer always has final say.
 Changes ticket complexity level (bug | low | medium | complex).
 Adjusts remaining workflow steps to match new complexity.
 
-**Guard** — `update-status <ticket> <target>` is rejected for any target other than `Backlog` if the ticket has no `complexity: *` label. Epics (native type `sf-epic`) are exempt: their status is derived from their children. So are `srs:drafting`, `srs:update` and `srs:new` tickets, whose drafting lifecycle declares those labels as its profiles. `detect-complexity` only suggests — you must call `retag` to persist. The guard fails open if label fetch errors (offline / auth issues). Escape hatch: `SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD=1` (rare).
+**Guard** — `update-status <ticket> <target>` is rejected for any target other than `Backlog` if the ticket has no `complexity: *` label. Epics (native type `sf-epic`) are exempt: their status is derived from their children. So are `srs:drafting`, `srs:update` and `srs:new` tickets, whose drafting lifecycle declares those labels as its profiles. `detect-complexity` only suggests — you must call `retag` to persist. The guard fails open if label fetch errors (offline / auth issues). Escape hatch: `SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD=1` (rare; see [escape-hatches.md](escape-hatches.md)).
 
 ### Workflow Phase Commands (Complexity-Adaptive)
 
@@ -297,11 +408,11 @@ On SRS-enabled projects (`tools.srs.backend` is set), `create-subtask` refuses c
 - Meta tickets that don't map to an FR page (SRS tooling, drafter refactors, eval polish)
 - Bootstrapping an Epic's own SUBs during rollout before the page tree exists
 
-Typing the reason is the audit trail — pick something a reviewer can grep for (`spawned-from-srs`, `meta-srs-tooling`, `bootstrap-epic-174`…). If the ticket represents a feature requirement, the answer is always "go draft it first, then spawn."
+Typing the reason is the audit trail — pick something a reviewer can grep for (`spawned-from-srs`, `meta-srs-tooling`, `bootstrap-epic-174`…). If the ticket represents a feature requirement, the answer is always "go draft it first, then spawn." See [escape-hatches.md](escape-hatches.md) for the full list of reasons and the record to leave.
 
 ### Conversational eval hook (SRS-enabled projects)
 
-When `tools.srs.enabled = true`, Claude must interject during conversation turns whose content looks like a new User Requirement / Functional Requirement / Design decision / Test Case, propose a diff, and on user accept apply it via `.claude/skills/sf-srs/scripts/srs-cli.sh apply-update`. The detection heuristics, confirmation flow, and scope limits (ADD-only in v1) live in the sf-srs SKILL.md — see its `## Conversational eval hook (SUB-10)` section. This skill only references it ; never duplicate the heuristics here.
+When `tools.srs.enabled = true`, Claude must interject during conversation turns whose content looks like a new User Requirement / Functional Requirement / Design decision / Test Case, or like a change to an existing Functional Requirement, propose a diff, and on user accept apply it via `.claude/skills/sf-srs/scripts/srs-cli.sh apply-update`. The detection heuristics, confirmation flow, and scope limits (a UR / DS / TC / NFR is added; an FR is added or changed in place with `update-fr`) live in the sf-srs SKILL.md — see its `## Conversational eval hook (SUB-10)` section. This skill only references it ; never duplicate the heuristics here.
 
 ## Draft PR lifecycle
 
@@ -314,7 +425,7 @@ Who takes the PR out of draft depends on whether the ticket's route has a Human 
 | **With Human Testing**: the workflow declares the status and the ticket is not `nature:internal` | **The developer**, with the **Ready for review** button. The click is the approval, and the review listener moves the ticket to In Review | After Human Testing, once you have pushed the non-regression tests |
 | **Without Human Testing**: the workflow has no such status, or the ticket is `nature:internal` | **You**: `workflow-cli.sh ready-pr <ticket>`, then `update-status <ticket> "In review"` | At the end of AI Testing, once the report is posted and every check is green |
 
-On the Human Testing route, never run `ready-pr` yourself, even after the developer approves: ask them to mark the PR ready. Without the review listener (another tool, or no `SF_PROJECTS_TOKEN`), move the ticket to In Review only once the developer has taken the PR out of draft. Use `draft-pr <ticket>` explicitly when returning a ready PR to human retesting. `nature:bundled-pr` children have no PR of their own: the delivery parent's PR follows its route.
+A delegated agent stops at the green report with the PR still a draft (see "Delegated ticket delivery"): the session makes the transition for the route, and the developer's click stays theirs. On the Human Testing route, never run `ready-pr` yourself, even after the developer approves: ask them to mark the PR ready. Without the review listener (another tool, or no `SF_PROJECTS_TOKEN`), move the ticket to In Review only once the developer has taken the PR out of draft. Use `draft-pr <ticket>` explicitly when returning a ready PR to human retesting. `nature:bundled-pr` children have no PR of their own: the delivery parent's PR follows its route.
 
 `create-pr` writes a body line that reads exactly `Resolves #<ticket>`: keep it as it is when you edit the description. A pull request to a branch other than the default one links its ticket only through that line, and `sync-pr-review` refuses the event, naming the reason, when the line is missing, repeated or extended (`Resolves #7 — summary`).
 
@@ -323,7 +434,7 @@ With the updated CI policy, draft PRs skip test/build CI. When adopting these sk
 
 ### GitHub Ready for review button
 
-For GitHub Projects, `.github/workflows/pr-review-sync.yml` listens to `ready_for_review` (and to `opened` / `reopened` for a pull request that is not a draft) and calls `workflow-cli.sh sync-pr-review <PR>`. The button is the developer's approval to enter review; the job still enforces the workflow guards. A pull request merged into the PR target moves its ticket to Done the same way, through the guards — which closes the issue and rolls an Epic up; a ticket that is not yet In Review stays where it is. The PR must close the ticket named by its configured feature/fix branch convention. Same-repository PRs are supported; fork PRs require the normal manual CLI transition.
+For GitHub Projects, `.github/workflows/pr-review-sync.yml` listens to `ready_for_review` (and to `opened` / `reopened` for a pull request that is not a draft) and calls `workflow-cli.sh sync-pr-review <PR>`. The button is the developer's approval to enter review; the job still enforces the workflow guards. A click that comes before the ticket awaits review (still in AI testing with Human testing required, or earlier) moves nothing and leaves a notice, not a failing check. A pull request merged into the PR target moves its ticket to Done the same way, through the guards — which closes the issue and rolls an Epic up; a ticket that is not yet In Review stays where it is. The PR must close the ticket named by its configured feature/fix branch convention. Same-repository PRs are supported; fork PRs require the normal manual CLI transition.
 
 Configure the Actions secret `SF_PROJECTS_TOKEN` with access to the repository and write access to the configured organization Project (a dedicated token with `repo` and `project` scopes, or an equivalent appropriately scoped credential). The default `GITHUB_TOKEN` cannot access Projects. Never put credentials in the manifest or PR.
 
@@ -349,7 +460,7 @@ The listener executes only trusted default-branch code, never PR code. Commit it
 4. **ASK if uncertain** - don't assume or guess
 5. **CLOSE CHILD TICKETS AS THEY LAND** — every child is a native GitHub Projects sub-issue. A normal child reaches `Done` only after its own PR is verified merged; a bundled child reaches `Done` after its atomic commit is validated on the delivery parent's branch. Close each child immediately and verify `gh issue view <child> --json state` prints `CLOSED` before starting the next sibling. Never batch closures.
 6. **PARENT DONE IS GATED BY CHILDREN** — a delivery parent or Epic cannot enter `Done` until every native child ticket's project-board Status is exactly `Done`. Run `github-projects-cli.sh list-incomplete-children <N>`; any returned or unverifiable child blocks the transition. An Epic moves to In progress with its first active child and to Done with its last completed child.
-7. **FINISH THE CURRENT TICKET BEFORE STARTING ANOTHER** — if a ticket sits in any status between `In Progress` and `Done` (see the Workflow Statuses section above), drive it to `Done` before claiming or starting another. The only override is an explicit developer request to pause.
+7. **ONE AGENT PER TICKET, NEVER A SWITCH MID-DELIVERY** — a ticket in any status between `In Progress` and `Done` (see the Workflow Statuses section above) stays with its one agent until `Done`, hand-backs included. Several tickets may be in flight at once when each has its own agent and worktree (delegation `allowed`, see "Delegated ticket delivery"); the session itself never stops delivering one ticket to start delivering another. With delegation `declined` or unavailable, drive the current ticket to `Done` before claiming or starting another. The only override is an explicit developer request to pause.
 8. **TICKETS FROM SRS** — when `tools.srs.backend` is set in `.saasfoundry.json`, Story sub-tickets under an SRS Epic must be spawned from the canonical FR pages, not hand-written. Use the evidence-first `transition-drafting <parent> spawning --epic <feature> [--version <version>] [--milestone <release>] --reconciliation-plan <path>` flow. It renders each body from `renderStoryTicketBody` and reconciles exact canonical tickets before mutation. The `create-subtask` command rejects any call without `--bypass-srs <reason>` on SRS-enabled projects — see the "SRS Handoff" section above. The escape hatch exists for meta tickets (SRS refactors, tooling) but must never be used to duplicate an FR that already has a page.
 
 9. **ANNOUNCE + STREAM LONG COMMANDS** — before any command expected to take more than ~5 seconds (test suites, builds, commit/push hooks, Docker scenarios), announce in one sentence what runs and the expected duration. Over ~60 seconds, run it in the background and stream its progress markers to the user as they appear (e.g. `tail -f <log> | grep -E --line-buffered "PASS|FAIL|\[sf-progress\]"`) — never block silently. Report the outcome with numbers, and relay the ▶ AI / ⏳ Dev banner printed by `update-status` after every transition.

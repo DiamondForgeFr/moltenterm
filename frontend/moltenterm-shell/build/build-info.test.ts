@@ -65,7 +65,7 @@ describe("makeMoltentermBuildInfo", () => {
                 "rev-parse HEAD": "bf031b0aaaa",
                 "rev-parse --abbrev-ref HEAD": "develop",
                 "status --porcelain --untracked-files=no": "",
-                "tag --merged HEAD -l v*": "v1.0.0-2\nv1.0.0-10\nv0.14.5\nv1.0.0-rc.11",
+                "tag --merged HEAD -l v*": "v1.0.0-2\nv1.0.0-10\nv0.14.5\nv1.0.0-beta.11",
                 "rev-list --count v1.0.0-10..HEAD": "3",
             }),
             now,

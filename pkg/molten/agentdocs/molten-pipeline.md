@@ -9,19 +9,24 @@ builds (the "gold" build the user keeps), release candidates and public releases
 file, `.molten/project.json`, which you write. You **connect** what the project already has; you **create** only
 what is missing, and only after the user agreed.
 
+{{SANDBOX_RULE}}
+
 ## Steps
 
 1. Check that you run inside MoltenTerm: `molten help` must work. If `molten` is not found, tell the user to run
    this request from a MoltenTerm terminal, and stop.
-2. Read the format: run `molten docs`, then read `pipeline-format.md` in the folder it prints.
+2. Read the format: run `molten docs`, then read `pipeline-format.md` in the folder it prints. The `release` and
+   `versions` blocks can also be set up by the user in MoltenTerm's pipeline setup ("Setting the release up" there):
+   when `.molten/release-setup.json` exists, those blocks were written by it; tell the user that "Update the release
+   setup" in the Release menu changes them, and leave them as they are unless the user asks you to change them.
 3. Link the workspace if it is not: `molten project show --json`; when it says the workspace is not linked, run
    `molten project link` from the project's folder.
 4. Detect the project's harness and follow it for everything you change:
    - `.saasfoundry.json` (SaaSFoundryAI): its `workflow` gives the working branch, the pull request target, the
      branch naming (`feature/{N}-…`) and the commit format (`type(#N): …`, ticket required). Changes go through a
-     ticket, a branch and a pull request as that workflow says; read the project's own skills and CLAUDE.md or
-     AGENTS.md before acting.
-   - Otherwise `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`: follow what they ask.
+     ticket, a branch and a pull request as that workflow says; read the project's own skills and `AGENTS.md`
+     (`CLAUDE.md` only as Claude Code's fallback) before acting.
+   - Otherwise `AGENTS.md` (`CLAUDE.md` only as Claude Code's fallback), `CONTRIBUTING.md`: follow what they ask.
 5. Inventory what exists, before proposing anything:
    - scripts: `package.json` scripts, `Taskfile.yml`, `Makefile`, `justfile`, `scripts/`;
    - CI: `.github/workflows/*.yml` (what runs on pull requests, on tags, on a schedule);
@@ -70,7 +75,7 @@ and exits; ask the user to start the CI once from Mission Control (CI/CD › CI 
 
 When you have tested a change (the harness's AI Testing step, or any test run you report before a review), post the
 report as a comment on the pull request or its ticket whose first line is exactly `## Test report` (details after it,
-for example `## Test report (PR #12)`). MoltenTerm's Reviews list and review sessions find the report by that heading;
+for example `## Test report (PR #12)`). MoltenTerm's Integration panel and review sessions find the report by that heading;
 other wordings ("AI Testing report", "Rapport de test") are recognised too, but `## Test report` is the one to write.
 Only the heading counts: a plan that says the report will follow is not a report.
 

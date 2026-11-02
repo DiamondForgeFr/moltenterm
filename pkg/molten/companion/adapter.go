@@ -57,6 +57,13 @@ type SettingsReader interface {
 	ReadSettings(path string) (molten.AgentSettings, bool)
 }
 
+// SessionNamer is an adapter whose agent keeps its sessions' names outside the transcript (Codex's session index):
+// the name is read for the session shown, like a name its transcript records (#991).
+type SessionNamer interface {
+	// SessionName gives the agent's current name of a session; false when it has none.
+	SessionName(sessionPath string, id string) (string, bool)
+}
+
 // SubagentWriter is an adapter whose background agents write transcripts of their own, next to their session's:
 // when one was last written tells whether the agent still works when its end was never recorded.
 type SubagentWriter interface {
@@ -73,11 +80,44 @@ type SubagentReader interface {
 	ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool)
 }
 
+// WorkFolderReader is an adapter whose agent may work in another folder than its terminal's (#1476): a session sent
+// to a ticket's worktree runs its commands there (Codex: a shell call's workdir) or moves there (Claude Code: its
+// records' cwd), so Integration places it on that worktree's branch, not its terminal's.
+type WorkFolderReader interface {
+	// WorkFolder reads, from the end of a session's transcript, the folder its agent works in now; false when it
+	// names none.
+	WorkFolder(sessionPath string) (string, bool)
+}
+
+// SubagentFinder is an adapter whose sub-agents' transcripts name their parent, so the sub-agents a sub-agent starts
+// (which its parent's transcript never records) are found by their own (#986).
+type SubagentFinder interface {
+	// FindSubagents lists the agents whose parent is one of parents, started since the given time (Unix ms).
+	FindSubagents(sessionPath string, parents []string, since int64) []FoundSubagent
+}
+
+// FoundSubagent is an agent its own transcript describes.
+type FoundSubagent struct {
+	AgentId  string
+	ParentId string
+	Path     string
+	// Name: its task in readable form, else its nickname.
+	Name    string
+	Kind    string
+	Started int64
+	// Nested: started by a sub-agent, not by the session.
+	Nested bool
+}
+
 // SubagentFacts is what a sub-agent's own transcript last says of it.
 type SubagentFacts struct {
 	Model  string
 	Effort string
 	Branch string
+	// Worktree: the folder it works in, its branch's (#1035).
+	Worktree string
+	// Ended: its latest turn ended (Codex); only an agent found by its transcript takes its state from it.
+	Ended bool
 }
 
 // Candidate is a session discovery found for a block.

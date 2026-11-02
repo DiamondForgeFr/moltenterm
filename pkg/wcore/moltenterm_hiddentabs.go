@@ -6,6 +6,7 @@ package wcore
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -96,22 +97,47 @@ func moltenRevealTab(ws *waveobj.Workspace, tabId string) {
 	molten.RevealTab(ws, tabId)
 }
 
-func moltenKeepHiddenTabs(ws *waveobj.Workspace, tabIds []string) []string {
-	return molten.KeepHiddenTabs(ws, tabIds)
+// moltenRememberActiveTab keeps the active tab in the workspace's history before next replaces it (#1345).
+func moltenRememberActiveTab(ws *waveobj.Workspace, next string) {
+	molten.RememberActiveTab(ws, next)
 }
 
-// moltenForgetClosedTabs drops the closed tabs (no longer in ws.TabIds) from the hidden list.
+// The tab bars send the tabs they show: the hidden tabs and the other projects' views are put back (#1760). A reorder
+// never removes a tab: a list is a stale picture of the strip (a drag in the sidebar, a tab bar's debounce), so any tab
+// of the workspace it leaves out goes at the end, and an id the workspace no longer holds is dropped, never added back.
+func moltenKeepHiddenTabs(ws *waveobj.Workspace, tabIds []string) []string {
+	rtn := moltenKeepOtherProjectTabs(ws, molten.KeepHiddenTabs(ws, tabIds))
+	rtn = slices.DeleteFunc(rtn, func(id string) bool { return !slices.Contains(ws.TabIds, id) })
+	for _, id := range ws.TabIds {
+		if !slices.Contains(rtn, id) {
+			rtn = append(rtn, id)
+		}
+	}
+	return rtn
+}
+
+// moltenForgetClosedTabs drops the closed tabs (no longer in ws.TabIds) from the hidden list and from the project maps.
 func moltenForgetClosedTabs(ws *waveobj.Workspace) {
 	if _, ok := ws.Meta[molten.HiddenTabsMetaKey]; ok {
 		molten.SetHiddenTabIds(ws, molten.HiddenTabIds(ws))
 	}
+	moltenPruneProjectMaps(ws)
 }
 
 // moltenNextActiveTab is the tab shown once the active tab at idx (already out of ws.TabIds) is closed: a shown tab
 // near it. When only hidden tabs remain they are revealed: the developer closed every other tab, and the agents' tabs
-// say why they are there. A tab opened from another tab goes back to that tab when it is still shown (#892).
+// say why they are there. A tab opened from another tab goes back to that tab when it is still shown (#892); any other
+// goes back to the view shown before it (#1345).
 func moltenNextActiveTab(ws *waveobj.Workspace, idx int, closed *waveobj.Tab) string {
 	hidden := molten.HiddenTabIds(ws)
+	// #1760: the next view is one of the closed view's own project; another project's views are skipped like hidden ones
+	// and only chosen when the project has no view left.
+	closedProject := ""
+	if closed != nil {
+		closedProject = moltenProjectOfTab(ws, closed.OID)
+	}
+	other := moltenOtherProjectTabs(ws, closedProject)
+	hidden = append(slices.Clone(hidden), other...)
 	moltenForgetClosedTabs(ws)
 	if len(ws.TabIds) == 0 {
 		return ""
@@ -120,6 +146,9 @@ func moltenNextActiveTab(ws *waveobj.Workspace, idx int, closed *waveobj.Tab) st
 		if opener := molten.ShownOpener(ws.TabIds, hidden, closed.Meta.GetString(molten.OpenerTabMetaKey, "")); opener != "" {
 			return opener
 		}
+	}
+	if previous := molten.PreviousShownTab(ws, hidden); previous != "" {
+		return previous
 	}
 	if next := molten.VisibleNeighbour(ws.TabIds, hidden, idx); next != "" {
 		return next

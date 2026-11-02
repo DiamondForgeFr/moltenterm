@@ -11,6 +11,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/pipelinesetup"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -29,6 +30,11 @@ type routeLink struct {
 	reviews   *Reviews
 	branchCi  *BranchCi
 	treePrs   *TreePrs
+	testCtx   *TestContexts
+	launches  *Launches
+	asks      *TrustAsks
+	setup     *pipelinesetup.Setup
+	board     *SetupBoardRoute
 }
 
 type ciLogRequest struct {
@@ -39,8 +45,9 @@ type ciLogRequest struct {
 }
 
 type ciStatusRequest struct {
-	Dir string `json:"dir"`
-	Rev string `json:"rev,omitempty"`
+	Dir  string `json:"dir"`
+	Rev  string `json:"rev,omitempty"`
+	From string `json:"from,omitempty"`
 }
 
 func (l *routeLink) handleCi(command string, data any) (any, error) {
@@ -80,7 +87,7 @@ func (l *routeLink) handleCi(command string, data any) (any, error) {
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return l.ci.Status(req.Dir, req.Rev)
+		return l.ci.StatusFrom(req.Dir, req.Rev, req.From)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
@@ -140,6 +147,15 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.runs.RunReleaseStep(req)
+	case ReleaseDispatchCommand:
+		var req ReleaseDispatchRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := checkDir(req.Dir); err != nil {
+			return nil, err
+		}
+		return nil, l.runs.DispatchTagWorkflow(req)
 	case ReleaseRerunCommand, ReleaseNotesCommand, ReleaseSaveCommand:
 		var req ReleaseNotesRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -227,6 +243,12 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 			return nil, err
 		}
 		return nil, l.runs.GrantTrust(req.Dir, req.Hash)
+	case UntrustedCommand:
+		var req GetRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.Untrusted(req.Dir)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
@@ -270,12 +292,39 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.panes.Get(req)
 	}
+	if command == TestContextCommand {
+		var req TestContextRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.testCtx.Get(req)
+	}
 	if command == ProjectTabCommand {
 		var req ProjectTabRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		return ensureProjectTab(req)
+	}
+	if command == PipelineTabCommand {
+		var req PipelineTabRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return openPipelineTab(req)
+	}
+	if command == PipelineAskCommand {
+		var req PipelineAskRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), pipelineAskWait+15*time.Second)
+		defer cancel()
+		answersDir := ""
+		if l.setup != nil {
+			answersDir = l.setup.AnswersDir
+		}
+		return askPipelineAgent(ctx, defaultPipelineAskEnv(pipelineBriefDir(answersDir)), req)
 	}
 	if command == ReviewsCommand {
 		var req ReviewsRequest
@@ -297,6 +346,13 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.reviews.RerunFailed(req)
+	}
+	if command == MergedHistoryCommand {
+		var req MergedHistoryRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.reviews.MergedHistory(req)
 	}
 	if command == UpcomingCommand {
 		var req UpcomingRequest
@@ -336,11 +392,27 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.collector.InitGit(req)
 	}
+	if command == ReposCommand {
+		var req ReposRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return FindRepos(req)
+	}
 	if command == GithubRunLogCommand || command == GithubRunRerunCommand {
 		return l.handleGithubRun(command, data)
 	}
 	if command == JobsCommand || command == JobDescribeCommand {
 		return handleJobs(command, data)
+	}
+	if strings.HasPrefix(command, "moltenmissionsetup") {
+		return l.handleSetup(command, data)
+	}
+	if strings.HasPrefix(command, "moltenmissionlaunch") {
+		if l.launches == nil {
+			return nil, fmt.Errorf("launching versions is not available")
+		}
+		return l.handleLaunch(command, data)
 	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)
@@ -387,20 +459,83 @@ func (l *routeLink) handleWorktree(command string, data any) (any, error) {
 // removal itself, and never trusts a project's commands, publishes a release or types into another agent's prompt
 // through MoltenTerm.
 var windowCommands = map[string]string{
-	TrustCommand:          "a project's commands can only be trusted from a MoltenTerm window",
-	BranchesCleanCommand:  "branches can only be deleted from a MoltenTerm window",
-	BranchesAutoDeleteCmd: "the repository setting can only be changed from a MoltenTerm window",
-	BranchesCloseCommand:  "sessions can only be closed for a branch cleanup from a MoltenTerm window",
-	GitInitCommand:        "a repository can only be initialized here from a MoltenTerm window",
-	GithubRunRerunCommand: "a GitHub run can only be started again from a MoltenTerm window",
-	ReviewsRerunCommand:   "a pull request's failed jobs can only be rerun from a MoltenTerm window",
-	JobDescribeCommand:    "an agent can only be asked to describe a job from a MoltenTerm window",
-	WorktreeRemoveCommand: "a worktree can only be removed from a MoltenTerm window",
-	ProjectTabCommand:     "the Project tab can only be opened from a MoltenTerm window",
-	ReleaseStartCommand:   "a release is started from a MoltenTerm window",
-	ReleaseStepCommand:    "a release step is run from a MoltenTerm window",
-	ReleaseRerunCommand:   "a release's jobs are run again from a MoltenTerm window",
-	ReleaseSaveCommand:    "release notes are saved from a MoltenTerm window",
+	TrustCommand:           "a project's commands can only be trusted from a MoltenTerm window",
+	BranchesCleanCommand:   "branches can only be deleted from a MoltenTerm window",
+	BranchesAutoDeleteCmd:  "the repository setting can only be changed from a MoltenTerm window",
+	BranchesCloseCommand:   "sessions can only be closed for a branch cleanup from a MoltenTerm window",
+	GitInitCommand:         "a repository can only be initialized here from a MoltenTerm window",
+	GithubRunRerunCommand:  "a GitHub run can only be started again from a MoltenTerm window",
+	ReviewsRerunCommand:    "a pull request's failed jobs can only be rerun from a MoltenTerm window",
+	JobDescribeCommand:     "an agent can only be asked to describe a job from a MoltenTerm window",
+	WorktreeRemoveCommand:  "a worktree can only be removed from a MoltenTerm window",
+	ProjectTabCommand:      "the Project tab can only be opened from a MoltenTerm window",
+	PipelineTabCommand:     "the pipeline setup's tab can only be opened from a MoltenTerm window",
+	PipelineAskCommand:     "the pipeline setup's agent is asked from a MoltenTerm window",
+	ReleaseStartCommand:    "a release is started from a MoltenTerm window",
+	ReleaseStepCommand:     "a release step is run from a MoltenTerm window",
+	ReleaseRerunCommand:    "a release's jobs are run again from a MoltenTerm window",
+	ReleaseDispatchCommand: "a release's workflow is started by hand from a MoltenTerm window",
+	ReleaseSaveCommand:     "release notes are saved from a MoltenTerm window",
+	// The release setup writes in the project and starts a coding agent (FR-MC-036): the developer's click only.
+	SetupRefineCommand: "a release setup is refined from a MoltenTerm window",
+	SetupWriteCommand:  "a release setup is written from a MoltenTerm window",
+	SetupUpdateCommand: "a release setup is updated from a MoltenTerm window",
+	// The pull request the setup opens (#1098) is followed from the window that opened it.
+	SetupPrStateCommand:  "a release setup's pull request is followed from a MoltenTerm window",
+	SetupTicketsCommand:  "a release setup's ticket is picked from a MoltenTerm window",
+	SetupPrStatusCommand: "a release setup's pull request is followed from a MoltenTerm window",
+	SetupPrReadyCommand:  "a release setup's pull request is marked ready from a MoltenTerm window",
+	// Launch (FR-REV-031) switches the checkout and runs the project's servers: the developer's click only.
+	LaunchSaveRecipeCommand: "a launch recipe is confirmed from a MoltenTerm window",
+	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
+	LaunchStopCommand:       "a launched version is stopped from a MoltenTerm window",
+	LaunchRetryCommand:      "a launch is retried from a MoltenTerm window",
+}
+
+func (l *routeLink) handleLaunch(command string, data any) (any, error) {
+	switch command {
+	case LaunchRecipeCommand:
+		var req LaunchRecipeRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.RecipeOf(req)
+	case LaunchSaveRecipeCommand:
+		var req LaunchSaveRecipeRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.SaveRecipe(req)
+	case LaunchPlanCommand:
+		var req LaunchPlanRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.Plan(req)
+	case LaunchStartCommand:
+		var req LaunchStartRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.Start(req)
+	case LaunchLogCommand:
+		var req LaunchLogRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.ReadLog(req)
+	}
+	var req LaunchDirRequest
+	if err := utilfn.ReUnmarshal(&req, data); err != nil {
+		return nil, err
+	}
+	switch command {
+	case LaunchStopCommand:
+		return l.launches.Stop(req)
+	case LaunchRetryCommand:
+		return l.launches.Retry(req)
+	}
+	return l.launches.State(req)
 }
 
 // route: everything else answers the windows and local terminals (`molten ci`, `molten project`, `molten review`),
@@ -412,18 +547,193 @@ func (l *routeLink) route() localroute.Route {
 		policy.Commands[command] = localroute.AllowWindow
 		policy.Refusals[command] = refusal
 	}
+	// The setup's agent board (FR-MC-045): local terminals for the agent, windows for the panel.
+	addSetupBoardPolicy(policy)
 	return localroute.Route{
 		Id:     RouteId,
 		Policy: policy,
-		Handler: func(_ context.Context, command string, _ localroute.Caller, data any) (any, error) {
-			return l.handle(command, data)
+		Handler: func(ctx context.Context, command string, caller localroute.Caller, data any) (any, error) {
+			if IsSetupBoardCommand(command) {
+				if l.board == nil {
+					return nil, fmt.Errorf("the pipeline setup's agent board is not available")
+				}
+				return l.board.Handle(ctx, command, caller, data)
+			}
+			answer, err := l.handle(command, data)
+			if err != nil {
+				return answer, err
+			}
+			if command == TrustCommand {
+				l.asks.Granted(requestDir(data))
+				// A card waiting for this approval (#1713) leaves its state at once.
+				go l.reviews.CiChanged(requestDir(data))
+				return answer, nil
+			}
+			// A window shows its own trust sheet; a terminal (an agent, a script) can only be answered by a notification.
+			if !caller.IsUi() {
+				if dir := refusedDir(command, data, answer); dir != "" {
+					l.asks.Refused(dir, caller.BlockId, command)
+				}
+			}
+			return answer, nil
 		},
 	}
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews) error {
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches, asks *TrustAsks, setupTrees string, setupAnswers string, setupTemplates string) error {
+	setup := pipelinesetup.MakeSetup(pipelinesetup.Runner(ExecRunner), refineAgent)
+	setup.TreesDir = setupTrees
+	setup.AnswersDir = setupAnswers
+	setup.TemplatesDir = setupTemplates
+	setup.ProjectDirs = linkedProjectDirs
+	setup.OnDraftPr = MakeSetupPrWatch(setup.Run).Watch
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
-		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner)}
+		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
+		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks, setup: setup, board: MakeSetupBoardRoute()}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
+}
+
+// linkedProjectDirs: the folders of the projects linked to a workspace, in the rail's order.
+func linkedProjectDirs(ctx context.Context) ([]string, error) {
+	links, err := WorkspaceLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dirs := []string{}
+	for _, link := range links {
+		dirs = append(dirs, link.Dir)
+	}
+	return dirs, nil
+}
+
+// The release setup's calls (FR-MC-036): the draft and the agent's proposal write nothing; the write is the
+// developer's click on the reviewed diff.
+func (l *routeLink) handleSetup(command string, data any) (any, error) {
+	if l.setup == nil {
+		return nil, fmt.Errorf("the release setup is not available")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	defer cancel()
+	switch command {
+	case SetupDraftCommand:
+		var req pipelinesetup.DraftRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Draft(ctx, req)
+	case SetupRefineCommand:
+		var req pipelinesetup.RefineRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Refine(ctx, req)
+	case SetupApplyCommand:
+		var req pipelinesetup.ApplyRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Apply(req)
+	case SetupPromptCommand:
+		var req pipelinesetup.PromptRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Prompt(req)
+	case SetupWriteCommand:
+		var req pipelinesetup.WriteRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Write(req)
+	case SetupCheckCommand:
+		var req pipelinesetup.CheckRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Check(ctx, req)
+	case SetupUpdateCommand:
+		var req pipelinesetup.UpdateRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Update(ctx, req)
+	case SetupPrStateCommand:
+		var req pipelinesetup.PrStateRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.PrState(req)
+	case SetupTicketsCommand:
+		var req pipelinesetup.TicketsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Tickets(ctx, req)
+	case SetupPrStatusCommand:
+		var req SetupPrStatusRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return ReadSetupPrStatus(ctx, l.setup.Run, req)
+	case SetupPrReadyCommand:
+		var req pipelinesetup.PrReadyRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.PrReady(ctx, req)
+	case SetupSurveyCommand:
+		var req pipelinesetup.SurveyRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Survey(ctx, req)
+	case SetupAnswersCommand:
+		var req pipelinesetup.AnswersRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.SaveAnswers(req)
+	case SetupModelsCommand:
+		var req pipelinesetup.ModelsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Models(ctx, req)
+	case SetupTechDocCommand:
+		var req pipelinesetup.TechDocRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.TechDoc(ctx, req)
+	case SetupTemplatesCommand:
+		var req pipelinesetup.TemplatesRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Templates(ctx, req)
+	case SetupTemplateSaveCommand:
+		var req pipelinesetup.TemplateSaveRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.SaveTemplate(ctx, req)
+	case SetupTemplateDeleteCommand:
+		var req pipelinesetup.TemplateDeleteRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.DeleteTemplate(req)
+	}
+	return nil, fmt.Errorf("unknown mission control command %q", command)
+}
+
+const refineAgentTimeout = 10 * time.Minute
+
+// refineAgent runs the coding agent the way the agent choice finds it: through the login shell's PATH, so the agent
+// that runs is the one the choice said was installed, with the prompt on its standard input.
+func refineAgent(ctx context.Context, dir string, argv []string, prompt string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, refineAgentTimeout)
+	defer cancel()
+	return ExecRunnerInput(ctx, dir, []byte(prompt), argv[0], argv[1:]...)
 }

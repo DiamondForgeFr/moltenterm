@@ -1,12 +1,13 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The radar scrubber of the carpet (FR-SHELL-068, DS-SHELL-119): short ticks centred at the bottom of the carpet, the
-   ones in view taller and brighter inside a lit window (#678), the one needing attention orange with a glow that pulses. The
+/* The carpet's tab strip (FR-SHELL-125), at the end of this file, and the radar ticks it falls back to when its tabs
+   no longer fit. The radar scrubber of the carpet (FR-SHELL-068, DS-SHELL-119): short ticks centred at the bottom of the carpet, the
+   ones in view taller and brighter inside a lit window (#678), the one needing attention in the waiting violet (FR-SHELL-116) with a glow that pulses. The
    pulse animates only the glow's opacity, so it stays on the compositor. */
 
 .mt-radar {
-    --mt-radar-attention: #f97316;
+    --mt-radar-attention: var(--mt-state-waiting);
     position: absolute;
     top: 0;
     left: 0;
@@ -24,20 +25,32 @@
     align-items: center;
     padding: 2px 4px;
     border-radius: var(--df-radius-md);
-    background: rgb(0 0 0 / 0.45);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
+    background: color-mix(in srgb, var(--mt-sink) 45%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 4%, transparent);
     pointer-events: auto;
 }
 
+/* #1183: the automatic-360 mark, discreet, left of the strip. */
+.mt-radar-auto {
+    margin-right: 6px;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    color: var(--mt-text-muted);
+    opacity: 0.75;
+    pointer-events: auto;
+}
+
+/* FR-SHELL-125: the frame of the visible area is neutral, orange stays for actions (#1318). */
 .mt-radar-window {
+    --mt-radar-frame: color-mix(in srgb, var(--mt-text-1) 22%, transparent);
     position: relative;
     display: flex;
     align-items: center;
     padding: 3px 2px;
     margin: 0 1px;
     border-radius: var(--df-radius-md);
-    background: color-mix(in srgb, var(--mt-accent) 12%, #1c1c1e);
-    border: 1px solid color-mix(in srgb, var(--mt-accent) 80%, transparent);
+    background: color-mix(in srgb, var(--mt-text-1) 7%, var(--mt-surface-1));
+    border: 1px solid var(--mt-radar-frame);
     cursor: grab;
     transition:
         border-color var(--mt-duration-fast) var(--mt-ease),
@@ -50,8 +63,8 @@
 }
 
 .mt-radar-window:hover {
-    border-color: var(--mt-accent);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-accent) 18%, transparent);
+    --mt-radar-frame: color-mix(in srgb, var(--mt-text-1) 45%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-text-1) 8%, transparent);
 }
 
 .mt-radar-window.dragging,
@@ -59,9 +72,10 @@
     cursor: grabbing;
 }
 
-.mt-radar-window.dragging {
-    border-color: var(--mt-accent);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-accent) 28%, transparent);
+.mt-radar-window.dragging,
+.mt-radar-window.drop {
+    --mt-radar-frame: color-mix(in srgb, var(--mt-text-1) 60%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-text-1) 12%, transparent);
 }
 
 /* The eye sits centred on the window's top border, the way the suite sinks a block's chip into its border: centred
@@ -76,10 +90,10 @@
     justify-content: center;
     width: 18px;
     height: 13px;
-    border: 1px solid var(--mt-accent);
+    border: 1px solid var(--mt-radar-frame);
     border-radius: var(--df-radius-sm);
-    background: #1c1c1e;
-    color: var(--mt-accent);
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
     opacity: 0;
     transform: translate(-50%, -50%);
     pointer-events: none;
@@ -134,7 +148,7 @@
 }
 
 .mt-radar-hit:focus-visible {
-    outline: 1px solid color-mix(in srgb, var(--mt-accent) 70%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--mt-text-1) 70%, transparent);
     outline-offset: -2px;
     border-radius: var(--df-radius-lg);
 }
@@ -151,8 +165,8 @@
     inset: 0;
     border-radius: 9999px;
     box-shadow:
-        0 0 0 3px rgb(249 115 22 / 0.25),
-        0 0 10px rgb(249 115 22 / 0.7);
+        0 0 0 3px color-mix(in srgb, var(--mt-radar-attention) 25%, transparent),
+        0 0 10px color-mix(in srgb, var(--mt-radar-attention) 70%, transparent);
     animation: mt-radar-pulse var(--mt-duration-loop) ease-in-out infinite;
 }
 
@@ -168,12 +182,14 @@
 
 /* Standing still, the glow stays on. */
 @media (prefers-reduced-motion: reduce) {
-    .mt-radar-hit[data-attention] .mt-radar-tick::after {
+    .mt-radar-hit[data-attention] .mt-radar-tick::after,
+    .mt-strip-attention::after {
         animation: none;
     }
 }
 
-.prefers-reduced-motion .mt-radar-hit[data-attention] .mt-radar-tick::after {
+.prefers-reduced-motion .mt-radar-hit[data-attention] .mt-radar-tick::after,
+.prefers-reduced-motion .mt-strip-attention::after {
     animation: none;
 }
 
@@ -182,8 +198,8 @@
     bottom: calc(100% + 6px);
     padding: 9px 11px;
     border-radius: var(--df-radius-lg);
-    background: #1c1c1e;
-    border: 1px solid #333336;
+    background: var(--mt-surface-3);
+    border: 1px solid var(--mt-line-2);
     box-shadow: 0 10px 24px rgb(0 0 0 / 0.6);
     font-family: var(--mt-ui-font);
     pointer-events: none;
@@ -191,14 +207,14 @@
 }
 
 .mt-radar-card[data-attention] {
-    border-color: #9a3412;
+    border-color: var(--mt-state-waiting);
 }
 
 .mt-radar-card b {
     display: block;
     margin-bottom: 4px;
     overflow: hidden;
-    color: #f5f5f4;
+    color: var(--mt-text-1);
     font-size: var(--mt-text-12);
     font-weight: var(--mt-weight-medium);
     text-overflow: ellipsis;
@@ -207,13 +223,13 @@
 
 .mt-radar-card i {
     display: block;
-    color: #a8a29e;
+    color: var(--mt-text-3);
     font-size: var(--mt-text-11);
     font-style: normal;
 }
 
 .mt-radar-card[data-attention] i {
-    color: #fdba74;
+    color: var(--mt-state-waiting);
 }
 
 .mt-radar-card[data-window] b {
@@ -226,7 +242,12 @@
     flex: none;
     width: 12px;
     height: 12px;
-    color: var(--mt-accent);
+    color: var(--mt-text-2);
+}
+
+.mt-radar-card i.mt-radar-card-opener {
+    margin-top: 3px;
+    color: var(--mt-text-3);
 }
 
 .mt-radar-card-window {
@@ -235,11 +256,347 @@
     gap: 6px;
     margin-top: 7px;
     padding-top: 7px;
-    border-top: 1px solid #333336;
-    color: #a8a29e;
+    border-top: 1px solid var(--mt-line-2);
+    color: var(--mt-text-3);
     font-size: var(--mt-text-11);
 }
 
 .mt-radar-card-window svg {
     margin-top: 1px;
+}
+
+/* The tab strip (FR-SHELL-125, DS-SHELL-135, mockups #1395 5b-5d). Stored tabs are calm, visible ones light inside the
+   neutral frame, the focused panel's tab carries the place's colour (--mt-place) under it. The sizes match
+   carpet-tabs-model.ts (TabIconPx, TabGapPx, FrameExtraPx, StripPlusPx), which decides titles, icons or ticks. */
+.mt-strip-tabs {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    pointer-events: auto;
+}
+
+.mt-strip-tabs .mt-radar-window {
+    gap: 4px;
+    padding: 4px;
+    margin: 0;
+}
+
+.mt-strip-tab {
+    position: relative;
+    flex: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    --mt-strip-bg: var(--mt-surface-1);
+    padding: 0 7px;
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-strip-bg);
+    color: var(--mt-text-3);
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-12);
+    white-space: nowrap;
+    outline: none;
+    user-select: none;
+    touch-action: none;
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-strip-tab[data-mode="icons"] {
+    justify-content: center;
+    padding: 0;
+}
+
+.mt-strip-tab[data-visible] {
+    --mt-strip-bg: var(--mt-surface-3);
+    border-color: var(--mt-line-2);
+    color: var(--mt-text-1);
+}
+
+.mt-strip-tab:hover,
+.mt-strip-tab:focus-visible {
+    border-color: var(--mt-line-2);
+    color: var(--mt-text-1);
+}
+
+.mt-strip-tab[data-focus] {
+    box-shadow: inset 0 -2px 0 var(--mt-place);
+}
+
+.mt-strip-tab:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--mt-text-1) 70%, transparent);
+    outline-offset: 1px;
+}
+
+.mt-strip-tab.dragging {
+    z-index: 2;
+    border-color: color-mix(in srgb, var(--mt-text-1) 30%, transparent);
+    color: var(--mt-text-1);
+    box-shadow: 0 8px 18px -8px rgb(0 0 0 / 0.8);
+    transition: none;
+    cursor: grabbing;
+}
+
+.mt-strip-glyph {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    font-size: var(--mt-text-11);
+    object-fit: contain;
+}
+
+/* The Ctrl+Shift number takes the glyph's place while both keys are held (FR-SHELL-126-AC2): the same 14 px, so the
+   tabs do not move. */
+.mt-strip-num {
+    flex: none;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 2px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--df-radius-sm);
+    background: var(--mt-surface-0);
+    color: var(--mt-text-1);
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1;
+}
+
+.mt-strip-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The close cross shows on hover and on keyboard focus (AC1), over the end of the title: hidden, it takes no room
+   from a tightened title. */
+.mt-strip-close {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--df-radius-sm);
+    background: var(--mt-strip-bg);
+    box-shadow: -6px 0 6px -2px var(--mt-strip-bg);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-strip-tab:hover .mt-strip-close,
+.mt-strip-tab:focus-visible .mt-strip-close {
+    opacity: 1;
+}
+
+.mt-strip-tab.dragging .mt-strip-close {
+    opacity: 0;
+}
+
+.mt-strip-close:hover {
+    background: color-mix(in srgb, var(--mt-text-1) 12%, var(--mt-strip-bg));
+    color: var(--mt-text-1);
+}
+
+.mt-strip-kind {
+    position: absolute;
+    right: 6px;
+    bottom: -1px;
+    left: 6px;
+    height: 2px;
+    border-radius: 9999px;
+    background: var(--mt-radar-color);
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* The attention mark and the agent's initial sit on the tab's corner (AC3). */
+.mt-strip-marks {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    pointer-events: none;
+}
+
+.mt-strip-attention {
+    position: relative;
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: var(--mt-radar-attention);
+    box-shadow: 0 0 0 2px var(--mt-carpet-bg, var(--mt-surface-0));
+}
+
+/* The pulse animates only the glow's opacity, so it stays on the compositor. */
+.mt-strip-attention::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 9999px;
+    box-shadow: 0 0 8px 1px color-mix(in srgb, var(--mt-radar-attention) 80%, transparent);
+    animation: mt-radar-pulse var(--mt-duration-loop) ease-in-out infinite;
+}
+
+.mt-strip-agent {
+    display: grid;
+    place-items: center;
+    width: 15px;
+    height: 15px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: 9999px;
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1;
+}
+
+/* Above the dragged tab, which passes over it. */
+.mt-strip-drop {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    width: 2px;
+    height: 24px;
+    margin-left: -1px;
+    border-radius: 9999px;
+    background: var(--mt-text-1);
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.mt-strip-plus {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    margin-left: 6px;
+    padding: 0;
+    border: 1px dashed var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    pointer-events: auto;
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-strip-plus:hover,
+.mt-strip-plus:focus-visible {
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--mt-text-1) 35%, transparent);
+    background: color-mix(in srgb, var(--mt-text-1) 6%, transparent);
+    color: var(--mt-text-1);
+    outline: none;
+}
+
+/* The floating strip (FR-SHELL-125 AC13, #1545): no band behind it since the carpet lost its frame, so the tabs and the
+   visible area carry their own subtle shadow over the window. */
+.mt-strip-tabs .mt-strip-tab,
+.mt-strip-tabs .mt-radar-window,
+.mt-radar-ticks,
+.mt-strip-plus {
+    box-shadow: 0 4px 12px -6px rgb(0 0 0 / 0.55);
+}
+
+.mt-light .mt-strip-tabs .mt-strip-tab,
+.mt-light .mt-strip-tabs .mt-radar-window,
+.mt-light .mt-radar-ticks,
+.mt-light .mt-strip-plus {
+    box-shadow: 0 4px 12px -6px rgb(31 26 21 / 0.22);
+}
+
+.mt-strip-tabs .mt-radar-window .mt-strip-tab {
+    box-shadow: none;
+}
+
+.mt-strip-tabs .mt-radar-window .mt-strip-tab[data-focus] {
+    box-shadow: inset 0 -2px 0 var(--mt-place);
+}
+
+/* The previewed tab rises a few pixels (AC14), transform only; under reduced motion it stays put. */
+.mt-strip-tab {
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        transform var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-strip-tab[data-preview]:not(.dragging) {
+    transform: translateY(-3px);
+}
+
+.prefers-reduced-motion .mt-strip-tab[data-preview]:not(.dragging) {
+    transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-strip-tab[data-preview]:not(.dragging) {
+        transform: none;
+    }
+}
+
+/* The share mark (AC15): neutral, never the action orange. */
+.mt-strip-agent.mt-strip-shared {
+    font-size: var(--mt-text-11);
+}
+
+/* The preview card's still image: the panel's capture, or its kind's placeholder. */
+.mt-strip-preview {
+    padding-top: 6px;
+}
+
+.mt-strip-preview-shot {
+    display: grid;
+    place-items: center;
+    height: 134px;
+    margin: 0 -5px 8px;
+    overflow: hidden;
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-control);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--mt-radar-color) 24%, var(--mt-surface-2)),
+        var(--mt-surface-2)
+    );
+    color: color-mix(in srgb, var(--mt-radar-color) 70%, var(--mt-text-2));
+    font-size: var(--mt-icon-20);
+}
+
+.mt-strip-preview-shot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: left top;
+}
+
+.mt-light .mt-radar-card {
+    box-shadow: 0 10px 24px rgb(31 26 21 / 0.22);
 }

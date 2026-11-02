@@ -5,7 +5,7 @@ versions or advisory metadata change. `dependencies.json` binds each assessment 
 affected range, locked occurrence/version, surface, reachability and listed targets. There are **no accepted
 high-impact exceptions**. A changed advisory or a new Go package/symbol trace must be reviewed again.
 
-The complete npm audit still reports 61 vulnerable package/meta-vulnerability entries. They resolve to **15 distinct
+The 2026-10-17 npm audit reported 61 vulnerable package/meta-vulnerability entries. They resolved to **15 distinct
 GHSA IDs / 18 leaf occurrences**; the full parent graph remains in the raw report. Go reports **GO-2026-5932** at module
 level in the root graph, with no affected-package or called-symbol finding; standalone Tsunami has none on the scanned
 targets. These numbers describe scanner evidence, not an exploit count or a claim that every dependency is safe.
@@ -18,20 +18,21 @@ targets. These numbers describe scanner evidence, not an exploit count or a clai
   literal `sleeping %ds` and a locally bounded reconnect delay. Neither accepts a format or precision from files,
   terminal/network content or settings. This condition is nonapplicable to these callers. Follow-up: replace these
   two formatting calls and remove the direct dependency; no upstream fixed version is available.
-- [KaTeX / GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7), 0.16.47: keep a **low-impact,
-  potentially applicable** finding visible. Math text may be untrusted. The advisory needs a separate existing
-  prototype-pollution primitive or attacker control of an options prototype; this review has not established either
-  in these rendering paths and does not prove their universal absence. `WaveStreamdown` supplies text/components,
-  not user-derived KaTeX options; Streamdown's default pipeline runs KaTeX then `rehype-sanitize`. Mermaid builds
-  fixed rendering options and calls `sanitizeText` on its math output. Default `trust=false` and Mermaid strict mode
-  alone are **not** immunity to inherited settings or every resource-limit effect. Follow-up: qualify KaTeX >=0.18.2
-  through Mermaid/Streamdown with math, URL and resource-limit regressions before changing their supported ranges.
+- [KaTeX / GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7): #1602 replaces the affected
+  0.16.47 occurrence with 0.18.10, outside the affected range. The original condition required a separate existing
+  prototype-pollution primitive or attacker control of an options prototype; neither was established in these paths.
+  The exact override is outside the current consumers' declared ranges and must be requalified when they change;
+  see `UPGRADES.md`. Existing Streamdown math formatting and MathML stripping is tracked separately in #1610.
 - [OpenPGP / GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932), x/crypto v0.58.0: the unmaintained APIs are
   `golang.org/x/crypto/openpgp` and its subpackages. The application's static imports and complete source-scan traces
   do not include them. x/crypto is used for other APIs, including SSH; that does not make OpenPGP present. All recorded
   findings contain only the module/version frame. Mark **only this module-level condition** nonapplicable; never
   apply this review to an imported package or called symbol. Keep the SSH handshake/key-policy fixture and rerun the
-  source matrix on graph changes.
+  source matrix on graph changes. The record changed on 2026-11-02 (#1797): it gained a fixed x/crypto version, the
+  untagged pseudo-version `0.58.1-0.20261009181718-2f1f834330b2`, and a separate `golang.org/x/crypto/openpgp`
+  module entry, so the dated review no longer matched and the scan blocked develop. `go list -deps` on darwin, linux,
+  windows and Tsunami still lists no `openpgp` package, and the findings still carry only the module frame: the
+  review now binds the new fingerprint and range. Move to the first tagged x/crypto release past that version.
 
 ## Documentation/tooling boundary
 
@@ -50,18 +51,47 @@ prototype-pollution input, or run in a credential-bearing deploy pipeline, reass
 | Locked dependency / advisory | Concrete condition and current caller | Disposition / owned action |
 | --- | --- | --- |
 | braces 3.0.3; [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | Docusaurus globby/fast-glob processes repository/config glob patterns. Deep attacker-provided brace patterns can exhaust the stack; no product/user pattern reaches this docs graph. | Low-impact docs follow-up: update the Docusaurus/glob chain; reassess if patterns come from requests or untrusted configuration. |
-| postcss-selector-parser 6.1.4; [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf) | Docs CSS optimization parses repository styles. The advisory concerns very large attacker-supplied selectors in synchronous request paths; this graph is not the app's CSS runtime or a selector service. | Low-impact docs follow-up: update the cssnano/parser chain to >=7.1.6 with a docs build regression. |
-| qs 6.14.2; [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) | Requires stringify with both comma array format and encodeValuesOnly on null/undefined elements. Express's docs dev-server path parses query strings; no such stringify options/round-trip are configured here. | Condition nonapplicable; update docs server's qs chain to >=6.16.0 on the owned review date. |
-| qs 6.14.2; [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) | Requires parse with comma=true and reliance on array limits. The docs dev-server uses Express query parsing without that option. | Condition nonapplicable; retain the same qs update follow-up. |
-| qs 6.14.2; [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) | Express allows prototype-named own query properties, so their presence is not claimed safe. This advisory additionally requires passing those attacker-created objects to stringify. No docs request parse→stringify round-trip is configured. | Condition nonapplicable to current callers; recheck any future query serialization and update qs. |
 | serialize-javascript 6.0.2; [GHSA-5c6j-r48x-rmvq](https://github.com/advisories/GHSA-5c6j-r48x-rmvq) | Resolved through copy-webpack-plugin 11. Docusaurus's StaticDirectoriesCopyPlugin supplies only owned from/to/info patterns, with no transform/cache callback. Vulnerable spoofed RegExp/Date serialization plus later evaluation is not this path; serialized cache keys elsewhere are strings, not evaluated JavaScript. | Condition nonapplicable; update the docs copy-plugin/serializer chain to >=7.0.5. |
 | serialize-javascript 6.0.2; [GHSA-qj8w-gfj5-8c6v](https://github.com/advisories/GHSA-qj8w-gfj5-8c6v) | Crafted array-like objects/prototypes can exhaust CPU during serialization. There is no anonymous object input to the docs build configuration/cache options. | Low-impact docs follow-up: qualify the same serializer update; reassess any external object/config source. |
+| serialize-javascript 6.0.2; [GHSA-m5mm-p8h7-m29v](https://github.com/advisories/GHSA-m5mm-p8h7-m29v) | XSS needs attacker-controlled function source text (a spoofed `toString()` ending in `</script`) whose serialized output is then embedded in an HTML `<script>` element. copy-webpack-plugin 11 hashes serialized owned options into cache keys; css-minimizer-webpack-plugin 5 passes owned minimizer options to its workers. Neither embeds the output in page markup. The fix exists only in 7.1.3, a major bump behind @docusaurus/core's ranges. | Condition nonapplicable; update the same docs serializer chain to >=7.1.3 on the owned review date. |
 | Sharp 0.32.6, **two occurrences** under @docusaurus/lqip-loader and @docusaurus/plugin-ideal-image; [GHSA-f88m-g3jw-g9cj](https://github.com/advisories/GHSA-f88m-g3jw-g9cj), [GHSA-rgj7-g3m4-5g8c](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c), [GHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w) | Native libvips/libheif/librsvg defects matter when decoding malicious image bytes; some conditions permit code execution on Linux. Both copies decode tracked docs assets during the explicit docs build, with no upload, remote-fetch or product-preview path to these copies. The plugin's PNG/JPEG extension rule alone does not establish safety. | Retain **applicable, low current exposure** docs follow-ups under the reviewed-source boundary, not a generic RCE waiver. Qualify both consumers on Sharp >=0.35.5 and native docs image output. If untrusted images are accepted or the build boundary changes, treat as high-impact developer exposure and block. |
 | Tinypool 1.1.1; [GHSA-5gmw-xhrv-c9v3](https://github.com/advisories/GHSA-5gmw-xhrv-c9v3) | Docusaurus SSG constructs the worker filename from its own __dirname/ssgWorkerThread.js, fixed worker_threads options and site params. Existing Object.prototype execArgv/env pollution could still inject worker options: no identified anonymous pollution source feeds this build-only pool. Vitest 4 does not use this locked Tinypool occurrence. | Retain a low current exposure docs follow-up, with the pollution prerequisite explicit. Qualify Docusaurus/Tinypool >=2.1.2; discovery of an input primitive or credential-bearing docs build requires blocking high-impact review. |
 | Tinypool 1.1.1; [GHSA-85c8-ppgw-ccpr](https://github.com/advisories/GHSA-85c8-ppgw-ccpr) | Docusaurus core/lib/ssg/ssgExecutor.js calls pool.run(task) **without a second options object**. The advisory explicitly excludes this invocation shape; its exploit needs a caller-provided run options object plus inherited filename. | Condition nonapplicable; same owned Tinypool follow-up. A future second run argument cannot inherit this rationale. |
 | uuid 8.3.2 under sockjs; [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) | SockJS transport imports only v4 and invokes uuidv4() without a caller buffer/offset. The affected paths are v3/v5/v6 with external output buffers. The app's direct uuid is separately patched. | Condition nonapplicable; update the docs SockJS chain when compatible. |
+| deepmerge 4.3.1 under @rollup/plugin-node-resolve (application tooling) and @svgr/plugin-svgo (docs); [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (#1209, 2026-10-28) | Prototype poisoning needs an attacker-supplied source object passed to a merge. plugin-node-resolve's only call is `deepMerge({}, defaults)` on its own hardcoded defaults, then frozen; @svgr/plugin-svgo 8.1.0 declares the package but its dist never imports it. No build configuration, docs content or user input reaches a merge. No fixed version exists. | Condition nonapplicable; move to a fixed release when one ships, reassess if a caller starts merging external objects. |
+| minimatch 3.1.5 / 5.1.9, **seven occurrences** under @electron/asar, @eslint/config-array, eslint, dir-compare, filelist, rimraf (application tooling) and serve-handler (docs); [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) (#1621, 2026-10-31) | The CPU/memory amplification is in `firstPhasePreProcess()`, which minimatch runs only at `optimizationLevel >= 2`. These 3.x/5.x releases predate optimization levels and contain no `firstPhasePreProcess`; npm's `<11.0.1` range is wider than the defective code. | Condition nonapplicable (code absent); move to minimatch >=11.0.1 when the consumers allow it. |
+| minimatch 9.0.9 / 10.2.x, **four occurrences** under @electron/universal, app-builder-lib, @typescript-eslint/typescript-estree (root copy; application tooling) and @npmcli/map-workspaces (docs); same advisory (#1621) | Every caller of these copies uses `minimatch()` / `new Minimatch()` with the default `optimizationLevel` 1 (no such option in their dist), so `firstPhasePreProcess()` never runs. Patterns come from the repository's electron-builder, ESLint and package.json configuration. The fix is minimatch 11, a major that removes `makeRe()`/`regexp` and changes `**` matching, outside the consumers' `^9`/`^10` ranges. | Condition nonapplicable; move when the consumers allow minimatch 11, reassess if a caller sets level 2 or takes untrusted patterns. |
+| minimatch 9.0.9 under glob 10.5.0 (docs); same advisory (#1621) | glob 10 sets `optimizationLevel: 2`, so the vulnerable preprocessing **is reached**. Its callers are @npmcli/map-workspaces (package.json workspaces), @npmcli/package-json (installed packages' `directories` fields) and unified-engine (remark-cli/eslint-mdx file arguments). The amplification needs an attacker-written pattern; these come from tracked repository files or from an already-installed dependency, which can run code at install anyway. Not shipped, no request or user input. | Retain an **applicable, low current exposure** docs follow-up: the fix needs glob 14 + minimatch 11, majors outside the consumers' `^10` ranges; move with the docs lint chain, block if patterns ever come from untrusted input. |
+| glob 7.2.3 under @electron/asar and rimraf (application tooling); [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) (#1621) | The advisory's range is `>=9.0.0 <=14.0.1`. glob 7 has neither the `signal` option nor the `walker.ts` abort branches; npm attaches the leaf advisory to every node of its glob entry. | Condition nonapplicable; reassess if a copy moves into 9–14.0.1. |
+| glob 10.5.0 (docs); same advisory (#1621) | The bypass only matters to a caller that relies on `signal` / `AbortSignal.timeout()` to bound a walk. @npmcli/map-workspaces, @npmcli/package-json and unified-engine call `glob()` without a signal; their walks run to completion by design. The fix is glob 14.0.2, a major outside their `^10` ranges. | Condition nonapplicable; move with the docs lint chain, reassess if a caller starts passing a signal. |
 
 These are owned dated reviews, not promises that future dependency graphs or deployments retain the same boundary.
 The policy blocks unknown/new occurrences until reviewed, and expires these reviews even if an advisory disappears.
 Advisory/version fingerprints do not detect a changed application input path or deployment configuration. Reviewers
 must reassess those source/deployment changes even when scanner metadata remains identical.
+
+## Resolved by upgrade
+
+- postcss-selector-parser 6.1.4; [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf) (#1170,
+  2026-10-26). The advisory record changed on 2026-10-26, so its dated review (removed here) no longer matched the finding's
+  scope and the scan blocked every pull request. Docusaurus 3.10.2 pins the cssnano 6 chain (postcss-calc, postcss-merge-rules,
+  postcss-minify-selectors, postcss-unique-selectors, postcss-discard-unused, stylehacks), which asks for `^6`. The root
+  `package.json` now overrides `postcss-selector-parser` to the fixed 7.1.6, the version every other docs consumer
+  already used, so the lockfile holds a single 7.1.6 copy. The Docusaurus cssnano preset still minifies selectors,
+  `calc()`, duplicate rules and unused keyframes, and Infima's stylesheet, with the override. Drop the override once
+  Docusaurus moves to cssnano 7.
+- qs 6.14.2; [GHSA-6pq8-jhm2-2vcw](https://github.com/advisories/GHSA-6pq8-jhm2-2vcw), and the reviewed
+  GHSA-q8mj-m7cp-5q26, GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g (#1196, 2026-10-27). The new advisory (fixed in
+  6.16.1) had no review and blocked every pull request. The lockfile moves webpack-dev-server's express from 4.22.1 to
+  4.22.3, inside its `^4.22.1` range, which asks for `qs ~6.16.0`: the docs graph now holds a single qs 6.16.2 and the
+  three dated qs reviews are removed. No override.
+- satori 0.1.2; [GHSA-wx4j-mvgx-mqwp](https://github.com/advisories/GHSA-wx4j-mvgx-mqwp) (#1196, 2026-10-27).
+  `@waveterm/docusaurus-og` (Wave's fork, fetched by commit) asks for `satori ^0.1.2`; the fix is in 0.33.5. The root
+  `package.json` overrides `satori` to 0.33.5, whose default `satori(element, options)` export the plugin calls
+  unchanged. Every satori release pins `fflate` 0.7.3 (GHSA-px8p-9vwx-vf98, fixed in 0.7.5), so the same override
+  moves satori's fflate to 0.7.5, the copy `@shuding/opentype.js` already used. The docs build still generates the
+  Open Graph images under `build/preview-images/`. Drop the override once the plugin asks for a fixed satori.
+- follow-redirects 1.16.1; [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p), and joi 17.13.8;
+  [GHSA-4528-x5fx-h6hg](https://github.com/advisories/GHSA-4528-x5fx-h6hg) (#1621, 2026-10-31). Both docs-only. The
+  lockfile moves follow-redirects to 1.16.2 (inside http-proxy's `^1.0.0`) and joi to 17.13.9 (inside the Docusaurus
+  `^17.9.2` ranges). No override.

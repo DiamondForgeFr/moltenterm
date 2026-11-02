@@ -26,6 +26,8 @@ export type CiRunRecord = {
     sha: string;
     tree: string;
     branch?: string;
+    detached?: boolean;
+    heads?: string[];
     startedat: number;
     finishedat?: number;
     status: CiStatus;
@@ -118,6 +120,21 @@ export function branchMark(status: CiStatus | CiVerdictStatus): string {
 
 export function shortSha(sha: string): string {
     return (sha ?? "").slice(0, 7);
+}
+
+// What a run tested (#1072): its branch, or the detached commit with the branches at it; "no branch" only for records
+// older than the label.
+export function ciRunLabel(run: CiRunRecord, t: (key: string, vars?: Record<string, string>) => string): string {
+    if (run.branch) {
+        return run.branch;
+    }
+    if (!run.detached) {
+        return t("mc.ciLocal.noBranch");
+    }
+    if (run.heads?.length) {
+        return t("mc.ciLocal.detachedOn", { sha: shortSha(run.sha), branches: run.heads.join(", ") });
+    }
+    return t("mc.ciLocal.detached", { sha: shortSha(run.sha) });
 }
 
 export function formatCiDuration(ms: number): string {

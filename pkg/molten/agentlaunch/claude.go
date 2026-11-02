@@ -347,12 +347,23 @@ func planClaudeHooks(managed settingsSource, sources []settingsSource, review bo
 	return append(hooks, plannedHook{event: molten.ClaudePermissionHookEvent, command: molten.ClaudePermissionHookCommand, timeout: molten.ClaudePermissionHookTimeout})
 }
 
+// planClaudeStateHooks adds the hooks of agent-states.md, every one running `molten agent hook` (#988), except the
+// events the user's files already wire to MoltenTerm. SessionStart is the session link too.
 func planClaudeStateHooks(managed settingsSource, sources []settingsSource, plan *LaunchPlan) []plannedHook {
 	all := append([]settingsSource{managed}, sources...)
 	var hooks []plannedHook
 	var added, skipped []string
 	skippedIn := ""
-	for _, h := range molten.ClaudeStateHooks() {
+	for _, h := range molten.AgentStateHooks(molten.AgentIdClaude) {
+		if h.Event == molten.ClaudeSessionHookEvent {
+			if where := hookWhere(all, h.Event, molten.IsAgentSessionHookCommand); where != "" {
+				plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationSession, sessionLinkName, alreadyYours(where)))
+				continue
+			}
+			plan.Added = append(plan.Added, addedItem(molten.IntegrationSession, sessionLinkName))
+			hooks = append(hooks, plannedHook{event: h.Event, command: h.Command})
+			continue
+		}
 		if where := hookWhere(all, h.Event, molten.IsAgentStateHookCommand); where != "" {
 			skipped, skippedIn = append(skipped, h.Event), where
 			continue
@@ -360,22 +371,18 @@ func planClaudeStateHooks(managed settingsSource, sources []settingsSource, plan
 		hooks = append(hooks, plannedHook{event: h.Event, matcher: h.Matcher, command: h.Command})
 		added = append(added, h.Event)
 	}
-	stateHooks := func(events []string) phrase {
-		list := strings.Join(events, ", ")
-		return say(uimsg.Make("integration.name.statehooksof", "events", list), "Agent state hooks ("+list+")")
-	}
 	if len(added) > 0 {
-		plan.Added = append(plan.Added, addedItem(molten.IntegrationStateHooks, stateHooks(added)))
+		plan.Added = append(plan.Added, addedItem(molten.IntegrationStateHooks, stateHooksPhrase(added)))
 	}
 	if len(skipped) > 0 {
-		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationStateHooks, stateHooks(skipped), alreadyYours(skippedIn)))
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationStateHooks, stateHooksPhrase(skipped), alreadyYours(skippedIn)))
 	}
-	if where := hookWhere(all, molten.ClaudeSessionHookEvent, molten.IsAgentSessionHookCommand); where != "" {
-		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationSession, sessionLinkName, alreadyYours(where)))
-		return hooks
-	}
-	plan.Added = append(plan.Added, addedItem(molten.IntegrationSession, sessionLinkName))
-	return append(hooks, plannedHook{event: molten.ClaudeSessionHookEvent, command: molten.ClaudeSessionHookCommand})
+	return hooks
+}
+
+func stateHooksPhrase(events []string) phrase {
+	list := strings.Join(events, ", ")
+	return say(uimsg.Make("integration.name.statehooksof", "events", list), "Agent state hooks ("+list+")")
 }
 
 // planClaudeStatusLine returns the statusLine to set, or nil to leave the user's in effect. It is read from the

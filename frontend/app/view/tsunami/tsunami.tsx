@@ -10,6 +10,7 @@ import * as services from "@/store/services";
 import * as jotai from "jotai";
 import { memo, useEffect } from "react";
 import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
+import { DominoLoader } from "../../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 class TsunamiViewModel extends WebViewModel {
     shellProcFullStatus: jotai.PrimitiveAtom<BlockControllerRuntimeStatus>;
@@ -303,7 +304,13 @@ const TsunamiView = memo((props: ViewComponentProps<TsunamiViewModel>) => {
                     <MoltenWave />
                 </button>
             )}
-            {isRestarting && <div className="text-sm text-success-color">Starting...</div>}
+            {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+            {isRestarting && (
+                <div className="text-sm text-success-color">
+                    <DominoLoader className="mr-1.5" />
+                    Starting...
+                </div>
+            )}
         </div>
     );
 });

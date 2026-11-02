@@ -48,8 +48,8 @@ describe("the integration of a run (FR-SHELL-040)", () => {
 
     it("asks no integrated session to paste a hook (AC6)", () => {
         const integrated = statusMessage(view({ agent: "claude", realpath: "/c", added }, "searching"));
-        expect(integrated.detail).not.toContain("hook");
-        expect(integrated.detail).toContain("integration links it");
+        expect(integrated.detail).not.toMatch(/\bhooks?\b/);
+        expect(integrated.detail).toContain("hookup links it");
         const plain = statusMessage(view(null, "searching"));
         expect(plain.detail).toBe("It shows as soon as the agent writes its first message.");
         expect(plain.detail).not.toMatch(/hook|SessionStart|molten docs/);

@@ -5,7 +5,7 @@
 // rail order, with its state as the collector last read it, the stale flags and their Sync. It shows no other action:
 // each member's Run CI, Build local, Release and Clean branches stay in its own workspace.
 
-import { getLocale, t } from "../i18n/i18n";
+import { getLocale, labelled, t } from "../i18n/i18n";
 import { dependencyLabel } from "./dep-sync-model";
 import { DependencyState, GroupMember, isFlaggedDependency, ProjectGroup } from "./group-model";
 import { labelRecord } from "./mission-i18n";
@@ -251,7 +251,7 @@ function unresolvedLine(dep: DependencyState): string {
     if (!key) {
         return null;
     }
-    return `${dep.sourcename || dep.project}: ${UnresolvedWords[key]}`;
+    return labelled(dep.sourcename || dep.project, UnresolvedWords[key]);
 }
 
 export function stripMember(member: GroupMember, current: boolean, now: number): StripMember {

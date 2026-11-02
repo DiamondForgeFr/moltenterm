@@ -60,9 +60,18 @@ type testClient struct {
 
 func startServer(t *testing.T, backend Backend) *testClient {
 	t.Helper()
+	return startServerWith(t, backend, nil)
+}
+
+// startServerWith lets a test set the server up before it serves.
+func startServerWith(t *testing.T, backend Backend, setup func(s *Server)) *testClient {
+	t.Helper()
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
 	server := MakeServer(backend, inR, outW, "test")
+	if setup != nil {
+		setup(server)
+	}
 	done := make(chan error, 1)
 	go func() {
 		done <- server.Serve(context.Background())

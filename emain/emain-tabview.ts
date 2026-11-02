@@ -23,6 +23,7 @@ import { ElectronWshClient } from "./emain-wsh";
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireViewForTab, noteTabViewDestroyed, noteTabViewDestroying } from "./moltenterm-tabview-host"; // MOLTENTERM-PATCH (#461)
+import { opaqueBackground } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
 
 function handleWindowsMenuAccelerators(
     waveEvent: WaveKeyboardEvent,
@@ -99,13 +100,12 @@ function handleWindowsMenuAccelerators(
 function computeBgColor(fullConfig: FullConfigType): string {
     const settings = fullConfig?.settings;
     const isTransparent = settings?.["window:transparent"] ?? false;
-    const isBlur = !isTransparent && (settings?.["window:blur"] ?? false);
+    // MOLTENTERM-PATCH (#1629): window:blur (on by default) no longer clears a new view: it starts opaque and the
+    // workspace look clears it when it asks for see-through (moltenterm-window-look.ts), so nothing shows through first
     if (isTransparent) {
         return "#00000000";
-    } else if (isBlur) {
-        return "#00000000";
     } else {
-        return "#222222";
+        return opaqueBackground(); // MOLTENTERM-PATCH (#1341): the theme's window colour, no dark flash in light
     }
 }
 

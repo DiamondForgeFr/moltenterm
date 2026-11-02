@@ -21,7 +21,12 @@ export type ReleaseStepFact = {
     exit?: number;
     tail: string[];
     phases: string[];
+    // The environment the running step's GitHub run waits on for an approval (FR-MC-037).
+    approval?: ReleaseApproval;
 };
+
+// must match ReleaseApproval in pkg/molten/mission/release_facts.go
+export type ReleaseApproval = { environment: string; url?: string; workflow?: string };
 
 export type ReleaseGhRun = {
     databaseId: number;
@@ -62,19 +67,55 @@ export type ReleaseFacts = {
     githuberror?: string;
     runs: ReleaseGhRun[];
     jobs: ReleaseGhJob[];
+    // The runs the tag started that wait for an environment approval (FR-MC-037).
+    approvals?: ReleaseApproval[];
     release?: { tagName: string; isDraft: boolean; isPrerelease: boolean; url: string };
     ontrunk: boolean;
     backpr?: { number: number; url: string; title: string; headRefName: string };
+    // A candidate tagged on its RC branch: it reaches neither the release branch nor the trunk (#1046).
+    offrelease?: boolean;
+    // The pull request bringing the release to the release branch, while the tag is not pushed (#1046).
+    releasepr?: { number: number; url: string; title: string; headRefName: string };
     // A running step waits for a branch's GitHub CI (the promotion, #836).
     awaits?: ReleaseCiAwait;
+    // The workflows the pushed tag starts, read at the tag; absent when they could not be read (#1040).
+    tagworkflows?: ReleaseTagWorkflows;
+    // The release chain's last word on formatting the files it wrote, while the tag is not pushed (#1095).
+    format?: ReleaseFormat;
+    // What the changelog sections written by hand cover, while the tag is not pushed (#1142).
+    changelogscope?: ReleaseChangelogScope;
 };
+
+// must match ReleaseChangelogScope in pkg/molten/mission/release_facts.go; since is "" for the first release.
+export type ReleaseChangelogScope = { since: string; steps: string[] };
+
+// What a changelog section covers (#1142): since the last public release, candidates included, for a public version.
+export type ChangelogScope = { since: string; public: boolean };
+
+// must match ReleaseFormat in pkg/molten/mission/release_facts.go
+export type ReleaseFormat = {
+    state: "formatted" | "none" | "failed";
+    formatter?: string;
+    // What failed, to be run in the release worktree.
+    command?: string;
+    step: string;
+};
+
+// must match ReleaseTagWorkflow in pkg/molten/mission/release_tag_workflows.go
+export type ReleaseTagWorkflow = { file: string; name?: string; url?: string; dispatch: boolean; publishes: boolean };
+
+// overdue: none of them started a run within the bound after the tag.
+export type ReleaseTagWorkflows = { workflows: ReleaseTagWorkflow[]; overdue: boolean };
 
 export type PhaseLink = { label: string; url: string };
 
+// busy: what the button says from the click until the backend answered (#952).
 export type PhaseAction =
-    | { kind: "step"; step: string; label: string; confirm?: string }
-    | { kind: "prepare"; label: string }
-    | { kind: "rerun"; label: string };
+    // force: a manual step recorded although its check failed, the developer having confirmed it (#1095).
+    | { kind: "step"; step: string; label: string; confirm?: string; busy?: string; force?: boolean }
+    | { kind: "prepare"; label: string; busy?: string }
+    | { kind: "rerun"; label: string; busy?: string }
+    | { kind: "dispatch"; workflow: string; label: string; confirm: string; busy?: string };
 
 export type Phase = {
     id: ReleasePhase;
@@ -90,7 +131,24 @@ export type Phase = {
     redo?: PhaseAction;
     // The step whose last lines the phase shows.
     log?: ReleaseStepFact;
+    // A failed step an agent can look into (#945): the step, its own run in MoltenTerm, and the GitHub runs that failed.
+    failure?: PhaseFailure;
+    // The instructions of the manual step the phase waits on (FR-MC-037).
+    manual?: string;
+    // The manual step writes a changelog section: what it covers (#1142).
+    scope?: ChangelogScope;
+    // An environment waiting for its approval on GitHub.
+    approval?: ReleaseApproval;
 };
+
+// A GitHub run a failed step names: the trunk's CI a promotion waited on, or the release workflow's run.
+export type FailedRun = { name: string; runid: number; url: string };
+
+export type PhaseFailure = { step: string; runid?: string; runs: FailedRun[] };
+
+const GithubRunUrlRe = /https:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+\/actions\/runs\/(\d+)[^\s:;,)]*/g;
+// What `molten release promote` says when the trunk's CI is red (pkg/molten/release/ci.go requireCi).
+const PromoteRedRe = /(\S+) failed on \S+ \S+ (https:\/\/\S+?)[:,]?(\s|$)/;
 
 export type ReleaseRun = {
     active: boolean;
@@ -103,6 +161,9 @@ export type ReleaseRun = {
     notesStep: PipelineReleaseStep;
     // Changes whenever the notes step ran again: the editor then reads the notes again.
     notesRevision: string;
+    // The files the release wrote are not formatted the way the project checks (no formatter found, or it failed),
+    // said in the cut before its commit (#1095).
+    unformatted?: ReleaseFormat;
 };
 
 // must match ReleasePreparationStepId in pkg/molten/mission/release.go: no declared step id can start with "@".
@@ -119,10 +180,34 @@ const FailedConclusions = new Set(["failure", "cancelled", "timed_out", "startup
 
 const stepTitle = (step: PipelineReleaseStep) => step.title || step.id;
 
+const starting = (step: PipelineReleaseStep) => t("mc.releaseRun.pending.starting", { step: stepTitle(step) });
+
 const lastWords = (fact: ReleaseStepFact) => fact.tail[fact.tail.length - 1] ?? t("mc.releaseRun.noMessage");
 
 // A step that ended badly, or stopped without saying how it ended.
 const broke = (fact: ReleaseStepFact) => fact != null && !fact.running && fact.state !== "success";
+
+// runsInLog: the GitHub runs a step's last lines name, each once, named by the workflow the line says failed.
+export function runsInLog(lines: readonly string[]): FailedRun[] {
+    const rtn: FailedRun[] = [];
+    for (const line of lines ?? []) {
+        const named = PromoteRedRe.exec(line);
+        for (const m of line.matchAll(GithubRunUrlRe)) {
+            const runid = Number(m[1]);
+            if (!(runid > 0) || rtn.some((r) => r.runid === runid)) {
+                continue;
+            }
+            const name =
+                named != null && named[2].startsWith(m[0]) ? named[1] : t("mc.releaseRun.resolve.run", { id: runid });
+            rtn.push({ name, runid, url: m[0] });
+        }
+    }
+    return rtn;
+}
+
+function failureOf(step: string, fact: ReleaseStepFact): PhaseFailure {
+    return { step, runid: fact?.runid, runs: runsInLog(fact?.tail) };
+}
 
 // The steps of each phase, in their declared order. As declared (a step without a phase in a phased list joins the
 // phase of the step before it); when no step declares one, the first prepares and the others run in order through the
@@ -190,18 +275,64 @@ function runAgain(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
         step: step.id,
         label: t("mc.releaseRun.runAgain", { step: stepTitle(step) }),
         confirm: confirmOf(step, facts),
+        busy: starting(step),
     };
 }
 
+// A manual step's instructions, with the release's words in them.
+function manualOf(step: PipelineReleaseStep, facts: ReleaseFacts): string {
+    return step.manual
+        .split("{tag}")
+        .join(facts.tag ?? "")
+        .split("{version}")
+        .join(facts.version ?? "");
+}
+
+function scopeOf(step: PipelineReleaseStep, facts: ReleaseFacts): ChangelogScope {
+    const scope = facts.changelogscope;
+    if (scope == null || !(scope.steps ?? []).includes(step.id)) {
+        return undefined;
+    }
+    return { since: scope.since ?? "", public: facts.channel !== "rc" };
+}
+
 function runStep(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
-    return { kind: "step", step: step.id, label: stepTitle(step), confirm: confirmOf(step, facts) };
+    if (step.manual) {
+        return {
+            kind: "step",
+            step: step.id,
+            label: t("mc.releaseRun.manualDone", { step: stepTitle(step) }),
+            confirm: t("mc.releaseRun.manualConfirm", { step: stepTitle(step) }),
+            busy: t("mc.releaseRun.pending.recording"),
+        };
+    }
+    return {
+        kind: "step",
+        step: step.id,
+        label: stepTitle(step),
+        confirm: confirmOf(step, facts),
+        busy: starting(step),
+    };
 }
 
 // The phase as its steps say, when they are not done yet: running, failed or waiting for a click.
 function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFacts): Phase {
     const seq = sequence(steps, facts);
     if (seq.running) {
-        return { ...base, status: "running", expect: `${stepTitle(seq.running)}…`, log: facts.steps[seq.running.id] };
+        const fact = facts.steps[seq.running.id];
+        if (fact.approval) {
+            return {
+                ...base,
+                status: "waiting",
+                expect: t("mc.releaseRun.approval", { environment: fact.approval.environment }),
+                approval: fact.approval,
+                links: fact.approval.url
+                    ? [...base.links, { label: t("mc.releaseRun.approvalLink"), url: fact.approval.url }]
+                    : base.links,
+                log: fact,
+            };
+        }
+        return { ...base, status: "running", expect: `${stepTitle(seq.running)}…`, log: fact };
     }
     if (seq.failed) {
         const fact = facts.steps[seq.failed.id];
@@ -216,6 +347,7 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
                     : t("mc.releaseRun.stepFailed", { step: stepTitle(seq.failed), words: lastWords(fact) }),
             action: runAgain(seq.failed, facts),
             redo: before ? runAgain(before, facts) : undefined,
+            failure: failureOf(stepTitle(seq.failed), fact),
             log: fact,
         };
     }
@@ -223,11 +355,52 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
         return {
             ...base,
             status: "waiting",
-            expect: t("mc.releaseRun.next", { step: stepTitle(seq.next) }),
+            expect: seq.next.manual
+                ? t("mc.releaseRun.manualNext", { step: stepTitle(seq.next) })
+                : t("mc.releaseRun.next", { step: stepTitle(seq.next) }),
+            manual: seq.next.manual ? manualOf(seq.next, facts) : undefined,
+            scope: seq.next.manual ? scopeOf(seq.next, facts) : undefined,
             action: runStep(seq.next, facts),
         };
     }
     return null;
+}
+
+const workflowTitle = (wf: ReleaseTagWorkflow) => wf.name || wf.file;
+
+// No workflow of the repository starts on the tag: no run, nor a release from one, is to be waited for (#1040).
+const noTagWorkflow = (facts: ReleaseFacts) => facts.tagworkflows != null && facts.tagworkflows.workflows.length === 0;
+
+// The workflows the tag should have started did not, long after it: named, with their page and a way to start them.
+function notStarted(base: Phase, facts: ReleaseFacts, tag: string): Phase {
+    const workflows = facts.tagworkflows.workflows;
+    const names = workflows.map(workflowTitle).join(", ");
+    const links = workflows
+        .filter((wf) => wf.url)
+        .map((wf) => ({ label: t("mc.releaseRun.openWorkflow", { workflow: workflowTitle(wf) }), url: wf.url }));
+    const dispatchable = workflows.find((wf) => wf.dispatch);
+    const phase: Phase = {
+        ...base,
+        status: "waiting",
+        expect: dispatchable
+            ? t("mc.releaseRun.noRunStartedDispatch", { workflows: names, tag })
+            : t("mc.releaseRun.noRunStarted", { workflows: names, tag }),
+        links: [...base.links, ...links],
+    };
+    if (!dispatchable) {
+        return phase;
+    }
+    const workflow = workflowTitle(dispatchable);
+    return {
+        ...phase,
+        action: {
+            kind: "dispatch",
+            workflow: dispatchable.file,
+            label: t("mc.releaseRun.dispatch", { workflow }),
+            confirm: t("mc.releaseRun.dispatchConfirm", { workflow, tag }),
+            busy: t("mc.releaseRun.dispatching"),
+        },
+    };
 }
 
 function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
@@ -238,7 +411,11 @@ function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
     if (steps.length === 0) {
         return { ...base, expect: t("mc.releaseRun.nothingToPrepare") };
     }
-    const retry: PhaseAction = { kind: "prepare", label: t("mc.releaseRun.retryPreparation") };
+    const retry: PhaseAction = {
+        kind: "prepare",
+        label: t("mc.releaseRun.retryPreparation"),
+        busy: t("mc.releaseRun.pending.preparing"),
+    };
     const fact = facts.preparation;
     if (fact?.running) {
         const at = steps.find((s) => s.id === fact.phases[fact.phases.length - 1]);
@@ -250,6 +427,7 @@ function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
         };
     }
     if (broke(fact)) {
+        const at = steps.find((s) => s.id === fact.phases?.[fact.phases.length - 1]);
         return {
             ...base,
             status: "failed",
@@ -260,6 +438,7 @@ function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
                     : t("mc.releaseRun.preparationFailed", { words: lastWords(fact) }),
             action: retry,
             log: fact,
+            failure: failureOf(at ? stepTitle(at) : PhaseTitles.prepare, fact),
         };
     }
     if (fact?.state === "success") {
@@ -275,7 +454,8 @@ function cut(
     notesStep: PipelineReleaseStep,
     ready: boolean
 ): Phase {
-    const base: Phase = { id: "cut", title: PhaseTitles.cut, status: "todo", expect: "", links: [] };
+    const prLinks = facts.releasepr ? [{ label: t("mc.releaseRun.thePullRequest"), url: facts.releasepr.url }] : [];
+    const base: Phase = { id: "cut", title: PhaseTitles.cut, status: "todo", expect: "", links: prLinks };
     if (facts.tagexists) {
         return { ...base, status: "done", expect: t("mc.releaseRun.tagged", { tag }) };
     }
@@ -304,7 +484,8 @@ function cut(
             action: runAgain(last, facts),
         };
     }
-    if (phase.status !== "waiting" || phase.action?.kind !== "step") {
+    // A manual step is no cut: it is marked done, never read as the step that pushes the tag.
+    if (phase.status !== "waiting" || phase.action?.kind !== "step" || phase.manual != null) {
         return phase;
     }
     const action = phase.action;
@@ -316,9 +497,19 @@ function cut(
         return phase;
     }
     const confirm = declared ?? t("mc.releaseRun.mayPush", { step: action.label, tag });
+    // The pull-request flow confirms several cut steps (#1046): only the last one pushes the tag.
+    const pushesTag = !declared || steps[steps.length - 1]?.id === action.step;
+    if (!pushesTag) {
+        return { ...phase, action: { ...action, confirm } };
+    }
     return {
         ...phase,
-        action: { ...action, label: declared ? t("mc.releaseRun.cutTag", { tag }) : action.label, confirm },
+        action: {
+            ...action,
+            label: declared ? t("mc.releaseRun.cutTag", { tag }) : action.label,
+            confirm,
+            busy: t("mc.releaseRun.pending.cutting", { tag }),
+        },
         expect: facts.notes ? t("mc.releaseRun.readNotes") : t("mc.releaseRun.thenCut", { tag }),
     };
 }
@@ -343,6 +534,12 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
         if (facts.githuberror) {
             return { ...base, status: "waiting", expect: t("mc.releaseRun.githubUnread"), cause: facts.githuberror };
         }
+        if (noTagWorkflow(facts)) {
+            return { ...base, status: "done", expect: t("mc.releaseRun.nothingToBuild", { tag }) };
+        }
+        if (facts.tagworkflows?.overdue) {
+            return notStarted(base, facts, tag);
+        }
         return { ...base, status: "running", expect: t("mc.releaseRun.waitingRun", { tag }) };
     }
     const newest = new Map<string, ReleaseGhRun>();
@@ -353,6 +550,19 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
         }
     }
     const latest = [...newest.values()];
+    const approval = (facts.approvals ?? [])[0];
+    if (approval != null) {
+        return {
+            ...base,
+            links,
+            status: "waiting",
+            expect: t("mc.releaseRun.approvalOf", {
+                environment: approval.environment,
+                workflow: approval.workflow ?? "",
+            }),
+            approval,
+        };
+    }
     if (latest.some((r) => r.status !== "completed")) {
         const jobs = facts.jobs ?? [];
         const done = jobs.filter((j) => j.status === "completed").length;
@@ -379,7 +589,11 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
                   workflows: red.map((r) => r.workflowName).join(", "),
                   conclusion: red[0].conclusion,
               }),
-        action: { kind: "rerun", label: t("mc.remote.rerunFailed") },
+        action: { kind: "rerun", label: t("mc.remote.rerunFailed"), busy: t("mc.releaseRun.pending.rerunning") },
+        failure: {
+            step: red.map((r) => r.workflowName).join(", "),
+            runs: red.map((r) => ({ name: r.workflowName, runid: r.databaseId, url: r.url })),
+        },
     };
 }
 
@@ -400,6 +614,27 @@ function publish(facts: ReleaseFacts, channel: ReleaseChannel, steps: PipelineRe
     if (!release) {
         if (facts.githuberror) {
             return { ...base, status: "waiting", expect: t("mc.releaseRun.githubUnread"), cause: facts.githuberror };
+        }
+        if (noTagWorkflow(facts)) {
+            return { ...base, status: "done", expect: t("mc.releaseRun.nothingToPublish", { tag: facts.tag }) };
+        }
+        const runs = facts.runs ?? [];
+        const workflows = facts.tagworkflows?.workflows ?? [];
+        if (runs.length === 0 && facts.tagworkflows?.overdue) {
+            return notStarted(base, facts, facts.tag);
+        }
+        // The tag's runs ended and none of its workflows publishes: no GitHub release will come.
+        if (
+            facts.tagworkflows != null &&
+            runs.length > 0 &&
+            runs.every((r) => r.status === "completed") &&
+            !workflows.some((wf) => wf.publishes)
+        ) {
+            return {
+                ...base,
+                status: "done",
+                expect: t("mc.releaseRun.nothingPublishes", { workflows: workflows.map(workflowTitle).join(", ") }),
+            };
         }
         return { ...base, status: "running", expect: t("mc.releaseRun.waitingRelease", { tag: facts.tag }) };
     }
@@ -426,6 +661,9 @@ function back(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[], pu
     const base: Phase = { id: "back", title: PhaseTitles.back, status: "todo", expect: "", links };
     if (facts.tagexists && facts.ontrunk) {
         return { ...base, status: "done", expect: t("mc.releaseRun.backOn", { trunk }) };
+    }
+    if (facts.tagexists && facts.offrelease && steps.length === 0) {
+        return { ...base, status: "done", expect: t("mc.releaseRun.offRelease", { tag, trunk }) };
     }
     if (!facts.tagexists) {
         return { ...base, expect: t("mc.releaseRun.afterCut") };
@@ -459,8 +697,21 @@ export function releaseRun(facts: ReleaseFacts, declared: readonly PipelineRelea
     }
     const tag = facts.tag;
     const channel = facts.channel ?? (tag.includes("-") ? "rc" : "public");
-    const byPhase = stepsByPhase(declared, facts);
-    const notesStep = (declared ?? []).find((s) => s.notes) ?? null;
+    // A title says the release's own words, as its instructions and confirmation do (#1046).
+    const steps = (declared ?? []).map((s) =>
+        s.title
+            ? {
+                  ...s,
+                  title: s.title
+                      .split("{tag}")
+                      .join(tag)
+                      .split("{version}")
+                      .join(facts.version ?? ""),
+              }
+            : s
+    );
+    const byPhase = stepsByPhase(steps, facts);
+    const notesStep = steps.find((s) => s.notes) ?? null;
     const p = prepare(facts, byPhase.prepare);
     const c = cut(facts, tag, byPhase.cut, notesStep, p.status === "done");
     const b = build(facts, tag, byPhase.build);
@@ -470,5 +721,7 @@ export function releaseRun(facts: ReleaseFacts, declared: readonly PipelineRelea
     const editNotes = c.status === "waiting" && !!facts.notes && c.action?.kind === "step" && c.action.confirm != null;
     const rewritten = notesStep ? facts.steps[notesStep.id] : null;
     const notesRevision = rewritten ? `${rewritten.runid}:${rewritten.state}` : "";
-    return { active: current != null, tag, channel, phases, current, editNotes, notesStep, notesRevision };
+    const unformatted =
+        !facts.tagexists && facts.format != null && facts.format.state !== "formatted" ? facts.format : undefined;
+    return { active: current != null, tag, channel, phases, current, editNotes, notesStep, notesRevision, unformatted };
 }

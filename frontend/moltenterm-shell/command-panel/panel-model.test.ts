@@ -283,8 +283,8 @@ describe("command panel items as palette commands", () => {
 describe("the footer's pane action", () => {
     it("names what it closes, never a bare Close (#511)", () => {
         expect(closePaneLabel("term")).toBe("Close terminal");
-        expect(closePaneLabel("molten-browser")).toBe("Close browser");
-        expect(closePaneLabel("web")).toBe("Close browser");
+        expect(closePaneLabel("molten-browser")).toBe("Close web page");
+        expect(closePaneLabel("web")).toBe("Close web page");
         expect(closePaneLabel("preview")).toBe("Close pane");
         expect(closePaneLabel("")).toBe("Close pane");
     });

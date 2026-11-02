@@ -11,6 +11,25 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
 
+// FR-AGC-008: a Claude Code run behind another provider shows no Anthropic gauges and no Anthropic usage page.
+func TestUsageHiddenBehindAProvider(t *testing.T) {
+	env := &fakeEnv{
+		runs: map[string]molten.AgentRunInfo{
+			"b1": {BlockId: "b1", Agent: "claude", Running: true, Settings: molten.AgentSettings{Provider: "api.z.ai"}},
+		},
+		views: map[string]CompanionView{},
+	}
+	m := makeTestManager(env, t.TempDir())
+	info := m.usageInfo("b1", "claude", usage.For("claude"), nil, usageRead{})
+	if info.HasGauges || info.PageURL != "" || info.Provider != "api.z.ai" || info.ProviderName != "GLM" {
+		t.Fatalf("usage: %+v", info)
+	}
+	resp, err := m.HandleStatusLine(molten.AgentStatusLineRequest{BlockId: "b1", Model: "glm-4.6", Provider: "api.z.ai"})
+	if err != nil || resp.Kept {
+		t.Fatalf("a provider's status line keeps no windows: %+v %v", resp, err)
+	}
+}
+
 func TestEverySupportedAgentHasAUsagePage(t *testing.T) {
 	for _, agent := range SupportedAgents {
 		if usage.For(agent) == nil {

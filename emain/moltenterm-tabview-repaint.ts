@@ -161,6 +161,6 @@ function deferPaintCheck(win: WindowShowingTabViews, tabView: WaveTabView, isLiv
 // shown view leaves the window without an active view (the tab view host), so the tab is loaded again from the spare.
 async function rebuildActiveTabView(win: WindowShowingTabViews, tabView: WaveTabView) {
     const tabId = tabView.waveTabId;
-    destroyTabView(tabView, "paint check: it does not render (#223)");
+    destroyTabView(tabView, "paint check: it does not render (#223)", true);
     await win.setActiveTab(tabId, false);
 }

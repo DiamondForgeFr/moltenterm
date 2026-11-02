@@ -50,6 +50,13 @@ const (
 	AgentIdGemini   = "gemini"
 	AgentIdOpenCode = "opencode"
 	AgentIdKimi     = "kimi"
+	AgentIdQwen     = "qwen"
+	// The subscription CLIs of #1680: recognised by their process, no hooks yet.
+	AgentIdAntigravity = "antigravity"
+	AgentIdCopilot     = "copilot"
+	AgentIdCursor      = "cursor"
+	AgentIdGrok        = "grok"
+	AgentIdVibe        = "vibe"
 )
 
 type AgentKind struct {
@@ -60,13 +67,27 @@ type AgentKind struct {
 	// Fragments of a process's executable path or arguments that name the agent when its process name does not
 	// (Claude Code's binary is ~/.local/share/claude/versions/<version>; Gemini CLI runs in node).
 	ProcessHints []string
+	// WorktreesDir: the folder, relative to the project, the agent creates its own worktree agents in; a background
+	// agent there was started by a session of this agent in the main checkout (#1463). "" when it has none.
+	WorktreesDir string
 }
 
 var AgentKinds = []AgentKind{
-	{Id: AgentIdClaude, Name: "Claude Code", Commands: []string{"claude"}, ProcessHints: []string{"/claude/versions/", "@anthropic-ai/claude-code", "/bin/claude"}},
+	{Id: AgentIdClaude, Name: "Claude Code", Commands: []string{"claude"}, ProcessHints: []string{"/claude/versions/", "@anthropic-ai/claude-code", "/bin/claude"}, WorktreesDir: filepath.Join(".claude", "worktrees")},
 	{Id: AgentIdCodex, Name: "Codex", Commands: []string{"codex"}, ProcessHints: []string{"@openai/codex", "/bin/codex"}},
 	{Id: AgentIdGemini, Name: "Gemini CLI", Commands: []string{"gemini"}, ProcessHints: []string{"@google/gemini-cli", "/bin/gemini"}},
 	{Id: AgentIdOpenCode, Name: "OpenCode", Commands: []string{"opencode"}, ProcessHints: []string{"opencode-ai", "/bin/opencode"}},
+	// Kimi Code and Qwen Code had cards saying "recognised by their process" without a row here (#1681, fixed by #1680).
+	{Id: AgentIdKimi, Name: "Kimi Code", Commands: []string{"kimi"}, ProcessHints: []string{"/kimi-code/", "/bin/kimi"}},
+	{Id: AgentIdQwen, Name: "Qwen Code", Commands: []string{"qwen"}, ProcessHints: []string{"@qwen-code/qwen-code", "/bin/qwen"}},
+	// #1680, checked against the vendors' docs on 2026-11-01. Cursor CLI's program is `agent` (`cursor-agent` before); its
+	// installer keeps the versions in ~/.local/share/cursor-agent/. Mistral Vibe is a Python program (uv tool install
+	// mistral-vibe), its process an interpreter of uv's tools/mistral-vibe/ folder.
+	{Id: AgentIdAntigravity, Name: "Antigravity CLI", Commands: []string{"agy"}, ProcessHints: []string{"/bin/agy"}},
+	{Id: AgentIdCopilot, Name: "GitHub Copilot CLI", Commands: []string{"copilot"}, ProcessHints: []string{"@github/copilot", "/bin/copilot"}},
+	{Id: AgentIdCursor, Name: "Cursor CLI", Commands: []string{"agent", "cursor-agent"}, ProcessHints: []string{"/cursor-agent/"}},
+	{Id: AgentIdGrok, Name: "Grok Build", Commands: []string{"grok"}, ProcessHints: []string{"/bin/grok"}},
+	{Id: AgentIdVibe, Name: "Mistral Vibe", Commands: []string{"vibe"}, ProcessHints: []string{"/mistral-vibe/", "/bin/vibe"}},
 }
 
 var agentIdRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
@@ -280,13 +301,22 @@ func CleanAgentMessage(message string) string {
 
 // AgentStateRequest is a state report. TurnEnd: the report comes from a source that only sees turns end (the Codex
 // notify wrapper of the launcher, `molten agent notify`), not from the user's hooks: the pane's output activity keeps
-// giving working, and the hook setup offer does not count the agent as set up.
+// giving working, and the hook setup offer does not count the agent as set up. Start: the agent's SessionStart hook
+// (`molten agent hook`, #988): the pane's states are precise from now on, and it shows State (idle) unless the agent
+// is working or waiting.
 type AgentStateRequest struct {
 	BlockId string `json:"blockid"`
 	State   string `json:"state"`
 	Agent   string `json:"agent,omitempty"`
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
+	Start   bool   `json:"start,omitempty"`
+	// Subagent: the report is about a sub-agent of the pane's session (its agent_id, #1092), never the main session's
+	// state: working means it runs, done that it stopped.
+	Subagent string `json:"subagent,omitempty"`
+	// Provider: the host Claude Code talks to when it is not Anthropic's (FR-AGC-008); a Start report without one says
+	// the run talks to Anthropic, another report without one changes nothing.
+	Provider string `json:"provider,omitempty"`
 }
 
 // AgentStateSeenRequest: the window showed the block's done agent, at Version of its state.
@@ -309,7 +339,9 @@ type AgentStateInfo struct {
 	// words.
 	MessageText *uimsg.Text `json:"messagetext,omitempty"`
 	Since       int64       `json:"since,omitempty"`
-	Version     int64       `json:"version"`
+	// Started: when the agent's run started, in Unix milliseconds; the tab names its longest-running agent (#1033).
+	Started int64 `json:"started,omitempty"`
+	Version int64 `json:"version"`
 	// Hooked: this agent's hooks reported in this run of MoltenTerm, in any terminal (the hook setup offer, #221).
 	Hooked bool `json:"hooked,omitempty"`
 	// Model, ModelName, Effort: the run's model and effort level as the agent last reported them (#549: Claude Code's
@@ -317,15 +349,28 @@ type AgentStateInfo struct {
 	Model     string `json:"model,omitempty"`
 	ModelName string `json:"modelname,omitempty"`
 	Effort    string `json:"effort,omitempty"`
+	// Provider, ProviderName: the host the run talks to when it is not Anthropic's and how MoltenTerm names it
+	// (FR-AGC-008: "GLM", else the host), "" for Anthropic. Anthropic's plan gauges, models and effort levels do not
+	// apply to such a run. NativeProvider names the agent's own provider then ("Anthropic"), for the windows to say
+	// what does not apply.
+	Provider       string `json:"provider,omitempty"`
+	ProviderName   string `json:"providername,omitempty"`
+	NativeProvider string `json:"nativeprovider,omitempty"`
+	// Subagents: how many sub-agents of the session run now, as its hooks report them (#1092). Background: State is
+	// working only because of them, the main session's prompt is idle (or done) and takes a message.
+	Subagents  int  `json:"subagents,omitempty"`
+	Background bool `json:"background,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
 }
 
-// AgentSettings is a run's model and effort level as its agent reports them (#549); "" fields are unknown.
+// AgentSettings is a run's model and effort level as its agent reports them (#549); "" fields are unknown. Provider:
+// the host a Claude Code run talks to when it is not Anthropic's (FR-AGC-008), "" for Anthropic.
 type AgentSettings struct {
 	Model     string
 	ModelName string
 	Effort    string
+	Provider  string
 }
 
 // AgentRunInfo is what the agent companion (DS-SHELL-019) needs of a block's agent: which one, and since when it runs.
@@ -335,7 +380,11 @@ type AgentRunInfo struct {
 	// Started, in Unix milliseconds.
 	Started int64
 	Running bool
-	State   string
+	// State: the main session's, never its sub-agents' (#1092): a handoff is typed when it is neither working nor
+	// waiting, sub-agents running or not.
+	State string
+	// Subagents: how many sub-agents of the session run now (#1092).
+	Subagents int
 	// StateSince: when the agent entered State, in Unix milliseconds.
 	StateSince int64
 	// Pid: the agent's process, when the process tree found it in a local terminal (0 otherwise); PidStartMs tells a

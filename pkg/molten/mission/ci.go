@@ -45,6 +45,8 @@ const (
 	ciCommandTimeout   = 2 * time.Minute
 	ciStatusesTimeout  = 30 * time.Second
 	ciPublishScopeNote = "on the developer's machine"
+	// A run writes its record at least this often (#1713): one MoltenTerm left behind tells when it stopped.
+	ciHeartbeat = 30 * time.Second
 )
 
 type CiJobRecord struct {
@@ -59,12 +61,15 @@ type CiJobRecord struct {
 
 type CiRunRecord struct {
 	// Execution is pinned separately from the requested path used for trust, storage and presentation.
-	project    string
-	Id         string        `json:"id"`
-	Dir        string        `json:"dir"`
-	Sha        string        `json:"sha"`
-	Tree       string        `json:"tree"`
-	Branch     string        `json:"branch,omitempty"`
+	project string
+	Id      string `json:"id"`
+	Dir     string `json:"dir"`
+	Sha     string `json:"sha"`
+	Tree    string `json:"tree"`
+	Branch  string `json:"branch,omitempty"`
+	// A run on a detached HEAD (#1072): Branch is empty and Heads lists the local branches whose tip is Sha.
+	Detached   bool          `json:"detached,omitempty"`
+	Heads      []string      `json:"heads,omitempty"`
 	StartedAt  int64         `json:"startedat"`
 	FinishedAt int64         `json:"finishedat,omitempty"`
 	Status     string        `json:"status"`
@@ -74,6 +79,8 @@ type CiRunRecord struct {
 	// Why the run stopped before its jobs (the worktree or ci.prepare failed).
 	Error     string      `json:"error,omitempty"`
 	ErrorText *uimsg.Text `json:"errortext,omitempty"`
+	// The run's last heartbeat while it runs (#1713); an interrupted run finished at its last sign of life.
+	SeenAt int64 `json:"seenat,omitempty"`
 }
 
 type CiVerdict struct {
@@ -101,6 +108,9 @@ type CiCodeVerdict struct {
 	Failed  []string             `json:"failed,omitempty"`
 	Missing []string             `json:"missing,omitempty"`
 	Jobs    map[string]CiVerdict `json:"jobs"`
+	// Why a code not run yet has no verdict (#1713): the run on it that was interrupted, and when it stopped.
+	RunId     string `json:"runid,omitempty"`
+	StoppedAt int64  `json:"stoppedat,omitempty"`
 }
 
 type CiState struct {
@@ -111,10 +121,12 @@ type CiState struct {
 }
 
 type CiRunRequest struct {
-	Dir    string   `json:"dir"`
-	Branch string   `json:"branch,omitempty"`
-	Force  bool     `json:"force,omitempty"`
-	Only   []string `json:"only,omitempty"`
+	Dir    string `json:"dir"`
+	Branch string `json:"branch,omitempty"`
+	// With no Branch, the checkout whose HEAD is tested: the caller's worktree, which may differ from Dir (#1072).
+	From  string   `json:"from,omitempty"`
+	Force bool     `json:"force,omitempty"`
+	Only  []string `json:"only,omitempty"`
 }
 
 type CiRunResult struct {
@@ -306,6 +318,9 @@ func (c *Ci) runs(dir string) []CiRunRecord {
 		}
 		if rec.Status == CiStateRunning && (active == nil || active.runId != rec.Id) {
 			rec.Status = CiStateInterrupted
+			if rec.FinishedAt == 0 {
+				rec.FinishedAt = lastSignOfLife(rec)
+			}
 			for i := range rec.Jobs {
 				if rec.Jobs[i].Status == CiStateRunning || rec.Jobs[i].Status == CiStateQueued {
 					rec.Jobs[i].Status = CiStateInterrupted
@@ -317,6 +332,15 @@ func (c *Ci) runs(dir string) []CiRunRecord {
 	}
 	sort.Slice(runs, func(i, j int) bool { return runs[i].StartedAt > runs[j].StartedAt })
 	return runs
+}
+
+// lastSignOfLife: when a run left behind was last known to run (its heartbeat, a job's start or end, its start).
+func lastSignOfLife(rec CiRunRecord) int64 {
+	last := max(rec.StartedAt, rec.SeenAt)
+	for _, job := range rec.Jobs {
+		last = max(last, job.StartedAt, job.FinishedAt)
+	}
+	return last
 }
 
 func (c *Ci) prune(dir string) {
@@ -355,6 +379,100 @@ func (c *Ci) resolveRev(ctx context.Context, dir string, rev string) (string, st
 		return "", "", err
 	}
 	return sha, tree, nil
+}
+
+type ciTarget struct {
+	sha      string
+	tree     string
+	branch   string
+	detached bool
+	heads    []string
+}
+
+func (c *Ci) gitCommonDir(ctx context.Context, dir string) string {
+	common, err := c.git(ctx, dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil || common == "" {
+		return ""
+	}
+	return canonicalRunDir(common)
+}
+
+// checkoutHead is the commit checked out in from, a checkout of the project's repository: the main checkout or one
+// of its linked worktrees. A branch is a ref of the whole repository, but HEAD is per worktree, so with no branch named
+// the HEAD of the project folder would be another worktree's code (#1072).
+func (c *Ci) checkoutHead(ctx context.Context, project string, from string) (string, string, error) {
+	checkout := project
+	if from != "" {
+		if err := checkDir(from); err != nil {
+			return "", "", err
+		}
+		checkout = filepath.Clean(from)
+		common := c.gitCommonDir(ctx, checkout)
+		if common == "" || common != c.gitCommonDir(ctx, project) {
+			return "", "", uimsg.Errorf(uimsg.Make("mission.ci.foreignCheckout", "folder", checkout), "%s is not a checkout of this project: run the command from the project or one of its worktrees", checkout)
+		}
+	}
+	sha, err := c.git(ctx, checkout, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+	if err != nil || sha == "" {
+		return "", "", uimsg.Errorf(uimsg.Make("mission.ci.noHead", "folder", checkout), "%s has no commit checked out yet", checkout)
+	}
+	branch, _ := c.git(ctx, checkout, "symbolic-ref", "--quiet", "--short", "HEAD")
+	return sha, branch, nil
+}
+
+// resolveTarget is what a run tests: the branch named, else the HEAD of the caller's checkout, labelled with its
+// branch, or as detached with the local branches at that commit.
+func (c *Ci) resolveTarget(ctx context.Context, project string, branch string, from string) (ciTarget, error) {
+	if branch != "" {
+		sha, tree, err := c.resolveRev(ctx, project, branch)
+		return ciTarget{sha: sha, tree: tree, branch: branch}, err
+	}
+	sha, head, err := c.checkoutHead(ctx, project, from)
+	if err != nil {
+		return ciTarget{}, err
+	}
+	sha, tree, err := c.resolveRev(ctx, project, sha)
+	if err != nil {
+		return ciTarget{}, err
+	}
+	target := ciTarget{sha: sha, tree: tree, branch: head}
+	if head != "" {
+		return target, nil
+	}
+	target.detached = true
+	if out, err := c.git(ctx, project, "for-each-ref", "--points-at", sha, "--format=%(refname:short)", "refs/heads"); err == nil && out != "" {
+		target.heads = strings.Split(out, "\n")
+	}
+	return target, nil
+}
+
+// StatusFrom is `molten ci status`: Status on the HEAD of the caller's checkout when no revision is named, and for a
+// code not run yet, why (#1713).
+func (c *Ci) StatusFrom(dir string, rev string, from string) (CiCodeVerdict, error) {
+	verdict, err := c.statusFrom(dir, rev, from)
+	if err != nil {
+		return verdict, err
+	}
+	if pipeline, perr := readCiPipeline(filepath.Clean(dir)); perr == nil {
+		c.explainNotRun(filepath.Clean(dir), pipeline, &verdict)
+	}
+	return verdict, nil
+}
+
+func (c *Ci) statusFrom(dir string, rev string, from string) (CiCodeVerdict, error) {
+	if rev != "" || from == "" {
+		return c.Status(dir, rev)
+	}
+	if err := checkDir(dir); err != nil {
+		return CiCodeVerdict{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), ciCommandTimeout)
+	defer cancel()
+	sha, _, err := c.checkoutHead(ctx, canonicalRunDir(dir), from)
+	if err != nil {
+		return CiCodeVerdict{}, err
+	}
+	return c.Status(dir, sha)
 }
 
 // Status is the CI's say on a revision's code.
@@ -449,11 +567,11 @@ func (c *Ci) startAt(req CiRunRequest, project string) (CiRunResult, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), ciCommandTimeout)
 	defer cancel()
-	sha, tree, err := c.resolveRev(ctx, project, req.Branch)
+	target, err := c.resolveTarget(ctx, project, req.Branch, req.From)
 	if err != nil {
 		return CiRunResult{}, err
 	}
-	jobs := selectCiJobs(pipeline.Ci.Jobs, c.readVerdicts(dir, tree), req.Force, req.Only)
+	jobs := selectCiJobs(pipeline.Ci.Jobs, c.readVerdicts(dir, target.tree), req.Force, req.Only)
 	if len(jobs) == 0 {
 		if len(req.Only) > 0 {
 			only := strings.Join(req.Only, ", ")
@@ -466,9 +584,11 @@ func (c *Ci) startAt(req CiRunRequest, project string) (CiRunResult, error) {
 		project:   project,
 		Id:        newRunId(now),
 		Dir:       dir,
-		Sha:       sha,
-		Tree:      tree,
-		Branch:    req.Branch,
+		Sha:       target.sha,
+		Tree:      target.tree,
+		Branch:    target.branch,
+		Detached:  target.detached,
+		Heads:     target.heads,
 		StartedAt: now.UnixMilli(),
 		Status:    CiStateRunning,
 		Force:     req.Force,
@@ -589,12 +709,42 @@ func (p *ciRunProgress) setJob(name string, change func(job *CiJobRecord)) CiRun
 	})
 }
 
+// heartbeat writes the run's record every ciHeartbeat until stopped, so a long job still leaves a recent sign of life.
+func (c *Ci) heartbeat(progress *ciRunProgress) func() {
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		defer func() {
+			panichandler.PanicHandler("molten:mission:ci:heartbeat", recover())
+		}()
+		ticker := time.NewTicker(ciHeartbeat)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				progress.update(func(r *CiRunRecord) { r.SeenAt = c.now().UnixMilli() })
+			}
+		}
+	}()
+	var once sync.Once
+	// Waits for the beat to end: the run's release must come after its last write.
+	return func() {
+		once.Do(func() { close(done) })
+		<-stopped
+	}
+}
+
 func (c *Ci) execute(rec CiRunRecord, pipeline *molten.Pipeline, jobs []molten.PipelineJob) {
 	defer func() {
 		panichandler.PanicHandler("molten:mission:ci", recover())
 	}()
 	defer c.release(rec.Dir, rec.Id)
 	progress := &ciRunProgress{rec: rec, ci: c}
+	stopBeat := c.heartbeat(progress)
+	defer stopBeat()
 	tree, err := c.prepare(rec, pipeline)
 	if err != nil {
 		progress.update(func(r *CiRunRecord) {
@@ -868,6 +1018,12 @@ var commitIdRegex = regexp.MustCompile(`^[0-9a-f]{7,64}$`)
 func (c *Ci) branchOf(rec CiRunRecord) string {
 	if rec.Branch != "" && rec.Branch != "HEAD" && !commitIdRegex.MatchString(rec.Branch) {
 		return rec.Branch
+	}
+	if rec.Detached {
+		if len(rec.Heads) == 1 {
+			return rec.Heads[0]
+		}
+		return ""
 	}
 	return currentBranch(c.run, rec.executionProject())
 }

@@ -234,6 +234,11 @@ func getNextTabName(tabNames []string) string {
 
 // returns tabid
 func CreateTab(ctx context.Context, workspaceId string, tabName string, activateTab bool, isInitialLaunch bool) (string, error) {
+	return createTabWithLayout(ctx, workspaceId, tabName, activateTab, isInitialLaunch, GetNewTabLayout())
+}
+
+// MOLTENTERM-PATCH (#1232): the new tab's layout is a parameter, so a new view can start with another block (moltenterm_newview.go)
+func createTabWithLayout(ctx context.Context, workspaceId string, tabName string, activateTab bool, isInitialLaunch bool, newTabLayout PortableLayout) (string, error) {
 	if tabName == "" {
 		ws, err := GetWorkspace(ctx, workspaceId)
 		if err != nil {
@@ -263,7 +268,7 @@ func CreateTab(ctx context.Context, workspaceId string, tabName string, activate
 
 	// No need to apply an initial layout for the initial launch, since the starter layout will get applied after onboarding modal dismissal
 	if !isInitialLaunch {
-		err = ApplyPortableLayout(ctx, tab.OID, GetNewTabLayout(), true)
+		err = ApplyPortableLayout(ctx, tab.OID, newTabLayout, true)
 		if err != nil {
 			return tab.OID, fmt.Errorf("error applying new tab layout: %w", err)
 		}
@@ -297,6 +302,7 @@ func createTabObj(ctx context.Context, workspaceId string, name string, meta wav
 		OID: layoutStateId,
 	}
 	ws.TabIds = append(ws.TabIds, tab.OID)
+	moltenStampTabProject(ws, tab) // MOLTENTERM-PATCH (#1760): a temporary view belongs to the project it is made in
 	wstore.DBInsert(ctx, tab)
 	wstore.DBInsert(ctx, layoutState)
 	wstore.DBUpdate(ctx, ws)
@@ -341,6 +347,7 @@ func DeleteTab(ctx context.Context, workspaceId string, tabId string, recursive 
 		moltenForgetClosedTabs(ws) // MOLTENTERM-PATCH (#758)
 	}
 	ws.ActiveTabId = newActiveTabId
+	moltenFollowTabProject(ws, newActiveTabId) // MOLTENTERM-PATCH (#1760): the project of the view now shown is current
 
 	wstore.DBUpdate(ctx, ws)
 	wstore.DBDelete(ctx, waveobj.OType_Tab, tabId)
@@ -376,8 +383,11 @@ func SetActiveTab(ctx context.Context, workspaceId string, tabId string) error {
 		if !checkTabInWorkspace(workspace, tabId) { // MOLTENTERM-PATCH (#80)
 			return fmt.Errorf("tab %q is not in workspace %q", tabId, workspaceId)
 		}
+		moltenRememberActiveTab(workspace, tabId) // MOLTENTERM-PATCH (#1345): closing the view returns to this one
 		workspace.ActiveTabId = tabId
 		moltenRevealTab(workspace, tabId) // MOLTENTERM-PATCH (#758): a hidden agent tab shown is a tab like any other
+		// MOLTENTERM-PATCH (#1760): showing a view of another project makes it current
+		moltenFollowTabProject(workspace, tabId)
 		wstore.DBUpdate(ctx, workspace)
 	}
 	return nil

@@ -4,16 +4,44 @@
 import { describe, expect, it } from "vitest";
 import {
     activateTab,
+    addressOfPage,
+    addressUrl,
     addTab,
+    besideBlockDef,
+    BrowserActiveMetaKey,
+    BrowserKeepFocusMetaKey,
     browserMeta,
     BrowserState,
+    BrowserTabsMetaKey,
     browserTabTitle,
     closeTab,
+    isBlankPage,
+    isStartPage,
+    looksLikeAddress,
     moveTab,
+    PanelTabs,
     readBrowserState,
+    servingTabOf,
+    shownAddress,
+    splitOutTabs,
+    StartPageUrl,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
+
+describe("shownAddress (FR-SHELL-086)", () => {
+    it.each([
+        ["https://github.com/", "github.com"],
+        ["https://github.com/org/repo/issues/12", "github.com/org/repo/issues/12"],
+        ["http://localhost:5173/", "localhost:5173"],
+        ["https://a.dev/?q=1", "a.dev/?q=1"],
+        ["file:///tmp/x.html", "file:///tmp/x.html"],
+        ["about:blank", "about:blank"],
+        ["", ""],
+    ])("%s reads %s", (url, shown) => {
+        expect(shownAddress(url)).toBe(shown);
+    });
+});
 
 function ids() {
     let n = 0;
@@ -86,11 +114,69 @@ describe("toBrowserUrl", () => {
         ["github.com/DiamondForgeFr", "https://github.com/DiamondForgeFr"],
         ["localhost:5173", "http://localhost:5173"],
         ["about:blank", "about:blank"],
-        ["wave terminal tabs", "https://duckduckgo.com/?q=wave%20terminal%20tabs"],
+        ["wave terminal tabs", "https://www.google.com/search?q=wave%20terminal%20tabs"],
         ["   ", null],
     ])("turns %j into %j", (input, want) => {
         expect(toBrowserUrl(input)).toBe(want);
     });
+
+    // #1743: an address typed in the top field or the address bar is never searched.
+    it.each([
+        ["example.com?q=1", "https://example.com?q=1"],
+        ["example.com#top", "https://example.com#top"],
+        ["example.com:8080/a?b#c", "https://example.com:8080/a?b#c"],
+        ["localhost:3000?x=1", "http://localhost:3000?x=1"],
+        ["localhost:3000#top", "http://localhost:3000#top"],
+        ["localhost", "http://localhost"],
+        ["192.168.1.5", "http://192.168.1.5"],
+        ["192.168.1.5:8080", "http://192.168.1.5:8080"],
+        ["127.0.0.1:8080/x?y", "http://127.0.0.1:8080/x?y"],
+        ["[::1]:8080", "http://[::1]:8080"],
+        ["[::1]", "http://[::1]"],
+        ["Example.COM/Path", "https://Example.COM/Path"],
+        ["file:///tmp/a.html", "file:///tmp/a.html"],
+        ["https://example.com/a b", "https://example.com/a b"],
+    ])("opens the address %j as %j", (input, want) => {
+        expect(toBrowserUrl(input)).toBe(want);
+    });
+
+    it.each(["wave terminal", "how to use example.com", "readme.m", "e.g.", "v1.2.3", "localhost is down", "12:30"])(
+        "searches the words %j",
+        (input) => {
+            expect(toBrowserUrl(input)).toMatch(/^https:\/\/www\.google\.com\/search\?q=/);
+        }
+    );
+
+    it("uses the search template it is given for words only", () => {
+        expect(toBrowserUrl("some words", "https://www.google.com/search?q=%s")).toBe(
+            "https://www.google.com/search?q=some%20words"
+        );
+        expect(toBrowserUrl("example.com?q=1", "https://www.google.com/search?q=%s")).toBe("https://example.com?q=1");
+    });
+});
+
+describe("looksLikeAddress and addressUrl agree with toBrowserUrl (#1743)", () => {
+    it.each([
+        "example.com",
+        "example.com?q=1",
+        "example.com#top",
+        "localhost:3000#a",
+        "192.168.1.5:8080",
+        "[::1]:3000",
+        "https://x.dev",
+        "about:blank",
+    ])("%j is an address, opened as toBrowserUrl opens it", (input) => {
+        expect(looksLikeAddress(input)).toBe(true);
+        expect(addressUrl(input)).toBe(toBrowserUrl(input));
+        expect(addressUrl(input)).not.toContain("search?q=");
+    });
+
+    it.each(["wave terminal", "readme.m", "", "   ", "localhost is down", "https://x.dev/a b"])(
+        "%j is not an address",
+        (input) => {
+            expect(looksLikeAddress(input)).toBe(false);
+        }
+    );
 });
 
 describe("browserTabTitle", () => {
@@ -105,5 +191,98 @@ describe("browserTabTitle", () => {
     it("is empty for a page without a host", () => {
         expect(browserTabTitle({ id: "a", url: "about:blank" })).toBe("");
         expect(browserTabTitle(null)).toBe("");
+    });
+});
+
+describe("servingTabOf (#1005)", () => {
+    const servesApp = (url: string) => url.startsWith("http://localhost:5173");
+
+    it("finds the tab already showing the launch, wherever its path is", () => {
+        const panels: PanelTabs[] = [
+            {
+                blockId: "p1",
+                state: {
+                    tabs: [
+                        { id: "docs", url: "https://docs.dev" },
+                        { id: "app", url: "http://localhost:5173/settings" },
+                    ],
+                    activeId: "docs",
+                },
+            },
+        ];
+        expect(servingTabOf(panels, [], servesApp)).toEqual({ blockId: "p1", tabId: "app" });
+    });
+
+    it("is null when no tab shows it (the developer closed it)", () => {
+        const panels: PanelTabs[] = [
+            { blockId: "p1", state: { tabs: [{ id: "a", url: "https://a.dev" }], activeId: "a" } },
+        ];
+        expect(servingTabOf(panels, [], servesApp)).toBeNull();
+        expect(servingTabOf([], [], servesApp)).toBeNull();
+        expect(servingTabOf(null, null, servesApp)).toBeNull();
+    });
+
+    it("skips a handed-off entry, which is not a page here", () => {
+        const panels: PanelTabs[] = [
+            {
+                blockId: "p1",
+                state: { tabs: [{ id: "h", url: "http://localhost:5173", engine: "installed" }], activeId: "h" },
+            },
+        ];
+        expect(servingTabOf(panels, [], servesApp)).toBeNull();
+    });
+
+    it("prefers the shown tab, then the most recently focused panel", () => {
+        const twoTabs: BrowserState = {
+            tabs: [
+                { id: "x1", url: "http://localhost:5173/a" },
+                { id: "x2", url: "http://localhost:5173/b" },
+            ],
+            activeId: "x2",
+        };
+        const other: BrowserState = { tabs: [{ id: "y1", url: "http://localhost:5173" }], activeId: "y1" };
+        const panels: PanelTabs[] = [
+            { blockId: "p1", state: twoTabs },
+            { blockId: "p2", state: other },
+        ];
+        expect(servingTabOf(panels, ["p1"], servesApp)).toEqual({ blockId: "p1", tabId: "x2" });
+        expect(servingTabOf(panels, ["p2", "p1"], servesApp)).toEqual({ blockId: "p2", tabId: "y1" });
+        // Without a focus history, the last panel is the one links go to.
+        expect(servingTabOf(panels, [], servesApp)).toEqual({ blockId: "p2", tabId: "y1" });
+    });
+});
+
+describe("one page per panel (#1187)", () => {
+    it("a page beside starts as its own panel, keeping a given tab id", () => {
+        const meta = besideBlockDef({ id: "agent-1", url: "https://x.dev", engine: "chrome" }).meta as any;
+        expect(meta.view).toBe("molten-browser");
+        expect(meta.url).toBe("https://x.dev");
+        expect(meta[BrowserTabsMetaKey]).toEqual([{ id: "agent-1", url: "https://x.dev", engine: "chrome" }]);
+        expect(meta[BrowserActiveMetaKey]).toBe("agent-1");
+        const plain = besideBlockDef({ url: "https://y.dev" }, { ask: true, keepFocus: true }).meta as any;
+        expect(plain[BrowserTabsMetaKey]).toBeUndefined();
+        expect(plain[BrowserKeepFocusMetaKey]).toBe(true);
+    });
+
+    it("a panel saved with several tabs keeps its shown one and splits the others out in order", () => {
+        const split = splitOutTabs({ ...three, activeId: "b" });
+        expect(split.kept).toEqual({ tabs: [three.tabs[1]], activeId: "b" });
+        expect(split.moved.map((t) => t.id)).toEqual(["a", "c"]);
+        expect(splitOutTabs({ tabs: [three.tabs[0]], activeId: "a" })).toBeNull();
+    });
+
+    it("only an empty page is replaced in place", () => {
+        expect(isBlankPage("about:blank")).toBe(true);
+        expect(isBlankPage("")).toBe(true);
+        expect(isBlankPage("https://a.dev")).toBe(false);
+    });
+
+    it("the start page is an empty page without an address of its own (FR-SHELL-111)", () => {
+        expect(isStartPage(StartPageUrl)).toBe(true);
+        expect(isStartPage("about:blank")).toBe(false);
+        expect(isStartPage("https://github.com")).toBe(false);
+        expect(isBlankPage(StartPageUrl)).toBe(true);
+        expect(addressOfPage(StartPageUrl)).toBe("");
+        expect(addressOfPage("https://a.dev/x")).toBe("https://a.dev/x");
     });
 });

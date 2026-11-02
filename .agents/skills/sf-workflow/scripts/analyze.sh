@@ -26,10 +26,20 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
+# Read one key of one step block. The block ends at the next step or top-level
+# key, so a key the step does not declare is never read from the step after it.
+step_value() {
+  awk -v step="$2" -v key="$3" -v q="'" '
+    /^[^ #]/ { inside = 0 }
+    /^  [^ #]/ { inside = ($1 == step ":"); next }
+    inside && $1 == key ":" { v = $2; gsub("[\"" q "]", "", v); print v; exit }
+  ' "$1"
+}
+
 # Extract configuration
-ANALYZE_ENABLED=$(grep -A 10 "^  analyze:" "$CONFIG_FILE" | grep "enabled:" | awk '{print $2}')
-ANALYZE_DEPTH=$(grep -A 10 "^  analyze:" "$CONFIG_FILE" | grep "depth:" | awk '{print $2}' | tr -d '"')
-ANALYZE_AGENTS=$(grep -A 10 "^  analyze:" "$CONFIG_FILE" | grep "agents:" | awk '{print $2}')
+ANALYZE_ENABLED=$(step_value "$CONFIG_FILE" analyze enabled)
+ANALYZE_DEPTH=$(step_value "$CONFIG_FILE" analyze depth)
+ANALYZE_AGENTS=$(step_value "$CONFIG_FILE" analyze agents)
 
 # Display guidance
 echo "==================================================================="
@@ -82,11 +92,12 @@ EOF
     cat <<'EOF'
 STANDARD ANALYSIS (structured):
 
-1. **Launch 2-4 parallel exploration agents:**
+1. **Launch 2-4 parallel `exploration` delegations** (SKILL.md → Delegation routing):
    ```
-   /task explore-codebase "find existing {feature} implementation patterns"
-   /task explore-codebase "locate {module} files and utilities"
-   /task explore-docs "research {library} API for {feature}"
+   sf agents route --task exploration --provider <current-agent>   # names the sf-<tier> agent
+   exploration: "find existing {feature} implementation patterns"
+   exploration: "locate {module} files and utilities"
+   exploration: "research {library} API for {feature}"
    ```
 
 2. **What to find:**
@@ -119,21 +130,23 @@ DEEP ANALYSIS (maximum rigor):
    - Which agents will provide maximum value?
    - What are the unknowns and risks?
 
-2. **Launch 6-10 parallel agents (BE SMART - don't blindly launch all):**
+2. **Launch 6-10 parallel `exploration` delegations (BE SMART - don't blindly launch all)** (SKILL.md → Delegation routing):
    ```
-   # Codebase exploration (3-4 agents)
-   /task explore-codebase "find {feature} implementation patterns"
-   /task explore-codebase "locate {module} architecture and structure"
-   /task explore-codebase "search for {utility} helpers and services"
-   /task explore-codebase "identify {integration} points and dependencies"
+   sf agents route --task exploration --provider <current-agent>   # names the sf-<tier> agent
 
-   # Documentation research (2-3 agents)
-   /task explore-docs "research {library} {feature} API and patterns"
-   /task explore-docs "find {framework} best practices for {use-case}"
+   # Codebase exploration (3-4 delegations)
+   exploration: "find {feature} implementation patterns"
+   exploration: "locate {module} architecture and structure"
+   exploration: "search for {utility} helpers and services"
+   exploration: "identify {integration} points and dependencies"
 
-   # Web research (1-2 agents if needed)
-   /task websearch "best practices for {technology} {feature}"
-   /task websearch "{library} {feature} security considerations"
+   # Documentation research (2-3 delegations)
+   exploration: "research {library} {feature} API and patterns"
+   exploration: "find {framework} best practices for {use-case}"
+
+   # Web research (1-2 delegations if needed)
+   exploration: "best practices for {technology} {feature}"
+   exploration: "{library} {feature} security considerations"
    ```
 
 3. **What to find:**

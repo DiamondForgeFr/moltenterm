@@ -53,12 +53,12 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
         expect(sections[0].group).toBe("panels");
         expect(sections[0].entries.map((e) => e.label)).toEqual([
             "Terminal",
-            "Browser",
+            "Web page",
             "Files",
-            "Mission Control",
+            "Project",
             "Line map",
             "CI/CD",
-            "Reviews",
+            "Integration",
             "Companion",
             "Sessions",
             "System info",
@@ -88,34 +88,34 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
         expect(companion.shortcut).toBe("⇧⌘J");
     });
 
-    it("offers no companion for a source that is not a terminal, and Mission Control with or without a project", () => {
+    it("offers no companion for a source that is not a terminal, and Project with or without a project", () => {
         const panels = pickerPanelEntries(DefaultWidgets, "ws", {
             ...TermSource,
             meta: { view: "molten-browser" },
         });
         const labels = panels.map((e) => e.label);
         expect(labels).not.toContain("Companion");
-        expect(labels).toContain("Mission Control");
+        expect(labels).toContain("Project");
         expect(labels).toContain("Line map");
         expect(labels[0]).toBe("Terminal");
-        expect(panels.find((e) => e.label === "Mission Control").detail).toMatch(/no project linked/);
+        expect(panels.find((e) => e.label === "Project").detail).toMatch(/no project linked/);
     });
 
-    it("finds Mission Control by the words people type for it (FR-SHELL-046-AC5, DS-SHELL-084)", () => {
+    it("finds Project by the words people type for it (FR-SHELL-046-AC5, DS-SHELL-084)", () => {
         for (const linked of [true, false]) {
             const entries = pickerEntries(TermSource, linked);
             for (const word of ["mission", "dashboard", "branches", "git"]) {
                 const sections = filterPalette(entries, word, {}, PickerGroupOrder);
                 const labels = flattenSections(sections).map((e) => e.label);
-                expect(labels, `${word} (linked: ${linked})`).toContain("Mission Control");
+                expect(labels, `${word} (linked: ${linked})`).toContain("Project");
             }
         }
         const pick = (word: string) => {
             const sections = filterPalette(pickerEntries(TermSource), word, {}, PickerGroupOrder);
             return flattenSections(sections)[bestMatchIndex(sections, word)].label;
         };
-        expect(pick("mission")).toBe("Mission Control");
-        expect(pick("url")).toBe("Browser");
+        expect(pick("mission")).toBe("Project");
+        expect(pick("url")).toBe("Web page");
         expect(pick("resume")).toBe("Sessions");
         expect(pick("usage")).toBe("Companion");
         expect(pick("line")).toBe("Line map");
@@ -135,11 +135,11 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
             const sections = filterPalette(entries, typed, {}, PickerGroupOrder);
             expect(flattenSections(sections)[bestMatchIndex(sections, typed)].id).toBe(panel.id);
         }
-        expect(panels.find((e) => e.label === "Browser").keyPath).toBe("⌘D  b  ↵");
+        expect(panels.find((e) => e.label === "Web page").keyPath).toBe("⌘D  w  ↵");
         expect(entries.filter((e) => e.group !== "panels").every((e) => e.keyPath == null)).toBe(true);
     });
 
-    it("leaves the ordinary palette as it was", () => {
+    it("lists the same panels in the ordinary palette, without key paths (#1273)", () => {
         const entries = buildPaletteEntries({
             presets: DefaultAgents,
             widgets: DefaultWidgets,
@@ -152,7 +152,7 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
         });
         const panels = entries.filter((e) => e.group === "panels");
         expect(panels.every((e) => e.keyPath == null)).toBe(true);
-        expect(panels.map((e) => e.label)).not.toContain("Sessions");
+        expect(panels.map((e) => e.label)).toEqual(expect.arrayContaining(["Project", "Line map", "Sessions"]));
         expect(entries.some((e) => e.label === "Keyboard shortcuts")).toBe(true);
     });
 });

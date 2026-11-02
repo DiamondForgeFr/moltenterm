@@ -41,6 +41,8 @@ const (
 	CleanupStepLocalBranch  = "local-branch"
 	CleanupStepRemoteBranch = "remote-branch"
 	CleanupStepOtherPrs     = "other-prs"
+	// CleanupStepCopyBranches: the PR's local copies the request names (#1121); never part of Validate's sheet.
+	CleanupStepCopyBranches = "copy-branches"
 
 	// CleanupStatePlanned: a step of Validate's plan sheet, before the merge (postmerge.go).
 	CleanupStatePlanned = "planned"
@@ -93,8 +95,15 @@ const (
 	CleanupCodeDeleted          = "deleted"
 	CleanupCodeDeletedByMerge   = "deletedbymerge"
 	CleanupCodePushedAfter      = "pushedafter"
+	// localfirst: origin's branch waits for the worktrees and the local branch to go (#1132).
+	CleanupCodeLocalFirst = "localfirst"
 	CleanupCodeNoOtherPr        = "noother"
 	CleanupCodeOtherPrs         = "otherprs"
+	// #1121: a PR closed without merging, cleaned up from the Leftovers group (closedpr: the step is not one of its
+	// leftovers'); a lock's holder still runs (lockheld); local copies kept for their commits (copieskept).
+	CleanupCodeClosedPr   = "closedpr"
+	CleanupCodeLockHeld   = "lockheld"
+	CleanupCodeCopiesKept = "copieskept"
 
 	CleanupWorkflowCliPath = ".claude/skills/sf-workflow/workflow-cli.sh"
 
@@ -108,6 +117,7 @@ const (
 	cleanupMergeablePoll     = 5 * time.Second
 	cleanupMergeableWait     = 2 * time.Minute
 	cleanupPrStateMerged     = "MERGED"
+	cleanupPrStateClosed     = "CLOSED"
 	cleanupIssueStateClosed  = "CLOSED"
 	cleanupWorkflowDoneMatch = "status: Done"
 )
@@ -115,6 +125,10 @@ const (
 // CleanupSteps is the steps' order; a request naming some of them runs those only.
 var CleanupSteps = []string{CleanupStepPr, CleanupStepTicketClose, CleanupStepTicketDone, CleanupStepReviewTree,
 	CleanupStepAgentTree, CleanupStepLocalBranch, CleanupStepRemoteBranch, CleanupStepLocalTrunk, CleanupStepOtherPrs}
+
+// closedPrSteps: what a PR closed without merging can have cleaned up, its branch's content being on the base (#1121).
+var closedPrSteps = []string{CleanupStepReviewTree, CleanupStepAgentTree, CleanupStepLocalBranch, CleanupStepRemoteBranch,
+	CleanupStepCopyBranches}
 
 // cleanupRunner runs git, gh and the workflow CLI for the cleanup in wavesrv (a test build may replace it).
 var cleanupRunner mission.Runner = mission.ExecRunner
@@ -137,6 +151,11 @@ type CleanupRequest struct {
 	Leftover string `json:"leftover,omitempty"`
 	// BatchPrs: the PRs a batch merge still has to merge (FR-REV-025): the batch rebases those itself.
 	BatchPrs []int `json:"batchprs,omitempty"`
+	// Closed: the Leftovers group's PR closed without merging (#1121); only its worktrees and branches are cleaned up,
+	// and their commits are judged against the base by content, the closed head counting for nothing.
+	Closed bool `json:"closed,omitempty"`
+	// Copies: the PR's local copies (pr<N>…) the copy-branches step deletes when they hold nothing new (#1121).
+	Copies []string `json:"copies,omitempty"`
 }
 
 // CleanupPanel is a terminal still open in a worktree: the cleanup never pulls a folder from under it (#672).
@@ -329,6 +348,12 @@ func (r *cleanupRun) git(dir string, args ...string) (string, error) {
 }
 
 func (r *cleanupRun) wanted(id string) bool {
+	if r.req.Closed && id != CleanupStepPr && !slices.Contains(closedPrSteps, id) {
+		return false
+	}
+	if id == CleanupStepCopyBranches && len(r.req.Copies) == 0 {
+		return false
+	}
 	return len(r.req.Steps) == 0 || slices.Contains(r.req.Steps, id)
 }
 
@@ -357,8 +382,13 @@ func (req CleanupRequest) check() error {
 		return err
 	}
 	for _, id := range req.Steps {
-		if !slices.Contains(CleanupSteps, id) {
+		if !slices.Contains(CleanupSteps, id) && id != CleanupStepCopyBranches {
 			return fmt.Errorf("unknown cleanup step %q", id)
+		}
+	}
+	for _, name := range req.Copies {
+		if !reviewsession.ValidRef(name) {
+			return fmt.Errorf("unusual branch name %q", name)
 		}
 	}
 	return nil
@@ -406,6 +436,9 @@ func (c *Cleaner) Run(ctx context.Context, req CleanupRequest) (CleanupResult, e
 	if r.wanted(CleanupStepLocalBranch) {
 		r.add(r.deleteLocalBranch(agentStep))
 	}
+	if r.wanted(CleanupStepCopyBranches) {
+		r.add(r.deleteCopies())
+	}
 	if r.wanted(CleanupStepRemoteBranch) {
 		r.add(r.deleteRemoteBranch())
 	}
@@ -429,9 +462,14 @@ func (r *cleanupRun) readPr() (CleanupStepResult, bool) {
 	if err := json.Unmarshal(out, &r.pr); err != nil {
 		return failed(CleanupStepPr, errors.New("gh pr view: unreadable answer")), false
 	}
-	if r.pr.State != cleanupPrStateMerged {
+	closedAsked := r.req.Closed && r.pr.State == cleanupPrStateClosed
+	if r.pr.State != cleanupPrStateMerged && !closedAsked {
 		step := CleanupStepResult{Id: CleanupStepPr, State: CleanupStateFailed, Code: CleanupCodeNotMerged, Error: strings.ToLower(r.pr.State)}
 		return step, false
+	}
+	if r.pr.State == cleanupPrStateMerged {
+		// Merged since the card was read: the merged head is safe again.
+		r.req.Closed = false
 	}
 	if !reviewsession.ValidRef(r.pr.HeadRefName) || !reviewsession.ValidRef(r.pr.BaseRefName) {
 		return failed(CleanupStepPr, fmt.Errorf("PR #%d: unusual branch names", r.req.Number)), false
@@ -444,6 +482,9 @@ func (r *cleanupRun) readPr() (CleanupStepResult, bool) {
 		r.ticket = mission.TicketOfBranch(r.dir, r.pr.HeadRefName)
 	}
 	step := done(CleanupStepPr, CleanupCodeMerged)
+	if r.req.Closed {
+		step.Code = CleanupCodeClosedPr
+	}
 	step.Base = r.pr.BaseRefName
 	if err := r.fetch(); err != nil {
 		step.Error = err.Error()
@@ -680,7 +721,8 @@ func (r *cleanupRun) findAgentTree() string {
 }
 
 func riskOf(plan mission.WorktreePlan) *mission.WorktreeRisk {
-	return &mission.WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount}
+	return &mission.WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount,
+		EndedLock: plan.Locked && plan.LockEnded}
 }
 
 func refusalCode(refused string) string {
@@ -732,7 +774,11 @@ func (r *cleanupRun) removeAgentTree() CleanupStepResult {
 	if plan.Refused != "" {
 		return withPath(skipped(CleanupStepAgentTree, refusalCode(plan.Refused)), tree)
 	}
-	if plan.Locked {
+	// A lock whose holder ended (#1121) goes like an unlocked worktree: Remove checks the holder again under its lock.
+	if plan.Locked && !plan.LockEnded {
+		if plan.LockPid > 0 {
+			return withPath(skipped(CleanupStepAgentTree, CleanupCodeLockHeld), tree)
+		}
 		return withPath(skipped(CleanupStepAgentTree, CleanupCodeLocked), tree)
 	}
 	loss := r.agentLoss(plan)
@@ -752,6 +798,10 @@ func (r *cleanupRun) removeAgentTree() CleanupStepResult {
 	if confirmed == nil {
 		// Nothing to lose: what the plan saw is confirmed here, and the removal reads the worktree again.
 		confirmed = riskOf(plan)
+	} else if plan.Locked && plan.LockEnded && !confirmed.EndedLock {
+		withEnded := *confirmed
+		withEnded.EndedLock = true
+		confirmed = &withEnded
 	}
 	res, err := r.c.worktrees.Remove(mission.WorktreeRemoveRequest{Dir: tree, Confirmed: confirmed})
 	if err != nil {
@@ -817,21 +867,48 @@ func (r *cleanupRun) deleteLocalBranch(agentStep *CleanupStepResult) CleanupStep
 	return withBranch(done(CleanupStepLocalBranch, CleanupCodeDeleted), branch, base)
 }
 
-// deleteRemoteBranch: the merge deletes it (gh pr merge --delete-branch, or the repository's automatic deletion); one
-// still there is deleted only when it is still the head GitHub merged.
+// deleteRemoteBranch: Validate's merge leaves it (#1132; a repository's automatic deletion may not). It goes last, once
+// no worktree holds the branch and the local branch is gone: deleted first, a worktree kept or whose removal failed
+// loses its upstream, and the risk confirmed for it no longer matches. It goes only while it is the head GitHub merged.
 func (r *cleanupRun) deleteRemoteBranch() CleanupStepResult {
 	branch := r.pr.HeadRefName
 	tip, err := r.git(r.dir, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch)
 	if err != nil || tip == "" {
 		return withBranch(done(CleanupStepRemoteBranch, CleanupCodeDeletedByMerge), branch, "")
 	}
+	if r.localSideLeft() {
+		return withBranch(skipped(CleanupStepRemoteBranch, CleanupCodeLocalFirst), branch, "")
+	}
 	if !reviewsession.IsOid(r.pr.HeadRefOid) || tip != r.pr.HeadRefOid {
 		return withBranch(skipped(CleanupStepRemoteBranch, CleanupCodePushedAfter), branch, "")
+	}
+	if r.req.Closed {
+		if commits, count := r.commitsAtRisk("refs/remotes/origin/" + branch); count != 0 {
+			step := withBranch(skipped(CleanupStepRemoteBranch, CleanupCodeKept), branch, r.pr.BaseRefName)
+			step.Loss = &WorktreeLoss{Changes: []string{}, Commits: commits, CommitCount: count, Ignored: []string{}}
+			return step
+		}
 	}
 	if _, err := r.git(r.dir, "push", "--quiet", "origin", "--delete", branch); err != nil {
 		return failed(CleanupStepRemoteBranch, err)
 	}
 	return withBranch(done(CleanupStepRemoteBranch, CleanupCodeDeleted), branch, "")
+}
+
+// localSideLeft: a worktree still holds the PR's branch, or the local branch is still there, read again from git
+// whatever steps ran; a read that fails counts as left.
+func (r *cleanupRun) localSideLeft() bool {
+	entries, err := r.worktreeEntries()
+	if err != nil {
+		return true
+	}
+	for _, e := range entries {
+		if e[1] == "refs/heads/"+r.pr.HeadRefName {
+			return true
+		}
+	}
+	_, err = r.git(r.dir, "show-ref", "--verify", "--quiet", "refs/heads/"+r.pr.HeadRefName)
+	return err == nil
 }
 
 // Cleanup runs the cleanup of a merged PR and records its outcome in the review store, which the Review tab and the

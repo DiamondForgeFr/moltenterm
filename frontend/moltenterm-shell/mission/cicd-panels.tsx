@@ -11,6 +11,7 @@ import { TFunction, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { ReviewsModel } from "../reviews/reviews-store";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
@@ -24,7 +25,16 @@ import {
 } from "./branch-ci";
 import { checkIconState, CiIcon, CiIconLabels, githubRunIconState } from "./ci-icon";
 import { ActionRowClass, RerunConfirm, RowAction, RowActions } from "./ci-row-actions";
-import { CheckState, describeCron, eventLabel, nextRuns, runState, scheduledWorkflows, WorkflowRun } from "./github";
+import {
+    CheckState,
+    describeCron,
+    eventLabel,
+    githubOnlySchedules,
+    nextRuns,
+    runState,
+    scheduledWorkflows,
+    WorkflowRun,
+} from "./github";
 import { githubRunLog, githubRunRerun } from "./mission-client";
 import { labelRecord } from "./mission-i18n";
 import { githubStateMessage, MissionGit, MissionGithub, PipelineReport, RunRecord } from "./mission-model";
@@ -77,35 +87,64 @@ export function Problem({ text }: { text: string }) {
     return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-danger">{text}</div>;
 }
 
-export function Notice({ text }: { text: string }) {
-    return <div className="rounded-4 border border-border bg-hover px-3 py-2 text-12 text-secondary">{text}</div>;
-}
-
-function Placeholder({ rows }: { rows: number }) {
+// busy: the notice says what loads or runs, after the inline dominoes (DS-SHELL-154).
+export function Notice({ text, busy }: { text: string; busy?: boolean }) {
     return (
-        <div className="flex flex-col gap-3 p-3" aria-busy="true">
-            {Array.from({ length: rows }, (_, i) => (
-                <div key={i} className="flex flex-col gap-1.5">
-                    <div className="h-4 w-3/4 mt-step-blink rounded-4 bg-hover" />
-                    <div className="h-3 w-1/2 mt-step-blink rounded-4 bg-hover" />
-                </div>
-            ))}
+        <div className="rounded-4 border border-border bg-hover px-3 py-2 text-12 text-secondary">
+            {busy ? <DominoLoader className="mr-1.5" /> : null}
+            {text}
         </div>
     );
 }
 
-function ScheduledBlock({ github }: { github: MissionGithub }) {
+// The room of the rows to come, with the card-size dominoes in it (DS-SHELL-154: waiting = domino, no skeleton).
+function Placeholder({ rows }: { rows: number }) {
+    return (
+        <div className="flex items-center justify-center p-3" style={{ minHeight: rows * 46 }} aria-busy="true">
+            <DominoLoader size="card" />
+        </div>
+    );
+}
+
+export function ScheduledBlock({ github }: { github: MissionGithub }) {
     const t = useT();
     const schedules = useMemo(() => scheduledWorkflows(github?.workflows ?? []), [github?.workflows]);
+    const remoteOnly = useMemo(
+        () => githubOnlySchedules(github?.runs ?? [], github?.workflows ?? []),
+        [github?.runs, github?.workflows]
+    );
     const now = new Date();
     return (
         <section className="flex flex-col gap-2">
             <BlockHeader title={t("mc.remote.scheduledTitle")} hint={t("mc.remote.scheduledHint")} />
             <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={2} /> : null}
-                {github != null && schedules.length === 0 ? (
+                {github != null && schedules.length === 0 && remoteOnly.length === 0 ? (
                     <p className="p-3 text-13 leading-5 text-muted">{t("mc.remote.noScheduled")}</p>
                 ) : null}
+                {remoteOnly.map((last) => (
+                    <div
+                        key={`github:${last.workflowName}`}
+                        className="flex flex-col gap-1 border-b border-border px-3 py-2 last:border-b-0"
+                        data-testid="ci-scheduled-github-only"
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="flex min-w-0 items-center gap-2 text-13 leading-5 font-medium">
+                                <i className="fa fa-solid fa-calendar-days text-11 text-muted" />
+                                <span className="truncate">{last.workflowName}</span>
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => open(last.url)}
+                                className="flex shrink-0 cursor-pointer items-center gap-1 text-12 text-muted hover:text-primary"
+                            >
+                                <CheckIcon state={runState(last.status, last.conclusion)} />
+                                {t("mc.remote.last", { when: timeAgo(last.createdAt) })}
+                            </button>
+                        </div>
+                        <div className="text-12 text-muted">{t("mc.remote.scheduledOnGithub")}</div>
+                    </div>
+                ))}
                 {schedules.map((wf) => {
                     const next = wf.crons
                         .flatMap((c) => nextRuns(c, now, 3))
@@ -160,7 +199,11 @@ type RunLogView = { text: string; error: string; failedonly?: boolean; truncated
 export function RunLogBlock({ log }: { log: RunLogView }) {
     const t = useT();
     if (log == null) {
-        return <div className="h-16 mt-step-blink rounded-4 bg-hover" aria-busy="true" />;
+        return (
+            <div className="flex h-16 items-center justify-center rounded-4 bg-hover" aria-busy="true">
+                <DominoLoader size="card" />
+            </div>
+        );
     }
     if (log.error) {
         return <Problem text={log.error} />;
@@ -174,7 +217,7 @@ export function RunLogBlock({ log }: { log: RunLogView }) {
             <pre
                 tabIndex={0}
                 aria-label={t("mc.run.log")}
-                className="max-h-64 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-[#e5e7eb]"
+                className="max-h-64 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-primary"
             >
                 {log.text === "" ? t("mc.run.noOutput") : log.text}
             </pre>
@@ -263,12 +306,7 @@ function RunRow({
                             </span>
                         </span>
                         <span className="shrink-0 text-12 text-muted">
-                            {timing ??
-                                (active
-                                    ? CiIconLabels[icon]
-                                    : formatDuration(
-                                          new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime()
-                                      ))}
+                            {timing ?? (active ? CiIconLabels[icon] : finishedRunDuration(t, run))}
                         </span>
                     </div>
                     <div className="truncate text-12 text-muted">
@@ -379,9 +417,15 @@ function usualText(ms: number): string {
     return ms < 60000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60000)} min`;
 }
 
+// A finished run that took 0 ms, or whose times are missing, has an unknown duration (FR-SHELL-100), never "0 s".
+export function finishedRunDuration(t: TFunction, run: WorkflowRun): string {
+    const ms = new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime();
+    return Number.isFinite(ms) && ms > 0 ? formatDuration(ms) : t("mc.remote.unknownDuration");
+}
+
 function timingText(t: TFunction, elapsed: number, usual: number, active: boolean): string {
     if (elapsed == null) {
-        return null;
+        return active ? null : t("mc.remote.unknownDuration");
     }
     const spent = formatDuration(elapsed);
     if (!usual) {
@@ -598,7 +642,8 @@ export function RemoteCiTab({
         <div className="flex flex-col gap-5">
             <ReviewsLine github={github} target={prTarget || trunk} dir={dir} />
             <BranchesCiBlock dir={dir} githubAt={githubAt} onRefresh={onRefresh} onShowRelease={onShowRelease} />
-            <div className="grid gap-5 @3xl:grid-cols-2">
+            {/* grid-cols-1 caps the column at the panel's width, so the rows truncate and keep their duration. */}
+            <div className="grid grid-cols-1 gap-5 @3xl:grid-cols-2">
                 <ScheduledBlock github={github} />
                 <RecentRunsBlock github={github} dir={dir} onRefresh={onRefresh} />
             </div>

@@ -22,9 +22,10 @@ import (
 
 const prFields = "number,title,body,author,headRefName,baseRefName,headRefOid,baseRefOid,isDraft,isCrossRepository,createdAt,updatedAt,url,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,closingIssuesReferences"
 
-// The merged pull requests of the Reviews view's Recently merged (#843): the window's, plus a day for the time zones.
-const mergedPrFields = "number,title,url,author,headRefName,baseRefName,isCrossRepository,mergedAt,mergedBy,mergeCommit,closingIssuesReferences,body"
-const mergedPrsListLimit = "30"
+// The pull requests closed in the window (plus a day for the time zones): the merged ones are the Reviews view's Recently
+// merged (#843); with the closed ones, their heads tell Upcoming a branch whose PR is done (#1088).
+const mergedPrFields = "number,title,url,author,state,headRefName,headRefOid,baseRefName,isCrossRepository,mergedAt,closedAt,mergedBy,mergeCommit,closingIssuesReferences,body"
+const mergedPrsListLimit = "40"
 const mergedPrsSearchDays = ReviewMergedDays + 1
 const runFields = "databaseId,workflowName,event,status,conclusion,headBranch,headSha,displayTitle,createdAt,updatedAt,url"
 const releaseFields = "tagName,name,isDraft,isPrerelease,isLatest,publishedAt,createdAt"
@@ -126,10 +127,11 @@ func ghRepoArgs(repoRef string, args []string) []string {
 	return rtn
 }
 
-// mergedPrsArgs lists the PRs merged since the window opened, into the declared PR target branch when there is one.
+// mergedPrsArgs lists the PRs closed (merged or not) since the window opened, into the declared PR target branch when
+// there is one: gh's closed state holds the merged PRs too.
 func mergedPrsArgs(dir string, now time.Time) []string {
 	since := now.UTC().AddDate(0, 0, -mergedPrsSearchDays).Format("2006-01-02")
-	args := []string{"pr", "list", "--state", "merged", "--limit", mergedPrsListLimit, "--search", "merged:>=" + since + " sort:updated-desc", "--json", mergedPrFields}
+	args := []string{"pr", "list", "--state", "closed", "--limit", mergedPrsListLimit, "--search", "closed:>=" + since + " sort:updated-desc", "--json", mergedPrFields}
 	if target := molten.PrTargetBranch(dir); target != "" {
 		args = append(args, "--base", target)
 	}

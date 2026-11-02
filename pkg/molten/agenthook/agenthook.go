@@ -26,13 +26,20 @@ const (
 	agentIdMaxLength = 32
 )
 
-// AgentStateRequest is molten.AgentStateRequest, as `molten agent state` sends it (FR-SHELL-011).
+// AgentStateRequest is molten.AgentStateRequest, as `molten agent state` and `molten agent hook` send it
+// (FR-SHELL-011).
 type AgentStateRequest struct {
 	BlockId string `json:"blockid"`
 	State   string `json:"state"`
 	Agent   string `json:"agent,omitempty"`
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
+	Start   bool   `json:"start,omitempty"`
+	// Subagent: the report is a sub-agent's (its agent_id), not the pane's main session's (#1092).
+	Subagent string `json:"subagent,omitempty"`
+	// Provider: the host Claude Code talks to when it is not Anthropic's (FR-AGC-008, provider.go); a start report
+	// without one says the run talks to Anthropic.
+	Provider string `json:"provider,omitempty"`
 }
 
 // ValidAgentState and ValidAgentId accept what molten.ValidAgentState and molten.ValidAgentId accept, without a

@@ -1,0 +1,129 @@
+{
+    "schema": 1,
+    "name": "SaaSFoundryAI",
+    "icon": "docs/public/icon.svg",
+    "versions": {
+        "tagprefix": "v",
+        "firstpublic": "1.0.0",
+        "files": [
+            { "path": "package.json", "format": "json", "keys": [["version"]] },
+            { "path": "package-lock.json", "format": "json", "keys": [["version"], ["packages", "", "version"]] },
+            { "path": ".saasfoundry.json", "format": "json", "keys": [["version"]] },
+            { "path": "AGENTS.md", "format": "text", "pattern": "- Current version: {version} \\(npm package `saasfoundryai-cli`\\)" },
+            { "path": "README.md", "format": "text", "pattern": "\\*\\*v{version}\\*\\*" },
+            { "path": "docs/.vitepress/config/navigation.ts", "format": "text", "pattern": "text: 'v{version}'," },
+            { "path": "docs/fr/guide/project-structure.md", "format": "text", "pattern": "\"version\": \"{version}\"," },
+            { "path": "docs/guide/project-structure.md", "format": "text", "pattern": "\"version\": \"{version}\"," }
+        ],
+        "changelogs": ["docs/changelog.md", "docs/fr/changelog.md"],
+        "format": "npm run format --"
+    },
+    "ci": {
+        "prepare": { "run": "npm ci" },
+        "statuses": "github",
+        "jobs": [
+            { "name": "format", "title": "Format check", "lane": "guards", "run": "npm run format:check" },
+            { "name": "impact-contract", "title": "Impact contract", "lane": "guards", "run": "npm run test:impact-contract" },
+            { "name": "lint", "title": "Lint", "lane": "static", "run": "npm run lint" },
+            { "name": "build", "title": "Build", "lane": "dist", "run": "npm run build", "description": "Cleans and recompiles dist/; every job that reads or rewrites dist/ shares this lane so none races it." },
+            { "name": "package", "title": "Package boundary", "lane": "dist", "run": "npm run package:check" },
+            { "name": "unit", "title": "Unit tests", "lane": "unit", "run": "npm run test:unit" },
+            { "name": "integration", "title": "Integration tests", "lane": "dist", "run": "npm run test:integration" },
+            { "name": "e2e", "title": "E2E tests", "lane": "dist", "run": "npm run test:e2e" },
+            { "name": "docs-build", "title": "Docs build", "lane": "docs", "run": "npm run docs:build" },
+            { "name": "docs-integrity", "title": "Docs integrity", "lane": "docs", "run": "npm run test:docs-integrity" },
+            { "name": "docker-normal", "title": "Docker lifecycle (normal lane)", "lane": "docker", "run": "npm run test:pre-push" }
+        ]
+    },
+    "release": {
+        "rc": [
+            { "id": "prepare", "title": "Bump the version and draft the notes on rc-X.Y.Z, made from develop", "phase": "prepare", "run": "molten release prepare {tag} --pr" },
+            {
+                "id": "changelog-en",
+                "title": "Write the {version} section of docs/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../SaaSFoundry-release, prepared on the RC branch rc-X.Y.Z made from develop), write the {version} section of docs/changelog.md. Cover what changed since the previous release, candidate or public. The cut commits it with the version.",
+                "check": { "path": "docs/changelog.md", "contains": "## [{version}]" }
+            },
+            {
+                "id": "changelog-fr",
+                "title": "Write the {version} section of docs/fr/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../SaaSFoundry-release, prepared on the RC branch rc-X.Y.Z made from develop), write the {version} section of docs/fr/changelog.md. Cover what changed since the previous release, candidate or public. The cut commits it with the version.",
+                "check": { "path": "docs/fr/changelog.md", "contains": "## [{version}]" }
+            },
+            {
+                "id": "rewrite-notes",
+                "title": "Rewrite the public notes with the coding agent",
+                "notes": true,
+                "run": "molten release notes {tag}"
+            },
+            {
+                "id": "tag",
+                "title": "Commit the candidate on rc-X.Y.Z and tag it there",
+                "phase": "cut",
+                "confirm": "Pushes rc-X.Y.Z with the release commit of {tag} and the tag on its head. No publish workflow starts on the tag (test.yml runs on it), and nothing reaches master or develop.",
+                "run": "molten release tag {tag} --rc-branch"
+            }
+        ],
+        "public": [
+            { "id": "prepare", "title": "Bump the version and draft the notes on rc-X.Y.Z, made from develop", "phase": "prepare", "run": "molten release prepare {tag} --pr" },
+            {
+                "id": "reconcile",
+                "title": "Reconcile master into rc-X.Y.Z when they diverged (merge -s ours; nothing to do otherwise)",
+                "phase": "prepare",
+                "run": "molten release reconcile {tag}"
+            },
+            {
+                "id": "changelog-en",
+                "title": "Write the {version} section of docs/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../SaaSFoundry-release, prepared on the RC branch rc-X.Y.Z made from develop), write the {version} section of docs/changelog.md. Cover everything that changed since the last public release, release candidates included: public users never saw them. The public notes draft has that scope. The cut commits it with the version.",
+                "check": { "path": "docs/changelog.md", "contains": "## [{version}]" }
+            },
+            {
+                "id": "changelog-fr",
+                "title": "Write the {version} section of docs/fr/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../SaaSFoundry-release, prepared on the RC branch rc-X.Y.Z made from develop), write the {version} section of docs/fr/changelog.md. Cover everything that changed since the last public release, release candidates included: public users never saw them. The public notes draft has that scope. The cut commits it with the version.",
+                "check": { "path": "docs/fr/changelog.md", "contains": "## [{version}]" }
+            },
+            {
+                "id": "rewrite-notes",
+                "title": "Rewrite the public notes with the coding agent",
+                "notes": true,
+                "run": "molten release notes {tag}"
+            },
+            {
+                "id": "open-pr",
+                "title": "Commit the release on rc-X.Y.Z and open its pull request to master",
+                "phase": "cut",
+                "confirm": "Pushes rc-X.Y.Z with the release commit of {tag} and opens its pull request to master.",
+                "run": "molten release open-pr {tag}"
+            },
+            {
+                "id": "merge-pr",
+                "title": "Merge the pull request into master once CI / Required gate is green",
+                "phase": "cut",
+                "confirm": "Merges the pull request of {tag} into master with a merge commit once CI / Required gate is green.",
+                "run": "molten release merge-pr {tag} --method merge"
+            },
+            {
+                "id": "tag",
+                "title": "Tag the merge commit and push the tag: publish-stable.yml starts on the tag",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed: publish-stable.yml starts on the tag, and the environment npm-production asks for an approval on GitHub.",
+                "run": "molten release tag {tag}"
+            },
+            { "id": "close-milestone", "title": "Close the milestone once the release is published", "phase": "publish", "run": "molten release close-milestone {tag}" },
+            { "id": "dispatch-deploy-docs", "title": "Run Deploy Documentation at {tag}", "phase": "publish", "run": "molten release dispatch deploy-docs.yml --ref {tag}" },
+            {
+                "id": "sync-back",
+                "title": "Merge master back into develop with a merge commit",
+                "phase": "back",
+                "confirm": "Opens the pull request of master (at {tag}) into develop and merges it with a merge commit once its checks are green, never squash or rebase: master must become part of develop's history, or the branches diverge again.",
+                "run": "molten release sync-back {tag} --merge"
+            }
+        ]
+    }
+}

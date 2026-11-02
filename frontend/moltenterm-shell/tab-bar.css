@@ -9,6 +9,12 @@
     padding: 0 2px;
     font-weight: var(--mt-weight-medium);
     transition: width var(--mt-duration-base) var(--mt-ease);
+    cursor: pointer;
+}
+
+/* #1178: a name being renamed is text to edit, not a tab to click. */
+.tab.molten-tab .name.focused {
+    cursor: text;
 }
 
 .tab.molten-tab .tab-divider {
@@ -23,7 +29,7 @@
     padding: 0 10px;
     box-sizing: border-box;
     overflow: hidden;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     transition: background-color var(--mt-duration-fast) var(--mt-ease);
 }
 
@@ -63,10 +69,60 @@
     color: var(--mt-text-secondary);
 }
 
+/* The tab's agent (#1033): quieter than the name. The name gives up its room first (down to a few letters), then the
+   agent's first name ellipsizes; the separator and "+N" never shrink. The agent itself never flex-shrinks (even a tiny
+   factor takes a fraction of a pixel and ellipsizes it); its cap leaves the name its few letters, the mark and the
+   gaps (20 px). */
+.tab.molten-tab .molten-tab-body > .molten-tab-agent {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: calc(100% - 1.5em - 20px);
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-regular);
+    color: var(--mt-text-muted);
+    white-space: nowrap;
+}
+
+.tab.molten-tab .molten-tab-agent > .molten-tab-agent-sep,
+.tab.molten-tab .molten-tab-agent > .molten-tab-agent-more {
+    flex-shrink: 0;
+}
+
+.tab.molten-tab .molten-tab-agent > .molten-tab-agent-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab.molten-tab .molten-tab-body:has(> .molten-tab-agent) > .name:not(.focused) {
+    min-width: 1.5em;
+}
+
+/* The narrowest tabs (96 px) cannot hold the name's letters, the separator, a first name and "+N": the separator and
+   "+N" go first (the tooltip still lists every agent), the first name last. */
+.tab.molten-tab .molten-tab-body:has(> .molten-tab-agent) {
+    container-type: inline-size;
+}
+
+.tab.molten-tab .molten-tab-agent {
+    overflow: hidden;
+}
+
+@container (max-width: 72px) {
+    .tab.molten-tab .molten-tab-agent > .molten-tab-agent-sep,
+    .tab.molten-tab .molten-tab-agent > .molten-tab-agent-more {
+        display: none;
+    }
+}
+
 .tab.molten-tab .name.focused {
     flex: 1 1 auto;
     padding: 1px 4px;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     text-overflow: clip;
 }
 
@@ -80,16 +136,16 @@
 }
 
 .tab.molten-tab.active .molten-tab-icon {
-    color: color-mix(in srgb, var(--mt-accent) 70%, var(--mt-text-main));
+    color: color-mix(in srgb, var(--mt-place) var(--mt-place-tone-share, 70%), var(--mt-text-main));
 }
 
 /* A workspace with a gradient (#657, accent.ts sets the attribute): the active tab's icon is painted with it. */
 :root[data-mt-accent-gradient] .tab.molten-tab.active .molten-tab-icon {
     background-image: linear-gradient(
         135deg,
-        color-mix(in srgb, var(--mt-accent) 70%, var(--mt-text-main)),
-        color-mix(in srgb, var(--mt-accent-mid) 70%, var(--mt-text-main)),
-        color-mix(in srgb, var(--mt-accent-end) 70%, var(--mt-text-main))
+        color-mix(in srgb, var(--mt-place) var(--mt-place-tone-share, 70%), var(--mt-text-main)),
+        color-mix(in srgb, var(--mt-place-mid) var(--mt-place-tone-share, 70%), var(--mt-text-main)),
+        color-mix(in srgb, var(--mt-place-end) var(--mt-place-tone-share, 70%), var(--mt-text-main))
     );
     -webkit-background-clip: text;
     background-clip: text;
@@ -162,8 +218,9 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
     display: none;
 }
 
-/* The agent mark (8 px): shape first, colour second. Working is a ring, waiting a filled dot; the ring blinks on the
-   shared working beat (mt-beat-blink, #473) instead of an expanding halo of its own. */
+/* The agent mark (8 px): shape first, colour second, the state marks' shapes (FR-SHELL-116). Working is an
+   incandescent 270° arc that turns a quarter per shared working beat (mt-beat-turn, #473) instead of an animation of
+   its own, waiting a violet dot with a halo, an error an ember diamond, done a small patina dot. */
 .molten-tab-dot {
     position: relative;
     display: inline-block;
@@ -175,11 +232,13 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
 }
 
 .molten-tab-dot[data-state="working"] {
-    border: 2px solid var(--mt-state-working);
+    border: 2px solid var(--mt-state-running);
+    border-right-color: color-mix(in srgb, var(--mt-state-running) 25%, transparent);
 }
 
 .molten-tab-dot[data-state="waiting"] {
     background: var(--mt-state-waiting);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 30%, transparent);
 }
 
 .molten-tab-dot[data-state="error"] {
@@ -188,14 +247,14 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
     margin: 0 0.5px;
     border-radius: 0;
     transform: rotate(45deg);
-    background: var(--mt-state-error);
+    background: var(--mt-state-blocked);
 }
 
 .molten-tab-dot[data-state="done"] {
     width: 6px;
     height: 6px;
     margin: 0 1px;
-    background: var(--mt-state-done);
+    background: var(--mt-state-ready);
 }
 
 /* A Review tab whose PR is finished (#686): a check badge once merged, a neutral dash once closed without merge. */
@@ -206,7 +265,7 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
 }
 
 .molten-tab-review-done[data-state="merged"] {
-    color: var(--mt-state-done);
+    color: var(--mt-state-ready);
 }
 
 .molten-tab-review-done[data-state="closed"] {

@@ -44,7 +44,7 @@ var (
 	flagRegex     = regexp.MustCompile(`(?i)(?:^|\s)(--?[a-z0-9-]*(?:password|passwd|passphrase|secret|token|api-?key|access-key|credential)[a-z0-9-]*)(\s+)([^\s-][^\s]*)`)
 	userFlagRegex = regexp.MustCompile(`(?:^|\s)(-u|--user)(\s+)([^\s:]+):([^\s]+)`)
 	// name, separator, value: NAME=value, export NAME="value", name: value, "name": "value", name = 'value'.
-	assignRegex   = regexp.MustCompile(`(["']?)([A-Za-z_][A-Za-z0-9_.-]{0,80})(["']?)([ \t]*(?::=|:|=)[ \t]*)("(?:[^"\\]|\\.)*"|'[^']*'|[^\s,;}\]\[{"'` + "`" + `][^\s,;}\]"'` + "`" + `]*)`)
+	assignRegex   = regexp.MustCompile(`(["']?)([A-Za-z_][A-Za-z0-9_.-]{0,80})(["']?)([ \t]*(?::=|:|=)[ \t]*)("(?:[^"\\]|\\.)*"|'(?:''|[^'])*'|[^\s,;}\]\[{"'` + "`" + `][^\s,;}\]"'` + "`" + `]*)`)
 	tokenPatterns = []tokenPattern{
 		{[]string{"sk-"}, regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{12,}`)},
 		{[]string{"k_live_", "k_test_"}, regexp.MustCompile(`\b[rsp]k_(?:live|test)_[A-Za-z0-9]{16,}`)},
@@ -65,6 +65,10 @@ var (
 	shortNumberRegex = regexp.MustCompile(`^\d{1,6}$`)
 	variableRefRegex = regexp.MustCompile(`^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$|^\{\{.*\}\}$|^<[^<>]*>$`)
 	plainWordRegex   = regexp.MustCompile(`^[a-z]{1,12}$`)
+	// Two more words of prose after a value, on its line (a comma or a semicolon may follow the first).
+	proseTailRegex   = regexp.MustCompile(`^[ \t]+\p{L}+[,;]?[ \t]+\p{L}+`)
+	sentenceEndRegex = regexp.MustCompile(`\p{L}[.!?…][ \t]*$`)
+	cssPseudoRegex   = regexp.MustCompile(`^[a-z-]+(?:\([^()]*\))?[ \t]*\{`)
 )
 
 func containsAny(text string, hints ...string) bool {
@@ -109,19 +113,7 @@ func Redact(text string) (string, int) {
 		if strings.Contains(text, "-") {
 			text = replaceGroup(flagRegex, text, 3, &count)
 		}
-		text = assignRegex.ReplaceAllStringFunc(text, func(match string) string {
-			m := assignRegex.FindStringSubmatch(match)
-			if m == nil || !sensitiveName(m[2]) {
-				return match
-			}
-			quoted := m[1] != "" && m[1] == m[3]
-			value := m[5]
-			if !secretValue(value, strings.TrimSpace(m[4]), quoted, strongName(m[2])) {
-				return match
-			}
-			count++
-			return m[1] + m[2] + m[3] + m[4] + quoteLike(value, Redacted)
-		})
+		text = replaceAssignments(text, &count)
 	}
 	for _, p := range tokenPatterns {
 		if !containsAny(text, p.hints...) {
@@ -199,8 +191,13 @@ func nameHasWord(lower string, word string) bool {
 // number or a <placeholder> is kept unless the name is a password's or a secret's (strong). With a colon (YAML, or
 // prose such as "the key: rotate it"), an unquoted single plain word is kept, unless the name is quoted (JSON) or
 // strong.
-func secretValue(value string, sep string, quotedName bool, strong bool) bool {
+func secretValue(value string, rawSep string, quotedName bool, strong bool) bool {
+	sep := strings.TrimSpace(rawSep)
 	inner := strings.Trim(value, `"'`)
+	// A CSS pseudo-element (li.key::before) reads as name, colon, ":before": no secret starts with a colon.
+	if sep == ":" && strings.HasPrefix(value, ":") {
+		return false
+	}
 	switch strings.ToLower(inner) {
 	case "", "true", "false", "null", "none", "nil", "undefined", "[redacted]", "redacted", "***", "...", "…":
 		return false
@@ -216,6 +213,124 @@ func secretValue(value string, sep string, quotedName bool, strong bool) bool {
 		return false
 	}
 	return true
+}
+
+// replaceAssignments redacts the values given to sensitive names; what follows a match on its line tells prose apart.
+func replaceAssignments(text string, count *int) string {
+	var b strings.Builder
+	last := 0
+	for _, idx := range assignRegex.FindAllStringSubmatchIndex(text, -1) {
+		if idx[0] < last {
+			continue
+		}
+		group := func(i int) string {
+			if idx[2*i] < 0 {
+				return ""
+			}
+			return text[idx[2*i]:idx[2*i+1]]
+		}
+		name, sep, value := group(2), group(4), group(5)
+		if !sensitiveName(name) {
+			continue
+		}
+		quoted := group(1) != "" && group(1) == group(3)
+		lineStart := strings.LastIndex(text[:idx[0]], "\n") + 1
+		prefix := strings.TrimSpace(text[lineStart:idx[0]])
+		mapping := strings.TrimSpace(sep) == ":" && (prefix == "" || prefix == "-")
+		flow := strings.TrimSpace(sep) == ":" && strings.LastIndex(prefix, "{") > strings.LastIndex(prefix, "}")
+		if cssSelector(sep, text[idx[10]:]) {
+			continue
+		}
+		if mapping && proseSentence(name, sep, value, quoted, text[idx[1]:]) {
+			continue
+		}
+		end := idx[11]
+		plain := !strings.HasPrefix(value, `"`) && !strings.HasPrefix(value, "'")
+		if plain && (mapping || flow) {
+			indent := len(text[lineStart:idx[0]])
+			if prefix == "-" {
+				indent++
+			}
+			end = yamlScalarEnd(text, end, indent, flow)
+			value = strings.TrimSpace(text[idx[10]:end])
+			if i := strings.Index(value, " #"); i >= 0 {
+				value = strings.TrimSpace(value[:i])
+			}
+		}
+		if !secretValue(value, sep, quoted || mapping || flow, strongName(name)) {
+			continue
+		}
+		if !mapping && !flow && proseColon(name, sep, value, quoted, text[idx[1]:]) {
+			continue
+		}
+		*count++
+		b.WriteString(text[last:idx[10]])
+		b.WriteString(quoteLike(value, Redacted))
+		last = end
+	}
+	if last == 0 {
+		return text
+	}
+	b.WriteString(text[last:])
+	return b.String()
+}
+
+// Plain YAML scalars can continue on deeper-indented lines; a flow scalar ends at its next delimiter.
+func yamlScalarEnd(text string, start int, indent int, flow bool) int {
+	end := start
+	for end < len(text) && text[end] != '\n' && (!flow || !strings.ContainsRune(",}]", rune(text[end]))) {
+		end++
+	}
+	if flow {
+		return end
+	}
+	for end < len(text) {
+		next := end + 1
+		lineEnd := strings.IndexByte(text[next:], '\n')
+		if lineEnd < 0 {
+			lineEnd = len(text)
+		} else {
+			lineEnd += next
+		}
+		line := text[next:lineEnd]
+		if strings.TrimSpace(line) != "" && len(line)-len(strings.TrimLeft(line, " ")) <= indent {
+			break
+		}
+		end = lineEnd
+	}
+	return end
+}
+
+// proseColon tells inline French prose ("le secret : des copies gardées sur cet ordinateur"): a plain word, a space before the
+// colon as French typography puts it, a plain word, and at least two more words on the same line. A value alone at
+// the end of its line, or followed by anything else, is an assignment ("password : swordfish"), strong name or not.
+func proseColon(name string, rawSep string, value string, quotedName bool, rest string) bool {
+	if quotedName || strings.TrimSpace(rawSep) != ":" || !strings.HasPrefix(rawSep, " ") && !strings.HasPrefix(rawSep, "\t") {
+		return false
+	}
+	if !plainWordRegex.MatchString(name) || !plainWordRegex.MatchString(value) {
+		return false
+	}
+	return proseTailRegex.MatchString(rest)
+}
+
+// proseSentence tells a French sentence that opens its line ("Secret : des copies gardées sur cet ordinateur.") from a
+// YAML mapping with a passphrase ("password : correct horse battery staple"): the prose reads as proseColon, its first
+// word may take a capital, and it ends as a sentence does.
+func proseSentence(name string, rawSep string, value string, quotedName bool, rest string) bool {
+	if !proseColon(strings.ToLower(name), rawSep, value, quotedName, rest) {
+		return false
+	}
+	lineEnd := strings.IndexByte(rest, '\n')
+	if lineEnd < 0 {
+		lineEnd = len(rest)
+	}
+	return sentenceEndRegex.MatchString(rest[:lineEnd])
+}
+
+// cssSelector tells a pseudo-class opening a rule (".secret:hover {"): no space around the colon, a block after it.
+func cssSelector(rawSep string, valueOn string) bool {
+	return rawSep == ":" && cssPseudoRegex.MatchString(valueOn)
 }
 
 func quoteLike(value string, replacement string) string {

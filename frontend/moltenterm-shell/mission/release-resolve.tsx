@@ -1,0 +1,188 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// A failed release step's ways out (#945, FR-MC-016), as the Reviews' failed CI has them (reviews-ci-actions.tsx):
+// Rerun failed jobs (the GitHub runs the step names, after a confirmation in the card), Analyze and resolve (a work
+// agent out of sight, under the release's rules, that reports by notification) and Investigate together (a tab, shown,
+// with the failing logs beside an agent primed with the failure). Nothing starts before the developer's click.
+
+import { fireAndForget } from "@/util/util";
+import { useState } from "react";
+import { useT } from "../i18n/i18n";
+import { serverErrorText, serverText } from "../i18n/server-text";
+import { MoltenWave } from "../molten-button";
+import type { AgentMode, ReviewRestartResult } from "../review/review-client";
+import { DominoLoader } from "../suite/suite";
+import { useCardLock } from "./pending-action";
+import type { FailedRun, Phase } from "./release-run";
+
+export type ReleaseResolveActions = {
+    rerunRuns: (runs: FailedRun[]) => Promise<void>;
+    resolve: (phase: Phase, mode: AgentMode) => Promise<{ result: ReviewRestartResult; tab: string }>;
+};
+
+const SmallButton =
+    "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+
+type Busy = "" | "rerun" | AgentMode;
+
+const LockPrefix = "resolve:";
+
+type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
+// What the card says after a click, worded at render: the interface language can change while it shows.
+type Said = { word: (t: Translate) => { text: string; error: boolean } };
+
+// resolveText: what the card says once wavesrv answered a start.
+export function resolveText(
+    t: Translate,
+    result: ReviewRestartResult,
+    mode: AgentMode,
+    step: string,
+    tab: string
+): { text: string; error: boolean } {
+    const name = result?.agentname || t("agentChoice.yourAgent");
+    if (result?.status === "started") {
+        return mode === "together"
+            ? { text: t("mc.releaseRun.resolve.startedTogether", { name, tab }), error: false }
+            : { text: t("mc.releaseRun.resolve.started", { name, step }), error: false };
+    }
+    const message = serverText(result?.messagetext, result?.message ?? "");
+    return { text: t("mc.releaseRun.resolve.failed", { message }), error: true };
+}
+
+export function ReleaseFailureActions({ phase, actions }: { phase: Phase; actions: ReleaseResolveActions }) {
+    const t = useT();
+    // The release card's lock (#952): while one of these starts, no action of the card can be clicked.
+    const lock = useCardLock();
+    const busy: Busy = lock.pending.startsWith(LockPrefix) ? (lock.pending.slice(LockPrefix.length) as Busy) : "";
+    const locked = lock.pending !== "";
+    const [confirming, setConfirming] = useState(false);
+    const [said, setSaid] = useState<Said>(null);
+    const failure = phase.failure;
+    if (phase.status !== "failed" || failure == null) {
+        return null;
+    }
+    const runs = failure.runs ?? [];
+    const names = runs.map((r) => r.name).join(", ");
+    // The build's own action already reruns the release workflow's failed jobs.
+    const rerunnable = runs.length > 0 && phase.action?.kind !== "rerun";
+    const worded = said?.word(t);
+    const rerun = () =>
+        fireAndForget(async () => {
+            try {
+                await lock.run(LockPrefix + "rerun", async () => {
+                    setSaid(null);
+                    await actions.rerunRuns(runs);
+                    setConfirming(false);
+                    setSaid({
+                        word: (tt) => ({ text: tt("mc.releaseRun.resolve.rerunStarted", { names }), error: false }),
+                    });
+                });
+            } catch (e) {
+                setSaid({ word: () => ({ text: serverErrorText(e), error: true }) });
+            }
+        });
+    const start = (mode: AgentMode) =>
+        fireAndForget(async () => {
+            try {
+                await lock.run(LockPrefix + mode, async () => {
+                    setSaid(null);
+                    setConfirming(false);
+                    const { result, tab } = await actions.resolve(phase, mode);
+                    setSaid({ word: (tt) => resolveText(tt, result, mode, failure.step, tab) });
+                });
+            } catch (e) {
+                setSaid({
+                    word: (tt) => ({
+                        text: tt("mc.releaseRun.resolve.failed", { message: serverErrorText(e) }),
+                        error: true,
+                    }),
+                });
+            }
+        });
+    return (
+        <div className="mt-3 flex flex-col gap-2" data-testid="release-run-resolve">
+            <div className="flex flex-wrap justify-end gap-2">
+                {rerunnable ? (
+                    <button
+                        type="button"
+                        className={SmallButton}
+                        disabled={locked}
+                        aria-expanded={confirming}
+                        title={t("mc.releaseRun.resolve.rerunTitle", { names })}
+                        onClick={() => setConfirming(true)}
+                        data-testid="release-run-rerun-failed"
+                    >
+                        {busy === "rerun" ? <DominoLoader /> : <i className="fa fa-solid fa-rotate-right text-11" />}
+                        {busy === "rerun" ? t("mc.releaseRun.resolve.rerunning") : t("mc.releaseRun.resolve.rerun")}
+                    </button>
+                ) : null}
+                <button
+                    type="button"
+                    className={SmallButton}
+                    disabled={locked}
+                    title={t("mc.releaseRun.resolve.analyzeTitle", { step: failure.step })}
+                    onClick={() => start("background")}
+                    data-testid="release-run-analyze"
+                >
+                    {busy === "background" ? (
+                        <DominoLoader />
+                    ) : (
+                        <i className="fa fa-solid fa-screwdriver-wrench text-11" />
+                    )}
+                    {busy === "background" ? t("mc.releaseRun.resolve.asking") : t("mc.releaseRun.resolve.analyze")}
+                </button>
+                <button
+                    type="button"
+                    className={SmallButton}
+                    disabled={locked}
+                    title={t("mc.releaseRun.resolve.togetherTitle", { step: failure.step })}
+                    onClick={() => start("together")}
+                    data-testid="release-run-together"
+                >
+                    {busy === "together" ? <DominoLoader /> : <i className="fa fa-solid fa-terminal text-11" />}
+                    {busy === "together" ? t("mc.releaseRun.resolve.asking") : t("mc.releaseRun.resolve.together")}
+                </button>
+            </div>
+            {confirming ? (
+                <div
+                    className="flex flex-wrap items-center gap-2 rounded-4 border border-border px-2 py-1.5 text-12 text-secondary"
+                    role="status"
+                    data-testid="release-run-rerun-confirm"
+                >
+                    <span className="min-w-0 flex-1">{t("mc.releaseRun.resolve.rerunConfirm", { names })}</span>
+                    <button
+                        type="button"
+                        className="cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50"
+                        disabled={locked}
+                        onClick={() => setConfirming(false)}
+                    >
+                        {t("common.cancel")}
+                    </button>
+                    <button
+                        type="button"
+                        className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12 disabled:cursor-default disabled:opacity-50"
+                        disabled={locked}
+                        aria-busy={busy === "rerun"}
+                        onClick={rerun}
+                        data-testid="release-run-rerun-yes"
+                    >
+                        {busy === "rerun" ? <DominoLoader /> : null}
+                        {busy === "rerun" ? t("mc.releaseRun.resolve.rerunning") : t("mc.releaseRun.resolve.rerunYes")}
+                        <MoltenWave />
+                    </button>
+                </div>
+            ) : null}
+            {worded ? (
+                <p
+                    className={worded.error ? "text-right text-12 text-danger" : "text-right text-12 text-secondary"}
+                    role={worded.error ? "alert" : "status"}
+                    data-testid="release-run-resolve-said"
+                >
+                    {worded.text}
+                </p>
+            ) : null}
+        </div>
+    );
+}

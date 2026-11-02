@@ -772,7 +772,11 @@ func (w *WshRpc) SendComplexRequest(command string, data any, opts *wshrpc.RpcOp
 		timeoutMs = DefaultTimeoutMs
 	}
 	defer func() {
-		panichandler.PanicHandler("SendComplexRequest", recover())
+		// MOLTENTERM-PATCH (#1208): a send on an output channel closed by a link that just ended was recovered into
+		// (nil, nil), and SendRpcRequest then crashed the process on the nil handler.
+		if panicErr := panichandler.PanicHandler("SendComplexRequest", recover()); panicErr != nil {
+			rtnHandler, rtnErr = nil, panicErr
+		}
 	}()
 	if command == "" {
 		return nil, fmt.Errorf("command cannot be empty")

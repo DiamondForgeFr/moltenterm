@@ -7,6 +7,7 @@ vi.mock("../workspace-project", () => ({ ProjectMetaKey: "molten:project", Works
 
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
+import { integrationRunRows, integrationRunText } from "../agent-integration-runs";
 import { hasKey, translate } from "../i18n/i18n-core";
 import { SuiteIcons } from "../suite/suite-icons";
 import {
@@ -19,6 +20,8 @@ import {
     localizeCatalog,
     localizeSection,
     localizeSettingEntry,
+    multiOptionOn,
+    multiToggled,
     searchSettings,
     sectionEntries,
     sectionTitle,
@@ -64,21 +67,49 @@ describe("settings catalog (FR-SHELL-050)", () => {
     it("lists the sections in the screen's order, Advanced last", () => {
         expect(SettingsSections.map((s) => s.title)).toEqual([
             "General",
+            "Workspaces and views",
             "Appearance",
             "Terminal",
             "Agents",
             "Browser",
-            "Mission Control",
+            "Project",
+            "Notifications",
             "Keyboard",
             "Mods",
             "Secrets",
+            "Tips",
             "Advanced",
         ]);
     });
 
+    // FR-SHELL-106: the sidebar and new views live with the workspaces; the per-site lists stay in Browser.
+    it("gathers the sidebar and new views in Workspaces and views", () => {
+        const spaces = sectionEntries(catalog(), "spaces").map((e) => e.key);
+        expect(spaces).toEqual(["moltenterm:sidebartint", "app:newviewopen"]);
+        expect(sectionEntries(catalog(), "general").map((e) => e.key)).not.toContain("app:newviewopen");
+        expect(sectionEntries(catalog(), "appearance").map((e) => e.key)).not.toContain("moltenterm:sidebartint");
+        const browser = sectionEntries(catalog(), "browser").map((e) => e.key);
+        for (const key of ["browser:sites", "browser:agentsites", "browser:sitepermissions"]) {
+            expect(browser).toContain(key);
+        }
+    });
+
+    // The Library's Settings page lists SettingsSections as they are: Tips is one of them, so the lists cannot drift.
+    it("gives Preferences and the Library one list of sections, Tips included", () => {
+        const ids = SettingsSections.map((s) => s.id as string);
+        expect(ids).toContain("tips");
+        expect(ids).toContain("notifications");
+        for (const s of SettingsSections) {
+            expect(s.icon, s.id).toBeTruthy();
+            expect(SettingsSectionConcepts[s.id], s.id).toBeTruthy();
+        }
+    });
+
+    // Notifications, Mods, Secrets and Tips hold what settings.json does not.
     it("gives each section but Advanced and Keyboard its own settings", () => {
         const all = [...WorkspaceSettings, ...catalog()];
-        for (const s of SettingsSections.filter((s) => s.id !== "mods" && s.id !== "secrets")) {
+        const noKeys = ["mods", "secrets", "notifications", "tips"];
+        for (const s of SettingsSections.filter((s) => !noKeys.includes(s.id))) {
             expect(sectionEntries(all, s.id).length, s.id).toBeGreaterThan(0);
         }
     });
@@ -141,14 +172,19 @@ describe("settings catalog (FR-SHELL-050)", () => {
     });
 });
 
-describe("workspace settings (FR-SHELL-050-AC4)", () => {
-    it("marks the workspace's own settings and puts them first in General", () => {
+describe("workspace settings (FR-SHELL-050-AC4, FR-SHELL-101)", () => {
+    it("marks the workspace's own settings and keeps them out of General, a section for the whole app", () => {
         const all = settingsCatalog("darwin");
-        const general = sectionEntries(all, "general");
-        expect(general.slice(0, 2).map((e) => [e.key, e.scope])).toEqual([
-            ["molten:folder", "workspace"],
-            ["molten:project", "workspace"],
+        expect(all.filter((e) => e.scope === "workspace").map((e) => e.key)).toEqual([
+            "molten:folder",
+            "molten:project",
         ]);
+        for (const s of SettingsSections) {
+            expect(
+                sectionEntries(all, s.id).every((e) => e.scope === "global"),
+                s.id
+            ).toBe(true);
+        }
         expect(all.filter((e) => e.scope === "workspace").every((e) => !(e.key in props))).toBe(true);
         expect(all.filter((e) => e.key in props).every((e) => e.scope === "global")).toBe(true);
     });
@@ -177,7 +213,7 @@ describe("settings search (FR-SHELL-050-AC2)", () => {
         expect(searchSettings(all(), "scrollback nothinglikethis")).toEqual([]);
         expect(searchSettings(all(), "  ")).toEqual([]);
         const theme = searchSettings(all(), "theme");
-        expect(theme[0].key).toBe("term:theme");
+        expect(theme.slice(0, 2).map((e) => e.key)).toEqual(["moltenterm:theme", "term:theme"]);
     });
 
     it("finds the workspace settings", () => {
@@ -195,9 +231,12 @@ describe("values", () => {
         expect(isChanged(scrollback, undefined)).toBe(false);
         expect(isChanged(scrollback, 2000)).toBe(false);
         expect(isChanged(scrollback, 5000)).toBe(true);
+        const transparent = entry("window:transparent");
+        expect(isChanged(transparent, false)).toBe(false);
+        expect(isChanged(transparent, true)).toBe(true);
         const blur = entry("window:blur");
-        expect(isChanged(blur, false)).toBe(false);
-        expect(isChanged(blur, true)).toBe(true);
+        expect(isChanged(blur, true)).toBe(false);
+        expect(isChanged(blur, false)).toBe(true);
         const gauges = entry("companion:usagegauges");
         expect(isChanged(gauges, [])).toBe(false);
         expect(isChanged(gauges, ["claude"])).toBe(true);
@@ -251,7 +290,11 @@ describe("settings in the interface language (FR-I18N-001)", () => {
         const all = localizeCatalog(catalog(), fr);
         expect(all.find((e) => e.key === "term:scrollback").unit).toBe("lignes");
         expect(all.find((e) => e.key === "moltenterm:hiddentabviewsmb").unit).toBe("Mo");
-        const units = new Set(catalog().map((e) => e.unit).filter((u) => !!u));
+        const units = new Set(
+            catalog()
+                .map((e) => e.unit)
+                .filter((u) => !!u)
+        );
         expect([...units].filter((u) => !hasKey(`settings.units.${u}`))).toEqual([]);
     });
 
@@ -286,7 +329,11 @@ describe("short choices as option rows (#658)", () => {
     ];
 
     it("shows a select of four choices or fewer as rows, the unset choice first", () => {
-        expect(settingChoices(entry("app:tabbar"), langs, "System").map((c) => c.value)).toEqual(["top", "left"]);
+        expect(settingChoices(entry("preview:defaultsort"), langs, "System").map((c) => c.value)).toEqual([
+            "name",
+            "type",
+            "modtime",
+        ]);
         expect(settingChoices(entry("term:cursor"), langs, "System")).toHaveLength(3);
         expect(settingChoices(entry("browser:installed"), langs, "System")).toBeNull();
         expect(settingChoices(entry("term:theme"), langs, "System")).toBeNull();
@@ -320,5 +367,42 @@ describe("short choices as option rows (#658)", () => {
         }
         expect(settingsGroupIcon("360View")).toBe("overview");
         expect(settingsGroupIcon("ciCd")).toBe("ci");
+    });
+});
+
+describe("Agents with the integration (FR-SHELL-040, #947)", () => {
+    it("shows agent:integrateoff inverted: a ticked agent gets the integration", () => {
+        const entry = catalog().find((e) => e.key === "agent:integrateoff");
+        expect(entry).toMatchObject({ label: "Agents with the hookup", inverted: true, control: "multi" });
+        expect(entry.description).toMatch(/from now on/);
+        expect(multiOptionOn(entry, null, "claude")).toBe(true);
+        expect(multiOptionOn(entry, ["codex"], "codex")).toBe(false);
+        expect(multiOptionOn(entry, ["codex"], "claude")).toBe(true);
+        expect(multiToggled(entry, null, "codex")).toEqual(["codex"]);
+        expect(multiToggled(entry, ["codex"], "codex")).toBeNull();
+    });
+
+    it("keeps a plain multi ticked when its value is in the list", () => {
+        const entry = catalog().find((e) => e.key === "companion:usagegauges");
+        expect(entry.inverted).toBeUndefined();
+        expect(multiOptionOn(entry, ["claude"], "claude")).toBe(true);
+        expect(multiOptionOn(entry, null, "claude")).toBe(false);
+    });
+
+    it("lists the running sessions with or without the integration", () => {
+        const states = {
+            b1: { blockid: "b1", agent: "claude", agentname: "Claude Code", firstname: "Valentin", version: 1 },
+        };
+        const rows = integrationRunRows(
+            [
+                { blockid: "b2", agent: "codex", integration: "off", browser: "none" },
+                { blockid: "b1", agent: "claude", integration: "on", browser: "added" },
+            ],
+            states
+        );
+        expect(rows.map((r) => [r.label, integrationRunText(r.integration)])).toEqual([
+            ["codex", "Without the hookup"],
+            ["Valentin · Claude Code", "With the hookup"],
+        ]);
     });
 });

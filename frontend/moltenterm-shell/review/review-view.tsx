@@ -6,7 +6,7 @@
 // of its own (review-ai-view.tsx) where the review session's cards show above the agent's own terminal. The diff is
 // read-only text: nothing from it is executed.
 
-import { useOverrideConfigAtom } from "@/app/store/global";
+import { getApi, useOverrideConfigAtom } from "@/app/store/global";
 import { boundNumber, cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
@@ -17,6 +17,7 @@ import { MonacoDiffViewer } from "../lazy/monaco-lazy";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { PrSignature, usePrAgents } from "../reviews/pr-signature";
+import { DominoLoader, LoadingState } from "../suite/suite";
 import { CommentsStrip, SelectionOverlay } from "./review-actions-view";
 import { ReviewFile, ReviewState } from "./review-client";
 import { isReviewDone } from "./review-done";
@@ -24,6 +25,7 @@ import { ReviewDoneState, ReviewMergedBanner } from "./review-done-view";
 import {
     collapsedReason,
     collapsedTag,
+    diffLayoutOf,
     formatBytes,
     isViewed,
     languageOf,
@@ -31,6 +33,7 @@ import {
     newCommitsLabel,
     nextFile,
     shortOid,
+    shownRenderMs,
     sideBySideOf,
     StatusLetters,
     TreeNode,
@@ -202,6 +205,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                     testId="review-layout"
                 />
                 <span className="ml-auto text-muted" data-testid="review-viewed-count">
+                    {loading ? <DominoLoader className="mr-1.5" /> : null}
                     {loading ? t("review.view.reading") : t("review.view.viewedCount", { viewed, total })}
                 </span>
             </div>
@@ -321,7 +325,10 @@ function FilesPanel({ model }: { model: ReviewViewModel }) {
                 </div>
             ) : null}
             {result == null && loading ? (
-                <div className="px-3 py-2 text-12 text-muted">{t("review.view.reading")}</div>
+                <div className="px-3 py-2 text-12 text-muted">
+                    <DominoLoader className="mr-1.5" />
+                    {t("review.view.reading")}
+                </div>
             ) : null}
             {result != null && result.files.length === 0 ? (
                 <div className="px-3 py-2 text-12 text-muted">{t("review.view.noFile")}</div>
@@ -523,7 +530,7 @@ function DiffPanel({ model }: { model: ReviewViewModel }) {
     const selected = useAtomValue(model.selectedAtom);
     const files = useAtomValue(model.filesAtom);
     const mode = useAtomValue(model.modeAtom);
-    const renderMs = useAtomValue(model.renderMsAtom);
+    const renderMs = shownRenderMs(useAtomValue(model.renderMsAtom), getApi()?.getIsDev?.() ?? false);
     const file = (files?.files ?? []).find((f) => f.path === selected) ?? null;
     if (file == null || view == null || view.path !== file.path) {
         return (
@@ -588,11 +595,7 @@ function DiffBody({
         );
     }
     if (view.loading) {
-        return (
-            <div className="flex flex-1 items-center justify-center text-12 text-muted">
-                {t("review.view.readingFile", { path: file.path })}
-            </div>
-        );
+        return <LoadingState caption={t("review.view.readingFile", { path: file.path })} />;
     }
     if (collapsed) {
         const binary = collapsed === "binary" || view.result?.binary;
@@ -638,6 +641,7 @@ function DiffBody({
             modified={view.result.modified}
             language={languageOf(file.path)}
             askedAt={view.askedAt}
+            status={file.status}
         />
     );
 }
@@ -649,6 +653,7 @@ function MonacoDiff({
     modified,
     language,
     askedAt,
+    status,
 }: {
     model: ReviewViewModel;
     path: string;
@@ -656,17 +661,19 @@ function MonacoDiff({
     modified: string;
     language: string;
     askedAt: number;
+    status: ReviewFile["status"];
 }) {
     const sideBySideToggle = useAtomValue(model.sideBySideAtom);
     const inlineDiff = useOverrideConfigAtom(model.blockId, "editor:inlinediff");
     const minimap = useOverrideConfigAtom(model.blockId, "editor:minimapenabled") ?? false;
     const fontSize = boundNumber(useOverrideConfigAtom(model.blockId, "editor:fontsize"), 6, 64);
-    const sideBySide = sideBySideOf(sideBySideToggle, inlineDiff);
+    const { sideBySide, trueInline } = diffLayoutOf(status, sideBySideToggle, inlineDiff);
     const options = useMemo<MonacoTypes.editor.IDiffEditorOptions>(
         () => ({
             readOnly: true,
             originalEditable: false,
             renderSideBySide: sideBySide,
+            experimental: { useTrueInlineView: trueInline },
             // The toggle decides, not the pane's width.
             useInlineViewWhenSpaceIsLimited: false,
             hideUnchangedRegions: { enabled: true, contextLineCount: 3, minimumLineCount: 5, revealLineCount: 20 },
@@ -680,7 +687,7 @@ function MonacoDiff({
             // The review comments' marks (FR-REV-003).
             glyphMargin: true,
         }),
-        [sideBySide, fontSize, minimap]
+        [sideBySide, trueInline, fontSize, minimap]
     );
     return (
         <div className="relative min-h-0 flex-1">

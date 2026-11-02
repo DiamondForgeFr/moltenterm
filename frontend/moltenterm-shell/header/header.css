@@ -67,7 +67,7 @@
 
 button.molten-header-title,
 button.molten-header-link {
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     cursor: pointer;
 }
 
@@ -91,7 +91,7 @@ button.molten-header-link:hover {
     align-items: center;
     gap: var(--mt-space-4);
     padding: 0 var(--mt-space-8);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     font-size: var(--mt-text-11);
     font-weight: var(--mt-weight-medium);
     line-height: 20px;
@@ -101,7 +101,15 @@ button.molten-header-link:hover {
     color: var(--mt-text-secondary);
 }
 
+/* The tones by heat (FR-SHELL-116): a warning is straw, an agent waiting on you violet (its own tone since waiting
+   left amber, decision 1), danger ember. */
 .molten-pill.is-warning {
+    background: color-mix(in srgb, var(--mt-state-warning) 15%, transparent);
+    box-shadow: none;
+    color: var(--mt-state-warning);
+}
+
+.molten-pill.is-waiting {
     background: color-mix(in srgb, var(--mt-state-waiting) 15%, transparent);
     box-shadow: none;
     color: var(--mt-state-waiting);
@@ -123,6 +131,10 @@ button.molten-pill:hover {
 }
 
 button.molten-pill.is-warning:hover {
+    background: color-mix(in srgb, var(--mt-state-warning) 24%, transparent);
+}
+
+button.molten-pill.is-waiting:hover {
     background: color-mix(in srgb, var(--mt-state-waiting) 24%, transparent);
 }
 
@@ -144,6 +156,18 @@ button.molten-pill.is-danger:hover {
     background: currentColor;
 }
 
+/* The dot takes its state's shape (FR-SHELL-116, .mt-state-mark): a halo for an agent waiting on you, a diamond for
+   an error. */
+.molten-pill.is-waiting .molten-pill-dot {
+    box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.molten-pill.is-danger .molten-pill-dot {
+    border-radius: 0;
+    transform: rotate(45deg) scale(0.82);
+    background: var(--mt-state-blocked);
+}
+
 .molten-pill-icon {
     flex-shrink: 0;
     font-size: var(--mt-text-11);
@@ -156,7 +180,7 @@ button.molten-pill.is-danger:hover {
     align-items: center;
     margin-right: calc(var(--mt-space-4) * -1);
     padding: 0 6px;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     font-weight: var(--mt-weight-semibold);
     background: color-mix(in srgb, currentColor 18%, transparent);
     color: inherit;
@@ -250,4 +274,20 @@ button.molten-header-link:focus-visible {
     border-radius: 50%;
     background: var(--mt-accent);
     pointer-events: none;
+}
+
+/* A narrow panel keeps its close button, "Store on the carpet" and the command panel trigger (#1439). The title and the
+   pill shrink first; then the header folds, in a stable order, from the right: the view's own buttons and the split
+   buttons move into the "⋯", then Magnify does (a magnified panel keeps its un-magnify button). The folds and the "⋯"
+   are decided in code, from the same width as this query (header-fold.ts, #1586): a rule here lost to Wave's header
+   rules and showed the "⋯" with nothing in it. */
+.block-frame-default-header {
+    container-type: inline-size;
+    container-name: molten-header;
+}
+
+@container molten-header (max-width: 339px) {
+    .block-frame-default-header .block-frame-default-header-iconview {
+        flex-shrink: 1 !important;
+    }
 }

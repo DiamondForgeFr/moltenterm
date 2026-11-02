@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The tabs of a browser panel (FR-SHELL-007), kept in the block meta so they come back after a restart. Pure
-// functions: the view applies them and writes the result.
+// functions: the view applies them and writes the result. Since #1187 (FR-SHELL-083) a panel shows one page: what
+// opened a tab opens a panel beside it, and the list holds that one page.
+
+import { searchUrl, webSearchTemplate } from "./search-engine";
 
 // must match BrowserView, BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenKeyPrefix and BrowserRecentMetaKey in
 // pkg/molten/browser.go
@@ -108,6 +111,63 @@ export function browserBlockDef(url: string, notice?: string, askEngine?: boolea
     return { meta: meta as MetaType };
 }
 
+export type BesideOpts = { notice?: string; ask?: boolean; keepFocus?: boolean };
+
+// A browser panel shows one page (FR-SHELL-083, #1187): a page opened "in a new tab" becomes a panel of its own. Its
+// block starts with that page as its single tab, keeping the tab's id when it has one (an agent's tab, a tab split out
+// of an older panel), so the agents' and the panel's references to it stay valid.
+export function besideBlockDef(tab: Partial<BrowserTab> & { url: string }, opts?: BesideOpts): BlockDef {
+    const def = browserBlockDef(tab.url, opts?.notice, opts?.ask);
+    const meta = def.meta as Record<string, any>;
+    if (opts?.ask && opts?.keepFocus) {
+        meta[BrowserKeepFocusMetaKey] = true;
+    }
+    if (tab.id) {
+        const saved: Record<string, string> = { id: tab.id, url: tab.url };
+        if (tab.title) {
+            saved.title = tab.title;
+        }
+        if (tab.engine) {
+            saved.engine = tab.engine;
+        }
+        meta[BrowserTabsMetaKey] = [saved];
+        meta[BrowserActiveMetaKey] = tab.id;
+    }
+    return def;
+}
+
+// A panel saved with several tabs, from before panels showed one page (#1187): it keeps its shown tab, the others
+// leave in their order, each to become a panel of its own. Null when the panel has one tab.
+export function splitOutTabs(state: BrowserState): { kept: BrowserState; moved: BrowserTab[] } {
+    if (state == null || state.tabs.length <= 1) {
+        return null;
+    }
+    const shown = state.tabs.find((t) => t.id === state.activeId) ?? state.tabs[0];
+    return {
+        kept: { tabs: [shown], activeId: shown.id },
+        moved: state.tabs.filter((t) => t.id !== shown.id),
+    };
+}
+
+// A repository page on a project without a GitHub remote (FR-SHELL-111, viewpin.StartPageUrl): an empty page the panel
+// draws MoltenTerm's start page over.
+export const StartPageUrl = "about:blank#moltenterm-start";
+
+export function isStartPage(url: string): boolean {
+    return (url ?? "").trim() === StartPageUrl;
+}
+
+// An empty page a new page may replace instead of opening beside it.
+export function isBlankPage(url: string): boolean {
+    const text = (url ?? "").trim();
+    return text === "" || text === "about:blank" || text === StartPageUrl;
+}
+
+// What the address field shows: nothing for the start page, which has no address of its own.
+export function addressOfPage(url: string): string {
+    return isStartPage(url) ? "" : (url ?? "");
+}
+
 // Where a link opened inside Moltenterm goes (#140): the most recently focused browser panel of the tab that still
 // exists, else the last browser panel of the tab (one not focused since a restart), else none (a new panel).
 // Must match PickBrowserPanel in pkg/molten/browser.go.
@@ -119,6 +179,31 @@ export function pickBrowserPanel(browserBlockIds: string[], recent: unknown): st
         }
     }
     return ids.length > 0 ? ids[ids.length - 1] : null;
+}
+
+export type PanelTabs = { blockId: string; state: BrowserState };
+
+export type ServingTab = { blockId: string; tabId: string };
+
+// The tab a replacing launch reloads instead of opening another (#1005): a page here (not a handed-off entry) that
+// the launch serves, in the most recently focused panel first, then the panels last to first; in a panel, the shown
+// tab first, then its tabs left to right. Null when none shows it: the launch then opens a new tab.
+export function servingTabOf(panels: PanelTabs[], recent: unknown, serves: (url: string) => boolean): ServingTab {
+    const list = panels ?? [];
+    const recentIds = readRecentBrowserPanels(recent);
+    const ordered = [
+        ...recentIds.map((id) => list.find((p) => p.blockId === id)).filter((p) => p != null),
+        ...[...list].reverse().filter((p) => !recentIds.includes(p.blockId)),
+    ];
+    for (const panel of ordered) {
+        const tabs = panel.state?.tabs ?? [];
+        const candidates = [...tabs.filter((t) => t.id === panel.state.activeId), ...tabs];
+        const tab = candidates.find((t) => !t.engine && t.url && serves(t.url));
+        if (tab != null) {
+            return { blockId: panel.blockId, tabId: tab.id };
+        }
+    }
+    return null;
 }
 
 export function readRecentBrowserPanels(recent: unknown): string[] {
@@ -294,22 +379,63 @@ export function updateTab(state: BrowserState, id: string, patch: Partial<Omit<B
     return changed ? { ...state, tabs } : state;
 }
 
-// What the user types in the address bar: a URL, a host, or words to search.
-export function toBrowserUrl(input: string, searchTemplate = "https://duckduckgo.com/?q=%s"): string {
+const SchemeUrlRe = /^[a-z][a-z0-9+.-]*:\/\//i;
+const BareSchemeRe = /^(about|file|data):/i;
+// After the host: an optional port, then an optional path, query or fragment (#1743: `example.com?q=1` and
+// `localhost:3000#top` are addresses, they were searched).
+const HostTail = String.raw`(:\d{1,5})?([/?#]\S*)?$`;
+const LocalHostRes = [
+    new RegExp(String.raw`^localhost${HostTail}`, "i"),
+    new RegExp(String.raw`^\d{1,3}(\.\d{1,3}){3}${HostTail}`),
+    new RegExp(String.raw`^\[[0-9a-f:.]+\]${HostTail}`, "i"),
+];
+const WebHostRe = new RegExp(String.raw`^[^/?#\s]+\.[a-z]{2,}${HostTail}`, "i");
+
+// The URL of text that is an address: as typed with a scheme, http for localhost and IP addresses (a local server
+// rarely speaks https), https for any other host. null: words.
+function addressOf(text: string): string {
+    if (SchemeUrlRe.test(text) || BareSchemeRe.test(text)) {
+        return text;
+    }
+    if (LocalHostRes.some((re) => re.test(text))) {
+        return "http://" + text;
+    }
+    return WebHostRe.test(text) ? "https://" + text : null;
+}
+
+// What the user types in the address bar: a URL, a host, or words to search, with the web:defaultsearch engine unless
+// a template is given (#1748).
+export function toBrowserUrl(input: string, searchTemplate?: string): string {
     const text = input.trim();
     if (text === "") {
         return null;
     }
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text) || /^(about|file|data):/i.test(text)) {
+    return addressOf(text) ?? searchUrl(text, searchTemplate ?? webSearchTemplate());
+}
+
+// The address as the bar shows it at rest (FR-SHELL-086): without the web scheme and a lone trailing slash; other
+// schemes (file:, about:) stay whole.
+export function shownAddress(url: string): string {
+    const text = (url ?? "").trim();
+    const bare = text.replace(/^https?:\/\//i, "");
+    if (bare === text) {
         return text;
     }
-    if (
-        !/\s/.test(text) &&
-        (/^localhost(:\d+)?(\/|$)/i.test(text) || /^[^/\s]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(text))
-    ) {
-        return (/^localhost/i.test(text) ? "http://" : "https://") + text;
+    return bare.replace(/^([^/?#]+)\/$/, "$1");
+}
+
+// Text that is an address rather than words to search: a scheme, localhost, an IPv4 or bracketed IPv6 address, or a
+// host with a dot, with no space. Shared by the sidebar's top field (#1187) and the panel launcher (#1229).
+export function looksLikeAddress(text: string): boolean {
+    const s = (text ?? "").trim();
+    if (s === "" || /\s/.test(s)) {
+        return false;
     }
-    return searchTemplate.replace("%s", encodeURIComponent(text));
+    return addressOf(s) != null;
+}
+
+export function addressUrl(text: string): string {
+    return toBrowserUrl(text ?? "");
 }
 
 // A tab names its page: its title, or its host while the title is unknown.

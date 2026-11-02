@@ -170,3 +170,46 @@ func TestFindAgentProcess(t *testing.T) {
 		t.Error("a plain process is never read")
 	}
 }
+
+// The subscription CLIs of #1680 are recognised by their command and by their process.
+func TestSubscriptionAgentsDetected(t *testing.T) {
+	commands := map[string]string{
+		"agy":                       AgentIdAntigravity,
+		"copilot --resume":          AgentIdCopilot,
+		"npx @github/copilot":       AgentIdCopilot,
+		"agent":                     AgentIdCursor,
+		"cursor-agent -p hi":        AgentIdCursor,
+		"grok":                      AgentIdGrok,
+		"vibe --setup":              AgentIdVibe,
+		"kimi":                      AgentIdKimi,
+		"qwen -p hi":                AgentIdQwen,
+		"npx @qwen-code/qwen-code":  AgentIdQwen,
+		"ssh-agent -s":              "",
+		"git log --grep agent":      "",
+		"/Users/me/.local/bin/vibe": AgentIdVibe,
+	}
+	for cmd, want := range commands {
+		if got := MatchAgentCommand(cmd); got != want {
+			t.Errorf("MatchAgentCommand(%q) = %q, want %q", cmd, got, want)
+		}
+	}
+	procs := []struct {
+		name  string
+		exe   string
+		args  []string
+		agent string
+	}{
+		{"node", "/usr/bin/node", []string{"node", "/Users/me/.local/share/cursor-agent/versions/2026.10.1/index.js"}, AgentIdCursor},
+		{"node", "/usr/bin/node", []string{"node", "/usr/local/lib/node_modules/@github/copilot/index.js"}, AgentIdCopilot},
+		{"python3.12", "/Users/me/.local/share/uv/tools/mistral-vibe/bin/python3.12", []string{"python3.12", "/Users/me/.local/bin/vibe"}, AgentIdVibe},
+		{"python3", "/usr/bin/python3", []string{"python3", "manage.py"}, ""},
+	}
+	for i, p := range procs {
+		if !AgentProcessCandidate(p.name) {
+			t.Errorf("case %d: %s should be looked at", i, p.name)
+		}
+		if got := MatchAgentProcess(p.exe, p.args); got != p.agent {
+			t.Errorf("case %d: %q, want %q", i, got, p.agent)
+		}
+	}
+}

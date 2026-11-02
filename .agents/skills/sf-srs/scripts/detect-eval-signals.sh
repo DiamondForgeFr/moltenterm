@@ -112,9 +112,9 @@ emit_rules() {
     {
       "id": "revision",
       "meaning": "Reopens a previously closed decision",
-      "target": "likely an FR or DS revision",
-      "patch_kind": "add-ds",
-      "note": "v1 is ADD-only — propose an appended item documenting the reversal rather than modifying the existing one in place.",
+      "target": "the existing FR, changed in place",
+      "patch_kind": "update-fr",
+      "note": "A change to an FR that exists (its description, acceptance criteria, priority…) is applied in place by update-fr: name the FR and the fields that change, never append an item. A revision of a UR, DS, TC or NFR cannot be edited in place yet: propose an appended item documenting the reversal (add-ds).",
       "example": "on reconsidère la règle : finalement on autorise les chiffres",
       "regex_hints": [
         "(?i)\\b(reconsider|revisit|on change d'avis|finalement on)\\b",
@@ -128,6 +128,7 @@ emit_rules() {
       "💡 Ce que tu viens de décrire ressemble à <UR / FR / DS / TC>. Proposition :",
       "  • <target page> — add <item id> : <narrative | title>",
       "  • (if TC)        steps : ...",
+      "  • (if revision)  <FR id> — <field> : <old> → <new>   (shown by `apply-update --dry-run`)",
       "",
       "J'applique via `srs-cli.sh apply-update` ? [accept / edit / reject]"
     ],
@@ -138,13 +139,15 @@ emit_rules() {
     }
   },
   "patch_shape": {
-    "kind": "add-ur | add-fr | add-ds | add-tc | add-nfr",
-    "pageId": "<version page id for add-ur / add-fr / add-nfr, FR page id for add-ds / add-tc>",
-    "item": "UrItem | FrSpec | DsItem | TcItem | NfrItem — same shapes as src/builders/srs/types.ts; an FrSpec may carry `change`, the line its version's change list gains",
-    "note": "optional free-text annotation appended as a paragraph"
+    "kind": "add-ur | add-fr | add-ds | add-tc | add-nfr | update-fr",
+    "pageId": "<version page id for add-ur / add-fr / add-nfr, FR page id for add-ds / add-tc>; update-fr names its FR by `frId` and takes no pageId",
+    "item": "UrItem | FrSpec | DsItem | TcItem | NfrItem — same shapes as src/builders/srs/types.ts; an FrSpec may carry `change`, the line its version's change list gains; update-fr takes `changes` instead of an item",
+    "note": "optional free-text annotation appended as a paragraph (update-fr echoes it in the result and writes it nowhere)",
+    "update_fr": "{ \"kind\": \"update-fr\", \"frId\": \"FR-AEX-014\", \"changes\": { \"description\": \"…\", \"acceptanceCriteria\": { \"add\": [\"…\"], \"remove\": [\"exact text\"] } }, \"change\": \"the line the version's change list gains\", \"versionPageId\": \"optional: the version that records it, for an FR of an earlier version\" }. `changes` may carry title, description, priority (P1 | P2 | P3), complexity, endpoint, requestBody, securityRationale, acceptanceCriteria and validationRules; a list takes the whole array (it replaces the list, order kept) or { add, remove } (exact text). id, group and the references (urRefs, dsRefs, tcRefs) are refused. Run `apply-update --dry-run` first, show the old → new plan, and apply only on accept."
   },
   "scope_limits_v1": {
-    "add_only": "Modifying an existing item (e.g. tightening FR-012) is out of scope: the adapter can only add. Tracked in #945 (update-fr).",
+    "add_only": "A new UR, DS, TC or NFR is appended to its table. Changing an existing UR, DS, TC or NFR in place is out of scope: propose an appended item documenting the change.",
+    "update_fr": "Changing an existing FR is update-fr (#945): the FR page, its row in the version and feature FR tables and one line of the version's change list are amended in place and nothing is appended. Its references are refused (#1056). The Story already spawned from the FR keeps its old text (#1057): the result's `followUps` names it. A backend that cannot amend a page exits 5 and writes nothing.",
     "append_placement": "add-ur / add-ds / add-tc / add-nfr go to their table on the feature page, with the version of the target page (#917). Only when the page is not part of the SRS or the table is missing are they appended under an 'Added …' heading; the result's `placed` says which, and `notPlaced` says why.",
     "add_fr": "Creates the FR page under the target version, then adds its row to the version's FR table, a line to its 'What changed in this version' (the FrSpec's `change`, or 'Adds <id> — <title>'), and its rows to the feature's tables."
   },
@@ -203,7 +206,7 @@ classify_text() {
   # Revision markers — reopening a closed decision. Checked LAST so that
   # explicit FR / UR / DS / TC content in the same turn wins.
   if [[ "$lowered" =~ (reconsider|revisit|on\ change\ d\'avis|finalement\ on|actually|in\ fact|scratch\ that) ]]; then
-    echo '{"signal":"revision","confidence":"low","target":"FR or DS revision (ADD-only in v1)"}'
+    echo '{"signal":"revision","confidence":"low","target":"FR revision (update-fr); a UR / DS / TC revision stays add-only"}'
     return 0
   fi
 

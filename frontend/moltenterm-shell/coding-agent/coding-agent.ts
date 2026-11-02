@@ -12,7 +12,10 @@ import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { atom, PrimitiveAtom } from "jotai";
+import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useEffect } from "react";
+import { agentDisplayName, agentsWith, currentFeatureMatrix, FeatureMatrix } from "../agent-info/agent-features-model";
+import type { AgentStatesData } from "../agent-state-model";
 import { CommandPanelModel } from "../command-panel/command-panel-store";
 import { t } from "../i18n/i18n";
 
@@ -23,10 +26,13 @@ const RouteId = "molten:agentchoice";
 const GetCommand = "moltenagentchoice";
 const GetTimeoutMs = 8000;
 
-// The agents the flows can start, in the default order, before wavesrv says which are installed.
-export const CodingAgentIds = ["claude", "codex"];
+// The agents the flows can start, in the default order, before wavesrv says which are installed: those the
+// compatibility matrix gives an agent that runs tasks (FR-AGC-003).
+export function codingAgentIds(matrix: FeatureMatrix = currentFeatureMatrix()): string[] {
+    return agentsWith(matrix, "runner");
+}
 
-export type CodingAgent = { id: string; name: string; installed: boolean };
+export type CodingAgent = { id: string; name: string; installed: boolean; command?: string };
 
 // must match Choice in pkg/molten/agentchoice/agentchoice.go
 export type CodingAgentChoice = {
@@ -40,16 +46,13 @@ export type CodingAgentChoice = {
     global?: string;
     order?: string;
     agents: CodingAgent[];
+    // Every agent MoltenTerm knows with whether it is on this computer: the ones the flows cannot run included, which
+    // the companion can still start.
+    known?: CodingAgent[];
 };
 
 export function codingAgentName(id: string): string {
-    switch (id) {
-        case "claude":
-            return "Claude Code";
-        case "codex":
-            return "Codex";
-    }
-    return id ?? "";
+    return agentDisplayName(currentFeatureMatrix(), id);
 }
 
 export function fetchCodingAgent(dir: string, agent?: string): Promise<CodingAgentChoice> {
@@ -70,7 +73,7 @@ function storedChoices(): Record<string, string> {
 // The project's own choice, undefined when it follows the default.
 export function rememberedProjectAgent(dir: string): string {
     const id = dir ? storedChoices()[dir] : null;
-    return CodingAgentIds.includes(id) ? id : undefined;
+    return codingAgentIds().includes(id) ? id : undefined;
 }
 
 // What This project sets and resets in the panels' options: no agent forgets the project's choice.
@@ -148,30 +151,64 @@ export class CodingAgentModel {
     }
 }
 
+// Every agent MoltenTerm knows with whether it is on this computer, from the last answer for no folder in particular:
+// the launcher offers the found ones that have no preset (#1680). Reads it again when old.
+export function knownCodingAgents(): CodingAgent[] {
+    return CodingAgentModel.getInstance().choiceOf("")?.known ?? [];
+}
+
+export function useKnownCodingAgents(): CodingAgent[] {
+    const model = CodingAgentModel.getInstance();
+    const choices = useAtomValue(model.choicesAtom);
+    useEffect(() => {
+        model.choiceOf("");
+    }, [model]);
+    return choices[""]?.choice?.known;
+}
+
+// The supported agents running in a pane (FR-SHELL-100). wavesrv only finds the programs on the login PATH, so an agent
+// started by absolute path, through an alias or from another folder runs while detection says none is installed.
+export function runningCodingAgents(states: AgentStatesData): string[] {
+    const ids = new Set(Object.values(states?.states ?? {}).map((info) => info?.agent));
+    return codingAgentIds().filter((id) => ids.has(id));
+}
+
 // The item's secondary text: the agent missing, else what no choice gives.
-export function codingAgentDetail(choice: CodingAgentChoice): string {
+export function codingAgentDetail(choice: CodingAgentChoice, running: string[] = []): string {
     if (choice == null) {
         return undefined;
     }
     if (choice.missing) {
-        return t("codingAgent.missing", { agent: choice.chosenname || codingAgentName(choice.chosen) });
+        const agent = choice.chosenname || codingAgentName(choice.chosen);
+        return running.includes(choice.chosen)
+            ? t("codingAgent.missingRunning", { agent })
+            : t("codingAgent.missing", { agent });
     }
     if (choice.source === "order") {
-        return choice.order
-            ? t("codingAgent.automatic", { agent: codingAgentName(choice.order) })
+        if (choice.order) {
+            return t("codingAgent.automatic", { agent: codingAgentName(choice.order) });
+        }
+        return running.length > 0
+            ? t("codingAgent.running", { agents: running.map(codingAgentName).join(", ") })
             : t("codingAgent.noneInstalled");
     }
     return undefined;
 }
 
-export function codingAgentOptions(choice: CodingAgentChoice) {
+export function codingAgentOptions(choice: CodingAgentChoice, running: string[] = []) {
     const agents: CodingAgent[] =
-        choice?.agents ?? CodingAgentIds.map((id) => ({ id, name: codingAgentName(id), installed: true }));
-    return agents.map((a) => ({
-        id: `codingagent:${a.id}`,
-        label: a.name,
-        value: a.id,
-        disabled: !a.installed,
-        detail: a.installed ? undefined : t("codingAgent.notInstalled"),
-    }));
+        choice?.agents ?? codingAgentIds().map((id) => ({ id, name: codingAgentName(id), installed: true }));
+    return agents.map((a) => {
+        let detail: string = undefined;
+        if (!a.installed) {
+            detail = running.includes(a.id) ? t("codingAgent.runningNotStartable") : t("codingAgent.notInstalled");
+        }
+        return {
+            id: `codingagent:${a.id}`,
+            label: a.name,
+            value: a.id,
+            disabled: !a.installed,
+            detail,
+        };
+    });
 }

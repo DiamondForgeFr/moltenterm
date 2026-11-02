@@ -3,7 +3,16 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { checkIconState, CiIcon, CiIconClasses, CiIconState, githubRunIconState, localCiIconState } from "./ci-icon";
+import {
+    checkIconState,
+    CiIcon,
+    CiIconClasses,
+    CiIconState,
+    githubRunIconState,
+    LocalCiIcon,
+    localCiIconState,
+} from "./ci-icon";
+import { CiStatus } from "./ci-model";
 import { ActionRowClass, RowActionsClass } from "./ci-row-actions";
 
 const States = Object.keys(CiIconClasses) as CiIconState[];
@@ -42,6 +51,16 @@ describe("CI/CD state icons (FR-SHELL-057 AC4, NFR-SHELL-026)", () => {
         expect(githubRunIconState("completed", "cancelled")).toBe("neutral");
         expect(githubRunIconState("completed", "skipped")).toBe("neutral");
         expect(githubRunIconState("completed", "action_required")).toBe("warning");
+    });
+
+    it("draws the dominoes for a running local run or job and for no other state (#1073)", () => {
+        const statuses: CiStatus[] = ["running", "success", "failure", "queued", "cancelled", "interrupted"];
+        for (const status of statuses) {
+            const html = renderToStaticMarkup(<LocalCiIcon status={status} />);
+            const dominoes = (html.match(/<span><\/span>/g) ?? []).length;
+            expect(dominoes, status).toBe(status === "running" ? 8 : 0);
+            expect(html.includes("df-domino-loader"), status).toBe(status === "running");
+        }
     });
 
     it("maps the local CI's and the checks' states", () => {

@@ -46,6 +46,8 @@ const (
 type Shell struct {
 	Replace   func(ctx context.Context, blockId string, cwd string, notice string) error
 	SendInput func(blockId string, data []byte) error
+	// Attach makes sure the terminal can take input (see Env.Attach).
+	Attach func(ctx context.Context, blockId string) error
 }
 
 var shellLock sync.Mutex
@@ -121,6 +123,8 @@ type service struct {
 	lock    sync.Mutex
 	last    []OutdatedTerminal
 	version int64
+	// toldLogin: how many terminals from an earlier login the last notification named (#1194).
+	toldLogin int
 }
 
 func loadJob(ctx context.Context, blockId string) (*waveobj.Block, *waveobj.Job, error) {
@@ -159,6 +163,14 @@ func makeService() *service {
 			}
 			return sendInput(blockId, data)
 		},
+		Attach: func(ctx context.Context, blockId string) error {
+			attach := getShell().Attach
+			if attach == nil {
+				return nil
+			}
+			return attach(ctx, blockId)
+		},
+		EndRun: attention.EndAgentRun,
 		Replace: func(ctx context.Context, blockId string, cwd string, notice string) error {
 			replace := getShell().Replace
 			if replace == nil {
@@ -280,6 +292,31 @@ func (s *service) refresh() {
 	data := OutdatedData{Terminals: list, Version: s.version}
 	s.lock.Unlock()
 	wps.Broker.Publish(wps.WaveEvent{Event: Event, Data: data})
+	s.tellPreviousLogin(ctx, list)
+}
+
+// tellPreviousLogin posts one notification when terminals from an earlier login appear, or more of them: their agents
+// fail without saying why (no network), so the user is told rather than left to notice (#1194).
+func (s *service) tellPreviousLogin(ctx context.Context, list []OutdatedTerminal) {
+	count := s.swapToldLogin(PreviousLoginCount(list))
+	if count == 0 {
+		return
+	}
+	if err := attention.PublishNotification(ctx, PreviousLoginNotice(count)); err != nil {
+		log.Printf("molten: telling the terminals from an earlier login: %v\n", err)
+	}
+}
+
+// swapToldLogin records count and returns it when it is more than the last told, else 0.
+func (s *service) swapToldLogin(count int) int {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	told := s.toldLogin
+	s.toldLogin = count
+	if count <= told {
+		return 0
+	}
+	return count
 }
 
 func (s *service) snapshot() OutdatedData {

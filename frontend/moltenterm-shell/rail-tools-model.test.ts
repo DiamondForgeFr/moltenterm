@@ -64,6 +64,6 @@ describe("railWidgetTooltip", () => {
     it("prefers the description, then the label", () => {
         expect(railWidgetTooltip(w("lbl", { description: "desc" }))).toBe("desc");
         expect(railWidgetTooltip(w("lbl"))).toBe("lbl");
-        expect(railWidgetTooltip(w(""))).toBe("Widget");
+        expect(railWidgetTooltip(w(""))).toBe("Tool");
     });
 });

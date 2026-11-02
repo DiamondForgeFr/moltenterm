@@ -1,5 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#1339): Tailwind greys replaced by the Coulée surface, line and text tokens.
 
 import { handleWaveAIContextMenu } from "@/app/aipanel/aipanel-contextmenu";
 import { useAtomValue } from "jotai";
@@ -21,7 +22,7 @@ export const AIPanelHeader = memo(() => {
 
     return (
         <div
-            className="py-2 pl-3 pr-1 @xs:p-2 @xs:pl-4 border-b border-gray-600 flex items-center justify-between min-w-0"
+            className="py-2 pl-3 pr-1 @xs:p-2 @xs:pl-4 border-b border-line-strong flex items-center justify-between min-w-0"
             onContextMenu={handleContextMenu}
         >
             <h2 className="text-white text-sm @xs:text-lg font-semibold flex items-center gap-2 flex-shrink-0 whitespace-nowrap">
@@ -32,8 +33,8 @@ export const AIPanelHeader = memo(() => {
             <div className="flex items-center flex-shrink-0 whitespace-nowrap">
                 {!inBuilder && (
                     <div className="flex items-center text-sm whitespace-nowrap">
-                        <span className="text-gray-300 @xs:hidden mr-1 text-[12px]">Context</span>
-                        <span className="text-gray-300 hidden @xs:inline mr-2 text-[12px]">Widget Context</span>
+                        <span className="text-secondary @xs:hidden mr-1 text-[12px]">Context</span>
+                        <span className="text-secondary hidden @xs:inline mr-2 text-[12px]">Widget Context</span>
                         <button
                             onClick={() => {
                                 model.setWidgetAccess(!widgetAccess);
@@ -42,7 +43,7 @@ export const AIPanelHeader = memo(() => {
                                 }, 0);
                             }}
                             className={`relative inline-flex h-6 w-14 items-center rounded-full transition-colors cursor-pointer ${
-                                widgetAccess ? "bg-accent-600" : "bg-zinc-600"
+                                widgetAccess ? "bg-accent-600" : "bg-line-control"
                             }`}
                             title={`Widget Access ${widgetAccess ? "ON" : "OFF"}`}
                         >
@@ -64,7 +65,7 @@ export const AIPanelHeader = memo(() => {
 
                 <button
                     onClick={handleKebabClick}
-                    className="text-gray-400 hover:text-white cursor-pointer transition-colors p-1 rounded flex-shrink-0 ml-2 focus:outline-none"
+                    className="text-muted hover:text-white cursor-pointer transition-colors p-1 rounded flex-shrink-0 ml-2 focus:outline-none"
                     title="More options"
                 >
                     <i className="fa fa-ellipsis-vertical"></i>

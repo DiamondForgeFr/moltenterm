@@ -59,7 +59,7 @@
 .molten-split-place-label {
     padding: 2px 8px;
     border-radius: var(--df-radius-sm);
-    background-color: var(--mt-accent);
+    background-color: var(--mt-action);
     color: var(--mt-accent-fg);
     font-size: var(--df-text-chip);
     font-weight: var(--df-weight-semibold);

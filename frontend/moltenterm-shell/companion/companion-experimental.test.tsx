@@ -19,6 +19,7 @@ vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: { wshRpcCall: vi.fn() }
 
 const Min = 60 * 1000;
 const now = new Date(2026, 9, 6, 10, 0, 0).getTime();
+const Endpoint = "Anthropic usage endpoint";
 const Store = `the macOS Keychain ("Claude Code-credentials") or ~/.claude/.credentials.json`;
 
 // What wavesrv sends once the experimental source answered (pkg/molten/companion/usage.go).
@@ -31,7 +32,7 @@ const withEndpoint: CompanionUsageInfo = {
     gauges: "enabled",
     sourcename: "Claude Code status line and Anthropic usage endpoint",
     refreshms: 5 * Min,
-    experimental: { source: "claude-oauth", name: "Anthropic usage endpoint", on: true, store: Store },
+    experimental: { source: "claude-oauth", name: Endpoint, on: true, store: Store },
     snapshot: {
         agent: "claude",
         source: "claude-statusline,claude-oauth",
@@ -59,14 +60,19 @@ describe("experimental source rules", () => {
         expect(experimentalView({ ...withEndpoint, gauges: "off" })).toEqual({ kind: "none" });
         expect(experimentalView({ ...withEndpoint, hasgauges: false })).toEqual({ kind: "none" });
         const off = experimentalView({ ...withEndpoint, experimental: { ...withEndpoint.experimental, on: false } });
-        expect(off).toEqual({ kind: "off", statement: experimentalStatement(Store) });
+        expect(off).toEqual({ kind: "off", statement: experimentalStatement(Store, Endpoint) });
         expect(experimentalView(withEndpoint)).toEqual({ kind: "on", reason: "" });
     });
 
     it("says exactly what is read in the confirmation", () => {
-        expect(experimentalStatement(Store)).toBe(
-            `MoltenTerm will read your Claude Code sign-in token from ${Store} to ask Anthropic for your plan usage. ` +
+        expect(experimentalStatement(Store, Endpoint)).toBe(
+            `MoltenTerm will read the agent's sign-in token from ${Store} to get your plan usage (source: ${Endpoint}). ` +
                 "The token stays in memory, is never saved or sent anywhere else. Undocumented: it may stop working."
+        );
+        expect(experimentalStatement("", "")).toBe(
+            "MoltenTerm will read the agent's sign-in token from where the agent keeps it to get your plan usage " +
+                "(source: the provider's usage endpoint). The token stays in memory, is never saved or sent anywhere else. " +
+                "Undocumented: it may stop working."
         );
     });
 
@@ -75,7 +81,7 @@ describe("experimental source rules", () => {
             experimentalView({ ...withEndpoint, experimental: { ...withEndpoint.experimental, reason } });
         expect(failing("ratelimited")).toEqual({
             kind: "on",
-            reason: "Anthropic asked to wait: MoltenTerm asks again later",
+            reason: "The provider asked to wait: MoltenTerm asks again later",
         });
         expect(failing("signedout").kind === "on" && failing("signedout")).toMatchObject({
             reason: expect.stringContaining("never asks"),
@@ -111,7 +117,7 @@ describe("experimental source row", () => {
         const html = render({ ...withEndpoint, experimental: { ...withEndpoint.experimental, on: false } });
         expect(html).toContain('data-state="off"');
         expect(html).toContain("Experimental · undocumented source");
-        expect(html).toContain("undocumented Anthropic endpoint");
+        expect(html).toContain("undocumented endpoint of the provider");
         expect(html).toContain("Turn on…");
         expect(html).not.toContain("sign-in token");
     });
@@ -130,7 +136,7 @@ describe("experimental source row", () => {
         expect(html).toContain('data-window="session"');
         expect(html).not.toContain("model:opus");
         expect(html).toContain("Model limits unavailable");
-        expect(html).toContain("Anthropic refused Claude Code&#x27;s sign-in token");
+        expect(html).toContain("The provider refused the agent&#x27;s sign-in token");
     });
 
     it("stays offered in the unavailable and setup states", () => {
@@ -163,7 +169,7 @@ describe("experimental source row", () => {
             <ExperimentalRow view={view} onSet={() => {}} confirming onConfirming={() => {}} />
         );
         expect(html).toContain('role="group"');
-        expect(html).toContain(experimentalStatement(Store).replace(/"/g, "&quot;"));
+        expect(html).toContain(experimentalStatement(Store, Endpoint).replace(/"/g, "&quot;").replace(/'/g, "&#x27;"));
         expect(html).toMatch(/class="molten-btn[^"]*"[^>]*>Turn on/);
         expect(html).toContain("Cancel");
     });

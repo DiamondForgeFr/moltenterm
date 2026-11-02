@@ -94,9 +94,14 @@ Build tags are recorded as the default empty set in source-scan coverage; the pa
 not silently alter this scan. The release's single macOS runner contributes only its own architecture's native CGO
 analysis; the other Darwin architecture retains cross-target CGO=0 coverage and its separately built artifact.
 
-Use exact supported, patched runtime versions after checking official releases and advisories. Keep macOS 12 support
-when selecting a maintained Electron line: Electron 44 requires macOS 13. Do not change historical performance
-baselines to make their runtime version look current. Both `go.mod` pins, CI and build checks must agree.
+Use exact supported, patched runtime versions after checking official releases and advisories. Electron 45 requires
+macOS 13 or later, the minimum selected for v1.0.0. The shared scanner checks `electronLifecycle` in
+`dependencies.json` against the exact manifest and lock pin and rejects invalid, future or overdue reviews before
+either full or native scans. Its review deadline is UTC midnight at the start of the recorded day. Update the
+review after checking the official release list and support schedule; the current tentative Electron 45 end of
+support is April 27, 2027, and the next review is due December 1, 2026. This offline check cannot detect an upstream
+schedule change or a new patch: recheck the official sources when preparing a release. Do not change historical
+performance baselines to make their runtime version look current. Both `go.mod` pins, CI and build checks must agree.
 
 Security scans run without signing/release/production credentials, use pinned tools/actions and never repair the
 dependency graph during CI. The same policy must gate ready PRs and release builds/publication; a scheduled report or

@@ -2,7 +2,7 @@
 
 Coding agents commit and open pull requests with the developer's GitHub account, so GitHub cannot tell which agent did
 the work. MoltenTerm gives each agent session a first name and knows its CLI, its model and its effort level; you sign
-your work with them, so the signature stays with the work outside MoltenTerm too. MoltenTerm's Reviews panel shows it
+your work with them, so the signature stays with the work outside MoltenTerm too. MoltenTerm's Integration panel shows it
 on each pull request.
 
 ## Who you are
@@ -16,6 +16,22 @@ molten agent whoami --trailer  # Molten-Agent: Valentin (Claude Code, Opus 5.5, 
 The model and effort are the ones your agent last reported to MoltenTerm (Claude Code's status line, Codex's last
 turn). A part MoltenTerm does not know is left out. Outside a MoltenTerm terminal, or before MoltenTerm saw your agent,
 the command fails: then you have no signature. Never write one by hand or guess one.
+
+### From a subagent
+
+A subagent (Claude Code's background agents, Codex's spawned agents) runs its commands in its lead's terminal, with
+the lead's environment, so nothing in the call names it. The command sends its folder, and MoltenTerm compares it with
+the folders of the lead's running subagents, as their own files record them:
+
+- in a worktree of its own (one that is not the lead's folder), the call is that subagent's: the signature keeps the
+  lead's first name and CLI, which own the work, and names the subagent's model and effort, for example
+  `Molten-Agent: Valentin (Claude Code, Sonnet 5.5, xhigh)`. When its files do not say its model, the model part reads
+  `subagent`, never the lead's model: `Molten-Agent: Valentin (Claude Code, subagent)`.
+- in the lead's own folder, the call may be the lead's or a subagent's: the signature keeps only the model and effort
+  they all have alike, and leaves the rest out.
+
+`molten agent whoami` prints a `caller:` line in both cases, and `--json` says `"subagent": true` (with
+`"subagentkind"`) or `"shared": true`. Run it from your working folder, not from elsewhere.
 
 ## Each commit: a trailer
 
@@ -64,5 +80,11 @@ author is the developer's own account. Do not try to approve, request reviews or
 
 ## How MoltenTerm reads it
 
-The Reviews panel shows, on each row, the last agent: the newest commit's `Molten-Agent` trailer, else the "Made by"
+The Integration panel shows, on each card, the last agent: the newest commit's `Molten-Agent` trailer, else the "Made by"
 line of the body, else "unknown agent". Hovering it lists every agent found in the commits and the block.
+
+The signature also says who owns the work. When the developer clicks Resume on a card, MoltenTerm hands the pull request
+back to the lead agent that signed it (else the lead whose sub-agent built it) with a brief in your terminal, typed
+when your prompt is idle: delegate the work to a subagent or a background agent, keep your own turn short and report
+back when it is done, and do it yourself only when it is trivial. A subagent signs with `molten agent whoami` as its
+lead does: the name on the work is the lead's, the model the subagent's (see "From a subagent").

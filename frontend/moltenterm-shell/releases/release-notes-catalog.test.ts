@@ -38,7 +38,8 @@ describe("release notes catalog", () => {
         expect(versionOfNotesFile("/releases/v1.0.0-3.md")).toBe("1.0.0-3");
         expect(versionOfNotesFile("/releases/v1.0.0.internal.md")).toBeNull();
         expect(versionOfNotesFile("/releases/README.md")).toBeNull();
-        expect(versionOfNotesFile("/releases/v1.0.0-rc.1.md")).toBeNull();
+        expect(versionOfNotesFile("/releases/v1.0.0-rc.1.md")).toBe("1.0.0-rc.1");
+        expect(versionOfNotesFile("/releases/v1.0.0-beta.1.md")).toBeNull();
     });
 
     it("lists versions newest first, without drafts, empty notes or records", () => {

@@ -6,10 +6,7 @@ import { FlexDirection, LayoutTreeActionType, type LayoutNode, type LayoutTreeSt
 import { describe, expect, it } from "vitest";
 import {
     CarpetColumnGapPx,
-    CarpetInvitePx,
-    CarpetMarginPx,
-    CarpetPadTopPx,
-    CarpetPadXPx,
+    CarpetEdgePx,
     CarpetReservePx,
     CarpetScrubberPx,
     DefaultCarpetColumnPx,
@@ -23,8 +20,10 @@ import {
     carpetColumnRect,
     carpetInsertPlace,
     carpetNodeTransform,
+    carpetScrollStops,
     carpetSplitPlace,
     clampColumnPx,
+    clampEntryFixedPx,
     clampFixedDragPx,
     clampFixedPx,
     clampScroll,
@@ -42,7 +41,6 @@ import {
 } from "./carpet-model";
 
 // Where the first carpet column starts: after the start invitation and a gap (#702).
-const Lead = CarpetInvitePx + CarpetColumnGapPx;
 
 function leaf(id: string): LayoutNode {
     return { id, flexDirection: FlexDirection.Column, size: 10, data: { blockId: `b-${id}` } };
@@ -179,7 +177,7 @@ describe("carpetInsertPlace (#702)", () => {
         ]);
     });
 
-    it("keeps offering both ends after each addition", () => {
+    it("keeps inserting at both ends after each addition", () => {
         let root = tab();
         const state = { rootNode: root } as LayoutTreeState;
         for (const end of ["end", "end", "start", "start"] as const) {
@@ -187,7 +185,6 @@ describe("carpetInsertPlace (#702)", () => {
                 .carpet.map((c) => c.id)
                 .filter((id) => id !== "pinned");
             const layout = layoutOf(state.rootNode, carpet);
-            expect(layout.invites.map((i) => i.end)).toEqual(["start", "end"]);
             const place = carpetInsertPlace(state.rootNode, layout, end);
             splitHorizontal(state, {
                 type: LayoutTreeActionType.SplitHorizontal,
@@ -242,30 +239,59 @@ describe("column kind", () => {
 });
 
 describe("widths", () => {
-    it("keeps the fixed zone between 520 px and half of the width", () => {
+    it("keeps the fixed zone between 520 px and what leaves the carpet one readable column (#1745)", () => {
         expect(clampFixedPx(300, 1600)).toBe(FixedMinPx);
-        expect(clampFixedPx(1200, 1600)).toBe(800);
+        expect(clampFixedPx(1200, 1600)).toBe(1200);
+        expect(clampFixedPx(1300, 1600)).toBe(1600 - CarpetReservePx);
         expect(clampFixedPx(640, 1600)).toBe(640);
     });
 
     it("keeps a real range on a window under twice the minimum (#829)", () => {
         // 1000 px: 520 px fits under what leaves the carpet its reserve (600 px).
         expect(fixedBoundsPx(1000)).toEqual({ min: FixedMinPx, max: 1000 - CarpetReservePx });
-        // 900 px: 520 px does not fit under 500 px, half of the window is the minimum.
-        expect(fixedBoundsPx(900)).toEqual({ min: 450, max: 500 });
-        expect(clampFixedPx(700, 900)).toBe(500);
+        // 900 px: 520 px does not fit under what leaves the carpet its reserve, half of the window is the minimum.
+        expect(fixedBoundsPx(900)).toEqual({ min: 450, max: 900 - CarpetReservePx });
+        expect(clampFixedPx(700, 900)).toBe(900 - CarpetReservePx);
         expect(clampFixedPx(100, 900)).toBe(450);
         expect(clampFixedPx(480, 900)).toBe(480);
     });
 
-    it("keeps the wide window's bounds", () => {
-        expect(fixedBoundsPx(1600)).toEqual({ min: FixedMinPx, max: 800 });
-        expect(fixedBoundsPx(2560)).toEqual({ min: FixedMinPx, max: 1280 });
+    it("lets a wide window's fixed zone widen past half, down to a carpet of one readable column (#1745)", () => {
+        expect(fixedBoundsPx(1600)).toEqual({ min: FixedMinPx, max: 1600 - CarpetReservePx });
+        expect(fixedBoundsPx(2560)).toEqual({ min: FixedMinPx, max: 2560 - CarpetReservePx });
+        expect(fixedBoundsPx(1440)).toEqual({ min: FixedMinPx, max: 1440 - CarpetReservePx });
         expect(fixedBoundsPx(1600).noRoom).toBeUndefined();
+        for (const width of [1040, 1280, 1440, 1600, 1920, 2560, 3840]) {
+            const { max } = fixedBoundsPx(width);
+            expect(max).toBeGreaterThan(width * FixedMaxShare);
+            expect(width - max).toBe(CarpetReservePx);
+        }
+    });
+
+    it("never goes below half of the window as the cap, on a window under twice the carpet's reserve (#1745)", () => {
+        expect(fixedCapPx(2 * CarpetReservePx)).toBe(CarpetReservePx);
+        expect(fixedCapPx(600)).toBe(300);
+        expect(fixedCapPx(1000)).toBe(1000 - CarpetReservePx);
+        expect(fixedCapPx(1440)).toBe(1440 - CarpetReservePx);
+    });
+
+    it("opens the zone on entering within half of the window, unless its minimum needs more (#1745)", () => {
+        // A first column at 70 % of the normal layout opens at half; the grip widens it further.
+        expect(clampEntryFixedPx(1120, 1600)).toBe(800);
+        expect(clampEntryFixedPx(640, 1600)).toBe(640);
+        expect(clampEntryFixedPx(300, 1600)).toBe(FixedMinPx);
+        // A floor under half: half is still the entry cap.
+        expect(clampEntryFixedPx(1200, 1600, 700)).toBe(800);
+        // A floor above half lifts it up to the carpet's reserve (#733, #829), as before.
+        expect(clampEntryFixedPx(1200, 1280, 700)).toBe(1280 - CarpetReservePx);
+        expect(clampEntryFixedPx(500, 2000, 1499)).toBe(1499);
+        // A window under twice the minimum: the range of #829.
+        expect(clampEntryFixedPx(700, 900)).toBe(900 - CarpetReservePx);
+        expect(clampEntryFixedPx(null, 1600)).toBe(FixedMinPx);
     });
 
     it("lets a terminal floor above half widen the zone up to the carpet's reserve (#733, #829)", () => {
-        expect(CarpetReservePx).toBe(360 + 2 * CarpetPadXPx + 2 * CarpetMarginPx);
+        expect(CarpetReservePx).toBe(360 + 2 * CarpetEdgePx);
         // 1499 px floor in a 2000 px window: the floor is the minimum, the carpet's reserve the maximum.
         expect(fixedBoundsPx(2000, 1499)).toEqual({ min: 1499, max: 2000 - CarpetReservePx });
         expect(clampFixedPx(974, 2000, 1499)).toBe(1499);
@@ -274,9 +300,12 @@ describe("widths", () => {
         // A laptop window with a floor past half: 1280 px, 700 px floor.
         expect(fixedBoundsPx(1280, 700)).toEqual({ min: 700, max: 1280 - CarpetReservePx });
         // One pixel short of the floor plus the reserve: the floor gives way, half of the window is the minimum.
-        expect(fixedBoundsPx(1498 + CarpetReservePx, 1499)).toEqual({ min: 949, max: 1498 });
+        expect(fixedBoundsPx(1498 + CarpetReservePx, 1499)).toEqual({
+            min: Math.floor((1498 + CarpetReservePx) / 2),
+            max: 1498,
+        });
         // A floor under half of the window only lifts the minimum.
-        expect(fixedBoundsPx(1600, 700)).toEqual({ min: 700, max: 800 });
+        expect(fixedBoundsPx(1600, 700)).toEqual({ min: 700, max: 1600 - CarpetReservePx });
         expect(fixedBoundsPx(1600, 0)).toEqual(fixedBoundsPx(1600));
     });
 
@@ -284,7 +313,11 @@ describe("widths", () => {
         // The floor plus the carpet's reserve fill the window exactly.
         expect(fixedBoundsPx(1499 + CarpetReservePx, 1499)).toEqual({ min: 1499, max: 1499, noRoom: "floor" });
         // Under twice the carpet's reserve, half of the window is all there is.
-        expect(fixedBoundsPx(2 * CarpetReservePx)).toEqual({ min: 400, max: 400, noRoom: "window" });
+        expect(fixedBoundsPx(2 * CarpetReservePx)).toEqual({
+            min: CarpetReservePx,
+            max: CarpetReservePx,
+            noRoom: "window",
+        });
         expect(fixedBoundsPx(600)).toEqual({ min: 300, max: 300, noRoom: "window" });
         expect(clampFixedPx(500, 600)).toBe(300);
     });
@@ -294,29 +327,44 @@ describe("widths", () => {
         expect(fixedDragBoundsPx(1280, 700)).toEqual({ min: FixedMinPx, max: 1280 - CarpetReservePx });
         expect(clampFixedDragPx(300, 1280, 700)).toBe(FixedMinPx);
         expect(clampFixedDragPx(1200, 1280, 700)).toBe(1280 - CarpetReservePx);
-        // A floor under half of the window leaves half as the cap.
-        expect(fixedDragBoundsPx(1600, 700)).toEqual({ min: FixedMinPx, max: 800 });
-        expect(fixedDragBoundsPx(1600)).toEqual({ min: FixedMinPx, max: 800 });
+        // Without a floor, or a floor under half of the window, the grip still goes past half (#1745).
+        expect(fixedDragBoundsPx(1600, 700)).toEqual({ min: FixedMinPx, max: 1600 - CarpetReservePx });
+        expect(fixedDragBoundsPx(1600)).toEqual({ min: FixedMinPx, max: 1600 - CarpetReservePx });
+        expect(clampFixedDragPx(1100, 1600)).toBe(1100);
+        expect(clampFixedDragPx(1500, 1600)).toBe(1600 - CarpetReservePx);
+        // The grip just set the floor at half (#848): the next drag still goes past it.
+        expect(fixedDragBoundsPx(1600, 800)).toEqual({ min: FixedMinPx, max: 1600 - CarpetReservePx });
+        // A floor dragged past half, the window narrowed later: the existing clamps apply.
+        expect(fixedDragBoundsPx(1280, 1100)).toEqual({ min: FixedMinPx, max: 1280 - CarpetReservePx });
+        expect(clampFixedPx(1100, 1280, 1100)).toBe(1280 - CarpetReservePx);
+        // A narrow window keeps the range of #829.
+        expect(fixedDragBoundsPx(1000)).toEqual({ min: FixedMinPx, max: 1000 - CarpetReservePx });
+        expect(fixedDragBoundsPx(900)).toEqual({ min: 450, max: 900 - CarpetReservePx });
         // A window that leaves no room says so.
         expect(fixedDragBoundsPx(600)).toEqual({ min: 300, max: 300, noRoom: "window" });
     });
 
-    it("gives a fixed column side by side what the others leave, or says it has no room (#829)", () => {
-        // Half of 1440 is 720: with 392 px taken by the others, the column ranges from 320 to 328 px.
-        expect(sideColumnBoundsPx(1440, 0, 392)).toEqual({ min: PinnedColumnMinPx, max: 328 });
-        expect(sideColumnBoundsPx(1440, 0, 400)).toEqual({
+    it("gives a fixed column side by side what the others leave of the zone's cap, or says it has no room (#829, #1745)", () => {
+        // 1440 px leaves the fixed zone 1048 px: with 392 px taken by the others, the column ranges from 320 to 656 px.
+        expect(sideColumnBoundsPx(1440, 392)).toEqual({ min: PinnedColumnMinPx, max: 1440 - CarpetReservePx - 392 });
+        expect(sideColumnBoundsPx(1440, 1440 - CarpetReservePx - PinnedColumnMinPx)).toEqual({
             min: PinnedColumnMinPx,
             max: PinnedColumnMinPx,
             noRoom: "columns",
         });
-        expect(fixedCapPx(1440)).toBe(720);
-        expect(fixedCapPx(2000, 1100)).toBe(1100);
+        // Past half of a wide window, side by side too.
+        expect(sideColumnBoundsPx(2560, 900).max).toBe(2560 - CarpetReservePx - 900);
+        expect(900 + sideColumnBoundsPx(2560, 900).max).toBeGreaterThan(1280);
+        // A narrow window: half of it is the cap.
+        expect(sideColumnBoundsPx(700, 0)).toEqual({ min: PinnedColumnMinPx, max: 350 });
     });
 
     it("gives the first column's terminal floor what pinned columns leave at their minimum (#733)", () => {
-        // 1100 px floor in 2000 px: the fixed zone may take 1100 px, less one gap for both columns.
-        const widths = fitFixedWidths(2000, 500, [400], 1100);
-        expect(widths[0]).toBe(1100 - FixedColumnGapPx - PinnedColumnMinPx);
+        // 1100 px floor in 2000 px: both columns keep their widths within the zone's cap.
+        expect(fitFixedWidths(2000, 500, [400], 1100)).toEqual([1100, 400]);
+        // 1100 px floor in 1440 px: the cap leaves the floor what the pinned column leaves at its minimum.
+        const widths = fitFixedWidths(1440, 500, [400], 1100);
+        expect(widths[0]).toBe(1440 - CarpetReservePx - FixedColumnGapPx - PinnedColumnMinPx);
         expect(widths[1]).toBe(PinnedColumnMinPx);
         const layout = computeCarpetLayout({
             width: 2000,
@@ -358,47 +406,67 @@ describe("computeCarpetLayout", () => {
         expect(layout.fixed).toEqual({ top: 0, left: 0, width: 600, height: 900 });
     });
 
-    it("surrounds the carpet with a margin and reserves its bottom for the scrubber", () => {
-        expect(layout.surface).toEqual({
-            top: CarpetMarginPx,
-            left: 600 + CarpetMarginPx,
-            width: 1600 - 600 - 2 * CarpetMarginPx,
-            height: 900 - 2 * CarpetMarginPx,
+    it("draws the carpet without a frame, keeping the peeks' gutters and the strip's height (#1545)", () => {
+        expect(layout.surface).toEqual({ top: 0, left: 600, width: 1000, height: 900 });
+        expect(layout.viewport).toEqual({
+            top: 0,
+            left: 600 + CarpetEdgePx,
+            width: 1000 - 2 * CarpetEdgePx,
+            height: 900 - CarpetScrubberPx,
         });
-        expect(layout.viewport.left).toBe(layout.surface.left + CarpetPadXPx);
-        expect(layout.viewport.top).toBe(layout.surface.top + CarpetPadTopPx);
-        expect(layout.viewport.height).toBe(layout.surface.height - CarpetPadTopPx - CarpetScrubberPx);
+        // The strip's height and the half gap every panel keeps at the window's edge, nothing more.
+        expect(CarpetScrubberPx).toBe(36 + 4);
     });
 
-    it("lays the columns side by side at their widths, separated by a gap, after the start invitation", () => {
+    it("lets carpet and fixed columns touch, so the tile gap gives the normal layout's gaps (#1545)", () => {
+        expect(CarpetColumnGapPx).toBe(0);
+        expect(FixedColumnGapPx).toBe(0);
+    });
+
+    it("lays the columns side by side at their widths, separated by a gap, from the carpet's start", () => {
         expect(layout.columns).toEqual([
-            { nodeId: "web", x: Lead, width: 720 },
-            { nodeId: "preview", x: Lead + 720 + CarpetColumnGapPx, width: 500 },
-            { nodeId: "files", x: Lead + 1220 + 2 * CarpetColumnGapPx, width: 400 },
+            { nodeId: "web", x: 0, width: 720 },
+            { nodeId: "preview", x: 720 + CarpetColumnGapPx, width: 500 },
+            { nodeId: "files", x: 1220 + 2 * CarpetColumnGapPx, width: 400 },
         ]);
-        expect(layout.maxScroll).toBe(layout.contentWidth - layout.viewport.width);
+        // Free widths do not add up to the carpet's: the last position is a panel's edge, with empty room after the
+        // last panel rather than a cut panel (#1131).
+        expect(layout.maxScroll).toBe(layout.columns[1].x);
+        expect(layout.maxScroll).toBeGreaterThan(layout.contentWidth - layout.viewport.width);
     });
 
-    it("lays an invitation to add a panel at each end of the carpet (#702)", () => {
-        const end = Lead + 1620 + 3 * CarpetColumnGapPx;
-        expect(layout.invites).toEqual([
-            { end: "start", x: 0, width: CarpetInvitePx },
-            { end: "end", x: end, width: CarpetInvitePx },
-        ]);
-        expect(layout.contentWidth).toBe(end + CarpetInvitePx);
+    it("gives a panel as wide as the carpet the whole band, with no end reserve (FR-SHELL-125-AC7)", () => {
+        const wide = computeCarpetLayout({
+            width: 1600,
+            height: 900,
+            fixedNodeId: "term",
+            fixedPx: 600,
+            columns: [
+                { nodeId: "a", widthPx: 5000 },
+                { nodeId: "b", widthPx: 5000 },
+            ],
+        });
+        const room = wide.viewport.width;
+        expect(wide.columns.map((c) => c.width)).toEqual([room, room]);
+        expect(wide.maxScroll).toBe(wide.columns[1].x);
+        expect(carpetScrollStops(wide)).toEqual([0, wide.columns[1].x]);
     });
 
-    it("keeps a single invitation on an empty carpet", () => {
+    it("ends the content with the last panel: no invitation at either end (FR-SHELL-125-AC7)", () => {
+        expect(layout.contentWidth).toBe(1620 + 2 * CarpetColumnGapPx);
+        expect(layout.columns[0].x).toBe(0);
+    });
+
+    it("has no content on an empty carpet", () => {
         const empty = computeCarpetLayout({ width: 1600, height: 900, fixedNodeId: "term", fixedPx: 600, columns: [] });
-        expect(empty.invites).toEqual([{ end: "end", x: 0, width: CarpetInvitePx }]);
-        expect(empty.contentWidth).toBe(CarpetInvitePx);
+        expect(empty.contentWidth).toBe(0);
         expect(empty.maxScroll).toBe(0);
     });
 
     it("draws a column at the carpet's top, full carpet height", () => {
         expect(carpetColumnRect(layout, layout.columns[1])).toEqual({
             top: layout.viewport.top,
-            left: layout.viewport.left + Lead + 720 + CarpetColumnGapPx,
+            left: layout.viewport.left + 720 + CarpetColumnGapPx,
             width: 500,
             height: layout.viewport.height,
         });
@@ -438,22 +506,25 @@ describe("scrolling", () => {
 
     it("lists the columns in view", () => {
         expect(visibleCarpetColumnIds(layout, 0)).toEqual(["a", "b"]);
-        expect(visibleCarpetColumnIds(layout, layout.maxScroll)).toEqual(["b", "c"]);
+        expect(visibleCarpetColumnIds(layout, layout.maxScroll)).toEqual(["c"]);
         expect(visibleCarpetColumnIds(null, 0)).toEqual([]);
     });
 
-    it("scrolls just enough to reveal a column", () => {
+    it("reveals a column at the nearest snap position showing it whole (#1131)", () => {
         const b = layout.columns[1];
-        expect(scrollToRevealColumn(layout, "b", 0)).toBe(b.x + b.width - viewWidth);
+        expect(carpetScrollStops(layout)).toEqual([0, b.x, layout.columns[2].x]);
+        expect(scrollToRevealColumn(layout, "b", 0)).toBe(b.x);
         expect(scrollToRevealColumn(layout, "b", layout.maxScroll)).toBe(b.x);
+        // Already whole in view: the carpet stays.
+        expect(scrollToRevealColumn(layout, "b", b.x + b.width - viewWidth)).toBe(b.x + b.width - viewWidth);
         expect(scrollToRevealColumn(layout, "a", 0)).toBe(0);
         expect(scrollToRevealColumn(layout, "fixed", 120)).toBe(120);
     });
 
-    it("brings an end's invitation along with the first or last column (#702)", () => {
+    it("goes to the carpet's ends for its first or last column", () => {
         expect(scrollToRevealColumn(layout, "c", 0)).toBe(layout.maxScroll);
         expect(scrollToRevealColumn(layout, "a", layout.maxScroll)).toBe(0);
-        // A last column too wide for both shows only itself.
+        // A last column wider than the carpet is narrowed to the band and shows its start (#1131).
         const wide = computeCarpetLayout({
             width: 1600,
             height: 900,
@@ -468,17 +539,16 @@ describe("scrolling", () => {
         expect(scrollToRevealColumn(wide, "z", 0)).toBe(z.x);
     });
 
-    it("moves carpet nodes with the scroll variable and cuts them at the carpet's edges", () => {
+    it("moves carpet nodes with the scroll variable and cuts them at the band of places, leaving the gutters to the peeks", () => {
         const rect = carpetColumnRect(layout, layout.columns[1]);
         const css = carpetNodeTransform(rect, layout);
+        const v = layout.viewport;
         expect(css.transform).toBe(
             `translate3d(calc(${Math.floor(rect.left)}px - var(--mt-carpet-scroll, 0px)), ${Math.floor(rect.top)}px, 0)`
         );
+        expect(css.clipPath).toContain(`calc(var(--mt-carpet-scroll, 0px) - ${Math.floor(rect.left) - v.left}px)`);
         expect(css.clipPath).toContain(
-            `calc(var(--mt-carpet-scroll, 0px) - ${Math.floor(rect.left) - layout.surface.left}px)`
-        );
-        expect(css.clipPath).toContain(
-            `calc(${Math.floor(rect.left) + rect.width - (layout.surface.left + layout.surface.width)}px - var(--mt-carpet-scroll, 0px))`
+            `calc(${Math.floor(rect.left) + rect.width - (v.left + v.width)}px - var(--mt-carpet-scroll, 0px))`
         );
     });
 });
@@ -499,7 +569,7 @@ describe("pinned columns (FR-SHELL-067)", () => {
             ["companion", "beside", 470 + FixedColumnGapPx, 360],
         ]);
         expect(layout.fixed.width).toBe(470 + FixedColumnGapPx + 360);
-        expect(layout.surface.left).toBe(layout.fixed.width + CarpetMarginPx);
+        expect(layout.surface.left).toBe(layout.fixed.width);
         expect(layout.columns.map((c) => c.nodeId)).toEqual(["web"]);
     });
 
@@ -516,7 +586,7 @@ describe("pinned columns (FR-SHELL-067)", () => {
         expect(layout.fixed.width).toBe(FixedMinPx);
     });
 
-    it("never lets the fixed zone exceed half of the window", () => {
+    it("never lets the fixed zone take the carpet's last readable column (#1745)", () => {
         for (const width of [700, 1200, 1440, 1660, 2560]) {
             const layout = computeCarpetLayout({
                 ...base,
@@ -527,18 +597,36 @@ describe("pinned columns (FR-SHELL-067)", () => {
                     { nodeId: "b", mode: "beside", widthPx: 600 },
                 ],
             });
-            expect(layout.fixed.width).toBeLessThanOrEqual(width * FixedMaxShare);
+            expect(layout.fixed.width).toBeLessThanOrEqual(Math.max(width * FixedMaxShare, width - CarpetReservePx));
         }
     });
 
+    it("keeps the widths of fixed columns side by side past half of a wide window (#1745)", () => {
+        // 2560 px: 900 + 700 + 500 px fit in the 2168 px the carpet leaves.
+        const layout = computeCarpetLayout({
+            ...base,
+            width: 2560,
+            fixedPx: 900,
+            pins: [
+                { nodeId: "a", mode: "beside", widthPx: 700 },
+                { nodeId: "b", mode: "beside", widthPx: 500 },
+            ],
+        });
+        expect(layout.fixedColumns.map((c) => c.rect.width)).toEqual([900, 700, 500]);
+        expect(layout.fixed.width).toBeGreaterThan(2560 * FixedMaxShare);
+        expect(layout.surface.width).toBeGreaterThanOrEqual(CarpetReservePx);
+    });
+
     it("shrinks the pinned columns to their minimum before the first column", () => {
-        // Half of 1440 is 720, less one gap: 712 for both columns.
-        expect(fitFixedWidths(1440, 392, [360])).toEqual([392, 712 - 392]);
-        expect(fitFixedWidths(1440, 500, [360])).toEqual([712 - PinnedColumnMinPx, PinnedColumnMinPx]);
+        // 1440 px leaves the fixed zone 1048 px, less the gaps between fixed columns (none since #1545).
+        const cap = 1440 - CarpetReservePx - FixedColumnGapPx;
+        expect(fitFixedWidths(1440, 392, [360])).toEqual([392, 360]);
+        expect(fitFixedWidths(1440, 700, [600])).toEqual([700, cap - 700]);
+        expect(fitFixedWidths(1440, 800, [600])).toEqual([cap - PinnedColumnMinPx, PinnedColumnMinPx]);
         expect(fitFixedWidths(2560, 470, [360])).toEqual([470, 360]);
-        // Below every minimum, they share the half in proportion.
+        // Below every minimum (a narrow window), they share the cap in proportion.
         const narrow = fitFixedWidths(1000, 470, [360]);
-        expect(narrow[0] + narrow[1] + FixedColumnGapPx).toBeLessThanOrEqual(500);
+        expect(narrow[0] + narrow[1] + FixedColumnGapPx).toBeLessThanOrEqual(1000 - CarpetReservePx);
         expect(narrow[0]).toBe(narrow[1]);
         // Without pins, the first column keeps its own bounds.
         expect(fitFixedWidths(1600, 300, [])).toEqual([clampFixedPx(300, 1600)]);
@@ -550,6 +638,7 @@ describe("pinned columns (FR-SHELL-067)", () => {
         expect(canPinBeside(2 * (2 * PinnedColumnMinPx + FixedColumnGapPx), 0)).toBe(true);
         expect(canPinBeside(2 * (2 * PinnedColumnMinPx + FixedColumnGapPx) - 2, 0)).toBe(false);
         expect(canPinBeside(2560, 1)).toBe(true);
-        expect(canPinBeside(2560, 2)).toBe(false);
+        expect(canPinBeside(2560, 2)).toBe(true);
+        expect(canPinBeside(2558, 2)).toBe(false);
     });
 });

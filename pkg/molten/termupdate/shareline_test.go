@@ -92,3 +92,50 @@ func TestTypeShareLineBeforeStart(t *testing.T) {
 		t.Fatalf("got %+v", out)
 	}
 }
+
+// #1024: every typing path checks the terminal is live first. A terminal of a tab not loaded since a restart gets its
+// controller and takes the line; a gone one types nothing, ends the agent's run record and says so in plain words.
+func TestHandoffLineChecksTheTerminalIsLive(t *testing.T) {
+	f := claudeInputTerm()
+	out := MakeUpdater(f.env()).typeLine(context.Background(), "b1", "do it", true)
+	if out.Result != InputSent || f.attached != 1 || len(f.ended) != 0 {
+		t.Fatalf("live: %+v, attached %d, ended %v", out, f.attached, f.ended)
+	}
+
+	f = claudeInputTerm()
+	f.attachErr = ErrTerminalGone
+	out = MakeUpdater(f.env()).typeLine(context.Background(), "b1", "do it", true)
+	if out.Result != InputRefused || out.Reason != InputReasonTerminalGone || len(f.input) != 0 {
+		t.Fatalf("gone: %+v, typed %q", out, f.input)
+	}
+	if strings.Join(f.ended, ",") != "b1" {
+		t.Fatalf("the run of a gone terminal must end: %v", f.ended)
+	}
+	if out.MessageText == nil || out.MessageText.Code != "termupdate.input.terminalgone" || strings.Contains(out.Message, "b1") {
+		t.Fatalf("gone: text %+v, %q", out.MessageText, out.Message)
+	}
+
+	f = claudeInputTerm()
+	f.closed = true
+	out = MakeUpdater(f.env()).typeLine(context.Background(), "b1", "do it", true)
+	if out.Reason != InputReasonTerminalGone || strings.Join(f.ended, ",") != "b1" || f.attached != 0 {
+		t.Fatalf("closed: %+v, ended %v, attached %d", out, f.ended, f.attached)
+	}
+}
+
+// The liveness check may reattach a shell where the agent no longer runs: nothing is typed then.
+func TestHandoffLineLooksAgainAfterAttaching(t *testing.T) {
+	f := claudeInputTerm()
+	env := f.env()
+	attach := env.Attach
+	env.Attach = func(ctx context.Context, blockId string) error {
+		f.lock.Lock()
+		f.procs = []proctree.Proc{shellAt(true)}
+		f.lock.Unlock()
+		return attach(ctx, blockId)
+	}
+	out := MakeUpdater(env).typeLine(context.Background(), "b1", "do it", true)
+	if out.Result != InputRefused || len(f.input) != 0 {
+		t.Fatalf("got %+v, typed %q", out, f.input)
+	}
+}

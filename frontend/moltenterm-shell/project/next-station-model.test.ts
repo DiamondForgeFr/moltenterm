@@ -6,7 +6,7 @@ import { I18nModel } from "../i18n/i18n";
 import { CiState } from "../mission/ci-model";
 import { Milestone } from "../mission/github";
 import { terminusText } from "../mission/line-map-geometry";
-import { buildLineMap } from "../mission/line-map-model";
+import { buildLineMap, canSetUpRelease } from "../mission/line-map-model";
 import { MissionGit, PipelineDef } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
 import {
@@ -105,12 +105,12 @@ describe("next station", () => {
     it("words the plan's reason in the interface language (#745)", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         try {
-            expect(nextStation(git(), null).note).toBe("Première version publique : un choix, pas un calcul.");
-            expect(nextStation(Released, null).note).toBe("Déduit des commits : 3 nouvelles fonctionnalités.");
+            expect(nextStation(git(), null).note).toBe("Première version publique\u00a0: un choix, pas un calcul.");
+            expect(nextStation(Released, null).note).toBe("Déduit des commits\u00a0: 3 nouvelles fonctionnalités.");
             const fixOnly = nextStation(git({ ...Released, sincepublic: commits("fix: a") }), null);
-            expect(fixOnly.note).toBe("Déduit des commits : 1 correction, aucune nouvelle fonctionnalité.");
+            expect(fixOnly.note).toBe("Déduit des commits\u00a0: 1 correction, aucune nouvelle fonctionnalité.");
             const breaking = nextStation(git({ ...Released, sincepublic: commits("feat!: a") }), null);
-            expect(breaking.note).toBe("Déduit des commits : 1 changement incompatible.");
+            expect(breaking.note).toBe("Déduit des commits\u00a0: 1 changement incompatible.");
             const nothing = nextStation(git({ ...Released, sincepublic: commits("chore: bump") }), null);
             expect(nothing.note).toMatch(/^Rien qu'un utilisateur verrait depuis v1\.1\.0 /);
         } finally {
@@ -440,5 +440,92 @@ describe("the next station with its milestone's due date", () => {
         const map = buildLineMap({ git: Released, milestones: derived, now: Oct13, days: 21 });
         expect(terminusText(map).status).toBe("due in 3 days · 6 changes waiting");
         expect(nextStation(Released, null, derived, Oct13).chip).toBe("due in 3 days");
+    });
+});
+
+describe("the planned station: the open milestone when nothing is released (FR-MC-021, #1751)", () => {
+    const Oct13 = new Date("2026-10-13T09:00:00Z").getTime();
+    const ChoresOnly = git({ ...Released, sincepublic: commits("chore: bump dependencies", "docs: readme") });
+    const planned = (title: string, extra: Partial<Milestone> = {}): Milestone => ({
+        number: title.length,
+        title,
+        open_issues: 27,
+        closed_issues: 3,
+        html_url: `https://github.com/o/r/milestone/${title}`,
+        ...extra,
+    });
+    const Note = "Planned — milestone v1.1.1, 27 open, nothing on develop yet";
+
+    it("is the milestone's version, with its due date in the chip", () => {
+        expect(nextStation(ChoresOnly, null, [planned("v1.1.1", { due_on: "2026-10-16T07:00:00Z" })], Oct13)).toEqual({
+            tag: "v1.1.1",
+            state: "planned",
+            chip: "due in 3 days",
+            urgent: false,
+            chiptitle: "Due Oct 16 (milestone v1.1.1)",
+            note: Note,
+        });
+    });
+
+    it("reads 'to decide' without a due date", () => {
+        expect(nextStation(ChoresOnly, null, [planned("v1.1.1")], Oct13)).toEqual({
+            tag: "v1.1.1",
+            state: "planned",
+            chip: "to decide",
+            note: Note,
+        });
+    });
+
+    it("has nothing yet when no open milestone names a version above the last tag", () => {
+        for (const milestones of [[], [planned("Later")], [planned("v1.1.0"), planned("1.0.0")]]) {
+            expect(nextStation(ChoresOnly, null, milestones, Oct13)).toMatchObject({
+                tag: null,
+                state: "nothing",
+                chip: null,
+            });
+        }
+    });
+
+    it("takes the nearest due date first, dated before undated, and the lowest version otherwise", () => {
+        const dated = [
+            planned("1.1.1"),
+            planned("1.2.0", { due_on: "2026-10-20T07:00:00Z" }),
+            planned("1.3.0", { due_on: "2026-10-18T07:00:00Z" }),
+        ];
+        expect(nextStation(ChoresOnly, null, dated, Oct13)).toMatchObject({ tag: "v1.3.0", chip: "due in 5 days" });
+        const undated = [planned("1.2.0"), planned("v1.1.2"), planned("1.10.0")];
+        expect(nextStation(ChoresOnly, null, undated, Oct13)).toMatchObject({ tag: "v1.1.2", chip: "to decide" });
+    });
+
+    it("keeps a release the commits justify, dated by the milestone of that version only", () => {
+        const s = nextStation(Released, null, [planned("v1.1.1", { due_on: "2026-10-16T07:00:00Z" })], Oct13);
+        expect(s).toMatchObject({ tag: "v1.2.0", state: "derived", chip: "minor" });
+    });
+
+    it("words the note in French, with the open count's plural (#745)", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(nextStation(ChoresOnly, null, [planned("v1.1.1")], Oct13).note).toBe(
+                "Prévue — jalon v1.1.1, 27 ouverts, rien encore sur develop"
+            );
+            expect(nextStation(ChoresOnly, null, [planned("v1.1.1", { open_issues: 1 })], Oct13).note).toBe(
+                "Prévue — jalon v1.1.1, 1 ouvert, rien encore sur develop"
+            );
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+    });
+
+    it("reads the same planned station on the line map's terminus, which offers no release set-up", () => {
+        const milestones = [planned("v1.1.1", { due_on: "2026-10-16T07:00:00Z" })];
+        const station = nextStation(ChoresOnly, null, milestones, Oct13);
+        const model = buildLineMap({ git: ChoresOnly, milestones, now: Oct13, days: 21 });
+        expect(model.terminus).toMatchObject({
+            tag: station.tag,
+            state: "planned",
+            chip: station.chip,
+            note: station.note,
+        });
+        expect(canSetUpRelease(model.terminus, null)).toBe(false);
     });
 });

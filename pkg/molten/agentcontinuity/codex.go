@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenttoolkit"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
@@ -44,8 +45,8 @@ const (
 	maxCodexModels    = 50
 )
 
-// Codex's options whose value is the next argument, and -i, which takes several (codex --help, 0.160.1): the first
-// other word is its subcommand.
+// Codex's options whose value is the next argument, and -i, which takes several (codex --help, 0.163.0, #990): the
+// first other word is its subcommand.
 var codexOptionGrammar = optionGrammar{
 	value: map[string]bool{
 		"-c": true, "--config": true, "--enable": true, "--disable": true, "--remote": true, "--remote-auth-token-env": true,
@@ -63,7 +64,7 @@ var codexCapabilities = map[string]Capability{
 	CapTranscript:    {Support: SupportUndocumented, Note: "$CODEX_HOME/sessions documented; the rollout file layout is source only and migrating", InUse: true},
 	CapQuota:         {Support: SupportUndocumented, Note: "token_count rate_limits in the session log (#263), else the app-server", InUse: true},
 	CapMcp:           {Support: SupportDocumented, Note: "-c mcp_servers.<name> for the run (FR-SHELL-038, #320)"},
-	CapHooks:         {Support: SupportDocumented, Note: "notify for the run, around the user's own, through the #320 launcher; hooks need the user's trust and are not added", InUse: true},
+	CapHooks:         {Support: SupportDocumented, Note: "notify for the run, around the user's own, through the #320 launcher; the state hooks and the PermissionRequest hook given with -c hooks.* for the run (#988), which Codex runs once the developer trusted them in /hooks", InUse: true},
 }
 
 var codexConfigModelRegex = regexp.MustCompile(`^model\s*=\s*"([^"\\]*)"\s*(#.*)?$`)
@@ -230,6 +231,10 @@ func (codexAdapter) Capabilities() map[string]Capability {
 	return copyCapabilities(codexCapabilities)
 }
 
+func (codexAdapter) Features() map[string]FeatureSupport {
+	return copyFeatures(codexFeatures)
+}
+
 // Launch: Codex's launcher (#320).
 func (codexAdapter) Launch() agentlaunch.LaunchAdapter {
 	return agentlaunch.FindAdapter(molten.AgentIdCodex)
@@ -245,4 +250,8 @@ func (codexAdapter) Usage() usage.UsageAdapter {
 
 func (codexAdapter) GuideProfile() string {
 	return molten.GuideProfileOfAgent(molten.AgentIdCodex)
+}
+
+func (codexAdapter) Toolkit(env ModelEnv, cwd string) agenttoolkit.Toolkit {
+	return agenttoolkit.ReadCodex(env, cwd)
 }

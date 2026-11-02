@@ -23,6 +23,9 @@ export const ReleaseNotesMaxChars = 600;
 const InstallHeadingRegex = /^##\s+Install\b/m;
 const OwnVersionRegex = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(0|[1-9]\d*))?$/;
 
+// Off by default: release candidates are offered only to whoever asks for them (#948).
+export const ReleaseCandidatesSettingKey = "moltenterm:releasecandidates";
+
 // must match the channel in emain/preload.ts
 export const MoltentermReleaseCheckChannel = "moltenterm-release-check";
 
@@ -138,11 +141,12 @@ export function releaseNotesOf(body: string): string {
     return text.slice(0, cut > ReleaseNotesMaxChars / 2 ? cut : ReleaseNotesMaxChars).trimEnd() + "\n…";
 }
 
-// The newest published release the build's channel is offered, if it is newer than the build: a public build is only
-// offered public releases, a release candidate the newer of the next candidate and a public release.
+// The newest published release offered, if it is newer than the build. The user's preference alone decides (#948),
+// never the channel of the build installed: off, public releases only, so a candidate install moves to the next public
+// release newer than itself (never an older one); on, the newer of the next candidate and the next public release.
 export function pickReleaseOffer(
     releases: readonly GithubRelease[],
-    channel: string,
+    includeCandidates: boolean,
     ownVersion: string,
     rules: VersionRules = {}
 ): ReleaseOffer {
@@ -156,7 +160,7 @@ export function pickReleaseOffer(
         if (v == null) {
             continue;
         }
-        if (channel === "public" && (v.rc !== 0 || release.prerelease)) {
+        if (!includeCandidates && (v.rc !== 0 || release.prerelease)) {
             continue;
         }
         if (!isNewerRelease(v, ownVersion) || !isWebLink(release.html_url, GitHubReleaseLink)) {

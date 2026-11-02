@@ -49,7 +49,12 @@ describe("checkGoldManifest", () => {
 
 describe("swap status and bundle path", () => {
     it("reads the swap's outcome", () => {
-        expect(parseSwapStatus("installed 200\n")).toEqual({ state: "installed", buildId: 200 });
+        expect(parseSwapStatus("installed 200\n")).toEqual({ state: "installed", buildId: 200, unchecked: false });
+        expect(parseSwapStatus("installed 200 unchecked\n")).toEqual({
+            state: "installed",
+            buildId: 200,
+            unchecked: true,
+        });
         expect(parseSwapStatus("rolledback 200")).toEqual({ state: "rolledback", buildId: 200 });
         expect(parseSwapStatus("failed: Moltenterm did not quit")).toEqual({
             state: "failed",

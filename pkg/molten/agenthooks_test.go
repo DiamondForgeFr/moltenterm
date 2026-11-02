@@ -4,6 +4,7 @@
 package molten
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,6 +130,49 @@ func TestCodexHooksDetection(t *testing.T) {
 	if !codexHooksConfigured(env, "") {
 		t.Fatalf("CODEX_HOME's config is read")
 	}
+	os.Remove(filepath.Join(alt, "config.toml"))
+	hooks := filepath.Join(alt, "hooks.json")
+	writeTestFile(t, hooks, `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"afplay done.wav"}]}]}}`)
+	if codexHooksConfigured(env, "") {
+		t.Fatalf("a hooks.json that does not run molten: not set up")
+	}
+	// #988: the documented hooks.json snippet.
+	writeTestFile(t, hooks, codexHooksSnippet)
+	if !codexHooksConfigured(env, "") {
+		t.Fatalf("the documented hooks.json is set up")
+	}
+}
+
+// #988: one handler for every event of both agents; the snippets are valid hooks files of the shape both agents read.
+func TestAgentStateHooksShareOneHandler(t *testing.T) {
+	for agent, command := range map[string]string{AgentIdClaude: ClaudeStateHookCommand, AgentIdCodex: CodexStateHookCommand} {
+		for _, h := range AgentStateHooks(agent) {
+			if h.Command != command || !IsAgentStateHookCommand(h.Command) || !IsAgentSessionHookCommand(h.Command) {
+				t.Errorf("%s %s: %q", agent, h.Event, h.Command)
+			}
+			if agent == AgentIdCodex && (h.Event == "Notification" || h.Timeout != CodexStateHookTimeout) {
+				t.Errorf("codex %s: %+v (Codex has no Notification event; a fixed timeout)", h.Event, h)
+			}
+		}
+	}
+	if AgentStateHooks("gemini") != nil {
+		t.Error("no hooks for an agent MoltenTerm does not integrate")
+	}
+	for name, snippet := range map[string]string{"claude": claudeHooksSnippet, "codex": codexHooksSnippet} {
+		var parsed claudeSettingsHooks
+		if err := json.Unmarshal([]byte(snippet), &parsed); err != nil {
+			t.Fatalf("%s snippet: %v", name, err)
+		}
+		if len(parsed.Hooks) != len(AgentStateHooks(name)) {
+			t.Errorf("%s snippet events: %v", name, parsed.Hooks)
+		}
+	}
+	// Hooks pasted from an earlier agent-states.md still count.
+	for _, old := range []string{"molten agent state done --agent claude", "molten agent session --agent claude --stdin"} {
+		if !IsAgentStateHookCommand(old) && !IsAgentSessionHookCommand(old) {
+			t.Errorf("%q no longer recognised", old)
+		}
+	}
 }
 
 func TestHookOfferRules(t *testing.T) {
@@ -139,8 +183,8 @@ func TestHookOfferRules(t *testing.T) {
 	if !offer.Show || offer.File != "~/.claude/settings.json" || offer.Language != "json" || offer.Snippet != claudeHooksSnippet || offer.AgentName != "Claude Code" {
 		t.Fatalf("a Claude Code without hooks gets the offer: %+v", offer)
 	}
-	if offer := MakeAgentHookOffer(env, "codex", cwd, false); !offer.Show || offer.File != "~/.codex/config.toml" || offer.Language != "toml" {
-		t.Fatalf("a Codex without notify gets the offer: %+v", offer)
+	if offer := MakeAgentHookOffer(env, "codex", cwd, false); !offer.Show || offer.File != "~/.codex/hooks.json" || offer.Language != "json" || offer.Snippet != codexHooksSnippet {
+		t.Fatalf("a Codex without hooks gets the hooks.json offer: %+v", offer)
 	}
 	for _, agent := range []string{"gemini", "opencode", "my-agent"} {
 		if offer := MakeAgentHookOffer(env, agent, cwd, false); offer.Show || offer.Reason != HookOfferUnsupported {

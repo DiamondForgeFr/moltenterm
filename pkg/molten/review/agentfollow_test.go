@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 )
 
 // #758: without Start, Restart work offers to start an agent instead of starting one, and names the agent it would be.
@@ -118,7 +119,7 @@ func TestFollowCleansUpOncePushedAndClean(t *testing.T) {
 	}
 	note := f.notes[0]
 	if note.TitleText.Code != "notif.review.reworkedTitle" || note.Kind != "success" || note.TitleText.Vars["name"] != "Bruno" ||
-		len(note.Actions) != 1 || note.Actions[0].Gesture != ReviewOpenGesture || note.Actions[0].LabelText.Code != "notif.review.openReview" {
+		len(note.Actions) != 2 || note.Actions[0].Gesture != ReviewOpenGesture || note.Actions[1].Gesture != mission.ReviewsCardGesture || note.Actions[0].LabelText.Code != "notif.review.openReview" {
 		t.Errorf("note %+v", note)
 	}
 	if pr, _ := note.Actions[0].Args["pr"].(PrInfo); pr.Number != 9 || pr.Dir != f.dir {

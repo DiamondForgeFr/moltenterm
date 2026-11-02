@@ -1,0 +1,124 @@
+{
+    "claude": {
+        "dir": "/p",
+        "branches": [
+            {
+                "branch": "feature/1029-notes",
+                "ticket": 1029,
+                "ahead": 1,
+                "worktree": "/trees/mt-1029",
+                "commitat": 1792999400000
+            },
+            {
+                "branch": "feature/4-thing",
+                "ticket": 4,
+                "ahead": 1,
+                "commitat": 1792999400000
+            },
+            {
+                "branch": "fix/1462-codex-sessions",
+                "ticket": 1462,
+                "ahead": 1,
+                "worktree": "/trees/mt-1462",
+                "commitat": 1792999400000
+            }
+        ],
+        "agents": [
+            {
+                "branch": "develop",
+                "worktree": "/p",
+                "kind": "panel",
+                "blockid": "b0",
+                "agent": "claude",
+                "firstname": "Adrien"
+            },
+            {
+                "branch": "feature/1029-notes",
+                "worktree": "/trees/mt-1029",
+                "kind": "subagent",
+                "agent": "claude",
+                "activeat": 1792999940000,
+                "parentblockid": "b0",
+                "parentfirstname": "Adrien",
+                "model": "claude-opus-5-5",
+                "description": "#1029 release notes",
+                "state": "done"
+            },
+            {
+                "branch": "fix/1462-codex-sessions",
+                "worktree": "/trees/mt-1462",
+                "kind": "subagent",
+                "agent": "claude",
+                "activeat": 1792999940000,
+                "parentblockid": "b0",
+                "parentfirstname": "Adrien",
+                "model": "claude-opus-5-5",
+                "description": "#1462 codex sessions",
+                "state": "running"
+            }
+        ],
+        "at": 1793000000000
+    },
+    "codex": {
+        "dir": "/p",
+        "branches": [
+            {
+                "branch": "feature/1029-notes",
+                "ticket": 1029,
+                "ahead": 1,
+                "worktree": "/trees/mt-1029",
+                "commitat": 1792999400000
+            },
+            {
+                "branch": "feature/4-thing",
+                "ticket": 4,
+                "ahead": 1,
+                "commitat": 1792999400000
+            },
+            {
+                "branch": "fix/1462-codex-sessions",
+                "ticket": 1462,
+                "ahead": 1,
+                "worktree": "/trees/mt-1462",
+                "commitat": 1792999400000
+            }
+        ],
+        "agents": [
+            {
+                "branch": "develop",
+                "worktree": "/p",
+                "kind": "panel",
+                "blockid": "b0",
+                "agent": "codex",
+                "firstname": "Adrien"
+            },
+            {
+                "branch": "feature/1029-notes",
+                "worktree": "/trees/mt-1029",
+                "kind": "subagent",
+                "agent": "codex",
+                "started": 1792999700000,
+                "activeat": 1792999940000,
+                "parentblockid": "b0",
+                "parentfirstname": "Adrien",
+                "model": "gpt-5.5",
+                "description": "ticket 1029 release notes",
+                "state": "done"
+            },
+            {
+                "branch": "fix/1462-codex-sessions",
+                "worktree": "/trees/mt-1462",
+                "kind": "subagent",
+                "agent": "codex",
+                "started": 1792999700000,
+                "activeat": 1792999940000,
+                "parentblockid": "b0",
+                "parentfirstname": "Adrien",
+                "model": "gpt-5.5",
+                "description": "ticket 1462 codex sessions",
+                "state": "running"
+            }
+        ],
+        "at": 1793000000000
+    }
+}

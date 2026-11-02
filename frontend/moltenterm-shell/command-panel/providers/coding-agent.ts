@@ -7,6 +7,7 @@
 // global default, so a change in one panel shows in all of them.
 
 import { atoms, globalStore } from "@/app/store/global";
+import { AgentStates } from "../../agent-state-store";
 import {
     codingAgentDetail,
     CodingAgentModel,
@@ -14,8 +15,10 @@ import {
     CodingAgentSettingKey,
     rememberedProjectAgent,
     rememberProjectAgent,
+    runningCodingAgents,
 } from "../../coding-agent/coding-agent";
 import { t } from "../../i18n/i18n";
+import { MoltentermPipelineView, PipelinePanelMetaKey, readPipelineTarget } from "../../mission/pipeline-tab-model";
 import { ReviewPrMetaKey } from "../../review/review-client";
 import { readWorkspaceProject } from "../../workspace-project";
 import { readSettings, writeSettings } from "../bindings";
@@ -29,15 +32,20 @@ export const CodingAgentViews = new Set([
     "molten-project",
     "molten-timeline",
     "molten-companion",
+    MoltentermPipelineView,
 ]);
 
-// The project a panel works on: the Review tab's PR's, else the workspace's.
+// The project a panel works on: the Review tab's PR's, the pipeline setup's, else the workspace's.
 export function codingAgentDir(ctx: PanelContext): string {
     const pr = ctx.meta?.[ReviewPrMetaKey as keyof MetaType] as { dir?: string };
     if (typeof pr?.dir === "string" && pr.dir) {
         return pr.dir;
     }
-    return readWorkspaceProject(globalStore.get(atoms.workspace)).dir;
+    const pipeline = readPipelineTarget(ctx.meta?.[PipelinePanelMetaKey as keyof MetaType]);
+    if (pipeline != null) {
+        return pipeline.dir;
+    }
+    return readWorkspaceProject(globalStore.get(atoms.workspace)).repo;
 }
 
 function projectBinding(dir: string): ScopeBinding<string> {
@@ -67,15 +75,16 @@ function globalBinding(dir: string): ScopeBinding<string> {
 
 export function codingAgentItem(dir: string): PanelItem {
     const choice = CodingAgentModel.getInstance().choiceOf(dir);
+    const running = runningCodingAgents(globalStore.get(AgentStates.getInstance().dataAtom));
     return {
         id: "codingagent",
         type: "choice",
         label: t("codingAgent.label"),
-        detail: codingAgentDetail(choice),
+        detail: codingAgentDetail(choice, running),
         icon: "robot",
         keywords: ["coding agent", "claude", "codex", "ai", "review", "release notes"],
         defaultValue: choice?.order || undefined,
-        options: codingAgentOptions(choice),
+        options: codingAgentOptions(choice, running),
         scopes: dir ? [projectBinding(dir), globalBinding(dir)] : [globalBinding(dir)],
     };
 }

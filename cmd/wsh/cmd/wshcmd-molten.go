@@ -216,7 +216,7 @@ var moltenAgentCmd = &cobra.Command{
 
 var moltenAgentListCmd = &cobra.Command{
 	Use:     "list",
-	Short:   "list the agents running now by first name (--active for those only), then the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed",
+	Short:   "list the agents running now by first name (--active for those only), then the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed; --features prints which MoltenTerm feature works with which agent",
 	Args:    cobra.NoArgs,
 	RunE:    moltenWrap(moltenAgentListRun),
 	PreRunE: preRunSetupRpcClient,
@@ -1037,6 +1037,9 @@ func moltenAgentEnv() (molten.AgentEnv, error) {
 }
 
 func moltenAgentListRun(cmd *cobra.Command, args []string) error {
+	if moltenAgentListFeatures {
+		return moltenAgentFeaturesRun()
+	}
 	// The agents running now, by first name (FR-CONT-015): first, since they are who an agent hands work to.
 	active, activeErr := moltenActiveAgents()
 	if moltenAgentListActive {
@@ -1374,6 +1377,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"i18n check <file> [--lang <code>]", "check a language pack's dictionary as MoltenTerm loads it"},
 	{"i18n status", "the interface languages and how many strings each lacks"},
 	{"agent list", "the coding agents (installed, version, capabilities) and where the molten guides are installed"},
+	{"agent list --features", "which MoltenTerm feature works with which agent (native, adapted, process-only, none) and why"},
 	{"agent install <agent>", "install /morph, /molten-pipeline and /molten-bug for a coding agent"},
 	{"agent remove <agent>", "remove the molten guides from a coding agent, and stop installing them at start"},
 	{"project link [folder]", "link this workspace to its project (default: this terminal's folder)"},
@@ -1397,17 +1401,26 @@ var moltenBuiltinHelp = [][2]string{
 	{"task history", "the earlier versions of the task checkpoint"},
 	{"task restore <n>", "restore a version of the task checkpoint (the current one goes to the history)"},
 	{"task clear", "start a new task (the current checkpoint stays in the history)"},
-	{"ci run [branch] [--only <jobs>] [--force]", "run the project's local CI on a branch (default: the checked-out one) through Mission Control and wait for the verdict; exit 0 green, 1 red"},
+	{"ci run [branch] [--only <jobs>] [--force]", "run the project's local CI on a branch (default: the one checked out in this folder's worktree) through Mission Control and wait for the verdict; exit 0 green, 1 red"},
 	{"ci status [rev]", "say whether the local CI is green on a revision (exit 0 green, 1 red, 2 not run yet)"},
-	{"bug search <words>", "find MoltenTerm issues about a bug, open and fixed, with what to do"},
+	{"pipeline setup show", "from the pipeline tab's terminal: the setup screen the developer is on, its numbered steps in plain words, the open proposals"},
+	{"pipeline setup propose <change-json> --why <reason>", "propose one step or version change in the setup panel; the developer accepts or declines it there"},
+	{"pipeline setup flag <point> [--step rc/<n>] [--answer …]", "flag a point to check in the setup panel, with your proposed answer"},
+	{"pipeline setup explain <rc/n|public/n> | --clear", "highlight the step you are explaining in the setup panel"},
+	{"pipeline setup withdraw <key>", "take back one of your open proposals or flags"},
+	{"bug search <words>","find MoltenTerm issues about a bug, open and fixed, with what to do"},
 	{"bug report --title … --what …", "prepare a MoltenTerm bug report; --yes files it once you approved"},
 	{"bug comment <issue> --what …", "add your case to an existing MoltenTerm issue; --yes posts it"},
 	{"release plan [--rc|--public]", "the next release of this project, the milestone it ships and its open issues"},
 	{"release promote --workflow <file>", "bring the trunk onto the release branch once its CI is green"},
-	{"release prepare <tag>", "bump the version and draft the notes beside the checkout, without committing"},
+	{"release prepare <tag> [--pr]", "bump the version and draft the notes beside the checkout, without committing (--pr: on the RC branch from the trunk)"},
+	{"release reconcile <tag>", "once, merge the release branch into the prepared RC branch with -s ours"},
+	{"release open-pr <tag>", "commit the prepared release on its RC branch, push it and open its pull request"},
+	{"release merge-pr <tag> [--method merge]", "merge the release's pull request once its required checks are green"},
+	{"release tag <tag> [--rc-branch]", "tag the merge commit of the release's pull request and push the tag (--rc-branch: a candidate on its RC branch)"},
 	{"release notes <tag> [--plain|--check]", "rewrite the prepared notes with the project's coding agent, or audit them"},
 	{"release finalize <tag>", "commit, tag and push the prepared release atomically"},
-	{"release sync-back <tag>", "carry the release commit back to the trunk by pull request"},
+	{"release sync-back <tag> [--merge]", "carry the release commit back to the trunk by pull request (--merge: merge the tag in with a merge commit)"},
 	{"release close-milestone <tag>", "close the milestone of a published public release"},
 	{"release rehearse --workflow <file>", "build the release files from the trunk on GitHub without a tag or a release, and say where they are"},
 	{"session list [--json]", "the terminal sessions that keep running across restarts, where they are and what runs in them"},

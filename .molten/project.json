@@ -6,10 +6,24 @@
         "tagprefix": "v",
         "notes": "releases/{tag}.md",
         "firstpublic": "1.0.0",
-        "notesagent": ["claude", "-p", "--disallowed-tools", "Bash", "Edit", "Write", "Read", "WebFetch", "WebSearch"],
         "files": [
             { "path": "package.json", "format": "json", "keys": [["version"]] },
-            { "path": "package-lock.json", "format": "json", "keys": [["version"], ["packages", "", "version"]] }
+            {
+                "path": "package-lock.json",
+                "format": "json",
+                "keys": [["version"], ["packages", "", "version"]]
+            }
+        ],
+        "notesagent": [
+            "claude",
+            "-p",
+            "--disallowed-tools",
+            "Bash",
+            "Edit",
+            "Write",
+            "Read",
+            "WebFetch",
+            "WebSearch"
         ]
     },
     "ci": {
@@ -74,7 +88,7 @@
         "rc": [
             {
                 "id": "promote",
-                "title": "Promote develop onto main once CI is green",
+                "title": "Promote develop onto main once its CI is green",
                 "phase": "prepare",
                 "run": "molten release promote --workflow ci.yml"
             },
@@ -107,7 +121,7 @@
         "public": [
             {
                 "id": "promote",
-                "title": "Promote develop onto main once CI is green",
+                "title": "Promote develop onto main once its CI is green",
                 "phase": "prepare",
                 "run": "molten release promote --workflow ci.yml"
             },

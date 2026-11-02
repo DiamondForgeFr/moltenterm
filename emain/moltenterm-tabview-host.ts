@@ -14,7 +14,7 @@
 import { ClientService, ObjectService } from "@/app/store/services";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { fireAndForget } from "@/util/util";
-import { onAppIpc } from "./moltenterm-privileged-ipc";
+import { getGlobalIsQuitting, getGlobalIsRelaunching } from "./emain-activity";
 import { isDev } from "./emain-platform";
 import { getOrCreateWebViewForTab, WaveTabView } from "./emain-tabview";
 import type { WaveBrowserWindow } from "./emain-window";
@@ -22,6 +22,7 @@ import { getAllWaveWindows, getWaveWindowById, getWaveWindowByWebContentsId } fr
 import { ElectronWshClient } from "./emain-wsh";
 import { ActionRun, isSuperseded, readinessDeadlineMs } from "./moltenterm-action-queue";
 import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { acquireReadyView, awaitViewInitialized } from "./moltenterm-spare-ready";
 import {
     beginShowingTabView,
@@ -48,6 +49,7 @@ import {
     ViewPendingController,
     ViewPendingState,
 } from "./moltenterm-view-pending";
+import { applyActiveViewLook } from "./moltenterm-window-look";
 import { MoltentermReinitTimeoutMs, nextWaveReady, withTimeout } from "./moltenterm-workspace-switch";
 
 // false restores the previous behaviour where the host changed it, for one release: a new tab is shown at once while it
@@ -83,6 +85,11 @@ let maxCacheSize = DefaultMaxCacheSize;
 let hotSpare: WaveTabView = null;
 let cachedClientId: string = null;
 const destroyReasons = new WeakMap<WaveTabView, string>();
+// Destroyed by a flow that shows the window's next view itself (#1250): a failed or superseded show, the renderer loss
+// recovery (#973), the paint check's rebuild (#223).
+const reshownByCaller = new WeakSet<WaveTabView>();
+// Windows whose views all go because the window closes: nothing is shown again (#1250).
+const closingWindows = new WeakSet<WaveBrowserWindow>();
 
 export function noteTabViewHostSettings(settings: Record<string, unknown>) {
     const next = settings?.[TabViewHostSetting] !== false;
@@ -320,7 +327,7 @@ export async function acquireWindowTabView(
             }
             const [tabView, tabInitialized] = acquired;
             if (!tabInitialized && !registry.entries.get(tabView)?.adopted) {
-                destroyTabView(tabView, "acquired for a superseded switch");
+                destroyTabView(tabView, "acquired for a superseded switch", true);
             }
         });
         throw e;
@@ -330,12 +337,63 @@ export async function acquireWindowTabView(
 // --- destruction
 
 // The one way a view goes: it leaves the cache, its window's views and its window's screen, then its renderer closes.
-export function destroyTabView(tabView: WaveTabView, reason: string) {
+// A view on screen is followed by the window's active tab (#1250), unless the caller shows the next view itself.
+export function destroyTabView(tabView: WaveTabView, reason: string, callerReshows = false) {
     if (tabView == null) {
         return;
     }
     destroyReasons.set(tabView, reason);
+    if (callerReshows) {
+        reshownByCaller.add(tabView);
+    }
     tabView.destroy();
+}
+
+// Covers the window: in it, at its origin, sized and visible. Positioning is by bounds (off-screen views sit at
+// -15000), so this, not the active view, is what the window displays.
+function coversWindow(win: WaveBrowserWindow, view: WaveTabView): boolean {
+    if (view == null || view.isDestroyed || win == null || win.isDestroyed()) {
+        return false;
+    }
+    if (!win.contentView.children.includes(view)) {
+        return false;
+    }
+    const b = view.getBounds();
+    return b.x == 0 && b.y == 0 && b.width > 0 && b.height > 0 && view.getVisible();
+}
+
+// The window shows its active view, live and alone on screen, and the renderer asking (when given) is that view. A
+// renderer that is not the active view, or a window showing another view or none, means emain's idea of the screen and
+// the frontend's have drifted apart (#1250).
+export function windowShowsItsActiveView(win: WaveBrowserWindow, askingWebContentsId?: number): boolean {
+    const active = win.activeTabView;
+    if (active == null || !registry.isLive(active) || active.webContents.isDestroyed()) {
+        return false;
+    }
+    if (!coversWindow(win, active)) {
+        return false;
+    }
+    for (const view of windowTabViews(win.waveWindowId).values()) {
+        if (view !== active && coversWindow(win, view)) {
+            return false;
+        }
+    }
+    return askingWebContentsId == null || askingWebContentsId === active.webContents.id;
+}
+
+// A view on screen went (a deleted tab or workspace, the budget, another window taking the tab): the window's active
+// tab is shown again, its view recreated if needed, so the window never stays on its placeholder (#1250). Asked once
+// the current task is over, so a sweep destroying several views asks once they are all gone.
+function reshowAfterDestroy(win: WaveBrowserWindow, reason: string) {
+    setTimeout(() => {
+        if (win.isDestroyed() || closingWindows.has(win) || getGlobalIsQuitting() || getGlobalIsRelaunching()) {
+            return;
+        }
+        if (windowShowsItsActiveView(win)) {
+            return;
+        }
+        fireAndForget(() => win.queueShowActiveTab(reason));
+    }, 0);
 }
 
 // WaveTabView.destroy, whoever calls it (the sweep, the budget, the spare's replacement call it directly).
@@ -344,15 +402,21 @@ export function noteTabViewDestroying(tabView: WaveTabView) {
         return;
     }
     const windowId = registry.windowOf(tabView);
-    if (!registry.evict(tabView, destroyReasons.get(tabView) ?? "destroyed")) {
+    const win = windowId == null ? null : getWaveWindowById(windowId);
+    const wasOnScreen = registry.isActive(tabView) || coversWindow(win, tabView);
+    const reason = destroyReasons.get(tabView) ?? "destroyed";
+    if (!registry.evict(tabView, reason)) {
         return;
     }
     if (hotSpare === tabView) {
         hotSpare = null;
     }
-    const win = windowId == null ? null : getWaveWindowById(windowId);
     if (win != null && !win.isDestroyed()) {
         win.contentView.removeChildView(tabView);
+        if (wasOnScreen && !reshownByCaller.has(tabView)) {
+            console.log("[#1250] the view on screen was destroyed", tabView.waveTabId, reason, win.waveWindowId);
+            reshowAfterDestroy(win, reason);
+        }
     }
 }
 
@@ -390,6 +454,7 @@ export function removeWindowTabView(win: WaveBrowserWindow, tabId: string, force
 }
 
 export function closeWindowTabViews(win: WaveBrowserWindow) {
+    closingWindows.add(win);
     windowState(win).pending.hide();
     for (const tabView of windowTabViews(win.waveWindowId).values()) {
         destroyTabView(tabView, "window closed");
@@ -425,6 +490,8 @@ function activateTabView(win: WaveBrowserWindow, tabView: WaveTabView, oldActive
     }
     noteTabViewLeftScreen(oldActiveView);
     noteTabViewLeftScreenForBudget(oldActiveView);
+    // the window takes the shown workspace's look at once (#1711)
+    applyActiveViewLook(win, tabView);
 }
 
 function restoreActiveTabView(win: WaveBrowserWindow, oldActiveView: WaveTabView) {
@@ -434,6 +501,7 @@ function restoreActiveTabView(win: WaveBrowserWindow, oldActiveView: WaveTabView
     registry.activate(win.waveWindowId, oldActiveView, "given back after a failed show");
     if (oldActiveView != null) {
         oldActiveView.isActiveTab = true;
+        applyActiveViewLook(win, oldActiveView);
     }
 }
 
@@ -498,7 +566,7 @@ async function setTabViewIntoWindow(
             if (!isSuperseded(e) && registry.stateOf(tabView) === "loading") {
                 registry.fail(tabView, String(e?.message ?? e));
             }
-            destroyTabView(tabView, isSuperseded(e) ? "its switch was superseded" : "it failed to load");
+            destroyTabView(tabView, isSuperseded(e) ? "its switch was superseded" : "it failed to load", true);
             throw e;
         }
         if (waitReady) {

@@ -8,8 +8,15 @@
 // Advanced, with its key as label; adding its entry moves it to its section. Hidden keys stay in the JSON file only.
 package settingsmeta
 
+import (
+	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+)
+
 const (
-	SectionGeneral    = "general"
+	SectionGeneral = "general"
+	// Workspaces and views (FR-SHELL-106): the sidebar, the top row, new views and the new workspace template.
+	SectionSpaces     = "spaces"
 	SectionAppearance = "appearance"
 	SectionTerminal   = "terminal"
 	SectionAgents     = "agents"
@@ -37,8 +44,12 @@ const OptionsTermThemes = "termthemes"
 // The interface languages: the shipped ones and the installed language packs (FR-I18N-001).
 const OptionsLanguages = "languages"
 
+// The launcher's entries a new view can open (FR-SHELL-089): panels, the registered agents, Sessions.
+const OptionsNewViewChoices = "newviewchoices"
+
 var Sections = []string{
 	SectionGeneral,
+	SectionSpaces,
 	SectionAppearance,
 	SectionTerminal,
 	SectionAgents,
@@ -88,7 +99,9 @@ type Setting struct {
 	// darwin, linux or windows, comma separated: the row shows on those platforms only.
 	Platform string `json:"platform,omitempty"`
 	Hidden   bool   `json:"hidden,omitempty"`
-	Order    int    `json:"order"`
+	// Inverted: a multi whose list holds the options turned off, shown ticked when absent from it (#947).
+	Inverted bool `json:"inverted,omitempty"`
+	Order    int  `json:"order"`
 }
 
 func rng(min, max, step float64) *Range {
@@ -97,6 +110,16 @@ func rng(min, max, step float64) *Range {
 
 func hidden(key string) Setting {
 	return Setting{Key: key, Hidden: true}
+}
+
+// codingAgentOptions are the agents the flows can start, named by the agent registry (#1460): an agent added there
+// shows up without a change here.
+func codingAgentOptions() []Option {
+	var rtn []Option
+	for _, id := range agentchoice.Supported {
+		rtn = append(rtn, Option{Value: id, Label: molten.AgentDisplayName(id)})
+	}
+	return rtn
 }
 
 var onOff = []Option{{Value: "off", Label: "Off"}, {Value: "on", Label: "On"}, {Value: "term", Label: "Terminals only"}}
@@ -111,25 +134,40 @@ var settings = []Setting{
 	{Key: "tab:holdtoclose", Section: SectionGeneral, Group: "Quitting and closing", Label: "Hold to close a tab", Description: "A tab's close button closes it after a press-and-hold, not a single click.", Control: ControlToggle},
 	{Key: "tab:holdtoclosems", Section: SectionGeneral, Group: "Quitting and closing", Label: "Hold duration", Description: "How long the close button is held before the tab closes.", Control: ControlNumber, Range: rng(200, 2000, 50), Unit: "ms"},
 	{Key: "moltenterm:releasenotify", Section: SectionGeneral, Group: "Updates", Label: "Tell me about new releases", Description: "Once a day at most, ask GitHub for a newer release and show its notes with a download link.", Control: ControlToggle},
+	{Key: "moltenterm:releasecandidates", Section: SectionGeneral, Group: "Updates", Label: "Also get release candidates", Description: "Release candidates preview the next version and may be less stable. Off: public releases only.", Control: ControlToggle},
 	{Key: "window:savelastwindow", Section: SectionGeneral, Group: "Startup", Label: "Reopen the last window", Description: "Closing the last window keeps it, so it opens again at the next launch.", Control: ControlToggle},
 	{Key: "window:fullscreenonlaunch", Section: SectionGeneral, Group: "Startup", Label: "Full screen at launch", Description: "Open windows in full screen.", Control: ControlToggle},
+	// Workspaces and views (FR-SHELL-106): the sidebar first; its docked or floating mode is the window's, drawn by the
+	// screen beside this row.
+	{Key: "moltenterm:sidebartint", Section: SectionSpaces, Group: "Sidebar", Label: "Tint the sidebar", Description: "The sidebar takes the workspace's colour. Off, the colour shows only on the place marks.", Control: ControlToggle},
+	// #1232: the choices are the launcher's entries, filled by the screen; the favourites have their own editor below.
+	{Key: "app:newviewopen", Section: SectionSpaces, Group: "New views", Label: "When a new view opens", Description: "Ask shows the chooser; or open one type directly, without it.", Control: ControlSelect, OptionsFrom: OptionsNewViewChoices, UnsetLabel: "Ask"},
+	hidden("app:newviewfavorites"),
+	// #1305: edited by its own card, Workspaces and views › New workspace views (frontend/moltenterm-shell/workspace-views).
+	hidden("app:newworkspaceviews"),
 	{Key: "app:tilelauncher", Section: SectionGeneral, Group: "Panels", Label: "Tile launcher in empty panes", Description: "An empty pane shows the tile launcher instead of the command palette.", Control: ControlToggle},
 	{Key: "app:focusfollowscursor", Section: SectionGeneral, Group: "Panels", Label: "Focus follows the pointer", Description: "Focus the panel under the pointer without a click.", Control: ControlSelect, Options: onOff},
-	{Key: "power:sleeppolicy", Section: SectionGeneral, Group: "Power", Label: "Keep the computer awake", Description: "Whether a program in a terminal may keep the computer awake.", Control: ControlSelect, UnsetLabel: "Ask the first time", Options: []Option{{Value: "allow", Label: "When a terminal asks"}, {Value: "untilworkends", Label: "Until work ends"}, {Value: "letsleep", Label: "Never"}}},
+	{Key: "power:sleeppolicy", Section: SectionGeneral, Group: "Energy", Label: "Keep the computer awake", Description: "Whether a program in a terminal may keep the computer awake.", Control: ControlSelect, UnsetLabel: "Ask the first time", Options: []Option{{Value: "allow", Label: "When a terminal asks"}, {Value: "untilworkends", Label: "Until work ends"}, {Value: "letsleep", Label: "Never"}}},
 	{Key: "preview:showhiddenfiles", Section: SectionGeneral, Group: "Files and editor", Label: "Show hidden files", Description: "File views list dotfiles.", Control: ControlToggle, Default: true},
-	{Key: "preview:defaultsort", Section: SectionGeneral, Group: "Files and editor", Label: "Sort files by", Description: "The order of a file view's list.", Control: ControlSelect, Options: []Option{{Value: "name", Label: "Name"}, {Value: "modtime", Label: "Last modified"}}},
+	{Key: "preview:defaultsort", Section: SectionGeneral, Group: "Files and editor", Label: "Sort files by", Description: "The order of a new file view's list, folders first; each panel keeps its own.", Control: ControlSelect, Options: []Option{{Value: "name", Label: "Name"}, {Value: "type", Label: "Type"}, {Value: "modtime", Label: "Last modified"}}},
 	{Key: "editor:wordwrap", Section: SectionGeneral, Group: "Files and editor", Label: "Wrap long lines", Description: "The editor wraps lines wider than the panel.", Control: ControlToggle},
 	{Key: "editor:minimapenabled", Section: SectionGeneral, Group: "Files and editor", Label: "Minimap", Description: "Show the code overview on the editor's right edge.", Control: ControlToggle},
 	{Key: "editor:stickyscrollenabled", Section: SectionGeneral, Group: "Files and editor", Label: "Sticky scroll", Description: "Keep the enclosing scopes at the top of the editor while scrolling.", Control: ControlToggle},
 	{Key: "editor:inlinediff", Section: SectionGeneral, Group: "Files and editor", Label: "Inline diffs", Description: "Show diffs in one column instead of side by side.", Control: ControlToggle},
 
 	// Appearance
-	{Key: "moltenterm:view360", Section: SectionAppearance, Group: "360 view", Label: "360 view", Description: "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "always", Label: "Always"}}},
+	// #1341: the interface's theme (FR-SHELL-121), first in Appearance; dark stays the default.
+	{Key: "moltenterm:theme", Section: SectionAppearance, Group: "Theme", Label: "Theme", Description: "The interface's colours. Terminals stay dark unless you pick a light terminal theme.", Control: ControlSelect, Options: []Option{{Value: "dark", Label: "Dark"}, {Value: "light", Label: "Light"}, {Value: "system", Label: "Same as the system"}}, Default: "dark"},
+	{Key: "moltenterm:view360", Section: SectionAppearance, Group: "360 view", Label: "360 view", Description: "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.", Control: ControlSelect, UnsetLabel: "Automatic (asks the first time)", Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "grid", Label: "Keep the grid"}, {Value: "always", Label: "Always"}}},
 	{Key: "window:reducedmotion", Section: SectionAppearance, Group: "Window", Label: "Reduce motion", Description: "Turn off animations, as the system's reduced motion setting does.", Control: ControlToggle},
+	{Key: "moltenterm:sidebarheat", Section: SectionAppearance, Group: "Window", Label: "Heat in the sidebar", Description: "While agents work, a faint heat rises at the bottom of the sidebar.", Control: ControlToggle, Default: true},
+	{Key: "moltenterm:settingsreveal", Section: SectionAppearance, Group: "Window", Label: "Molten reveal of settings", Description: "A settings block opened in the library pours, cools and breaks open. Off, or with reduced motion, it fades in.", Control: ControlToggle, Default: true},
 	{Key: "window:tilegapsize", Section: SectionAppearance, Group: "Window", Label: "Gap between panels", Description: "The space between the panels of a tab.", Control: ControlNumber, Range: rng(0, 20, 1), Unit: "px"},
 	{Key: "window:transparent", Section: SectionAppearance, Group: "Window", Label: "Transparent window", Description: "Let the desktop show through the window's background.", Control: ControlToggle},
 	{Key: "window:blur", Section: SectionAppearance, Group: "Window", Label: "Blur behind the window", Description: "Blur the desktop behind a transparent window.", Control: ControlToggle},
-	{Key: "window:opacity", Section: SectionAppearance, Group: "Window", Label: "Window opacity", Description: "How opaque a transparent or blurred window is.", Control: ControlSlider, Range: rng(0, 1, 0.05), Default: 0.8},
+	{Key: "window:opacity", Section: SectionAppearance, Group: "Window", Label: "Window opacity", Description: "How opaque a transparent or blurred window is.", Control: ControlSlider, Range: rng(0, 1, 0.05)},
+	{Key: "window:texture", Section: SectionAppearance, Group: "Window", Label: "Window texture", Description: "The texture of the frame and the sidebar, for workspaces without a look of their own.", Control: ControlSelect, Options: []Option{{Value: "none", Label: "None"}, {Value: "grain", Label: "Grain"}, {Value: "dots", Label: "Fine dots"}, {Value: "lines", Label: "Fine lines"}, {Value: "paper", Label: "Paper"}}},
+	{Key: "window:textureintensity", Section: SectionAppearance, Group: "Window", Label: "Texture intensity", Description: "How strong the Grain texture is; the other textures keep their own strength.", Control: ControlSlider, Range: rng(0.2, 1, 0.1)},
 	{Key: "window:bgcolor", Section: SectionAppearance, Group: "Window", Label: "Window background", Description: "A CSS colour behind the panels, such as #1f1f1f.", Control: ControlText},
 	{Key: "window:magnifiedblocksize", Section: SectionAppearance, Group: "Magnified panel", Label: "Magnified size", Description: "How much of the tab a magnified panel covers.", Control: ControlSlider, Range: rng(0.5, 1, 0.05)},
 	{Key: "window:magnifiedblockopacity", Section: SectionAppearance, Group: "Magnified panel", Label: "Backdrop opacity", Description: "How much the panels behind a magnified panel fade.", Control: ControlSlider, Range: rng(0, 1, 0.05)},
@@ -190,14 +228,18 @@ var settings = []Setting{
 
 	// Advanced: real settings few people change.
 	{Key: "app:nativecontextmenu", Section: SectionAdvanced, Group: "App", Label: "System context menus", Description: "Use the system's context menus instead of MoltenTerm's.", Control: ControlToggle},
-	{Key: "app:defaultnewblock", Section: SectionAdvanced, Group: "App", Label: "New tab content", Description: "The view a new tab starts with, such as term.", Control: ControlText},
-	{Key: "app:tabbar", Section: SectionAdvanced, Group: "App", Label: "Tab bar position", Description: "Where the tab bar sits.", Control: ControlSelect, Options: []Option{{Value: "top", Label: "Top"}, {Value: "left", Label: "Left"}}},
-	{Key: "feature:waveappbuilder", Section: SectionAdvanced, Group: "App", Label: "App builder", Description: "Show the Apps tool in the rail outside development builds.", Control: ControlToggle},
-	{Key: "tab:preset", Section: SectionAdvanced, Group: "App", Label: "Tab preset", Description: "The preset new tabs start from.", Control: ControlText},
-	{Key: "tab:background", Section: SectionAdvanced, Group: "App", Label: "Tab background", Description: "The background new tabs get, from backgrounds.json.", Control: ControlText},
+	// #1325: a new view follows app:newviewopen; app:defaultnewblock only changes ⌘N's terminal into Wave's launcher.
+	hidden("app:defaultnewblock"),
+	// #1325: the tab bar only exists without the workspace sidebar (shell:workspacesidebar false, hidden below).
+	hidden("app:tabbar"),
+	{Key: "feature:waveappbuilder", Section: SectionAdvanced, Group: "App", Label: "App builder", Description: "Show Apps in the Library and the builder in the File menu outside development builds.", Control: ControlToggle},
+	// #1325: Wave's older name of tab:background, read only when tab:background is empty.
+	hidden("tab:preset"),
+	{Key: "tab:background", Section: SectionAdvanced, Group: "App", Label: "View background", Description: "The background new views get, from backgrounds.json.", Control: ControlText},
 	{Key: "window:nativetitlebar", Section: SectionAdvanced, Group: "Window", Label: "Native title bar", Description: "Use the system's title bar.", Control: ControlToggle, Platform: "linux,windows"},
 	{Key: "window:showmenubar", Section: SectionAdvanced, Group: "Window", Label: "Menu bar", Description: "Show the menu bar in the window.", Control: ControlToggle, Platform: "linux,windows"},
-	{Key: "window:zoom", Section: SectionAdvanced, Group: "Window", Label: "Zoom", Description: "The zoom of the window's content; ⌘+ and ⌘- change it.", Control: ControlNumber, Range: rng(0.4, 2.6, 0.1), Default: 1},
+	// #1325: nothing reads it; the zoom is View › Zoom in and Zoom out, kept per view by Electron.
+	hidden("window:zoom"),
 	{Key: "window:disablehardwareacceleration", Section: SectionAdvanced, Group: "Window", Label: "No hardware acceleration", Description: "Draw without the GPU; takes effect at the next launch.", Control: ControlToggle},
 	{Key: "window:maxtabcachesize", Section: SectionAdvanced, Group: "Window", Label: "Tabs kept in memory", Description: "How many tabs stay loaded in the background.", Control: ControlNumber, Range: rng(1, 50, 1)},
 	{Key: "moltenterm:tabviewpriority", Section: SectionAdvanced, Group: "Window", Label: "Load tabs at full priority", Description: "Workspaces being opened load at the priority of the one on screen, so a busy machine cannot starve them.", Control: ControlToggle, Default: true},
@@ -221,8 +263,8 @@ var settings = []Setting{
 
 	// Agents, Integration (FR-SHELL-040): kept here so adding them renumbers only the hidden rows; the screen sorts by
 	// section first.
-	{Key: "agent:integrate", Section: SectionAgents, Group: "Integration", Label: "Agent integration", Description: "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.", Control: ControlToggle, Default: true},
-	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Without integration", Description: "Agents started without the integration while the others keep it.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+	{Key: "agent:integrate", Section: SectionAgents, Group: "Integration", Label: "Agent hookup", Description: "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.", Control: ControlToggle, Default: true},
+	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Agents with the hookup", Description: "Unticked agents start without it. Applies to sessions started from now on.", Control: ControlMulti, Inverted: true, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 	// Agents, Code review (FR-REV-005).
 	{Key: "review:language", Section: SectionAgents, Group: "Code review", Label: "Review language", Description: "Language of the review briefing and answers (fr, French...); empty: the interface language.", Control: ControlText},
 	// Agents, Code review (FR-REV-010).
@@ -234,7 +276,7 @@ var settings = []Setting{
 	// General, Language (FR-I18N-001): listed last so the rows above keep their order.
 	{Key: "app:language", Section: SectionGeneral, Group: "Language", Label: "Interface language", Description: "The language of menus, panels and dialogs. Applies at once.", Control: ControlSelect, OptionsFrom: OptionsLanguages, UnsetLabel: "Same as the system"},
 	// Agents, Coding agent (#845): the default of the Agent option in the panels that start an agent.
-	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: codingAgentOptions()},
 
 	// Terminal accessibility (#808): append to preserve existing row orders; the screen groups it under Behaviour.
 	{Key: "moltenterm:terminalscreenreader", Section: SectionTerminal, Group: "Behaviour", Label: "Screen reader support", Description: "Automatic follows system detection. On and Off override it, without restarting terminals.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "on", Label: "On"}, {Value: "off", Label: "Off"}}},
@@ -258,6 +300,14 @@ var settings = []Setting{
 	hidden("telemetry:enabled"),
 	hidden("widget:showhelp"),
 	hidden("app:dismissarchitecturewarning"),
+	// The workspace sidebar's fallback (#1183): false brings back the tab bar, the rail and the status bar.
+	hidden("shell:workspacesidebar"),
+	// The Integration panel's sort and folds (#1758): its switch and section headers are their control.
+	hidden("moltenterm:reviewssort"),
+	hidden("moltenterm:reviewsfolds"),
+	// The Settings screen's last tab and the materials seen (#1763): the screen's tabs and the materials section set them.
+	hidden("moltenterm:settingstab"),
+	hidden("moltenterm:materialsseen"),
 }
 
 func init() {

@@ -174,7 +174,7 @@ export function ProjectLinkDetector() {
             return;
         }
         setAnswered((keys) => [...keys, offerKey]);
-        fireAndForget(() => offerProjectIcon(ws, offer.dir));
+        fireAndForget(() => offerProjectIcon(ws, offer.dir, project.repo || offer.dir));
     }, [offerKey, shown, answered, waveModalOpen, editing]);
     // The workspace works where its terminal goes (FR-SHELL-009). Only when the terminal moves, so a Reset holds until
     // the next move; only from the view in front, on one of the workspace's own tabs (#80).

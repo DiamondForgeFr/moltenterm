@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermSafeModeVarName } from "@/util/moltenterm-safemode";
 import { base64ToString, fireAndForget } from "@/util/util";
 import { getLocale, I18nModel } from "../moltenterm-shell/i18n/i18n";
+import { loadShippedLanguages } from "../moltenterm-shell/i18n/i18n-core";
 import { startLanguagePackNotice } from "../moltenterm-shell/i18n/language-pack-notice";
 import { i18nCheck, i18nExport, i18nStatus } from "../moltenterm-shell/i18n/language-pack-tools";
 import { languagePacks } from "../moltenterm-shell/i18n/language-packs";
@@ -204,12 +205,20 @@ export function startMoltenHost(): void {
         });
         return { answer };
     };
-    client[`handle_${MoltenI18nExportRpcCommand}`] = (_rh: unknown, req: { lang?: string; missing?: boolean }) =>
-        i18nExport(req?.lang ?? "", !!req?.missing);
-    client[`handle_${MoltenI18nCheckRpcCommand}`] = (_rh: unknown, req: { code?: string; text?: string }) =>
-        i18nCheck(req?.code ?? "", req?.text ?? "");
+    client[`handle_${MoltenI18nExportRpcCommand}`] = async (
+        _rh: unknown,
+        req: { lang?: string; missing?: boolean }
+    ) => {
+        await loadShippedLanguages();
+        return i18nExport(req?.lang ?? "", !!req?.missing);
+    };
+    client[`handle_${MoltenI18nCheckRpcCommand}`] = async (_rh: unknown, req: { code?: string; text?: string }) => {
+        await loadShippedLanguages();
+        return i18nCheck(req?.code ?? "", req?.text ?? "");
+    };
     client[`handle_${MoltenI18nStatusRpcCommand}`] = async () => {
         await waitLoadedAtMost(host, ListWaitMs);
+        await loadShippedLanguages();
         const refused = host
             .snapshot()
             .filter((m) => m.dataonly && (m.state === "refused" || m.state === "failed"))

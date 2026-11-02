@@ -1,0 +1,551 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The first launch, "the pour" (FR-ONB-007, DS-ONB-007), from the approved mock-up: one full-frame stage, one scene at
+   a time, six heat bars (#1709). Cast-iron surfaces, molten orange for the action only, incandescent for what is at work,
+   patina for ready (theme "Coulée", FR-SHELL-116). The stage is always dark (data-mt-dark-surface): a forge.
+   Animations that Tailwind cannot say live here; under reduced motion (data-reduced, set from the system preference
+   and the app's own setting) every scene appears at once. */
+
+.mt-pour {
+    --pour-hot: var(--mt-state-running);
+    --pour-white: var(--mt-action-glint);
+    --pour-molten: var(--mt-action);
+    --pour-ready: var(--mt-state-ready);
+    --pour-temper: var(--mt-state-waiting);
+    --pour-iron-0: var(--mt-surface-term);
+    --pour-iron-1: var(--mt-surface-1);
+    --pour-iron-2: var(--mt-surface-2);
+    --pour-iron-3: var(--mt-surface-3);
+    --pour-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    position: relative;
+    isolation: isolate;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    color: var(--mt-text-1);
+    background:
+        radial-gradient(60% 50% at 50% 42%, color-mix(in srgb, var(--pour-molten) 10%, transparent), transparent 70%),
+        var(--pour-iron-0);
+    outline: none;
+    container-type: size;
+    /* The scene and the footer share the frame as two rows (#1732): the scene scrolls in its own row and ends above the
+       buttons, so no card ever slides under them. */
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.mt-pour-sparks {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.mt-pour-top {
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    right: 22px;
+    z-index: 5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mt-pour-heat {
+    display: flex;
+    gap: 6px;
+}
+
+.mt-pour-heat > span {
+    width: 28px;
+    height: 4px;
+    border-radius: var(--mt-radius-control);
+    background: var(--pour-iron-3);
+    transition:
+        background var(--mt-duration-glow),
+        box-shadow var(--mt-duration-glow);
+}
+
+.mt-pour-heat > span[data-heat="done"] {
+    background: var(--pour-molten);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--pour-molten) 60%, transparent);
+}
+
+.mt-pour-heat > span[data-heat="now"] {
+    background: var(--pour-hot);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--pour-hot) 80%, transparent);
+}
+
+.mt-pour-scene {
+    position: relative;
+    z-index: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 72px 24px 24px;
+    /* Scrolled content fades out under the heat bars and before the footer instead of showing through them. */
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 44px,
+        #000 72px,
+        #000 calc(100% - 20px),
+        transparent 100%
+    );
+    display: grid;
+    place-items: center;
+    animation: pour-scene-in 700ms var(--pour-ease) both;
+}
+
+@keyframes pour-scene-in {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.99);
+    }
+}
+
+.mt-pour-inner {
+    width: min(860px, 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 22px;
+}
+
+.mt-pour-kicker {
+    font-size: var(--mt-text-12);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--pour-hot);
+    font-weight: 600;
+}
+
+.mt-pour h1 {
+    margin: 0;
+    font-size: var(--mt-text-48);
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+    text-wrap: balance;
+}
+
+.mt-pour[data-scene="view"] h1,
+.mt-pour[data-scene="place"] h1 {
+    font-size: var(--mt-text-32);
+}
+
+.mt-pour-hot {
+    background: linear-gradient(180deg, var(--pour-white), var(--pour-hot) 40%, var(--pour-molten));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.mt-pour-sub {
+    margin: 0;
+    font-size: var(--mt-text-15);
+    color: var(--mt-text-2);
+    max-width: 52ch;
+    line-height: 1.5;
+    text-wrap: balance;
+}
+
+.mt-pour-calm {
+    border: 1px solid var(--mt-line-2);
+    background: transparent;
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-2);
+    transition:
+        color var(--mt-duration-base),
+        border-color var(--mt-duration-base);
+}
+
+.mt-pour-calm:hover {
+    color: var(--mt-text-1);
+    border-color: color-mix(in srgb, var(--mt-text-1) 30%, transparent);
+}
+
+.mt-pour-nav {
+    position: relative;
+    padding: 12px 0 26px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.mt-pour-nav > * {
+    pointer-events: auto;
+}
+
+/* The rise: an element arrives once its scene is on, after its delay. */
+.mt-pour-rise {
+    animation: pour-rise 700ms var(--pour-ease) both;
+}
+
+.mt-pour-rise[data-d="1"] {
+    animation-delay: 1.6s;
+}
+.mt-pour-rise[data-d="2"] {
+    animation-delay: 2s;
+}
+.mt-pour-rise[data-d="3"] {
+    animation-delay: 2.4s;
+}
+
+@keyframes pour-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+}
+
+/* Scene 1: the mould fills. */
+.mt-pour-mould {
+    position: relative;
+    width: 132px;
+    height: 132px;
+    border-radius: var(--mt-radius-panel);
+    border: 1px solid var(--mt-line-2);
+    background: var(--pour-iron-2);
+    display: grid;
+    place-items: center;
+}
+
+.mt-pour-mould > svg {
+    width: 84px;
+    height: 67px;
+    overflow: visible;
+}
+
+.mt-pour-mould[data-small] {
+    width: 96px;
+    height: 96px;
+}
+
+.mt-pour-mould[data-small] > svg {
+    width: 58px;
+    height: 46px;
+}
+
+.mt-pour-cavity {
+    fill: var(--mt-surface-0);
+    stroke: color-mix(in srgb, var(--mt-text-1) 14%, transparent);
+    stroke-width: 3;
+}
+
+.mt-pour-melt {
+    transform: translateY(250px);
+    animation: pour-melt 1.7s cubic-bezier(0.45, 0, 0.25, 1) 0.55s forwards;
+}
+
+@keyframes pour-melt {
+    to {
+        transform: translateY(0);
+    }
+}
+
+.mt-pour-set {
+    opacity: 0;
+    fill: var(--pour-molten);
+    animation: pour-set 1.4s ease-out 2.3s forwards;
+}
+
+.mt-pour-mould[data-small] .mt-pour-set {
+    opacity: 1;
+    animation: none;
+}
+
+@keyframes pour-set {
+    to {
+        opacity: 1;
+    }
+}
+
+.mt-pour-glow {
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--pour-hot) 90%, transparent))
+        drop-shadow(0 0 18px color-mix(in srgb, var(--pour-molten) 60%, transparent));
+}
+
+.mt-pour-drop {
+    position: absolute;
+    left: 50%;
+    top: -140px;
+    width: 10px;
+    height: 16px;
+    margin-left: -5px;
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    background: radial-gradient(circle at 40% 35%, var(--pour-white), var(--pour-hot) 45%, var(--pour-molten));
+    box-shadow: 0 0 14px var(--pour-molten);
+    opacity: 0;
+    animation: pour-fall 0.6s cubic-bezier(0.6, 0, 1, 0.6) 0.05s forwards;
+}
+
+@keyframes pour-fall {
+    0% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    92% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(178px) scaleY(0.6);
+    }
+}
+
+.mt-pour-legal {
+    font-size: var(--mt-text-11);
+    color: var(--mt-text-3);
+}
+
+.mt-pour-legal a,
+.mt-pour-legal button {
+    color: var(--mt-text-3) !important;
+    text-decoration: underline;
+    text-decoration-color: var(--mt-line-2);
+    text-underline-offset: 2px;
+}
+
+.mt-pour-legal a:hover,
+.mt-pour-legal button:hover {
+    color: var(--mt-text-1) !important;
+}
+
+/* Scene 2: the agents heat up. */
+/* Up to four equal cards a row (#1680: the catalog grew), none ranked above another. */
+.mt-pour-forge {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    width: min(860px, 100%);
+}
+
+.mt-pour-agent {
+    position: relative;
+    text-align: left;
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-panel);
+    background: var(--pour-iron-1);
+    padding: 16px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 132px;
+    transition:
+        border-color var(--mt-duration-flow),
+        background var(--mt-duration-flow);
+    animation: pour-rise 600ms var(--pour-ease) both;
+}
+
+.mt-pour-agent:nth-child(2) {
+    animation-delay: 80ms;
+}
+.mt-pour-agent:nth-child(3) {
+    animation-delay: 160ms;
+}
+.mt-pour-agent:nth-child(4) {
+    animation-delay: 240ms;
+}
+.mt-pour-agent:nth-child(5) {
+    animation-delay: 320ms;
+}
+.mt-pour-agent:nth-child(6) {
+    animation-delay: 400ms;
+}
+
+.mt-pour-ingot {
+    height: 6px;
+    border-radius: var(--mt-radius-control);
+    background: var(--pour-iron-3);
+    transition:
+        background var(--mt-duration-glow),
+        box-shadow var(--mt-duration-glow);
+}
+
+.mt-pour-agent[data-ready] {
+    border-color: color-mix(in srgb, var(--pour-hot) 45%, transparent);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--pour-molten) 8%, transparent), var(--pour-iron-1));
+}
+
+.mt-pour-agent[data-ready] .mt-pour-ingot {
+    background: linear-gradient(90deg, var(--pour-molten), var(--pour-hot), var(--pour-white));
+    box-shadow: 0 0 14px color-mix(in srgb, var(--pour-hot) 70%, transparent);
+}
+
+.mt-pour-agent[data-heating] .mt-pour-ingot {
+    background: linear-gradient(90deg, var(--pour-molten), var(--pour-hot), var(--pour-molten));
+    background-size: 200% 100%;
+    animation: pour-shimmer 0.9s linear infinite;
+}
+
+.mt-pour-agent[data-open] {
+    border-color: color-mix(in srgb, var(--pour-molten) 60%, transparent);
+}
+
+@keyframes pour-shimmer {
+    to {
+        background-position: -200% 0;
+    }
+}
+
+.mt-pour-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--mt-text-3);
+}
+
+.mt-pour-agent[data-ready] .mt-pour-status {
+    color: var(--pour-ready);
+}
+
+.mt-pour-agent[data-ready] .mt-pour-status-dot {
+    background: var(--pour-ready);
+}
+
+.mt-pour-act {
+    flex: none;
+    border: 1px solid color-mix(in srgb, var(--pour-molten) 50%, transparent);
+    color: var(--mt-action-text);
+    background: transparent;
+    border-radius: var(--mt-radius-control);
+    font-size: var(--mt-text-12);
+    padding: 2px 8px;
+}
+
+.mt-pour-act:hover {
+    background: var(--mt-action-wash);
+}
+
+.mt-pour-drawer {
+    width: min(860px, 100%);
+    text-align: left;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-panel);
+    background: var(--pour-iron-1);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: pour-rise 400ms var(--pour-ease) both;
+    /* scrolled into view above the navigation buttons, which float over the scene */
+    scroll-margin-bottom: 96px;
+}
+
+/* Help me choose (FR-ONB-008, #1697): offered above the cards; the path takes the grid's place, then the cards come
+   back in their own order with the suggestions outlined, never moved. */
+.mt-pour-choose-entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 12px;
+    width: min(860px, 100%);
+}
+
+.mt-pour-link {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+    text-decoration: underline;
+    text-decoration-color: var(--mt-line-2);
+    text-underline-offset: 2px;
+}
+
+.mt-pour-link:hover {
+    color: var(--mt-text-1);
+}
+
+.mt-pour-choose-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+}
+
+.mt-pour-choose-card {
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-panel);
+    background: var(--pour-iron-2);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: var(--mt-text-12);
+}
+
+.mt-pour-choose-list {
+    margin: 0;
+    padding-left: 16px;
+    list-style: disc;
+    color: var(--mt-text-2);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mt-pour-choose-glyph {
+    display: inline-flex;
+    color: var(--pour-hot);
+}
+
+.mt-pour-agent[data-suggested] {
+    border-color: var(--pour-molten);
+    box-shadow: 0 0 0 1px var(--pour-molten);
+}
+
+.mt-pour-match {
+    align-self: flex-start;
+    font-size: var(--mt-text-11);
+    color: var(--mt-action-text);
+    border: 1px solid color-mix(in srgb, var(--pour-molten) 50%, transparent);
+    border-radius: var(--mt-radius-control);
+    padding: 0 6px;
+}
+
+.mt-pour-lbl {
+    display: block;
+    font-size: var(--mt-text-11);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mt-text-3);
+    font-weight: 600;
+}
+
+.mt-pour button:focus-visible {
+    outline: 2px solid var(--pour-hot);
+    outline-offset: 3px;
+}
+
+@container (max-width: 760px) {
+    .mt-pour h1 {
+        font-size: var(--mt-text-32);
+    }
+    .mt-pour-forge {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Reduced motion: everything is at its end state at once; the turning light stands still. */
+.mt-pour[data-reduced] *,
+.mt-pour[data-reduced] *::before,
+.mt-pour[data-reduced] *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+}
+
+.mt-pour[data-reduced] .df-glow::before {
+    animation: none !important;
+}

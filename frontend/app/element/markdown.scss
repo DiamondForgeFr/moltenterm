@@ -87,7 +87,7 @@
         }
 
         a {
-            color: #32afff;
+            color: var(--link-color); // MOLTENTERM-PATCH (#1340): a link is an action: Coulée's action text
         }
 
         ul {

@@ -4,7 +4,7 @@
 // Who made a pull request (#847): agents use the developer's GitHub account, so the PR's author says nothing. Each
 // Reviews row, and the Review tab's header, shows the last agent's signature (Valentin · Claude Code · Opus 5.5 ·
 // medium) read by wavesrv from the commits' Molten-Agent trailers and the body's signature block, every agent on hover.
-// No signature reads "unknown agent": nothing is guessed.
+// No signature shows nothing (#954): nothing is guessed, and "unknown agent" read as tracking that failed.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect } from "react";
@@ -64,15 +64,11 @@ export function PrSignature({
             </span>
         ) : null;
     if (last == null) {
+        if (reviewedBy == null) {
+            return null;
+        }
         return (
-            <div
-                className={cn("flex min-w-0 items-center gap-1.5 text-11 text-muted italic", className)}
-                title={t("reviews.signature.unknownTitle")}
-                data-testid={testId}
-                data-unknown="true"
-            >
-                <i className="fa fa-solid fa-robot text-10" aria-hidden="true" />
-                <span className="truncate">{t("reviews.signature.unknown")}</span>
+            <div className={cn("flex min-w-0 items-center gap-1.5 text-11 text-muted", className)} data-testid={testId}>
                 {reviewedBy}
             </div>
         );

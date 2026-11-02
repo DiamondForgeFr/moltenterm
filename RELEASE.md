@@ -13,7 +13,7 @@ Wave's `RELEASES.md` describes Wave's own process and does not apply.
 | Dev | `task dev` | the developer, from the checkout | `moltenterm-dev` folders |
 | Gold | Mission Control › Build local › Gold (`scripts/moltenterm-build-gold.sh`) | the developer's daily app, updated from the local builds folder (#64) | `fr.diamondforge.moltenterm.gold`, `moltenterm-gold` folders, signed "MoltenTerm Local" |
 | Rehearsal | CI/CD › CD › Rehearse (`molten release rehearse`, `release.yml` dispatched) | nobody: 14-day artifacts of the run, to install and check | the release's |
-| Release candidate `vX.Y.Z-N` | Release › Release candidate | whoever installs it from its GitHub prerelease; never the latest release | `fr.diamondforge.moltenterm`, `moltenterm` folders |
+| Release candidate `vX.Y.Z-N` | Release › Release candidate | whoever installs it from its GitHub prerelease, and anyone with "Also get release candidates" on (off by default: a candidate install then moves to the next public release); never the latest release | `fr.diamondforge.moltenterm`, `moltenterm` folders |
 | Public `vX.Y.Z` | Release › Public | everyone, once the developer publishes its draft on GitHub | the same |
 
 Nothing of this is published by an agent: the tag is pushed on the developer's confirmed click (finalize), and a
@@ -38,12 +38,12 @@ onboarding, permission prompts). Never give Full Disk Access to a build whose bu
 - `release.yml` is on `develop` and reaches `main` with the first promotion. GitHub already knows it, so the
   rehearsal can be dispatched from `develop` before that.
 - macOS Developer ID signing and notarization (#507) come before the first public release: the `release` environment
-  and its seven secrets exist (below, "macOS signing"). Until then, the builds are ad-hoc signed, a public tag's run
-  warns, and the release text says how to open them.
+  and its seven secrets exist (below, "macOS signing"). A public tag fails before packaging when they are missing;
+  rehearsals remain ad hoc and candidates retain optional signing.
 - The milestone of the release is triaged: `molten release plan` lists its open issues. They are reported, never
   blocking.
-- The release key exists, its public key is committed and its two secrets are set (below, "The release key"). Until
-  then, releases are published unsigned and the run's log says so.
+- The release key exists, its public key is committed and its two secrets are set (below, "The release key"). Public
+  tags require these inputs; candidates and rehearsals may be unsigned only when all signing material is absent.
 
 ## The release key
 
@@ -62,7 +62,7 @@ The switch is the committed public key together with the secrets, as in Notulia:
 
 | Committed public key | Secrets | Result |
 | --- | --- | --- |
-| no | no | nothing is signed, the log says so, the release is published unsigned |
+| no | no | public tags fail; candidates and rehearsals continue unsigned with an explicit notice |
 | yes | yes, the same key | every signature is made, verified against the committed key alone (`gpgv`), then published |
 | one without the other, another key, or a wrong passphrase | | **the run fails** before anything is published |
 
@@ -129,7 +129,22 @@ The release text carries these commands, with the fingerprint once the release i
 A release's macOS builds are signed with the DiamondForge **Developer ID Application** certificate, notarized by Apple
 and stapled (#507), so a downloaded MoltenTerm opens without a Gatekeeper override and keeps its privacy grants from one
 release to the next. `release.yml` does it when the seven secrets below exist, and stays ad hoc while none does; a
-partial set fails the run. A rehearsal is always ad hoc. The mechanics are in `scripts/macos-signing/README.md`.
+partial set fails the run. Public tags require all seven inputs. A rehearsal is always ad hoc, even on the public
+channel. The mechanics are in `scripts/macos-signing/README.md`.
+
+### Public release gates (#976)
+
+Public tags require verification of both architectures' final ZIP contents and read-only mounted DMG contents,
+including the app, embedded helpers, Developer ID/team, notarization, stapling and Gatekeeper. The successful job
+writes `macos-verification.json`, binding the final payload hashes to the commit, version and workflow run. This is
+workflow evidence, not a replacement for Apple's signature or the clean-computer acceptance checks in #880.
+
+The publication job validates exact filenames, versions, architectures, feeds and all four macOS blockmaps. Signed
+checksums cover these files and the verification record. Missing or extra files, stale metadata, invalid signatures
+or mismatched evidence fail before any GitHub release mutation. Public releases still start as drafts for a human to
+publish. Rerunning any existing release, including a draft, never changes its assets: missing or different bytes
+require explicit human repair. This avoids replacing a draft's assets while a human publishes it.
+Since signatures and run evidence can differ on a rebuild, a new build may be refused even for the same commit.
 
 ### Get the credentials (once)
 
@@ -215,11 +230,16 @@ on the ticket of the release.
 
 - [ ] The run is green: `release.yml` for a candidate, the rehearsal run for a rehearsal.
 - [ ] Every file is there: 2 dmg, 2 zip, 2 AppImage, 2 deb, `latest-mac.yml`, `latest-linux.yml`,
-      `latest-linux-arm64.yml` and `SHA256SUMS.txt`. `scripts/moltenterm-release-files.sh` refuses the run otherwise.
+      `latest-linux-arm64.yml`, four macOS `.blockmap` files and `SHA256SUMS.txt`. Public output also includes
+      `macos-verification.json`. `scripts/moltenterm-release-files.sh` refuses an inconsistent inventory.
+- [ ] Agent profiles refreshed (FR-ONB-008): every vendor page of the agent catalog (`pkg/molten/onboarding/agentfacts.go`)
+      re-read; prices, free tiers, plans, models and region limits updated; checked date set. Then
+      `MOLTENTERM_RC_DATE=<the candidate's date, YYYY-MM-DD> go test -run '^TestAgentProfilesFreshForRelease$' ./pkg/molten/onboarding/`
+      lists every entry checked more than 30 days before the candidate. Tick this item only when it lists nothing.
 - [ ] `sha256sum --ignore-missing -c SHA256SUMS.txt` (`shasum -a 256 -c` on macOS) passes on the downloaded files.
 - [ ] Once the release key exists: `SHA256SUMS.txt.asc` and a `.asc` per AppImage and deb are there, and
       `gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt` says "Good signature" and names the fingerprint of "The release
-      key". Before it exists, the run's log says the release is unsigned.
+      key". Public tags always require these signatures; only candidates/rehearsals may be unsigned before the key exists.
 
 ### 1. macOS (arm64; x64 when an Intel Mac is at hand)
 
@@ -263,10 +283,15 @@ On a machine or VM with a desktop session:
 
 ### 4. Update notification (#188)
 
-Needs two successive candidates, the earlier one installed:
+What is offered follows Settings › General › Updates › "Also get release candidates" (off by default, #948), never
+the build installed: off, public releases only (a candidate install is offered the next public release newer than
+itself, never an older one); on, candidates too. Needs two successive candidates, the earlier one installed:
 
-- [ ] At start (and at most once a day), the earlier candidate shows "MoltenTerm X is available" with the notes and a
-      download link to the release page. The link opens the right release.
+- [ ] With the option off (the default, also on a fresh candidate install), the earlier candidate shows nothing for the
+      later candidate; it shows the public release once one newer than it is out.
+- [ ] Turn "Also get release candidates" on: at the next check (a window getting the focus, no restart), the earlier
+      candidate shows "MoltenTerm X is available" with the notes and a download link to the release page. The link
+      opens the right release. Turning it off again withdraws the candidate's notification.
 - [ ] Turning the notification off in the settings stops it. A gold and a dev build never show it.
 
 ### 5. The release page

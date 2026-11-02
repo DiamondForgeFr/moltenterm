@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Opening one of MoltenTerm's views from the shell (the notification center, the status bar): the one already in the
-// active tab gets the focus, else a new block opens. A view that was retired opens the one that replaced it.
+// active tab gets the focus, else a new block opens, in a temporary view when the active one is pinned (FR-SHELL-094).
+// A view that was retired opens the one that replaced it.
 
-import { atoms, createBlock, replaceBlock } from "@/app/store/global";
+import { atoms, replaceBlock } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import { getActiveTabModel } from "@/app/store/tab-model";
@@ -14,6 +15,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { atom, Atom } from "jotai";
+import { openAppPanel } from "./app-panel";
 import { currentMissionView } from "./project/project-model";
 import { toggleStep } from "./view-toggle-model";
 
@@ -37,11 +39,9 @@ export async function focusMoltentermView(requested: string): Promise<boolean> {
     return false;
 }
 
+// An app action's view (FR-SHELL-094): never added to a pinned view (app-panel.ts).
 export async function openMoltentermView(requested: string): Promise<void> {
-    if (await focusMoltentermView(requested)) {
-        return;
-    }
-    await createBlock({ meta: { view: currentMissionView(requested) } });
+    await openAppPanel({ meta: { view: currentMissionView(requested) } });
 }
 
 // The block of the active tab showing the view, read from the tab's blocks as they are in the store, so a rail button

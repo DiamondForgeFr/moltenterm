@@ -14,6 +14,7 @@ import {
     CarpetWheelMessage,
     CarpetWheelState,
     CarpetWheelStateChannel,
+    hostWheelTime,
     wheelDeltaPx,
 } from "./carpet-wheel";
 
@@ -62,7 +63,10 @@ export function attachCarpetWheel(webview: WebviewTag, blockId: string): () => v
         if (layout == null || typeof msg?.delta !== "number" || !Number.isFinite(msg.delta)) {
             return;
         }
-        view360.scrollBy(wheelDeltaPx(msg.delta, msg.deltaMode, layout.viewport.width));
+        view360.scrollBy(
+            wheelDeltaPx(msg.delta, msg.deltaMode, layout.viewport.width),
+            hostWheelTime(msg, performance.timeOrigin, performance.now())
+        );
     };
     const unsubLayout = globalStore.sub(view360.layoutAtom, push);
     const unsubFocus = globalStore.sub(layoutModel.focusedNode, push);

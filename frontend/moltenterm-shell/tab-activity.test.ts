@@ -205,8 +205,8 @@ describe("working animations stand still when the view is not active (AC4)", () 
         }
         const shell = read("moltenterm-shell.css");
         expect(shell).toContain(':root[data-mt-motion="still"] .block.block-frame-default[data-mt-agent-state]::after');
-        expect(read("agent-state-ui.tsx")).toContain('working && "mt-beat-blink"');
-        expect(read("tab-identity-ui.tsx")).toContain('working && "mt-beat-blink"');
+        expect(read("agent-state-ui.tsx")).toContain('working && "mt-beat-turn"');
+        expect(read("tab-identity-ui.tsx")).toContain('working && "mt-beat-turn"');
         expect(read("notification-center.tsx")).toContain('progress == null && "mt-beat-turn"');
     });
 });

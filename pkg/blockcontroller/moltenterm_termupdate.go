@@ -6,6 +6,7 @@ package blockcontroller
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
@@ -24,7 +25,7 @@ import (
 const replaceSettle = 100 * time.Millisecond
 
 func init() {
-	termupdate.UseShell(termupdate.Shell{Replace: replaceTerminalShell, SendInput: typeIntoTerminal})
+	termupdate.UseShell(termupdate.Shell{Replace: replaceTerminalShell, SendInput: typeIntoTerminal, Attach: attachTerminal})
 	mission.UseStarter(termupdate.Start)
 	mission.UseAgentLine(typeJobDescribeLine)
 }
@@ -36,8 +37,47 @@ func typeJobDescribeLine(ctx context.Context, blockId string, line string) missi
 	return mission.JobDescribeResult{Sent: out.Result == termupdate.InputSent, Submitted: out.Submitted, Message: out.Message, MessageText: out.MessageText}
 }
 
+// typeIntoTerminal says ErrNoController rather than Wave's error, which names the block: the text reaches windows.
 func typeIntoTerminal(blockId string, data []byte) error {
+	if getController(blockId) == nil {
+		return termupdate.ErrNoController
+	}
 	return SendInput(blockId, &BlockInputUnion{InputData: data})
+}
+
+// attachTerminal is the liveness check before typing into an agent (#1024). A terminal whose tab no window loaded
+// since a restart has no controller, though its durable job still runs (reconnected at startup): its controller
+// starts now, reattaching the job, the way showing the tab would. A terminal without a block, a job, a running job
+// manager or a tab is gone; so is one whose controller would not start.
+func attachTerminal(ctx context.Context, blockId string) error {
+	if getController(blockId) != nil {
+		return nil
+	}
+	block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+	if err != nil || block == nil || block.JobId == "" {
+		return termupdate.ErrTerminalGone
+	}
+	status, err := jobcontroller.GetJobManagerStatus(ctx, block.JobId)
+	if err != nil || status != jobcontroller.JobManagerStatus_Running {
+		return termupdate.ErrTerminalGone
+	}
+	tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
+	if err != nil || tabId == "" {
+		return termupdate.ErrTerminalGone
+	}
+	if err := ResyncController(ctx, tabId, blockId, nil, false); err != nil {
+		log.Printf("block %q: controller not started to type into its agent: %v\n", blockId, err)
+		return termupdate.ErrTerminalGone
+	}
+	controller := getController(blockId)
+	if controller == nil {
+		return termupdate.ErrTerminalGone
+	}
+	if rt := controller.GetRuntimeStatus(); rt == nil || rt.ShellProcStatus != Status_Running {
+		return termupdate.ErrTerminalGone
+	}
+	log.Printf("block %q: controller started to type into its agent (tab not loaded)\n", blockId)
+	return nil
 }
 
 // replaceTerminalShell ends the block's shell job and starts a new one in cwd. The block keeps its id, its place and

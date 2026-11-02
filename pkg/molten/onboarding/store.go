@@ -158,7 +158,7 @@ func decideAndWrite(ctx context.Context, decide decideFn) (Outcome, error) {
 
 // StartFirstRun applies the start rules (DecideStart) when wavesrv starts, before any window loads; the caller
 // applies the layout of the outcome to the first tab.
-func StartFirstRun(ctx context.Context, firstTabEmpty bool) (Outcome, error) {
+func StartFirstRun(ctx context.Context, firstTabEmpty bool, workspaceId string) (Outcome, error) {
 	return decideAndWrite(ctx, func(ctx context.Context, client *waveobj.Client, state State, hasState bool, nowMs int64) (Outcome, error) {
 		facts := StartFacts{
 			Skip:          skipAtStart,
@@ -166,6 +166,7 @@ func StartFirstRun(ctx context.Context, firstTabEmpty bool) (Outcome, error) {
 			State:         state,
 			TosAgreed:     client.TosAgreed != 0,
 			FirstTabEmpty: firstTabEmpty,
+			WorkspaceId:   workspaceId,
 		}
 		if hasState && !state.Done {
 			hasPanel, err := hasAnyPanel(ctx)

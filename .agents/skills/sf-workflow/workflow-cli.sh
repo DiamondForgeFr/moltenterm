@@ -196,6 +196,35 @@ print_status_banner() {
   return 0
 }
 
+# Tell the delegation ledger of this clone that a ticket changed status (#1067), so
+# `sf agents routing report` can say how long a ticket took: first In progress to
+# first Human testing. The ledger lives in the Git directory of the clone and is
+# private to it; nothing here is shared or committed.
+#
+# Best effort, and never in the way of the transition that already succeeded: the
+# CLI the project resolves (the same order as the capture hook: its own
+# node_modules, this repository's build, then saasfoundryai on the PATH; never a
+# bare `sf`, which may be another CLI) runs in the background with its output
+# discarded, and a project without one records nothing.
+record_status_event() {
+  local ticket=$1 status=$2
+  [[ "$ticket" =~ ^[0-9]+$ && -n "$status" ]] || return 0
+  local cli=()
+  if [[ -x "./node_modules/.bin/saasfoundryai" ]]; then
+    cli=("./node_modules/.bin/saasfoundryai")
+  elif [[ -x "./node_modules/.bin/sf" ]]; then
+    cli=("./node_modules/.bin/sf")
+  elif [[ -f "./bin/sf.js" ]] && grep -q '"name": "saasfoundryai-cli"' ./package.json 2>/dev/null; then
+    cli=(node "./bin/sf.js")
+  elif command -v saasfoundryai >/dev/null 2>&1; then
+    cli=(saasfoundryai)
+  else
+    return 0
+  fi
+  ("${cli[@]}" agents outcome status-event "$ticket" "$status" >/dev/null 2>&1 &) 2>/dev/null || true
+  return 0
+}
+
 show_status_description() {
   local status=$1
   local file_path
@@ -249,6 +278,31 @@ get_ticket_srs_label() {
   local raw
   raw=$(route_to_tool "$WORKFLOW_TOOL" get-labels "$ticket" 2>/dev/null) || return 1
   echo "$raw" | grep -E "$SRS_DRAFTING_LABELS_REGEX" | head -n1
+}
+
+# A guard bypass is never silent. Every SF_WORKFLOW_BYPASS_*=1 in the
+# environment is named on stderr and recorded as a comment on the ticket, with
+# SF_WORKFLOW_BYPASS_REASON when set, so escape-hatches.md's audit trail does
+# not depend on the operator remembering to write it. Recording is best effort:
+# a failed comment is reported, never turned into a refused transition.
+announce_bypasses() {
+  local ticket=$1 target=$2 var active=()
+  for var in $(compgen -v SF_WORKFLOW_BYPASS_); do
+    [[ "$var" == "SF_WORKFLOW_BYPASS_REASON" ]] && continue
+    [[ "${!var}" == "1" ]] && active+=("$var")
+  done
+  [[ ${#active[@]} -eq 0 ]] && return 0
+
+  local reason="${SF_WORKFLOW_BYPASS_REASON:-no reason given}"
+  echo -e "${YELLOW}⚠ Guard bypass for #${ticket} → '${target}': ${active[*]} (reason: ${reason})${NC}" >&2
+  {
+    echo "**Workflow guard bypassed** on the transition to \`${target}\`."
+    echo ""
+    for var in "${active[@]}"; do echo "- \`${var}=1\`"; done
+    echo ""
+    echo "Reason: ${reason}"
+  } | route_to_tool "$WORKFLOW_TOOL" comment "$ticket" - >/dev/null 2>&1 ||
+    echo -e "${YELLOW}  The bypass could not be recorded on #${ticket}; record it by hand.${NC}" >&2
 }
 
 check_srs_guard() {
@@ -528,20 +582,24 @@ check_bundled_pr_parent_guard() {
 
   nature=$(get_ticket_nature_label "$ticket") || {
     echo "Error: unable to verify ticket nature for bundled-PR transition." >&2
+    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1" >&2
     return 1
   }
   [[ "$nature" == "bundled-pr" ]] || return 0
 
   parent_number=$(get_native_parent_number "$ticket") || {
     echo "Error: unable to verify that bundled-PR ticket #${ticket} is a native child issue." >&2
+    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1" >&2
     return 1
   }
   parent_type=$(get_ticket_issue_type "$parent_number") || {
     echo "Error: unable to verify native parent #${parent_number} for bundled-PR ticket #${ticket}." >&2
+    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1" >&2
     return 1
   }
   if [[ "$parent_type" == "sf-epic" ]]; then
     echo "Error: bundled-PR ticket #${ticket} cannot use an aggregate sf-epic as its delivery parent." >&2
+    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1" >&2
     return 1
   fi
   return 0
@@ -1227,7 +1285,7 @@ sync_pr_merge() {
       ;;
   esac
   (
-    unset SF_WORKFLOW_BYPASS_NATURE_GUARD SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD SF_WORKFLOW_BYPASS_PR_MERGED_GUARD SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD SF_WORKFLOW_BYPASS_SRS_GUARD
+    unset $(compgen -v SF_WORKFLOW_BYPASS_)
     export GH_REPO="$repo"
     bash "$SKILL_DIR/workflow-cli.sh" update-status "$ticket" "Done"
   )
@@ -1368,10 +1426,16 @@ sync_pr_review() {
       elif ($live.headRefName | test($release_pattern)) and $live.baseRefName == $release_branch then
         [$live.body | scan("(?im)^\\s*closes\\s+#([1-9][0-9]*)\\s*$") | .[0]]
         | if length == 1 then .[0] else error("Ambiguous release ticket") end
-      else error("Unrecognized ticket branch") end
+      # A head that names no ticket (chore/sync-back-*, docs/*) has nothing to sync (#1016).
+      elif ($live.headRefName | test($release_pattern)) then error("Unrecognized ticket branch")
+      else "none" end
   ' 2>/dev/null) || {
     echo "Error: PR does not identify exactly one verified ticket under the configured branch or release rules." >&2; return 2;
   }
+  if [[ "$ticket" == none ]]; then
+    echo "::notice::$(echo "$live" | jq -r .headRefName) names no ticket under workflow.branchNaming: nothing to sync."
+    return 0
+  fi
   if ! echo "$live" | jq -e --slurpfile manifest .saasfoundry.json --argjson n "$ticket" --arg url "${server%/}/${repo}/issues/${ticket}" '
     def literal:
       explode | map(. as $c | if [92,46,94,36,124,63,42,43,40,41,91,93,123,125] | index($c)
@@ -1401,6 +1465,12 @@ sync_pr_review() {
       return 0
       ;;
     human-testing|ai-testing) ;;
+    # A ready click that comes too early is not a failure (#1003): nothing moves, and the
+    # Human testing guard still requires a draft PR.
+    backlog|ready|in-progress)
+      echo "::notice::Ticket #${ticket} is ${status}, not awaiting review yet; no ticket changed. Finish testing, then mark the PR ready again."
+      return 0
+      ;;
     *) echo "Error: ticket #${ticket} is not awaiting review (${status:-unknown}); no ticket changed." >&2; return 2 ;;
   esac
   # Unlike interactive legacy guards, this privileged event path must never
@@ -1414,12 +1484,12 @@ sync_pr_review() {
   fi
   nature=$(echo "$labels" | sed -n 's/^nature://p')
   if [[ "$(status_slug "$status")" == ai-testing ]] && status_in_sequence "Human Testing" && [[ "$nature" != internal ]]; then
-    echo "Error: Human Testing approval is required before synchronizing review." >&2
-    return 2
+    echo "::notice::Ticket #${ticket} is in ${status} and needs Human testing before review; no ticket changed. Convert the PR back to draft for Human testing, then mark it ready after validation."
+    return 0
   fi
   # The normal workflow command owns mutations and all status guards.
   (
-    unset SF_WORKFLOW_BYPASS_NATURE_GUARD SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD SF_WORKFLOW_BYPASS_SRS_GUARD
+    unset $(compgen -v SF_WORKFLOW_BYPASS_)
     export GH_REPO="$repo"
     bash "$SKILL_DIR/workflow-cli.sh" update-status "$ticket" "In review"
   )
@@ -1641,6 +1711,7 @@ case "$COMMAND" in
       echo "Usage: workflow-cli.sh update-status <ticket> <status-name>" >&2
       exit 1
     fi
+    announce_bypasses "$TICKET" "$TARGET"
     if ! check_srs_guard "$TICKET" "$TARGET"; then
       exit 2
     fi
@@ -1668,6 +1739,7 @@ case "$COMMAND" in
     route_to_tool "$WORKFLOW_TOOL" update-status "$@" || exit $?
     rollup_parent_status "$TICKET" "$TARGET"
     print_status_banner "$TARGET"
+    record_status_event "$TICKET" "$TARGET"
 
     # Where the release now stands.
     #
@@ -1798,7 +1870,7 @@ case "$COMMAND" in
     route_to_tool "$WORKFLOW_TOOL" "$COMMAND" "$@"
     ;;
 
-  create-ticket|create-subtask|create-epic|list|get-labels|inspect-srs-tickets|link-subtask|add-to-project)
+  create-ticket|create-subtask|create-epic|list|get-labels|inspect-srs-tickets|link-subtask|unlink-subtask|add-to-project)
     load_config
     route_to_tool "$WORKFLOW_TOOL" "$COMMAND" "$@"
     ;;
@@ -2034,12 +2106,14 @@ case "$COMMAND" in
     echo "  create-subtask ...           Create a sub-issue/task"
     echo "  create-epic <title> [body]   Create a top-level Epic (no parent)"
     echo "  update-status ...            Update ticket status (SRS-label guarded)"
-    echo "  create-pr <ticket> [--draft]  Create pull request"
-    echo "  ready-pr <ticket>            Mark pull request ready for review"
+    echo "  create-pr <ticket> [--draft] [--head <branch>]  Create pull request"
+    echo "  ready-pr <ticket> [--head <branch>]  Mark pull request ready for review"
     echo "  sync-pr-review <pr>          Sync a verified GitHub ready event to In review"
     echo "  ai-status <ticket> <step> <pending|success|failure> \"<description>\""
     echo "                               Publish an AI Testing step on the ticket's pull request"
-    echo "  draft-pr <ticket>            Return pull request to draft"
+    echo "  draft-pr <ticket> [--head <branch>]  Return pull request to draft"
+    echo "                               --head: the ticket branch pushed to origin, when the checkout is on another branch"
+    echo "                               (a worktree agent's host branch); origin must hold it at the local HEAD"
     echo "  list ...                     List tickets"
     echo "  get-labels <ticket>          List every label on a ticket"
     exit 1
@@ -2048,7 +2122,7 @@ case "$COMMAND" in
   *)
     echo -e "${RED}Error: Unknown command '${COMMAND}'${NC}"
     echo ""
-    echo "Available commands: status, next, validate, help, detect-complexity, retag, prepare, test, bootstrap, create-ticket, create-subtask, create-epic, add-to-project, update-status, create-pr, ready-pr, draft-pr, sync-pr-review, ai-status, list, get-labels, inspect-srs-tickets, link-subtask, transition-drafting"
+    echo "Available commands: status, next, validate, help, detect-complexity, retag, prepare, test, bootstrap, create-ticket, create-subtask, create-epic, add-to-project, update-status, create-pr, ready-pr, draft-pr, sync-pr-review, ai-status, list, get-labels, inspect-srs-tickets, link-subtask, unlink-subtask, transition-drafting"
     echo "Run 'workflow-cli.sh help' for usage details"
     exit 1
     ;;

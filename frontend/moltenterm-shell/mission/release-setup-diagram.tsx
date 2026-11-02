@@ -1,0 +1,544 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// The release setup's flow diagram (DS-MC-030): one inline SVG in the line map's colours (FR-MC-022), the trunk in the
+// accent and the release branch in the neutral tone, one node per step in its phase band, the tag a diamond, manual
+// steps hollow, the workflows GitHub runs on a lane of their own with their environment approvals.
+
+import { cn } from "@/util/util";
+import { CSSProperties, useRef } from "react";
+import { useT } from "../i18n/i18n";
+import { flowClass, MotionClass, MotionKeyAttr, useFlipMove, useFlowList } from "../molten-motion";
+import { PhaseTitles } from "./release-run";
+import { FlowModel, FlowNode, FlowPhases } from "./release-setup-model";
+
+const LeftW = 92;
+const SlotW = 96;
+const TopH = 22;
+const LaneH = 62;
+const LabelChars = 15;
+
+const LaneOrder: FlowNode["lane"][] = ["trunk", "rc", "release", "github", "targets"];
+
+function shorten(text: string): string {
+    return text.length > LabelChars ? `${text.slice(0, LabelChars - 1)}…` : text;
+}
+
+type Placed = FlowNode & { x: number; y: number };
+
+const placedKey = (node: Placed) => node.key;
+
+// A link's path as a style too, so it reflows (molten motion) when the layout changes instead of jumping; the attribute
+// stays for what reads the markup.
+function flowPath(d: string, style: CSSProperties): CSSProperties {
+    return { ...style, d: `path("${d}")` } as CSSProperties;
+}
+
+// The badge of a change the update proposes (#1102), as the legend and the change list colour it.
+const ChangeColors: Record<NonNullable<FlowNode["change"]>, string> = {
+    changed: "var(--color-warning)",
+    versions: "var(--color-warning)",
+    added: "var(--color-success)",
+    removed: "var(--color-error)",
+};
+
+// A pull request's badge sits beside it: its required checks are written above.
+const badgeDx = (node: FlowNode) => (node.kind === "pr" ? 23 : 13);
+const badgeDy = (node: FlowNode) => (node.kind === "pr" ? 0 : -11);
+
+// layout gives every node its own slot, in phase order then declared order, and each phase the band of its slots.
+export function layoutFlow(model: FlowModel) {
+    const lanes = LaneOrder.filter((lane) => {
+        if (lane === "github" || lane === "rc" || lane === "targets") {
+            return model.nodes.some((n) => n.lane === lane);
+        }
+        return !(model.single && lane === "trunk");
+    });
+    const laneY = (lane: FlowNode["lane"]) => {
+        const real = model.single && lane === "trunk" ? "release" : lane;
+        return TopH + LaneH / 2 + lanes.indexOf(real) * LaneH;
+    };
+    const placed: Placed[] = [];
+    const bands: { phase: string; x: number; w: number }[] = [];
+    let slot = 0;
+    for (const phase of FlowPhases) {
+        const inPhase = model.nodes.filter((n) => n.phase === phase);
+        const start = slot;
+        for (const node of inPhase) {
+            placed.push({ ...node, x: LeftW + slot * SlotW + SlotW / 2, y: laneY(node.lane) });
+            slot++;
+        }
+        const width = Math.max(1, inPhase.length);
+        if (inPhase.length === 0) {
+            slot++;
+        }
+        bands.push({ phase, x: LeftW + start * SlotW, w: width * SlotW });
+    }
+    const width = LeftW + slot * SlotW + 8;
+    const height = TopH + lanes.length * LaneH + 14;
+    return { lanes, laneY, placed, bands, width, height };
+}
+
+function NodeMark({ node, plain }: { node: Placed; plain?: boolean }) {
+    const { x, y } = node;
+    const dash = node.conditional ? { strokeDasharray: "3 2", opacity: 0.75 } : {};
+    switch (node.kind) {
+        case "pr":
+            return (
+                <g style={dash}>
+                    <rect
+                        x={x - 14}
+                        y={y - 9}
+                        width={28}
+                        height={18}
+                        rx={3}
+                        style={{ fill: "var(--color-background)", stroke: "var(--color-accent)", strokeWidth: 2 }}
+                    />
+                    <text
+                        x={x}
+                        y={y + 4}
+                        textAnchor="middle"
+                        className="text-10"
+                        style={{ fill: "var(--color-accent)", fontWeight: 600 }}
+                    >
+                        {plain ? "✓" : "PR"}
+                    </text>
+                </g>
+            );
+        case "target":
+            return (
+                <rect
+                    x={x - 10}
+                    y={y - 7}
+                    width={20}
+                    height={14}
+                    rx={3}
+                    style={{
+                        fill: "var(--color-background)",
+                        stroke: "var(--color-success)",
+                        strokeWidth: 2,
+                        ...dash,
+                    }}
+                />
+            );
+    }
+    if (node.conditional) {
+        return (
+            <g style={dash}>
+                <NodeMark node={{ ...node, conditional: false }} plain={plain} />
+            </g>
+        );
+    }
+    switch (node.kind) {
+        case "tag":
+            return (
+                <path
+                    d={`M ${x} ${y - 8} L ${x + 8} ${y} L ${x} ${y + 8} L ${x - 8} ${y} Z`}
+                    style={{ fill: "var(--color-accent)", stroke: "var(--color-accent)" }}
+                />
+            );
+        case "workflow":
+        case "dispatch":
+        case "deploy":
+            return (
+                <rect
+                    x={x - 9}
+                    y={y - 7}
+                    width={18}
+                    height={14}
+                    rx={3}
+                    style={{
+                        fill: "var(--color-background)",
+                        stroke: node.approval ? "var(--color-warning)" : "var(--color-primary)",
+                        strokeWidth: 2,
+                    }}
+                />
+            );
+        case "manual":
+            return (
+                <circle
+                    cx={x}
+                    cy={y}
+                    r={6.5}
+                    style={{
+                        fill: "var(--color-background)",
+                        stroke: "var(--color-accent)",
+                        strokeWidth: 2,
+                        strokeDasharray: "3 2",
+                    }}
+                />
+            );
+    }
+    return (
+        <circle
+            cx={x}
+            cy={y}
+            r={6.5}
+            style={{
+                fill: node.kind === "notes" ? "var(--color-background)" : "var(--color-accent)",
+                stroke: "var(--color-accent)",
+                strokeWidth: 2,
+            }}
+        />
+    );
+}
+
+// selected / onSelect (step 2a, #1101): the nodes of the selected point are ringed, and clicking a node selects its
+// point. onHover tells which point the pointer is over (null when it leaves). plain (FR-MC-044): the diagram of "Your
+// way of publishing", in plain words: no phase names, a plain legend, "approval" without the environment's name.
+export function FlowDiagram({
+    model,
+    className,
+    selected,
+    onSelect,
+    onHover,
+    plain,
+}: {
+    model: FlowModel;
+    className?: string;
+    selected?: string;
+    onSelect?: (point: string) => void;
+    onHover?: (point: string) => void;
+    plain?: boolean;
+}) {
+    const t = useT();
+    const approvalText = (node: FlowNode, short: boolean) =>
+        plain
+            ? t("mc.setup.plain.diagram.approval")
+            : t(short ? "mc.setup.diagram.approvalShort" : "mc.setup.diagram.approval", {
+                  environment: node.approval,
+              });
+    const legend = (key: string) => t(plain ? `mc.setup.plain.diagram.${key}` : `mc.setup.diagram.${key}`);
+    const { lanes, laneY, placed, bands, width, height } = layoutFlow(model);
+    const has = (test: (n: FlowNode) => boolean) => model.nodes.some(test);
+    const laneName = (lane: FlowNode["lane"]) =>
+        lane === "github"
+            ? t("mc.setup.diagram.github")
+            : lane === "targets"
+              ? t("mc.setup.diagram.targets")
+              : lane === "trunk"
+                ? model.trunk
+                : lane === "rc"
+                  ? (model.rcBranch ?? "")
+                  : model.release;
+    const promoteAt = placed.find((n) => n.key.endsWith("/promote"));
+    // The pull-request flow: the RC branch leaves the trunk at its first step and joins the release branch where its
+    // pull request is merged.
+    const branchAt = model.viaPr ? placed.find((n) => n.lane === "rc") : undefined;
+    const mergeAt = model.viaPr ? placed.find((n) => n.key.endsWith("/merge-pr")) : undefined;
+    const syncAt = placed.find((n) => n.key.endsWith("/sync-back"));
+    // Molten motion (#1163): a node that appears flows in along its branch, one that goes melts out where it was, and
+    // the others travel to their new place.
+    const shownNodes = useFlowList(placed, placedKey);
+    const svgRef = useRef<SVGSVGElement>(null);
+    useFlipMove(svgRef, [placed.map((n) => `${n.key}@${n.x},${n.y}`).join("|")]);
+    const promoteD = promoteAt
+        ? `M ${promoteAt.x} ${laneY("trunk")} C ${promoteAt.x + 30} ${laneY("trunk")}, ${promoteAt.x + 18} ${laneY("release")}, ${promoteAt.x + 48} ${laneY("release")}`
+        : "";
+    const branchD = branchAt
+        ? `M ${branchAt.x - 48} ${laneY("trunk")} C ${branchAt.x - 18} ${laneY("trunk")}, ${branchAt.x - 30} ${laneY("rc")}, ${branchAt.x} ${laneY("rc")}`
+        : "";
+    const mergeD = mergeAt
+        ? `M ${mergeAt.x - 48} ${laneY("rc")} C ${mergeAt.x - 18} ${laneY("rc")}, ${mergeAt.x - 30} ${laneY("release")}, ${mergeAt.x} ${laneY("release")}`
+        : "";
+    const syncD = syncAt
+        ? `M ${syncAt.x - 48} ${laneY("release")} C ${syncAt.x - 18} ${laneY("release")}, ${syncAt.x - 30} ${laneY("trunk")}, ${syncAt.x} ${laneY("trunk")}`
+        : "";
+    return (
+        <div
+            className={cn("overflow-x-auto rounded-6 border border-border bg-black/20", className)}
+            data-testid="setup-diagram"
+        >
+            <svg
+                ref={svgRef}
+                viewBox={`0 0 ${width} ${height}`}
+                width={width}
+                height={height}
+                role="img"
+                aria-label={t("mc.setup.diagram.label")}
+                className="block"
+            >
+                {bands.map((band, i) => (
+                    <g key={band.phase}>
+                        <rect
+                            x={band.x}
+                            y={0}
+                            width={band.w}
+                            height={height}
+                            style={{ fill: i % 2 === 0 ? "rgba(255,255,255,0.025)" : "transparent" }}
+                        />
+                        {plain ? null : (
+                            <text x={band.x + 6} y={14} className="text-10" style={{ fill: "var(--color-muted)" }}>
+                                {PhaseTitles[band.phase]}
+                            </text>
+                        )}
+                    </g>
+                ))}
+                {lanes.map((lane) => (
+                    <g key={lane}>
+                        <text x={8} y={laneY(lane) + 4} className="text-11" style={{ fill: "var(--color-secondary)" }}>
+                            {shorten(laneName(lane))}
+                        </text>
+                        <path
+                            d={`M ${LeftW - 6} ${laneY(lane)} H ${width - 4}`}
+                            className={MotionClass.move}
+                            style={flowPath(
+                                `M ${LeftW - 6} ${laneY(lane)} H ${width - 4}`,
+                                lane === "github" || lane === "targets"
+                                    ? { stroke: "var(--color-border)", strokeWidth: 1.5, strokeDasharray: "4 5" }
+                                    : lane === "trunk" || model.single
+                                      ? { stroke: "var(--color-accent)", strokeWidth: 4, strokeLinecap: "round" }
+                                      : {
+                                            stroke: "var(--color-primary)",
+                                            strokeOpacity: 0.38,
+                                            strokeWidth: 4,
+                                            strokeLinecap: "round",
+                                        }
+                            )}
+                        />
+                    </g>
+                ))}
+                {promoteAt && !model.single ? (
+                    <path
+                        d={promoteD}
+                        className={MotionClass.move}
+                        style={flowPath(promoteD, { fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 })}
+                    />
+                ) : null}
+                {branchAt ? (
+                    <path
+                        d={branchD}
+                        className={MotionClass.move}
+                        style={flowPath(branchD, { fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 })}
+                        data-testid="setup-diagram-branch"
+                    />
+                ) : null}
+                {mergeAt ? (
+                    <path
+                        d={mergeD}
+                        className={MotionClass.move}
+                        style={flowPath(mergeD, { fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 })}
+                        data-testid="setup-diagram-pr"
+                    />
+                ) : null}
+                {syncAt && !model.single ? (
+                    <path
+                        d={syncD}
+                        className={MotionClass.move}
+                        style={flowPath(syncD, {
+                            fill: "none",
+                            stroke: "var(--color-primary)",
+                            strokeOpacity: 0.5,
+                            strokeWidth: 2,
+                            strokeDasharray: "5 4",
+                        })}
+                    />
+                ) : null}
+                {shownNodes.map(({ item: node, phase }) => (
+                    <g
+                        key={node.key}
+                        {...{ [MotionKeyAttr]: node.key }}
+                        data-kind={node.kind}
+                        data-point={node.point}
+                        data-phase={phase}
+                        data-proposed={node.proposed}
+                        onClick={node.point && onSelect && phase !== "exit" ? () => onSelect(node.point) : undefined}
+                        onMouseEnter={node.point && onHover ? () => onHover(node.point) : undefined}
+                        onMouseLeave={node.point && onHover ? () => onHover(null) : undefined}
+                        className={cn(
+                            node.point && (onSelect || onHover) ? "cursor-pointer" : undefined,
+                            flowClass(phase),
+                            node.explained ? MotionClass.glow : undefined
+                        )}
+                        style={
+                            {
+                                "--mt-from-x": `${-SlotW / 2}px`,
+                                opacity: node.proposed === "remove" ? 0.5 : undefined,
+                            } as CSSProperties
+                        }
+                    >
+                        <title>
+                            {[
+                                node.label,
+                                node.approval ? approvalText(node, false) : "",
+                                node.checks ? t("mc.setup.diagram.checks", { checks: node.checks }) : "",
+                                node.conditional
+                                    ? t(plain ? "mc.setup.plain.diagram.conditional" : "mc.setup.diagram.conditional")
+                                    : "",
+                            ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                        </title>
+                        {selected && node.point === selected ? (
+                            <circle
+                                cx={node.x}
+                                cy={node.y}
+                                r={17}
+                                style={{
+                                    fill: "var(--color-accent)",
+                                    fillOpacity: 0.12,
+                                    stroke: "var(--color-accent)",
+                                    strokeWidth: 1.5,
+                                }}
+                                data-testid="setup-diagram-selected"
+                            />
+                        ) : null}
+                        {node.proposed ? (
+                            <circle
+                                cx={node.x}
+                                cy={node.y}
+                                r={15}
+                                style={{
+                                    fill: "none",
+                                    stroke: node.proposed === "remove" ? "var(--color-error)" : "var(--color-accent)",
+                                    strokeWidth: 1.5,
+                                    strokeDasharray: "3 3",
+                                }}
+                                data-testid={`setup-diagram-proposed-${node.proposed}`}
+                            />
+                        ) : null}
+                        <NodeMark node={node} plain={plain} />
+                        {node.checks ? (
+                            <text
+                                x={node.x}
+                                y={node.y - 14}
+                                textAnchor="middle"
+                                className="text-10"
+                                style={{ fill: "var(--color-muted)" }}
+                            >
+                                {shorten(node.checks)}
+                            </text>
+                        ) : null}
+                        {node.badge != null ? (
+                            <g
+                                data-testid={`setup-diagram-badge-${node.badge}`}
+                                data-change={node.change}
+                                style={node.untaken ? { opacity: 0.4 } : undefined}
+                            >
+                                <circle
+                                    cx={node.x + badgeDx(node)}
+                                    cy={node.y + badgeDy(node)}
+                                    r={7}
+                                    style={{
+                                        fill: node.change
+                                            ? ChangeColors[node.change]
+                                            : node.question
+                                              ? "var(--color-warning)"
+                                              : "var(--color-accent)",
+                                    }}
+                                />
+                                <text
+                                    x={node.x + badgeDx(node)}
+                                    y={node.y + badgeDy(node) + 3}
+                                    textAnchor="middle"
+                                    className="text-10"
+                                    style={{ fill: "var(--color-background)", fontWeight: 600 }}
+                                >
+                                    {node.badge}
+                                </text>
+                            </g>
+                        ) : null}
+                        {node.badge == null && node.mark ? (
+                            <g data-testid={`setup-diagram-mark-${node.mark}`}>
+                                <circle
+                                    cx={node.x + badgeDx(node)}
+                                    cy={node.y + badgeDy(node)}
+                                    r={7}
+                                    style={{
+                                        fill: node.mark === "added" ? "var(--color-success)" : "var(--color-warning)",
+                                    }}
+                                />
+                                <text
+                                    x={node.x + badgeDx(node)}
+                                    y={node.y + badgeDy(node) + 3.5}
+                                    textAnchor="middle"
+                                    className="text-10"
+                                    style={{ fill: "var(--color-background)", fontWeight: 600 }}
+                                >
+                                    {node.mark === "added" ? "+" : "~"}
+                                </text>
+                            </g>
+                        ) : null}
+                        <text
+                            x={node.x}
+                            y={node.y + 21}
+                            textAnchor="middle"
+                            className="text-10"
+                            style={{ fill: "var(--color-secondary)" }}
+                        >
+                            {shorten(node.label)}
+                        </text>
+                        {node.approval ? (
+                            <text
+                                x={node.x}
+                                y={node.y - (plain && node.badge != null ? 22 : 12)}
+                                textAnchor="middle"
+                                className="text-10"
+                                style={{ fill: "var(--color-warning)" }}
+                            >
+                                {shorten(approvalText(node, true))}
+                            </text>
+                        ) : null}
+                    </g>
+                ))}
+            </svg>
+            <div className="flex flex-wrap gap-3 border-t border-border px-2 py-1 text-10 text-muted">
+                <span className="flex items-center gap-1">
+                    <span className="inline-block h-2 w-2 rounded-full bg-accent" />
+                    {legend("legendCommand")}
+                </span>
+                {!plain || has((n) => n.kind === "manual") ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-2 rounded-full border border-dashed border-accent" />
+                        {legend("legendManual")}
+                    </span>
+                ) : null}
+                <span className="flex items-center gap-1">
+                    <span className="inline-block h-2 w-2 rotate-45 bg-accent" />
+                    {legend("legendTag")}
+                </span>
+                {!plain || has((n) => n.kind === "dispatch") ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-3 rounded-4 border border-primary/60" />
+                        {legend("legendWorkflow")}
+                    </span>
+                ) : null}
+                {has((n) => n.kind === "pr") ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-3 rounded-4 border border-accent" />
+                        {legend("legendPr")}
+                    </span>
+                ) : null}
+                {has((n) => n.kind === "target") ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-3 rounded-4 border border-success" />
+                        {legend("legendTarget")}
+                    </span>
+                ) : null}
+                {has((n) => n.approval != null) ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-2 rounded-full border border-warning" />
+                        {legend("legendApproval")}
+                    </span>
+                ) : null}
+                {(["changed", "added", "removed"] as const).map((kind) =>
+                    has((n) => n.change === kind || (kind === "changed" && n.change === "versions")) ? (
+                        <span key={kind} className="flex items-center gap-1">
+                            <span
+                                className="inline-block h-2 w-2 rounded-full"
+                                style={{ background: ChangeColors[kind] }}
+                            />
+                            {t(`mc.setup.diagram.legendChange.${kind}`)}
+                        </span>
+                    ) : null
+                )}
+                {has((n) => n.conditional) ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block w-4 border-t border-dashed border-muted" />
+                        {legend("legendConditional")}
+                    </span>
+                ) : null}
+            </div>
+        </div>
+    );
+}

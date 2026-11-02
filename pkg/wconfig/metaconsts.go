@@ -119,6 +119,12 @@ const (
 
 	ConfigKey_PowerSleepPolicy               = "power:sleeppolicy"
 
+	ConfigKey_ShellWorkspaceSidebar          = "shell:workspacesidebar"
+
+	ConfigKey_AppNewViewOpen                 = "app:newviewopen"
+	ConfigKey_AppNewViewFavorites            = "app:newviewfavorites"
+	ConfigKey_AppNewWorkspaceViews           = "app:newworkspaceviews"
+
 	ConfigKey_MoltentermTabViewPriority      = "moltenterm:tabviewpriority"
 	ConfigKey_MoltentermTabViewBudget        = "moltenterm:tabviewbudget"
 	ConfigKey_MoltentermHiddenTabViews       = "moltenterm:hiddentabviews"
@@ -127,10 +133,19 @@ const (
 	ConfigKey_MoltentermHiddenPageFreeze     = "moltenterm:hiddenpagefreeze"
 	ConfigKey_MoltentermHiddenPageDiscardMin = "moltenterm:hiddenpagediscardmin"
 	ConfigKey_MoltentermReleaseNotify        = "moltenterm:releasenotify"
+	ConfigKey_MoltentermReleaseCandidates    = "moltenterm:releasecandidates"
 	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"
+	ConfigKey_MoltentermSidebarTint          = "moltenterm:sidebartint"
+	ConfigKey_MoltentermSidebarHeat          = "moltenterm:sidebarheat"
+	ConfigKey_MoltentermSettingsReveal       = "moltenterm:settingsreveal"
+	ConfigKey_MoltentermTheme                = "moltenterm:theme"
 	ConfigKey_MoltentermView360              = "moltenterm:view360"
 	ConfigKey_MoltentermTerminalScreenReader = "moltenterm:terminalscreenreader"
 	ConfigKey_MoltentermCodingAgent          = "moltenterm:codingagent"
+	ConfigKey_MoltentermReviewsSort          = "moltenterm:reviewssort"
+	ConfigKey_MoltentermReviewsFolds         = "moltenterm:reviewsfolds"
+	ConfigKey_MoltentermSettingsTab          = "moltenterm:settingstab"
+	ConfigKey_MoltentermMaterialsSeen        = "moltenterm:materialsseen"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"
@@ -140,6 +155,8 @@ const (
 	ConfigKey_WindowTransparent              = "window:transparent"
 	ConfigKey_WindowBlur                     = "window:blur"
 	ConfigKey_WindowOpacity                  = "window:opacity"
+	ConfigKey_WindowTexture                  = "window:texture"
+	ConfigKey_WindowTextureIntensity         = "window:textureintensity"
 	ConfigKey_WindowBgColor                  = "window:bgcolor"
 	ConfigKey_WindowReducedMotion            = "window:reducedmotion"
 	ConfigKey_WindowTileGapSize              = "window:tilegapsize"

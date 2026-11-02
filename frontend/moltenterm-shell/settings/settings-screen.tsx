@@ -3,16 +3,23 @@
 
 // The settings screen (FR-SHELL-050, DS-SHELL-091): the sections on the left, a search over label, key and
 // description, and on the right the rows of a section, each with its label, a one-line description, its control and a
-// reset when changed. A change writes settings.json through SetConfigCommand, as an edit of the file would; the
-// workspace's own settings write its meta and carry a pill with its name. Advanced lists the JSON files, which open
-// in Wave's editor in place (settings-view.tsx).
+// reset when changed. A change writes settings.json through SetConfigCommand, as an edit of the file would. Every block
+// states who it applies to, and the workspace's own settings live in its sheet, which General links to (FR-SHELL-101).
+// Advanced lists the JSON files, which open in Wave's editor in place (settings-view.tsx). Workspaces and views,
+// Notifications, Browser's per-site lists and Tips follow the Spaces model (FR-SHELL-106).
 
+import { ClientModel } from "@/app/store/client-model";
 import { atoms, getApi, globalStore } from "@/app/store/global";
+import { WorkspaceService } from "@/app/store/services";
 import * as WOS from "@/app/store/wos";
+import { waveEventSubscribeSingle } from "@/app/store/wps";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { MoltentermProductName } from "@/util/moltenterm-identity";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
+import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
@@ -20,22 +27,25 @@ import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
+import { IntegrateOffKey } from "../companion/companion-integration-model";
 import { EmptyState } from "../empty-state";
 import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
+import { SleepPolicySetting } from "../keepawake-model";
+import { KeepAwakeDetails } from "../keepawake-ui";
+import { NewViewOpenKey } from "../newview/new-view-model";
+import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
+import { NotificationPanelCard, NotificationSubjectsCard } from "../notification-settings";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
-import { OptionList, OptionRow, SuiteSignature } from "../suite/suite";
+import { SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
+import { TipsCards } from "../tips/tips-view";
+import { View360SettingKey } from "../view360/view360-decision";
 import { workspaceShownName } from "../workspace-default-name";
-import {
-    ProjectMetaKey,
-    readWorkspaceFolder,
-    readWorkspaceProject,
-    WorkspaceFolderMetaKey,
-} from "../workspace-project";
-import { linkWorkspaceProject, setWorkspaceFolder, unlinkWorkspaceProject } from "../workspace-project-store";
+import { openCurrentWorkspaceEditor } from "../workspace-edit";
+import { NewWorkspaceViewsCard } from "../workspace-views/workspace-views-settings";
 import {
     clampSetting,
     effectiveSetting,
@@ -45,6 +55,8 @@ import {
     jsonSummary,
     localizeCatalog,
     localizeSection,
+    multiOptionOn,
+    multiToggled,
     searchSettings,
     sectionEntries,
     sectionTitle,
@@ -53,15 +65,24 @@ import {
     SettingEntry,
     SettingOption,
     settingsCatalog,
+    SettingsSection,
     SettingsSectionId,
     SettingsSections,
 } from "./settings-catalog";
-import { settingsGroupIcon, settingsOptionIcon, SettingsSectionConcepts } from "./settings-icons";
+import { ChoiceRows } from "./settings-choice-rows";
+import { settingsGroupIcon, SettingsSectionConcepts } from "./settings-icons";
+import { IntegrationRuns } from "./settings-integration-runs";
 import { ModsSection } from "./settings-mods";
-import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
-import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
+import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSectionMetaKey } from "./settings-open";
+import { settingOverriders } from "./settings-overrides";
+import { flowColumnsClass, PageCard, PageColumns, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
+import { OverriddenNotice, ScopeLine } from "./settings-scope";
 import { SecretsSection } from "./settings-secrets";
+import { SiteList } from "./settings-site-lists";
+import { isSiteListKey } from "./settings-sites";
 import { SettingsSlider, useSliderWrites } from "./settings-slider";
+import { SidebarModeRows, SidebarTintKey, TopRowCard } from "./settings-spaces";
+import { View360Screens } from "./settings-view360-screens";
 
 export type SettingsFile = { path: string; name: string; description?: string };
 
@@ -119,40 +140,45 @@ function platformName(): string {
     return p === "win32" ? "windows" : p;
 }
 
-function readValue(entry: SettingEntry, settings: Record<string, unknown>, ws: Workspace): unknown {
-    if (entry.scope === "workspace") {
-        if (entry.key === WorkspaceFolderMetaKey) {
-            return readWorkspaceFolder(ws) || undefined;
-        }
-        if (entry.key === ProjectMetaKey) {
-            return readWorkspaceProject(ws).dir || undefined;
-        }
-        return (ws?.meta as Record<string, unknown>)?.[entry.key];
-    }
-    return settings?.[entry.key];
+// Writing null clears the key: settings.json loses it, as when deleting the line, and the default applies again. The
+// rows are the app's settings only: the workspace's are edited in its sheet (FR-SHELL-101).
+async function writeValue(entry: SettingEntry, value: unknown): Promise<void> {
+    await writeSettings({ [entry.key]: value ?? null });
 }
 
-// Writing null clears the key: settings.json loses it, as when deleting the line, and the default applies again.
-async function writeValue(entry: SettingEntry, value: unknown): Promise<void> {
-    if (entry.scope !== "workspace") {
-        await writeSettings({ [entry.key]: value ?? null });
-        return;
-    }
-    const ws = globalStore.get(atoms.workspace);
-    if (ws == null) {
-        return;
-    }
-    if (entry.key === WorkspaceFolderMetaKey) {
-        await setWorkspaceFolder(ws.oid, (value as string) || null);
-        return;
-    }
-    if (entry.key === ProjectMetaKey) {
-        if (!value) {
-            await unlinkWorkspaceProject(ws.oid);
-            return;
-        }
-        await linkWorkspaceProject(ws, value as string);
-    }
+// Every workspace object, kept live: the override notices count the ones that replace an app setting.
+function useAllWorkspaces(): Workspace[] {
+    const current = useAtomValue(atoms.workspace);
+    const [ids, setIds] = useState<string[]>([]);
+    useEffect(() => {
+        let gone = false;
+        const refresh = () =>
+            fireAndForget(async () => {
+                const list = (await WorkspaceService.ListWorkspaces()) ?? [];
+                if (!gone) {
+                    setIds(list.map((e) => e.workspaceid));
+                }
+            });
+        refresh();
+        const unsubscribe = waveEventSubscribeSingle({ eventType: "workspace:update", handler: refresh });
+        return () => {
+            gone = true;
+            unsubscribe();
+        };
+    }, [current?.oid]);
+    const all = useMemo(
+        () =>
+            jotai.atom((get) =>
+                ids.map((id) => get(WOS.getWaveObjectAtom<Workspace>(WOS.makeORef("workspace", id)))).filter(Boolean)
+            ),
+        [ids]
+    );
+    return useAtomValue(all);
+}
+
+function useClientMeta(): Record<string, any> {
+    const client = useAtomValue(ClientModel.getInstance().clientAtom);
+    return client?.meta;
 }
 
 function Toggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet: (v: unknown) => void }) {
@@ -283,20 +309,16 @@ function NumberField({ entry, value, onSet }: { entry: SettingEntry; value: unkn
 }
 
 function MultiChoice({ entry, value, onSet }: { entry: SettingEntry; value: unknown; onSet: (v: unknown) => void }) {
-    const chosen = Array.isArray(value) ? (value as string[]) : [];
     return (
         <span role="group" aria-label={entry.label} className="inline-flex flex-wrap justify-end gap-1">
             {(entry.options ?? []).map((o) => {
-                const on = chosen.includes(o.value);
+                const on = multiOptionOn(entry, value, o.value);
                 return (
                     <button
                         key={o.value}
                         type="button"
                         aria-pressed={on}
-                        onClick={() => {
-                            const next = on ? chosen.filter((v) => v !== o.value) : [...chosen, o.value];
-                            onSet(next.length ? next : null);
-                        }}
+                        onClick={() => onSet(multiToggled(entry, value, o.value))}
                         className={cn(
                             "inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 border px-2 text-12 transition-colors duration-120 ease-mt",
                             on
@@ -355,6 +377,8 @@ function Control({
     const t = useT();
     const languages = useAtomValue(I18nModel.getInstance().languagesAtom, { store: globalStore });
     const systemLocale = useAtomValue(I18nModel.getInstance().systemLocaleAtom, { store: globalStore });
+    const newViewChoices = useNewViewChoices();
+    const newViewOptions = newViewChoices.map((c) => ({ value: c.id, label: c.label }));
     const shown = effectiveSetting(entry, value);
     switch (entry.control) {
         case "toggle":
@@ -378,7 +402,13 @@ function Control({
                 <Select
                     entry={entry}
                     value={shown}
-                    options={entry.optionsFrom === "termthemes" ? themes : (entry.options ?? [])}
+                    options={
+                        entry.optionsFrom === "termthemes"
+                            ? themes
+                            : entry.optionsFrom === NewViewChoicesOptions
+                              ? newViewOptions
+                              : (entry.options ?? [])
+                    }
                     onSet={onSet}
                 />
             );
@@ -410,6 +440,10 @@ function Control({
         case "multi":
             return <MultiChoice entry={entry} value={value} onSet={onSet} />;
         default:
+            // A per-site setting is edited in its list under the row (FR-SHELL-106), which keeps Edit in JSON.
+            if (isSiteListKey(entry.key)) {
+                return <span className="text-12 text-muted">{jsonSummary(value, t)}</span>;
+            }
             return (
                 <span className="inline-flex items-center gap-2">
                     <span className="text-12 text-muted">{jsonSummary(value, t)}</span>
@@ -426,17 +460,26 @@ function SectionIcon({ id, className }: { id: SettingsSectionId; className?: str
     return <Icon className={className} aria-hidden />;
 }
 
-function WorkspacePill({ name }: { name: string }) {
+// General is for the whole app (FR-SHELL-101): the workspace's own folder and project are edited in its sheet, which
+// this block opens.
+function WorkspaceSheetCard({ name }: { name: string }) {
     const t = useT();
     return (
-        <span
-            className="molten-cmdpanel-scope inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-full px-2 text-11"
-            title={t("settings.workspacePill.title", { name })}
-        >
-            <i className="fa fa-solid fa-layer-group text-11" aria-hidden />
-            <span className="truncate">{name}</span>
-            <span className="sr-only">{t("settings.workspacePill.srOnly")}</span>
-        </span>
+        <PageCard title={t("settings.groups.thisWorkspace")} icon={suiteIcon("workspace")} scope="workspace">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3" data-workspace-sheet-link>
+                <div className="min-w-0 flex-1 basis-60 text-12 text-muted">
+                    {t("settings.workspaceSheet.text", { name })}
+                </div>
+                <button
+                    type="button"
+                    className={cn(SecondaryButton, "ml-auto")}
+                    onClick={(e) => openCurrentWorkspaceEditor(e.currentTarget)}
+                >
+                    {t("settings.workspaceSheet.open")}
+                    <i className="fa fa-solid fa-chevron-right text-10" aria-hidden />
+                </button>
+            </div>
+        </PageCard>
     );
 }
 
@@ -444,7 +487,8 @@ type RowProps = {
     entry: SettingEntry;
     rowId: string;
     value: unknown;
-    workspaceName: string;
+    // The workspaces that replace this app setting with their own value.
+    overriddenIn: string[];
     themes: SettingOption[];
     highlighted: boolean;
     onOpenJson: () => void;
@@ -457,41 +501,7 @@ function useChoices(entry: SettingEntry): SettingChoice[] {
     return settingChoices(entry, languages, t("language.system", { name: languageName(systemLocale) }));
 }
 
-function ChoiceRows({
-    entry,
-    name,
-    choices,
-    value,
-    onSet,
-}: {
-    entry: SettingEntry;
-    name: string;
-    choices: SettingChoice[];
-    value: unknown;
-    onSet: (v: unknown) => void;
-}) {
-    const t = useT();
-    const shown = effectiveSetting(entry, value);
-    const current = shown == null ? "" : String(shown);
-    return (
-        <OptionList aria-label={entry.label} data-setting-control>
-            {choices.map((c) => (
-                <OptionRow
-                    key={c.value}
-                    name={name}
-                    value={c.value}
-                    label={c.label}
-                    icon={settingsOptionIcon(entry.key, c.value)}
-                    selected={c.value === current}
-                    selectedLabel={t("common.selected")}
-                    onSelect={() => onSet(c.value === "" ? null : c.value)}
-                />
-            ))}
-        </OptionList>
-    );
-}
-
-const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlighted, onOpenJson }: RowProps) => {
+const SettingRow = memo(({ entry, rowId, value, overriddenIn, themes, highlighted, onOpenJson }: RowProps) => {
     const t = useT();
     const [errorKey, setErrorKey] = useState<string>(null);
     const { writer, state } = useSliderWrites(entry, value, (v) => writeValue(entry, v));
@@ -509,7 +519,7 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
             await writeValue(entry, v);
         } catch (e) {
             console.error("settings: write failed", entry.key, e);
-            setErrorKey(entry.scope === "workspace" ? "settings.error.folder" : "settings.error.notSaved");
+            setErrorKey("settings.error.notSaved");
         }
     };
     const reset = changed ? (
@@ -541,13 +551,13 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
                         <span className="truncate text-12 font-medium text-primary" title={entry.key}>
                             {entry.label}
                         </span>
-                        {entry.scope === "workspace" ? <WorkspacePill name={workspaceName} /> : null}
                     </div>
                     {entry.description ? (
                         <div className="truncate text-12 text-muted" title={entry.description}>
                             {entry.description}
                         </div>
                     ) : null}
+                    <OverriddenNotice names={overriddenIn} />
                     {error ? (
                         <div role="alert" className="text-12 text-danger">
                             {error}
@@ -580,6 +590,9 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
             {choices != null ? (
                 <ChoiceRows entry={entry} name={`${rowId}-choice`} choices={choices} value={value} onSet={set} />
             ) : null}
+            {isSiteListKey(entry.key) ? (
+                <SiteList entryKey={entry.key} label={entry.label} value={value} onOpenJson={onOpenJson} />
+            ) : null}
         </div>
     );
 });
@@ -589,7 +602,12 @@ SettingRow.displayName = "SettingRow";
 function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (path: string) => void }) {
     const t = useT();
     return (
-        <PageCard title={t("settings.files.title")} hint={t("settings.files.hint")} icon={suiteIcon("files")}>
+        <PageCard
+            title={t("settings.files.title")}
+            hint={t("settings.files.hint")}
+            icon={suiteIcon("files")}
+            scope="app"
+        >
             {files
                 .filter((f) => f.path !== "secrets")
                 .map((f) => (
@@ -628,6 +646,7 @@ function KeyboardShortcuts() {
             title={t("settings.shortcuts.title")}
             hint={t("settings.shortcuts.hint")}
             icon={suiteIcon("keyboard")}
+            scope="app"
         >
             <div className={cn("px-5 pt-3 [&>section]:pb-3", flowColumnsClass(3))}>
                 <ShortcutSections
@@ -640,21 +659,25 @@ function KeyboardShortcuts() {
     );
 }
 
-export function SettingsScreen({ blockId, files, onOpenFile, model, initialSection }: SettingsScreenProps) {
+// What a section's page reads, computed once for the screen or the library that shows it (#1406).
+export type SettingsPageData = {
+    catalog: SettingEntry[];
+    sections: SettingsSection[];
+    settings: Record<string, unknown>;
+    themes: SettingOption[];
+    groupSlugByKey: Map<string, string>;
+    // One array per setting, stable while nothing changes, so the memoized rows do not redraw.
+    overriddenIn: Map<string, string[]>;
+    workspaceName: string;
+};
+
+export function useSettingsPageData(): SettingsPageData {
     const t = useT();
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
-    const [section, setSectionState] = useState<SettingsSectionId>(
-        () => initialSection ?? LastSection.get(blockId) ?? openedOnSection(blockId) ?? "general"
-    );
-    const [query, setQuery] = useState("");
-    const [active, setActive] = useState(0);
-    const [highlight, setHighlight] = useState<string>(null);
-    const [jumpTo, setJumpTo] = useState<string>(null);
-    const searchRef = useRef<HTMLInputElement>(null);
-    const contentRef = useRef<HTMLDivElement>(null);
-
+    const allWorkspaces = useAllWorkspaces();
+    const clientMeta = useClientMeta();
     // Rebuilt when the language changes, so the rows and the search speak the shown language.
     const catalog = useMemo(() => localizeCatalog(settingsCatalog(platformName()), t), [t]);
     // A group's icon follows its English name, which the interface language does not change.
@@ -663,17 +686,161 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
         []
     );
     const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
-    const appVersion = useMemo(() => currentBuildIdentity(getApi().getAboutModalDetails()?.version ?? "").version, []);
-    const currentSection = sections.find((s) => s.id === section);
     const themes = useMemo(
         () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
         [fullConfig?.termthemes]
     );
+    const workspaceName = workspaceShownName(workspace?.name, t) || t("settings.thisWorkspace");
+    const overriddenIn = useMemo(() => {
+        const byKey = new Map<string, string[]>();
+        for (const entry of catalog) {
+            const names = settingOverriders(entry.key, allWorkspaces, clientMeta).map(
+                (ws) => workspaceShownName(ws.name, t) || ws.oid
+            );
+            if (names.length > 0) {
+                byKey.set(entry.key, names);
+            }
+        }
+        return byKey;
+    }, [catalog, allWorkspaces, clientMeta, t]);
+    return { catalog, sections, settings, themes, groupSlugByKey, overriddenIn, workspaceName };
+}
+
+// Blocks the page lays side by side. Keyboard's block, below them, takes the full width and splits its own groups;
+// Secrets keeps its stacked blocks in one column.
+function sectionFlowBlocks(section: SettingsSectionId, groups: number): number {
+    return (
+        groups +
+        (section === "advanced" ? 1 : 0) +
+        (section === "mods" ? 1 : 0) +
+        (section === "general" ? 1 : 0) +
+        (section === "spaces" ? 2 : 0) +
+        (section === "notifications" ? 2 : 0)
+    );
+}
+
+export function sectionPageWidth(data: SettingsPageData, section: SettingsSectionId): PageColumns {
+    if (section === "keyboard") {
+        return 3;
+    }
+    if (section === "tips") {
+        return 2;
+    }
+    return pageColumns(sectionFlowBlocks(section, groupEntries(sectionEntries(data.catalog, section)).length));
+}
+
+export type SettingsSectionPageProps = {
+    section: SettingsSectionId;
+    data: SettingsPageData;
+    rowId: (key: string) => string;
+    highlight?: string;
+    files: SettingsFile[];
+    onOpenFile: (path: string) => void;
+    model?: WaveConfigViewModel;
+    // Beside the page's title (the library's "Open in a view").
+    actions?: React.ReactNode;
+};
+
+// One section's page: its header, its blocks and their rows. The settings screen and the library's Settings page both
+// show it, so a block opened in the library behaves as in Preferences (FR-SHELL-106, #1406).
+export function SettingsSectionPage({
+    section,
+    data,
+    rowId,
+    highlight,
+    files,
+    onOpenFile,
+    model,
+    actions,
+}: SettingsSectionPageProps) {
+    const t = useT();
+    const currentSection = data.sections.find((s) => s.id === section);
+    const groups = groupEntries(sectionEntries(data.catalog, section));
+    const flowBlocks = sectionFlowBlocks(section, groups.length);
+    const openSettingsJson = () => onOpenFile("settings.json");
+    return (
+        <>
+            <div className="pt-6">
+                <PageHeader
+                    title={currentSection?.title ?? section}
+                    description={currentSection?.description}
+                    icon={suiteIcon(SettingsSectionConcepts[section])}
+                >
+                    {actions}
+                </PageHeader>
+            </div>
+            {flowBlocks > 0 ? (
+                <PageFlow columns={pageColumns(flowBlocks)}>
+                    {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
+                    {groups.map((g) => (
+                        <PageCard
+                            key={g.group}
+                            title={g.group}
+                            icon={suiteIcon(settingsGroupIcon(data.groupSlugByKey.get(g.entries[0].key)))}
+                            glow={highlight != null && g.entries.some((e) => e.key === highlight)}
+                            scope="app"
+                        >
+                            {g.entries.some((e) => e.key === SidebarTintKey) ? <SidebarModeRows /> : null}
+                            {g.entries.map((entry) => (
+                                <SettingRow
+                                    key={entry.key}
+                                    entry={entry}
+                                    rowId={rowId(entry.key)}
+                                    value={data.settings?.[entry.key]}
+                                    overriddenIn={data.overriddenIn.get(entry.key)}
+                                    themes={data.themes}
+                                    highlighted={highlight === entry.key}
+                                    onOpenJson={openSettingsJson}
+                                />
+                            ))}
+                            {g.entries.some((e) => e.key === IntegrateOffKey) ? <IntegrationRuns /> : null}
+                            {g.entries.some((e) => e.key === SleepPolicySetting) ? <KeepAwakeDetails /> : null}
+                            {g.entries.some((e) => e.key === View360SettingKey) ? <View360Screens /> : null}
+                            {g.entries.some((e) => e.key === NewViewOpenKey) ? <NewViewFavorites /> : null}
+                        </PageCard>
+                    ))}
+                    {section === "spaces" ? <TopRowCard /> : null}
+                    {section === "spaces" ? <NewWorkspaceViewsCard /> : null}
+                    {section === "general" ? <WorkspaceSheetCard name={data.workspaceName} /> : null}
+                    {section === "notifications" ? <NotificationSubjectsCard /> : null}
+                    {section === "notifications" ? <NotificationPanelCard /> : null}
+                    {section === "mods" ? <ModsSection /> : null}
+                </PageFlow>
+            ) : null}
+            {section === "tips" ? <TipsCards /> : null}
+            {section === "keyboard" ? <KeyboardShortcuts /> : null}
+            {section === "secrets" ? (
+                model != null ? (
+                    <SecretsSection model={model} />
+                ) : (
+                    <p className="pt-6 text-12 text-muted">{t("settings.secretsElsewhere")}</p>
+                )
+            ) : null}
+        </>
+    );
+}
+
+export function SettingsScreen({ blockId, files, onOpenFile, model, initialSection }: SettingsScreenProps) {
+    const t = useT();
+    const data = useSettingsPageData();
+    const { catalog, sections } = data;
+    const [section, setSectionState] = useState<SettingsSectionId>(
+        () => initialSection ?? openedOnSection(blockId) ?? LastSection.get(blockId) ?? "general"
+    );
+    const block = useAtomValue(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)));
+    const askedSection = readSettingsSection(block?.meta?.[SettingsSectionMetaKey]);
+    const askedKey = readSettingsKey(block?.meta?.[SettingsKeyMetaKey]);
+    const [query, setQuery] = useState("");
+    const [active, setActive] = useState(0);
+    const [highlight, setHighlight] = useState<string>(null);
+    const [jumpTo, setJumpTo] = useState<string>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    const appVersion = useMemo(() => currentBuildIdentity(getApi().getAboutModalDetails()?.version ?? "").version, []);
     const results = useMemo(() => searchSettings(catalog, query), [catalog, query]);
     const searching = query.trim() !== "";
-    const workspaceName = workspaceShownName(workspace?.name, t) || t("settings.thisWorkspace");
     const rowId = (key: string) => `molten-setting-${blockId}-${key.replace(/[^a-z0-9]/gi, "-")}`;
-    const openSettingsJson = () => onOpenFile("settings.json");
 
     const setSection = (id: SettingsSectionId) => {
         LastSection.set(blockId, id);
@@ -682,6 +849,38 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     };
 
     useEffect(() => setActive(0), [query]);
+
+    // A section asked while the screen is open (Preferences opened again from elsewhere, FR-SHELL-094) shows here; it
+    // is cleared once shown, so asking the same section again later is a change the screen sees.
+    useEffect(() => {
+        if (askedSection == null) {
+            return;
+        }
+        setSection(askedSection);
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("block", blockId),
+                meta: { [SettingsSectionMetaKey]: null } as MetaType,
+            })
+        );
+    }, [askedSection, blockId]);
+
+    // A setting asked the same way (the sleep indicator's link): shown like a search result, then cleared.
+    useEffect(() => {
+        if (askedKey == null) {
+            return;
+        }
+        const entry = catalog.find((e) => e.key === askedKey);
+        if (entry != null) {
+            jump(entry);
+        }
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("block", blockId),
+                meta: { [SettingsKeyMetaKey]: null } as MetaType,
+            })
+        );
+    }, [askedKey, blockId]);
 
     // After a jump the row is rendered in its section: bring it to the middle, focus its control, light it briefly.
     useEffect(() => {
@@ -715,6 +914,11 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     }, [highlight]);
 
     const jump = (entry: SettingEntry) => {
+        if (entry.scope === "workspace") {
+            setQuery("");
+            openCurrentWorkspaceEditor();
+            return;
+        }
         LastSection.set(blockId, entry.section);
         setSectionState(entry.section);
         setQuery("");
@@ -746,15 +950,9 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
         }
     };
 
-    const entries = sectionEntries(catalog, section);
-    const groups = groupEntries(entries);
-    // Blocks the page lays side by side. Keyboard's block, below them, takes the full width and splits its own groups;
-    // Secrets keeps its stacked blocks in one column.
-    const flowBlocks = groups.length + (section === "advanced" ? 1 : 0) + (section === "mods" ? 1 : 0);
-    const flowColumns = pageColumns(flowBlocks);
     // A short result list reads best as one list.
     const resultColumns = pageColumns(results.length >= 8 ? 3 : 1);
-    const width = searching ? resultColumns : section === "keyboard" ? 3 : flowColumns;
+    const width = searching ? resultColumns : sectionPageWidth(data, section);
     const activeId = searching && results[active] ? `${rowId(results[active].key)}-result` : undefined;
 
     return (
@@ -778,7 +976,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                     setSection(s.id);
                                 }}
                                 className={cn(
-                                    "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-3 px-2 text-left text-12 transition-colors duration-120 ease-mt",
+                                    "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-4 px-2 text-left text-12 transition-colors duration-120 ease-mt",
                                     current
                                         ? "bg-surface-2 font-medium text-primary before:absolute before:top-1.5 before:bottom-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-accent"
                                         : "text-secondary hover:bg-surface-2 hover:text-primary"
@@ -860,71 +1058,33 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                         <span className="truncate text-12 font-medium text-primary">
                                                             {entry.label}
                                                         </span>
-                                                        {entry.scope === "workspace" ? (
-                                                            <WorkspacePill name={workspaceName} />
-                                                        ) : null}
                                                     </div>
                                                     <div className="truncate text-12 text-muted">
                                                         {entry.description}
                                                     </div>
                                                 </div>
-                                                <span className="shrink-0 text-11 text-muted">
-                                                    {sectionTitle(entry.section, t)}
-                                                </span>
+                                                {entry.scope === "workspace" ? (
+                                                    <ScopeLine scope="workspace" className="shrink-0" />
+                                                ) : (
+                                                    <span className="shrink-0 text-11 text-muted">
+                                                        {sectionTitle(entry.section, t)}
+                                                    </span>
+                                                )}
                                             </li>
                                         ))}
                                     </ul>
                                 </>
                             )
                         ) : (
-                            <>
-                                <div className="pt-6">
-                                    <PageHeader
-                                        title={currentSection?.title ?? section}
-                                        description={currentSection?.description}
-                                        icon={suiteIcon(SettingsSectionConcepts[section])}
-                                    />
-                                </div>
-                                {flowBlocks > 0 ? (
-                                    <PageFlow columns={flowColumns}>
-                                        {section === "advanced" ? (
-                                            <FileRows files={files} onOpenFile={onOpenFile} />
-                                        ) : null}
-                                        {groups.map((g) => (
-                                            <PageCard
-                                                key={g.group}
-                                                title={g.group}
-                                                icon={suiteIcon(
-                                                    settingsGroupIcon(groupSlugByKey.get(g.entries[0].key))
-                                                )}
-                                                glow={highlight != null && g.entries.some((e) => e.key === highlight)}
-                                            >
-                                                {g.entries.map((entry) => (
-                                                    <SettingRow
-                                                        key={entry.key}
-                                                        entry={entry}
-                                                        rowId={rowId(entry.key)}
-                                                        value={readValue(entry, settings, workspace)}
-                                                        workspaceName={workspaceName}
-                                                        themes={themes}
-                                                        highlighted={highlight === entry.key}
-                                                        onOpenJson={openSettingsJson}
-                                                    />
-                                                ))}
-                                            </PageCard>
-                                        ))}
-                                        {section === "mods" ? <ModsSection /> : null}
-                                    </PageFlow>
-                                ) : null}
-                                {section === "keyboard" ? <KeyboardShortcuts /> : null}
-                                {section === "secrets" ? (
-                                    model != null ? (
-                                        <SecretsSection model={model} />
-                                    ) : (
-                                        <p className="pt-6 text-12 text-muted">{t("settings.secretsElsewhere")}</p>
-                                    )
-                                ) : null}
-                            </>
+                            <SettingsSectionPage
+                                section={section}
+                                data={data}
+                                rowId={rowId}
+                                highlight={highlight}
+                                files={files}
+                                onOpenFile={onOpenFile}
+                                model={model}
+                            />
                         )}
                     </PageFill>
                 </div>

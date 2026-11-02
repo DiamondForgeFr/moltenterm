@@ -1,18 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Pinning a carpet panel from its header, its menus and the keyboard (FR-SHELL-067). A carpet panel's header shows a
-// pin button that offers both pins; a pinned panel shows a filled pin that unpins it and a small "pinned" badge.
+// Pinning a carpet panel from its menus and the keyboard (FR-SHELL-067). The header's pins moved into the chooser of
+// "Store on the carpet" (FR-SHELL-123, view360-places.tsx); a pinned panel keeps its filled pin there.
 
-import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
-import { IconButton } from "@/element/iconbutton";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { cn } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
-import { memo } from "react";
-import { useLocale } from "../i18n/i18n";
-import { acceleratorById, formatShortcutById } from "../shortcuts/format";
+import { acceleratorById } from "../shortcuts/format";
 import { PinText } from "./pin-text";
 import type { PanelPlacement, View360Model } from "./view360-model";
 
@@ -99,38 +94,3 @@ export function usePanelPlacement(blockId: string): PanelPlacement {
     const placements = useAtomValue(view360?.placementsAtom ?? NoPlacements);
     return placements[blockId] ?? null;
 }
-
-export const PinHeaderButton = memo(({ blockId }: { blockId: string }) => {
-    useLocale();
-    const placement = usePanelPlacement(blockId);
-    if (placement == null || placement === "first") {
-        return null;
-    }
-    const pinned = isPinned(placement);
-    const shortcut = formatShortcutById("pin-panel");
-    const title = `${pinned ? PinText.unpinButton : PinText.pinButton}${shortcut ? ` (${shortcut})` : ""}`;
-    const decl: IconButtonDecl = {
-        elemtype: "iconbutton",
-        icon: "thumbtack",
-        title,
-        click: (e) => {
-            e?.stopPropagation();
-            if (pinned) {
-                currentView360()?.unpin(blockId);
-                return;
-            }
-            ContextMenuModel.getInstance().showContextMenu(pinMenuItems(blockId, ""), e);
-        },
-    };
-    return (
-        <>
-            {pinned && (
-                <span className="mt-pinned-badge" data-testid="mt-pinned-badge">
-                    {PinText.pinnedBadge}
-                </span>
-            )}
-            <IconButton decl={decl} className={cn("mt-pin-button", pinned && "is-pinned")} />
-        </>
-    );
-});
-PinHeaderButton.displayName = "PinHeaderButton";

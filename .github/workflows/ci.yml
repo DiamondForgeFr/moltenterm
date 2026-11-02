@@ -74,6 +74,8 @@ jobs:
               run: npx tsc --noEmit
             - name: Lint
               run: npx eslint . --quiet
+            - name: Validation discovery regression
+              run: node --test scripts/moltenterm-worktree-discovery.node-test.mjs
             - name: Unit tests
               run: npx vitest run
             - name: Runtime dependency integration

@@ -4,11 +4,15 @@
 package mission
 
 import (
+	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
@@ -29,6 +33,52 @@ func TestInitGitCreatesARepository(t *testing.T) {
 	}
 	if info, err := os.Stat(filepath.Join(dir, ".git")); err != nil || !info.IsDir() {
 		t.Fatalf("no .git folder after git init")
+	}
+}
+
+// The GitHub read made before git init failed on "not a git repository"; the one after must ask again (#1650), not
+// keep that answer for minGithubInterval.
+func TestInitGitReadsGithubAgain(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	dir := t.TempDir()
+	var ghCalls atomic.Int64
+	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
+		if name != "gh" {
+			return plainRunner(ctx, d, name, args...)
+		}
+		ghCalls.Add(1)
+		if _, err := os.Stat(filepath.Join(d, ".git")); err != nil {
+			return nil, errors.New("failed to run git: fatal: not a git repository (or any of the parent directories): .git")
+		}
+		return nil, errors.New("no git remotes found")
+	}
+	published := make(chan Snapshot, 8)
+	c := MakeCollector(t.TempDir(), run, func(s Snapshot) { published <- s })
+	next := func(what string) Snapshot {
+		select {
+		case s := <-published:
+			return s
+		case <-time.After(time.Minute):
+			t.Fatalf("no snapshot %s", what)
+			return Snapshot{}
+		}
+	}
+	if _, err := c.Get(dir, 0, true); err != nil {
+		t.Fatalf("first read: %v", err)
+	}
+	if before := next("before git init"); before.Github == nil || before.Github.State != GithubStateError {
+		t.Fatalf("before git init the GitHub state is %+v, want error", before.Github)
+	}
+	if _, err := c.InitGit(GitInitRequest{Dir: dir}); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+	if after := next("after git init"); after.Github == nil || after.Github.State != GithubStateNoRepo {
+		t.Fatalf("after git init the GitHub state is %+v, want norepo", after.Github)
+	}
+	if ghCalls.Load() != 2 {
+		t.Fatalf("gh was asked %d times, want a second read after git init", ghCalls.Load())
 	}
 }
 

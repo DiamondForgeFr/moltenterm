@@ -65,10 +65,13 @@ export function setTransform(
     zIndex?: number | string
 ): CSSProperties {
     // Replace unitless items with px
-    const topRounded = roundVals ? Math.floor(top) : top;
-    const leftRounded = roundVals ? Math.floor(left) : left;
-    const widthRounded = roundVals ? Math.ceil(width) : width;
-    const heightRounded = roundVals ? Math.ceil(height) : height;
+    // MOLTENTERM-PATCH (#1220): round the edges, not the sizes. Flooring the start and ceiling the size made two
+    // adjacent tiles overlap by a pixel whenever a split fell between pixels, so that gap came out a pixel narrower
+    // than the others; rounded edges are shared exactly by neighbours.
+    const topRounded = roundVals ? Math.round(top) : top;
+    const leftRounded = roundVals ? Math.round(left) : left;
+    const widthRounded = roundVals ? Math.round(left + width) - leftRounded : width;
+    const heightRounded = roundVals ? Math.round(top + height) - topRounded : height;
     const translate = `translate3d(${leftRounded}px,${topRounded}px, 0)`;
     return {
         top: 0,
@@ -78,6 +81,29 @@ export function setTransform(
         height: setSize ? `${heightRounded}px` : undefined,
         position: "absolute",
         zIndex: zIndex,
+    };
+}
+
+// MOLTENTERM-PATCH (#1240): a resize handle is centred on the rounded edge the neighbouring tiles share (setTransform),
+// not on the unrounded boundary, which put the grip up to half a pixel off the middle of the gap. The handle size is
+// twice the gap, so its half is a whole number of pixels for a whole gap.
+export function resizeHandleDimensions(lastChildRect: Dimensions, isRow: boolean, handleSizePx: number): Dimensions {
+    const half = handleSizePx / 2;
+    if (isRow) {
+        const top = Math.round(lastChildRect.top);
+        return {
+            top,
+            left: Math.round(lastChildRect.left + lastChildRect.width) - half,
+            width: handleSizePx,
+            height: Math.round(lastChildRect.top + lastChildRect.height) - top,
+        };
+    }
+    const left = Math.round(lastChildRect.left);
+    return {
+        top: Math.round(lastChildRect.top + lastChildRect.height) - half,
+        left,
+        width: Math.round(lastChildRect.left + lastChildRect.width) - left,
+        height: handleSizePx,
     };
 }
 

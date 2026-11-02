@@ -292,6 +292,30 @@ describe("enforcing the budget (#454)", () => {
         expect(runs).toBe(2);
     });
 
+    // #1760: a workspace's other project keeps its views out of sight, as hidden tab views. The budget knows tab views,
+    // not projects: they are counted with the others, the least recently used go first, and an agent working in the
+    // workspace keeps them (isPinned) so a switch back finds the page it left.
+    it("treats the views of the project not shown as hidden views like any other", async () => {
+        const shown = makeView("desktop-now", Now - 100, { isActiveTab: true });
+        const otherProject = ["website-1", "website-2"].map((id, i) => makeView(id, Now - 90000 + i * 1000));
+        const otherWorkspace = ["x1", "x2"].map((id, i) => makeView(id, Now - 80000 + i * 1000));
+        otherProject.forEach((v) => noteTabViewWorkspace(v, "notulia"));
+        noteTabViewWorkspace(shown, "notulia");
+        const { deps, evicted } = makeDeps([shown, ...otherProject, ...otherWorkspace]);
+        expect(await enforceTabViewBudget(deps)).toBe(1);
+        expect(evicted).toEqual(["website-1"]);
+    });
+
+    it("keeps the hidden views of a workspace where an agent works, whichever project they belong to", async () => {
+        const shown = makeView("desktop-now", Now - 100, { isActiveTab: true });
+        const otherProject = ["website-1", "website-2", "website-3", "website-4"].map((id, i) =>
+            makeView(id, Now - 90000 + i * 1000, { pinned: true })
+        );
+        const { deps, evicted } = makeDeps([shown, ...otherProject]);
+        expect(await enforceTabViewBudget(deps)).toBe(0);
+        expect(evicted).toEqual([]);
+    });
+
     it("remembers the workspace a view was shown for", async () => {
         const v = makeView("a", Now);
         noteTabViewWorkspace(v, "ws1");

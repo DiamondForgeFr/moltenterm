@@ -20,18 +20,19 @@ import type * as MonacoTypes from "monaco-editor";
 import { createRef } from "react";
 import { I18nModel, t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623)
+// MOLTENTERM-PATCH (#1624): the panel stays inside its workspace's project; the bookmarks moved there, project first
+import {
+    fileBookmarkMenu,
+    FileConfineGate,
+    fileConfineHeaderElems,
+} from "../../../moltenterm-shell/file-confine/file-confine";
+import { FileFilterModel } from "../../../moltenterm-shell/file-filter/file-filter"; // MOLTENTERM-PATCH (#1625)
 import { PreviewView } from "./preview";
 import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
 import type { PreviewEnv } from "./previewenv";
 
-// TODO drive this using config
-const BOOKMARKS: { label: string; path: string }[] = [
-    { label: "Home", path: "~" },
-    { label: "Desktop", path: "~/Desktop" },
-    { label: "Downloads", path: "~/Downloads" },
-    { label: "Documents", path: "~/Documents" },
-    { label: "Root", path: "/" },
-];
+// MOLTENTERM-PATCH (#1624): never settles, so a confined panel shows nothing of a path before the gate answers
+const UndecidedPath = new Promise<never>(() => {});
 
 const MaxFileSize = 1024 * 1024 * 10; // 10MB
 const MaxCSVSize = 1024 * 1024 * 1; // 1MB
@@ -171,6 +172,8 @@ export class PreviewModel implements ViewModel {
     directoryKeyDownHandler: (waveEvent: WaveKeyboardEvent) => boolean;
     codeEditKeyDownHandler: (waveEvent: WaveKeyboardEvent) => boolean;
     env: PreviewEnv;
+    confine: FileConfineGate; // MOLTENTERM-PATCH (#1624)
+    fileFilter: FileFilterModel; // MOLTENTERM-PATCH (#1625)
 
     constructor({ blockId, nodeModel, tabModel, waveEnv }: ViewModelInitType) {
         this.viewType = "preview";
@@ -178,8 +181,6 @@ export class PreviewModel implements ViewModel {
         this.nodeModel = nodeModel;
         this.tabModel = tabModel;
         this.env = waveEnv;
-        let showHiddenFiles = globalStore.get(this.env.getSettingsKeyAtom("preview:showhiddenfiles")) ?? true;
-        this.showHiddenFiles = atom<boolean>(showHiddenFiles);
         this.refreshVersion = atom(0);
         this.directorySearchActive = atom(false);
         this.previewTextRef = createRef();
@@ -189,6 +190,23 @@ export class PreviewModel implements ViewModel {
         this.openFileModalGiveFocusRef = createRef();
         this.manageConnection = atom(true);
         this.blockAtom = this.env.wos.getWaveObjectAtom<Block>(`block:${blockId}`);
+        // MOLTENTERM-PATCH (#1624): every new file meta of the panel passes this gate, whoever wrote it
+        this.confine = new FileConfineGate({
+            blockAtom: this.blockAtom,
+            workspaceAtom: this.env.atoms.workspace,
+            writeMeta: (meta) => this.env.services.object.UpdateObjectMeta(WOS.makeORef("block", blockId), meta),
+            onApplied: () => this.clearFileBuffers(),
+        });
+        // MOLTENTERM-PATCH (#1625): the filter and the hidden files choice live in the block meta (FR-FILE-002)
+        this.fileFilter = new FileFilterModel({
+            blockAtom: this.blockAtom,
+            shownPathAtom: this.confine.shownPathAtom,
+            rawPathAtom: this.confine.rawPathAtom,
+            showHiddenSettingAtom: this.env.getSettingsKeyAtom("preview:showhiddenfiles"),
+            writeMeta: (meta) => this.env.services.object.UpdateObjectMeta(WOS.makeORef("block", blockId), meta),
+            isFocusedAtom: nodeModel?.isFocused,
+        });
+        this.showHiddenFiles = this.fileFilter.showHiddenAtom;
         this.markdownShowToc = atom(false);
         this.filterOutNowsh = atom(true);
         this.monacoRef = createRef();
@@ -210,10 +228,10 @@ export class PreviewModel implements ViewModel {
                     elemtype: "iconbutton",
                     icon: "folder-open",
                     longClick: (e: React.MouseEvent<any>) => {
-                        const menuItems: ContextMenuItem[] = BOOKMARKS.map((bookmark) => ({
-                            label: `Go to ${bookmark.label} (${bookmark.path})`,
-                            click: () => this.goHistory(bookmark.path),
-                        }));
+                        const menuItems: ContextMenuItem[] = fileBookmarkMenu(
+                            globalStore.get(this.confine.scopeAtom),
+                            (path) => fireAndForget(() => this.goHistory(path))
+                        ); // MOLTENTERM-PATCH (#1624)
                         ContextMenuModel.getInstance().showContextMenu(menuItems, e);
                     },
                 };
@@ -258,6 +276,7 @@ export class PreviewModel implements ViewModel {
                     className: "preview-filename",
                     onClick: () => this.toggleOpenFileModal(),
                 },
+                ...fileConfineHeaderElems(get, this.confine, () => fireAndForget(() => this.goBackToProject())), // MOLTENTERM-PATCH (#1624)
             ];
             let saveClassName = "grey";
             if (get(this.newFileContent) !== null) {
@@ -271,6 +290,7 @@ export class PreviewModel implements ViewModel {
                         elemtype: "pill",
                         text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.loading"),
                         tone: "neutral",
+                        busy: true, // MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154)
                     }); // MOLTENTERM-PATCH (#750)
                 } else if (fileInfo.data.readonly) {
                     viewTextChildren.push({
@@ -324,6 +344,7 @@ export class PreviewModel implements ViewModel {
             return {
                 elemtype: "iconbutton",
                 icon: "chevron-left",
+                title: translate(get(I18nModel.getInstance().localeAtom), "wave.files.parentFolder"), // MOLTENTERM-PATCH (#1328)
                 click: this.goParentDirectory.bind(this),
             };
         });
@@ -341,10 +362,9 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: showHiddenFiles ? "eye" : "eye-slash",
-                        title: translate(
-                            get(I18nModel.getInstance().localeAtom),
-                            showHiddenFiles ? "wave.files.hideHidden" : "wave.files.showHidden"
-                        ), // MOLTENTERM-PATCH (#742)
+                        // The same words as Preferences (preview:showhiddenfiles); the state is the pressed one.
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.files.showHidden"), // MOLTENTERM-PATCH (#742, #1328)
+                        pressed: showHiddenFiles,
                         click: () => {
                             globalStore.set(this.showHiddenFiles, (prev) => !prev);
                         },
@@ -384,12 +404,12 @@ export class PreviewModel implements ViewModel {
             }
             return null;
         });
+        // MOLTENTERM-PATCH (#1624): a confined panel shows what its gate let through (null until the gate answers)
         this.metaFilePath = atom<string>((get) => {
-            const file = get(this.blockAtom)?.meta?.file;
-            if (isBlank(file)) {
-                return "~";
+            if (get(this.confine.scopeAtom) != null) {
+                return get(this.confine.shownPathAtom);
             }
-            return file;
+            return get(this.confine.rawPathAtom);
         });
         this.statFilePath = atom<Promise<string>>(async (get) => {
             const fileInfo = await get(this.statFile);
@@ -410,6 +430,9 @@ export class PreviewModel implements ViewModel {
         });
         this.statFile = atom<Promise<FileInfo>>(async (get) => {
             const fileName = get(this.metaFilePath);
+            if (fileName == null) {
+                return UndecidedPath; // MOLTENTERM-PATCH (#1624)
+            }
             const path = await this.formatRemoteUri(fileName, get);
             if (fileName == null) {
                 return null;
@@ -440,6 +463,9 @@ export class PreviewModel implements ViewModel {
         const fullFileAtom = atom<Promise<FileData>>(async (get) => {
             get(this.refreshVersion); // Subscribe to refreshVersion to trigger re-fetch
             const fileName = get(this.metaFilePath);
+            if (fileName == null) {
+                return UndecidedPath; // MOLTENTERM-PATCH (#1624)
+            }
             const path = await this.formatRemoteUri(fileName, get);
             if (fileName == null) {
                 return null;
@@ -496,6 +522,23 @@ export class PreviewModel implements ViewModel {
         });
 
         this.noPadding = atom(true);
+        this.confine.start(); // MOLTENTERM-PATCH (#1624)
+        this.fileFilter.start(); // MOLTENTERM-PATCH (#1625)
+    }
+
+    // MOLTENTERM-PATCH (#1624)
+    dispose() {
+        this.confine.dispose();
+        this.fileFilter.dispose(); // MOLTENTERM-PATCH (#1625)
+    }
+
+    // MOLTENTERM-PATCH (#1624): the header's Back to the project opens the root, which ends the approval
+    async goBackToProject() {
+        const scope = globalStore.get(this.confine.scopeAtom);
+        if (scope == null) {
+            return;
+        }
+        await this.goHistory(scope.root);
     }
 
     markdownShowTocToggle() {
@@ -594,9 +637,15 @@ export class PreviewModel implements ViewModel {
         if (updateMeta == null) {
             return;
         }
-        const blockOref = WOS.makeORef("block", this.blockId);
-        await this.env.services.object.UpdateObjectMeta(blockOref, updateMeta);
+        // MOLTENTERM-PATCH (#1624): asks first when newPath is outside the project; the panel stays as it is meanwhile
+        if (!(await this.confine.navigate(updateMeta))) {
+            return;
+        }
+        this.clearFileBuffers();
+    }
 
+    // MOLTENTERM-PATCH (#1624): also once an approved navigation outside the project is written
+    clearFileBuffers() {
         // Clear the saved file buffers
         globalStore.set(this.fileContentSaved, null);
         globalStore.set(this.newFileContent, null);
@@ -630,8 +679,7 @@ export class PreviewModel implements ViewModel {
             return;
         }
         updateMeta.edit = false;
-        const blockOref = WOS.makeORef("block", this.blockId);
-        await this.env.services.object.UpdateObjectMeta(blockOref, updateMeta);
+        await this.confine.navigate(updateMeta); // MOLTENTERM-PATCH (#1624)
     }
 
     async goHistoryForward() {
@@ -642,8 +690,7 @@ export class PreviewModel implements ViewModel {
             return;
         }
         updateMeta.edit = false;
-        const blockOref = WOS.makeORef("block", this.blockId);
-        await this.env.services.object.UpdateObjectMeta(blockOref, updateMeta);
+        await this.confine.navigate(updateMeta); // MOLTENTERM-PATCH (#1624)
     }
 
     async setEditMode(edit: boolean) {
@@ -827,6 +874,14 @@ export class PreviewModel implements ViewModel {
     }
 
     keyDownHandler(e: WaveKeyboardEvent): boolean {
+        // MOLTENTERM-PATCH (#1624): while the panel asks, Escape is Stay and nothing else moves it
+        if (globalStore.get(this.confine.pendingAtom) != null) {
+            if (checkKeyPressed(e, "Escape")) {
+                fireAndForget(() => this.confine.stay());
+                return true;
+            }
+            return false;
+        }
         if (checkKeyPressed(e, "Cmd:ArrowLeft")) {
             fireAndForget(this.goHistoryBack.bind(this));
             return true;

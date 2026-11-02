@@ -6,7 +6,8 @@
 // says when a command is refused. wavesrv holds the authoritative tables and checks every action against them; this
 // copy gives the labels and the order. Nothing is greyed out: a refusal explains itself.
 
-import { agentCallName, agentLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
+import { currentFeatureMatrix, featureWorks } from "../agent-info/agent-features-model";
+import { agentCallName, agentLabel, agentProviderName, AgentStateInfo, agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import type { ServerText } from "../i18n/server-text";
 import { termupdateMessage } from "../termupdate/termupdate-text";
@@ -43,6 +44,7 @@ export type AgentInputReason =
     | "noagent"
     | "busy"
     | "unavailable"
+    | "terminalgone"
     | "effortunknown";
 
 export type AgentInputResult = {
@@ -157,14 +159,16 @@ export const ClaudeCommands: AgentCommandDef[] = [
     },
 ];
 
+// Codex's table, read on codex-cli 0.163.0 (#990): /permissions replaced /approvals; /clear also clears the terminal
+// view, /new does not.
 export const CodexCommands: AgentCommandDef[] = [
     {
-        action: "approvals",
-        label: "Approvals",
-        labelKey: "cmdpanel.agent.approvals",
+        action: "permissions",
+        label: "Permissions",
+        labelKey: "cmdpanel.agent.permissions",
         icon: "shield-halved",
-        command: "/approvals",
-        keywords: ["permissions", "sandbox"],
+        command: "/permissions",
+        keywords: ["approvals", "sandbox"],
     },
     {
         action: "new",
@@ -172,7 +176,15 @@ export const CodexCommands: AgentCommandDef[] = [
         labelKey: "cmdpanel.agent.newConversation",
         icon: "plus",
         command: "/new",
-        keywords: ["clear", "reset"],
+        keywords: ["reset"],
+    },
+    {
+        action: "clear",
+        label: "Clear and start over",
+        labelKey: "cmdpanel.agent.clearAndStartOver",
+        icon: "eraser",
+        command: "/clear",
+        keywords: ["clear", "reset", "new conversation"],
     },
     {
         action: "compact",
@@ -183,7 +195,47 @@ export const CodexCommands: AgentCommandDef[] = [
         keywords: ["summarize", "context"],
     },
     { action: "model", label: "Model", labelKey: "cmdpanel.agent.model", icon: "microchip", command: "/model" },
+    {
+        action: "resume",
+        label: "Resume",
+        labelKey: "cmdpanel.agent.resume",
+        icon: "clock-rotate-left",
+        command: "/resume",
+        keywords: ["session"],
+    },
+    {
+        action: "fork",
+        label: "Fork conversation",
+        labelKey: "cmdpanel.agent.fork",
+        icon: "code-branch",
+        command: "/fork",
+        keywords: ["branch", "duplicate", "session"],
+    },
+    {
+        action: "rename",
+        label: "Rename conversation",
+        labelKey: "cmdpanel.agent.rename",
+        icon: "pen",
+        command: "/rename",
+        keywords: ["name", "title", "session"],
+    },
+    {
+        action: "copy",
+        label: "Copy last answer",
+        labelKey: "cmdpanel.agent.copy",
+        icon: "copy",
+        command: "/copy",
+        keywords: ["response"],
+    },
     { action: "status", label: "Status", labelKey: "cmdpanel.agent.status", icon: "circle-info", command: "/status" },
+    {
+        action: "review",
+        label: "Review",
+        labelKey: "cmdpanel.agent.review",
+        icon: "code-pull-request",
+        command: "/review",
+        keywords: ["changes"],
+    },
     {
         action: "diff",
         label: "Diff",
@@ -212,12 +264,26 @@ const Tables: Record<string, { commands: AgentCommandDef[]; modes: boolean; effo
     codex: { commands: CodexCommands, modes: false, effort: "codex" },
 };
 
+// The agent's table, offered only where the compatibility matrix says its commands work (FR-AGC-003): the tables are
+// the adapter the matrix points to, not the list of the agents that have one.
+function agentTable(agent: string): { commands: AgentCommandDef[]; modes: boolean; effort?: EffortStyle } {
+    if (!agent || !featureWorks(currentFeatureMatrix(), agent, "commands")) {
+        return null;
+    }
+    return Tables[agent] ?? null;
+}
+
 export function agentCommandTable(agent: string): AgentCommandDef[] {
-    return Tables[agent]?.commands ?? null;
+    return agentTable(agent)?.commands ?? null;
 }
 
 export function hasAgentCommands(agent: AgentStateInfo): boolean {
-    return agent?.agent != null && Tables[agent.agent] != null;
+    return agentTable(agent?.agent) != null;
+}
+
+// The agent takes a permission mode at restart (Claude Code's Shift+Tab modes); the others keep their own settings.
+export function agentTakesModes(agent: string): boolean {
+    return agentTable(agent)?.modes === true;
 }
 
 // Claude Code's permission modes in its Shift+Tab order; the last two show only once the agent drew them (they
@@ -272,11 +338,12 @@ export function modelItem(
         });
     }
     const models = info?.models ?? [];
+    const behind = nativeListNote(agent, "model");
     for (const m of models) {
         options.push({
             id: `model:${m.id}`,
             label: m.label,
-            detail: t("cmdpanel.agent.savedDefault"),
+            detail: behind || t("cmdpanel.agent.savedDefault"),
             checked: false,
             run: () => handlers.setModel?.(m.id),
         });
@@ -299,6 +366,19 @@ export function modelItem(
     };
 }
 
+// FR-AGC-008: behind another provider, the models and levels MoltenTerm offers are the agent's own provider's; each
+// says so ("Anthropic level: GLM may ignore it"). "" for a run that talks to its own provider.
+function nativeListNote(agent: AgentStateInfo, kind: "model" | "level"): string {
+    const provider = agentProviderName(agent);
+    const native = (agent?.nativeprovider ?? "").trim();
+    if (!provider || !native) {
+        return "";
+    }
+    return kind === "model"
+        ? t("cmdpanel.agent.nativeModel", { native, provider })
+        : t("cmdpanel.agent.nativeLevel", { native, provider });
+}
+
 function effortDetail(style: EffortStyle, level: string): string {
     if (style === "codex" || level === "max") {
         return t("cmdpanel.agent.thisSession");
@@ -316,10 +396,11 @@ export function effortItem(
 ): PanelChoice {
     const current = agent?.effort || info?.effort || "";
     const levels = info?.efforts ?? [];
+    const behind = nativeListNote(agent, "level");
     let options: PanelChoiceOption[] = levels.map((level) => ({
         id: `effort:${level}`,
         label: level,
-        detail: effortDetail(style, level),
+        detail: behind || effortDetail(style, level),
         checked: level === current,
         run: () => handlers.setEffort?.(level),
     }));
@@ -390,7 +471,7 @@ export function agentSection(
     info: AgentInputInfo,
     handlers: AgentCommandHandlers
 ): PanelSection {
-    const table = Tables[agent?.agent];
+    const table = agentTable(agent?.agent);
     if (table == null) {
         return null;
     }

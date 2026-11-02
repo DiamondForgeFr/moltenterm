@@ -43,6 +43,8 @@ type AgentStatusLineRequest struct {
 	Model     string `json:"model,omitempty"`
 	ModelName string `json:"modelname,omitempty"`
 	Effort    string `json:"effort,omitempty"`
+	// Provider: the host the session talks to when it is not Anthropic's (FR-AGC-008), read from the relay's env.
+	Provider string `json:"provider,omitempty"`
 }
 
 // AgentStatusLineResponse is wavesrv's answer to the relay. Kept: the windows are kept, the user shows Claude Code's

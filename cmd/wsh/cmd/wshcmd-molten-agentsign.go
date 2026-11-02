@@ -7,12 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentsign"
 	"github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
 )
@@ -22,9 +25,15 @@ import (
 // the model and effort it last reported), `--trailer` the commit trailer; `molten agent sign-pr` writes it at the end
 // of a PR's body. Outside MoltenTerm, or before MoltenTerm saw the agent, there is no signature: nothing is guessed.
 
-const moltenSignPrTimeout = time.Minute
+const (
+	moltenSignPrTimeout = time.Minute
+	// moltenSubagentNoModel is the model part of a sub-agent whose files do not say its model: never the session's.
+	moltenSubagentNoModel = "subagent"
+)
 
 var moltenWhoamiTrailer bool
+
+var moltenClaudeModelIdRe = regexp.MustCompile(`^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$`)
 
 // MoltenWhoami is `molten agent whoami --json`.
 type MoltenWhoami struct {
@@ -33,6 +42,13 @@ type MoltenWhoami struct {
 	Trailer string `json:"trailer"`
 	// ModelId: the model's id when the agent reported a display name too.
 	ModelId string `json:"modelid,omitempty"`
+	// Subagent: the caller is a sub-agent of the session (#1756): the first name stays the session's, which owns the
+	// work (#1779), the model and effort are the sub-agent's. SubagentKind: its type (sf-build, worker...).
+	Subagent     bool   `json:"subagent,omitempty"`
+	SubagentKind string `json:"subagentkind,omitempty"`
+	// Shared: the caller may be the session or one of its sub-agents working in the same folder: only what they all
+	// say alike is signed.
+	Shared bool `json:"shared,omitempty"`
 }
 
 var moltenAgentWhoamiCmd = &cobra.Command{
@@ -65,25 +81,75 @@ func init() {
 	moltenAgentCmd.AddCommand(moltenAgentSignPrCmd)
 }
 
-// moltenSignatureOf: the model's display name when the agent gave one, else its id.
+// moltenSignatureOf: the model's display name when the agent gave one, else its id. A run behind another provider
+// signs as "Claude Code via GLM" (FR-AGC-008).
 func moltenSignatureOf(e handoffwire.AgentEntry) agentsign.Signature {
 	model := e.ModelName
 	if model == "" {
 		model = e.Model
 	}
-	return agentsign.Signature{FirstName: e.FirstName, Agent: e.AgentName, Model: model, Effort: e.Effort}
+	return agentsign.Signature{FirstName: e.FirstName, Agent: molten.AgentToolSignature(e.AgentName, e.Provider), Model: model, Effort: e.Effort}
 }
 
 func moltenWhoamiOf(list handoffwire.ListResult) (MoltenWhoami, error) {
 	if list.You == nil || list.You.FirstName == "" {
 		return MoltenWhoami{}, fmt.Errorf("MoltenTerm sees no agent with a first name in this terminal: no signature (nothing is guessed)")
 	}
-	sig := moltenSignatureOf(*list.You)
-	rtn := MoltenWhoami{Signature: sig, Line: sig.Line(), Trailer: sig.Trailer()}
-	if list.You.ModelName != "" && list.You.Model != list.You.ModelName {
-		rtn.ModelId = list.You.Model
+	you := *list.You
+	sig := moltenSignatureOf(you)
+	rtn := MoltenWhoami{Signature: sig}
+	if you.ModelName != "" && you.Model != you.ModelName {
+		rtn.ModelId = you.Model
 	}
+	if c := list.Caller; c != nil {
+		moltenApplyCaller(&rtn, you, *c)
+	}
+	rtn.Line, rtn.Trailer = rtn.Signature.Line(), rtn.Signature.Trailer()
 	return rtn, nil
+}
+
+// moltenApplyCaller signs a sub-agent's call (#1756): the session's first name and CLI, the sub-agent's model and
+// effort, or no model when nobody can tell which of them called.
+func moltenApplyCaller(w *MoltenWhoami, you handoffwire.AgentEntry, c handoffwire.CallerEntry) {
+	sameModel := c.Model != "" && handoffwire.ModelKey(c.Model) == handoffwire.ModelKey(you.Model)
+	if c.Subagent {
+		w.Subagent, w.SubagentKind = true, c.Kind
+		w.Model, w.ModelId = moltenModelName(c.Model, you, sameModel), ""
+		if w.Model == "" {
+			w.Model = moltenSubagentNoModel
+		} else if w.Model != c.Model {
+			w.ModelId = c.Model
+		}
+		w.Effort = c.Effort
+		return
+	}
+	if !c.Shared {
+		return
+	}
+	w.Shared = true
+	if !sameModel {
+		w.Model, w.ModelId = "", ""
+	}
+	if c.Effort == "" || c.Effort != you.Effort {
+		w.Effort = ""
+	}
+}
+
+// moltenModelName: the session's display name for its own model, else a Claude id's name (claude-sonnet-5-5:
+// Sonnet 5.5), else the id.
+func moltenModelName(id string, you handoffwire.AgentEntry, sameModel bool) string {
+	if sameModel && you.ModelName != "" {
+		return you.ModelName
+	}
+	m := moltenClaudeModelIdRe.FindStringSubmatch(handoffwire.ModelKey(id))
+	if m == nil {
+		return id
+	}
+	version := m[2]
+	if m[3] != "" {
+		version += "." + m[3]
+	}
+	return strings.ToUpper(m[1][:1]) + m[1][1:] + " " + version
 }
 
 func moltenWhoami() (MoltenWhoami, error) {
@@ -91,8 +157,10 @@ func moltenWhoami() (MoltenWhoami, error) {
 	if err != nil {
 		return MoltenWhoami{}, err
 	}
+	// The folder tells a sub-agent's call from its session's (#1756); without it the session signs.
+	folder, _ := os.Getwd()
 	var list handoffwire.ListResult
-	err = moltenHandoffRequest(handoffwire.ListCommand, handoffwire.ListRequest{Token: token, WaitName: true}, moltenHandoffListTimeoutMs, &list)
+	err = moltenHandoffRequest(handoffwire.ListCommand, handoffwire.ListRequest{Token: token, WaitName: true, Folder: folder}, moltenHandoffListTimeoutMs, &list)
 	if err != nil {
 		return MoltenWhoami{}, fmt.Errorf("%s", moltenHandoffError(err))
 	}
@@ -110,6 +178,14 @@ func formatMoltenWhoami(w MoltenWhoami) string {
 	}
 	fmt.Fprintf(&sb, "model:   %s\n", model)
 	fmt.Fprintf(&sb, "effort:  %s\n", moltenDash(w.Effort))
+	switch {
+	case w.Subagent && w.SubagentKind != "":
+		fmt.Fprintf(&sb, "caller:  a sub-agent (%s) of %s's session\n", w.SubagentKind, w.FirstName)
+	case w.Subagent:
+		fmt.Fprintf(&sb, "caller:  a sub-agent of %s's session\n", w.FirstName)
+	case w.Shared:
+		fmt.Fprintf(&sb, "caller:  %s's session or one of its sub-agents in the same folder\n", w.FirstName)
+	}
 	fmt.Fprintf(&sb, "trailer: %s\n", w.Trailer)
 	return sb.String()
 }

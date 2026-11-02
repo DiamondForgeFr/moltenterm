@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it, vi } from "vitest";
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentInputResult } from "../command-panel/agent-commands";
 import {
     BulkCommands,
@@ -22,6 +23,9 @@ import {
     unseenBulkSummary,
 } from "./sessions-bulk";
 import { agentCell, atPrompt, DurableSession, lastActive, runningCommand, sessionName } from "./sessions-model";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const Home = "/Users/me";
 
@@ -82,6 +86,7 @@ describe("sessions table columns", () => {
         expect(sessionName(shell, Home)).toBe("moltenterm");
         expect(agentCell(shell)).toEqual({ label: "Shell", kind: "shell" });
         expect(sessionName({ ...shell, tabname: "API server" }, Home)).toBe("API server");
+        expect(sessionName({ ...shell, tabname: "workspaceViews.names.scoping" }, Home)).toBe("Scoping");
         expect(sessionName({ ...shell, folder: Home }, Home)).toBe("Home");
         expect(sessionName({ ...shell, folder: undefined }, Home)).toBe("Terminal");
         // A shell whose integration said nothing yet is named by wavesrv with the shell alone.

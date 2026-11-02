@@ -61,6 +61,10 @@ func TestMentionsRelease(t *testing.T) {
 		{"chore/sync-back-v1.0.0-10", "v1.0.0-1", false},
 		{"chore/sync-back-v11.0.0", "v1.0.0", false},
 		{"chore/sync-back-v1.0.0.1", "v1.0.0", false},
+		{"chore/sync-back-v1.0.0-rc.2", "v1.0.0-rc.2", true},
+		{"chore/sync-back-v1.0.0-rc.2", "v1.0.0", false},
+		{"chore/sync-back-v1.0.0-rc.12", "v1.0.0-rc.1", false},
+		{"chore/sync-back-v1.0.0-rc.1", "v1.0.0-1", false},
 	}
 	for _, c := range cases {
 		if got := mentionsRelease(c.s, c.tag); got != c.want {

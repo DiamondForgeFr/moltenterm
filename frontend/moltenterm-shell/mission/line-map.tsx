@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The line map (FR-MC-022, DS-MC-014): one inline SVG, time left to right, main on top, develop in the molten accent,
+// The line map (FR-MC-022, DS-MC-014): one inline SVG, time left to right, main on top, develop in the chart steel blue,
 // the branches under it, every version tag a station on main, and the route to the next public release. The data
 // is line-map-model.ts, the pixels line-map-geometry.ts; this file only draws and explains. Hovering or focusing a
 // mark opens its detail (portalled, so no pane edge clips it); clicking opens it on GitHub.
@@ -12,19 +12,24 @@
 // its rules stop matching, a glint or a dash must not jump.
 
 import { atoms } from "@/app/store/global";
+import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { cn, fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
+import { atom, useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { agentCallName } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
 import { t as translate, useLocale, useT } from "../i18n/i18n";
 import { openWebLink } from "../open-web-link";
 import { ciVerdictView } from "../status-bar-model";
+import { DominoLoader } from "../suite/suite";
 import { filterBranches } from "../widget-options";
 import { CiBranch } from "./ci-model";
-import { plainText } from "./github";
+import { releaseNotesText } from "./github";
 import { BuildMarker } from "./line-map-builds";
 import { GeometryBranch, GeometryBuild, GeometryStation, layoutLineMap, LineMapGeometry } from "./line-map-geometry";
 import {
     buildLineMap,
+    canSetUpRelease,
     commitUrl,
     FullLineMapDayChoices,
     gitFingerprint,
@@ -34,6 +39,7 @@ import {
     LineMapModel,
     LineMapStation,
     prsFingerprint,
+    worktreeHover,
 } from "./line-map-model";
 import {
     delayStyle,
@@ -54,6 +60,7 @@ import {
 import { useLineMapDays, useLocalBuilds } from "./line-map-store";
 import { MenuPopover } from "./menu-popover";
 import { MissionSnapshot } from "./mission-model";
+import { openSetupTab } from "./pipeline-tab-open";
 import { ReleaseSession } from "./release-model";
 import { formatDay, formatWhen, timeAgo } from "./time-format";
 import { readableSubject } from "./versions";
@@ -111,21 +118,22 @@ const Styles = `
 .lm-ticktxt { font-size: 11px; fill: var(--color-muted); }
 .lm-ticktxt-now { fill: var(--color-secondary); }
 .lm-main { fill: none; stroke: var(--color-primary); stroke-opacity: .38; stroke-width: 4; stroke-linecap: round; }
-.lm-dev { fill: none; stroke: var(--color-accent); stroke-width: 6; stroke-linecap: round; }
+.lm-dev { fill: none; stroke: var(--mt-chart-1); stroke-width: 6; stroke-linecap: round; }
 .lm-future { fill: none; stroke: var(--color-primary); stroke-opacity: .35; stroke-width: 3; stroke-dasharray: 4 7; }
-.lm-route { fill: none; stroke: var(--color-accent); stroke-width: 3; stroke-dasharray: 6 8; }
+.lm-route { fill: none; stroke: var(--mt-action); stroke-width: 3; stroke-dasharray: 6 8; }
+.lm-svg[data-setup="off"] .lm-route { stroke: var(--color-muted); }
 .lm-br { fill: none; stroke: color-mix(in srgb, var(--color-muted) 80%, var(--color-background)); stroke-width: 2.5; stroke-linecap: round; }
-.lm-br-open { fill: none; stroke: color-mix(in srgb, var(--color-accent) 55%, white); stroke-width: 3; stroke-linecap: round; }
+.lm-br-open { fill: none; stroke: color-mix(in srgb, var(--mt-chart-1) 55%, white); stroke-width: 3; stroke-linecap: round; }
 .lm-br-guess { stroke-dasharray: 2 4; }
 .lm-hitline { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; }
 .lm-hitdot { fill: transparent; }
 .lm-merge { fill: color-mix(in srgb, var(--color-muted) 80%, var(--color-background)); }
-.lm-landed { fill: color-mix(in srgb, var(--color-accent) 30%, var(--color-primary)); fill-opacity: .55; }
+.lm-landed { fill: color-mix(in srgb, var(--mt-chart-1) 30%, var(--color-primary)); fill-opacity: .55; }
 .lm-hit:hover .lm-landed { fill-opacity: 1; }
 .lm-rc { fill: none; stroke: var(--color-primary); stroke-opacity: .45; stroke-width: 2; stroke-linecap: round; }
 .lm-fork { fill: var(--color-primary); fill-opacity: .6; }
 .lm-st { fill: var(--color-background); stroke: var(--color-primary); stroke-width: 2.5; }
-.lm-st-public { stroke: var(--color-accent); stroke-width: 3.5; }
+.lm-st-public { stroke: var(--mt-chart-1); stroke-width: 3.5; }
 .lm-earlier { fill: var(--color-background); stroke: var(--color-muted); stroke-width: 2; stroke-dasharray: 3 2; }
 .lm-unread { fill: var(--color-hover); }
 .lm-build-pill { fill: color-mix(in srgb, var(--color-success) 16%, var(--color-background)); stroke: color-mix(in srgb, var(--color-success) 65%, var(--color-background)); stroke-width: 1; }
@@ -135,40 +143,44 @@ const Styles = `
 .lm-hit:hover .lm-build-pill, .lm-hit:focus-visible .lm-build-pill { fill: color-mix(in srgb, var(--color-success) 30%, var(--color-background)); }
 .lm-stlabel, .lm-brlabel, .lm-livelabel, .lm-ticktxt { paint-order: stroke; stroke: var(--color-background); stroke-width: 3px; stroke-linejoin: round; }
 .lm-stlabel { font-size: 11px; font-weight: 500; fill: var(--color-primary); }
-.lm-stlabel-latest { fill: var(--color-accent); }
+.lm-stlabel-latest { fill: var(--mt-chart-1); }
 .lm-stdate { font-size: 10px; font-weight: 400; fill: var(--color-muted); }
 .lm-brlabel { font-size: 10px; fill: var(--color-muted); }
-.lm-livelabel { font-size: 10px; fill: color-mix(in srgb, var(--color-accent) 55%, white); }
-.lm-tip { fill: color-mix(in srgb, var(--color-accent) 55%, white); }
-.lm-head { fill: var(--color-accent); }
-.lm-term { fill: var(--color-background); stroke: var(--color-accent); stroke-width: 3; }
-.lm-termcore { fill: var(--color-accent); }
+.lm-livelabel { font-size: 10px; fill: color-mix(in srgb, var(--mt-chart-1) 55%, white); }
+.lm-tip { fill: color-mix(in srgb, var(--mt-chart-1) 55%, white); }
+.lm-head { fill: var(--mt-chart-1); }
+.lm-term { fill: var(--color-background); stroke: var(--mt-action); stroke-width: 3; }
+.lm-termcore { fill: var(--mt-action); }
+.lm-svg[data-setup="off"] .lm-term { stroke: var(--color-muted); }
+.lm-svg[data-setup="off"] .lm-termcore { fill: var(--color-muted); }
+.lm-hit-act:hover .lm-term, .lm-hit-act:focus-visible .lm-term { fill: color-mix(in srgb, var(--mt-action) 18%, var(--color-background)); }
+.lm-hit-act:hover .lm-termtxt, .lm-hit-act:focus-visible .lm-termtxt { text-decoration: underline; }
 .lm-termtxt { font-family: var(--font-sans); font-weight: 700; font-size: 20px; fill: var(--color-primary); }
 .lm-termsub { font-family: var(--font-sans); font-size: 12px; fill: var(--color-secondary); }
 .lm-termstatus { font-family: var(--font-sans); font-size: 11px; fill: var(--color-muted); }
 .lm-termstatus.lm-urgent { fill: var(--color-warning); font-weight: 600; }
 .lm-hit { outline: none; }
-.lm-hit:focus-visible .lm-focus { stroke: var(--color-accent); stroke-width: 2; stroke-dasharray: 3 2; fill: none; }
+.lm-hit:focus-visible .lm-focus { stroke: var(--mt-focus-ring); stroke-width: 2; stroke-dasharray: 3 2; fill: none; }
 .lm-hit .lm-focus { fill: none; stroke: none; }
 .lm-hit:hover .lm-br, .lm-hit:focus-visible .lm-br { stroke: var(--color-secondary); }
-.lm-hit:hover .lm-st, .lm-hit:focus-visible .lm-st { fill: color-mix(in srgb, var(--color-accent) 25%, var(--color-background)); }
+.lm-hit:hover .lm-st, .lm-hit:focus-visible .lm-st { fill: color-mix(in srgb, var(--mt-chart-1) 25%, var(--color-background)); }
 .lm-plot { position: relative; }
 .lm-flows { position: absolute; inset: 0; pointer-events: none; }
 .lm-pulse { pointer-events: none; }
 .lm-glints { position: absolute; overflow: hidden; border-radius: 3px; }
 .lm-glint-band {
     position: absolute; top: 0; bottom: 0; left: -${GlintPeriod}px; right: 0;
-    background: repeating-linear-gradient(90deg, transparent 0 ${GlintPeriod - 12}px, color-mix(in srgb, var(--color-accent) 12%, white) ${GlintPeriod - 6}px, transparent ${GlintPeriod}px);
+    background: repeating-linear-gradient(90deg, transparent 0 ${GlintPeriod - 12}px, color-mix(in srgb, var(--mt-chart-1) 12%, white) ${GlintPeriod - 6}px, transparent ${GlintPeriod}px);
 }
 .lm-glints-dev { opacity: .55; }
 .lm-glints-main { opacity: .32; }
-.lm-ring { fill: none; stroke: var(--color-accent); stroke-width: 1.5; opacity: 0; }
+.lm-ring { fill: none; stroke: var(--mt-chart-1); stroke-width: 1.5; opacity: 0; }
 .lm-route-echo { display: none; }
 .lm-clock { fill: none; }
 .lm-cibadge { display: none; pointer-events: none; }
-.lm-cibadge rect { fill: var(--color-background); stroke: var(--color-accent); stroke-width: 1.5; }
-.lm-cibadge circle { fill: var(--color-accent); }
-.lm-cibadge text { font-size: 10px; font-weight: 500; fill: var(--color-accent); }
+.lm-cibadge rect { fill: var(--color-background); stroke: var(--mt-state-running); stroke-width: 1.5; }
+.lm-cibadge circle { fill: var(--mt-state-running); }
+.lm-cibadge text { font-size: 10px; font-weight: 500; fill: var(--mt-state-running); }
 `;
 
 // The load sequence: only while the frame says so, and only with motion on.
@@ -236,7 +248,7 @@ function itemUrl(item: MapItem, model: LineMapModel): string {
     return null;
 }
 
-function itemLabel(item: MapItem, model: LineMapModel): string {
+function itemLabel(item: MapItem, model: LineMapModel, setup: boolean): string {
     switch (item.kind) {
         case "station":
             return translate("mc.lineMap.label.station", {
@@ -267,7 +279,9 @@ function itemLabel(item: MapItem, model: LineMapModel): string {
         case "earlier":
             return translate("mc.lineMap.label.earlier", { count: model.earlier.length });
         case "terminus":
-            return translate("mc.lineMap.label.terminus");
+            return setup
+                ? translate("mc.lineMap.label.setUpRelease", { tag: model.terminus.tag })
+                : translate("mc.lineMap.label.terminus");
         case "day":
             return translate("mc.lineMap.label.day", { count: item.commits.length, day: formatDay(item.day) });
         case "hidden":
@@ -331,6 +345,7 @@ function HiddenDetail({ branches }: { branches: readonly LineMapBranch[] }) {
                                 count: `${b.count}${b.countCapped ? "+" : ""}`,
                             })}
                             {b.prNumber ? ` · PR #${b.prNumber}` : ""}
+                            {b.agentTree ? ` · ${t("mc.lineMap.agentTree")}` : ""}
                         </span>
                     </div>
                 ))}
@@ -388,7 +403,7 @@ function Hint({ url, what }: { url: string; what: string }) {
 
 function StationDetail({ s }: { s: LineMapStation }) {
     const t = useT();
-    const notes = s.notes ? plainText(s.notes).trim() : "";
+    const notes = s.notes ? releaseNotesText(s.notes).trim() : "";
     return (
         <>
             <div className="font-semibold text-primary">
@@ -419,6 +434,29 @@ function StationDetail({ s }: { s: LineMapStation }) {
     );
 }
 
+// The agents' panes and the folder each works in, for a branch's hover (#1133).
+const AgentPanesAtom = atom((get) =>
+    Object.values(get(AgentStates.getInstance().dataAtom).states ?? {})
+        .filter((s) => s != null)
+        .map((s) => ({
+            name: agentCallName(s),
+            cwd: get(getWaveObjectAtom<Block>(makeORef("block", s.blockid)))?.meta?.["cmd:cwd"] ?? "",
+        }))
+);
+
+function WorktreeLine({ worktree }: { worktree: string }) {
+    const t = useT();
+    const panes = useAtomValue(AgentPanesAtom);
+    const hover = worktreeHover(worktree, panes);
+    return (
+        <div className="break-all text-muted" title={worktree} data-testid="line-map-worktree">
+            {hover.agent
+                ? t("mc.lineMap.worktreeAgent", { folder: hover.folder, name: hover.agent })
+                : t("mc.lineMap.worktree", { folder: hover.folder })}
+        </div>
+    );
+}
+
 function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
     const t = useT();
     const verdict = ciVerdictView(b.ci);
@@ -431,6 +469,7 @@ function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
                 {b.name}
                 <span className="ml-1.5 font-normal text-muted">
                     · {b.state === "open" ? t("mc.lineMap.inProgress") : t("mc.lineMap.merged")}
+                    {b.agentTree ? ` · ${t("mc.lineMap.agentTree")}` : ""}
                 </span>
             </div>
             <div className="text-secondary">
@@ -443,6 +482,7 @@ function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
                     ? t("mc.lineMap.leftDevelop", { when: formatWhen(new Date(b.fork).toISOString()) })
                     : t("mc.lineMap.forkUnknown")}
             </div>
+            {b.worktree ? <WorktreeLine worktree={b.worktree} /> : null}
             {b.pr ? (
                 <div className="text-secondary">
                     PR #{b.pr.number}
@@ -523,7 +563,17 @@ function BuildDetail({ m, model }: { m: BuildMarker; model: LineMapModel }) {
     );
 }
 
-function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; trunkCi: string }) {
+export function Detail({
+    item,
+    model,
+    trunkCi,
+    setup,
+}: {
+    item: MapItem;
+    model: LineMapModel;
+    trunkCi: string;
+    setup: boolean;
+}) {
     const t = useT();
     switch (item.kind) {
         case "station":
@@ -590,7 +640,12 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                     </div>
                     {model.earlier.slice(0, EarlierListed).map((s) => (
                         <div key={s.name} className="flex items-baseline gap-2">
-                            <span className={cn("font-medium", s.kind === "public" ? "text-accent" : "text-primary")}>
+                            <span
+                                className={cn(
+                                    "font-medium",
+                                    s.kind === "public" ? "text-[var(--mt-chart-1)]" : "text-primary"
+                                )}
+                            >
                                 {s.name}
                             </span>
                             <span className="text-muted">{formatDay(s.at)}</span>
@@ -611,7 +666,11 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                         {model.terminus.tag ?? t("mc.lineMap.nextTitle")} · {t("mc.lineMap.publicRelease")}
                     </div>
                     <div className="text-secondary">{model.terminus.note}</div>
-                    {model.terminus.state === "nothing" ? null : (
+                    {model.terminus.state === "nothing" ? null : model.terminus.state === "planned" ? (
+                        <div className="text-muted" data-testid="line-map-terminus-planned">
+                            {t("mc.lineMap.plannedNothing", { trunk: model.trunk })}
+                        </div>
+                    ) : (
                         <div className="text-muted">
                             {t(model.terminus.waiting === 1 ? "mc.lineMap.changeNotYet" : "mc.lineMap.changesNotYet", {
                                 count: model.terminus.waiting,
@@ -620,6 +679,7 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                             })}
                         </div>
                     )}
+                    {setup ? <div className="pt-1 text-11 text-muted">{t("mc.lineMap.clickToSetUp")}</div> : null}
                 </>
             );
         case "day":
@@ -672,7 +732,7 @@ function Legend() {
         <div className="flex flex-col gap-1.5 text-12 text-secondary" data-testid="line-map-legend">
             <span className={item}>
                 <span className={swatch}>
-                    <span className="h-[5px] w-[18px] rounded-full bg-accent" />
+                    <span className="h-[5px] w-[18px] rounded-full bg-[var(--mt-chart-1)]" />
                 </span>
                 {t("mc.lineMap.legend.develop")}
             </span>
@@ -696,7 +756,7 @@ function Legend() {
             </span>
             <span className={item}>
                 <span className={swatch}>
-                    <span className="h-[3px] w-[18px] rounded-full bg-accent-200" />
+                    <span className="h-[3px] w-[18px] rounded-full bg-[color-mix(in_srgb,var(--mt-chart-1)_55%,white)]" />
                 </span>
                 {t("mc.lineMap.legend.inProgress")}
             </span>
@@ -708,7 +768,7 @@ function Legend() {
             </span>
             <span className={item}>
                 <span className={swatch}>
-                    <span className="h-3.5 w-3.5 rounded-full border-[3px] border-accent" />
+                    <span className="h-3.5 w-3.5 rounded-full border-[3px] border-[var(--mt-chart-1)]" />
                 </span>
                 {t("mc.lineMap.legend.public")}
             </span>
@@ -799,7 +859,7 @@ function LineLabels({ model, geo, width }: { model: LineMapModel; geo: LineMapGe
                     key={l.name}
                     className={cn(
                         "absolute right-2 left-2 truncate text-12 leading-4 font-semibold",
-                        l.trunk ? "text-accent" : "text-secondary"
+                        l.trunk ? "text-[var(--mt-chart-1)]" : "text-secondary"
                     )}
                     style={{ top: l.y - 8 }}
                     title={l.name}
@@ -895,6 +955,8 @@ export type LineMapProps = {
     // Off draws the map as reduced motion does.
     animation?: boolean;
     branchFilter?: unknown;
+    // The project's name, for the setup the next version opens; the folder's name when absent.
+    projectName?: string;
 };
 
 // The same value as last render when its key did not change: every snapshot event decodes new objects, and the map
@@ -918,8 +980,10 @@ export function LineMap({
     blockId,
     animation = true,
     branchFilter,
+    projectName,
 }: LineMapProps) {
     const t = useT();
+    const [setupError, setSetupError] = useState<string>(null);
     // The model and its layout carry words: they are built again in a new interface language.
     const locale = useLocale();
     const [days, setDays] = useLineMapDays(dir, full, blockId);
@@ -1039,11 +1103,18 @@ export function LineMap({
         [keep]
     );
 
+    const canSetUp = model != null && !!dir && canSetUpRelease(model.terminus, release);
     // Stable while the model is: hovering re-renders the frame and the detail, never the map itself.
     const hit = useCallback(
         (item: MapItem): React.SVGProps<SVGGElement> => {
             const url = model ? itemUrl(item, model) : null;
+            const setup = canSetUp && item.kind === "terminus";
             const open = () => {
+                if (setup) {
+                    setSetupError(null);
+                    openSetupTab(dir, projectName, undefined, setSetupError);
+                    return;
+                }
                 if (!url) {
                     return;
                 }
@@ -1052,8 +1123,8 @@ export function LineMap({
             return {
                 tabIndex: 0,
                 role: url ? "link" : "button",
-                "aria-label": model ? itemLabel(item, model) : undefined,
-                className: cn("lm-hit", url && "cursor-pointer"),
+                "aria-label": model ? itemLabel(item, model, setup) : undefined,
+                className: cn("lm-hit", (url || setup) && "cursor-pointer", setup && "lm-hit-act"),
                 onPointerEnter: (e: React.PointerEvent<SVGGElement>) => show(item, e.currentTarget),
                 onPointerLeave: hideSoon,
                 onFocus: (e: React.FocusEvent<SVGGElement>) => show(item, e.currentTarget),
@@ -1070,7 +1141,7 @@ export function LineMap({
                 },
             };
         },
-        [model, show, hideSoon]
+        [model, show, hideSoon, canSetUp, dir, projectName]
     );
 
     const choices = full ? FullLineMapDayChoices : LineMapDayChoices;
@@ -1094,10 +1165,17 @@ export function LineMap({
                         type="button"
                         onClick={onFullSize}
                         className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
-                        title={t("mc.lineMap.fullSizeTitle")}
+                        title={t(full ? "mc.lineMap.exitFullSizeTitle" : "mc.lineMap.fullSizeTitle")}
+                        aria-pressed={full}
+                        data-testid="line-map-fullsize"
                     >
-                        <i className="fa fa-solid fa-up-right-and-down-left-from-center text-11" />
-                        {t("mc.lineMap.fullSize")}
+                        <i
+                            className={cn(
+                                "fa fa-solid text-11",
+                                full ? "fa-down-left-and-up-right-to-center" : "fa-up-right-and-down-left-from-center"
+                            )}
+                        />
+                        {t(full ? "mc.lineMap.exitFullSize" : "mc.lineMap.fullSize")}
                     </button>
                 ) : null}
             </div>
@@ -1115,14 +1193,23 @@ export function LineMap({
                 {geo && model ? (
                     <div className="flex w-max min-w-full">
                         <LineLabels model={model} geo={geo} width={labelWidth} />
-                        <MapSvg key={intro.run} geo={geo} model={model} ciRunning={ciRunning} hit={hit} />
+                        <MapSvg
+                            key={intro.run}
+                            geo={geo}
+                            model={model}
+                            ciRunning={ciRunning}
+                            hit={hit}
+                            canSetUp={canSetUp}
+                        />
                     </div>
                 ) : (
                     <div
-                        className={cn("w-full mt-step-blink bg-hover/40", full && "h-full")}
+                        className={cn("flex w-full items-center justify-center", full && "h-full")}
                         style={full ? undefined : { height: OverviewHeight }}
                         aria-busy="true"
-                    />
+                    >
+                        <DominoLoader size="card" />
+                    </div>
                 )}
             </div>
             {hover && model ? (
@@ -1134,8 +1221,13 @@ export function LineMap({
                     onPointerLeave={hideSoon}
                     className="flex w-80 flex-col gap-1 p-2.5 text-12"
                 >
-                    <Detail item={hover.item} model={model} trunkCi={trunkCi} />
+                    <Detail item={hover.item} model={model} trunkCi={trunkCi} setup={canSetUp} />
                 </MenuPopover>
+            ) : null}
+            {setupError ? (
+                <div className="text-11 text-danger" data-testid="line-map-setup-error">
+                    {setupError}
+                </div>
             ) : null}
         </section>
     );
@@ -1260,11 +1352,13 @@ export const MapSvg = memo(function MapSvg({
     model,
     ciRunning,
     hit,
+    canSetUp,
 }: {
     geo: LineMapGeometry;
     model: LineMapModel;
     ciRunning: string;
     hit: HitProps;
+    canSetUp: boolean;
 }) {
     const trunkCi = ciRunning && ciRunning === model.trunk ? "running" : "idle";
     const dev = `M ${geo.develop.x1} ${geo.develop.y} L ${geo.develop.x2} ${geo.develop.y}`;
@@ -1280,6 +1374,7 @@ export const MapSvg = memo(function MapSvg({
                 role="group"
                 aria-label={translate("mc.lineMap.svgLabel", { days: model.days })}
                 data-ci={trunkCi}
+                data-setup={canSetUp ? "on" : "off"}
                 data-single={geo.single ? "true" : undefined}
             >
                 {/* Times the load sequence: its end tells the map the sequence played. */}

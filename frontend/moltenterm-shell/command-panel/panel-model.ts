@@ -5,7 +5,7 @@
 // reaches every section and sub-page, the Developer gate behind Option, the keyboard and the scopes of an option.
 // Matching reuses the command palette's fuzzy matcher; command-panel.tsx only renders.
 
-import { t } from "../i18n/i18n";
+import { labelled, t } from "../i18n/i18n";
 import { fuzzyMatch, moveSelection, PaletteKey, paletteKeyCommand } from "../palette/palette-model";
 import {
     PanelChoice,
@@ -604,7 +604,7 @@ export function flattenPanel(sections: PanelSection[], footer: PanelItem[] = [])
                     }
                     rtn.push({
                         id: `${item.id}/${option.id}`,
-                        label: `${item.label}: ${option.label}`,
+                        label: labelled(item.label, option.label),
                         breadcrumb,
                         icon: item.icon,
                         item,

@@ -5,8 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { formatShortcutById } from "../shortcuts/format";
+import { bestMatchIndex, filterPalette, flattenSections, PickerGroupOrder } from "./palette-model";
 import {
     actionEntries,
+    addressEntry,
     agentCopyEntries,
     agentEntries,
     browserEntries,
@@ -45,8 +47,35 @@ describe("agent presets", () => {
         } as any;
         const read = readAgentPresets(presets);
         expect(read.map((p) => p.id)).toEqual(["a", "b"]);
-        expect(read[0]).toMatchObject({ name: "a", icon: "bolt", command: "aye" });
-        expect(read[1].icon).toBe("robot");
+        expect(read[0]).toMatchObject({ name: "a", command: "aye" });
+    });
+
+    it("gives every agent row the AI icon, whatever its preset says (#1257)", () => {
+        const presets = {
+            "agent@a": { "agent:command": "aye", "display:icon": "bolt" },
+            "agent@b": { "agent:command": "bee" },
+        } as any;
+        expect(readAgentPresets(presets).map((p) => p.icon)).toEqual(["sparkles", "sparkles"]);
+        expect(agentEntries(DefaultAgents).map((e) => e.icon)).toEqual(["sparkles", "sparkles"]);
+    });
+
+    it("offers the catalog's agents found on this computer that have no preset, after the presets (#1680)", () => {
+        const installed = [
+            { id: "claude", name: "Claude Code", command: "claude", installed: true },
+            { id: "cursor", name: "Cursor CLI", command: "agent", installed: true },
+            { id: "grok", name: "Grok Build", command: "grok", installed: false },
+            { id: "hidden", name: "Hidden", command: "hid", installed: true },
+            { id: "vibe", name: "Mistral Vibe", command: "vibe", installed: true },
+        ];
+        const presets = { ...DefaultAgents, "agent@hidden": { "display:hidden": true, "agent:command": "hid" } };
+        const entries = agentEntries(presets, installed);
+        expect(entries.map((e) => e.id)).toEqual(["agent:claude", "agent:codex", "agent:cursor", "agent:vibe"]);
+        expect(entries[2]).toMatchObject({
+            label: "Cursor CLI",
+            cli: "agent",
+            run: { kind: "agent", command: "agent" },
+        });
+        expect(agentEntries(DefaultAgents)).toHaveLength(2);
     });
 
     it("shows the command as the CLI equivalent", () => {
@@ -57,20 +86,19 @@ describe("agent presets", () => {
 });
 
 describe("panels", () => {
-    it("lists the default widgets in display order with full names, the terminal with its shortcut, no wsh", () => {
+    it("lists the default widgets in display order with full names, no shortcut on the terminal (⌘N opens a new panel, #1241), no wsh", () => {
         const panels = panelEntries(DefaultWidgets, "ws1");
         expect(panels.map((p) => p.label)).toEqual([
             "Terminal",
             "Files",
-            "Browser",
+            "Web page",
             "CI/CD",
-            "Reviews",
+            "Integration",
             "System info",
             "Processes",
         ]);
         expect(panels.map((p) => p.cli).filter((c) => c)).toEqual([]);
-        expect(panels[0].hint).toBe(formatShortcutById("new-panel"));
-        expect(panels[0].hint).not.toBe("");
+        expect(panels[0].hint).toBeUndefined();
         expect(panels[3].hint).toBeUndefined();
         expect(panels[0].run).toEqual({ kind: "widget", blockdef: DefaultWidgets["defwidget@terminal"].blockdef });
     });
@@ -117,8 +145,8 @@ describe("workspace actions", () => {
             { id: "w2", name: "Notulia", icon: "book", color: "#0f0", active: false },
         ]);
         expect(actions.map((a) => a.label)).toEqual([
-            "New tab",
-            "Reopen the last closed pane or tab",
+            "New view",
+            "Reopen the last closed panel or view",
             "Split the panel…",
             "Equalize panels",
             "New workspace",
@@ -136,6 +164,37 @@ describe("workspace actions", () => {
         expect(actions.filter((a) => a.cli?.startsWith("wsh "))).toEqual([]);
         expect(actions[0].hint).toBe(formatShortcutById("new-tab"));
         expect(actions[1].hint).toBe(formatShortcutById("reopen-closed"));
+    });
+
+    it("offers the view on screen's pin moves, the keep shortcut on its move, never in a split's picker (#1652)", () => {
+        const base = {
+            presets: {},
+            widgets: {},
+            workspaceId: "w1",
+            folder: "",
+            recentFolders: [] as string[],
+            otherFolders: [] as string[],
+            workspaces: [] as any[],
+            home: "/home/me",
+        };
+        const viewPin = { moves: ["here", "everywhere"] as any, keepMove: "here" as const, keepHint: "⇧⌘O" };
+        const pinEntries = buildPaletteEntries({ ...base, viewPin }).filter((e) => e.run.kind === "pinview");
+        expect(pinEntries.map((e) => [e.label, e.hint])).toEqual([
+            ["Pin this view in this workspace", "⇧⌘O"],
+            ["Pin this view everywhere", undefined],
+        ]);
+        expect(pinEntries[1].run).toEqual({ kind: "pinview", move: "everywhere" });
+        const pinned = buildPaletteEntries({
+            ...base,
+            viewPin: { moves: ["everywhere", "temporary"], keepMove: "temporary", keepHint: "⇧⌘O" },
+        }).filter((e) => e.run.kind === "pinview");
+        expect(pinned.map((e) => [e.label, e.hint])).toEqual([
+            ["Pin this view everywhere", undefined],
+            ["Unpin this view (make it temporary)", "⇧⌘O"],
+        ]);
+        expect(buildPaletteEntries({ ...base }).filter((e) => e.run.kind === "pinview")).toEqual([]);
+        const picker = { blockId: "b1", meta: {}, splitKeys: "⌘D" };
+        expect(buildPaletteEntries({ ...base, viewPin, picker }).filter((e) => e.run.kind === "pinview")).toEqual([]);
     });
 
     it("gives each workspace entry the rail's badge, imported image and logo included (FR-SHELL-031 AC8)", () => {
@@ -188,9 +247,9 @@ describe("workspace actions", () => {
     it("offers the Project tab first in a linked workspace", () => {
         const actions = actionEntries([], true);
         expect(actions.map((a) => a.label)).toEqual([
-            "Project tab",
-            "New tab",
-            "Reopen the last closed pane or tab",
+            "Project view",
+            "New view",
+            "Reopen the last closed panel or view",
             "Split the panel…",
             "Equalize panels",
             "New workspace",
@@ -221,6 +280,13 @@ describe("agent copy commands", () => {
         expect(entry).toMatchObject({ group: "actions", hint: "/copy", run: { kind: "focusorigin" } });
         expect(entry.label).toBe("Copy Claude Code's last answer");
         expect(entry.detail).toContain("OSC 52");
+    });
+
+    // #990, TC-SHELL-017-1: codex-cli 0.163.0 has /copy too.
+    it("mentions Codex's /copy", () => {
+        const entry = agentCopyEntries().find((e) => e.id === "action:agentcopy:codex");
+        expect(entry).toMatchObject({ group: "actions", hint: "/copy", run: { kind: "focusorigin" } });
+        expect(entry.label).toBe("Copy Codex's last answer");
     });
 });
 
@@ -253,6 +319,25 @@ describe("helpers", () => {
         const groups = new Set(entries.map((e) => e.group));
         expect([...groups]).toEqual(["agents", "panels", "folders", "actions"]);
     });
+
+    it("lists MoltenTerm's panels in the launcher as the split picker does, Sessions once (#1273)", () => {
+        const entries = buildPaletteEntries({
+            presets: DefaultAgents,
+            widgets: DefaultWidgets,
+            workspaceId: "ws1",
+            folder: "/p",
+            recentFolders: [],
+            otherFolders: [],
+            workspaces: [],
+            home: "",
+        });
+        const panels = entries.filter((e) => e.group === "panels");
+        expect(panels.map((e) => e.id)).toEqual(
+            expect.arrayContaining(["panel:missioncontrol", "panel:linemap", "panel:sessions"])
+        );
+        expect(panels.find((e) => e.id === "panel:missioncontrol").label).toBe("Project");
+        expect(entries.filter((e) => e.label === "Sessions")).toHaveLength(1);
+    });
 });
 
 describe("browserEntries (FR-BRW-002)", () => {
@@ -266,5 +351,42 @@ describe("browserEntries (FR-BRW-002)", () => {
         expect(browserEntries({ id: "custom", name: "Thorium" }, true)[0].cli).toBe(
             "molten open <url> --browser installed"
         );
+    });
+});
+
+describe("the address row (#1229)", () => {
+    const entries = () =>
+        buildPaletteEntries({
+            presets: DefaultAgents,
+            widgets: DefaultWidgets,
+            workspaceId: "ws1",
+            folder: "/p",
+            recentFolders: ["/p"],
+            otherFolders: [],
+            workspaces: [],
+            home: "",
+        });
+    const firstRow = (query: string) => {
+        const listed = [addressEntry(query), ...entries()].filter((e) => e != null);
+        const sections = filterPalette(listed, query, {}, PickerGroupOrder);
+        const flat = flattenSections(sections);
+        return { first: flat[0], selected: flat[bestMatchIndex(sections, query)] };
+    };
+
+    it.each([
+        ["github.com", "Open github.com", "https://github.com"],
+        ["localhost:3000", "Open localhost:3000", "http://localhost:3000"],
+        ["https://example.com/x", "Open https://example.com/x", "https://example.com/x"],
+    ])("puts Open %s first and selected, and Enter opens a web page panel on it", (typed, label, url) => {
+        const { first, selected } = firstRow(typed);
+        expect(first.label).toBe(label);
+        expect(selected.id).toBe(first.id);
+        expect(first.run).toEqual({ kind: "widget", blockdef: { meta: { view: "molten-browser", url } } });
+    });
+
+    it("leaves a plain word to the usual filter", () => {
+        expect(addressEntry("terminal")).toBeNull();
+        expect(addressEntry("open the files")).toBeNull();
+        expect(firstRow("term").first.label).toBe("Terminal");
     });
 });

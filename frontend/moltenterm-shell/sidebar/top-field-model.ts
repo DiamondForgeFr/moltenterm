@@ -1,0 +1,430 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// The sidebar's top field (FR-SHELL-083, #1187): what it shows for the focused panel, what typing finds, and what
+// Enter and its modifiers do with an address or words to search (#1743: the field is a view's address bar and never
+// creates a view by itself). Pure rules, tested without the app; top-field.tsx gathers the sources and runs the
+// chosen row.
+
+import { isMacOS } from "@/util/platformutil";
+import { addressUrl, looksLikeAddress, toBrowserUrl } from "../browser/browser-model";
+import { t } from "../i18n/i18n";
+import type { PalettePlacement } from "../palette/palette-actions";
+import { fillsPanel, type PaletteEntry, type PaletteRun } from "../palette/palette-model";
+import { formatKeys } from "../shortcuts/format";
+import { fold } from "./top-field-context";
+
+export { fieldContext, fold, type FieldContext, type FocusFacts } from "./top-field-context";
+
+// Where an address opens: the focused page panel ("here"), a new page panel of the current view beside the focused one
+// ("panel"), a new temporary view ("newview").
+export type AddressMode = "here" | "panel" | "newview";
+
+export type FieldRun =
+    | { kind: "address"; url: string; mode: AddressMode }
+    | { kind: "view"; tabId: string; workspaceId: string }
+    | { kind: "agent"; blockId: string }
+    | { kind: "workspace"; workspaceId: string }
+    | { kind: "pr"; dir: string; number: number }
+    | { kind: "palette"; run: PaletteRun }
+    | { kind: "togglesidebar" }
+    | { kind: "clearterm"; blockId: string };
+
+// "command": an item of the focused panel's command panel (⌘.), listed only while a query is typed.
+export type FieldGroup = "address" | "view" | "agent" | "workspace" | "pr" | "panel" | "action" | "command";
+
+// A workspace's letter as its dot draws it.
+export type FieldLetter = { text: string; paint: string; ink: string };
+
+export type FieldRow = {
+    id: string;
+    group: FieldGroup;
+    // Bold words before the label ("Go to", "Add").
+    strong?: string;
+    label: string;
+    // Quieter text after the label (an agent's state, a workspace's projects).
+    note?: string;
+    // Where the row leads, on the right ("agent · Notulia", "temporary").
+    where?: string;
+    // The key shown at the end (↵, ⌥↵, ⌘↵).
+    key?: string;
+    icon?: string;
+    color?: string;
+    letter?: FieldLetter;
+    // A workspace row: its name, for the prefix rank.
+    workspaceName?: string;
+    // A view of the workspace on screen; the current one is listed when searched but not offered while empty.
+    here?: boolean;
+    current?: boolean;
+    keywords?: string[];
+    run: FieldRun;
+};
+
+export { addressUrl, looksLikeAddress };
+
+export function hostOfUrl(url: string): string {
+    try {
+        return new URL(url).host.replace(/^www\./, "") || url;
+    } catch {
+        return url;
+    }
+}
+
+export type FieldFocus = {
+    // A page panel has the focus (the one focused when the field opened): Enter goes there.
+    onPage: boolean;
+    // The focused page's host, and the view's name, for the address rows.
+    pageHost?: string;
+    viewName?: string;
+};
+
+export type EnterMod = "" | "panel" | "view";
+
+// Enter and its modifiers as this platform reads them (#1238, #1743): ⌘↵ on macOS and Alt+Enter elsewhere (Wave's
+// "Cmd" reads as Alt there) open a new panel, Shift+Enter a new view.
+export function enterKeys(mod: EnterMod, mac = isMacOS()): string {
+    if (mod === "") {
+        return formatKeys("Enter", mac);
+    }
+    return formatKeys(`${mod === "panel" ? "Cmd" : "Shift"}:Enter`, mac);
+}
+
+// Where the plain Enter row leads, on the right: the focused page, else the view the new panel joins.
+function targetWhere(focus: FieldFocus): string {
+    if (focus.onPage) {
+        return focus.pageHost
+            ? t("topField.address.inPageHost", { host: focus.pageHost })
+            : t("topField.address.inPage");
+    }
+    return focus.viewName || t("topField.address.inThisView");
+}
+
+// The rows an address or a search offers, in the order Enter, ⌘Enter (Alt+Enter) and Shift+Enter take them: with a
+// page focused, that page, a new panel, a new view; else a new panel (the ⌘Enter row would repeat it), a new view.
+function targetRows(url: string, focus: FieldFocus, mac: boolean): FieldRow[] {
+    const host = hostOfUrl(url);
+    const newView: FieldRow = {
+        id: "address:newview",
+        group: "address",
+        strong: t("topField.address.newView"),
+        label: host,
+        where: t("topField.address.temporary"),
+        key: enterKeys("view", mac),
+        icon: "square-plus",
+        run: { kind: "address", url, mode: "newview" },
+    };
+    if (focus.onPage) {
+        return [
+            {
+                id: "address:here",
+                group: "address",
+                strong: t("topField.address.goTo"),
+                label: url,
+                where: targetWhere(focus),
+                key: enterKeys("", mac),
+                icon: "globe",
+                run: { kind: "address", url, mode: "here" },
+            },
+            {
+                id: "address:panel",
+                group: "address",
+                strong: t("topField.address.newPanel"),
+                label: host,
+                where: t("topField.address.inThisView"),
+                key: enterKeys("panel", mac),
+                icon: "table-columns",
+                run: { kind: "address", url, mode: "panel" },
+            },
+            newView,
+        ];
+    }
+    return [
+        {
+            id: "address:panel",
+            group: "address",
+            strong: t("topField.address.addToView"),
+            label: url,
+            where: targetWhere(focus),
+            key: enterKeys("", mac),
+            icon: "plus",
+            run: { kind: "address", url, mode: "panel" },
+        },
+        newView,
+    ];
+}
+
+export function addressRows(text: string, focus: FieldFocus, mac = isMacOS()): FieldRow[] {
+    if (!looksLikeAddress(text)) {
+        return [];
+    }
+    return targetRows(addressUrl(text), focus, mac);
+}
+
+// Words to search the web with go where an address would: the focused page, else a new panel of the view, with the
+// same other choices. Only the Enter row is listed: ⌘Enter and Shift+Enter reach the others from it. It shows its key
+// when no row comes before it.
+function searchRow(query: string, focus: FieldFocus, first: boolean, mac: boolean): FieldRow {
+    const row = targetRows(toBrowserUrl(query), focus, mac)[0];
+    return {
+        ...row,
+        id: "search:web",
+        strong: t("topField.searchWeb"),
+        label: t("topField.searchQuery", { query }),
+        key: first ? row.key : undefined,
+        icon: "magnifying-glass",
+    };
+}
+
+// The hint line under the results: what Enter, ⌘Enter (Alt+Enter) and Shift+Enter do with an address or words in the
+// current focus.
+export function fieldHint(onPage: boolean, mac = isMacOS()): { keys: string; text: string }[] {
+    if (onPage) {
+        return [
+            { keys: enterKeys("", mac), text: t("topField.hint.thisPage") },
+            { keys: enterKeys("panel", mac), text: t("topField.hint.newPanel") },
+            { keys: enterKeys("view", mac), text: t("topField.hint.newView") },
+        ];
+    }
+    return [
+        { keys: enterKeys("", mac), text: t("topField.hint.newPanel") },
+        { keys: enterKeys("view", mac), text: t("topField.hint.newView") },
+    ];
+}
+
+export type FieldKeys = { alt?: boolean; meta?: boolean; shift?: boolean; ctrl?: boolean };
+
+// The modifier of an Enter as the browsers read it (#1743): the platform's new-tab key (⌘ on macOS, Alt elsewhere) is a
+// new panel, Shift a new view (Shift wins). Ctrl+Enter has no meaning of its own on any platform, since browsers add
+// www. and .com with it: it runs as a plain Enter.
+export function enterMod(keys: FieldKeys, mac = isMacOS()): EnterMod {
+    if (keys?.shift) {
+        return "view";
+    }
+    return (mac ? keys?.meta : keys?.alt) ? "panel" : "";
+}
+
+// What Enter runs on a row: on an address or search row the modifier chooses a new panel or a new view, plain Enter the
+// row's own way; any other row runs as it is.
+export function enterRun(row: FieldRow, keys: FieldKeys, mac = isMacOS()): FieldRun {
+    if (row == null) {
+        return null;
+    }
+    if (row.run.kind !== "address") {
+        return row.run;
+    }
+    switch (enterMod(keys, mac)) {
+        case "view":
+            return { ...row.run, mode: "newview" };
+        case "panel":
+            return { ...row.run, mode: "panel" };
+        default:
+            return row.run;
+    }
+}
+
+function haystack(row: FieldRow): string {
+    return fold([row.strong, row.label, row.note, row.where, ...(row.keywords ?? [])].filter((s) => s).join(" "));
+}
+
+// Every word typed must appear in the row's texts. 3: the label starts with the text, 2: a word of the label does,
+// 1: the label holds it, 0: only the row's other texts do; null: no match.
+export function matchScore(query: string, row: FieldRow): number {
+    const q = fold(query).trim();
+    if (q === "") {
+        return 0;
+    }
+    const words = q.split(/\s+/);
+    const all = haystack(row);
+    if (!words.every((w) => all.includes(w))) {
+        return null;
+    }
+    const label = fold([row.strong, row.label].filter((s) => s).join(" "));
+    const plain = fold(row.label);
+    if (plain.startsWith(q) || label.startsWith(q)) {
+        return 3;
+    }
+    if (label.split(/[\s\-_./:#·]+/).some((part) => part.startsWith(words[0]))) {
+        return 2;
+    }
+    return label.includes(q) ? 1 : 0;
+}
+
+// A workspace whose name starts with the text comes first ("Notu" then Enter goes to Notulia), then the other
+// workspaces, then the rest.
+function rankOf(query: string, row: FieldRow): number {
+    if (row.group !== "workspace") {
+        return 2;
+    }
+    return fold(row.workspaceName ?? row.label).startsWith(fold(query).trim()) ? 0 : 1;
+}
+
+// The palette merged into the field (FR-SHELL-113): typed results hold up to MaxFieldRows rows, and no group more than
+// MaxRowsPerGroup, so a crowd of matching views never pushes the panels and the actions out of the list.
+export const MaxFieldRows = 12;
+export const MaxRowsPerGroup = 5;
+const EmptyViews = 5;
+const EmptyAgents = 4;
+const EmptyPanels = 4;
+const EmptyActions = 5;
+const EmptyWorkspaces = 5;
+
+export type FieldSection = { title: string; rows: FieldRow[] };
+
+export type FieldResults = { sections: FieldSection[]; flat: FieldRow[] };
+
+function results(sections: FieldSection[]): FieldResults {
+    const kept = sections.filter((s) => s.rows.length > 0);
+    return { sections: kept, flat: kept.flatMap((s) => s.rows) };
+}
+
+function capped(sorted: FieldRow[]): FieldRow[] {
+    const perGroup = new Map<FieldGroup, number>();
+    const rtn: FieldRow[] = [];
+    for (const row of sorted) {
+        const n = perGroup.get(row.group) ?? 0;
+        if (n >= MaxRowsPerGroup) {
+            continue;
+        }
+        perGroup.set(row.group, n + 1);
+        rtn.push(row);
+        if (rtn.length >= MaxFieldRows) {
+            break;
+        }
+    }
+    return rtn;
+}
+
+// The rows for what is typed. Empty: the workspace's other views, the agents, panels to add, actions, the other
+// workspaces (FR-SHELL-113). Typed: an address first (its Enter, ⌘Enter and Shift+Enter rows), then the best matches;
+// words that are not an address end with a web search (#1743), alone when nothing matches, so Enter searches, and
+// last otherwise, so the matches keep their place and the search stays one arrow away.
+export function fieldResults(
+    query: string,
+    rows: FieldRow[],
+    focus: FieldFocus,
+    workspaceName: string,
+    mac = isMacOS()
+): FieldResults {
+    const q = (query ?? "").trim();
+    const list = rows ?? [];
+    if (q === "") {
+        return results([
+            {
+                title: t("topField.groups.views", { name: workspaceName }),
+                rows: list.filter((r) => r.group === "view" && r.here && !r.current).slice(0, EmptyViews),
+            },
+            { title: t("topField.groups.agents"), rows: list.filter((r) => r.group === "agent").slice(0, EmptyAgents) },
+            { title: t("topField.groups.panels"), rows: list.filter((r) => r.group === "panel").slice(0, EmptyPanels) },
+            {
+                title: t("topField.groups.actions"),
+                rows: list.filter((r) => r.group === "action").slice(0, EmptyActions),
+            },
+            {
+                title: t("topField.groups.workspaces"),
+                rows: list.filter((r) => r.group === "workspace").slice(0, EmptyWorkspaces),
+            },
+        ]);
+    }
+    const address = addressRows(q, focus, mac);
+    const matched = capped(
+        list
+            .map((row, order) => ({ row, order, score: matchScore(q, row) }))
+            .filter((m) => m.score != null)
+            .sort((a, b) => rankOf(q, a.row) - rankOf(q, b.row) || b.score - a.score || a.order - b.order)
+            .map((m) => m.row)
+    );
+    const found = [...address, ...matched];
+    if (address.length === 0) {
+        found.push(searchRow(q, focus, found.length === 0, mac));
+    }
+    return results([{ title: "", rows: found }]);
+}
+
+// The palette's entries as rows of the field (FR-SHELL-113): agent presets, panels and folders go to Panels, the
+// palette's actions to Actions, the focused panel's commands to their own group. Workspaces are left out: the field
+// lists them as its own rows.
+export function paletteFieldRows(entries: PaletteEntry[]): FieldRow[] {
+    const rows: FieldRow[] = [];
+    for (const e of entries ?? []) {
+        if (e.run.kind === "switchworkspace") {
+            continue;
+        }
+        const base = {
+            id: `palette:${e.id}`,
+            icon: e.icon,
+            color: e.color,
+            keywords: [e.detail, e.cli, ...(e.keywords ?? [])].filter((k) => k),
+            run: { kind: "palette", run: e.run } as FieldRun,
+        };
+        if (e.group === "agents") {
+            rows.push({
+                ...base,
+                group: "panel",
+                strong: t("topField.start"),
+                label: e.label,
+                where: t("topField.where.agentPreset"),
+            });
+        } else if (e.group === "panels") {
+            rows.push({
+                ...base,
+                group: "panel",
+                strong: t("topField.add"),
+                label: e.label,
+                where: t("topField.where.panelHere"),
+            });
+        } else if (e.group === "folders") {
+            rows.push({ ...base, group: "panel", label: e.label, note: e.detail, where: t("topField.where.folder") });
+        } else if (e.group === "panel") {
+            rows.push({
+                ...base,
+                group: "command",
+                label: e.label,
+                note: e.detail,
+                where: e.hint || t("topField.where.panelCommand"),
+            });
+        } else {
+            rows.push({ ...base, group: "action", label: e.label, where: e.hint || t("topField.where.action") });
+        }
+    }
+    return rows;
+}
+
+// Where a palette row opens what it holds: beside the focused panel with ⌥, in place of an empty panel (a launcher),
+// as the palette did, else in a new panel of the view.
+export function palettePlacement(
+    run: PaletteRun,
+    alt: boolean,
+    focus: { blockId?: string; isLauncher?: boolean }
+): PalettePlacement {
+    if (!fillsPanel(run) || !focus?.blockId) {
+        return "new";
+    }
+    if (alt) {
+        return "right";
+    }
+    return focus.isLauncher ? "replace" : "new";
+}
+
+export type PopoverPlace = { left: number; top: number; width: number };
+
+const PopoverInset = 4;
+const PopoverWindowMargin = 8;
+const WidePopoverPx = 420;
+const WideWindowPx = 900;
+
+// The results popover under the field: wider than the sidebar in a wide window, and always inside the window, even
+// while a hidden sidebar is still sliding in from the left edge (#1219).
+export function placePopover(
+    anchor: { left: number; bottom: number; width: number },
+    windowWidth: number
+): PopoverPlace {
+    const room = Math.max(0, windowWidth - 2 * PopoverWindowMargin);
+    const wanted =
+        windowWidth > WideWindowPx
+            ? Math.max(WidePopoverPx, anchor.width + 2 * PopoverInset)
+            : anchor.width + 2 * PopoverInset;
+    const width = Math.min(wanted, room);
+    const maxLeft = windowWidth - PopoverWindowMargin - width;
+    const left = Math.max(PopoverWindowMargin, Math.min(anchor.left - PopoverInset, maxLeft));
+    return { left, top: anchor.bottom + PopoverInset, width };
+}

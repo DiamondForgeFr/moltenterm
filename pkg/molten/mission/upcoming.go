@@ -17,21 +17,26 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The Reviews view's upcoming work and the agents on each branch (#712, FR-REV-022, DS-REV-015). Upcoming: the ticket
-// branches (workflow.branchNaming) with commits ahead of the PR target and no open PR yet, local or on origin. Agents:
+// branches (workflow.branchNaming) with commits ahead of the PR target and no open PR yet, local or on origin; a branch
+// whose PR merged with nothing after its head is a leftover instead (#1088, upcoming_done.go). Agents:
 // each running agent terminal placed in the worktree its folder belongs to, which names the branch it works on; a
 // linked worktree on a ticket branch with recent activity and no agent terminal is reported as a background agent
 // (an agent run inside another agent, a Claude Code worktree agent for instance), a heuristic the view says as
-// "probably active". The answer is cached per project: the view asks on each of its own refreshes, never on a timer.
+// "probably active". A linked worktree a running panel's sub-agent works in, by its own files (#1035), is that
+// sub-agent's instead: its parent, tool, model, task and real state. The answer is cached per project: the view asks
+// on each of its own refreshes, never on a timer.
 
 const (
 	UpcomingCommand = "moltenmissionupcoming"
 
 	UpcomingAgentPanel      = "panel"
 	UpcomingAgentBackground = "background"
+	UpcomingAgentSubagent   = "subagent"
 
 	upcomingMaxAge         = 20 * time.Second
 	upcomingForcedInterval = 5 * time.Second
@@ -49,10 +54,6 @@ const (
 	ticketStateClosed = "CLOSED"
 	ticketStatusDone  = "done"
 )
-
-// The folder Claude Code puts its worktree agents in: a background agent there was started by a Claude Code session of
-// the main checkout.
-var claudeWorktreesDir = filepath.Join(".claude", "worktrees")
 
 var ticketStatusNameRe = regexp.MustCompile(`^[\p{L}\p{N} _-]{1,40}$`)
 
@@ -75,6 +76,11 @@ type UpcomingBranch struct {
 	Url      string `json:"url,omitempty"`
 	// The ticket's board Status as named on the board, "" when unknown (no project scope, not on a board).
 	Status string `json:"status,omitempty"`
+	// AfterPr: the branch's PR closed in the window (#1088), merged or not (AfterState, UpcomingAfter…); AfterCount: the
+	// branch's commits after that PR's head, -1 when git cannot count them.
+	AfterPr    int    `json:"afterpr,omitempty"`
+	AfterState string `json:"afterstate,omitempty"`
+	AfterCount int    `json:"aftercount,omitempty"`
 }
 
 // BranchAgent is an agent working on a branch: a terminal's (Kind panel, BlockId set) or, probably, a background one.
@@ -92,17 +98,52 @@ type BranchAgent struct {
 	// ParentBlockId: the panel agent that probably started a background agent, when one stands out.
 	ParentBlockId   string `json:"parentblockid,omitempty"`
 	ParentFirstName string `json:"parentfirstname,omitempty"`
+	// A sub-agent's (#1035): its model, its task, and its state (companion.SubagentRunning, SubagentQuiet,
+	// SubagentDone); ActiveAt is then its last write, or its end.
+	Model       string `json:"model,omitempty"`
+	Description string `json:"description,omitempty"`
+	State       string `json:"state,omitempty"`
+	// Signed (#1603): a background agent named by its work's signature (FirstName, AgentName: the CLI's name as
+	// signed, Agent when the catalog knows it); BlockId is then the signer's session when it is still open.
+	Signed    bool   `json:"signed,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
+}
+
+// PaneSubagent is a sub-agent of a running agent panel, as its own files describe it.
+type PaneSubagent struct {
+	ParentBlockId   string
+	ParentFirstName string
+	Agent           string
+	companion.SubagentIdentity
+}
+
+// UpcomingDraft is an open draft PR's branch (#954): its ticket's board Status and its last commit tell whose turn
+// the draft is, the developer's or an agent's started outside MoltenTerm.
+type UpcomingDraft struct {
+	Branch string `json:"branch"`
+	Ticket int    `json:"ticket,omitempty"`
+	Status string `json:"status,omitempty"`
+	// The branch's last commit (local or on origin, the newest), in Unix milliseconds.
+	CommitAt int64 `json:"commitat,omitempty"`
 }
 
 type UpcomingAnswer struct {
-	Dir          string           `json:"dir"`
-	Target       string           `json:"target,omitempty"`
-	Branches     []UpcomingBranch `json:"branches"`
-	Agents       []BranchAgent    `json:"agents"`
-	Error        string           `json:"error,omitempty"`
-	ErrorText    *uimsg.Text      `json:"errortext,omitempty"`
-	TicketsError string           `json:"ticketserror,omitempty"`
-	At           int64            `json:"at"`
+	Dir      string           `json:"dir"`
+	Target   string           `json:"target,omitempty"`
+	Branches []UpcomingBranch `json:"branches"`
+	Agents   []BranchAgent    `json:"agents"`
+	Drafts   []UpcomingDraft  `json:"drafts,omitempty"`
+	// Leftovers: the branches of merged PRs that hold nothing new (#1088), with what is left of them.
+	Leftovers []UpcomingLeftover `json:"leftovers"`
+	// PrBranches: the other branches of the tickets that have an open PR, listed on its card, never Upcoming (#1172).
+	PrBranches []UpcomingPrBranch `json:"prbranches,omitempty"`
+	// HumanTesting: whether the project's workflow has a Human Testing column (UpcomingHumanTestingYes, …No), ""
+	// when it declares none (#1172).
+	HumanTesting string      `json:"humantesting,omitempty"`
+	Error        string      `json:"error,omitempty"`
+	ErrorText    *uimsg.Text `json:"errortext,omitempty"`
+	TicketsError string      `json:"ticketserror,omitempty"`
+	At           int64       `json:"at"`
 }
 
 // AgentPlace is a running agent terminal and where it works.
@@ -114,6 +155,12 @@ type AgentPlace struct {
 	// Cwd: the terminal's local folder; Link: the worktree MoltenTerm linked it to (molten:worktree).
 	Cwd  string
 	Link string
+	// Work: where the agent's adapter reads its session works now (#1476: a Codex command's workdir in a ticket's
+	// worktree), "" when unknown; it places the agent when it is in another worktree than Link or Cwd.
+	Work string
+	// Pid: the agent's process when the process tree found it (0 otherwise); a worktree lock's pid names its owner
+	// (#1143).
+	Pid int32
 	// Review: a review session's terminal, read-only, never the one working on the branch.
 	Review bool
 }
@@ -133,11 +180,19 @@ type UpcomingEnv struct {
 	Agents   func(ctx context.Context) []AgentPlace
 	// FileTime: a file's modification time, in Unix milliseconds (0 when it cannot be read).
 	FileTime func(path string) int64
+	// Subagents: the sub-agents of the running agent panels, their worktrees' symlinks resolved.
+	Subagents func(places []AgentPlace) []PaneSubagent
+	// ReviewTreesDir: the folder of the project's review worktrees (molten.ReviewTreesDir), nil when unknown (#1121).
+	ReviewTreesDir func(projectDir string) string
+	// Procs: the process table, read once per answer that has a lock held by a live process (#1143); nil: none.
+	Procs func() ProcFacts
 }
 
 type upcomingState struct {
-	answer    UpcomingAnswer
-	at        time.Time
+	answer UpcomingAnswer
+	at     time.Time
+	// places: the agent terminals the answer placed (placesKey); other ones make it out of date at once (#1077).
+	places    string
 	ticketKey string
 	ticketsAt time.Time
 	tickets   map[int]upcomingTicket
@@ -181,12 +236,30 @@ func (u *Upcoming) projectLock(dir string) *sync.Mutex {
 	return m
 }
 
-// cached answers with a fresh enough answer, or nil when one is due.
-func (u *Upcoming) cached(dir string, force bool) *UpcomingAnswer {
+// placesKey names the agent terminals and where they work, in a stable order.
+func placesKey(places []AgentPlace) string {
+	parts := make([]string, 0, len(places))
+	for _, p := range places {
+		parts = append(parts, fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%t", p.BlockId, p.Agent, p.FirstName, p.Started, p.Link, p.Cwd, p.Work, p.Review))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "\n")
+}
+
+func (u *Upcoming) places(ctx context.Context) []AgentPlace {
+	if u.env.Agents == nil {
+		return nil
+	}
+	return u.env.Agents(ctx)
+}
+
+// cached answers with a fresh enough answer, or nil when one is due. An answer computed with other agent terminals
+// is never fresh: the agents a restart restores, or one starting, show at the next ask, forced or not (#1077).
+func (u *Upcoming) cached(dir string, force bool, places string) *UpcomingAnswer {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	state := u.states[dir]
-	if state == nil || state.at.IsZero() {
+	if state == nil || state.at.IsZero() || state.places != places {
 		return nil
 	}
 	age := u.env.Now().Sub(state.at)
@@ -211,12 +284,13 @@ func (u *Upcoming) stateOf(dir string) *upcomingState {
 	return state
 }
 
-func (u *Upcoming) store(dir string, answer UpcomingAnswer) {
+func (u *Upcoming) store(dir string, answer UpcomingAnswer, places string) {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	if state := u.states[dir]; state != nil {
 		state.answer = answer
 		state.at = u.env.Now()
+		state.places = places
 	}
 }
 
@@ -226,22 +300,26 @@ func (u *Upcoming) Get(req UpcomingRequest) (UpcomingAnswer, error) {
 		return UpcomingAnswer{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	if answer := u.cached(dir, req.Force); answer != nil {
+	placesCtx, cancelPlaces := context.WithTimeout(context.Background(), upcomingGitTimeout)
+	defer cancelPlaces()
+	places := u.places(placesCtx)
+	key := placesKey(places)
+	if answer := u.cached(dir, req.Force, key); answer != nil {
 		return *answer, nil
 	}
 	m := u.projectLock(dir)
 	m.Lock()
 	defer m.Unlock()
-	if answer := u.cached(dir, req.Force); answer != nil {
+	if answer := u.cached(dir, req.Force, key); answer != nil {
 		return *answer, nil
 	}
-	answer := u.compute(dir)
-	u.store(dir, answer)
+	answer := u.compute(dir, places)
+	u.store(dir, answer, key)
 	return answer, nil
 }
 
-func (u *Upcoming) compute(dir string) UpcomingAnswer {
-	answer := UpcomingAnswer{Dir: dir, Branches: []UpcomingBranch{}, Agents: []BranchAgent{}, At: u.env.Now().UnixMilli()}
+func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
+	answer := UpcomingAnswer{Dir: dir, Branches: []UpcomingBranch{}, Agents: []BranchAgent{}, Leftovers: []UpcomingLeftover{}, At: u.env.Now().UnixMilli()}
 	var snap Snapshot
 	ok := false
 	if u.env.Snapshot != nil {
@@ -251,6 +329,7 @@ func (u *Upcoming) compute(dir string) UpcomingAnswer {
 		snap = Snapshot{Dir: dir}
 	}
 	answer.Target, _ = reviewTarget(snap)
+	answer.HumanTesting = readHumanTesting(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), upcomingGitTimeout)
 	defer cancel()
 	g := &gitReader{ctx: ctx, run: u.env.Run, dir: dir}
@@ -261,12 +340,18 @@ func (u *Upcoming) compute(dir string) UpcomingAnswer {
 		return answer
 	}
 	ticketRes := branchTicketRes(readBranchNaming(dir))
-	var places []AgentPlace
-	if u.env.Agents != nil {
-		places = u.env.Agents(ctx)
-	}
 	answer.Agents = MatchBranchAgents(trees, places)
-	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, answer.Agents, places, ticketRes)...)
+	if u.env.Subagents != nil {
+		answer.Agents = append(answer.Agents, SubagentBranchAgents(trees, answer.Agents, u.env.Subagents(places))...)
+	}
+	targetRef := answer.Target
+	if _, err := g.out("rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+answer.Target); err == nil {
+		targetRef = "refs/remotes/origin/" + answer.Target
+	}
+	procs := u.procsReader()
+	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, answer.Agents, places, ticketRes, backgroundFacts{
+		procs: procs, targetRef: targetRef, prBodies: openPrBodies(snap),
+	})...)
 	refs := parseBranchRefs(g.lines("for-each-ref", "--format=%(refname)%00%(committerdate:unix)", "refs/heads", "refs/remotes/origin"))
 	heads, known := openPrHeads(snap)
 	if !known {
@@ -274,16 +359,25 @@ func (u *Upcoming) compute(dir string) UpcomingAnswer {
 		return answer
 	}
 	candidates := UpcomingCandidates(refs, heads, ticketRes, answer.Target, trees, agentBranches(answer.Agents))
-	targetRef := answer.Target
-	if _, err := g.out("rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+answer.Target); err == nil {
-		targetRef = "refs/remotes/origin/" + answer.Target
-	}
+	ownerOf := lockOwners(places, answer.Agents, procs)
+	closed := closedPrsByBranch(snap)
+	remotes := remoteBranches(refs)
+	prTickets := openPrTickets(snap, ticketRes)
 	branches := make([]UpcomingBranch, 0, len(candidates))
 	for _, c := range candidates {
 		ref := "refs/heads/" + c.Branch
 		if c.Remote {
 			ref = "refs/remotes/origin/" + c.Branch
 		}
+		done := classifyDone(g, closed, c, ref, targetRef)
+		if done.leftover {
+			leftover, shown := withTreeLock(LeftoverOf(c, done.pr, remotes, answer.Target), trees, ownerOf)
+			if shown {
+				answer.Leftovers = append(answer.Leftovers, leftover)
+			}
+			continue
+		}
+		c = withAfter(c, done)
 		out, err := g.out("rev-list", "--count", targetRef+".."+ref)
 		if err != nil {
 			continue
@@ -292,20 +386,39 @@ func (u *Upcoming) compute(dir string) UpcomingAnswer {
 		if c.Ahead == 0 && !agentBranches(answer.Agents)[c.Branch] {
 			continue
 		}
+		if other, ok := prBranchOf(c, prTickets); ok {
+			answer.PrBranches = append(answer.PrBranches, other)
+			continue
+		}
 		branches = append(branches, c)
 	}
-	tickets, ticketErr := u.tickets(dir, snap, branches)
+	reviewTrees := ""
+	if u.env.ReviewTreesDir != nil {
+		reviewTrees = realPath(u.env.ReviewTreesDir(dir))
+	}
+	answer.Leftovers = ExtraLeftovers(g, closed, answer.Leftovers, ExtraLeftoverFacts{
+		Trees: trees, Locals: parseLocalBranches(g.lines("for-each-ref", "--format="+localBranchFormat, "refs/heads")),
+		Upcoming: upcomingNames(candidates), Target: answer.Target, TargetRef: targetRef, ReviewTrees: reviewTrees,
+	})
+	drafts := OpenDrafts(snap, refs, ticketRes)
+	tickets, ticketErr := u.tickets(dir, snap, branches, drafts)
 	answer.TicketsError = ticketErr
 	answer.Branches = ApplyUpcomingTickets(branches, tickets)
+	answer.Drafts = ApplyDraftTickets(drafts, tickets)
 	return answer
 }
 
 // tickets reads the candidate tickets' titles, states and board Status, at most once a minute for the same tickets.
-func (u *Upcoming) tickets(dir string, snap Snapshot, branches []UpcomingBranch) (map[int]upcomingTicket, string) {
+func (u *Upcoming) tickets(dir string, snap Snapshot, branches []UpcomingBranch, drafts []UpcomingDraft) (map[int]upcomingTicket, string) {
 	numbers := map[int]bool{}
 	for _, b := range branches {
 		if b.Ticket > 0 {
 			numbers[b.Ticket] = true
+		}
+	}
+	for _, d := range drafts {
+		if d.Ticket > 0 {
+			numbers[d.Ticket] = true
 		}
 	}
 	gh := snap.Github
@@ -364,7 +477,11 @@ func listTrees(g *gitReader) ([]treeEntry, error) {
 type treeEntry struct {
 	path string
 	// The short branch name, "" for a detached head.
-	branch string
+	branch   string
+	detached bool
+	// locked, with git's lock reason when one was given (#1121).
+	locked     bool
+	lockReason string
 }
 
 func parseTrees(out string) []treeEntry {
@@ -374,8 +491,18 @@ func parseTrees(out string) []treeEntry {
 			rtn = append(rtn, treeEntry{path: path})
 			continue
 		}
-		if ref, ok := strings.CutPrefix(line, "branch refs/heads/"); ok && len(rtn) > 0 {
-			rtn[len(rtn)-1].branch = ref
+		if len(rtn) == 0 {
+			continue
+		}
+		last := &rtn[len(rtn)-1]
+		if ref, ok := strings.CutPrefix(line, "branch refs/heads/"); ok {
+			last.branch = ref
+		} else if line == "detached" {
+			last.detached = true
+		} else if line == "locked" {
+			last.locked = true
+		} else if reason, ok := strings.CutPrefix(line, "locked "); ok {
+			last.locked, last.lockReason = true, reason
 		}
 	}
 	return rtn
@@ -426,10 +553,102 @@ func openPrHeads(snap Snapshot) (map[string]bool, bool) {
 	return heads, true
 }
 
+// OpenDrafts: the open draft PRs of the repository in the collector's snapshot, with their ticket (closing issue,
+// else the branch name) and their branch's last commit.
+func OpenDrafts(snap Snapshot, refs []branchRef, ticketRes []*regexp.Regexp) []UpcomingDraft {
+	gh := snap.Github
+	if gh == nil || gh.State != GithubStateOk || len(gh.Prs) == 0 {
+		return nil
+	}
+	var prs []ghReviewPr
+	if err := json.Unmarshal(gh.Prs, &prs); err != nil {
+		return nil
+	}
+	commitAt := map[string]int64{}
+	for _, ref := range refs {
+		if ref.commitAt > commitAt[ref.name] {
+			commitAt[ref.name] = ref.commitAt
+		}
+	}
+	var rtn []UpcomingDraft
+	for _, pr := range prs {
+		if !pr.IsDraft || pr.IsCrossRepository {
+			continue
+		}
+		ticket := ticketOfBranch(pr.HeadRefName, ticketRes)
+		if len(pr.ClosingIssuesReferences) > 0 {
+			ticket = pr.ClosingIssuesReferences[0].Number
+		}
+		rtn = append(rtn, UpcomingDraft{Branch: pr.HeadRefName, Ticket: ticket, CommitAt: commitAt[pr.HeadRefName]})
+	}
+	return rtn
+}
+
+// ApplyDraftTickets gives each draft its ticket's board Status.
+func ApplyDraftTickets(drafts []UpcomingDraft, tickets map[int]upcomingTicket) []UpcomingDraft {
+	for i, d := range drafts {
+		if ticket, ok := tickets[d.Ticket]; ok {
+			drafts[i].Status = ticket.Status
+		}
+	}
+	return drafts
+}
+
+// agentBranches: the branches an agent works on; a finished sub-agent no longer does.
 func agentBranches(agents []BranchAgent) map[string]bool {
 	rtn := map[string]bool{}
 	for _, a := range agents {
+		if a.Kind == UpcomingAgentSubagent && a.State == companion.SubagentDone {
+			continue
+		}
 		rtn[a.Branch] = true
+	}
+	return rtn
+}
+
+var subagentStateRank = map[string]int{companion.SubagentRunning: 2, companion.SubagentQuiet: 1, companion.SubagentDone: 0}
+
+// SubagentBranchAgents places each sub-agent in the linked worktree its own files name (#1035): one per worktree
+// without an agent panel, the running one first, then the most recently written.
+func SubagentBranchAgents(trees []treeEntry, panels []BranchAgent, subs []PaneSubagent) []BranchAgent {
+	if len(trees) < 2 {
+		return nil
+	}
+	busy := map[string]bool{}
+	for _, a := range panels {
+		busy[a.Worktree] = true
+	}
+	best := map[string]PaneSubagent{}
+	for _, s := range subs {
+		if s.Worktree == "" || !filepath.IsAbs(s.Worktree) {
+			continue
+		}
+		tree, ok := treeOf(trees, filepath.Clean(s.Worktree))
+		if !ok || tree.path == trees[0].path || tree.branch == "" || busy[tree.path] {
+			continue
+		}
+		have, ok := best[tree.path]
+		if ok {
+			if subagentStateRank[have.State] > subagentStateRank[s.State] {
+				continue
+			}
+			if subagentStateRank[have.State] == subagentStateRank[s.State] && have.LastWrite >= s.LastWrite {
+				continue
+			}
+		}
+		best[tree.path] = s
+	}
+	var rtn []BranchAgent
+	for _, tree := range trees[1:] {
+		s, ok := best[tree.path]
+		if !ok {
+			continue
+		}
+		rtn = append(rtn, BranchAgent{
+			Branch: tree.branch, Worktree: tree.path, Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started,
+			ActiveAt: s.LastWrite, ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
+			Description: s.Description, State: s.State,
+		})
 	}
 	return rtn
 }
@@ -519,17 +738,33 @@ func placePath(p AgentPlace) string {
 	return ""
 }
 
-// MatchBranchAgents places each running agent terminal in its worktree and so on that worktree's branch. Review
-// session terminals and detached worktrees name no branch an agent works on. The paths are compared as given: the
-// live layer resolves symlinks before.
+// placeTree is the worktree an agent terminal works in: the one its session works in (Work) when that is another
+// worktree than its terminal's (#1476: a session whose commands run in a ticket's worktree is on that ticket), else its
+// terminal's (Link, else Cwd). A Work outside every worktree of the project places nothing.
+func placeTree(trees []treeEntry, p AgentPlace) (treeEntry, bool) {
+	tree, ok := treeEntry{}, false
+	if path := placePath(p); path != "" {
+		tree, ok = treeOf(trees, path)
+	}
+	if !filepath.IsAbs(p.Work) {
+		return tree, ok
+	}
+	if work, found := treeOf(trees, filepath.Clean(p.Work)); found && (!ok || work.path != tree.path) {
+		return work, true
+	}
+	return tree, ok
+}
+
+// MatchBranchAgents places each running agent terminal in its worktree (placeTree) and so on that worktree's branch.
+// Review session terminals and detached worktrees name no branch an agent works on. The paths are compared as given:
+// the live layer resolves symlinks before.
 func MatchBranchAgents(trees []treeEntry, places []AgentPlace) []BranchAgent {
 	rtn := []BranchAgent{}
 	for _, p := range places {
-		path := placePath(p)
-		if p.Review || path == "" {
+		if p.Review {
 			continue
 		}
-		tree, ok := treeOf(trees, path)
+		tree, ok := placeTree(trees, p)
 		if !ok || tree.branch == "" {
 			continue
 		}
@@ -571,7 +806,10 @@ func (u *Upcoming) treeActivity(ctx context.Context, tree string) int64 {
 	return newest
 }
 
-func (u *Upcoming) backgroundAgents(ctx context.Context, trees []treeEntry, panels []BranchAgent, places []AgentPlace, ticketRes []*regexp.Regexp) []BranchAgent {
+// backgroundAgents finds the agents of the linked ticket worktrees no agent terminal is placed in, in the order of
+// #1603: a live agent panel whose process tree works inside the worktree, then (for a worktree with recent activity)
+// its signature, then its agent's own worktrees folder, else an unnamed background agent.
+func (u *Upcoming) backgroundAgents(ctx context.Context, trees []treeEntry, panels []BranchAgent, places []AgentPlace, ticketRes []*regexp.Regexp, facts backgroundFacts) []BranchAgent {
 	if len(trees) < 2 {
 		return nil
 	}
@@ -579,33 +817,63 @@ func (u *Upcoming) backgroundAgents(ctx context.Context, trees []treeEntry, pane
 	for _, a := range panels {
 		busy[a.Worktree] = true
 	}
+	var cands []treeEntry
+	for _, tree := range trees[1:] {
+		if busy[tree.path] || tree.branch == "" || ticketOfBranch(tree.branch, ticketRes) == 0 {
+			continue
+		}
+		// The session that locked it for its agent ended (#1121): no agent runs there, however recent its files.
+		if ended, _ := LockEnded(tree.lockReason); tree.locked && ended {
+			continue
+		}
+		cands = append(cands, tree)
+	}
+	if len(cands) == 0 {
+		return nil
+	}
+	var rtn []BranchAgent
+	if hasAgentPids(places) && facts.procs != nil {
+		rtn = LiveTreeAgents(cands, places, facts.procs())
+	}
+	known := append([]BranchAgent{}, panels...)
+	known = append(known, rtn...)
+	for _, a := range rtn {
+		busy[a.Worktree] = true
+	}
 	activity := map[string]int64{}
 	read := 0
-	for _, tree := range trees[1:] {
-		if busy[tree.path] || tree.branch == "" || ticketOfBranch(tree.branch, ticketRes) == 0 || read >= backgroundMaxTrees {
+	for _, tree := range cands {
+		if busy[tree.path] || read >= backgroundMaxTrees {
 			continue
 		}
 		read++
 		activity[tree.path] = u.treeActivity(ctx, tree.path)
 	}
-	return BackgroundAgents(trees, panels, places, activity, u.env.Now())
+	for _, agent := range BackgroundAgents(trees, known, places, activity, u.env.Now()) {
+		sig, ok := u.treeSignature(ctx, agent.Worktree, facts.targetRef, facts.prBodies[agent.Branch])
+		if ok {
+			agent = SignedAgent(agent, sig, places)
+		}
+		rtn = append(rtn, agent)
+	}
+	return rtn
 }
 
 // BackgroundAgents reports the linked worktrees without an agent terminal whose activity is recent. The parent is the
-// one Claude Code terminal working in the main checkout when the worktree is a Claude Code worktree agent's.
+// one terminal of an agent working in the main checkout when the worktree is in that agent's own worktrees folder
+// (molten.AgentKind.WorktreesDir: Claude Code's .claude/worktrees).
 func BackgroundAgents(trees []treeEntry, panels []BranchAgent, places []AgentPlace, activity map[string]int64, now time.Time) []BranchAgent {
 	if len(trees) < 2 {
 		return nil
 	}
 	main := trees[0]
-	var parents []AgentPlace
+	parents := map[string][]AgentPlace{}
 	for _, p := range places {
-		path := placePath(p)
-		if p.Review || p.Agent != molten.AgentIdClaude || path == "" {
+		if p.Review || p.Agent == "" {
 			continue
 		}
-		if tree, ok := treeOf(trees, path); ok && tree.path == main.path {
-			parents = append(parents, p)
+		if tree, ok := placeTree(trees, p); ok && tree.path == main.path {
+			parents[p.Agent] = append(parents[p.Agent], p)
 		}
 	}
 	busy := map[string]bool{}
@@ -620,15 +888,25 @@ func BackgroundAgents(trees []treeEntry, panels []BranchAgent, places []AgentPla
 			continue
 		}
 		agent := BranchAgent{Branch: tree.branch, Worktree: tree.path, Kind: UpcomingAgentBackground, ActiveAt: at}
-		if pathInside(tree.path, filepath.Join(main.path, claudeWorktreesDir)) {
-			agent.Agent = molten.AgentIdClaude
-			if len(parents) == 1 {
-				agent.ParentBlockId, agent.ParentFirstName = parents[0].BlockId, parents[0].FirstName
+		if kind := worktreesKind(main.path, tree.path); kind != "" {
+			agent.Agent = kind
+			if ps := parents[kind]; len(ps) == 1 {
+				agent.ParentBlockId, agent.ParentFirstName = ps[0].BlockId, ps[0].FirstName
 			}
 		}
 		rtn = append(rtn, agent)
 	}
 	return rtn
+}
+
+// worktreesKind is the agent whose own worktrees folder holds the worktree, "" when none does.
+func worktreesKind(mainPath string, treePath string) string {
+	for _, kind := range molten.AgentKinds {
+		if kind.WorktreesDir != "" && pathInside(treePath, filepath.Join(mainPath, kind.WorktreesDir)) {
+			return kind.Id
+		}
+	}
+	return ""
 }
 
 type ghUpcomingIssue struct {

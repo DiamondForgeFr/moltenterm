@@ -214,6 +214,9 @@ func TestProcWatchIdleTerminalsCostNothing(t *testing.T) {
 	h.setProcs(procs...)
 	h.pw.restore()
 	h.pw.pass()
+	for i := int32(0); i < 10; i++ {
+		h.out(string(rune('a'+i)), promptMark)
+	}
 	for i := 0; i < 100; i++ {
 		h.advance(time.Second)
 	}
@@ -228,6 +231,62 @@ func TestProcWatchIdleTerminalsCostNothing(t *testing.T) {
 	}
 	if h.next("a").IsZero() == false {
 		t.Error("output from a known terminal plans no pass")
+	}
+}
+
+// A shell without the shell integration (/bin/sh) announces no command (#1476): the agent it starts at its prompt is
+// found once Enter is sent, or on its output, and forgotten once it exits. Its idle output is looked at no more than
+// once per procProbeEvery.
+func TestProcWatchFindsAgentsWithoutShellIntegration(t *testing.T) {
+	for _, from := range []string{"enter", "output"} {
+		h := makeProcHarness()
+		h.shells["b1"] = ShellProcess{BlockId: "b1", Pid: 100, StartMs: 1_000}
+		h.setProcs(shellProc(100, 100))
+		h.out("b1", "$ ")
+		h.advance(procFirstDelay)
+		if !h.next("b1").IsZero() {
+			t.Fatalf("%s: a shell at its prompt is not polled", from)
+		}
+		reads := h.reads
+		h.clock = h.clock.Add(time.Second)
+		h.out("b1", "c")
+		h.advance(procFirstDelay)
+		if h.reads != reads {
+			t.Fatalf("%s: idle output within procProbeEvery read the process table", from)
+		}
+		h.clock = h.clock.Add(procProbeEvery)
+		start := h.clock.UnixMilli()
+		h.setProcs(shellProc(100, 200), childProc(200, 100, 200, "codex", start))
+		if from == "enter" {
+			h.states.input("b1", []byte("codex\r"))
+		} else {
+			h.out("b1", "codex is starting")
+		}
+		h.advance(procFirstDelay)
+		run, _, ok := h.record("b1")
+		if !ok || run.Agent != molten.AgentIdCodex || run.Started != start || !run.Running {
+			t.Fatalf("%s: agent in a shell without integration: %+v %v", from, run, ok)
+		}
+		if h.next("b1").IsZero() {
+			t.Fatalf("%s: the running agent is followed", from)
+		}
+		h.setProcs(shellProc(100, 100))
+		h.advance(procSlowPeriod)
+		if _, _, ok := h.record("b1"); ok {
+			t.Fatalf("%s: the agent that exited is forgotten", from)
+		}
+		if !h.next("b1").IsZero() {
+			t.Fatalf("%s: polling stops at the prompt", from)
+		}
+	}
+	// With the shell integration, Enter plans nothing: the command's mark does.
+	h := makeProcHarness()
+	h.shells["b1"] = ShellProcess{BlockId: "b1", Pid: 100, StartMs: 1_000}
+	h.setProcs(shellProc(100, 100))
+	h.out("b1", promptMark)
+	h.states.input("b1", []byte("ls\r"))
+	if !h.next("b1").IsZero() {
+		t.Error("Enter in an integrated shell plans a look")
 	}
 }
 

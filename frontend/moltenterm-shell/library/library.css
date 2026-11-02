@@ -1,0 +1,1608 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The library (FR-SHELL-088), from the #1181 prototype (.libx, .lnav, .lcont): over the window, its own navigation on
+   the left, a wide page on the right. Under the dialogs (--zindex-modal-wrapper), so a sheet it opens stays on top. */
+
+.mt-lib {
+    --mt-lib-fg-3: var(--mt-text-3);
+    position: fixed;
+    z-index: 400;
+    inset: 8px;
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+    box-sizing: border-box;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-0);
+    box-shadow:
+        var(--mt-shadow-command),
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    color: var(--color-primary);
+    font-size: var(--mt-text-13);
+    animation: mt-lib-in var(--mt-duration-base) var(--mt-ease);
+}
+
+@keyframes mt-lib-in {
+    from {
+        opacity: 0;
+        transform: translateX(-18px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-lib {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-lib {
+    animation: none;
+}
+
+.mt-lib :focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+    .mt-lib {
+        grid-template-columns: 76px minmax(0, 1fr);
+    }
+    .mt-lib-ni {
+        font-size: var(--mt-text-11);
+        padding: 9px 2px;
+    }
+}
+
+.mt-lib-nav {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 0;
+}
+
+/* Room for the window's own buttons, and a place to drag the window by. */
+.mt-lib-navtop {
+    height: 24px;
+    flex: none;
+    -webkit-app-region: drag;
+}
+
+.mt-lib-items {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+.mt-lib-ni {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 4px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-semibold);
+    text-align: center;
+    cursor: pointer;
+    transition:
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-lib-ni:hover {
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-ni.is-on {
+    background: color-mix(in srgb, var(--mt-veil) 12%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-bot {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 2px;
+}
+
+.mt-lib-icon {
+    display: flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--color-secondary);
+    cursor: pointer;
+}
+
+.mt-lib-icon:hover {
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-pop {
+    position: absolute;
+    z-index: 2;
+    left: 0;
+    bottom: 36px;
+    display: flex;
+    width: 260px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-iron, rgb(20 17 16)) 92%, var(--mt-tone-ink, white));
+    box-shadow:
+        var(--mt-shadow-command),
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 10%, transparent);
+}
+
+.mt-lib-pop p {
+    margin: 0;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-12);
+    line-height: 1.5;
+}
+
+.mt-lib-cont {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    box-sizing: border-box;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-sink) 18%, transparent);
+}
+
+.mt-lib-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mt-lib-head h3 {
+    margin: 0;
+    font-size: var(--mt-text-15);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-lib-head p {
+    margin: 0;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-12);
+}
+
+.mt-lib-search {
+    width: min(260px, 45%);
+    margin-left: auto;
+    padding: 5px 9px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 6%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 10%, transparent);
+    color: var(--color-primary);
+    font-size: var(--mt-text-12);
+    outline: none;
+}
+
+.mt-lib-search:focus {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 40%, transparent);
+}
+
+.mt-lib-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+/* Workspaces: one column each, side by side. */
+.mt-lib-wscols {
+    display: flex;
+    gap: 10px;
+    height: 100%;
+    min-height: 360px;
+}
+
+.mt-lib-wscol {
+    display: flex;
+    flex: 0 0 236px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    overflow-y: auto;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(
+        in srgb,
+        color-mix(in srgb, var(--mt-lib-c) 18%, var(--mt-iron, rgb(20 17 16))) 70%,
+        var(--color-black, black)
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 7%, transparent);
+    cursor: pointer;
+    transition: box-shadow var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-lib-wscol:hover {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-lib-c) 70%, transparent);
+}
+
+.mt-lib-wscol.is-cur {
+    box-shadow: inset 0 0 0 1.5px var(--mt-lib-c);
+}
+
+.mt-lib-lg {
+    display: flex;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--mt-radius-panel);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-lib-tile {
+    position: relative;
+    display: flex;
+    height: 46px;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    color: var(--color-primary);
+    font-size: var(--mt-text-11);
+    cursor: pointer;
+}
+
+/* A top-row block: glyph only, as in the sidebar's top row (#1307). */
+.mt-lib-tile.mt-lib-top {
+    height: 32px;
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+}
+
+.mt-lib-tile:hover {
+    background: color-mix(in srgb, var(--mt-veil) 15%, transparent);
+}
+
+.mt-lib-tile.is-on {
+    background: color-mix(in srgb, var(--mt-veil) 20%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 20%, transparent);
+}
+
+.mt-lib-sect {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 2px 0;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.mt-lib-mrow {
+    display: flex;
+    min-height: 26px;
+    width: 100%;
+    align-items: center;
+    gap: 7px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-lib-mrow:hover,
+.mt-lib-mrow.is-on {
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-mrow .t {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-av {
+    display: flex;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    color: var(--color-primary);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-lib-av.is-working {
+    background: color-mix(in srgb, var(--mt-state-working) 45%, transparent);
+}
+
+.mt-lib-av.is-waiting {
+    background: color-mix(in srgb, var(--mt-state-waiting) 55%, transparent);
+}
+
+.mt-lib-av.is-error {
+    background: color-mix(in srgb, var(--mt-state-error) 55%, transparent);
+}
+
+.mt-lib-av.is-done {
+    background: color-mix(in srgb, var(--mt-state-done) 40%, transparent);
+}
+
+/* Panels: a card per kind. */
+.mt-lib-pcards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.mt-lib-pcard {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 6%, transparent);
+}
+
+.mt-lib-pcard p {
+    flex: 1;
+    margin: 0;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-12);
+    line-height: 1.5;
+}
+
+.mt-lib-pic {
+    display: flex;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    font-style: normal;
+}
+
+/* A calm secondary button: the library's actions are many and none is the page's single call to action. */
+.mt-lib-btn {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 4px 10px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 10%, transparent);
+    color: var(--color-primary);
+    font-size: var(--mt-text-12);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.mt-lib-btn:hover {
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+}
+
+/* Add to on a pinned view: the question in place of the button (FR-SHELL-094). */
+.mt-lib-ask {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mt-lib-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.mt-lib-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    cursor: pointer;
+}
+
+.mt-lib-link:hover {
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+    color: var(--color-primary);
+}
+
+/* Sent to AI. */
+.mt-lib-day {
+    padding: 10px 10px 4px;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.mt-lib-airow {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--color-secondary);
+    text-align: left;
+}
+
+.mt-lib-airow:hover {
+    background: color-mix(in srgb, var(--mt-veil) 6%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-airow .t {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mt-lib-airow .t b {
+    overflow: hidden;
+    color: var(--color-primary);
+    font-weight: var(--mt-weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-airow .t span {
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-state {
+    padding: 2px 7px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+/* Shared with agents (#1538): one block per agent, its pages under it. Remove and Show are calm secondary actions:
+   the orange stays for calls to action. */
+.mt-lib-aigroup {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 4%, transparent);
+}
+
+.mt-lib-aihead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px 6px;
+}
+
+.mt-lib-aihead .t {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mt-lib-aihead .t b {
+    color: var(--color-primary);
+    font-size: var(--mt-text-13);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-lib-aihead .t > span:last-child {
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-aiact {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border: 1px solid color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.mt-lib-aiact:hover {
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-aiact:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.mt-lib-ai-empty {
+    max-width: 420px;
+    margin-inline: auto;
+    gap: 8px;
+}
+
+/* Materials (FR-MAT-002, mockups a and b of #1290). */
+.mt-lib-ni {
+    position: relative;
+}
+
+/* What arrived since the last visit: grey, it claims no attention. */
+.mt-lib-cnt {
+    position: absolute;
+    top: 6px;
+    right: 14px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 9999px;
+    background: var(--mt-surface-3);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 16px;
+}
+
+.mt-lib-mat-scope {
+    align-self: flex-start;
+    padding: 3px 10px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--color-primary);
+    font-size: var(--mt-text-12);
+}
+
+.mt-lib-mat {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 7px 10px;
+    border-radius: var(--mt-radius-panel);
+    color: var(--mt-text-2);
+    cursor: pointer;
+}
+
+.mt-lib-mat:hover {
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+}
+
+.mt-lib-mat.is-sel {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
+.mt-lib-mat-th {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 44px;
+    height: 32px;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-3);
+}
+
+.mt-lib-mat-tx {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.mt-lib-mat-tx b {
+    overflow: hidden;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-mat-tx > span {
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-tk {
+    color: var(--mt-text-2);
+    font-family: var(--fixed-font, monospace);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-mat-pin {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+/* The form is a state, never the action orange. */
+.mt-lib-mat-form {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+.mt-lib-mat-form.is-live {
+    background: color-mix(in srgb, var(--mt-state-ready) 18%, transparent);
+    color: var(--mt-state-ready);
+}
+
+.mt-lib-mat-form.is-warn {
+    background: color-mix(in srgb, var(--mt-state-running) 16%, transparent);
+    color: var(--mt-state-running);
+}
+
+/* The selected row carries the one orange button and the menu; the others show the menu on hover. */
+.mt-lib-mat-go,
+.mt-lib-mat-more {
+    display: none;
+    flex-shrink: 0;
+}
+
+.mt-lib-mat.is-sel .mt-lib-mat-go {
+    display: inline-flex;
+}
+
+.mt-lib-mat.is-sel .mt-lib-mat-more,
+.mt-lib-mat:hover .mt-lib-mat-more {
+    display: grid;
+}
+
+.mt-lib-mat-more {
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-2);
+    cursor: pointer;
+}
+
+.mt-lib-mat-more:hover {
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    color: var(--color-primary);
+}
+
+/* The section's menu, next to its scope (Search past sessions, FR-MAT-008). */
+.mt-lib-mat-menu {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--mt-text-2);
+}
+
+.mt-lib-mat-menu:hover {
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+    color: var(--color-primary);
+}
+
+/* The search's one line: what it does now, then what it found. */
+.mt-lib-mat-recover {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 6%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--color-primary);
+    font-size: var(--mt-text-12);
+}
+
+.mt-lib-mat-rename {
+    width: 100%;
+    height: 24px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-term);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+    outline: none;
+}
+
+.mt-lib-mat-was {
+    margin-top: 3px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-mat-ask {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 2px 0 6px 64px;
+    padding: 8px 10px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
+/* Material cards on a wide section (#1546, DS-MAT-010). The kind and the state take state and neutral tokens: the
+   action orange stays on the one button. */
+.mt-lib-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    padding: 2px 2px 8px;
+}
+
+.mt-lib-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 4%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-1, var(--mt-line-2));
+    color: var(--mt-text-2);
+    cursor: pointer;
+    outline: none;
+}
+
+.mt-lib-card:hover {
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+}
+
+.mt-lib-card.is-sel {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
+.mt-lib-card:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--mt-text-3);
+}
+
+.mt-lib-card-vis {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: var(--mt-surface-2);
+    box-shadow: inset 0 -1px 0 var(--mt-line-2);
+}
+
+.mt-lib-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mt-lib-card-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: 90%;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-32);
+}
+
+.mt-lib-card-host {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-card-kind {
+    --mt-kind: var(--mt-state-draft);
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-kind) 20%, var(--mt-surface-1, var(--mt-surface-2)));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-kind) 40%, transparent);
+    color: var(--mt-kind);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    white-space: nowrap;
+}
+
+.mt-lib-card-kind.is-page {
+    --mt-kind: var(--mt-state-info);
+}
+
+.mt-lib-card-kind.is-link {
+    --mt-kind: var(--mt-state-waiting);
+}
+
+.mt-lib-card-kind.is-image {
+    --mt-kind: var(--mt-state-ready);
+}
+
+.mt-lib-card-kind.is-video {
+    --mt-kind: var(--mt-state-warning);
+}
+
+.mt-lib-card-kind.is-pdf {
+    --mt-kind: var(--mt-state-blocked);
+}
+
+.mt-lib-card-state {
+    position: absolute;
+    top: 9px;
+    right: 8px;
+    background: color-mix(in srgb, var(--mt-veil) 10%, var(--mt-surface-2));
+}
+
+.mt-lib-card-state.is-warn {
+    background: color-mix(in srgb, var(--mt-state-running) 18%, var(--mt-surface-2));
+}
+
+/* The one action and the menu at the foot of the visual, on hover, focus or selection. */
+.mt-lib-card-acts {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.mt-lib-card:hover .mt-lib-card-acts,
+.mt-lib-card:focus-within .mt-lib-card-acts,
+.mt-lib-card.is-sel .mt-lib-card-acts {
+    display: flex;
+}
+
+.mt-lib-card-acts .mt-lib-mat-go {
+    display: inline-flex;
+}
+
+.mt-lib-card-acts .mt-lib-mat-more {
+    display: grid;
+    background: color-mix(in srgb, var(--mt-veil) 10%, var(--mt-surface-2));
+}
+
+.mt-lib-card-body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 10px 10px;
+}
+
+.mt-lib-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.mt-lib-card-title {
+    display: -webkit-box;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-13);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.mt-lib-card-head .mt-lib-mat-pin {
+    margin-top: 3px;
+}
+
+.mt-lib-card-place {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-card-place.is-live {
+    color: var(--mt-text-1);
+}
+
+.mt-lib-card-dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--mt-state-ready);
+}
+
+.mt-lib-card-origin {
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-card .mt-lib-mat-ask {
+    margin: 6px 0 0;
+    cursor: default;
+}
+
+/* Put-away views. */
+.mt-lib-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 4%, transparent);
+}
+
+.mt-lib-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-top: 30px;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-12);
+    text-align: center;
+}
+
+.mt-lib-empty b {
+    color: var(--color-primary);
+    font-size: var(--mt-text-13);
+}
+
+/* Settings: one navigation (#1592). The row of tabs is always there, sticky at the top of the scrolling page (#1548):
+   Overview first, then one tab per block in Preferences' order, icon and name, the shown one marked, never hidden (on
+   a narrow window it scrolls sideways). The reveal of an opened block (#1407) starts from its chip in the row. The
+   stage's data-state ("overview" or "open") says which. */
+.mt-lib-settabs {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    gap: 6px;
+    padding: 4px 0 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    background: color-mix(in srgb, var(--mt-sink) 18%, var(--mt-surface-0));
+}
+
+.mt-lib-set {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    color: var(--color-primary);
+    font-size: var(--mt-text-12);
+    white-space: nowrap;
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-lib-set:hover,
+.mt-lib-setcard:hover {
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+}
+
+.mt-lib-set.is-error {
+    align-self: flex-start;
+    color: var(--color-error);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-error) 50%, transparent);
+}
+
+/* Overview: the blocks as compact cards, icon, name and one line of description, so they hold in about three rows at
+   the usual width. */
+.mt-lib-setgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 6px;
+}
+
+.mt-lib-setcard {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    color: var(--color-primary);
+    font-size: var(--mt-text-12);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-lib-setcard > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.mt-lib-setcard small {
+    overflow: hidden;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-set[aria-current="true"] {
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent);
+    font-weight: var(--mt-weight-semibold);
+}
+
+/* The molten reveal of an open block (#1407, DS-SHELL-138, settings-reveal.ts): the overlay holds these pieces only
+   while the reveal runs; the animations move them by transform and opacity, so their size and place are set once.
+   Molten is the heat scale of theme Coulée: the white-hot glint, the incandescent, the action orange, then cast iron
+   as it cools. */
+.mt-lib-setstage {
+    position: relative;
+    /* The channels lie under the page's content (#1549): their layer is at a negative z-index inside the stage. */
+    isolation: isolate;
+}
+
+/* Above the sticky row (z-index 3): the clicked chip melts where it is. */
+.mt-reveal-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.mt-reveal-layer:empty {
+    display: none;
+}
+
+.mt-reveal-layer > * {
+    position: absolute;
+}
+
+.mt-reveal-source {
+    border-radius: var(--mt-radius-panel);
+    transform-origin: 50% 100%;
+    background: radial-gradient(
+        ellipse at 50% 80%,
+        var(--mt-action-glint),
+        var(--mt-state-running) 30%,
+        var(--mt-action) 70%,
+        color-mix(in srgb, var(--mt-action) 60%, transparent)
+    );
+    box-shadow: 0 0 18px 2px color-mix(in srgb, var(--mt-action) 55%, transparent);
+}
+
+.mt-reveal-slab {
+    border-radius: var(--mt-radius-panel);
+}
+
+.mt-reveal-slab > * {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+}
+
+.mt-reveal-hot {
+    background: radial-gradient(
+        circle at var(--mt-reveal-hot-x) var(--mt-reveal-hot-y),
+        var(--mt-action-glint),
+        var(--mt-state-running) 18%,
+        var(--mt-action) 48%,
+        color-mix(in srgb, var(--mt-action) 40%, var(--mt-sink))
+    );
+    box-shadow: 0 0 22px 2px color-mix(in srgb, var(--mt-action) 45%, transparent);
+}
+
+/* Cast iron with the last of the heat in it. */
+.mt-reveal-shard {
+    background:
+        radial-gradient(
+            circle at var(--mt-reveal-hot-x) var(--mt-reveal-hot-y),
+            color-mix(in srgb, var(--mt-action) 28%, transparent),
+            transparent 60%
+        ),
+        color-mix(in srgb, var(--mt-state-draft) 28%, var(--mt-surface-2));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-state-draft) 60%, transparent);
+}
+
+.mt-reveal-crack {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    fill: none;
+    stroke: var(--mt-state-running);
+    stroke-width: 2px;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 3px var(--mt-action));
+}
+
+/* A card's icon tile filling with molten (#1593): a copy of the tile above the slab, its glyph above the molten. The
+   molten body is pre-painted (heat scale: a white-hot crest, incandescent, ember towards the bottom, never the action
+   orange) under a still wave mask two periods wide; it only moves by transform. Its hot layer fades into cast iron. */
+.mt-reveal-tile {
+    overflow: hidden;
+    box-shadow: none;
+}
+
+.mt-reveal-tile > svg {
+    position: relative;
+    z-index: 1;
+    /* The glyph reads on the molten in both themes. */
+    filter: drop-shadow(0 0 1px color-mix(in srgb, black 70%, transparent));
+}
+
+.mt-reveal-melt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    --mt-melt-ember: color-mix(in oklab, var(--mt-state-running) 55%, var(--mt-state-blocked));
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--mt-state-draft) 45%, var(--mt-surface-2)),
+        color-mix(in oklab, var(--mt-state-draft) 70%, var(--mt-melt-ember))
+    );
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='46' viewBox='0 0 72 46' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q9 0 18 5T36 5T54 5T72 5V46H0Z'/%3E%3C/svg%3E")
+        0 0 / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='46' viewBox='0 0 72 46' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q9 0 18 5T36 5T54 5T72 5V46H0Z'/%3E%3C/svg%3E")
+        0 0 / 100% 100% no-repeat;
+}
+
+.mt-reveal-melt-hot {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        var(--mt-action-glint) 0,
+        var(--mt-state-running) 18%,
+        var(--mt-melt-ember) 70%,
+        color-mix(in oklab, var(--mt-melt-ember) 70%, black)
+    );
+}
+
+/* The ambient flow's end at a tile: a faint glow, still (#1593). */
+.mt-ch-entry-glow {
+    border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--mt-state-running) 30%, transparent), transparent 70%);
+}
+
+/* The channels of the reveal (#1549, DS-SHELL-138, settings-channels.ts): pipework engraved in the page's background,
+   behind the cards and never over text. The groove is cast iron: a dark cut with a lighter lower lip, painted once.
+   The reveal's molten slides into each run (a pre-painted bar moved by transform) and its bulge leads it; it drains
+   into the bed, a faint incandescent line in the groove, where the ambient flow keeps running: a pre-painted tile of
+   streaks per run, moved by one tile per whole-second cycle on the 1/15 s grid (every other step). It is in the running
+   colour, never the action orange (it is not an action). */
+.mt-ch-layer {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.mt-ch-layer:empty {
+    display: none;
+}
+
+.mt-ch-layer > *,
+.mt-ch-molten > *,
+.mt-ch-ambient > * {
+    position: absolute;
+}
+
+.mt-ch-molten,
+.mt-ch-ambient {
+    inset: 0;
+}
+
+.mt-ch-groove,
+.mt-ch-bed {
+    left: 0;
+    top: 0;
+    overflow: visible;
+    fill: none;
+    stroke-linecap: butt;
+}
+
+.mt-ch-lip {
+    transform: translateY(1px);
+    stroke: color-mix(in srgb, var(--mt-surface-2) 85%, transparent);
+    stroke-width: 12px;
+}
+
+.mt-ch-cut {
+    stroke: color-mix(in srgb, var(--mt-sink) 48%, var(--mt-surface-0));
+    stroke-width: 12px;
+}
+
+.mt-ch-bed-line {
+    stroke: color-mix(in srgb, var(--mt-state-running) 16%, transparent);
+    stroke-width: 2px;
+}
+
+/* The molten of the reveal: darker cooling edges around a hot core. The edges darken towards black, not the sink:
+   the light theme's sink is pale and would wash them out. */
+.mt-ch-run {
+    overflow: hidden;
+}
+
+/* The bar sits in the middle of its clip box, the glow (ChannelPx.glow) on each side. Its lumps, brighter clots of
+   melt along it, travel with it, so it reads as a liquid flowing rather than a line drawing itself. */
+.mt-ch-fill {
+    position: absolute;
+    inset: 4px 0;
+    border-radius: var(--mt-radius-control);
+    --mt-ch-edge: color-mix(in oklab, var(--mt-action) 62%, black);
+    --mt-ch-lump: color-mix(in srgb, var(--mt-action-glint) 40%, transparent);
+    --mt-ch-clot: color-mix(in srgb, var(--mt-ch-edge) 50%, transparent);
+    background:
+        repeating-linear-gradient(
+            to right,
+            transparent 0 21px,
+            var(--mt-ch-lump) 29px,
+            transparent 41px,
+            transparent 53px
+        ),
+        repeating-linear-gradient(
+            to right,
+            transparent 0 30px,
+            var(--mt-ch-clot) 36px,
+            transparent 43px,
+            transparent 63px,
+            var(--mt-ch-lump) 66px,
+            transparent 71px,
+            transparent 83px
+        ),
+        linear-gradient(
+            to bottom,
+            var(--mt-ch-edge),
+            var(--mt-action) 22%,
+            var(--mt-state-running) 40%,
+            var(--mt-action-glint) 50%,
+            var(--mt-state-running) 60%,
+            var(--mt-action) 78%,
+            var(--mt-ch-edge)
+        );
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--mt-action) 50%, transparent);
+}
+
+.mt-ch-run.is-y .mt-ch-fill {
+    inset: 0 4px;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0 21px,
+            var(--mt-ch-lump) 29px,
+            transparent 41px,
+            transparent 53px
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0 30px,
+            var(--mt-ch-clot) 36px,
+            transparent 43px,
+            transparent 63px,
+            var(--mt-ch-lump) 66px,
+            transparent 71px,
+            transparent 83px
+        ),
+        linear-gradient(
+            to right,
+            var(--mt-ch-edge),
+            var(--mt-action) 22%,
+            var(--mt-state-running) 40%,
+            var(--mt-action-glint) 50%,
+            var(--mt-state-running) 60%,
+            var(--mt-action) 78%,
+            var(--mt-ch-edge)
+        );
+}
+
+.mt-ch-elbow {
+    overflow: visible;
+    fill: none;
+}
+
+.mt-ch-elbow-edge {
+    stroke: color-mix(in oklab, var(--mt-action) 78%, black);
+    stroke-width: 8px;
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--mt-action) 60%, transparent));
+}
+
+.mt-ch-elbow-core {
+    stroke: var(--mt-state-running);
+    stroke-width: 3px;
+}
+
+/* The bulge at the flow's front: a droplet wider than the channel, rounder and white-hot at its leading end
+   (settings-reveal.ts turns it the way the run flows). */
+.mt-ch-head {
+    left: 0;
+    top: 0;
+    width: 20px;
+    height: 14px;
+    margin: -7px 0 0 -14px;
+    /* The point on the route: the droplet turns around it. */
+    transform-origin: 14px 7px;
+    border-radius: 45% 55% 55% 45% / 50%;
+    background: radial-gradient(
+        ellipse 70% 60% at 68% 50%,
+        var(--mt-action-glint) 0 22%,
+        var(--mt-state-running) 46%,
+        var(--mt-action) 72%,
+        color-mix(in oklab, var(--mt-action) 66%, black)
+    );
+    box-shadow: 0 0 10px 2px color-mix(in srgb, var(--mt-state-running) 50%, transparent);
+}
+
+/* The ambient flow: the core of each long run, with streaks that lead in the flow's direction. */
+.mt-ch-flow {
+    overflow: hidden;
+    border-radius: 9999px;
+}
+
+.mt-ch-flow-tile {
+    position: absolute;
+    will-change: transform;
+    --mt-ch-streak: color-mix(in srgb, var(--mt-state-running) 55%, transparent);
+    --mt-ch-trail: color-mix(in srgb, var(--mt-state-running) 14%, transparent);
+}
+
+.mt-ch-flow.is-x .mt-ch-flow-tile {
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(
+            to right,
+            transparent 16px,
+            var(--mt-ch-trail) 30px,
+            var(--mt-ch-streak) 46px,
+            transparent 52px
+        )
+        0 0 / 56px 100% repeat-x;
+}
+
+.mt-ch-flow.is-x.is-rev .mt-ch-flow-tile {
+    background: linear-gradient(
+            to left,
+            transparent 16px,
+            var(--mt-ch-trail) 30px,
+            var(--mt-ch-streak) 46px,
+            transparent 52px
+        )
+        0 0 / 56px 100% repeat-x;
+}
+
+.mt-ch-flow.is-y .mt-ch-flow-tile {
+    left: 0;
+    right: 0;
+    background: linear-gradient(
+            to bottom,
+            transparent 16px,
+            var(--mt-ch-trail) 30px,
+            var(--mt-ch-streak) 46px,
+            transparent 52px
+        )
+        0 0 / 100% 56px repeat-y;
+}
+
+.mt-ch-flow.is-y.is-rev .mt-ch-flow-tile {
+    background: linear-gradient(
+            to top,
+            transparent 16px,
+            var(--mt-ch-trail) 30px,
+            var(--mt-ch-streak) 46px,
+            transparent 52px
+        )
+        0 0 / 100% 56px repeat-y;
+}
+
+/* settings-channels.ts does not draw them under reduced motion; these keep them off between the switch and the render. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-ch-layer {
+        display: none;
+    }
+}
+
+.prefers-reduced-motion .mt-ch-layer {
+    display: none;
+}
+
+/* Agents (#1699): one card per agent, then its page; the same layout for every agent. */
+.mt-lib-agcard {
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-lib-agcard:hover {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+}
+
+.mt-lib-agstate {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-agstate::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mt-state-draft);
+    content: "";
+}
+
+.mt-lib-agstate[data-state="signedin"]::before {
+    background: var(--mt-state-ready);
+}
+
+.mt-lib-agstate[data-state="signinunseen"]::before {
+    background: var(--mt-state-info);
+}
+
+/* An install or uninstall that runs shows the app's working dominoes (#1712) in place of the state dot. */
+.mt-lib-agstate[data-state="running"]::before {
+    display: none;
+}
+
+.mt-lib-agstate[data-state="running"] .df-domino-loader,
+.mt-lib-agdom {
+    color: var(--mt-state-running);
+}
+
+.mt-lib-agpage {
+    display: flex;
+    max-width: 760px;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mt-lib-agblock {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 6%, transparent);
+    font-size: var(--mt-text-12);
+    line-height: 1.5;
+}
+
+.mt-lib-agblock h4 {
+    margin: 0;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.mt-lib-agblock p {
+    margin: 0;
+}
+
+.mt-lib-aglist {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding-left: 16px;
+    list-style: disc;
+}
+
+.mt-lib-agfacts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 16px;
+    margin: 0;
+}
+
+.mt-lib-agfacts dt {
+    color: var(--mt-lib-fg-3);
+}
+
+.mt-lib-agfacts dd {
+    margin: 0;
+    color: var(--color-primary);
+}
+
+.mt-lib-agwarn {
+    color: var(--mt-state-warning);
+}
+
+.mt-lib-agnote {
+    padding: 6px 8px;
+    border-left: 2px solid var(--mt-state-info);
+    color: var(--color-secondary);
+}

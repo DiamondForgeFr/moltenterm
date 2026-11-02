@@ -9,7 +9,6 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import { t } from "./i18n/i18n";
@@ -26,14 +25,14 @@ import {
     KeepAwakeRoute,
     KeepAwakeState,
     KeepAwakeStateCommand,
+    KeepAwakeStopCommand,
     SleepPolicy,
     SleepPolicyGesture,
 } from "./keepawake-model";
+import { KeepAwakeRefresh } from "./keepawake-refresh";
 import { registerNotificationGesture } from "./notifications-store";
 
 const StateTimeoutMs = 5000;
-const StateRetryMs = 2000;
-const StateMaxTries = 10;
 const CommandTimeoutMs = 10000;
 const RefreshDelayMs = 50;
 
@@ -62,7 +61,10 @@ export class KeepAwakeModel {
     anyCoffeeAtoms = new Map<string, Atom<boolean>>();
     approvalLinesAtoms = new Map<string, Atom<string[]>>();
     started = false;
-    refreshTimer: ReturnType<typeof setTimeout> = null;
+    refreshState = new KeepAwakeRefresh(
+        () => this.call(KeepAwakeStateCommand, {}, StateTimeoutMs),
+        (state) => this.apply(state)
+    );
 
     private constructor() {}
 
@@ -90,10 +92,20 @@ export class KeepAwakeModel {
         }
         this.started = true;
         try {
-            waveEventSubscribeSingle({
+            const unsubscribe = waveEventSubscribeSingle({
                 eventType: KeepAwakeEvent as WaveEventName,
                 handler: () => this.refresh(),
             });
+            if (typeof window !== "undefined") {
+                window.addEventListener(
+                    "unload",
+                    () => {
+                        unsubscribe();
+                        this.refreshState.stop();
+                    },
+                    { once: true }
+                );
+            }
         } catch (e) {
             // The preview server has no event bus.
             console.log("keep-awake: no event bus", e);
@@ -107,37 +119,12 @@ export class KeepAwakeModel {
             await this.setPolicy(policy);
             return { ok: true, resolve: true };
         });
-        let tries = 0;
-        const load = () => {
-            fireAndForget(async () => {
-                try {
-                    this.apply(await this.call(KeepAwakeStateCommand, {}, StateTimeoutMs));
-                } catch {
-                    // The route comes up with Mission Control.
-                    if (++tries < StateMaxTries) {
-                        setTimeout(load, StateRetryMs);
-                    }
-                }
-            });
-        };
-        load();
+        this.refreshState.request();
     }
 
     // Changes that come close together make one read.
     refresh(): void {
-        if (this.refreshTimer != null) {
-            return;
-        }
-        this.refreshTimer = setTimeout(() => {
-            this.refreshTimer = null;
-            fireAndForget(async () => {
-                try {
-                    this.apply(await this.call(KeepAwakeStateCommand, {}, StateTimeoutMs));
-                } catch (e) {
-                    console.log("keep-awake: state read failed", e);
-                }
-            });
-        }, RefreshDelayMs);
+        this.refreshState.request(RefreshDelayMs);
     }
 
     private async call(command: string, data: any, timeout = CommandTimeoutMs): Promise<KeepAwakeState> {
@@ -192,6 +179,11 @@ export class KeepAwakeModel {
 
     async setOverride(blockId: string, policy: "allow" | "letsleep" | ""): Promise<void> {
         this.apply(await this.call(KeepAwakeOverrideCommand, { blockid: blockId, policy }));
+    }
+
+    // Ends a terminal's bare keep-awake process (the menu's Stop on its row, #1780); a wrapped command is never ended.
+    async stopTerminal(blockId: string): Promise<void> {
+        this.apply(await this.call(KeepAwakeStopCommand, { blockid: blockId }));
     }
 
     async setPolicy(policy: SleepPolicy): Promise<void> {

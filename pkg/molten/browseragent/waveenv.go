@@ -157,21 +157,13 @@ func (waveEnv) AgentName(blockId string) string {
 
 func (waveEnv) OpenTab(ctx context.Context, req OpenTabRequest) (string, error) {
 	rpc := wshclient.GetBareRpcClient()
+	// A browser panel shows one page since #1187 (FR-SHELL-083): the agent's tab is a panel of its own, to the right
+	// of the tab's browser panel (req.PanelId) or of the agent's terminal, which keeps the focus (AC2). The tab_* tools
+	// keep their names and ids: the tab's key names that panel.
+	target := req.TermBlockId
 	if req.PanelId != "" {
-		requestId, err := uuid.NewV7()
-		if err != nil {
-			return "", err
-		}
-		err = wshclient.SetMetaCommand(rpc, wshrpc.CommandSetMetaData{
-			ORef: waveobj.MakeORef(waveobj.OType_Block, req.PanelId),
-			Meta: molten.BrowserAgentTabRequestMeta(requestId.String(), req.Url, req.BrowserTabId),
-		}, nil)
-		if err != nil {
-			return "", err
-		}
-		return req.PanelId, nil
+		target = req.PanelId
 	}
-	// A new panel opens beside the agent's terminal, which keeps the focus (AC2); it starts with the agent's tab.
 	meta := map[string]any{
 		waveobj.MetaKey_View:        molten.BrowserView,
 		waveobj.MetaKey_Url:         req.Url,
@@ -181,7 +173,7 @@ func (waveEnv) OpenTab(ctx context.Context, req OpenTabRequest) (string, error) 
 	oref, err := wshclient.CreateBlockCommand(rpc, wshrpc.CommandCreateBlockData{
 		TabId:         req.TabId,
 		BlockDef:      &waveobj.BlockDef{Meta: meta},
-		TargetBlockId: req.TermBlockId,
+		TargetBlockId: target,
 		TargetAction:  "splitright",
 		Focused:       false,
 	}, nil)

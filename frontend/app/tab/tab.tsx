@@ -16,11 +16,12 @@ import { HoldToCloseButton } from "../../moltenterm-shell/hold-to-close"; // MOL
 import "../../moltenterm-shell/tab-bar.css"; // MOLTENTERM-PATCH (#410)
 import {
     TabAgentMark,
+    TabAgentName,
     TabIcon,
     TabReviewMark,
     useTabIdentity,
     useTabTooltip,
-} from "../../moltenterm-shell/tab-identity-ui"; // MOLTENTERM-PATCH (#410, #686)
+} from "../../moltenterm-shell/tab-identity-ui"; // MOLTENTERM-PATCH (#410, #686, #1033)
 import { useTabTreesTooltip } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { makeORef } from "../store/wos";
 import "./tab.scss";
@@ -53,6 +54,7 @@ interface TabVProps {
     badges?: Badge[] | null;
     flagColor?: string | null;
     agentDot?: React.ReactNode; // MOLTENTERM-PATCH (#109)
+    agentName?: React.ReactNode; // MOLTENTERM-PATCH (#1033)
     icon?: string; // MOLTENTERM-PATCH (#410)
     pinned?: boolean; // MOLTENTERM-PATCH (#410): the Project tab, drawn as its icon alone
     treesTitle?: string; // MOLTENTERM-PATCH (#114)
@@ -78,6 +80,7 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         badges,
         flagColor,
         agentDot,
+        agentName, // MOLTENTERM-PATCH (#1033)
         icon,
         pinned,
         treesTitle,
@@ -273,6 +276,8 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
                     >
                         {displayName}
                     </div>
+                    {/* MOLTENTERM-PATCH (#1033): the tab's longest-running agent, +N for the others */}
+                    {!isEditable && agentName}
                     {/* MOLTENTERM-PATCH (#109): the most urgent state of the tab's coding agents */}
                     {agentDot}
                     <TabBadges
@@ -318,7 +323,9 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
     const badges = useAtomValue(getTabBadgeAtom(id, env));
     const trees = useTabTreesTooltip(id); // MOLTENTERM-PATCH (#114)
     const identity = useTabIdentity(id, tabData?.name ?? ""); // MOLTENTERM-PATCH (#410)
-    const tabTitle = useTabTooltip(identity, trees.title); // MOLTENTERM-PATCH (#686): a Review tab's done hint first
+    // MOLTENTERM-PATCH (#1033): the agents' run times are dated when the pointer enters the tab
+    const [hoverNow, setHoverNow] = useState(() => Date.now());
+    const tabTitle = useTabTooltip(identity, trees.title, hoverNow); // MOLTENTERM-PATCH (#686): a Review tab's done hint first
 
     const rawFlagColor = tabData?.meta?.["tab:flagcolor"];
     let flagColor: string | null = null;
@@ -395,7 +402,11 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
             icon={identity.icon} // MOLTENTERM-PATCH (#410)
             pinned={identity.pinned} // MOLTENTERM-PATCH (#113, #410)
             treesTitle={tabTitle} // MOLTENTERM-PATCH (#114, #686)
-            onTreesHover={trees.onMouseEnter}
+            agentName={<TabAgentName agents={identity.agents} />} // MOLTENTERM-PATCH (#1033)
+            onTreesHover={() => {
+                trees.onMouseEnter?.();
+                setHoverNow(Date.now()); // MOLTENTERM-PATCH (#1033)
+            }}
             onClick={handleTabClick}
             onClose={onClose}
             onDragStart={onDragStart}

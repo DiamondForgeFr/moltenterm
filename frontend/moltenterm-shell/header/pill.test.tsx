@@ -22,16 +22,21 @@ describe("Pill (FR-SHELL-052, DS-SHELL-093)", () => {
     it("is 20 px high, radius 6, 11/500", () => {
         const pill = rule(headerCss, ".molten-pill");
         expect(pill).toContain("height: 20px;");
-        expect(pill).toContain("border-radius: var(--mt-radius-6);");
+        expect(pill).toContain("border-radius: var(--mt-radius-panel);");
         expect(pill).toContain("font-size: var(--mt-text-11);");
         expect(pill).toContain("font-weight: var(--mt-weight-medium);");
         expect(pill).toContain("background: var(--mt-surface-3);");
     });
 
-    it("has the warning (amber 15 %) and danger (red 15 %, danger text) tones", () => {
+    it("has the warning (straw 15 %), waiting (violet 15 %) and danger (ember 15 %, danger text) tones", () => {
         expect(rule(headerCss, ".molten-pill.is-warning")).toContain(
+            "color-mix(in srgb, var(--mt-state-warning) 15%, transparent)"
+        );
+        expect(rule(headerCss, ".molten-pill.is-waiting")).toContain(
             "color-mix(in srgb, var(--mt-state-waiting) 15%, transparent)"
         );
+        expect(rule(headerCss, ".molten-pill.is-waiting .molten-pill-dot")).toContain("box-shadow");
+        expect(rule(headerCss, ".molten-pill.is-danger .molten-pill-dot")).toContain("rotate(45deg)");
         const danger = rule(headerCss, ".molten-pill.is-danger");
         expect(danger).toContain("color-mix(in srgb, var(--mt-state-error) 15%, transparent)");
         expect(danger).toContain("color: var(--mt-danger-text);");

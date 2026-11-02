@@ -16,6 +16,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
@@ -123,14 +124,23 @@ type RestartResult struct {
 	AgentMissing bool                `json:"agentmissing,omitempty"`
 	AgentSource  string              `json:"agentsource,omitempty"`
 	Agents       []agentchoice.Agent `json:"agents,omitempty"`
+	// Lead (#1779): the result is about the lead agent that owns the work (FirstName, Agent, AgentName name it, BlockId
+	// and TabId place it). With RestartLeadGone, LeadFolder is where its session would resume and LeadGuessed tells it
+	// would be the CLI's most recent session of that folder, not one known for sure.
+	Lead        bool   `json:"lead,omitempty"`
+	LeadFolder  string `json:"leadfolder,omitempty"`
+	LeadGuessed bool   `json:"leadguessed,omitempty"`
 }
 
-// RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now.
+// RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now; Gone:
+// its terminal is closed or its shell ended, so no agent works there any more (#1024).
 type RestartTypeOutcome struct {
-	Sent      bool
-	Submitted bool
-	Retry     bool
-	Message   string
+	Sent        bool
+	Submitted   bool
+	Retry       bool
+	Gone        bool
+	Message     string
+	MessageText *uimsg.Text
 }
 
 // RestartEnv is what Restart work reaches outside git; the tests give fakes.
@@ -172,6 +182,16 @@ type RestartEnv struct {
 	Gh           GhRunner
 	HoldState    func(blockId string, state string, message string, text *uimsg.Text)
 	ReleaseState func(blockId string, state string, message string, text *uimsg.Text)
+	// The lead agent that owns a PR (#1779, lead.go): FindLead says which running agent a LeadQuery names, SendLead gives
+	// it MoltenTerm's own brief through the handoffs (the developer's click is the approval), LeadSession says how a lead
+	// that no longer runs is resumed, PreferName gives a resumed terminal the lead's first name back. LeadStartWait and
+	// LeadStartPoll bound the wait for a resumed lead's prompt (the defaults when zero).
+	FindLead      func(ctx context.Context, q agenthandoff.LeadQuery) (agenthandoff.LeadFound, bool)
+	SendLead      func(ctx context.Context, req agenthandoff.AppRequest) (agenthandoff.AppSent, error)
+	LeadSession   func(ctx context.Context, name string, agent string, dir string) (LeadSession, bool)
+	PreferName    func(blockId string, name string)
+	LeadStartWait time.Duration
+	LeadStartPoll time.Duration
 }
 
 type Restarter struct {
@@ -185,6 +205,12 @@ type Restarter struct {
 func MakeRestarter(store *Store, env RestartEnv) *Restarter {
 	if env.Now == nil {
 		env.Now = time.Now
+	}
+	if env.LeadStartWait <= 0 {
+		env.LeadStartWait = defaultLeadStartWait
+	}
+	if env.LeadStartPoll <= 0 {
+		env.LeadStartPoll = defaultLeadStartPoll
 	}
 	return &Restarter{env: env, store: store, running: map[PrKey]bool{}}
 }
@@ -647,10 +673,18 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 		run.BlockId = t.BlockId
 		idle = append(idle, run)
 	}
-	if len(idle) == 0 {
-		return false
+	for _, run := range idle {
+		if r.typeIntoIdle(ctx, run, tree, line, result) {
+			return true
+		}
 	}
-	run := idle[0]
+	// Every agent recorded there had its terminal closed or its shell ended: none works on the branch.
+	return false
+}
+
+// typeIntoIdle hands the prompt to an idle agent of the worktree; false when its terminal is gone (#1024), so the
+// next agent or the offer to start one takes over.
+func (r *Restarter) typeIntoIdle(ctx context.Context, run molten.AgentRunInfo, tree string, line string, result *RestartResult) bool {
 	name := molten.AgentDisplayName(run.Agent)
 	result.BlockId, result.Agent, result.AgentName = run.BlockId, run.Agent, name
 	result.FirstName = run.FirstName
@@ -659,6 +693,9 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 		return true
 	}
 	out := r.env.TypePrompt(ctx, run.BlockId, line)
+	if out.Gone {
+		return false
+	}
 	switch {
 	case out.Sent && out.Submitted:
 		result.Status = RestartSent
@@ -673,7 +710,7 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 	default:
 		result.Status, result.Reason = RestartFailed, RestartReasonNotTyped
 	}
-	result.Message = out.Message
+	result.Message, result.MessageText = out.Message, out.MessageText
 	return true
 }
 

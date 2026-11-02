@@ -1,0 +1,368 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The sidebar's agents (FR-SHELL-084), sized as the #1181 prototype's agentBlock and agentTree. States use
+   MoltenTerm's heat scale (FR-SHELL-116): waiting violet, done patina, error ember; working is the incandescent dominoes. */
+
+.mt-sb-agent {
+    display: flex;
+    flex-direction: column;
+}
+
+.mt-sb-arow {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 6px 0 2px;
+    border-radius: var(--mt-radius-panel);
+    cursor: pointer;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb-arow:hover {
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-sb-arow.is-on {
+    background: color-mix(in srgb, var(--mt-veil) 15%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-sb-arow.is-done {
+    opacity: 0.62;
+}
+
+.mt-sb-tw {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    color: var(--mt-sb-fg-3);
+    cursor: pointer;
+}
+
+.mt-sb-tw:hover {
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+}
+
+.mt-sb-tw > svg,
+.mt-sb-tl > svg {
+    transition: transform var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-sb-agent.is-closed .mt-sb-tw > svg,
+.mt-sb-tl.is-shut > svg {
+    transform: rotate(-90deg);
+}
+
+.mt-sb-av {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background: var(--mt-surface-3);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--color-primary);
+    font-size: var(--mt-text-11);
+    font-weight: 600;
+}
+
+.mt-sb-av.is-large {
+    width: 34px;
+    height: 34px;
+    font-size: var(--mt-text-13);
+}
+
+.mt-sb-av.is-waiting::after,
+.mt-sb-av.is-done::after,
+.mt-sb-av.is-error::after {
+    content: "";
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 2px var(--mt-surface-0);
+}
+
+.mt-sb-av.is-waiting::after {
+    background: var(--mt-state-waiting);
+}
+
+.mt-sb-av.is-done::after {
+    background: var(--mt-state-done);
+}
+
+.mt-sb-av.is-error::after {
+    background: var(--mt-state-error);
+}
+
+.mt-sb-agent-tx {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.mt-sb-agent-nm {
+    overflow: hidden;
+    color: var(--color-primary);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sb-agent-ss {
+    overflow: hidden;
+    color: var(--mt-sb-fg-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sb-arow.is-waiting .mt-sb-agent-ss {
+    color: var(--mt-state-waiting);
+}
+
+.mt-sb-arow.is-error .mt-sb-agent-ss {
+    color: var(--mt-state-error);
+}
+
+/* The name line with the project chip (FR-SHELL-084, #1746): the first name keeps its width, the chip takes the
+   ellipsis. */
+.mt-sb-agent-nm-line {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+}
+
+.mt-sb-agent-nm-line .mt-sb-agent-nm {
+    flex: 0 0 auto;
+    max-width: 70%;
+}
+
+/* The project chip reads as the suite's label chip: secondary text on a solid fill one step above the row (the veil
+   mixed into the sidebar's surface, so it lightens on the dark theme and darkens on the light one, as the active row
+   does). The outside chip has no fill and a dashed outline, in the discreet text. */
+.mt-sb-agent-proj {
+    overflow: hidden;
+    min-width: 0;
+    flex: 0 1 auto;
+    padding: 0 5px;
+    border: 1px solid transparent;
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-veil) 24%, var(--mt-surface-0));
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+    font-weight: 500;
+    line-height: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sb-agent-proj.is-outside {
+    border-style: dashed;
+    border-color: var(--mt-text-3);
+    background: transparent;
+    color: var(--mt-text-3);
+}
+
+/* The suite's dominoes, incandescent (FR-SHELL-116, decision 2: an agent at work glows, never in the action's
+   orange): the working state, on the right of the row. */
+.mt-sb-agent-dom {
+    flex: none;
+    color: var(--mt-state-running);
+}
+
+.mt-sb-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0 0 6px 18px;
+    padding-left: 9px;
+    overflow: hidden;
+    border-left: 1px solid color-mix(in srgb, var(--mt-veil) 12%, transparent);
+    animation: mt-sb-tree-in var(--mt-duration-base) var(--mt-ease);
+}
+
+@keyframes mt-sb-tree-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-tree {
+        animation: none;
+    }
+}
+
+.mt-sb-tl {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 5px 4px 2px;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    color: var(--mt-sb-fg-3);
+    font-size: var(--mt-text-11);
+    letter-spacing: 0.07em;
+    text-align: left;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.mt-sb-tl:hover {
+    color: var(--color-secondary);
+}
+
+.mt-sb-tl-n {
+    margin-left: auto;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.mt-sb-leaf {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    min-height: 26px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-sb-leaf:hover {
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-sb-leaf.is-static {
+    cursor: default;
+}
+
+.mt-sb-leaf.is-static:hover {
+    background: transparent;
+    color: var(--color-secondary);
+}
+
+.mt-sb-leaf-t {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sb-leaf-what,
+.mt-sb-leaf-s {
+    color: var(--mt-sb-fg-3);
+}
+
+.mt-sb-leaf-s {
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+/* The link to everything about the agent: a clean text link in the workspace's accent. */
+.mt-sb-cta {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 5px;
+    margin: 4px 0 2px 4px;
+    padding: 3px 8px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 75%, var(--mt-tone-ink, white));
+    font-size: var(--mt-text-12);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.mt-sb-cta:hover {
+    background: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 16%, transparent);
+}
+
+/* Sub-agents (FR-SHELL-104): finished rows are dimmed and carry a mark, never a word, so their titles keep the
+   width; a quiet one a hollow ring, a failed one a red dot. */
+.mt-sb-leaf.is-sub-done,
+.mt-sb-leaf.is-sub-error {
+    color: var(--mt-sb-fg-3);
+}
+
+.mt-sb-sub-mark {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin-right: 2px;
+    border-radius: 9999px;
+    background: var(--mt-state-done);
+    opacity: 0.8;
+}
+
+.mt-sb-leaf.is-sub-error .mt-sb-sub-mark {
+    background: var(--mt-state-error);
+    opacity: 1;
+}
+
+.mt-sb-leaf.is-sub-idle .mt-sb-sub-mark {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--mt-sb-fg-3);
+}
+
+.mt-sb-tl .mt-sb-agent-dom {
+    margin-left: 2px;
+}
+
+.mt-sb-more {
+    color: var(--mt-sb-fg-3);
+    font-size: var(--mt-text-11);
+}
+
+/* The counts and the loader always show whole; in a narrow sidebar the section's name gives way first. */
+.mt-sb-tl > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sb-tl > .mt-sb-tl-n,
+.mt-sb-tl > .mt-sb-agent-dom {
+    flex: none;
+    overflow: visible;
+}
+
+.mt-sb-tl > svg {
+    flex: none;
+}

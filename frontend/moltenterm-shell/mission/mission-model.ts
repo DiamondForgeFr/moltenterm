@@ -4,6 +4,7 @@
 // What the collector in wavesrv answers (pkg/molten/mission), and its translation into the shapes the ported Notulia
 // modules read. Kept apart from the components so the rules can be tested without the app.
 
+import { guideCalls, type FeatureMatrix } from "../agent-info/agent-features-model";
 import { t } from "../i18n/i18n";
 import { DefaultTagPrefix } from "../releases/versions";
 import { GithubRelease, Milestone, PullRequest, WorkflowRun } from "./github";
@@ -24,6 +25,8 @@ export type RawTag = {
     date: string;
     notes: string | null;
     notesInternal: string | null;
+    // The newest trunk commit the tag contains, when wavesrv computed it (Tag.Source in pkg/molten/mission/git.go).
+    source?: string;
 };
 
 export type RawBranch = {
@@ -46,9 +49,18 @@ export type TreeData = {
     tagPrefix?: string;
     // versions.firstpublic: tags below its first candidate are not the project's releases.
     firstPublic?: string;
+    // versions.rcformat: how the next release candidates are numbered (#1155).
+    rcFormat?: string;
 };
 
-export type MissionTag = { name: string; sha: string; date: string; notes?: string; notesinternal?: string };
+export type MissionTag = {
+    name: string;
+    sha: string;
+    date: string;
+    notes?: string;
+    notesinternal?: string;
+    source?: string;
+};
 
 // must match Merge in pkg/molten/mission/git.go
 export type MissionMerge = {
@@ -66,6 +78,10 @@ export type MissionBranch = {
     date: string;
     commits: RawCommit[];
     fork: { sha: string; date: string };
+    // An agent tool's worktree branch with commits of its own (#1123); the empty ones are left out by wavesrv.
+    agenttree?: boolean;
+    // The linked worktree that has it checked out (#1133), the main checkout aside.
+    worktree?: string;
 };
 
 export type MissionGit = {
@@ -82,6 +98,7 @@ export type MissionGit = {
     fetcherror?: string;
     tagprefix?: string;
     firstpublic?: string;
+    rcformat?: string;
 };
 
 // must match the states in pkg/molten/mission/github.go
@@ -111,6 +128,10 @@ export type PipelineReleaseStep = PipelineCommand & {
     phase?: ReleasePhase;
     confirm?: string;
     notes?: boolean;
+    // Done by hand (FR-MC-037): the instructions, no run.
+    manual?: string;
+    // What proves a manual step done (#1095).
+    check?: { path: string; contains: string };
 };
 
 // must match PipelineDependency in pkg/molten/pipeline.go
@@ -142,6 +163,7 @@ export type PipelineDef = {
         tagprefix?: string;
         notes?: string;
         firstpublic?: string;
+        rcformat?: string;
         files?: { path: string; format: "json" | "regex"; keys?: string[][]; pattern?: string }[];
     };
     ci?: {
@@ -199,6 +221,7 @@ export function toTreeData(git: MissionGit): TreeData {
         release: git.release,
         tagPrefix: git.tagprefix || DefaultTagPrefix,
         firstPublic: git.firstpublic || "",
+        rcFormat: git.rcformat || "",
         branches: (git.branches ?? []).map((b) => ({ ...b, commits: b.commits ?? [], fork: b.fork ?? null })),
         tags: (git.tags ?? []).map((t) => ({
             name: t.name,
@@ -206,6 +229,7 @@ export function toTreeData(git: MissionGit): TreeData {
             date: t.date,
             notes: t.notes || null,
             notesInternal: t.notesinternal || null,
+            source: t.source || undefined,
         })),
     };
 }
@@ -251,13 +275,11 @@ export function prsByBranch(prs: readonly PullRequest[]): Map<string, { number: 
     return new Map((prs ?? []).map((pr) => [pr.headRefName, { number: pr.number, url: pr.url }]));
 }
 
-// How to start the molten-pipeline guide in each agent (`molten agent list` shows the same).
-// must match the invocations in pkg/molten/agents.go
-export const PipelineInvocations = [
-    { agent: "Claude Code, Gemini CLI, Qwen Code", invocation: "/molten-pipeline" },
-    { agent: "Codex", invocation: "$molten-pipeline" },
-    { agent: "Kimi Code", invocation: "/skill:molten-pipeline" },
-];
+// How to start the molten-pipeline guide in each agent the guides work with (`molten agent list` shows the same), from
+// the compatibility matrix (FR-AGC-003).
+export function pipelineInvocations(matrix: FeatureMatrix): { agent: string; invocation: string }[] {
+    return guideCalls(matrix, "molten-pipeline").map((g) => ({ agent: g.agents.join(", "), invocation: g.call }));
+}
 
 export type PipelineStage = "loading" | "absent" | "invalid" | "valid";
 
@@ -332,7 +354,24 @@ export type TrustedCommand = {
 
 export type UntrustedInfo = { hash: string; commands: TrustedCommand[] };
 
-export type RunResult = { run?: RunRecord; untrusted?: UntrustedInfo };
+// must match ManualCheckFailure in pkg/molten/mission/release_manual.go: what a manual release step's check did not
+// find (#1095); nothing was recorded.
+export type ManualCheckFailure = {
+    path: string;
+    contains: string;
+    missing?: boolean;
+    dir: string;
+    // A public changelog section that does not mention these changes since the last public release (#1142).
+    uncovered?: CoverageItem[];
+    since?: string;
+    version?: string;
+};
+
+// must match CoverageItem in pkg/molten/release/coverage.go: a ticket, or a commit claiming none (ticket absent);
+// type and subject are its newest commit's in the range, why it is listed (#1717).
+export type CoverageItem = { ticket?: number; text: string; url?: string; type?: string; subject?: string };
+
+export type RunResult = { run?: RunRecord; untrusted?: UntrustedInfo; unproved?: ManualCheckFailure };
 
 export type LogChunk = { text: string; size: number };
 

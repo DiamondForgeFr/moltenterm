@@ -12,6 +12,9 @@ export const CompanionRoute = "molten:companion";
 export const CompanionEvent = "molten:companion";
 export const CompanionOpenCommand = "moltencompanionopen";
 export const CompanionCloseCommand = "moltencompanionclose";
+// A sub-agent's last message and transcript, for its card (FR-SHELL-104).
+export const CompanionSubagentDetailCommand = "moltencompanionsubagentdetail";
+export type CompanionSubagentDetail = { id: string; lastmessage?: string; transcript?: string };
 export const CompanionPickCommand = "moltencompanionpick";
 export const CompanionSessionsCommand = "moltencompanionsessions";
 export const CompanionAnswerCommand = "moltencompanionanswer";
@@ -117,6 +120,8 @@ export type CompanionSession = {
     effort?: string;
     ticket?: number;
     complexity?: string;
+    // When the user's latest prompt was typed: the start of the agent's current turn (FR-SHELL-104).
+    lastprompt?: number;
 };
 
 // must match pkg/molten/companion/topics.go
@@ -172,6 +177,10 @@ export type CompanionView = {
     topics?: CompanionTopic[];
     subagents?: CompanionSubagent[];
     activity?: CompanionActivity;
+    // The programs the main agent ran in a shell, in the order it first ran them (FR-SHELL-084).
+    commands?: string[];
+    // How many shell calls ran each of commands (#1543).
+    commandcounts?: Record<string, number>;
     // The terminal's earlier sessions, newest first, the one shown left out (#600).
     earlier?: CompanionEarlierSession[];
 };

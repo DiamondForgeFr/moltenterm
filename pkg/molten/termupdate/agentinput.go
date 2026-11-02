@@ -5,6 +5,7 @@ package termupdate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -38,6 +39,8 @@ const (
 	InputReasonNoAgent       = "noagent"
 	InputReasonBusy          = "busy"
 	InputReasonUnavailable   = "unavailable"
+	// The terminal is closed or its shell ended (#1024): no agent works there any more, whatever its run record said.
+	InputReasonTerminalGone = "terminalgone"
 	// The agent's current effort level is not known, so its effort keys cannot be counted (Codex, #549).
 	InputReasonEffortUnknown = "effortunknown"
 
@@ -57,6 +60,15 @@ const (
 	maxModePresses = 5
 	// How long the agent has to draw its new mode after Shift+Tab.
 	modeSettle = 1500 * time.Millisecond
+	// Starting the controller of a terminal whose tab is not loaded reattaches its running job.
+	attachTimeout = 10 * time.Second
+)
+
+// ErrNoController: the terminal has no running controller (its tab is not loaded, or it was closed); Shell.SendInput
+// says so instead of an error naming the block. ErrTerminalGone: Attach found the terminal closed or its shell ended.
+var (
+	ErrNoController = errors.New("the terminal is not running")
+	ErrTerminalGone = errors.New("the terminal is closed or its shell ended")
 )
 
 // Full-screen programs an agent starts in its own process group (its editor on Ctrl+G, a !vim or !less): the agent is
@@ -194,7 +206,7 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	expected := molten.AgentDisplayName(req.Agent)
 	st, out := u.inspect(ctx, req.BlockId)
 	if out != nil {
-		return refusedUnreadable(out)
+		return u.unreadable(req.BlockId, out)
 	}
 	if st.adapter == nil {
 		if st.busy != "" {
@@ -372,10 +384,52 @@ func (u *Updater) foregroundBlocker(agent molten.AgentProcess, shellPid int32) s
 	return ""
 }
 
+// attach is the one liveness check of every path that types into an agent (#1024): a terminal of a tab not loaded
+// since a restart gets its controller first; a closed terminal, or one whose shell ended, ends the agent's run record
+// so the Reviews list and the routing stop counting on it.
+func (u *Updater) attach(blockId string) error {
+	if u.env.Attach == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), attachTimeout)
+	defer cancel()
+	err := u.env.Attach(ctx, blockId)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, ErrTerminalGone) {
+		u.endRun(blockId)
+	}
+	return err
+}
+
+func (u *Updater) endRun(blockId string) {
+	if u.env.EndRun != nil {
+		u.env.EndRun(blockId)
+	}
+}
+
+// unreadable is refusedUnreadable for the typing paths: a terminal found closed or with its shell ended also ends the
+// agent's run record.
+func (u *Updater) unreadable(blockId string, out *Outcome) AgentInputResult {
+	r := refusedUnreadable(out)
+	if r.Reason == InputReasonTerminalGone {
+		u.endRun(blockId)
+	}
+	return r
+}
+
 // sendToForegroundAgent types steps into the terminal only while the agent process is still the shell's foreground
 // program; false: it is not, and nothing was typed. Shared by StopAgent and moltenagentinput, so both keep the same
 // guarantee. Claude Code takes text followed at once by Enter for a paste: each step goes on its own.
 func (u *Updater) sendToForegroundAgent(blockId string, agent molten.AgentProcess, shellPid int32, steps []string) (bool, error) {
+	if u.foregroundBlocker(agent, shellPid) != "" {
+		return false, nil
+	}
+	if err := u.attach(blockId); err != nil {
+		return true, err
+	}
+	// Starting a controller may take time, or reattach a shell where something else now runs: look again.
 	if u.foregroundBlocker(agent, shellPid) != "" {
 		return false, nil
 	}

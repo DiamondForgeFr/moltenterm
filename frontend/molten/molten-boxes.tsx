@@ -27,9 +27,12 @@ function anchorFor(blockId: string): Anchor {
         return null;
     }
     const rect = elem.getBoundingClientRect();
+    // A view with a footer of its own (First steps) marks it, so a box sits above its buttons instead of over them.
+    const footer = elem.querySelector("[data-box-inset]");
+    const inset = footer == null ? 0 : footer.getBoundingClientRect().height;
     return {
         right: Math.max(8, window.innerWidth - rect.right + 12),
-        bottom: Math.max(8, window.innerHeight - rect.bottom + 12),
+        bottom: Math.max(8, window.innerHeight - rect.bottom + 12 + inset),
         maxWidth: Math.max(220, Math.min(460, rect.width - 24)),
     };
 }

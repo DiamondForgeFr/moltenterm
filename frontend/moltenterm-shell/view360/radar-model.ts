@@ -3,7 +3,8 @@
 
 // The radar scrubber of the carpet (FR-SHELL-068, DS-SHELL-119): one tick per carpet column, in carpet order, coloured
 // by its panel kind; the ticks of the columns in view are framed by a window (#678); the tick of a column that needs
-// attention pulses. Kept apart from the component so the rules are tested without the app.
+// attention pulses. The tab strip that replaced it (FR-SHELL-125, carpet-tabs-model.ts) is built on the same ticks and
+// falls back to them when its tabs no longer fit. Kept apart from the component so the rules are tested without the app.
 
 import type { AgentStateInfo } from "../agent-state-model";
 import { MoltentermBrowserView } from "../browser/browser-model";
@@ -21,16 +22,16 @@ const CicdView = "molten-cicd";
 
 export type RadarKind = "agent" | "term" | "web" | "companion" | "review" | "project" | "files" | "other";
 
-// One colour per kind, bright enough on the carpet's dark ground; the agent's is the molten accent.
+// One colour per kind, bright enough on the carpet's dark ground (tokens.css, --mt-kind-*).
 export const RadarKindColors: Record<RadarKind, string> = {
-    agent: "#ea580c",
-    term: "#a8a29e",
-    web: "#38bdf8",
-    companion: "#a78bfa",
-    review: "#4ade80",
-    project: "#facc15",
-    files: "#2dd4bf",
-    other: "#78716c",
+    agent: "var(--mt-kind-agent)",
+    term: "var(--mt-kind-term)",
+    web: "var(--mt-kind-web)",
+    companion: "var(--mt-kind-companion)",
+    review: "var(--mt-kind-review)",
+    project: "var(--mt-kind-project)",
+    files: "var(--mt-kind-files)",
+    other: "var(--mt-kind-other)",
 };
 
 const ViewKinds: Record<string, RadarKind> = {
@@ -98,7 +99,12 @@ export type RadarBlockFacts = {
     agent: boolean;
     title: string;
     attention: RadarAttention;
+    // The panel's icon (tab-identity.ts panelIcon), shown on its tab of the strip (FR-SHELL-125).
+    icon?: string;
 };
+
+// The icon a tab shows when its panel's facts give none.
+export const DefaultRadarIcon = "square";
 
 export type RadarColumnInput = {
     columnId: string;
@@ -110,6 +116,12 @@ export type RadarTick = {
     columnId: string;
     // The panel a click or a shortcut focuses: the one needing attention, else the column's first.
     focusNodeId: string;
+    // That panel's block: the one the tab's close and menu act on.
+    focusBlockId: string;
+    // The column's first panel's icon, and whether it is a web page of MoltenTerm's browser (its tab shows the
+    // favicon and offers the page's actions).
+    icon: string;
+    page: boolean;
     kind: RadarKind;
     color: string;
     title: string;
@@ -178,11 +190,13 @@ export function buildRadarTicks(
         const leadFacts = lead == null ? null : facts?.[lead.blockId];
         let attention: RadarAttention = null;
         let focusNodeId = lead?.nodeId ?? column.columnId;
+        let focusBlockId = lead?.blockId ?? null;
         for (const leaf of column.leaves) {
             const a = facts?.[leaf.blockId]?.attention ?? null;
             if (a != null && moreUrgent(a, attention)) {
                 attention = a;
                 focusNodeId = leaf.nodeId;
+                focusBlockId = leaf.blockId;
             }
         }
         const kind = radarKind(leadFacts?.view, !!leadFacts?.agent);
@@ -192,6 +206,9 @@ export function buildRadarTicks(
         return {
             columnId: column.columnId,
             focusNodeId,
+            focusBlockId,
+            icon: leadFacts?.icon || DefaultRadarIcon,
+            page: leadFacts?.view === MoltentermBrowserView,
             kind,
             color: RadarKindColors[kind],
             title: more > 0 ? `${baseTitle} ${RadarText.morePanels(more)}` : baseTitle,
@@ -224,8 +241,9 @@ export function radarWindowLine(): string {
     return `${RadarText.window} — ${RadarText.windowHint}`;
 }
 
-// The column the previous / next shortcut goes to. From the fixed zone (current null) next goes to the first column
-// in view, previous to none; at either end of the carpet it stays.
+// The column the next / previous tab keys go to (FR-SHELL-126-AC1): the carpet's tabs cycle, from the last to the
+// first and back. The agent's fixed zone is not part of the cycle: from it (current null) next goes to the first
+// column in view and previous to the last column.
 export function stepCarpetColumn(
     columnIds: string[],
     currentColumnId: string,
@@ -238,15 +256,11 @@ export function stepCarpetColumn(
     const at = currentColumnId == null ? -1 : columnIds.indexOf(currentColumnId);
     if (at === -1) {
         if (dir < 0) {
-            return null;
+            return columnIds[columnIds.length - 1];
         }
         return columnIds.find((id) => visibleIds?.includes(id)) ?? columnIds[0];
     }
-    const next = at + dir;
-    if (next < 0 || next >= columnIds.length) {
-        return null;
-    }
-    return columnIds[next];
+    return columnIds[(at + dir + columnIds.length) % columnIds.length];
 }
 
 // Where the carpet's content is under a point of the radar while the pill is dragged: tick centres map to column

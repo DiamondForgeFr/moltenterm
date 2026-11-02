@@ -36,7 +36,9 @@ type restartFixture struct {
 	review    map[string]bool
 	installed map[string]bool
 	typeOut   RestartTypeOutcome
-	conv      *molten.ProjectConventions
+	// typeOuts: a terminal's own answer, before typeOut (#1024).
+	typeOuts map[string]RestartTypeOutcome
+	conv     *molten.ProjectConventions
 	// The agent tabs made (#758): name, hidden; the terminals closed, the notifications and the resolved keys.
 	tabs     []agentTabCall
 	closed   []string
@@ -98,6 +100,12 @@ func makeRestartFixture(t *testing.T) *restartFixture {
 			return run, ok
 		},
 		TypePrompt: func(ctx context.Context, blockId string, line string) RestartTypeOutcome {
+			if out, ok := f.typeOuts[blockId]; ok {
+				if !out.Gone {
+					f.typed[blockId] = line
+				}
+				return out
+			}
 			f.typed[blockId] = line
 			return f.typeOut
 		},

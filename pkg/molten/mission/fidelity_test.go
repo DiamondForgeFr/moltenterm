@@ -75,7 +75,7 @@ func TestLastPublicSkipsUpstreamTagsAndSortsBySemver(t *testing.T) {
 
 func TestReleaseVersionFollowsTheRules(t *testing.T) {
 	p := &molten.Pipeline{Versions: &molten.PipelineVersions{FirstPublic: "1.0.0"}}
-	for tag, want := range map[string]string{"v1.0.0-1": "1.0.0 rc", "v1.2.0": "1.2.0 public"} {
+	for tag, want := range map[string]string{"v1.0.0-1": "1.0.0 rc", "v1.0.0-rc.1": "1.0.0 rc", "v1.2.0": "1.2.0 public"} {
 		version, isRc, err := releaseVersion(p, tag)
 		got := version + " public"
 		if isRc {
@@ -85,7 +85,7 @@ func TestReleaseVersionFollowsTheRules(t *testing.T) {
 			t.Errorf("%s: %q, %v", tag, got, err)
 		}
 	}
-	for _, tag := range []string{"v0.15.0", "v1.0.0-0", " v1.0.0", "v1.0.0-rc.1"} {
+	for _, tag := range []string{"v0.15.0", "v1.0.0-0", " v1.0.0", "v1.0.0-beta.1", "v1.0.0-rc.0"} {
 		if _, _, err := releaseVersion(p, tag); err == nil {
 			t.Errorf("%q must be refused", tag)
 		}

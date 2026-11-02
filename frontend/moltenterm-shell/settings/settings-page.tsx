@@ -9,6 +9,7 @@
 import { cn } from "@/util/util";
 import { Children, isValidElement } from "react";
 import { BlockRows, SectionBlock, SuiteIcon } from "../suite/suite";
+import { BlockScopeTag, SettingsScopeKind } from "./settings-scope";
 
 // How many columns a page may use on a wide panel (#674).
 export type PageColumns = 1 | 2 | 3;
@@ -106,7 +107,7 @@ export function PageHeader({
     return (
         <header className="flex items-start gap-3 pb-2">
             {icon ? (
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-4 bg-surface-2 text-accent">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-4 bg-surface-2 text-secondary">
                     {Icon ? (
                         <Icon className="h-4 w-4" aria-hidden />
                     ) : (
@@ -134,9 +135,12 @@ export function PageCard({
     children,
     className,
     label,
+    scope,
 }: {
     title?: string;
     hint?: React.ReactNode;
+    // Who the block's settings apply to, the first line of a settings block (FR-SHELL-101).
+    scope?: SettingsScopeKind;
     icon?: SuiteIcon;
     // The turning light, while the block holds the row a search jumped to.
     glow?: boolean;
@@ -159,6 +163,7 @@ export function PageCard({
             className={className}
         >
             <BlockRows>{children}</BlockRows>
+            {scope != null ? <BlockScopeTag scope={scope} /> : null}
         </SectionBlock>
     );
 }

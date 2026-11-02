@@ -119,6 +119,28 @@ func TestReviewMergeOfPr(t *testing.T) {
 	}
 }
 
+// #1059: GitHub says UNSTABLE while a check it does not require still runs; that reads as running until one fails.
+func TestBuildReviewsReadsRunningChecksAsRunning(t *testing.T) {
+	answer := BuildReviews(reviewsSnapshot(reviewsProject(t, reviewsSfManifest), `[
+  {"number":1,"headRefName":"feature/4-a","baseRefName":"develop","mergeable":"MERGEABLE","mergeStateStatus":"UNSTABLE",
+   "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"SUCCESS"},{"name":"lint","status":"IN_PROGRESS"}]},
+  {"number":2,"headRefName":"feature/5-b","baseRefName":"develop","mergeable":"MERGEABLE","mergeStateStatus":"UNSTABLE",
+   "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"FAILURE"},{"name":"lint","status":"IN_PROGRESS"}]},
+  {"number":3,"headRefName":"feature/6-c","baseRefName":"develop","mergeable":"MERGEABLE","mergeStateStatus":"UNSTABLE",
+   "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"FAILURE"}]}
+]`))
+	byNumber := map[int]ReviewPr{}
+	for _, pr := range answer.Ready {
+		byNumber[pr.Number] = pr
+	}
+	want := map[int]string{1: ReviewMergeRunning, 2: ReviewMergeFailing, 3: ReviewMergeFailing}
+	for number, merge := range want {
+		if got := byNumber[number].Merge; got != merge {
+			t.Errorf("#%d: merge %q, want %q", number, got, merge)
+		}
+	}
+}
+
 func TestBuildReviewsFallsBackToTheTrunk(t *testing.T) {
 	dir := reviewsProject(t, "")
 	answer := BuildReviews(reviewsSnapshot(dir, `[{"number":1,"headRefName":"feature/4-a","baseRefName":"trunk-from-git"}]`))

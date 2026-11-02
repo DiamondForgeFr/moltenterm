@@ -28,6 +28,8 @@ dir="${1:?usage: moltenterm-release-sign.sh <folder>}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 public_key="${MOLTENTERM_RELEASE_PUBLIC_KEY:-$root/release-signing-key.asc}"
 output="${GITHUB_OUTPUT:-/dev/null}"
+export MOLTENTERM_RELEASE_PUBLIC_KEY="$public_key"
+node "$root/scripts/release-policy.mjs" checksum-inputs
 
 if [ ! -f "$public_key" ] && [ -z "${RELEASE_GPG_PRIVATE_KEY:-}" ]; then
     echo "::notice::No release key committed (release-signing-key.asc) and no RELEASE_GPG_PRIVATE_KEY secret: this release is published unsigned, without SHA256SUMS.txt.asc (RELEASE.md, \"The release key\")."

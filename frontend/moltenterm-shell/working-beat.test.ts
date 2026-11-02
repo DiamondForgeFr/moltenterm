@@ -160,7 +160,7 @@ describe("working indicators' CSS (#473)", () => {
         const { AgentStateDotClasses } = await import("./agent-state-model");
         expect(AgentStateDotClasses.working).toContain("border-2");
         expect(AgentStateDotClasses.working).not.toMatch(/\bbg-/);
-        expect(AgentStateDotClasses.waiting).toContain("bg-warning");
+        expect(AgentStateDotClasses.waiting).toContain("bg-[var(--mt-state-waiting)]");
         expect(tabBar).toMatch(/\.molten-tab-dot\[data-state="working"\] \{\s*border: 2px solid/);
         expect(tabBar).toMatch(/\.molten-tab-dot\[data-state="waiting"\] \{\s*background:/);
     });

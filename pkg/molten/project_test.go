@@ -86,6 +86,29 @@ func TestReadProjectSaaSFoundry(t *testing.T) {
 	}
 }
 
+// The documentation language is the SRS's (#1106): language.srs, or one language for every surface.
+func TestDocLanguage(t *testing.T) {
+	for _, tc := range []struct {
+		manifest string
+		want     string
+	}{
+		{`{"language": {"srs": "fr", "tickets": "en", "codeComments": "en"}}`, "fr"},
+		{`{"language": "fr"}`, "fr"},
+		{`{"language": {"tickets": "fr"}}`, ""},
+		{`{"projectName": "x"}`, ""},
+		{`not json`, ""},
+	} {
+		dir := t.TempDir()
+		writeProjectFile(t, dir, ".saasfoundry.json", tc.manifest)
+		if got := DocLanguage(dir); got != tc.want {
+			t.Fatalf("%s: got %q, want %q", tc.manifest, got, tc.want)
+		}
+	}
+	if got := DocLanguage(t.TempDir()); got != "" {
+		t.Fatalf("without a manifest: %q", got)
+	}
+}
+
 func TestReadProjectNameOrder(t *testing.T) {
 	dir := t.TempDir()
 	if got := ReadProject(dir).Name; got != filepath.Base(dir) {

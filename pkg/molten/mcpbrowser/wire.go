@@ -74,7 +74,7 @@ func ComputerActions() []string {
 const (
 	ErrNotInMoltenTerm = "Not running in a MoltenTerm terminal"
 	ErrNotYourTab      = "Not your tab"
-	ErrTakenOver       = "The user has taken over"
+	ErrTakenOver       = "The user has taken over this tab: they are using it. Ask them to give it back (Give back in the tab's bar), or wait and try again later; do not open another tab for the same page"
 	ErrStopped         = "Stopped by the user"
 	ErrOtherEngine     = "Open it in MoltenTerm's engine to let an agent drive it"
 	ErrTabClosed       = "This tab was closed"

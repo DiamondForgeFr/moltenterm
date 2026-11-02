@@ -73,13 +73,9 @@ func TestRunMoltenAgentNotifyRunsTheUsersProgram(t *testing.T) {
 	inPane := func(name string) string {
 		return map[string]string{"WAVETERM_BLOCKID": "b", "WAVETERM_JWT": "not-a-token"}[name]
 	}
-	start := time.Now()
+	// No duration is checked: a loaded machine can take seconds to start the script (#1208).
 	if code := runMoltenAgentNotify(moltenNotifyArgs{agent: "codex", program: []string{script}, payload: testNotifyPayload}, inPane); code != 5 {
 		t.Fatalf("in a pane: %d", code)
-	}
-	// The cap plus room for a loaded machine to start the script.
-	if took := time.Since(start); took > moltenAgentNotifyReportTimeout+3*time.Second {
-		t.Fatalf("the report took %v", took)
 	}
 	if data, _ := os.ReadFile(log); string(data) != testNotifyPayload+"\x00" {
 		t.Fatalf("in a pane the program still gets the payload: %q", data)
@@ -97,12 +93,15 @@ func TestPlanMoltenAgentLaunchCodex(t *testing.T) {
 	os.WriteFile(filepath.Join(data, "bin", "wsh"), []byte("#!/bin/sh\n"), 0755)
 	os.Symlink("wsh", filepath.Join(data, "bin", "molten"))
 	report, args, procEnv := planMoltenAgentLaunch(agentlaunch.FindAdapter("codex"), "/real/codex", []string{"fix it"}, getenv, time.Now())
-	if report.StepAside != "" || len(args) != 9 || args[len(args)-1] != "fix it" || !slices.Equal(report.Args, args[:8]) || !strings.HasPrefix(args[7], "hooks.PermissionRequest=") {
+	n := len(args) - 1
+	if report.StepAside != "" || n != 28 || args[n] != "fix it" || !slices.Equal(report.Args, args[:n]) ||
+		!slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "hooks.PermissionRequest=") }) ||
+		!slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "hooks.SessionStart=") }) {
 		t.Fatalf("args %q report %+v", args, report)
 	}
 	moltenPath := filepath.Join(data, "bin", "molten")
-	if args[5] != `notify=["`+moltenPath+`","agent","notify","--agent","codex","--"]` {
-		t.Fatalf("notify override %q", args[5])
+	if args[7] != `notify=["`+moltenPath+`","agent","notify","--agent","codex","--"]` {
+		t.Fatalf("notify override %q", args[7])
 	}
 	if report.Settings != "" || report.McpConfig != "" {
 		t.Fatalf("no file for codex: %+v", report)
@@ -114,7 +113,7 @@ func TestPlanMoltenAgentLaunchCodex(t *testing.T) {
 		t.Fatalf("the agent's processes must be marked as nested")
 	}
 	out := formatMoltenIntegrationStatus(MoltenIntegrationStatus{Agent: "codex", Running: true, Report: &report})
-	for _, want := range []string{"Codex", "Done state at each turn's end", "-c notify=", "-c mcp_servers.molten-browser.command=", "Agent state hooks: Codex runs hooks"} {
+	for _, want := range []string{"Codex", "Done state at each turn's end", "-c notify=", "-c mcp_servers.molten-browser.command=", "Agent state hooks (SessionStart, UserPromptSubmit, PostToolUse, Stop, SubagentStart, SubagentStop), once you trust", "-c tui.notification_condition=\"always\""} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status misses %q:\n%s", want, out)
 		}

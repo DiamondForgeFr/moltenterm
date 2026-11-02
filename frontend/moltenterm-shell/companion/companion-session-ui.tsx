@@ -6,6 +6,7 @@
 
 import { cn } from "@/util/util";
 import { useT } from "../i18n/i18n";
+import { DominoLoader } from "../suite/suite";
 import { IntegratedBadge } from "./companion-integration";
 import {
     candidateTitle,
@@ -55,7 +56,10 @@ export function SessionHistoryList({
                 </div>
             </div>
             {sessions == null && error == null ? (
-                <div className="text-12 text-muted">{t("companion.loading")}</div>
+                <div className="text-12 text-muted">
+                    <DominoLoader className="mr-1.5" />
+                    {t("companion.loading")}
+                </div>
             ) : null}
             {sessions != null && sessions.length === 0 ? (
                 <div className="text-12 text-muted">{t("companion.history.empty")}</div>
@@ -181,7 +185,12 @@ export function SessionBar({
                     </span>
                 ) : null}
                 {view.ended ? <span className="text-warning">{t("companion.bar.ended")}</span> : null}
-                {view.status === "loading" ? <span>{t("companion.bar.reading")}</span> : null}
+                {view.status === "loading" ? (
+                    <span>
+                        <DominoLoader className="mr-1" />
+                        {t("companion.bar.reading")}
+                    </span>
+                ) : null}
                 {onIntegration != null && isIntegrated(view) ? (
                     <IntegratedBadge onOpen={onIntegration} className="-my-0.5" />
                 ) : null}

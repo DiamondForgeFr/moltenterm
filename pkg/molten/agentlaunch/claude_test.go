@@ -142,8 +142,8 @@ func TestClaudePassThrough(t *testing.T) {
 	}
 }
 
-// FR-SHELL-036 AC1, AC3: with no settings at all, a run gets the four state hooks and the session link with the exact
-// command strings of agent-states.md, and a status line that is the relay alone (it prints nothing).
+// FR-SHELL-036 AC1, AC3: with no settings at all, a run gets the state hooks and the session link, every one running
+// the shared handler of agent-states.md (#988), and a status line that is the relay alone (it prints nothing).
 func TestClaudePlanEmptySettings(t *testing.T) {
 	tree := makeFakeTree(t)
 	plan, gen, raw := planOf(t, tree.ctx("-p", "hi"))
@@ -154,24 +154,18 @@ func TestClaudePlanEmptySettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range molten.ClaudeStateHooks() {
-		if got := hookCommands(gen, h.Event); !slices.Equal(got, []string{h.Command}) {
-			t.Errorf("%s: %q, want %q", h.Event, got, h.Command)
-		}
-		quoted := jsonString(h.Command)
-		if !strings.Contains(string(doc), string(quoted)) {
-			t.Errorf("%s: the command is not agent-states.md's: %s", h.Event, quoted)
+	var events []string
+	for _, h := range molten.AgentStateHooks(molten.AgentIdClaude) {
+		events = append(events, h.Event)
+		if got := hookCommands(gen, h.Event); !slices.Equal(got, []string{molten.ClaudeStateHookCommand}) {
+			t.Errorf("%s: %q, want %q", h.Event, got, molten.ClaudeStateHookCommand)
 		}
 	}
-	if len(molten.ClaudeStateHooks()) != 4 {
-		t.Fatalf("state hooks: %v", molten.ClaudeStateHooks())
+	if want := []string{"SessionStart", "UserPromptSubmit", "PostToolUse", "Notification", "Stop", "SubagentStart", "SubagentStop"}; !slices.Equal(events, want) {
+		t.Fatalf("state hooks: %v", events)
 	}
-	if got := hookCommands(gen, "SessionStart"); !slices.Equal(got, []string{molten.ClaudeSessionHookCommand}) {
-		t.Errorf("SessionStart: %q", got)
-	}
-	quoted := jsonString(molten.ClaudeSessionHookCommand)
-	if !strings.Contains(string(doc), string(quoted)) {
-		t.Errorf("SessionStart is not agent-states.md's: %s", quoted)
+	if quoted := jsonString(molten.ClaudeStateHookCommand); !strings.Contains(string(doc), string(quoted)) {
+		t.Errorf("the command is not agent-states.md's: %s", quoted)
 	}
 	// The Notification hook runs for the types that wait for the user only (#784).
 	if n := gen.Hooks["Notification"]; len(n) != 1 || n[0].Matcher != agenthook.ClaudeWaitingNotificationMatcher {
@@ -198,7 +192,7 @@ func TestClaudePlanEmptySettings(t *testing.T) {
 	if h := gen.Hooks[molten.ClaudePermissionHookEvent][0].Hooks[0]; h.Timeout != molten.ClaudePermissionHookTimeout || h.Type != "command" {
 		t.Errorf("PermissionRequest handler %+v", h)
 	}
-	if got := itemKinds(plan.Added); !slices.Equal(got, []string{molten.IntegrationStateHooks, molten.IntegrationSession, molten.IntegrationCoffeeApproval, molten.IntegrationStatusLine}) {
+	if got := itemKinds(plan.Added); !slices.Equal(got, []string{molten.IntegrationSession, molten.IntegrationStateHooks, molten.IntegrationCoffeeApproval, molten.IntegrationStatusLine}) {
 		t.Errorf("added %v", got)
 	}
 	args := plan.MakeArgs([]string{"/data/claude-x.json"})

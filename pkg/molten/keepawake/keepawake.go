@@ -25,6 +25,7 @@ const (
 	CoffeeCommand   = "keepawakecoffee"
 	ShimCommand     = "keepawakeshim"
 	OverrideCommand = "keepawakeoverride"
+	StopCommand     = "keepawakestop"
 )
 
 // The values of the power:sleeppolicy setting; PolicyAsk is the setting left unset.
@@ -72,7 +73,7 @@ type Coffee struct {
 	// Working: work runs in the workspace now; otherwise the coffee is in its grace and ends at EndsAt.
 	Working bool  `json:"working"`
 	EndsAt  int64 `json:"endsat,omitempty"`
-	// Reasons: what works in the workspace now, the most telling first ("Claude Code: background work"), while Working.
+	// Reasons: what works in the workspace now, the most telling first ("Adrien: background work"), while Working.
 	Reasons []string `json:"reasons,omitempty"`
 	// ReasonsText: Reasons' codes for the windows, by position (#656).
 	ReasonsText []*uimsg.Text `json:"reasonstext,omitempty"`
@@ -92,6 +93,11 @@ type Attempt struct {
 	ParentName    string   `json:"parentname,omitempty"`
 	Since         int64    `json:"since"`
 	Outcome       string   `json:"outcome"`
+	// EndsAt: when the tool ends by itself (a bare caffeinate's -t timeout, Unix milliseconds); 0 when it does not say.
+	EndsAt int64 `json:"endsat,omitempty"`
+	// Stoppable: the process only keeps the computer awake (a bare caffeinate), so ending it stops nothing else. A
+	// wrapped command (caffeinate make, systemd-inhibit ...) is the user's work and is never ended from the menu.
+	Stoppable bool `json:"stoppable,omitempty"`
 }
 
 // Override is a session's own policy, set from the status bar list, for the terminal's lifetime.
@@ -146,6 +152,11 @@ type ShimAnswer struct {
 type CoffeeRequest struct {
 	WorkspaceId string `json:"workspaceid"`
 	On          bool   `json:"on"`
+}
+
+// StopRequest ends the keep-awake processes a terminal let through (the menu's Stop on a terminal's row, #1780).
+type StopRequest struct {
+	BlockId string `json:"blockid"`
 }
 
 type OverrideRequest struct {

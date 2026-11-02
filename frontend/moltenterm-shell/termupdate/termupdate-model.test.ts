@@ -9,9 +9,12 @@ import {
     OutdatedData,
     outdatedOfBlock,
     outdatedTitle,
+    previousLoginBlockIds,
+    restartDialogSubtitle,
     updatableWithoutAsking,
     updateAllDetail,
     updateAllSummary,
+    updateProposalLabel,
 } from "./termupdate-model";
 
 const shell = { blockid: "b1", reason: "nogeneration" as const, generation: 0, current: 1 };
@@ -35,6 +38,21 @@ describe("outdated terminals", () => {
         expect(outdatedTitle(shell)).toContain("older MoltenTerm");
         expect(outdatedTitle(shell)).toContain("scrollback stays");
         expect(outdatedTitle(null)).toBe("");
+    });
+
+    it("says a terminal from an earlier login lost the network (#1194)", () => {
+        const lost = { ...shell, blockid: "b3", reason: "previouslogin" as const };
+        const lostAgent = { ...withAgent, blockid: "b4", reason: "previouslogin" as const };
+        expect(outdatedTitle(lost)).toContain("can no longer reach the network");
+        expect(outdatedTitle(lostAgent)).toContain("Claude Code can no longer reach the network");
+        expect(outdatedTitle(lostAgent)).toContain("same conversation");
+        expect(updateProposalLabel(lost)).toBe("Restart terminal (no network)");
+        expect(updateProposalLabel(shell)).toBe("Update terminal");
+        expect(restartDialogSubtitle("previouslogin")).toContain("can no longer reach the network");
+        expect(restartDialogSubtitle("nogeneration")).toContain("before MoltenTerm's update");
+        const ids = previousLoginBlockIds({ terminals: [shell, lost, lostAgent], version: 1 });
+        expect([...ids].sort()).toEqual(["b3", "b4"]);
+        expect(previousLoginBlockIds(null).size).toBe(0);
     });
 
     it("leaves terminals running an agent to their own confirmation", () => {

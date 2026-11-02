@@ -46,6 +46,20 @@ export function hookOfferQueryKey(info: AgentStateInfo): string {
     return info.agent;
 }
 
+// The offer's sentences in the interface language (#988), by agent; wavesrv's English for an agent without keys.
+const OfferTextKeys: Record<string, { brings: string; also: string }> = {
+    claude: { brings: "agent.hooks.bringsBy.claude", also: "agent.hooks.alsoBy.claude" },
+    codex: { brings: "agent.hooks.bringsBy.codex", also: "agent.hooks.alsoBy.codex" },
+};
+
+export function hookOfferTexts(offer: AgentHookOffer, t: (key: string) => string): { brings: string; also: string } {
+    const keys = OfferTextKeys[offer?.agent ?? ""];
+    if (keys == null) {
+        return { brings: offer?.brings ?? "", also: offer?.also ?? "" };
+    }
+    return { brings: t(keys.brings), also: t(keys.also) };
+}
+
 export function dismissedWith(dismissed: string[], agent: string): string[] {
     if (!agent || dismissed.includes(agent)) {
         return dismissed;

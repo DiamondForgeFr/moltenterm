@@ -20,6 +20,7 @@ import {
     CiJobRecord,
     CiPrepareJob,
     ciRunDuration,
+    ciRunLabel,
     CiRunRecord,
     CiStatus,
     defaultCiJob,
@@ -111,7 +112,7 @@ function LogPane({ text, paneRef }: { text: string; paneRef: React.RefObject<HTM
                 const el = e.currentTarget;
                 atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
             }}
-            className="max-h-[50vh] min-h-32 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-[#e5e7eb]"
+            className="max-h-[50vh] min-h-32 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-primary"
         >
             {text === ""
                 ? t("mc.ciLocal.noOutputYet")
@@ -181,7 +182,8 @@ function RunDetail({
         <div className="flex min-w-0 flex-col gap-2">
             <div>
                 <div className="text-13 leading-5 font-medium">
-                    {run.branch || t("mc.ciLocal.noBranch")} @ {shortSha(run.sha)}
+                    {ciRunLabel(run, t)}
+                    {run.branch || !run.detached ? ` @ ${shortSha(run.sha)}` : null}
                 </div>
                 <div className="text-11 text-muted">
                     {formatRunDate(run.startedat)} · {formatCiDuration(ciRunDuration(run, now))} ·{" "}
@@ -242,7 +244,7 @@ function RunRow({
     const [error, setError] = useState<string>(null);
     const rerunRef = useRef<HTMLButtonElement>(null);
     const jobs = run.only?.length ? run.only.join(", ") : run.jobs.map((j) => j.name).join(", ");
-    const branch = run.branch || t("mc.ciLocal.noBranch");
+    const branch = ciRunLabel(run, t);
     const commit = github && run.sha ? `${github}/commit/${run.sha}` : null;
     const closeConfirm = () => {
         setConfirming(false);
@@ -349,7 +351,7 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
         }
     }, [state?.current]);
     if (state == null) {
-        return <Notice text={t("mc.ciLocal.reading")} />;
+        return <Notice text={t("mc.ciLocal.reading")} busy />;
     }
     const shown = state.runs.find((r) => r.id === selected) ?? running ?? state.runs[0];
     // A run the project's commands are not trusted for yet opens the trust prompt, which starts it once trusted.

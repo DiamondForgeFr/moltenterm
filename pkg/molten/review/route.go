@@ -12,11 +12,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -45,9 +47,11 @@ const (
 	ShownCommand    = "moltenreviewshown"
 	AiPaneCommand   = "moltenreviewaipane"
 	// Validate (FR-REV-012): the plan, the merge and its cancel are a MoltenTerm window's only.
-	MergePlanCommand   = "moltenreviewmergeplan"
-	MergeCommand       = "moltenreviewmerge"
-	MergeCancelCommand = "moltenreviewmergecancel"
+	MergePlanCommand = "moltenreviewmergeplan"
+	// MergeMethodsCommand: Validate's method for a repository's base, for the batch modal (#957); read-only.
+	MergeMethodsCommand = "moltenreviewmergemethods"
+	MergeCommand        = "moltenreviewmerge"
+	MergeCancelCommand  = "moltenreviewmergecancel"
 	// Comments (FR-REV-003, FR-REV-009): saved, staged, dropped, discussed and moved to a new head from a MoltenTerm
 	// window only.
 	CommentCommand      = "moltenreviewcomment"
@@ -107,6 +111,8 @@ type Service struct {
 	forecaster *Forecaster
 	// batch: the batch merge by an agent (FR-REV-025); nil in the tests that do not need it.
 	batch *BatchRunner
+	// leftoverAsks: the requests to a leftover worktree's live owner (#1143); nil in the tests that do not need it.
+	leftoverAsks *LeftoverAsks
 	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
 	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
 	// translate asks the PR's review session for the translations (FR-REV-010); reviewsession.Translate outside the
@@ -220,10 +226,25 @@ func Start() {
 			Publish: func(run BatchRun) {
 				wps.Broker.Publish(wps.WaveEvent{Event: BatchEvent, Scopes: []string{run.Dir}, Data: run})
 			},
+			TreeInUse: func(path string) bool { return len(mission.ProcessesInTree(path)) > 0 },
 		})
 		service.merger.greenOnly = func() bool {
 			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewValidateGreenOnly
 		}
+		service.leftoverAsks = MakeLeftoverAsks(LeftoverAskEnv{
+			Owner: func(ctx context.Context, dir string, path string) (mission.LeftoverOwner, mission.LinkedTree, error) {
+				return mission.LiveLockOwner(ctx, mission.ExecRunner, dir, path)
+			},
+			Tree: func(ctx context.Context, dir string, path string) (mission.LinkedTree, bool, error) {
+				return mission.LinkedTreeOf(ctx, mission.ExecRunner, dir, path)
+			},
+			Send:     agenthandoff.SendFromApp,
+			AgentRun: attention.AgentRun,
+			Publish: func(answer LeftoverAsksAnswer) {
+				wps.Broker.Publish(wps.WaveEvent{Event: LeftoverAskEvent, Scopes: []string{answer.Dir}, Data: answer})
+			},
+			FollowEvery: leftoverFollowEvery,
+		})
 		service.publishNotes = func(notes Notes) {
 			wps.Broker.Publish(wps.WaveEvent{Event: NotesEvent, Scopes: []string{NotesScope(notes.Repo)}, Data: notes})
 		}
@@ -240,6 +261,12 @@ func Start() {
 		}
 		// The PRs the developer validated are merged even across a restart (FR-REV-026 AC2).
 		service.batch.Resume()
+		go func() {
+			defer func() {
+				panichandler.PanicHandler("molten:review:queue-trees", recover())
+			}()
+			service.batch.SweepTrees()
+		}()
 		rpcClient := wshclient.GetBareRpcClient()
 		rpcClient.EventListener.On(mcpreview.Event, func(event *wps.WaveEvent) {
 			var update mcpreview.Update
@@ -362,14 +389,14 @@ func (l *routeLink) route() localroute.Route {
 
 func commandTimeout(command string) time.Duration {
 	switch command {
-	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand, DiscussCommand,
+	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, MergeMethodsCommand, RelocateCommand, DiscussCommand,
 		PublishInfoCommand, TranslateCommand, NoteFileCommand, MarkReadyCommand:
 		return gitTimeout
 	case PublishCommand:
 		return publishTimeout
 	case CleanupCommand:
 		return cleanupTimeout
-	case RestartCommand, RebaseCommand, InvestigateCommand:
+	case RestartCommand, RebaseCommand, InvestigateCommand, ReleaseResolveCommand, FinishCommand:
 		return restartTimeout
 	}
 	return controlTimeout
@@ -426,6 +453,12 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.store.GetNotes(req.Repo)
+	case MergeMethodsCommand:
+		req, err := decode[MergeMethodsRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.merger.MergeMethods(ctx, req)
 	case ForecastCommand:
 		req, err := decode[ForecastRequest](data)
 		if err != nil {
@@ -499,6 +532,25 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.Cleanup(ctx, req)
+	case LeftoverAskCommand:
+		// The developer's click on Clean up (#1143): its approval of MoltenTerm's request to the owner, a window's only.
+		req, err := decode[LeftoverAskRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		if s.leftoverAsks == nil {
+			return nil, fmt.Errorf("the leftover requests are not available")
+		}
+		return s.leftoverAsks.Ask(ctx, req)
+	case LeftoverAsksCommand:
+		req, err := decode[LeftoverAsksRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		if s.leftoverAsks == nil {
+			return LeftoverAsksAnswer{Dir: req.Dir, Asks: []LeftoverAsk{}}, nil
+		}
+		return s.leftoverAsks.List(req.Dir), nil
 	case CommentCommand:
 		req, err := decode[CommentRequest](data)
 		if err != nil {
@@ -581,6 +633,21 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.AskInvestigate(ctx, req)
+	case FinishCommand:
+		// The developer's click on Check the agents (#954): like Ask for a rebase, never an agent's from a terminal.
+		req, err := decode[FinishRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.AskFinish(ctx, req)
+	case ReleaseResolveCommand:
+		// The developer's click on Analyze and resolve or Investigate together on a failed release step (#945): a
+		// window's only, never an agent's from a terminal.
+		req, err := decode[ReleaseResolveRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.AskReleaseResolve(ctx, req)
 	case MarkReadyCommand:
 		// The developer's click on Mark ready for review (#687): GitHub notifies the reviewers, so never a terminal's.
 		req, err := decode[MarkReadyRequest](data)

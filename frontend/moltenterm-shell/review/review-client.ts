@@ -26,6 +26,7 @@ const ViewedCommand = "moltenreviewviewed";
 const ShownCommand = "moltenreviewshown";
 const MergePlanCommand = "moltenreviewmergeplan";
 const MergeCommand = "moltenreviewmerge";
+const MergeMethodsCommand = "moltenreviewmergemethods";
 const MergeCancelCommand = "moltenreviewmergecancel";
 const AiPaneCommand = "moltenreviewaipane";
 const CommentCommand = "moltenreviewcomment";
@@ -124,8 +125,18 @@ export type ReviewRound = {
 };
 
 // must match RestartResult in pkg/molten/review/restart.go
-// offer: Ask for a rebase found no agent on the branch (pkg/molten/review/rebase.go).
-export type ReviewRestartStatus = "started" | "sent" | "typed" | "busy" | "noagent" | "failed" | "offer";
+// offer: Ask for a rebase found no agent on the branch (pkg/molten/review/rebase.go); queued and leadgone: the lead
+// agent that owns the work is busy, or no longer runs (pkg/molten/review/lead.go).
+export type ReviewRestartStatus =
+    | "started"
+    | "sent"
+    | "typed"
+    | "queued"
+    | "busy"
+    | "noagent"
+    | "failed"
+    | "offer"
+    | "leadgone";
 
 export type ReviewRestartResult = {
     status: ReviewRestartStatus;
@@ -155,6 +166,10 @@ export type ReviewRestartResult = {
     agentmissing?: boolean;
     agentsource?: string;
     agents?: { id: string; name: string; installed: boolean }[];
+    // The lead agent that owns the work (#1779).
+    lead?: boolean;
+    leadfolder?: string;
+    leadguessed?: boolean;
 };
 
 // How a new agent works (#758): out of sight, or in a tab the window shows; must match agentstart.go.
@@ -204,6 +219,8 @@ export type ReviewMergePlan = {
     methodrule?: "queue" | "ruleset" | "linear";
     // A merge queue merges the PR, with its own method.
     queue?: boolean;
+    // The repository's remembered method GitHub no longer allows: the sheet says what replaces it (#957).
+    methodrefused?: ReviewMergeMethod;
     checks: ReviewMergeCheck[];
     steps: ReviewMergeStep[];
     // The cleanup after the merge, every step planned.
@@ -321,7 +338,7 @@ export function openReviewTab(workspaceid: string, pr: ReviewPrInfo): Promise<{ 
     return call(OpenCommand, { workspaceid, pr });
 }
 
-// openReviewAiPane returns the PR's AI panel in the tab, creating it right of the review block (DS-REV-012).
+// openReviewAiPane returns the PR's AI panel in the tab, creating it left of the review block (DS-REV-012).
 export function openReviewAiPane(
     tabid: string,
     blockid: string,
@@ -413,6 +430,20 @@ export function reviewMerge(
     method?: ReviewMergeMethod
 ): Promise<ReviewMergeRecord> {
     return call(MergeCommand, { repo, number: num, planid, override: override || undefined, method });
+}
+
+// Validate's method for a repository's base, for the batch modal (#957): must match MergeMethods in
+// pkg/molten/review/mergemethod.go.
+export type ReviewMergeMethods = {
+    methods: ReviewMergeMethod[];
+    method: ReviewMergeMethod;
+    methodrule?: "queue" | "ruleset" | "linear";
+    queue?: boolean;
+    methodrefused?: ReviewMergeMethod;
+};
+
+export function reviewMergeMethods(dir: string, repo: string, base: string): Promise<ReviewMergeMethods> {
+    return call(MergeMethodsCommand, { dir, repo, base }, GitTimeoutMs);
 }
 
 export function reviewMergeCancel(repo: string, num: number): Promise<void> {
@@ -663,10 +694,26 @@ export function askReviewRebase(
 const InvestigateCommand = "moltenreviewinvestigate";
 
 // must match InvestigateCheck in pkg/molten/review/investigate.go
-export type InvestigateCheck = { name: string; workflow?: string; url?: string; runid?: number; jobid?: number };
+export type InvestigateCheck = {
+    name: string;
+    workflow?: string;
+    url?: string;
+    runid?: number;
+    jobid?: number;
+    local?: boolean;
+};
 
-// askReviewInvestigate is the developer's click on Investigate (#797): the agent on the PR's branch, or a new one once
-// the developer chose how (Start), reads the failed checks and proposes what to do.
+// The blockers a row read (#1020), as InvestigateRequest in pkg/molten/review/investigate.go names them.
+export type InvestigateBlockers = {
+    checks?: InvestigateCheck[];
+    merge?: "behind" | "conflicts";
+    changesrequested?: boolean;
+    noreport?: boolean;
+    localseen?: boolean;
+};
+
+// askReviewInvestigate is the developer's click on Analyze and resolve (#797, #1020): the agent on the PR's branch, or a
+// new one once the developer chose how (Start), resolves the PR's blockers in order.
 export function askReviewInvestigate(
     req: {
         repo: string;
@@ -678,10 +725,63 @@ export function askReviewInvestigate(
         title?: string;
         url?: string;
         ticket?: number;
-        checks: InvestigateCheck[];
-    } & AgentStart
+    } & InvestigateBlockers &
+        AgentStart
 ): Promise<ReviewRestartResult> {
     return call(InvestigateCommand, req, RestartTimeoutMs);
+}
+
+// must match FinishCommand in pkg/molten/review/finish.go
+const FinishCommand = "moltenreviewfinish";
+
+// askReviewFinish is Check the agents in the Reviews list (#954), for one PR: the agent on its branch, or a new one once
+// the developer confirmed (Start), verifies the PR against its ticket and finishes what is left.
+export function askReviewFinish(
+    req: {
+        repo: string;
+        number: number;
+        dir: string;
+        headref: string;
+        baseref: string;
+        headoid?: string;
+        title?: string;
+        url?: string;
+        ticket?: number;
+        conflicts?: boolean;
+        failedchecks?: string[];
+        changesrequested?: boolean;
+        noreport?: boolean;
+        markready?: boolean;
+        // The lead agent that owns the work (#1779, pkg/molten/review/lead.go): it gets the work before any other agent;
+        // resumelead (with workspaceid and tabname) restarts it on its session when it no longer runs.
+        lead?: { firstname?: string; agent?: string; blockid?: string };
+        resumelead?: boolean;
+        workspaceid?: string;
+        tabname?: string;
+    } & AgentStart
+): Promise<ReviewRestartResult> {
+    return call(FinishCommand, req, RestartTimeoutMs);
+}
+
+// must match ReleaseResolveCommand in pkg/molten/review/release_resolve.go
+const ReleaseResolveCommand = "moltenreviewreleaseresolve";
+
+// askReleaseResolve is the developer's click on Analyze and resolve (background) or Investigate together (together) on
+// a failed release step (#945): a new agent starts in its own copy of the trunk with the release's rules.
+export function askReleaseResolve(req: {
+    dir: string;
+    repo?: string;
+    tag: string;
+    phase: string;
+    step: string;
+    trunk: string;
+    log?: string;
+    runs?: InvestigateCheck[];
+    mode: AgentMode;
+    workspaceid: string;
+    tabname?: string;
+}): Promise<ReviewRestartResult> {
+    return call(ReleaseResolveCommand, req, RestartTimeoutMs);
 }
 
 const MarkReadyCommand = "moltenreviewmarkready";

@@ -122,6 +122,21 @@ describe("statusBarFolder", () => {
     it("has nothing for a workspace without folder or project", () => {
         expect(statusBarFolder({ view: "web" }, workspace({})).folder).toBe("");
     });
+
+    it("describes a project's repository, not its folder, when the project keeps its code in one (#1777)", () => {
+        const client = { "molten:project": "/clients/ofpis", "molten:projectrepo": "/clients/ofpis/app" };
+        expect(statusBarFolder(null, workspace(client)).folder).toBe("/clients/ofpis/app");
+        expect(statusBarFolder(null, workspace({ ...client, "molten:folder": "/clients/ofpis" })).folder).toBe(
+            "/clients/ofpis/app"
+        );
+        expect(statusBarFolder(null, workspace({ ...client, "molten:folder": "/clients/ofpis/docs" })).folder).toBe(
+            "/clients/ofpis/docs"
+        );
+        expect(statusBarFolder({ view: "term", "cmd:cwd": "/clients/ofpis" }, workspace(client)).folder).toBe(
+            "/clients/ofpis"
+        );
+        expect(statusBarFolder(null, workspace({ "molten:project": "/clients/ofpis" })).folder).toBe("/clients/ofpis");
+    });
 });
 
 const devState: PaneState = {
@@ -152,7 +167,7 @@ describe("makePaneView", () => {
         });
         expect(view.ci).toMatchObject({ status: "failure", label: "CI failed" });
         expect(view.branchTitle).toBe(
-            "feature/108-status at 4f2a9c0\n2 ahead, 0 behind origin/feature/108-status\nuncommitted changes\nOpen the Project tab"
+            "feature/108-status at 4f2a9c0\n2 ahead, 0 behind origin/feature/108-status\nuncommitted changes\nOpen the Project view"
         );
     });
 
@@ -175,8 +190,66 @@ describe("makePaneView", () => {
             { dir: "/r", root: "/r", project: "/r", detached: true, sha: "abcdef1234", ahead: 3 },
             workspace({})
         );
-        expect(view.branch).toBe("abcdef1");
-        expect(view.branchTitle).toBe("detached at abcdef1\n3 commits on no remote\nOpen the Project tab");
+        expect(view.branch).toBe("detached at abcdef1");
+        expect(view.branchTitle).toBe(
+            "detached at abcdef1\non no branch\n3 commits on no remote\nOpen the Project view"
+        );
+    });
+
+    it("names the branch a detached head stands for, with its pull request (#961)", () => {
+        const pr = { number: 109, title: "Loader", url: "u109" };
+        const view = makePaneView(
+            "/r",
+            {
+                dir: "/r",
+                root: "/r",
+                project: "/r",
+                detached: true,
+                sha: "abcdef1234",
+                detachedbranch: "feature/109-loader",
+                prknown: true,
+                pr,
+            },
+            workspace({})
+        );
+        expect(view.branch).toBe("detached at feature/109-loader");
+        expect(view.branchTitle).toBe("detached at abcdef1\nOpen the Project view");
+        expect(view.pr).toEqual(pr);
+    });
+
+    it("says a branch has no pull request yet only when the open ones are known (#961)", () => {
+        const state: PaneState = { dir: "/r", root: "/r", project: "/r", branch: "feature/7-x", sha: "abcdef1234" };
+        expect(makePaneView("/r", { ...state, prknown: true }, workspace({})).branchTitle).toBe(
+            "feature/7-x at abcdef1\nNo pull request yet\nOpen the Project view"
+        );
+        expect(makePaneView("/r", state, workspace({})).branchTitle).toBe(
+            "feature/7-x at abcdef1\nOpen the Project view"
+        );
+        const onNoBranch = makePaneView(
+            "/r",
+            { dir: "/r", root: "/r", project: "/r", detached: true, sha: "abcdef1234", prknown: true },
+            workspace({})
+        );
+        expect(onNoBranch.branchTitle).toBe("detached at abcdef1\non no branch\nOpen the Project view");
+    });
+
+    it("says which repository below the folder it describes (#961)", () => {
+        const view = makePaneView(
+            "/p",
+            {
+                dir: "/p",
+                root: "/p/diamondforge",
+                project: "/p/diamondforge",
+                name: "diamondforge",
+                branch: "develop",
+                sha: "abcdef1234",
+                below: true,
+            },
+            workspace({})
+        );
+        expect(view.projectName).toBe("diamondforge");
+        expect(view.branch).toBe("develop");
+        expect(view.projectTitle).toBe("diamondforge\nRepository in the subfolder diamondforge\n/p");
     });
 
     it("shows the workspace project while the answer is on its way", () => {

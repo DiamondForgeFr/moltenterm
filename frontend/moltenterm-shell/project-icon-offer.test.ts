@@ -17,6 +17,7 @@ vi.mock("./workspace-project-store", () => ({
     markLogoOffered: store.markOffered,
 }));
 
+import { I18nModel } from "./i18n/i18n";
 import { iconOfferToastId, makeIconOffer, offerProjectIcon } from "./project-icon-offer";
 import { Toasts } from "./toast-store";
 
@@ -54,6 +55,22 @@ describe("project icon offer (FR-SHELL-059-AC2)", () => {
         expect(toast).toMatchObject({ title: "Use Demo's logo?", message: "As the icon of Client A", stays: true });
         expect(toast.thumbnail).toBe("http://localhost/wave/stream-local-file?path=%2Fp%2Ficon.png");
         expect(toast.actions.map((a) => a.label)).toEqual(["Use this icon", "Dismiss"]);
+    });
+
+    it("resolves its texts when it renders, so a language switch reaches a toast that waits (#1379)", async () => {
+        store.logos = ["/p/icon.png"];
+        await offerProjectIcon(ws, "/p");
+        const [toast] = Toasts.getInstance().stack();
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            const shown = toast.text();
+            expect(shown.title).toBe("Utiliser le logo de Demo ?");
+            expect(shown.message).toBe("Comme icône de Client A");
+            expect(shown.actionLabels).toEqual({ use: "Utiliser cette icône", dismiss: "Ignorer" });
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+        expect(toast.text().title).toBe("Use Demo's logo?");
     });
 
     it("sets the image on Use this icon, and remembers the answer either way", async () => {

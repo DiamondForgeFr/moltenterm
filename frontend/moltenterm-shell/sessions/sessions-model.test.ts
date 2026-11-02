@@ -19,6 +19,7 @@ import {
     moveSelection,
     nextSelection,
     outputText,
+    libraryDot,
     railBadge,
     reasonLabel,
     rowAriaLabel,
@@ -242,6 +243,32 @@ describe("text", () => {
         expect(label).toBe(
             "Claude Code, waiting for you, claude, local, in ~/app, branch feat, up 1 min, output just now, Work › T1"
         );
+    });
+});
+
+describe("library dot", () => {
+    const agents = (...states: string[]) =>
+        railBadge({
+            sessions: states.map((s, i) => session(`s${i}`, { agent: "claude", agentstate: s })),
+            runningagents: states.length,
+            version: 1,
+        });
+
+    it("shows nothing for running or idle agents, or for sessions without an agent", () => {
+        expect(libraryDot(railBadge(null), false)).toBeNull();
+        expect(libraryDot(railBadge({ sessions: [session("a")], runningagents: 0, version: 1 }), false)).toBeNull();
+        expect(libraryDot(agents("working", "idle", "done"), false)).toBeNull();
+    });
+
+    it("shows the waiting dot for an agent waiting for the developer", () => {
+        expect(libraryDot(agents("working", "waiting"), false)).toBe("waiting");
+    });
+
+    it("shows the error dot for an errored agent or for config errors", () => {
+        expect(libraryDot(agents("working", "error"), false)).toBe("error");
+        expect(libraryDot(agents("waiting", "error"), false)).toBe("waiting");
+        expect(libraryDot(railBadge(null), true)).toBe("error");
+        expect(libraryDot(agents("waiting"), true)).toBe("error");
     });
 });
 

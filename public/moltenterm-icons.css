@@ -109,8 +109,17 @@
 }
 
 /* 3. Pro-only icons: closest Free glyph. */
-.fa-sparkles {
-    --fa: "\e2ca"; /* wand-magic-sparkles */
+/* The AI icon is the suite's, Notulia's lucide Sparkles, not Free's closest glyph (a magic wand) (#1265). The
+   attribute selector outranks Font Awesome's ".fa-solid::before { content: var(--fa) }". */
+[class].fa-sparkles::before {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    background-color: currentColor;
+    -webkit-mask: url(./moltenterm-sparkles.svg) center / contain no-repeat;
+    mask: url(./moltenterm-sparkles.svg) center / contain no-repeat;
 }
 .fa-xmark-large {
     --fa: "\f00d"; /* xmark */

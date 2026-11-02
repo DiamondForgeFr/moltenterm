@@ -1225,6 +1225,13 @@ declare global {
         color: string;
     };
 
+    // wconfig.NewWorkspaceViewType
+    type NewWorkspaceViewType = {
+        name?: string;
+        namekey?: string;
+        panels: string[];
+    };
+
     // waveobj.ORef
     type ORef = string;
 
@@ -1469,6 +1476,10 @@ declare global {
         "tab:holdtoclose"?: boolean;
         "tab:holdtoclosems"?: number;
         "power:sleeppolicy"?: string;
+        "shell:workspacesidebar"?: boolean;
+        "app:newviewopen"?: string;
+        "app:newviewfavorites"?: string[];
+        "app:newworkspaceviews"?: NewWorkspaceViewType[];
         "moltenterm:tabviewpriority"?: boolean;
         "moltenterm:tabviewbudget"?: boolean;
         "moltenterm:hiddentabviews"?: number;
@@ -1477,10 +1488,19 @@ declare global {
         "moltenterm:hiddenpagefreeze"?: boolean;
         "moltenterm:hiddenpagediscardmin"?: number;
         "moltenterm:releasenotify"?: boolean;
+        "moltenterm:releasecandidates"?: boolean;
         "moltenterm:confirmbusyclose"?: boolean;
+        "moltenterm:sidebartint"?: boolean;
+        "moltenterm:sidebarheat"?: boolean;
+        "moltenterm:settingsreveal"?: boolean;
+        "moltenterm:theme"?: string;
         "moltenterm:view360"?: string;
         "moltenterm:terminalscreenreader"?: string;
         "moltenterm:codingagent"?: string;
+        "moltenterm:reviewssort"?: string;
+        "moltenterm:reviewsfolds"?: {[key: string]: boolean};
+        "moltenterm:settingstab"?: string;
+        "moltenterm:materialsseen"?: {[key: string]: number};
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;
@@ -1488,6 +1508,8 @@ declare global {
         "window:transparent"?: boolean;
         "window:blur"?: boolean;
         "window:opacity"?: number;
+        "window:texture"?: string;
+        "window:textureintensity"?: number;
         "window:bgcolor"?: string;
         "window:reducedmotion"?: boolean;
         "window:tilegapsize"?: number;
@@ -2216,6 +2238,23 @@ declare global {
     type WorkspaceListEntry = {
         workspaceid: string;
         windowid: string;
+    };
+
+    // wcore.WorkspaceUndoOffer
+    type WorkspaceUndoOffer = {
+        undoid: string;
+        kind: string;
+        workspaceid: string;
+        name: string;
+        remainingms: number;
+    };
+
+    // wcore.WorkspaceUndoResult
+    type WorkspaceUndoResult = {
+        kind: string;
+        workspaceid: string;
+        activetabid?: string;
+        closedtabids?: string[];
     };
 
     // wshrpc.WshServerCommandMeta

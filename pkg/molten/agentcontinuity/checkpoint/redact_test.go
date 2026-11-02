@@ -89,11 +89,80 @@ func TestRedactKeepsNonSecrets(t *testing.T) {
 		"mkdir -p build && ls -u dir",
 		"Run go test ./pkg/... then task check:ts",
 		"https://github.com/DiamondForgeFr/moltenterm/pull/335",
+		"token: true # enabled\nhost: example",
+		"api_key: $API_KEY\nhost: example",
 	}
 	for _, in := range cases {
 		out, n := Redact(in)
 		if n != 0 || out != in {
 			t.Errorf("changed %q into %q (%d)", in, out, n)
+		}
+	}
+}
+
+// A spaced colon (French typography) is prose only when two more words follow on the line; a value alone, or a value
+// that is not a plain word, stays redacted whatever the name's strength (#1432).
+func TestRedactSpacedColon(t *testing.T) {
+	secrets := []struct {
+		in     string
+		secret string
+	}{
+		{"password : swordfish", "swordfish"},
+		{"secret : hunter2x", "hunter2x"},
+		{"token : abcdef123", "abcdef123"},
+		{"api_key : sk-proj-ABCDEFGHIJKLMNOPQRSTUV", "sk-proj-ABCDEFGHIJKLMNOPQRSTUV"},
+		{"db:\n  password : swordfish\n  host: localhost", "swordfish"},
+		{"password : swordfish\nLe reste : du texte normal ici", "swordfish"},
+		{"secret : hunter, then words", "hunter"},
+		{"password : Hunter22", "Hunter22"},
+		{"DB_PASSWORD : swordfish", "swordfish"},
+		{"DB_PASSWORD : swordfish est le mot", "swordfish"},
+	}
+	for _, c := range secrets {
+		out, n := Redact(c.in)
+		if strings.Contains(out, c.secret) || n == 0 {
+			t.Errorf("secret kept in %q: %q (%d)", c.in, out, n)
+		}
+	}
+	prose := []string{
+		"Le secret : des copies gardées sur cet ordinateur.",
+		"Rien de secret : des nombres, des identifiants de modèle, des numéros de ticket.",
+		".life li.key::before { border-color: var(--pg-action); }",
+		"a.token::after{content:\"\"}",
+		"Secret : des copies gardées sur cet ordinateur et ailleurs.",
+		".secret:hover {\n  color: red;\n}",
+		"input.password:focus{outline: none}",
+	}
+	for _, in := range prose {
+		if out, n := Redact(in); n != 0 || out != in {
+			t.Errorf("changed %q into %q (%d)", in, out, n)
+		}
+	}
+}
+
+func TestRedactYamlCredentialValues(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"db:\n  password : correct horse battery staple\n  host: localhost", "db:\n  password : [redacted]\n  host: localhost"},
+		{"password: correct horse battery staple", "password: [redacted]"},
+		{"api_key : alpha bravo charlie delta", "api_key : [redacted]"},
+		{`api_key : "alpha bravo charlie delta"`, `api_key : "[redacted]"`},
+		{"- password: correct horse battery staple", "- password: [redacted]"},
+		{"password: true horse battery staple\nhost: example", "password: [redacted]\nhost: example"},
+		{"password: |\n  correct horse battery staple\n  other secret phrase\nhost: example", "password: [redacted]\nhost: example"},
+		{"password: >-\n  correct horse battery staple\n  other secret phrase\nhost: example", "password: [redacted]\nhost: example"},
+		{"- name: prod\n  password: correct horse\n    battery staple\n  host: local", "- name: prod\n  password: [redacted]\n  host: local"},
+		{"credentials: {password: correct horse battery staple, user: alice}", "credentials: {password: [redacted], user: alice}"},
+		{"password: 'correct horse''battery staple'", "password: '[redacted]'"},
+		{"credentials: {password: 'correct horse''battery staple', user: alice}", "credentials: {password: '[redacted]', user: alice}"},
+		{"password: 'correct horse''battery\n  staple'\nhost: example", "password: '[redacted]'\nhost: example"},
+	}
+	for _, c := range cases {
+		out, n := Redact(c.in)
+		if n != 1 || out != c.want {
+			t.Errorf("got %q (%d), want %q", out, n, c.want)
+		}
+		if again, count := Redact(out); again != out || count != 0 {
+			t.Errorf("not idempotent: %q (%d)", again, count)
 		}
 	}
 }

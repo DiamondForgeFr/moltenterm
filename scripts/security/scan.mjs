@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertCoverage, evaluatePolicy, expectedGoScopes, fingerprint, markdownReport, normalizeGo, normalizeNpm, ScanInputError, validatePolicy } from "./policy.mjs";
+import { assertCoverage, evaluatePolicy, expectedGoScopes, fingerprint, markdownReport, normalizeGo, normalizeNpm, ScanInputError, validateElectronLifecycle, validatePolicy } from "./policy.mjs";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
@@ -91,6 +91,8 @@ const successful = (entry) => {
 try {
     const policy = validatePolicy(JSON.parse(fs.readFileSync(path.join(repo, "security/dependencies.json"), "utf8")));
     const lock = JSON.parse(fs.readFileSync(path.join(repo, "package-lock.json"), "utf8"));
+    const packageManifest = JSON.parse(fs.readFileSync(path.join(repo, "package.json"), "utf8"));
+    validateElectronLifecycle(policy, packageManifest, lock);
     const commit = await run("commit", "git", ["rev-parse", "HEAD"]);
     report.commit = successful(commit);
     report.inputs = Object.fromEntries(["package.json", "package-lock.json", "docs/package.json", "tsunami/frontend/package.json", "go.mod", "go.sum", "tsunami/go.mod", "tsunami/go.sum", "security/dependencies.json"].map((name) => [name, fingerprint(fs.readFileSync(path.join(repo, name), "utf8"))]));

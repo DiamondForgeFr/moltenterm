@@ -74,6 +74,8 @@ type Env struct {
 	// Zero means the defaults (30 s, 90 min).
 	CiPoll  time.Duration
 	CiLimit time.Duration
+	// --ticket: the release's ticket, for a commit format that names one (#1046).
+	Ticket int
 }
 
 // Project is what the release commands read from `.molten/project.json`.
@@ -87,8 +89,19 @@ type Project struct {
 	Release string
 	// versions.notesagent: the coding agent CLI that writes the public notes, empty for none.
 	NotesAgent []string
+	// versions.changelogs: files the cut may commit beside the version files and the notes.
+	Changelogs []string
 	// Where the release branch's name was read (molten.BranchFrom…), for the messages that name it.
 	ReleaseFrom string
+	// The RC branch naming of the pull-request flow (#1046), e.g. rc-{version}; empty for DefaultRcBranchPattern.
+	RcPattern string
+	// How the chain's commits are worded (#1046).
+	Convention Convention
+	// ci.prepare: what installs the project's dependencies, run in the release worktree before its first commit when
+	// the project has git hooks that need them (#1046).
+	Install string
+	// versions.format: the formatter the release's files go through before they are committed (#1095), empty to detect.
+	Format string
 }
 
 // releaseBranchMissing says which branch was looked for, and why that one (#415).
@@ -232,10 +245,13 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 	p := &Project{Root: root, Name: report.Pipeline.Name, Rules: versions.Rules{TagPrefix: versions.DefaultTagPrefix}, Notes: DefaultNotesPath}
 	if v := report.Pipeline.Versions; v != nil {
 		p.NotesAgent = v.NotesAgent
+		p.Changelogs = v.Changelogs
+		p.Format = strings.TrimSpace(v.Format)
 		if v.TagPrefix != "" {
 			p.Rules.TagPrefix = v.TagPrefix
 		}
 		p.Rules.FirstPublic = v.FirstPublic
+		p.Rules.RcFormat = v.RcFormat
 		if v.Notes != "" {
 			p.Notes = v.Notes
 		}
@@ -243,6 +259,11 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 	}
 	branches := molten.ResolvedBranches(root)
 	p.Trunk, p.Release, p.ReleaseFrom = branches.Trunk, branches.Release, branches.ReleaseFrom
+	p.RcPattern = molten.RcBranchPattern(root)
+	p.Convention = ReadConvention(root)
+	if ci := report.Pipeline.Ci; ci != nil && ci.Prepare != nil {
+		p.Install = strings.TrimSpace(ci.Prepare.Run)
+	}
 	return p, nil
 }
 
@@ -265,7 +286,7 @@ func (p *Project) releaseOf(tag string) (versions.Version, string, error) {
 	v, ok := p.Rules.ReleaseOf(tag)
 	if !ok || strings.TrimSpace(tag) != tag {
 		prefix := p.Rules.TagPrefix
-		return versions.Version{}, "", fmt.Errorf("%q is not a release tag of this project (%sX.Y.Z or %sX.Y.Z-N)", tag, prefix, prefix)
+		return versions.Version{}, "", fmt.Errorf("%q is not a release tag of this project (%sX.Y.Z or %s%s)", tag, prefix, prefix, p.Rules.RcPattern())
 	}
 	if v.IsRc() {
 		return v, versions.ChannelRc, nil

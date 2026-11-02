@@ -19,6 +19,7 @@ import {
 } from "./moltenterm-hang-ipc";
 import { HangEventLog, HangPingMs, HangWatchModel, shouldNotifyStall } from "./moltenterm-hang-model";
 import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc";
+import { initRendererGoneRecovery, onRendererGone, trackRendererPid } from "./moltenterm-renderer-gone";
 
 export type WindowHang = { ms: number; at: number };
 
@@ -111,9 +112,9 @@ export function hangDiagnostics(): HangDiagnostics {
 export function initMoltentermHangWatch() {
     setBackendCallReporter(record);
     app.on("web-contents-created", (_event, wc) => watchContents(wc));
-    app.on("render-process-gone", (_event, wc, details) => {
-        record(`renderer of ${describe(wc)} gone: reason=${details?.reason} exitcode=${details?.exitCode}`);
-    });
+    app.on("web-contents-created", (_event, wc) => trackRendererPid(wc));
+    app.on("render-process-gone", (_event, wc, details) => onRendererGone(wc, details, describe(wc), record));
+    initRendererGoneRecovery(record);
     app.on("child-process-gone", (_event, details) => {
         const name = details?.name ? ` (${details.name})` : "";
         record(`child process ${details?.type}${name} gone: reason=${details?.reason} exitcode=${details?.exitCode}`);
@@ -127,7 +128,7 @@ export function initMoltentermHangWatch() {
         if (typeof text !== "string") {
             throw new Error("hang diagnostics: text expected");
         }
-        clipboard.writeText(text.slice(0, 200000));
+        return clipboard.writeText(text.slice(0, 200000));
     });
     powerMonitor.on("suspend", () => model.pause());
     powerMonitor.on("resume", () => model.resume());

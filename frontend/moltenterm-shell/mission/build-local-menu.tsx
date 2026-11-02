@@ -12,17 +12,16 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { pathParent } from "../workspace-project";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { buildCardTitle, BuildFacts, BuildsFacts, ciLine, lastBuildLine } from "./builds-model";
 import { MenuPopover } from "./menu-popover";
 import { missionBuilds } from "./mission-client";
 import { RunRecord } from "./mission-model";
 
-function revealBuild(build: BuildFacts) {
-    const target = build.last?.app && build.artifact ? pathParent(build.artifact) : build.artifact || build.manifest;
+export function revealBuild(build: BuildFacts) {
+    const target = build.artifact || build.manifest;
     if (target) {
-        getApi().openNativePath(target);
+        getApi().revealNativePath(target);
     }
 }
 

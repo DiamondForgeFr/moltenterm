@@ -1,0 +1,216 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+package wcore
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
+	"github.com/wavetermdev/waveterm/pkg/molten/reopen"
+	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wps"
+	"github.com/wavetermdev/waveterm/pkg/wstore"
+)
+
+// Pinned views (FR-SHELL-080): the window reads a view's configuration to pin it, and makes a view from one, in a
+// new tab (a view pinned everywhere opened in a workspace) or in place of a tab's panels (back to the pinned state).
+// The view is made by splits, the way a reopened tab is (reopen.LayoutLeaves, restoreTab).
+
+// A workspace with a folder but no linked project opens its views there (#1642): the project token falls back to the
+// workspace folder, never to the home folder.
+func workspaceProjectDir(ctx context.Context, workspaceId string) string {
+	ws, err := GetWorkspace(ctx, workspaceId)
+	if err != nil || ws == nil {
+		return ""
+	}
+	return viewProjectDir(ws.Meta)
+}
+
+// projectDirOfTab is the folder a view is made on or read against: the folder of the project that owns the tab when the
+// workspace has two projects or more (#1760), else the workspace's project folder.
+func projectDirOfTab(ctx context.Context, workspaceId string, tabId string) string {
+	ws, err := GetWorkspace(ctx, workspaceId)
+	if err != nil || ws == nil {
+		return ""
+	}
+	if tabId != "" && projectviews.Multi(ws.Meta) {
+		if owner := projectviews.ReadTabProjects(ws.Meta)[tabId]; owner != "" {
+			if p, ok := projectviews.FindProject(projectviews.ReadProjects(ws.Meta), owner); ok && p.Dir != "" {
+				return p.Dir
+			}
+		}
+	}
+	return viewProjectDir(ws.Meta)
+}
+
+func viewProjectDir(meta waveobj.MetaMapType) string {
+	if dir := meta.GetString(viewpin.ProjectMetaKey, ""); dir != "" {
+		return dir
+	}
+	return molten.WorkspaceFolder(meta)
+}
+
+func captureViewPin(ctx context.Context, req viewpin.CaptureRequest) (viewpin.Config, error) {
+	tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, req.TabId)
+	if err != nil {
+		return viewpin.Config{}, err
+	}
+	agents := map[string]bool{}
+	for _, id := range req.AgentBlocks {
+		agents[id] = true
+	}
+	dir := projectDirOfTab(ctx, req.WorkspaceId, req.TabId)
+	project := viewpin.Project{Dir: dir, RepoUrl: viewpin.RepoWebUrl(dir)}
+	metaOf := func(blockId string) (waveobj.MetaMapType, bool) {
+		if !slices.Contains(tab.BlockIds, blockId) {
+			return nil, false
+		}
+		block, _ := wstore.DBGet[*waveobj.Block](ctx, blockId)
+		if block == nil {
+			return nil, false
+		}
+		return block.Meta, true
+	}
+	cfg := viewpin.Capture(req.Tree, agents, project, metaOf)
+	if len(cfg.Panes) == 0 {
+		return viewpin.Config{}, fmt.Errorf("the view has no panel to pin")
+	}
+	return cfg, nil
+}
+
+func buildViewPin(ctx context.Context, req viewpin.BuildRequest) (viewpin.BuildResult, error) {
+	ctx = waveobj.ContextWithUpdates(ctx)
+	defer func() {
+		updates := waveobj.ContextGetUpdatesRtn(ctx)
+		if len(updates) == 0 {
+			return
+		}
+		go func() {
+			defer func() {
+				panichandler.PanicHandler("buildViewPin:SendUpdateEvents", recover())
+			}()
+			wps.Broker.SendUpdateEvents(updates)
+		}()
+	}()
+	if req.Pending {
+		// Two windows (or a tab view handed over mid-switch) may show the same pending view: one opens it, the other
+		// then finds its panels and does nothing.
+		pendingViewLock.Lock()
+		defer pendingViewLock.Unlock()
+		cfg, build, err := openPendingView(ctx, req.TabId)
+		if err != nil || !build {
+			return viewpin.BuildResult{TabId: req.TabId}, err
+		}
+		req.Config = cfg
+	}
+	dir := projectDirOfTab(ctx, req.WorkspaceId, req.TabId)
+	project := viewpin.Project{Dir: dir, RepoUrl: viewpin.RepoWebUrl(dir)}
+	panes := req.Config.Panes
+	metaOf := func(blockId string) (map[string]any, bool) {
+		idx, err := strconv.Atoi(strings.TrimPrefix(blockId, "p"))
+		if err != nil || idx < 0 || idx >= len(panes) {
+			return nil, false
+		}
+		return viewpin.ResolvePane(panes[idx], project), true
+	}
+	leaves := reopen.LayoutLeaves(viewpin.LayoutRoot(req.Config.Tree), "", metaOf)
+	if len(leaves) == 0 {
+		return viewpin.BuildResult{}, fmt.Errorf("the view has no panel to open")
+	}
+	leaves[0].Focused = true
+	tabId := req.TabId
+	var oldBlocks []string
+	if tabId == "" {
+		newId, err := makePinnedTab(ctx, req)
+		if err != nil {
+			return viewpin.BuildResult{}, err
+		}
+		tabId = newId
+	} else {
+		tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
+		if err != nil {
+			return viewpin.BuildResult{}, err
+		}
+		oldBlocks = slices.Clone(tab.BlockIds)
+	}
+	actions := []waveobj.LayoutActionData{{ActionType: LayoutActionDataType_ClearTree}}
+	blockIds := make([]string, len(leaves))
+	for i, leaf := range leaves {
+		block, err := CreateBlockWithTelemetry(ctx, tabId, &waveobj.BlockDef{Meta: leaf.Meta}, &waveobj.RuntimeOpts{}, false)
+		if err != nil {
+			log.Printf("molten: opening a panel of a pinned view: %v\n", err)
+			continue
+		}
+		blockIds[i] = block.OID
+		actions = append(actions, tabLeafAction(leaf, block.OID, blockIds))
+	}
+	if err := QueueLayoutActionForTab(ctx, tabId, actions...); err != nil {
+		return viewpin.BuildResult{TabId: tabId}, err
+	}
+	if req.Pending {
+		if err := clearPendingView(ctx, tabId); err != nil {
+			return viewpin.BuildResult{TabId: tabId}, err
+		}
+	}
+	for _, id := range oldBlocks {
+		if err := DeleteBlock(ctx, id, false); err != nil {
+			log.Printf("molten: removing a panel replaced by the pinned state: %v\n", err)
+		}
+	}
+	if req.TabId == "" && !req.Background {
+		SendActiveTabUpdate(ctx, req.WorkspaceId, tabId)
+	}
+	return viewpin.BuildResult{TabId: tabId}, nil
+}
+
+// makePinnedTab adds the view's tab at the end of the workspace's tabs and makes it the active one, unless it is made
+// in the background.
+func makePinnedTab(ctx context.Context, req viewpin.BuildRequest) (string, error) {
+	return wstore.WithTxRtn(ctx, func(tx *wstore.TxWrap) (string, error) {
+		tctx := tx.Context()
+		tab, err := createTabObj(tctx, req.WorkspaceId, req.Name, req.TabMeta)
+		if err != nil {
+			return "", err
+		}
+		if req.Background {
+			return tab.OID, nil
+		}
+		ws, err := GetWorkspace(tctx, req.WorkspaceId)
+		if err != nil {
+			return "", err
+		}
+		moltenRememberActiveTab(ws, tab.OID)
+		ws.ActiveTabId = tab.OID
+		if err := wstore.DBUpdate(tctx, ws); err != nil {
+			return "", err
+		}
+		return tab.OID, nil
+	})
+}
+
+// pinnedViewTab: the tab is a pinned view, which stays when its last panel closes (FR-SHELL-081).
+func pinnedViewTab(ctx context.Context, tabId string) bool {
+	tab, _ := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+	if tab == nil {
+		return false
+	}
+	var clientMeta waveobj.MetaMapType
+	if client, err := wstore.DBGetSingleton[*waveobj.Client](ctx); err == nil && client != nil {
+		clientMeta = client.Meta
+	}
+	return viewpin.Pinned(tab.Meta, clientMeta)
+}
+
+// StartViewPinRoute lets the windows pin views and open them; wavesrv calls it once.
+func StartViewPinRoute() {
+	viewpin.StartRoute(viewpin.Store{Capture: captureViewPin, Build: buildViewPin})
+}

@@ -6,6 +6,7 @@ import { cn } from "@/util/util";
 import { useAtomValue, useSetAtom } from "jotai";
 import { memo, useEffect, useMemo } from "react";
 import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
+import { DominoLoader } from "../../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 interface ErrorDisplayProps {
     message: string;
@@ -32,7 +33,8 @@ ErrorDisplay.displayName = "ErrorDisplay";
 const LoadingSpinner = memo(({ message }: { message: string }) => {
     return (
         <div className="flex flex-col items-center justify-center gap-3 py-12">
-            <i className="fa-sharp fa-solid fa-spinner fa-spin text-2xl text-zinc-400" />
+            {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+            <DominoLoader size="card" />
             <span className="text-zinc-400">{message}</span>
         </div>
     );
@@ -192,7 +194,7 @@ const AddSecretForm = memo(
                     >
                         {isLoading ? (
                             <>
-                                <i className="fa-sharp fa-solid fa-spinner fa-spin" />
+                                <DominoLoader />
                                 Adding...
                             </>
                         ) : (
@@ -256,7 +258,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                         The current secret value is not shown by default for security purposes.{" "}
                         {isLoading ? (
                             <span className="text-zinc-500">
-                                <i className="fa-sharp fa-solid fa-spinner fa-spin" /> Loading...
+                                <DominoLoader /> Loading...
                             </span>
                         ) : (
                             <button
@@ -279,7 +281,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                 >
                     {isLoading ? (
                         <>
-                            <i className="fa-sharp fa-solid fa-spinner fa-spin" />
+                            <DominoLoader />
                             Deleting...
                         </>
                     ) : (
@@ -303,7 +305,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                     >
                         {isLoading ? (
                             <>
-                                <i className="fa-sharp fa-solid fa-spinner fa-spin" />
+                                <DominoLoader />
                                 Saving...
                             </>
                         ) : (

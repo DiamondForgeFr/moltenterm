@@ -9,6 +9,7 @@
 import { cn } from "@/util/util";
 import { useEffect, useRef } from "react";
 import { useT } from "../i18n/i18n";
+import { DominoLoader } from "../suite/suite";
 
 export const RowActionsClass =
     "pointer-events-none flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-120 ease-mt group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100";
@@ -114,12 +115,13 @@ export function RerunConfirm({
             </button>
             <button
                 type="button"
-                className="molten-btn-secondary h-6 cursor-pointer rounded-6 px-2 text-12 font-medium text-primary"
+                className="molten-btn-secondary inline-flex h-6 cursor-pointer items-center rounded-6 px-2 text-12 font-medium text-primary disabled:cursor-default"
                 onClick={onConfirm}
                 disabled={busy}
                 aria-busy={busy}
                 data-testid="ci-rerun-confirm-go"
             >
+                {busy ? <DominoLoader className="mr-1.5" /> : null}
                 {busy ? t("mc.common.starting") : confirmLabel}
             </button>
             {error ? (

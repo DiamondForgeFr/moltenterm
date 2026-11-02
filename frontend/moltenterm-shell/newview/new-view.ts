@@ -1,0 +1,173 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// Opening a new view (FR-SHELL-089): ⌘N, the sidebar's New view, the palette's New view and the tab bar's + all come
+// here. The chooser, or the type the developer chose to open directly; the favourites' direct shortcuts; and what the
+// chooser does when an entry is picked or the view is cancelled.
+
+import {
+    atoms,
+    getApi,
+    getBlockComponentModel,
+    getSettingsKeyAtom,
+    globalStore,
+    replaceBlock,
+    WOS,
+} from "@/app/store/global";
+import { getLayoutModelForStaticTab } from "@/layout/index";
+import { isMacOS } from "@/util/platformutil";
+import { fireAndForget } from "@/util/util";
+import { AddressTarget, requestAddressFocus } from "../browser/address-focus";
+import { MoltentermBrowserView } from "../browser/browser-model";
+import { knownCodingAgents } from "../coding-agent/coding-agent";
+import { projectTabIds } from "../hidden-tabs";
+import { runPaletteEntry } from "../palette/palette-actions";
+import { fillsPanel, PaletteEntry } from "../palette/palette-model";
+import { newViewFavoriteBindings } from "../shortcuts/registry";
+import { ViewPins } from "../sidebar/view-pins-store";
+import { readWorkspaceProject } from "../workspace-project";
+import { findSuggestion, suggestionConfig } from "../workspace-views/view-suggestions";
+import {
+    AgentPickerBlockDef,
+    newViewChoices,
+    NewViewFavoritesKey,
+    NewViewOpenKey,
+    newViewStart,
+    NewViewStart,
+    resolveDirect,
+    resolveFavorites,
+} from "./new-view-model";
+
+const TerminalBlockDef: BlockDef = { meta: { view: "term", controller: "shell" } };
+
+export function currentNewViewChoices(): PaletteEntry[] {
+    const fullConfig = globalStore.get(atoms.fullConfigAtom);
+    const ws = globalStore.get(atoms.workspace);
+    return newViewChoices({
+        presets: fullConfig?.presets,
+        installedAgents: knownCodingAgents(),
+        widgets: fullConfig?.widgets,
+        workspaceId: ws?.oid,
+        projectLinked: readWorkspaceProject(ws).dir !== "",
+    });
+}
+
+export function currentFavorites(choices: PaletteEntry[] = currentNewViewChoices()): PaletteEntry[] {
+    return resolveFavorites(globalStore.get(getSettingsKeyAtom(NewViewFavoritesKey)), choices);
+}
+
+async function start(s: NewViewStart): Promise<void> {
+    if (s.kind === "tab") {
+        getApi().createTab(s.blockdef);
+        return;
+    }
+    await runPaletteEntry(s.run, { placement: "new", blockId: null });
+}
+
+export function openNewView() {
+    const choices = currentNewViewChoices();
+    const direct = resolveDirect(globalStore.get(getSettingsKeyAtom(NewViewOpenKey)), choices);
+    fireAndForget(() => start(newViewStart(direct)));
+}
+
+// "Start an agent" (#1672): always the chooser, whatever opens directly, its first agent selected; nothing starts.
+export function openAgentPicker() {
+    getApi().createTab(AgentPickerBlockDef);
+}
+
+// ⌥⌘1…⌥⌘4: a new view already holding the favourite of that position; false when there is none.
+export function openFavorite(position: number): boolean {
+    const entry = currentFavorites()[position - 1];
+    if (entry == null) {
+        return false;
+    }
+    fireAndForget(() => start(newViewStart(entry)));
+    return true;
+}
+
+function activeTab(): Tab {
+    const tabId = globalStore.get(atoms.staticTabId);
+    return tabId ? globalStore.get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId))) : null;
+}
+
+// Escape in the chooser: the new view goes. Split meanwhile, only the chooser's pane goes; the workspace's only view
+// keeps a terminal rather than closing the window.
+export async function dismissNewView(blockId: string): Promise<void> {
+    const tab = activeTab();
+    const ws = globalStore.get(atoms.workspace);
+    if ((tab?.blockids?.length ?? 0) > 1) {
+        const layoutModel = getLayoutModelForStaticTab();
+        const node = layoutModel?.getNodeByBlockId(blockId);
+        if (node != null) {
+            await layoutModel.closeNode(node.id);
+        }
+        return;
+    }
+    if (tab == null || ws == null || projectTabIds(ws).length <= 1) {
+        await replaceBlock(blockId, TerminalBlockDef, true);
+        return;
+    }
+    await getApi().closeTab(ws.oid, tab.oid, false);
+}
+
+// A suggestion (FR-SHELL-138) fills the new view with its panels, agent left and graphics right, on the workspace's
+// project: a temporary view named by its key, its agent slot waiting for a click. A chooser split meanwhile keeps its
+// neighbours: the suggestion then opens as a view of its own and the chooser's pane goes.
+export async function openSuggestion(id: string, blockId?: string): Promise<void> {
+    const suggestion = findSuggestion(id);
+    const config = suggestionConfig(suggestion?.panels);
+    if (config == null) {
+        return;
+    }
+    const tab = activeTab();
+    const alone = blockId != null && tab != null && (tab.blockids ?? []).length === 1 && tab.blockids[0] === blockId;
+    await ViewPins.getInstance().createView({
+        config,
+        scope: "temporary",
+        nameKey: suggestion.nameKey,
+        tabId: alone ? tab.oid : undefined,
+    });
+    if (blockId != null && !alone) {
+        await dismissNewView(blockId);
+    }
+}
+
+// A page panel chosen in a chooser has its address field focused, so ⌘V then Enter opens a pasted address (#1742). The
+// entry for a typed address already holds its page (meta url) and keeps the focus on it.
+export function pageBlockDef(entry: PaletteEntry): BlockDef {
+    const run = entry?.run;
+    if (run?.kind !== "widget" || run.blockdef?.meta?.view !== MoltentermBrowserView) {
+        return null;
+    }
+    return run.blockdef.meta.url == null ? run.blockdef : null;
+}
+
+// An entry picked in the chooser fills the view; one that opens nothing in a panel (Sessions, the Project tab) runs,
+// and the empty view goes.
+export async function openInNewView(entry: PaletteEntry, blockId: string): Promise<void> {
+    if (entry == null) {
+        return;
+    }
+    if (entry.run.kind === "suggestion") {
+        await openSuggestion(entry.run.id, blockId);
+        return;
+    }
+    const pageDef = pageBlockDef(entry);
+    if (pageDef != null) {
+        const pageId = await replaceBlock(blockId, pageDef, true);
+        requestAddressFocus(pageId, getBlockComponentModel(pageId)?.viewModel as unknown as AddressTarget);
+        return;
+    }
+    if (fillsPanel(entry.run)) {
+        await runPaletteEntry(entry.run, { placement: "replace", blockId });
+        return;
+    }
+    await runPaletteEntry(entry.run, { placement: "new", blockId: null });
+    await dismissNewView(blockId);
+}
+
+export function registerNewViewKeys(keyMap: Map<string, (e: WaveKeyboardEvent) => boolean>) {
+    newViewFavoriteBindings(isMacOS()).forEach((keys, i) => {
+        keyMap.set(keys, () => openFavorite(i + 1));
+    });
+}

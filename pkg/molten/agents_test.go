@@ -21,7 +21,7 @@ func testAgentEnv(t *testing.T) AgentEnv {
 }
 
 func TestAgentProfilesFollowTheCatalog(t *testing.T) {
-	want := "claude-code,codex,gemini-cli,qwen-code,kimi,generic"
+	want := "claude-code,codex,gemini-cli,qwen-code,kimi,antigravity,copilot,cursor,grok,vibe,generic"
 	ids := []string{}
 	for _, p := range AgentProfiles {
 		ids = append(ids, p.Id)
@@ -36,7 +36,7 @@ func TestAgentProfilesFollowTheCatalog(t *testing.T) {
 
 func TestAgentPaths(t *testing.T) {
 	env := AgentEnv{Home: "/h", DataDir: "/d", Getenv: func(name string) string {
-		return map[string]string{"KIMI_CODE_HOME": "/k"}[name]
+		return map[string]string{"KIMI_CODE_HOME": "/k", "COPILOT_HOME": "/c", "VIBE_HOME": "/v"}[name]
 	}}
 	cases := map[string]string{
 		"claude-code": "/h/.claude/skills/morph/SKILL.md",
@@ -44,6 +44,11 @@ func TestAgentPaths(t *testing.T) {
 		"gemini-cli":  "/h/.gemini/commands/morph.toml",
 		"qwen-code":   "/h/.qwen/commands/morph.md",
 		"kimi":        "/k/skills/morph/SKILL.md",
+		"antigravity": "/h/.gemini/config/skills/morph/SKILL.md",
+		"copilot":     "/c/skills/morph/SKILL.md",
+		"cursor":      "/h/.cursor/skills/morph/SKILL.md",
+		"grok":        "/h/.grok/skills/morph/SKILL.md",
+		"vibe":        "/v/skills/morph/SKILL.md",
 		"generic":     "/d/molten/agents/morph.md",
 	}
 	for id, want := range cases {
@@ -61,6 +66,11 @@ func TestAgentRenderings(t *testing.T) {
 		"gemini-cli":  "{{args}}",
 		"qwen-code":   "{{args}}",
 		"kimi":        "$ARGUMENTS",
+		"antigravity": "after `/morph`",
+		"copilot":     "after `/morph`",
+		"cursor":      "after `/morph`",
+		"grok":        "after `/morph`",
+		"vibe":        "after `/morph`",
 		"generic":     "pointed you to this file",
 	}
 	for _, p := range AgentProfiles {
@@ -228,6 +238,11 @@ func TestPipelineGuideForEveryAgent(t *testing.T) {
 		"gemini-cli":  "/h/.gemini/commands/molten-pipeline.toml",
 		"qwen-code":   "/h/.qwen/commands/molten-pipeline.md",
 		"kimi":        "/h/.kimi-code/skills/molten-pipeline/SKILL.md",
+		"antigravity": "/h/.gemini/config/skills/molten-pipeline/SKILL.md",
+		"copilot":     "/h/.copilot/skills/molten-pipeline/SKILL.md",
+		"cursor":      "/h/.cursor/skills/molten-pipeline/SKILL.md",
+		"grok":        "/h/.grok/skills/molten-pipeline/SKILL.md",
+		"vibe":        "/h/.vibe/skills/molten-pipeline/SKILL.md",
 		"generic":     "/d/molten/agents/molten-pipeline.md",
 	}
 	for _, p := range AgentProfiles {
@@ -452,7 +467,8 @@ func TestMorphGuideClaudeCodePart(t *testing.T) {
 	}
 	written, _ := os.ReadFile(filepath.Join(dir, "morph.md"))
 	source, _ := agentdocs.Files.ReadFile(agentdocs.GuideFile)
-	want := FilterAgentBlocks(strings.ReplaceAll(string(source), agentRequestPlaceholder, "(the user's request)"), GenericAgentId)
+	expanded, _ := expandGuideIncludes(string(source))
+	want := FilterAgentBlocks(strings.ReplaceAll(expanded, agentRequestPlaceholder, "(the user's request)"), GenericAgentId)
 	if string(written) != want || strings.Contains(want, "plugin-authoring") {
 		t.Error("molten docs writes the generic morph.md, with no Claude Code block")
 	}
@@ -518,6 +534,33 @@ func TestPipelineGuideSaysToRunTheLocalCiThroughMolten(t *testing.T) {
 	format, _ := os.ReadFile(filepath.Join(dir, "pipeline-format.md"))
 	if !strings.Contains(string(format), "molten ci run") {
 		t.Error("pipeline-format.md must point to molten ci run")
+	}
+}
+
+// #989: every guide that runs molten tells the agent the escalation to ask for when its sandbox blocks the socket.
+func TestGuidesHoldTheSandboxRule(t *testing.T) {
+	rule, err := SandboxRule()
+	if err != nil || !strings.Contains(rule, "wave.sock") || !strings.Contains(rule, "escalat") {
+		t.Fatalf("the rule: %q %v", rule, err)
+	}
+	dir := t.TempDir()
+	if err := WriteDocs(dir); err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range AgentGuides {
+		for _, p := range AgentProfiles {
+			content, err := p.RenderGuide(g, "1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(content, sandboxRulePlaceholder) || !strings.Contains(content, rule) {
+				t.Errorf("%s %s: the guide must hold the sandbox rule, expanded", p.Id, g.Name)
+			}
+		}
+		written, _ := os.ReadFile(filepath.Join(dir, g.File))
+		if strings.Contains(string(written), sandboxRulePlaceholder) || !strings.Contains(string(written), rule) {
+			t.Errorf("molten docs writes %s with the sandbox rule expanded", g.File)
+		}
 	}
 }
 

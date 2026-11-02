@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GroupsAnswer, MissionGroupsEvent, ProjectGroup } from "./mission/group-model";
 import { missionGroups } from "./mission/mission-client";
 import { LocalRailGroup, RailGroupsMetaKey, readLocalGroups } from "./rail-local-groups";
-import { ProjectMetaKey } from "./workspace-project";
+import { ProjectMetaKey, ProjectRepoMetaKey } from "./workspace-project";
 
 const NoClient = atom(null) as Atom<Client>;
 const RailGroupsAttempts = 3;
@@ -30,6 +30,11 @@ export function useStoredLocalGroups(): LocalRailGroup[] {
     return useMemo(() => readLocalGroups(JSON.parse(key)), [key]);
 }
 
+// A workspace's project as the groups read it: its folder and its repository, where the pipeline's group is declared.
+function linkOf(meta: Record<string, any>): string {
+    return `${meta?.[ProjectMetaKey] ?? ""}|${meta?.[ProjectRepoMetaKey] ?? ""}`;
+}
+
 // The project link of each workspace, read live: linking or unlinking one changes the groups without any rail event.
 // Sorted: a move alone changes no group (the collector publishes the new member order itself).
 export function useWorkspaceLinksKey(ids: string[]): string {
@@ -38,10 +43,7 @@ export function useWorkspaceLinksKey(ids: string[]): string {
         () =>
             atom((get) =>
                 (idsKey ? idsKey.split(" ") : [])
-                    .map(
-                        (id) =>
-                            `${id}=${get(getWaveObjectAtom<Workspace>(makeORef("workspace", id)))?.meta?.[ProjectMetaKey] ?? ""}`
-                    )
+                    .map((id) => `${id}=${linkOf(get(getWaveObjectAtom<Workspace>(makeORef("workspace", id)))?.meta)}`)
                     .join("\n")
             ),
         [idsKey]

@@ -17,9 +17,10 @@ import { atom, PrimitiveAtom } from "jotai";
 import type { DragEvent } from "react";
 import { t } from "../i18n/i18n";
 import { DurableSessions } from "../sessions/sessions-store";
+import { viewDisplayName } from "../tab-identity-ui";
 import { DragItem, DropAction, DropTarget, halfSizes, SessionDragType, tabDraggedOut } from "./drop-model";
 import { DropSession, DropState } from "./drop-session";
-import { insertBlockBeside } from "./split";
+import { insertBlockAtZone } from "./panel-move";
 
 // pkg/molten/panelmove: the route that moves a tab's main panel into the tab shown.
 const PanelMoveRoute = "molten:panelmove";
@@ -85,7 +86,7 @@ async function moveTabPanel(action: Extract<DropAction, { type: "move-tab-panel"
     if (!res?.blockid) {
         return;
     }
-    insertBlockBeside(action.targetBlockId, action.direction, res.blockid);
+    insertBlockAtZone(action.targetBlockId, action.direction, res.blockid);
     if (res.sourceempty && res.workspaceid) {
         // The block left the tab first, so closing the empty tab deletes nothing.
         const closed = await getApi().closeTab(res.workspaceid, action.tabId, false);
@@ -97,7 +98,7 @@ async function moveTabPanel(action: Extract<DropAction, { type: "move-tab-panel"
 
 async function openFile(action: Extract<DropAction, { type: "open-file" }>) {
     const blockId = await ObjectService.CreateBlock(action.blockDef, { termsize: { rows: 25, cols: 80 } });
-    if (!insertBlockBeside(action.targetBlockId, action.direction, blockId)) {
+    if (!insertBlockAtZone(action.targetBlockId, action.direction, blockId)) {
         await ObjectService.DeleteBlock(blockId);
     }
 }
@@ -206,7 +207,8 @@ function tabName(tabId: string): string {
     if (shown) {
         return shown;
     }
-    return globalStore.get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)))?.name ?? t("split.tab");
+    const tab = globalStore.get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)));
+    return tab ? viewDisplayName(tab) : t("split.tab");
 }
 
 // The tab drag of the tab bar, per mouse move. Below the strip, the tab is dragged onto the panels: true then, and
@@ -219,7 +221,9 @@ export function trackTabPanelDrag(
     event: Pick<MouseEvent, "clientX" | "clientY">,
     tabId: string,
     strip: HTMLElement,
-    keepTabInSlot: () => void
+    keepTabInSlot: () => void,
+    // Below the strip by default; the workspace sidebar (#1183) hands over past its right edge.
+    outside?: (event: Pick<MouseEvent, "clientX" | "clientY">) => boolean
 ): boolean {
     // The tab shown has no other panels to land on.
     if (!tabId || strip == null || tabId === globalStore.get(atoms.staticTabId)) {
@@ -231,7 +235,7 @@ export function trackTabPanelDrag(
     if (tabHandover.cancelled) {
         return true;
     }
-    const out = tabDraggedOut(event.clientY, strip.getBoundingClientRect().bottom);
+    const out = outside != null ? outside(event) : tabDraggedOut(event.clientY, strip.getBoundingClientRect().bottom);
     if (!out) {
         if (tabHandover.out) {
             tabHandover.out = false;

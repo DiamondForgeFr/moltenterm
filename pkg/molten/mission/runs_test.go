@@ -156,7 +156,7 @@ func TestRunSucceedsWithPhasesAndLog(t *testing.T) {
 }
 
 func TestRunFailureAndExclusivity(t *testing.T) {
-	r, dir := makeRunsFixture(t, `{"id":"slow","run":"sleep 30"},{"id":"bad","run":"exit 3"}`)
+	r, dir := makeRunsFixture(t, `{"id":"slow","run":"sleep 3600"},{"id":"bad","run":"exit 3"}`)
 	slow := trustAndStart(t, r, dir, "slow")
 	if _, err := r.Start(RunRequest{Dir: dir, Kind: RunKindBuild, Id: "bad"}); err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("a second build while one runs must be refused: %v", err)
@@ -174,7 +174,7 @@ func TestRunFailureAndExclusivity(t *testing.T) {
 }
 
 func TestCloseFinishedRun(t *testing.T) {
-	r, dir := makeRunsFixture(t, `{"id":"slow","run":"sleep 30"}`)
+	r, dir := makeRunsFixture(t, `{"id":"slow","run":"sleep 3600"}`)
 	slow := trustAndStart(t, r, dir, "slow")
 	if err := r.Close(dir, slow.Id); err == nil || !strings.Contains(err.Error(), "still running") {
 		t.Fatalf("a running build must be cancelled before it is closed: %v", err)

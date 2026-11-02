@@ -26,16 +26,14 @@ describe("canCloseWorkspace", () => {
 });
 
 describe("resetLossText", () => {
-    it("names the tabs and panes lost", () => {
-        expect(resetLossText(3, 5)).toBe(
-            "Its 3 tabs and the 5 panes they hold will be closed: their terminals and agents stop and the layout is lost."
-        );
-        expect(resetLossText(1, 1)).toBe(
-            "Its 1 tab and the 1 pane they hold will be closed: their terminals and agents stop and the layout is lost."
-        );
+    it("names the views and panels lost (FR-SHELL-095)", () => {
+        expect(resetLossText(3, 5)).toBe("Its 3 views and their 5 panels will close; terminals and agents stop.");
+        expect(resetLossText(2, 1)).toBe("Its 2 views and their 1 panel will close; terminals and agents stop.");
+        expect(resetLossText(1, 4)).toBe("Its view and its 4 panels will close; terminals and agents stop.");
     });
 
-    it("names only the tabs when they hold no pane", () => {
-        expect(resetLossText(1, 0)).toBe("Its 1 tab will be closed.");
+    it("names only the views when they hold no panel", () => {
+        expect(resetLossText(1, 0)).toBe("Its view will close.");
+        expect(resetLossText(2, 0)).toBe("Its 2 views will close.");
     });
 });

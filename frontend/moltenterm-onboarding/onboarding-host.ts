@@ -11,6 +11,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { useEffect } from "react";
 import { registerNotificationGesture } from "../moltenterm-shell/notifications-store";
+import { listenSettingsMenu } from "../moltenterm-shell/settings/settings-menu";
 import { clientMeta, findOnboardingPanel } from "./onboarding-client";
 import { openFirstRun } from "./onboarding-open";
 import { isPending, OnboardingOpenGesture } from "./onboarding-state";
@@ -45,6 +46,8 @@ function startOnce() {
         return { ok: true };
     });
     (getApi() as unknown as MoltentermOnboardingApi).onMoltentermGettingStarted?.(() => fireAndForget(openFirstRun));
+    // The app menu's Settings… beside Getting Started (#1325): this hook is the one every tab view mounts.
+    listenSettingsMenu();
     if (globalPrimaryTabStartup) {
         fireAndForget(dockPendingFirstRun);
     }

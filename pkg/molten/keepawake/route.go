@@ -222,6 +222,17 @@ func processAlive(pid int32) bool {
 	return err != nil || alive
 }
 
+func terminateProcess(pid int32) error {
+	if pid <= 0 {
+		return fmt.Errorf("no process given")
+	}
+	p, err := goproc.NewProcess(pid)
+	if err != nil {
+		return err
+	}
+	return p.Terminate()
+}
+
 func processName(pid int32) string {
 	p, err := goproc.NewProcess(pid)
 	if err != nil {
@@ -296,6 +307,7 @@ func makeService(hooks Hooks) *service {
 		Publish:      publishState,
 		ProcessAlive: processAlive,
 		ProcessName:  processName,
+		Terminate:    terminateProcess,
 		Async:        func(fn func()) { goSafe("molten:keepawake:shim", fn) },
 		Sessions:     s.sessions,
 		LogApproval:  s.logApproval,
@@ -384,6 +396,7 @@ func (l *routeLink) route() localroute.Route {
 				StateCommand:      "the keep-awake state is read by MoltenTerm's windows",
 				CoffeeCommand:     "a coffee is turned on or off from a MoltenTerm window",
 				OverrideCommand:   "a session's sleep policy is set from a MoltenTerm window",
+				StopCommand:       "a terminal's keep-awake is stopped from a MoltenTerm window",
 				ShimCommand:       "the sleep shims report from a local MoltenTerm terminal",
 				PermissionCommand: "permission requests come from a local MoltenTerm terminal",
 			},
@@ -410,6 +423,12 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 			return nil, err
 		}
 		return l.s.keeper.SetOverride(ctx, req)
+	case StopCommand:
+		var req StopRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.s.keeper.StopBlock(ctx, req)
 	case ShimCommand:
 		var req ShimRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

@@ -63,7 +63,7 @@ describe("HeaderCloseButton (#705, #939)", () => {
     it("is the close button of every header, the browser panel's own included", () => {
         expect(headerTsx).toContain("<HeaderCloseButton");
         expect(headerTsx).toMatch(/magnified=\{magnified\}\s+onClose=/);
-        expect(browserTsx).toContain("<HeaderCloseButton magnified={magnified}");
+        expect(browserTsx).toMatch(/<HeaderCloseButton\s+magnified=\{magnified\}/);
         expect(headerTsx).not.toMatch(/icon: "xmark-large"/);
         expect(browserTsx).not.toMatch(/icon: "xmark-large"/);
     });

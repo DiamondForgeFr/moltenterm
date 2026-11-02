@@ -3,7 +3,7 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { flowColumnsClass, pageColumns, PageFlow } from "./settings-page";
+import { flowColumnsClass, PageCard, pageColumns, PageFlow } from "./settings-page";
 
 describe("page layout on a wide panel (#674)", () => {
     it("gives a page one column per block, three at most", () => {
@@ -29,5 +29,27 @@ describe("page layout on a wide panel (#674)", () => {
         );
         const cells = html.match(/<div class="pt-\(--df-block-gap\)[^"]*"><section id="(\w)"><\/section><\/div>/g);
         expect(cells?.map((c) => c.match(/id="(\w)"/)[1])).toEqual(["a", "b"]);
+    });
+});
+
+describe("a settings block states its scope (FR-SHELL-101)", () => {
+    it("tags the block after its rows, so the rows keep their place", () => {
+        const html = renderToStaticMarkup(
+            <PageCard title="Window" scope="app">
+                <div id="row" />
+            </PageCard>
+        );
+        expect(html).toContain('data-scope="app"');
+        expect(html).toContain("For the whole app");
+        expect(html.indexOf('id="row"')).toBeLessThan(html.indexOf("data-scope"));
+    });
+
+    it("says nothing for a block without a scope", () => {
+        const html = renderToStaticMarkup(
+            <PageCard title="Tips">
+                <div />
+            </PageCard>
+        );
+        expect(html).not.toContain("data-scope");
     });
 });

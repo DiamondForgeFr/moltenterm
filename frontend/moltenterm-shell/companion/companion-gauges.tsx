@@ -14,6 +14,7 @@ import { useAtomValue } from "jotai";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
@@ -239,6 +240,29 @@ export function PlanUsageSection({ target, agent }: { target: string; agent: str
     );
 }
 
+// FR-AGC-008: a session behind another provider has none of its agent's plan gauges; one muted line says why, in place
+// of the section.
+export function ProviderUsageNote({ provider, native }: { provider: string; native: string }) {
+    const t = useT();
+    const hint = native
+        ? t("companion.gauges.providerHint", { provider, native })
+        : t("companion.gauges.providerHintPlain", { provider });
+    return (
+        <div
+            className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-11 text-muted"
+            data-testid="companion-plan-usage"
+            data-state="provider"
+            title={hint}
+        >
+            <i className="fa fa-solid fa-gauge" aria-hidden="true" />
+            <span>
+                {t("companion.gauges.provider", { provider })}
+                <span className="sr-only">: {hint}</span>
+            </span>
+        </div>
+    );
+}
+
 export type PlanUsageActions = {
     onShow: () => void;
     onHide: () => void;
@@ -250,9 +274,9 @@ export type PlanUsageActions = {
 };
 
 const BarColours: Record<GaugeLevel, string> = {
-    normal: "bg-accent",
-    warning: "bg-warning",
-    error: "bg-error",
+    normal: "bg-[var(--mt-text-muted)]",
+    warning: "bg-[var(--mt-state-running)]",
+    error: "bg-[var(--mt-state-error)]",
 };
 
 const PercentColours: Record<GaugeLevel, string> = {
@@ -517,7 +541,11 @@ function GaugesHeader({
                     aria-label={t("companion.gauges.refresh")}
                     aria-busy={refreshing || undefined}
                 >
-                    <i className={cn("fa fa-solid fa-rotate-right", refreshing && "fa-spin")} aria-hidden="true" />
+                    {refreshing ? (
+                        <DominoLoader className="mt-dominos-icon" />
+                    ) : (
+                        <i className="fa fa-solid fa-rotate-right" aria-hidden="true" />
+                    )}
                 </button>
                 <button type="button" className={GhostButton} onClick={onHide}>
                     {t("companion.gauges.hideShort")}

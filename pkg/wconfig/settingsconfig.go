@@ -29,6 +29,9 @@ const ProfilesFile = "profiles.json"
 
 var configWriteLock sync.Mutex
 
+// MOLTENTERM-PATCH (#1758): held across SetBaseConfigValue's read-merge-write; configWriteLock only covers the write.
+var setBaseConfigLock sync.Mutex
+
 const AnySchema = `
 {
   "type": "object",
@@ -172,7 +175,7 @@ type SettingsType struct {
 	MarkdownFixedFontSize float64 `json:"markdown:fixedfontsize,omitempty"`
 
 	PreviewShowHiddenFiles *bool  `json:"preview:showhiddenfiles,omitempty"`
-	PreviewDefaultSort     string `json:"preview:defaultsort,omitempty" jsonschema:"enum=name,enum=modtime"`
+	PreviewDefaultSort     string `json:"preview:defaultsort,omitempty" jsonschema:"enum=name,enum=type,enum=modtime"` // MOLTENTERM-PATCH (#1626): type
 
 	TabPreset       string `json:"tab:preset,omitempty"`
 	TabConfirmClose bool   `json:"tab:confirmclose,omitempty"`
@@ -185,6 +188,16 @@ type SettingsType struct {
 
 	// MOLTENTERM-PATCH (#276, #493): whether terminals may keep the computer awake (FR-SHELL-023, pkg/molten/keepawake); unset asks once.
 	PowerSleepPolicy string `json:"power:sleeppolicy,omitempty" jsonschema:"enum=allow,enum=untilworkends,enum=letsleep" jsonschema_description:"Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input with nothing running is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep."`
+
+	// MOLTENTERM-PATCH (#1183): the workspace sidebar replaces the tab bar, the rail and the status bar (FR-SHELL-079, frontend/moltenterm-shell/sidebar).
+	ShellWorkspaceSidebar *bool `json:"shell:workspacesidebar,omitempty" jsonschema_description:"Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back"`
+
+	// MOLTENTERM-PATCH (#1232): what a new view opens, and the favourites of its chooser (FR-SHELL-089, frontend/moltenterm-shell/newview).
+	AppNewViewOpen      string   `json:"app:newviewopen,omitempty" jsonschema_description:"What a new view opens: unset shows the chooser (favourites on top, the launcher's full list below); a launcher entry id opens it directly, such as panel:defwidget@terminal for a terminal or agent:<preset> for an agent"`
+	AppNewViewFavorites []string `json:"app:newviewfavorites,omitempty" jsonschema_description:"The 2 to 4 favourites of the new view chooser, in order, as launcher entry ids (panel:defwidget@terminal, panel:defwidget@web, agent:<preset>...); each opens directly with Option+Cmd+1 to 4 (Alt+Shift+1 to 4 off macOS). Unset: Terminal and Web page"`
+
+	// MOLTENTERM-PATCH (#1305): the views a new workspace starts with (FR-SHELL-092, pkg/wcore/moltenterm_workspaceviews.go).
+	AppNewWorkspaceViews []NewWorkspaceViewType `json:"app:newworkspaceviews,omitempty" jsonschema_description:"The views a workspace created from now on starts with, pinned in that workspace and opened the first time they are shown: each has a name (or namekey, a dictionary key shown in the interface language) and its panels in order, among agent, terminal, browser, files, project, integration, cicd and linemap. Agents go on the left, the other panels on the right. An empty list gives no view; existing workspaces never change"`
 
 	// MOLTENTERM-PATCH (#450): tab views about to be shown and the hot spare load at the foreground priority (FR-PERF-004, emain/moltenterm-tabview-priority.ts).
 	MoltentermTabViewPriority *bool `json:"moltenterm:tabviewpriority,omitempty" jsonschema_description:"Tab views being opened and the hot spare load at the same scheduling priority as the view on screen, so a busy machine cannot starve them; false restores the previous behaviour (Chromium backgrounds them)"`
@@ -203,18 +216,40 @@ type SettingsType struct {
 
 	// MOLTENTERM-PATCH (#188): the notification of a newer release (FR-REL-005, emain/moltenterm-release-feed.ts).
 	MoltentermReleaseNotify *bool `json:"moltenterm:releasenotify,omitempty" jsonschema_description:"A release build asks GitHub at start, at most once a day, whether a newer release of its channel is out, and says so once with its notes and a download link; false never asks. Golds and dev builds never ask"`
+	// MOLTENTERM-PATCH (#948): whether release candidates are offered, whatever build was installed first (FR-REL-005).
+	MoltentermReleaseCandidates bool `json:"moltenterm:releasecandidates,omitempty" jsonschema_description:"Also offer release candidates (previews of the next version, possibly less stable) besides public releases. Off by default: only public releases are offered, also to a release candidate install, which moves to the next newer public release and is never downgraded. Applies at the next check"`
 
 	// MOLTENTERM-PATCH (#489): a close that would stop what runs in a terminal asks first (FR-SHELL-061, frontend/moltenterm-shell/busy-close*.ts).
 	MoltentermConfirmBusyClose *bool `json:"moltenterm:confirmbusyclose,omitempty" jsonschema_description:"Closing a pane, a tab or replacing a terminal in which something runs (a coding agent, even idle, or a command other than the shell) asks first and names what would stop; false closes at once as before (the worktree and Sessions confirmations still ask)"`
 
-	// MOLTENTERM-PATCH (#615, #733): when a tab switches to 360 view (FR-SHELL-066, frontend/moltenterm-shell/view360/view360-decision.ts).
-	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=always" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. The automatic decision cannot be turned off; a stored never reads as auto. A tab's own 360 button also turns it on on demand"`
+	// MOLTENTERM-PATCH (#1335): the opt-in sidebar tint of theme Coulée (FR-SHELL-115, frontend/moltenterm-shell/sidebar-tint.ts).
+	MoltentermSidebarTint bool `json:"moltenterm:sidebartint,omitempty" jsonschema_description:"Tint the sidebar with the workspace's colour. Off: the sidebar is the same warm grey in every workspace, and the workspace colour shows only on its place cues (the strip at the top of the sidebar, the bar beside its name, the active view's underline and its dot)"`
+
+	// MOLTENTERM-PATCH (#1409): the sidebar's heat while agents work (FR-SHELL-122, frontend/moltenterm-shell/sidebar/sidebar-heat.tsx).
+	MoltentermSidebarHeat *bool `json:"moltenterm:sidebarheat,omitempty" jsonschema_description:"While agents of the workspace work, a faint heat rises in the free space at the bottom of the sidebar, stronger with more working agents. On when unset; false removes it. Reduced motion removes it too"`
+
+	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
+	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`
+
+	// MOLTENTERM-PATCH (#1341): the opt-in light theme of theme Coulée (FR-SHELL-121, frontend/moltenterm-shell/app-theme.ts, emain/moltenterm-theme.ts).
+	MoltentermTheme string `json:"moltenterm:theme,omitempty" jsonschema:"enum=dark,enum=light,enum=system" jsonschema_description:"The interface's theme. dark (the default when unset), light, or system to follow the computer's light or dark setting. Terminals keep their own terminal theme, dark by default, in every interface theme"`
+
+	// MOLTENTERM-PATCH (#615, #733, #1654): when a tab switches to 360 view (FR-SHELL-066, frontend/moltenterm-shell/view360/view360-decision.ts).
+	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=grid,enum=always" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: beyond the screen's column threshold or when a panel would fall under its readable width, back when everything fits again. grid (Keep the grid): the panels stay side by side, only columns that cannot fit even at their readable widths still switch. always: every tab with several columns. Unset behaves as auto and asks once, at the first automatic switch, which to keep; a stored never reads as auto. A tab's own 360 button also turns it on on demand"`
 
 	// MOLTENTERM-PATCH (#808): outside term:* so live accessibility never reconstructs a terminal.
 	MoltentermTerminalScreenReader string `json:"moltenterm:terminalscreenreader,omitempty" jsonschema:"enum=auto,enum=on,enum=off" jsonschema_description:"Terminal screen reader support: auto follows system detection on macOS and Windows; on or off overrides detection. Applies immediately to existing terminals without restarting sessions. On is available when automatic detection is unavailable"`
 
 	// MOLTENTERM-PATCH (#845): the coding agent MoltenTerm starts, by default for every project (pkg/molten/agentchoice).
 	MoltentermCodingAgent string `json:"moltenterm:codingagent,omitempty" jsonschema:"enum=claude,enum=codex" jsonschema_description:"The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes; the companion's Start the agent here) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced"`
+
+	// MOLTENTERM-PATCH (#1758): the Integration panel's sort and folded sections, the same in every view and after a restart (frontend/moltenterm-shell/reviews/reviews-order-store.ts).
+	MoltentermReviewsSort  string          `json:"moltenterm:reviewssort,omitempty" jsonschema:"enum=state,enum=merge" jsonschema_description:"How the Integration panel sorts its pull requests: state (by state, the default when unset) or merge (the suggested merge order, which reruns the fewest CI runs). Set by the panel's switch"`
+	MoltentermReviewsFolds map[string]bool `json:"moltenterm:reviewsfolds,omitempty" jsonschema_description:"The Integration panel's sections the developer opened (true) or folded (false), by section: yours, ready, agents, blocked, waiting, notes, leftovers, upcoming, merged. A section not listed follows its default. Set by the sections' headers"`
+
+	// MOLTENTERM-PATCH (#1763): the Settings screen's last tab and the materials seen per project, kept after a restart (frontend/moltenterm-shell/library/library-prefs.ts).
+	MoltentermSettingsTab   string           `json:"moltenterm:settingstab,omitempty" jsonschema_description:"The tab the Settings screen opens on: the one the developer chose last (overview when unset). Set by the screen's tabs"`
+	MoltentermMaterialsSeen map[string]int64 `json:"moltenterm:materialsseen,omitempty" jsonschema_description:"When the developer last saw each project's materials, by project, in milliseconds since 1970: newer materials are counted as new in the library. Set by opening the materials section"`
 
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
@@ -224,6 +259,8 @@ type SettingsType struct {
 	WindowTransparent                   bool     `json:"window:transparent,omitempty"`
 	WindowBlur                          bool     `json:"window:blur,omitempty"`
 	WindowOpacity                       *float64 `json:"window:opacity,omitempty"`
+	WindowTexture                       string   `json:"window:texture,omitempty"` // MOLTENTERM-PATCH (#1629): the global layer of the window look carries a texture (FR-SHELL-091)
+	WindowTextureIntensity              *float64 `json:"window:textureintensity,omitempty"`
 	WindowBgColor                       string   `json:"window:bgcolor,omitempty"`
 	WindowReducedMotion                 bool     `json:"window:reducedmotion,omitempty"`
 	WindowTileGapSize                   *int64   `json:"window:tilegapsize,omitempty"`
@@ -780,6 +817,8 @@ func ReadFullConfig() FullConfigType {
 	fullConfig.Settings.TelemetryEnabled = false
 	// MOLTENTERM-PATCH (#25): Moltenterm ships no built-in AI, so the tab bars never show the AI panel button.
 	fullConfig.Settings.AppHideAiButton = true
+	// MOLTENTERM-PATCH (#1421): a new-workspace template an earlier version wrote names its views as today's.
+	fullConfig.Settings.AppNewWorkspaceViews = migrateNewWorkspaceViews(fullConfig.Settings.AppNewWorkspaceViews)
 	fullConfig.Version = wavebase.WaveVersion
 	fullConfig.BuildTime = wavebase.BuildTime
 	return fullConfig
@@ -954,6 +993,10 @@ func convertConfigMap(val any, ctype reflect.Type) (any, bool) {
 }
 
 func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
+	// MOLTENTERM-PATCH (#1758): two writes at once (two toggles clicked in a row) each read the file before the other
+	// wrote it, and the later one dropped the earlier key; the read, merge and write now run one at a time.
+	setBaseConfigLock.Lock()
+	defer setBaseConfigLock.Unlock()
 	m, cerrs := ReadWaveHomeConfigFile(SettingsFile)
 	if len(cerrs) > 0 {
 		return fmt.Errorf("error reading config file: %v", cerrs[0])
@@ -981,6 +1024,9 @@ func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 			// MOLTENTERM-PATCH (#322): a list from JSON ([]any of strings) is accepted for a []string setting.
 			if rtype != ctype && ctype.Kind() == reflect.Slice && rtype.Kind() == reflect.Slice {
 				if converted, ok := convertConfigList(val, ctype); ok {
+					val, rtype = converted, ctype
+				} else if converted, ok := convertConfigMap(val, ctype); ok {
+					// MOLTENTERM-PATCH (#1305): a list of objects (app:newworkspaceviews) converts through JSON, as a map does.
 					val, rtype = converted, ctype
 				}
 			}

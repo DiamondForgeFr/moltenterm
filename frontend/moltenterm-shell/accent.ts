@@ -1,9 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Workspace accent colours (FR-SHELL-004, DS-SHELL-005). Every accent token in moltenterm-shell.css derives from
-// --mt-accent; this module sets it from the colour of the window's active workspace, with a readable text colour
-// for content drawn on the accent (NFR-SHELL-003).
+// The workspace colour as a place cue (FR-SHELL-004, DS-SHELL-005, #1319). This module sets --mt-place from the
+// colour of the window's active workspace, with a readable text colour for content drawn on it (NFR-SHELL-003). The
+// action colour (--mt-action, the accent of buttons, toggles and focus) is fixed in moltenterm-shell.css.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { Atom } from "jotai";
@@ -75,23 +75,6 @@ export function gradientForeground(stops: Rgb[]): string {
     return worst(black) >= worst(white) ? "#000000" : "#ffffff";
 }
 
-// The keyboard focus ring (#751): the workspace accent, lightened toward white until it reads at 3:1 (WCAG 1.4.11) on
-// the lightest surface a ring is drawn on (a key cap or a hovered row, ~rgb(60,60,60)). A dark accent (navy, a deep red)
-// would otherwise vanish on the dark panels; a light one is kept as it is.
-const FocusRingSurface: Rgb = { r: 60, g: 60, b: 60 };
-export const FocusRingMinContrast = 3;
-
-export function focusRingColor(accent: Rgb): Rgb {
-    const white = { r: 255, g: 255, b: 255 };
-    for (let pct = 100; pct > 0; pct -= 5) {
-        const ring = mixColor(accent, white, pct);
-        if (contrastRatio(ring, FocusRingSurface) >= FocusRingMinContrast) {
-            return ring;
-        }
-    }
-    return white;
-}
-
 export function toHex({ r, g, b }: Rgb): string {
     return (
         "#" +
@@ -140,26 +123,25 @@ function rgbCss({ r, g, b }: Rgb): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-// --mt-accent is the first stop, which every thin line and every fill behind text uses, with --mt-accent-fg picked on
-// it; --mt-accent-mid and --mt-accent-end complete the gradient where one is drawn (the same colour when it is flat);
-// --mt-focus-ring is the keyboard focus ring drawn from it.
-export function applyAccent(color: string, style: StyleTarget, stops: string[] = []): void {
+// The place tokens only (#1319): the action colour and the focus ring are fixed in moltenterm-shell.css and never
+// follow the workspace. --mt-place is the first stop, which every thin line uses, with --mt-place-fg picked on it;
+// --mt-place-mid and --mt-place-end complete the gradient where one is drawn (the same colour when it is flat).
+export function applyPlace(color: string, style: StyleTarget, stops: string[] = []): void {
     const rgb = parseColor(color) ?? parseColor(MoltentermDefaultAccent);
     const rest = stops.length > 1 && parseColor(stops[0]) != null ? stops.slice(1).map(parseColor) : [];
     const end = rest[rest.length - 1] ?? rgb;
     const mid = rest.length > 1 ? rest[0] : mixColor(rgb, end, 50);
-    style.setProperty("--mt-accent", rgbCss(rgb));
-    style.setProperty("--mt-accent-mid", rgbCss(mid));
-    style.setProperty("--mt-accent-end", rgbCss(end));
-    style.setProperty("--mt-accent-fg", accentForeground(rgb));
-    style.setProperty("--mt-focus-ring", rgbCss(focusRingColor(rgb)));
+    style.setProperty("--mt-place", rgbCss(rgb));
+    style.setProperty("--mt-place-mid", rgbCss(mid));
+    style.setProperty("--mt-place-end", rgbCss(end));
+    style.setProperty("--mt-place-fg", accentForeground(rgb));
 }
 
 export function startMoltentermAccent(workspaceAtom: Atom<Workspace>): void {
     const apply = () => {
         const ws = globalStore.get(workspaceAtom);
         const stops = workspaceColourStops(ws);
-        applyAccent(stops[0] ?? ws?.color, document.documentElement.style, stops);
+        applyPlace(stops[0] ?? ws?.color, document.documentElement.style, stops);
         document.documentElement.toggleAttribute("data-mt-accent-gradient", stops.length > 1);
     };
     apply();

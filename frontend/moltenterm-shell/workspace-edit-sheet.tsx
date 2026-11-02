@@ -1,12 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The workspace edit sheet (FR-SHELL-030, DS-SHELL-036, DS-SHELL-101): titled Workspace with its folder under the
-// title; Identity (one Icon field, Symbol or Image, then the colour), Project, Folder and Danger zone, in that order.
-// A change is saved as soon as it is made, as in Wave's editor; Done, Escape and a press outside close it, and the
-// focus goes back to what opened it.
+// The workspace edit sheet (FR-SHELL-030, DS-SHELL-036, DS-SHELL-101, FR-SHELL-105): its folder under the title; an
+// Identity block (name, one Icon field, Symbol or Image, "Use the project's logo", then the colour), an Appearance
+// block (the window's look, saved on the workspace or its project), a Projects block (each project leads to its Project
+// sheet, then the working folder) and the Danger zone, in that order. Each concept has this one home: the project's
+// own settings, its logo among them, live in the Project sheet (project-sheet.tsx). A change is saved as soon as it is
+// made, as in Wave's editor; Done, Escape and a press outside close it, and the focus goes back to what opened it.
 
-import { atoms, getApi } from "@/app/store/global";
+import { getApi } from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -16,19 +18,31 @@ import { workspaceColourStops } from "./accent";
 import { DialogFrame } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
+import { BlockScopeTag, SettingsScopeKind } from "./settings/settings-scope";
+import { SidebarModel } from "./sidebar/sidebar-store";
+import {
+    currentProjectId,
+    projectLabel,
+    projectRepoDir,
+    readProjects,
+    WorkspaceProjectEntry,
+} from "./sidebar/workspace-projects";
 import { DominoLoader, SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
 import { suiteIcon, SuiteIconName } from "./suite/suite-icons";
+import { OpacityField, useLookScope } from "./window-look-field";
 import {
     colourChoiceCss,
     colourChoiceForeground,
     colourStops,
+    CustomColourStart,
+    CustomColourWheel,
     logoColourChoices,
     parseCustomColour,
     PresetColourChoices,
     PresetGradientChoices,
 } from "./workspace-colour";
 import { workspaceShownName } from "./workspace-default-name";
-import { listenWorkspaceMenu, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
+import { openProjectSheet } from "./workspace-edit";
 import {
     checkWorkspaceName,
     colourName,
@@ -37,12 +51,19 @@ import {
     iconName,
     moveRadio,
     radioTabStop,
-    WorkspaceEditIntentKey,
+    WorkspaceEditField,
 } from "./workspace-edit-model";
 import { RailBadgeClass, WorkspaceIcon, workspaceImageUrl } from "./workspace-icon";
 import { hasImportedIcon, iconKindLabel, workspaceIconSource } from "./workspace-icon-model";
 import { logoPalette } from "./workspace-logo-palette";
-import { effectiveWorkspaceFolder, pathBaseName, readWorkspaceProject } from "./workspace-project";
+import {
+    effectiveWorkspaceFolder,
+    MaxProjectLogos,
+    pathBaseName,
+    projectLogoOf,
+    readWorkspaceProject,
+    repositoryLabel,
+} from "./workspace-project";
 import { WorkspaceFolderLine, WorkspaceProjectBlock } from "./workspace-project-section";
 import {
     chooseMoltentermPath,
@@ -50,36 +71,50 @@ import {
     setWorkspaceGradient,
     setWorkspaceLogo,
 } from "./workspace-project-store";
-import { askResetWorkspace } from "./workspace-reset";
-import { canCloseWorkspace } from "./workspace-reset-model";
+import { askDeleteWorkspace, askResetWorkspace } from "./workspace-reset";
 
 const FieldLabelClass = "mb-1 text-12 text-secondary";
 const DangerButtonClass =
-    "shrink-0 cursor-pointer rounded-3 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
+    "shrink-0 cursor-pointer rounded-4 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
 const SecondaryButtonClass =
-    "shrink-0 cursor-pointer rounded-3 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 const GhostButtonClass =
-    "shrink-0 cursor-pointer rounded-3 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-4 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 
 const FocusRingClass =
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)";
 
-// Each section is a DiamondForge suite block (#658): its name in the chip on the top border, its icon on the corner.
-function Section({
+// Each section is a DiamondForge suite block (#658): its name in the chip on the top border, its icon on the corner,
+// and who it applies to (FR-SHELL-101): this workspace, or the project for the Project sheet and for an Appearance
+// saved on the project (FR-SHELL-105).
+export function SheetSection({
     title,
     concept,
     tone,
+    scope = "workspace",
+    block,
     children,
 }: {
     title: string;
     // The suite concept whose Lucide icon sits on the corner (suite/suite-icons.ts), not a Font Awesome name.
     concept: SuiteIconName;
     tone?: "danger";
+    scope?: SettingsScopeKind;
+    // The block's stable name for tests and the field placement table (TC-SHELL-206).
+    block?: string;
     children: React.ReactNode;
 }) {
     return (
-        <SectionBlock title={title} icon={suiteIcon(concept)} tone={tone} data-section={title} className="min-w-0">
+        <SectionBlock
+            title={title}
+            icon={suiteIcon(concept)}
+            tone={tone}
+            data-section={title}
+            data-block={block}
+            className="min-w-0"
+        >
             {children}
+            <BlockScopeTag scope={scope} />
         </SectionBlock>
     );
 }
@@ -238,7 +273,7 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
                 ref={confirmRef}
                 type="button"
                 onClick={onConfirm}
-                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-3 px-2 py-1 text-12"
+                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-4 px-2 py-1 text-12"
             >
                 {t("workspace.edit.replace")}
                 <MoltenWave />
@@ -251,64 +286,86 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
 }
 
 const ImageTileClass =
-    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-3 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
+    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-4 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
 
-// The Image side of the Icon field (DS-SHELL-101): the project's images first, then the imported one, then the tile
-// that imports another (a pick or a drop; wavesrv checks and copies the file, FR-SHELL-031). The result is one line,
-// announced.
+// A change of the workspace's image, one at a time, its result one announced line.
+function useIconChange() {
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState<ImportResult>(null);
+    const run = (fn: () => Promise<ImportResult>) => {
+        if (busy) {
+            return;
+        }
+        setBusy(true);
+        setResult(null);
+        fireAndForget(async () => {
+            try {
+                setResult(await fn());
+            } catch (e) {
+                console.log("workspace icon:", e);
+                setResult({ ok: false, text: translateNow("workspace.edit.importFailed") });
+            } finally {
+                setBusy(false);
+            }
+        });
+    };
+    return { busy, result, setResult, run };
+}
+
+export function ResultLine({ result, role, idle }: { result: ImportResult; role: string; idle?: React.ReactNode }) {
+    return (
+        <div role="status" aria-live="polite" data-role={role} className="min-h-4 text-12">
+            {result ? (
+                <span className={result.ok ? "text-secondary" : "text-primary"}>
+                    {result.ok ? null : <i className="fa fa-solid fa-circle-exclamation mr-1 text-error" aria-hidden />}
+                    {result.text}
+                </span>
+            ) : (
+                idle
+            )}
+        </div>
+    );
+}
+
+// The Image side of the Icon field (DS-SHELL-101, #1280): the imported image, then the tile that imports another (a
+// pick or a drop; wavesrv checks and copies the file, FR-SHELL-031). The project's logo is chosen in the Project sheet
+// and shown through Identity's "Use the project's logo" (FR-SHELL-105); while it is in use, this side says so. The
+// result is one line, announced.
 export function ImagePane({
     ws,
-    logos,
     over,
     busy,
     result,
     dropHandlers,
     onPick,
-    onLogo,
 }: {
     ws: Workspace;
-    logos: string[];
     over: boolean;
     busy: boolean;
     result: ImportResult;
     dropHandlers: React.HTMLAttributes<HTMLDivElement>;
     onPick: () => void;
-    onLogo: (logo: string) => void;
 }) {
     const t = useT();
     const imported = hasImportedIcon(ws);
     const source = workspaceIconSource(ws);
-    const current = imported ? "" : source.logo;
-    const projectImages = current && !logos.includes(current) ? [current, ...logos] : logos;
+    const logoInUse = !imported && source.logo !== "";
     return (
         <div className="flex min-w-0 flex-col gap-1.5" data-role="image-pane">
+            {logoInUse ? (
+                <div className="text-12 text-muted" data-role="project-logo-in-use">
+                    {t("workspace.edit.projectLogoInUse")}
+                </div>
+            ) : null}
             <div
                 {...dropHandlers}
                 data-role="icon-drop"
                 data-over={over ? "true" : undefined}
                 className={cn(
-                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-3 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-4 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                     over && "bg-accent/10 outline outline-1 outline-accent outline-dashed"
                 )}
             >
-                {projectImages.map((logo) => (
-                    <button
-                        key={logo}
-                        type="button"
-                        aria-pressed={logo === current}
-                        aria-label={t("workspace.edit.projectImage", { name: pathBaseName(logo) })}
-                        title={logo}
-                        data-image-kind="project"
-                        onClick={() => onLogo(logo)}
-                        className={cn(
-                            ImageTileClass,
-                            FocusRingClass,
-                            logo === current ? "border-accent bg-accent/10" : "border-border hover:bg-hover"
-                        )}
-                    >
-                        <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo }} />
-                    </button>
-                ))}
                 {imported ? (
                     <span
                         role="img"
@@ -336,20 +393,158 @@ export function ImagePane({
                     {busy ? <DominoLoader /> : <i className="fa fa-solid fa-plus" aria-hidden />}
                 </button>
             </div>
-            <div role="status" aria-live="polite" data-role="icon-import-result" className="min-h-4 text-12">
-                {result ? (
-                    <span className={result.ok ? "text-secondary" : "text-primary"}>
-                        {result.ok ? null : (
-                            <i className="fa fa-solid fa-circle-exclamation mr-1 text-error" aria-hidden />
-                        )}
-                        {result.text}
-                    </span>
-                ) : (
+            <ResultLine
+                result={result}
+                role="icon-import-result"
+                idle={
                     <span className="text-muted">{t(over ? "workspace.edit.dropToUse" : "workspace.edit.orDrop")}</span>
-                )}
-            </div>
+                }
+            />
         </div>
     );
+}
+
+// The Project sheet's Logo field (FR-SHELL-105, the one place the project's logo is chosen): the images found in the
+// project, the project's logo pressed; a chosen one stays listed when it is no longer found.
+export function LogoField({
+    ws,
+    logos,
+    current,
+    onLogo,
+}: {
+    ws: Workspace;
+    logos: string[];
+    current: string;
+    onLogo: (logo: string) => void;
+}) {
+    const t = useT();
+    const projectImages = current && !logos.includes(current) ? [current, ...logos] : logos;
+    if (projectImages.length === 0) {
+        return <div className="text-12 text-muted">{t("workspace.edit.noLogo")}</div>;
+    }
+    return (
+        <div className="flex flex-wrap items-center gap-1.5" data-role="logo-choices">
+            {projectImages.map((logo) => (
+                <button
+                    key={logo}
+                    type="button"
+                    aria-pressed={logo === current}
+                    aria-label={t("workspace.edit.projectImage", { name: pathBaseName(logo) })}
+                    title={logo}
+                    data-image-kind="project"
+                    onClick={() => onLogo(logo)}
+                    className={cn(
+                        ImageTileClass,
+                        FocusRingClass,
+                        logo === current ? "border-accent bg-accent/10" : "border-border hover:bg-hover"
+                    )}
+                >
+                    <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo }} />
+                </button>
+            ))}
+        </div>
+    );
+}
+
+// The images that could stand for the project: the repository's first (the app's icon), then the folder's own.
+export function useProjectLogos(projectDir: string, repoDir?: string): string[] {
+    const [logos, setLogos] = useState<string[]>([]);
+    const repo = repoDir || projectDir;
+    useEffect(() => {
+        setLogos([]);
+        if (projectDir === "") {
+            return;
+        }
+        let live = true;
+        fireAndForget(async () => {
+            const places = repo === projectDir ? [projectDir] : [repo, projectDir];
+            const lists = await Promise.all(places.map((dir) => findProjectLogos(dir)));
+            const found = [...new Set(lists.flatMap((list) => list ?? []))].slice(0, MaxProjectLogos);
+            if (live) {
+                setLogos(found);
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [projectDir, repo]);
+    return logos;
+}
+
+// Identity's "Use the project's logo" (FR-SHELL-105): the workspace's icon shows the logo chosen in the Project sheet,
+// or its own icon again. Over an imported image it asks first, since the imported copy is deleted (FR-SHELL-031 AC7).
+// Shown only when the workspace's project has a logo.
+export function UseProjectLogoField({ ws, logo }: { ws: Workspace; logo: string }) {
+    const t = useT();
+    const [pending, setPending] = useState(false);
+    const change = useIconChange();
+    const imported = hasImportedIcon(ws);
+    const inUse = !imported && workspaceIconSource(ws).logo !== "";
+    const use = () =>
+        change.run(async () => {
+            await setWorkspaceLogo(ws.oid, logo);
+            return { ok: true, text: translateNow("workspace.edit.using", { name: pathBaseName(logo) }) };
+        });
+    // The image goes first: if removing it fails, the logo is not set under an image that still wins.
+    const confirm = () => {
+        setPending(false);
+        change.run(async () => {
+            await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
+            await setWorkspaceLogo(ws.oid, logo);
+            return { ok: true, text: translateNow("workspace.edit.using", { name: pathBaseName(logo) }) };
+        });
+    };
+    const toggle = () => {
+        if (inUse) {
+            change.run(async () => {
+                await setWorkspaceLogo(ws.oid, null);
+                return { ok: true, text: translateNow("workspace.edit.backToSymbol") };
+            });
+            return;
+        }
+        if (imported) {
+            setPending(true);
+            return;
+        }
+        use();
+    };
+    return (
+        <div className="flex min-w-0 flex-col gap-1.5" data-field="useProjectLogo">
+            <div className="flex flex-wrap items-center gap-2">
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={inUse}
+                    disabled={change.busy}
+                    onClick={toggle}
+                    data-action="use-project-logo"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-4 px-1 text-12 text-secondary disabled:cursor-default disabled:opacity-60"
+                >
+                    <span className={cn("molten-cmdpanel-switch", inUse && "is-on")} aria-hidden />
+                    {t("workspace.edit.useProjectLogo")}
+                </button>
+                <span
+                    aria-hidden
+                    className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-4 border border-border"
+                >
+                    <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo }} />
+                </span>
+            </div>
+            <div className="text-12 text-muted">{t("workspace.edit.useProjectLogoHint")}</div>
+            {pending ? <ReplaceImageConfirm onConfirm={confirm} onCancel={() => setPending(false)} /> : null}
+            {change.result ? <ResultLine result={change.result} role="logo-result" /> : null}
+        </div>
+    );
+}
+
+// The project's logo as Identity offers it: none without a linked project or an image in it.
+function useWorkspaceProjectLogo(ws: Workspace): string {
+    const project = readWorkspaceProject(ws);
+    const found = useProjectLogos(project.dir, project.repo);
+    if (project.dir === "") {
+        return "";
+    }
+    return projectLogoOf(project, project.dir, found);
 }
 
 function RailBadgePreview({
@@ -364,6 +559,7 @@ function RailBadgePreview({
     const t = useT();
     const source = workspaceIconSource(ws);
     const kind = iconKindLabel(source.image ? "imported" : source.logo ? "logo" : "builtin");
+    const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
     return (
         <div className="flex shrink-0 flex-col items-center gap-1" {...dropHandlers}>
             <div
@@ -383,7 +579,7 @@ function RailBadgePreview({
                 <WorkspaceIcon source={source} />
             </div>
             <div className="text-11 text-muted" aria-hidden>
-                {t("workspace.edit.inTheRail")}
+                {t(sidebarOn ? "workspace.edit.inTheSidebar" : "workspace.edit.inTheRail")}
             </div>
         </div>
     );
@@ -401,7 +597,30 @@ export function initialIconMode(ws: Workspace): IconMode {
     return hasImportedIcon(ws) || workspaceIconSource(ws).logo !== "" ? "image" : "symbol";
 }
 
-function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObject<HTMLInputElement> }) {
+// A field inside a part: a small heading and its group.
+function PartField({
+    label,
+    field,
+    children,
+}: {
+    label: string;
+    field: WorkspaceEditField;
+    children: React.ReactNode;
+}) {
+    const labelId = useId();
+    return (
+        <div role="group" aria-labelledby={labelId} data-field={field} className="min-w-0">
+            <div id={labelId} className="mb-1.5 text-12 text-secondary">
+                {label}
+            </div>
+            {children}
+        </div>
+    );
+}
+
+// The Identity block (FR-SHELL-105): what the workspace is called and how it looks in the sidebar, its name, icon
+// (with the project's logo, when it has one) and colour.
+function IdentityPart({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObject<HTMLInputElement> }) {
     const t = useT();
     const nameId = useId();
     const errorId = useId();
@@ -409,9 +628,6 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
     const [draft, setDraft] = useState<string>(null);
     const [icons, setIcons] = useState<string[]>([]);
     const [mode, setMode] = useState<IconMode>(() => initialIconMode(ws));
-    const [logos, setLogos] = useState<string[]>([]);
-    const [pendingLogo, setPendingLogo] = useState<string>(null);
-    const projectDir = readWorkspaceProject(ws).dir;
     useEffect(() => {
         let live = true;
         fireAndForget(async () => {
@@ -424,22 +640,6 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             live = false;
         };
     }, []);
-    useEffect(() => {
-        setLogos([]);
-        if (projectDir === "") {
-            return;
-        }
-        let live = true;
-        fireAndForget(async () => {
-            const found = await findProjectLogos(projectDir);
-            if (live) {
-                setLogos(found ?? []);
-            }
-        });
-        return () => {
-            live = false;
-        };
-    }, [projectDir]);
     const stored = draft ?? ws.name ?? "";
     const name = draft ?? workspaceShownName(ws.name, t) ?? "";
     const invalid = checkWorkspaceName(name) == null;
@@ -468,31 +668,14 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         });
     };
     const logoColours = useLogoColours(ws);
+    const projectLogo = useWorkspaceProjectLogo(ws);
     const onName = (value: string) => {
         setDraft(value);
         if (checkWorkspaceName(value) != null) {
             save({ name: value });
         }
     };
-    const [busy, setBusy] = useState(false);
-    const [result, setResult] = useState<ImportResult>(null);
-    const runIconChange = (fn: () => Promise<ImportResult>) => {
-        if (busy) {
-            return;
-        }
-        setBusy(true);
-        setResult(null);
-        fireAndForget(async () => {
-            try {
-                setResult(await fn());
-            } catch (e) {
-                console.log("workspace icon:", e);
-                setResult({ ok: false, text: translateNow("workspace.edit.importFailed") });
-            } finally {
-                setBusy(false);
-            }
-        });
-    };
+    const { busy, result, setResult, run: runIconChange } = useIconChange();
     const importPath = (path: string) => {
         setMode("image");
         runIconChange(async () => {
@@ -526,30 +709,13 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             }
             return { ok: true, text: translateNow("workspace.edit.backToSymbol") };
         });
-    const chooseLogo = (logo: string) => {
-        if (imported) {
-            setPendingLogo(logo);
-            return;
-        }
-        fireAndForget(() => setWorkspaceLogo(ws.oid, logo));
-    };
-    // The image goes first: if removing it fails, the logo is not set under an image that still wins.
-    const confirmLogo = () => {
-        const logo = pendingLogo;
-        setPendingLogo(null);
-        runIconChange(async () => {
-            await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
-            await setWorkspaceLogo(ws.oid, logo);
-            return { ok: true, text: translateNow("workspace.edit.using", { name: pathBaseName(logo) }) };
-        });
-    };
     const drop = useIconDrop(importPath, (text) => {
         setMode("image");
         setResult({ ok: false, text });
     });
     return (
-        <Section title={t("workspace.edit.identity")} concept="identity">
-            <div className="flex min-w-0 items-start gap-3">
+        <SheetSection title={t("workspace.edit.identity")} concept="identity" block="identity">
+            <div className="flex min-w-0 items-start gap-3" data-field="name">
                 <RailBadgePreview ws={ws} over={drop.over} dropHandlers={drop.handlers} />
                 <div className="min-w-0 flex-1">
                     <label htmlFor={nameId} className={cn(FieldLabelClass, "flex")}>
@@ -575,7 +741,13 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                 </div>
             </div>
             <div className="mt-1 flex min-w-0 flex-col gap-3">
-                <div className="min-w-0" role="group" aria-labelledby={iconLabelId} data-role="icon-field">
+                <div
+                    className="min-w-0"
+                    role="group"
+                    aria-labelledby={iconLabelId}
+                    data-role="icon-field"
+                    data-field="icon"
+                >
                     <div className="mb-1.5 flex items-center justify-between gap-2">
                         <div id={iconLabelId} className="text-12 text-secondary">
                             {t("workspace.edit.icon")}
@@ -613,26 +785,104 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                     ) : (
                         <ImagePane
                             ws={ws}
-                            logos={logos}
                             over={drop.over}
                             busy={busy}
                             result={result}
                             dropHandlers={drop.handlers}
                             onPick={pick}
-                            onLogo={chooseLogo}
                         />
                     )}
-                    {pendingLogo ? (
-                        <ReplaceImageConfirm onConfirm={confirmLogo} onCancel={() => setPendingLogo(null)} />
-                    ) : null}
                 </div>
+                {projectLogo ? <UseProjectLogoField ws={ws} logo={projectLogo} /> : null}
                 <ColourField
                     selected={workspaceColourStops(ws).join(",")}
                     logoColours={logoColours}
                     onSelect={saveColour}
                 />
             </div>
-        </Section>
+        </SheetSection>
+    );
+}
+
+// The Appearance block (FR-SHELL-105, FR-SHELL-091): the window's opacity, blur and texture. Its scope tag follows
+// "Apply to": this workspace, or its project.
+function AppearancePart({ ws }: { ws: Workspace }) {
+    const t = useT();
+    const scope = useLookScope(ws);
+    return (
+        <SheetSection title={t("workspace.edit.appearance")} concept="appearance" scope={scope} block="appearance">
+            <div className="min-w-0" data-field="look">
+                <OpacityField ws={ws} />
+            </div>
+        </SheetSection>
+    );
+}
+
+// One project of the Projects block: its name, folder and followed branch, and the way to its Project sheet.
+function ProjectRow({ ws, project, current }: { ws: Workspace; project: WorkspaceProjectEntry; current: boolean }) {
+    const t = useT();
+    const repo = projectRepoDir(project);
+    return (
+        <li className="flex flex-wrap items-center gap-x-2 gap-y-1" data-project={project.id}>
+            <div className="min-w-0 flex-1 basis-40">
+                <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5">
+                    <span className="truncate">{projectLabel(project) || t("projectSheet.noFolder")}</span>
+                    {project.branch ? (
+                        <span className="shrink-0 font-mono text-11 text-muted">{project.branch}</span>
+                    ) : null}
+                    {current ? (
+                        <span className="shrink-0 rounded-4 border border-border px-1 text-11 text-muted">
+                            {t("workspace.edit.currentProject")}
+                        </span>
+                    ) : null}
+                </div>
+                <div className="truncate font-mono text-11 text-muted" title={project.dir}>
+                    {project.dir || t("projectSheet.noFolder")}
+                    {repo !== project.dir ? ` › ${repositoryLabel(project.dir, repo)}` : ""}
+                </div>
+            </div>
+            <button
+                type="button"
+                onClick={(e) => openProjectSheet(project.id, e.currentTarget, ws.oid)}
+                data-action="project-sheet"
+                className={cn(SecondaryButtonClass, FocusRingClass)}
+            >
+                {t("projectSheet.open")}
+            </button>
+        </li>
+    );
+}
+
+// The Projects block (FR-SHELL-105): the workspace's projects, each set up in its Project sheet, and the folder its
+// terminals start in. Without a project it offers the link; nothing else in the sheet waits on it.
+function ProjectsPart({ ws }: { ws: Workspace }) {
+    const t = useT();
+    const projects = readProjects(ws);
+    const currentId = currentProjectId(ws);
+    return (
+        <SheetSection title={t("workspace.edit.projects")} concept="project" block="projects">
+            <div className="flex min-w-0 flex-col gap-3">
+                <PartField label={t("workspace.edit.linkedProjects")} field="projects">
+                    {projects.length === 0 ? (
+                        <WorkspaceProjectBlock ws={ws} />
+                    ) : (
+                        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                            {projects.map((p) => (
+                                <ProjectRow
+                                    key={p.id}
+                                    ws={ws}
+                                    project={p}
+                                    current={projects.length > 1 && p.id === currentId}
+                                />
+                            ))}
+                        </ul>
+                    )}
+                </PartField>
+                <PartField label={t("workspace.edit.folder")} field="folder">
+                    <WorkspaceFolderLine ws={ws} />
+                </PartField>
+            </div>
+        </SheetSection>
     );
 }
 
@@ -678,7 +928,7 @@ export function IconChoices({
                     tabIndex={tabIndex}
                     onClick={() => onSelect(icon)}
                     className={cn(
-                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-3 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-4 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                         FocusRingClass,
                         checked
                             ? "border-accent bg-accent/10 text-primary"
@@ -818,14 +1068,13 @@ function CustomColour({ custom, base, onSelect }: { custom: string; base: string
                         custom && SwatchCheckedClass
                     )}
                     style={{
-                        background:
-                            shown || "conic-gradient(#ff453a, #ffe900, #58c142, #00ffdb, #429dff, #bf55ec, #ff453a)",
+                        background: shown || CustomColourWheel,
                     }}
                 >
                     <input
                         type="color"
                         aria-label={t("workspace.edit.pickColour")}
-                        value={shown || base || "#ff7c0d"}
+                        value={shown || base || CustomColourStart}
                         onChange={(e) => onPick(e.target.value)}
                         className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                     />
@@ -887,7 +1136,13 @@ export function ColourField({
     const stops = colourStops(selected);
     const custom = stops.length === 1 && !known.includes(stops[0]) ? stops[0] : "";
     return (
-        <div role="group" aria-labelledby={labelId} data-role="colour-field" className="flex min-w-0 flex-col gap-2">
+        <div
+            role="group"
+            aria-labelledby={labelId}
+            data-role="colour-field"
+            data-field="colour"
+            className="flex min-w-0 flex-col gap-2"
+        >
             <div id={labelId} className="text-12 text-secondary">
                 {t("workspace.edit.colour")}
             </div>
@@ -920,17 +1175,17 @@ export function ColourField({
 export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closable: boolean; onClose: () => void }) {
     const t = useT();
     const action = dangerAction(closable);
-    // The sheet closes first: Delete asks in a native box, Reset in its own dialog (#222).
+    // The sheet closes first: Delete and Reset ask in the same dialog (#222, #1324).
     const run = () => {
         onClose();
         if (action.kind === "delete") {
-            getApi().deleteWorkspace(ws.oid);
+            askDeleteWorkspace(ws.oid);
         } else {
             askResetWorkspace(ws.oid);
         }
     };
     return (
-        <Section title={t("workspace.edit.dangerZone")} concept="danger" tone="danger">
+        <SheetSection title={t("workspace.edit.dangerZone")} concept="danger" tone="danger" block="danger">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1 basis-48 text-12 text-muted">{action.text}</div>
                 <button
@@ -942,7 +1197,7 @@ export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closab
                     {action.label}
                 </button>
             </div>
-        </Section>
+        </SheetSection>
     );
 }
 
@@ -976,7 +1231,7 @@ export function WorkspaceEditSheet({
         <DialogFrame
             role="workspace-edit"
             onEscape={onClose}
-            title={t("workspace.edit.title")}
+            title={t("workspace.edit.sheetTitle")}
             subtitle={pathBaseName(folder) || undefined}
             subtitleClass="font-mono text-11"
             subtitleTooltip={folder || undefined}
@@ -987,7 +1242,7 @@ export function WorkspaceEditSheet({
             buttons={
                 <button
                     type="button"
-                    className="molten-btn cursor-pointer rounded-3 px-4 py-1.5 text-12"
+                    className="molten-btn cursor-pointer rounded-4 px-4 py-1.5 text-12"
                     onClick={onClose}
                 >
                     {t("workspace.edit.done")}
@@ -995,48 +1250,10 @@ export function WorkspaceEditSheet({
                 </button>
             }
         >
-            <IdentitySection ws={ws} nameRef={nameRef} />
-            <Section title={t("workspace.edit.project")} concept="project">
-                <WorkspaceProjectBlock ws={ws} />
-            </Section>
-            <Section title={t("workspace.edit.folder")} concept="folder">
-                <WorkspaceFolderLine ws={ws} />
-            </Section>
+            <IdentityPart ws={ws} nameRef={nameRef} />
+            <AppearancePart ws={ws} />
+            <ProjectsPart ws={ws} />
             <DangerSection ws={ws} closable={closable} onClose={onClose} />
         </DialogFrame>
-    );
-}
-
-// Mounted once by the rail, in every tab view: it shows the sheet of the open request, and picks up a double-click
-// handed over by the tab view the window switched away from.
-export function WorkspaceEditHost({ entries }: { entries: { id: string }[] }) {
-    const model = WorkspaceEditModel.getInstance();
-    const request = useAtomValue(model.requestAtom);
-    const ws = useAtomValue(atoms.workspace);
-    const staticTabId = useAtomValue(atoms.staticTabId);
-    const close = () => model.close();
-    useEffect(() => {
-        listenWorkspaceMenu();
-        const onStorage = (e: StorageEvent) => {
-            if (e.key === WorkspaceEditIntentKey) {
-                pickUpWorkspaceEdit();
-            }
-        };
-        window.addEventListener("storage", onStorage);
-        return () => window.removeEventListener("storage", onStorage);
-    }, []);
-    useEffect(() => {
-        pickUpWorkspaceEdit();
-    }, [ws?.oid, ws?.activetabid, staticTabId]);
-    if (request == null) {
-        return null;
-    }
-    return (
-        <WorkspaceEditSheet
-            key={request.workspaceId}
-            workspaceId={request.workspaceId}
-            closable={canCloseWorkspace(entries, request.workspaceId)}
-            onClose={close}
-        />
     );
 }

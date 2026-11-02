@@ -14,6 +14,8 @@ export class Toasts {
     stackAtom = atom([]) as PrimitiveAtom<Toast[]>;
     // How many notification toasts left the stack for the center since the user last opened it.
     collapsedAtom = atom(0) as PrimitiveAtom<number>;
+    // Bumped each time a notification's toast times out into the bell, which pulses its count (#1403).
+    landedAtom = atom(0) as PrimitiveAtom<number>;
     nextId = 0;
 
     private constructor() {}
@@ -34,7 +36,8 @@ export class Toasts {
     }
 
     push(input: ToastInput): string {
-        const toast = makeToast(input, `toast:${++this.nextId}`);
+        const revision = ++this.nextId;
+        const toast = { ...makeToast(input, `toast:${revision}`), revision };
         const { stack, collapsed } = pushToast(this.stack(), toast);
         globalStore.set(this.stackAtom, stack);
         const collapsedNotifications = collapsed.filter((t) => t.notificationId != null).length;
@@ -45,12 +48,15 @@ export class Toasts {
         return toast.id;
     }
 
-    dismiss(id: string, reason: ToastDismissReason = "user"): void {
+    dismiss(id: string, reason: ToastDismissReason = "user", expected?: Toast): void {
         const toast = this.stack().find((t) => t.id === id);
-        if (toast == null) {
+        if (toast == null || (expected != null && toast !== expected)) {
             return;
         }
         globalStore.set(this.stackAtom, removeToast(this.stack(), id));
+        if (reason === "timeout" && toast.notificationId != null) {
+            globalStore.set(this.landedAtom, globalStore.get(this.landedAtom) + 1);
+        }
         toast.onDismiss?.(reason);
     }
 

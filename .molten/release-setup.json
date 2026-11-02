@@ -1,0 +1,14 @@
+{
+    "template": 2,
+    "steps": {
+        "public/close-milestone": "c3053b36148b",
+        "public/prepare": "596855021326",
+        "public/promote": "f9aeb729ec3c",
+        "public/rewrite-notes": "5436867c2a4f",
+        "public/sync-back": "59a826c0f381",
+        "rc/prepare": "596855021326",
+        "rc/promote": "f9aeb729ec3c",
+        "rc/rewrite-notes": "5436867c2a4f",
+        "rc/sync-back": "59a826c0f381"
+    }
+}

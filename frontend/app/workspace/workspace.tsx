@@ -23,7 +23,11 @@ import {
     PanelResizeHandle,
 } from "react-resizable-panels";
 // MOLTENTERM-PATCH (#44, #55, #110)
+import { useViewPour } from "../../moltenterm-shell/panel-motion/view-pour"; // MOLTENTERM-PATCH (#1349)
 import { MoltentermStatusBar, MoltentermToolRail, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags";
+import { SidebarModel } from "../../moltenterm-shell/sidebar/sidebar-store"; // MOLTENTERM-PATCH (#1183)
+import { SidebarContentStrip, WorkspaceSidebar } from "../../moltenterm-shell/sidebar/workspace-sidebar"; // MOLTENTERM-PATCH (#1183)
+import { frameSizes } from "../../moltenterm-shell/sidebar/window-corner-model"; // MOLTENTERM-PATCH (#1216)
 import { StatusBar } from "../../moltenterm-shell/status-bar"; // MOLTENTERM-PATCH (#55)
 import { ViewPendingOverlay } from "../../moltenterm-shell/view-pending"; // MOLTENTERM-PATCH (#450)
 import { WorkspaceRail } from "../../moltenterm-shell/workspace-rail"; // MOLTENTERM-PATCH (#44)
@@ -50,7 +54,12 @@ const WorkspaceElem = memo(() => {
     const tabId = useAtomValue(atoms.staticTabId);
     const ws = useAtomValue(atoms.workspace);
     const tabBarPosition = useAtomValue(getSettingsKeyAtom("app:tabbar")) ?? "top";
-    const showLeftTabBar = tabBarPosition === "left";
+    // MOLTENTERM-PATCH (#1183): the workspace sidebar replaces the tab bar (top or left), the rail and the status bar
+    const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
+    const sidebarHidden = useAtomValue(SidebarModel.getInstance().hiddenAtom);
+    // MOLTENTERM-PATCH (#1216): window:tilegapsize is the frame's one margin, outside and between panels
+    const frame = frameSizes(useAtomValue(getSettingsKeyAtom("window:tilegapsize")));
+    const showLeftTabBar = !sidebarOn && tabBarPosition === "left";
     const aiPanelVisible = useAtomValue(workspaceLayoutModel.panelVisibleAtom);
     const widgetsSidebarVisible = useAtomValue(workspaceLayoutModel.widgetsSidebarVisibleAtom);
     const windowWidth = window.innerWidth;
@@ -64,6 +73,8 @@ const WorkspaceElem = memo(() => {
     const panelContainerRef = useRef<HTMLDivElement>(null);
     const aiPanelWrapperRef = useRef<HTMLDivElement>(null);
     const vtabPanelWrapperRef = useRef<HTMLDivElement>(null);
+    // MOLTENTERM-PATCH (#1349): a switch to this view pours its panels in from the side of the tiles
+    useViewPour(panelContainerRef, sidebarOn || showLeftTabBar ? "x" : "y");
 
     // showLeftTabBar is passed as a seed value only; subsequent changes are handled by setShowLeftTabBar below.
     // Do NOT add showLeftTabBar as a dep here — re-registering refs on config changes would redundantly re-run commitLayouts.
@@ -115,13 +126,22 @@ const WorkspaceElem = memo(() => {
 
     return (
         <div className="flex flex-col w-full flex-grow overflow-hidden">
-            {!(showLeftTabBar && isMacOS()) && <TabBar key={ws.oid} workspace={ws} noTabs={showLeftTabBar} />}
+            {/* MOLTENTERM-PATCH (#1183): no tab bar under the workspace sidebar */}
+            {!sidebarOn && !(showLeftTabBar && isMacOS()) && (
+                <TabBar key={ws.oid} workspace={ws} noTabs={showLeftTabBar} />
+            )}
             {showLeftTabBar && isMacOS() && <MacOSTabBarSpacer />}
-            {/* MOLTENTERM-PATCH (#44): the workspace rail on the left of the content row */}
-            <div className="flex flex-row flex-grow overflow-hidden">
-            {MoltentermWorkspaceRail && <WorkspaceRail />}
+            {/* MOLTENTERM-PATCH (#44, #1183): the workspace rail, or the workspace sidebar, on the left of the content row */}
+            <div
+                className={`relative flex flex-row flex-grow overflow-hidden ${sidebarOn ? "mt-sb-frame" : ""}`}
+                style={sidebarOn ? ({ "--mt-frame-gap": `${frame.marginPx}px` } as React.CSSProperties) : undefined}
+            >
+            {sidebarOn ? <WorkspaceSidebar /> : MoltentermWorkspaceRail && <WorkspaceRail />}
+            {/* MOLTENTERM-PATCH (#1183, #1216): under the sidebar the content sits in the Spaces frame's one margin */}
+            <div className={`relative flex min-w-0 flex-grow flex-col overflow-hidden ${sidebarOn ? "mt-frame-content" : ""} ${sidebarOn && !sidebarHidden ? "is-beside" : ""}`}>
+            {sidebarOn && <SidebarContentStrip />}
             {/* MOLTENTERM-PATCH (#450): relative, for the pending state drawn over the panels */}
-            <div ref={panelContainerRef} className="relative flex flex-row flex-grow overflow-hidden">
+            <div ref={panelContainerRef} className="relative flex min-h-0 flex-row flex-grow overflow-hidden">
                 <ErrorBoundary key={tabId}>
                     <PanelGroup
                         direction="horizontal"
@@ -145,7 +165,8 @@ const WorkspaceElem = memo(() => {
                                         {showLeftTabBar && <VTabBar workspace={ws} />}
                                     </div>
                                 </Panel>
-                                <PanelResizeHandle className={innerHandleClass} />
+                                {/* MOLTENTERM-PATCH (#1183): a hidden handle is disabled, or its hit area takes the sidebar grip's presses */}
+                                <PanelResizeHandle className={innerHandleClass} disabled={!innerHandleVisible} />
                                 <Panel
                                     ref={aiPanelRef}
                                     collapsible
@@ -163,13 +184,19 @@ const WorkspaceElem = memo(() => {
                                 </Panel>
                             </PanelGroup>
                         </Panel>
-                        <PanelResizeHandle className={outerHandleClass} />
+                        <PanelResizeHandle className={outerHandleClass} disabled={!outerHandleVisible} />
                         <Panel order={1} defaultSize={100 - leftGroupInitialPct}>
                             {tabId === "" ? (
                                 <CenteredDiv>No Active Tab</CenteredDiv>
                             ) : (
                                 <div className="flex flex-row h-full">
-                                    <TabContent key={tabId} tabId={tabId} noTopPadding={showLeftTabBar && isMacOS()} />
+                                    {/* MOLTENTERM-PATCH (#1216): framed, the panels take the frame's gap and no padding of their own */}
+                                    <TabContent
+                                        key={tabId}
+                                        tabId={tabId}
+                                        noTopPadding={showLeftTabBar && isMacOS()}
+                                        frameGapPx={sidebarOn ? frame.gapPx : undefined}
+                                    />
                                     {/* MOLTENTERM-PATCH (#110): the widget bar's tools live at the bottom of the workspace rail */}
                                     {widgetsSidebarVisible && !MoltentermToolRail && <Widgets />}
                                 </div>
@@ -182,8 +209,9 @@ const WorkspaceElem = memo(() => {
                 <ViewPendingOverlay />
             </div>
             </div>
-            {/* MOLTENTERM-PATCH (#55): the status bar under the content */}
-            {MoltentermStatusBar && <StatusBar />}
+            </div>
+            {/* MOLTENTERM-PATCH (#55, #1183): the status bar under the content, unless the sidebar holds its items */}
+            {MoltentermStatusBar && !sidebarOn && <StatusBar />}
         </div>
     );
 });

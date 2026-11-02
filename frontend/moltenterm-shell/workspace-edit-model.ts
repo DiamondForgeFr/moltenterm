@@ -46,6 +46,41 @@ export function iconName(icon: string): string {
     return bare.charAt(0).toUpperCase() + bare.slice(1);
 }
 
+// The workspace sheet's blocks and the fields each holds, in order (FR-SHELL-105, DS-SHELL-036): who the workspace is,
+// how its window looks, then its projects. The project's own settings (type, branch, logo, pipeline, agent) are the
+// Project sheet's. A field is in exactly one block.
+export type WorkspaceEditPart = "identity" | "appearance" | "projects";
+export type WorkspaceEditField = "name" | "icon" | "useProjectLogo" | "colour" | "look" | "projects" | "folder";
+
+export const WorkspaceEditParts: Record<WorkspaceEditPart, readonly WorkspaceEditField[]> = {
+    identity: ["name", "icon", "useProjectLogo", "colour"],
+    appearance: ["look"],
+    projects: ["projects", "folder"],
+};
+
+export function partOfField(field: WorkspaceEditField): WorkspaceEditPart {
+    return (Object.keys(WorkspaceEditParts) as WorkspaceEditPart[]).find((part) =>
+        WorkspaceEditParts[part].includes(field)
+    );
+}
+
+// The Project sheet's blocks and fields (FR-SHELL-105): every one is "For this project".
+export type ProjectSheetBlock = "repository" | "details" | "logo" | "pipeline" | "agent";
+
+export const ProjectSheetBlocks: Record<ProjectSheetBlock, readonly string[]> = {
+    repository: ["folder"],
+    details: ["type", "branch"],
+    logo: ["logo"],
+    pipeline: ["pipeline"],
+    agent: ["agent"],
+};
+
+// The blocks that show: a project without a folder has no images, pipeline or agent to read yet.
+export function projectSheetBlocks(hasFolder: boolean): ProjectSheetBlock[] {
+    const all = Object.keys(ProjectSheetBlocks) as ProjectSheetBlock[];
+    return hasFolder ? all : all.filter((b) => b === "repository" || b === "details");
+}
+
 export type DangerAction = { kind: "delete" | "reset"; label: string; text: string };
 
 // The last workspace is reset, never deleted (#222); both keep their confirmations.

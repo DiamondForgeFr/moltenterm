@@ -151,6 +151,54 @@ func TestValidatePipelineStepEnvironments(t *testing.T) {
 	}
 }
 
+func TestValidatePipelineLaunch(t *testing.T) {
+	report := validateWith(t, map[string]string{
+		".molten/project.json": `{
+	  "schema": 1, "name": "x",
+	  "launch": {
+	    "where": "worktree",
+	    "prepare": [{"id": "install", "title": "Install", "run": "npm install"}, {"id": "migrate", "run": "npm run db:update:dev -w apps/api"}],
+	    "servers": [{"id": "api", "run": "npm run dev", "cwd": "apps/api", "port": 3500}, {"id": "web", "run": "npm run dev", "cwd": "apps/web", "port": 5173}],
+	    "url": "http://localhost:5173"
+	  }
+	}`,
+		"apps/api/package.json": "{}",
+		"apps/web/package.json": "{}",
+	})
+	if !report.Valid || len(report.Errors) != 0 || len(report.Warnings) != 0 {
+		t.Fatalf("errors: %v, warnings: %v", report.Errors, report.Warnings)
+	}
+	launch := report.Pipeline.Launch
+	if launch.Where != PipelineLaunchWhereWorktree || len(launch.Prepare) != 2 || launch.Servers[1].Port != 5173 || launch.Servers[0].Cwd != "apps/api" {
+		t.Fatalf("launch: %+v", launch)
+	}
+	report = validateWith(t, map[string]string{".molten/project.json": `{
+	  "schema": 1, "name": "x",
+	  "launch": {
+	    "where": "elsewhere",
+	    "prepare": [{"id": "a", "run": ""}],
+	    "servers": [{"id": "a", "run": "true", "port": 70000}, {"id": "b", "run": "true", "port": 80}, {"id": "c", "run": "true", "port": 80}],
+	    "url": "localhost:5173"
+	  }
+	}`})
+	for _, want := range []string{
+		`launch.where must be "main" or "worktree"`,
+		"launch.prepare[0] (a): run is empty",
+		`launch.servers[0]: id "a" is used twice`,
+		"port must be between 1 and 65535",
+		"port 80 is declared twice",
+		"launch.url must start with http://",
+	} {
+		if !hasMessage(report.Errors, want) {
+			t.Errorf("missing error %q in %v", want, report.Errors)
+		}
+	}
+	report = validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "launch": {"servers": []}}`})
+	if !hasMessage(report.Errors, "launch.servers is empty") {
+		t.Errorf("empty servers: %v", report.Errors)
+	}
+}
+
 func TestValidatePipelineUnknownFieldAndBrokenJson(t *testing.T) {
 	report := validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "ci": {"jobs": [{"name": "a", "run": "true", "command": "x"}]}}`})
 	if report.Valid || !hasMessage(report.Errors, `unknown field "command"`) {
@@ -249,7 +297,7 @@ func TestValidatePipelineVersions(t *testing.T) {
 	report := validateWith(t, map[string]string{
 		".molten/project.json": `{
 		  "schema": 1, "name": "x",
-		  "versions": {"tagprefix": "v", "firstpublic": "1.0.0", "files": [
+		  "versions": {"tagprefix": "v", "firstpublic": "1.0.0", "rcformat": "rcdot", "files": [
 		    {"path": "package.json", "format": "json", "keys": [["version"]]},
 		    {"path": "package-lock.json", "format": "json", "keys": [["version"], ["packages", "", "version"]]},
 		    {"path": "Cargo.toml", "format": "regex", "pattern": "(?m)^version = \"([^\"]+)\""}
@@ -273,7 +321,7 @@ func TestValidatePipelineVersions(t *testing.T) {
 	report = validateWith(t, map[string]string{
 		".molten/project.json": `{
 		  "schema": 1, "name": "x",
-		  "versions": {"firstpublic": "1.0", "files": [
+		  "versions": {"firstpublic": "1.0", "rcformat": "rc.N", "files": [
 		    {"path": "package.json", "format": "json", "keys": [["nope"]]},
 		    {"path": "../outside.json", "format": "json", "keys": [["version"]]},
 		    {"path": "missing.json", "format": "json", "keys": [["version"]]},
@@ -285,10 +333,11 @@ func TestValidatePipelineVersions(t *testing.T) {
 	})
 	for _, want := range []string{
 		`versions.firstpublic must be a public version, X.Y.Z (got "1.0")`,
+		`versions.rcformat must be "numeric" (X.Y.Z-N) or "rcdot" (X.Y.Z-rc.N) (got "rc.N")`,
 		`versions.files[0] (package.json): package.json: ["nope"] is missing`,
 		`versions.files[1]: path "../outside.json" must be a file of the project`,
 		"versions.files[2] (missing.json)",
-		`versions.files[3] (package.json): package.json: format must be "json" or "regex"`,
+		`versions.files[3] (package.json): package.json: format must be "json", "regex" or "text"`,
 	} {
 		if !hasMessage(report.Errors, want) {
 			t.Errorf("missing error %q in %v", want, report.Errors)

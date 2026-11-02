@@ -6,6 +6,7 @@
 // with their next runs. The panel only looks: merging stays on GitHub, one click away.
 
 import { t } from "../i18n/i18n";
+import { parseReleaseNotes } from "../releases/release-notes-catalog";
 import { labelRecord } from "./mission-i18n";
 
 export type CheckState = "success" | "failure" | "pending" | "neutral";
@@ -194,6 +195,39 @@ export function scheduledWorkflows(files: readonly { name: string; text: string 
     return out;
 }
 
+// The workflows GitHub ran on a schedule that no local workflow file declares (FR-SHELL-100): the Scheduled jobs read
+// the project's files while the runs come from GitHub, so a missing or unpushed file must not read as "none". One per
+// workflow, its latest run. A local file that no longer has a cron keeps its old runs out.
+export function githubOnlySchedules(
+    runs: readonly WorkflowRun[],
+    files: readonly { name: string; text: string }[]
+): WorkflowRun[] {
+    const local = new Set<string>();
+    for (const { name: file, text } of files ?? []) {
+        // GitHub names a workflow without `name:` by its path.
+        local.add(file);
+        local.add(`.github/workflows/${file}`);
+        const name = text
+            .split("\n")
+            .map((l) => /^name:\s*["']?(.+?)["']?\s*$/.exec(l)?.[1])
+            .find(Boolean);
+        if (name) {
+            local.add(name);
+        }
+    }
+    const latest = new Map<string, WorkflowRun>();
+    for (const run of runs ?? []) {
+        if (run.event !== "schedule" || !run.workflowName || local.has(run.workflowName)) {
+            continue;
+        }
+        const seen = latest.get(run.workflowName);
+        if (seen == null || new Date(run.createdAt).getTime() > new Date(seen.createdAt).getTime()) {
+            latest.set(run.workflowName, run);
+        }
+    }
+    return [...latest.values()].sort((a, b) => a.workflowName.localeCompare(b.workflowName));
+}
+
 // Markdown as a line of reading: no headings, tables, code fences or emphasis; links keep their text.
 export function plainText(markdown: string): string {
     return (markdown ?? "")
@@ -211,6 +245,22 @@ export function plainText(markdown: string): string {
         .join("\n")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
+}
+
+function headingText(markdown: string): string {
+    return (markdown ?? "")
+        .split("\n")
+        .filter((l) => /^\s*#/.test(l))
+        .map((l) => plainText(l.replace(/^\s*#+\s*/, "")))
+        .filter(Boolean)
+        .join("\n");
+}
+
+// A release's notes as plain text, wherever an excerpt of them shows: the front matter (`date`, `draft`) is not part of
+// what one reads. Headings are skipped like plainText does, unless the notes hold nothing else.
+export function releaseNotesText(notes: string): string {
+    const { body } = parseReleaseNotes(notes ?? "");
+    return plainText(body) || headingText(body);
 }
 
 function section(markdown: string, headings: readonly string[]): string {

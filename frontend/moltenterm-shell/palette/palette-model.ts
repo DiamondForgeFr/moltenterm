@@ -8,10 +8,11 @@
 import { t } from "../i18n/i18n";
 import type { WorkspaceIconSource } from "../workspace-icon-model";
 
-// "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed.
-export type PaletteGroupId = "agents" | "panels" | "folders" | "actions" | "panel";
+// "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed. "suggestions":
+// the ready-made combinations a new view's chooser offers above its list (FR-SHELL-138); no other list holds them.
+export type PaletteGroupId = "suggestions" | "agents" | "panels" | "folders" | "actions" | "panel";
 
-export const PaletteGroupOrder: PaletteGroupId[] = ["agents", "panels", "folders", "actions", "panel"];
+export const PaletteGroupOrder: PaletteGroupId[] = ["suggestions", "agents", "panels", "folders", "actions", "panel"];
 
 // The picker of a split panel puts the panel kinds first (FR-SHELL-042, DS-SHELL-066).
 export const PickerGroupOrder: PaletteGroupId[] = ["panels", "agents", "folders", "actions"];
@@ -47,10 +48,14 @@ export type PaletteRun =
     | { kind: "splitplace" }
     // Equalize the panel widths of the tab on screen (#825).
     | { kind: "equalize" }
+    // A pin move of the view on screen, as its menu makes it (#1652).
+    | { kind: "pinview"; move: "here" | "everywhere" | "temporary" }
     // The command panel of the pane the palette was opened from, or one of its items (FR-SHELL-047: every action of
     // the panel is also a palette command).
     | { kind: "panelcommands" }
-    | { kind: "panelcommand"; entryId: string };
+    | { kind: "panelcommand"; entryId: string }
+    // A ready-made combination of panels (FR-SHELL-138), by its id in workspace-views/view-suggestions.ts.
+    | { kind: "suggestion"; id: string };
 
 // The entries that open something in the palette's pane; the others act elsewhere (a tab, a sheet, a workspace).
 export function fillsPanel(run: PaletteRun): boolean {
@@ -76,8 +81,13 @@ export type PaletteEntry = {
     // In a split's picker: how to reach the entry from the keyboard ("⌘D co ↵"), and its own global shortcut.
     keyPath?: string;
     shortcut?: string;
+    // A suggestion's panels, their icons shown before its detail (FR-SHELL-138).
+    panelIcons?: string[];
     run: PaletteRun;
 };
+
+// The "Open <address>" row (#1229): typed text that is an address; it is not filtered and always ranks first.
+export const AddressEntryId = "address:open";
 
 export type PaletteSection = { group: PaletteGroupId; title: string; entries: PaletteEntry[] };
 
@@ -105,16 +115,27 @@ function isWordStart(text: string, index: number): boolean {
     return prev === prev.toLowerCase() && cur !== cur.toLowerCase();
 }
 
-// Every query character must appear in order in text, case-insensitively. Each character prefers, from where the
+// Lowercase without accents, one character for one, so match indices still point into the shown text (#1670):
+// "epingler" finds "Épingler".
+function foldChars(text: string): string {
+    let out = "";
+    for (const ch of text.toLowerCase()) {
+        const base = ch.normalize("NFD").replace(/[̀-ͯ]/g, "");
+        out += base.length === ch.length ? base : ch;
+    }
+    return out;
+}
+
+// Every query character must appear in order in text, case- and accent-insensitively. Each character prefers, from where the
 // previous one matched, the next word start over a plain occurrence, so "cc" finds "Claude Code" by its initials.
 // Returns null when the query is not a subsequence of text.
 export function fuzzyMatch(query: string, text: string): PaletteMatch {
-    const q = (query ?? "").trim().toLowerCase();
+    const q = foldChars((query ?? "").trim());
     if (q === "") {
         return { score: 0, indices: [] };
     }
     const source = text ?? "";
-    const lower = source.toLowerCase();
+    const lower = foldChars(source);
     const indices: number[] = [];
     let score = 0;
     let from = 0;
@@ -195,9 +216,17 @@ export function filterPalette(
             kept = inGroup;
         } else {
             kept = inGroup
-                .map((entry, order) => ({ entry, order, match: matchEntry(q, entry) }))
+                .map((entry, order) => ({
+                    entry,
+                    order,
+                    match: entry.id === AddressEntryId ? { score: Infinity, indices: [] } : matchEntry(q, entry),
+                }))
                 .filter((r) => r.match != null)
-                .sort((a, b) => b.match.score - a.match.score || a.order - b.order)
+                .sort(
+                    (a, b) =>
+                        (a.match.score === b.match.score ? 0 : b.match.score > a.match.score ? 1 : -1) ||
+                        a.order - b.order
+                )
                 .map((r) => r.entry);
         }
         if (kept.length > 0) {
@@ -208,6 +237,7 @@ export function filterPalette(
 }
 
 export const DefaultGroupTitleKeys: Record<PaletteGroupId, string> = {
+    suggestions: "palette.groups.suggestions",
     agents: "palette.groups.agents",
     panels: "palette.groups.panels",
     folders: "palette.groups.folders",
@@ -228,6 +258,10 @@ export function bestMatchIndex(sections: PaletteSection[], query: string): numbe
     }
     if ((query ?? "").trim() === "") {
         return 0;
+    }
+    const address = flat.findIndex((entry) => entry.id === AddressEntryId);
+    if (address >= 0) {
+        return address;
     }
     let best = 0;
     let bestScore = -Infinity;

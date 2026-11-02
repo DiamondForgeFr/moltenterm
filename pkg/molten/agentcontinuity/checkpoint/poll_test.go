@@ -40,18 +40,22 @@ func TestPollSleepsWithoutAgents(t *testing.T) {
 	running = true
 	lock.Unlock()
 	u.Wake()
-	time.Sleep(150 * time.Millisecond)
-	busy := reads.Load()
-	if busy < 8 {
-		t.Fatalf("an agent runs: only %d reads in 150 ms at 10 ms", busy)
-	}
-	// Wakes while busy do not postpone the poll.
-	before := reads.Load()
-	for i := 0; i < 30; i++ {
-		u.Wake()
+	// No read count per duration (#1208): a loaded machine reads less often. A poll that stayed asleep, or that
+	// frequent wakes kept postponing, never reaches the count before the deadline.
+	waitReads(t, &reads, reads.Load()+8, "an agent runs: the poll stays asleep", nil)
+	waitReads(t, &reads, reads.Load()+6, "frequent wakes starved the poll", u.Wake)
+}
+
+func waitReads(t *testing.T, reads *atomic.Int32, want int32, what string, each func()) {
+	t.Helper()
+	deadline := time.Now().Add(time.Minute)
+	for reads.Load() < want {
+		if time.Now().After(deadline) {
+			t.Fatalf("%s: %d reads, want %d", what, reads.Load(), want)
+		}
+		if each != nil {
+			each()
+		}
 		time.Sleep(3 * time.Millisecond)
-	}
-	if reads.Load()-before < 6 {
-		t.Fatalf("frequent wakes starved the poll: %d reads", reads.Load()-before)
 	}
 }

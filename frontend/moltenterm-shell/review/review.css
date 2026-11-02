@@ -36,7 +36,7 @@
     width: 9px;
     height: 9px;
     margin: 5px auto 0;
-    border-radius: var(--mt-radius-4) var(--mt-radius-4) var(--mt-radius-4) 0;
+    border-radius: var(--mt-radius-control) var(--mt-radius-control) var(--mt-radius-control) 0;
     background: var(--molten-review-state);
 }
 

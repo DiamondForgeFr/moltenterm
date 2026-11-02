@@ -5,22 +5,29 @@ import { describe, expect, it } from "vitest";
 import {
     checkAbsolutePath,
     checkPathInside,
+    declaredProjectIcon,
     effectiveWorkspaceFolder,
     linkUpdate,
-    declaredProjectIcon,
     logoProbeOrder,
     logoUrl,
     nextWorkspaceFolder,
     pathBaseName,
     pathParent,
     projectFilePath,
+    ProjectLogoChoiceMetaKey,
     ProjectLogoMetaKey,
+    projectLogoOf,
     ProjectLogoOfferMetaKey,
+    projectLogoUpdate,
     ProjectMetaKey,
     projectName,
+    ProjectRepoMetaKey,
+    projectRepoOf,
     readmeFirstImage,
     readWorkspaceFolder,
     readWorkspaceProject,
+    repositoryLabel,
+    repositoryValues,
     shouldOfferLogo,
     unlinkUpdate,
     WorkspaceFolderMetaKey,
@@ -34,11 +41,84 @@ describe("readWorkspaceProject", () => {
     it("reads the link and the logo from the workspace meta", () => {
         expect(readWorkspaceProject(ws({ [ProjectMetaKey]: "/p", [ProjectLogoMetaKey]: "/p/icon.png" }))).toEqual({
             dir: "/p",
+            repo: "/p",
             logo: "/p/icon.png",
             logoOffer: "",
+            logoChoice: "",
         });
-        expect(readWorkspaceProject(ws(null))).toEqual({ dir: "", logo: "", logoOffer: "" });
+        expect(readWorkspaceProject(ws(null))).toEqual({ dir: "", repo: "", logo: "", logoOffer: "", logoChoice: "" });
         expect(readWorkspaceProject(ws({ [ProjectMetaKey]: 42 })).dir).toBe("");
+    });
+});
+
+describe("a project's folder and its code repository (#1777)", () => {
+    it("reads the repository chosen inside the folder, else the folder itself", () => {
+        const read = (meta: Record<string, any>) =>
+            readWorkspaceProject(ws({ [ProjectMetaKey]: "/clients/ofpis", ...meta }));
+        expect(read({ [ProjectRepoMetaKey]: "/clients/ofpis/app" })).toMatchObject({
+            dir: "/clients/ofpis",
+            repo: "/clients/ofpis/app",
+        });
+        expect(read({ [ProjectRepoMetaKey]: "/clients/ofpis/code/api/" }).repo).toBe("/clients/ofpis/code/api");
+        expect(read({}).repo).toBe("/clients/ofpis");
+        expect(read({ [ProjectRepoMetaKey]: "" }).repo).toBe("/clients/ofpis");
+    });
+
+    it("falls back to the folder for a repository that is not usable", () => {
+        expect(projectRepoOf("/clients/ofpis", "/clients/ofpis")).toBe("/clients/ofpis");
+        expect(projectRepoOf("/clients/ofpis", "/clients/ofpis/")).toBe("/clients/ofpis");
+        expect(projectRepoOf("/clients/ofpis", "/clients/other/app")).toBe("/clients/ofpis");
+        expect(projectRepoOf("/clients/ofpis", "/clients/ofpis-old")).toBe("/clients/ofpis");
+        expect(projectRepoOf("/clients/ofpis", "app")).toBe("/clients/ofpis");
+        expect(projectRepoOf("", "/clients/ofpis/app")).toBe("");
+        expect(readWorkspaceProject(ws({ [ProjectRepoMetaKey]: "/x/app" })).repo).toBe("");
+    });
+
+    it("names a repository from the folder, and always offers the one already chosen", () => {
+        expect(repositoryLabel("/clients/ofpis", "/clients/ofpis/app")).toBe("app");
+        expect(repositoryLabel("/clients/ofpis/", "/clients/ofpis/code/api")).toBe("code/api");
+        expect(repositoryLabel("/clients/ofpis", "/elsewhere")).toBe("/elsewhere");
+        const found = ["/clients/ofpis/app", "/clients/ofpis/code/api"];
+        expect(repositoryValues("/clients/ofpis", found, "")).toEqual(found);
+        expect(repositoryValues("/clients/ofpis", found, "/clients/ofpis/code/api")).toEqual(found);
+        expect(repositoryValues("/clients/ofpis", found, "/clients/ofpis/old/deep/repo")).toEqual([
+            ...found,
+            "/clients/ofpis/old/deep/repo",
+        ]);
+        expect(repositoryValues("/clients/ofpis", null, "")).toEqual([]);
+    });
+
+    it("drops the repository when the workspace is linked to another folder, or unlinked", () => {
+        const current = { dir: "/a", repo: "/a/app", logo: "", logoOffer: "" };
+        expect(linkUpdate(current, "/a")).toEqual({ [ProjectMetaKey]: "/a" });
+        expect(linkUpdate(current, "/b")[ProjectRepoMetaKey]).toBeNull();
+        expect(unlinkUpdate()[ProjectRepoMetaKey]).toBeNull();
+    });
+});
+
+describe("the project's logo, chosen in the Project sheet only (FR-SHELL-105)", () => {
+    const project = (meta: Record<string, any>) => readWorkspaceProject(ws({ [ProjectMetaKey]: "/p", ...meta }));
+
+    it("is the chosen one, else the one shown, else the first image found", () => {
+        const found = ["/p/icon.png", "/p/logo.svg"];
+        expect(projectLogoOf(project({ [ProjectLogoChoiceMetaKey]: "/p/logo.svg" }), "/p", found)).toBe("/p/logo.svg");
+        expect(projectLogoOf(project({ [ProjectLogoMetaKey]: "/p/brand.png" }), "/p", found)).toBe("/p/brand.png");
+        expect(projectLogoOf(project({}), "/p", found)).toBe("/p/icon.png");
+        expect(projectLogoOf(project({}), "/p", [])).toBe("");
+    });
+
+    it("ignores a choice made for another folder", () => {
+        expect(projectLogoOf(project({ [ProjectLogoChoiceMetaKey]: "/old/icon.png" }), "/p", ["/p/icon.png"])).toBe(
+            "/p/icon.png"
+        );
+    });
+
+    it("moves the workspace's icon only when it already shows the project's logo", () => {
+        expect(projectLogoUpdate(project({}), "/p/logo.svg")).toEqual({ [ProjectLogoChoiceMetaKey]: "/p/logo.svg" });
+        expect(projectLogoUpdate(project({ [ProjectLogoMetaKey]: "/p/icon.png" }), "/p/logo.svg")).toEqual({
+            [ProjectLogoChoiceMetaKey]: "/p/logo.svg",
+            [ProjectLogoMetaKey]: "/p/logo.svg",
+        });
     });
 });
 
@@ -100,9 +180,14 @@ describe("logo offer and link updates", () => {
     it("drops the logo when the workspace is linked to another project", () => {
         const current = { dir: "/a", logo: "/a/icon.png", logoOffer: "/a" };
         expect(linkUpdate(current, "/a")).toEqual({ [ProjectMetaKey]: "/a" });
-        expect(linkUpdate(current, "/b")).toEqual({ [ProjectMetaKey]: "/b", [ProjectLogoMetaKey]: null });
+        expect(linkUpdate(current, "/b")).toEqual({
+            [ProjectMetaKey]: "/b",
+            [ProjectLogoMetaKey]: null,
+            [ProjectRepoMetaKey]: null,
+        });
         expect(unlinkUpdate()).toEqual({
             [ProjectMetaKey]: null,
+            [ProjectRepoMetaKey]: null,
             [ProjectLogoMetaKey]: null,
             [ProjectLogoOfferMetaKey]: null,
         });

@@ -4,9 +4,10 @@
 // The Project overview's header band (FR-MC-021), a passenger information screen: the next station and its state,
 // what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Deploy
 // to, Clean branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
+// The Waiting block opens what would ship, grouped by ticket (#903, pending-changes-dialog.tsx).
 
 import { cn, fireAndForget } from "@/util/util";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { ActionPrimaryClass, RunningDot } from "../mission/action-button";
 import { BranchCleanupButton } from "../mission/branch-cleanup";
@@ -14,9 +15,10 @@ import { BuildLocalMenu } from "../mission/build-local-menu";
 import { DeployMenu } from "../mission/deploy-menu";
 import { deployRevision, deployTargets, stepRunning } from "../mission/deploy-model";
 import { latestRun } from "../mission/mission-model";
-import { ReleaseMenu } from "../mission/release-menu";
+import { ReleaseMenu, ReleaseSetupEntry } from "../mission/release-menu";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { DominoLoader } from "../suite/suite";
 import { WorkspaceIcon } from "../workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "../workspace-icon-model";
 import {
@@ -31,6 +33,7 @@ import {
     tickerItems,
     waitingCounts,
 } from "./next-station-model";
+import { PendingChangesDialog } from "./pending-changes-dialog";
 import { ProjectCardProps } from "./project-context";
 
 const LatestShown = 3;
@@ -42,6 +45,7 @@ const ChipClass: Record<NextStationState, string> = {
     decision: WarningChipClass,
     chosen: "border-accent/50 bg-[color-mix(in_srgb,var(--mt-accent)_10%,transparent)] text-primary",
     derived: "border-border text-secondary",
+    planned: "border-border text-secondary",
     nothing: "border-border text-muted",
 };
 
@@ -63,7 +67,7 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     if (source.image || source.logo || source.icon) {
         return (
             <span
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-10 border border-border bg-hover text-icon-20"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-6 border border-border bg-hover text-icon-20"
                 aria-hidden
             >
                 <WorkspaceIcon source={source} />
@@ -72,7 +76,7 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     }
     return (
         <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-10 bg-[var(--mt-accent)] text-20 leading-none font-semibold text-[var(--mt-accent-fg)]"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-6 bg-[var(--mt-action)] text-20 leading-none font-semibold text-[var(--mt-action-fg)]"
             aria-hidden
         >
             {(name || "?").slice(0, 1).toUpperCase()}
@@ -184,6 +188,7 @@ export function NextStationHeader({
     const lastBuild = latestRun(runs, "build");
     const iconSource = workspaceIconSource(project.workspace);
     const trunk = git?.trunk || "develop";
+    const [shipOpen, setShipOpen] = useState(false);
     return (
         <div className="flex flex-col" data-testid="next-station">
             <div className="h-1 bg-[var(--mt-accent)]" aria-hidden />
@@ -210,11 +215,21 @@ export function NextStationHeader({
                             ) : null}
                             {schedule?.then ? <StationScheduleText schedule={schedule} /> : null}
                         </div>
-                        <span className="text-13 text-secondary">{station?.note ?? t("project.station.reading")}</span>
+                        <span className="text-13 text-secondary">
+                            {station?.note == null ? <DominoLoader className="mr-1.5" /> : null}
+                            {station?.note ?? t("project.station.reading")}
+                        </span>
                     </div>
                 </div>
                 <div className="hidden w-px self-stretch bg-border @min-[42rem]:block" aria-hidden />
-                <div className="flex min-w-0 flex-col gap-0.5" data-testid="next-station-waiting">
+                <button
+                    type="button"
+                    disabled={git == null}
+                    onClick={() => setShipOpen(true)}
+                    title={t("project.ship.openTitle")}
+                    className="-mx-2 -my-1 flex min-w-0 cursor-pointer flex-col gap-0.5 rounded-4 px-2 py-1 text-left hover:bg-hover disabled:cursor-default disabled:hover:bg-transparent"
+                    data-testid="next-station-waiting"
+                >
                     <Eyebrow>{counts?.title ?? t("project.waiting.title", { trunk })}</Eyebrow>
                     <div className="flex items-baseline gap-2.5">
                         <span className="text-32 leading-none font-semibold text-[var(--mt-accent)] tabular-nums">
@@ -225,7 +240,7 @@ export function NextStationHeader({
                     <span className="text-13 text-secondary" data-testid="next-station-counts">
                         {countsLine(counts)}
                     </span>
-                </div>
+                </button>
                 <div
                     className="flex w-full flex-wrap gap-2 @min-[64rem]:ml-auto @min-[64rem]:w-auto @min-[64rem]:max-w-[520px] @min-[64rem]:justify-end"
                     data-testid="project-actions"
@@ -278,6 +293,8 @@ export function NextStationHeader({
                             }}
                             onShowRelease={showRuns}
                         />
+                    ) : snapshot != null && !snapshot.pipeline?.present ? (
+                        <ReleaseSetupEntry dir={project.dir} projectName={projectName} />
                     ) : null}
                     <DeployMenu
                         targets={deployTargets(pipeline, runs)}
@@ -295,6 +312,16 @@ export function NextStationHeader({
                 </div>
             </div>
             {items.length > 0 ? <LatestChanges items={items} trunk={trunk} total={counts?.total} /> : null}
+            {shipOpen && git != null ? (
+                <PendingChangesDialog
+                    dir={project.dir}
+                    git={git}
+                    tag={station?.tag}
+                    counts={counts}
+                    planned={station?.state === "planned" ? station : null}
+                    onClose={() => setShipOpen(false)}
+                />
+            ) : null}
         </div>
     );
 }

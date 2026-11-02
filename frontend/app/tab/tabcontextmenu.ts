@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { getOrefMetaKeyAtom, globalStore, recordTEvent } from "@/app/store/global";
+import { globalStore, recordTEvent } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { t } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
@@ -10,17 +10,6 @@ import { reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; /
 import { acceleratorById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { makeORef } from "../store/wos";
 import type { TabEnv } from "./tab";
-
-// MOLTENTERM-PATCH (#623): colour names are keys, translated when the menu is built
-const FlagColors: { labelKey: string; value: string }[] = [
-    { labelKey: "wave.tab.flagGreen", value: "#58C142" },
-    { labelKey: "wave.tab.flagTeal", value: "#00FFDB" },
-    { labelKey: "wave.tab.flagBlue", value: "#429DFF" },
-    { labelKey: "wave.tab.flagPurple", value: "#BF55EC" },
-    { labelKey: "wave.tab.flagRed", value: "#FF453A" },
-    { labelKey: "wave.tab.flagOrange", value: "#FF9500" },
-    { labelKey: "wave.tab.flagYellow", value: "#FFE900" },
-];
 
 // MOLTENTERM-PATCH (#408): sections, icons and sentence case (FR-SHELL-054); Copy tab id moved to Developer.
 export function buildTabBarContextMenu(env: TabEnv, section?: string): ContextMenuItem[] {
@@ -70,30 +59,7 @@ export function buildTabContextMenu(
         section: DeveloperSection,
         click: () => fireAndForget(() => navigator.clipboard.writeText(id)),
     };
-    const tabORef = makeORef("tab", id);
-    const currentFlagColor = globalStore.get(getOrefMetaKeyAtom(tabORef, "tab:flagcolor")) ?? null;
-    const flagSubmenu: ContextMenuItem[] = [
-        {
-            label: t("wave.tab.flagNone"), // MOLTENTERM-PATCH (#623)
-            type: "checkbox",
-            checked: currentFlagColor == null,
-            click: () =>
-                fireAndForget(() =>
-                    env.rpc.SetMetaCommand(TabRpcClient, { oref: tabORef, meta: { "tab:flagcolor": null } })
-                ),
-        },
-        ...FlagColors.map((fc) => ({
-            label: t(fc.labelKey), // MOLTENTERM-PATCH (#623)
-            type: "checkbox" as const,
-            checked: currentFlagColor === fc.value,
-            click: () =>
-                fireAndForget(() =>
-                    env.rpc.SetMetaCommand(TabRpcClient, { oref: tabORef, meta: { "tab:flagcolor": fc.value } })
-                ),
-        })),
-    ];
-    // MOLTENTERM-PATCH (#623)
-    menu.push({ label: t("wave.tab.flag"), type: "submenu", submenu: flagSubmenu, icon: "flag" });
+    // MOLTENTERM-PATCH (#1287): no "Flag tab": a view has its icon and name, and MoltenTerm shows no tab bar.
     const fullConfig = globalStore.get(env.atoms.fullConfigAtom);
     const backgrounds = fullConfig?.backgrounds ?? {};
     const bgKeys = Object.keys(backgrounds).filter((k) => backgrounds[k] != null);
@@ -132,7 +98,7 @@ export function buildTabContextMenu(
                     }),
             });
         }
-        // MOLTENTERM-PATCH (#623)
+        // MOLTENTERM-PATCH (#623, #1287): "View background…", it applies to this view
         menu.push({ label: t("wave.tab.backgrounds"), type: "submenu", submenu, icon: "image" });
     }
     // MOLTENTERM-PATCH (#623)

@@ -1,0 +1,255 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+package pipelinesetup
+
+import (
+	"context"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+)
+
+// Step 1 of the stepper (FR-MC-038): the app type and what the repository shows of a pipeline, on real git tags and a
+// fake gh; the answers kept per project.
+
+const datedChangelog = "# Changelog\n\n## [1.0.1] - 2026-10-01\n\n- fix\n\n## [1.0.0] - 2026-09-20\n\n- first\n"
+
+// surveyRunner: git for real, gh answering release list with the given JSON (or failing when it is "").
+func surveyRunner(releases string) Runner {
+	return func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+		switch name {
+		case "git":
+			cmd := exec.CommandContext(ctx, "git", args...)
+			cmd.Dir = dir
+			return cmd.Output()
+		case "gh":
+			if strings.Join(args[:2], " ") == "release list" {
+				if releases == "" {
+					return []byte("gh: authentication required\n"), errors.New("exit status 4")
+				}
+				return []byte(releases), nil
+			}
+		}
+		return nil, errors.New(name + ": unexpected " + strings.Join(args, " "))
+	}
+}
+
+func surveyRepository(t *testing.T, files map[string]string, tags ...string) string {
+	t.Helper()
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_AUTHOR_NAME", "Setup test")
+	t.Setenv("GIT_AUTHOR_EMAIL", "setup@example.invalid")
+	t.Setenv("GIT_COMMITTER_NAME", "Setup test")
+	t.Setenv("GIT_COMMITTER_EMAIL", "setup@example.invalid")
+	dir := filepath.Join(t.TempDir(), "app")
+	gitIn(t, filepath.Dir(dir), "init", "--quiet", "-b", "develop", dir)
+	files["app.txt"] = "one\n"
+	writeFiles(t, dir, files)
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "--quiet", "-m", "chore: bootstrap")
+	for _, tag := range tags {
+		gitIn(t, dir, "tag", tag)
+	}
+	return dir
+}
+
+func TestSurveySaaSFoundryShapedCli(t *testing.T) {
+	dir := surveyRepository(t, map[string]string{
+		".molten/project.json":                 sfPipeline,
+		".saasfoundry.json":                    sfManifest,
+		"package.json":                         `{ "name": "saasfoundryai", "version": "1.0.4", "bin": { "sf": "bin/sf.js" } }`,
+		".github/workflows/publish-stable.yml": publishStable,
+		".github/workflows/test.yml":           testYml,
+		"docs/changelog.md":                    datedChangelog,
+		"docs/fr/changelog.md":                 "# Journal\n",
+	}, "v0.1.0-beta", "v1.0.1", "v1.0.0", "v1.0.0-1", "other-tag")
+	gitIn(t, dir, "remote", "add", "origin", "git@github.com:DiamondForgeFr/SaasFoundryAI.git")
+	s := MakeSetup(surveyRunner(`[{"tagName":"v1.0.1","isLatest":true},{"tagName":"v1.0.0","isLatest":false}]`), nil)
+	before, _ := os.ReadFile(filepath.Join(dir, ".molten/project.json"))
+	answer, err := s.Survey(context.Background(), SurveyRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer.AppType != AppTypeCli || answer.Kind != KindOnPremise || len(answer.AppTypeEvidence) != 1 || answer.AppTypeEvidence[0].Code != "typeNpmBin" {
+		t.Fatalf("type %s kind %s evidence %+v", answer.AppType, answer.Kind, answer.AppTypeEvidence)
+	}
+	tags := answer.Tags
+	if !tags.Read || tags.Count != 4 || tags.First != "v0.1.0-beta" || tags.Last != "v1.0.1" || tags.Prefix != "v" ||
+		tags.Pre != 2 || tags.LastPublic != "v1.0.1" || tags.LastMerge {
+		t.Fatalf("tags %+v", tags)
+	}
+	if !answer.Releases.Read || answer.Releases.Count != 2 || answer.Releases.Last != "v1.0.1" {
+		t.Fatalf("releases %+v", answer.Releases)
+	}
+	if len(answer.Publish) != 1 || answer.Publish[0].File != "publish-stable.yml" {
+		t.Fatalf("publish %+v", answer.Publish)
+	}
+	if len(answer.Changelogs) != 2 || answer.Changelogs[0].Path != "docs/changelog.md" || answer.Changelogs[0].Sections != 2 || answer.Changelogs[0].Last != "1.0.1" || answer.Changelogs[1].Sections != 0 {
+		t.Fatalf("changelogs %+v", answer.Changelogs)
+	}
+	if answer.Pipeline != PipelineNoRelease || !answer.Ships || answer.Recommended != PathAnalyse || answer.Base == "" {
+		t.Fatalf("pipeline %s ships %v recommended %s base %q", answer.Pipeline, answer.Ships, answer.Recommended, answer.Base)
+	}
+	after, _ := os.ReadFile(filepath.Join(dir, ".molten/project.json"))
+	if string(before) != string(after) {
+		t.Fatal("the survey wrote the pipeline")
+	}
+}
+
+// The last public tag on a merge commit tells how the release branch took the last release (#1101); a later
+// pre-release does not count as the last public tag.
+func TestSurveyLastPublicTagOnAMergeCommit(t *testing.T) {
+	dir := surveyRepository(t, map[string]string{})
+	gitIn(t, dir, "checkout", "--quiet", "-b", "rc-1.0.0")
+	writeFiles(t, dir, map[string]string{"release.txt": "1.0.0\n"})
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "--quiet", "-m", "chore: release 1.0.0")
+	gitIn(t, dir, "checkout", "--quiet", "develop")
+	writeFiles(t, dir, map[string]string{"app.txt": "two\n"})
+	gitIn(t, dir, "commit", "--quiet", "-am", "feat: two")
+	gitIn(t, dir, "merge", "--quiet", "--no-ff", "-m", "Merge rc-1.0.0", "rc-1.0.0")
+	gitIn(t, dir, "tag", "v1.0.0")
+	gitIn(t, dir, "tag", "v1.1.0-1", "rc-1.0.0")
+	tags := MakeSetup(surveyRunner(""), nil).readVersionTags(context.Background(), dir, "v")
+	if tags.Count != 2 || tags.Pre != 1 || tags.LastPublic != "v1.0.0" || !tags.LastMerge {
+		t.Fatalf("tags %+v", tags)
+	}
+}
+
+func TestSurveyEmptyRepositoryRecommendsDescribing(t *testing.T) {
+	dir := surveyRepository(t, map[string]string{"README.md": "# App\n"})
+	s := MakeSetup(surveyRunner(""), nil)
+	answer, err := s.Survey(context.Background(), SurveyRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer.AppType != AppTypeOther || answer.Ships || answer.Recommended != PathDescribe || answer.Pipeline != PipelineNone {
+		t.Fatalf("%+v", answer)
+	}
+	if !answer.Tags.Read || answer.Tags.Count != 0 || answer.Releases.OnGithub || answer.Releases.Read {
+		t.Fatalf("tags %+v releases %+v", answer.Tags, answer.Releases)
+	}
+	// The empty state (#1106): nothing to read, a git repository without origin.
+	if !answer.Empty || !answer.Git || answer.Remote {
+		t.Fatalf("empty %v git %v remote %v", answer.Empty, answer.Git, answer.Remote)
+	}
+	writeFiles(t, dir, map[string]string{"go.mod": "module app\n"})
+	if again, _ := s.Survey(context.Background(), SurveyRequest{Dir: dir}); again.Empty {
+		t.Fatal("a build file is something to read")
+	}
+}
+
+func TestSurveyReleasesUnreadSaysWhy(t *testing.T) {
+	dir := surveyRepository(t, map[string]string{"README.md": "# App\n"})
+	gitIn(t, dir, "remote", "add", "origin", "https://github.com/acme/app.git")
+	answer, err := MakeSetup(surveyRunner(""), nil).Survey(context.Background(), SurveyRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !answer.Releases.OnGithub || answer.Releases.Read || !strings.Contains(answer.Releases.Error, "authentication") || answer.Releases.Problem != GhSignedOut {
+		t.Fatalf("releases %+v", answer.Releases)
+	}
+	if !answer.Remote {
+		t.Fatal("origin is configured")
+	}
+}
+
+// gh's failures, as the GitHub state words them (#1106).
+func TestGhProblem(t *testing.T) {
+	for text, want := range map[string]string{
+		`exec: "gh": executable file not found in $PATH`:                             GhMissing,
+		"To get started with GitHub CLI, please run:  gh auth login":                 GhSignedOut,
+		"HTTP 401: Bad credentials (https://api.github.com/repos/acme/app/releases)": GhSignedOut,
+		"error connecting to api.github.com":                                         GhFailed,
+	} {
+		if got := ghProblem(text); got != want {
+			t.Fatalf("%q: got %s, want %s", text, got, want)
+		}
+	}
+}
+
+// The coding agent that proposes changes is known at step 1, so the stepper says before any click when there is none.
+func TestSurveyNamesTheAgent(t *testing.T) {
+	dir := surveyRepository(t, map[string]string{"README.md": "# App\n"})
+	s := MakeSetup(surveyRunner(""), nil)
+	s.ChooseAgent = claudeChoice
+	if answer, _ := s.Survey(context.Background(), SurveyRequest{Dir: dir}); answer.Agent != "claude" || answer.AgentName != "Claude Code" {
+		t.Fatalf("agent %q %q", answer.Agent, answer.AgentName)
+	}
+	s.ChooseAgent = func(string) agentchoice.Choice { return agentchoice.Choice{Missing: true, ChosenName: "Codex"} }
+	if answer, _ := s.Survey(context.Background(), SurveyRequest{Dir: dir}); answer.Agent != "" || answer.AgentMissing != "Codex" {
+		t.Fatalf("missing agent %q %q", answer.Agent, answer.AgentMissing)
+	}
+	s.ChooseAgent = func(string) agentchoice.Choice { return agentchoice.Choice{} }
+	if answer, _ := s.Survey(context.Background(), SurveyRequest{Dir: dir}); answer.Agent != "" || answer.AgentMissing != "" {
+		t.Fatalf("no agent %q %q", answer.Agent, answer.AgentMissing)
+	}
+}
+
+func TestAppTypes(t *testing.T) {
+	cases := []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{"electron", map[string]string{"package.json": `{ "name": "app", "private": true }`, "electron-builder.yml": "win:\n  target: nsis\n"}, AppTypeDesktop},
+		{"web", map[string]string{".github/workflows/deploy.yml": deployApi}, AppTypeWeb},
+		{"library", map[string]string{"package.json": `{ "name": "lib", "version": "1.0.0" }`}, AppTypeLibrary},
+		{"cli", map[string]string{"package.json": `{ "name": "tool", "bin": "cli.js" }`}, AppTypeCli},
+		{"go cli", map[string]string{".goreleaser.yaml": "builds: []\n"}, AppTypeCli},
+		{"rust lib", map[string]string{"Cargo.toml": "[package]\nname = \"x\"\n", "src/lib.rs": ""}, AppTypeLibrary},
+		{"private package", map[string]string{"package.json": `{ "name": "site", "private": true }`}, AppTypeOther},
+	}
+	for _, c := range cases {
+		dir := t.TempDir()
+		writeFiles(t, dir, c.files)
+		got, _ := detectAppType(dir, Detect(dir))
+		if got != c.want {
+			t.Errorf("%s: %s, want %s", c.name, got, c.want)
+		}
+	}
+	if KindOfAppType(AppTypeWeb) != KindSaas || KindOfAppType(AppTypeLibrary) != KindOnPremise {
+		t.Fatal("type to kind")
+	}
+}
+
+func TestAnswersResumeAndDropOnANewBase(t *testing.T) {
+	dir := t.TempDir()
+	s := MakeSetup(noSf, nil)
+	s.AnswersDir = filepath.Join(t.TempDir(), "answers")
+	if s.loadAnswers(dir, "h1") != nil {
+		t.Fatal("answers before any save")
+	}
+	opts := Options{Kind: KindOnPremise, Channels: []string{ChannelRc}, TagPrefix: "v"}
+	saved := Answers{Base: "h1", Step: StepUnderstand, AppType: AppTypeCli, Path: PathAnalyse, Touched: true, Options: &opts, Points: map[string]string{"hand": "no"}}
+	if _, err := s.SaveAnswers(AnswersRequest{Dir: dir, Answers: &saved}); err != nil {
+		t.Fatal(err)
+	}
+	got := s.loadAnswers(dir, "h1")
+	if got == nil || got.Step != StepUnderstand || got.AppType != AppTypeCli || !got.Touched || got.Options == nil || got.Options.Channels[0] != ChannelRc || got.Points["hand"] != "no" {
+		t.Fatalf("resumed %+v", got)
+	}
+	moved := s.loadAnswers(dir, "h2")
+	if moved == nil || moved.Step != "" || moved.Options != nil || moved.Points != nil || moved.Touched || moved.AppType != AppTypeCli || moved.Path != PathAnalyse {
+		t.Fatalf("after the pipeline moved %+v", moved)
+	}
+	if s.loadAnswers(t.TempDir(), "h1") != nil {
+		t.Fatal("another project's answers")
+	}
+	if _, err := s.SaveAnswers(AnswersRequest{Dir: dir, Answers: &Answers{Step: "elsewhere"}}); err == nil {
+		t.Fatal("an unknown step is saved")
+	}
+	if _, err := s.SaveAnswers(AnswersRequest{Dir: dir}); err != nil {
+		t.Fatal(err)
+	}
+	if s.loadAnswers(dir, "h1") != nil {
+		t.Fatal("cleared answers still load")
+	}
+}

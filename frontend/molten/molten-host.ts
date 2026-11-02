@@ -12,7 +12,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
 import { getLocale, t } from "../moltenterm-shell/i18n/i18n";
-import { shippedDictionary } from "../moltenterm-shell/i18n/i18n-core";
+import { loadShippedDictionary } from "../moltenterm-shell/i18n/i18n-core";
 import { checkLanguagePack, formatPackProblems } from "../moltenterm-shell/i18n/language-pack";
 import type { LanguagePackInput } from "../moltenterm-shell/i18n/language-packs";
 import {
@@ -779,7 +779,7 @@ export class MoltenHost {
     // placeholder is refused whole, naming the key, so none of it applies (DS-I18N-010).
     async activateDataMod(runtime: ModRuntime, manifest: MoltenModManifest, read: ModFileReader): Promise<void> {
         runtime.status.dataonly = true;
-        const english = shippedDictionary("en");
+        const english = await loadShippedDictionary("en");
         const languages: LanguagePackInput[] = [];
         const warnings: string[] = [];
         for (const language of manifest.languages ?? []) {

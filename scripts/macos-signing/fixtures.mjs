@@ -64,7 +64,7 @@ export function securityFixture({ failAt = -1 } = {}) {
     };
 }
 
-export async function appFixture(root, arch) {
+export async function appFixture(root, arch, releaseVersion = version) {
     // The builder's own folder names: "mac" for x64, "mac-arm64" for arm64.
     const app = path.join(root, arch === "x64" ? "mac" : `mac-${arch}`, "MoltenTerm.app");
     const bin = path.join(app, "Contents/Resources/app.asar.unpacked/dist/bin");
@@ -74,10 +74,10 @@ export async function appFixture(root, arch) {
     await fs.writeFile(path.join(app, "Contents/MacOS/MoltenTerm"), macho, { mode: 0o755 });
     const names = [
         `wavesrv.${arch}`,
-        ...ARCHES.flatMap((a) => [`wsh-${version}-darwin.${a}`, `molten-${version}-darwin.${a}`]),
+        ...ARCHES.flatMap((a) => [`wsh-${releaseVersion}-darwin.${a}`, `molten-${releaseVersion}-darwin.${a}`]),
     ];
     for (const name of names) await fs.writeFile(path.join(bin, name), macho, { mode: 0o755 });
-    for (const name of embeddedNames(version, arch).filter((name) => !names.includes(name))) {
+    for (const name of embeddedNames(releaseVersion, arch).filter((name) => !names.includes(name))) {
         await fs.writeFile(
             path.join(bin, name),
             Buffer.from(name.includes("windows") ? "4d5a000102030405" : "7f454c4600010203", "hex")
@@ -86,17 +86,17 @@ export async function appFixture(root, arch) {
     return { path: app, arch, bin };
 }
 
-export async function artifactFixture(root) {
-    const apps = await Promise.all(ARCHES.map((arch) => appFixture(root, arch)));
+export async function artifactFixture(root, releaseVersion = version) {
+    const apps = await Promise.all(ARCHES.map((arch) => appFixture(root, arch, releaseVersion)));
     const artifacts = ARCHES.flatMap((arch) =>
-        ["zip", "dmg"].map((ext) => path.join(root, `MoltenTerm-darwin-${arch}-${version}.${ext}`))
+        ["zip", "dmg"].map((ext) => path.join(root, `MoltenTerm-darwin-${arch}-${releaseVersion}.${ext}`))
     );
     for (const file of artifacts) await fs.writeFile(file, `dummy artifact ${path.basename(file)}`);
     const files = await Promise.all(
         artifacts.map(async (file) => ({ url: path.basename(file), ...(await hashFile(file)) }))
     );
     const document = {
-        version,
+        version: releaseVersion,
         files,
         path: files[0].url,
         sha512: files[0].sha512,
@@ -105,7 +105,7 @@ export async function artifactFixture(root) {
     };
     const metadata = [path.join(root, "latest-mac.yml"), path.join(root, "beta-mac.yml")];
     for (const file of metadata) await fs.writeFile(file, jsonYaml.dump(document));
-    return { outDir: root, version, apps, artifacts, metadata, document };
+    return { outDir: root, version: releaseVersion, apps, artifacts, metadata, document };
 }
 
 export function verificationFixture({
@@ -163,7 +163,8 @@ export function fakeBuilder(projectDir, { sign, exitCode = 0, events = [] } = {}
             calls.push({ file, args, options });
             events.push("builder");
             if (options.signal?.aborted) throw new Error("Signing packaging interrupted");
-            const fixture = await artifactFixture(path.join(projectDir, "make"));
+            const pkg = JSON.parse(await fs.readFile(path.join(projectDir, "package.json"), "utf8"));
+            const fixture = await artifactFixture(path.join(projectDir, "make"), pkg.version);
             for (const app of fixture.apps) await sign?.(app, options.env);
             if (exitCode !== 0) throw new Error("Signing packaging failed");
             return fixture;

@@ -11,7 +11,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 )
 
-// #662: the first run, a step's own commands included, answers windows only; a remote host forging a tab source does
+// #662: the first run, a step's own commands included (#1667's install), answers windows only; a remote host forging a tab source does
 // not get through.
 func TestRouteAnswersWindowsOnly(t *testing.T) {
 	const command = "onboardingtestprobe"
@@ -27,7 +27,10 @@ func TestRouteAnswersWindowsOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, c := range []string{command, UpdateCommand, StateCommand, PanelCommand} {
+	// #1667: an agent in a terminal cannot start, answer or cancel an install.
+	refused := []string{command, UpdateCommand, StateCommand, PanelCommand, CliInstallCommand, CliInstallStatusCommand,
+		CliInstallInputCommand, CliInstallCancelCommand}
+	for _, c := range refused {
 		routetest.MustRefuse(t, link, e.NonWindows(), c, map[string]any{})
 	}
 	if len(sources) != 0 {

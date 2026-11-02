@@ -10,9 +10,10 @@ import { getApi, globalStore } from "@/app/store/global";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { EmptyState } from "./empty-state";
 import { useT } from "./i18n/i18n";
+import { DominoLoader } from "./suite/suite";
 import { workspaceShownName } from "./workspace-default-name";
 
-export type ViewPendingPhase = "loading" | "retrying" | "failed";
+export type ViewPendingPhase = "loading" | "retrying" | "failed" | "stopped";
 
 export type ViewPendingState = {
     phase: ViewPendingPhase;
@@ -65,6 +66,7 @@ const Captions: Record<ViewPendingPhase, string> = {
     loading: "shell.pending.opening",
     retrying: "shell.pending.stillOpening",
     failed: "",
+    stopped: "",
 };
 
 type PendingSurfaceProps = {
@@ -77,16 +79,19 @@ type PendingSurfaceProps = {
 export function PendingSurface({ phase, workspaceName: storedName, onReload, onDismiss }: PendingSurfaceProps) {
     const t = useT();
     const workspaceName = workspaceShownName(storedName, t);
-    if (phase === "failed") {
+    if (phase === "failed" || phase === "stopped") {
+        const stopped = phase === "stopped";
         return (
             <EmptyState
                 icon="hourglass-end"
                 title={
-                    workspaceName
-                        ? t("shell.pending.didNotOpen", { name: workspaceName })
-                        : t("shell.pending.workspaceDidNotOpen")
+                    stopped
+                        ? t("shell.pending.stopped")
+                        : workspaceName
+                          ? t("shell.pending.didNotOpen", { name: workspaceName })
+                          : t("shell.pending.workspaceDidNotOpen")
                 }
-                hint={t("shell.pending.noAnswer")}
+                hint={stopped ? t("shell.pending.stoppedHint") : t("shell.pending.noAnswer")}
                 primary={
                     onReload
                         ? { label: t("shell.pending.reload"), onClick: onReload, testId: "view-pending-reload" }
@@ -114,9 +119,7 @@ export function PendingSurface({ phase, workspaceName: storedName, onReload, onD
                         {workspaceName}
                     </div>
                 ) : null}
-                <div className="molten-view-pending-line" aria-hidden>
-                    <span />
-                </div>
+                <DominoLoader size="large" />
                 <p className="text-12 leading-[18px] text-muted">{Captions[phase] ? t(Captions[phase]) : ""}</p>
             </div>
         </div>

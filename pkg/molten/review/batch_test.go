@@ -68,6 +68,17 @@ type fakeHub struct {
 	checksAtMerge map[int]string
 	gateAtMerge   map[int]string
 	pushedHeads   map[string]bool
+	// repo: what gh api answers of the repository's merge methods (merge commits only when empty); methods: the
+	// method each PR was merged with (#957).
+	repo    string
+	methods map[int]string
+}
+
+func (h *fakeHub) repoAnswer() string {
+	if h.repo == "" {
+		return `{"allow_merge_commit":true,"allow_squash_merge":false,"allow_rebase_merge":false}`
+	}
+	return h.repo
 }
 
 func (h *fakeHub) git(args ...string) (string, error) {
@@ -182,8 +193,15 @@ func (h *fakeHub) merge(number int, args []string) error {
 	if pr == nil || pr.state != "OPEN" {
 		return fmt.Errorf("pull request #%d is not open", number)
 	}
-	if !slices.Contains(args, "--merge") {
-		return fmt.Errorf("the repository allows merge commits only: %v", args)
+	allowed, _ := parseRepoMethods([]byte(h.repoAnswer()))
+	method := ""
+	for _, m := range allMergeMethods {
+		if slices.Contains(args, "--"+m) {
+			method = m
+		}
+	}
+	if !hasMethod(allowed.methods, method) {
+		return fmt.Errorf("GraphQL: %s merges are not allowed on this repository (mergePullRequest): %v", method, args)
 	}
 	head := h.mustGit("rev-parse", "refs/heads/"+pr.branch)
 	i := slices.Index(args, "--match-head-commit")
@@ -203,6 +221,10 @@ func (h *fakeHub) merge(number int, args []string) error {
 	h.gateAtMerge[number] = h.gateState(pr, head)
 	pr.state, pr.merged = "MERGED", merged
 	h.merges = append(h.merges, number)
+	if h.methods == nil {
+		h.methods = map[int]string{}
+	}
+	h.methods[number] = method
 	return nil
 }
 
@@ -213,7 +235,7 @@ func (h *fakeHub) run(ctx context.Context, dir string, args ...string) ([]byte, 
 		if strings.Contains(args[1], "/rules/branches/") {
 			return []byte("[]"), nil
 		}
-		return []byte(`{"allow_merge_commit":true,"allow_squash_merge":false,"allow_rebase_merge":false}`), nil
+		return []byte(h.repoAnswer()), nil
 	}
 	if len(args) < 3 || args[len(args)-2] != "--repo" || args[len(args)-1] != testRepo {
 		return nil, fmt.Errorf("gh called without --repo: %v", args)
@@ -1116,7 +1138,7 @@ func TestBatchReasonsAreWorded(t *testing.T) {
 		BatchReasonAgentTimeout, BatchReasonNoAgent, BatchReasonAgentStart, BatchReasonBlocked, BatchReasonWarnings,
 		BatchReasonCiTimeout, BatchReasonUnknown, BatchReasonMergeFailed, BatchReasonRead, BatchReasonHeadMoved,
 		BatchReasonDraft, BatchReasonMergedAway, BatchReasonClosed, BatchReasonCancelled, BatchReasonInterrupted,
-		BatchReasonPushed, BatchReasonWithdrawn} {
+		BatchReasonPushed, BatchReasonWithdrawn, BatchReasonMethod} {
 		_, text := batchReasonText(BatchItem{Reason: reason, Names: []string{"ci"}}, "develop")
 		if text.Code == "notif.review.batch.why.notreached" {
 			t.Errorf("reason %s has no sentence", reason)

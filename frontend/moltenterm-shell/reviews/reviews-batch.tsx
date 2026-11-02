@@ -1,18 +1,22 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The batch merge and the merge queue in the Reviews list (FR-REV-025, FR-REV-026, DS-REV-017): the selection of the
-// PRs, the confirmation modal (the order, the method, what the agent does, the main checkout untouched; Enter adds them
+// The batch merge and the merge queue in the Reviews list (FR-REV-025, FR-REV-026, DS-REV-017): the confirmation
+// modal, opened from the merge queue's Merge in this order (#1062), (the order, the method, what the agent does, the main checkout untouched; Enter adds them
 // to the queue, Escape cancels), the banner over the list while the queue runs and once it ended, and each PR's mark on
 // its row. Nothing opens by itself: the agent's terminal is reached from the banner's Go to the agent.
 
 import { cn, fireAndForget } from "@/util/util";
+import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { AgentStates } from "../agent-state-store";
 import { DialogFrame } from "../dialog-frame";
-import { useT, useTCount } from "../i18n/i18n";
-import { serverErrorText } from "../i18n/server-text";
+import { useLocale, useT, useTCount } from "../i18n/i18n";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { topModal } from "../modal-focus";
 import { MoltenWave } from "../molten-button";
+import { MergeMethodPicker } from "../review/merge-method-picker";
+import { ReviewMergeMethod, ReviewMergeMethods, reviewMergeMethods } from "../review/review-client";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { BatchRuns } from "./reviews-batch-client";
@@ -20,7 +24,10 @@ import {
     batchActive,
     batchConfirmKey,
     batchCurrent,
+    batchHeadline,
     batchItemEnded,
+    batchItemId,
+    batchMethodShown,
     BatchPlan,
     batchPlanCostText,
     BatchRowMark,
@@ -31,6 +38,7 @@ import {
     batchTitle,
     canWithdraw,
     methodText,
+    ShownIds,
 } from "./reviews-batch-model";
 
 const PlainButton =
@@ -45,60 +53,6 @@ const MarkTones: Record<string, string> = {
 
 function stop(e: React.SyntheticEvent) {
     e.stopPropagation();
-}
-
-// The selection bar under the waiting group's heading: how many PRs are selected and the way to the modal.
-export function BatchSelectBar({
-    count,
-    onMerge,
-    onCancel,
-}: {
-    count: number;
-    onMerge: () => void;
-    onCancel: () => void;
-}) {
-    const t = useT();
-    const tCount = useTCount();
-    return (
-        <div
-            className="flex flex-wrap items-center gap-2 rounded-4 border border-accent/40 bg-accent/5 px-2.5 py-1.5 text-12"
-            data-testid="reviews-batch-select"
-        >
-            <span className="min-w-0 grow text-secondary">{tCount("reviews.batch.select.count", count)}</span>
-            <button type="button" className={PlainButton} onClick={onCancel} data-testid="reviews-batch-select-cancel">
-                {t("common.cancel")}
-            </button>
-            <button
-                type="button"
-                className="molten-btn cursor-pointer rounded-4 px-2.5 py-0.5 text-11"
-                aria-disabled={count === 0 || undefined}
-                onClick={() => count > 0 && onMerge()}
-                title={count === 0 ? t("reviews.batch.select.none") : undefined}
-                data-testid="reviews-batch-select-merge"
-            >
-                {tCount("reviews.batch.select.merge", count)}
-                <MoltenWave />
-            </button>
-        </div>
-    );
-}
-
-export function BatchCheckbox({ checked, number }: { checked: boolean; number: number }) {
-    const t = useT();
-    return (
-        <span
-            role="checkbox"
-            aria-checked={checked}
-            aria-label={t("reviews.batch.select.rowAria", { number })}
-            className={cn(
-                "mr-2 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-3 border align-[-2px]",
-                checked ? "border-accent bg-accent text-primary" : "border-border bg-transparent"
-            )}
-            data-testid="reviews-batch-check"
-        >
-            {checked ? <i className="fa fa-solid fa-check text-10" aria-hidden /> : null}
-        </span>
-    );
 }
 
 export function BatchRowChip({ mark }: { mark: BatchRowMark }) {
@@ -123,29 +77,50 @@ export function BatchRowChip({ mark }: { mark: BatchRowMark }) {
 // The confirmation modal: nothing starts before Start; Enter starts, Escape cancels.
 export function BatchConfirmDialog({
     plan,
+    dir,
+    repo,
     base,
     onStart,
     onCancel,
 }: {
     plan: BatchPlan;
+    dir: string;
+    repo: string;
     base: string;
-    onStart: () => Promise<string>;
+    onStart: (method: ReviewMergeMethod) => Promise<Phrase>;
     onCancel: () => void;
 }) {
     const t = useT();
+    const word = useWordPhrase();
     const tCount = useTCount();
     const startRef = useRef<HTMLButtonElement>(null);
     const [starting, setStarting] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState<Phrase>(null);
+    // The method (#957): Validate's, read fresh for the repository's base, the developer's pick over it; nothing starts
+    // before it is known, so the queue never decides it at merge time.
+    const [methods, setMethods] = useState<ReviewMergeMethods>(null);
+    const [methodsError, setMethodsError] = useState<Phrase>(null);
+    const [picked, setPicked] = useState<ReviewMergeMethod>(null);
+    useEffect(() => {
+        let live = true;
+        reviewMergeMethods(dir, repo, base).then(
+            (answer) => live && setMethods(answer),
+            (e) => live && setMethodsError(errorPhrase(e))
+        );
+        return () => {
+            live = false;
+        };
+    }, [dir, repo, base]);
+    const method = batchMethodShown(methods, picked);
     const count = plan.steps.length;
     const start = () => {
-        if (starting || count === 0) {
+        if (starting || count === 0 || method == null) {
             return;
         }
         setStarting(true);
-        setError("");
+        setError(null);
         fireAndForget(async () => {
-            const problem = await onStart();
+            const problem = await onStart(method);
             setStarting(false);
             setError(problem);
         });
@@ -176,13 +151,13 @@ export function BatchConfirmDialog({
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
     }, [onCancel]);
-    const method = methodText(plan.method);
+    const methodLabel = methodText(method ?? "");
     return (
         <DialogFrame
             role="reviews-batch-confirm"
             onEscape={onCancel}
             title={tCount("reviews.batch.confirm.title", count)}
-            subtitle={t("reviews.batch.confirm.subtitle", { base, method })}
+            subtitle={t("reviews.batch.confirm.subtitle", { base, method: methodLabel })}
             widthClass="w-[560px]"
             trapFocus
             buttons={
@@ -200,6 +175,7 @@ export function BatchConfirmDialog({
                         type="button"
                         className="molten-btn cursor-pointer rounded-4 px-3 py-1 text-12"
                         aria-busy={starting || undefined}
+                        aria-disabled={method == null || undefined}
                         onClick={start}
                         data-testid="reviews-batch-confirm-start"
                     >
@@ -224,8 +200,13 @@ export function BatchConfirmDialog({
                             </span>
                             <span className="min-w-0">
                                 <span className="font-medium text-primary">
-                                    #{step.pr.number} {step.pr.tickettitle || step.pr.title}
+                                    #{step.pr.ticket || step.pr.number} {step.pr.tickettitle || step.pr.title}
                                 </span>
+                                {step.pr.ticket ? (
+                                    <span className="ml-1.5 text-11 text-muted">
+                                        {t("reviews.card.prChip", { number: step.pr.number })}
+                                    </span>
+                                ) : null}
                                 {step.reason ? (
                                     <span className="block truncate text-11 text-secondary">{step.reason}</span>
                                 ) : null}
@@ -236,12 +217,35 @@ export function BatchConfirmDialog({
                 <p className="text-secondary" data-testid="reviews-batch-confirm-cost">
                     {batchPlanCostText(plan)}
                 </p>
+                {methods != null && method != null ? (
+                    <MergeMethodPicker
+                        methods={methods.methods}
+                        defaultMethod={methods.method}
+                        method={method}
+                        refused={methods.methodrefused}
+                        queue={methods.queue}
+                        onSelect={setPicked}
+                        testId="reviews-batch-confirm-method"
+                    />
+                ) : methodsError != null ? (
+                    <p className="text-danger" role="alert" data-testid="reviews-batch-confirm-method-error">
+                        {t("reviews.batch.confirm.methodError", { detail: word(methodsError) })}
+                    </p>
+                ) : (
+                    <p
+                        className="flex items-center gap-2 text-muted"
+                        data-testid="reviews-batch-confirm-method-loading"
+                    >
+                        <DominoLoader />
+                        {t("reviews.batch.confirm.methodLoading")}
+                    </p>
+                )}
                 <p className="text-secondary">{t("reviews.batch.confirm.what", { base })}</p>
                 <p className="text-secondary">{t("reviews.batch.confirm.stops")}</p>
                 <p className="text-muted">{t("reviews.batch.confirm.checkout")}</p>
-                {error ? (
+                {error != null ? (
                     <p className="text-danger" role="alert" data-testid="reviews-batch-confirm-error">
-                        {error}
+                        {word(error)}
                     </p>
                 ) : null}
             </div>
@@ -249,26 +253,33 @@ export function BatchConfirmDialog({
     );
 }
 
-// The banner over the Reviews list (FR-REV-026 AC7): the dominoes while the queue runs, its progress and the PR in
-// progress, each validated PR with its place and Cancel validation until its merge starts, Cancel all and the way to
-// the agent's terminal; the summary once it ended.
-export function BatchBanner({ run }: { run: BatchRun }) {
+// The banner in the Reviews list's "Agents on it" section (FR-REV-026 AC7, #1123): who works on the queue and its PRs
+// in order, the dominoes while it runs, its progress and the PR in progress, each validated PR with its place and
+// Cancel validation until its merge starts, Stop and the way to the agent's terminal; the summary once it ended, until
+// Hide.
+// ids: the number each PR's card shows (#1108), by PR number.
+export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
     const t = useT();
+    useLocale();
+    const word = useWordPhrase();
+    const agents = useAtomValue(AgentStates.getInstance().dataAtom);
     const [busy, setBusy] = useState("");
-    const [error, setError] = useState("");
+    const [error, setError] = useState<Phrase>(null);
     const active = batchActive(run);
     const current = batchCurrent(run);
+    // The agent's terminal still open: an ended queue whose agent stays (its copy kept) is reached from here too.
+    const agent = run.blockid ? agents.states[run.blockid] : null;
     const act = (what: string, fn: () => Promise<unknown>) => {
         if (busy) {
             return;
         }
         setBusy(what);
-        setError("");
+        setError(null);
         fireAndForget(async () => {
             try {
                 await fn();
             } catch (e) {
-                setError(serverErrorText(e));
+                setError(errorPhrase(e));
             } finally {
                 setBusy("");
             }
@@ -304,16 +315,18 @@ export function BatchBanner({ run }: { run: BatchRun }) {
                         aria-hidden
                     />
                 )}
-                <span className="min-w-0 grow truncate font-medium text-primary" data-testid="reviews-batch-title">
-                    {batchTitle(run)}
+                <span className="min-w-0 grow truncate font-medium text-primary" data-testid="reviews-batch-headline">
+                    {batchHeadline(run, agent?.firstname, ids)}
                 </span>
-                {run.blockid && (active || run.kept) ? (
+                {run.blockid && (active || run.kept || agent != null) ? (
                     <button
                         type="button"
                         className={PlainButton}
                         onClick={() => fireAndForget(() => showPanel(run.blockid))}
                         onKeyDown={stop}
-                        title={t("reviews.batch.goToTitle", { name: run.agentname || t("reviews.batch.yourAgent") })}
+                        title={t("reviews.batch.goToTitle", {
+                            name: agent?.firstname || run.agentname || t("reviews.batch.yourAgent"),
+                        })}
                         data-testid="reviews-batch-goto"
                     >
                         {t("reviews.batch.goTo")}
@@ -345,6 +358,9 @@ export function BatchBanner({ run }: { run: BatchRun }) {
                     </button>
                 )}
             </div>
+            <div className="text-11 text-secondary" data-testid="reviews-batch-title">
+                {batchTitle(run, ids)}
+            </div>
             {active && run.resumedat ? (
                 <div className="text-11 text-secondary" data-testid="reviews-batch-resumed">
                     {t("reviews.batch.resumed")}
@@ -362,10 +378,10 @@ export function BatchBanner({ run }: { run: BatchRun }) {
                                 data-pr={it.number}
                                 data-state={it.state}
                             >
-                                <span className="shrink-0 font-medium text-primary">#{it.number}</span>
+                                <span className="shrink-0 font-medium text-primary">#{batchItemId(it, ids)}</span>
                                 <span className="min-w-0 grow truncate text-secondary" title={mark?.title}>
                                     {it.title ? `${it.title} · ` : ""}
-                                    {it === current ? batchStepText(run, it) : mark?.label}
+                                    {it === current ? batchStepText(run, it, agent?.firstname) : mark?.label}
                                 </span>
                                 {canWithdraw(it) ? (
                                     <button
@@ -375,7 +391,7 @@ export function BatchBanner({ run }: { run: BatchRun }) {
                                             act(`withdraw:${it.number}`, () => model.withdraw(run, it.number))
                                         }
                                         onKeyDown={stop}
-                                        title={t("reviews.batch.withdrawTitle", { number: it.number })}
+                                        title={t("reviews.batch.withdrawTitle", { number: batchItemId(it, ids) })}
                                         data-testid="reviews-batch-withdraw"
                                     >
                                         {busy === `withdraw:${it.number}` ? <DominoLoader /> : null}
@@ -389,14 +405,48 @@ export function BatchBanner({ run }: { run: BatchRun }) {
             ) : null}
             {!active ? (
                 <div className="text-11 text-secondary" data-testid="reviews-batch-summary">
-                    {batchSummary(run)}
+                    {batchSummary(run, ids)}
                 </div>
             ) : null}
-            {error ? (
+            {error != null ? (
                 <div className="text-11 text-danger" role="alert">
-                    {error}
+                    {word(error)}
                 </div>
             ) : null}
+        </div>
+    );
+}
+
+// The pointer a hidden, finished queue leaves in "Agents on it" while its agent's session is open (#1128,
+// FR-REV-026 AC13): one line with Go there; it goes with the session.
+export function BatchPointer({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
+    const t = useT();
+    useLocale();
+    const agents = useAtomValue(AgentStates.getInstance().dataAtom);
+    const agent = run.blockid ? agents.states[run.blockid] : null;
+    const name = agent?.firstname || run.agentname || t("reviews.batch.yourAgent");
+    return (
+        <div
+            className="flex min-w-0 items-center gap-2 rounded-4 border border-border px-3 py-1.5 text-11 leading-5 text-secondary"
+            data-testid="reviews-batch-pointer"
+        >
+            <i className="fa fa-solid fa-layer-group text-11 text-muted" aria-hidden />
+            <span className="min-w-0 grow truncate">
+                <span className="font-medium text-primary">{batchHeadline(run, agent?.firstname, ids)}</span>
+                {" · "}
+                {t("reviews.batch.pointer.ended")}
+            </span>
+            <button
+                type="button"
+                className={PlainButton}
+                onClick={() => fireAndForget(() => showPanel(run.blockid))}
+                onKeyDown={stop}
+                title={t("reviews.batch.goToTitle", { name })}
+                data-testid="reviews-batch-pointer-goto"
+            >
+                {t("reviews.batch.goTo")}
+                <i className="fa fa-solid fa-arrow-right text-10" aria-hidden />
+            </button>
         </div>
     );
 }

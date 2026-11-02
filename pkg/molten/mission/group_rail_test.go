@@ -49,6 +49,26 @@ func TestLinksFollowTheRailOrder(t *testing.T) {
 	}
 }
 
+// FR-SHELL-105: a project's group is declared in its repository's files, so a workspace whose project keeps its code
+// in a repository inside its folder is linked by that repository; one without is linked by its folder, as before.
+func TestLinksFollowTheProjectsRepository(t *testing.T) {
+	client := linkedWorkspace("client", "/r/client")
+	client.Meta[molten.ProjectRepoMetaKey] = "/r/client/app"
+	outside := linkedWorkspace("outside", "/r/outside")
+	outside.Meta[molten.ProjectRepoMetaKey] = "/r/elsewhere/app"
+	links := linksInOrder([]*waveobj.Workspace{client, linkedWorkspace("plain", "/r/plain"), outside}, nil)
+	got := map[string]string{}
+	for _, link := range links {
+		got[link.WorkspaceId] = link.Dir
+	}
+	want := map[string]string{"client": "/r/client/app", "plain": "/r/plain", "outside": "/r/outside"}
+	for id, dir := range want {
+		if got[id] != dir {
+			t.Errorf("%s is linked by %q; want %q", id, got[id], dir)
+		}
+	}
+}
+
 func TestReorderedPublishesTheNewMemberOrder(t *testing.T) {
 	links := []molten.GroupLink{{WorkspaceId: "app", Dir: "/r/app"}, {WorkspaceId: "site", Dir: "/r/site"}}
 	published := []GroupsAnswer{}

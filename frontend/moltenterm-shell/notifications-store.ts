@@ -16,6 +16,7 @@ import { atom, Atom, PrimitiveAtom } from "jotai";
 import { showPanel } from "./hidden-panel";
 import { t } from "./i18n/i18n";
 import { serverErrorText } from "./i18n/server-text";
+import { trustReviewAction } from "./mission/trust-approval-model";
 import {
     attentionCount,
     checkAnsweredInNotification,
@@ -37,6 +38,7 @@ import {
     archiveUpdate,
     checkUnread,
     clearArchiveUpdate,
+    clickAction,
     makeNotificationId,
     MetaUpdate,
     MoltentermNotification,
@@ -233,6 +235,13 @@ export class MoltentermNotifications {
 
     // Goes to where the notification comes from.
     async open(entry: MoltentermNotification): Promise<void> {
+        // A refused run's notification (#1017) opens its trust sheet, wherever the refused terminal is.
+        // A PR's notification (#1130) opens its card in the Control room, not the terminal it came from.
+        const onClick = trustReviewAction(entry) ?? clickAction(entry);
+        if (onClick != null) {
+            await this.runAction(entry, onClick);
+            return;
+        }
         // Switching workspace replaces this view: the read mark must reach wavesrv first.
         await this.writeNow(readUpdate(this.entries(), [entry.id]));
         if (checkProjectSource(entry) && (await showProjectTabSafely(entry.workspaceid))) {

@@ -8,6 +8,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
+import { Phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import { ReviewsModel } from "./reviews-store";
@@ -23,18 +24,19 @@ export type MarkReadyState = {
 };
 
 export function useMarkReady(dir: string, number: number, repo: string): MarkReadyState {
+    const word = useWordPhrase();
     const [phase, setPhase] = useState<MarkReadyPhase>("idle");
-    const [error, setError] = useState("");
+    const [error, setError] = useState<Phrase>(null);
     const cancel = () => {
         setPhase("idle");
-        setError("");
+        setError(null);
     };
     useEscape(phase === "confirm" || phase === "failed", cancel);
     return {
         phase,
-        error,
+        error: word(error),
         ask: () => {
-            setError("");
+            setError(null);
             setPhase("confirm");
         },
         confirm: () => {
@@ -45,7 +47,7 @@ export function useMarkReady(dir: string, number: number, repo: string): MarkRea
             fireAndForget(async () => {
                 const failed = await ReviewsModel.getInstance().markReady(dir, number, repo);
                 setError(failed);
-                setPhase(failed ? "failed" : "idle");
+                setPhase(failed != null ? "failed" : "idle");
             });
         },
         cancel,
@@ -83,8 +85,17 @@ export function MarkReadyButton({ state, className }: { state: MarkReadyState; c
     );
 }
 
-// The confirmation, then the error in plain words; nothing once the PR is ready (the list moves it).
-export function MarkReadyConfirm({ state, className }: { state: MarkReadyState; className?: string }) {
+// The confirmation, then the error in plain words; nothing once the PR is ready (the list moves it). notes: what the
+// developer should know first, never a block (#1060, #943): "Nathan is still working", "no test report yet".
+export function MarkReadyConfirm({
+    state,
+    className,
+    notes,
+}: {
+    state: MarkReadyState;
+    className?: string;
+    notes?: string;
+}) {
     const t = useT();
     if (state.phase === "idle") {
         return null;
@@ -102,7 +113,9 @@ export function MarkReadyConfirm({ state, className }: { state: MarkReadyState; 
             onKeyDown={stop}
             data-testid="reviews-mark-ready-confirm"
         >
-            <span className="min-w-0 flex-1">{failed ? state.error : t("reviews.ready.confirm")}</span>
+            <span className="min-w-0 flex-1">
+                {failed ? state.error : [notes, t("reviews.ready.confirm")].filter((s) => !!s).join(" ")}
+            </span>
             {failed ? null : (
                 <button
                     type="button"
@@ -111,6 +124,7 @@ export function MarkReadyConfirm({ state, className }: { state: MarkReadyState; 
                     className="molten-btn flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12"
                     data-testid="reviews-mark-ready-yes"
                 >
+                    {state.phase === "sending" ? <DominoLoader /> : null}
                     {state.phase === "sending" ? t("reviews.ready.sending") : t("reviews.ready.confirmButton")}
                     <MoltenWave />
                 </button>

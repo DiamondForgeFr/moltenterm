@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
@@ -70,11 +72,18 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
+		if err := agentlinks.Gate(source); err != nil {
+			return nil, err
+		}
 		return l.manager.Hello(ctx, source, req)
 	case mcpreview.CallCommand:
 		var req mcpreview.CallRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
+		}
+		// The developer stopped this server's link from the terminal's connections menu (FR-CONT-022).
+		if err := agentlinks.Gate(source); err != nil {
+			return mcpbrowser.ErrorResult(err.Error()), nil
 		}
 		return l.manager.Call(ctx, source, req), nil
 	case mcpreview.ByeCommand:

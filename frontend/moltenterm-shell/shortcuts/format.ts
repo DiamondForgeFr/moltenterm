@@ -86,8 +86,9 @@ function splitKeys(keys: string): { mods: string[]; key: string } {
 
 // "c{Digit1}" is the key code form of Wave's notation; "{1-9}" the registry's digit family.
 function keyLabel(key: string, mac: boolean): string {
-    if (key === "{1-9}") {
-        return "1–9";
+    const family = key.match(/^\{(\d)-(\d)\}$/);
+    if (family) {
+        return `${family[1]}–${family[2]}`;
     }
     const code = key.match(/^c\{(?:Digit|Numpad)(\d)\}$/);
     if (code) {
@@ -110,6 +111,11 @@ export function keyCaps(keys: string, mac = isMacOS()): string[] {
     const sorted = [...mods].sort((a, b) => order.indexOf(a) - order.indexOf(b));
     const modCaps = sorted.map((m) => (mac ? MacModifierGlyphs[m] : OtherModifierWords[m]) ?? m);
     return [...modCaps, keyLabel(key, mac)];
+}
+
+// A modifier on its own, as held (the shortcut overlay's hold, FR-SHELL-090): "⌘" on macOS, "Alt" elsewhere for Cmd.
+export function modifierLabel(mod: string, mac = isMacOS()): string {
+    return (mac ? MacModifierGlyphs[mod] : OtherModifierWords[mod]) ?? mod;
 }
 
 // "⇧⌘D" on macOS, "Alt+Shift+D" elsewhere.

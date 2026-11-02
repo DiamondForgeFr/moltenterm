@@ -43,7 +43,7 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
             }}
             className="molten-browser-agentpermission flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-12"
         >
-            <i aria-hidden="true" className="fa fa-solid fa-robot shrink-0 text-11 text-accent" />
+            <i aria-hidden="true" className="fa fa-solid fa-robot shrink-0 text-11 text-[var(--mt-state-waiting)]" />
             <div aria-live="polite" className="flex min-w-[150px] flex-1 items-baseline gap-2 truncate">
                 <span className="truncate text-primary">{view.title}</span>
                 <span className="min-w-0 truncate text-secondary">{view.detail}</span>
@@ -59,7 +59,7 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
                             key={b.decision}
                             type="button"
                             onClick={() => click(b.decision)}
-                            className="h-6 cursor-pointer rounded-6 border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-(--mt-focus-ring)"
+                            className="h-6 cursor-pointer rounded-6 border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)"
                         >
                             {b.label}
                         </button>

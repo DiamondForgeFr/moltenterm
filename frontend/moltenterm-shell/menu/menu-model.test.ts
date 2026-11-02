@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { electronAccelerator, formatKeys } from "../shortcuts/format";
+import { Shortcuts } from "../shortcuts/registry";
 import {
     actionableMenuItem,
     DeveloperSection,
@@ -8,8 +10,33 @@ import {
     menuLabel,
     menuOpenedByKeyboard,
     menuPoint,
+    shortcutLabel,
     visibleMenuItems,
 } from "./menu-model";
+
+describe("one shortcut formatter (FR-SHELL-107)", () => {
+    it("orders the modifiers as the shortcut sheet does, whatever the accelerator's order", () => {
+        expect(shortcutLabel("Command+Shift+T", true)).toBe("⇧⌘T");
+        expect(shortcutLabel("Shift+Command+T", true)).toBe("⇧⌘T");
+        expect(shortcutLabel("Command+Option+Control+1", true)).toBe("⌃⌥⌘1");
+        expect(shortcutLabel("Shift+Control+T", false)).toBe("Ctrl+Shift+T");
+        expect(shortcutLabel("Command+Left", true)).toBe("⌘←");
+        expect(shortcutLabel("Command++", true)).toBe("⌘+");
+        expect(shortcutLabel("", true)).toBe("");
+    });
+
+    it("shows every registry shortcut in a menu as the shortcut sheet shows it", () => {
+        for (const mac of [true, false]) {
+            for (const s of Shortcuts) {
+                const accelerator = electronAccelerator(s.keys, mac);
+                if (accelerator === "" || /:(Enter|Escape|Tab|Backspace|Delete|Space|Page|Home|End)/.test(s.keys)) {
+                    continue;
+                }
+                expect(`${s.id}: ${shortcutLabel(accelerator, mac)}`).toBe(`${s.id}: ${formatKeys(s.keys, mac)}`);
+            }
+        }
+    });
+});
 
 const shown = (items: ContextMenuItem[]) =>
     items.map((i) => (i.type === "separator" ? "—" : i.type === "header" ? `# ${i.label}` : i.label));

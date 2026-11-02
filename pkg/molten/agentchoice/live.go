@@ -33,10 +33,60 @@ type GetRequest struct {
 	Agent string `json:"agent,omitempty"`
 }
 
+// PathCacheTtl bounds how stale a PATH lookup may be: the choice is asked each time a panel's options or a companion
+// opens, and an agent installed since shows within this time.
+const PathCacheTtl = 10 * time.Second
+
+// pathCache remembers which programs the login PATH holds. A lookup only stats the PATH's folders: no agent is run.
+type pathCache struct {
+	lock   sync.Mutex
+	at     time.Time
+	found  map[string]bool
+	now    func() time.Time
+	lookup func(exe string) bool
+}
+
+func (c *pathCache) has(exe string) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	now := c.now()
+	if c.found == nil || now.Sub(c.at) > PathCacheTtl {
+		c.found = map[string]bool{}
+		c.at = now
+	}
+	if v, ok := c.found[exe]; ok {
+		return v
+	}
+	v := c.lookup(exe)
+	c.found[exe] = v
+	return v
+}
+
+var livePathCache = &pathCache{
+	now:    time.Now,
+	lookup: func(exe string) bool { return molten.LookPathIn(exe, molten.LoginPath()) != "" },
+}
+
+// Roster lists the agents MoltenTerm knows: the adapters of the registry, then the planned ones that have none yet.
+func Roster() []KnownAgent {
+	var rtn []KnownAgent
+	for _, a := range agentcontinuity.Default().Adapters() {
+		rtn = append(rtn, KnownAgent{Id: a.Id(), Name: a.Name(), Executable: a.Executable()})
+	}
+	for _, p := range agentcontinuity.PlannedAgents {
+		rtn = append(rtn, KnownAgent{Id: p.Id, Name: p.Name, Executable: p.Executable})
+	}
+	return rtn
+}
+
 // Installed looks the agent's program up on the login shell's PATH, as the flows that start it do.
 func Installed(id string) bool {
-	adapter := agentcontinuity.Find(id)
-	return adapter != nil && molten.LookPathIn(adapter.Executable(), molten.LoginPath()) != ""
+	for _, k := range Roster() {
+		if k.Id == id {
+			return livePathCache.has(k.Executable)
+		}
+	}
+	return false
 }
 
 func globalChoice() string {
@@ -58,6 +108,7 @@ func projectChoice(dir string) string {
 func Live() Resolver {
 	return Resolver{
 		Order:     agentcontinuity.Default().Ids(),
+		Roster:    Roster(),
 		Installed: Installed,
 		Global:    globalChoice,
 		Project:   projectChoice,

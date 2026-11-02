@@ -7,24 +7,25 @@
 import {
     createBlock,
     createBlockSplitHorizontally,
-    createTab,
     getApi,
     getBlockComponentModel,
     replaceBlock,
 } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
 import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
 import { handOffActivePage } from "../browser/browser-routing";
 import { openPanelFromPalette, runPanelPaletteEntry } from "../command-panel/command-panel-palette";
 import { equalizeCurrentTab } from "../equalize/equalize-actions";
+import { openNewView, openSuggestion } from "../newview/new-view";
 import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
 import { reopenLastClosed } from "../reopen/reopen-store";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
+import { openSettings } from "../settings/settings-open";
 import { openShortcutsSheet } from "../shortcuts/shortcuts-keys";
+import { currentPinMoves, currentView, runPinMove } from "../sidebar/view-pin-actions";
 import { enterSplitPlacement, enterSplitPlacementFocused } from "../split/split-place";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { openCurrentWorkspaceEditor } from "../workspace-edit";
@@ -97,10 +98,6 @@ function focusBlock(blockId: string) {
     }
 }
 
-function openSettings() {
-    fireAndForget(() => createBlock({ meta: { view: "waveconfig" } }, false, true));
-}
-
 export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): Promise<void> {
     switch (run.kind) {
         case "agent": {
@@ -115,7 +112,7 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             await openBlock(folderBlockDef(run.path), target);
             return;
         case "newtab":
-            createTab();
+            openNewView();
             return;
         case "newworkspace":
             getApi().createWorkspace();
@@ -127,7 +124,7 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             openCurrentWorkspaceEditor();
             return;
         case "settings":
-            openSettings();
+            await openSettings();
             return;
         case "projecttab":
             await openProjectTab();
@@ -163,11 +160,21 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
         case "equalize":
             equalizeCurrentTab();
             return;
+        case "pinview": {
+            const view = currentView();
+            if (view != null && currentPinMoves(view).includes(run.move)) {
+                runPinMove(view, run.move);
+            }
+            return;
+        }
         case "panelcommands":
             openPanelFromPalette(target.blockId);
             return;
         case "panelcommand":
             await runPanelPaletteEntry(target.blockId, run.entryId);
+            return;
+        case "suggestion":
+            await openSuggestion(run.id);
             return;
     }
 }

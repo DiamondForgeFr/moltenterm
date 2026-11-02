@@ -11,6 +11,7 @@ import { CiBranch, CiRunRecord, CiState, CiVerdictStatus } from "../mission/ci-m
 import { CheckState, mergeStateLabel, PullRequest, summarizeChecks } from "../mission/github";
 import { MissionGit, RunRecord } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
+import { viewShownName } from "../workspace-views/workspace-views-model";
 
 // must match pkg/molten/mission/projecttab.go (ProjectTabName too)
 export const ProjectTabCommand = "moltenmissionprojecttab";
@@ -19,13 +20,14 @@ export const ProjectTabDirMetaKey = "molten:projecttabdir";
 export const ProjectTabName = "Project";
 
 // The name a tab shows: wavesrv names the Project tab in English when it makes it, so the window words that name in
-// the interface language (#741); a name the user gave it stays as typed.
+// the interface language (#741); a name the user gave it stays as typed. A new workspace's views (#1305) are named
+// by a dictionary key until renamed.
 export function tabShownName(tab: Tab, tr: (key: string) => string = t): string {
     const name = tab?.name ?? "";
     if (name === ProjectTabName && (tab?.meta as Record<string, unknown>)?.[ProjectTabMetaKey]) {
         return tr("project.tabName");
     }
-    return name;
+    return viewShownName(name, tab?.meta, tr);
 }
 // must match ProjectView in pkg/molten/mission/projecttab.go and ProjectOverviewView in pkg/molten/missionviews.go
 export const MoltentermProjectView = "molten-project";

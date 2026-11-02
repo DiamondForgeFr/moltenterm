@@ -12,6 +12,27 @@ const severities = ["critical", "high", "moderate", "low", "info", "unknown"];
 const fail = (message) => { throw new ScanInputError(message); };
 export const fingerprint = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
+// This is a dated record of a human-readable upstream review, not an online support oracle.
+export function validateElectronLifecycle(policy, manifest, lock, now = new Date()) {
+    const review = policy?.electronLifecycle;
+    if (!object(review) || !/^\d+\.\d+\.\d+$/.test(review.version ?? "") ||
+        review.source !== "https://releases.electronjs.org/schedule" ||
+        review.releaseSource !== "https://releases.electronjs.org/") fail("Missing or malformed Electron lifecycle review");
+    const date = (value) => {
+        if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) fail("Invalid Electron lifecycle date");
+        const stamp = Date.parse(`${value}T00:00:00Z`);
+        if (!Number.isFinite(stamp) || new Date(stamp).toISOString().slice(0, 10) !== value) fail("Invalid Electron lifecycle date");
+        return stamp;
+    };
+    const reviewed = date(review.reviewedAt), deadline = date(review.reviewBy), end = date(review.tentativeEndOfSupport);
+    if (!Number.isFinite(now.getTime()) || reviewed > now.getTime() || deadline <= reviewed ||
+        deadline - reviewed > 90 * 86400_000 || deadline > end) fail("Invalid Electron lifecycle review interval");
+    if (now.getTime() >= deadline || now.getTime() >= end) fail("Electron lifecycle review is overdue");
+    if (manifest?.devDependencies?.electron !== review.version ||
+        lock?.packages?.[""]?.devDependencies?.electron !== review.version ||
+        lock?.packages?.["node_modules/electron"]?.version !== review.version) fail("Electron lifecycle review does not match the manifest and lock");
+}
+
 export function validatePolicy(policy) {
     if (!object(policy) || policy.schema !== 1 || !text(policy.owner)) fail("Unsupported or malformed security policy");
     if (!/^\d+\.\d+\.\d+$/.test(policy.scanners?.npm) || !/^v\d+\.\d+\.\d+$/.test(policy.scanners?.govulncheck)) fail("Scanner versions must be exact");

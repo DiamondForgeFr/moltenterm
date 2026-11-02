@@ -109,16 +109,26 @@ func ExecRunnerInput(ctx context.Context, dir string, input []byte, name string,
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if lines := strings.Split(msg, "\n"); msg != "" {
-			msg = lines[len(lines)-1]
-		}
+		msg := lastErrorLine(stderr.String())
 		if msg == "" {
 			msg = err.Error()
 		}
 		return stdout.Bytes(), fmt.Errorf("%s %s: %s", name, strings.Join(args, " "), msg)
 	}
 	return stdout.Bytes(), nil
+}
+
+// lastErrorLine is the last line of stderr that is not git's advice ("hint: …"), which says nothing about the failure
+// (#1146: "Disable this message with …" was all a refused git add showed).
+func lastErrorLine(stderr string) string {
+	lines := strings.Split(strings.TrimSpace(stderr), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" && !strings.HasPrefix(line, "hint:") {
+			return line
+		}
+	}
+	return ""
 }
 
 type MissingProgramError struct {

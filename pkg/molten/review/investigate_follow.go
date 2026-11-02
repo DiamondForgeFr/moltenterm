@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -27,6 +28,9 @@ import (
 const (
 	// ciWatchMax: a CI still running this long after the agent stopped is handed to the developer.
 	ciWatchMax = 2 * time.Hour
+	// localCiWait: how long the head a stopped agent pushed may wait for its local CI statuses (posted in the
+	// background) before the developer is told the local CI did not run there (#1020).
+	localCiWait = 10 * time.Minute
 	// outcomeMaxLength: the outcome line a notification quotes.
 	outcomeMaxLength = 200
 	needsYouPrefix   = "needs you:"
@@ -47,6 +51,8 @@ type prCiVerdict struct {
 	state string
 	// failed: the names of the required checks that failed.
 	failed []string
+	// localWait: the head has no local CI status yet (#1020).
+	localWait bool
 }
 
 func investigateOutcomePath(briefPath string) string {
@@ -83,6 +89,49 @@ func outcomeNeedsYou(outcome string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSpace(outcome[len(needsYouPrefix):]), true
+}
+
+// The kinds of a broken local CI an agent stops on (#1020), as the brief tells it to start its outcome line after
+// "needs you:".
+const (
+	needsDeclaration = "local CI declaration:"
+	needsEnvironment = "environment:"
+	needsMoltenBug   = "MoltenTerm bug:"
+)
+
+// cutPrefixFold: text after prefix, matched without case.
+func cutPrefixFold(text string, prefix string) (string, bool) {
+	if len(text) < len(prefix) || !strings.EqualFold(text[:len(prefix)], prefix) {
+		return "", false
+	}
+	return strings.TrimSpace(text[len(prefix):]), true
+}
+
+// needsYouReason: the notification for the agent's "needs you:" line; a broken local CI is named as such.
+func needsYouReason(reason string) (string, *uimsg.Text) {
+	if rest, ok := cutPrefixFold(reason, needsDeclaration); ok {
+		return "The project's local CI declaration is wrong: " + rest, uimsg.Make("notif.review.ciDeclaration", "reason", rest)
+	}
+	if rest, ok := cutPrefixFold(reason, needsEnvironment); ok {
+		return "The local CI's environment misses something: " + rest, uimsg.Make("notif.review.ciEnvironment", "reason", rest)
+	}
+	if rest, ok := cutPrefixFold(reason, needsMoltenBug); ok {
+		return "MoltenTerm misbehaved while running the local CI: " + rest, uimsg.Make("notif.review.moltenBug", "reason", rest)
+	}
+	return reason, uimsg.Make("notif.review.asks", "reason", reason)
+}
+
+// stillFailing: the checks that still fail on the pushed head; when they are all the local CI's, the developer is told
+// how to see why rather than only "still red".
+func stillFailing(number string, branch string, failed []string) (string, *uimsg.Text) {
+	names := strings.Join(failed, ", ")
+	for _, name := range failed {
+		if !IsLocalCiCheck(name) {
+			return "Still failing on #" + number + ": " + names, uimsg.Make("notif.review.stillFailing", "number", number, "names", names)
+		}
+	}
+	return "The local CI still fails on the pushed head of #" + number + ": " + names + ". Run molten ci run " + branch + " in the agent's copy to see why.",
+		uimsg.Make("notif.review.localStillFailing", "number", number, "names", names, "branch", branch)
 }
 
 // foldChecks reads gh pr checks' buckets: failed when one failed or was cancelled, pending while one runs or none
@@ -158,7 +207,56 @@ func (r *Restarter) readCi(ctx context.Context, f agentFollow, localHead string)
 	if err != nil {
 		return prCiVerdict{}, err
 	}
-	return foldChecks(checks), nil
+	out, _ = r.env.Gh(ctx, f.req.Dir, "pr", "checks", strconv.Itoa(f.req.Number), "--json", "name,bucket", "--repo", f.req.Repo)
+	var all []ghCheckBucket
+	if json.Unmarshal(out, &all) != nil {
+		all = checks
+	}
+	return judgeChecks(checks, all, publishesLocalStatuses(f.req.Dir)), nil
+}
+
+// judgeChecks: the verdict on the pushed head (#1020). The required checks first; once they pass, a red check GitHub
+// does not require (a local CI status) still keeps the run from green: the Reviews row shows it. The local CI posts
+// its statuses on a head only once it ran there, so a head without any local-* status is waiting for it, not red: its
+// failed checks named after the local CI (a gate job reading those statuses) are not judged yet.
+func judgeChecks(required []ghCheckBucket, all []ghCheckBucket, localExpected bool) prCiVerdict {
+	verdict := foldChecks(required)
+	if verdict.state == ciPassed {
+		var failed []ghCheckBucket
+		for _, c := range all {
+			if c.Bucket == "fail" || c.Bucket == "cancel" {
+				failed = append(failed, c)
+			}
+		}
+		if len(failed) > 0 {
+			verdict = foldChecks(failed)
+		}
+	}
+	localStatus, localNamed := false, false
+	for _, c := range append(append([]ghCheckBucket{}, required...), all...) {
+		lower := strings.ToLower(c.Name)
+		localStatus = localStatus || strings.HasPrefix(lower, "local-")
+		localNamed = localNamed || IsLocalCiCheck(c.Name)
+	}
+	if localStatus || (!localExpected && !localNamed) {
+		return verdict
+	}
+	switch verdict.state {
+	case ciPassed:
+		if !localExpected {
+			return verdict
+		}
+		return prCiVerdict{state: ciPending, localWait: true}
+	case ciFailed:
+		for _, name := range verdict.failed {
+			if !IsLocalCiCheck(name) {
+				return verdict
+			}
+		}
+		return prCiVerdict{state: ciPending, localWait: true}
+	}
+	verdict.localWait = true
+	return verdict
 }
 
 func (r *Restarter) holdState(f agentFollow, st *followState, state string, message string, text *uimsg.Text) {
@@ -176,15 +274,21 @@ func (r *Restarter) releaseState(f agentFollow, state string, message string, te
 	r.env.ReleaseState(f.blockId, state, message, text)
 }
 
+// holdNumber: the number the agent's line names, the one its Reviews card shows (#1108): the ticket,
+// else the PR number.
+func holdNumber(req RestartRequest) string {
+	return mission.MakePrCard(req.Number, restartTicket(req)).Number()
+}
+
 // holdFixing: the agent works on the CI (from its start, and whenever it works again).
 func (r *Restarter) holdFixing(f agentFollow, st *followState) {
-	number := strconv.Itoa(f.req.Number)
+	number := holdNumber(f.req)
 	st.stoppedAt, st.failSeen = time.Time{}, ""
-	r.holdState(f, st, molten.AgentStateWorking, "Fixing the CI of #"+number, uimsg.Make("agentHold.fixing", "number", number))
+	r.holdState(f, st, molten.AgentStateWorking, "Resolving what blocks #"+number, uimsg.Make("agentHold.fixing", "number", number))
 }
 
 func (r *Restarter) holdCi(f agentFollow, st *followState) {
-	number := strconv.Itoa(f.req.Number)
+	number := holdNumber(f.req)
 	r.holdState(f, st, molten.AgentStateWorking, "Waiting for the CI of #"+number, uimsg.Make("agentHold.ci", "number", number))
 }
 
@@ -204,10 +308,11 @@ func (r *Restarter) followInvestigation(ctx context.Context, f agentFollow, st *
 		st.stoppedAt = r.env.Now()
 	}
 	name := agentName(run, f.agent)
-	number := strconv.Itoa(f.req.Number)
+	number := holdNumber(f.req)
 	outcome := readOutcome(f.outcomePath)
 	if reason, ok := outcomeNeedsYou(outcome); ok {
-		r.needsYou(ctx, f, st, name, reason, uimsg.Make("notif.review.asks", "reason", reason))
+		message, text := needsYouReason(reason)
+		r.needsYou(ctx, f, st, name, message, text)
 		return true
 	}
 	facts, err := r.readTree(ctx, f)
@@ -242,11 +347,22 @@ func (r *Restarter) followInvestigation(ctx context.Context, f agentFollow, st *
 			r.holdCi(f, st)
 			return true
 		}
-		message := "Still failing on #" + number + ": " + names
-		r.needsYou(ctx, f, st, name, message, uimsg.Make("notif.review.stillFailing", "number", number, "names", names))
+		message, text := stillFailing(number, f.req.HeadRef, verdict.failed)
+		r.needsYou(ctx, f, st, name, message, text)
 		return true
 	}
 	st.failSeen = ""
+	if verdict.localWait {
+		// The agent stopped and the pushed head still has no local CI status: it did not run the local CI there.
+		if r.env.Now().Sub(st.stoppedAt) > localCiWait {
+			message := "The local CI has not run on the pushed head of #" + number + ": run molten ci run " + f.req.HeadRef + "."
+			r.needsYou(ctx, f, st, name, message, uimsg.Make("notif.review.localCiMissing", "number", number, "branch", f.req.HeadRef))
+			return true
+		}
+		held := holdNumber(f.req)
+		r.holdState(f, st, molten.AgentStateWorking, "Waiting for the local CI of #"+held, uimsg.Make("agentHold.localCi", "number", held))
+		return true
+	}
 	if r.env.Now().Sub(st.stoppedAt) > ciWatchMax {
 		r.needsYou(ctx, f, st, name, "The CI of #"+number+" is still running after 2 hours.", uimsg.Make("notif.review.ciSlow", "number", number))
 		return true
@@ -279,18 +395,19 @@ func (r *Restarter) needsYou(ctx context.Context, f agentFollow, st *followState
 		return
 	}
 	st.notice = message
-	number := strconv.Itoa(f.req.Number)
+	card := f.card()
 	r.notify(ctx, molten.NotificationInput{
 		Key:         agentNoticeKey(f.req.PrKey),
 		Source:      "agent",
 		Kind:        "warning",
-		Title:       name + " needs you on #" + number,
-		TitleText:   uimsg.Make("notif.review.needsTitle", "name", name, "number", number),
+		Title:       name + " needs you on " + card.English(),
+		TitleText:   card.Aside(uimsg.Make("notif.review.needsTitle", "name", name, "number", card.Number())),
 		Message:     message,
 		MessageText: text,
 		WorkspaceId: f.req.WorkspaceId,
 		TabId:       f.tabId,
 		BlockId:     f.blockId,
+		Actions:     []molten.NotificationAction{card.Action(f.req.Dir)},
 	})
 }
 
@@ -302,22 +419,23 @@ func (f agentFollow) terminalAction() molten.NotificationAction {
 
 // ciGreen: the PR's required checks pass on the pushed head; the run turns green and says what the agent did.
 func (r *Restarter) ciGreen(ctx context.Context, f agentFollow, name string, outcome string) {
-	number := strconv.Itoa(f.req.Number)
-	r.releaseState(f, molten.AgentStateDone, "The CI of #"+number+" passes", uimsg.Make("agentHold.green", "number", number))
+	card := f.card()
+	held := card.Number()
+	r.releaseState(f, molten.AgentStateDone, "The CI of #"+held+" passes", uimsg.Make("agentHold.green", "number", held))
 	r.resolveNotice(ctx, f)
 	input := molten.NotificationInput{
 		Key:         agentDoneKey(f.req.PrKey),
 		Source:      "agent",
 		Kind:        "success",
-		Title:       "#" + number + ": CI green again",
-		TitleText:   uimsg.Make("notif.review.ciGreenTitle", "number", number),
-		Message:     name + " stopped and the required checks of #" + number + " pass.",
-		MessageText: uimsg.Make("notif.review.ciGreenPlain", "name", name, "number", number),
+		Title:       card.English() + ": CI green again",
+		TitleText:   card.Aside(uimsg.Make("notif.review.ciGreenTitle", "number", held)),
+		Message:     name + " stopped and the required checks of #" + held + " pass.",
+		MessageText: uimsg.Make("notif.review.ciGreenPlain", "name", name, "number", held),
 		WorkspaceId: f.req.WorkspaceId,
 		TabId:       f.tabId,
 		BlockId:     f.blockId,
 		Actions: []molten.NotificationAction{f.terminalAction(), {Id: "review", Label: "Open the review", LabelText: uimsg.Make("notif.review.openReview"),
-			Kind: "gesture", Gesture: ReviewOpenGesture, Args: map[string]any{"pr": f.prInfo()}}},
+			Kind: "gesture", Gesture: ReviewOpenGesture, Args: map[string]any{"pr": f.prInfo()}}, card.Action(f.req.Dir)},
 	}
 	if outcome != "" {
 		input.Message = name + ": " + outcome

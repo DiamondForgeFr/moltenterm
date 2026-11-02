@@ -1,0 +1,1336 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// The library (FR-SHELL-088): what is not in the sidebar, over the window, behind the sidebar's bottom-left button.
+// Its own navigation on the left, a wide page on the right: every workspace side by side, the panel kinds explained,
+// the pages agents hold, the views put away, and settings. Escape and Back close it. Everything the former library
+// menu offered keeps a home here (Sessions and Pilotage in Panels, the widgets and apps, the reopen of a closed view,
+// tips and settings).
+
+import { atoms, createBlock, getApi, getSettingsKeyAtom, globalStore } from "@/app/store/global";
+import { WorkspaceService } from "@/app/store/services";
+import * as WOS from "@/app/store/wos";
+import { useWaveObjectValue } from "@/app/store/wos";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { makeConfigFiles } from "@/app/view/waveconfig/waveconfig-model";
+import { isWindows } from "@/util/platformutil";
+import { cn, fireAndForget, makeIconClass } from "@/util/util";
+import { atom, useAtomValue } from "jotai";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { actionGate, gateMessage, morphWorks } from "../agent-info/agent-action-gate";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
+import { agentCallName, agentStateMessage } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
+import { BrowserActiveMetaKey } from "../browser/browser-model";
+import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
+import { typeMorphCall } from "../morph/morph-call";
+import { morphCall, workspaceMorphChoice } from "../morph/morph-call-model";
+import { openAgentPicker } from "../newview/new-view";
+import { MoltentermNotifications } from "../notifications-store";
+import { focusMoltentermView, makeViewInActiveTabAtom } from "../open-view";
+import { pickerPanelEntries } from "../palette/palette-sources";
+import { ProjectTabMetaKey } from "../project/project-model";
+import { type PutAwayView } from "../reopen/reopen-model";
+import { listPutAwayViews, reopenPutAwayView } from "../reopen/reopen-store";
+import { useListedReviewsAnswer } from "../reviews/reviews-client";
+import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "../reviews/reviews-model";
+import { ReviewsModel } from "../reviews/reviews-store";
+import { MoltentermSessionsView } from "../sessions/sessions-model";
+import { DurableSessions } from "../sessions/sessions-store";
+import { localizeSection, SettingsSectionId, SettingsSections } from "../settings/settings-catalog";
+import { openSettings, openSettingsSection } from "../settings/settings-open";
+import { PageFill } from "../settings/settings-page";
+import { sectionPageWidth, SettingsSectionPage, useSettingsPageData } from "../settings/settings-screen";
+import { formatShortcutById } from "../shortcuts/format";
+import { workspaceBlocks, type TopRowBlock } from "../sidebar/sidebar-blocks";
+import { SidebarGlyph } from "../sidebar/sidebar-icons";
+import { readProjectType, splitSidebarTabs } from "../sidebar/sidebar-model";
+import { SidebarModel } from "../sidebar/sidebar-store";
+import { ViewGlyph, viewGlyphAtom } from "../sidebar/view-glyph";
+import { GlobalPinMetaKey, isProjectTab, PinMetaKey } from "../sidebar/view-pins-model";
+import { ViewPins } from "../sidebar/view-pins-store";
+import { panelIcon, tabDisplayName } from "../tab-identity";
+import { TabAgentMark, useTabIdentity } from "../tab-identity-ui";
+import { showToast } from "../toast-store";
+import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
+import { workspaceShownName } from "../workspace-default-name";
+import { readWorkspaceProject } from "../workspace-project";
+import type { WorkspaceRailEntry } from "../workspace-rail-model";
+import { viewNameText } from "../workspace-views/workspace-views-model";
+import { AgentsSection } from "./agents-section";
+import {
+    lastSettingsTab,
+    libraryAddAsk,
+    libraryEscapeStep,
+    LibrarySection,
+    librarySectionAt,
+    LibrarySections,
+    liveAgents,
+    matchesQuery,
+    panelAboutKey,
+    putAwayAgentNames,
+    SentRow,
+    SettingsOverviewTab,
+    sharedAgentGroups,
+    suggestClipboardText,
+    whenText,
+    workspaceAgents,
+} from "./library-model";
+import { LibraryPrefs } from "./library-prefs";
+import "./library.css";
+import { MaterialsSection, useMaterialsDrawer, useMaterialsNewCount } from "./materials-section";
+import { mountChannels, type ChannelsHandle } from "./settings-channels";
+import {
+    finishSettingsReveal,
+    MaxRevealCards,
+    relativeRect,
+    revealMode,
+    revealTargets,
+    runSettingsReveal,
+    SettingsRevealKey,
+    type RevealRect,
+} from "./settings-reveal";
+import { useSentAccess } from "./use-sent-access";
+
+const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
+// Removing an agent's access offers Undo this long, as a deleted workspace does (FR-SHELL-095).
+const AccessUndoMs = 10000;
+
+function close() {
+    SidebarModel.getInstance().closeLibrary();
+}
+
+function workspaceNameOf(entries: WorkspaceRailEntry[], id: string): string {
+    return entries.find((e) => e.id === id)?.name ?? "";
+}
+
+// Goes to a view, in its workspace: the workspace shows it once switched to.
+async function goToView(workspaceId: string, tabId: string): Promise<void> {
+    close();
+    if (workspaceId === globalStore.get(atoms.workspaceId)) {
+        getApi().setActiveTab(tabId);
+        return;
+    }
+    await WorkspaceService.SetActiveTab(workspaceId, tabId);
+    getApi().switchWorkspace(workspaceId);
+}
+
+// Goes to a panel. In another workspace its view becomes that workspace's active one first: the switch shows the
+// workspace's active view, which a notification's own way there leaves as it was.
+async function goToBlock(workspaceId: string, tabId: string, blockId: string): Promise<void> {
+    if (workspaceId && tabId && workspaceId !== globalStore.get(atoms.workspaceId)) {
+        await WorkspaceService.SetActiveTab(workspaceId, tabId);
+    }
+    await MoltentermNotifications.getInstance().goTo({ workspaceid: workspaceId, tabid: tabId, blockid: blockId });
+}
+
+function goToWorkspace(workspaceId: string) {
+    close();
+    if (workspaceId !== globalStore.get(atoms.workspaceId)) {
+        getApi().switchWorkspace(workspaceId);
+    }
+}
+
+// ---------- Workspaces ----------
+
+// The workspace's views, and its blocks as its sidebar shows them (sidebar-blocks.ts, #1307).
+function useWorkspaceSplit(ws: Workspace) {
+    const splitAtom = useMemo(
+        () =>
+            atom((get) => {
+                const pins = get(ViewPins.getInstance().globalPinsAtom);
+                const split = splitSidebarTabs(
+                    ws ?? {},
+                    (id) => get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", id))),
+                    PinnedTabMetaKeys,
+                    new Set(pins.map((p) => p.id)),
+                    GlobalPinMetaKey
+                );
+                return { split, blocks: workspaceBlocks(pins, split) };
+            }),
+        [ws]
+    );
+    return useAtomValue(splitAtom);
+}
+
+// A top-row block, as in the sidebar: the pin's glyph, its name on hover; the agent in this workspace's instance as a
+// corner mark. A block the workspace never opened goes to the workspace, or opens there when it is the current one.
+function LibraryTopBlock({ workspaceId, block, active }: { workspaceId: string; block: TopRowBlock; active: boolean }) {
+    const go = () => {
+        if (block.tabId) {
+            return goToView(workspaceId, block.tabId);
+        }
+        if (workspaceId !== globalStore.get(atoms.workspaceId)) {
+            goToWorkspace(workspaceId);
+            return;
+        }
+        close();
+        return ViewPins.getInstance().openGlobalPin(block.pin.id, "");
+    };
+    return (
+        <button
+            type="button"
+            className={cn("mt-lib-tile mt-lib-top", active && "is-on")}
+            title={block.name}
+            aria-label={block.name}
+            data-testid="library-top-block"
+            data-pin-id={block.pin.id}
+            onClick={(e) => {
+                e.stopPropagation();
+                fireAndForget(go);
+            }}
+        >
+            <ViewGlyph icons={block.glyph} small={block.glyph.length > 1} className="max-w-full overflow-hidden" />
+            {block.tabId ? <LibraryAgentMark tabId={block.tabId} /> : null}
+        </button>
+    );
+}
+
+function LibraryAgentMark({ tabId }: { tabId: string }) {
+    const identity = useTabIdentity(tabId, "");
+    return (
+        <span className="absolute top-1 right-1 flex">
+            <TabAgentMark info={identity.agent} />
+        </span>
+    );
+}
+
+function LibraryTile({ workspaceId, tabId, active }: { workspaceId: string; tabId: string; active: boolean }) {
+    const [tab] = useWaveObjectValue<Tab>(WOS.makeORef("tab", tabId));
+    const identity = useTabIdentity(tabId, tab?.name ?? "");
+    const glyph = useAtomValue(viewGlyphAtom(tabId));
+    return (
+        <button
+            type="button"
+            className={cn("mt-lib-tile", active && "is-on")}
+            title={identity.name}
+            data-testid="library-tile"
+            onClick={(e) => {
+                e.stopPropagation();
+                fireAndForget(() => goToView(workspaceId, tabId));
+            }}
+        >
+            <ViewGlyph icons={glyph} className="max-w-full overflow-hidden" />
+            <span className="max-w-full truncate">{identity.name}</span>
+            <span className="absolute top-1 right-1 flex">
+                <TabAgentMark info={identity.agent} />
+            </span>
+        </button>
+    );
+}
+
+function LibraryViewRow({ workspaceId, tabId, active }: { workspaceId: string; tabId: string; active: boolean }) {
+    const [tab] = useWaveObjectValue<Tab>(WOS.makeORef("tab", tabId));
+    const identity = useTabIdentity(tabId, tab?.name ?? "");
+    const glyph = useAtomValue(viewGlyphAtom(tabId));
+    return (
+        <button
+            type="button"
+            className={cn("mt-lib-mrow", active && "is-on")}
+            title={identity.name}
+            data-testid="library-view"
+            onClick={(e) => {
+                e.stopPropagation();
+                fireAndForget(() => goToView(workspaceId, tabId));
+            }}
+        >
+            <ViewGlyph icons={glyph} small className="min-w-4 justify-center" />
+            <span className="t">{identity.name}</span>
+            <TabAgentMark info={identity.agent} />
+        </button>
+    );
+}
+
+function WorkspaceColumn({ entry }: { entry: WorkspaceRailEntry }) {
+    const t = useT();
+    const tc = useTCount();
+    const [ws] = useWaveObjectValue<Workspace>(WOS.makeORef("workspace", entry.id));
+    const { split, blocks } = useWorkspaceSplit(ws);
+    const data = useAtomValue(AgentStates.getInstance().dataAtom);
+    const agents = useMemo(() => workspaceAgents(data, entry.id), [data, entry.id]);
+    const live = liveAgents(agents);
+    const choice = ws?.color ?? entry.color;
+    const stops = colourStops(choice);
+    const paint = stops.length > 0 ? colourChoiceCss(choice) : "var(--color-secondary)";
+    const accent = stops[0] ?? "var(--color-secondary)";
+    const name = workspaceShownName(ws?.name, t) || entry.name;
+    const type = readProjectType(ws);
+    const folder =
+        (readWorkspaceProject(ws).dir ?? "")
+            .replace(/[/\\]+$/, "")
+            .split(/[/\\]/)
+            .pop() ?? "";
+    const sub = [type, folder].filter(Boolean).join(" · ");
+    const activeTabId = ws?.activetabid;
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            className={cn("mt-lib-wscol", entry.active && "is-cur")}
+            style={{ ["--mt-lib-c" as string]: accent } as React.CSSProperties}
+            title={t("library.workspaces.goTo", { name })}
+            data-testid="library-workspace"
+            data-workspace-id={entry.id}
+            onClick={() => goToWorkspace(entry.id)}
+            onKeyDown={(e) => {
+                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    goToWorkspace(entry.id);
+                }
+            }}
+        >
+            <div className="flex items-center gap-2">
+                <span
+                    className="mt-lib-lg"
+                    style={{ background: paint, color: stops.length > 0 ? colourChoiceForeground(choice) : "black" }}
+                >
+                    {(Array.from(name)[0] ?? "").toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                    <div className="truncate font-semibold text-primary">{name}</div>
+                    {sub ? <div className="truncate text-11 text-muted">{sub}</div> : null}
+                </div>
+            </div>
+            {blocks.top.length > 0 ? (
+                <div className="grid grid-cols-4 gap-1.5" data-testid="library-top-row">
+                    {blocks.top.map((block) => (
+                        <LibraryTopBlock
+                            key={block.pin.id}
+                            workspaceId={entry.id}
+                            block={block}
+                            active={!!block.tabId && block.tabId === activeTabId}
+                        />
+                    ))}
+                </div>
+            ) : null}
+            {blocks.tiles.length > 0 ? (
+                <div className="grid grid-cols-2 gap-1.5">
+                    {blocks.tiles.map((id) => (
+                        <LibraryTile key={id} workspaceId={entry.id} tabId={id} active={id === activeTabId} />
+                    ))}
+                </div>
+            ) : null}
+            {agents.length > 0 ? (
+                <>
+                    <div className="mt-lib-sect">
+                        <span>{t("library.workspaces.agents")}</span>
+                        <span>{live > 0 ? tc("library.workspaces.live", live) : t("library.workspaces.resting")}</span>
+                    </div>
+                    {agents.map((info) => (
+                        <button
+                            key={info.blockid}
+                            type="button"
+                            className="mt-lib-mrow"
+                            title={agentStateMessage(info) || agentCallName(info)}
+                            data-testid="library-agent"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                close();
+                                fireAndForget(() => goToBlock(info.workspaceid, info.tabid, info.blockid));
+                            }}
+                        >
+                            <span className={cn("mt-lib-av", `is-${info.state ?? "idle"}`)}>
+                                {(Array.from(agentCallName(info))[0] ?? "").toUpperCase()}
+                            </span>
+                            <span className="t">
+                                {agentCallName(info)}{" "}
+                                <span className="text-muted">{agentStateMessage(info) || info.agentname || ""}</span>
+                            </span>
+                        </button>
+                    ))}
+                </>
+            ) : null}
+            {split.temporary.length > 0 ? (
+                <>
+                    <div className="mt-lib-sect">
+                        <span>{t("library.workspaces.openViews")}</span>
+                        <span>{split.temporary.length}</span>
+                    </div>
+                    {split.temporary.map((id) => (
+                        <LibraryViewRow key={id} workspaceId={entry.id} tabId={id} active={id === activeTabId} />
+                    ))}
+                </>
+            ) : null}
+        </div>
+    );
+}
+
+function WorkspacesSection({ entries }: { entries: WorkspaceRailEntry[] }) {
+    return (
+        <div className="mt-lib-wscols" data-testid="library-workspaces">
+            {entries.map((entry) => (
+                <WorkspaceColumn key={entry.id} entry={entry} />
+            ))}
+        </div>
+    );
+}
+
+// ---------- Panels ----------
+
+// The last card of Panels (#1653): a tool that does not exist yet is asked of the workspace's agent with /morph.
+function MorphCard({ workspaceId, tabId }: { workspaceId: string; tabId: string }) {
+    const t = useT();
+    const data = useAtomValue(AgentStates.getInstance().dataAtom);
+    const matrix = useFeatureMatrix();
+    const { agent, unable } = useMemo(
+        () => workspaceMorphChoice(data, workspaceId, tabId, (id) => morphWorks(matrix, id)),
+        [data, workspaceId, tabId, matrix]
+    );
+    return (
+        <div className="mt-lib-pcard" data-testid="library-morph-card">
+            <div className="flex items-center gap-2 font-semibold text-primary">
+                <i className="mt-lib-pic" aria-hidden>
+                    <i className={makeIconClass("wand-magic-sparkles", true)} />
+                </i>
+                <span className="truncate">{t("library.panels.morph.title")}</span>
+            </div>
+            <p data-testid={unable ? "library-morph-unable" : undefined}>
+                {agent
+                    ? morphCall(agent.agent)
+                        ? t("library.panels.morph.about", { morph: morphCall(agent.agent) })
+                        : t("library.panels.morph.aboutPlain")
+                    : unable
+                      ? gateMessage(actionGate(matrix, unable.agent, "morph"), unable.agentname)
+                      : t("library.panels.morph.noAgent")}
+            </p>
+            {agent ? (
+                <button
+                    type="button"
+                    className="mt-lib-btn"
+                    data-testid="library-morph-type"
+                    onClick={() => {
+                        close();
+                        fireAndForget(() => typeMorphCall(agent));
+                    }}
+                >
+                    {morphCall(agent.agent)
+                        ? t("library.panels.morph.type", { morph: morphCall(agent.agent), agent: agentCallName(agent) })
+                        : t("library.panels.morph.typePlain", { agent: agentCallName(agent) })}
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    className="mt-lib-btn"
+                    data-testid="library-morph-start"
+                    onClick={() => {
+                        close();
+                        openAgentPicker();
+                    }}
+                >
+                    {unable ? t("library.panels.morph.startOther") : t("library.panels.morph.start")}
+                </button>
+            )}
+        </div>
+    );
+}
+
+function PanelsSection({ onApps }: { onApps: () => void }) {
+    const t = useT();
+    const fullConfig = useAtomValue(atoms.fullConfigAtom);
+    const workspaceId = useAtomValue(atoms.workspaceId);
+    const workspace = useAtomValue(atoms.workspace);
+    const tabId = useAtomValue(atoms.staticTabId);
+    const [tab] = useWaveObjectValue<Tab>(WOS.makeORef("tab", tabId));
+    const identity = useTabIdentity(tabId, tab?.name ?? "");
+    const sessions = useAtomValue(DurableSessions.getInstance().badgeAtom);
+    const dir = readWorkspaceProject(workspace).repo;
+    const answer = useListedReviewsAnswer(dir);
+    const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
+    const reviewsShown = useAtomValue(makeViewInActiveTabAtom(MoltentermReviewsView));
+    const sessionsShown = useAtomValue(makeViewInActiveTabAtom(MoltentermSessionsView));
+    const showApps = getApi().getIsDev() || (fullConfig?.settings?.["feature:waveappbuilder"] ?? false);
+    const entries = useMemo(
+        () => pickerPanelEntries(fullConfig?.widgets, workspaceId, null, !!dir),
+        [fullConfig?.widgets, workspaceId, dir]
+    );
+    const viewState = useAtomValue(ViewPins.getInstance().stateAtom(tabId));
+    const [asking, setAsking] = useState<string>(null);
+    const viewName = identity.name || t("library.panels.thisView");
+    const counts = reviewCounts(answer, readied);
+    const hasReviews = counts.toreview + counts.mergeable + counts.drafts > 0;
+    // A pinned view changes only when the developer says so (FR-SHELL-094): Add to names it and asks first.
+    const askKey = libraryAddAsk(viewState, isProjectTab(tab));
+    const inNewView = (blockdef: BlockDef) => {
+        close();
+        getApi().createTab(blockdef);
+    };
+    const add = (blockdef: BlockDef) => {
+        close();
+        const view = blockdef?.meta?.view;
+        // Added here, in the view the developer named: never through openMoltentermView, which keeps pinned views
+        // as they are.
+        fireAndForget(async () => {
+            if (
+                (view === MoltentermReviewsView || view === MoltentermSessionsView) &&
+                (await focusMoltentermView(view))
+            ) {
+                return;
+            }
+            await createBlock(blockdef);
+        });
+    };
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="mt-lib-pcards" data-testid="library-panels">
+                {entries.map((entry) => {
+                    if (entry.run.kind !== "widget") {
+                        return null;
+                    }
+                    const blockdef = entry.run.blockdef;
+                    const view = blockdef?.meta?.view ?? "";
+                    const aboutKey = panelAboutKey(view);
+                    const about = aboutKey ? t(aboutKey) : entry.detail;
+                    const status =
+                        view === MoltentermReviewsView && hasReviews
+                            ? reviewsRailLabel(counts)
+                            : view === MoltentermSessionsView && sessions.count > 0
+                              ? sessions.label
+                              : null;
+                    const shown =
+                        (view === MoltentermReviewsView && reviewsShown != null) ||
+                        (view === MoltentermSessionsView && sessionsShown != null);
+                    return (
+                        <div key={entry.id} className="mt-lib-pcard" data-testid="library-panel" data-view={view}>
+                            <div className="flex items-center gap-2 font-semibold text-primary">
+                                <i className="mt-lib-pic" aria-hidden>
+                                    <i className={makeIconClass(entry.icon, true, { defaultIcon: "square" })} />
+                                </i>
+                                <span className="truncate">{entry.label}</span>
+                            </div>
+                            {about ? <p>{about}</p> : <p />}
+                            {status && status !== entry.label ? (
+                                <div className="text-11 text-secondary">{status}</div>
+                            ) : null}
+                            {asking === entry.id && !shown ? (
+                                <div className="mt-lib-ask" role="group" data-testid="library-panel-ask">
+                                    <div className="text-11 text-secondary">{t(askKey, { view: viewName })}</div>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            className="mt-lib-btn"
+                                            data-testid="library-panel-ask-add"
+                                            onClick={() => add(blockdef)}
+                                        >
+                                            {t("library.panels.addTo", { view: viewName })}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="mt-lib-btn"
+                                            data-testid="library-panel-ask-newview"
+                                            onClick={() => inNewView(blockdef)}
+                                        >
+                                            {t("library.panels.inNewView")}
+                                        </button>
+                                        <button type="button" className="mt-lib-link" onClick={() => setAsking(null)}>
+                                            {t("common.cancel")}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="mt-lib-btn"
+                                    data-testid="library-panel-add"
+                                    onClick={() => (askKey && !shown ? setAsking(entry.id) : add(blockdef))}
+                                >
+                                    {shown ? (
+                                        t("library.panels.show")
+                                    ) : (
+                                        <>
+                                            <SidebarGlyph name="plus" size={12} />
+                                            {t("library.panels.addTo", { view: viewName })}
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
+                <MorphCard workspaceId={workspaceId} tabId={tabId} />
+            </div>
+            <div className="flex flex-wrap gap-2">
+                <button
+                    type="button"
+                    className="mt-lib-link"
+                    data-testid="library-edit-widgets"
+                    onClick={() => {
+                        close();
+                        fireAndForget(() => openSettings("widgets.json"));
+                    }}
+                >
+                    <i className={makeIconClass("pen", true)} aria-hidden />
+                    {t("library.panels.editList")}
+                </button>
+                {showApps ? (
+                    <button type="button" className="mt-lib-link" data-testid="library-apps" onClick={onApps}>
+                        <i className={makeIconClass("cube", true)} aria-hidden />
+                        {t("rail.tools.apps")}
+                    </button>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
+// ---------- Sent to AI ----------
+
+// The site tells apart two pages of the same title.
+function pageHost(url: string): string {
+    try {
+        return new URL(url).host;
+    } catch {
+        return "";
+    }
+}
+
+function accessToastText(removed: SentRow[], name: string, all: boolean) {
+    const title = all
+        ? tNow("library.ai.removedAll", { name })
+        : tNow("library.ai.removed", { title: removed[0]?.title ?? "", name });
+    return {
+        title,
+        message: tCountNow("library.ai.removedSub", removed.length, { name }),
+        actionLabels: { undo: tNow("library.ai.undo") },
+    };
+}
+
+function showAccessUndo(removed: SentRow[], name: string, all: boolean, undo: () => Promise<number>) {
+    if (removed.length === 0) {
+        showToast({ kind: "error", title: tNow("library.ai.removeFailed", { name }) });
+        return;
+    }
+    const text = accessToastText(removed, name, all);
+    showToast({
+        kind: "info",
+        title: text.title,
+        message: text.message,
+        text: () => accessToastText(removed, name, all),
+        dismissMs: AccessUndoMs,
+        actions: [
+            {
+                id: "undo",
+                label: text.actionLabels.undo,
+                run: async () => {
+                    const failed = await undo();
+                    if (failed > 0) {
+                        showToast({ kind: "error", title: tNow("library.ai.undoFailed", { name }) });
+                    }
+                },
+            },
+        ],
+    });
+}
+
+function SentToAiSection({ entries, query }: { entries: WorkspaceRailEntry[]; query: string }) {
+    const t = useT();
+    const tc = useTCount();
+    const locale = useLocale();
+    const agentData = useAtomValue(AgentStates.getInstance().dataAtom);
+    const { rows, removing, remove } = useSentAccess(entries, showAccessUndo, (name) =>
+        showToast({ kind: "error", title: tNow("library.ai.removeFailed", { name }) })
+    );
+    if (rows == null) {
+        return null;
+    }
+    const shown = rows.filter((r) =>
+        matchesQuery([r.title, r.url, r.agentName, workspaceNameOf(entries, r.workspaceId)], query)
+    );
+    if (shown.length === 0) {
+        if (rows.length > 0) {
+            return (
+                <div className="mt-lib-empty" data-testid="library-ai-empty">
+                    <b>{t("library.nothingFound")}</b>
+                </div>
+            );
+        }
+        return (
+            <div className="mt-lib-empty mt-lib-ai-empty" data-testid="library-ai-empty">
+                <b>{t("library.ai.emptyTitle")}</b>
+                <span>{t("library.ai.empty")}</span>
+                <span>{t("library.ai.howTo", { share: t("browser.share.share") })}</span>
+                <button
+                    type="button"
+                    className="mt-lib-link"
+                    data-testid="library-ai-materials"
+                    onClick={() => SidebarModel.getInstance().openLibrary("materials")}
+                >
+                    <SidebarGlyph name="box" size={12} />
+                    {t("library.ai.toMaterials")}
+                </button>
+            </div>
+        );
+    }
+    const kindOf = (blockId: string) => {
+        const info = agentData?.states?.[blockId];
+        return info?.agentname || info?.agent || "";
+    };
+    const groups = sharedAgentGroups(shown, kindOf);
+    const open = (row: SentRow) => {
+        close();
+        fireAndForget(async () => {
+            await RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("block", row.panelBlockId),
+                meta: { [BrowserActiveMetaKey]: row.browserTabId } as MetaType,
+            });
+            await goToBlock(row.workspaceId, row.tabId, row.panelBlockId);
+        });
+    };
+    return (
+        <div className="flex flex-col gap-3" data-testid="library-ai">
+            {groups.map((group) => {
+                const name = group.agentName || t("browser.agent.anAgent");
+                const busy = group.rows.every((r) => removing.has(r.key));
+                return (
+                    <section key={group.key} className="mt-lib-aigroup" data-testid="library-ai-group">
+                        <header className="mt-lib-aihead">
+                            <span className="t">
+                                <span className="flex items-center gap-2">
+                                    <b>{name}</b>
+                                    {group.kind ? <span className="mt-lib-state">{group.kind}</span> : null}
+                                </span>
+                                <span>{tc("library.ai.canUse", group.rows.length, { name })}</span>
+                            </span>
+                            <button
+                                type="button"
+                                className="mt-lib-aiact"
+                                data-testid="library-ai-remove-all"
+                                disabled={busy}
+                                onClick={() => remove(group.rows, name, true)}
+                            >
+                                <i className={makeIconClass("link-slash", true)} aria-hidden />
+                                {t("library.ai.removeAll")}
+                            </button>
+                        </header>
+                        {group.rows.map((row) => {
+                            const when = whenText(row.since, Date.now(), locale);
+                            const parts = [
+                                pageHost(row.url),
+                                workspaceNameOf(entries, row.workspaceId),
+                                when ? t("library.ai.since", { when }) : "",
+                            ].filter(Boolean);
+                            const origin = row.takenOver
+                                ? t("library.ai.takenOver")
+                                : t(row.shared ? "library.ai.shared" : "library.ai.opened", { name });
+                            return (
+                                <div
+                                    key={row.key}
+                                    className="mt-lib-airow"
+                                    title={row.url}
+                                    data-testid="library-ai-row"
+                                >
+                                    <SidebarGlyph name="globe" />
+                                    <span className="t">
+                                        <b>{row.title}</b>
+                                        <span>{parts.join(" · ")}</span>
+                                    </span>
+                                    <span className="mt-lib-state">{origin}</span>
+                                    <button
+                                        type="button"
+                                        className="mt-lib-aiact"
+                                        data-testid="library-ai-show"
+                                        onClick={() => open(row)}
+                                    >
+                                        {t("library.ai.show")}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="mt-lib-aiact"
+                                        data-testid="library-ai-remove"
+                                        disabled={removing.has(row.key)}
+                                        onClick={() => remove([row], name, false)}
+                                    >
+                                        {t("library.ai.remove")}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </section>
+                );
+            })}
+        </div>
+    );
+}
+
+// ---------- Put-away views ----------
+
+function PutAwaySection({ entries, query }: { entries: WorkspaceRailEntry[]; query: string }) {
+    const t = useT();
+    const tc = useTCount();
+    const locale = useLocale();
+    const [views, setViews] = useState<PutAwayView[]>(null);
+    const [busy, setBusy] = useState<string>(null);
+    const home = getApi().getHomeDir();
+    const load = () =>
+        fireAndForget(async () => {
+            try {
+                setViews(await listPutAwayViews());
+            } catch (e) {
+                console.log("library: put-away views", e);
+                setViews([]);
+            }
+        });
+    useEffect(load, []);
+    if (views == null) {
+        return null;
+    }
+    const named = views.map((v) => ({
+        view: v,
+        name: tabDisplayName(viewNameText(v.name, t), v.panels?.[0], home) || t("library.putaway.unnamed"),
+        workspace: workspaceNameOf(entries, v.workspaceid),
+        agents: putAwayAgentNames(v),
+    }));
+    const shown = named.filter((n) => matchesQuery([n.name, n.workspace, ...n.agents], query));
+    const reopen = (view: PutAwayView) => {
+        setBusy(view.id);
+        fireAndForget(async () => {
+            try {
+                const res = await reopenPutAwayView(view);
+                if (!res?.reopened) {
+                    showToast({ kind: "info", title: t("library.putaway.gone") });
+                    load();
+                    return;
+                }
+                close();
+            } catch (e) {
+                showToast({ kind: "error", title: t("reopen.failed"), message: String(e?.message ?? e) });
+                load();
+            } finally {
+                setBusy(null);
+            }
+        });
+    };
+    if (shown.length === 0) {
+        return (
+            <div className="mt-lib-empty" data-testid="library-putaway-empty">
+                <b>{t(views.length === 0 ? "library.putaway.emptyTitle" : "library.nothingFound")}</b>
+                {views.length === 0 ? <span>{t("library.putaway.empty")}</span> : null}
+            </div>
+        );
+    }
+    return (
+        <div className="flex flex-col gap-1.5" data-testid="library-putaway">
+            {shown.map(({ view, name, workspace, agents }) => {
+                const facts = [
+                    workspace,
+                    whenText(view.at, Date.now(), locale),
+                    tc("library.putaway.panels", view.panels?.length ?? 0),
+                ].filter(Boolean);
+                return (
+                    <div key={view.id} className="mt-lib-item" data-testid="library-putaway-row">
+                        <i
+                            className={cn(
+                                makeIconClass(panelIcon(view.panels?.[0], agents.length > 0), true),
+                                "w-4 text-center text-secondary"
+                            )}
+                            aria-hidden
+                        />
+                        <div className="min-w-0 flex-1">
+                            <div className="truncate text-primary">{name}</div>
+                            <div className="truncate text-11 text-muted">{facts.join(" · ")}</div>
+                        </div>
+                        {agents.length > 0 ? (
+                            <span className="mt-lib-state" title={t("library.putaway.withAgentTitle")}>
+                                {t("library.putaway.withAgent", { agents: agents.join(", ") })}
+                            </span>
+                        ) : null}
+                        <button
+                            type="button"
+                            className="mt-lib-btn"
+                            disabled={busy != null}
+                            data-testid="library-reopen"
+                            onClick={() => reopen(view)}
+                        >
+                            {t("library.putaway.reopen")}
+                        </button>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// ---------- Settings ----------
+
+// Leaves the library for a Preferences view: only on the developer's explicit ask (#1406).
+function openInView(run: () => Promise<unknown>) {
+    close();
+    fireAndForget(run);
+}
+
+function isFieldInSettingsBlock(target: EventTarget): boolean {
+    const el = target as HTMLElement;
+    return el?.closest?.(".mt-lib-setpage") != null && el.matches?.("input, textarea, select, [contenteditable]");
+}
+
+const SettingsSectionIds = SettingsSections.map((s) => s.id);
+
+const LibraryRowIdPrefix = "molten-setting-library-";
+
+function libraryRowId(key: string): string {
+    return `${LibraryRowIdPrefix}${key.replace(/[^a-z0-9]/gi, "-")}`;
+}
+
+// A settings block open in the library's page, with the rows of Preferences (FR-SHELL-088, #1406). What needs a
+// Preferences view (a JSON file in the editor, Secrets) opens one, as "Open in a view" does.
+function LibrarySettingsBlock({ block }: { block: SettingsSectionId }) {
+    const t = useT();
+    const data = useSettingsPageData();
+    const files = useMemo(
+        () => makeConfigFiles(isWindows()).map((f) => ({ path: f.path, name: f.name, description: f.description })),
+        []
+    );
+    const blockTitle = data.sections.find((s) => s.id === block)?.title ?? block;
+    return (
+        <div
+            className="mt-lib-setpage @container/page min-w-0"
+            data-testid="library-settings-block"
+            data-section={block}
+            onKeyDown={(e) => {
+                if (e.key !== "Escape" || e.defaultPrevented) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                close();
+            }}
+        >
+            <PageFill width={sectionPageWidth(data, block)} className="pt-0 pb-6">
+                <SettingsSectionPage
+                    section={block}
+                    data={data}
+                    rowId={libraryRowId}
+                    files={files}
+                    onOpenFile={(path) => openInView(() => openSettings(path))}
+                    actions={
+                        <button
+                            type="button"
+                            className="molten-btn-secondary inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12"
+                            data-testid="library-settings-openview"
+                            title={t("library.settings.openInViewTitle", { name: blockTitle })}
+                            onClick={() => openInView(() => openSettingsSection(block))}
+                        >
+                            <i className={makeIconClass("arrow-up-right-from-square", true)} aria-hidden />
+                            {t("library.settings.openInView")}
+                        </button>
+                    }
+                />
+            </PageFill>
+        </div>
+    );
+}
+
+// The settings blocks, and the one the developer opened, in one stage (#1406). The blocks stay mounted in Preferences'
+// order while one is open, as a compact sticky row (#1548) from which another block opens directly; the open block is
+// revealed by settings-reveal.ts (#1407), from the chip or tile just clicked. One navigation (#1592): the row is always
+// there, its first tab Overview (null) holding the blocks as compact cards.
+function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: (block: SettingsSectionId) => void }) {
+    const t = useT();
+    const hasConfigErrors = useAtomValue(atoms.hasConfigErrors);
+    const reducedMotion = useAtomValue(atoms.prefersReducedMotionAtom);
+    const revealSetting = useAtomValue(getSettingsKeyAtom(SettingsRevealKey));
+    const stageRef = useRef<HTMLDivElement>(null);
+    const layerRef = useRef<HTMLDivElement>(null);
+    const channelLayerRef = useRef<HTMLDivElement>(null);
+    const channelsRef = useRef<ChannelsHandle>(null);
+    const sourceRef = useRef<RevealRect>(null);
+    const mode = revealMode(reducedMotion, revealSetting !== false);
+    // The channels of the open block (#1549): from its chip in the row to its cards, kept while it is open.
+    const openChannels = (): ChannelsHandle => {
+        const stage = stageRef.current;
+        const page = stage?.querySelector<HTMLElement>(".mt-lib-setpage");
+        if (page == null || channelLayerRef.current == null) {
+            return null;
+        }
+        return mountChannels({
+            stage,
+            layer: channelLayerRef.current,
+            page,
+            chip: () => stage.querySelector<HTMLElement>('.mt-lib-set[aria-current="true"]'),
+            cards: () => revealTargets(page).slice(0, MaxRevealCards),
+            onRelayout: () => finishSettingsReveal(),
+        });
+    };
+    const firstLayoutRef = useRef(true);
+    // The molten reveal of the block just opened (#1407), before its first frame; switching block or section or
+    // closing the library ends it and removes its channels.
+    useLayoutEffect(() => {
+        // Settings reopening on the last tab used (#1592) is not an ask to open it: the block shows without a reveal.
+        const restored = firstLayoutRef.current;
+        firstLayoutRef.current = false;
+        const stage = stageRef.current;
+        if (!restored) {
+            // The new tab starts at its top, under the sticky row; the geometry of the reveal is read after this.
+            stage?.closest(".mt-lib-body")?.scrollTo({ top: 0 });
+        }
+        const page = stage?.querySelector(".mt-lib-setpage");
+        if (block == null || page == null || layerRef.current == null) {
+            return;
+        }
+        const chip = stage.querySelector('.mt-lib-set[aria-current="true"]');
+        chip?.scrollIntoView({ block: "nearest", inline: "nearest" });
+        channelsRef.current = mode === "molten" ? openChannels() : null;
+        if (restored) {
+            sourceRef.current = null;
+            return () => {
+                channelsRef.current?.dispose();
+                channelsRef.current = null;
+            };
+        }
+        // The chip melts at its place in the row, where the block opened from the tiles too (#1548).
+        const clicked = sourceRef.current != null && chip != null;
+        const handle = runSettingsReveal({
+            stage,
+            overlay: layerRef.current,
+            cards: revealTargets(page),
+            chrome: [page.firstElementChild?.firstElementChild].filter((el) => el != null),
+            source: clicked ? relativeRect(chip.getBoundingClientRect(), stage.getBoundingClientRect()) : null,
+            mode,
+            channels: channelsRef.current,
+        });
+        sourceRef.current = null;
+        return () => {
+            handle.finish();
+            channelsRef.current?.dispose();
+            channelsRef.current = null;
+        };
+    }, [block]);
+    // Reduced motion or the reveal setting, switched while a block is open, removes or brings back its channels.
+    useEffect(() => {
+        if (block == null) {
+            return;
+        }
+        if (mode !== "molten") {
+            finishSettingsReveal();
+            channelsRef.current?.dispose();
+            channelsRef.current = null;
+            return;
+        }
+        channelsRef.current ??= openChannels();
+    }, [mode]);
+    const openFromTile = (id: SettingsSectionId, tile: HTMLElement) => {
+        const stage = stageRef.current;
+        sourceRef.current =
+            stage != null ? relativeRect(tile.getBoundingClientRect(), stage.getBoundingClientRect()) : null;
+        onOpen(id);
+    };
+    return (
+        <div
+            ref={stageRef}
+            className="mt-lib-setstage flex flex-col gap-3"
+            data-testid="library-settings-stage"
+            data-state={block != null ? "open" : "overview"}
+            data-open={block ?? undefined}
+        >
+            <div ref={channelLayerRef} className="mt-ch-layer" data-testid="library-settings-channels" aria-hidden />
+            <div className="mt-lib-settabs" data-testid="library-settings">
+                <button
+                    type="button"
+                    className="mt-lib-set"
+                    data-testid="library-settings-overview"
+                    data-section={SettingsOverviewTab}
+                    aria-current={block == null ? "true" : undefined}
+                    onClick={() => onOpen(null)}
+                >
+                    <i className={makeIconClass("table-cells-large", true)} aria-hidden />
+                    <span>{t("library.settings.overview")}</span>
+                </button>
+                {SettingsSections.map((s) => (
+                    <button
+                        key={s.id}
+                        type="button"
+                        className="mt-lib-set"
+                        data-testid="library-settings-section"
+                        data-section={s.id}
+                        aria-current={s.id === block ? "true" : undefined}
+                        onClick={(e) => openFromTile(s.id, e.currentTarget)}
+                    >
+                        <i className={makeIconClass(s.icon, true)} aria-hidden />
+                        <span>{localizeSection(s, t).title}</span>
+                    </button>
+                ))}
+            </div>
+            {hasConfigErrors && block == null ? (
+                <button
+                    type="button"
+                    className="mt-lib-set is-error"
+                    data-testid="library-settings-errors"
+                    onClick={() => openInView(() => openSettings())}
+                >
+                    <i className={makeIconClass("triangle-exclamation", true)} aria-hidden />
+                    <span>{t("rail.tools.settingsErrors")}</span>
+                </button>
+            ) : null}
+            {block == null ? (
+                <div className="mt-lib-setgrid" data-testid="library-settings-cards">
+                    {SettingsSections.map((s) => {
+                        const section = localizeSection(s, t);
+                        return (
+                            <button
+                                key={s.id}
+                                type="button"
+                                className="mt-lib-setcard"
+                                data-testid="library-settings-card"
+                                data-section={s.id}
+                                title={section.description}
+                                onClick={(e) => openFromTile(s.id, e.currentTarget)}
+                            >
+                                <i className={makeIconClass(s.icon, true)} aria-hidden />
+                                <span>
+                                    {section.title}
+                                    <small>{section.description}</small>
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : (
+                <LibrarySettingsBlock block={block} />
+            )}
+            <div ref={layerRef} className="mt-reveal-layer" data-testid="library-settings-reveal" aria-hidden />
+        </div>
+    );
+}
+
+// ---------- Suggest MoltenTerm ----------
+
+function SuggestPopover({ onClose }: { onClose: () => void }) {
+    const t = useT();
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const away = (e: MouseEvent) => {
+            if (ref.current != null && !ref.current.contains(e.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener("mousedown", away, true);
+        return () => document.removeEventListener("mousedown", away, true);
+    }, [onClose]);
+    return (
+        <div
+            ref={ref}
+            className="mt-lib-pop"
+            role="dialog"
+            aria-label={t("library.suggest.title")}
+            data-testid="library-suggest"
+        >
+            <b>{t("library.suggest.title")}</b>
+            <p>{t("library.suggest.text")}</p>
+            <button
+                type="button"
+                className="mt-lib-btn"
+                data-testid="library-suggest-copy"
+                onClick={() => {
+                    onClose();
+                    fireAndForget(async () => {
+                        try {
+                            await navigator.clipboard.writeText(suggestClipboardText());
+                            showToast({ kind: "success", title: t("library.suggest.copied") });
+                        } catch (e) {
+                            showToast({ kind: "error", title: t("library.suggest.failed"), message: String(e) });
+                        }
+                    });
+                }}
+            >
+                <SidebarGlyph name="link" size={13} />
+                {t("library.suggest.copy")}
+            </button>
+        </div>
+    );
+}
+
+// ---------- The library ----------
+
+export function Library({
+    section,
+    entries,
+    onApps,
+}: {
+    section: LibrarySection;
+    entries: WorkspaceRailEntry[];
+    onApps: () => void;
+}) {
+    const t = useT();
+    const tc = useTCount();
+    const [query, setQuery] = useState("");
+    const [suggest, setSuggest] = useState(false);
+    const prefs = LibraryPrefs.getInstance();
+    const savedSettingsTab = useAtomValue(prefs.settingsTabAtom);
+    const settingsBlock = lastSettingsTab(savedSettingsTab, SettingsSectionIds);
+    const setSettingsBlock = (block: SettingsSectionId) => prefs.setSettingsTab(block);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const info = LibrarySections.find((s) => s.id === section) ?? LibrarySections[0];
+    const reopenKeys = formatShortcutById("reopen-closed");
+    const workspaceId = useAtomValue(atoms.workspaceId);
+    const materials = useMaterialsDrawer(workspaceId);
+    const newMaterials = useMaterialsNewCount(materials.view, section === "materials");
+    useEffect(() => {
+        setQuery("");
+    }, [section]);
+    useEffect(() => {
+        const previous = document.activeElement as HTMLElement;
+        rootRef.current?.querySelector<HTMLElement>(".mt-lib-ni.is-on")?.focus();
+        return () => previous?.focus?.();
+    }, []);
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") {
+                return;
+            }
+            // A question or a field of a row (Materials' rename, where to open, delete) cancels itself first.
+            if ((e.target as HTMLElement)?.closest?.("[data-lib-escape]") != null) {
+                return;
+            }
+            // An Escape during the reveal of a block only ends the reveal (#1407).
+            if (finishSettingsReveal()) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            const step = libraryEscapeStep(suggest);
+            // A field of the open block takes Escape first (a text field puts its saved value back); the block's own
+            // handler closes the library when the field leaves it.
+            if (step === "close" && isFieldInSettingsBlock(e.target)) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            if (step === "suggest") {
+                setSuggest(false);
+                return;
+            }
+            close();
+        };
+        window.addEventListener("keydown", onKey, true);
+        return () => window.removeEventListener("keydown", onKey, true);
+    }, [suggest]);
+    // Each view of the window draws its own library: one left for another view (a workspace dot, a reopened view)
+    // must not wait open for the developer's return.
+    useEffect(() => {
+        const onVisibility = () => {
+            if (document.visibilityState === "hidden") {
+                close();
+            }
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => document.removeEventListener("visibilitychange", onVisibility);
+    }, []);
+    const sub =
+        section === "putaway" && reopenKeys
+            ? `${t(`library.sections.${info.key}.sub`)} ${t("library.putaway.lastKeys", { keys: reopenKeys })}`
+            : t(`library.sections.${info.key}.sub`);
+    return (
+        <div
+            ref={rootRef}
+            className="mt-lib"
+            role="dialog"
+            aria-label={t("library.label")}
+            data-testid="library"
+            data-section={section}
+        >
+            <nav className="mt-lib-nav" aria-label={t("library.navLabel")}>
+                <div className="mt-lib-navtop" />
+                <div
+                    className="mt-lib-items"
+                    role="tablist"
+                    aria-orientation="vertical"
+                    onKeyDown={(e) => {
+                        const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+                        if (step === 0) {
+                            return;
+                        }
+                        e.preventDefault();
+                        const next = librarySectionAt(section, step);
+                        SidebarModel.getInstance().openLibrary(next);
+                        requestAnimationFrame(() =>
+                            rootRef.current?.querySelector<HTMLElement>(`[data-lib="${next}"]`)?.focus()
+                        );
+                    }}
+                >
+                    {LibrarySections.map((s) => (
+                        <button
+                            key={s.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={s.id === section}
+                            tabIndex={s.id === section ? 0 : -1}
+                            className={cn("mt-lib-ni", s.id === section && "is-on")}
+                            data-lib={s.id}
+                            data-testid="library-nav"
+                            onClick={() => SidebarModel.getInstance().openLibrary(s.id)}
+                        >
+                            <SidebarGlyph name={s.glyph} size={22} />
+                            <span>{t(`library.sections.${s.key}.label`)}</span>
+                            {s.id === "materials" && newMaterials > 0 ? (
+                                <span
+                                    className="mt-lib-cnt"
+                                    title={tc("library.materials.newCount", newMaterials)}
+                                    aria-label={tc("library.materials.newCount", newMaterials)}
+                                    data-testid="library-materials-new"
+                                >
+                                    {newMaterials}
+                                </span>
+                            ) : null}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-lib-bot">
+                    <button
+                        type="button"
+                        className="mt-lib-icon"
+                        title={t("library.backTitle")}
+                        aria-label={t("library.back")}
+                        data-testid="library-back"
+                        onClick={close}
+                    >
+                        <SidebarGlyph name="back" />
+                    </button>
+                    <button
+                        type="button"
+                        className="mt-lib-icon"
+                        title={t("library.suggest.title")}
+                        aria-label={t("library.suggest.title")}
+                        aria-expanded={suggest}
+                        data-testid="library-suggest-button"
+                        onClick={() => setSuggest((v) => !v)}
+                    >
+                        <SidebarGlyph name="share" />
+                    </button>
+                    {suggest ? <SuggestPopover onClose={() => setSuggest(false)} /> : null}
+                </div>
+            </nav>
+            <section className="mt-lib-cont" role="tabpanel">
+                <div className="mt-lib-head">
+                    <div className="min-w-0">
+                        <h3>{t(`library.sections.${info.key}.title`)}</h3>
+                        <p>{sub}</p>
+                    </div>
+                    {info.search ? (
+                        <input
+                            className="mt-lib-search"
+                            type="search"
+                            value={query}
+                            placeholder={t("library.search")}
+                            aria-label={t("library.search")}
+                            data-testid="library-search"
+                            onChange={(e) => setQuery(e.target.value)}
+                        />
+                    ) : null}
+                </div>
+                <div className="mt-lib-body">
+                    {section === "agents" ? <AgentsSection /> : null}
+                    {section === "workspaces" ? <WorkspacesSection entries={entries} /> : null}
+                    {section === "panels" ? <PanelsSection onApps={onApps} /> : null}
+                    {section === "ai" ? <SentToAiSection entries={entries} query={query} /> : null}
+                    {section === "materials" ? (
+                        <MaterialsSection view={materials.view} failed={materials.failed} query={query} />
+                    ) : null}
+                    {section === "putaway" ? <PutAwaySection entries={entries} query={query} /> : null}
+                    {section === "settings" ? (
+                        <SettingsSection block={settingsBlock} onOpen={setSettingsBlock} />
+                    ) : null}
+                </div>
+            </section>
+        </div>
+    );
+}

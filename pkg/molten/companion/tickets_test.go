@@ -17,20 +17,21 @@ import (
 
 func TestResolveTicket(t *testing.T) {
 	cases := []struct {
-		own, pane, text string
-		want            int
+		own, text string
+		want      int
 	}{
-		{"feature/601-agents", "fix/12-x", "#5", 601},
-		{"worktree-agent-abc", "fix/12-login", "#5", 12},
-		{"develop", "main", "Fix #77 now", 77},
-		{"feature/601", "", "", 601},
-		{"feature/abc-601", "", "", 0},
-		{"develop", "develop", "a#12 or &#39; or x/#4", 0},
-		{"", "", "#12345678901", 0},
+		{"feature/601-agents", "#5", 601},
+		{"worktree-agent-abc", "#5 Reviews", 5},
+		{"develop", "Fix #77 now", 77},
+		{"feature/601", "", 601},
+		{"feature/abc-601", "", 0},
+		{"develop", "a#12 or &#39; or x/#4", 0},
+		{"", "#12345678901", 0},
+		{"worktree-agent-abc", "no ticket", 0},
 	}
 	for _, c := range cases {
-		if got := resolveTicket(c.own, c.pane, c.text); got != c.want {
-			t.Errorf("resolveTicket(%q, %q, %q) = %d, want %d", c.own, c.pane, c.text, got, c.want)
+		if got := resolveTicket(c.own, c.text); got != c.want {
+			t.Errorf("resolveTicket(%q, %q) = %d, want %d", c.own, c.text, got, c.want)
 		}
 	}
 }
@@ -58,21 +59,76 @@ func writeLines(t *testing.T, path string, lines ...string) {
 	}
 }
 
+// makeRepo makes dir a repository checked out on branch: only the files FolderBranch reads.
+func makeRepo(t *testing.T, dir string, branch string) {
+	t.Helper()
+	os.MkdirAll(filepath.Join(dir, ".git"), 0o700)
+	writeLines(t, filepath.Join(dir, ".git", "HEAD"), "ref: refs/heads/"+branch)
+}
+
+// makeWorktree makes dir a worktree of the repository at repo, checked out on branch ("" for a detached HEAD).
+func makeWorktree(t *testing.T, repo string, dir string, branch string) {
+	t.Helper()
+	gitDir := filepath.Join(repo, ".git", "worktrees", filepath.Base(dir))
+	os.MkdirAll(gitDir, 0o700)
+	os.MkdirAll(dir, 0o700)
+	writeLines(t, filepath.Join(dir, ".git"), "gitdir: "+gitDir)
+	head := "ref: refs/heads/" + branch
+	if branch == "" {
+		head = "3f0a31bb4f3f81328496e2b39cdcbef1aaaaaaaa"
+	}
+	writeLines(t, filepath.Join(gitDir, "HEAD"), head)
+}
+
+func TestFolderBranch(t *testing.T) {
+	repo := t.TempDir()
+	makeRepo(t, repo, "develop")
+	os.MkdirAll(filepath.Join(repo, "pkg", "deep"), 0o700)
+	wt := filepath.Join(repo, ".claude", "worktrees", "agent-a1")
+	makeWorktree(t, repo, wt, "fix/961-status-bar")
+	detached := filepath.Join(repo, ".claude", "worktrees", "agent-a2")
+	makeWorktree(t, repo, detached, "")
+	cases := map[string]string{
+		repo:                               "develop",
+		filepath.Join(repo, "pkg", "deep"): "develop",
+		wt:                                 "fix/961-status-bar",
+		detached:                           "",
+		"relative/path":                    "",
+		"":                                 "",
+	}
+	for dir, want := range cases {
+		if got := FolderBranch(dir); got != want {
+			t.Errorf("FolderBranch(%q) = %q, want %q", dir, got, want)
+		}
+	}
+}
+
 func TestReadSubagentFacts(t *testing.T) {
 	root := t.TempDir()
+	repo := t.TempDir()
+	makeRepo(t, repo, "develop")
+	wt := filepath.Join(repo, ".claude", "worktrees", "agent-aa1")
+	makeWorktree(t, repo, wt, "feature/601-agents")
 	dir := filepath.Join(root, "-work-demo")
 	subs := filepath.Join(dir, "sess", "subagents")
 	os.MkdirAll(subs, 0o700)
 	session := filepath.Join(dir, "sess.jsonl")
 	writeLines(t, session, `{}`)
-	writeLines(t, filepath.Join(subs, "agent-aa1.meta.json"), `{"agentType":"general-purpose","toolUseId":"call-1"}`)
+	writeLines(t, filepath.Join(subs, "agent-aa1.meta.json"), fmt.Sprintf(`{"agentType":"general-purpose","toolUseId":"call-1","worktreePath":%q}`, wt))
 	writeLines(t, filepath.Join(subs, "agent-bad id.meta.json"), `{"toolUseId":"call-x"}`)
 	writeLines(t, filepath.Join(subs, "agent-aa1.jsonl"),
 		`{"type":"user","gitBranch":"develop","message":{"role":"user","content":"go"}}`,
-		`{"type":"assistant","gitBranch":"feature/601-agents","effort":"high","message":{"model":"claude-sonnet-4-5","content":[]}}`,
-		`{"type":"assistant","gitBranch":"feature/601-agents","message":{"model":"<synthetic>","content":[]}}`,
+		`{"type":"assistant","gitBranch":"fix/954-other-worktree","effort":"high","message":{"model":"claude-sonnet-4-5","content":[]}}`,
+		`{"type":"assistant","gitBranch":"fix/954-other-worktree","message":{"model":"<synthetic>","content":[]}}`,
 		`not json`,
 	)
+	// A sub-agent without a worktree works in its records' cwd.
+	writeLines(t, filepath.Join(subs, "agent-aa2.jsonl"),
+		fmt.Sprintf(`{"type":"assistant","cwd":%q,"gitBranch":"fix/954-other-worktree","message":{"model":"claude-sonnet-4-5","content":[]}}`, repo),
+	)
+	if facts, ok := MakeClaudeAdapter([]string{root}).ReadSubagent(session, "aa2"); !ok || facts.Branch != "develop" {
+		t.Errorf("the branch of the records' cwd: %+v %v", facts, ok)
+	}
 	a := MakeClaudeAdapter([]string{root})
 	ids := a.SubagentIds(session)
 	if len(ids) != 1 || ids["call-1"] != "aa1" {
@@ -99,8 +155,13 @@ func TestSubagentEffortFromCall(t *testing.T) {
 		t.Errorf("the main agent's model and effort: %q %q", s.Model(), s.Effort())
 	}
 	s.ResolveTickets(nil)
-	if n, _ := s.Ticket(); n != 9 || s.Subagents()[0].Ticket != 9 {
-		t.Errorf("the pane's branch before the description: main %d, sub %+v", n, s.Subagents()[0])
+	if n, _ := s.Ticket(); n != 9 || s.Subagents()[0].Ticket != 12 {
+		t.Errorf("the main agent's branch, the sub-agent's own description: main %d, sub %+v", n, s.Subagents()[0])
+	}
+	s.SetFolderBranch("")
+	s.ResolveTickets(nil)
+	if n, _ := s.Ticket(); n != 0 || s.Branch() != "" {
+		t.Errorf("a folder read on no branch wins over the records': no stale ticket, got %d on %q", n, s.Branch())
 	}
 }
 
@@ -136,6 +197,9 @@ func (f *fakeLabels) count() map[int]int {
 func TestTicketComplexityOnRefreshOnly(t *testing.T) {
 	root := t.TempDir()
 	cwd := t.TempDir()
+	makeRepo(t, cwd, "feature/601-x")
+	wt := filepath.Join(cwd, ".claude", "worktrees", "agent-aa1")
+	makeWorktree(t, cwd, wt, "feature/700-y")
 	dir := filepath.Join(root, ClaudeSlug(cwd))
 	subs := filepath.Join(dir, "sess", "subagents")
 	os.MkdirAll(subs, 0o700)
@@ -145,8 +209,8 @@ func TestTicketComplexityOnRefreshOnly(t *testing.T) {
 		fmt.Sprintf(`{"type":"user","cwd":%q,"sessionId":"s","gitBranch":"feature/601-x","timestamp":%q,"message":{"role":"user","content":"Dispatch the agents"}}`, cwd, now),
 		fmt.Sprintf(`{"type":"assistant","sessionId":"s","gitBranch":"feature/601-x","effort":"high","timestamp":%q,"message":{"model":"claude-opus-5-5","content":[{"type":"tool_use","id":"call-1","name":"Agent","input":{"description":"Ticket work","subagent_type":"general-purpose"}},{"type":"tool_use","id":"call-2","name":"Agent","input":{"description":"No label #800","subagent_type":"Explore"}}]}}`, now),
 	)
-	writeLines(t, filepath.Join(subs, "agent-aa1.meta.json"), `{"toolUseId":"call-1"}`)
-	writeLines(t, filepath.Join(subs, "agent-aa1.jsonl"), `{"type":"assistant","gitBranch":"feature/700-y","effort":"low","message":{"model":"claude-haiku-4-5","content":[]}}`)
+	writeLines(t, filepath.Join(subs, "agent-aa1.meta.json"), fmt.Sprintf(`{"toolUseId":"call-1","worktreePath":%q}`, wt))
+	writeLines(t, filepath.Join(subs, "agent-aa1.jsonl"), `{"type":"assistant","gitBranch":"fix/954-elsewhere","effort":"low","message":{"model":"claude-haiku-4-5","content":[]}}`)
 
 	start := time.Now().Add(-time.Minute).UnixMilli()
 	env := &fakeEnv{
@@ -181,14 +245,74 @@ func TestTicketComplexityOnRefreshOnly(t *testing.T) {
 	if sub.Ticket != 700 || sub.Branch != "feature/700-y" || sub.Effort != "low" || sub.Model != "claude-haiku-4-5" {
 		t.Errorf("the sub-agent's own transcript: %+v", sub)
 	}
-	if v.Subagents[1].Ticket != 601 || v.Subagents[1].Complexity != ComplexityMedium {
-		t.Errorf("without a branch of its own, the pane's ticket: %+v", v.Subagents[1])
+	if v.Subagents[1].Ticket != 800 || v.Subagents[1].Complexity != "" {
+		t.Errorf("without a branch of its own, the ticket its description names, never the parent's: %+v", v.Subagents[1])
 	}
 	for i := 0; i < 3; i++ {
 		m.Refresh("b")
 		time.Sleep(50 * time.Millisecond)
 	}
-	if calls := labels.count(); calls[601] != 1 || calls[700] != 1 || len(calls) != 2 {
+	if calls := labels.count(); calls[601] != 1 || calls[700] != 1 || calls[800] > 1 {
 		t.Errorf("one gh call per ticket: %v", calls)
+	}
+}
+
+// #967, the developer's screenshot: a main agent on develop runs four background sub-agents, each in its own worktree
+// on its own branch, while Claude Code records in every transcript the branch another worktree last switched to. Each
+// row shows its own ticket; one still on its worktree-agent-… branch takes its description's; one with neither shows
+// none, never the parent's or another sub-agent's; the main agent shows none while its topic names none.
+func TestSubagentTicketsFromTheirWorktrees(t *testing.T) {
+	root := t.TempDir()
+	repo := t.TempDir()
+	makeRepo(t, repo, "develop")
+	dir := filepath.Join(root, ClaudeSlug(repo))
+	subs := filepath.Join(dir, "sess", "subagents")
+	os.MkdirAll(subs, 0o700)
+	session := filepath.Join(dir, "sess.jsonl")
+	writeLines(t, session, `{}`)
+	agents := []struct {
+		id, description, branch, recorded string
+		want                              int
+	}{
+		{"a81", "#963 Reviews Launch", "feature/963-reviews-launch", "feature/962-browser-test-context", 963},
+		{"af7", "#962 browser test context", "feature/962-browser-test-context", "fix/961-status-bar-detached-head", 962},
+		{"a90", "#961 status bar detached", "fix/961-status-bar-detached-head", "feature/960-merged-history", 961},
+		{"aa9", "#960 merged PR history", "feature/960-merged-history", "fix/954-reviews-agent-line", 960},
+		{"ab1", "#958 just started", "worktree-agent-ab1", "fix/954-reviews-agent-line", 958},
+		{"ab2", "Explore the code", "worktree-agent-ab2", "fix/954-reviews-agent-line", 0},
+	}
+	a := MakeClaudeAdapter([]string{root})
+	s := MakeSession()
+	at := "2026-10-22T12:00:00.000Z"
+	parseRecordLine(a, s, []byte(fmt.Sprintf(`{"type":"user","cwd":%q,"sessionId":"s","gitBranch":"feature/962-browser-test-context","timestamp":%q,"message":{"role":"user","content":"Launch the four tickets"}}`, repo, at)))
+	for _, ag := range agents {
+		wt := filepath.Join(repo, ".claude", "worktrees", "agent-"+ag.id)
+		makeWorktree(t, repo, wt, ag.branch)
+		callId := "call-" + ag.id
+		parseRecordLine(a, s, []byte(fmt.Sprintf(`{"type":"assistant","sessionId":"s","gitBranch":"fix/954-reviews-agent-line","timestamp":%q,"message":{"role":"assistant","content":[{"type":"tool_use","id":%q,"name":"Agent","input":{"description":%q,"subagent_type":"general-purpose","run_in_background":true}}]}}`, at, callId, ag.description)))
+		writeLines(t, filepath.Join(subs, "agent-"+ag.id+".meta.json"), fmt.Sprintf(`{"toolUseId":%q,"worktreePath":%q,"description":%q}`, callId, wt, ag.description))
+		writeLines(t, filepath.Join(subs, "agent-"+ag.id+".jsonl"), fmt.Sprintf(`{"type":"assistant","cwd":%q,"gitBranch":%q,"message":{"model":"claude-opus-5-5","content":[]}}`, wt, ag.recorded))
+	}
+	ids := a.SubagentIds(session)
+	for _, sa := range s.runningSubagents() {
+		s.SetSubagentId(sa.callId, ids[sa.callId])
+		if facts, ok := a.ReadSubagent(session, ids[sa.callId]); ok {
+			s.SetSubagentFacts(sa.callId, facts)
+		}
+	}
+	s.SetFolderBranch(FolderBranch(s.Cwd))
+	s.ResolveTickets(nil)
+	got := map[string]SubagentInfo{}
+	for _, sub := range s.Subagents() {
+		got[sub.Description] = sub
+	}
+	for _, ag := range agents {
+		sub := got[ag.description]
+		if sub.Ticket != ag.want || sub.Branch != ag.branch {
+			t.Errorf("%q: ticket %d on %q, want %d on %q", ag.description, sub.Ticket, sub.Branch, ag.want, ag.branch)
+		}
+	}
+	if n, _ := s.Ticket(); n != 0 || s.Branch() != "develop" {
+		t.Errorf("the main agent on develop with no ticket in its topic: %d on %q", n, s.Branch())
 	}
 }

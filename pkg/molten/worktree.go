@@ -60,6 +60,20 @@ func MainCheckoutOf(common string) string {
 	return common
 }
 
+// MainCheckoutOfTree is the main checkout of the linked worktree whose top folder is root (a review, merge-queue or
+// setup tree under MoltenTerm's data folder included, #1123), "" for a main tree or when its git files cannot be read.
+// Read from the .git and commondir files, without a process.
+func MainCheckoutOfTree(root string) string {
+	if root == "" || !IsWorktreeCheckout(root) {
+		return ""
+	}
+	dirs, err := gitwatch.ReadDirs(root)
+	if err != nil || !dirs.Linked() {
+		return ""
+	}
+	return MainCheckoutOf(dirs.CommonDir)
+}
+
 type WorktreeInfo struct {
 	Path   string `json:"path"`
 	Main   string `json:"main"`

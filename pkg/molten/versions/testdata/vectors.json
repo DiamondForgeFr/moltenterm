@@ -1,13 +1,47 @@
 {
-    "order": ["0.14.5", "1.0.0-1", "1.0.0-2", "1.0.0-10", "1.0.0", "1.0.1-1", "1.0.1", "1.1.0-1", "1.1.0", "2.0.0"],
-    "invalid": ["1.0.0-0", "01.0.0", "1.00.0", "1.0", "1.0.0-01", "1.0.0-rc.1", "1.0.0-65536", "v1.0.0", "1.0.0+5", ""],
+    "order": [
+        "0.14.5",
+        "1.0.0-1",
+        "1.0.0-2",
+        "1.0.0-10",
+        "1.0.0",
+        "1.0.1-1",
+        "1.0.1",
+        "1.1.0-1",
+        "1.1.0-3",
+        "1.1.0-rc.2",
+        "1.1.0-rc.10",
+        "1.1.0",
+        "2.0.0"
+    ],
+    "invalid": [
+        "1.0.0-0",
+        "01.0.0",
+        "1.00.0",
+        "1.0",
+        "1.0.0-01",
+        "1.0.0-rc.0",
+        "1.0.0-rc.01",
+        "1.0.0-rc1",
+        "1.0.0-rc",
+        "1.0.0-RC.1",
+        "1.0.0-beta.1",
+        "1.0.0-rc.65536",
+        "1.0.0-65536",
+        "v1.0.0",
+        "1.0.0+5",
+        ""
+    ],
     "channels": [
         { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0", "channel": "public" },
         { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-3", "channel": "rc" },
         { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": " v1.2.0-1 ", "channel": "rc" },
         { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v0.14.5", "channel": "" },
         { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-0", "channel": "" },
-        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-rc.1", "channel": "" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-rc.1", "channel": "rc" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0", "rcformat": "rcdot" }, "tag": "v1.0.0-1", "channel": "rc" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-beta.1", "channel": "" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v0.14.5-rc.1", "channel": "" },
         { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "1.0.0", "channel": "" },
         { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-65535", "channel": "rc" },
         { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-65536", "channel": "" },
@@ -20,8 +54,14 @@
         {
             "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
             "base": "1.0.0",
-            "tags": ["v1.0.0-1", "v1.0.0-2", "v1.1.0-7", "v1.0.0-rc.9", "v1.0.0-09"],
+            "tags": ["v1.0.0-1", "v1.0.0-2", "v1.1.0-7", "v1.0.0-beta.9", "v1.0.0-09"],
             "rc": 3
+        },
+        {
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0", "rcformat": "rcdot" },
+            "base": "1.0.0",
+            "tags": ["v1.0.0-1", "v1.0.0-2", "v1.0.0-rc.4", "v1.1.0-rc.9"],
+            "rc": 5
         },
         {
             "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
@@ -49,6 +89,12 @@
             "tags": ["v0.14.5", "v0.14.4-1"],
             "lastpublic": "v0.14.5",
             "lastrc": "v0.14.4-1"
+        },
+        {
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.1.0-rc.2", "v1.1.0-1", "v1.0.1", "v1.1.0-3"],
+            "lastpublic": "v1.0.1",
+            "lastrc": "v1.1.0-rc.2"
         }
     ],
     "bumps": [
@@ -358,6 +404,96 @@
                 "level": "minor",
                 "reason": "1 new feature(s)",
                 "lastpublic": "release-1.2.0"
+            }
+        },
+        {
+            "name": "rcdot: the first candidate is X.Y.Z-rc.1",
+            "rules": { "tagprefix": "v", "firstpublic": "", "rcformat": "rcdot" },
+            "tags": ["v1.0.1"],
+            "commits": [{ "subject": "feat(#3): a" }],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "derived",
+                "base": "1.1.0",
+                "version": "1.1.0-rc.1",
+                "tag": "v1.1.0-rc.1",
+                "level": "minor",
+                "reason": "1 new feature(s)",
+                "lastpublic": "v1.0.1"
+            }
+        },
+        {
+            "name": "rcdot after -N candidates: the numbering goes on",
+            "rules": { "tagprefix": "v", "firstpublic": "", "rcformat": "rcdot" },
+            "tags": ["v1.0.1", "v1.1.0-1", "v1.1.0-2"],
+            "commits": [{ "subject": "feat(#3): a" }],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "derived",
+                "base": "1.1.0",
+                "version": "1.1.0-rc.3",
+                "tag": "v1.1.0-rc.3",
+                "level": "minor",
+                "reason": "1 new feature(s)",
+                "lastpublic": "v1.0.1"
+            }
+        },
+        {
+            "name": "numeric after rc.N candidates of the same version: the version keeps rc.N",
+            "rules": { "tagprefix": "v", "firstpublic": "", "rcformat": "numeric" },
+            "tags": ["v1.0.1", "v1.1.0-rc.1", "v1.1.0-rc.2"],
+            "commits": [{ "subject": "feat(#3): a" }],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "derived",
+                "base": "1.1.0",
+                "version": "1.1.0-rc.3",
+                "tag": "v1.1.0-rc.3",
+                "level": "minor",
+                "reason": "1 new feature(s)",
+                "lastpublic": "v1.0.1"
+            }
+        },
+        {
+            "name": "numeric after rc.N candidates of a released version: the next version is -N again",
+            "rules": { "tagprefix": "v", "firstpublic": "" },
+            "tags": ["v1.1.0-rc.1", "v1.1.0"],
+            "commits": [{ "subject": "fix(#4): a" }],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "derived",
+                "base": "1.1.1",
+                "version": "1.1.1-1",
+                "tag": "v1.1.1-1",
+                "level": "patch",
+                "reason": "1 fix(es), no new feature",
+                "lastpublic": "v1.1.0"
+            }
+        },
+        {
+            "name": "rcdot: the public release is X.Y.Z",
+            "rules": { "tagprefix": "v", "firstpublic": "", "rcformat": "rcdot" },
+            "tags": ["v1.0.1", "v1.1.0-rc.1", "v1.1.0-rc.2"],
+            "commits": [{ "subject": "feat(#3): a" }],
+            "channel": "public",
+            "override": "",
+            "expect": {
+                "channel": "public",
+                "how": "derived",
+                "base": "1.1.0",
+                "version": "1.1.0",
+                "tag": "v1.1.0",
+                "level": "minor",
+                "reason": "1 new feature(s)",
+                "lastpublic": "v1.0.1"
             }
         },
         {

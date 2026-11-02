@@ -14,6 +14,7 @@ package agentcontinuity
 import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenttoolkit"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
@@ -115,6 +116,9 @@ type AgentAdapter interface {
 	Exit() ExitSequence
 	// Capabilities holds every capability of AllCapabilities.
 	Capabilities() map[string]Capability
+	// Features holds how every MoltenTerm feature of AllFeatures works with the agent (FR-AGC-001), checked against
+	// Capabilities.
+	Features() map[string]FeatureSupport
 	// Launch is the agent's launcher (#318), nil while it has none.
 	Launch() agentlaunch.LaunchAdapter
 	// Transcripts is the companion's reader of the agent's sessions, nil while it has none.
@@ -123,4 +127,16 @@ type AgentAdapter interface {
 	Usage() usage.UsageAdapter
 	// GuideProfile is the id of the agent's molten guides profile (molten agent install), "" for none.
 	GuideProfile() string
+	// Toolkit lists the MCP servers, skills and plugins a session started in cwd can use, read-only from the agent's
+	// configuration files (#1543); Supported false when the agent does not tell.
+	Toolkit(env ModelEnv, cwd string) agenttoolkit.Toolkit
+}
+
+// ReadToolkit is the toolkit of an agent id; an agent without an adapter does not tell.
+func ReadToolkit(agent string, env ModelEnv, cwd string) agenttoolkit.Toolkit {
+	a := Find(agent)
+	if a == nil {
+		return agenttoolkit.Toolkit{}
+	}
+	return a.Toolkit(env, cwd)
 }

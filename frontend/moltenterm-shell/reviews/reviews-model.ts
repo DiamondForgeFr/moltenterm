@@ -5,26 +5,37 @@
 // (pkg/molten/mission/reviews.go); this side only words it. The pure helpers live here so they can be tested.
 
 import { t } from "../i18n/i18n";
-import { serverText, type ServerText } from "../i18n/server-text";
+import { joinPhrases, phrase, serverPhrase, type Phrase } from "../i18n/phrase";
+import { type ServerText } from "../i18n/server-text";
 import { CheckState } from "../mission/github";
+import type { NotRepoText } from "../mission/mission-frame";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
+import type { InvestigateBlockers } from "../review/review-client";
 import type { ReviewMergedPr } from "./reviews-merged-model";
+import type { PrTaskKind } from "./reviews-task-model";
 
 export const MoltentermReviewsView = "molten-reviews";
 
 // must match the constants in pkg/molten/mission/reviews.go
-export type ReviewMerge = "clean" | "behind" | "conflicts" | "blocked" | "failing" | "unknown";
+export type ReviewMerge = "clean" | "behind" | "conflicts" | "blocked" | "failing" | "running" | "unknown";
 export type ReviewReportState = "present" | "missing" | "unknown";
-export type ReviewCheckState = CheckState | "none";
+// A local CI check nothing here runs (#1713, pkg/molten/mission/ci_stalled.go): interrupted (a run of this computer
+// stopped), waiting for the approval of the project's commands, or with no run on this computer (it may run on
+// another one).
+export type CheckRunState = CheckState | "interrupted" | "untrusted" | "notlocal";
+export type ReviewCheckState = CheckRunState | "none";
 
 export type ReviewCheck = {
     name: string;
-    state: CheckState;
+    state: CheckRunState;
     local?: boolean;
     workflow?: string;
     url?: string;
     runid?: number;
     jobid?: number;
+    startedat?: string;
+    // ms; an interrupted local CI check's last sign of life
+    stoppedat?: number;
 };
 
 export type ReviewCi = {
@@ -32,6 +43,9 @@ export type ReviewCi = {
     success: number;
     failure: number;
     pending: number;
+    interrupted?: number;
+    untrusted?: number;
+    notlocal?: number;
     checks: ReviewCheck[];
 };
 
@@ -117,6 +131,8 @@ export function mergeLabel(merge: ReviewMerge, base: string): { label: string; t
             };
         case "failing":
             return { label: t("reviews.merge.failing"), tone: "failure", title: t("reviews.merge.failingTitle") };
+        case "running":
+            return { label: t("reviews.merge.running"), tone: "neutral", title: t("reviews.merge.runningTitle") };
     }
     return { label: t("reviews.merge.pending"), tone: "neutral", title: t("reviews.merge.pendingTitle") };
 }
@@ -177,14 +193,23 @@ export function validateBlocked(pr: ReviewPr): string {
 }
 
 // A rebase asked from a row: to whom, and on which head. It shows until the PR's head changes (the agent pushed).
-export type RebaseAsk = { name: string; head: string; at: number };
+// The work asked of a PR's agent (#683), by rebaseAskKey; kind (#954): a rebase when absent.
+// markReady (#1779): Resume on a draft, whose last step is the agent's.
+export type RebaseAsk = {
+    name: string;
+    head: string;
+    at: number;
+    kind?: PrTaskKind;
+    blockId?: string;
+    markReady?: boolean;
+};
 
 export function rebaseAskKey(dir: string, number: number): string {
     return `${dir}#${number}`;
 }
 
 export function rebaseAskShown(ask: RebaseAsk, pr: ReviewPr): boolean {
-    if (ask == null) {
+    if (ask == null || (ask.kind != null && ask.kind !== "rebase")) {
         return false;
     }
     return !ask.head || !pr.headoid || ask.head === pr.headoid;
@@ -240,6 +265,7 @@ export type RebaseResult = {
     message?: string;
     messagetext?: ServerText;
     worktree?: string;
+    blockid?: string;
     agent?: string;
     agentname?: string;
     firstname?: string;
@@ -252,26 +278,46 @@ export type RebaseResult = {
     agentmissing?: boolean;
     agentsource?: string;
     agents?: { id: string; name: string; installed: boolean }[];
+    // The lead agent that owns the work (#1779): the result is about it; leadfolder and leadguessed say where its
+    // session would resume and whether that is only the CLI's most recent session of the folder.
+    lead?: boolean;
+    leadfolder?: string;
+    leadguessed?: boolean;
+};
+
+// The lead agent that owns a PR (#1779, FR-REV-022 AC19): named by the PR's signature, else by the sub-agent registry's
+// parent session. agent is its CLI's id when known (a sub-agent's), agentName the CLI as signed; blockId is the
+// registry's parent terminal, which wavesrv looks up again.
+export type LeadFacts = {
+    name: string;
+    agent?: string;
+    agentName?: string;
+    blockId?: string;
+    source: "signature" | "subagent";
 };
 
 // asked: the agent has it (name), note when the developer still has a step or should know where it went; offer: no
 // agent on the branch, the developer chooses how one starts (agent: the one that would, result: wavesrv's offer with
-// the agents to switch to); info and failed: a line.
+// the agents to switch to); leadgone (#1779): the lead that owns the work no longer runs and its session can be
+// resumed (result says where); info and failed: a line. text is worded where it shows (wordPhrase, #1058).
 export type RebaseOutcome = {
-    kind: "asked" | "offer" | "info" | "failed";
+    kind: "asked" | "offer" | "leadgone" | "info" | "failed";
     name?: string;
+    blockId?: string;
     agent?: string;
     result?: RebaseResult;
-    text: string;
+    text: Phrase;
     note?: boolean;
+    // The agent busy on the branch (#1062): the card offers to hand it the task after its own.
+    busy?: { blockId: string; name: string };
 };
 
 // notChosen: the agent already on the branch took the work, not the one the developer chose (#845).
-function notChosen(result: RebaseResult, name: string): string {
+function notChosen(result: RebaseResult, name: string): Phrase {
     if (!result.chosenname || !result.agent || result.chosenagent === result.agent) {
-        return "";
+        return null;
     }
-    return " " + t("reviews.rebase.notChosen", { name, chosen: result.chosenname });
+    return phrase("reviews.rebase.notChosen", { name, chosen: result.chosenname });
 }
 
 function folderOf(path: string): string {
@@ -293,16 +339,31 @@ const OutcomeKeys = {
         offer: "reviews.ci.investigate.offer",
         failed: "reviews.ci.investigate.failed",
     },
+    finish: {
+        asked: "reviews.check.asked",
+        startedHidden: "reviews.check.startedHidden",
+        offer: "reviews.check.offer",
+        failed: "reviews.check.askFailed",
+    },
 };
 
+// rebaseOutcome: the line for what wavesrv answered; an agent that took the work carries its terminal (#954).
 export function rebaseOutcome(
     result: RebaseResult,
-    error?: string,
+    error?: Phrase,
     what: keyof typeof OutcomeKeys = "rebase"
 ): RebaseOutcome {
+    const outcome = outcomeOf(result, error, what);
+    if (outcome?.kind === "asked" && result?.blockid) {
+        outcome.blockId = result.blockid;
+    }
+    return outcome;
+}
+
+function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof OutcomeKeys): RebaseOutcome {
     const keys = OutcomeKeys[what];
     if (error) {
-        return { kind: "failed", text: t(keys.failed, { message: error }) };
+        return { kind: "failed", text: phrase(keys.failed, { message: error }) };
     }
     if (result == null) {
         return null;
@@ -313,32 +374,50 @@ export function rebaseOutcome(
         branch: result.branch ?? "",
         folder: folderOf(result.worktree),
         brief: result.briefpath ?? "",
-        message: serverText(result.messagetext, result.message ?? ""),
+        message: serverPhrase(result.messagetext, result.message ?? ""),
     };
     switch (result.status) {
         case "started":
-            if (result.hidden) {
-                return { kind: "asked", name, text: t(keys.startedHidden, vars), note: true };
+            if (result.lead) {
+                return { kind: "asked", name, text: phrase("reviews.lead.started", vars), note: true };
             }
-            return { kind: "asked", name, text: t(keys.asked, vars), note: what === "investigate" };
+            if (result.hidden) {
+                return { kind: "asked", name, text: phrase(keys.startedHidden, vars), note: true };
+            }
+            return { kind: "asked", name, text: phrase(keys.asked, vars), note: what === "investigate" };
+        case "queued":
+            return { kind: "asked", name, text: phrase("reviews.lead.queued", vars), note: true };
+        case "leadgone":
+            return { kind: "leadgone", name, text: phrase("reviews.lead.gone", vars), result };
         case "sent": {
+            if (result.lead) {
+                return { kind: "asked", name, text: phrase("reviews.lead.sent", vars), note: true };
+            }
             const other = notChosen(result, name);
             return {
                 kind: "asked",
                 name,
-                text: t(keys.asked, vars) + other,
-                note: what === "investigate" || other !== "",
+                text: joinPhrases([phrase(keys.asked, vars), other]),
+                note: what === "investigate" || other != null,
             };
         }
         case "typed":
-            return { kind: "asked", name, text: t("reviews.rebase.typed", vars) + notChosen(result, name), note: true };
+            return {
+                kind: "asked",
+                name,
+                text: joinPhrases([phrase("reviews.rebase.typed", vars), notChosen(result, name)]),
+                note: true,
+            };
         case "offer":
-            return { kind: "offer", text: t(keys.offer, vars), agent: result.agentname ?? "", result };
+            return { kind: "offer", text: phrase(keys.offer, vars), agent: result.agentname ?? "", result };
         case "noagent":
             if (result.reason === "agentmissing") {
-                return { kind: "failed", text: t("reviews.rebase.agentmissing", { chosen: result.chosenname ?? "" }) };
+                return {
+                    kind: "failed",
+                    text: phrase("reviews.rebase.agentmissing", { chosen: result.chosenname ?? "" }),
+                };
             }
-            return { kind: "failed", text: t("reviews.rebase.noagent", vars) };
+            return { kind: "failed", text: phrase("reviews.rebase.noagent", vars) };
         case "busy":
             switch (result.reason) {
                 case "agentbusy":
@@ -346,34 +425,38 @@ export function rebaseOutcome(
                         kind: "info",
                         text:
                             result.agentstate === "waiting"
-                                ? t("reviews.rebase.waiting", vars)
-                                : t("reviews.rebase.working", vars),
+                                ? phrase("reviews.rebase.waiting", vars)
+                                : phrase("reviews.rebase.working", vars),
+                        busy: result.blockid ? { blockId: result.blockid, name } : undefined,
                     };
                 case "inflight":
-                    return { kind: "info", text: t("reviews.rebase.inflight") };
+                    return { kind: "info", text: phrase("reviews.rebase.inflight") };
             }
-            return { kind: "info", text: t("reviews.rebase.notready", vars) };
+            return { kind: "info", text: phrase("reviews.rebase.notready", vars) };
     }
     switch (result.reason) {
         case "maincheckout":
-            return { kind: "failed", text: t("reviews.rebase.maincheckout", vars) };
+            return { kind: "failed", text: phrase("reviews.rebase.maincheckout", vars) };
         case "terminal":
-            return { kind: "failed", text: t("reviews.rebase.terminal") };
+            return { kind: "failed", text: phrase("reviews.rebase.terminal") };
     }
-    return { kind: "failed", text: t(keys.failed, vars) };
+    return { kind: "failed", text: phrase(keys.failed, vars) };
 }
 
-const CheckStateKeys: Record<CheckState, string> = {
+const CheckStateKeys: Record<CheckRunState, string> = {
     success: "reviews.ci.state.success",
     failure: "reviews.ci.state.failure",
     pending: "reviews.ci.state.pending",
     neutral: "reviews.ci.state.neutral",
+    interrupted: "reviews.ci.state.interrupted",
+    untrusted: "reviews.ci.state.untrusted",
+    notlocal: "reviews.ci.state.notlocal",
 };
 
 // The checks shown by name before "+N" (#797).
 const NamedChecks = 2;
 
-export function checksOf(ci: ReviewCi, state: CheckState): ReviewCheck[] {
+export function checksOf(ci: ReviewCi, state: CheckRunState): ReviewCheck[] {
     return (ci?.checks ?? []).filter((c) => c.state === state);
 }
 
@@ -384,6 +467,93 @@ export function checkNames(checks: readonly ReviewCheck[]): string {
         return names.join(", ");
     }
     return t("reviews.ci.more", { names: names.join(", "), count: checks.length - NamedChecks });
+}
+
+// isLocalCheck: a status the local CI posts (molten ci run's local-<job>, or a check named after the local CI); must
+// match IsLocalCiCheck in pkg/molten/review/investigate.go.
+export function isLocalCheck(check: ReviewCheck): boolean {
+    const name = (check?.name ?? "").toLowerCase();
+    return !!check?.local || name.startsWith("local-") || name.includes("local ci") || name.includes("local-ci");
+}
+
+// What blocks a PR, in the order Analyze and resolve hands it to the agent (#1020, FR-REV-028 AC6): the rebase first,
+// then the remote checks, the local CI, the test report and the review round.
+export type ReviewBlocker =
+    | { kind: "rebase"; conflicts: boolean }
+    | { kind: "remote"; checks: ReviewCheck[] }
+    | { kind: "local"; checks: ReviewCheck[] }
+    | { kind: "report" }
+    | { kind: "review" };
+
+export function prBlockers(pr: ReviewPr): ReviewBlocker[] {
+    if (pr == null) {
+        return [];
+    }
+    const blockers: ReviewBlocker[] = [];
+    if (pr.merge === "behind" || pr.merge === "conflicts") {
+        blockers.push({ kind: "rebase", conflicts: pr.merge === "conflicts" });
+    }
+    const failed = checksOf(pr.ci, "failure");
+    const remote = failed.filter((c) => !isLocalCheck(c));
+    const local = failed.filter(isLocalCheck);
+    if (remote.length > 0) {
+        blockers.push({ kind: "remote", checks: remote });
+    }
+    if (local.length > 0) {
+        blockers.push({ kind: "local", checks: local });
+    }
+    if (pr.report?.state === "missing") {
+        blockers.push({ kind: "report" });
+    }
+    if ((pr.reviewdecision ?? "").toUpperCase() === "CHANGES_REQUESTED") {
+        blockers.push({ kind: "review" });
+    }
+    return blockers;
+}
+
+export function blockerText(blocker: ReviewBlocker, base: string): string {
+    switch (blocker.kind) {
+        case "rebase":
+            return blocker.conflicts
+                ? t("reviews.ci.investigate.blocker.conflicts", { base })
+                : t("reviews.ci.investigate.blocker.behind", { base });
+        case "remote":
+            return t("reviews.ci.investigate.blocker.remote", { names: checkNames(blocker.checks) });
+        case "local":
+            return t("reviews.ci.investigate.blocker.local", { names: checkNames(blocker.checks) });
+        case "report":
+            return t("reviews.ci.investigate.blocker.report");
+        case "review":
+            return t("reviews.ci.investigate.blocker.review");
+    }
+    return "";
+}
+
+// investigateBlockers: what Analyze and resolve sends wavesrv of the row's blockers; wavesrv adds what only it knows (an
+// unanswered review round, a local CI not run on the head).
+export function investigateBlockers(pr: ReviewPr): InvestigateBlockers {
+    const failed = checksOf(pr?.ci, "failure");
+    return {
+        checks: failed.map((c) => ({
+            name: c.name,
+            workflow: c.workflow,
+            url: c.url,
+            runid: c.runid,
+            jobid: c.jobid,
+            local: isLocalCheck(c) || undefined,
+        })),
+        merge: pr?.merge === "behind" || pr?.merge === "conflicts" ? pr.merge : undefined,
+        changesrequested: (pr?.reviewdecision ?? "").toUpperCase() === "CHANGES_REQUESTED" || undefined,
+        noreport: pr?.report?.state === "missing" || undefined,
+        localseen: (pr?.ci?.checks ?? []).some((c) => c.name.toLowerCase().startsWith("local-")) || undefined,
+    };
+}
+
+// blockersText: "behind develop, CI failed: Backend, local CI failed: local-e2e", in the brief's order.
+export function blockersText(pr: ReviewPr): string {
+    return prBlockers(pr)
+        .map((b) => blockerText(b, pr.base))
+        .join(", ");
 }
 
 // #797: a failed check is named on the chip (CI: Backend failed); the title lists every check with its state.
@@ -405,6 +575,15 @@ export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: strin
     const parts: string[] = [];
     if (ci.pending > 0) {
         parts.push(t("reviews.ci.running", { count: ci.pending }));
+    }
+    if ((ci.untrusted ?? 0) > 0) {
+        parts.push(t("reviews.ci.untrusted", { count: ci.untrusted }));
+    }
+    if ((ci.interrupted ?? 0) > 0) {
+        parts.push(t("reviews.ci.interrupted", { count: ci.interrupted }));
+    }
+    if ((ci.notlocal ?? 0) > 0) {
+        parts.push(t("reviews.ci.notlocal", { count: ci.notlocal }));
     }
     if (ci.success > 0) {
         parts.push(t("reviews.ci.passed", { count: ci.success }));
@@ -495,6 +674,12 @@ export function reviewsEmptyState(answer: ReviewsAnswer): ReviewsEmpty {
             };
     }
     return null;
+}
+
+// The panel in a project folder that does not use git yet (FR-REV-001 AC15): why it needs git, in its own words; the
+// action and its confirmation are every git panel's (#1671).
+export function reviewsNotRepoText(): NotRepoText {
+    return { hint: t("reviews.notRepo.hint") };
 }
 
 // Only a failed read can come back on a retry alone; the other empty states wait on the user (install gh, log in, add
@@ -597,27 +782,27 @@ export type MarkReadyResult = {
     message?: string;
 };
 
-// markReadyError words a failed Mark ready for review in plain words, "" when it succeeded (#687).
-export function markReadyError(result: MarkReadyResult, error?: string): string {
+// markReadyError words a failed Mark ready for review in plain words, null when it succeeded (#687).
+export function markReadyError(result: MarkReadyResult, error?: Phrase): Phrase {
     if (error) {
-        return t("reviews.ready.failed.error", { message: error });
+        return phrase("reviews.ready.failed.error", { message: error });
     }
     if (result?.status === "ready") {
-        return "";
+        return null;
     }
     switch (result?.reason) {
         case "closed":
-            return t("reviews.ready.failed.closed");
+            return phrase("reviews.ready.failed.closed");
         case "permission":
-            return t("reviews.ready.failed.permission");
+            return phrase("reviews.ready.failed.permission");
         case "auth":
-            return t("reviews.ready.failed.auth");
+            return phrase("reviews.ready.failed.auth");
         case "notfound":
-            return t("reviews.ready.failed.notfound");
+            return phrase("reviews.ready.failed.notfound");
         case "nogh":
-            return t("reviews.ready.failed.nogh");
+            return phrase("reviews.ready.failed.nogh");
     }
-    return t("reviews.ready.failed.error", { message: result?.message ?? "" });
+    return phrase("reviews.ready.failed.error", { message: result?.message ?? "" });
 }
 
 export function nextRow(rows: readonly ReviewPr[], current: number, key: string): number {

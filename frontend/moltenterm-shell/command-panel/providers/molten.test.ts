@@ -60,7 +60,9 @@ vi.mock("@/app/store/wshrpcutil", () => ({
 }));
 vi.mock("@/app/store/wos", () => ({ makeORef: (t: string, id: string) => `${t}:${id}` }));
 vi.mock("../../agent-state-store", () => ({
-    AgentStates: { getInstance: () => ({ blockAtom: (id: string) => ({ key: `agent:${id}` }) }) },
+    AgentStates: {
+        getInstance: () => ({ blockAtom: (id: string) => ({ key: `agent:${id}` }), dataAtom: { key: "agent-states" } }),
+    },
 }));
 vi.mock("../../companion/companion-session-store", () => ({
     CompanionSessions: { getInstance: () => ({ sessionAtom: (id: string) => ({ key: `session:${id}` }) }) },
@@ -77,6 +79,7 @@ vi.mock("../../mission/line-map-store", () => ({
 }));
 vi.mock("../../shortcuts/format", () => ({ formatShortcutById: (id: string) => (id === "companion" ? "⌘⇧J" : "") }));
 
+import { setTestMatrix } from "../../agent-info/agent-features-fixture";
 import { toggleCompanion } from "../../companion/companion-open";
 import { activeScope, canReset, effectiveValue, resetItem, setItemValue } from "../panel-model";
 import { collectPanel } from "../panel-registry";
@@ -84,6 +87,9 @@ import { PanelContext, PanelItem, PanelSection } from "../panel-types";
 import { CodingAgentViews } from "./coding-agent";
 import { MoltenProvider, MoltenProviders } from "./molten";
 import { companionSections, lineMapSections, sessionsSections } from "./molten-widgets";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 function ctx(view: string, caps: string[], extra: Partial<PanelContext> = {}): PanelContext {
     return {
@@ -238,7 +244,7 @@ describe("MoltenTerm widget options (FR-SHELL-049-AC4..AC6, DS-SHELL-090, TC-SHE
         expect(state.settingsWrites.at(-1)).toEqual({ "agent:integrate": false });
 
         const mine = find(companionSections(c), "companion:integrateagent");
-        expect(mine.label).toBe("Integration for Codex");
+        expect(mine.label).toBe("Hookup for Codex");
         expect(effectiveValue(mine)).toBe(true);
         await setItemValue(mine, false);
         expect(state.settingsWrites.at(-1)).toEqual({ "agent:integrateoff": ["codex"] });

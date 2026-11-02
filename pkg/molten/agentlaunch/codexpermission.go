@@ -4,8 +4,6 @@
 package agentlaunch
 
 import (
-	"fmt"
-
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
@@ -31,8 +29,7 @@ var codexHookFeatures = []string{"hooks", "codex_hooks"}
 
 // codexPermissionHookValue is the -c value: one matcher group without a matcher (every request), one command.
 func codexPermissionHookValue() string {
-	return fmt.Sprintf("[{hooks=[{type=%s,command=%s,timeout=%d}]}]",
-		tomlString("command"), tomlString(molten.CodexPermissionHookCommand), molten.CodexPermissionHookTimeout)
+	return codexHookValue(molten.CodexPermissionHookCommand, molten.CodexPermissionHookTimeout)
 }
 
 // hooksOffWhere names the file (or -c) that turns Codex's hooks off, or "".
@@ -53,15 +50,10 @@ func (c codexConfig) hooksOffWhere(args codexArgs) string {
 	return ""
 }
 
-// permissionHooksWhere names a file that has its own PermissionRequest hooks, or "".
+// permissionHooksWhere names a file (a config.toml or a hooks.json) that has its own PermissionRequest hooks, or "".
 func (c codexConfig) permissionHooksWhere() string {
-	for _, s := range c.sources {
-		hooks, _ := s.keys[codexHooksKey].(map[string]any)
-		if _, ok := hooks[codexPermissionEvent]; ok {
-			return s.display
-		}
-	}
-	return ""
+	where, _ := c.eventHooksWhere(codexPermissionEvent, molten.IsAgentPermissionHookCommand)
+	return where
 }
 
 // managedHooksOnlyWhere names the managed file that allows only its own hooks, or "".

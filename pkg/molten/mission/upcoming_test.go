@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -153,7 +154,7 @@ func TestUpcomingGet(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bgTree, "new.txt"), []byte("work"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	prs, _ := json.Marshal([]map[string]any{{"headRefName": "feature/6-pr", "baseRefName": "develop"}})
+	prs, _ := json.Marshal([]map[string]any{{"headRefName": "feature/6-pr", "baseRefName": "develop", "isDraft": true}})
 	snap := Snapshot{Dir: dir, Github: &GithubSnapshot{State: GithubStateOk, Repo: "o/r", Url: "https://github.com/o/r", Prs: prs}}
 	var ghCalls atomic.Int32
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
@@ -164,6 +165,7 @@ func TestUpcomingGet(t *testing.T) {
 		return []byte(`{"data":{"repository":{
 			"t4":{"title":"Thing","url":"u4","state":"OPEN","projectItems":{"nodes":[{"status":{"name":"In progress"}}]}},
 			"t5":{"title":"Plain","url":"u5","state":"OPEN","projectItems":{"nodes":[{"status":{"name":"AI Testing"}}]}},
+			"t6":{"title":"Draft","url":"u6","state":"OPEN","projectItems":{"nodes":[{"status":{"name":"AI Testing"}}]}},
 			"t8":{"title":"Done","url":"u8","state":"OPEN","projectItems":{"nodes":[{"status":{"name":"Done"}}]}},
 			"t11":{"title":"Agent","url":"u11","state":"OPEN","projectItems":{"nodes":[]}},
 			"t12":{"title":"Background","url":"u12","state":"OPEN","projectItems":{"nodes":[]}}}}}`), nil
@@ -203,6 +205,11 @@ func TestUpcomingGet(t *testing.T) {
 	if _, ok := byBranch["feature/8-done"]; ok {
 		t.Fatalf("a Done ticket is not upcoming")
 	}
+	// #954: a draft carries its ticket's board Status and its last commit, so the list knows whose turn it is.
+	if len(answer.Drafts) != 1 || answer.Drafts[0].Branch != "feature/6-pr" || answer.Drafts[0].Ticket != 6 ||
+		answer.Drafts[0].Status != "AI Testing" || answer.Drafts[0].CommitAt == 0 {
+		t.Fatalf("drafts: %+v", answer.Drafts)
+	}
 	agents := map[string]BranchAgent{}
 	for _, a := range answer.Agents {
 		agents[a.Branch] = a
@@ -217,6 +224,84 @@ func TestUpcomingGet(t *testing.T) {
 	if again.At != answer.At || ghCalls.Load() != 1 {
 		t.Fatalf("a forced ask within %s is answered from the cache (gh calls %d)", upcomingForcedInterval, ghCalls.Load())
 	}
+}
+
+// #1077: the agent terminals a restart restores reach wavesrv's agent states after its first answer; the next ask,
+// even a forced one within upcomingForcedInterval or a plain one within upcomingMaxAge, places them at once.
+func TestUpcomingPlacesAgentsRestoredAfterAnAnswer(t *testing.T) {
+	dir := makeGitFlowRepo(t)
+	gitRun(t, dir, "branch", "feature/21-one", "develop")
+	gitRun(t, dir, "branch", "feature/22-two", "develop")
+	treeOne := filepath.Join(t.TempDir(), "one")
+	treeTwo := filepath.Join(t.TempDir(), "two")
+	gitRun(t, dir, "worktree", "add", "-q", treeOne, "feature/21-one")
+	gitRun(t, dir, "worktree", "add", "-q", treeTwo, "feature/22-two")
+	var lock sync.Mutex
+	var places []AgentPlace
+	setPlaces := func(p []AgentPlace) {
+		lock.Lock()
+		defer lock.Unlock()
+		places = p
+	}
+	getPlaces := func(context.Context) []AgentPlace {
+		lock.Lock()
+		defer lock.Unlock()
+		return append([]AgentPlace(nil), places...)
+	}
+	snap := Snapshot{Dir: dir, Github: &GithubSnapshot{State: GithubStateOk, Repo: "o/r", Url: "https://github.com/o/r", Prs: json.RawMessage("[]")}}
+	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
+		if name == "gh" {
+			return []byte(`{"data":{"repository":{}}}`), nil
+		}
+		return plainRunner(ctx, d, name, args...)
+	}
+	now := time.Now()
+	u := MakeUpcoming(UpcomingEnv{
+		Run:      run,
+		Now:      func() time.Time { return now },
+		Snapshot: func(string) (Snapshot, bool) { return snap, true },
+		Agents:   getPlaces,
+	})
+	first, err := u.Get(UpcomingRequest{Dir: dir})
+	if err != nil || len(panelAgents(first)) != 0 {
+		t.Fatalf("before the restore no agent is placed: %+v %v", first.Agents, err)
+	}
+	setPlaces([]AgentPlace{
+		{BlockId: "b1", Agent: "claude", FirstName: "Olivia", Cwd: realPath(treeOne), Started: 1},
+		{BlockId: "b2", Agent: "codex", FirstName: "Jérôme", Cwd: realPath(treeTwo), Started: 2},
+	})
+	now = now.Add(time.Second)
+	answer, err := u.Get(UpcomingRequest{Dir: dir, Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, a := range panelAgents(answer) {
+		got[a.Branch] = a.BlockId
+	}
+	if got["feature/21-one"] != "b1" || got["feature/22-two"] != "b2" || answer.At == first.At {
+		t.Fatalf("the restored agents are placed at once: %+v", answer.Agents)
+	}
+	now = now.Add(time.Second)
+	again, _ := u.Get(UpcomingRequest{Dir: dir, Force: true})
+	if again.At != answer.At {
+		t.Fatalf("with the same agents a forced ask within %s is answered from the cache %d %d", upcomingForcedInterval, again.At, answer.At)
+	}
+	setPlaces(nil)
+	gone, _ := u.Get(UpcomingRequest{Dir: dir})
+	if len(panelAgents(gone)) != 0 {
+		t.Fatalf("closed agents leave at the next ask: %+v", gone.Agents)
+	}
+}
+
+func panelAgents(answer UpcomingAnswer) []BranchAgent {
+	var rtn []BranchAgent
+	for _, a := range answer.Agents {
+		if a.Kind == UpcomingAgentPanel {
+			rtn = append(rtn, a)
+		}
+	}
+	return rtn
 }
 
 func TestUpcomingWithoutGithubListsNoBranch(t *testing.T) {

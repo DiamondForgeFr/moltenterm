@@ -13,7 +13,13 @@ export type PinEntry = {
     mode: PinMode;
     // A column pinned beside the first keeps the width it was given there.
     px?: number;
+    // "group": placed by the 360 on the pages (FR-SHELL-124); it leaves with that grouping. Never set on a pin placed
+    // by hand.
+    by?: PinOrigin;
 };
+
+export const GroupPinOrigin = "group";
+export type PinOrigin = typeof GroupPinOrigin;
 
 // Block id -> pin.
 export type TabPins = Record<string, PinEntry>;
@@ -35,13 +41,32 @@ export function parsePins(raw: unknown): TabPins {
             continue;
         }
         const px = entry.px;
-        rtn[blockId] =
-            typeof px === "number" && Number.isFinite(px) && px > 0 ? { mode: entry.mode, px } : { mode: entry.mode };
+        const pin: PinEntry = { mode: entry.mode };
+        if (typeof px === "number" && Number.isFinite(px) && px > 0) {
+            pin.px = px;
+        }
+        if (entry.by === GroupPinOrigin) {
+            pin.by = GroupPinOrigin;
+        }
+        rtn[blockId] = pin;
     }
     return rtn;
 }
 
-function columnBlockIds(column: LayoutNode): string[] {
+export function isGroupPin(pin: PinEntry): boolean {
+    return pin?.by === GroupPinOrigin;
+}
+
+// The pins the developer placed: those the grouping placed left out.
+export function handPins(pins: TabPins): TabPins {
+    return Object.fromEntries(Object.entries(pins ?? {}).filter(([, pin]) => !isGroupPin(pin)));
+}
+
+export function hasGroupPins(pins: TabPins): boolean {
+    return Object.values(pins ?? {}).some(isGroupPin);
+}
+
+export function columnBlockIds(column: LayoutNode): string[] {
     if (column == null) {
         return [];
     }

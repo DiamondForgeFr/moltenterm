@@ -81,17 +81,19 @@ const (
 	BatchReasonAgentStart   = "agentstart"
 	BatchReasonBlocked      = "blocked"
 	BatchReasonWarnings     = "warnings"
-	BatchReasonCiTimeout    = "citimeout"
-	BatchReasonUnknown      = "unknown"
-	BatchReasonMergeFailed  = "mergefailed"
-	BatchReasonRead         = "read"
-	BatchReasonHeadMoved    = "headmoved"
-	BatchReasonDraft        = "draft"
-	BatchReasonMergedAway   = "mergedaway"
-	BatchReasonClosed       = "closed"
-	BatchReasonNotReached   = "notreached"
-	BatchReasonCancelled    = "cancelled"
-	BatchReasonInterrupted  = "interrupted"
+	// method: GitHub no longer allows the method shown when the PR joined (#957); Names holds it.
+	BatchReasonMethod      = "method"
+	BatchReasonCiTimeout   = "citimeout"
+	BatchReasonUnknown     = "unknown"
+	BatchReasonMergeFailed = "mergefailed"
+	BatchReasonRead        = "read"
+	BatchReasonHeadMoved   = "headmoved"
+	BatchReasonDraft       = "draft"
+	BatchReasonMergedAway  = "mergedaway"
+	BatchReasonClosed      = "closed"
+	BatchReasonNotReached  = "notreached"
+	BatchReasonCancelled   = "cancelled"
+	BatchReasonInterrupted = "interrupted"
 	// BatchReasonPushed: a push the queue did not make (the validation is void); BatchReasonWithdrawn: by the developer.
 	BatchReasonPushed    = "pushed"
 	BatchReasonWithdrawn = "withdrawn"
@@ -102,6 +104,9 @@ const (
 	BatchKeptRebasing = "rebasing"
 	BatchKeptWorking  = "working"
 	BatchKeptUnread   = "unread"
+	// An earlier queue's worktree (BatchRun.Stale) also stays when it is locked, or a terminal or a process is in it.
+	BatchKeptLocked = "locked"
+	BatchKeptInUse  = "inuse"
 
 	MaxBatchPrs = 30
 
@@ -190,10 +195,12 @@ type BatchRun struct {
 	Worktree    string `json:"worktree,omitempty"`
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	// Cleaned: the agent's terminal and worktree went at the end; Kept: why the worktree stayed (BatchKept…).
-	Cleaned     bool   `json:"cleaned,omitempty"`
-	Kept        string `json:"kept,omitempty"`
-	CancelAsked bool   `json:"cancelasked,omitempty"`
-	Dismissed   bool   `json:"dismissed,omitempty"`
+	Cleaned bool   `json:"cleaned,omitempty"`
+	Kept    string `json:"kept,omitempty"`
+	// Stale: the earlier queues' worktrees of the project that stay, each with why (#1122).
+	Stale       []BatchTree `json:"stale,omitempty"`
+	CancelAsked bool        `json:"cancelasked,omitempty"`
+	Dismissed   bool        `json:"dismissed,omitempty"`
 	// ResumedAt: the queue resumed after MoltenTerm restarted.
 	ResumedAt int64 `json:"resumedat,omitempty"`
 	StartedAt int64 `json:"startedat"`
@@ -250,6 +257,8 @@ type BatchEnv struct {
 	ComputeLimit time.Duration
 	// ChecksSettle: how long after a rebase every check of the old head is expected on the new one.
 	ChecksSettle time.Duration
+	// TreeInUse: a live process works in the folder (mission.ProcessesInTree); an earlier queue's worktree then stays.
+	TreeInUse func(path string) bool
 }
 
 type batchCtl struct {
@@ -264,9 +273,9 @@ type batchCtl struct {
 	// its checks, so the current one goes back to its place.
 	order   []int
 	preempt bool
-	wake      chan struct{}
-	agent     *batchAgent
-	done      chan struct{}
+	wake    chan struct{}
+	agent   *batchAgent
+	done    chan struct{}
 }
 
 type BatchRunner struct {
@@ -276,7 +285,7 @@ type BatchRunner struct {
 	// state; always taken before lock.
 	pubLock sync.Mutex
 	lock    sync.Mutex
-	runs map[string]*batchCtl
+	runs    map[string]*batchCtl
 }
 
 func MakeBatchRunner(env BatchEnv) *BatchRunner {
@@ -400,6 +409,7 @@ func (b *BatchRunner) load(dir string, base string) (BatchRun, bool) {
 
 func copyRun(run BatchRun) BatchRun {
 	run.Items = append([]BatchItem(nil), run.Items...)
+	run.Stale = append([]BatchTree(nil), run.Stale...)
 	for i := range run.Items {
 		run.Items[i].Names = append([]string(nil), run.Items[i].Names...)
 		run.Items[i].Overridden = append([]string(nil), run.Items[i].Overridden...)
@@ -504,6 +514,26 @@ func (b *BatchRunner) QueuedPrs(dir string, base string) []int {
 	return rtn
 }
 
+// batchMethod is the method the queue's PRs without a plan of their own merge with (#957): the one the batch modal
+// showed, else the repository's default, never left empty to be decided at merge time. The modal's choice is the
+// repository's next default.
+func (b *BatchRunner) batchMethod(req QueueAddRequest) (string, error) {
+	if b.env.Merger == nil || !slices.ContainsFunc(req.Prs, func(pr BatchPr) bool { return pr.PlanId == "" }) {
+		return req.Method, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), batchStepTimeout)
+	defer cancel()
+	methods := b.env.Merger.planMethods(ctx, req.Dir, req.Repo, req.Base)
+	if req.Method == "" {
+		return methods.method, nil
+	}
+	if !hasMethod(methods.methods, req.Method) {
+		return "", uimsg.Errorf(uimsg.Make("review.batchmethod"), "%s merges are not allowed on %s any more", req.Method, req.Base)
+	}
+	b.env.Merger.keepChosenMethod(req.Repo, req.Method, methods.queue)
+	return req.Method, nil
+}
+
 // itemOf makes the queue's item of a PR joining it, bound to its head. A PR from the Validate sheet takes its plan:
 // the head, the method and the warnings confirmed are the ones the developer saw.
 func (b *BatchRunner) itemOf(req QueueAddRequest, pr BatchPr) (BatchItem, error) {
@@ -514,6 +544,10 @@ func (b *BatchRunner) itemOf(req QueueAddRequest, pr BatchPr) (BatchItem, error)
 	item := BatchItem{BatchPr: pr, State: BatchItemQueued, Source: source, ValidatedAt: b.env.Now().UnixMilli()}
 	if pr.PlanId == "" {
 		item.Valid = pr.HeadOid
+		// Each PR keeps the method shown when it joined: a later batch with another method does not change it.
+		if item.Method == "" {
+			item.Method = req.Method
+		}
 		return item, nil
 	}
 	if b.env.Merger == nil {
@@ -527,6 +561,7 @@ func (b *BatchRunner) itemOf(req QueueAddRequest, pr BatchPr) (BatchItem, error)
 		return item, fmt.Errorf("PR #%d goes into %s, not %s", pr.Number, plan.BaseRef, req.Base)
 	}
 	item.HeadOid, item.Valid, item.Method = plan.HeadOid, plan.HeadOid, plan.Method
+	b.env.Merger.keepChosenMethod(req.Repo, plan.Method, plan.Queue)
 	if pr.Override {
 		item.Overridden = plan.Warnings
 	}
@@ -606,6 +641,11 @@ func (b *BatchRunner) Add(req QueueAddRequest) (BatchRun, error) {
 	if err := req.check(); err != nil {
 		return BatchRun{}, err
 	}
+	method, err := b.batchMethod(req)
+	if err != nil {
+		return BatchRun{}, err
+	}
+	req.Method = method
 	dir := filepath.Clean(req.Dir)
 	items := make([]BatchItem, 0, len(req.Prs))
 	for _, pr := range req.Prs {

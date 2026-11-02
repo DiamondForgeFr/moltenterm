@@ -5,7 +5,7 @@
 // components so they can be tested without the app. The work itself is wavesrv's (pkg/molten/review/restart.go).
 
 import type { AgentStateInfo } from "../agent-state-model";
-import { agentLabel, agentStateLabel } from "../agent-state-model";
+import { agentCallName, agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import type { ReviewRestartResult, ReviewRound, ReviewState } from "./review-client";
@@ -129,7 +129,7 @@ export function restartLine(last: RestartRound, agent: AgentStateInfo): string {
     if (agent == null) {
         return RestartText.noAgentNow(last.number);
     }
-    return RestartText.working(agentLabel(agent), agentStateLabel(agent.state ?? "idle"), last.number);
+    return RestartText.working(agentCallName(agent), agentStateLabel(agent.state ?? "idle"), last.number);
 }
 
 // restartResultTone: how the last click's outcome shows.

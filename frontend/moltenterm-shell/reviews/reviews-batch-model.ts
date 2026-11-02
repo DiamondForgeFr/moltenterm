@@ -7,9 +7,10 @@
 // (pkg/molten/review/batch.go). Pure, so it is tested without a window.
 
 import { t, tCount } from "../i18n/i18n";
+import type { ReviewMergeMethod, ReviewMergeMethods } from "../review/review-client";
 import { Forecast } from "./reviews-forecast-model";
 import { ReviewPr, Tone } from "./reviews-model";
-import { MergeOrderStep, mergeOrderReason, suggestedMergeOrder } from "./reviews-order-model";
+import { MergeOrder, MergeOrderStep, mergeOrderReason, suggestedMergeOrder } from "./reviews-order-model";
 
 // must match pkg/molten/review/batch.go
 export const QueueAddCommand = "moltenreviewqueueadd";
@@ -55,7 +56,8 @@ export type BatchReason =
     | "cancelled"
     | "interrupted"
     | "pushed"
-    | "withdrawn";
+    | "withdrawn"
+    | "method";
 
 // The reasons worded under reviews.batch.why; any other reads "not reached".
 const WordedReasons = new Set<BatchReason>([
@@ -82,8 +84,14 @@ const WordedReasons = new Set<BatchReason>([
     "interrupted",
     "pushed",
     "withdrawn",
+    "method",
 ]);
 export type BatchKept = "changes" | "unpushed" | "rebasing" | "working" | "unread";
+// An earlier queue's worktree that stays (#1122), and why.
+export type BatchStaleTree = {
+    path: string;
+    kept: "changes" | "unpushed" | "rebasing" | "inuse" | "locked" | "unread";
+};
 export type BatchMethod = "merge" | "squash" | "rebase";
 
 // A PR joining the queue: from the batch modal, bound to its listed head; from the Validate sheet, by its plan.
@@ -137,6 +145,7 @@ export type BatchRun = {
     workspaceid?: string;
     cleaned?: boolean;
     kept?: BatchKept;
+    stale?: BatchStaleTree[];
     cancelasked?: boolean;
     dismissed?: boolean;
     resumedat?: number;
@@ -189,10 +198,6 @@ export function batchSelectable(pr: ReviewPr): boolean {
     return pr != null && !pr.draft;
 }
 
-export function toggleBatchSelection(selected: number[], number: number): number[] {
-    return selected.includes(number) ? selected.filter((n) => n !== number) : [...selected, number];
-}
-
 export type BatchPlanStep = { pr: ReviewPr; rank: number; reason: string; rebase: boolean };
 
 // BatchPlan is what the confirmation modal shows: the selected PRs in the suggested order (their list order while the
@@ -209,8 +214,13 @@ export function batchPlan(forecast: Forecast, selected: ReviewPr[], listed: Revi
     const prs = (selected ?? []).filter(batchSelectable);
     const order = suggestedMergeOrder(forecast, prs, listed);
     const byNumber = new Map(prs.map((pr) => [pr.number, pr]));
-    const stepOf = new Map<number, MergeOrderStep>(order.steps.map((s) => [s.number, s]));
-    const steps = order.numbers
+    const stepOf = new Map<number, MergeOrderStep>([...order.steps, ...order.outside].map((s) => [s.number, s]));
+    // The reasons name the PRs by the number their cards show (#1108).
+    const ids: Record<number, number> = {};
+    for (const p of [...(listed ?? []), ...prs]) {
+        ids[p.number] = p.ticket || p.number;
+    }
+    const steps = withOutside(order)
         .filter((n) => byNumber.has(n))
         .map((n, i) => {
             const pr = byNumber.get(n);
@@ -218,14 +228,14 @@ export function batchPlan(forecast: Forecast, selected: ReviewPr[], listed: Revi
             return {
                 pr,
                 rank: i + 1,
-                reason: step != null ? mergeOrderReason(step, base, pr) : "",
+                reason: step != null ? mergeOrderReason(step, base, pr, ids) : "",
                 rebase: step?.rebase ?? false,
             };
         });
     return {
         steps,
         usable: order.usable,
-        cost: order.cost,
+        cost: order.cost + order.outside.length,
         uptodate: order.uptodate,
         method: forecast?.method ?? "",
     };
@@ -242,7 +252,13 @@ export function queueOrder(forecast: Forecast, listed: ReviewPr[], run: BatchRun
     }
     const prs = (listed ?? []).filter((pr) => numbers.has(pr.number) && batchSelectable(pr));
     const order = suggestedMergeOrder(forecast, prs, listed);
-    return order.usable ? order.numbers : [];
+    return order.usable ? withOutside(order) : [];
+}
+
+// withOutside: the order's PRs, then those it leaves out as already conflicting with the base (#1059), which the
+// queue's agent rebases after the others.
+function withOutside(order: MergeOrder): number[] {
+    return [...order.numbers, ...order.outside.map((s) => s.number)];
 }
 
 export function batchPrOf(pr: ReviewPr): BatchPr {
@@ -256,12 +272,26 @@ export function batchPrOf(pr: ReviewPr): BatchPr {
     };
 }
 
-// batchStartRequest: the modal's PRs join the queue in the order shown, bound to the heads listed.
+// batchMethodShown is the batch modal's method (#957): the developer's pick while the repository allows it, else the
+// repository's default; none while unknown, and the modal does not start then.
+export function batchMethodShown(methods: ReviewMergeMethods, picked: ReviewMergeMethod): ReviewMergeMethod {
+    if (methods == null) {
+        return null;
+    }
+    if (picked != null && !methods.queue && (methods.methods ?? []).includes(picked)) {
+        return picked;
+    }
+    return methods.method ?? null;
+}
+
+// batchStartRequest: the modal's PRs join the queue in the order shown, bound to the heads listed, with the method
+// shown (#957): the queue merges each of them with it, or stops it.
 export function batchStartRequest(
     dir: string,
     repo: string,
     base: string,
     plan: BatchPlan,
+    method: ReviewMergeMethod,
     workspaceid: string,
     order?: number[]
 ): QueueAddRequest {
@@ -270,7 +300,7 @@ export function batchStartRequest(
         dir,
         repo,
         base,
-        method: plan.method || undefined,
+        method,
         prs: plan.steps.map((s) => batchPrOf(s.pr)),
         source: "batch",
         order: order?.length ? order : shown,
@@ -344,17 +374,37 @@ export function batchNowText(item: BatchItem): string {
     return t("reviews.batch.banner.now.other");
 }
 
+// ShownIds: the number each PR's card shows (#1108), by PR number.
+export type ShownIds = Record<number, number>;
+
+// batchItemId: the number the PR's card shows (#1108), its ticket's when the list does not say.
+export function batchItemId(item: BatchItem, ids?: ShownIds): number {
+    return ids?.[item.number] ?? (item.ticket || item.number);
+}
+
+// batchHeadline: who works on the queue and its PRs in order, with the numbers the cards show (#1123): "Pauline ·
+// group merge: #1102 → #1105". A queue fed only by Validate is the merge queue, not a group merge.
+export function batchHeadline(run: BatchRun, firstName: string, ids?: ShownIds): string {
+    const list = run.items.map((it) => `#${batchItemId(it, ids)}`).join(" → ");
+    const group = run.items.some((it) => it.source === "batch");
+    if (firstName) {
+        return t(group ? "reviews.batch.headline.groupBy" : "reviews.batch.headline.queueBy", { name: firstName, list });
+    }
+    return t(group ? "reviews.batch.headline.group" : "reviews.batch.headline.queue", { list });
+}
+
 // The banner counts the merged PRs, never the position: "12 of 12" read as done while the last PR still waited for its
 // checks (#887).
-export function batchTitle(run: BatchRun): string {
+export function batchTitle(run: BatchRun, ids?: ShownIds): string {
     const count = run.items.length;
     const current = batchCurrent(run);
     const merged = batchMergedCount(run);
+    const number = current != null ? batchItemId(current, ids) : 0;
     const progress =
         current == null
             ? t("reviews.batch.banner.progressIdle", { merged, count })
-            : t("reviews.batch.banner.progress", { merged, count, number: current.number, now: batchNowText(current) });
-    const vars = { progress, merged, number: current?.number ?? 0, base: run.base };
+            : t("reviews.batch.banner.progress", { merged, count, number, now: batchNowText(current) });
+    const vars = { progress, merged, number, base: run.base };
     switch (run.state) {
         case "running":
             return tCount("reviews.batch.banner.running", count, vars);
@@ -368,15 +418,15 @@ export function batchTitle(run: BatchRun): string {
     return tCount("reviews.batch.banner.interrupted", count, vars);
 }
 
-// batchStepText: what happens to the PR, in one line.
-export function batchStepText(run: BatchRun, item: BatchItem): string {
+// batchStepText: what happens to the PR, in one line. firstName: the agent's, when its terminal is known (#1123).
+export function batchStepText(run: BatchRun, item: BatchItem, firstName?: string): string {
     if (item == null) {
         return "";
     }
     const vars = {
         number: item.number,
         base: run.base,
-        name: batchAgentName(run),
+        name: firstName || batchAgentName(run),
         names: (item.names ?? []).join(", "),
     };
     if (item.waiting) {
@@ -413,6 +463,9 @@ export function batchReasonText(item: BatchItem, base: string): string {
     if (item.reason === "ambiguous" && item.note) {
         return t("reviews.batch.why.ambiguousNote", vars);
     }
+    if (item.reason === "method") {
+        return t("reviews.batch.why.method", { method: methodText(item.names?.[0] ?? "") });
+    }
     if (!WordedReasons.has(item.reason)) {
         return t("reviews.batch.why.notreached", vars);
     }
@@ -424,12 +477,15 @@ export function batchKeptText(kept: BatchKept): string {
 }
 
 // batchSummary: the ended queue's merged PRs and the others with their reasons, and the CI runs redone.
-export function batchSummary(run: BatchRun): string {
-    const merged = run.items.filter((it) => it.state === "merged").map((it) => `#${it.number}`);
+export function batchSummary(run: BatchRun, ids?: ShownIds): string {
+    const merged = run.items.filter((it) => it.state === "merged").map((it) => `#${batchItemId(it, ids)}`);
     const skipped = run.items
         .filter((it) => it.state !== "merged")
         .map((it) =>
-            t("reviews.batch.summary.skippedItem", { number: it.number, reason: batchReasonText(it, run.base) })
+            t("reviews.batch.summary.skippedItem", {
+                number: batchItemId(it, ids),
+                reason: batchReasonText(it, run.base),
+            })
         );
     const parts = [
         merged.length > 0
@@ -442,6 +498,9 @@ export function batchSummary(run: BatchRun): string {
     parts.push(tCount("reviews.batch.summary.ciRuns", run.ciruns ?? 0));
     if (run.kept) {
         parts.push(batchKeptText(run.kept));
+    }
+    for (const tree of run.stale ?? []) {
+        parts.push(t(`reviews.batch.stale.${tree.kept}`, { name: tree.path.split(/[\\/]/).pop() }));
     }
     return parts.join(" ");
 }

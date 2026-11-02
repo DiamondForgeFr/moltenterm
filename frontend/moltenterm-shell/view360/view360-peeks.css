@@ -1,0 +1,147 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The carpet's edge peeks (FR-SHELL-065 AC11-AC12, DS-SHELL-152): a still card of the neighbouring panel in each
+   gutter, turned in perspective with its inner side forward like an album cover beside the one in front. The card is
+   wider than the gutter (the start of the panel shows on it, squeezed) and turned almost edge-on, so its projection
+   fits the 12 px sliver. Everything that moves is transform and opacity on the card (the compositor's), and the
+   durations are the motion tokens, 0 under reduced motion. The peek's own box only places it and takes the clicks. */
+
+.mt-peek {
+    --mt-peek-turn: -80deg;
+    --mt-peek-from: -89deg;
+    --mt-peek-hover: -74deg;
+    --mt-peek-origin: right center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: none;
+    outline: none;
+    perspective: 1100px;
+    pointer-events: auto;
+}
+
+.mt-peek[data-side="right"] {
+    --mt-peek-turn: 80deg;
+    --mt-peek-from: 89deg;
+    --mt-peek-hover: 74deg;
+    --mt-peek-origin: left center;
+}
+
+.mt-peek-card {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 72px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--df-radius-sm);
+    background-color: var(--mt-surface-2);
+    background-image: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--mt-radar-color) 28%, var(--mt-surface-2)),
+        var(--mt-surface-2)
+    );
+    background-size: cover;
+    background-repeat: no-repeat;
+    box-shadow: 0 6px 14px -6px rgb(0 0 0 / 0.55);
+    opacity: 0.9;
+    transform: rotateY(var(--mt-peek-turn));
+    transform-origin: var(--mt-peek-origin);
+    animation: mt-peek-swing var(--mt-duration-slow) var(--mt-ease) both;
+    transition:
+        transform var(--mt-duration-fast) var(--mt-ease),
+        opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+/* Hinged on the side that faces the places; the panel's start (its header, its first lines) shows on the card. */
+.mt-peek[data-side="left"] .mt-peek-card {
+    right: 0;
+    background-position: left top;
+}
+
+.mt-peek[data-side="right"] .mt-peek-card {
+    left: 0;
+    background-position: left top;
+}
+
+.mt-peek-glyph {
+    color: color-mix(in srgb, var(--mt-radar-color) 70%, var(--mt-text-2));
+    font-size: var(--mt-icon-20);
+}
+
+/* Hovering turns the card a little towards the developer: it widens within the gap beside it and lights up. */
+.mt-peek:hover .mt-peek-card,
+.mt-peek:focus-visible .mt-peek-card {
+    opacity: 1;
+    transform: rotateY(var(--mt-peek-hover));
+}
+
+@keyframes mt-peek-swing {
+    from {
+        opacity: 0;
+        transform: rotateY(var(--mt-peek-from));
+    }
+    to {
+        opacity: 0.9;
+        transform: rotateY(var(--mt-peek-turn));
+    }
+}
+
+/* The panel's name beside the hovered peek, over the place's edge, never in the way at rest. */
+.mt-peek-label {
+    position: absolute;
+    top: 50%;
+    max-width: 220px;
+    padding: 3px 7px;
+    overflow: hidden;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+    box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.6);
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-11);
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-peek[data-side="left"] .mt-peek-label {
+    left: calc(100% + 8px);
+}
+
+.mt-peek[data-side="right"] .mt-peek-label {
+    right: calc(100% + 8px);
+}
+
+.mt-peek:hover .mt-peek-label {
+    opacity: 1;
+}
+
+.mt-light .mt-peek-card {
+    box-shadow: 0 6px 14px -6px rgb(31 26 21 / 0.28);
+}
+
+.mt-light .mt-peek-label {
+    box-shadow: 0 6px 16px -6px rgb(31 26 21 / 0.25);
+}
+
+.prefers-reduced-motion .mt-peek-card {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-peek-card {
+        animation: none;
+    }
+}

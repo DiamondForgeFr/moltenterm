@@ -61,7 +61,7 @@ const config = {
         ],
         category: "public.app-category.developer-tools",
         icon: "build/moltenterm/icon.icns", // MOLTENTERM-PATCH (#4)
-        minimumSystemVersion: "12.0.0", // MOLTENTERM-PATCH (#810): Electron 42 retains the existing macOS 12+ floor.
+        minimumSystemVersion: "13.0.0", // MOLTENTERM-PATCH (#1590): Electron 45 requires macOS 13 or later.
         mergeASARs: true,
         singleArchFiles: "**/dist/bin/wavesrv.*",
         entitlements: "build/entitlements.mac.plist",

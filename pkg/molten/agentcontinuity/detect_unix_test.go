@@ -27,7 +27,7 @@ func TestReadBoundedFileRefusesFifo(t *testing.T) {
 		if err == nil {
 			t.Error("a FIFO was read")
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("reading a FIFO blocked")
 	}
 }

@@ -510,6 +510,20 @@ func covers(confirmed []string, warnings []string) bool {
 	return true
 }
 
+// batchItemMethod is the method a queued PR merges with (#957): its own (the one shown when it joined), else the
+// queue's, else the plan's default for a queue saved before #957. ok is false when GitHub no longer allows it: the PR
+// stops rather than merge with a method the developer did not see.
+func batchItemMethod(item BatchItem, run BatchRun, plan MergePlan) (string, bool) {
+	method := item.Method
+	if method == "" {
+		method = run.Method
+	}
+	if method == "" {
+		method = plan.Method
+	}
+	return method, hasMethod(plan.Methods, method)
+}
+
 // merge goes through Validate's path (FR-REV-012): a plan read fresh, then the merge bound to its head, with the
 // method validated; its cleanup runs after it as after a manual merge.
 func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr) (int, batchStop) {
@@ -546,12 +560,9 @@ func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr) (int, b
 	if len(plan.Warnings) > 0 && !override {
 		return batchStopped, batchStop{reason: BatchReasonWarnings, names: plan.Warnings}
 	}
-	method := item.Method
-	if method == "" {
-		method = run.Method
-	}
-	if !hasMethod(plan.Methods, method) {
-		method = ""
+	method, ok := batchItemMethod(item, run, plan)
+	if !ok {
+		return batchStopped, batchStop{reason: BatchReasonMethod, names: []string{method}}
 	}
 	if !b.beginMerging(ctl, i) {
 		return batchCancelled, batchStop{}

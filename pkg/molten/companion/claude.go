@@ -124,10 +124,8 @@ func (a *ClaudeAdapter) SubagentIds(sessionPath string) map[string]string {
 			break
 		}
 		read++
-		var meta struct {
-			ToolUseId string `json:"toolUseId"`
-		}
-		if readSmallJSON(filepath.Join(dir, name), claudeMaxMetaBytes, &meta) != nil || meta.ToolUseId == "" {
+		meta, ok := readClaudeSubagentMeta(filepath.Join(dir, name))
+		if !ok || meta.ToolUseId == "" {
 			continue
 		}
 		rtn[meta.ToolUseId] = agentId
@@ -135,13 +133,15 @@ func (a *ClaudeAdapter) SubagentIds(sessionPath string) map[string]string {
 	return rtn
 }
 
-// ReadSubagent reads the end of a sub-agent's transcript for its latest model (the model's own answers), effort and
-// branch: a sub-agent in a worktree names the worktree's branch.
+// ReadSubagent reads the end of a sub-agent's transcript for its latest model (the model's own answers) and effort,
+// and its branch from its own folder on disk (#967): its worktree's (agent-<id>.meta.json), else its records' cwd.
+// The branch its records name is never taken: Claude Code shares it across the worktrees of one process.
 func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool) {
 	if !claudeAgentIdRegex.MatchString(agentId) || !strings.HasSuffix(sessionPath, ".jsonl") {
 		return SubagentFacts{}, false
 	}
-	path := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents", "agent-"+agentId+".jsonl")
+	subs := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents")
+	path := filepath.Join(subs, "agent-"+agentId+".jsonl")
 	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
 		return SubagentFacts{}, false
 	}
@@ -149,33 +149,35 @@ func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (Subage
 	if err != nil {
 		return SubagentFacts{}, false
 	}
-	var facts SubagentFacts
-	lines := bytes.Split(tail, []byte("\n"))
-	for i := len(lines) - 1; i >= 0; i-- {
-		if facts.Model != "" && facts.Effort != "" && facts.Branch != "" {
-			break
-		}
-		var rec struct {
-			GitBranch string `json:"gitBranch"`
-			Effort    string `json:"effort"`
-			Message   struct {
-				Model string `json:"model"`
-			} `json:"message"`
-		}
-		if len(lines[i]) == 0 || json.Unmarshal(lines[i], &rec) != nil {
-			continue
-		}
-		if facts.Branch == "" && rec.GitBranch != "" && rec.GitBranch != "HEAD" {
-			facts.Branch = cutString(rec.GitBranch, 300)
-		}
-		if facts.Effort == "" && rec.Effort != "" {
-			facts.Effort = cutString(rec.Effort, 40)
-		}
-		if facts.Model == "" && rec.Message.Model != "" && !strings.HasPrefix(rec.Message.Model, "<") {
-			facts.Model = cutString(rec.Message.Model, 100)
-		}
+	meta, _ := readClaudeSubagentMeta(filepath.Join(subs, "agent-"+agentId+".meta.json"))
+	dir := meta.WorktreePath
+	tf := claudeTailFacts(tail, dir == "")
+	if dir == "" {
+		dir = tf.cwd
 	}
-	return facts, facts != SubagentFacts{}
+	facts := SubagentFacts{Model: tf.model, Effort: tf.effort, Worktree: dir}
+	facts.Branch = FolderBranch(dir)
+	return facts, facts.Model != "" || facts.Effort != "" || facts.Branch != ""
+}
+
+type claudeTailRec struct {
+	Cwd     string `json:"cwd"`
+	Effort  string `json:"effort"`
+	Message struct {
+		Model string `json:"model"`
+	} `json:"message"`
+}
+
+func claudeTailRecord(line []byte) (claudeTailRec, bool) {
+	var rec claudeTailRec
+	if len(line) == 0 || json.Unmarshal(line, &rec) != nil {
+		return claudeTailRec{}, false
+	}
+	return rec, true
+}
+
+func splitLines(tail []byte) [][]byte {
+	return bytes.Split(tail, []byte("\n"))
 }
 
 func (a *ClaudeAdapter) projectDirs(root string, cwd string) []string {
@@ -297,6 +299,9 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 	if s.Id == "" {
 		s.Id = str(rec, "sessionId")
 	}
+	if cwd := str(rec, "cwd"); cwd != "" {
+		s.Cwd = cwd
+	}
 	// After the record: a prompt that comes with a new branch gives it to its own topic, not to the one before.
 	defer s.SetBranch(str(rec, "gitBranch"))
 	switch kind {
@@ -329,6 +334,17 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 	case "pr-link":
 		if n, ok := num(rec, "prNumber"); ok {
 			s.AddPRLink(int(n), str(rec, "prUrl"))
+		}
+		return true
+	case "frame-link":
+		// A page shown to the user (FR-MAT-001 signal 1); the records without a path only count them.
+		if path, url := str(rec, "path"), str(rec, "frameUrl"); path != "" && url != "" {
+			s.NotePublication(Publication{Path: path, Url: url, Title: str(rec, "title")}, at)
+		}
+		return true
+	case "system":
+		if sub := str(rec, "subtype"); sub == "turn_duration" || sub == "stop_hook_summary" {
+			s.NoteTurnEnd()
 		}
 		return true
 	}
@@ -390,7 +406,59 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 	}
 	if result := obj(rec, "toolUseResult"); result != nil {
 		a.parseEdits(result, callId, s, at)
+		a.parsePublication(result, callId, s, at)
 	}
+}
+
+// parsePublication reads the result of Claude Code's Artifact tool (FR-MAT-001 signal 1): {url, path, artifact_id,
+// title, updated, seq (the page's version at its address), files_written: [{path}]}; the call's own files map adds
+// the linked files it sent.
+func (a *ClaudeAdapter) parsePublication(result map[string]any, callId string, s *Session, at int64) {
+	sources := s.takePublishInput(callId)
+	url, path := str(result, "url"), str(result, "path")
+	if url == "" || path == "" || str(result, "artifact_id") == "" {
+		return
+	}
+	var input []any
+	for published := range sources {
+		input = append(input, published)
+	}
+	files := signalFiles(arr(result, "files_written"), arr(result, "new_files"), arr(result, "own_files"), input)
+	sort.Strings(files)
+	version := 0
+	if n, ok := num(result, "seq"); ok && n > 0 && n < 1e6 {
+		version = int(n)
+	}
+	s.NotePublication(Publication{Path: path, Url: url, Title: str(result, "title"), ArtifactId: str(result, "artifact_id"), Updated: boolean(result, "updated"), Version: version, Files: files, Sources: sources}, at)
+}
+
+// claudePublishFiles reads the linked files an Artifact call sends: files maps each published path (relative to the
+// page) to its source, a path or {from}.
+func claudePublishFiles(input map[string]any) map[string]string {
+	rtn := map[string]string{}
+	switch files := input["files"].(type) {
+	case map[string]any:
+		for published, source := range files {
+			switch src := source.(type) {
+			case string:
+				rtn[published] = src
+			case map[string]any:
+				if from := str(src, "from"); from != "" {
+					rtn[published] = from
+				}
+			}
+			if len(rtn) >= MaxSignalFiles {
+				break
+			}
+		}
+	case []any:
+		for _, f := range files {
+			if p := str(asObj(f), "path"); p != "" {
+				rtn[p] = ""
+			}
+		}
+	}
+	return rtn
 }
 
 // parseEdits reads the file changes of a tool result: Edit and Write give a structured patch (Write of a new file,
@@ -450,6 +518,12 @@ func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64)
 			input := obj(block, "input")
 			s.AddToolCall(str(block, "id"), name, argsJSON(input), at)
 			s.NoteActivity(name, activityTarget(input), at)
+			if name == "Bash" {
+				s.NoteShellCommand(shellLine(input))
+			}
+			if name == "Artifact" {
+				s.notePublishInput(str(block, "id"), claudePublishFiles(input))
+			}
 			a.parseTasks(name, input, s)
 			a.parseSubagent(str(block, "id"), name, input, s, at)
 		}

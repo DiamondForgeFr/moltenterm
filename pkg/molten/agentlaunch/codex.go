@@ -18,10 +18,13 @@ import (
 // parse is taken literally, so every value here is valid TOML). Tables merge key by key, so
 // mcp_servers.molten-browser is added next to the user's servers; a single value such as notify is replaced whole,
 // so the generated notify runs `molten agent notify`, which reports the turn's end and links the session, then runs
-// the user's own notify with the same JSON argument (Codex appends it to the argv). The states do not come from Codex
-// hooks: hooks passed for one run stay untrusted until the user trusts them, and MoltenTerm never bypasses that trust;
-// only the coffee approvals' PermissionRequest hook is given, and waits for that trust (codexpermission.go). Profiles
-// and CODEX_HOME are not used either: the first needs a file in ~/.codex, the second hides the user's config.
+// the user's own notify with the same JSON argument (Codex appends it to the argv). The state hooks (codexhooks.go)
+// and the coffee approvals' PermissionRequest hook (codexpermission.go) are given too, but hooks passed for one run
+// stay untrusted until the user trusts them in /hooks, and MoltenTerm never bypasses that trust: notify stays the
+// fallback, and wavesrv ignores its turn end once the hooks report in the pane (#988). The launcher never passes a
+// profile or CODEX_HOME: the first needs a file in ~/.codex, the second hides the user's config. The user's own
+// -p <name> is read as Codex 0.163 reads it, $CODEX_HOME/<name>.config.toml above config.toml (codexconfig.go, #990):
+// a notify it sets is wrapped like config.toml's.
 
 const (
 	CodexAgentId              = molten.AgentIdCodex
@@ -33,7 +36,6 @@ const (
 	codexNotifyItemName       = "Done state at each turn's end (notify)"
 	codexNotifyAroundItemName = "Done state at each turn's end (notify, around your own notify)"
 	codexSessionItemName      = "Session link (at the end of the first turn)"
-	codexHooksItemName        = "Agent state hooks"
 )
 
 // The notify wrapper: <molten> agent notify --agent codex -- <the user's notify argv>; Codex appends the payload.
@@ -56,15 +58,18 @@ var codexPassThroughFlags = map[string]bool{
 	"-V": true, "--version": true, "-h": true, "--help": true, "--remote": true,
 }
 
-// Codex's subcommands that start no session in this pane (codex --help, 0.160.1). exec, review, resume and fork
-// start one and are integrated; any other first word is the prompt.
+// Codex's subcommands that start no session in this pane (codex --help, 0.163.0, testdata/codex-0.163.0-help.txt;
+// #990). exec, review, resume and fork start one and are integrated; any other first word is the prompt. execpolicy,
+// responses-api-proxy and stdio-to-uds are hidden from the help; mcp-server and generate-ts are older versions'.
 var codexSubcommands = map[string]bool{
-	"login": true, "logout": true, "mcp": true, "mcp-server": true, "app-server": true, "app": true,
-	"completion": true, "features": true, "sandbox": true, "debug": true, "apply": true, "a": true, "cloud": true,
+	"login": true, "logout": true, "mcp": true, "mcp-server": true, "plugin": true, "app-server": true,
+	"remote-control": true, "app": true, "completion": true, "update": true, "doctor": true, "features": true,
+	"sandbox": true, "debug": true, "apply": true, "a": true, "queue": true, "archive": true, "delete": true,
+	"migrate-rollouts": true, "unarchive": true, "cloud": true, "exec-server": true, "agents": true,
 	"execpolicy": true, "responses-api-proxy": true, "stdio-to-uds": true, "help": true, "generate-ts": true,
 }
 
-// Codex's options whose value is the next argument, and -i, which takes several (codex --help, 0.160.1).
+// Codex's options whose value is the next argument, and -i, which takes several (codex --help, 0.163.0).
 var codexValueOptions = map[string]bool{
 	"-c": true, "--config": true, "--enable": true, "--disable": true, "--remote": true, "--remote-auth-token-env": true,
 	"-m": true, "--model": true, "--local-provider": true, "-p": true, "--profile": true, "-s": true, "--sandbox": true,
@@ -172,7 +177,7 @@ func (a codexArgs) overridesKey(key string) bool {
 func (codexAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	var plan LaunchPlan
 	args := parseCodexArgs(ctx.Args)
-	config := readCodexConfig(ctx)
+	config := readCodexConfig(ctx, args.profile)
 	if config.unreadable != "" {
 		plan.setStepAside(say(uimsg.Make("integration.reason.fileunreadable", "where", config.unreadable), config.unreadable+" could not be read"))
 		return plan, nil
@@ -180,11 +185,14 @@ func (codexAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	extra := planCodexBrowser(ctx, args, config, &plan)
 	plan.ShownArgs = append(plan.ShownArgs, extra...)
 	extra = append(extra, planCodexNotify(ctx, args, config, &plan)...)
-	permission := planCodexPermission(ctx, args, config, &plan)
-	plan.ShownArgs = append(plan.ShownArgs, permission...)
-	extra = append(extra, permission...)
-	plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationStateHooks, say(uimsg.Make("integration.name.statehooks"), codexHooksItemName),
-		say(uimsg.Make("integration.reason.codexhookstrust"), "Codex runs hooks added for one run only once you trust them, and MoltenTerm never bypasses that trust")))
+	for _, part := range [][]string{
+		planCodexStateHooks(ctx, args, config, &plan),
+		planCodexPermission(ctx, args, config, &plan),
+		planCodexNotifications(ctx, args, config, &plan),
+	} {
+		plan.ShownArgs = append(plan.ShownArgs, part...)
+		extra = append(extra, part...)
+	}
 	if len(extra) == 0 {
 		plan.ShownArgs = nil
 		return plan, nil
@@ -221,8 +229,14 @@ func planCodexBrowser(ctx LaunchContext, args codexArgs, config codexConfig, pla
 	return []string{
 		codexConfigFlag, key + ".command=" + tomlString(ctx.MoltenPath),
 		codexConfigFlag, key + ".args=" + tomlArray([]string{"mcp", "browser"}),
+		codexConfigFlag, key + ".env_vars=" + tomlArray(codexBrowserEnv),
 	}
 }
+
+// Codex starts a stdio MCP server with a few core variables only (HOME, PATH, USER, TERM...: codex-rs rmcp-client,
+// create_env_for_mcp_server), plus the names env_vars lists. Without the terminal token the server cannot reach
+// MoltenTerm and every tool answers that it does not run in a MoltenTerm terminal (#985).
+var codexBrowserEnv = []string{"WAVETERM_JWT", "WAVETERM_BLOCKID"}
 
 func planCodexNotify(ctx LaunchContext, args codexArgs, config codexConfig, plan *LaunchPlan) []string {
 	skip := func(reason phrase) []string {
@@ -236,18 +250,6 @@ func planCodexNotify(ctx LaunchContext, args codexArgs, config codexConfig, plan
 	}
 	if args.overridesKey(codexNotifyKey) {
 		return skip(say(uimsg.Make("integration.reason.ownnotifyflag"), "you passed your own -c notify: it runs as you set it"))
-	}
-	// The --profile option wins over a -c profile, which wins over the files.
-	profile := args.profile
-	if override, ok := args.overrides[codexProfileKey]; ok && profile == "" {
-		profile = strings.Trim(override, `"'`)
-	}
-	if profile == "" {
-		profile = config.profile()
-	}
-	if where := config.profileNotify(profile); where != "" {
-		return skip(say(uimsg.Make("integration.reason.profilenotify", "profile", profile, "where", where),
-			"your profile "+profile+" in "+where+" sets notify: it runs as you set it"))
 	}
 	if where := config.managedSetsNotify(); where != "" {
 		return skip(say(uimsg.Make("integration.reason.managednotify", "where", where), "your organization's "+where+" sets notify"))

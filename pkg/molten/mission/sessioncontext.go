@@ -39,6 +39,7 @@ type sessionPr struct {
 	Url         string `json:"url"`
 	HeadRefName string `json:"headRefName"`
 	IsDraft     bool   `json:"isDraft"`
+	MergedAt    string `json:"mergedAt"`
 }
 
 var repoNameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
@@ -52,6 +53,17 @@ func parseSessionPrs(raw json.RawMessage) []sessionPr {
 		return nil
 	}
 	return prs
+}
+
+// mergedSessionPrs: the snapshot's closed PRs that merged; the others were closed without merging (#1088).
+func mergedSessionPrs(raw json.RawMessage) []sessionPr {
+	var rtn []sessionPr
+	for _, pr := range parseSessionPrs(raw) {
+		if pr.MergedAt != "" {
+			rtn = append(rtn, pr)
+		}
+	}
+	return rtn
 }
 
 func findSessionPr(prs []sessionPr, number int, branch string) (sessionPr, bool) {
@@ -86,7 +98,7 @@ func ResolveSessionContext(q molten.SessionContextQuery, gh *GithubSnapshot, tic
 				if pr.IsDraft {
 					ctx.PrState = molten.SessionPrDraft
 				}
-			} else if pr, ok := findSessionPr(parseSessionPrs(gh.Merged), q.Number, q.Branch); ok {
+			} else if pr, ok := findSessionPr(mergedSessionPrs(gh.Merged), q.Number, q.Branch); ok {
 				ctx.Pr, ctx.PrTitle, ctx.PrUrl = pr.Number, pr.Title, pr.Url
 				ctx.PrState = molten.SessionPrMerged
 			}

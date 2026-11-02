@@ -20,8 +20,13 @@ import { focusedBlockId, getElemAsStr } from "@/util/focusutil";
 import { isBlank, useAtomValueSafe } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
-import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BlockErrorBoundary } from "../../moltenterm-shell/block-error"; // MOLTENTERM-PATCH (#1750)
+import { useBlockFocusRequest } from "../../moltenterm-shell/block-focus-request"; // MOLTENTERM-PATCH (#1750)
+import { cameThroughPortal } from "../../moltenterm-shell/block-portal-events"; // MOLTENTERM-PATCH (#1070)
 import { focusHandoffActive } from "../../moltenterm-shell/browser/focus-handoff"; // MOLTENTERM-PATCH (#268)
+import { t } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154)
+import { LazyViewLoading } from "../../moltenterm-shell/lazy/lazy-view"; // MOLTENTERM-PATCH (#1714)
 import { offCarpetAtom, PanelBlockIdContext } from "../../moltenterm-shell/view360/offcarpet-model"; // MOLTENTERM-PATCH (#618)
 import "./block.scss";
 import { BlockEnv } from "./blockenv";
@@ -79,7 +84,7 @@ const BlockSubBlock = memo(({ nodeModel, viewModel }: FullSubBlockProps) => {
     return (
         <div key="content" className={clsx("block-content", { "block-no-padding": noPadding })} ref={contentRef}>
             <ErrorBoundary>
-                <Suspense fallback={<CenteredDiv>Loading...</CenteredDiv>}>{viewElem}</Suspense>
+                <Suspense fallback={<LazyViewLoading label={t("wave.editor.loading")} />}>{viewElem}</Suspense>
             </ErrorBoundary>
         </div>
     );
@@ -92,7 +97,6 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
     const blockRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const pendingFocusRafRef = useRef<number | null>(null);
-    const [blockClicked, setBlockClicked] = useState(false);
     const blockView = useAtomValue(waveEnv.getBlockMetaKeyAtom(nodeModel.blockId, "view")) ?? "";
     const isFocused = useAtomValue(nodeModel.isFocused);
     const disablePointerEvents = useAtomValue(nodeModel.disablePointerEvents);
@@ -113,15 +117,9 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
         };
     }, []);
 
-    useLayoutEffect(() => {
-        setBlockClicked(isFocused);
-    }, [isFocused]);
-
-    useLayoutEffect(() => {
-        if (!blockClicked) {
-            return;
-        }
-        setBlockClicked(false);
+    // MOLTENTERM-PATCH (#1750): the click / layout-focus request lives in useBlockFocusRequest, which never takes back
+    // a focus that moved on to another block before the request ran (two blocks did so forever: React error #185)
+    const requestClickFocus = useBlockFocusRequest(isFocused, (takeLayoutFocus) => {
         if (focusHandoffActive()) {
             return; // MOLTENTERM-PATCH (#268): a link opened from here hands the focus to a browser panel
         }
@@ -129,17 +127,22 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
         if (!focusWithin) {
             setFocusTarget();
         }
-        if (!isFocused) {
+        if (takeLayoutFocus) {
             nodeModel.focusNode();
         }
-    }, [blockClicked, isFocused]);
+    });
 
-    const setBlockClickedTrue = useCallback(() => {
+    const setBlockClickedTrue = useCallback((event?: React.MouseEvent<HTMLDivElement>) => {
         if (focusHandoffActive()) {
             return; // MOLTENTERM-PATCH (#268)
         }
-        setBlockClicked(true);
-    }, []);
+        // A click in a dialog the view opened reaches here through React's portal bubbling; taking the focus back
+        // would close the dialog's open select or date picker.
+        if (event != null && cameThroughPortal(event, blockRef.current)) {
+            return; // MOLTENTERM-PATCH (#1070)
+        }
+        requestClickFocus(); // MOLTENTERM-PATCH (#1750)
+    }, [requestClickFocus]);
 
     const [blockContentOffset, setBlockContentOffset] = useState<Dimensions>();
 
@@ -177,6 +180,9 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
             console.log("setFocusedChild", nodeModel.blockId, getElemAsStr(event.target));
             if (focusHandoffActive()) {
                 return; // MOLTENTERM-PATCH (#268)
+            }
+            if (cameThroughPortal(event, blockRef.current)) {
+                return; // MOLTENTERM-PATCH (#1070)
             }
             if (!isFocused) {
                 console.log("focusedChild focus", nodeModel.blockId);
@@ -274,7 +280,7 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
                 <ErrorBoundary>
                     {/* MOLTENTERM-PATCH (#618): the view's hooks find their panel (offcarpet-model.ts) */}
                     <PanelBlockIdContext.Provider value={nodeModel.blockId}>
-                        <Suspense fallback={<CenteredDiv>Loading...</CenteredDiv>}>{viewElem}</Suspense>
+                        <Suspense fallback={<LazyViewLoading label={t("wave.editor.loading")} />}>{viewElem}</Suspense>
                     </PanelBlockIdContext.Provider>
                 </ErrorBoundary>
             </div>
@@ -314,7 +320,12 @@ const Block = memo((props: BlockProps) => {
     if (isNull || isBlank(props.nodeModel.blockId)) {
         return null;
     }
-    return <BlockInner key={props.nodeModel.blockId + ":" + viewType} {...props} viewType={viewType} />;
+    // MOLTENTERM-PATCH (#1750): an error in the block itself (not only in its view) stays in its panel
+    return (
+        <BlockErrorBoundary key={props.nodeModel.blockId + ":" + viewType} blockId={props.nodeModel.blockId}>
+            <BlockInner {...props} viewType={viewType} />
+        </BlockErrorBoundary>
+    );
 });
 
 const SubBlockInner = memo((props: SubBlockProps & { viewType: string }) => {

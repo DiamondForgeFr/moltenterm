@@ -23,6 +23,9 @@ import (
 const trunkLogLimit = 300
 const branchLogLimit = 150
 const maxBranches = 60
+
+// The branches an agent tool names after its worktree (Claude Code's Agent tool: worktree-agent-<id>).
+const agentTreePrefix = "worktree-agent-"
 const maxAhead = 400
 const maxSincePublic = 500
 const defaultTagPrefix = "v"
@@ -37,6 +40,9 @@ const notesFromTagLimit = 6
 const maxMerges = 60
 const maxMergeCommits = 150
 const mergeLogLimit = 4000
+
+// The newest tags get their trunk source computed (#1727): one git call each, the older stations are listed, not drawn.
+const maxTagSources = 30
 
 type Commit struct {
 	Sha     string `json:"sha"`
@@ -59,6 +65,12 @@ type Branch struct {
 	Date    string     `json:"date"`
 	Commits []Commit   `json:"commits"`
 	Fork    *ForkPoint `json:"fork"`
+	// AgentTree: a branch an agent tool made for its worktree (worktree-agent-…), kept because it holds commits of its
+	// own (#1123).
+	AgentTree bool `json:"agenttree,omitempty"`
+	// The linked worktree that has the branch checked out, the main checkout aside (#1133): shown on hover only, the
+	// row names the branch.
+	Worktree string `json:"worktree,omitempty"`
 }
 
 // Merge is a branch merged into the trunk by a merge commit, read back from the commit's second parent: where the
@@ -80,6 +92,9 @@ type Tag struct {
 	Date          string `json:"date"`
 	Notes         string `json:"notes,omitempty"`
 	NotesInternal string `json:"notesinternal,omitempty"`
+	// Source is the newest commit of the trunk's first-parent history that the tag contains (#1727): what the line
+	// map's station connects to. Empty when none of the trunk's commits read is in the tag, or the tag was not looked at.
+	Source string `json:"source,omitempty"`
 }
 
 type GitSnapshot struct {
@@ -98,6 +113,8 @@ type GitSnapshot struct {
 	TagPrefix string `json:"tagprefix"`
 	// versions.firstpublic: tags below its first candidate are not the project's releases.
 	FirstPublic string `json:"firstpublic,omitempty"`
+	// versions.rcformat: how the next release candidates are numbered (#1155).
+	RcFormat string `json:"rcformat,omitempty"`
 }
 
 // ProjectBranches are the two long-lived branches (molten.ProjectBranches).
@@ -145,7 +162,7 @@ func ConfiguredVersions(dir string) (string, string) {
 	return prefix, notes
 }
 
-// ConfiguredRules reads the project's numbering rules (versions.tagprefix, versions.firstpublic).
+// ConfiguredRules reads the project's numbering rules (versions.tagprefix, versions.firstpublic, versions.rcformat).
 func ConfiguredRules(dir string) versions.Rules {
 	var pipeline struct {
 		Versions versions.Rules `json:"versions"`
@@ -308,6 +325,60 @@ func (g *gitReader) tags() []Tag {
 	return tags
 }
 
+// tagSources sets each recent tag's Source: the newest commit of the trunk's first-parent history (trunk, newest first,
+// as trunkBranch read it) that the tag contains. Along that history, a commit the tag contains has all the older ones
+// in it too, so the commits the tag lacks are the newest ones, and the source is the first commit after them. That
+// holds whatever carried the trunk to the release branch: a direct merge, or an rc branch cut from the trunk, with the
+// release branch merged into it and its release commit, whose history the release branch's first parents never walk.
+// --first-parent only narrows the trunk's side: the tag's whole history is excluded, merges included.
+func (g *gitReader) tagSources(tags []Tag, baseRef string, trunk []Commit) {
+	if baseRef == "" || len(trunk) == 0 {
+		return
+	}
+	oldest, err := time.Parse(time.RFC3339, trunk[len(trunk)-1].Date)
+	onTrunk := map[string]bool{}
+	for _, c := range trunk {
+		onTrunk[c.Sha] = true
+	}
+	known := map[string]string{}
+	looked := 0
+	for i := range tags {
+		tag := &tags[i]
+		if onTrunk[tag.Sha] {
+			tag.Source = tag.Sha
+			continue
+		}
+		if source, ok := known[tag.Sha]; ok {
+			tag.Source = source
+			continue
+		}
+		// A tag made before the oldest trunk commit read cannot hold any of them.
+		if at, perr := time.Parse(time.RFC3339, tag.Date); err == nil && perr == nil && at.Before(oldest) {
+			continue
+		}
+		if looked >= maxTagSources {
+			break
+		}
+		looked++
+		out, rerr := g.out("rev-list", "--first-parent", "-n", strconv.Itoa(len(trunk)), "--end-of-options", baseRef, "^"+tag.Sha)
+		if rerr != nil {
+			// Unknown, not "every commit": the line map falls back to its own reading.
+			continue
+		}
+		lacking := map[string]bool{}
+		for _, sha := range strings.Fields(out) {
+			lacking[sha] = true
+		}
+		for _, c := range trunk {
+			if !lacking[c.Sha] {
+				tag.Source = c.Sha
+				break
+			}
+		}
+		known[tag.Sha] = tag.Source
+	}
+}
+
 // IsPrereleaseTag is Notulia's rule: a release candidate is a version with a suffix (v1.2.0-3), read after the
 // project's tag prefix (which may itself hold a dash, as release-1.2.0).
 func IsPrereleaseTag(name string, prefix string) bool {
@@ -341,8 +412,67 @@ func (g *gitReader) ahead(releaseRef string, baseRef string) []Commit {
 	return parseCommits(g.lines(append([]string{"log", "--no-walk=unsorted", commitFormat}, shas...)...))
 }
 
-func (g *gitReader) featureBranches(baseRef string, skip map[string]bool) []Branch {
+// longLived are the branches whose commits are no branch's own work (#1133): the trunk, the release branch and the
+// rc branches, local and on origin. A worktree started on the release branch's tip holds commits the trunk lacks.
+type longLived struct {
+	refs     []string
+	rcPrefix string
+}
+
+func (g *gitReader) longLivedOf(names []string, rcPattern string) longLived {
+	rtn := longLived{}
+	seen := map[string]bool{}
+	for _, name := range names {
+		for _, ref := range []string{"refs/heads/" + name, "refs/remotes/origin/" + name} {
+			if name == "" || seen[ref] || !g.refExists(ref) {
+				continue
+			}
+			seen[ref] = true
+			rtn.refs = append(rtn.refs, ref)
+		}
+	}
+	if prefix, _, ok := strings.Cut(rcPattern, "{"); ok && prefix != "" && !strings.ContainsAny(prefix, "*?[\\") {
+		rtn.rcPrefix = prefix
+	}
+	return rtn
+}
+
+// notArgs exclude the long-lived branches' commits from a branch's log; an rc branch is not measured against itself.
+func (l longLived) notArgs(self string) []string {
+	args := append([]string{"--not"}, l.refs...)
+	if l.rcPrefix == "" {
+		return args
+	}
+	for _, space := range []string{"refs/heads/", "refs/remotes/origin/"} {
+		args = append(args, "--exclude=refs/heads/"+self, "--exclude=refs/remotes/origin/"+self, "--glob="+space+l.rcPrefix+"*")
+	}
+	return args
+}
+
+// worktrees maps each branch checked out in a linked worktree to the worktree's folder; the main checkout, listed
+// first, is the project itself.
+func (g *gitReader) worktrees() map[string]string {
+	rtn := map[string]string{}
+	path := ""
+	first := true
+	for _, line := range g.lines("worktree", "list", "--porcelain") {
+		if p, ok := strings.CutPrefix(line, "worktree "); ok {
+			if path != "" {
+				first = false
+			}
+			path = p
+			continue
+		}
+		if ref, ok := strings.CutPrefix(line, "branch refs/heads/"); ok && !first && path != "" {
+			rtn[ref] = path
+		}
+	}
+	return rtn
+}
+
+func (g *gitReader) featureBranches(baseRef string, skip map[string]bool, long longLived) []Branch {
 	branches := []Branch{}
+	trees := g.worktrees()
 	for _, line := range g.lines("for-each-ref", "--sort=-committerdate", "--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)", "refs/heads") {
 		parts := strings.Split(line, "\t")
 		if len(parts) < 3 || skip[parts[0]] {
@@ -351,16 +481,41 @@ func (g *gitReader) featureBranches(baseRef string, skip map[string]bool) []Bran
 		if len(branches) >= maxBranches {
 			break
 		}
-		branch := Branch{Name: parts[0], Sha: parts[1], Date: parts[2], Commits: []Commit{}}
+		name := parts[0]
+		agentTree := strings.HasPrefix(name, agentTreePrefix)
+		worktree := trees[name]
+		if agentTree && worktree == "" && !g.hasOwnCommits(name) {
+			continue
+		}
+		branch := Branch{Name: name, Sha: parts[1], Date: parts[2], Commits: []Commit{}, AgentTree: agentTree, Worktree: worktree}
 		if baseRef != "" {
-			if fork, err := g.out("merge-base", baseRef, parts[0]); err == nil && fork != "" {
+			if fork, err := g.out("merge-base", baseRef, name); err == nil && fork != "" {
 				branch.Fork = &ForkPoint{Sha: fork, Date: g.commitDate(fork)}
 			}
-			branch.Commits = parseCommits(g.lines("log", commitFormat, "-n", strconv.Itoa(branchLogLimit), baseRef+".."+parts[0]))
+		}
+		if len(long.refs) > 0 {
+			args := append([]string{"log", commitFormat, "-n", strconv.Itoa(branchLogLimit), "refs/heads/" + name}, long.notArgs(name)...)
+			branch.Commits = parseCommits(g.lines(args...))
+		}
+		if agentTree && len(branch.Commits) == 0 {
+			continue
 		}
 		branches = append(branches, branch)
 	}
 	return branches
+}
+
+// hasOwnCommits: the agent tool's branch holds a commit no other branch, remote branch or tag holds (#1123). Its
+// worktree starts on the checkout's commit, often the release branch's, which reads as commits ahead of the trunk;
+// other agents' branches do not count, so two that started on the same commit are both left out.
+func (g *gitReader) hasOwnCommits(name string) bool {
+	count, err := g.out("rev-list", "--count", "refs/heads/"+name, "--not", "--exclude="+agentTreePrefix+"*", "--branches",
+		"--remotes", "--tags")
+	if err != nil {
+		return true
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(count))
+	return err != nil || n > 0
 }
 
 func earlierDate(a string, b string) bool {
@@ -451,7 +606,7 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 	if _, err := g.out("rev-parse", "--git-dir"); err != nil {
 		return nil, err
 	}
-	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Merges: []Merge{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix, FirstPublic: g.rules.FirstPublic}
+	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Merges: []Merge{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix, FirstPublic: g.rules.FirstPublic, RcFormat: g.rules.RcFormat}
 	remote, _ := g.out("remote", "get-url", "origin")
 	snap.RemoteUrl = GitHubWebUrl(remote)
 	if fetch && remote != "" {
@@ -489,8 +644,16 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 			snap.Merges = g.merges(baseRef, b.Commits)
 		}
 	}
-	snap.Branches = append(snap.Branches, g.featureBranches(baseRef, skip)...)
+	long := g.longLivedOf([]string{snap.Trunk, snap.Release}, molten.RcBranchPattern(dir))
+	snap.Branches = append(snap.Branches, g.featureBranches(baseRef, skip, long)...)
 	snap.Tags = g.tags()
+	if snap.Release != snap.Trunk {
+		for _, b := range snap.Branches {
+			if b.Name == snap.Trunk {
+				g.tagSources(snap.Tags, baseRef, b.Commits)
+			}
+		}
+	}
 	snap.Ahead = g.ahead(releaseRef, baseRef)
 	snap.LastPublic = g.lastPublic()
 	if snap.LastPublic != "" && baseRef != "" {

@@ -66,6 +66,8 @@ export type AgentRow = {
     complexity?: string;
     hint?: ProportionHint;
     background?: boolean;
+    // A sub-agent's own branch, read from its folder (#967).
+    branch?: string;
     portrait?: string;
     capabilities?: string[];
 };
@@ -194,6 +196,7 @@ export function subagentRow(sub: CompanionSubagent, now: number, parent?: ModelE
         configTitle: titleParts.join("\n"),
         lines: what.length > 0 ? [what.join(" · ")] : [],
         background: sub.background,
+        branch: sub.branch || undefined,
         ...ticketFacts(sub.ticket, sub.complexity, model, effort),
     };
 }

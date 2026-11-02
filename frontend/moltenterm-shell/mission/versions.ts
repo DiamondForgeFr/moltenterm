@@ -50,9 +50,13 @@ export function tagVersion(tag: string, prefix: string = DefaultTagPrefix): stri
     return tag.startsWith(prefix) ? tag.slice(prefix.length) : tag;
 }
 
-// The numbering rules a project's history is read with (versions.tagprefix, versions.firstpublic).
-export function treeRules(tree: Pick<TreeData, "tagPrefix" | "firstPublic">): VersionRules {
-    return { tagprefix: tree?.tagPrefix || DefaultTagPrefix, firstpublic: tree?.firstPublic || "" };
+// The numbering rules a project's history is read with (versions.tagprefix, versions.firstpublic, versions.rcformat).
+export function treeRules(tree: Pick<TreeData, "tagPrefix" | "firstPublic" | "rcFormat">): VersionRules {
+    const rules: VersionRules = { tagprefix: tree?.tagPrefix || DefaultTagPrefix, firstpublic: tree?.firstPublic || "" };
+    if (tree?.rcFormat) {
+        rules.rcformat = tree.rcFormat;
+    }
+    return rules;
 }
 
 // The plan's reason in the interface language. ../releases/versions.ts keeps its English, the twin of

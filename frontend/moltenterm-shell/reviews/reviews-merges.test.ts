@@ -6,7 +6,15 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { noteBatchMerges } from "./reviews-batch-client";
 import type { BatchRun } from "./reviews-batch-model";
 import type { ReviewMergedPr } from "./reviews-merged-model";
-import { knownMerge, LocalMerges, mergeKey, ReviewsMerges, withLocalMerges } from "./reviews-merges";
+import { I18nModel } from "../i18n/i18n";
+import {
+    knownMerge,
+    LocalMerges,
+    mergedByQueueText,
+    mergeKey,
+    ReviewsMerges,
+    withLocalMerges,
+} from "./reviews-merges";
 import { navigableRows, nextRow, reviewCounts, ReviewPr, ReviewsAnswer, splitReviews } from "./reviews-model";
 
 const Dir = "/p";
@@ -124,6 +132,32 @@ describe("a merge MoltenTerm made leaves the list at once (#898)", () => {
         expect(merges[mergeKey(Dir, 1)]).toMatchObject({ byyou: true, mergedat: Now - 2000, base: "develop" });
         expect(merges[mergeKey(Dir, 2)].byyou).toBe(false);
         expect(numbers(withLocalMerges(answer(), merges, Now).ready)).toEqual([3]);
+    });
+
+    it("remembers which PRs the group merge merged, for Recently merged (#1123)", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        const run = {
+            id: "b2",
+            dir: Dir,
+            repo: "o/r",
+            base: "develop",
+            state: "done",
+            current: -1,
+            ciruns: 0,
+            startedat: Now - 5000,
+            items: [
+                { number: 4, headref: "fix/4-x", headoid: "h4", state: "merged", source: "batch" },
+                { number: 5, headref: "fix/5-x", headoid: "h5", state: "merged", source: "validate" },
+                { number: 6, headref: "fix/6-x", headoid: "h6", state: "skipped", reason: "mergedaway" },
+            ],
+        } as BatchRun;
+        noteBatchMerges(run);
+        const merges = globalStore.get(ReviewsMerges.getInstance().mergesAtom);
+        expect(mergedByQueueText(merges[mergeKey(Dir, 4)].byqueue)).toBe("par la fusion groupée");
+        expect(mergedByQueueText(merges[mergeKey(Dir, 5)].byqueue)).toBe("par la file de fusion");
+        expect(mergedByQueueText(merges[mergeKey(Dir, 6)].byqueue)).toBe("");
+        I18nModel.getInstance().setLanguageSetting("en");
+        expect(mergedByQueueText("group")).toBe("by the group merge");
     });
 });
 

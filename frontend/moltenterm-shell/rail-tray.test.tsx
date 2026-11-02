@@ -99,7 +99,7 @@ describe("the tray stays inside its item's row (FR-SHELL-045-AC1, NFR-SHELL-029)
         expect(tray).toContain("top: anchor(top);");
         expect(tray).toContain("bottom: anchor(bottom);");
         expect(tray).toContain("min-width: calc(var(--molten-rail-tray-lead) + 112px);");
-        expect(tray).toContain("border-radius: var(--mt-radius-6);");
+        expect(tray).toContain("border-radius: var(--mt-radius-panel);");
         expect(tray).toContain("box-shadow: var(--mt-shadow-command);");
         expect(tray).toContain("border: 1px solid var(--mt-line-2);");
         expect(tray).toContain("pointer-events: none;");
@@ -167,11 +167,11 @@ describe("no bud or goo is left (FR-SHELL-045-AC9)", () => {
         expect(css).toContain(".molten-rail-host[data-tray-open] .molten-rail-coffee-drop {\n    opacity: 0;");
     });
 
-    it("draws the pure workspace colour only on the 3 px active bar (DS-SHELL-082)", () => {
+    it("draws the pure workspace colour only on the 3 px active bar (DS-SHELL-082, #1319)", () => {
         const css = source("./moltenterm-shell.css");
         const bar = cssRule(css, ".molten-rail-active-bar");
         expect(bar).toContain("width: 3px;");
-        expect(bar).toContain("background-color: var(--mt-accent);");
+        expect(bar).toContain("background-color: var(--mt-place);");
         expect(source("./workspace-icon.tsx")).toContain('"molten-glyph-tone"');
     });
 });

@@ -69,12 +69,21 @@ type subagent struct {
 	// effort: the effort its own transcript records, else the one its call asked for; empty when the parent's.
 	effort string
 	// branch: the branch its own transcript last names (a worktree's).
-	branch     string
+	branch string
+	// worktree: the folder its own files say it works in (#1035).
+	worktree   string
 	background bool
 	state      string
 	started    int64
 	ended      int64
-	ticket     ticketRef
+	// woke: when a follow-up last sent it back to work (a Codex agent's "interacted" activity).
+	woke   int64
+	ticket ticketRef
+	// path: the agent's place in its tree as Codex names it (/root/audit_reliability), which links a sub-agent
+	// rollout to its call when no activity gave its thread id.
+	path string
+	// found: an agent read only from its own rollout (a sub-agent's sub-agent): its rollout's turns say its state.
+	found bool
 }
 
 // PRLink is a pull request the session pushed, as the agent recorded it (Claude Code's pr-link records).
@@ -104,6 +113,7 @@ type SubagentInfo struct {
 	// Effort: empty when neither its transcript nor its call says it (the parent's then).
 	Effort     string `json:"effort,omitempty"`
 	Branch     string `json:"branch,omitempty"`
+	Worktree   string `json:"worktree,omitempty"`
 	Background bool   `json:"background,omitempty"`
 	State      string `json:"state"`
 	Started    int64  `json:"started,omitempty"`
@@ -146,12 +156,30 @@ func (s *Session) SetBranch(branch string) {
 	}
 	s.branch = cutString(branch, 300)
 	if t := s.currentTopic(); t != nil {
-		t.branch = s.branch
+		t.branch = s.Branch()
 	}
 	s.touch()
 }
 
+// SetFolderBranch keeps the branch read from the session's folder on disk (#967), which wins over the records' from
+// then on, even when empty (a detached HEAD): no stale ticket rather than another worktree's.
+func (s *Session) SetFolderBranch(branch string) {
+	branch = cutString(strings.TrimSpace(branch), 300)
+	if s.folderRead && branch == s.folderBranch {
+		return
+	}
+	s.folderRead, s.folderBranch = true, branch
+	if t := s.currentTopic(); t != nil && branch != "" {
+		t.branch = branch
+	}
+	s.touch()
+}
+
+// Branch is the branch the agent works on: its folder's when read, else what its records say.
 func (s *Session) Branch() string {
+	if s.folderRead {
+		return s.folderBranch
+	}
 	return s.branch
 }
 
@@ -161,7 +189,7 @@ func (s *Session) Name() string {
 }
 
 func (s *Session) startTopic(text string, at int64) {
-	t := &topic{text: cutRunes(text, MaxTopicRunes), branch: s.branch, at: at, last: at}
+	t := &topic{text: cutRunes(text, MaxTopicRunes), branch: s.Branch(), at: at, last: at}
 	s.topics = append(s.topics, t)
 	if len(s.topics) > MaxTopics {
 		s.topics = append([]*topic(nil), s.topics[len(s.topics)-MaxTopics:]...)
@@ -229,15 +257,37 @@ func (t *topic) worked() bool {
 	return len(t.files) > 0 || t.tools >= topicMinTools || len(t.prs) > 0
 }
 
-// Topics are the latest prompts whose turn did work, newest first.
+// Topics are the latest prompts whose turn did work, newest first. A topic shows the PRs the agent recorded during it
+// and its branch's PRs (#991): a branch PR goes on the newest topic of that branch, never on a second topic nor where
+// a recorded one already put it.
 func (s *Session) Topics() []TopicInfo {
 	var rtn []TopicInfo
-	for i := len(s.topics) - 1; i >= 0 && len(rtn) < MaxShownTopics; i-- {
-		t := s.topics[i]
-		if !t.worked() {
-			continue
+	shown := map[int]bool{}
+	for _, t := range s.shownTopics() {
+		prs := append([]PRLink(nil), t.prs...)
+		for _, pr := range s.branchPRs[t.branch] {
+			if len(prs) >= MaxTopicPRs {
+				break
+			}
+			if s.prsSeen[pr.Number] || shown[pr.Number] {
+				continue
+			}
+			prs = append(prs, pr)
 		}
-		rtn = append(rtn, TopicInfo{Text: t.text, Branch: t.branch, At: t.at, Last: t.last, Tools: t.tools, Files: len(t.files), PRs: append([]PRLink(nil), t.prs...)})
+		for _, pr := range prs {
+			shown[pr.Number] = true
+		}
+		rtn = append(rtn, TopicInfo{Text: t.text, Branch: t.branch, At: t.at, Last: t.last, Tools: t.tools, Files: len(t.files), PRs: prs})
+	}
+	return rtn
+}
+
+func (s *Session) shownTopics() []*topic {
+	var rtn []*topic
+	for i := len(s.topics) - 1; i >= 0 && len(rtn) < MaxShownTopics; i-- {
+		if s.topics[i].worked() {
+			rtn = append(rtn, s.topics[i])
+		}
 	}
 	return rtn
 }
@@ -310,7 +360,7 @@ func (s *Session) QuietSubagents(now int64, lastWrite func(agentId string) int64
 		if !sa.background || (sa.state != SubagentRunning && sa.state != SubagentQuiet) {
 			continue
 		}
-		last := sa.started
+		last := max(sa.started, sa.woke)
 		if sa.agentId != "" && lastWrite != nil {
 			last = max(last, lastWrite(sa.agentId))
 		}
@@ -373,6 +423,83 @@ func (s *Session) EndSubagent(id string, status string) {
 	s.touch()
 }
 
+// SubagentStarted records the thread a started sub-agent runs as (Codex's started activity, #986): the call that
+// spawned it gets its agent id, and the model and effort the activity gives when the call named none. Without a
+// recorded call (a version that wrote no spawn_agent), the activity starts the agent itself.
+func (s *Session) SubagentStarted(callId string, agentId string, path string, description string, model string, effort string, at int64) {
+	sa := s.subagent(callId)
+	if sa == nil {
+		sa = s.subagent(agentId)
+	}
+	if sa == nil {
+		s.StartSubagent(callId, description, "", model, effort, true, at)
+		sa = s.subagent(callId)
+		if sa == nil {
+			return
+		}
+	}
+	s.SetSubagentId(sa.id, agentId)
+	if sa.path == "" {
+		sa.path = cutString(path, 300)
+	}
+	if sa.model == "" {
+		sa.model = cutString(model, 100)
+	}
+	if sa.effort == "" {
+		sa.effort = cutString(effort, 40)
+	}
+	s.touch()
+}
+
+// SetSubagentPath keeps where a sub-agent sits in its tree, as its call's result names it.
+func (s *Session) SetSubagentPath(id string, path string) {
+	sa := s.subagent(id)
+	if sa == nil || path == "" || sa.path != "" {
+		return
+	}
+	sa.path = cutString(path, 300)
+}
+
+// WakeSubagent sends an agent back to work: a follow-up its parent sent after it ended its task.
+func (s *Session) WakeSubagent(id string, at int64) {
+	sa := s.subagent(id)
+	if sa == nil {
+		return
+	}
+	sa.woke = max(sa.woke, at)
+	if sa.state == SubagentRunning {
+		return
+	}
+	sa.state = SubagentRunning
+	sa.ended = 0
+	s.touch()
+}
+
+// AddFoundSubagent takes an agent found by its own rollout. A child of the session itself only gives its thread id
+// to the call that spawned it (matched by its path); a child of a sub-agent (nested) is listed with the others.
+func (s *Session) AddFoundSubagent(f FoundSubagent) {
+	if f.AgentId == "" || s.subagent(f.AgentId) != nil {
+		return
+	}
+	if f.Path != "" {
+		for _, sa := range s.subagents {
+			if sa.agentId == "" && sa.path == f.Path {
+				sa.agentId = cutString(f.AgentId, 200)
+				return
+			}
+		}
+	}
+	if !f.Nested {
+		return
+	}
+	s.subagents = append(s.subagents, &subagent{
+		id: cutString(f.AgentId, 200), agentId: cutString(f.AgentId, 200), description: cutRunes(oneLine(f.Name), MaxSubagentText),
+		kind: cutString(f.Kind, 100), background: true, state: SubagentRunning, started: f.Started, path: cutString(f.Path, 300), found: true,
+	})
+	s.trimSubagents()
+	s.touch()
+}
+
 // The oldest ended sub-agents go first; running ones are kept.
 func (s *Session) trimSubagents() {
 	for len(s.subagents) > MaxSubagents {
@@ -392,6 +519,7 @@ func (s *Session) Subagents() []SubagentInfo {
 	for _, sa := range s.subagents {
 		rtn = append(rtn, SubagentInfo{
 			Id: sa.id, Description: sa.description, Kind: sa.kind, Model: sa.model, Effort: sa.effort, Branch: sa.branch,
+			Worktree:   sa.worktree,
 			Background: sa.background, State: sa.state, Started: sa.started, Ended: sa.ended,
 			Ticket: sa.ticket.number, Complexity: sa.ticket.complexity,
 		})

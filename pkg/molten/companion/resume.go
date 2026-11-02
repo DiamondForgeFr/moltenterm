@@ -98,6 +98,23 @@ func sameAgentPath(agent string, path string) bool {
 	return SessionIdFromPath(agent, path) != ""
 }
 
+// KnownResumeSession is the session the companion already knows for sure, without opening it: for a caller that
+// cannot wait (a view closing, FR-SHELL-088). Path is "" when none is known.
+func (m *Manager) KnownResumeSession(blockId string, agent string) ResumeSession {
+	path := m.confidentPath(blockId)
+	if path == "" || m.stalePick(blockId, path) || !sameAgentPath(agent, path) {
+		return ResumeSession{}
+	}
+	return ResumeSession{Path: path, LinkedBy: m.confidentKind(blockId), Sure: true}
+}
+
+func KnownResumeSession(blockId string, agent string) ResumeSession {
+	if defaultManager == nil {
+		return ResumeSession{}
+	}
+	return defaultManager.KnownResumeSession(blockId, agent)
+}
+
 // FindResumeSession asks wavesrv's companion; without one (tests, a failed start) nothing is known.
 func FindResumeSession(blockId string, agent string, wait time.Duration) ResumeSession {
 	if defaultManager == nil {

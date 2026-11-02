@@ -263,6 +263,7 @@ func (impl *ServerImpl) RemoteListEntriesCommand(ctx context.Context, data wshrp
 				continue
 			}
 			innerFileInfo := statToFileInfo(filepath.Join(path, innerFileInfoInt.Name()), innerFileInfoInt, false)
+			markSymlinkedDir(innerFileInfo, filepath.Join(path, innerFileInfoInt.Name()), innerFileInfoInt) // MOLTENTERM-PATCH (#1626)
 			fileInfoArr = append(fileInfoArr, innerFileInfo)
 			if len(fileInfoArr) >= wshrpc.DirChunkSize {
 				resp := wshrpc.CommandRemoteListEntriesRtnData{FileInfo: fileInfoArr}
@@ -296,6 +297,31 @@ func statToFileInfo(fullPath string, finfo fs.FileInfo, extended bool) *wshrpc.F
 		rtn.Size = -1
 	}
 	return rtn
+}
+
+// MOLTENTERM-PATCH (#1626): a listed link takes its target's type, so the file panel lists a link to a folder with
+// the folders (FR-FILE-003). DetectMimeType only guesses from the link's own bits (WinSymlinkDir calls any link
+// without a dot in its name a folder); the target's stat settles it. IsDir stays false: rename, delete and drag act
+// on the link, not on the folder it targets.
+func markSymlinkedDir(rtn *wshrpc.FileInfo, fullPath string, finfo fs.FileInfo) {
+	if rtn == nil || finfo.Mode()&fs.ModeSymlink == 0 {
+		return
+	}
+	target, err := os.Stat(fullPath)
+	if err != nil {
+		if rtn.MimeType == "directory" {
+			rtn.MimeType = ""
+		}
+		return
+	}
+	if target.IsDir() {
+		rtn.MimeType = "directory"
+		rtn.Size = -1
+		return
+	}
+	if rtn.MimeType == "directory" {
+		rtn.MimeType = fileutil.DetectMimeType(fullPath, target, false)
+	}
 }
 
 // fileInfo might be null

@@ -8,6 +8,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenttoolkit"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
@@ -78,7 +79,7 @@ func (claudeAdapter) Models(env ModelEnv) []ModelChoice {
 
 func (claudeAdapter) Briefing() BriefingChannel {
 	return BriefingChannel{Channel: ChannelSystemAppend, Support: SupportDocumented, Flag: claudeBriefingFlag,
-		Note: "appended to Claude Code's system prompt for the run; CLAUDE.md and the user's settings still apply"}
+		Note: "appended to Claude Code's system prompt for the run; the project's AGENTS.md (CLAUDE.md for Claude Code) and the user's settings still apply"}
 }
 
 func (claudeAdapter) FreshArgs(model string, initialPrompt string) ([]string, error) {
@@ -130,6 +131,10 @@ func (claudeAdapter) Capabilities() map[string]Capability {
 	return copyCapabilities(claudeCapabilities)
 }
 
+func (claudeAdapter) Features() map[string]FeatureSupport {
+	return copyFeatures(claudeFeatures)
+}
+
 func (claudeAdapter) Launch() agentlaunch.LaunchAdapter {
 	return agentlaunch.FindAdapter(molten.AgentIdClaude)
 }
@@ -152,4 +157,8 @@ func copyCapabilities(caps map[string]Capability) map[string]Capability {
 		rtn[k] = v
 	}
 	return rtn
+}
+
+func (claudeAdapter) Toolkit(env ModelEnv, cwd string) agenttoolkit.Toolkit {
+	return agenttoolkit.ReadClaude(env, cwd)
 }

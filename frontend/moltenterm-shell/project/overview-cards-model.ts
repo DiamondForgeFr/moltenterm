@@ -4,9 +4,12 @@
 // What the Project overview's four cards show (FR-MC-024, DS-MC-012), computed from what the core already hands every
 // card: no new git or GitHub call. Kept apart from the components so the rules can be tested without the app.
 
-import { getLocale, t } from "../i18n/i18n";
+import { AgentStateInfo } from "../agent-state-model";
+import { CompanionView } from "../companion/companion-model";
+import { AgentRow, agentsView } from "../companion/companion-recap-model";
+import { getLocale, t, tCount } from "../i18n/i18n";
 import { branchCi, CiState, CiStatusLabels } from "../mission/ci-model";
-import { Milestone, milestoneKey, plainText } from "../mission/github";
+import { Milestone, milestoneKey, releaseNotesText } from "../mission/github";
 import { GithubState, MissionGit, RawCommit, RawTag, RunRecord, RunStateLabels } from "../mission/mission-model";
 import { ReleaseState } from "../mission/versions";
 
@@ -159,7 +162,7 @@ export function nextReleaseView(
 
 // The start of a release's notes as one reads them: no headings, no tables, the first lines up to a few sentences.
 export function notesExcerpt(notes: string, max = NotesExcerptChars): string {
-    const text = plainText(notes ?? "")
+    const text = releaseNotesText(notes)
         .replace(/\n{2,}/g, "\n")
         .trim();
     if (text.length <= max) {
@@ -322,4 +325,22 @@ export function lastBuildLine(build: RunRecord, now = Date.now()): NowLine {
         tone: runTone(build.state),
         title: build.commit ? t("project.now.commit", { sha: build.commit.slice(0, 7) }) : null,
     };
+}
+
+// The running sub-agents of one of the workspace's agents, as the companion's Agents at work lists them (#967): the
+// first MaxSubagentsShown, the rest behind "+N sub-agents" until expanded.
+export const MaxSubagentsShown = 3;
+
+export type NowSubagents = { rows: AgentRow[]; hidden: number; moreLabel: string };
+
+export function nowSubagents(
+    view: CompanionView,
+    agentState: AgentStateInfo,
+    expanded: boolean,
+    now = Date.now()
+): NowSubagents {
+    const all = view == null ? [] : agentsView(view, agentState, now).rows.filter((row) => !row.main);
+    const rows = expanded ? all : all.slice(0, MaxSubagentsShown);
+    const hidden = all.length - rows.length;
+    return { rows, hidden, moreLabel: hidden > 0 ? tCount("project.agents.subagentsMore", hidden) : "" };
 }

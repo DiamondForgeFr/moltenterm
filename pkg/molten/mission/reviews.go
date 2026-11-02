@@ -40,6 +40,7 @@ const (
 	ReviewMergeConflicts = "conflicts"
 	ReviewMergeBlocked   = "blocked"
 	ReviewMergeFailing   = "failing"
+	ReviewMergeRunning   = "running"
 	ReviewMergeUnknown   = "unknown"
 
 	// What GitHub's mergeability says of a conflict with the base, for the review list and the Validate plan alike.
@@ -106,14 +107,23 @@ type ReviewCheck struct {
 	Url      string `json:"url,omitempty"`
 	RunId    int64  `json:"runid,omitempty"`
 	JobId    int64  `json:"jobid,omitempty"`
+	// When GitHub last heard of the check (RFC 3339), and for a local CI check nothing runs any more, when it
+	// stopped in ms (#1713).
+	StartedAt string `json:"startedat,omitempty"`
+	StoppedAt int64  `json:"stoppedat,omitempty"`
 }
 
 type ReviewCi struct {
-	State   string        `json:"state"`
-	Success int           `json:"success"`
-	Failure int           `json:"failure"`
-	Pending int           `json:"pending"`
-	Checks  []ReviewCheck `json:"checks"`
+	State   string `json:"state"`
+	Success int    `json:"success"`
+	Failure int    `json:"failure"`
+	Pending int    `json:"pending"`
+	// Local CI checks nothing here runs (#1713): interrupted, waiting for the approval of the project's commands, or
+	// with no run on this computer.
+	Interrupted int           `json:"interrupted,omitempty"`
+	Untrusted   int           `json:"untrusted,omitempty"`
+	NotLocal    int           `json:"notlocal,omitempty"`
+	Checks      []ReviewCheck `json:"checks"`
 }
 
 type ReviewReport struct {
@@ -305,19 +315,14 @@ func SummarizeReviewChecks(rollup []ghReviewRollup) ReviewCi {
 		check := ReviewCheck{Name: name, State: reviewCheckState(entry), Local: strings.HasPrefix(name, "local-"),
 			Workflow: entry.WorkflowName, Url: url}
 		check.RunId, check.JobId = reviewCheckIds(url)
+		if started != "9999" {
+			check.StartedAt = started
+		}
 		byKey[key] = check
 	}
 	ci := ReviewCi{State: ReviewCheckNone, Checks: []ReviewCheck{}}
 	for _, check := range byKey {
 		ci.Checks = append(ci.Checks, check)
-		switch check.State {
-		case ReviewCheckSuccess:
-			ci.Success++
-		case ReviewCheckFailure:
-			ci.Failure++
-		case ReviewCheckPending:
-			ci.Pending++
-		}
 	}
 	sort.Slice(ci.Checks, func(i, j int) bool {
 		a, b := ci.Checks[i], ci.Checks[j]
@@ -329,17 +334,47 @@ func SummarizeReviewChecks(rollup []ghReviewRollup) ReviewCi {
 		}
 		return a.Workflow < b.Workflow
 	})
+	countReviewCi(&ci)
+	return ci
+}
+
+// countReviewCi counts the checks by state and names the whole: a failure first, then what runs, then what nothing
+// runs.
+func countReviewCi(ci *ReviewCi) {
+	ci.Success, ci.Failure, ci.Pending, ci.Interrupted, ci.Untrusted, ci.NotLocal = 0, 0, 0, 0, 0, 0
+	for _, check := range ci.Checks {
+		switch check.State {
+		case ReviewCheckSuccess:
+			ci.Success++
+		case ReviewCheckFailure:
+			ci.Failure++
+		case ReviewCheckPending:
+			ci.Pending++
+		case ReviewCheckInterrupted:
+			ci.Interrupted++
+		case ReviewCheckUntrusted:
+			ci.Untrusted++
+		case ReviewCheckNotLocal:
+			ci.NotLocal++
+		}
+	}
+	ci.State = ReviewCheckNone
 	switch {
 	case ci.Failure > 0:
 		ci.State = ReviewCheckFailure
 	case ci.Pending > 0:
 		ci.State = ReviewCheckPending
+	case ci.Untrusted > 0:
+		ci.State = ReviewCheckUntrusted
+	case ci.Interrupted > 0:
+		ci.State = ReviewCheckInterrupted
+	case ci.NotLocal > 0:
+		ci.State = ReviewCheckNotLocal
 	case ci.Success > 0:
 		ci.State = ReviewCheckSuccess
 	case len(ci.Checks) > 0:
 		ci.State = ReviewCheckNeutral
 	}
-	return ci
 }
 
 // ParseReviewChecks folds a statusCheckRollup as gh prints it (gh pr view --json statusCheckRollup), for the merge plan
@@ -397,6 +432,15 @@ func ReviewMergeOfPr(mergeable string, mergeState string) string {
 		return ReviewMergeClean
 	}
 	return ReviewMergeOf(mergeState)
+}
+
+// reviewMergeWithChecks reads GitHub's UNSTABLE with the checks (#1059): GitHub says UNSTABLE while a check it does
+// not require is still running too, which is no failure until one fails.
+func reviewMergeWithChecks(merge string, ci ReviewCi) string {
+	if merge == ReviewMergeFailing && ci.Failure == 0 && ci.Pending > 0 {
+		return ReviewMergeRunning
+	}
+	return merge
 }
 
 var branchPatternFieldRe = regexp.MustCompile(`\\\{([A-Za-z]+)\\\}`)
@@ -512,6 +556,7 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 			rtn.Ticket, rtn.TicketFrom = n, ReviewTicketFromBranch
 		}
 	}
+	rtn.Merge = reviewMergeWithChecks(rtn.Merge, rtn.Ci)
 	return rtn
 }
 
@@ -588,15 +633,19 @@ type Reviews struct {
 	reports   map[string]*reviewReportsState
 	// Where the merged PRs ship, by project (#843).
 	ships map[string]*reviewShipsState
+	// The merged history, by project (#960).
+	history map[string]*mergedHistoryState
 	// The upcoming work and the agents on each branch (#712), made on the first ask.
 	upcoming *Upcoming
 	// notify tells a rerun's outcome (#797); rerunEvery: how often a rerun run is read (rerunFollowEvery when 0).
 	notify     func(ctx context.Context, input molten.NotificationInput) error
 	rerunEvery time.Duration
+	// The local CI, to reread its statuses on the PRs (#1713); nil leaves them as GitHub has them.
+	ci *Ci
 }
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {
-	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}}
+	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}, history: map[string]*mergedHistoryState{}}
 }
 
 func publishReviews(answer ReviewsAnswer) {
@@ -641,6 +690,7 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 			return ReviewsAnswer{}, err
 		}
 		answer := BuildReviews(snap)
+		reconcileAnswerLocalCi(r.ci, &answer, r.now())
 		r.applyKnownReports(&answer)
 		return answer, nil
 	}
@@ -653,6 +703,7 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 		return ReviewsAnswer{}, err
 	}
 	answer := BuildReviews(snap)
+	reconcileAnswerLocalCi(r.ci, &answer, r.now())
 	if start := r.prepareReports(&answer, req.Force); start {
 		go r.readReports(dir)
 	}
@@ -794,6 +845,7 @@ func (r *Reviews) readReports(dir string) {
 
 func (r *Reviews) answerOf(snap Snapshot) ReviewsAnswer {
 	answer := BuildReviews(snap)
+	reconcileAnswerLocalCi(r.ci, &answer, r.now())
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.applyLocked(&answer, r.reports[snap.Dir])

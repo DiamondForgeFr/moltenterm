@@ -51,12 +51,16 @@ type ReleaseStartRequest struct {
 	Dir     string `json:"dir"`
 	Channel string `json:"channel"`
 	Tag     string `json:"tag"`
+	// Starts although the checkout's pipeline is not the one the release branch is made from (#1095).
+	Force bool `json:"force,omitempty"`
 }
 
 type ReleaseStartResult struct {
 	Session   *ReleaseSession `json:"session,omitempty"`
 	Run       *RunRecord      `json:"run,omitempty"`
 	Untrusted *UntrustedInfo  `json:"untrusted,omitempty"`
+	// Nothing started: the pipeline is uncommitted or differs from origin's trunk, to be confirmed (#1095).
+	PipelineDrift *PipelineDrift `json:"pipelinedrift,omitempty"`
 }
 
 func (r *Runs) releaseSessionFile(dir string) string {
@@ -212,13 +216,14 @@ func releaseVersion(p *molten.Pipeline, tag string) (string, bool, error) {
 	rules := versions.Rules{TagPrefix: versions.DefaultTagPrefix}
 	if p.Versions != nil {
 		rules.FirstPublic = p.Versions.FirstPublic
+		rules.RcFormat = p.Versions.RcFormat
 		if p.Versions.TagPrefix != "" {
 			rules.TagPrefix = p.Versions.TagPrefix
 		}
 	}
 	v, ok := rules.ReleaseOf(tag)
 	if !ok || strings.TrimSpace(tag) != tag {
-		return "", false, uimsg.Errorf(uimsg.Make("mission.release.notATag", "tag", tag, "prefix", rules.TagPrefix), "%q is not a release tag (%sX.Y.Z or %sX.Y.Z-N)", tag, rules.TagPrefix, rules.TagPrefix)
+		return "", false, uimsg.Errorf(uimsg.Make("mission.release.notATag", "tag", tag, "prefix", rules.TagPrefix, "rc", rules.RcPattern()), "%q is not a release tag (%sX.Y.Z or %s%s)", tag, rules.TagPrefix, rules.TagPrefix, rules.RcPattern())
 	}
 	return v.Base().String(), v.IsRc(), nil
 }
@@ -318,6 +323,11 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 	if r.tagExists(project, req.Tag) {
 		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.tagged", "tag", req.Tag), "%s is already tagged", req.Tag)
 	}
+	if !req.Force {
+		if drift := r.pipelineDrift(project); drift != nil {
+			return ReleaseStartResult{PipelineDrift: drift}, nil
+		}
+	}
 	session := ReleaseSession{Tag: req.Tag, Version: version, Channel: req.Channel, StartedAt: r.now().UnixMilli()}
 	if err := r.writeReleaseSession(project, session); err != nil {
 		return ReleaseStartResult{}, err
@@ -340,16 +350,37 @@ func (r *Runs) trustedPipeline(dir string) (*molten.Pipeline, *UntrustedInfo, er
 }
 
 func (r *Runs) trustedPipelineAt(dir, project string) (*molten.Pipeline, *UntrustedInfo, error) {
+	p, err := validPipelineAt(project)
+	if err != nil {
+		return nil, nil, err
+	}
+	if untrusted := r.untrustedIn(dir, p); untrusted != nil {
+		return nil, untrusted, nil
+	}
+	return p, nil, nil
+}
+
+func validPipelineAt(project string) (*molten.Pipeline, error) {
 	report := molten.ValidatePipeline(project)
 	if !report.Valid {
-		return nil, nil, pipelineError(report)
+		return nil, pipelineError(report)
 	}
-	commands := PipelineCommands(report.Pipeline)
+	return report.Pipeline, nil
+}
+
+// untrustedIn is nil when the user trusts the pipeline's commands in dir, else the commands to review.
+func (r *Runs) untrustedIn(dir string, p *molten.Pipeline) *UntrustedInfo {
+	commands := PipelineCommands(p)
 	hash := CommandsHash(commands)
-	if !r.trust.IsTrusted(dir, hash) {
-		return nil, &UntrustedInfo{Hash: hash, Commands: commands}, nil
+	if r.trust.IsTrusted(dir, hash) {
+		return nil
 	}
-	return report.Pipeline, nil, nil
+	return &UntrustedInfo{Hash: hash, Commands: commands}
+}
+
+// expandReleaseText puts the release's words in a step's title or instructions, as the release panel shows them.
+func expandReleaseText(text string, session ReleaseSession) string {
+	return strings.NewReplacer("{tag}", session.Tag, "{version}", session.Version).Replace(text)
 }
 
 func channelSteps(p *molten.Pipeline, channel string) []molten.PipelineStep {

@@ -71,7 +71,8 @@ func (p Panel) findTab(browserTabId string) (molten.BrowserPanelTab, bool) {
 type OpenTabRequest struct {
 	TermBlockId string
 	TabId       string
-	// PanelId is the panel to open the tab in; "" creates a panel next to the terminal.
+	// PanelId is the tab's browser panel the new tab opens beside, as a panel of its own (#1187); "" opens it next to
+	// the terminal. OpenTab returns the panel that holds the tab.
 	PanelId      string
 	BrowserTabId string
 	Url          string
@@ -96,6 +97,9 @@ type ActionCue struct {
 type PanelAgentTab struct {
 	BrowserTabId string `json:"browsertabid"`
 	AgentName    string `json:"agentname"`
+	// AgentBlockId: the agent's terminal, which the agent window finds its pages by (FR-SHELL-084).
+	AgentBlockId string `json:"agentblockid,omitempty"`
+	SessionId    string `json:"sessionid"`
 	Origin       string `json:"origin"`
 	State        string `json:"state"`
 	Action       string `json:"action,omitempty"`
@@ -110,6 +114,8 @@ type PanelAgentTab struct {
 	Viewport *Viewport `json:"viewport,omitempty"`
 	// Engaged: the agent acts on the tab. A tab the user shared shows its badge alone until then (FR-BRW-011).
 	Engaged bool `json:"engaged,omitempty"`
+	// Since: when the agent got the tab (Unix ms), for the library's Sent to AI (FR-SHELL-088).
+	Since int64 `json:"since,omitempty"`
 }
 
 type Viewport struct {
@@ -134,9 +140,10 @@ type PanelState struct {
 }
 
 type ControlRequest struct {
-	BlockId      string `json:"blockid"`
-	BrowserTabId string `json:"browsertabid"`
-	Action       string `json:"action"`
+	BlockId           string `json:"blockid"`
+	BrowserTabId      string `json:"browsertabid"`
+	Action            string `json:"action"`
+	ExpectedSessionId string `json:"expectedsessionid,omitempty"`
 }
 
 type StateRequest struct {

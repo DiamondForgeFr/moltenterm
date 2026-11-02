@@ -56,7 +56,12 @@ import {
     ResizeHandleProps,
     TileLayoutContents,
 } from "./types";
-import { getCenter, navigateDirectionToOffset, setTransform } from "./utils";
+import {
+    getCenter,
+    resizeHandleDimensions as moltenResizeHandleDimensions,
+    navigateDirectionToOffset,
+    setTransform,
+} from "./utils";
 // MOLTENTERM-PATCH (#606): side panels remember the size they were dragged to and reopen at it
 import {
     addedBlockId,
@@ -69,6 +74,8 @@ import { isHiddenMeta } from "../../moltenterm-shell/hidden-panel-meta";
 import { View360Model } from "../../moltenterm-shell/view360/view360-model";
 // MOLTENTERM-PATCH (#825): equalize the panel columns once, or after every change while the tab's auto mode is on
 import { EqualizeModel } from "../../moltenterm-shell/equalize/equalize-model";
+// MOLTENTERM-PATCH (#1349): a panel added to the view arrives instead of appearing
+import { notePanelsArrived } from "../../moltenterm-shell/panel-motion/panel-arrival-model";
 
 interface ResizeContext {
     handleId: string;
@@ -853,6 +860,8 @@ export class LayoutModel {
                 }
                 // MOLTENTERM-PATCH (#614): the carpet scrolls to a panel just laid on it
                 this.moltenView360?.onBlocksAdded(added);
+                // MOLTENTERM-PATCH (#1349): the added panels arrive (an edge runs around their frames)
+                notePanelsArrived(added, this.treeState.leafOrder?.length ?? 0);
             }
         }
     }
@@ -937,7 +946,9 @@ export class LayoutModel {
             additionalPropsMap[child.id] = {
                 rect,
                 transform,
-                treeKey: additionalProps.treeKey + i,
+                // MOLTENTERM-PATCH (#1415): the index is padded, so past 9 children the keys still sort in tree order (the
+                // carpet has a column per panel, and the panel numbers and Ctrl+Shift+1…9 follow this order)
+                treeKey: additionalProps.treeKey + String(i).padStart(3, "0"),
                 moltenCarpet,
                 // MOLTENTERM-PATCH (#616): a column pinned to the fixed zone, and every panel inside it
                 moltenPinned: moltenView360 != null && (moltenChild?.pinned || !!additionalProps.moltenPinned),
@@ -947,16 +958,12 @@ export class LayoutModel {
             if (lastChildRect) {
                 const resizeHandleIndex = resizeHandles.length;
                 const halfResizeHandleSizePx = resizeHandleSizePx / 2;
-                const resizeHandleDimensions: Dimensions = {
-                    top: nodeIsRow
-                        ? lastChildRect.top
-                        : lastChildRect.top + lastChildRect.height - halfResizeHandleSizePx,
-                    left: nodeIsRow
-                        ? lastChildRect.left + lastChildRect.width - halfResizeHandleSizePx
-                        : lastChildRect.left,
-                    width: nodeIsRow ? resizeHandleSizePx : lastChildRect.width,
-                    height: nodeIsRow ? lastChildRect.height : resizeHandleSizePx,
-                };
+                // MOLTENTERM-PATCH (#1240): centred on the rounded edge the tiles share
+                const resizeHandleDimensions = moltenResizeHandleDimensions(
+                    lastChildRect,
+                    nodeIsRow,
+                    resizeHandleSizePx
+                );
                 const moltenHandleTransform = setTransform(resizeHandleDimensions, true, false);
                 resizeHandles.push({
                     id: `${node.id}-${resizeHandleIndex}`,
@@ -1425,6 +1432,17 @@ export class LayoutModel {
         };
         this.treeReducer(deleteAction);
         await this.onNodeDelete?.(nodeToDelete.data);
+    }
+
+    // MOLTENTERM-PATCH (#1739): a leaf whose block left the tab goes without deleting anything (gone-block-leaves.ts)
+    dropLeafNode(nodeId: string) {
+        if (this.treeState.rootNode == null || findNode(this.treeState.rootNode, nodeId) == null) {
+            return;
+        }
+        if (nodeId === this.magnifiedNodeId) {
+            this.magnifyNodeToggle(nodeId);
+        }
+        this.treeReducer({ type: LayoutTreeActionType.DeleteNode, nodeId } as LayoutTreeDeleteNodeAction);
     }
 
     /**

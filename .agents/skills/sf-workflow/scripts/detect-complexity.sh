@@ -149,7 +149,8 @@ echo ""
 # Load complexity config
 CONFIG_FILE="$SKILL_DIR/complexity/${SUGGESTED}.yml"
 if [[ -f "$CONFIG_FILE" ]]; then
-  DESCRIPTION=$(grep "^description:" "$CONFIG_FILE" | sed 's/^description: "\(.*\)"/\1/')
+  # Either quote style: the formatted copies of the profiles use single quotes.
+  DESCRIPTION=$(grep "^description:" "$CONFIG_FILE" | sed -E "s/^description: *//; s/^\"(.*)\" *$/\1/; s/^'(.*)' *$/\1/")
   echo -e "${BLUE}What this means:${NC} $DESCRIPTION"
   echo ""
 fi

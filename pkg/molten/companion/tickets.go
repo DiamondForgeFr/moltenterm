@@ -20,8 +20,8 @@ import (
 )
 
 // The ticket each agent works on and its complexity (#601): the developer checks that an agent's model and effort are
-// in proportion with its task. The ticket comes from the agent's own records (its branch, else the pane's, else a #N
-// in what it was asked); its complexity is the sf-workflow's `complexity: …` label, read through the user's gh only
+// in proportion with its task. The ticket comes from the branch of the agent's own folder (gitbranch.go), else a #N
+// in what it was asked (#967); its complexity is the sf-workflow's `complexity: …` label, read through the user's gh only
 // when a companion that shows asks to look again, once per ticket while wavesrv runs (Epic #446: no poller).
 
 const (
@@ -72,12 +72,10 @@ func textTicket(text string) int {
 	return n
 }
 
-// resolveTicket takes the ticket from the agent's own branch, then the pane's branch, then a #N in its text.
-func resolveTicket(ownBranch string, paneBranch string, text string) int {
+// resolveTicket takes the ticket from the agent's own branch, then a #N in its own text (#967): a sub-agent never
+// inherits its parent's, which would name another agent's ticket while it works on its own.
+func resolveTicket(ownBranch string, text string) int {
 	if n := branchTicket(ownBranch); n > 0 {
-		return n
-	}
-	if n := branchTicket(paneBranch); n > 0 {
 		return n
 	}
 	return textTicket(text)
@@ -130,13 +128,14 @@ func (s *Session) Ticket() (int, string) {
 type subagentLink struct {
 	callId  string
 	agentId string
+	started int64
 }
 
 func (s *Session) runningSubagents() []subagentLink {
 	var rtn []subagentLink
 	for _, sa := range s.subagents {
 		if sa.state == SubagentRunning {
-			rtn = append(rtn, subagentLink{callId: sa.id, agentId: sa.agentId})
+			rtn = append(rtn, subagentLink{callId: sa.id, agentId: sa.agentId, started: sa.started})
 		}
 	}
 	return rtn
@@ -158,6 +157,14 @@ func (s *Session) SetSubagentFacts(callId string, facts SubagentFacts) {
 	set(&sa.model, facts.Model)
 	set(&sa.effort, facts.Effort)
 	set(&sa.branch, facts.Branch)
+	set(&sa.worktree, facts.Worktree)
+	// Only an agent found by its rollout takes its state from it: a recorded one's parent tells its end and its
+	// follow-ups, and a follow-up reaches the parent's records before the agent starts its next turn.
+	if sa.found && facts.Ended && sa.state == SubagentRunning {
+		sa.state = SubagentDone
+		sa.ended = s.recordAt
+		changed = true
+	}
 	if changed {
 		s.touch()
 	}
@@ -172,9 +179,9 @@ func (s *Session) ResolveTickets(complexity func(number int, fetch bool) (string
 	if t := s.currentTopic(); t != nil {
 		topic = t.text
 	}
-	changed = updateTicket(&s.ticket, resolveTicket(s.branch, "", topic), true, complexity) || changed
+	changed = updateTicket(&s.ticket, resolveTicket(s.Branch(), topic), true, complexity) || changed
 	for _, sa := range s.subagents {
-		number := resolveTicket(sa.branch, s.branch, sa.description)
+		number := resolveTicket(sa.branch, sa.description)
 		changed = updateTicket(&sa.ticket, number, sa.state == SubagentRunning, complexity) || changed
 	}
 	if changed {
@@ -277,13 +284,13 @@ func ghProgram() (string, string) {
 	return molten.LookPathIn("gh", loginPath), loginPath
 }
 
-// GhIssueLabels reads a ticket's labels with `gh issue view N --json labels`, in the project's folder.
-func GhIssueLabels(ctx context.Context, dir string, number int) ([]string, error) {
+// runGh runs the user's gh in the project's folder and returns its output, at most max bytes.
+func runGh(ctx context.Context, dir string, max int, args ...string) ([]byte, error) {
 	program, loginPath := ghProgram()
 	if program == "" {
 		return nil, fmt.Errorf("gh is not installed")
 	}
-	cmd := spawns.Command(ctx, program, "issue", "view", strconv.Itoa(number), "--json", "labels")
+	cmd := spawns.Command(ctx, program, args...)
 	cmd.Dir = dir
 	env := os.Environ()
 	if loginPath != "" {
@@ -295,8 +302,17 @@ func GhIssueLabels(ctx context.Context, dir string, number int) ([]string, error
 	if err != nil {
 		return nil, err
 	}
-	if len(out) > maxLabelBytes {
+	if len(out) > max {
 		return nil, fmt.Errorf("gh answer too large")
+	}
+	return out, nil
+}
+
+// GhIssueLabels reads a ticket's labels with `gh issue view N --json labels`, in the project's folder.
+func GhIssueLabels(ctx context.Context, dir string, number int) ([]string, error) {
+	out, err := runGh(ctx, dir, maxLabelBytes, "issue", "view", strconv.Itoa(number), "--json", "labels")
+	if err != nil {
+		return nil, err
 	}
 	var answer struct {
 		Labels []struct {

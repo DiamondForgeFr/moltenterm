@@ -3,104 +3,117 @@
 
 // The Reviews view (FR-REV-001, DS-REV-012): the pull requests of the workspace's project waiting for the developer's
 // review, each with its ticket, CI, test report and merge state, read through the developer's gh by Mission Control's
-// collector. Drafts wait below in their own group, where they open and can be marked ready for review (#687). A row
-// opens the PR's assisted review, which its hover/focus link names (#708); the keyboard walks the rows (arrows, Home,
-// End) and Enter opens one.
+// collector. Each card shows one computed state (#1060, reviews-card.tsx), and the cards are grouped by whose turn it
+// is (#1061): Yours, Agents on it, Blocked, Waiting, then Upcoming, Notes and Recently merged; the header's control
+// sorts them by state or by merge order. The numbered merge queue and the status line after a merge sit at the top of
+// Yours (#1062), once two PRs at least can merge now; the others say on their card why they wait (#1211). A hovered or focused card lights up the cards it conflicts with. Cards move instead of jumping
+// when they arrive, leave, reorder or change section (#1063, reviews-motion.tsx). A card opens the PR's assisted review; the keyboard walks the cards of the
+// open sections (arrows, Home, End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
-import { cn, fireAndForget } from "@/util/util";
+import { fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
-import { serverErrorText } from "../i18n/server-text";
-import { CiIcon, CiIconState } from "../mission/ci-icon";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
-import { timeAgo } from "../mission/time-format";
-import { MoltenWave } from "../molten-button";
-import { openWebLink } from "../open-web-link";
+import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
+import { projectRepoDir, readProjects } from "../sidebar/workspace-projects";
 import { DominoLoader } from "../suite/suite";
-import { PrSignature } from "./pr-signature";
-import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
-import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
+import { useCardContext } from "./reviews-agent-bar";
+import { ReviewsAskQueue } from "./reviews-ask-queue";
+import { BatchBanner, BatchConfirmDialog, BatchPointer } from "./reviews-batch";
+import { batchPointerShown } from "./reviews-batch-agent";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
+    batchItemEnded,
     batchPlan,
-    BatchRowMark,
     batchRowMark,
-    batchSelectable,
     batchShown,
     batchStartRequest,
+    queueItem,
     queueOrder,
-    toggleBatchSelection,
 } from "./reviews-batch-model";
-import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
+import { ReviewRow } from "./reviews-card";
+import { busyAgentOf, type CardTurn, TurnTitleKeys } from "./reviews-card-model";
+import { CheckAgentsButton, CheckAgentsReport, useCheckAgents } from "./reviews-check";
 import { useReviews } from "./reviews-client";
-import {
-    ForecastLinks,
-    ForecastMarkChip,
-    ForecastNote,
-    ForecastStatusLine,
-    linkedRowClass,
-    listForecast,
-    RowForecast,
-} from "./reviews-forecast";
+import { EdgeWhere, ForecastLinks } from "./reviews-forecast";
 import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
 import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
-import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
+import { LaunchBar, LaunchDialogs } from "./reviews-launch";
+import { useLeftoverAsks } from "./reviews-leftover-asks";
+import { LeftoverOwnerCard } from "./reviews-leftover-owner";
+import { leftoverOwnerCard, leftoverTurnRows } from "./reviews-leftover-owner-model";
+import { leftoverRows } from "./reviews-leftovers-model";
 import { MergedSection } from "./reviews-merged";
 import {
-    ciLabel,
-    mergeLabelOf,
     MoltentermReviewsView,
-    navigableRows,
     nextRow,
-    RebaseAsk,
     rebaseAskKey,
-    rebaseAskShown,
-    RebaseOutcome,
-    reportLabel,
-    reviewAriaLabel,
-    reviewHeadline,
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
+    reviewsNotRepoText,
     reviewsRetryIsPrimary,
     splitReviews,
-    Tone,
-    validateBlocked,
 } from "./reviews-model";
+import { CardMotion } from "./reviews-motion";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
-import { MergeOrderBar, MergeOrderRank, MergeOrderReason, RowOrder, useMergeOrderChoice } from "./reviews-order";
-import { mergeOrderHeader, mergeOrderReason, orderedPrs, suggestedMergeOrder } from "./reviews-order-model";
+import { SortControl, useReviewsSort } from "./reviews-order";
+import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
+import {
+    AllProjects,
+    projectOfDir,
+    resolveProjectFilter,
+    ReviewsProjectFilter,
+    storedProjectFilter,
+} from "./reviews-projects-model";
+import { AfterMergeLine, MergeQueueBlock } from "./reviews-queue";
+import {
+    cardRelations,
+    edgeLine,
+    mergeQueue,
+    queueCanMerge,
+    queueChoice,
+    queueRanks,
+    queueShown,
+    queueWait,
+    queueWhy,
+    shownNumbersOf,
+    withMerged,
+} from "./reviews-queue-model";
+import { SectionHeading } from "./reviews-section-heading";
+import {
+    cardStates,
+    filledAction,
+    sectionOf,
+    sectionRows,
+    sectionsByTurn,
+    withTurnShown,
+} from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
+import { useUpcomingAnswer } from "./reviews-upcoming-client";
 
-export { MoltentermReviewsView };
+export { MoltentermReviewsView, ReviewRow };
 
 // How long a PR another surface asked for stays marked.
 const FocusMarkMs = 4000;
 const RowKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
 
-const ToneClasses: Record<Tone, string> = {
-    success: "border-success/40 bg-success/10 text-success",
-    failure: "border-error/40 bg-error/10 text-danger",
-    pending: "border-warning/40 bg-warning/10 text-warning",
-    neutral: "border-border bg-hover text-muted",
-};
-
-const ToneCiStates: Record<Tone, CiIconState> = {
-    success: "success",
-    failure: "failure",
-    pending: "warning",
-    neutral: "neutral",
-};
-
-const Chip = "inline-flex items-center gap-1 rounded-4 border px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap";
+// Loaded on demand: the project chips and lists only show in a workspace of several projects, so their code stays out
+// of the JS every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
+const ProjectChips = lazy(() => import("./reviews-projects").then((m) => ({ default: m.ProjectChips })));
+const AllProjectsList = lazy(() => import("./reviews-projects").then((m) => ({ default: m.AllProjectsList })));
+const ProjectWithoutFolder = lazy(() =>
+    import("./reviews-projects").then((m) => ({ default: m.ProjectWithoutFolder }))
+);
 
 export class ReviewsViewModel implements ViewModel {
     viewType = MoltentermReviewsView;
@@ -125,13 +138,54 @@ export class ReviewsViewModel implements ViewModel {
 
 function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
     const t = useT();
+    const workspace = useAtomValue(atoms.workspace);
+    const filters = useAtomValue(ReviewsProjectFilter.getInstance().filtersAtom);
+    const focus = useAtomValue(ReviewsModel.getInstance().focusAtom);
+    const projects = useMemo(() => readProjects(workspace), [workspace]);
+    const filter = resolveProjectFilter(storedProjectFilter(filters, workspace), projects);
+    const several = projects.length > 1;
+    // A PR another surface asked for (a notification, the review tab) opens on its project's chip.
+    useEffect(() => {
+        const project = several ? projectOfDir(projects, focus?.dir) : null;
+        if (project != null) {
+            ReviewsProjectFilter.getInstance().set(workspace?.oid, project.id);
+        }
+    }, [focus, several, projects, workspace?.oid]);
+    const shown = several && filter !== AllProjects ? projects.find((p) => p.id === filter) : null;
+    const frame = (
+        <MissionFrame
+            title={t("reviews.viewName")}
+            projectDir={shown ? projectRepoDir(shown) : undefined}
+            gitPanel="integration"
+            notRepoText={reviewsNotRepoText()}
+        >
+            {({ project, snapshot }) => (
+                <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
+            )}
+        </MissionFrame>
+    );
     return (
         <>
-            <MissionFrame title={t("reviews.viewName")}>
-                {({ project, snapshot }) => (
-                    <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
-                )}
-            </MissionFrame>
+            {several ? (
+                <div className="flex h-full w-full flex-col overflow-hidden" data-testid="reviews-projects">
+                    <Suspense fallback={null}>
+                        <ProjectChips workspaceId={workspace?.oid} projects={projects} filter={filter} />
+                    </Suspense>
+                    {shown == null ? (
+                        <Suspense fallback={null}>
+                            <AllProjectsList workspace={workspace} projects={projects} />
+                        </Suspense>
+                    ) : shown.dir === "" ? (
+                        <Suspense fallback={null}>
+                            <ProjectWithoutFolder project={shown} />
+                        </Suspense>
+                    ) : (
+                        <div className="flex min-h-0 flex-1 flex-col">{frame}</div>
+                    )}
+                </div>
+            ) : (
+                frame
+            )}
             <RowValidateSheet blockId={model.blockId} />
         </>
     );
@@ -157,6 +211,7 @@ function ReviewsContent({
 }) {
     const t = useT();
     const { answer, error, refresh } = useReviews(project.dir, snapshot);
+    const sort = useReviewsSort();
     const headerSnapshot = useMemo(
         () => (snapshot == null ? null : { ...snapshot, refreshing: snapshot.refreshing || answer?.refreshing }),
         [snapshot, answer?.refreshing]
@@ -172,6 +227,7 @@ function ReviewsContent({
                         {t("reviews.into")} <code>{answer.target}</code>
                     </span>
                 ) : null}
+                {answer?.state === "ok" ? <SortControl sort={sort} /> : null}
             </MissionHeader>
             <ReviewsBody dir={project.dir} answer={answer} error={error} refresh={refresh} blockId={blockId} />
         </>
@@ -227,92 +283,144 @@ function ReviewsBody({
 
 function Loading() {
     return (
-        <div className="flex flex-col gap-3 p-3" aria-busy="true" data-testid="reviews-loading">
-            {[0, 1, 2].map((i) => (
-                <div key={i} className="flex flex-col gap-1.5">
-                    <div className="h-4 w-3/4 mt-step-blink rounded-4 bg-hover" />
-                    <div className="h-3 w-1/2 mt-step-blink rounded-4 bg-hover" />
-                </div>
-            ))}
+        <div
+            className="flex min-h-[138px] items-center justify-center p-3"
+            aria-busy="true"
+            data-testid="reviews-loading"
+        >
+            <DominoLoader size="card" />
         </div>
     );
 }
 
+// The sections by turn (#1061): each section's title key, hint key and test id.
+const TurnSectionText: Record<CardTurn, { title: string; hint?: string }> = {
+    yours: { title: TurnTitleKeys.yours, hint: "reviews.sections.yoursHint" },
+    ready: { title: TurnTitleKeys.ready, hint: "reviews.sections.readyHint" },
+    agents: { title: TurnTitleKeys.agents },
+    blocked: { title: TurnTitleKeys.blocked, hint: "reviews.sections.blockedHint" },
+    waiting: { title: TurnTitleKeys.waiting, hint: "reviews.sections.waitingHint" },
+};
+
 function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAnswer; blockId: string }) {
     const t = useT();
+    const word = useWordPhrase();
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
     const asks = useAtomValue(model.rebaseAsksAtom);
     const readied = useAtomValue(model.readiedAtom);
-    const [draftsOpen, setDraftsOpen] = useState(true);
+    const afterMerges = useAtomValue(model.afterMergeAtom);
+    const groupOuts = useAtomValue(model.groupOutAtom);
+    const queuedAsks = useAtomValue(ReviewsAskQueue.getInstance().asksAtom);
+    const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
     const [selected, setSelected] = useState<number>(null);
     const [marked, setMarked] = useState<number>(null);
     const [hovered, setHovered] = useState<number>(null);
     const [notesAsk, setNotesAsk] = useState<NotesAsk>(null);
+    const [handing, setHanding] = useState(false);
+    // Whether the panel's content is longer than the panel, read once on the first render: the bottom sections then
+    // start folded (FR-REV-001 AC12).
+    const [long, setLong] = useState<boolean>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const listSplit = useMemo(() => splitReviews(answer, readied), [answer, readied]);
-    // The conflict forecast (FR-REV-023): asked for the PRs listed, shown for the hovered row, else the selected one.
+    const listed = useMemo(() => [...listSplit.ready, ...listSplit.drafts], [listSplit]);
+    const mergedNumbers = useMemo(() => (answer.merged ?? []).map((pr) => pr.number), [answer.merged]);
+    // The conflict forecast (FR-REV-023), asked for the PRs listed.
     const forecastReq = useMemo(() => forecastRequestOf(answer, listSplit), [answer, listSplit]);
     useForecastWatch(dir, forecastReq);
     const forecast = useForecastAnswer(dir);
-    // The suggested merge order (FR-REV-024), from the same forecast; the list's own order on the developer's choice.
     const locale = useLocale();
-    const orderChoice = useMergeOrderChoice();
-    const suggested = orderChoice === "suggested";
-    const mergeOrder = useMemo(
-        () => suggestedMergeOrder(forecast, listSplit.ready, [...listSplit.ready, ...listSplit.drafts]),
-        [forecast, listSplit]
+    const sort = useReviewsSort();
+    // Each card's one state (#1060), computed here once so its section and the card itself agree.
+    const ctx = useCardContext(dir);
+    const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
+    // The merge queue (#1062, FR-REV-024): the suggested order of the PRs the developer can merge now (#1211), for
+    // those kept in the group merge (#1108); the others wait, an agent on them, their CI or an earlier PR.
+    const groupOut = groupOuts[dir];
+    const baseQueue = useMemo(
+        () => mergeQueue(forecast, listSplit.ready, listed, groupOut, (n) => busyAgentOf(cards[n])),
+        [forecast, listSplit, listed, groupOut, cards]
     );
-    const orderHeader = useMemo(() => mergeOrderHeader(mergeOrder, suggested), [mergeOrder, suggested, locale]);
-    const split = useMemo(
-        () => (suggested ? { ...listSplit, ready: orderedPrs(mergeOrder, listSplit.ready) } : listSplit),
-        [listSplit, mergeOrder, suggested]
-    );
-    const rowOrders = useMemo(() => {
-        const rtn: Record<number, RowOrder> = {};
-        if (!suggested || !mergeOrder.usable) {
-            return rtn;
-        }
-        for (const step of mergeOrder.steps) {
-            const pr = listSplit.ready.find((p) => p.number === step.number);
-            rtn[step.number] = { rank: step.rank, reason: mergeOrderReason(step, answer.target, pr) };
-        }
-        return rtn;
-    }, [mergeOrder, suggested, listSplit, answer.target, locale]);
-    const rows = navigableRows(split, draftsOpen);
-    const forecastActive = hovered ?? selected;
-    const shownForecast = useMemo(
-        () => listForecast(forecast, split.ready, [...split.ready, ...split.drafts], forecastActive),
-        [forecast, split, forecastActive]
-    );
-    const status = forecastStatus(forecast, forecastReq);
-    // The batch merge (FR-REV-025): the PRs selected for it, the confirmation modal, and the merge queue they join
-    // (FR-REV-026), which wavesrv publishes.
-    const batchRun = useBatchRun(dir, answer.target);
-    const [selecting, setSelecting] = useState(false);
-    const [batchSelected, setBatchSelected] = useState<number[]>([]);
-    const [confirming, setConfirming] = useState(false);
-    const plannedBatch = useMemo(
+    const afterMerge = afterMerges[dir];
+    const queue = useMemo(
         () =>
-            confirming
-                ? batchPlan(
-                      forecast,
-                      listSplit.ready.filter((pr) => batchSelected.includes(pr.number)),
-                      [...listSplit.ready, ...listSplit.drafts],
-                      answer.target
-                  )
-                : null,
-        [confirming, forecast, listSplit, batchSelected, answer.target, locale]
+            withMerged(
+                baseQueue,
+                afterMerge != null && afterMerge.read === (answer.githubat ?? 0) ? afterMerge.merged : [],
+                afterMerge?.ids
+            ),
+        [baseQueue, afterMerge, answer.githubat]
     );
-    const endSelection = () => {
-        setSelecting(false);
-        setBatchSelected([]);
-        setConfirming(false);
+    // The number each card shows (#1108), merged PRs included for the banner of the running merge queue.
+    const shownIds = useMemo(() => shownNumbersOf(answer.merged ?? [], listed), [answer.merged, listed]);
+    const shown = forecastReq != null && queueShown(queue);
+    // A rank only with an order to follow (#1211): two PRs at least the developer can merge now.
+    const ranks = useMemo(() => (shown ? queueRanks(queue) : {}), [queue, shown]);
+    // The batch merge (FR-REV-025): the queue's steps in its order, the confirmation modal, and the merge queue they
+    // join (FR-REV-026), which wavesrv publishes. Its banner sits in "Agents on it" (#1123), shown even with no card.
+    const batchRun = useBatchRun(dir, answer.target);
+    const batchVisible = batchShown(batchRun);
+    // Hidden once ended, the queue keeps a pointer there while its agent's session is open (#1128).
+    const batchPointer = batchPointerShown(batchRun, ctx.states);
+    // Leftovers whose owner was asked (#1143) join the section of whose turn it is, after its PRs.
+    const upcoming = useUpcomingAnswer(dir);
+    const leftoverAsks = useLeftoverAsks(dir);
+    const leftoverTurns = useMemo(
+        () => leftoverTurnRows(leftoverRows(upcoming, answer), leftoverAsks),
+        [upcoming, answer, leftoverAsks]
+    );
+    const sections = useMemo(() => {
+        let rtn = withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "agents", batchVisible || batchPointer);
+        rtn = withTurnShown(rtn, "agents", (leftoverTurns.agents?.length ?? 0) > 0);
+        return withTurnShown(rtn, "yours", (leftoverTurns.yours?.length ?? 0) > 0);
+    }, [listed, cards, sort, ranks, batchVisible, batchPointer, leftoverTurns]);
+    const filled = useMemo(
+        () =>
+            filledAction(
+                sections,
+                cards,
+                (leftoverTurns.yours ?? []).map((row) => ({
+                    key: `leftover:${row.leftover.branch}`,
+                    molten: !!leftoverOwnerCard(row.ask, "")?.molten,
+                }))
+            ),
+        [sections, cards, leftoverTurns]
+    );
+    const turnOpen = (turn: CardTurn) => sectionOpen(folds, dir, turn, true);
+    const foldedTurns: Partial<Record<CardTurn, boolean>> = {};
+    for (const s of sections) {
+        foldedTurns[s.turn] = !turnOpen(s.turn);
+    }
+    const rows = sectionRows(sections, foldedTurns);
+    // The cards' places for their motion (#1063), folded sections included: folding never animates.
+    const motionLayout = useMemo(
+        () => sections.flatMap((s) => s.prs.map((pr) => ({ number: pr.number, section: s.turn }))),
+        [sections]
+    );
+    // The conflicts as relations (FR-REV-023): the hovered card, else the focused (selected) one.
+    const active = hovered ?? selected;
+    const relations = useMemo(() => cardRelations(forecast, listed, active), [forecast, listed, active, locale]);
+    const hot =
+        active == null || relations.partners.length === 0 ? [] : [active, ...relations.partners.map((p) => p.number)];
+    const status = forecastStatus(forecast, forecastReq);
+    const [confirming, setConfirming] = useState(false);
+    const queuePrs = useMemo(() => {
+        const numbers = new Set(queue.steps.filter((s) => !s.merged).map((s) => s.number));
+        return listSplit.ready.filter((pr) => numbers.has(pr.number));
+    }, [queue, listSplit]);
+    const plannedBatch = useMemo(
+        () => (confirming ? batchPlan(forecast, queuePrs, listed, answer.target) : null),
+        [confirming, forecast, queuePrs, listed, answer.target, locale]
+    );
+    const takenByQueue = (n: number) => {
+        const item = queueItem(batchRun, n);
+        return item != null && !batchItemEnded(item);
     };
-    const startBatch = async (): Promise<string> => {
+    const queueFree = queuePrs.some((pr) => !takenByQueue(pr.number));
+    const check = useCheckAgents(dir, answer.repo, listed);
+    const startBatch = async (method: ReviewMergeMethod): Promise<Phrase> => {
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
         try {
-            const listed = [...listSplit.ready, ...listSplit.drafts];
             const order = queueOrder(
                 forecast,
                 listed,
@@ -320,45 +428,84 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 plannedBatch.steps.map((s) => s.pr.number)
             );
             await BatchRuns.getInstance().add(
-                batchStartRequest(dir, answer.repo, answer.target, plannedBatch, workspaceId, order)
+                batchStartRequest(dir, answer.repo, answer.target, plannedBatch, method, workspaceId, order)
             );
         } catch (e) {
-            return serverErrorText(e);
+            return errorPhrase(e);
         }
-        endSelection();
-        return "";
+        setConfirming(false);
+        return null;
     };
+    useEffect(() => {
+        model.noteQueueRead(dir, answer, listed, baseQueue, forecast, takenByQueue);
+    }, [dir, answer, listed, baseQueue, forecast]);
+    useEffect(() => {
+        ReviewsAskQueue.getInstance().refresh(dir, listed);
+        model.forgetLeftGroupOut(dir, listed);
+    }, [dir, listed]);
+    useLayoutEffect(() => {
+        const el = listRef.current;
+        if (long != null || el == null) {
+            return;
+        }
+        setLong(el.scrollHeight > el.clientHeight + 1);
+    }, [long]);
     useEffect(() => {
         if (focus == null || focus.dir !== dir) {
             return;
         }
-        const isDraft = split.drafts.some((pr) => pr.number === focus.number);
-        if (!isDraft && !split.ready.some((pr) => pr.number === focus.number)) {
+        const turn = sectionOf(sections, focus.number);
+        if (turn == null) {
             return;
         }
         globalStore.set(model.focusAtom, null);
-        if (isDraft) {
-            setDraftsOpen(true);
+        if (!turnOpen(turn)) {
+            ReviewsFolds.getInstance().openForNow(dir, turn);
         }
         setSelected(focus.number);
         setMarked(focus.number);
+    }, [focus, dir, sections, model]);
+    // Its own effect: clearing the focus above re-runs that one, whose cleanup would cancel the timer (#962).
+    useEffect(() => {
+        if (marked == null) {
+            return;
+        }
         const timer = setTimeout(() => setMarked(null), FocusMarkMs);
         return () => clearTimeout(timer);
-    }, [focus, dir, split, model]);
+    }, [marked]);
     useEffect(() => {
         if (selected == null) {
             return;
         }
         listRef.current?.querySelector<HTMLElement>(`[data-pr="${selected}"]`)?.scrollIntoView?.({ block: "nearest" });
-    }, [selected, draftsOpen]);
+    }, [selected, folds]);
+    useEffect(() => {
+        if (notesAsk != null) {
+            ReviewsFolds.getInstance().openForNow(dir, "notes");
+        }
+    }, [notesAsk, dir]);
     const openReview = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr, answer.repo));
-    // While PRs are being selected for a batch, a row's click and Enter select it instead of opening its review.
-    const open = (pr: ReviewPr) => {
-        if (selecting && batchSelectable(pr)) {
-            setBatchSelected((current) => toggleBatchSelection(current, pr.number));
+    // A queue step brings its card into view, unfolding its section, and focuses it.
+    const goToCard = (number: number) => {
+        const turn = sectionOf(sections, number);
+        if (turn != null && !turnOpen(turn)) {
+            ReviewsFolds.getInstance().openForNow(dir, turn);
+        }
+        setSelected(number);
+        requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>(`[data-pr="${number}"]`)?.focus());
+    };
+    const handOver = () => {
+        if (handing) {
             return;
         }
-        openReview(pr);
+        setHanding(true);
+        fireAndForget(async () => {
+            try {
+                await model.handOverAfterMerge(dir, answer.repo, listed);
+            } finally {
+                setHanding(false);
+            }
+        });
     };
     const onKeyDown = (e: React.KeyboardEvent) => {
         // A dialog the list renders (the batch merge's modal) is portaled out of it: its keys are not the rows'.
@@ -379,34 +526,92 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             const pr = rows.find((r) => r.number === current);
             if (pr != null) {
                 e.preventDefault();
-                open(pr);
+                openReview(pr);
             }
         }
     };
     const rowProps = (pr: ReviewPr) => ({
         pr,
+        card: cards[pr.number],
+        filled: filled === `pr:${pr.number}`,
         selected: selected === pr.number,
         marked: marked === pr.number,
         onSelect: () => setSelected(pr.number),
-        onOpen: () => open(pr),
+        onOpen: () => openReview(pr),
         onValidate: () => model.openValidate(dir, pr, answer.repo, blockId),
         onAskRebase: () => model.askRebase(dir, pr, answer.repo),
         onInvestigate: () => model.investigate(dir, pr, answer.repo),
         rebaseAsk: asks[rebaseAskKey(dir, pr.number)],
         dir,
         repo: answer.repo,
-        forecast: shownForecast.rows[pr.number],
-        forecastActive: forecastActive === pr.number,
-        order: rowOrders[pr.number],
-        batchCheck: selecting && batchSelectable(pr) ? batchSelected.includes(pr.number) : null,
+        relation: relations.cards[pr.number],
+        rank: ranks[pr.number],
+        queueWhy: shown ? queueWhy(queue, pr.number, relations.byCard[pr.number]) : null,
+        waitWhy: shown ? queueWait(queue, pr.number) : null,
+        groupMerge: shown ? queueChoice(queue, pr.number) : null,
+        onGroupMerge: (inGroup: boolean) => model.setInGroupMerge(dir, pr.number, inGroup),
+        queued: queuedAsks[rebaseAskKey(dir, pr.number)],
         batchMark: batchRowMark(batchRun, pr.number),
     });
+    const edgeText = (number: number, where: EdgeWhere) =>
+        word(
+            edgeLine(
+                relations.partners.find((p) => p.number === number),
+                where
+            )
+        );
     // Read from the row under the pointer, not from each row's enter and leave: a scroll under a still pointer
     // changes the row without a leave.
     const onPointerOver = (e: React.MouseEvent) => {
         const row = (e.target as HTMLElement).closest?.("[data-pr]");
         setHovered(row == null ? null : Number(row.getAttribute("data-pr")));
     };
+    // Check the agents sits on the heading of the agents' section, else of the first PR section shown.
+    const checkTurn = sections.some((s) => s.turn === "agents") ? "agents" : sections[0]?.turn;
+    // The queue and the after-merge line sit at the top of the first section when it is the developer's ("Yours" or
+    // "Ready"), else above the sections.
+    const firstTurn = sections[0]?.turn;
+    const queueTurn: CardTurn = firstTurn === "yours" || firstTurn === "ready" ? firstTurn : null;
+    const queueBlock = (
+        <>
+            <AfterMergeLine
+                after={afterMerge}
+                busy={handing}
+                onHandOver={handOver}
+                onClose={() => model.closeAfterMerge(dir)}
+            />
+            {shown ? (
+                <MergeQueueBlock
+                    queue={queue}
+                    prs={listed}
+                    base={answer.target}
+                    status={status}
+                    hot={hot}
+                    canMerge={queueFree && queueCanMerge(queue)}
+                    free={queueFree || queuePrs.length === 0}
+                    onStep={goToCard}
+                    onChoose={(number, inGroup) => model.setInGroupMerge(dir, number, inGroup)}
+                    onMerge={() => setConfirming(true)}
+                />
+            ) : null}
+            {confirming && plannedBatch != null ? (
+                <BatchConfirmDialog
+                    plan={plannedBatch}
+                    dir={dir}
+                    repo={answer.repo}
+                    base={answer.target}
+                    onStart={startBatch}
+                    onCancel={() => setConfirming(false)}
+                />
+            ) : null}
+        </>
+    );
+    const bottomOpen = long !== true;
+    const motionAround = [
+        afterMerge?.merged.join(" ") ?? "",
+        batchVisible ? "batch" : "",
+        shown ? queue.steps.map((s) => `${s.number}${s.merged ? "m" : ""}`).join(" ") : "",
+    ].join("|");
     return (
         <div
             ref={listRef}
@@ -416,109 +621,99 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             onMouseLeave={() => setHovered(null)}
             data-role="molten-reviews"
         >
-            <ForecastLinks listRef={listRef} source={forecastActive} targets={shownForecast.targets} />
+            <ForecastLinks
+                listRef={listRef}
+                source={hot.length > 0 ? active : null}
+                targets={relations.partners.map((p) => p.number)}
+                edgeText={edgeText}
+            />
             {answer.prserror ? <Problem text={t("reviews.prsError", { error: answer.prserror })} /> : null}
+            <LaunchBar dir={dir} mergedNumbers={mergedNumbers} trunk={answer.target} />
+            <LaunchDialogs trunk={answer.target} />
             {answer.reportserror ? (
                 <div className="text-11 text-muted" title={answer.reportserror}>
                     {t("reviews.reportsError")}
                 </div>
             ) : null}
-            <section className="flex flex-col gap-2" aria-label={t("reviews.waiting")}>
-                <h2 className="flex items-baseline gap-2 text-13 leading-5 font-semibold">
-                    {t("reviews.waiting")}
-                    <span className="text-12 font-normal text-muted">{split.ready.length}</span>
-                    <ForecastStatusLine status={status} />
-                    {split.ready.length > 1 && !selecting ? (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSelecting(true);
-                                setBatchSelected([]);
-                            }}
-                            className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 self-center rounded-4 border border-border px-1.5 py-0.5 text-11 leading-4 font-normal text-secondary hover:bg-hover hover:text-primary"
-                            title={t("reviews.batch.select.startTitle")}
-                            data-testid="reviews-batch-start"
-                        >
-                            <i className="fa fa-solid fa-layer-group text-10" aria-hidden />
-                            {t("reviews.batch.select.start")}
-                        </button>
-                    ) : null}
-                </h2>
-                {batchShown(batchRun) ? <BatchBanner run={batchRun} /> : null}
-                {selecting ? (
-                    <BatchSelectBar
-                        count={batchSelected.length}
-                        onMerge={() => setConfirming(true)}
-                        onCancel={endSelection}
-                    />
-                ) : null}
-                {confirming && plannedBatch != null ? (
-                    <BatchConfirmDialog
-                        plan={plannedBatch}
-                        base={answer.target}
-                        onStart={startBatch}
-                        onCancel={() => setConfirming(false)}
-                    />
-                ) : null}
-                {forecastReq != null && split.ready.length > 1 ? (
-                    <MergeOrderBar choice={orderChoice} header={orderHeader} />
-                ) : null}
-                {split.ready.length === 0 ? (
-                    <p className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted">
-                        {t("reviews.noneWaiting")} <code>{answer.target}</code>.
-                    </p>
-                ) : (
-                    <div
-                        className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
-                        role="list"
-                    >
-                        {split.ready.map((pr) => (
-                            <ReviewRow key={pr.number} {...rowProps(pr)} />
-                        ))}
-                    </div>
-                )}
-            </section>
-            <section className="flex flex-col gap-2" aria-label={t("reviews.draftsTitle")}>
-                <button
-                    type="button"
-                    onClick={() => setDraftsOpen(!draftsOpen)}
-                    aria-expanded={draftsOpen}
-                    className="flex w-fit cursor-pointer items-center gap-1.5 rounded-4 text-13 leading-5 font-semibold hover:text-primary"
-                    data-testid="reviews-drafts-toggle"
+            {queueTurn == null ? queueBlock : null}
+            {sections.length === 0 ? (
+                <p
+                    className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
+                    data-testid="reviews-none-open"
                 >
-                    <i
-                        className={cn(
-                            "fa fa-solid fa-chevron-right text-11 text-muted transition-transform duration-120 ease-mt",
-                            draftsOpen && "rotate-90"
-                        )}
-                        aria-hidden
-                    />
-                    {t("reviews.draftsTitle")}
-                    <span className="ml-0.5 text-12 font-normal text-muted">{split.drafts.length}</span>
-                </button>
-                {!draftsOpen ? null : split.drafts.length === 0 ? (
-                    <p
-                        className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
-                        data-testid="reviews-drafts-empty"
-                    >
-                        {t("reviews.noneDrafts")} <code>{answer.target}</code>.
-                    </p>
-                ) : (
-                    <div
-                        className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
-                        role="list"
-                        data-testid="reviews-drafts"
-                    >
-                        {split.drafts.map((pr) => (
-                            <ReviewRow key={pr.number} {...rowProps(pr)} />
-                        ))}
-                    </div>
-                )}
-            </section>
-            <UpcomingSection dir={dir} reviews={answer} />
-            {answer.repo ? <NotesSection dir={dir} repo={answer.repo} blockId={blockId} ask={notesAsk} /> : null}
+                    {t("reviews.sections.none")} <code>{answer.target}</code>.
+                </p>
+            ) : null}
+            <CardMotion dir={dir} layout={motionLayout} merged={mergedNumbers} around={motionAround}>
+                {sections.map((section) => {
+                    const text = TurnSectionText[section.turn];
+                    const isOpen = turnOpen(section.turn);
+                    const turnLeftovers = leftoverTurns[section.turn] ?? [];
+                    const count = section.prs.length + turnLeftovers.length;
+                    return (
+                        <section
+                            key={section.turn}
+                            className="flex flex-col gap-2"
+                            aria-label={t(text.title)}
+                            data-testid={`reviews-section-${section.turn}`}
+                        >
+                            <SectionHeading
+                                title={t(text.title)}
+                                count={count > 0 ? count : undefined}
+                                hint={text.hint ? t(text.hint) : undefined}
+                                open={isOpen}
+                                onToggle={() => ReviewsFolds.getInstance().set(section.turn, !isOpen)}
+                                testId={`reviews-section-${section.turn}-toggle`}
+                                working={
+                                    section.prs.some((pr) => cards[pr.number]?.works)
+                                        ? t("reviews.sections.working")
+                                        : undefined
+                                }
+                            >
+                                {section.turn === checkTurn ? <CheckAgentsButton check={check} /> : null}
+                            </SectionHeading>
+                            {section.turn === checkTurn ? <CheckAgentsReport check={check} /> : null}
+                            {section.turn === queueTurn ? queueBlock : null}
+                            {section.turn === "agents" && batchVisible ? (
+                                <BatchBanner run={batchRun} ids={shownIds} />
+                            ) : null}
+                            {section.turn === "agents" && batchPointer ? (
+                                <BatchPointer run={batchRun} ids={shownIds} />
+                            ) : null}
+                            {isOpen && count > 0 ? (
+                                <div
+                                    className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
+                                    role="list"
+                                    data-testid={`reviews-section-${section.turn}-list`}
+                                >
+                                    {section.prs.map((pr) => (
+                                        <ReviewRow key={pr.number} {...rowProps(pr)} />
+                                    ))}
+                                    {turnLeftovers.map((row) => (
+                                        <LeftoverOwnerCard
+                                            key={`leftover:${row.leftover.branch}`}
+                                            dir={dir}
+                                            row={row}
+                                            repoUrl={answer.url}
+                                            filled={filled === `leftover:${row.leftover.branch}`}
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
+                        </section>
+                    );
+                })}
+            </CardMotion>
+            <UpcomingSection dir={dir} reviews={answer} defaultOpen={bottomOpen} />
             {answer.repo ? (
-                <MergedSection answer={answer} onShowNotes={(filter) => setNotesAsk({ filter, at: Date.now() })} />
+                <NotesSection dir={dir} repo={answer.repo} blockId={blockId} ask={notesAsk} defaultOpen={bottomOpen} />
+            ) : null}
+            {answer.repo ? (
+                <MergedSection
+                    answer={answer}
+                    defaultOpen={bottomOpen}
+                    onShowNotes={(filter) => setNotesAsk({ filter, at: Date.now() })}
+                />
             ) : null}
         </div>
     );
@@ -526,350 +721,4 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
 
 function Problem({ text }: { text: string }) {
     return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-danger">{text}</div>;
-}
-
-function ToneChip({
-    label,
-    tone,
-    title,
-    icon,
-    testId,
-}: {
-    label: string;
-    tone: Tone;
-    title: string;
-    icon?: CiIconState;
-    testId?: string;
-}) {
-    return (
-        <span className={cn(Chip, ToneClasses[tone])} title={title} data-testid={testId}>
-            <CiIcon state={icon ?? ToneCiStates[tone]} />
-            {label}
-        </span>
-    );
-}
-
-// The row's own buttons: their click and their keys stay theirs, the row's click and Enter open the review.
-function stopRow(e: React.SyntheticEvent) {
-    e.stopPropagation();
-}
-
-const SecondaryButton =
-    "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
-
-// The link is always laid out and only fades in, so showing it never moves the chips (#708).
-const AssistedLinkClasses =
-    "flex shrink-0 cursor-pointer items-center gap-1 rounded-4 px-0.5 text-12 leading-5 font-medium text-accent outline-none " +
-    "translate-x-1 opacity-0 transition-[opacity,translate] duration-120 ease-mt " +
-    "group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 " +
-    "focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-(--mt-focus-ring) " +
-    "hover:underline motion-reduce:translate-x-0";
-
-// The row's click opens the assisted review (the PR's Review tab); this link names it on hover and keyboard focus
-// and does the same. On a narrow panel it keeps an icon and the arrow, named for assistive technologies.
-export function AssistedReviewLink({ number, onOpen }: { number: number; onOpen: () => void }) {
-    const t = useT();
-    return (
-        <button
-            type="button"
-            onClick={(e) => {
-                e.stopPropagation();
-                onOpen();
-            }}
-            onKeyDown={stopRow}
-            aria-label={t("reviews.assistedReviewAria", { number })}
-            title={t("reviews.assistedReviewAria", { number })}
-            className={AssistedLinkClasses}
-            data-testid="reviews-assisted-review"
-        >
-            <span className="@[6.25rem]/link:hidden" aria-hidden>
-                <i className="fa fa-solid fa-sparkles text-11" />
-            </span>
-            <span className="hidden whitespace-nowrap @[6.25rem]/link:inline">{t("reviews.assistedReview")}</span>
-            <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
-        </button>
-    );
-}
-
-// The row's two buttons: GitHub (secondary) opens the PR's page, Validate (primary) merges through its plan sheet, or
-// Mark ready on a draft. Neither opens the assisted review.
-export function ReviewRowActions({
-    pr,
-    blocked,
-    markReady,
-    onValidate,
-}: {
-    pr: ReviewPr;
-    blocked: string;
-    markReady: MarkReadyState;
-    onValidate: () => void;
-}) {
-    const t = useT();
-    const validate = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (blocked) {
-            return;
-        }
-        onValidate();
-    };
-    const openOnGithub = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        fireAndForget(() => openWebLink(pr.url));
-    };
-    return (
-        <div className="flex shrink-0 items-center gap-1.5">
-            <button
-                type="button"
-                onClick={openOnGithub}
-                onKeyDown={stopRow}
-                className={SecondaryButton}
-                title={t("reviews.openOnGithub")}
-                data-testid="reviews-github"
-            >
-                <i className="fa fa-brands fa-github text-12" aria-hidden />
-                GitHub
-                <i className="fa fa-solid fa-arrow-up-right-from-square text-10 text-muted" aria-hidden />
-            </button>
-            {pr.draft ? (
-                <MarkReadyButton state={markReady} className="px-2.5 py-1" />
-            ) : (
-                <button
-                    type="button"
-                    onClick={validate}
-                    onKeyDown={stopRow}
-                    aria-disabled={blocked ? true : undefined}
-                    className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
-                    title={blocked || t("reviews.validate.title")}
-                    data-testid="reviews-validate"
-                >
-                    {t("reviews.validate.button")}
-                    <MoltenWave />
-                </button>
-            )}
-        </div>
-    );
-}
-
-export function ReviewRow({
-    pr,
-    selected,
-    marked,
-    onSelect,
-    onOpen,
-    onValidate,
-    onAskRebase,
-    onInvestigate,
-    rebaseAsk,
-    dir,
-    repo,
-    forecast,
-    forecastActive,
-    order,
-    batchCheck,
-    batchMark,
-}: {
-    pr: ReviewPr;
-    selected: boolean;
-    marked: boolean;
-    onSelect: () => void;
-    onOpen: () => void;
-    onValidate: () => void;
-    onAskRebase: () => Promise<RebaseOutcome>;
-    onInvestigate?: () => Promise<RebaseOutcome>;
-    rebaseAsk: RebaseAsk;
-    dir: string;
-    repo: string;
-    forecast?: RowForecast;
-    forecastActive?: boolean;
-    order?: RowOrder;
-    // batchCheck: the row's box while PRs are selected for a batch merge, null otherwise; batchMark: its place in the run.
-    batchCheck?: boolean;
-    batchMark?: BatchRowMark;
-}) {
-    const t = useT();
-    useLocale();
-    const [asking, setAsking] = useState(false);
-    const [outcome, setOutcome] = useState<RebaseOutcome>(null);
-    const head = reviewHeadline(pr);
-    const ci = ciLabel(pr.ci);
-    const report = reportLabel(pr.report);
-    const merge = mergeLabelOf(pr);
-    const blocked = validateBlocked(pr);
-    const asked = rebaseAskShown(rebaseAsk, pr);
-    const conflicts = pr.merge === "conflicts";
-    const outcomeShown = outcome != null && (outcome.kind !== "asked" || outcome.note);
-    const markReady = useMarkReady(dir, pr.number, repo);
-    const rerun = useRerunFailed(dir, pr.number);
-    const [investigating, setInvestigating] = useState(false);
-    useEffect(() => {
-        setOutcome(null);
-    }, [pr.headoid]);
-    const askRebase = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (asking) {
-            return;
-        }
-        setAsking(true);
-        setOutcome(null);
-        fireAndForget(async () => {
-            try {
-                setOutcome(await onAskRebase());
-            } finally {
-                setAsking(false);
-            }
-        });
-    };
-    const investigate = () => {
-        if (investigating || onInvestigate == null) {
-            return;
-        }
-        setInvestigating(true);
-        setOutcome(null);
-        fireAndForget(async () => {
-            try {
-                setOutcome(await onInvestigate());
-            } finally {
-                setInvestigating(false);
-            }
-        });
-    };
-    const openReport = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        fireAndForget(() => openWebLink(pr.report.url));
-    };
-    return (
-        <div
-            role="listitem"
-            tabIndex={0}
-            data-pr={pr.number}
-            aria-label={[
-                order ? t("reviews.order.rankTitle", { rank: order.rank }) : "",
-                reviewAriaLabel(pr),
-                order?.reason,
-                forecast?.mark?.aria,
-                forecast?.note,
-            ]
-                .filter(Boolean)
-                .join(", ")}
-            aria-current={selected || undefined}
-            onClick={() => {
-                onSelect();
-                onOpen();
-            }}
-            onFocus={onSelect}
-            className={cn(
-                "group flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
-                selected && "bg-hover/60",
-                marked && "ring-2 ring-accent/70 ring-inset",
-                linkedRowClass(forecast?.linked)
-            )}
-        >
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <div className="truncate text-13 leading-5 font-medium">
-                        {batchCheck != null ? <BatchCheckbox checked={batchCheck} number={pr.number} /> : null}
-                        <MergeOrderRank order={order} />
-                        {head.ticket ? <span className="mr-1.5 text-accent">{head.ticket}</span> : null}
-                        {head.title}
-                        <YoursMarker dir={dir} branch={pr.branch} draft={pr.draft} />
-                    </div>
-                    <div className="truncate text-12 text-muted">
-                        PR #{pr.number} · <code>{pr.branch}</code>
-                        {pr.author ? ` · ${pr.author}` : ""} ·{" "}
-                        {t("reviews.opened", { when: timeAgo(pr.createdat || pr.updatedat) })} ·{" "}
-                        {t("reviews.updated", { when: timeAgo(pr.updatedat) })}
-                    </div>
-                    <MergeOrderReason order={order} />
-                </div>
-                <ReviewRowActions pr={pr} blocked={blocked} markReady={markReady} onValidate={onValidate} />
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-                <ToneChip
-                    label={ci.label}
-                    tone={ci.tone}
-                    title={ci.title}
-                    icon={ci.tone === "pending" ? "running" : undefined}
-                    testId="reviews-ci"
-                />
-                {pr.report?.state === "present" && pr.report.url ? (
-                    <button
-                        type="button"
-                        onClick={openReport}
-                        className={cn(Chip, ToneClasses[report.tone], "cursor-pointer hover:brightness-125")}
-                        title={report.title}
-                        data-testid="reviews-report"
-                    >
-                        <CiIcon state="success" />
-                        {report.label}
-                    </button>
-                ) : (
-                    <ToneChip label={report.label} tone={report.tone} title={report.title} testId="reviews-report" />
-                )}
-                <ToneChip label={merge.label} tone={merge.tone} title={merge.title} testId="reviews-merge" />
-                <ForecastMarkChip mark={forecast?.mark} active={forecastActive} />
-                <BatchRowChip mark={batchMark} />
-                {pr.unpublished > 0 ? (
-                    <span className={cn(Chip, ToneClasses.pending)} title={t("reviews.unpublishedTitle")}>
-                        <i className="fa fa-solid fa-comment text-11" />
-                        {t("reviews.unpublished", { count: pr.unpublished })}
-                    </span>
-                ) : null}
-                {asked ? (
-                    <span
-                        className={cn(Chip, ToneClasses.neutral)}
-                        title={t("reviews.rebase.chipTitle")}
-                        data-testid="reviews-rebase-asked"
-                    >
-                        <i className="fa fa-solid fa-code-branch text-11" />
-                        {t("reviews.rebase.chip", { name: rebaseAsk.name })}
-                    </span>
-                ) : null}
-                {conflicts && !asked ? (
-                    <button
-                        type="button"
-                        onClick={askRebase}
-                        onKeyDown={stopRow}
-                        aria-busy={asking || undefined}
-                        className={cn(SecondaryButton, "py-0.5 text-11")}
-                        title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
-                        data-testid="reviews-rebase"
-                    >
-                        {asking ? <DominoLoader /> : <i className="fa fa-solid fa-code-branch text-11" />}
-                        {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
-                    </button>
-                ) : null}
-                {onInvestigate != null ? (
-                    <CiFailureButtons pr={pr} rerun={rerun} investigating={investigating} onInvestigate={investigate} />
-                ) : null}
-                {/* Joins the chips' line as soon as an icon fits there, then takes the rest of it: the label shows
-                    when it fits, so the link never wraps to a line of its own. */}
-                <div
-                    className={cn(
-                        "@container/link relative flex min-w-10 grow basis-10 justify-end",
-                        forecast?.note && "[&>button]:invisible"
-                    )}
-                >
-                    <AssistedReviewLink number={pr.number} onOpen={onOpen} />
-                    <ForecastNote text={forecast?.note} />
-                </div>
-            </div>
-            <MarkReadyConfirm state={markReady} />
-            <RerunConfirm pr={pr} state={rerun} />
-            {outcomeShown ? (
-                <div
-                    className={cn(
-                        "flex flex-wrap items-center gap-2 text-12 leading-4",
-                        outcome.kind === "failed" ? "text-danger" : "text-secondary"
-                    )}
-                    role="status"
-                    data-testid="reviews-rebase-outcome"
-                >
-                    <span className="min-w-0">{outcome.text}</span>
-                </div>
-            ) : null}
-            <PrSignature agents={pr.agents} testId="reviews-signature" />
-            {/* Last: the agent bar docks at the tile's bottom edge (-mb-2.5), anything after it lands below it. */}
-            <RowAgentBar dir={dir} branch={pr.branch} />
-        </div>
-    );
 }

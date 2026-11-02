@@ -9,7 +9,7 @@
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { AgentHookOffer, hookOfferQueryKey } from "./agent-hooks-model";
+import { AgentHookOffer, hookOfferQueryKey, hookOfferTexts } from "./agent-hooks-model";
 import { AgentHookOffers } from "./agent-hooks-store";
 import { AgentStates } from "./agent-state-store";
 import { DialogFrame } from "./dialog-frame";
@@ -62,6 +62,7 @@ function AgentHookOfferDialog({
     const timer = useRef<ReturnType<typeof setTimeout>>(null);
     useEffect(() => () => clearTimeout(timer.current), []);
     const name = offer.agentname || offer.agent;
+    const texts = hookOfferTexts(offer, (key) => t(key));
     const copy = () =>
         fireAndForget(async () => {
             await navigator.clipboard.writeText(offer.snippet);
@@ -98,10 +99,10 @@ function AgentHookOfferDialog({
                 </>
             }
         >
-            <p className="text-secondary">{t("agent.hooks.intro", { name, brings: offer.brings })}</p>
+            <p className="text-secondary">{t("agent.hooks.intro", { name, brings: texts.brings })}</p>
             <p>
                 {t("agent.hooks.addTo")} <code className="font-mono text-primary">{offer.file}</code>
-                {t("agent.hooks.also", { also: offer.also })}
+                {t("agent.hooks.also", { also: texts.also })}
             </p>
             <pre
                 className="max-h-64 overflow-auto rounded-4 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre text-secondary select-text"

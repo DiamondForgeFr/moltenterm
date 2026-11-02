@@ -34,13 +34,13 @@ it: name the button that does it, as their MoltenTerm shows it (English and Fren
 
 | Asked for | The button | Where |
 | --- | --- | --- |
-| Rebase the branch on its base | **Ask for a rebase** / **Demander un rebase** | the PR's row in the Reviews list, shown when it conflicts with its base |
-| Rerun failed CI jobs | **Rerun failed jobs** / **Relancer les jobs en échec** | the PR's row in the Reviews list, shown when a check failed |
-| Find why the CI failed and fix it | **Investigate and fix** / **Analyser et résoudre** | the PR's row in the Reviews list, shown when a check failed: a work agent finds the cause and resolves it (a fix on the branch, a rebase, or a rerun with a ticket for a flaky test), never merges, and the developer is told when the checks pass |
+| Rebase the branch on its base | **Ask for a rebase** / **Demander un rebase** | the PR's row in the Integration panel (Intégration), shown when it conflicts with its base |
+| Rerun failed CI jobs | **Rerun failed jobs** / **Relancer les jobs en échec** | the PR's row in the Integration panel (Intégration), shown when a check failed |
+| Resolve what blocks a PR | **Analyze and resolve** / **Analyser et résoudre** | the PR's row in the Integration panel (Intégration), shown when something blocks it (behind or in conflict with its base, failed remote checks, failed local CI statuses, no test report, changes requested): a work agent resolves the blockers in that order (a rebase, a fix on the branch, the local CI run until green, a rerun with a ticket for a flaky test), never merges, and the developer is told when no check fails on the pushed head or why it needs them |
 | Apply the review's comments | **Restart work** / **Relancer le travail** | the Review tab's header, once a review round is published |
 | Publish the comments | **Publish review** / **Publier la revue** | the Review tab |
-| Merge | **Validate** / **Valider** | the Review tab's header, or the PR's row in the Reviews list |
-| Move a draft to review | **Mark ready for review** / **Prête pour la revue** | the draft's row in the Reviews list, or its Review tab's header |
+| Merge | **Validate** / **Valider** | the Review tab's header, or the PR's row in the Integration panel (Intégration) |
+| Move a draft to review | **Mark ready for review** / **Prête pour la revue** | the draft's row in the Integration panel (Intégration), or its Review tab's header |
 
 The CI's failures are in `review_context` (`ci.checks`, and their log excerpts under `untrusted.cilogs`): explain them
 from there instead of running `gh`.
@@ -129,7 +129,8 @@ Use these as short bold labels (or headings in detailed depth), in `developerlan
    Put the same short name in `technique`.
 3. **Why here**: the reason, citing where it is written: the ticket (`#N`), the plan, an SRS page, a code comment
    (`path:line`), a commit message (its short hash and subject, from `git log` in the worktree), or a project rule
-   (`CLAUDE.md`, `.kilocode/rules/rules.md`, `UPSTREAM.md`, `MANIFESTO.md`, with the rule's words). When none of them
+   (`AGENTS.md`, then `CLAUDE.md` as Claude Code's fallback, `.kilocode/rules/rules.md`, `UPSTREAM.md`, `MANIFESTO.md`,
+   with the rule's words). When none of them
    says why, write "no recorded reason", then give your own reading only if it helps, labelled as your reading.
 4. **Alternatives**: what else would work for this code, and the trade-off of each against the choice made (what it
    would gain, what it would cost here).
@@ -138,8 +139,8 @@ Use these as short bold labels (or headings in detailed depth), in `developerlan
    `path:start-end`. Give only places you opened and checked; say "none found" when the search finds none.
 6. **Principle**: when the lines illustrate or break a recognised principle: SOLID (name the letter), separation of
    concerns, clean or hexagonal architecture, DRY, KISS, YAGNI, the Law of Demeter, composition over inheritance,
-   testability, or the project's own rules (`CLAUDE.md`, `.kilocode/rules/rules.md`, the MOLTENTERM-PATCH markers
-   and the ledger of `UPSTREAM.md`). Name the principle, then show:
+   testability, or the project's own rules (`AGENTS.md`, then `CLAUDE.md` as Claude Code's fallback,
+   `.kilocode/rules/rules.md`, the MOLTENTERM-PATCH markers and the ledger of `UPSTREAM.md`). Name the principle, then show:
    - what in these lines shows it, quoting or pointing at the line;
    - why it helps here;
    - what the code would look like if it were violated, as a short sketch;

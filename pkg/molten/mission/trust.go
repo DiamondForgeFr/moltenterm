@@ -60,11 +60,21 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 	}
 	if p.Release != nil {
 		for _, step := range p.Release.Rc {
+			if step.IsManual() {
+				continue
+			}
 			rtn = append(rtn, TrustedCommand{Kind: "rc", Id: step.Id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env})
 		}
 		for _, step := range p.Release.Public {
+			if step.IsManual() {
+				continue
+			}
 			rtn = append(rtn, TrustedCommand{Kind: "public", Id: step.Id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env})
 		}
+	}
+	// The release chain runs the declared formatter on the files it writes (#1095): declaring or changing it asks again.
+	if p.Versions != nil && strings.TrimSpace(p.Versions.Format) != "" {
+		rtn = append(rtn, TrustedCommand{Kind: "format", Id: "format", Title: "Format the release's files", Run: p.Versions.Format})
 	}
 	for _, step := range p.Steps {
 		rtn = append(rtn, TrustedCommand{Kind: "step", Id: step.Id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env})

@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/wavetermdev/waveterm/pkg/molten/viewpin" // MOLTENTERM-PATCH (#1347)
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -49,8 +49,8 @@ func GetStarterLayout() PortableLayout {
 		}},
 		{IndexArr: []int{1, 1}, BlockDef: &waveobj.BlockDef{
 			Meta: waveobj.MetaMapType{
-				waveobj.MetaKey_View: molten.BrowserView,         // MOLTENTERM-PATCH (#132): the browser panel, with tabs
-				waveobj.MetaKey_Url:  wavebase.MoltentermRepoURL, // MOLTENTERM-PATCH (#4)
+				waveobj.MetaKey_View: molten.BrowserView,   // MOLTENTERM-PATCH (#132): the browser panel, with tabs
+				waveobj.MetaKey_Url:  viewpin.StartPageUrl, // MOLTENTERM-PATCH (#4, #1347): MoltenTerm's start page, never a site
 			},
 		}},
 		{IndexArr: []int{1, 2}, BlockDef: &waveobj.BlockDef{

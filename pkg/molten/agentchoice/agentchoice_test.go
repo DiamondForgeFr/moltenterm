@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func resolver(installed map[string]bool, global string, projects map[string]string) Resolver {
@@ -105,5 +106,67 @@ func TestProjectChoiceFollowsTheMainCheckout(t *testing.T) {
 	}
 	if got := ProjectChoiceIn(map[string]any{main: "gemini"}, main); got != "" {
 		t.Errorf("unsupported: %q", got)
+	}
+}
+
+// #1460: the companion offers the agents found on this computer, whatever their provider; a fresh Resolve lists them
+// all, the ones the flows cannot run included, with the program that starts each.
+func TestResolveListsEveryKnownAgent(t *testing.T) {
+	r := resolver(map[string]bool{"gemini": true}, "", nil)
+	r.Roster = []KnownAgent{
+		{Id: "claude", Name: "Claude Code", Executable: "claude"},
+		{Id: "gemini", Name: "Gemini CLI", Executable: "gemini"},
+	}
+	got := r.Resolve("/p", "")
+	want := []Agent{
+		{Id: "claude", Name: "Claude Code", Command: "claude"},
+		{Id: "gemini", Name: "Gemini CLI", Installed: true, Command: "gemini"},
+	}
+	if !reflect.DeepEqual(got.Known, want) {
+		t.Errorf("known %+v", got.Known)
+	}
+	if got.Agent != "" {
+		t.Errorf("an agent the flows cannot run is never the flows' agent: %+v", got)
+	}
+	if none := (Resolver{}).Resolve("", ""); none.Known == nil || len(none.Known) != 0 {
+		t.Errorf("no roster is an empty list, not null: %+v", none.Known)
+	}
+}
+
+func TestRosterFollowsTheRegistry(t *testing.T) {
+	ids := map[string]string{}
+	for _, k := range Roster() {
+		ids[k.Id] = k.Executable
+	}
+	for _, id := range Supported {
+		if ids[id] == "" {
+			t.Errorf("%s is supported but not in the roster: %v", id, ids)
+		}
+	}
+	if ids["gemini"] != "gemini" {
+		t.Errorf("a planned agent is in the roster: %v", ids)
+	}
+}
+
+// #1460: detection is a cached PATH lookup, so a panel that asks again and again does not stat the PATH each time, and
+// an agent installed since shows once the cache expires.
+func TestPathCacheLooksUpOnceUntilItExpires(t *testing.T) {
+	now := time.Now()
+	lookups := 0
+	installed := false
+	c := &pathCache{
+		now:    func() time.Time { return now },
+		lookup: func(exe string) bool { lookups++; return installed },
+	}
+	if c.has("myagent") || c.has("myagent") || lookups != 1 {
+		t.Fatalf("lookups %d", lookups)
+	}
+	installed = true
+	if c.has("myagent") {
+		t.Errorf("the answer is cached")
+	}
+	now = now.Add(PathCacheTtl + time.Second)
+	if !c.has("myagent") || lookups != 2 {
+		t.Errorf("expired: lookups %d", lookups)
 	}
 }

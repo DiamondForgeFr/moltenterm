@@ -13,6 +13,7 @@
     z-index: var(--zindex-modal-wrapper);
 
     // MOLTENTERM-PATCH (#408): the one modal scrim of MoltenTerm (DS-SHELL-096, tokens.css), over the whole window.
+    // MOLTENTERM-PATCH (#1009): no backdrop-filter, as .molten-scrim (tokens.css says why).
     .modal-backdrop {
         position: fixed;
         top: 0;
@@ -20,7 +21,6 @@
         right: 0;
         bottom: 0;
         background-color: var(--mt-scrim);
-        backdrop-filter: blur(var(--mt-scrim-blur));
         z-index: var(--zindex-modal-backdrop);
     }
 }
@@ -33,7 +33,7 @@
     align-items: flex-start;
     // MOLTENTERM-PATCH (#905): the suite's dialog frame, as DialogFrame draws it (DialogFrameClass): 4 px corners, the
     // thin border, the raised surface. modal.tsx adds the turning light.
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     border: 1px solid var(--color-border);
     background: var(--mt-surface-3);
     box-shadow: var(--mt-shadow-e3);
@@ -66,7 +66,7 @@
         justify-content: flex-end;
         width: 100%;
         padding-top: 16px;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        border-top: 1px solid var(--mt-line-1); // MOLTENTERM-PATCH (#1340): Coulée's faint line
 
         .wave-button:last-child {
             margin-left: 8px;

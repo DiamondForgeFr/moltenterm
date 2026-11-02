@@ -13,26 +13,60 @@ your settings files are only read, and what is added lives in MoltenTerm's data 
 
 | Agent | Added to the run | How |
 | --- | --- | --- |
-| Claude Code | Agent state hooks (working, waiting, done; the `Notification` hook only for the notifications that wait for you, not the idle reminder a minute after a turn ends), the session link (`SessionStart`), the status line relay around your own status line (for the plan usage gauges), the coffee approvals hook, the MoltenTerm browser server | `--settings <file>` and `--mcp-config <file>`, added before your arguments |
-| Codex | A notify wrapper that runs your own `notify` first, then reports done and links the session; the MoltenTerm browser server; the coffee approvals hook, which Codex runs once you trust it in `/hooks` | `-c notify=...`, `-c mcp_servers.molten-browser...` and `-c hooks.PermissionRequest=...`, added before your arguments |
+| Claude Code | Agent state hooks (working, waiting, done; the `Notification` hook only for the notifications that wait for you, not the idle reminder a minute after a turn ends), the session link (`SessionStart`), the sub-agents (`SubagentStart`, `SubagentStop`), the status line relay around your own status line (for the plan usage gauges), the coffee approvals hook, the MoltenTerm browser server | `--settings <file>` and `--mcp-config <file>`, added before your arguments |
+| Codex | The same state hooks (`SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`, `SubagentStart`, `SubagentStop`) and the coffee approvals hook, which Codex runs once you trust them in `/hooks`; until then, a notify wrapper that runs your own `notify` first, then reports done and links the session; Codex's own notifications for what waits for you (approvals, questions), sent to the pane whatever the focus; the MoltenTerm browser server | `-c hooks.<Event>=...`, `-c notify=...`, `-c tui.notifications=...` and `-c mcp_servers.molten-browser...`, added before your arguments |
+
+Both agents' hooks run the same command, `molten agent hook --agent <claude|codex>`: Claude Code and Codex give a
+hook the same JSON input, and the handler reads the event from it (`hook_event_name`). Codex trusts a hook against
+its exact definition, which MoltenTerm never changes: trust MoltenTerm's hooks once in Codex's `/hooks` (the first
+run warns that hooks need review) and every later run uses them. MoltenTerm never trusts them for you and never
+passes `--dangerously-bypass-hook-trust`.
 
 The MoltenTerm browser server also carries `list_agents` and `send_to_agent`: tell an agent "send this to Jérôme"
 and it hands its work to the agent of that first name with a brief (goal, context, files, links) written in
 MoltenTerm's data folder, after you allow it. Its instructions tell the agent its own first name. From a shell, the
 same is `molten agent list --active` and `molten agent send <name> --goal "..."`.
 
+A project can have a folder for its context (a client's documents, mails, specs) and a code repository inside it,
+chosen in the Project sheet. Started from a terminal that sits in the project folder or in a folder inside it, the
+agent gets the project folder as an extra working directory (`--add-dir`, for Claude Code and Codex alike) and a short
+start note telling it where the context and the code are (`--append-system-prompt` for Claude Code,
+`-c developer_instructions=...` for Codex); started from the project folder itself, it starts in the repository. Your
+own `--add-dir` for that folder, your own `--append-system-prompt` or `developer_instructions` are left alone and
+listed as such. A project whose folder is its repository, or a terminal outside the project folder, gets nothing.
+
+Which MoltenTerm feature works with which agent, and why one does not: `molten agent list --features` (one line per
+feature, one column per agent: N native, A adapted, P process only, - none, then the reasons), `--features --json`
+for the data. Check it before relying on a feature with an agent other than Claude Code or Codex.
+
 What you already have is left alone and listed as such: your own hooks for a state, your own `SessionStart` hook
-running `molten agent session`, your own `-c notify=...`, your own `molten-browser` server, `--strict-mcp-config`.
-Claude Code with `disableAllHooks` gets nothing.
+running `molten agent session` or `molten agent hook`, your own `-c notify=...`, your own `molten-browser` server,
+`--strict-mcp-config`. For Codex, an event you already have hooks for (in a `config.toml` or a `hooks.json`) gets
+none of MoltenTerm's, your own `-c hooks...`, hooks turned off or managed hooks only leave every hook out, and your
+own `[tui]` notification settings stay as you set them. Claude Code with `disableAllHooks` gets nothing.
 
 Nothing is added outside a MoltenTerm terminal (another terminal app, SSH, WSL), inside an agent's own tools (a
 `claude -p` that Claude Code runs), for commands that start no session (`claude --version`, `codex login`), or when
 MoltenTerm cannot read your settings in time: the launcher never keeps the agent from starting and, on any doubt,
 adds nothing.
 
+## The `molten` command inside the agent's sandbox
+
+The `molten` command the guides name (`molten agent send`, `molten worktree link`, `molten ci run`...) talks to
+MoltenTerm through a local socket, `wave.sock`. Codex's `workspace-write` sandbox, and Claude Code's when you turn it
+on, refuse that socket like any network. MoltenTerm does **not** open it to the sandbox: the terminal's token is in
+the agent's environment, so every sandboxed command (a test script, an install hook) would then reach all of
+MoltenTerm, not only the `molten` command the agent meant to run.
+
+Instead the agent uses its own escalation, which asks you: it reruns that one `molten` command outside the
+sandbox. Codex shows the command with a one-line reason and a suggested rule naming only that subcommand (for
+example `molten agent send`); keep the rule in Codex's prompt to stop being asked for it. Claude Code asks to run the
+command outside its sandbox; to stop being asked, add the command to the sandbox's `excludedCommands` in your own
+settings. The guides MoltenTerm installs tell the agent to do this, and only for `molten` commands.
+
 ## Seeing what was added
 
-- **The companion**: an integrated session's bar says **Integrated by MoltenTerm**. Click it for what this run got,
+- **The companion**: an integrated session's bar says **Hooked up by MoltenTerm**. Click it for what this run got,
   what was left alone because you already had it, this guide, and the switches to turn the integration off.
 - **The terminal**: `molten agent integration status` prints, for each agent, the real binary and what a session
   started now would get, or why nothing. Run inside an integrated agent (its tools' shell), it prints what that run

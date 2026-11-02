@@ -6,6 +6,20 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const CssDir = path.resolve(__dirname, "../../public/fontawesome-free/css");
+const PublicDir = path.resolve(__dirname, "../../public");
+
+// The AI icon is the suite's lucide Sparkles, drawn as a mask: Free's closest glyph is a magic wand (#1265).
+describe("the AI icon", () => {
+    const css = fs.readFileSync(path.join(PublicDir, "moltenterm-icons.css"), "utf8");
+    const rule = css.match(/\[class\]\.fa-sparkles::before\s*{([^}]*)}/);
+
+    it("draws the shipped Sparkles mask, not the wand", () => {
+        expect(rule).not.toBeNull();
+        expect(rule[1]).toContain("url(./moltenterm-sparkles.svg)");
+        expect(fs.existsSync(path.join(PublicDir, "moltenterm-sparkles.svg"))).toBe(true);
+        expect(css).not.toMatch(/\.fa-sparkles\s*{[^}]*\\e2ca/);
+    });
+});
 
 // html-to-image (the tile drag preview) fetches every url() of every @font-face, not only the one the
 // browser picked, so a fallback that does not ship logs ERR_FILE_NOT_FOUND on each panel (#752).

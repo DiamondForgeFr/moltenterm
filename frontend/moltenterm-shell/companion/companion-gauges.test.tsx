@@ -184,7 +184,7 @@ describe("plan usage section", () => {
         expect(html).toContain('role="meter"');
         expect(html).toContain('aria-valuenow="24"');
         expect(html).toContain("width:23.5%");
-        expect(html).toMatch(/bg-warning[^"]*" style="width:82%/);
+        expect(html).toMatch(/bg-\[var\(--mt-state-running\)\][^"]*" style="width:82%/);
         expect(html).toContain('aria-label="Refresh plan usage"');
         expect(html).toContain(">Hide</button>");
     });
@@ -303,7 +303,7 @@ describe("Codex plan usage", () => {
         expect(html).toContain(">12.5 % used<");
         expect(html).toContain("Resets in 3 h");
         expect(html).toContain(">This week<");
-        expect(html).toMatch(/bg-error[^"]*" style="width:96%/);
+        expect(html).toMatch(/bg-\[var\(--mt-state-error\)\][^"]*" style="width:96%/);
         expect(html).toContain("Credits: 17.5 left");
     });
 
@@ -320,23 +320,27 @@ describe("Codex plan usage", () => {
     });
 
     it("gives Codex's own reasons", () => {
-        expect(usageReasonText("waiting", "codex")).toBe("Waiting for Codex: the limits come with its next response");
-        expect(usageReasonText("noplan", "codex")).toBe("Codex reports no plan limits for this sign-in");
+        expect(usageReasonText("waiting", "codex")).toBe(
+            "Waiting for the agent: the limits come with its next response"
+        );
+        expect(usageReasonText("noplan", "codex")).toBe("The agent reports no plan limits for this sign-in");
         expect(usageReasonText("format", "codex")).toBe(usageReasonText("format"));
         expect(usageReasonText("noplan", "claude")).toBe("Not on a Pro or Max plan");
         const html = markup({ ...codex, gauges: "unavailable", reason: "waiting", snapshot: undefined });
-        expect(html).toContain('title="Waiting for Codex: the limits come with its next response"');
+        expect(html).toContain('title="Waiting for the agent: the limits come with its next response"');
         const expired = { ...codex, snapshot: { ...codex.snapshot, credits: undefined } };
         expect(gaugesView(expired, now + 5 * 24 * Hour)).toEqual({
             kind: "unavailable",
-            reason: "The limits were reset: new values come with Codex's next response",
+            reason: "The limits were reset: new values come with the agent's next response",
         });
     });
 
-    it("turns the Refresh icon while a read runs", () => {
+    it("shows the dominoes in place of the Refresh icon while a read runs (DS-SHELL-154)", () => {
         const html = renderToStaticMarkup(<PlanUsageBody view={gaugesView(codex, now)} refreshing {...noop} />);
         expect(html).toContain('aria-busy="true"');
-        expect(html).toContain("fa-rotate-right fa-spin");
-        expect(markup(codex)).not.toContain("fa-spin");
+        expect(html).toContain("df-domino-loader mt-dominos-icon");
+        expect(html).not.toContain("fa-rotate-right");
+        expect(markup(codex)).toContain("fa-rotate-right");
+        expect(markup(codex)).not.toContain("df-domino-loader");
     });
 });

@@ -5,6 +5,10 @@
 // shell, and in a panel that drives such an agent in another terminal (the Review AI panel, #916). Every command goes through wavesrv's moltenagentinput, which types it only into the verified foreground
 // agent; the panel shows its refusals and asks before an unsent draft is cleared.
 
+import { ActionGate, actionGate, AgentAction, gateMessage } from "../../agent-info/agent-action-gate";
+import { currentFeatureMatrix, type FeatureMatrix } from "../../agent-info/agent-features-model";
+import { agentLabel, AgentStateInfo } from "../../agent-state-model";
+import { t } from "../../i18n/i18n";
 import {
     agentSection,
     agentSuggestions,
@@ -16,7 +20,18 @@ import {
     PermissionModeAction,
 } from "../agent-commands";
 import { AgentInputs } from "../agent-input-store";
-import { CommandProvider, PanelActionResult, PanelContext, PanelSection } from "../panel-types";
+import { CommandProvider, PanelActionResult, PanelContext, PanelItem, PanelSection } from "../panel-types";
+
+// What a terminal's Agent section offers for an agent MoltenTerm has no command table for (FR-AGC-005): the actions
+// its matrix row says do not work, each saying why when chosen and what to do instead, so the section is never just
+// missing while the developer looks for Effort or Resume.
+type GatedAction = { action: AgentAction; labelKey: string; icon: string };
+
+const GatedActions: GatedAction[] = [
+    { action: "commands", labelKey: "agc.gate.commands.label", icon: "terminal" },
+    { action: "effort", labelKey: "cmdpanel.agent.effort", icon: "gauge-high" },
+    { action: "resume", labelKey: "cmdpanel.agent.resume", icon: "clock-rotate-left" },
+];
 
 // The terminal the commands are typed into: the panel itself, or the one it drives (the Review AI panel's session, #916).
 function agentBlockId(ctx: PanelContext): string {
@@ -50,7 +65,66 @@ async function runAgentCommand(
     );
 }
 
+function gatedItem(gate: ActionGate, agent: AgentStateInfo, def: GatedAction, ctx: PanelContext): PanelItem {
+    const id = `agent:gated:${def.action}`;
+    const reveal = ctx.revealAgent;
+    return {
+        id,
+        type: "action",
+        label: t(def.labelKey),
+        icon: def.icon,
+        detail: t("agc.gate.notHere"),
+        keywords: [def.action, "unavailable"],
+        awaitResult: true,
+        run: (): PanelActionResult => ({
+            id,
+            tone: "muted",
+            role: "alert",
+            message: gateMessage(gate, agent.agentname),
+            actions:
+                reveal != null
+                    ? [
+                          {
+                              id: "agent:gated:goto",
+                              label: t("agc.gate.showTerminal"),
+                              primary: true,
+                              run: () => {
+                                  reveal();
+                                  return "away";
+                              },
+                          },
+                      ]
+                    : undefined,
+        }),
+    };
+}
+
+export function unavailableAgentSection(
+    ctx: PanelContext,
+    matrix: FeatureMatrix = currentFeatureMatrix()
+): PanelSection {
+    const agent = ctx.agent;
+    if (agent?.agent == null || hasAgentCommands(agent)) {
+        return null;
+    }
+    const items: PanelItem[] = [];
+    for (const def of GatedActions) {
+        const gate = actionGate(matrix, agent.agent, def.action);
+        if (!gate.works) {
+            items.push(gatedItem(gate, agent, def, ctx));
+        }
+    }
+    if (items.length === 0) {
+        return null;
+    }
+    return { id: "agent", kind: "agent", title: t("cmdpanel.agent.sectionTitle", { agent: agentLabel(agent) }), items };
+}
+
 export function agentProviderSections(ctx: PanelContext): PanelSection[] {
+    if (!hasAgentCommands(ctx.agent)) {
+        const gated = unavailableAgentSection(ctx);
+        return gated ? [gated] : [];
+    }
     const info = AgentInputs.getInstance().info(agentBlockId(ctx));
     const section = agentSection(ctx.agent, info, {
         run: (action) => runAgentCommand(ctx, action),
@@ -65,7 +139,7 @@ export const AgentProvider: CommandProvider = {
     id: "agent",
     kind: "agent",
     needs: ["agent-input", "agent:*"],
-    when: (ctx) => hasAgentCommands(ctx.agent),
+    when: (ctx) => hasAgentCommands(ctx.agent) || unavailableAgentSection(ctx) != null,
     sections: agentProviderSections,
     suggestions: (ctx) => agentSuggestions(ctx.agent, ctx.revealAgent),
 };

@@ -9,11 +9,10 @@ import {
     offset as offsetMiddleware,
     useClick,
     useDismiss,
-    useFloating,
     useInteractions,
     type OffsetOptions,
     type Placement,
-} from "@floating-ui/react";
+} from "@floating-ui/react"; // MOLTENTERM-PATCH (#1440)
 import clsx from "clsx";
 import {
     Children,
@@ -26,6 +25,7 @@ import {
     ReactNode,
     useState,
 } from "react";
+import { useFloatingInPlace } from "../../moltenterm-shell/floating-in-place"; // MOLTENTERM-PATCH (#1440)
 
 import "./popover.scss";
 
@@ -69,7 +69,8 @@ const Popover = memo(
             middleware ??= [];
             middleware.push(offsetMiddleware(offset));
 
-            const { refs, floatingStyles, context } = useFloating({
+            const { refs, floatingStyles, context } = useFloatingInPlace({
+                // MOLTENTERM-PATCH (#1440)
                 placement,
                 open: isOpen,
                 onOpenChange: handleOpenChange,

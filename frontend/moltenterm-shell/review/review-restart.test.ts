@@ -54,7 +54,7 @@ describe("Restart work (FR-REV-011)", () => {
                 firstname: "Jérôme",
                 state: "waiting",
             })
-        ).toBe("Jérôme · Codex waiting for you on review round 1");
+        ).toBe("Jérôme waiting for you on review round 1");
         expect(restartLine(restarted, null)).toBe(RestartText.noAgentNow(1));
         expect(restartButtonTitle(restarted)).toBe(RestartText.again(1));
     });

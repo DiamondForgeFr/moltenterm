@@ -71,6 +71,10 @@ func (r *cleanupRun) mergedHead() string {
 		return r.mergedHeadOid
 	}
 	r.mergedHeadRead = true
+	// A PR closed without merging (#1121): its head reached the base by nothing GitHub did.
+	if r.req.Closed {
+		return ""
+	}
 	oid := r.pr.HeadRefOid
 	if !reviewsession.IsOid(oid) {
 		return ""
@@ -122,27 +126,16 @@ func (r *cleanupRun) commitsAtRisk(ref string) ([]LossCommit, int) {
 		}
 		return lossCommits(parseLossCommits(out))
 	}
-	on := mission.BranchContentOn(r.ctx, r.c.env.Run, r.dir, base, ref)
-	if on == nil {
+	// #1121: by content, so a copy of the work that reached the base with other commit ids (squash, conflicts resolved
+	// differently) is safe, and anything git cannot judge is at risk.
+	shas, ok := mission.CommitsNotOn(r.ctx, r.c.env.Run, r.dir, base, ref)
+	if !ok {
 		return []LossCommit{}, lossUnknown
-	}
-	if *on {
-		return []LossCommit{}, 0
-	}
-	out, err := r.git(r.dir, "cherry", base, ref)
-	if err != nil {
-		return []LossCommit{}, lossUnknown
-	}
-	var shas []string
-	for _, line := range strings.Split(out, "\n") {
-		if sha, ok := strings.CutPrefix(line, "+ "); ok && reviewsession.IsOid(sha) {
-			shas = append(shas, sha)
-		}
 	}
 	if len(shas) == 0 {
-		return []LossCommit{}, lossUnknown
+		return []LossCommit{}, 0
 	}
-	out, err = r.git(r.dir, append([]string{"log", "--no-walk=unsorted", "--format=%H%x1f%s"}, shas...)...)
+	out, err := r.git(r.dir, append([]string{"log", "--no-walk=unsorted", "--format=%H%x1f%s"}, shas...)...)
 	if err != nil {
 		return []LossCommit{}, lossUnknown
 	}

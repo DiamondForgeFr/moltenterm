@@ -19,7 +19,6 @@ import {
     createColumnHelper,
     flexRender,
     getCoreRowModel,
-    getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
 import clsx from "clsx";
@@ -29,7 +28,15 @@ import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useDrag, useDrop } from "react-dnd";
 import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
+import {
+    FileFilter,
+    FileSearchResult,
+    matchFileName,
+    searchFiles,
+} from "../../../moltenterm-shell/file-filter/file-filter"; // MOLTENTERM-PATCH (#1625)
+import { FileFilterBar } from "../../../moltenterm-shell/file-filter/file-filter-bar"; // MOLTENTERM-PATCH (#1625)
 import { t, useLocale, useT } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
+import { resolveDirSort, sortColumnFromTableId, sortDirectoryEntries, tableColumnId } from "./directory-sort"; // MOLTENTERM-PATCH (#1626)
 import "./directorypreview.scss";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
 import {
@@ -40,8 +47,10 @@ import {
     handleRename,
     isIconValid,
     makeDirectoryDefaultMenuItems,
+    makeDirectorySortMenuItem, // MOLTENTERM-PATCH (#1626)
     mergeError,
     overwriteError,
+    setPanelSortColumn, // MOLTENTERM-PATCH (#1626)
     typeLabel, // MOLTENTERM-PATCH (#742)
 } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
@@ -60,7 +69,11 @@ function DirectoryTableHeaderCell({ header }: DirectoryTableHeaderCellProps) {
             key={header.id}
             style={{ width: `calc(var(--header-${header.id}-size) * 1px)` }}
         >
-            <div className="dir-table-head-cell-content" onClick={() => header.column.toggleSorting()}>
+            {/* MOLTENTERM-PATCH (#1626): the panel's sort lives in its block meta, so a click goes through the model */}
+            <div
+                className={clsx("dir-table-head-cell-content", header.column.getCanSort() && "cursor-pointer")}
+                onClick={() => header.getContext().table.options.meta.sortBy(header.column.id)}
+            >
                 {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                 {getSortIcon(header.column.getIsSorted())}
             </div>
@@ -80,6 +93,7 @@ declare module "@tanstack/react-table" {
         updateName: (path: string, isDir: boolean) => void;
         newFile: () => void;
         newDirectory: () => void;
+        sortBy: (columnId: string) => void; // MOLTENTERM-PATCH (#1626)
     }
 }
 
@@ -87,6 +101,8 @@ interface DirectoryTableProps {
     model: PreviewModel;
     data: FileInfo[];
     search: string;
+    filter: FileFilter; // MOLTENTERM-PATCH (#1625)
+    truncated: boolean; // MOLTENTERM-PATCH (#1625)
     focusIndex: number;
     setFocusIndex: (_: number) => void;
     setSearch: (_: string) => void;
@@ -103,6 +119,8 @@ function DirectoryTable({
     model,
     data,
     search,
+    filter, // MOLTENTERM-PATCH (#1625)
+    truncated, // MOLTENTERM-PATCH (#1625)
     focusIndex,
     setFocusIndex,
     setSearch,
@@ -115,6 +133,7 @@ function DirectoryTable({
     const env = useWaveEnv<PreviewEnv>();
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const defaultSort = useAtomValue(env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
+    const blockMeta = useAtomValue(model.blockAtom)?.meta; // MOLTENTERM-PATCH (#1626)
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
     const tr = useT(); // MOLTENTERM-PATCH (#742)
     const locale = useLocale(); // MOLTENTERM-PATCH (#742)
@@ -214,17 +233,30 @@ function DirectoryTable({
         [model, setErrorMsg]
     );
 
-    const initialSorting = defaultSort === "modtime" ? [{ id: "modtime", desc: true }] : [{ id: "name", desc: false }];
+    // MOLTENTERM-PATCH (#1626): folders first in every sort, sorted here rather than by the table (whose
+    // descending order would put the folders last); the table only shows the panel's column and direction.
+    const sort = resolveDirSort(blockMeta, defaultSort);
+    const sortedData = useMemo(() => sortDirectoryEntries(data, sort), [data, sort.column, sort.desc]);
+    const sorting = useMemo(() => [{ id: tableColumnId(sort.column), desc: sort.desc }], [sort.column, sort.desc]);
+    const sortBy = useCallback(
+        (columnId: string) => {
+            const column = sortColumnFromTableId(columnId);
+            if (column == null) {
+                return;
+            }
+            setPanelSortColumn(model, column);
+        },
+        [model]
+    );
 
     const table = useReactTable({
-        data,
+        data: sortedData,
         columns,
         columnResizeMode: "onChange",
-        getSortedRowModel: getSortedRowModel(),
         getCoreRowModel: getCoreRowModel(),
-
+        manualSorting: true,
+        state: { sorting },
         initialState: {
-            sorting: initialSorting,
             columnVisibility: {
                 path: false,
             },
@@ -235,6 +267,7 @@ function DirectoryTable({
             updateName,
             newFile,
             newDirectory,
+            sortBy,
         },
     });
     const sortingState = table.getState().sorting;
@@ -291,6 +324,8 @@ function DirectoryTable({
                 data={data}
                 table={table}
                 search={search}
+                filter={filter} // MOLTENTERM-PATCH (#1625)
+                truncated={truncated} // MOLTENTERM-PATCH (#1625)
                 focusIndex={focusIndex}
                 setFocusIndex={setFocusIndex}
                 setSearch={setSearch}
@@ -308,6 +343,8 @@ interface TableBodyProps {
     data: Array<FileInfo>;
     table: Table<FileInfo>;
     search: string;
+    filter: FileFilter; // MOLTENTERM-PATCH (#1625)
+    truncated: boolean; // MOLTENTERM-PATCH (#1625)
     focusIndex: number;
     setFocusIndex: (_: number) => void;
     setSearch: (_: string) => void;
@@ -321,6 +358,8 @@ function TableBody({
     model,
     table,
     search,
+    filter, // MOLTENTERM-PATCH (#1625)
+    truncated, // MOLTENTERM-PATCH (#1625)
     focusIndex,
     setFocusIndex,
     setSearch,
@@ -332,7 +371,6 @@ function TableBody({
     const warningBoxRef = useRef<HTMLDivElement>(null);
     const conn = useAtomValue(model.connection);
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
-    const tr = useT(); // MOLTENTERM-PATCH (#742)
 
     useEffect(() => {
         if (focusIndex === null || !bodyRef.current || !osRef) {
@@ -419,9 +457,10 @@ function TableBody({
                 {
                     type: "separator",
                 },
+                makeDirectorySortMenuItem(model), // MOLTENTERM-PATCH (#1626): this panel's sort, outside the defaults
                 {
                     label: t("wave.files.defaultSettings"), // MOLTENTERM-PATCH (#742)
-                    submenu: makeDirectoryDefaultMenuItems(model),
+                    submenu: makeDirectoryDefaultMenuItems(model, false), // MOLTENTERM-PATCH (#1626)
                 },
                 {
                     type: "separator",
@@ -442,25 +481,18 @@ function TableBody({
 
     return (
         <div className="dir-table-body" ref={bodyRef}>
+            {/* MOLTENTERM-PATCH (#1341, #1625): the filter field, with who set it (FR-FILE-002) */}
             {(searchActive || search !== "") && (
-                <div className="flex rounded-[3px] py-1 px-2 bg-warning text-black" ref={warningBoxRef}>
-                    <span>{search === "" ? tr("wave.files.searchHint") : tr("wave.files.searching", { search })}</span>
-                    {/* MOLTENTERM-PATCH (#742) */}
-                    <div
-                        className="ml-auto bg-transparent flex justify-center items-center flex-col p-0.5 rounded-md hover:bg-hoverbg focus:bg-hoverbg focus-within:bg-hoverbg cursor-pointer"
-                        onClick={() => {
+                <div ref={warningBoxRef}>
+                    <FileFilterBar
+                        search={search}
+                        filter={filter}
+                        truncated={truncated}
+                        onClear={() => {
                             setSearch("");
                             globalStore.set(model.directorySearchActive, false);
                         }}
-                    >
-                        <i className="fa-solid fa-xmark" />
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={() => {}}
-                            className="w-0 h-0 opacity-0 p-0 border-none pointer-events-none"
-                        />
-                    </div>
+                    />
                 </div>
             )}
             <div className="dir-table-body-scroll-box">
@@ -539,7 +571,7 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
             onDoubleClick={() => {
                 const newFileName = row.getValue("path") as string;
                 model.goHistory(newFileName);
-                setSearch("");
+                // MOLTENTERM-PATCH (#1625): the filter stays for Back; opening another folder clears it (FR-FILE-002)
                 globalStore.set(model.directorySearchActive, false);
             }}
             onClick={() => setFocusIndex(idx)}
@@ -570,7 +602,20 @@ interface DirectoryPreviewProps {
 
 function DirectoryPreview({ model }: DirectoryPreviewProps) {
     const env = useWaveEnv<PreviewEnv>();
-    const [searchText, setSearchText] = useState("");
+    // MOLTENTERM-PATCH (#1625): the filter lives in the block meta, the developer's or an agent's (FR-FILE-002)
+    const fileFilter = useAtomValue(model.fileFilter.activeAtom);
+    const anyFilter = useAtomValue(model.fileFilter.filterAtom);
+    const rawPath = useAtomValue(model.confine.rawPathAtom);
+    const shownPath = useAtomValue(model.confine.shownPathAtom);
+    const searchText = fileFilter?.pattern ?? "";
+    const setSearchText = useCallback(
+        (update: string | ((current: string) => string)) => {
+            const current = globalStore.get(model.fileFilter.activeAtom)?.pattern ?? "";
+            model.fileFilter.setPattern(typeof update === "function" ? update(current) : update);
+        },
+        [model]
+    );
+    const [recursiveResult, setRecursiveResult] = useState<FileSearchResult & { key: string }>(null);
     const [focusIndex, setFocusIndex] = useState(0);
     const [unfilteredData, setUnfilteredData] = useState<FileInfo[]>([]);
     const showHiddenFiles = useAtomValue(model.showHiddenFiles);
@@ -624,8 +669,47 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         [conn, dirPath, refreshVersion]
     );
 
-    const filteredData = useMemo(
-        () =>
+    // MOLTENTERM-PATCH (#1625): showing another folder clears the filter; a recursive one lists wavesrv's matches
+    useEffect(() => model.fileFilter.clearIfAnotherFolder(finfo), [rawPath, shownPath, anyFilter, finfo]);
+    const recursiveKey = fileFilter?.recursive
+        ? [fileFilter.dir, fileFilter.pattern, showHiddenFiles, refreshVersion].join("\u0000")
+        : null;
+    useEffect(() => {
+        if (recursiveKey == null) {
+            return;
+        }
+        let cancelled = false;
+        const { dir, pattern } = fileFilter;
+        // Typing a recursive filter searches once the typing pauses.
+        const timer = setTimeout(
+            () =>
+                fireAndForget(async () => {
+                    try {
+                        const found = await searchFiles(dir, pattern, true, showHiddenFiles);
+                        if (!cancelled) {
+                            setRecursiveResult({ ...found, key: recursiveKey });
+                        }
+                    } catch (e) {
+                        if (!cancelled) {
+                            setErrorMsg({ status: t("wave.files.cannotRead"), text: `${e}` });
+                        }
+                    }
+                }),
+            150
+        );
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [recursiveKey]);
+    const recursiveReady = recursiveKey != null && recursiveResult?.key === recursiveKey;
+    const truncated = recursiveReady && !!recursiveResult.truncated;
+
+    const filteredData = useMemo(() => {
+        if (recursiveKey != null) {
+            return recursiveReady ? recursiveResult.matches : [];
+        }
+        return (
             unfilteredData?.filter((fileInfo) => {
                 if (fileInfo.name == null) {
                     console.log("fileInfo.name is null", fileInfo);
@@ -634,10 +718,10 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 if (!showHiddenFiles && fileInfo.name.startsWith(".") && fileInfo.name != "..") {
                     return false;
                 }
-                return fileInfo.name.toLowerCase().includes(searchText);
-            }) ?? [],
-        [unfilteredData, showHiddenFiles, searchText]
-    );
+                return matchFileName(fileInfo.name, searchText);
+            }) ?? []
+        );
+    }, [unfilteredData, showHiddenFiles, searchText, recursiveKey, recursiveReady, recursiveResult]);
 
     useEffect(() => {
         model.directoryKeyDownHandler = (waveEvent: WaveKeyboardEvent): boolean => {
@@ -671,8 +755,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     return;
                 }
                 model.goHistory(selectedPath);
-                setSearchText("");
-                globalStore.set(model.directorySearchActive, false);
+                globalStore.set(model.directorySearchActive, false); // MOLTENTERM-PATCH (#1625): the filter stays for Back
                 return true;
             }
             if (checkKeyPressed(waveEvent, "Backspace")) {
@@ -864,6 +947,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 },
             ];
             addOpenMenuItems(menu, conn, finfo);
+            menu.push({ type: "separator" }, makeDirectorySortMenuItem(model)); // MOLTENTERM-PATCH (#1626)
 
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         },
@@ -878,7 +962,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 onChangeCapture={(e) => {
                     const event = e as React.ChangeEvent<HTMLInputElement>;
                     if (!entryManagerProps) {
-                        setSearchText(event.target.value.toLowerCase());
+                        setSearchText(event.target.value); // MOLTENTERM-PATCH (#1625): matching ignores case itself
                     }
                 }}
                 {...getReferenceProps()}
@@ -889,6 +973,8 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     model={model}
                     data={filteredData}
                     search={searchText}
+                    filter={fileFilter} // MOLTENTERM-PATCH (#1625)
+                    truncated={truncated} // MOLTENTERM-PATCH (#1625)
                     focusIndex={focusIndex}
                     setFocusIndex={setFocusIndex}
                     setSearch={setSearchText}

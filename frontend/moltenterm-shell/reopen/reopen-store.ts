@@ -5,14 +5,20 @@
 // (pkg/molten/reopen); Cmd+Shift+T asks for the last one back and says what came back.
 
 import { atoms, getApi, globalStore } from "@/app/store/global";
+import { loadAndPinWaveObject, makeORef } from "@/app/store/wos";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { isMacOS } from "@/util/platformutil";
+import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
 import { showToast } from "../toast-store";
+import { showReopenedPanel } from "../view360/carpet-reopen";
 import {
+    PutAwayView,
     ReopenDropCommand,
+    ReopenIdCommand,
     ReopenLastCommand,
+    ReopenListCommand,
     ReopenRecordCommand,
     ReopenResult,
     ReopenRoute,
@@ -81,6 +87,61 @@ export function reopenKeys(): string[] {
 
 let reopening = false;
 
+// A pane that came back on the 360 carpet is shown and focused (FR-SHELL-126-AC4): wavesrv queues its layout action,
+// so the layout may lay it a moment after the answer.
+const ShowReopenedTries = 50;
+const ShowReopenedStepMs = 100;
+
+async function showReopenedPane(res: ReopenResult): Promise<void> {
+    if (!res?.reopened || res.kind !== "pane" || res.tabid !== globalStore.get(atoms.staticTabId)) {
+        return;
+    }
+    for (let i = 0; i < ShowReopenedTries; i++) {
+        if (showReopenedPanel(getLayoutModelForStaticTab(), res.blockid) !== "pending") {
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, ShowReopenedStepMs));
+    }
+}
+
+// Brings the workspace's last close back without a toast of its own: an Undo of several closes says it once.
+export function reopenLastQuietly(): Promise<ReopenResult> {
+    return TabRpcClient.wshRpcCall(
+        ReopenLastCommand,
+        { workspaceid: globalStore.get(atoms.workspaceId), tabid: globalStore.get(atoms.staticTabId) },
+        { route: ReopenRoute, timeout: ReopenTimeoutMs }
+    );
+}
+
+// The closed views of every workspace, the most recent first (FR-SHELL-088).
+export async function listPutAwayViews(): Promise<PutAwayView[]> {
+    const res: { views: PutAwayView[] } = await TabRpcClient.wshRpcCall(
+        ReopenListCommand,
+        {},
+        { route: ReopenRoute, timeout: ReopenTimeoutMs }
+    );
+    return res?.views ?? [];
+}
+
+// Brings one closed view back in its own workspace, then shows that workspace. An agent that ran in it starts again
+// once its terminal shows (agent-slot.tsx).
+export async function reopenPutAwayView(view: PutAwayView): Promise<ReopenResult> {
+    const here = globalStore.get(atoms.workspaceId);
+    const res: ReopenResult = await TabRpcClient.wshRpcCall(
+        ReopenIdCommand,
+        {
+            workspaceid: view.workspaceid,
+            id: view.id,
+            tabid: view.workspaceid === here ? globalStore.get(atoms.staticTabId) : "",
+        },
+        { route: ReopenRoute, timeout: ReopenTimeoutMs }
+    );
+    if (res?.reopened && view.workspaceid !== here) {
+        getApi().switchWorkspace(view.workspaceid);
+    }
+    return res;
+}
+
 // Cmd+Shift+T: the workspace's last close comes back; pressed again, the one before.
 export async function reopenLastClosed(): Promise<void> {
     if (reopening) {
@@ -93,7 +154,12 @@ export async function reopenLastClosed(): Promise<void> {
             { workspaceid: globalStore.get(atoms.workspaceId), tabid: globalStore.get(atoms.staticTabId) },
             { route: ReopenRoute, timeout: ReopenTimeoutMs }
         );
-        showToast(reopenToast(res, getApi().getHomeDir()));
+        const block =
+            res?.kind !== "tab" && res?.blockid
+                ? await loadAndPinWaveObject<Block>(makeORef("block", res.blockid)).catch(() => null)
+                : null;
+        showToast(reopenToast(res, getApi().getHomeDir(), block?.meta));
+        fireAndForget(() => showReopenedPane(res));
     } catch (e) {
         showToast({
             kind: "error",

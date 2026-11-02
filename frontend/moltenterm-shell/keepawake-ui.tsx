@@ -1,17 +1,16 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// What the windows show of the keep-awake (FR-SHELL-023, DS-SHELL-062; the indicator parts of FR-SHELL-022 it needs,
-// DS-SHELL-063): the coffee droplet on a rail item and on a collapsed product, and the status bar's sleep item, whose
-// list offers the policy, the coffees ("Kept awake by you", each with Stop) and the blocks the shims reported, with the
-// per-session override. The OS-level detection and the marks on panes, tabs and the Sessions view are FR-SHELL-022's.
+// What the windows show of the keep-awake (FR-SHELL-023, DS-SHELL-062; FR-SHELL-103): the coffee droplet on a rail item
+// and on a collapsed product, and the Energy card's details: the workspace's coffee, what holds the computer awake now
+// and the terminals that asked, with the per-session override. The cup of the window row is keepawake-cup.tsx
+// (#1408). The OS-level detection and the marks on panes, tabs and the Sessions view are FR-SHELL-022's.
 
-import { useSettingsKeyAtom } from "@/app/store/global";
+import { atoms, useSettingsKeyAtom } from "@/app/store/global";
 import { PLATFORM } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useState } from "react";
 import { t as translate, useT } from "./i18n/i18n";
 import {
     approvalLogText,
@@ -26,18 +25,16 @@ import {
     describeAttempt,
     KeepAwakeApproval,
     KeepAwakeCoffee,
-    keepAwakeCount,
+    keepAwakeActive,
     KeepAwakeSession,
     keepAwakeSessions,
     KeepAwakeState,
     policyHoldingLine,
     sessionWhere,
-    SleepPolicy,
-    sleepPolicyChoices,
-    sleepPolicySentence,
+    SleepPolicySetting,
+    sleepPolicyDetail,
 } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
-import { SegmentedControl } from "./segmented-control";
 import { TabActivity, whileShown } from "./tab-activity";
 import { workspaceShownName } from "./workspace-default-name";
 
@@ -137,56 +134,69 @@ function formatSince(since: number, now: number): string {
     return formatClock(since);
 }
 
-function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () => void }) {
+// The coffee of the workspace the window shows, as a switch: the sidebar's workspace menu no longer carries it, and it
+// is the one way to start a coffee there (FR-SHELL-103).
+function WorkspaceCoffeeRow({ workspaceId, name }: { workspaceId: string; name: string }) {
+    const t = useT();
+    const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(workspaceId));
+    const on = coffee != null;
+    const label = t("keepawake.coffeeFor", { name });
+    return (
+        <div className="molten-settings-row flex items-center gap-4 px-5 py-3" data-testid="keepawake-coffee-row">
+            <div className="min-w-0 flex-1">
+                <div className="truncate text-12 font-medium text-primary">{label}</div>
+                <div className="text-12 text-muted">{t("keepawake.coffeeHint")}</div>
+            </div>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                aria-label={label}
+                onClick={() =>
+                    fireAndForget(async () => {
+                        try {
+                            await KeepAwakeModel.getInstance().setCoffee(workspaceId, !on);
+                        } catch (err) {
+                            console.log("keep-awake coffee:", err);
+                        }
+                    })
+                }
+                className="inline-flex h-row shrink-0 cursor-pointer items-center rounded-4 px-1"
+            >
+                <span className={cn("molten-cmdpanel-switch", on && "is-on")} aria-hidden />
+            </button>
+        </div>
+    );
+}
+
+// Under the Energy card's setting (FR-SHELL-103): what the chosen option does, this workspace's coffee, what holds the
+// computer awake now (the coffees, each with Stop) and the terminals that asked, with their own override.
+export function KeepAwakeDetails() {
     const t = useT();
     const model = KeepAwakeModel.getInstance();
     const state = useAtomValue(model.stateAtom);
-    const policySetting = useSettingsKeyAtom("power:sleeppolicy");
+    const workspace = useAtomValue(atoms.workspace);
+    const policySetting = useSettingsKeyAtom(SleepPolicySetting);
     const platform = usePlatform();
-    const now = useNow(true);
-    const panelRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        const onPointer = (e: PointerEvent) => {
-            const target = e.target as Node;
-            if (panelRef.current?.contains(target) || anchor.contains(target)) {
-                return;
-            }
-            onClose();
-        };
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                onClose();
-                anchor.focus();
-            }
-        };
-        document.addEventListener("pointerdown", onPointer, true);
-        document.addEventListener("keydown", onKey, true);
-        return () => {
-            document.removeEventListener("pointerdown", onPointer, true);
-            document.removeEventListener("keydown", onKey, true);
-        };
-    }, [anchor, onClose]);
-    const rect = anchor.getBoundingClientRect();
     const sessions = keepAwakeSessions(state);
-    return createPortal(
-        <div
-            ref={panelRef}
-            role="dialog"
-            aria-label={t("keepawake.panelLabel")}
-            data-testid="keepawake-panel"
-            className="fixed z-[9600] flex max-h-[70vh] w-[320px] flex-col overflow-y-auto rounded-4 border border-border bg-surface-3 p-3 text-12 text-secondary shadow-command"
-            style={{ bottom: window.innerHeight - rect.top + 6, right: Math.max(8, window.innerWidth - rect.right) }}
-        >
-            <SleepPolicyControl
-                platform={platform}
-                policy={policySetting ?? ""}
-                holding={policyHoldingLine(state, platform, now)}
-                onSelect={(policy) => fireAndForget(() => model.setPolicy(policy))}
-            />
+    const now = useNow(keepAwakeActive(state) || sessions.length > 0);
+    const holding = policyHoldingLine(state, platform, now);
+    return (
+        <>
+            <div className="molten-settings-row flex flex-col gap-1 px-5 py-3 text-12 text-muted">
+                <span>{sleepPolicyDetail(policySetting ?? "")}</span>
+                {holding ? <span className="text-[var(--color-awake)]">{holding}</span> : null}
+            </div>
+            {coffeeSupported(platform) && workspace?.oid ? (
+                <WorkspaceCoffeeRow
+                    workspaceId={workspace.oid}
+                    name={workspaceShownName(workspace.name, t) || t("keepawake.thisWorkspace")}
+                />
+            ) : null}
             {state.coffees.length > 0 ? (
                 <ul
                     aria-label={t("keepawake.keptByYou")}
-                    className="-mx-1 mt-2 flex flex-col border-t border-border pt-2"
+                    className="molten-settings-row flex flex-col px-4 py-2 text-12 text-secondary"
                 >
                     {state.coffees.map((coffee) => (
                         <li
@@ -228,15 +238,15 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
             {sessions.length > 0 ? (
                 <ul
                     aria-label={t("keepawake.terminalsAsked")}
-                    className="-mx-1 mt-2 flex flex-col border-t border-border pt-2"
+                    className="molten-settings-row flex flex-col px-4 py-2 text-12 text-secondary"
                 >
+                    <li className="px-2 pb-1 text-11 text-muted">{t("keepawake.terminalsAsked")}</li>
                     {sessions.map((session) => (
                         <SessionRow key={session.blockid} session={session} now={now} />
                     ))}
                 </ul>
             ) : null}
-        </div>,
-        document.body
+        </>
     );
 }
 
@@ -304,75 +314,5 @@ export function CoffeeApprovals({ state, coffee }: { state: KeepAwakeState; coff
                 <span className="text-11 text-muted">{t("keepawake.everyDecision", { log: approvalLogText() })}</span>
             ) : null}
         </li>
-    );
-}
-
-// The popover's head (DS-SHELL-101): one sentence and the policies as a segmented control, the current one filled;
-// each segment's tooltip says what it does. Nothing is filled until the first request asks.
-export function SleepPolicyControl({
-    platform,
-    policy,
-    holding,
-    onSelect,
-}: {
-    platform: string;
-    policy: string;
-    holding?: string;
-    onSelect: (policy: SleepPolicy) => void;
-}) {
-    useT();
-    const segments = sleepPolicyChoices(platform).map((c) => ({ value: c.policy, label: c.label, title: c.detail }));
-    return (
-        <div className="flex flex-col gap-2">
-            <div className="text-12 text-primary">{sleepPolicySentence(platform)}</div>
-            <SegmentedControl
-                label={sleepPolicySentence(platform)}
-                segments={segments}
-                selected={policy as SleepPolicy}
-                onSelect={onSelect}
-                className="self-start"
-            />
-            {holding ? <div className="text-11 text-[var(--color-awake)]">{holding}</div> : null}
-        </div>
-    );
-}
-
-// The status bar's sleep item: lit in the awake colour while MoltenTerm keeps the computer awake, with the count of
-// what blocks sleep (MoltenTerm once, plus each session whose block went through).
-export function KeepAwakeStatusItem() {
-    const t = useT();
-    const platform = usePlatform();
-    const model = KeepAwakeModel.getInstance();
-    const state = useAtomValue(model.stateAtom);
-    const [open, setOpen] = useState(false);
-    const buttonRef = useRef<HTMLButtonElement>(null);
-    const close = useCallback(() => setOpen(false), []);
-    if (!coffeeSupported(platform)) {
-        return null;
-    }
-    const count = keepAwakeCount(state);
-    const title =
-        count > 0
-            ? t(state.hold ? "keepawake.statusCountIncluded" : "keepawake.statusCount", { count })
-            : t("keepawake.statusNone");
-    return (
-        <>
-            <button
-                ref={buttonRef}
-                type="button"
-                aria-label={title}
-                aria-expanded={open}
-                title={title}
-                onClick={() => setOpen(!open)}
-                className={cn(
-                    "flex cursor-pointer items-center gap-1 rounded-6 px-1 hover:bg-hover hover:text-primary",
-                    state.hold && "text-[var(--color-awake)]"
-                )}
-            >
-                <i className={cn("fa fa-solid text-11", state.hold ? "fa-mug-hot" : "fa-moon")} aria-hidden />
-                {count > 0 ? <span>{count}</span> : null}
-            </button>
-            {open && buttonRef.current != null ? <KeepAwakePanel anchor={buttonRef.current} onClose={close} /> : null}
-        </>
     );
 }

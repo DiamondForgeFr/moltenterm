@@ -22,18 +22,6 @@ import {
     resolveHoldToCloseSettings,
 } from "./hold-to-close";
 
-const WorkspaceColours = [
-    MoltentermDefaultAccent,
-    "#00FFDB",
-    "#429DFF",
-    "#BF55EC",
-    "#FF453A",
-    "#58C142",
-    "#FFE900",
-    "#FF9500",
-    "#1E3A8A",
-];
-
 function makeHarness(durationMs = 600) {
     const events: string[] = [];
     const controller = makeHoldToCloseController(durationMs, {
@@ -204,12 +192,15 @@ describe("hold-to-close rendering", () => {
         expect(HoldToCloseFlashMs).toBeLessThanOrEqual(150);
     });
 
-    it("keeps the glyph readable on the full tint, for every workspace colour (NFR-SHELL-003)", () => {
+    it("keeps the glyph readable on the full tint of the fixed action colour (NFR-SHELL-003, #1319)", () => {
         const css = readFileSync(new URL("./hold-to-confirm.css", import.meta.url), "utf8");
-        const mix = /--molten-hold-glyph: color-mix\(in srgb, var\(--mt-accent\) (\d+)%, white\)/.exec(css);
+        const mix =
+            /--molten-hold-glyph: color-mix\(in srgb, var\(--mt-accent\) (\d+)%, var\(--mt-tone-ink, white\)\)/.exec(
+                css
+            );
         expect(mix).not.toBeNull();
         const white = parseColor("#FFFFFF");
-        for (const accent of WorkspaceColours) {
+        for (const accent of [MoltentermDefaultAccent]) {
             const a = parseColor(accent);
             const glyph = mixColor(a, white, Number(mix[1]));
             for (const panel of ["#0B0B0B", "#1A1A1A", "#262626"]) {
@@ -220,10 +211,10 @@ describe("hold-to-close rendering", () => {
     });
 
     it("falls back to Wave's single-click button when the setting is off", () => {
-        const markup = renderWithSettings(<HoldToCloseButton onClose={() => null} plainLabel="Close tab" />, {
+        const markup = renderWithSettings(<HoldToCloseButton onClose={() => null} plainLabel="Close view" />, {
             "tab:holdtoclose": false,
         });
-        expect(markup).toContain('aria-label="Close tab"');
+        expect(markup).toContain('aria-label="Close view"');
         expect(markup).not.toContain("hold-ring");
     });
 

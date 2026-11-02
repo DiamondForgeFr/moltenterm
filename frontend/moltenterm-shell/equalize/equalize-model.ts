@@ -20,7 +20,7 @@ import { rememberedPanelPx } from "../panel-size/panel-size-model";
 import { cachedBlockView, currentPanelSizes, rememberPanelWidth } from "../panel-size/panel-size-store";
 import { showToast } from "../toast-store";
 import { carpetColumnKind, columnLeadLeaf } from "../view360/carpet-model";
-import { equalCarpetWidthPx, equalizeOps, hasColumnsToEqualize, type EqualizeOptions } from "./equalize-rules";
+import { equalizeOps, hasColumnsToEqualize, type EqualizeOptions } from "./equalize-rules";
 
 export const EqualizeAutoMetaKey = "molten:equalizeauto";
 const AutoOffToastId = "equalize-auto-off";
@@ -103,8 +103,8 @@ export class EqualizeModel {
         this.setAuto(!this.auto);
     }
 
-    // In 360 view the root's columns are drawn by the carpet layout: the fixed zone is left as it is and only the
-    // carpet's columns are evened out, inside (the tree) and against each other (their widths).
+    // In 360 view the root's columns are drawn by the carpet layout: the tree evens out inside the carpet's columns,
+    // and their widths and the fixed zone's are the 360 model's equal parts (equalizeCarpet, #1479).
     private options(): EqualizeOptions {
         const layout = this.layoutModel.moltenView360?.layout;
         if (layout == null) {
@@ -174,7 +174,8 @@ export class EqualizeModel {
         });
     }
 
-    // The carpet columns' widths, evened out against each other; true when a width changed.
+    // In 360 view the fixed zone and the visible places at equal parts (#1479), the place width recorded as each carpet
+    // kind's remembered width; true when a width changed.
     private equalizeCarpet(): boolean {
         const view360 = this.layoutModel.moltenView360;
         const layout = view360?.layout;
@@ -182,7 +183,7 @@ export class EqualizeModel {
         if (layout == null || rootNode == null) {
             return false;
         }
-        const px = equalCarpetWidthPx(layout.columns.map((c) => c.width));
+        const px = view360.equalizeParts();
         if (px == null) {
             return false;
         }
@@ -194,11 +195,9 @@ export class EqualizeModel {
                 kinds.add(kind);
             }
         }
-        const stale = [...kinds].filter((kind) => rememberedPanelPx(currentPanelSizes(), kind, "width") !== px);
-        if (stale.length === 0) {
-            return false;
-        }
-        stale.forEach((kind) => rememberPanelWidth(kind, px));
+        [...kinds]
+            .filter((kind) => rememberedPanelPx(currentPanelSizes(), kind, "width") !== px)
+            .forEach((kind) => rememberPanelWidth(kind, px));
         return true;
     }
 

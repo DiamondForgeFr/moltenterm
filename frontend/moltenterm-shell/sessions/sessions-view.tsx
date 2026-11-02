@@ -18,6 +18,7 @@ import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { agentStateLabel } from "../agent-state-model";
 import { AgentStateDot } from "../agent-state-ui";
+import { CodingAgentModel } from "../coding-agent/coding-agent";
 import { InterruptAction } from "../command-panel/agent-commands";
 import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
@@ -25,9 +26,10 @@ import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { sessionRowDragProps } from "../split/drop-zones";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { copyText } from "../term-copy/term-copy";
-import { TermUpdateOutcome, updateAllSummary } from "../termupdate/termupdate-model";
+import { previousLoginBlockIds, TermUpdateOutcome, updateAllSummary } from "../termupdate/termupdate-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { showToast } from "../toast-store";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
@@ -39,6 +41,7 @@ import {
     SessionsStateMetaKey,
 } from "../widget-options";
 import { effectiveWorkspaceFolder } from "../workspace-project";
+import { viewNameText } from "../workspace-views/workspace-views-model";
 import { worktreeColor, WorktreeIcon } from "../worktree-model";
 import { MergedPrMark, sessionMergedPr, useMergedPrs } from "./merged-prs";
 import { showPane } from "./pane-focus";
@@ -380,7 +383,8 @@ function Check({
     );
 }
 
-function VersionChip({ mark }: { mark: VersionMark }) {
+// lostNetwork: the terminal started before the current login and no longer reaches the network (#1194).
+function VersionChip({ mark, lostNetwork }: { mark: VersionMark; lostNetwork: boolean }) {
     const t = useT();
     if (mark !== "outdated") {
         return null;
@@ -388,10 +392,10 @@ function VersionChip({ mark }: { mark: VersionMark }) {
     return (
         <span
             className="shrink-0 rounded-4 bg-warning/15 px-1 text-11 whitespace-nowrap text-warning"
-            title={t("sessions.view.outdatedTitle")}
+            title={lostNetwork ? t("sessions.view.noNetworkTitle") : t("sessions.view.outdatedTitle")}
             data-testid="session-outdated"
         >
-            {t("sessions.view.outdated")}
+            {lostNetwork ? t("sessions.view.noNetwork") : t("sessions.view.outdated")}
         </span>
     );
 }
@@ -441,6 +445,7 @@ function SessionRow({
     home,
     now,
     version,
+    lostNetwork,
     mergedPr,
     rowRef,
     onFocusRow,
@@ -461,6 +466,7 @@ function SessionRow({
     home: string;
     now: number;
     version: VersionMark;
+    lostNetwork: boolean;
     mergedPr: number;
     rowRef: (elem: HTMLDivElement) => void;
     onFocusRow: () => void;
@@ -529,7 +535,9 @@ function SessionRow({
                     <div className="flex min-w-0 items-center gap-1.5">
                         <span
                             className="max-w-[16rem] min-w-[3rem] shrink truncate text-12 font-medium text-primary"
-                            title={[session.tabname || name, session.folder].filter((p) => !!p).join(" · ")}
+                            title={[viewNameText(session.tabname, translate) || name, session.folder]
+                                .filter((p) => !!p)
+                                .join(" · ")}
                             data-testid="session-name"
                         >
                             {shownName}
@@ -548,7 +556,7 @@ function SessionRow({
                                 {reasonLabel(session.reason)}
                             </span>
                         ) : null}
-                        <VersionChip mark={version} />
+                        <VersionChip mark={version} lostNetwork={lostNetwork} />
                         <WorktreeMark session={session} />
                         <MergedPrMark session={session} pr={mergedPr} />
                         <ConnectionChip session={session} />
@@ -571,7 +579,12 @@ function SessionRow({
                     busy && "pointer-events-auto opacity-100"
                 )}
             >
-                {busy ? <span className="px-1 text-11 whitespace-nowrap text-muted">{busy}</span> : null}
+                {busy ? (
+                    <span className="px-1 text-11 whitespace-nowrap text-muted">
+                        <DominoLoader className="mr-1" />
+                        {busy}
+                    </span>
+                ) : null}
                 {canReconnect(session) ? (
                     <button
                         type="button"
@@ -622,7 +635,7 @@ function SessionRow({
                         tabIndex={tabIndex}
                         className={RowButton}
                         disabled={!!busy}
-                        title={t("sessions.view.outdatedTitle")}
+                        title={lostNetwork ? t("sessions.view.noNetworkTitle") : t("sessions.view.outdatedTitle")}
                         data-testid="session-update"
                         onClick={(e) => {
                             e.stopPropagation();
@@ -872,6 +885,8 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const store = DurableSessions.getInstance();
     const data = useAtomValue(store.dataAtom);
     const workspace = useAtomValue(atoms.workspace);
+    const agentChoices = useAtomValue(CodingAgentModel.getInstance().choicesAtom);
+    useEffect(() => CodingAgentModel.getInstance().refresh(""), []);
     const agentFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsAgentMetaKey as keyof MetaType));
     const folderFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsFolderMetaKey as keyof MetaType));
     const stateFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsStateMetaKey as keyof MetaType));
@@ -897,17 +912,27 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
 
     const allSessions = data?.sessions ?? [];
     const filters = { agent: agentFilter, folder: folderFilter, state: stateFilter };
-    const filtered = sessionsFiltered(filters);
+    const knownAgents = useMemo(
+        () => [
+            ...new Set([
+                ...(agentChoices[""]?.choice?.known ?? []).map((a) => a.id),
+                ...allSessions.map((s) => s.agent).filter((id) => id),
+            ]),
+        ],
+        [agentChoices, data]
+    );
+    const filtered = sessionsFiltered(filters, knownAgents);
     const workspaceFolder = effectiveWorkspaceFolder(workspace);
     const sessions = useMemo(
-        () => (filtered ? filterSessions(allSessions, filters, workspaceFolder) : allSessions),
-        [data, filtered, agentFilter, folderFilter, stateFilter, workspaceFolder]
+        () => (filtered ? filterSessions(allSessions, filters, workspaceFolder, knownAgents) : allSessions),
+        [data, filtered, agentFilter, folderFilter, stateFilter, workspaceFolder, knownAgents]
     );
     const groups = useMemo(() => groupSessions(sessions, workspace?.oid), [sessions, workspace?.oid]);
     const order = useMemo(() => flattenGroups(groups), [groups]);
     const orderKey = order.join("\n");
     const byId = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
     const outdatedBlocks = useMemo(() => new Set(outdated.terminals.map((term) => term.blockid)), [outdated]);
+    const previousLoginBlocks = useMemo(() => previousLoginBlockIds(outdated), [outdated]);
     const updatable = order.map((id) => byId.get(id)).filter((s) => s != null && canUpdate(s, outdatedBlocks));
     const mergedPrs = useMergedPrs(allSessions, panelId);
 
@@ -1212,6 +1237,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                     )}
                 >
                     <span className="shrink-0 text-12 whitespace-nowrap text-secondary" aria-live="polite">
+                        {data == null ? <DominoLoader className="mr-1.5" /> : null}
                         {data == null ? t("sessions.view.loading") : sessionsSummary(data)}
                     </span>
                     {filtered && sessions.length > 0 ? (
@@ -1302,6 +1328,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                                                     : ""
                                             }
                                             version={versionMark(s, outdatedBlocks)}
+                                            lostNetwork={s.blockid != null && previousLoginBlocks.has(s.blockid)}
                                             onInterrupt={() => interrupt(s)}
                                             onUpdate={canUpdate(s, outdatedBlocks) ? () => askUpdate(s) : null}
                                             onCopied={() => setNotice({ text: t("sessions.view.copied") })}

@@ -57,7 +57,7 @@ describe("identity", () => {
         expect(sessionKind(direct)).toBe("direct");
         expect(sessionKindLabel(direct)).toBe("Direct");
         expect(sessionKind(ci)).toBe("started");
-        expect(sessionKindLabel(ci)).toBe("Analyse and fix");
+        expect(sessionKindLabel(ci)).toBe("Analyze and resolve");
         expect(sessionKind(session("x", { origin: { kind: "unknown" as any } }))).toBe("direct");
     });
 
@@ -65,7 +65,7 @@ describe("identity", () => {
         expect(startedFrom(session("d"))).toBe("Work › Main");
         expect(startedFrom(session("r", { origin: { kind: "review", number: 3 } }))).toBe("Review panel");
         expect(startedFrom(session("b", { origin: { kind: "batch" } }))).toBe("Merge queue");
-        expect(startedFrom(session("i", { origin: { kind: "investigate", number: 1 } }))).toBe("Reviews list");
+        expect(startedFrom(session("i", { origin: { kind: "investigate", number: 1 } }))).toBe("Integration");
         expect(startedFrom(session("h", { shown: false }))).toBe("not in a pane");
     });
 

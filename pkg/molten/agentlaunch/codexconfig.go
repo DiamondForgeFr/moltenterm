@@ -4,11 +4,13 @@
 package agentlaunch
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -16,11 +18,14 @@ import (
 )
 
 // What the Codex launcher reads of the user's configuration, read-only (NFR-SHELL-019): the system config.toml and
-// managed_config.toml (/etc/codex), the user's $CODEX_HOME/config.toml, and the .codex/config.toml files of the
-// folder and its parents up to the repository's root. Managed preferences deployed through MDM (macOS) cannot be
-// read: one that sets notify replaces the wrapper. Codex applies the project files of a trusted folder only, above the user's; whether it takes a
-// notify or a profile from them is not documented, so a project file that sets one is a doubt and notify is left
-// alone. Nothing else of Codex's folder is opened: never auth.json, hooks.json or any credential.
+// managed_config.toml (/etc/codex), the user's $CODEX_HOME/config.toml, the profile file of -p (#990: since
+// Codex 0.134, -p <name> layers $CODEX_HOME/<name>.config.toml above config.toml and below the project
+// files; the legacy `profile = ` selector and [profiles.<name>] tables are no longer read), and the .codex/config.toml
+// files of the folder and its parents up to the repository's root. Managed preferences deployed through MDM (macOS)
+// cannot be read: one that sets notify replaces the wrapper. Codex applies the project files of a trusted folder only,
+// above the user's, and ignores a profile selector there; whether it takes a notify from them is not documented, so a
+// project file that sets one is a doubt and notify is left alone. The hooks.json next to each of these files is read
+// too (#988), for its hooks only. Nothing else of Codex's folder is opened: never auth.json or any credential.
 
 const (
 	codexConfigFile        = "config.toml"
@@ -29,8 +34,7 @@ const (
 	codexManagedConfigFile = "managed_config.toml"
 	codexRootMarkersKey    = "project_root_markers"
 	codexNotifyKey         = "notify"
-	codexProfileKey        = "profile"
-	codexProfilesKey       = "profiles"
+	codexProfileFileSuffix = ".config.toml"
 	codexMcpServersKey     = "mcp_servers"
 	codexProjectRootMarker = ".git"
 )
@@ -49,14 +53,21 @@ type codexConfig struct {
 	sources []codexConfigSource
 	// unreadable: the display name of a config file that exists but could not be read or parsed.
 	unreadable string
+	// hookFiles: the hooks.json files Codex loads next to its config layers (keys: the decoded JSON);
+	// hookFileUnreadable: one that exists but could not be read, which leaves the state hooks out.
+	hookFiles          []codexConfigSource
+	hookFileUnreadable string
 }
 
-// readCodexConfig reads the system, user and project files, lowest level first.
-func readCodexConfig(ctx LaunchContext) codexConfig {
+// readCodexConfig reads the system, user, profile (the -p name, "" for none) and project files, lowest level first.
+func readCodexConfig(ctx LaunchContext, profile string) codexConfig {
 	var rtn codexConfig
 	userPath := filepath.Join(molten.CodexHome(ctx.Env), codexConfigFile)
 	systemPath := codexSystemConfigPath(ctx)
 	paths := []string{systemPath, userPath}
+	if profilePath := codexProfileFile(ctx, profile); profilePath != "" {
+		paths = append(paths, profilePath)
+	}
 	project := map[string]bool{}
 	managedPath := ""
 	if systemPath != "" {
@@ -98,7 +109,51 @@ func readCodexConfig(ctx LaunchContext) codexConfig {
 		}
 		rtn.sources = append(rtn.sources, codexConfigSource{display: display, keys: keys, project: project[path], managed: path == managedPath})
 	}
+	readCodexHookFiles(ctx, paths, project, &rtn)
 	return rtn
+}
+
+// codexProfileFile is the profile file -p <name> layers above config.toml, "" for no profile or a name that is not
+// a plain file name (a path would read outside Codex's folder).
+func codexProfileFile(ctx LaunchContext, name string) string {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) || filepath.Base(name) != name {
+		return ""
+	}
+	return filepath.Join(molten.CodexHome(ctx.Env), name+codexProfileFileSuffix)
+}
+
+// readCodexHookFiles reads the hooks.json next to each config.toml of paths (the managed file's folder is the
+// system's), with the same care: a repository's link is never opened.
+func readCodexHookFiles(ctx LaunchContext, paths []string, project map[string]bool, rtn *codexConfig) {
+	seen := map[string]bool{}
+	for _, configPath := range paths {
+		if configPath == "" {
+			continue
+		}
+		path := filepath.Join(filepath.Dir(configPath), molten.CodexHooksFile)
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		display := molten.DisplayHomePath(ctx.Env, path)
+		if info, err := os.Lstat(path); project[configPath] && err == nil && info.Mode()&fs.ModeSymlink != 0 {
+			rtn.hookFileUnreadable = display
+			return
+		}
+		data, err := readBounded(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		var keys map[string]any
+		if err == nil {
+			err = json.Unmarshal(data, &keys)
+		}
+		if err != nil {
+			rtn.hookFileUnreadable = display
+			return
+		}
+		rtn.hookFiles = append(rtn.hookFiles, codexConfigSource{display: display, keys: keys, project: project[configPath]})
+	}
 }
 
 func codexSystemConfigPath(ctx LaunchContext) string {
@@ -140,7 +195,7 @@ func codexProjectConfigFiles(cwd string) []string {
 	return rtn
 }
 
-// userNotify is the notify of the system and user files, the user's winning: the argv Codex runs at each turn's
+// userNotify is the notify of the system, user and profile files, the last winning: the argv Codex runs at each turn's
 // end, nil for none. ok is false when the value is not an array of strings (Codex would refuse it).
 func (c codexConfig) userNotify() ([]string, string, bool) {
 	var argv []string
@@ -178,17 +233,11 @@ func tomlStrings(raw any) ([]string, bool) {
 	return rtn, true
 }
 
-// projectSetsNotify names a project file that sets notify, a profile or profiles: Codex may apply it above the
-// user's file.
+// projectSetsNotify names a project file that sets notify: Codex may apply it above the user's file.
 func (c codexConfig) projectSetsNotify() string {
 	for _, s := range c.sources {
-		if !s.project {
-			continue
-		}
-		for _, key := range []string{codexNotifyKey, codexProfileKey, codexProfilesKey} {
-			if _, ok := s.keys[key]; ok {
-				return s.display
-			}
+		if _, ok := s.keys[codexNotifyKey]; ok && s.project {
+			return s.display
 		}
 	}
 	return ""
@@ -214,26 +263,10 @@ func (c codexConfig) projectRootMarkers() string {
 	return ""
 }
 
-// profile is the profile the files select, the user's winning.
-func (c codexConfig) profile() string {
-	rtn := ""
+// setsKey names the first file, project files and the managed one included, that sets a top-level key, or "".
+func (c codexConfig) setsKey(key string) string {
 	for _, s := range c.sources {
-		if name, ok := s.keys[codexProfileKey].(string); ok && !s.project {
-			rtn = name
-		}
-	}
-	return rtn
-}
-
-// profileNotify names the file whose profile of that name sets notify, or "".
-func (c codexConfig) profileNotify(name string) string {
-	if name == "" {
-		return ""
-	}
-	for _, s := range c.sources {
-		profiles, _ := s.keys[codexProfilesKey].(map[string]any)
-		profile, _ := profiles[name].(map[string]any)
-		if _, ok := profile[codexNotifyKey]; ok {
+		if _, ok := s.keys[key]; ok {
 			return s.display
 		}
 	}

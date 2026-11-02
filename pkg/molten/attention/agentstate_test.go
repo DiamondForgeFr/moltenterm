@@ -72,6 +72,30 @@ func doneMark(code int) string {
 
 const promptMark = "\x1b]16162;A\x07"
 
+// The windows name a tab's longest-running agent (#1033): the snapshot carries the run's start, kept across states.
+func TestAgentStateInfoStarted(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("claude"))
+	start := h.clock.UnixMilli()
+	h.clock = h.clock.Add(time.Minute)
+	if err := h.report("b1", molten.AgentStateWorking, "claude"); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	for _, info := range h.states.snapshot() {
+		if info.BlockId != "b1" {
+			continue
+		}
+		if info.Started != start {
+			t.Errorf("started %d, want %d", info.Started, start)
+		}
+		if info.Since == info.Started {
+			t.Errorf("since follows the state, started the run: %+v", info)
+		}
+		return
+	}
+	t.Fatalf("no state for b1")
+}
+
 func TestParseShellMark(t *testing.T) {
 	long := strings.Repeat("x", 6000)
 	enc := base64.StdEncoding.EncodeToString([]byte("claude " + long))
@@ -215,6 +239,24 @@ func TestHookReportsAndNoDoubleNotification(t *testing.T) {
 	}
 	if err := h.report("b9", molten.AgentStateDone, "my-agent"); err != nil || h.state("b9") != molten.AgentStateDone {
 		t.Fatalf("a hook can name an agent the registry does not know: %v", err)
+	}
+}
+
+// #1024: a terminal found gone when something was to be typed ends its agent's run: the lists stop naming it.
+func TestEndRunClearsTheAgent(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("claude"))
+	h.states.flush()
+	if run, ok := h.states.runOf("b1"); !ok || !run.Running {
+		t.Fatalf("a running agent first: %+v", run)
+	}
+	h.states.endRun("b1")
+	h.states.flush()
+	if _, ok := h.states.runOf("b1"); ok {
+		t.Fatal("the run must end")
+	}
+	if last := h.published[len(h.published)-1]; !last.Cleared {
+		t.Fatalf("the end is published: %+v", last)
 	}
 }
 
@@ -394,5 +436,59 @@ func TestIdleReminderSignal(t *testing.T) {
 	h.out("b1", "\x1b]777;notify;Claude Code;Claude is waiting for your input\x07")
 	if got := h.state("b1"); got != molten.AgentStateDone {
 		t.Fatalf("working then the reminder: done, got %q", got)
+	}
+}
+
+// #988, TC-SHELL-011-1, TC-SHELL-011-2: a SessionStart hook makes the pane's states precise at once and shows idle,
+// never over working or waiting; once the hooks report, a turn end from Codex's notify adds nothing.
+func TestSessionStartAndRedundantTurnEnd(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("codex"))
+	if h.states.precise("b1") {
+		t.Fatal("not precise before any hook")
+	}
+	notify := molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateDone, Agent: "codex", TurnEnd: true}
+	if h.states.turnEndRedundant(notify) {
+		t.Fatal("before the hooks report, notify is the done state")
+	}
+	start := molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateIdle, Agent: "codex", Start: true}
+	if _, _, err := h.states.report(start); err != nil {
+		t.Fatal(err)
+	}
+	if !h.states.precise("b1") || h.state("b1") != molten.AgentStateIdle {
+		t.Fatalf("after SessionStart: precise %v, state %q", h.states.precise("b1"), h.state("b1"))
+	}
+	h.report("b1", molten.AgentStateWorking, "codex")
+	if _, _, err := h.states.report(start); err != nil || h.state("b1") != molten.AgentStateWorking {
+		t.Fatalf("a start while working keeps working: %q %v", h.state("b1"), err)
+	}
+	h.report("b1", molten.AgentStateWaiting, "codex")
+	h.states.report(start)
+	if h.state("b1") != molten.AgentStateWaiting {
+		t.Fatalf("a start while waiting keeps waiting: %q", h.state("b1"))
+	}
+	if h.states.turnEndRedundant(notify) {
+		t.Fatal("precise but no done from the hooks yet (the user's own Stop hook took its place): notify still says done")
+	}
+	h.clock = h.clock.Add(10 * time.Second)
+	h.report("b1", molten.AgentStateDone, "codex")
+	if !h.states.turnEndRedundant(notify) {
+		t.Fatal("once the hooks report, notify's turn end is redundant")
+	}
+	if h.states.turnEndRedundant(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateDone, Agent: "codex"}) {
+		t.Fatal("a hook's own done is never redundant")
+	}
+	h.states.report(start)
+	if h.state("b1") != molten.AgentStateIdle {
+		t.Fatalf("a new session after done shows idle: %q", h.state("b1"))
+	}
+
+	// Another pane, another agent: their notify still counts.
+	h.out("b2", cmdMark("codex"))
+	if h.states.turnEndRedundant(molten.AgentStateRequest{BlockId: "b2", State: molten.AgentStateDone, Agent: "codex", TurnEnd: true}) {
+		t.Fatal("a pane whose hooks never reported keeps notify")
+	}
+	if h.states.turnEndRedundant(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateDone, Agent: "claude", TurnEnd: true}) {
+		t.Fatal("another agent's turn end is not this one's")
 	}
 }

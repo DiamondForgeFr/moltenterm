@@ -20,7 +20,7 @@ import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { CSSProperties, forwardRef, useCallback, useEffect } from "react";
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { openWorkspaceEditor } from "../../moltenterm-shell/workspace-edit"; // MOLTENTERM-PATCH (#294)
-import { askResetWorkspace } from "../../moltenterm-shell/workspace-reset"; // MOLTENTERM-PATCH (#222)
+import { askDeleteWorkspace, askResetWorkspace } from "../../moltenterm-shell/workspace-reset"; // MOLTENTERM-PATCH (#222, #1324)
 import WorkspaceSVG from "../asset/workspace.svg";
 import { IconButton } from "../element/iconbutton";
 import { makeORef } from "../store/wos";
@@ -90,8 +90,9 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
         fireAndForget(updateWorkspaceList);
     }, []);
 
+    // MOLTENTERM-PATCH (#1324): asks in MoltenTerm's dialog, which offers Undo, instead of Electron's native box
     const onDeleteWorkspace = useCallback((workspaceId: string) => {
-        env.electron.deleteWorkspace(workspaceId);
+        askDeleteWorkspace(workspaceId);
     }, []);
 
     const isActiveWorkspaceSaved = !!(activeWorkspace.name && activeWorkspace.icon);

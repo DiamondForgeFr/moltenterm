@@ -38,6 +38,7 @@ const (
 	StepAgent   = "agent"
 	StepMorph   = "morph"
 	StepProject = "project"
+	StepView    = "view"
 
 	StatusTodo    = "todo"
 	StatusDone    = "done"
@@ -67,8 +68,8 @@ const (
 // Read once by wavesrv when it starts, then unset (store.go); test instances set it (UPSTREAM.md, "Toolchain").
 const SkipVarName = "MOLTENTERM_SKIP_ONBOARDING"
 
-// StepIds are the first run's steps, in order (#162, #163, #165).
-var StepIds = []string{StepAgent, StepMorph, StepProject}
+// StepIds are the first run's steps, in order (#162, #163, #165; the first view, #1709).
+var StepIds = []string{StepAgent, StepMorph, StepProject, StepView}
 
 // A step's data lives in the client meta, which every window receives on each change: it stays small.
 const MaxStepDataBytes = 16 * 1024
@@ -83,6 +84,10 @@ type State struct {
 	Steps       map[string]string         `json:"steps,omitempty"`
 	Data        map[string]map[string]any `json:"data,omitempty"`
 	LastVersion string                    `json:"lastversion,omitempty"`
+	// The workspace a fresh install's first run started in (FR-SHELL-110): it gets the new-workspace template's views
+	// when the run ends, then the mark goes. Only a fresh install records one, so no existing workspace gains views
+	// unasked.
+	StarterWs string `json:"starterws,omitempty"`
 }
 
 type Update struct {
@@ -100,6 +105,8 @@ type StartFacts struct {
 	TosAgreed     bool
 	HasPanel      bool
 	FirstTabEmpty bool
+	// The workspace of the first window's active tab.
+	WorkspaceId string
 }
 
 // Outcome is what a start or an update changes: the state to write (when Write), Wave's terms record, the layout of
@@ -194,18 +201,20 @@ func DecideStart(facts StartFacts, nowMs int64, version string) Outcome {
 		if !facts.TosAgreed && facts.FirstTabEmpty {
 			layout = LayoutStarter
 		}
-		return Outcome{Write: true, State: state, SetTos: !facts.TosAgreed, Layout: layout}
+		return forgetStarter(Outcome{Write: true, State: state, SetTos: !facts.TosAgreed, Layout: layout})
 	}
 	if !facts.HasState && facts.TosAgreed {
 		state := markDone(newState(nowMs), ByExisting, nowMs, version)
 		return Outcome{Write: true, State: state, Announce: AnnounceAvailable}
 	}
 	if !facts.HasState {
+		state := newState(nowMs)
 		layout := LayoutNone
 		if facts.FirstTabEmpty {
 			layout = LayoutFirstRun
+			state.StarterWs = facts.WorkspaceId
 		}
-		return Outcome{Write: true, State: newState(nowMs), Layout: layout}
+		return Outcome{Write: true, State: state, Layout: layout}
 	}
 	if !facts.State.Done && !facts.HasPanel {
 		return closedOutcome(facts.State, facts.TosAgreed, nowMs, version)
@@ -213,9 +222,19 @@ func DecideStart(facts StartFacts, nowMs int64, version string) Outcome {
 	return Outcome{}
 }
 
+// forgetStarter drops the starter workspace from the record once the run is done (#1709: it gets no template views
+// then), so a later run never treats it as a fresh install's.
+func forgetStarter(outcome Outcome) Outcome {
+	if !outcome.Write || !outcome.State.Done || outcome.State.StarterWs == "" {
+		return outcome
+	}
+	outcome.State.StarterWs = ""
+	return outcome
+}
+
 func closedOutcome(state State, tosAgreed bool, nowMs int64, version string) Outcome {
 	state = markDone(cloneState(state), ByClosed, nowMs, version)
-	return Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: AnnounceLeft}
+	return forgetStarter(Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: AnnounceLeft})
 }
 
 // DecideClosed is rule 4 while MoltenTerm runs: the last panel of a run not done was closed.
@@ -296,7 +315,7 @@ func ApplyUpdate(state State, hasState bool, tosAgreed bool, update Update, nowM
 			}
 		}
 		state = markDone(state, by, nowMs, version)
-		return Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: announce}, nil
+		return forgetStarter(Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: announce}), nil
 	}
 	return Outcome{}, fmt.Errorf("unknown first run update %q", update.Kind)
 }

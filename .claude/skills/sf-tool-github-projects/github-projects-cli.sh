@@ -555,6 +555,7 @@ cmd_create_subtask() {
     echo -e "  It exists and is usable; it is not linked to #${PARENT_NUMBER}." >&2
     exit 1
   fi
+  record_srs_bypass "$CHILD_NUMBER" "$BYPASS_SRS_REASON"
 
   VIEW_STATUS=0
   CHILD_NODE_ID=$(gh issue view "$CHILD_NUMBER" --json id --jq ".id") || VIEW_STATUS=$?
@@ -707,6 +708,7 @@ cmd_create_epic() {
 
   echo -e "${GREEN}✓ Epic #${EPIC_NUMBER} created${NC}"
   echo "Issue URL: $ISSUE_URL"
+  record_srs_bypass "$EPIC_NUMBER" "$BYPASS_SRS_REASON"
 
   # Best-effort type chip, same policy as create-subtask: a missing org type must
   # not fail the creation — the issue exists and is usable either way.
@@ -841,6 +843,7 @@ cmd_create_ticket() {
   fi
   echo -e "${GREEN}✓ Ticket #${TICKET_NUMBER} created${NC}"
   echo "Issue URL: $ISSUE_URL"
+  record_srs_bypass "$TICKET_NUMBER" "$BYPASS_SRS_REASON"
 
   # Each step below is reported; the ticket exists whatever happens next, so a failed
   # step names the command that finishes it rather than pretending nothing was done
@@ -877,6 +880,15 @@ cmd_create_ticket() {
 # ───────────────────────────────────────────────────────────────────────────
 # Command: comment — record a note on a ticket (body read from a file, or stdin with -)
 # ───────────────────────────────────────────────────────────────────────────
+
+# A ticket created with --bypass-srs carries its reason as a comment, the audit
+# trail escape-hatches.md asks for. Best effort: the ticket exists either way.
+record_srs_bypass() {
+  local number=$1 reason=$2
+  [ -n "$reason" ] || return 0
+  gh issue comment "$number" --body "Created without an SRS source (\`--bypass-srs\`). Reason: ${reason}" >/dev/null 2>&1 ||
+    echo -e "${YELLOW}  The --bypass-srs reason could not be recorded on #${number}; record it by hand.${NC}" >&2
+}
 
 cmd_comment() {
   if [ "$#" -ne 2 ]; then
@@ -1288,19 +1300,42 @@ cmd_inspect_srs_tickets() {
   }
   native_issues=$(printf '%s' "$children_pages" | jq -ce '[.[][]]') || return 1
 
-  # GitHub's issue index is searched once per requested FR instead of downloading
-  # the repository's complete issue history. Native children are merged back in
-  # independently, so a stale search index can never hide an existing child.
-  while IFS= read -r request; do
-    [ -z "$request" ] && continue
-    fr_id=$(printf '%s' "$request" | jq -er '.frId') || return 1
-    identity=$(printf '%s' "$request" | jq -er '.identity') || return 1
-    query="repo:${repo} is:issue in:title,body (\"${fr_id}\" OR \"${identity}\")"
-    search_pages=$(gh api --method GET --paginate --slurp -H "Accept: application/vnd.github+json" \
-      search/issues -f "q=${query}" -f per_page=100 2>/dev/null) || {
-        echo "Error: could not inspect repository issues for SRS evidence." >&2
-        return 1
-      }
+  # GitHub's issue index is searched instead of downloading the repository's complete
+  # issue history. Native children are merged back in independently, so a stale search
+  # index can never hide an existing child.
+  #
+  # The search API allows 30 requests a minute, and a 17-FR version spent 34 of them on a
+  # dry run and the real run, then stopped with nothing created (#952). Up to three FRs
+  # share one query — a query takes at most five OR and 256 characters — and a
+  # rate-limited search waits for the window to reset instead of aborting.
+  local queries prefix="repo:${repo} is:issue in:title,body " search_error attempt
+  queries=$(printf '%s' "$requests" | jq -r --arg prefix "$prefix" '
+    def term: "\"\(.frId)\" OR \"\(.identity)\"";
+    def query(group): $prefix + "(" + (group | map(term) | join(" OR ")) + ")";
+    reduce .[] as $request ([[]];
+      (.[-1] + [$request]) as $grown
+      | if (.[-1] | length) < 3 and (query($grown) | length) <= 256 then .[:-1] + [$grown] else . + [[$request]] end)
+    | map(select(length > 0)) | .[] | query(.)
+  ') || return 1
+  while IFS= read -r query; do
+    [ -z "$query" ] && continue
+    for attempt in 1 2 3 4; do
+      search_error=$(mktemp)
+      if search_pages=$(gh api --method GET --paginate --slurp -H "Accept: application/vnd.github+json" \
+        search/issues -f "q=${query}" -f per_page=100 2>"$search_error"); then
+        rm -f "$search_error"
+        break
+      fi
+      if grep -qi 'rate limit' "$search_error" && [ "$attempt" -lt 4 ]; then
+        echo "  GitHub search rate limit reached; waiting ${SF_SEARCH_RATE_LIMIT_WAIT:-60}s before retrying (${attempt}/3)." >&2
+        rm -f "$search_error"
+        sleep "${SF_SEARCH_RATE_LIMIT_WAIT:-60}"
+        continue
+      fi
+      rm -f "$search_error"
+      echo "Error: could not inspect repository issues for SRS evidence." >&2
+      return 1
+    done
     searched=$(jq -cn --argjson current "$searched" --argjson pages "$search_pages" '
       if ($pages | type) != "array" or any($pages[]; (.items | type) != "array")
       then error("Expected paginated issue-search responses")
@@ -1310,7 +1345,7 @@ cmd_inspect_srs_tickets() {
       echo "Error: invalid repository issue-search response for SRS evidence." >&2
       return 1
     }
-  done < <(printf '%s' "$requests" | jq -c '.[]')
+  done <<<"$queries"
 
   candidates=$(jq -cn --arg parent "$parent" --argjson native "$children" --argjson nativeIssues "$native_issues" --argjson searched "$searched" --argjson requested "$requests" '
     ($nativeIssues + $searched)
@@ -1334,7 +1369,7 @@ cmd_inspect_srs_tickets() {
 
   while IFS= read -r issue; do
     [ -z "$issue" ] && continue
-    local number info status parent_url parent_number title body state url issue_type srs_links fr_ids
+    local number info status parent_url parent_number title body state state_reason url issue_type srs_links fr_ids
     number=$(printf '%s' "$issue" | jq -er '.number') || return 1
     info=$(query_project_item "$number") || {
       echo "Error: could not retrieve project status for SRS candidate #${number}." >&2
@@ -1344,6 +1379,8 @@ cmd_inspect_srs_tickets() {
     title=$(printf '%s' "$issue" | jq -er '.title') || return 1
     body=$(printf '%s' "$issue" | jq -er '.body // ""') || return 1
     state=$(printf '%s' "$issue" | jq -er '.state | ascii_upcase') || return 1
+    # "not_planned" is how a duplicate is closed: the spawner must not match it as the FR's ticket
+    state_reason=$(printf '%s' "$issue" | jq -r '(.state_reason // "") | ascii_downcase') || return 1
     url=$(printf '%s' "$issue" | jq -er '.html_url') || return 1
     issue_type=$(printf '%s' "$issue" | jq -cr '.type.name // null') || return 1
     parent_url=$(printf '%s' "$issue" | jq -r '.parent_issue_url // ""')
@@ -1359,11 +1396,12 @@ cmd_inspect_srs_tickets() {
       | unique
     ') || return 1
     result=$(jq -cn \
-      --argjson current "$result" --arg number "$number" --arg title "$title" --arg state "$state" \
+      --argjson current "$result" --arg number "$number" --arg title "$title" --arg state "$state" --arg reason "$state_reason" \
       --arg status "$status" --arg parent "$parent_number" --arg type "${issue_type:-}" --arg url "$url" \
       --argjson links "$srs_links" --argjson ids "$fr_ids" '
         $current + [{
           number:$number,title:$title,state:$state,
+          stateReason:(if $reason == "" then null else $reason end),
           boardStatus:(if $status == "" then null else $status end),
           parentNumber:(if $parent == "" then null else $parent end),
           issueType:(if $type == "" or $type == "null" then null else $type end),
@@ -1375,6 +1413,25 @@ cmd_inspect_srs_tickets() {
   printf '%s\n' "$result"
 }
 
+# Print the number of an issue's native parent, or nothing when it has none. A lookup that
+# fails for any reason other than "no parent" fails too: no caller mutates a relationship it
+# could not read.
+read_issue_parent() {
+  local repo=$1 child=$2 existing parent_lookup_rc=0
+  existing=$(gh api -H "Accept: application/vnd.github+json" "repos/${repo}/issues/${child}/parent" 2>&1) || parent_lookup_rc=$?
+  if [ "$parent_lookup_rc" -eq 0 ]; then
+    printf '%s' "$existing" | jq -er '.number | tostring' || {
+      echo "Error: invalid parent response for subtask #${child}." >&2
+      return 1
+    }
+  elif printf '%s' "$existing" | grep -Eq 'HTTP([/][0-9.]+)?[[:space:]]+404'; then
+    return 0
+  else
+    echo "Error: could not inspect the current parent for subtask #${child}; refusing to mutate an ambiguous relationship." >&2
+    return 1
+  fi
+}
+
 # Attach a previously-created orphan to its intended parent. Repeating the
 # command is a no-op; a different existing parent blocks rather than silently
 # moving work between delivery trees.
@@ -1383,25 +1440,14 @@ cmd_link_subtask() {
     echo "Usage: $0 link-subtask <parent-ticket-number> <child-ticket-number>" >&2
     return 1
   fi
-  local parent=$1 child=$2 repo existing existing_parent parent_lookup_rc=0 parent_id child_id result
+  local parent=$1 child=$2 repo existing_parent parent_id child_id result
   repo=$(get_repo_owner_name)
   if [[ -z "$repo" || "$repo" != */* ]]; then
     echo "Error: could not resolve the current repository." >&2
     return 1
   fi
 
-  existing=$(gh api -H "Accept: application/vnd.github+json" "repos/${repo}/issues/${child}/parent" 2>&1) || parent_lookup_rc=$?
-  if [ "$parent_lookup_rc" -eq 0 ]; then
-    existing_parent=$(printf '%s' "$existing" | jq -er '.number | tostring') || {
-      echo "Error: invalid parent response for subtask #${child}." >&2
-      return 1
-    }
-  elif printf '%s' "$existing" | grep -Eq 'HTTP([/][0-9.]+)?[[:space:]]+404'; then
-    existing_parent=""
-  else
-    echo "Error: could not inspect the current parent for subtask #${child}; refusing to mutate an ambiguous relationship." >&2
-    return 1
-  fi
+  existing_parent=$(read_issue_parent "$repo" "$child") || return 1
   if [ "$existing_parent" = "$parent" ]; then
     echo "✓ Subtask #${child} is already linked to parent #${parent}"
     return 0
@@ -1426,6 +1472,46 @@ cmd_link_subtask() {
     return 1
   fi
   echo "✓ Subtask #${child} linked to parent #${parent}"
+}
+
+# Detach a child from its parent: the reverse of link-subtask, so a duplicate spawned under an
+# Epic can be cleaned up without a raw API call. The relationship is read first. A child that
+# is not under this parent is a no-op, and a child under another parent is refused, so the
+# command can only ever remove the link it was asked to remove. The issue stays open and keeps
+# its board entry, label and milestone: closing it is a separate decision.
+cmd_unlink_subtask() {
+  if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 unlink-subtask <parent-ticket-number> <child-ticket-number>" >&2
+    return 1
+  fi
+  local parent=$1 child=$2 repo existing_parent child_id
+  repo=$(get_repo_owner_name)
+  if [[ -z "$repo" || "$repo" != */* ]]; then
+    echo "Error: could not resolve the current repository." >&2
+    return 1
+  fi
+
+  existing_parent=$(read_issue_parent "$repo" "$child") || return 1
+  if [ -z "$existing_parent" ]; then
+    echo "✓ Subtask #${child} is not linked to parent #${parent}"
+    return 0
+  fi
+  if [ "$existing_parent" != "$parent" ]; then
+    echo "Error: subtask #${child} belongs to parent #${existing_parent}, not #${parent}; refusing to unlink it." >&2
+    return 1
+  fi
+
+  # The sub-issues REST endpoint takes the child's REST id, not its issue number or node id
+  child_id=$(gh api -H "Accept: application/vnd.github+json" "repos/${repo}/issues/${child}" --jq '.id' 2>/dev/null) || {
+    echo "Error: could not resolve the id of subtask #${child}." >&2
+    return 1
+  }
+  [[ "$child_id" =~ ^[0-9]+$ ]] || { echo "Error: could not resolve the id of subtask #${child}." >&2; return 1; }
+  gh api --method DELETE -H "Accept: application/vnd.github+json" "repos/${repo}/issues/${parent}/sub_issue" -F "sub_issue_id=${child_id}" >/dev/null || {
+    echo "Error: GitHub did not unlink subtask #${child} from parent #${parent}." >&2
+    return 1
+  }
+  echo "✓ Subtask #${child} unlinked from parent #${parent}"
 }
 
 cmd_get_parent() {
@@ -1511,12 +1597,101 @@ cmd_get_ticket() {
 # Command: create-pr
 # ───────────────────────────────────────────────────────────────────────────
 
-# Resolve only the current ticket branch. Never promote another developer's PR.
+# The commit a branch holds on origin: empty when the branch is not there, failure when origin
+# cannot be read. Asked of the remote itself rather than of a local tracking ref, which may be stale.
+remote_branch_tip() {
+  local heads
+  heads=$(git ls-remote --heads origin "refs/heads/$1" 2>/dev/null) || return 1
+  awk -v ref="refs/heads/$1" '$2 == ref { print $1; exit }' <<<"$heads"
+}
+
+# The branches of origin that match the ticket's delivery patterns (feature, fix) and hold exactly
+# the commit $1, one per line. Release branches are never searched: they carry no ticket number.
+remote_ticket_branches_at() {
+  local commit=$1 feature=$2 fix=$3 heads sha ref name
+  heads=$(git ls-remote --heads origin 2>/dev/null) || return 1
+  while IFS=$'\t' read -r sha ref; do
+    [[ "$sha" == "$commit" && "$ref" == refs/heads/* ]] || continue
+    name=${ref#refs/heads/}
+    if [[ "$name" =~ $feature || "$name" =~ $fix ]]; then printf '%s\n' "$name"; fi
+  done <<<"$heads"
+}
+
+# Sets PR_CONTEXT_KIND (and PR_TARGET_BRANCH for a release) when branch $1 is one of the ticket's
+# branches; fails otherwise. $2 allows the release convention, $3-$5 are the three patterns.
+classify_pr_branch() {
+  local branch=$1 allow_release=$2 feature=$3 fix=$4 release=$5
+  if [[ "$branch" =~ $feature || "$branch" =~ $fix ]]; then
+    PR_CONTEXT_KIND=delivery
+  elif [[ "$allow_release" == true && "$branch" =~ $release ]]; then
+    PR_CONTEXT_KIND=release
+    PR_TARGET_BRANCH=$(jq -r '.workflow.releaseBranch // .mainBranch // "master"' .saasfoundry.json)
+  else
+    return 1
+  fi
+}
+
+# The ticket branch of a checkout that is not on it (#1036). A Claude Code agent started with
+# `isolation: "worktree"` works on `worktree-agent-<id>` and pushes `HEAD:feature/<N>-…`: the host
+# owns the local branch name, and the ticket branch exists only on origin. It is accepted when
+# origin holds it at the commit of the local HEAD, so the work has been pushed in full and the
+# pull request carries exactly what is checked out. Another developer's branch is never accepted.
+#   --head <branch>  names the branch (feature, fix or, where allowed, release convention)
+#   no --head        looks for the one delivery branch of the ticket that origin holds at HEAD
+# Sets CURRENT_BRANCH to the ticket branch and PR_HEAD_REMOTE=true.
+resolve_remote_ticket_branch() {
+  local ticket=$1 allow_release=$2 feature=$3 fix=$4 release=$5 requested=${PR_HEAD_OPTION:-}
+  local local_head short tip matches count host_branch=$CURRENT_BRANCH
+  local_head=$(git rev-parse HEAD 2>/dev/null) || { echo "Error: could not read the local HEAD commit." >&2; return 1; }
+  short=${local_head:0:8}
+  if [[ -n "$requested" ]]; then
+    classify_pr_branch "$requested" "$allow_release" "$feature" "$fix" "$release" || {
+      echo "Error: --head ${requested} does not match ticket #${ticket}'s configured branch naming." >&2
+      return 1
+    }
+    tip=$(remote_branch_tip "$requested") || {
+      echo "Error: could not read origin to check --head ${requested}. Retry once origin is reachable." >&2
+      return 1
+    }
+    if [[ -z "$tip" ]]; then
+      echo "Error: --head ${requested}: origin has no such branch. Push the work first: git push origin HEAD:${requested}" >&2
+      return 1
+    fi
+    if [[ "$tip" != "$local_head" ]]; then
+      echo "Error: --head ${requested}: origin/${requested} is at ${tip:0:8}, not at the local HEAD ${short}. Push the work first: git push origin HEAD:${requested}" >&2
+      return 1
+    fi
+    CURRENT_BRANCH=$requested
+  else
+    matches=$(remote_ticket_branches_at "$local_head" "$feature" "$fix") || {
+      echo "Error: current branch does not match ticket #${ticket}'s configured branch naming, and origin could not be read to look for the pushed branch. Retry once origin is reachable, or name the branch with --head <branch>." >&2
+      return 1
+    }
+    count=$(grep -c . <<<"$matches" || true)
+    if [[ "$count" -eq 0 ]]; then
+      echo "Error: current branch does not match ticket #${ticket}'s configured branch naming, and no branch of origin that matches it is at the local HEAD ${short}. Push the work to the ticket branch (git push origin HEAD:<branch>) or name that branch with --head <branch>." >&2
+      return 1
+    fi
+    if [[ "$count" -gt 1 ]]; then
+      echo "Error: several branches of origin match ticket #${ticket} at the local HEAD ${short}: $(paste -sd ',' - <<<"$matches" | sed 's/,/, /g'). Name the one to use with --head <branch>." >&2
+      return 1
+    fi
+    CURRENT_BRANCH=$matches
+    classify_pr_branch "$CURRENT_BRANCH" false "$feature" "$fix" "$release" || return 1
+  fi
+  PR_HEAD_REMOTE=true
+  echo -e "${BLUE}→ This checkout is on ${host_branch}: using origin/${CURRENT_BRANCH} as ticket #${ticket}'s branch, it holds the same commit as HEAD (${short}).${NC}"
+}
+
+# Resolve only the ticket's own branch. Never promote another developer's PR.
+# The current branch when it follows the ticket's naming; otherwise the branch pushed from this
+# checkout (resolve_remote_ticket_branch), named by --head (PR_HEAD_OPTION) or found on origin.
 pr_branch_context() {
   local ticket=$1 allow_release=${2:-false}
   [[ "$ticket" =~ ^[1-9][0-9]*$ ]] || { echo "Error: ticket must be a positive issue number." >&2; return 1; }
   load_config
   CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD) || return 1
+  PR_HEAD_REMOTE=false
   local feature fix release branch_patterns
   branch_patterns=$(jq -ce --arg ticket "$ticket" '
     def literal:
@@ -1554,14 +1729,17 @@ pr_branch_context() {
   PR_TICKET=$ticket
   PR_CONTEXT_KIND=""
   PR_TARGET_BRANCH=$DELIVERY_TARGET_BRANCH
-  if [[ "$CURRENT_BRANCH" =~ $feature || "$CURRENT_BRANCH" =~ $fix ]]; then
-    PR_CONTEXT_KIND=delivery
-  elif [[ "$allow_release" == true && "$CURRENT_BRANCH" =~ $release ]]; then
-    PR_CONTEXT_KIND=release
-    PR_TARGET_BRANCH=$(jq -r '.workflow.releaseBranch // .mainBranch // "master"' .saasfoundry.json)
+  if [[ -z "${PR_HEAD_OPTION:-}" || "$PR_HEAD_OPTION" == "$CURRENT_BRANCH" ]]; then
+    if ! classify_pr_branch "$CURRENT_BRANCH" "$allow_release" "$feature" "$fix" "$release"; then
+      if [[ -n "${PR_HEAD_OPTION:-}" ]]; then
+        echo "Error: --head ${PR_HEAD_OPTION} does not match ticket #${ticket}'s configured branch naming." >&2
+        return 1
+      fi
+      # Not on a ticket branch: a checkout that pushed to one is accepted, a stranger's branch is not
+      resolve_remote_ticket_branch "$ticket" "$allow_release" "$feature" "$fix" "$release" || return 1
+    fi
   else
-    echo "Error: current branch does not match ticket #${ticket}'s configured branch naming." >&2
-    return 1
+    resolve_remote_ticket_branch "$ticket" "$allow_release" "$feature" "$fix" "$release" || return 1
   fi
 }
 
@@ -1646,13 +1824,20 @@ local_ci_gate() {
   echo -e "${GREEN}✓ Local CI green on ${head:0:8}: $(echo "$required" | paste -sd ',' - | sed 's/,/, /g')${NC}"
 }
 
-# `--skip-local-ci "<reason>"` and the remaining positional arguments, for create-pr and ready-pr.
+# `--skip-local-ci "<reason>"`, `--head <branch>` (#1036) and the remaining positional arguments,
+# for create-pr, ready-pr and draft-pr.
 parse_local_ci_args() {
   PR_ARGS=()
+  PR_HEAD_OPTION=""
   while [[ "$#" -gt 0 ]]; do
     if [[ "$1" == "--skip-local-ci" ]]; then
       [[ -n "${2:-}" && "${2:-}" != --* ]] || { echo "Error: --skip-local-ci requires a reason" >&2; return 1; }
       LOCAL_CI_SKIP_REASON=$2
+      shift 2
+    elif [[ "$1" == "--head" ]]; then
+      [[ -n "${2:-}" && "${2:-}" != --* ]] || { echo "Error: --head requires the name of the ticket branch pushed to origin" >&2; return 1; }
+      [[ -z "$PR_HEAD_OPTION" ]] || { echo "Error: --head can be given only once" >&2; return 1; }
+      PR_HEAD_OPTION=$2
       shift 2
     else
       PR_ARGS+=("$1")
@@ -1665,13 +1850,16 @@ cmd_create_pr() {
   parse_local_ci_args "$@" || return 1
   set -- ${PR_ARGS[@]+"${PR_ARGS[@]}"}
   if [[ "$#" -lt 1 || "$#" -gt 2 || ( "$#" -eq 2 && "$2" != "--draft" ) ]]; then
-    echo "Usage: $0 create-pr <ticket-number> [--draft] [--skip-local-ci \"<reason>\"]" >&2
+    echo "Usage: $0 create-pr <ticket-number> [--draft] [--head <branch>] [--skip-local-ci \"<reason>\"]" >&2
     return 1
   fi
   local TICKET_NUMBER=$1
-  local draft_args=()
+  local draft_args=() head_args=()
   [[ "${2:-}" == "--draft" ]] && draft_args=(--draft)
   pr_branch_context "$TICKET_NUMBER" true || return 1
+  # A checkout on a host-owned branch (`worktree-agent-<id>`) has nothing of that name to push
+  # or to open the pull request from: the ticket branch is already on origin at HEAD (#1036)
+  [[ "$PR_HEAD_REMOTE" == true ]] && head_args=(--head "$CURRENT_BRANCH")
   ISSUE_TITLE=$(gh issue view "$TICKET_NUMBER" --json title --jq ".title" 2>/dev/null) || return 1
   [[ -n "$ISSUE_TITLE" ]] || { echo "Error: Could not find issue #${TICKET_NUMBER}" >&2; return 1; }
 
@@ -1682,7 +1870,11 @@ cmd_create_pr() {
   # the push and never corrected by it. Three times in one day that read as success while
   # no PR existed (#603) — twice after a four-minute hook run.
   PUSH_STATUS=0
-  git push -u origin "$CURRENT_BRANCH" || PUSH_STATUS=$?
+  if [[ "$PR_HEAD_REMOTE" == true ]]; then
+    : # Nothing to push: origin already holds the ticket branch at HEAD, which is what was resolved
+  else
+    git push -u origin "$CURRENT_BRANCH" || PUSH_STATUS=$?
+  fi
   if [ "$PUSH_STATUS" -ne 0 ]; then
     echo -e "${RED}✗ The push failed (exit ${PUSH_STATUS}), so no pull request was created.${NC}" >&2
     echo -e "  Your commits are still here — nothing was lost. Re-run this command once the push works." >&2
@@ -1719,7 +1911,7 @@ cmd_create_pr() {
   [[ "$PR_CONTEXT_KIND" == release ]] && PR_BODY="Closes #${TICKET_NUMBER}"
   [[ -n "$LOCAL_CI_SKIP_REASON" && ${#draft_args[@]} -eq 0 ]] && PR_BODY+=$'\n\n'"Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}"
   PR_OUTPUT=$(gh pr create --title "[#${TICKET_NUMBER}] $ISSUE_TITLE" \
-    --body "$PR_BODY" --base "$PR_TARGET_BRANCH" "${draft_args[@]}" 2>&1) || PR_CREATE_STATUS=$?
+    --body "$PR_BODY" --base "$PR_TARGET_BRANCH" ${head_args[@]+"${head_args[@]}"} "${draft_args[@]}" 2>&1) || PR_CREATE_STATUS=$?
   PR_URL=$(echo "$PR_OUTPUT" | grep -oE 'https://[^[:space:]]+/pull/[0-9]+' | head -n 1 || true)
   if [[ "$PR_CREATE_STATUS" -eq 0 && -n "$PR_URL" ]]; then
     echo -e "${GREEN}✓ Pull request created${NC}"
@@ -1737,7 +1929,7 @@ cmd_set_pr_draft() {
   parse_local_ci_args "$@" || return 1
   set -- ${PR_ARGS[@]+"${PR_ARGS[@]}"}
   if [[ "$#" -ne 1 ]]; then
-    echo "Usage: $0 ${action}-pr <ticket-number>$([[ "$action" == ready ]] && echo ' [--skip-local-ci "<reason>"]')" >&2
+    echo "Usage: $0 ${action}-pr <ticket-number> [--head <branch>]$([[ "$action" == ready ]] && echo ' [--skip-local-ci "<reason>"]')" >&2
     return 1
   fi
   pr_branch_context "$1" true || return 1
@@ -1776,18 +1968,43 @@ cmd_draft_pr() { cmd_set_pr_draft true draft "$@"; }
 # Command: list — list items on the project board, optionally filtered by status
 # ───────────────────────────────────────────────────────────────────────────
 
+# Every item of the board, as one JSON document. `gh project item-list --limit N` returns at most N
+# items, and its reply carries the board's own `totalCount`: a first page of 1000 covers most boards,
+# and when it is short the board is read again for exactly `totalCount` items. A board still read
+# short is named on stderr, never trimmed silently (#1082).
+list_board_items() {
+  local json total count
+  json=$(gh project item-list "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --format json --limit 1000) || {
+    echo "github-projects-cli: could not read the board (gh project item-list failed)" >&2
+    return 1
+  }
+  total=$(printf '%s' "$json" | jq -r '.totalCount // 0')
+  count=$(printf '%s' "$json" | jq -r '.items | length')
+  if [ "$total" -gt "$count" ]; then
+    json=$(gh project item-list "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --format json --limit "$total") || {
+      echo "github-projects-cli: could not read the board (gh project item-list failed)" >&2
+      return 1
+    }
+    count=$(printf '%s' "$json" | jq -r '.items | length')
+  fi
+  if [ "$count" -lt "$total" ]; then
+    echo "github-projects-cli: list truncated: the board holds $total items, only $count were read" >&2
+  fi
+  printf '%s\n' "$json"
+}
+
 cmd_list() {
   require_project
   local status_filter=${1:-""}
+  local board
+  board=$(list_board_items) || return 1
   if [ -n "$status_filter" ]; then
-    gh project item-list "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --format json --limit 200 \
-      | jq -r --arg s "$status_filter" '
-        .items[] | select((.status // "") | ascii_downcase == ($s | ascii_downcase))
-        | "#\(.content.number // "?") [\(.status // "?")] \(.content.title // "?")"
-      '
+    printf '%s\n' "$board" | jq -r --arg s "$status_filter" '
+      .items[] | select((.status // "") | ascii_downcase == ($s | ascii_downcase))
+      | "#\(.content.number // "?") [\(.status // "?")] \(.content.title // "?")"
+    '
   else
-    gh project item-list "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --format json --limit 200 \
-      | jq -r '.items[] | "#\(.content.number // "?") [\(.status // "no status")] \(.content.title // "?")"'
+    printf '%s\n' "$board" | jq -r '.items[] | "#\(.content.number // "?") [\(.status // "no status")] \(.content.title // "?")"'
   fi
 }
 
@@ -2454,7 +2671,8 @@ case "$COMMAND" in
   list-incomplete-children) cmd_list_incomplete_children "$@" ;;
   inspect-srs-tickets) cmd_inspect_srs_tickets "$@" ;;
   link-subtask) cmd_link_subtask "$@" ;;
-  get-parent)         cmd_get_parent "$@" ;;
+  unlink-subtask) cmd_unlink_subtask "$@" ;;
+  get-parent)        cmd_get_parent "$@" ;;
   get-issue-type)     cmd_get_issue_type "$@" ;;
   get-ticket)         cmd_get_ticket "$@" ;;
   create-pr)          cmd_create_pr "$@" ;;
@@ -2487,12 +2705,16 @@ case "$COMMAND" in
     echo "  list-incomplete-children <parent>       Print native children whose board Status is not Done"
     echo "  inspect-srs-tickets <parent> --fr ID=URL...  Inspect open/closed SRS ticket candidates as JSON"
     echo "  link-subtask <parent> <child>           Idempotently attach an existing orphan child"
+    echo "  unlink-subtask <parent> <child>         Detach a child from that parent (the issue stays open)"
     echo "  get-parent <child>                      Print the native parent issue as JSON"
     echo "  get-issue-type <ticket>                 Print the native issue type as JSON"
     echo "  get-ticket <ticket>                      Print title + body (for scripting)"
-    echo "  create-pr <ticket> [--draft]             Open PR for current branch"
-    echo "  ready-pr <ticket>                        Mark the ticket PR ready for review"
-    echo "  draft-pr <ticket>                        Return the ticket PR to draft"
+    echo "  create-pr <ticket> [--draft] [--head <branch>]"
+    echo "                                           Open PR for the ticket branch (current branch, else the ticket branch pushed at HEAD)"
+    echo "  ready-pr <ticket> [--head <branch>]      Mark the ticket PR ready for review"
+    echo "  draft-pr <ticket> [--head <branch>]      Return the ticket PR to draft"
+    echo "                                           --head names the ticket branch pushed to origin when the checkout is on another"
+    echo "                                           branch (a worktree agent's host branch); origin must hold it at the local HEAD"
     echo "  list [status]                            List project items (optionally filtered)"
     echo "  milestone <sub> [args]                   create|list|show|scope|assign|associate|readiness"
     echo "  cache-clear                              Drop the on-disk schema cache"
@@ -2503,7 +2725,7 @@ case "$COMMAND" in
     ;;
   *)
     echo -e "${RED}Error: Unknown command '${COMMAND}'${NC}"
-    echo "Available: create-ticket, create-subtask, create-epic, comment, status, update-status, add-to-project, set-complexity, get-complexity, get-labels, list-incomplete-children, inspect-srs-tickets, link-subtask, get-parent, get-issue-type, get-ticket, create-pr, ready-pr, draft-pr, list, cache-clear, ensure-issue-types, assign-type, delete-issue-type, milestone"
+    echo "Available: create-ticket, create-subtask, create-epic, comment, status, update-status, add-to-project, set-complexity, get-complexity, get-labels, list-incomplete-children, inspect-srs-tickets, link-subtask, unlink-subtask, get-parent, get-issue-type, get-ticket, create-pr, ready-pr, draft-pr, list, cache-clear, ensure-issue-types, assign-type, delete-issue-type, milestone"
     exit 1
     ;;
 esac

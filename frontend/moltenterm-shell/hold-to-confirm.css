@@ -23,7 +23,7 @@
 }
 
 .molten-hold-disc {
-    --molten-hold-glyph: color-mix(in srgb, var(--mt-accent) 55%, white);
+    --molten-hold-glyph: color-mix(in srgb, var(--mt-accent) 55%, var(--mt-tone-ink, white));
     transition:
         background-color var(--mt-duration-fast) var(--mt-ease),
         transform var(--mt-duration-fast) var(--mt-ease);
@@ -65,7 +65,7 @@
 
 /* The focus ring sits outside the progress ring and follows its circle, not the button's box. */
 .molten-hold:focus-visible .molten-hold-disc {
-    outline: 2px solid color-mix(in srgb, var(--mt-accent) 45%, white);
+    outline: 2px solid color-mix(in srgb, var(--mt-accent) 45%, var(--mt-tone-ink, white));
     outline-offset: 2px;
 }
 

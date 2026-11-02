@@ -74,7 +74,7 @@ describe("the agent choice options (#890, #930)", () => {
             expect(html).toContain(`id="${described}"`);
         }
         expect(html).toContain("Let the agent handle it");
-        expect(html).toContain("Investigate and fix with the agent");
+        expect(html).toContain("Analyze and resolve with the agent");
     });
 
     it("puts Cancel and a primary Validate in the footer, never the options", () => {

@@ -14,6 +14,7 @@ import {
     stationKind,
     stationSource,
     withLineMapDays,
+    worktreeHover,
 } from "./line-map-model";
 import { MissionGit, RawCommit } from "./mission-model";
 
@@ -274,6 +275,9 @@ describe("stations", () => {
         expect(stationKind("v2.0.0-beta.1", rules)).toBe("rc");
         expect(stationKind("v2", rules)).toBe("public");
         expect(stationKind("release-1.0.0", rules)).toBeNull();
+        expect(stationKind("v1.0.0-rc.2", rules)).toBe("rc");
+        expect(stationKind("v0.9.0-rc.2", rules)).toBeNull();
+        expect(stationKind("v1.0.0-rc.2", { ...rules, rcformat: "rcdot" })).toBe("rc");
     });
 });
 
@@ -313,6 +317,50 @@ describe("where develop was pushed to main", () => {
     it("falls back on the last develop commit before the tag", () => {
         expect(stationSource({ sha: "elsewhere", at: at("2026-10-02T12:00:00Z") }, develop, []).sha).toBe("d2");
         expect(stationSource({ sha: "elsewhere", at: at("2026-09-01T00:00:00Z") }, develop, [])).toBeNull();
+    });
+
+    // #1727: rc-1.1.0 cut from develop at d2, main merged into it, its release commit "rel" merged into main ("mt").
+    // main's history alone reaches only an older merge of d1; wavesrv's source, the newest develop commit the tag
+    // contains, wins.
+    const rcMain = [
+        c("mt", "2026-10-04T10:00:00Z", "Merge pull request #1122 from rc-1.1.0", { parents: ["m1", "rel"] }),
+        c("m1", "2026-10-01T11:00:00Z", "Merge branch 'develop'", { parents: ["m0", "d1"] }),
+    ];
+
+    it("is the source wavesrv found when main's history misses the rc branch", () => {
+        const tag = { sha: "mt", at: at("2026-10-04T10:00:00Z") };
+        expect(stationSource(tag, develop, rcMain).sha).toBe("d1");
+        expect(stationSource({ ...tag, source: "d2" }, develop, rcMain).sha).toBe("d2");
+    });
+
+    it("keeps a newer copy over the source of a rebased main", () => {
+        const main = [
+            c("rel", "2026-10-04T10:00:00Z", "chore(release): v1.0.0-2"),
+            c("copy", "2026-10-04T09:59:00Z", "feat(#2): b", { authordate: "2026-10-02T09:00:00Z" }),
+        ];
+        const tag = { sha: "rel", at: at("2026-10-04T10:00:00Z"), source: "d1" };
+        expect(stationSource(tag, develop, main).sha).toBe("d2");
+    });
+
+    it("ignores a source develop's history read does not hold", () => {
+        const tag = { sha: "mt", at: at("2026-10-04T10:00:00Z"), source: "gone" };
+        expect(stationSource(tag, develop, rcMain).sha).toBe("d1");
+    });
+
+    it("draws the station from the tag's source in the line map", () => {
+        const git = withTrunk(
+            makeGit({ tags: [{ name: "v1.1.0", sha: "mt", date: "2026-10-04T10:00:00Z", source: "d2" }] }),
+            develop,
+            rcMain
+        );
+        const model = buildLineMap({ git, now: NOW, days: 21 });
+        expect(model.stations[0].source?.sha).toBe("d2");
+        const without = buildLineMap({
+            git: { ...git, tags: [{ name: "v1.1.0", sha: "mt", date: "2026-10-04T10:00:00Z" }] },
+            now: NOW,
+            days: 21,
+        });
+        expect(without.stations[0].source?.sha).toBe("d1");
     });
 });
 
@@ -410,5 +458,47 @@ describe("the remembered window", () => {
         const both = withLineMapDays(prefs, "/b", true, 90);
         expect(both).toEqual({ "/a": { days: 7 }, "/b": { days: 30, fulldays: 90 } });
         expect(lineMapDays(both, "/a", false)).toBe(7);
+    });
+});
+
+describe("a branch in an agent's worktree (#1133)", () => {
+    it("is named after the branch and carries its worktree for the hover", () => {
+        const git = makeGit();
+        git.branches.push({
+            name: "feature/9-x",
+            sha: "f1",
+            date: "2026-10-04T10:00:00Z",
+            commits: [c("f1", "2026-10-04T10:00:00Z", "feat(#9): the agent's work")],
+            fork: { sha: "d1", date: "2026-10-04T00:00:00Z" },
+            worktree: "/repo/.claude/worktrees/agent-x",
+        });
+        git.branches.push({
+            name: "feature/10-own",
+            sha: "g1",
+            date: "2026-10-03T10:00:00Z",
+            commits: [c("g1", "2026-10-03T10:00:00Z", "feat(#10): own")],
+            fork: null,
+        });
+        const model = buildLineMap({ git, now: NOW, days: 21 });
+        const rows = new Map(model.branches.map((b) => [b.name, b]));
+        expect(rows.get("feature/9-x")?.worktree).toBe("/repo/.claude/worktrees/agent-x");
+        expect(rows.get("feature/10-own")?.worktree).toBeNull();
+        expect([...rows.keys()].some((n) => n.includes("agent-x"))).toBe(false);
+    });
+
+    it("names the folder, and the agent working in it", () => {
+        const agents = [
+            { name: "Olivia", cwd: "/repo" },
+            { name: "Valentin", cwd: "/private/repo/.claude/worktrees/agent-x/pkg" },
+        ];
+        expect(worktreeHover("/repo/.claude/worktrees/agent-x/", agents)).toEqual({
+            folder: "agent-x",
+            agent: "Valentin",
+        });
+        expect(worktreeHover("/repo/.claude/worktrees/agent-y", agents)).toEqual({ folder: "agent-y", agent: "" });
+        expect(
+            worktreeHover("/repo/.claude/worktrees/agent-x", [{ name: "Ana", cwd: "/repo/.claude/worktrees/agent-xy" }])
+        ).toEqual({ folder: "agent-x", agent: "" });
+        expect(worktreeHover("", agents)).toBeNull();
     });
 });

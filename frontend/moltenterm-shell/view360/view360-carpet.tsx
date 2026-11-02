@@ -1,17 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The carpet's surface and chrome in 360 view (FR-SHELL-065, DS-SHELL-115), drawn by the tile layout around its
-// panels: the surface under them, then the edge fades, the fixed zone's grip and the radar scrubber (#617) above them.
+// The carpet's surface and chrome in 360 view (FR-SHELL-065, DS-SHELL-115, DS-SHELL-152), drawn by the tile layout
+// around its panels: the surface under them (no frame since #1545: it holds the observer's sensors), then the fixed
+// zone's grip, the edge peeks and the tab strip (#617, #1395) above them.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
-import { cn, fireAndForget } from "@/util/util";
+import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { addCarpetPanel } from "./carpet-add";
-import { CarpetLayout, CarpetMarginPx, CarpetScrollVar, Rect } from "./carpet-model";
+import { Rect } from "./carpet-model";
 import { canScrollX, horizontalWheelDelta, routeHorizontalWheel, wheelDeltaPx } from "./carpet-wheel";
 import { CarpetSensors } from "./view360-offcarpet";
 import { View360Radar } from "./view360-radar";
@@ -37,53 +37,12 @@ export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel
     return (
         <div className="mt-carpet-surface" style={rectStyle(layout.surface)} data-testid="mt-carpet">
             {signal !== mountSignal && <span key={signal} className="mt-carpet-glow" aria-hidden="true" />}
-            <span className="mt-carpet-label">{t("view360.carpet")}</span>
             {layout.columns.length === 0 && <span className="mt-carpet-empty">{t("view360.empty")}</span>}
             <CarpetSensors layoutModel={layoutModel} layout={layout} />
-            <CarpetInvites layoutModel={layoutModel} layout={layout} />
         </div>
     );
 });
 View360Underlay.displayName = "View360Underlay";
-
-// "Add a panel" at each end of the carpet (#702): laid on the carpet's content like columns and moved by the same
-// --mt-carpet-scroll variable, under the panels so they never cover one. Hidden while a panel is magnified or dragged.
-function CarpetInvites({ layoutModel, layout }: { layoutModel: LayoutModel; layout: CarpetLayout }) {
-    const t = useT();
-    const magnified = useAtomValue(layoutModel.magnifiedNodeIdAtom);
-    const dragging = useAtomValue(layoutModel.activeDrag);
-    if (magnified != null || dragging || !layout.invites?.length) {
-        return null;
-    }
-    const offsetX = layout.viewport.left - layout.surface.left;
-    const top = layout.viewport.top - layout.surface.top;
-    return (
-        <div className="mt-carpet-invites">
-            {layout.invites.map((invite) => {
-                const label = t(invite.end === "start" ? "view360.addStart" : "view360.addEnd");
-                return (
-                    <button
-                        key={invite.end}
-                        type="button"
-                        className="mt-carpet-invite cursor-pointer"
-                        data-testid={`mt-carpet-invite-${invite.end}`}
-                        title={label}
-                        aria-label={label}
-                        style={{
-                            width: invite.width,
-                            height: layout.viewport.height,
-                            transform: `translate3d(calc(${offsetX + invite.x}px - var(${CarpetScrollVar}, 0px)), ${top}px, 0)`,
-                        }}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => fireAndForget(() => addCarpetPanel(layoutModel, invite.end))}
-                    >
-                        <i className="fa fa-solid fa-plus" aria-hidden="true" />
-                    </button>
-                );
-            })}
-        </div>
-    );
-}
 
 export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel }) => {
     const view360 = layoutModel.moltenView360;
@@ -123,7 +82,7 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
             }
             e.preventDefault();
             e.stopPropagation();
-            view360.scrollBy(wheelDeltaPx(delta, e.deltaMode, current.viewport.width));
+            view360.scrollBy(wheelDeltaPx(delta, e.deltaMode, current.viewport.width), e.timeStamp);
         };
         // Panels laid past the carpet's right edge overflow the layout: a focus moving into one of them would let the
         // browser scroll the layout itself, shifting the fixed zone off the window. Only the carpet scrolls.
@@ -144,33 +103,18 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
     if (layout == null) {
         return null;
     }
-    const surface = layout.surface;
-    const fadeTop = layout.viewport.top;
-    const fadeHeight = layout.viewport.height;
     const gripStuck = view360.gripNoRoom() != null;
+    // The edge fades went with the carpet's frame (#1545): the peeks of View360Radar sit in the gutters instead.
     return (
         <div className="mt-carpet-chrome">
             {layout.fixedNodeId != null && (
                 <div
                     className={cn("mt-fixed-grip", gripStuck && "mt-fixed-grip-stuck")}
                     style={{
-                        transform: `translate3d(${layout.fixed.width + CarpetMarginPx / 2 - 2}px, ${layout.fixed.height / 2 - 18}px, 0)`,
+                        transform: `translate3d(${layout.fixed.width - 2}px, ${layout.fixed.height / 2 - 18}px, 0)`,
                     }}
                 />
             )}
-            <div
-                className="mt-carpet-fade mt-carpet-fade-left"
-                style={rectStyle({ top: fadeTop, left: surface.left, width: 28, height: fadeHeight })}
-            />
-            <div
-                className="mt-carpet-fade mt-carpet-fade-right"
-                style={rectStyle({
-                    top: fadeTop,
-                    left: surface.left + surface.width - 28,
-                    width: 28,
-                    height: fadeHeight,
-                })}
-            />
             <View360Radar layoutModel={layoutModel} layout={layout} />
         </div>
     );

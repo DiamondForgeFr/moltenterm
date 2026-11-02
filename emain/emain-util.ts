@@ -99,6 +99,20 @@ export function handleCtrlShiftState(sender: Electron.WebContents, waveEvent: Wa
     }
 }
 
+// MOLTENTERM-PATCH (#1238): a hot reload of the dev server's index.html, at the address electron-vite gave the renderer.
+export function isDevServerReload(url: string, rendererUrl: string): boolean {
+    if (!rendererUrl) {
+        return false;
+    }
+    try {
+        const dev = new URL(rendererUrl);
+        const target = new URL(url);
+        return target.origin === dev.origin && target.pathname === "/index.html";
+    } catch {
+        return false;
+    }
+}
+
 export function shNavHandler(event: Electron.Event<Electron.WebContentsWillNavigateEventParams>, url: string) {
     if (isPDFPreviewDestination(url, getWebServerEndpoint())) {
         event.preventDefault();
@@ -110,7 +124,10 @@ export function shNavHandler(event: Electron.Event<Electron.WebContentsWillNavig
         (url.startsWith("http://127.0.0.1:5173/index.html") ||
             url.startsWith("http://localhost:5173/index.html") ||
             url.startsWith("http://127.0.0.1:5174/index.html") ||
-            url.startsWith("http://localhost:5174/index.html"))
+            url.startsWith("http://localhost:5174/index.html") ||
+            // MOLTENTERM-PATCH (#1238): the dev server's own address, whatever port it took; on any other port the
+            // reload went to the developer's browser, a tab per reload.
+            isDevServerReload(url, process.env.ELECTRON_RENDERER_URL))
     ) {
         // this is a dev-mode hot-reload, ignore it
         console.log("allowing hot-reload of index.html");

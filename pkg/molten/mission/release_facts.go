@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -32,6 +33,12 @@ const (
 
 var notesRegex = regexp.MustCompile(`(?m)^\s*▶ notes:\s*(.+?)\s*$`)
 
+// What the release chain prints once it ran the project's formatter on the files it wrote (release.FormatMarker, #1095).
+var formatRegex = regexp.MustCompile(`(?m)^\s*▶ format:\s*(formatted|none|failed)\s*(.*?)\s*$`)
+
+// What `molten release dispatch` prints while a run waits for an environment approval, and once it goes on (FR-MC-037).
+var approvalRegex = regexp.MustCompile(`(?m)^\s*▶ (approval|approved):\s*(\S+)\s*(\S*)\s*$`)
+
 // The last run of a declared release step for the release followed.
 type ReleaseStepFact struct {
 	RunId   string   `json:"runid"`
@@ -40,6 +47,15 @@ type ReleaseStepFact struct {
 	Exit    *int     `json:"exit,omitempty"`
 	Tail    []string `json:"tail"`
 	Phases  []string `json:"phases"`
+	// The environment the running step's GitHub run waits on for an approval (FR-MC-037).
+	Approval *ReleaseApproval `json:"approval,omitempty"`
+}
+
+// A GitHub run waiting for a reviewer to approve its deployment to an environment.
+type ReleaseApproval struct {
+	Environment string `json:"environment"`
+	Url         string `json:"url,omitempty"`
+	Workflow    string `json:"workflow,omitempty"`
 }
 
 type ReleaseGhRun struct {
@@ -98,17 +114,52 @@ type ReleaseFacts struct {
 	Runs        []ReleaseGhRun    `json:"runs"`
 	Jobs        []ReleaseGhJob    `json:"jobs"`
 	Release     *ReleaseGhRelease `json:"release,omitempty"`
+	// The runs the tag started that wait for an environment approval (FR-MC-037).
+	Approvals []ReleaseApproval `json:"approvals"`
+	// The workflows the pushed tag starts, read at the tag; nil when they could not be read (#1040).
+	TagWorkflows *ReleaseTagWorkflows `json:"tagworkflows,omitempty"`
 	// The release commit is on the trunk, or a pull request carries it back.
 	OnTrunk bool       `json:"ontrunk"`
 	BackPr  *ReleasePr `json:"backpr,omitempty"`
+	// A candidate tagged on its RC branch (#1046): it reaches neither the release branch nor the trunk.
+	OffRelease bool `json:"offrelease,omitempty"`
+	// The pull request that brings the release to the release branch, while the tag is not pushed (#1046).
+	ReleasePr *ReleasePr `json:"releasepr,omitempty"`
 	// A running step waits for a branch's GitHub CI (the promotion, #836).
 	Awaits *ReleaseCiAwait `json:"awaits,omitempty"`
+	// The last word of the release chain on formatting its files, while the tag is not pushed (#1095).
+	Format *ReleaseFormat `json:"format,omitempty"`
+	// What the changelog sections written by hand cover, while the tag is not pushed (#1142).
+	ChangelogScope *ReleaseChangelogScope `json:"changelogscope,omitempty"`
+}
+
+// The scope of the release's changelog sections (#1142): everything since the last public release, candidates
+// included, for a public version; since the previous release of either channel for a candidate.
+type ReleaseChangelogScope struct {
+	// "" for the first release.
+	Since string `json:"since"`
+	// The manual steps that write a changelog section.
+	Steps []string `json:"steps"`
+}
+
+// How the release's files last went through the project's formatter (#1095): formatted, none (no formatter found) or
+// failed.
+type ReleaseFormat struct {
+	State string `json:"state"`
+	// The formatter that formatted them.
+	Formatter string `json:"formatter,omitempty"`
+	// What failed, to be run in the release worktree.
+	Command string `json:"command,omitempty"`
+	// The step whose run said it.
+	Step string `json:"step"`
 }
 
 type ReleaseStepRequest struct {
 	Dir  string `json:"dir"`
 	Tag  string `json:"tag"`
 	Step string `json:"step"`
+	// Records a manual step although its check fails (#1095): the developer confirmed it is done anyway.
+	Force bool `json:"force,omitempty"`
 }
 
 type ReleaseNotesRequest struct {
@@ -161,9 +212,10 @@ func (r *Runs) followedRelease(ctx context.Context, dir string, p *molten.Pipeli
 
 // stepFacts reads the last run of each declared release step for the tag, and the preparation's apart. Runs started
 // before `since` (the release launched here) belong to an earlier, abandoned attempt at the same tag and are not read.
-func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]ReleaseStepFact, *ReleaseStepFact, string) {
+func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]ReleaseStepFact, *ReleaseStepFact, string, *ReleaseFormat) {
 	facts := map[string]ReleaseStepFact{}
 	var preparation *ReleaseStepFact
+	var format *ReleaseFormat
 	notes := ""
 	runs := r.List(dir)
 	// Oldest first, so that the newest run of a step, and the newest notes announced, win.
@@ -176,12 +228,15 @@ func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]Releas
 		fact := ReleaseStepFact{RunId: rec.Id, State: rec.State, Running: rec.State == RunStateRunning, Exit: rec.Exit, Phases: rec.Phases, Tail: []string{}}
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimRight(line, "\r")
-			if strings.TrimSpace(line) == "" || notesRegex.MatchString(line) {
+			if strings.TrimSpace(line) == "" || notesRegex.MatchString(line) || formatRegex.MatchString(line) {
 				continue
 			}
 			fact.Tail = append(fact.Tail, line)
 		}
 		fact.Tail = fact.Tail[max(0, len(fact.Tail)-releaseTailLines):]
+		if fact.Running {
+			fact.Approval = pendingApproval(data)
+		}
 		if rec.StepId == ReleasePreparationStepId {
 			preparation = &fact
 		} else {
@@ -194,8 +249,18 @@ func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]Releas
 			}
 			notes = filepath.Clean(path)
 		}
+		if m := formatRegex.FindAllSubmatch(data, -1); len(m) > 0 {
+			last := m[len(m)-1]
+			format = &ReleaseFormat{State: string(last[1]), Step: rec.StepId}
+			switch format.State {
+			case release.FormatFormatted:
+				format.Formatter = string(last[2])
+			case release.FormatFailed:
+				format.Command = string(last[2])
+			}
+		}
 	}
-	return facts, preparation, notes
+	return facts, preparation, notes, format
 }
 
 func isFile(path string) bool {
@@ -262,6 +327,7 @@ func (r *Runs) readGithubRelease(ctx context.Context, dir string, facts *Release
 		}
 	}
 	if len(facts.Runs) > 0 {
+		facts.Approvals = r.waitingApprovals(ctx, dir, facts.Runs)
 		if out, err := ghJson(ctx, r.git, dir, "run", "view", strconv.FormatInt(facts.Runs[0].DatabaseId, 10), "--json", "jobs"); err == nil {
 			var view struct {
 				Jobs []ReleaseGhJob `json:"jobs"`
@@ -288,7 +354,7 @@ func (r *Runs) readGithubRelease(ctx context.Context, dir string, facts *Release
 	}
 }
 
-var tagVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:-\d+)?$`)
+var tagVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:-(?:rc\.)?\d+)?$`)
 
 // mentionsRelease tells whether a branch name or a title names this release's version as a whole: the pull request
 // carrying v1.0.0-1 back is not v1.0.0's, nor v1.0.0-10's.
@@ -304,7 +370,7 @@ func mentionsRelease(s string, tag string) bool {
 		}
 		start, end := from+i, from+i+len(version)
 		before := start == 0 || !strings.ContainsRune("0123456789.", rune(s[start-1]))
-		after := end == len(s) || !(s[end] >= '0' && s[end] <= '9' || s[end] == '.' || (s[end] == '-' && end+1 < len(s) && s[end+1] >= '0' && s[end+1] <= '9'))
+		after := end == len(s) || !(s[end] >= '0' && s[end] <= '9' || s[end] == '.' || (s[end] == '-' && candidateSuffix(s[end+1:])))
 		if before && after {
 			return true
 		}
@@ -312,21 +378,79 @@ func mentionsRelease(s string, tag string) bool {
 	}
 }
 
+// candidateSuffix: what follows a version's dash makes it a candidate's, 1 or rc.1 (#1155).
+func candidateSuffix(s string) bool {
+	s = strings.TrimPrefix(s, "rc.")
+	return s != "" && s[0] >= '0' && s[0] <= '9'
+}
+
 // onTrunk tells whether the tagged commit's change is on the trunk: merged, or carried back by a cherry-pick.
 func (r *Runs) onTrunk(ctx context.Context, dir string, trunkRef string, tag string) bool {
 	if trunkRef == "" {
 		return false
 	}
-	out, err := r.git(ctx, dir, "git", "cherry", trunkRef, tag, tag+"^")
+	commit := releaseCommitOfTag(ctx, r.git, dir, tag)
+	out, err := r.git(ctx, dir, "git", "cherry", trunkRef, commit, commit+"^")
 	if err != nil {
 		return false
 	}
 	return !strings.Contains(string(out), "+")
 }
 
+// releasesByPr tells whether the pipeline brings its releases to the release branch by pull request (#1046).
+func releasesByPr(p *molten.Pipeline) bool {
+	if p.Release == nil {
+		return false
+	}
+	for _, steps := range [][]molten.PipelineStep{p.Release.Rc, p.Release.Public} {
+		for _, s := range steps {
+			if run := strings.TrimSpace(s.Run); strings.HasPrefix(run, "molten release open-pr") || strings.HasPrefix(run, "molten release tag") && strings.Contains(run, "--rc-branch") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// releasePrOf finds the open pull request to the release branch whose title names the release.
+func (r *Runs) releasePrOf(ctx context.Context, dir string, tag string) *ReleasePr {
+	releaseBranch := molten.ResolvedBranches(dir).Release
+	out, err := ghJson(ctx, r.git, dir, "pr", "list", "--state", "open", "--base", releaseBranch, "--limit", "30", "--json", "number,url,title,headRefName")
+	if err != nil {
+		return nil
+	}
+	var prs []ReleasePr
+	json.Unmarshal(out, &prs)
+	for _, pr := range prs {
+		if release.TitleNamesTag(pr.Title, tag) {
+			return &pr
+		}
+	}
+	return nil
+}
+
+// releaseCommitOfTag is the commit a tag's release is in: the tagged commit, or, for a tag on the merge commit of a
+// release pull request (#1046), the release commit that pull request merged (release.ReleaseCommitSubject).
+func releaseCommitOfTag(ctx context.Context, git Runner, dir string, tag string) string {
+	if _, err := git(ctx, dir, "git", "rev-parse", "--verify", "--quiet", tag+"^2"); err != nil {
+		return tag
+	}
+	out, err := git(ctx, dir, "git", "log", "-n", "500", "--format=%H%x1f%s%x1f%b%x1e", tag+"^1.."+tag)
+	if err != nil {
+		return tag
+	}
+	for _, record := range strings.Split(string(out), "\x1e") {
+		fields := strings.SplitN(strings.TrimSpace(record), "\x1f", 3)
+		if len(fields) == 3 && release.IsReleaseCommit(fields[1], fields[2], tag) {
+			return fields[0]
+		}
+	}
+	return tag
+}
+
 // ReleaseFactsOf reads every fact the release panel derives the phases from; no release followed gives empty facts.
 func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
-	facts := ReleaseFacts{Steps: map[string]ReleaseStepFact{}, Runs: []ReleaseGhRun{}, Jobs: []ReleaseGhJob{}}
+	facts := ReleaseFacts{Steps: map[string]ReleaseStepFact{}, Runs: []ReleaseGhRun{}, Jobs: []ReleaseGhJob{}, Approvals: []ReleaseApproval{}}
 	if err := checkDir(dir); err != nil {
 		return facts, err
 	}
@@ -353,16 +477,52 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 	trunk, trunkRef := resolveTrunk(ctx, r.git, dir)
 	facts.Trunk = trunk
 	var announced string
-	facts.Steps, facts.Preparation, announced = r.stepFacts(dir, session.Tag, since)
+	var format *ReleaseFormat
+	facts.Steps, facts.Preparation, announced, format = r.stepFacts(dir, session.Tag, since)
 	facts.Awaits = r.awaitedCi(dir, session.Tag, since)
 	if !facts.TagExists {
+		facts.Format = format
+		facts.ChangelogScope = r.changelogScope(ctx, dir, p, session)
 		facts.Notes = r.notesPath(ctx, dir, p, session.Tag, announced, since)
 		facts.NotesDrafted = facts.Notes != "" && facts.Session != nil && writtenSince(facts.Notes, since)
+		if releasesByPr(p) {
+			facts.ReleasePr = r.releasePrOf(ctx, dir, session.Tag)
+		}
 		return facts, nil
 	}
 	facts.OnTrunk = r.onTrunk(ctx, dir, trunkRef, session.Tag)
+	if releasesByPr(p) && !facts.OnTrunk {
+		releaseRef := "origin/" + molten.ResolvedBranches(dir).Release
+		if _, err := r.git(ctx, dir, "git", "merge-base", "--is-ancestor", session.Tag, releaseRef); err != nil {
+			facts.OffRelease = true
+		}
+	}
 	r.readGithubRelease(ctx, dir, &facts)
+	if !facts.NoGithub {
+		r.readTagWorkflows(ctx, dir, &facts)
+	}
 	return facts, nil
+}
+
+// changelogScope reads where the release's changelog sections start, in the release worktree; nil when no manual step
+// of its channel writes one, or when it cannot be read.
+func (r *Runs) changelogScope(ctx context.Context, dir string, p *molten.Pipeline, session ReleaseSession) *ReleaseChangelogScope {
+	scope := &ReleaseChangelogScope{Steps: []string{}}
+	for _, step := range channelSteps(p, session.Channel) {
+		if molten.ChangelogOfStep(step, molten.DeclaredChangelogs(p)) != "" {
+			scope.Steps = append(scope.Steps, step.Id)
+		}
+	}
+	if len(scope.Steps) == 0 {
+		return nil
+	}
+	env := release.Env{Dir: r.manualCheckDir(dir), Run: release.Runner(r.git)}
+	since, err := env.ChangelogSince(ctx, session.Tag)
+	if err != nil {
+		return nil
+	}
+	scope.Since = since
+	return scope
 }
 
 // checkFollowed refuses an action on a release other than the one followed.
@@ -376,6 +536,21 @@ func (r *Runs) checkFollowed(dir string, p *molten.Pipeline, tag string) (Releas
 	return session, nil
 }
 
+// manualStepOf tells whether a release step with this id, in either channel, is a manual one.
+func manualStepOf(p *molten.Pipeline, id string) bool {
+	if p == nil || p.Release == nil {
+		return false
+	}
+	for _, steps := range [][]molten.PipelineStep{p.Release.Rc, p.Release.Public} {
+		for _, s := range steps {
+			if s.Id == id && s.IsManual() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // RunReleaseStep runs a declared step of the release followed, or its preparation again (ReleasePreparationStepId);
 // one at a time.
 func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
@@ -384,9 +559,15 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 	}
 	dir := filepath.Clean(req.Dir)
 	project := canonicalRunDir(dir)
-	p, untrusted, err := r.trustedPipelineAt(dir, project)
-	if err != nil || untrusted != nil {
-		return RunResult{Untrusted: untrusted}, err
+	p, err := validPipelineAt(project)
+	if err != nil {
+		return RunResult{}, err
+	}
+	// A manual step runs nothing, so marking it done never waits for the commands' trust (#1091); every other step
+	// does.
+	untrusted := r.untrustedIn(dir, p)
+	if untrusted != nil && !manualStepOf(p, req.Step) {
+		return RunResult{Untrusted: untrusted}, nil
 	}
 	release, held := r.reserveAdmission(project, RunKindRelease, req.Tag)
 	if release == nil {
@@ -404,6 +585,9 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 	steps := channelSteps(p, session.Channel)
 	var rec RunRecord
 	if req.Step == ReleasePreparationStepId {
+		if untrusted != nil {
+			return RunResult{Untrusted: untrusted}, nil
+		}
 		if len(molten.ReleasePreparation(steps)) == 0 {
 			return RunResult{}, uimsg.Errorf(uimsg.Make("mission.release.noPreparation"), "the pipeline declares no preparation")
 		}
@@ -414,11 +598,22 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 		if step.Id != req.Step {
 			continue
 		}
+		if step.IsManual() {
+			unproved := r.checkManualStep(project, p, step, session)
+			if unproved != nil && !req.Force {
+				return RunResult{Unproved: unproved}, nil
+			}
+			rec, err = r.recordManualStep(dir, project, step, session, unproved)
+			return RunResult{Run: &rec}, err
+		}
+		if untrusted != nil {
+			return RunResult{Untrusted: untrusted}, nil
+		}
 		run, err := expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, project))
 		if err != nil {
 			return RunResult{}, err
 		}
-		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: step.Title, Cwd: step.Cwd, Env: step.Env, Run: run}
+		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: expandReleaseText(step.Title, session), Cwd: step.Cwd, Env: step.Env, Run: run}
 		rec, err = r.launchAt(dir, project, command, "", "", session.Tag)
 		return RunResult{Run: &rec}, err
 	}

@@ -337,7 +337,7 @@ func listedIds(t *testing.T, r mcpbrowser.CallResult) []int64 {
 
 func expectError(t *testing.T, r mcpbrowser.CallResult, want string) {
 	t.Helper()
-	if !r.IsError || text(r) != want {
+	if !r.IsError || len(r.Content) == 0 || r.Content[0].Text != want {
 		t.Fatalf("want error %q, got isError=%v %q", want, r.IsError, text(r))
 	}
 }

@@ -1,6 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: { wshRpcCall: async () => null } }));
@@ -10,6 +12,7 @@ vi.mock("@/app/store/global", () => ({
     refocusNode: () => {},
 }));
 
+import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentStateInfo } from "../agent-state-model";
 import {
     agentSection,
@@ -24,6 +27,9 @@ import { panelCapabilities } from "./panel-context";
 import { matchingProviders } from "./panel-registry";
 import { PanelAction, PanelChoice, PanelContext, PanelFeedback } from "./panel-types";
 import { AgentProvider } from "./providers/agent";
+
+// The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
+setTestMatrix();
 
 const claude: AgentStateInfo = { blockid: "b1", agent: "claude", agentname: "Claude Code", state: "idle", version: 1 };
 const codex: AgentStateInfo = { blockid: "b1", agent: "codex", agentname: "Codex", state: "idle", version: 1 };
@@ -93,14 +99,45 @@ describe("agent command tables", () => {
     it("keeps the Claude Code table's commands unique", () => {
         expect(new Set(ClaudeCommands.map((c) => c.action)).size).toBe(ClaudeCommands.length);
     });
+
+    // #990, TC-SHELL-048-1 and -3: the panel's Codex table is wavesrv's (agentcontinuity/commands.go), each slash
+    // command one of codex-cli 0.163.0's.
+    it("mirrors wavesrv's Codex table, read on codex-cli 0.163.0", () => {
+        const goSource = readFileSync(join(process.cwd(), "pkg/molten/agentcontinuity/commands.go"), "utf8");
+        const actions = new Map([...goSource.matchAll(/^\s*(Action\w+)\s*=\s*"(\w+)"/gm)].map((m) => [m[1], m[2]]));
+        const codexBlock = goSource.split("var codexCommands = []AgentCommand{")[1].split("\n}")[0];
+        const goRows = [...codexBlock.matchAll(/Action: (Action\w+), Kind: (\w+)(?:, Text: "([^"]*)")?/g)].map((m) => ({
+            action: actions.get(m[1]),
+            command: m[2] === "CommandSlash" ? m[3] : null,
+        }));
+        const panelRows = goRows.filter((r) => r.action !== "effort");
+        expect(CodexCommands.map((c) => c.action)).toEqual(panelRows.map((r) => r.action));
+        for (const row of panelRows.filter((r) => r.command != null)) {
+            expect(CodexCommands.find((c) => c.action === row.action).command).toBe(row.command);
+        }
+        const slashList = readFileSync(
+            join(process.cwd(), "pkg/molten/agentcontinuity/testdata/codex-0.163.0-slash-commands.txt"),
+            "utf8"
+        )
+            .split("\n")
+            .map((l) => l.trim())
+            .filter((l) => l !== "" && !l.startsWith("#"));
+        for (const def of CodexCommands.filter((c) => c.command.startsWith("/"))) {
+            expect(slashList).toContain(def.command);
+        }
+        expect(CodexCommands.some((c) => c.command === "/approvals")).toBe(false);
+        expect(new Set(CodexCommands.map((c) => c.action)).size).toBe(CodexCommands.length);
+        expect(new Set(CodexCommands.map((c) => c.label)).size).toBe(CodexCommands.length);
+    });
 });
 
 describe("agent provider", () => {
-    it("matches a terminal running Claude Code or Codex, not a plain shell", () => {
+    // FR-AGC-005: an agent without a command table gets the section too, saying what does not work with it.
+    it("matches a terminal running an agent, not a plain shell", () => {
         expect(matchingProviders(ctxOf(claude), [AgentProvider])).toHaveLength(1);
         expect(matchingProviders(ctxOf(codex), [AgentProvider])).toHaveLength(1);
         expect(matchingProviders(ctxOf(null), [AgentProvider])).toHaveLength(0);
-        expect(matchingProviders(ctxOf({ ...claude, agent: "gemini" }), [AgentProvider])).toHaveLength(0);
+        expect(matchingProviders(ctxOf({ ...claude, agent: "gemini" }), [AgentProvider])).toHaveLength(1);
         expect(matchingProviders(ctxOf(claude, "preview"), [AgentProvider])).toHaveLength(0);
     });
 

@@ -45,6 +45,7 @@ All via `.claude/skills/sf-tool-github-projects/github-projects-cli.sh <cmd> [ar
 | `create-ticket <story\|task\|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>]` | Create a top-level ticket on the board in Backlog, with its issue type and labels; `--bypass-srs <reason>` on SRS projects                    |
 | `create-epic <title> [body]`                                                                                       | Create a top-level Epic (no parent)                                                                                                           |
 | `create-subtask <parent> <title> [body] [--milestone <m>]`                                                         | Create a GitHub sub-issue linked to parent via GraphQL `addSubIssue`; it joins the parent's milestone unless `--milestone` names another      |
+| `unlink-subtask <parent> <child>`                                                                                  | Detach a child from its parent (REST `DELETE .../sub_issue`); the issue stays open, a child of another parent is refused                      |
 | `status <ticket>`                                                                                                  | Read status from Projects V2 board                                                                                                            |
 | `update-status <ticket> <status-name>`                                                                             | Write status on Projects V2 board (`gh project item-edit`); on `Done`, also close the issue when the board has not, and fail if it stays open |
 | `add-to-project <ticket> [--status <s>]`                                                                           | Put an issue on the board (default Backlog; one already there keeps its status)                                                               |
@@ -55,7 +56,7 @@ All via `.claude/skills/sf-tool-github-projects/github-projects-cli.sh <cmd> [ar
 | `get-parent <child>`                                                                                               | Read a ticket's native parent issue                                                                                                           |
 | `get-issue-type <ticket>`                                                                                          | Read the native organization issue type                                                                                                       |
 | `get-ticket <ticket>`                                                                                              | Print title + body (used by `detect-complexity.sh`)                                                                                           |
-| `create-pr <ticket> [--draft]`                                                                                     | Push branch + open/reuse PR against `workingBranch`; preserve existing draft state                                                            |
+| `create-pr <ticket> [--draft] [--head <branch>]`                                                                   | Push branch + open/reuse PR against `workingBranch`; preserve existing draft state                                                            |
 | `list [status]`                                                                                                    | List project items, optionally filtered by status                                                                                             |
 | `ensure-issue-types [--dry-run]`                                                                                   | Idempotently create org-level issue types from `workflow.issueTypes` in `.saasfoundry.json`                                                   |
 | `assign-type <issue> <type>`                                                                                       | Attach a native GitHub Issue Type chip (sf-epic/sf-story/sf-task/sf-issue) to the issue                                                       |
@@ -66,8 +67,18 @@ Status names are case-insensitive — the CLI matches against the options define
 `ready-pr <ticket>` verifies the pushed branch and promotes its existing draft PR; retries are idempotent. Run it yourself only on a route without Human Testing (`nature:internal`, Solo), at the end
 of AI Testing; after Human Testing, the developer marks the PR ready, never you. `draft-pr <ticket>` explicitly returns a ready PR to draft for further human testing, with the same branch/head checks.
 
+`create-pr`, `ready-pr` and `draft-pr` work on the ticket's branch. That is the current branch when it follows the ticket's `branchNaming`. A checkout on a branch the host named (a Claude Code
+`isolation: "worktree"` agent works on `worktree-agent-<id>` and pushes `git push origin HEAD:feature/<N>-<description>`) is accepted when `origin` holds the ticket's branch at the local `HEAD`
+commit: the CLI finds that branch when it is the only feature or fix branch of the ticket at `HEAD` and says which it uses, or takes it from `--head <branch>`. `--head` must follow the ticket's
+`branchNaming` (a release branch only where the command allows one). A branch missing from `origin`, pushed but behind `HEAD`, another ticket's, or one of several at `HEAD` is refused, and the message
+names `--head`. `create-pr` then pushes nothing and opens the pull request from that branch, so the linkage, the `Resolves #<ticket>` line and the guards are those of any ticket branch.
+
 A project that declares `workflow.localCi.requiredStatuses` in `.saasfoundry.json` gates review on its local CI: `create-pr` without `--draft` and `ready-pr` refuse a head commit on which any declared
 status is missing or not green, and say which. A draft still opens early. `--skip-local-ci "<reason>"` bypasses the gate explicitly and records the reason on the pull request.
+
+On a project with an SRS backend (`tools.srs.backend` in `.saasfoundry.json`), `create-ticket`, `create-subtask` and `create-epic` refuse to run (exit code `2`) unless the ticket comes from the SRS
+spawner or you pass `--bypass-srs <reason>`. The reason is echoed, not stored on the ticket, so pick a grep-able token (`meta-srs-tooling`, `bootstrap-epic-<N>`) and repeat it in the ticket body. When
+a bypass is legitimate, what it must never cover, and the record to leave for it and for `--skip-local-ci` are in [escape-hatches.md](../sf-workflow/escape-hatches.md).
 
 ## How the orchestration skill uses this CLI
 

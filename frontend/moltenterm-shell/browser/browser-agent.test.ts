@@ -28,16 +28,28 @@ describe("control bar", () => {
         const view = controlBarView(tab());
         expect(view.title).toBe("Claude Code is controlling this tab");
         expect(view.detail).toBe("Opened this tab");
-        expect(view.buttons).toEqual([{ label: "Stop", action: "stop", primary: false }]);
+        expect(view.buttons).toEqual([
+            { label: "Take over", action: "takeover", primary: false },
+            { label: "Stop", action: "stop", primary: false },
+        ]);
         expect(view.takenOver).toBe(false);
     });
 
-    it("says the user took over, with Give back first and Stop still there", () => {
+    it("says the user took over, with Give back to the agent first and Stop still there", () => {
         const view = controlBarView(tab({ state: "takenover" }));
         expect(view.title).toBe("You took over");
         expect(view.detail).toContain("Claude Code");
-        expect(view.buttons.map((b) => b.label)).toEqual(["Give back", "Stop"]);
+        expect(view.buttons.map((b) => b.label)).toEqual(["Give back to Claude Code", "Stop"]);
         expect(view.buttons[0].primary).toBe(true);
+    });
+
+    // #971: the user's click or key was held back; the bar says how to take over, with Take over first.
+    it("says how to take over after the user's input was held back", () => {
+        const view = controlBarView(tab(), true);
+        expect(view.detail).toBe("Claude Code is using this tab: Take over to use it");
+        expect(view.held).toBe(true);
+        expect(view.buttons[0]).toEqual({ label: "Take over", action: "takeover", primary: true });
+        expect(controlBarView(tab({ state: "takenover" }), true).detail).toContain("give the tab back");
     });
 
     it("shows nothing for a tab no agent controls", () => {

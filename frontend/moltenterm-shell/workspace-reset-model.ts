@@ -6,6 +6,8 @@
 // what the rail and the editor offer.
 
 import { t } from "./i18n/i18n";
+import type { ToastInput } from "./toast-model";
+import { workspaceShownName } from "./workspace-default-name";
 
 // English, for Wave's workspace editor until it routes the text through a key; MoltenTerm code calls
 // lastWorkspaceReason().
@@ -21,8 +23,42 @@ export function canCloseWorkspace(entries: { id: string }[], workspaceId: string
     return (entries ?? []).some((e) => e?.id && e.id !== workspaceId);
 }
 
-// What the reset confirmation says is lost.
+export type WorkspaceActionKind = "reset" | "delete";
+
+// One toast at a time: a new reset or delete replaces the offer before it, as wavesrv does.
+export const WorkspaceUndoToastId = "workspace-undo";
+
+export function workspaceDialogKeys(kind: WorkspaceActionKind): { title: string; button: string; stops: string } {
+    if (kind === "delete") {
+        return { title: "workspace.delete.title", button: "workspace.delete.button", stops: "workspace.delete.stops" };
+    }
+    return { title: "workspace.reset.title", button: "workspace.reset.button", stops: "workspace.reset.stops" };
+}
+
+// The toast after a reset or a delete (FR-SHELL-095): Undo for the time wavesrv still keeps the snapshot.
+export function workspaceUndoToast(offer: WorkspaceUndoOffer, onUndo: () => void | Promise<void>): ToastInput {
+    const name = workspaceShownName(offer.name, t) || t("workspace.reset.unsaved");
+    return {
+        id: WorkspaceUndoToastId,
+        kind: "info",
+        title: t(offer.kind === "delete" ? "workspace.reset.toastDeleted" : "workspace.reset.toastReset", { name }),
+        dismissMs: Math.max(1000, offer.remainingms),
+        actions: [{ id: "undo", label: t("workspace.reset.undo"), run: onUndo }],
+    };
+}
+
+// What the reset or delete confirmation says is lost.
 export function resetLossText(tabCount: number, paneCount: number): string {
+    // One view reads "its view", not "its 1 view and their panels".
+    if (tabCount === 1) {
+        if (paneCount === 0) {
+            return t("workspace.reset.lossOneTab");
+        }
+        const panes = t(paneCount === 1 ? "workspace.reset.panes.one" : "workspace.reset.panes.other", {
+            count: paneCount,
+        });
+        return t("workspace.reset.lossOneTabPanes", { panes });
+    }
     const tabs = t(tabCount === 1 ? "workspace.reset.tabs.one" : "workspace.reset.tabs.other", { count: tabCount });
     if (paneCount === 0) {
         return t("workspace.reset.lossTabs", { tabs });

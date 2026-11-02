@@ -6,7 +6,10 @@
    It is extracted as is into the shared UI kit later (suite-language.md, "Extraction plan").
 
    An app maps the --df-* slots on its own :root: the accent (--df-accent, --df-accent-fg), the neutrals and, if it
-   wants, the type sizes and durations. The defaults below are Notulia's dark values, declared under :where() so any
+   wants, the type sizes and durations. --df-accent-ink, unset by default, is the accent where it is drawn as a line
+   or text on the page (a radio, "Selected", a chosen toggle) rather than as a fill: an app whose accent is too light
+   to read as text on its page sets it (MoltenTerm's light theme, #1341). It is read with the accent as fallback and
+   never given a default here, so a subtree that sets --df-accent alone still recolours it. The defaults below are Notulia's dark values, declared under :where() so any
    app rule wins whatever the import order. The dimensions are Notulia's (SettingsFieldset, OptionRow, .glow-ring). */
 
 /* Tailwind's layer order, declared again so the kit's components sit above any base reset and below utilities,
@@ -170,11 +173,34 @@
         margin-top: var(--df-block-gap);
         padding: var(--df-block-pad);
         padding-top: var(--df-block-pad-top);
-        border: 1px solid var(--df-line);
+        border: 1px solid transparent;
         border-radius: var(--df-radius-lg);
-        background: var(--df-surface);
         color: var(--df-text);
         font-family: var(--df-font);
+        isolation: isolate;
+    }
+
+    /* The block's fill and outline, with the pockets cut out (#1615): a pocket is a notch outside the block, so the
+       background the block sits on shows around the chip. SectionBlock measures each pocket's width into
+       --df-notch-top and --df-notch-bottom; unmeasured, a notch is empty and the fill is whole. */
+    .df-block::before {
+        --df-notch-height: calc(var(--df-pocket-height) / 2 + 1px);
+        --df-notch-inset: calc(var(--df-pocket-left) + 1px);
+        content: "";
+        position: absolute;
+        inset: -1px;
+        z-index: -1;
+        border: 1px solid var(--df-line);
+        border-radius: inherit;
+        background: var(--df-surface);
+        pointer-events: none;
+        mask:
+            linear-gradient(#000 0 0) var(--df-notch-inset) 0 / var(--df-notch-top, 0px) var(--df-notch-height)
+                no-repeat,
+            linear-gradient(#000 0 0) right var(--df-notch-inset) bottom 0 / var(--df-notch-bottom, 0px)
+                var(--df-notch-height) no-repeat,
+            linear-gradient(#000 0 0);
+        mask-composite: exclude;
     }
 
     .df-block[data-untitled] {
@@ -188,6 +214,7 @@
     .df-block[data-tone="danger"] {
         --df-accent: var(--df-danger);
         --df-accent-fg: var(--df-danger-fg);
+        --df-accent-ink: var(--df-danger);
     }
 
     .df-block-body {
@@ -223,7 +250,6 @@
         border: 1px solid var(--df-line);
         border-top: 0;
         border-radius: 0 0 var(--df-radius-md) var(--df-radius-md);
-        background: var(--df-surface);
     }
 
     .df-pocket-bottom {
@@ -254,8 +280,15 @@
         padding: 0 var(--df-chip-pad);
         border: 1px solid color-mix(in srgb, var(--df-accent) 60%, transparent);
         border-radius: var(--df-radius-md);
-        background: linear-gradient(to bottom, var(--df-accent), color-mix(in srgb, var(--df-accent) 85%, transparent));
-        box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--df-accent) 40%, transparent);
+        /* Solid, never see-through (#1548): the gradient's end is mixed with the surface, not with transparency, and
+           the surface is laid under it, so neither the page above the block's line nor the line itself shows through
+           the chip, as in Notulia's blocks. */
+        background:
+            linear-gradient(to bottom, var(--df-accent), color-mix(in srgb, var(--df-accent) 85%, var(--df-surface))),
+            var(--df-surface);
+        /* Below the chip only (#1591): the blur never reaches above it, so the chip cuts the block's outline like a
+           fieldset legend and only the page shows around its top half. */
+        box-shadow: 0 5px 8px -5px color-mix(in srgb, var(--df-accent) 40%, transparent);
         color: var(--df-accent-fg);
         font-size: var(--df-text-chip);
         font-weight: var(--df-weight-semibold);
@@ -293,9 +326,12 @@
         height: var(--df-tile-size);
         border-radius: var(--df-radius-lg);
         background: linear-gradient(to bottom right, var(--df-accent), color-mix(in srgb, var(--df-accent) 75%, black));
+        /* The ring cuts the outline in the page's colour; an app whose blocks sit on several backgrounds sets
+           --df-tile-ring to an empty shadow (0 0 0 0 transparent), since a ring of one colour shows as a lighter frame above the outline (#1591). The
+           drop shadow stays below the tile. */
         box-shadow:
-            0 0 0 2px var(--df-page),
-            0 4px 10px -2px color-mix(in srgb, var(--df-accent) 25%, transparent);
+            var(--df-tile-ring, 0 0 0 2px var(--df-page)),
+            0 6px 8px -6px color-mix(in srgb, var(--df-accent) 25%, transparent);
         color: var(--df-tile-fg);
         font-size: var(--df-text-tile-icon);
     }
@@ -395,12 +431,12 @@
         width: var(--df-radio-dot);
         height: var(--df-radio-dot);
         border-radius: 9999px;
-        background: var(--df-accent);
+        background: var(--df-accent-ink, var(--df-accent));
         transform: scale(0);
     }
 
     .df-option-row[data-selected] .df-radio {
-        border-color: var(--df-accent);
+        border-color: var(--df-accent-ink, var(--df-accent));
     }
 
     .df-option-row[data-selected] .df-radio::after {
@@ -440,7 +476,7 @@
         flex-shrink: 0;
         font-size: var(--df-text-meta);
         font-weight: var(--df-weight-medium);
-        color: var(--df-accent);
+        color: var(--df-accent-ink, var(--df-accent));
     }
 
     /* ── Toggle group ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -477,9 +513,9 @@
     }
 
     .df-toggle[aria-checked="true"] {
-        border-color: var(--df-accent);
+        border-color: var(--df-accent-ink, var(--df-accent));
         background: color-mix(in srgb, var(--df-accent) 7%, transparent);
-        color: color-mix(in srgb, var(--df-accent) 70%, var(--df-text));
+        color: color-mix(in srgb, var(--df-accent-ink, var(--df-accent)) 70%, var(--df-text));
     }
 
     .df-toggle:focus-visible {
@@ -515,7 +551,7 @@
    .dominos and .domino-loader rules (src/index.css), a port of LoaderPiece.vue from the DiamondForge design system;
    keep the geometry, the 1 s cycle and the delays in step between the apps. .df-dominos is the large chain of a
    loading state, in the accent; .df-domino-loader is scaled down to sit in a button or a line of text, in the text
-   colour. Under reduced motion the bars stand upright, still. Markup: DominoLoader (suite.tsx), 8 empty <span>s. */
+   colour. Under reduced motion the bars hold a still frame of the fall. Markup: DominoLoader (suite.tsx), 8 empty <span>s. */
 @layer components {
     .df-dominos {
         position: relative;
@@ -565,6 +601,12 @@
     .df-dominos > span:nth-child(8) {
         left: 80px;
         animation-delay: 0.125s;
+    }
+
+    /* The card size: the accent chain at half size, for a card, a row or a section that waits (#1714). zoom, unlike a
+       transform, gives the layout the drawn size, and the chain keeps its motion and its still pose. */
+    .df-dominos.df-dominos-card {
+        zoom: 0.5;
     }
 
     .df-domino-loader {
@@ -629,15 +671,69 @@
         }
     }
 
+    /* The still pose: a frame of the fall, the bars leaning from lying to upright, left to right. Without it every bar
+       lies at its 0° rest and the 8 bars overlap into one flat line, which reads as a dash ("no state", #1073). */
+    .df-dominos > span:nth-child(2),
+    .df-domino-loader > span:nth-child(2) {
+        --df-domino-still: 13deg;
+    }
+    .df-dominos > span:nth-child(3),
+    .df-domino-loader > span:nth-child(3) {
+        --df-domino-still: 26deg;
+    }
+    .df-dominos > span:nth-child(4),
+    .df-domino-loader > span:nth-child(4) {
+        --df-domino-still: 39deg;
+    }
+    .df-dominos > span:nth-child(5),
+    .df-domino-loader > span:nth-child(5) {
+        --df-domino-still: 51deg;
+    }
+    .df-dominos > span:nth-child(6),
+    .df-domino-loader > span:nth-child(6) {
+        --df-domino-still: 64deg;
+    }
+    .df-dominos > span:nth-child(7),
+    .df-domino-loader > span:nth-child(7) {
+        --df-domino-still: 77deg;
+    }
+    .df-dominos > span:nth-child(8),
+    .df-domino-loader > span:nth-child(8) {
+        --df-domino-still: 90deg;
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .df-dominos > span,
         .df-domino-loader > span {
             animation: none;
+            transform: rotate(var(--df-domino-still, 0deg));
         }
     }
 
     .df-reduced-motion .df-dominos > span,
     .df-reduced-motion .df-domino-loader > span {
         animation: none !important;
+        transform: rotate(var(--df-domino-still, 0deg));
+    }
+
+    /* The loading state (#1070): the large chain and what loads, centred in the room the content will take. */
+    .df-loading-state {
+        display: flex;
+        flex: 1 1 auto;
+        min-height: 0;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 24px;
+        text-align: center;
+    }
+
+    .df-loading-caption {
+        max-width: 360px;
+        margin: 0;
+        font-size: var(--df-text-desc);
+        line-height: 18px;
+        color: var(--df-text-muted);
     }
 }

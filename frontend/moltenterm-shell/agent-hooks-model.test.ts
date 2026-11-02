@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { AgentHookOffer, dismissedWith, hookOfferQueryKey, visibleHookOffer } from "./agent-hooks-model";
+import { AgentHookOffer, dismissedWith, hookOfferQueryKey, hookOfferTexts, visibleHookOffer } from "./agent-hooks-model";
 import { AgentStateInfo } from "./agent-state-model";
+import { translate } from "./i18n/i18n-core";
 
 const claude: AgentStateInfo = { blockid: "b1", agent: "claude", agentname: "Claude Code", state: "idle", version: 3 };
 const offer: AgentHookOffer = {
@@ -42,6 +43,20 @@ describe("hook setup offer", () => {
         expect(hookOfferQueryKey({ ...claude, agent: "codex" })).toBe("codex");
         expect(hookOfferQueryKey({ ...claude, hooked: true })).toBe("");
         expect(hookOfferQueryKey(null)).toBe("");
+    });
+
+    it("words the offer in the interface language for Claude Code and Codex (#988)", () => {
+        const codex: AgentHookOffer = { ...offer, agent: "codex", brings: "english", also: "english too" };
+        for (const locale of ["en", "fr"]) {
+            const texts = hookOfferTexts(codex, (key) => translate(locale, key));
+            expect(texts.brings).not.toBe(texts.also);
+            expect(texts.brings).not.toContain("agent.hooks");
+            expect(texts.also).toContain(".codex/hooks.json");
+            expect(texts.also).toContain("/hooks");
+        }
+        expect(hookOfferTexts(codex, (key) => translate("fr", key)).brings).toContain("terminé");
+        expect(hookOfferTexts({ ...offer, brings: "theirs" }, (key) => translate("fr", key)).also).toContain(".claude/settings.json");
+        expect(hookOfferTexts({ ...offer, agent: "gemini", brings: "b", also: "a" }, (key) => key)).toEqual({ brings: "b", also: "a" });
     });
 
     it("remembers each dismissed agent once", () => {

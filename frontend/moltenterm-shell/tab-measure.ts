@@ -58,8 +58,8 @@ function closeRoom(inner: HTMLElement): number {
     return Math.max(0, room);
 }
 
-// A flex row's content width: its padding, gaps and children, the name as text and the body (which stretches to the
-// tab) by its own children.
+// A flex row's content width: its padding, gaps and children, the name and the agent's first name as text (both may be
+// ellipsized), the body (which stretches to the tab) and the agent's row by their own children.
 function rowWidth(row: HTMLElement): number {
     const style = getComputedStyle(row);
     const gap = px(style.columnGap);
@@ -71,12 +71,12 @@ function rowWidth(row: HTMLElement): number {
             continue;
         }
         count++;
-        if (child.classList.contains("name")) {
+        if (child.classList.contains("name") || child.classList.contains("molten-tab-agent-name")) {
             width +=
                 textWidth(child.textContent ?? "", childStyle.font) +
                 px(childStyle.paddingLeft) +
                 px(childStyle.paddingRight);
-        } else if (child.classList.contains("molten-tab-body")) {
+        } else if (child.classList.contains("molten-tab-body") || child.classList.contains("molten-tab-agent")) {
             width += rowWidth(child);
         } else {
             width += child.getBoundingClientRect().width;

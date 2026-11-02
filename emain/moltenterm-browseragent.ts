@@ -4,9 +4,9 @@
 // emain's side of the agents in the browser panel (FR-BRW-008, DS-BRW-010/011/012). It keeps a registry of the panel
 // tabs' webviews, fed by the panels themselves (the existing lookup by block id only finds a panel's first webview),
 // runs the allow-listed DevTools methods wavesrv sends through webContents.debugger, and watches a controlled tab for
-// the user's own clicks and keys, which take over from the agent. For FR-BRW-010 it also tells the agent's own input
-// from the user's by sequence, holds back the downloads of controlled tabs until the user answers, and clears the
-// emulated viewport when control ends.
+// the user's own clicks and keys, which it holds back while the agent drives (#971: taking over is explicit). For
+// FR-BRW-010 it also tells the agent's own input from the user's by sequence, holds back the downloads of controlled
+// tabs until the user answers, and clears the emulated viewport when control ends.
 
 import { nativeImage, type WebContents } from "electron";
 import { onAppIpc, onGuestIpc } from "./moltenterm-privileged-ipc";
@@ -57,8 +57,16 @@ import {
 
 // Sent by frontend/moltenterm-shell/browser/browser-view.tsx when a tab's webview is ready.
 export const WebviewRegisteredChannel = "moltenterm-webview-registered";
-// Sent by a panel page's preload (emain/preload-webview.ts) on the user's trusted mousedown or keydown.
+// Asked synchronously by a panel page's preload (emain/preload-webview.ts) on each trusted press or key down (#971).
 export const WebviewInputChannel = "moltenterm-webview-input";
+// Sent to the window around an agent's mouse press (#971): the press would move the window's keyboard focus into the
+// page, and the user's next key, typed for the terminal, would land in the page and take over.
+export const AgentPressChannel = "moltenterm-agent-press";
+// How long after the press the window still gives back a focus the page takes: the focus event follows the press.
+const AgentPressSettleMs = 150;
+// Sent to the window when the user's click or key in a page an agent drives was held back (#971): the panel shows how
+// to take over.
+export const UserInputHeldChannel = "moltenterm-agent-input-held";
 
 // must match emainTokenLabel in pkg/molten/browseragent/waveenv.go: wavesrv proves it sent a command with a token
 // derived from the auth key emain gave it, since any route can address emain.
@@ -70,7 +78,6 @@ const RegistrationPollMs = 50;
 
 export type CdpCallData = { blockid: string; browsertabid: string; method: string; params?: any; token: string };
 export type ControlData = { blockid: string; browsertabid: string; controlled: boolean; token: string };
-export type TakeoverReport = (blockId: string, browserTabId: string) => void;
 // Asks wavesrv whether a download a controlled tab started may go on; resolves to the user's answer.
 export type DownloadAsk = (blockId: string, browserTabId: string, host: string) => Promise<boolean>;
 
@@ -78,8 +85,6 @@ type Registration = { blockId: string; browserTabId: string; webContentsId: numb
 
 const registry = new Map<string, Registration>();
 const controlled = new Set<string>();
-// Tabs the user took over: refused here at once, before wavesrv hears of it, until control is granted again.
-const paused = new Set<string>();
 const watchers = new Map<number, () => void>();
 const synthetic = new SyntheticInputLedger();
 // The classification of one native input event, shared by every listener that sees the same event object.
@@ -94,7 +99,6 @@ const pendingDownloads = new Set<number>();
 // A mouse button the agent holds down (a drag in progress), released when control ends.
 const heldButtons = new Map<number, { x: number; y: number; button: string }>();
 const DownloadAllowanceMs = 30000;
-let reportTakeover: TakeoverReport = () => {};
 let askDownload: DownloadAsk = async () => false;
 // Told when a tab comes under an agent's control (emain/moltenterm-webview-lifecycle.ts thaws a frozen page).
 const controlListeners: ((webContentsId: number) => void)[] = [];
@@ -124,30 +128,33 @@ function liveContents(id: number): WebContents {
     return liveWebContentsFromId(id);
 }
 
-function noteUserInput(reg: Registration): void {
-    const key = webviewKey(reg.blockId, reg.browserTabId);
-    if (paused.has(key)) {
+// The user's click or key in a page an agent drives is held back (#971, FR-BRW-008): taking a tab over is a deliberate
+// act (Take over in the tab's bar), never a side effect of a click. The panel says how to take over.
+function noteUserInput(wc: WebContents): void {
+    const host = wc.isDestroyed() ? null : wc.hostWebContents;
+    if (host == null || host.isDestroyed()) {
         return;
     }
-    paused.add(key);
-    reportTakeover(reg.blockId, reg.browserTabId);
+    host.send(UserInputHeldChannel, wc.id);
 }
 
 function startWatching(reg: Registration, wc: WebContents): void {
     if (watchers.has(wc.id)) {
         return;
     }
-    const onKey = (_e: Electron.Event, input: Electron.Input) => {
+    const onKey = (e: Electron.Event, input: Electron.Input) => {
         if (isTakeoverKey(input) && !isAgentInput(wc.id, input)) {
-            noteUserInput(reg);
+            e.preventDefault();
+            noteUserInput(wc);
         }
     };
-    const onMouse = (_e: Electron.Event, mouse: Electron.MouseInputEvent) => {
+    const onMouse = (e: Electron.Event, mouse: Electron.MouseInputEvent) => {
         if (!isTakeoverMouse(mouse)) {
             return;
         }
         if (!synthetic.claim(wc.id, "native", nativeMouseSignature(mouse), Date.now(), wc.getZoomFactor())) {
-            noteUserInput(reg);
+            e.preventDefault();
+            noteUserInput(wc);
         }
     };
     wc.on("before-input-event", onKey);
@@ -234,7 +241,7 @@ function hookDownloads(wc: WebContents): void {
             return;
         }
         const key = webviewKey(reg.blockId, reg.browserTabId);
-        if (!controlled.has(key) || paused.has(key)) {
+        if (!controlled.has(key)) {
             return;
         }
         const url = item.getURL();
@@ -340,7 +347,6 @@ export function setBrowserAgentControl(data: ControlData): void {
         return;
     }
     const key = webviewKey(data.blockid, data.browsertabid);
-    paused.delete(key);
     if (data.controlled) {
         controlled.add(key);
     } else {
@@ -380,9 +386,6 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
     if (!controlled.has(key)) {
         throw new Error("This tab is not under agent control");
     }
-    if (paused.has(key)) {
-        throw new Error("The user has taken over");
-    }
     const wc = await registeredContents(key);
     if (wc == null) {
         throw new Error("The tab's page is not loaded: show its MoltenTerm tab");
@@ -390,9 +393,6 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
     // The wait may have outlived the agent's control of the tab.
     if (!controlled.has(key)) {
         throw new Error("This tab is not under agent control");
-    }
-    if (paused.has(key)) {
-        throw new Error("The user has taken over");
     }
     if (operation) {
         return runOperation(wc, data.method, data.params);
@@ -417,7 +417,18 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
             throw new Error("bad viewport size");
         }
     }
-    const result = await wc.debugger.sendCommand(data.method, params);
+    const pressing = data.method === "Input.dispatchMouseEvent" && params.type === "mousePressed";
+    if (pressing) {
+        notePress(wc, true);
+    }
+    let result: any;
+    try {
+        result = await wc.debugger.sendCommand(data.method, params);
+    } finally {
+        if (pressing) {
+            setTimeout(() => notePress(wc, false), AgentPressSettleMs);
+        }
+    }
     if (data.method === "Emulation.setDeviceMetricsOverride") {
         emulated.set(wc.id, { width: params.width, height: params.height });
     } else if (data.method === "Input.dispatchMouseEvent") {
@@ -436,12 +447,24 @@ function noteHeldButton(wcId: number, params: any): void {
     }
 }
 
+// The window keeps its keyboard focus where the user left it while the agent clicks (#971).
+function notePress(wc: WebContents, pressing: boolean): void {
+    const host = wc.isDestroyed() ? null : wc.hostWebContents;
+    if (host == null || host.isDestroyed()) {
+        return;
+    }
+    host.send(AgentPressChannel, wc.id, pressing);
+}
+
 function attachDebugger(wc: WebContents): void {
     if (wc.isDevToolsOpened()) {
         throw new Error("Close DevTools on this tab to let the agent use it");
     }
     if (!wc.debugger.isAttached()) {
         wc.debugger.attach(CdpProtocolVersion);
+        // The page acts as focused although the window's focus stays with the user (#971): menus and fields the agent
+        // opens do not close on a blur.
+        wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
     }
 }
 
@@ -789,23 +812,30 @@ export function hostsBrowserPage(hostWebContentsId: number): boolean {
     return false;
 }
 
-// The preload sees input in the page's main frame, the agent's included, and reports what it was; before-input-event
-// and before-mouse-event also catch native input the page's frames get. The agent's own input is claimed by sequence.
+// The preload asks, synchronously, whether a press or key down in the page's main frame may reach the page
+// (emain/moltenterm-webview-input-gate.ts): yes for a page under no agent's control and for the agent's own input,
+// claimed by sequence; the user's is held back (#971). before-input-event and before-mouse-event also hold back native
+// input the page's frames get.
 function pageInput(event: Electron.IpcMainEvent, report: unknown): void {
+    event.returnValue = pageInputAllowed(event.sender, report);
+}
+
+function pageInputAllowed(sender: WebContents, report: unknown): boolean {
     for (const [key, reg] of registry) {
-        if (reg.webContentsId !== event.sender.id || !controlled.has(key)) {
+        if (reg.webContentsId !== sender.id || !controlled.has(key)) {
             continue;
         }
         const signature = pageSignature(report);
-        if (signature == null || !synthetic.claim(event.sender.id, "page", signature, Date.now())) {
-            noteUserInput(reg);
+        if (signature != null && synthetic.claim(sender.id, "page", signature, Date.now())) {
+            return true;
         }
-        return;
+        noteUserInput(sender);
+        return false;
     }
+    return true;
 }
 
-export function initMoltentermBrowserAgent(report: TakeoverReport, ask: DownloadAsk): void {
-    reportTakeover = report;
+export function initMoltentermBrowserAgent(ask: DownloadAsk): void {
     askDownload = ask;
     onAppIpc(WebviewRegisteredChannel, register);
     onGuestIpc(WebviewInputChannel, pageInput);

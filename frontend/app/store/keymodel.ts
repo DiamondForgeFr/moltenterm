@@ -5,8 +5,6 @@ import { WaveAIModel } from "@/app/aipanel/waveai-model";
 import { FocusManager } from "@/app/store/focusManager";
 import {
     atoms,
-    createBlock,
-    createTab,
     getAllBlockComponentModels,
     getApi,
     getBlockComponentModel,
@@ -23,14 +21,32 @@ import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
 import * as keyutil from "@/util/keyutil";
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
-import { isWindows } from "@/util/platformutil";
+import { isMacOS, isWindows } from "@/util/platformutil"; // MOLTENTERM-PATCH (#1722): isMacOS
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { registerBrowserHistoryKeys, windowHistoryKey } from "../../moltenterm-shell/browser/browser-history-window"; // MOLTENTERM-PATCH (#1744)
+import { blockIdOfPage, browserPageKeys, routeBrowserPageKey } from "../../moltenterm-shell/browser/browser-keys"; // MOLTENTERM-PATCH (#1722, #1742)
 import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
+import { openNewPanel } from "../../moltenterm-shell/newpanel/new-panel"; // MOLTENTERM-PATCH (#1241)
+import { placementFallbackBlockId, runWithKeyOrigin } from "../../moltenterm-shell/newpanel/new-panel-focus"; // MOLTENTERM-PATCH (#1742, #1759)
+import { installPointerTracker } from "../../moltenterm-shell/newpanel/pointer-tracker"; // MOLTENTERM-PATCH (#1241)
+import { openNewView, registerNewViewKeys } from "../../moltenterm-shell/newview/new-view"; // MOLTENTERM-PATCH (#1232)
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
+import { stepFind } from "../../moltenterm-shell/shortcuts/find-step"; // MOLTENTERM-PATCH (#1759)
+import { stepPanel } from "../../moltenterm-shell/shortcuts/panel-step"; // MOLTENTERM-PATCH (#1759)
+import { registerWindowKeys } from "../../moltenterm-shell/shortcuts/window-keys"; // MOLTENTERM-PATCH (#1759)
+import { keyboardFocusInTerminalOrEditor } from "../../moltenterm-shell/shortcuts/window-keys-focus"; // MOLTENTERM-PATCH (#1759)
+import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys"; // MOLTENTERM-PATCH (#1183)
+import { openTopFieldFromKey, registerTopFieldKeys } from "../../moltenterm-shell/sidebar/top-field-store"; // MOLTENTERM-PATCH (#1187, #1759)
+import {
+    announceClosedViews,
+    ClosedKindCleared,
+    ClosedKindView,
+    pinnedViewKeepsTab,
+} from "../../moltenterm-shell/sidebar/view-pins-store"; // MOLTENTERM-PATCH (#1185, #1345)
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { enterSplitPlacementFocused } from "../../moltenterm-shell/split/split-place"; // MOLTENTERM-PATCH (#677)
 import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
@@ -142,10 +158,22 @@ function simpleCloseStaticTab() {
     const confirmClose = globalStore.get(getSettingsKeyAtom("tab:confirmclose")) ?? false;
     // MOLTENTERM-PATCH (#134, #489): a tab holding terminals linked to worktrees, or in which something runs, asks once
     // for all of them
-    closeTabAskingFirst(getApi().closeTab, workspaceId, tabId, confirmClose)
+    // MOLTENTERM-PATCH (#1760): a pinned view closes in every project of the workspace: the toast counts the views
+    let closedCount = 1;
+    closeTabAskingFirst(getApi().closeTab, workspaceId, tabId, confirmClose, {
+        closed: (count) => {
+            closedCount = count;
+        },
+    })
         .then((didClose) => {
             if (didClose) {
                 deleteLayoutModelForTab(tabId);
+                // MOLTENTERM-PATCH (#1345): the view now on screen says so with Undo, so Cmd+Z after Cmd+W reopens it
+                return announceClosedViews(
+                    workspaceId,
+                    closedCount,
+                    closedCount > 1 ? ClosedKindCleared : ClosedKindView
+                );
             }
         })
         .catch((e) => {
@@ -177,7 +205,8 @@ function uxCloseBlock(blockId: string) {
 
     // If this is the last block, closing it will close the tab — route through simpleCloseStaticTab
     // so the tab:confirmclose setting is respected.
-    if (getStaticTabBlockCount() === 1) {
+    // MOLTENTERM-PATCH (#1185): a pinned view keeps its tab, empty (FR-SHELL-081)
+    if (getStaticTabBlockCount() === 1 && !pinnedViewKeepsTab(globalStore.get(atoms.staticTabId))) {
         simpleCloseStaticTab();
         return;
     }
@@ -185,6 +214,7 @@ function uxCloseBlock(blockId: string) {
     const layoutModel = getLayoutModelForStaticTab();
     const node = layoutModel.getNodeByBlockId(blockId);
     if (node) {
+        layoutModel.moltenView360?.planClose(blockId); // MOLTENTERM-PATCH (#1415): the neighbour tab takes the freed place
         // MOLTENTERM-PATCH (#512): wavesrv keeps the pane before it goes, for Cmd+Shift+T
         fireAndForget(async () => {
             await recordPaneClose(blockId);
@@ -232,7 +262,8 @@ function genericClose() {
 
     // If this is the last block, closing it will close the tab — route through simpleCloseStaticTab
     // so the tab:confirmclose setting is respected.
-    if (blockCount === 1) {
+    // MOLTENTERM-PATCH (#1185): a pinned view keeps its tab, empty (FR-SHELL-081)
+    if (blockCount === 1 && !pinnedViewKeepsTab(globalStore.get(atoms.staticTabId))) {
         simpleCloseStaticTab();
         return;
     }
@@ -244,6 +275,7 @@ function genericClose() {
     const blockData = blockAtom ? globalStore.get(blockAtom) : null;
     const isAIFileDiff = blockData?.meta?.view === "aifilediff";
 
+    layoutModel.moltenView360?.planClose(blockId); // MOLTENTERM-PATCH (#1415): the neighbour tab takes the freed place
     // MOLTENTERM-PATCH (#512): wavesrv keeps the pane before it goes, for Cmd+Shift+T
     fireAndForget(async () => {
         await recordPaneClose(blockId);
@@ -402,9 +434,11 @@ function getDefaultNewBlockDef(): BlockDef {
     return termBlockDef;
 }
 
-async function handleCmdN() {
-    const blockDef = getDefaultNewBlockDef();
-    await createBlock(blockDef);
+// MOLTENTERM-PATCH (#1241, #1742): a new panel beside the panel under the pointer, its chooser selecting the type of
+// the focused panel, its row evened out (FR-SHELL-086, frontend/moltenterm-shell/newpanel/); Terminal set to open
+// directly gives what Wave's Cmd+N gave. Cmd+T since #1742: Cmd+N is the new view.
+async function handleCmdT() {
+    await openNewPanel(getDefaultNewBlockDef);
 }
 
 // MOLTENTERM-PATCH (#370): a split opens the content picker in the new panel (FR-SHELL-042,
@@ -495,8 +529,15 @@ function registerControlShiftStateUpdateHandler() {
 }
 
 function registerElectronReinjectKeyHandler() {
-    getApi().onReinjectKey((event: WaveKeyboardEvent) => {
-        appHandleKeyDown(event);
+    getApi().onReinjectKey((event: WaveKeyboardEvent, guestId?: number) => {
+        // MOLTENTERM-PATCH (#1722): a key held back from a page goes to the browser panel holding that page first, even
+        // when the layout's focused panel is another one
+        const pages = document.querySelectorAll("webview") as any;
+        if (routeBrowserPageKey(event, guestId, pages, (id) => getBlockComponentModel(id)?.viewModel as any)) {
+            return;
+        }
+        // MOLTENTERM-PATCH (#1742): Cmd+T pressed in a page counts as pressed in the panel holding that page
+        runWithKeyOrigin(blockIdOfPage(guestId, pages), () => appHandleKeyDown(event));
     });
 }
 
@@ -517,8 +558,22 @@ function countTermBlocks(): number {
     return count;
 }
 
+// MOLTENTERM-PATCH (#1759): the focused panel's find bar, open, goes to its next or previous match (FR-SHELL-139 AC10);
+// false when it is closed or the panel has none
+function stepFindInFocusedPanel(direction: 1 | -1): boolean {
+    const searchAtoms = getBlockComponentModel(placementFallbackBlockId())?.viewModel?.searchAtoms;
+    if (searchAtoms == null) {
+        return false;
+    }
+    return stepFind(searchAtoms.isOpen, globalStore.get(searchAtoms.isOpen), direction);
+}
+
 function registerGlobalKeys() {
     globalKeyMap.set("Cmd:]", () => {
+        // MOLTENTERM-PATCH (#1744): back and forward are the page's while the focus is in a browser panel (FR-SHELL-139)
+        if (windowHistoryKey(1)) {
+            return true;
+        }
         switchTab(1);
         return true;
     });
@@ -527,6 +582,9 @@ function registerGlobalKeys() {
         return true;
     });
     globalKeyMap.set("Cmd:[", () => {
+        if (windowHistoryKey(-1)) {
+            return true; // MOLTENTERM-PATCH (#1744)
+        }
         switchTab(-1);
         return true;
     });
@@ -534,8 +592,10 @@ function registerGlobalKeys() {
         switchTab(-1);
         return true;
     });
+    installPointerTracker(); // MOLTENTERM-PATCH (#1241)
+    // MOLTENTERM-PATCH (#1742): a new view starts with the chooser, or the type chosen to open directly (FR-SHELL-089)
     globalKeyMap.set("Cmd:n", () => {
-        handleCmdN();
+        openNewView();
         return true;
     });
     globalKeyMap.set("Cmd:d", () => {
@@ -563,8 +623,9 @@ function registerGlobalKeys() {
         handleCmdI();
         return true;
     });
+    // MOLTENTERM-PATCH (#1232, #1742): a new panel, its chooser selecting the focused panel's type (FR-SHELL-086)
     globalKeyMap.set("Cmd:t", () => {
-        createTab();
+        handleCmdT();
         return true;
     });
     globalKeyMap.set("Cmd:w", () => {
@@ -691,6 +752,11 @@ function registerGlobalKeys() {
         return false;
     });
     globalKeyMap.set("Cmd:g", () => {
+        // MOLTENTERM-PATCH (#1759): ⌘G is find next while a find bar is open in the focused panel; off macOS it is Alt+G
+        // and stays the connection (Ctrl+G is find next there, window-keys.ts)
+        if (isMacOS() && stepFindInFocusedPanel(1)) {
+            return true;
+        }
         const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
         if (bcm.openSwitchConnection != null) {
             revealPanelOnCarpet(getFocusedBlockInStaticTab()); // MOLTENTERM-PATCH (#747)
@@ -803,12 +869,33 @@ function registerGlobalKeys() {
     registerCarpetKeys(globalKeyMap);
     // MOLTENTERM-PATCH (#825): equalize the tab's panel widths
     registerEqualizeKeys(globalKeyMap);
+    // MOLTENTERM-PATCH (#1183): Cmd+S hides or shows the workspace sidebar
+    registerSidebarKeys(globalKeyMap);
+    registerNewViewKeys(globalKeyMap); // MOLTENTERM-PATCH (#1232)
+    registerBrowserHistoryKeys(globalKeyMap); // MOLTENTERM-PATCH (#1744): Alt+← and Alt+→ off macOS
+    // MOLTENTERM-PATCH (#1187): Cmd+L and Cmd+K open the sidebar's top field
+    registerTopFieldKeys(globalKeyMap);
+    // MOLTENTERM-PATCH (#1759, FR-SHELL-139): off macOS the browser's Ctrl+T, N, W, Shift+W and L (not in a terminal or a
+    // code editor), F6, previous / next panel, find next / previous (frontend/moltenterm-shell/shortcuts/window-keys.ts)
+    registerWindowKeys(globalKeyMap, isMacOS(), {
+        newPanel: () => {
+            fireAndForget(handleCmdT);
+        },
+        newView: openNewView,
+        closePanel: genericClose,
+        closeView: simpleCloseStaticTab,
+        topField: openTopFieldFromKey,
+        findStep: stepFindInFocusedPanel,
+        stepPanel,
+        inTerminalOrEditor: keyboardFocusInTerminalOrEditor,
+    });
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
     allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");
     // MOLTENTERM-PATCH (#210): the browser panel reloads its page ignoring the cache; left to the app menu, a page
     // with the focus would reload the whole MoltenTerm tab instead.
     allKeys.push("Cmd:Shift:r");
+    allKeys.push(...browserPageKeys(isMacOS())); // MOLTENTERM-PATCH (#1722): reload, back, find, zoom, address, F5
     getApi().registerGlobalWebviewKeys(allKeys);
 
     const splitBlockKeys = new Map<string, KeyHandler>();

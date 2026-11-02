@@ -6,30 +6,38 @@
 // its age and a refresh button.
 
 import { atoms, createBlock } from "@/app/store/global";
+import { useTabModelMaybe } from "@/app/store/tab-model";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { DialogFrame } from "../dialog-frame";
 import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { t, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { useFolderRepositories } from "../project-repository";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
-import { pathBaseName, readWorkspaceProject } from "../workspace-project";
+import { openProjectSheet } from "../workspace-edit";
+import { pathBaseName, readWorkspaceProject, repositoryLabel } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
 import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
 import { missionGitInit, useMissionSnapshot } from "./mission-client";
-import { formatAge, MissionSnapshot, PipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
+import { formatAge, MissionSnapshot, pipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
 import { useMissionScope } from "./mission-scope";
+import { GitPanel, GitPanelNameKey, useNotRepoCarrier } from "./not-repo-carrier";
 
 export type ActiveProject = { workspace: Workspace; dir: string; facts: ProjectFacts };
 
-export function useActiveProject(): ActiveProject {
+// With a folder, that project of the workspace (Pilotage's project filter, FR-SHELL-087) instead of the current one.
+// The dir is the project's repository, which the Git features read: its folder only when it has no repository inside.
+export function useActiveProject(projectDir?: string): ActiveProject {
     const workspace = useAtomValue(atoms.workspace);
-    const dir = readWorkspaceProject(workspace).dir;
+    const dir = projectDir ?? readWorkspaceProject(workspace).repo;
     const { value: facts, setValue: setFacts } = useMissionScope<ProjectFacts>(dir, null);
     useEffect(() => {
         setFacts(null);
@@ -86,6 +94,7 @@ function openProjectTerminal(dir: string) {
 // A project without a valid pipeline still shows its history; the banner says how the user's agent connects it.
 export function PipelineBanner({ dir, report }: { dir: string; report: PipelineReport }) {
     const t = useT();
+    const matrix = useFeatureMatrix();
     const stage = pipelineStage(report);
     if (stage === "loading" || stage === "valid") {
         return null;
@@ -121,7 +130,7 @@ export function PipelineBanner({ dir, report }: { dir: string; report: PipelineR
                     <div className="mt-0.5 text-secondary">{t("mc.frame.connectBody")}</div>
                 )}
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-11 text-muted">
-                    {PipelineInvocations.map((i) => (
+                    {pipelineInvocations(matrix).map((i) => (
                         <span key={i.invocation}>
                             {i.agent}: <code className="text-secondary">{i.invocation}</code>
                         </span>
@@ -188,25 +197,41 @@ export function MissionHeader({
                     onClick={onRefresh}
                     className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
                 >
-                    <i
-                        className={cn("fa fa-solid fa-rotate text-11", snapshot?.refreshing && "fa-spin mt-step-spin")}
-                    />
+                    {snapshot?.refreshing ? (
+                        <DominoLoader className="mt-dominos-icon" />
+                    ) : (
+                        <i className="fa fa-solid fa-rotate text-11" />
+                    )}
                 </button>
             </div>
         </div>
     );
 }
 
+// The hint of the state shown in a folder that does not use git (FR-SHELL-053-AC2), for a panel that says in its own
+// terms why it needs git (FR-REV-001 AC15); without it the generic hint. The action and its confirmation are the same
+// in every panel (#1671).
+export type NotRepoText = {
+    hint: string;
+};
+
 // Renders the panel once a project is linked and readable; otherwise the state that explains why, with its fix.
+// gitPanel says which git panel this is, so a view holding several on a folder without git keeps one call to action.
 export function MissionFrame({
     title,
+    projectDir,
+    gitPanel,
+    notRepoText,
     children,
 }: {
     title: string;
+    projectDir?: string;
+    gitPanel?: GitPanel;
+    notRepoText?: NotRepoText;
     children: (props: { project: ActiveProject; snapshot: MissionSnapshot; refresh: () => void }) => React.ReactNode;
 }) {
     const t = useT();
-    const project = useActiveProject();
+    const project = useActiveProject(projectDir);
     const { snapshot, error, refresh } = useMissionSnapshot(project.dir);
     if (project.workspace == null) {
         return null;
@@ -249,6 +274,8 @@ export function MissionFrame({
                 project={project}
                 gitError={snapshot.giterror}
                 refresh={refresh}
+                gitPanel={gitPanel}
+                notRepoText={notRepoText}
             />
         );
     }
@@ -355,7 +382,7 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
         <DialogFrame
             role="molten-git-init"
             onEscape={busy ? undefined : onCancel}
-            title={t("mc.frame.gitInitTitle")}
+            title={t("mc.frame.gitInitTitle", { name: pathBaseName(dir) })}
             subtitle={dir}
             trapFocus
             buttons={
@@ -367,16 +394,17 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
                         onClick={onCancel}
                         disabled={busy}
                     >
-                        {t("common.cancel")}
+                        {t("mc.frame.notNow")}
                     </button>
                     <button
                         type="button"
-                        className="molten-btn h-row cursor-pointer rounded-6 px-3 text-12 font-medium"
+                        className="molten-btn inline-flex h-row cursor-pointer items-center rounded-6 px-3 text-12 font-medium disabled:cursor-default"
                         onClick={confirm}
                         disabled={busy}
                         aria-busy={busy}
                         data-testid="mission-git-init-confirm"
                     >
+                        {busy ? <DominoLoader className="mr-1.5" /> : null}
                         {busy ? t("mc.frame.initializing") : t("mc.frame.initGit")}
                         <MoltenWave />
                     </button>
@@ -398,29 +426,74 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
 
 // A linked folder whose history git cannot read (FR-SHELL-053-AC2): the plain reason and its fix, git's own output
 // only under Details.
-function GitProblemState({
+export function GitProblemState({
     project,
     gitError,
     refresh,
+    gitPanel,
+    notRepoText,
 }: {
     project: ActiveProject;
     gitError: string;
     refresh: () => void;
+    gitPanel?: GitPanel;
+    notRepoText?: NotRepoText;
 }) {
     const t = useT();
     const [confirming, setConfirming] = useState(false);
     const [initialized, setInitialized] = useState(false);
+    const tabId = useTabModelMaybe()?.tabId;
+    const blockId = usePanelBlockId();
+    const problem = gitProblem(gitError);
+    const carrier = useNotRepoCarrier(tabId, project.dir, blockId, problem === "notrepo" ? gitPanel : null);
+    const inside = useFolderRepositories(problem === "notrepo" ? project.dir : "");
     useEffect(() => {
         setInitialized(false);
     }, [gitError]);
-    const problem = gitProblem(gitError);
+    if (problem === "notrepo" && carrier != null) {
+        return (
+            <EmptyState
+                icon="code-branch"
+                title={t("mc.frame.notRepoTitle")}
+                hint={t("mc.frame.notRepoElsewhere", { panel: t(GitPanelNameKey[carrier]) })}
+                testId="mission-not-git-pointer"
+            />
+        );
+    }
+    if (problem === "notrepo" && inside.repos?.length > 0 && !inside.self) {
+        // A folder that holds repositories is the project's context (#1777): its code repository is the next step, not
+        // a git init in the folder.
+        return (
+            <EmptyState
+                icon="code-branch"
+                title={t("mc.frame.notRepoTitle")}
+                hint={t("projectRepo.found", {
+                    repos: inside.repos.map((repo) => repositoryLabel(project.dir, repo)).join(", "),
+                })}
+                primary={{
+                    label: t("projectSheet.open"),
+                    onClick: () => openProjectSheet(undefined, undefined, project.workspace?.oid),
+                    testId: "mission-choose-repo",
+                }}
+                secondary={{
+                    label: t("mc.frame.chooseFolder"),
+                    onClick: () => linkProject(project.workspace),
+                    testId: "mission-choose-folder",
+                }}
+                testId="mission-not-git-repos"
+            >
+                <FolderGlance dir={project.dir} />
+            </EmptyState>
+        );
+    }
     if (problem === "notrepo") {
+        // A step not taken yet, not a failure: git's output stays out of it.
         return (
             <>
                 <EmptyState
                     icon="code-branch"
                     title={t("mc.frame.notRepoTitle")}
-                    hint={t("mc.frame.notRepoHint")}
+                    hint={notRepoText?.hint ?? t("mc.frame.notRepoHint")}
                     primary={{
                         label: t("mc.frame.initGitHere"),
                         busy: initialized,
@@ -433,7 +506,6 @@ function GitProblemState({
                         onClick: () => linkProject(project.workspace),
                         testId: "mission-choose-folder",
                     }}
-                    details={gitError}
                     testId="mission-not-git"
                 >
                     <FolderGlance dir={project.dir} />

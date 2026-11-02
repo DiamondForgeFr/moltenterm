@@ -9,10 +9,12 @@ import {
     BlockRows,
     DominoLoader,
     GlowRing,
+    LoadingState,
     nextToggleIndex,
     OptionList,
     OptionRow,
     SectionBlock,
+    snapToCycle,
     SuiteSignature,
     ToggleGroup,
 } from "./suite";
@@ -158,6 +160,57 @@ describe("DiamondForge suite kit (#658)", () => {
         );
     });
 
+    it("draws the loading state: the large dominoes over a caption, one busy status (#1070)", () => {
+        const html = renderToStaticMarkup(<LoadingState caption="Reading…" testId="t" />);
+        expect(html).toBe(
+            '<div class="df-loading-state" role="status" aria-live="polite" aria-busy="true" data-testid="t">' +
+                `<span class="df-dominos" aria-hidden="true">${"<span></span>".repeat(8)}</span>` +
+                '<p class="df-loading-caption">Reading…</p></div>'
+        );
+    });
+
+    it("draws the label chip solid: the surface under its gradient, never a see-through end (#1548)", () => {
+        const css = readFileSync(join(KitDir, "suite.css"), "utf8");
+        const chip = css.match(/\.df-chip \{[^}]*\}/)?.[0] ?? "";
+        expect(chip).toMatch(/background:\s*linear-gradient\([^;]*var\(--df-surface\)\)\),\s*var\(--df-surface\);/);
+        expect(chip.match(/background:[^;]*;/)?.[0]).not.toContain("transparent");
+    });
+
+    it("lets the chip and the tile cut the outline cleanly: no shadow above them, no page ring in MoltenTerm (#1591)", () => {
+        const css = readFileSync(join(KitDir, "suite.css"), "utf8");
+        // A shadow reaches above its box by blur + spread - y offset; zero or less keeps the page clean there.
+        const reachAbove = (shadow: string) => {
+            const [, y, blur, spread] = shadow
+                .trim()
+                .split(/\s+/)
+                .map((v) => parseFloat(v));
+            return blur + spread - y;
+        };
+        const chip = css.match(/\.df-chip \{[^}]*\}/)?.[0] ?? "";
+        expect(reachAbove(chip.match(/box-shadow:\s*([^;]*?)\s*color-mix/)[1])).toBeLessThanOrEqual(0);
+        const tile = css.match(/\.df-icon-tile \{[^}]*\}/)?.[0] ?? "";
+        const tileShadow = tile.match(/box-shadow:([^;]*);/)[1];
+        expect(tileShadow).toContain("var(--df-tile-ring, 0 0 0 2px var(--df-page))");
+        expect(reachAbove(tileShadow.split("),")[1].split("color-mix")[0])).toBeLessThanOrEqual(0);
+        const tokens = readFileSync(join(KitDir, "..", "tokens.css"), "utf8");
+        expect(tokens).toMatch(/\.df-icon-tile \{\s*--df-tile-ring: 0 0 0 0 transparent;\s*\}/);
+    });
+
+    it("cuts the pockets out of the block: the panel shows around the chip, never the block's fill (#1615)", () => {
+        const css = readFileSync(join(KitDir, "suite.css"), "utf8");
+        const block = css.match(/\.df-block \{[^}]*\}/)?.[0] ?? "";
+        expect(block).toContain("border: 1px solid transparent;");
+        expect(block).not.toContain("background");
+        const fill = css.match(/\.df-block::before \{[^}]*\}/)?.[0] ?? "";
+        expect(fill).toContain("background: var(--df-surface);");
+        expect(fill).toContain("border: 1px solid var(--df-line);");
+        expect(fill).toMatch(/var\(--df-notch-top, 0px\)/);
+        expect(fill).toMatch(/var\(--df-notch-bottom, 0px\)/);
+        expect(fill).toContain("mask-composite: exclude;");
+        const pocket = css.match(/\.df-pocket::before \{[^}]*\}/)?.[0] ?? "";
+        expect(pocket).not.toContain("background");
+    });
+
     it("keeps Notulia's dominoes: geometry, 1 s cycle, delays, and still under reduced motion (#739)", () => {
         const css = readFileSync(join(KitDir, "suite.css"), "utf8");
         expect(css).toMatch(/\.df-dominos \{[^}]*width: 110px;\s*height: 44px;/);
@@ -176,6 +229,32 @@ describe("DiamondForge suite kit (#658)", () => {
         expect(css).toMatch(
             /@media \(prefers-reduced-motion: reduce\) \{\s*\.df-dominos > span,\s*\.df-domino-loader > span \{\s*animation: none;/
         );
+    });
+
+    it("puts a chain's start back onto the last whole cycle, so every chain falls on one clock (#1399)", () => {
+        const anim = (startTime: number, duration: number = 1000) => ({
+            startTime: startTime as CSSNumberish,
+            effect: { getComputedTiming: () => ({ duration }) } as AnimationEffect,
+        });
+        for (const [start, want] of [
+            [1234.5, 1000],
+            [99_999.9, 99_000],
+            [50, 0],
+            [3000, 3000],
+        ]) {
+            const a = anim(start);
+            snapToCycle(a);
+            expect(a.startTime).toBe(want);
+        }
+        const slower = anim(2500, 2000);
+        snapToCycle(slower);
+        expect(slower.startTime).toBe(2000);
+        const pending = { ...anim(0), startTime: null as CSSNumberish };
+        snapToCycle(pending);
+        expect(pending.startTime).toBeNull();
+        const endless = anim(1234.5, Infinity);
+        snapToCycle(endless);
+        expect(endless.startTime).toBe(1234.5);
     });
 
     it("maps each concept to one Lucide icon, Notulia's where it has one", () => {

@@ -20,7 +20,7 @@ describe("the merged Validate sheet's footer", () => {
         expect(html).toContain('data-testid="review-keep-tab"');
         expect(html).toContain('data-testid="review-close-tab"');
         expect(html).not.toContain('data-testid="review-merged-done"');
-        expect(html).toContain("This review tab is no longer needed.");
+        expect(html).toContain("This review view is no longer needed.");
     });
 
     it("offers only Done for a Reviews row's Validate, which opened no Review tab (#707)", () => {

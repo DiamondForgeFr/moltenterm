@@ -117,6 +117,12 @@ func TestReviewsRerunFailed(t *testing.T) {
 			!strings.Contains(input.Message, "Backend") || strings.Contains(input.Message, "Frontend") {
 			t.Fatalf("told %+v", input)
 		}
+		// #1130: named by its card's number (ticket 5, from its branch), the PR number after it; a click opens the card.
+		if input.Title != "#5 (PR #21): failed again after the rerun" || input.TitleText.Vars["number"] != "5" ||
+			input.TitleText.Parts["pr"] == nil || input.TitleText.Parts["pr"].Vars["number"] != "21" ||
+			len(input.Actions) != 1 || input.Actions[0].Id != ReviewsCardActionId || input.Actions[0].Args["number"] != 21 {
+			t.Fatalf("told %+v %+v", input, input.TitleText)
+		}
 	case <-time.After(time.Minute):
 		t.Fatal("the rerun's outcome was never told")
 	}

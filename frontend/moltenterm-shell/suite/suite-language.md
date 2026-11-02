@@ -7,8 +7,10 @@ because its identity is the most finished: `src/index.css` (`.glow-ring`, the ra
 
 ## Shared principles (the suite)
 
-- **Sharp editorial corners.** Radii from 2 to 4 px: 4 px for blocks, icon tiles and dialogs, 3 px for chips, pockets
-  and toggles, 2 px for the smallest marks. `rounded-full` is kept for dots, radios, switches and pills.
+- **Sharp editorial corners.** One radius, 4 px, for blocks, icon tiles, dialogs, chips, pockets and the smallest
+  marks (MoltenTerm reads it as the control radius, with the 6 px panel radius for its panels, FR-SHELL-118; the kit's
+  own defaults stay at 2 to 4 px for the other products of the suite). `rounded-full` is kept for dots, radios,
+  switches and pills.
 - **Section blocks, not floating headings.** A group of settings is a framed block. Its name is an uppercase chip sunk
   halfway into the top border. The border dives around the chip in a small pocket, and the block's icon sits in an
   accent tile on the top-left corner. One line of description comes first, then the rows, flush with the block's
@@ -30,8 +32,10 @@ because its identity is the most finished: `src/index.css` (`.glow-ring`, the ra
 
 ## What stays MoltenTerm
 
-- **The accent is the workspace colour**, molten orange by default (`--mt-accent`). `--df-accent` maps to it, so a
-  block's chip and tile follow the workspace the way the rail and the molten buttons do.
+- **The accent is the action** (#1319): molten orange in every workspace (`--mt-action`, aliased `--mt-accent`).
+  `--df-accent` maps to it, so a block's chip and tile look the same in every workspace, like the molten buttons. The
+  workspace colour (`--mt-place`) marks the place only: the workspace dot, the sidebar strip, the bar beside the
+  workspace name, the active tile's underline and the focused panel's frame.
 - **Its fonts and type scale.** Rows use 12 px and descriptions 12 px (`--mt-text-*`); Notulia uses 14 px. The kit
   reads them through `--df-text-*`.
 - **Its warm neutrals** (`--mt-surface-*`, `--mt-line-*`, `--mt-text-*`), the terminal's dark theme, and the
@@ -40,8 +44,12 @@ because its identity is the most finished: `src/index.css` (`.glow-ring`, the ra
 - **Its motion tokens.** The kit's durations map onto `--mt-duration-*`, so MoltenTerm's reduced-motion setting stops
   the kit as well.
 
-MoltenTerm has no light theme today. The kit ships Notulia's light set under `.df-light` / `[data-df-theme="light"]`,
-so a future light theme only has to map the same slots.
+MoltenTerm's light theme (#1341, FR-SHELL-121) is opt-in: Preferences › Appearance › Theme, dark by default.
+`app-theme.ts` puts `.mt-light` and the kit's `.df-light` on the root. The `--df-*` slots keep their mapping onto the
+`--mt-*` tokens, which hold the light values under `:root.mt-light` (`tokens.css`), so they win over Notulia's light
+defaults. The one slot that differs is `--df-accent-ink`, the accent drawn as a line or text (a radio, "Selected", a
+chosen toggle). In light it takes the action text `#A84A00`, because the molten orange stays a fill and is never text.
+Unset, the kit falls back to `--df-accent`, as Notulia does. The terminal stays dark in the light theme.
 
 ## Using the kit in MoltenTerm
 
@@ -53,8 +61,8 @@ so a future light theme only has to map the same slots.
 - Icons: `suiteIcon("language")` and the other concepts in `suite-icons.ts`. Use named imports from `lucide-react`
   only.
 - The mapping of the `--df-*` slots lives in `../tokens.css`. The token lint (`build/token-lint.ts`) accepts
-  `var(--df-text-*)`, `var(--df-weight-*)` and `var(--df-duration-*)`. The build's radius cap (`build/cap-radius.ts`)
-  leaves `--df-radius-*` alone.
+  `var(--df-text-*)`, `var(--df-weight-*)` and `var(--df-duration-*)`. The build's radius snap (`build/cap-radius.ts`, onto the two radii of FR-SHELL-118)
+  leaves `--df-radius-*` alone, and tokens.css maps all three onto the 4 px control radius.
 - Applied in #658 to Settings (every group, Secrets, Mods, Advanced files and Keyboard) and the workspace editor
   (Identity, Project, Folder, Danger zone, and the dialog frame through `DialogFrame suite`). Tips follows through
   `PageCard`. Since #890 every `DialogFrame` carries the turning light while it is open (`noGlow` opts out, with the
@@ -62,7 +70,42 @@ so a future light theme only has to map the same slots.
 - Since #905 every dialog is framed this way: MoltenTerm's own through `DialogFrame`, Wave's through its `Modal`, which
   draws the same frame (`DialogFrameClass`, `modal.scss`) and the same light. Popovers, menus, toasts and command
   surfaces (palette, command panel) keep their own look with 4 px corners and no light. `dialog-suite-frame.test.tsx`
-  fails on a dialog without the frame and on an overlay with the 6 or 10 px radius.
+  fails on a dialog without the frame and on an overlay with the 6 px panel radius.
+
+## Molten motion
+
+When MoltenTerm changes something before the developer's eyes (an agent adds a step, a card arrives, a list
+reorders), the change flows like molten metal instead of cutting. One vocabulary serves the whole app:
+`molten-motion.ts` (class names, timer values, hooks) and `molten-motion.css` (the look). It was introduced by the
+pipeline setup's agent board (#1163); later screens adopt the same module, never a local copy.
+
+- **Tokens** (`tokens.css`): `--mt-duration-flow` (320 ms, every change stays under 400 ms), `--mt-duration-fade`
+  (120 ms, the reduced-motion form) and the one curve `--mt-ease`. The glow is the accent `--mt-accent`, the colour
+  of the molten button's wave.
+- **Classes**: `mt-flow-in` (an element grows into place and pushes its neighbours; an SVG node rises from
+  `--mt-from-x` / `--mt-from-y` and swells into shape), `mt-arrive` (a whole screen replacing another, such as a
+  stepper's next step: keyed by the screen, it rises into place without clipping anything), `mt-melt-out` (the reverse: it cools, blurs and drips away
+  while the space closes), `mt-move` (positions and SVG path shapes travel rather than jump), `mt-glow-pass` (one
+  pass of the molten glow over what changed) and `mt-glow` (a steady glow on what is pointed at, such as the step
+  an agent explains; never a blink).
+- **Hooks**: `useFlowList(items, keyOf)` returns entries with a phase (`enter`, `stay`, `exit`), keeping a leaving
+  item one flow so it melts out where it was, and `flowClass(phase)` gives its class. A list row is wrapped in an
+  element with that class, and the row's own box sits inside it. `useGlowPass(signature)` returns `mt-glow-pass`
+  for one flow after the signature changes. `useFlipMove(ref, deps)` makes the `[data-motion-key]` elements under
+  `ref` travel from their old place to the new one. Never put that attribute on an SVG element whose own `transform`
+  attribute positions it, because the style would replace the attribute.
+- **Reduced motion**: the system's preference and MoltenTerm's setting (the app root's `.prefers-reduced-motion`)
+  turn every flow into a short fade (`--mt-duration-fade`, opacity only), stop transitions and leave a steady glow
+  standing still. `prefersReducedMotion()` and `motionMs()` read the same two signals for timers.
+- **Rules**: motion follows a change, never decorates a screen at rest. The first render of a list shows it as it
+  is. Keep the terminal side free of layout work, and animate only `transform`, `opacity`, `filter`, `box-shadow`,
+  the row's own `grid-template-rows` and an SVG path's `d`.
+- **Panel motion** (FR-SHELL-112, `panel-motion/`): three moments, and only one moves at a time.
+  - **The view pour**: at a switch, the view's panels slide 8 px from the tiles' side and fade in, and the clicked tile lights up in the action orange. It takes `--mt-duration-base` with `--mt-ease` (`useViewPour`, `PourLight`).
+  - **A panel's arrival**: when a panel is added beside others, an orange edge runs once around its frame, then goes out. If the view's pour is still running, the edge waits for it (`PanelArrivalEdge`).
+  - **A working agent**: the turning light of `GlowRing` goes round its view's tile in incandescent (`#FFB547`) instead of the dot. It turns in `--mt-duration-turn` (8 s), in 32 steps so that it costs 4 frames a second. It cools in `--mt-duration-cool` with `--mt-ease-cool` once the agent is done (`WorkingLight`).
+  - **Under reduced motion**: the pour is instant; the arrival edge stands still as a full ring, then fades; the light stands still on the tile's top-right corner.
+  - Only working indicators move continuously.
 
 ## Extraction plan
 

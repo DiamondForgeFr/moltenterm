@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { assertCoverage, evaluatePolicy, expectedGoScopes, fingerprint, markdownReport, normalizeGo, normalizeNpm, npmInventory, parseGoStream, validatePolicy } from "./policy.mjs";
+import { assertCoverage, evaluatePolicy, expectedGoScopes, fingerprint, markdownReport, normalizeGo, normalizeNpm, npmInventory, parseGoStream, validateElectronLifecycle, validatePolicy } from "./policy.mjs";
 
 const clone = (value) => structuredClone(value);
 const base = JSON.parse(fs.readFileSync(new URL("../../security/dependencies.json", import.meta.url)));
@@ -46,6 +46,58 @@ const trace = { module: "example.test/module", version: "v1.0.0" };
 const records = () => [{ config: clone(config) }, { SBOM: { go_version: "go1.26.10", roots: ["example.test/module/app"], modules: [{ path: "example.test/module", version: "v1.0.0" }] } }, { osv: clone(osv) }, { finding: { osv: osv.id, trace: [clone(trace)] } }];
 const stream = (r) => r.map((entry) => JSON.stringify(entry, null, 2)).join("\n");
 const go = (r = records(), code = 0) => normalizeGo(stream(r), code, scope, policy(), "go1.26.10");
+
+test("Electron review binds the exact pin and fails closed at its UTC deadline", () => {
+    const review = policy();
+    review.electronLifecycle = {
+        version: "45.2.0", reviewedAt: "2026-10-30", reviewBy: "2026-12-01",
+        tentativeEndOfSupport: "2027-04-27", source: "https://releases.electronjs.org/schedule",
+        releaseSource: "https://releases.electronjs.org/",
+    };
+    const manifest = { devDependencies: { electron: "45.2.0" } };
+    const graph = clone(lock);
+    graph.packages[""].devDependencies.electron = "45.2.0";
+    graph.packages["node_modules/electron"].version = "45.2.0";
+    const check = (p = review, m = manifest, l = graph, date = "2026-11-30T23:59:59.999Z") =>
+        validateElectronLifecycle(p, m, l, new Date(date));
+    assert.doesNotThrow(() => check());
+    assert.throws(() => check(review, manifest, graph, "2026-12-01T00:00:00.000Z"), /overdue/);
+    assert.throws(() => check(review, manifest, graph, "2026-10-29T23:59:59.999Z"), /interval/);
+    for (const value of [null, {}, { ...review.electronLifecycle, reviewedAt: "2026-02-30" },
+        { ...review.electronLifecycle, reviewBy: "2027-02-01" },
+        { ...review.electronLifecycle, tentativeEndOfSupport: "2026-11-30" },
+        { ...review.electronLifecycle, source: "https://example.test" }]) {
+        assert.throws(() => check({ ...review, electronLifecycle: value }));
+    }
+    for (const location of ["manifest", "root", "package"]) {
+        const m = clone(manifest), l = clone(graph);
+        if (location === "manifest") m.devDependencies.electron = "^45.2.0";
+        if (location === "root") l.packages[""].devDependencies.electron = "45.1.0";
+        if (location === "package") l.packages["node_modules/electron"].version = "45.1.0";
+        assert.throws(() => check(review, m, l), /does not match/, location);
+    }
+});
+
+test("full and native scans reject missing lifecycle review before executing tools", () => {
+    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "mt-electron-review-"));
+    try {
+        fs.mkdirSync(path.join(temporary, "scripts/security"), { recursive: true });
+        fs.mkdirSync(path.join(temporary, "security"));
+        for (const name of ["scan.mjs", "policy.mjs"]) fs.copyFileSync(new URL(`./${name}`, import.meta.url), path.join(temporary, "scripts/security", name));
+        const invalid = policy(); delete invalid.electronLifecycle;
+        fs.writeFileSync(path.join(temporary, "security/dependencies.json"), JSON.stringify(invalid));
+        fs.writeFileSync(path.join(temporary, "package.json"), JSON.stringify({ devDependencies: { electron: "45.2.0" } }));
+        fs.writeFileSync(path.join(temporary, "package-lock.json"), JSON.stringify(lock));
+        for (const [index, args] of [[], ["--native-only"]].entries()) {
+            const out = path.join(temporary, `out-${index}`);
+            const result = spawnSync(process.execPath, [path.join(temporary, "scripts/security/scan.mjs"), ...args, "--out", out], { encoding: "utf8", timeout: 5000 });
+            assert.equal(result.status, 2, result.stderr);
+            const report = JSON.parse(fs.readFileSync(path.join(out, "report.json"), "utf8"));
+            assert.match(report.error, /Electron lifecycle/);
+            assert.deepEqual(JSON.parse(fs.readFileSync(path.join(out, "manifest.json"), "utf8")).runs, []);
+        }
+    } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+});
 
 test("runtime classification follows resolved graph; Electron dev executable is runtime, its installer is build", () => {
     const inventory = npmInventory(lock, policy());

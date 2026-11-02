@@ -65,6 +65,9 @@ type UsageInfo struct {
 	Experimental *ExperimentalInfo `json:"experimental,omitempty"`
 	// RefreshMs: how often a visible companion asks again, while a source that is not pushed is on.
 	RefreshMs int64 `json:"refreshms,omitempty"`
+	// Provider, ProviderName: the run talks to another provider (FR-AGC-008); no gauges show.
+	Provider     string `json:"provider,omitempty"`
+	ProviderName string `json:"providername,omitempty"`
 }
 
 // blockAgent is the agent the block's companion follows, else the one the agent states know.
@@ -126,6 +129,18 @@ type usageRead struct {
 	fetch   bool
 }
 
+// runProvider is the provider host the block's run of agent talks to, "" for its own provider's (FR-AGC-008).
+func (m *Manager) runProvider(blockId string, agent string) string {
+	if m.runOf == nil {
+		return ""
+	}
+	run, ok := m.runOf(blockId)
+	if !ok || run.Agent != agent {
+		return ""
+	}
+	return run.Settings.Provider
+}
+
 // runRelaysStatusLine tells whether the launcher added its status line relay to the block's current run.
 func (m *Manager) runRelaysStatusLine(blockId string) bool {
 	if m.integrationOf == nil {
@@ -143,6 +158,12 @@ func (m *Manager) usageInfo(blockId string, agent string, a usage.UsageAdapter, 
 
 func (m *Manager) usageInfoCtx(parent context.Context, blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType, read usageRead) UsageInfo {
 	info := UsageInfo{BlockId: blockId, Agent: agent, PageURL: a.PageURL(), PageName: a.PageName(), HasGauges: usage.HasSources(a)}
+	// Behind another provider (FR-AGC-008) the agent's plan gauges would be another account's, or empty: none show.
+	if host := m.runProvider(blockId, agent); host != "" {
+		info.HasGauges, info.Gauges, info.PageURL, info.PageName = false, usage.GaugesUnavailable, "", ""
+		info.Provider, info.ProviderName = host, molten.ProviderDisplayName(host)
+		return info
+	}
 	ctx := usage.WithFetch(usage.WithRefresh(parent, read.refresh), read.fetch)
 	ctx, cancel := context.WithTimeout(ctx, usageReadTimeout)
 	defer cancel()

@@ -1,5 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#1339): Tailwind greys replaced by the Coulée surface, line and text tokens.
 
 import { MagnifyIcon } from "@/app/element/magnify";
 import { MoltentermRepoUrl } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
@@ -9,7 +10,7 @@ import { cn } from "@/util/util";
 
 const KeyCap = ({ children }: { children: React.ReactNode }) => {
     return (
-        <div className="inline-block px-2 py-1 mx-[1px] font-mono text-[0.85em] text-foreground bg-highlightbg rounded-[3px] border border-gray-700 whitespace-nowrap">
+        <div className="inline-block px-2 py-1 mx-[1px] font-mono text-[0.85em] text-foreground bg-highlightbg rounded-[3px] border border-line whitespace-nowrap">
             {children}
         </div>
     );
@@ -150,13 +151,14 @@ const QuickTips = () => {
                         <div className="text-sm text-accent-400 font-semibold uppercase tracking-wide mb-1">
                             Main Keybindings
                         </div>
+                        {/* MOLTENTERM-PATCH (#1742): ⌘N is a new view, ⌘T a new panel */}
                         <div className="flex flex-col gap-0.5 p-2 rounded-md hover:bg-white/5 transition-colors">
-                            <span className="text-[15px]">New Tab</span>
-                            <KeyBinding keyDecl="Cmd:t" />
+                            <span className="text-[15px]">New View</span>
+                            <KeyBinding keyDecl="Cmd:n" />
                         </div>
                         <div className="flex flex-col gap-0.5 p-2 rounded-md hover:bg-white/5 transition-colors">
-                            <span className="text-[15px]">New Terminal Block</span>
-                            <KeyBinding keyDecl="Cmd:n" />
+                            <span className="text-[15px]">New Panel</span>
+                            <KeyBinding keyDecl="Cmd:t" />
                         </div>
                         {/* MOLTENTERM-PATCH (#25): no Wave AI tips */}
                         {!MoltentermNoAI && (

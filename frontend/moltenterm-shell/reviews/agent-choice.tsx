@@ -22,13 +22,14 @@ import { showTabFromHere } from "../opener-tab";
 import { AgentMode, AgentStart, openReviewTab, ReviewPrInfo, ReviewRestartResult } from "../review/review-client";
 import { SegmentedControl } from "../segmented-control";
 import { nextToggleIndex, RadioDot } from "../suite/suite";
+import { reviewsCardGesture, ReviewsCardGesture } from "./reviews-card-gesture";
 import { investigateGesture, InvestigateGesture } from "./reviews-queue-gesture";
 
 // must match ReviewOpenGesture in pkg/molten/review/agentfollow.go
 export const ReviewOpenGesture = "review:open";
 
 export type AgentChoiceRequest = {
-    kind: "rebase" | "restart" | "investigate";
+    kind: "rebase" | "restart" | "investigate" | "finish";
     number: number;
     branch: string;
     base: string;
@@ -86,6 +87,13 @@ const ChoiceKeys: Record<
         together: "agentChoice.together.investigate",
         tab: "agentChoice.tab.investigate",
         checkout: "agentChoice.checkoutInvestigate",
+    },
+    finish: {
+        title: "agentChoice.title.finish",
+        what: "agentChoice.what.finish",
+        together: "agentChoice.together.finish",
+        tab: "agentChoice.tab.finish",
+        checkout: "agentChoice.checkout",
     },
 };
 
@@ -201,6 +209,7 @@ export function AgentChoiceHost() {
     const pending = useAtomValue(AgentChoiceModel.getInstance().pendingAtom);
     useEffect(() => registerNotificationGesture(ReviewOpenGesture, openReviewGesture), []);
     useEffect(() => registerNotificationGesture(InvestigateGesture, investigateGesture), []);
+    useEffect(() => registerNotificationGesture(ReviewsCardGesture, reviewsCardGesture), []);
     if (pending == null) {
         return null;
     }

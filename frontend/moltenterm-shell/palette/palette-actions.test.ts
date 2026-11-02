@@ -14,6 +14,7 @@ vi.mock("../open-view", () => ({}));
 vi.mock("../project/project-tab", () => ({}));
 // The close guard (FR-SHELL-061) names tabs as the tab bar does, through tab-identity, which reads this view's type.
 vi.mock("../sessions/sessions-model", () => ({ MoltentermSessionsView: "molten-sessions" }));
+vi.mock("../settings/settings-open", () => ({}));
 vi.mock("../workspace-edit", () => ({ openCurrentWorkspaceEditor }));
 
 import { runPaletteEntry } from "./palette-actions";

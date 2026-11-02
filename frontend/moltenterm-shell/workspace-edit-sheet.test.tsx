@@ -4,21 +4,33 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const { current } = vi.hoisted(() => ({ current: { ws: null as Workspace } }));
+const { current, look } = vi.hoisted(() => ({
+    current: { ws: null as Workspace },
+    look: { scope: "workspace" as "workspace" | "project" },
+}));
 
 vi.mock("@/app/store/wos", () => ({
     makeORef: (otype: string, oid: string) => `${otype}:${oid}`,
     useWaveObjectValue: () => [current.ws, false],
 }));
-vi.mock("@/app/store/global", () => ({ atoms: {}, getApi: () => ({ getDataDir: () => "/data" }) }));
+vi.mock("@/app/store/global", async () => {
+    const { atom } = await import("jotai");
+    return { atoms: { workspace: atom(null) }, getApi: () => ({ getDataDir: () => "/data" }) };
+});
 vi.mock("@/app/store/services", () => ({ WorkspaceService: {} }));
 vi.mock("@/util/endpoints", () => ({ getWebServerEndpoint: () => "http://localhost" }));
 vi.mock("./workspace-edit", () => ({
     WorkspaceEditModel: { getInstance: () => ({}) },
     listenWorkspaceMenu: () => {},
     pickUpWorkspaceEdit: () => false,
+    openProjectSheet: () => {},
 }));
-vi.mock("./workspace-reset", () => ({ askResetWorkspace: () => {} }));
+vi.mock("./workspace-reset", () => ({ askResetWorkspace: () => {}, askDeleteWorkspace: () => {} }));
+vi.mock("./sidebar/sidebar-store", async () => {
+    const { atom } = await import("jotai");
+    const enabledAtom = atom(false);
+    return { SidebarModel: { getInstance: () => ({ enabledAtom }) } };
+});
 vi.mock("./workspace-project-store", () => ({
     chooseMoltentermPath: async () => null,
     findProjectLogos: async () => [],
@@ -28,6 +40,10 @@ vi.mock("./workspace-project-store", () => ({
 vi.mock("./workspace-project-section", () => ({
     WorkspaceProjectBlock: () => <div data-stub="project">Link a project…</div>,
     WorkspaceFolderLine: () => <div data-stub="folder">Change…</div>,
+}));
+vi.mock("./window-look-field", () => ({
+    OpacityField: () => <div data-stub="opacity">Opacity</div>,
+    useLookScope: () => look.scope,
 }));
 // The real frame portals into document.body; the sheet's content is what is checked here.
 vi.mock("./dialog-frame", () => ({
@@ -43,16 +59,20 @@ vi.mock("./dialog-frame", () => ({
     ),
 }));
 
+import { getDefaultStore, PrimitiveAtom } from "jotai";
+import { SidebarModel } from "./sidebar/sidebar-store";
 import {
+    balancedColumns,
     ColourChoices,
     ColourField,
-    balancedColumns,
     IconChoices,
     IconGridMaxColumns,
     ImagePane,
     initialIconMode,
+    LogoField,
     WorkspaceEditSheet,
 } from "./workspace-edit-sheet";
+import { projectLogoOf, readWorkspaceProject } from "./workspace-project";
 
 const ws = { oid: "w1", name: "Client A", icon: "rocket", color: "#429DFF", meta: {} } as any as Workspace;
 
@@ -65,7 +85,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
     it("is one MoltenTerm dialog titled Workspace, with its folder's name in mono 11 under the title (DS-SHELL-101, #751)", () => {
         const html = sheet(true);
         expect(html).toContain('role="dialog"');
-        expect(html).toContain('aria-label="Workspace"');
+        expect(html).toContain('aria-label="Edit workspace"');
         expect(html).toContain('data-role="workspace-edit"');
         expect(html).toContain('<div data-subtitle="font-mono text-11"></div>');
         current.ws = { ...ws, meta: { "molten:folder": "/Users/me/code/client-a" } } as any as Workspace;
@@ -76,12 +96,95 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(html).not.toContain("workspace-editor");
     });
 
-    it("lays out Identity, Project, Folder and Danger zone in that order, each with a heading", () => {
+    it("lays out Identity, Appearance, Projects and the Danger zone, each a suite block with its heading (FR-SHELL-105)", () => {
         const html = sheet(true);
         const headings = [...html.matchAll(/<h3 id="[^"]+"[^>]*>([^<]+)<\/h3>/g)].map((m) => m[1]);
-        expect(headings).toEqual(["Identity", "Project", "Folder", "Danger zone"]);
+        expect(headings).toEqual(["Identity", "Appearance", "Projects", "Danger zone"]);
         expect([...html.matchAll(/<section aria-labelledby="([^"]+)"/g)]).toHaveLength(4);
+        expect(html.match(/class="df-icon-tile"/g)).toHaveLength(4);
         expect(html.indexOf('data-stub="project"')).toBeLessThan(html.indexOf('data-stub="folder"'));
+    });
+
+    // The scope tag of each block, in order (FR-SHELL-101): Appearance follows "Apply to".
+    function scopes(html: string): string[] {
+        return html
+            .split(/<section /)
+            .slice(1)
+            .map((s) => /data-scope="([^"]+)"/.exec(s)?.[1]);
+    }
+
+    it("tags every block with its scope, Appearance with the project when the look is saved there", () => {
+        expect(scopes(sheet(true))).toEqual(["workspace", "workspace", "workspace", "workspace"]);
+        look.scope = "project";
+        try {
+            expect(scopes(sheet(true))).toEqual(["workspace", "project", "workspace", "workspace"]);
+        } finally {
+            look.scope = "workspace";
+        }
+    });
+
+    // Each field in the part the placement table names, and in only one (TC-SHELL-206).
+    function fieldsByPart(html: string): Record<string, string[]> {
+        const sections = html.split(/<section /).slice(1);
+        const rtn: Record<string, string[]> = {};
+        for (const section of sections) {
+            const title = /<h3 id="[^"]+"[^>]*>([^<]+)<\/h3>/.exec(section)?.[1];
+            rtn[title] = [...section.matchAll(/data-field="([^"]+)"/g)].map((m) => m[1]);
+        }
+        return rtn;
+    }
+
+    it("puts name, icon and colour under Identity, the look under Appearance, the projects and folder under Projects", () => {
+        const linked = {
+            ...ws,
+            meta: {
+                "molten:project": "/code/client-a",
+                "molten:projecttype": "Desktop",
+                "molten:projectlogo": "/code/client-a/icon.png",
+            },
+        } as any as Workspace;
+        current.ws = linked;
+        const html = renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
+        expect(fieldsByPart(html)).toEqual({
+            Identity: ["name", "icon", "useProjectLogo", "colour"],
+            Appearance: ["look"],
+            Projects: ["projects", "folder"],
+            "Danger zone": [],
+        });
+        expect(html).toMatch(/data-project="p1"[\s\S]*Desktop[\s\S]*\/code\/client-a/);
+        expect(html).toMatch(/data-action="project-sheet" class="[^"]*cursor-pointer[^"]*">Set up the project ›/);
+        expect(html).toMatch(/role="switch" aria-checked="true"[^>]*data-action="use-project-logo"/);
+        expect(html).toContain("Use the project&#x27;s logo");
+        expect(html).not.toContain('data-image-kind="project"');
+        expect(html).not.toContain('data-role="logo-choices"');
+    });
+
+    it("lists every project of the workspace, the current one marked, each with its way to the Project sheet", () => {
+        current.ws = {
+            ...ws,
+            meta: {
+                "molten:project": "/code/desk",
+                "molten:projecttype": "Desktop",
+                "molten:currentproject": "p2",
+                "molten:projects": [
+                    { id: "p1", type: "Website", dir: "/code/site", branch: "main" },
+                    { id: "p2", type: "Desktop", dir: "/code/desk" },
+                ],
+            },
+        } as any as Workspace;
+        const html = renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
+        expect(html.match(/data-action="project-sheet"/g)).toHaveLength(2);
+        expect(html).toMatch(
+            /data-project="p1"[\s\S]*Website[\s\S]*main[\s\S]*data-project="p2"[\s\S]*Desktop[\s\S]*current/
+        );
+    });
+
+    it("offers to link a project when none is linked, and keeps the folder, without blocking the rest (TC-SHELL-207)", () => {
+        const html = sheet(true);
+        expect(fieldsByPart(html).Projects).toEqual(["projects", "folder"]);
+        expect(html).toContain('data-stub="project"');
+        expect(html).not.toContain("disabled");
+        expect(fieldsByPart(html).Identity).toEqual(["name", "icon", "colour"]);
     });
 
     it("holds a labelled name field and a preview of the rail badge at its real size", () => {
@@ -90,7 +193,19 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(html).toContain('value="Client A"');
         expect(html).toContain('aria-invalid="false"');
         expect(html).toMatch(/data-role="rail-preview" class="[^"]*\bh-9 w-9\b[^"]*text-icon-16/);
-        expect(html).toContain('aria-label="Rail badge: Rocket, Blue"');
+        expect(html).toContain('aria-label="Sidebar badge: Rocket, Blue"');
+        expect(html).toContain("In the sidebar");
+    });
+
+    it("names the sidebar under the badge preview when the workspace sidebar is on (#1183)", () => {
+        const enabledAtom = SidebarModel.getInstance().enabledAtom as PrimitiveAtom<boolean>;
+        getDefaultStore().set(enabledAtom, true);
+        try {
+            const html = sheet(true);
+            expect(html).toContain("In the sidebar");
+        } finally {
+            getDefaultStore().set(enabledAtom, false);
+        }
     });
 
     it("offers Delete, or Reset with #222's reason on the last workspace", () => {
@@ -119,26 +234,30 @@ describe("one Icon field, Symbol or Image (FR-SHELL-059-AC1, FR-SHELL-031)", () 
         return renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
     }
 
-    function pane(meta: Record<string, any>, logos: string[]) {
+    function pane(meta: Record<string, any>) {
         return renderToStaticMarkup(
             <ImagePane
                 ws={{ ...ws, meta } as any as Workspace}
-                logos={logos}
                 over={false}
                 busy={false}
                 result={null}
                 dropHandlers={{}}
                 onPick={() => {}}
-                onLogo={() => {}}
             />
         );
+    }
+
+    function logoField(meta: Record<string, any>, logos: string[]) {
+        const shown = { ...ws, meta } as any as Workspace;
+        const current = projectLogoOf(readWorkspaceProject(shown), "/", logos);
+        return renderToStaticMarkup(<LogoField ws={shown} logos={logos} current={current} onLogo={() => {}} />);
     }
 
     it("shows a single Icon field with a Symbol / Image segmented control, then the colours", () => {
         const html = sheetWith({});
         expect(html.match(/data-role="icon-field"/g)).toHaveLength(1);
         expect(html).toMatch(
-            /role="group" aria-labelledby="([^"]+)" data-role="icon-field"><div[^>]*><div id="\1"[^>]*>Icon<\/div>/
+            /role="group" aria-labelledby="([^"]+)" data-role="icon-field" data-field="icon"><div[^>]*><div id="\1"[^>]*>Icon<\/div>/
         );
         const segments = [
             ...html.matchAll(/role="radio" aria-checked="(true|false)" tabindex="-?\d"[^>]*>(Symbol|Image)</g),
@@ -161,31 +280,40 @@ describe("one Icon field, Symbol or Image (FR-SHELL-059-AC1, FR-SHELL-031)", () 
         expect(sheetWith({ "molten:projectlogo": "/p/logo.svg" })).toContain('data-role="image-pane"');
     });
 
-    it("lists the project's images first, then the imported image, then the import tile", () => {
-        const html = pane({ "molten:workspaceicon": Stored }, ["/p/icon.png", "/p/logo.svg"]);
+    it("shows the imported image, then the import tile; the project's images are the Project part's Logo (#1280)", () => {
+        const html = pane({ "molten:workspaceicon": Stored });
         const order = [...html.matchAll(/data-image-kind="(project|imported)"|data-action="(import-image)"/g)].map(
             (m) => m[1] ?? m[2]
         );
-        expect(order).toEqual(["project", "project", "imported", "import-image"]);
-        expect(html).toContain('aria-label="Project image icon.png"');
+        expect(order).toEqual(["imported", "import-image"]);
         expect(html).toContain('aria-label="Replace the imported image…"');
         expect(html).toMatch(/role="status" aria-live="polite" data-role="icon-import-result"/);
+        expect(html).not.toContain('data-role="project-logo-in-use"');
     });
 
-    it("marks the project image in use, and keeps a chosen one listed even when no longer found", () => {
-        const html = pane({ "molten:projectlogo": "/elsewhere/brand.png" }, ["/p/icon.png"]);
+    it("says on the Image side when the project's logo is in use (TC-SHELL-208)", () => {
+        const html = pane({ "molten:projectlogo": "/p/logo.svg" });
+        expect(html).toContain("The project&#x27;s logo is in use: turn off “Use the project&#x27;s logo” below");
+        expect(html).toContain('aria-label="Import an image…"');
+        expect(html).not.toContain('data-image-kind="project"');
+    });
+
+    it("lists the project's images in Logo, marks the project's logo, and keeps a chosen one listed when no longer found", () => {
+        const html = logoField({ "molten:projectlogochoice": "/elsewhere/brand.png" }, ["/p/icon.png"]);
         const pressed = [...html.matchAll(/aria-pressed="(true|false)" aria-label="Project image ([^"]+)"/g)];
         expect(pressed.map((m) => [m[2], m[1]])).toEqual([
             ["brand.png", "true"],
             ["icon.png", "false"],
         ]);
-        expect(html).toContain('aria-label="Import an image…"');
-        expect(html).not.toContain('data-image-kind="imported"');
+        expect(html).toContain("cursor-pointer");
+        // The project's logo stays chosen while the workspace shows an imported image (FR-SHELL-105).
+        expect(logoField({ "molten:workspaceicon": Stored }, ["/p/icon.png"])).toContain('aria-pressed="true"');
+        expect(logoField({}, [])).toContain("No image found in the project.");
     });
 
     it("shows the imported image in the preview, square and fitted whole", () => {
         const html = sheetWith({ "molten:workspaceicon": Stored, "molten:projectlogo": "/p/logo.svg" });
-        expect(html).toContain('aria-label="Rail badge: Rocket, Blue, imported image"');
+        expect(html).toContain('aria-label="Sidebar badge: Rocket, Blue, imported image"');
         const src = encodeURIComponent(`/data/workspace-icons/${Stored}`);
         expect(html).toMatch(
             new RegExp(
@@ -197,10 +325,10 @@ describe("one Icon field, Symbol or Image (FR-SHELL-059-AC1, FR-SHELL-031)", () 
 
     it("previews the project logo when no image was imported, and the glyph otherwise", () => {
         expect(sheetWith({ "molten:projectlogo": "/p/logo.svg" })).toContain(
-            'aria-label="Rail badge: Rocket, Blue, project logo"'
+            'aria-label="Sidebar badge: Rocket, Blue, project logo"'
         );
         const plain = sheetWith({});
-        expect(plain).toContain('aria-label="Rail badge: Rocket, Blue"');
+        expect(plain).toContain('aria-label="Sidebar badge: Rocket, Blue"');
         expect(plain).toMatch(
             /<i class="[^"]*fa-rocket[^"]*molten-glyph-tone[^"]*" style="--mt-glyph-color:#429DFF" data-icon-kind="builtin"/
         );
@@ -309,7 +437,7 @@ describe("colour field (#657)", () => {
         const html = renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
         expect(html).toContain('data-role="colour-field"');
         expect(html).toMatch(/aria-checked="true" aria-label="Ocean"/);
-        expect(html).toContain("Rail badge: Rocket, Ocean");
+        expect(html).toContain("Sidebar badge: Rocket, Ocean");
         expect(html).toContain("molten-glyph-gradient");
     });
 });

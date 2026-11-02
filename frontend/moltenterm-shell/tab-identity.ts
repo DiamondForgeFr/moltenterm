@@ -6,10 +6,12 @@
 // (T1, T2…), the title of its first panel instead. A name the user typed always wins.
 
 import { MoltentermOnboardingView } from "../moltenterm-onboarding/onboarding-state";
+import { AiIcon, terminalIcon } from "./ai-icon";
 import { MoltentermBrowserView } from "./browser/browser-model";
 import { MoltentermCompanionView } from "./companion/companion-model";
 import { t } from "./i18n/i18n";
 import { MoltentermLineMapView } from "./mission/line-map-model";
+import { MoltentermPipelineView, PipelineTabIcon } from "./mission/pipeline-tab-model";
 import { LegacyTimelineView, MoltentermProjectView } from "./project/project-model";
 import { readReviewDoneMeta, ReviewDoneMeta, ReviewDoneMetaKey } from "./review/review-done";
 import { MoltentermReviewAiView } from "./review/review-model";
@@ -18,6 +20,7 @@ import { pathBaseName } from "./workspace-project";
 
 export const DefaultTabIcon = "square";
 export const DefaultAgentGlyph = "robot";
+export { AiIcon };
 // The CI/CD, Reviews, Review and Tips views' types, repeated here so this file stays free of the views' React code.
 const CicdView = "molten-cicd";
 const ReviewsView = "molten-reviews";
@@ -40,6 +43,7 @@ const Views: Record<string, ViewFacts> = {
     [CicdView]: { icon: "list-check", title: "tabs.views.cicd" },
     [ReviewsView]: { icon: "code-pull-request", title: "tabs.views.reviews" },
     [ReviewView]: { icon: "code-compare", title: "tabs.views.review" },
+    [MoltentermPipelineView]: { icon: PipelineTabIcon, title: "tabs.views.pipeline" },
     [MoltentermCompanionView]: { icon: "book-open", title: "tabs.views.companion" },
     sysinfo: { icon: "chart-line", title: "tabs.views.system" },
     launcher: { icon: "shapes", title: "tabs.views.launcher" },
@@ -80,9 +84,14 @@ export function isGenericTabName(name: string): boolean {
     return /^T\d+$/.test((name ?? "").trim());
 }
 
-export function panelIcon(meta: PanelMeta): string {
+// agentRunning: an agent runs in this panel (any agent CLI). Only a terminal can hold one, so the flag changes no
+// other view's icon.
+export function panelIcon(meta: PanelMeta, agentRunning = false): string {
     if (meta == null) {
         return DefaultTabIcon;
+    }
+    if (meta.view === "term") {
+        return terminalIcon(agentRunning);
     }
     return Views[meta.view ?? ""]?.icon ?? DefaultTabIcon;
 }
@@ -121,16 +130,49 @@ export function panelTitle(meta: PanelMeta, homeDir = ""): string {
     return viewTitle;
 }
 
-// The name the tab shows: the user's, else its first panel's title, else Wave's own.
+// A view still under Wave's generic name is named after its main panel's kind and place (#1669): "Files · roman" and
+// "Terminal · roman" tell apart two views of the same folder, which the place alone did not.
+export function panelViewName(meta: PanelMeta, homeDir = ""): string {
+    if (meta == null) {
+        return "";
+    }
+    const facts = Views[meta.view ?? ""];
+    const kind = facts ? t(facts.title) : "";
+    const place = panelTitle(meta, homeDir);
+    if (!kind || !place || place === kind) {
+        return place || kind;
+    }
+    return t("tabs.viewName", { kind, place });
+}
+
+// The name the tab shows: the user's, else its first panel's kind and place, else Wave's own.
 export function tabDisplayName(name: string, firstPanel: PanelMeta, homeDir = ""): string {
     if (!isGenericTabName(name)) {
         return name ?? "";
     }
-    return panelTitle(firstPanel, homeDir) || name;
+    return panelViewName(firstPanel, homeDir) || name;
 }
 
-// The agent's glyph is its preset's icon (agent@claude, agent@codex in presets/agents.json).
-export function agentGlyph(agent: string, presets: Record<string, Record<string, unknown>>): string {
-    const icon = presets?.[`agent@${agent ?? ""}`]?.["display:icon"];
-    return typeof icon === "string" && icon !== "" ? icon : DefaultAgentGlyph;
+export type ViewNameEntry = { id: string; name: string; derived: boolean };
+
+// Views of one workspace, in its order: a derived name another view already shows takes a number ("Terminal · roman
+// 2"), so a lone view never carries one; a name the user typed (derived false) is never numbered.
+export function numberDuplicateViewNames(entries: ViewNameEntry[]): Map<string, string> {
+    const out = new Map<string, string>();
+    const seen = new Map<string, number>();
+    for (const e of entries) {
+        if (!e.derived) {
+            seen.set(e.name, Math.max(seen.get(e.name) ?? 0, 1));
+        }
+    }
+    for (const e of entries) {
+        if (!e.derived || !e.name) {
+            out.set(e.id, e.name);
+            continue;
+        }
+        const count = (seen.get(e.name) ?? 0) + 1;
+        seen.set(e.name, count);
+        out.set(e.id, count === 1 ? e.name : t("tabs.viewNameNumbered", { name: e.name, number: count }));
+    }
+    return out;
 }

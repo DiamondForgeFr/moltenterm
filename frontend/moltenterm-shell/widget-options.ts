@@ -53,13 +53,24 @@ export const SessionsAgentMetaKey = "sessions:agent";
 export const SessionsFolderMetaKey = "sessions:folder";
 export const SessionsStateMetaKey = "sessions:state";
 
-export const SessionsAgentChoices = [
-    { value: "all", label: "Any" },
-    { value: "agents", label: "Agents only" },
-    { value: "claude", label: "Claude Code" },
-    { value: "codex", label: "Codex" },
-    { value: "shells", label: "Shells only" },
-] as const;
+const SessionsAgentBase = ["all", "agents", "shells"];
+
+// The agents come from the adapter registry (#1460), not from a fixed list: an agent added there shows up here.
+export function sessionsAgentChoices(agents: { id: string; name: string }[]): { value: string; label: string }[] {
+    return [
+        { value: "all", label: "Any" },
+        { value: "agents", label: "Agents only" },
+        ...(agents ?? []).map((a) => ({ value: a.id, label: a.name })),
+        { value: "shells", label: "Shells only" },
+    ];
+}
+
+function pickAgent(value: unknown, knownAgents: readonly string[]): string {
+    if (typeof value !== "string") {
+        return "all";
+    }
+    return SessionsAgentBase.includes(value) || (knownAgents ?? []).includes(value) ? value : "all";
+}
 export const SessionsFolderChoices = [
     { value: "all", label: "Any" },
     { value: "workspace", label: "This workspace's folder" },
@@ -78,9 +89,9 @@ function pick<T extends readonly { value: string }[]>(choices: T, value: unknown
     return choices.some((c) => c.value === value) ? (value as T[number]["value"]) : "all";
 }
 
-export function sessionsFiltered(filters: SessionsFilters): boolean {
+export function sessionsFiltered(filters: SessionsFilters, knownAgents: readonly string[] = []): boolean {
     return (
-        pick(SessionsAgentChoices, filters?.agent) !== "all" ||
+        pickAgent(filters?.agent, knownAgents) !== "all" ||
         pick(SessionsFolderChoices, filters?.folder) !== "all" ||
         pick(SessionsStateChoices, filters?.state) !== "all"
     );
@@ -91,9 +102,10 @@ export function sessionsFiltered(filters: SessionsFilters): boolean {
 export function filterSessions(
     sessions: DurableSession[],
     filters: SessionsFilters,
-    workspaceFolder: string
+    workspaceFolder: string,
+    knownAgents: readonly string[] = []
 ): DurableSession[] {
-    const agent = pick(SessionsAgentChoices, filters?.agent);
+    const agent = pickAgent(filters?.agent, knownAgents);
     const folder = pick(SessionsFolderChoices, filters?.folder);
     const state = pick(SessionsStateChoices, filters?.state);
     return (sessions ?? []).filter((s) => {
@@ -103,7 +115,7 @@ export function filterSessions(
         if (agent === "shells" && s.agent) {
             return false;
         }
-        if ((agent === "claude" || agent === "codex") && s.agent !== agent) {
+        if (!SessionsAgentBase.includes(agent) && s.agent !== agent) {
             return false;
         }
         if (folder === "workspace" && (s.connection || !checkPathInside(s.folder, workspaceFolder))) {

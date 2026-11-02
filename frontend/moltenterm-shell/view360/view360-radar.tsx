@@ -1,19 +1,50 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The radar scrubber at the bottom of the carpet (FR-SHELL-068, DS-SHELL-119), Codex's message minimap laid
-// horizontally: one tick per carpet panel in its kind's colour, the ticks in view framed by a window (#678: a
-// low-radius rectangle, the rest of the radar dimmed, an eye on hover), the title on hover, a click goes to the
-// panel, dragging the window scrubs the carpet, and a panel that needs attention pulses even
-// off-screen. It renders when the columns, the set in view or a panel's facts change, never per scroll frame.
+// The carpet's tab strip (FR-SHELL-125, DS-SHELL-135), formerly the radar scrubber (FR-SHELL-068, DS-SHELL-119): one
+// tab per carpet panel at the bottom of the carpet, the tabs on screen framed by the visible area, which still scrubs
+// the carpet when dragged (#678). A click brings a panel into view, a middle click or the cross closes it, a drag
+// reorders the carpet (or shows the panel, dropped inside the visible area), a right click opens the tab menu, and the
+// "+" adds a panel at the end. When the tabs no longer fit they keep only their icon, then fall back to the radar's
+// ticks. It renders when the columns, the set in view, the focus or a panel's facts change, never per scroll frame.
+// Since #1545 (DS-SHELL-152) the strip floats under the places, a tab hovered or focused for a moment rises and shows a
+// preview card with the panel's capture and who its pages are shared with, and the carpet's edge peeks are drawn here
+// from the same tabs.
 
+import { ContextMenuModel } from "@/app/store/contextmenu";
+import { atoms } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
+import { uxCloseBlock } from "@/app/store/keymodel";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
-import { cn } from "@/util/util";
-import { useAtomValue } from "jotai";
-import { CSSProperties, memo, useMemo, useRef, useState } from "react";
+import { fireAndForget } from "@/util/util";
+import { atom, useAtomValue } from "jotai";
+import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react";
+import { browserTabMenu } from "../browser/browser-tab-menu";
 import { useLocale } from "../i18n/i18n";
+import { recordPaneClose } from "../reopen/reopen-store";
+import { SidebarModel } from "../sidebar/sidebar-store";
 import { suiteIcon } from "../suite/suite-icons";
-import { CarpetLayout, CarpetScrubberPx } from "./carpet-model";
+import { confirmTerminalClose } from "../worktree-close";
+import { addCarpetPanel } from "./carpet-add";
+import { closeCarpetOthers } from "./carpet-close-others";
+import { carpetCaptureAtom } from "./carpet-captures";
+import { CarpetLayout, CarpetScrubberPx, CarpetStripPx } from "./carpet-model";
+import { activePageTab, CarpetPageFacts, carpetPageModel, makeCarpetPagesAtom } from "./carpet-page-store";
+import { CarpetStrip, StripDrag, StripHandlers } from "./carpet-tabs";
+import {
+    carpetMoveAction,
+    carpetTabMenu,
+    dropIndex,
+    NoShare,
+    rovingColumnId,
+    shareLine,
+    stepIndex,
+    stripLayout,
+    StripPlusPx,
+    StripText,
+    TabGapPx,
+    tabNumbers,
+} from "./carpet-tabs-model";
 import {
     buildRadarTicks,
     radarHint,
@@ -25,13 +56,23 @@ import {
 } from "./radar-model";
 import { makeRadarFactsAtom, radarColumns } from "./radar-store";
 import "./radar.css";
+import type { View360Model } from "./view360-model";
+import { CarpetPeeks, useCarpetCaptures } from "./view360-peeks";
+import { pinMenuItems } from "./view360-pin";
+import { View360Text } from "./view360-text";
 
 const DragThresholdPx = 3;
 const EdgePadPx = 8;
-const CardWidthPx = 220;
+const AutoMarkPx = 20;
+const CardWidthPx = 240;
+// The preview's intent delay, and how long after a card hides the next one shows at once (FR-SHELL-125 AC14).
+export const PreviewDelayMs = 300;
+const PreviewWarmMs = 400;
 const EyeIcon = suiteIcon("visibleArea");
+const NoPages = atom({} as Record<string, CarpetPageFacts>);
+const ClosingCarpets = new WeakSet<LayoutModel>();
 
-type Drag = {
+type Scrub = {
     pointerId: number;
     startX: number;
     startScroll: number;
@@ -41,70 +82,154 @@ type Drag = {
     moved: boolean;
 };
 
+type TabDrag = {
+    pointerId: number;
+    columnId: string;
+    startX: number;
+    rowLeft: number;
+    rects: DOMRect[];
+    frame: DOMRect;
+    moved: boolean;
+};
+
 type Hover = { columnId: string; x: number };
 
-function TickButton({
-    tick,
-    pitch,
-    onGo,
-    onHover,
-}: {
-    tick: RadarTick;
-    pitch: number;
-    onGo: (tick: RadarTick) => void;
-    onHover: (tick: RadarTick, el: HTMLElement) => void;
-}) {
-    const style = { width: pitch, "--mt-radar-color": tick.color } as CSSProperties;
+// The automatic-360 "A" beside the strip while the automatic decision holds the view (#1183): under the workspace
+// sidebar no tab bar toggle carries it.
+function RadarAutoMark({ view360 }: { view360: View360Model }) {
+    const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
+    const decision = useAtomValue(view360.decisionAtom);
+    if (!sidebarOn || !decision.active || decision.source !== "auto") {
+        return null;
+    }
     return (
-        <button
-            type="button"
-            className="mt-radar-hit cursor-pointer"
-            style={style}
-            data-column={tick.columnId}
-            data-kind={tick.kind}
-            data-visible={tick.visible ? "" : undefined}
-            data-attention={tick.attention ?? undefined}
-            aria-label={`${tick.title}, ${radarHint(tick)}`}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onGo(tick)}
-            onPointerEnter={(e) => onHover(tick, e.currentTarget)}
-            onFocus={(e) => onHover(tick, e.currentTarget)}
-        >
-            <span className="mt-radar-tick" />
-        </button>
+        <span className="mt-radar-auto" title={View360Text.heldAuto} data-testid="mt-carpet-radar-auto">
+            {View360Text.toggleAutoMark}
+        </span>
     );
+}
+
+function useAutoMarkShown(view360: View360Model): boolean {
+    const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
+    const decision = useAtomValue(view360.decisionAtom);
+    return sidebarOn && decision.active && decision.source === "auto";
+}
+
+// A hover card's state behind the pointer's or the focus's intent (FR-SHELL-125 AC14): a value is shown after
+// PreviewDelayMs, at once while a card is shown or was just hidden (moving from tab to tab), and null hides it at once.
+function useIntentState<T>(): [T, (next: T) => void] {
+    const [value, setValue] = useState<T>(null);
+    const ref = useRef<{ value: T; timer: ReturnType<typeof setTimeout>; warmUntil: number }>({
+        value: null,
+        timer: null,
+        warmUntil: 0,
+    });
+    ref.current.value = value;
+    useEffect(() => () => clearTimeout(ref.current.timer), []);
+    const set = (next: T) => {
+        const intent = ref.current;
+        clearTimeout(intent.timer);
+        intent.timer = null;
+        if (next == null) {
+            if (intent.value != null) {
+                intent.warmUntil = performance.now() + PreviewWarmMs;
+            }
+            setValue(null);
+            return;
+        }
+        if (intent.value != null || performance.now() < intent.warmUntil) {
+            setValue(next);
+            return;
+        }
+        intent.timer = setTimeout(() => {
+            intent.timer = null;
+            setValue(next);
+        }, PreviewDelayMs);
+    };
+    return [value, set];
+}
+
+function centerOf(r: DOMRect): number {
+    return r.left + r.width / 2;
 }
 
 export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: LayoutModel; layout: CarpetLayout }) => {
     const view360 = layoutModel.moltenView360;
     const locale = useLocale();
     const visibleIds = useAtomValue(view360.visibleColumnIdsAtom);
+    const focusedNode = useAtomValue(layoutModel.focusedNode);
+    const autoShown = useAutoMarkShown(view360);
     const rootNode = layoutModel.treeState?.rootNode;
     const columns = useMemo(() => radarColumns(rootNode, layout), [rootNode, layout]);
+    const captureColumns = useMemo(
+        () => columns.map((c) => ({ columnId: c.columnId, leafNodeIds: c.leaves.map((l) => l.nodeId) })),
+        [columns]
+    );
+    useCarpetCaptures(layoutModel, captureColumns);
     const blockKey = columns.flatMap((c) => c.leaves.map((l) => l.blockId)).join(",");
     const factsAtom = useMemo(() => makeRadarFactsAtom(blockKey ? blockKey.split(",") : []), [blockKey]);
     const facts = useAtomValue(factsAtom);
     // The locale is a dependency: tick titles carry translated text ("Panel", "+2 panels").
     const ticks = useMemo(() => buildRadarTicks(columns, facts, visibleIds), [columns, facts, visibleIds, locale]);
-    const [hover, setHover] = useState<Hover>(null);
-    const [dragging, setDragging] = useState(false);
+    // A page's view model registers while its block renders, which may come after this strip: one more pass once
+    // the blocks are drawn picks up the pages added with them.
+    const [pagesEpoch, setPagesEpoch] = useState(0);
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => setPagesEpoch((n) => n + 1));
+        return () => cancelAnimationFrame(frame);
+    }, [blockKey]);
+    const pageKey = ticks
+        .filter((t) => t.page)
+        .map((t) => t.focusBlockId)
+        .join(",");
+    const pagesAtom = useMemo(
+        () => (pageKey ? makeCarpetPagesAtom(pageKey.split(",")) : NoPages),
+        [pageKey, pagesEpoch]
+    );
+    const pages = useAtomValue(pagesAtom);
+    // Wave's Ctrl+Shift hold (main process: both keys down, none else, reset when either goes up or the window loses
+    // focus), the one that numbers the panels.
+    const ctrlShiftHeld = useAtomValue(atoms.controlShiftDelayAtom);
+    const leafOrder = useAtomValue(layoutModel.leafOrder);
+    const numbers = useMemo(
+        () =>
+            tabNumbers(
+                ticks,
+                leafOrder.map((leaf) => leaf.nodeid),
+                ctrlShiftHeld
+            ),
+        [ticks, leafOrder, ctrlShiftHeld]
+    );
+    const [hover, setHover] = useIntentState<Hover>();
+    const [scrubbing, setScrubbing] = useState(false);
+    const [drag, setDrag] = useState<StripDrag>(null);
     // The window's centre in the row while the pointer is over it, null otherwise.
-    const [windowX, setWindowX] = useState<number>(null);
+    const [windowX, setWindowX] = useIntentState<number>();
     const rowRef = useRef<HTMLDivElement>(null);
-    const dragRef = useRef<Drag>(null);
+    const scrubRef = useRef<Scrub>(null);
+    const tabDragRef = useRef<TabDrag>(null);
     const suppressClickRef = useRef(false);
 
-    if (ticks.length === 0) {
-        return null;
-    }
+    const focusedColumnId = useMemo(
+        () => (focusedNode == null ? null : view360.carpetColumnOf(focusedNode.id)),
+        [focusedNode, layout, view360]
+    );
+
     const surface = layout.surface;
-    const pitch = radarPitchPx(ticks.length, surface.width - 4 * EdgePadPx);
+    const availPx = surface.width - 2 * EdgePadPx - (autoShown ? AutoMarkPx : 0);
+    const strip = stripLayout(ticks.length, availPx);
+    const pitch = radarPitchPx(ticks.length, availPx - StripPlusPx - 4 * EdgePadPx);
     const rowStyle: CSSProperties = {
         transform: `translate3d(${surface.left}px, ${surface.top + surface.height - CarpetScrubberPx}px, 0)`,
         width: surface.width,
-        height: CarpetScrubberPx,
+        height: CarpetStripPx,
     };
+    const columnIds = ticks.map((t) => t.columnId);
 
+    const suppressNextClick = () => {
+        suppressClickRef.current = true;
+        setTimeout(() => (suppressClickRef.current = false), 0);
+    };
     const goTo = (tick: RadarTick) => {
         if (suppressClickRef.current) {
             suppressClickRef.current = false;
@@ -113,7 +238,92 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
         view360.scrollToColumn(tick.columnId);
         layoutModel.focusNode(tick.focusNodeId);
     };
+    const reveal = (tick: RadarTick) => {
+        requestAnimationFrame(() => {
+            view360.scrollToColumn(tick.columnId);
+            layoutModel.focusNode(tick.focusNodeId);
+        });
+    };
+    // Reordering moves a top-level column of the tree (AC5): the normal layout follows the same order.
+    const moveTo = (tick: RadarTick, toIndex: number, show: boolean) => {
+        const action = carpetMoveAction(layoutModel.treeState?.rootNode, columnIds, tick.columnId, toIndex);
+        if (action != null) {
+            layoutModel.treeReducer(action);
+        }
+        if (show) {
+            reveal(tick);
+        }
+    };
+    // The same path as Cmd+W (AC4): a terminal running a program asks first (FR-SHELL-061).
+    const close = (tick: RadarTick) => {
+        if (tick.focusBlockId) {
+            uxCloseBlock(tick.focusBlockId);
+        }
+    };
+    const closeOthers = (tick: RadarTick) => {
+        if (ClosingCarpets.has(layoutModel)) return;
+        ClosingCarpets.add(layoutModel);
+        const tabId = globalStore.get(atoms.staticTabId);
+        const protectedIds = columns.find((column) => column.columnId === tick.columnId)?.leaves.map((leaf) => leaf.blockId) ?? [];
+        const active = () =>
+            globalStore.get(atoms.staticTabId) === tabId &&
+            protectedIds.some((id) => layoutModel.getNodeByBlockId(id) != null);
+        const ids = columns
+            .filter((column) => column.columnId !== tick.columnId)
+            .flatMap((column) => column.leaves.map((leaf) => leaf.blockId));
+        fireAndForget(async () => {
+            try {
+                await closeCarpetOthers(ids, {
+                    active,
+                    exists: (id) => layoutModel.getNodeByBlockId(id) != null,
+                    confirm: confirmTerminalClose,
+                    close: async (id) => {
+                        view360.planClose(id);
+                        await recordPaneClose(id);
+                        const node = active() ? layoutModel.getNodeByBlockId(id) : null;
+                        if (node != null) await layoutModel.closeNode(node.id);
+                    },
+                });
+            } finally {
+                ClosingCarpets.delete(layoutModel);
+            }
+        });
+    };
+    const showMenu = (tick: RadarTick, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setHover(null);
+        const at = columnIds.indexOf(tick.columnId);
+        const left = stepIndex(columnIds, tick.columnId, -1);
+        const right = stepIndex(columnIds, tick.columnId, 1);
+        const page = tick.page ? carpetPageModel(tick.focusBlockId) : null;
+        fireAndForget(async () => {
+            let pageItems: ContextMenuItem[] = [];
+            if (page != null) {
+                const tab = activePageTab(globalStore.get(page.stateAtom));
+                const share = tab != null && page.shareItems != null ? await page.shareItems(tab) : [];
+                // A state of this tab alone: the page's own Close / Close others closed browser tabs inside one
+                // panel, the tab's Close and Close others below act on the panels.
+                pageItems = browserTabMenu({ tabs: tab == null ? [] : [tab], activeId: tab?.id }, tab, page, share);
+            }
+            const menu = carpetTabMenu({
+                pageItems,
+                pinItems: pinMenuItems(tick.focusBlockId, undefined),
+                canMoveLeft: left != null,
+                canMoveRight: right != null,
+                hasOthers: at !== -1 && columnIds.length > 1,
+                close: () => close(tick),
+                closeOthers: () => closeOthers(tick),
+                moveLeft: () => moveTo(tick, left, false),
+                moveRight: () => moveTo(tick, right, false),
+            });
+            ContextMenuModel.getInstance().showContextMenu(menu, e);
+        });
+    };
     const onHover = (tick: RadarTick, el: HTMLElement) => {
+        if (tabDragRef.current?.moved) {
+            return;
+        }
         const row = rowRef.current?.getBoundingClientRect();
         const rect = el.getBoundingClientRect();
         if (row == null) {
@@ -122,6 +332,7 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
         setHover({ columnId: tick.columnId, x: rect.left + rect.width / 2 - row.left });
     };
 
+    // ---- dragging the visible area scrubs the carpet (FR-SHELL-068 AC1) ----
     const onWindowPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         if (e.button !== 0) {
             return;
@@ -130,62 +341,49 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
         if (row == null) {
             return;
         }
-        const tickCenters = Array.from(row.querySelectorAll<HTMLElement>(".mt-radar-hit")).map((el) => {
-            const r = el.getBoundingClientRect();
-            return r.left + r.width / 2;
-        });
+        const tickCenters = Array.from(row.querySelectorAll<HTMLElement>(".mt-radar-hit, .mt-strip-tab")).map((el) =>
+            centerOf(el.getBoundingClientRect())
+        );
         const columnCenters = layout.columns.map((c) => c.x + c.width / 2);
         const avgWidth = layout.contentWidth / Math.max(1, layout.columns.length);
-        dragRef.current = {
+        const step = strip.mode === "ticks" ? pitch : strip.tabPx + TabGapPx;
+        scrubRef.current = {
             pointerId: e.pointerId,
             startX: e.clientX,
             startScroll: view360.scrollLeft,
             tickCenters,
             columnCenters,
-            slope: avgWidth / pitch,
+            slope: avgWidth / Math.max(1, step),
             moved: false,
         };
         e.currentTarget.setPointerCapture(e.pointerId);
     };
     const onWindowPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-        const drag = dragRef.current;
-        if (drag == null || drag.pointerId !== e.pointerId) {
+        const scrub = scrubRef.current;
+        if (scrub == null || scrub.pointerId !== e.pointerId) {
             return;
         }
-        if (!drag.moved && Math.abs(e.clientX - drag.startX) < DragThresholdPx) {
+        if (!scrub.moved && Math.abs(e.clientX - scrub.startX) < DragThresholdPx) {
             return;
         }
-        if (!drag.moved) {
-            drag.moved = true;
-            setDragging(true);
+        if (!scrub.moved) {
+            scrub.moved = true;
+            setScrubbing(true);
             setHover(null);
         }
-        const from = radarToContentX(drag.startX, drag.tickCenters, drag.columnCenters, drag.slope);
-        const to = radarToContentX(e.clientX, drag.tickCenters, drag.columnCenters, drag.slope);
-        view360.scrollTo(drag.startScroll + to - from);
+        const from = radarToContentX(scrub.startX, scrub.tickCenters, scrub.columnCenters, scrub.slope);
+        const to = radarToContentX(e.clientX, scrub.tickCenters, scrub.columnCenters, scrub.slope);
+        view360.scrollTo(scrub.startScroll + to - from);
     };
     const onWindowPointerUp = () => {
-        const drag = dragRef.current;
-        dragRef.current = null;
-        if (drag?.moved) {
+        const scrub = scrubRef.current;
+        scrubRef.current = null;
+        if (scrub?.moved) {
             // The release over a tick would also click it.
-            suppressClickRef.current = true;
-            setTimeout(() => (suppressClickRef.current = false), 0);
-            setDragging(false);
+            suppressNextClick();
+            setScrubbing(false);
         }
     };
-
-    const first = ticks.findIndex((t) => t.visible);
-    const last = first === -1 ? -1 : ticks.length - 1 - [...ticks].reverse().findIndex((t) => t.visible);
-    const renderTick = (tick: RadarTick) => (
-        <TickButton key={tick.columnId} tick={tick} pitch={pitch} onGo={goTo} onHover={onHover} />
-    );
-    const hoveredTick = hover == null ? null : ticks.find((t) => t.columnId === hover.columnId);
-    // On the window's edge, the last tick left behind outside it no longer speaks: the card is the window's.
-    const windowCard = windowX != null && (hoveredTick == null || !hoveredTick.visible);
-    const hovered = windowCard ? null : hoveredTick;
-    const cardX = windowCard ? windowX : (hover?.x ?? 0);
-    const cardLeft = Math.min(Math.max(cardX - CardWidthPx / 2, 4), surface.width - CardWidthPx - 4);
     const onWindowEnter = (e: React.PointerEvent<HTMLDivElement>) => {
         const row = rowRef.current?.getBoundingClientRect();
         const rect = e.currentTarget.getBoundingClientRect();
@@ -195,74 +393,197 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
         setWindowX(rect.left + rect.width / 2 - row.left);
     };
 
+    // ---- dragging a tab reorders the carpet, or shows the panel dropped in the visible area (AC5) ----
+    const dropAt = (d: TabDrag, x: number) => {
+        const index = dropIndex(d.rects.map(centerOf), x);
+        const n = d.rects.length;
+        const edge = index < n ? d.rects[index].left - TabGapPx / 2 : d.rects[n - 1].right + TabGapPx / 2;
+        const inFrame = d.frame != null && x >= d.frame.left && x <= d.frame.right;
+        return { index, markX: edge - d.rowLeft, inFrame };
+    };
+    const onTabPointerDown = (tick: RadarTick, e: React.PointerEvent<HTMLElement>) => {
+        e.stopPropagation();
+        if (e.button !== 0) {
+            return;
+        }
+        const row = rowRef.current;
+        if (row == null) {
+            return;
+        }
+        const rects = Array.from(row.querySelectorAll<HTMLElement>(".mt-strip-tab")).map((el) =>
+            el.getBoundingClientRect()
+        );
+        const frame = row.querySelector<HTMLElement>(".mt-radar-window")?.getBoundingClientRect() ?? null;
+        // The drop mark is drawn inside the tab list, after the automatic-360 mark.
+        const list = row.querySelector<HTMLElement>(".mt-strip-tabs") ?? row;
+        tabDragRef.current = {
+            pointerId: e.pointerId,
+            columnId: tick.columnId,
+            startX: e.clientX,
+            rowLeft: list.getBoundingClientRect().left,
+            rects,
+            frame,
+            moved: false,
+        };
+        e.currentTarget.setPointerCapture(e.pointerId);
+    };
+    const onTabPointerMove = (e: React.PointerEvent<HTMLElement>) => {
+        const d = tabDragRef.current;
+        if (d == null || d.pointerId !== e.pointerId) {
+            return;
+        }
+        if (!d.moved && Math.abs(e.clientX - d.startX) < DragThresholdPx) {
+            return;
+        }
+        if (!d.moved) {
+            d.moved = true;
+            setHover(null);
+        }
+        const at = dropAt(d, e.clientX);
+        setDrag({ columnId: d.columnId, dx: e.clientX - d.startX, markX: at.markX, inFrame: at.inFrame });
+    };
+    const onTabPointerUp = (e: React.PointerEvent<HTMLElement>) => {
+        const d = tabDragRef.current;
+        if (d == null || d.pointerId !== e.pointerId) {
+            return;
+        }
+        tabDragRef.current = null;
+        if (!d.moved) {
+            return;
+        }
+        setDrag(null);
+        suppressNextClick();
+        if (e.type !== "pointerup") {
+            return;
+        }
+        const tick = ticks.find((t) => t.columnId === d.columnId);
+        if (tick == null) {
+            return;
+        }
+        const at = dropAt(d, e.clientX);
+        moveTo(tick, at.index, at.inFrame);
+    };
+
+    const handlers: StripHandlers = {
+        go: goTo,
+        close,
+        menu: showMenu,
+        add: () => fireAndForget(() => addCarpetPanel(layoutModel, "end")),
+        hover: onHover,
+        unhover: () => setHover(null),
+        tabPointerDown: onTabPointerDown,
+        tabPointerMove: onTabPointerMove,
+        tabPointerUp: onTabPointerUp,
+        windowEnter: onWindowEnter,
+        windowLeave: () => setWindowX(null),
+        windowPointerDown: onWindowPointerDown,
+        windowPointerMove: onWindowPointerMove,
+        windowPointerUp: onWindowPointerUp,
+    };
+
+    const hoveredTick = hover == null ? null : ticks.find((t) => t.columnId === hover.columnId);
+    // On the window's edge, the last tab left behind outside it no longer speaks: the card is the window's.
+    const windowCard = windowX != null && (hoveredTick == null || !hoveredTick.visible);
+    const hovered = windowCard ? null : hoveredTick;
+    const cardX = windowCard ? windowX : (hover?.x ?? 0);
+    const cardLeft = Math.min(Math.max(cardX - CardWidthPx / 2, 4), surface.width - CardWidthPx - 4);
+    const busy = scrubbing || drag != null;
+    const hoveredPage = hovered?.page ? pages[hovered.focusBlockId] : null;
+    const shared = hoveredPage == null ? "" : shareLine(hoveredPage.share ?? NoShare);
+    const opener = shared ? "" : (hoveredPage?.agentName ?? "");
+    const previewShown = hovered != null && !busy;
+    const previewId = previewShown ? `mt-strip-preview-${hovered.columnId}` : undefined;
+
     return (
-        <div
-            ref={rowRef}
-            className="mt-radar"
-            style={rowStyle}
-            role="toolbar"
-            aria-label={RadarText.label}
-            data-testid="mt-carpet-radar"
-        >
-            <div className="mt-radar-ticks" onPointerLeave={() => setHover(null)}>
-                {first === -1 ? (
-                    ticks.map(renderTick)
-                ) : (
-                    <>
-                        {ticks.slice(0, first).map(renderTick)}
-                        <div
-                            className={cn("mt-radar-window", dragging && "dragging")}
-                            role="group"
-                            aria-label={RadarText.window}
-                            data-testid="mt-carpet-radar-window"
-                            onPointerEnter={onWindowEnter}
-                            onPointerLeave={() => setWindowX(null)}
-                            onPointerDown={onWindowPointerDown}
-                            onPointerMove={onWindowPointerMove}
-                            onPointerUp={onWindowPointerUp}
-                            onLostPointerCapture={onWindowPointerUp}
-                        >
-                            {ticks.slice(first, last + 1).map(renderTick)}
-                            <span className="mt-radar-eye" aria-hidden>
+        <>
+            <CarpetPeeks layoutModel={layoutModel} layout={layout} ticks={ticks} onGo={goTo} />
+            <div
+                ref={rowRef}
+                className="mt-radar"
+                style={rowStyle}
+                data-mode={strip.mode}
+                data-testid="mt-carpet-radar"
+                onPointerLeave={() => {
+                    // The frame may have moved under a still pointer (a tab added): leaving the strip ends both cards.
+                    setHover(null);
+                    setWindowX(null);
+                }}
+            >
+                <CarpetStrip
+                    ticks={ticks}
+                    layout={strip}
+                    pitch={pitch}
+                    focusedColumnId={focusedColumnId}
+                    rovingColumnId={rovingColumnId(ticks, focusedColumnId)}
+                    pages={pages}
+                    numbers={numbers}
+                    drag={drag}
+                    scrubbing={scrubbing}
+                    handlers={handlers}
+                    lead={<RadarAutoMark view360={view360} />}
+                    previewColumnId={previewShown ? hovered.columnId : null}
+                    previewId={previewId}
+                />
+                {previewShown && (
+                    <div
+                        id={previewId}
+                        className="mt-radar-card mt-strip-preview"
+                        style={{ left: cardLeft, width: CardWidthPx }}
+                        data-attention={hovered.attention ?? undefined}
+                        data-testid="mt-carpet-preview"
+                        role="tooltip"
+                    >
+                        <PreviewShot tick={hovered} />
+                        <b>{hovered.title}</b>
+                        <i>{`${StripText.kind(hovered.kind)} · ${radarHint(hovered)}`}</i>
+                        {shared && (
+                            <i className="mt-radar-card-opener" data-testid="mt-carpet-preview-share">
+                                {shared}
+                            </i>
+                        )}
+                        {opener && <i className="mt-radar-card-opener">{StripText.openedBy(opener)}</i>}
+                        {hovered.visible && windowX != null && (
+                            <span className="mt-radar-card-window">
                                 <EyeIcon strokeWidth={2} aria-hidden />
+                                {radarWindowLine()}
                             </span>
-                        </div>
-                        {ticks.slice(last + 1).map(renderTick)}
-                    </>
+                        )}
+                    </div>
+                )}
+                {windowCard && !busy && (
+                    <div
+                        className="mt-radar-card"
+                        style={{ left: cardLeft, width: CardWidthPx }}
+                        data-window=""
+                        role="tooltip"
+                    >
+                        <b>
+                            <EyeIcon strokeWidth={2} aria-hidden />
+                            {RadarText.window}
+                        </b>
+                        <i>{RadarText.windowHint}</i>
+                    </div>
                 )}
             </div>
-            {hovered != null && !dragging && (
-                <div
-                    className="mt-radar-card"
-                    style={{ left: cardLeft, width: CardWidthPx }}
-                    data-attention={hovered.attention ?? undefined}
-                    role="tooltip"
-                >
-                    <b>{hovered.title}</b>
-                    <i>{radarHint(hovered)}</i>
-                    {hovered.visible && windowX != null && (
-                        <span className="mt-radar-card-window">
-                            <EyeIcon strokeWidth={2} aria-hidden />
-                            {radarWindowLine()}
-                        </span>
-                    )}
-                </div>
-            )}
-            {windowCard && !dragging && (
-                <div
-                    className="mt-radar-card"
-                    style={{ left: cardLeft, width: CardWidthPx }}
-                    data-window=""
-                    role="tooltip"
-                >
-                    <b>
-                        <EyeIcon strokeWidth={2} aria-hidden />
-                        {RadarText.window}
-                    </b>
-                    <i>{RadarText.windowHint}</i>
-                </div>
-            )}
-        </div>
+        </>
     );
 });
 View360Radar.displayName = "View360Radar";
+
+// The preview's still image (AC14): the panel's last capture, the same as its edge peek, or its kind's placeholder.
+function PreviewShot({ tick }: { tick: RadarTick }) {
+    const capture = useAtomValue(carpetCaptureAtom(tick.columnId));
+    const style = { "--mt-radar-color": tick.color } as CSSProperties;
+    if (capture == null) {
+        return (
+            <span className="mt-strip-preview-shot" style={style} data-empty="" aria-hidden="true">
+                <i className={`fa fa-solid fa-${tick.icon}`} />
+            </span>
+        );
+    }
+    return (
+        <span className="mt-strip-preview-shot" style={style} aria-hidden="true">
+            <img src={capture.url} alt="" draggable={false} />
+        </span>
+    );
+}

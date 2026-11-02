@@ -163,8 +163,17 @@ export class WorkspaceServiceType {
         this.waveEnv = waveEnv;
     }
 
+    // @returns tabId (and object updates)
+    AddWorkspaceViews(workspaceId: string): Promise<string> {
+        return callBackendService(this?.waveEnv, "workspace", "AddWorkspaceViews", Array.from(arguments))
+    }
     CanCloseWorkspace(workspaceId: string): Promise<boolean> {
         return callBackendService(this?.waveEnv, "workspace", "CanCloseWorkspace", Array.from(arguments))
+    }
+
+    // @returns undoId
+    CaptureWorkspaceUndo(workspaceId: string, kind: string, windowId: string): Promise<string> {
+        return callBackendService(this?.waveEnv, "workspace", "CaptureWorkspaceUndo", Array.from(arguments))
     }
 
     // @returns CloseTabRtn (and object updates)
@@ -175,6 +184,11 @@ export class WorkspaceServiceType {
     // @returns tabId (and object updates)
     CreateTab(workspaceId: string, tabName: string, activateTab: boolean): Promise<string> {
         return callBackendService(this?.waveEnv, "workspace", "CreateTab", Array.from(arguments))
+    }
+
+    // @returns tabId (and object updates)
+    CreateTabWithBlock(workspaceId: string, blockDef: BlockDef, activateTab: boolean): Promise<string> {
+        return callBackendService(this?.waveEnv, "workspace", "CreateTabWithBlock", Array.from(arguments))
     }
 
     // @returns workspaceId
@@ -209,6 +223,9 @@ export class WorkspaceServiceType {
     ListWorkspaces(): Promise<WorkspaceListEntry[]> {
         return callBackendService(this?.waveEnv, "workspace", "ListWorkspaces", Array.from(arguments))
     }
+    PendingWorkspaceUndo(windowId: string): Promise<WorkspaceUndoOffer> {
+        return callBackendService(this?.waveEnv, "workspace", "PendingWorkspaceUndo", Array.from(arguments))
+    }
 
     // @returns object updates
     RemoveWorkspaceIcon(workspaceId: string): Promise<void> {
@@ -218,6 +235,11 @@ export class WorkspaceServiceType {
     // @returns tabId (and object updates)
     ResetWorkspace(workspaceId: string): Promise<string> {
         return callBackendService(this?.waveEnv, "workspace", "ResetWorkspace", Array.from(arguments))
+    }
+
+    // @returns object updates
+    RestoreWorkspaceUndo(undoId: string): Promise<WorkspaceUndoResult> {
+        return callBackendService(this?.waveEnv, "workspace", "RestoreWorkspaceUndo", Array.from(arguments))
     }
 
     // @returns object updates

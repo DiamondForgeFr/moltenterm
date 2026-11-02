@@ -8,6 +8,7 @@ import { atoms } from "@/store/global";
 import { useAtomValue } from "jotai";
 import { memo, useState } from "react";
 import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 const EmptyStateView = memo(() => {
     return (
@@ -71,8 +72,8 @@ const ErrorStateView = memo(({ errorMsg }: { errorMsg: string }) => {
                     <div className="flex flex-col gap-3">
                         <h2 className="text-2xl font-semibold text-error">Secrets Required</h2>
                         <p className="text-base text-secondary leading-relaxed">
-                            This app requires secrets that must be configured. Please use the Secrets tab to set and bind
-                            the required secrets for your app to run.
+                            This app requires secrets that must be configured. Please use the Secrets tab to set and
+                            bind the required secrets for your app to run.
                         </p>
                         <div className="text-left bg-panel border border-error/30 rounded-lg p-4 max-h-96 overflow-auto mt-2">
                             <pre className="text-sm text-secondary whitespace-pre-wrap font-mono">{displayMsg}</pre>
@@ -165,7 +166,13 @@ const StoppedStateView = memo(({ onStart }: { onStart: () => void }) => {
                         <MoltenWave />
                     </button>
                 )}
-                {isStarting && <div className="text-base text-success">Starting...</div>}
+                {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                {isStarting && (
+                    <div className="text-base text-success">
+                        <DominoLoader className="mr-1.5" />
+                        Starting...
+                    </div>
+                )}
             </div>
         </div>
     );

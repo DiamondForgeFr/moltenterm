@@ -18,15 +18,25 @@ type PlannedAgent struct {
 	Name       string
 	Executable string
 	Reason     string
+	// Features is the agent's row of the compatibility matrix (FR-AGC-001): what MoltenTerm does with it without an
+	// adapter.
+	Features map[string]FeatureSupport
 }
 
 const plannedReason = "no adapter yet (FR-CONT-013, #333)"
 
 // PlannedAgents follow in FR-CONT-013.
 var PlannedAgents = []PlannedAgent{
-	{Id: molten.AgentIdGemini, Name: "Gemini CLI", Executable: "gemini", Reason: plannedReason},
-	{Id: molten.AgentIdKimi, Name: "Kimi Code", Executable: "kimi", Reason: plannedReason},
-	{Id: molten.AgentIdOpenCode, Name: "OpenCode", Executable: "opencode", Reason: plannedReason},
+	{Id: molten.AgentIdGemini, Name: "Gemini CLI", Executable: "gemini", Reason: plannedReason, Features: geminiFeatures},
+	{Id: molten.AgentIdKimi, Name: "Kimi Code", Executable: "kimi", Reason: plannedReason, Features: kimiFeatures},
+	{Id: molten.AgentIdQwen, Name: "Qwen Code", Executable: "qwen", Reason: plannedReason, Features: qwenFeatures},
+	{Id: molten.AgentIdOpenCode, Name: "OpenCode", Executable: "opencode", Reason: plannedReason, Features: openCodeFeatures},
+	// The subscription CLIs of #1680: started from the launcher and the companion, recognised by their process.
+	{Id: molten.AgentIdAntigravity, Name: "Antigravity CLI", Executable: "agy", Reason: plannedReason, Features: subscriptionCliFeatures},
+	{Id: molten.AgentIdCopilot, Name: "GitHub Copilot CLI", Executable: "copilot", Reason: plannedReason, Features: subscriptionCliFeatures},
+	{Id: molten.AgentIdCursor, Name: "Cursor CLI", Executable: "agent", Reason: plannedReason, Features: subscriptionCliFeatures},
+	{Id: molten.AgentIdGrok, Name: "Grok Build", Executable: "grok", Reason: plannedReason, Features: subscriptionCliFeatures},
+	{Id: molten.AgentIdVibe, Name: "Mistral Vibe", Executable: "vibe", Reason: plannedReason, Features: subscriptionCliFeatures},
 }
 
 var validSupports = []string{SupportDocumented, SupportUndocumented, SupportUnavailable}
@@ -92,6 +102,22 @@ func checkAdapter(a AgentAdapter) error {
 	if caps[CapBriefing].Support != briefing.Support {
 		return fmt.Errorf("agent adapter %s: briefing support differs from its channel's", id)
 	}
+	return checkFeatures(id, a.Features(), caps)
+}
+
+// checkPlanned refuses a planned agent with an unknown id, an adapter, or a bad matrix row.
+func checkPlanned(r *Registry, planned []PlannedAgent) error {
+	for _, p := range planned {
+		if !KnownAgentId(p.Id) {
+			return fmt.Errorf("planned agent %q: not an agent id of molten.AgentKinds", p.Id)
+		}
+		if r.Find(p.Id) != nil {
+			return fmt.Errorf("planned agent %s already has an adapter", p.Id)
+		}
+		if err := checkFeatures(p.Id, p.Features, nil); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -142,6 +168,9 @@ var defaultRegistry = mustBuiltinRegistry()
 
 func mustBuiltinRegistry() *Registry {
 	r, err := MakeRegistry(claudeAdapter{}, codexAdapter{})
+	if err == nil {
+		err = checkPlanned(r, PlannedAgents)
+	}
 	if err != nil {
 		// A built-in adapter with a bad declaration is a programming error: refuse it at startup.
 		panic(err)

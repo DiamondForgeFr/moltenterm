@@ -228,9 +228,9 @@ export function experimentalExplanation(): string {
 }
 
 // The confirmation of FR-SHELL-028-AC1, naming where the token is read.
-export function experimentalStatement(store: string): string {
+export function experimentalStatement(store: string, source: string): string {
     const where = store || t("companion.gauges.tokenWhereDefault");
-    return t("companion.gauges.experimentalStatement", { where });
+    return t("companion.gauges.experimentalStatement", { where, source: source || t("companion.gauges.sourceDefault") });
 }
 
 // The experimental source's row: offered while the gauges are on, its reason when it gives nothing.
@@ -240,7 +240,7 @@ export function experimentalView(info: CompanionUsageInfo): ExperimentalView {
         return { kind: "none" };
     }
     if (!exp.on) {
-        return { kind: "off", statement: experimentalStatement(exp.store) };
+        return { kind: "off", statement: experimentalStatement(exp.store, exp.name) };
     }
     // Waiting is its first answer on the way, not a failure.
     const failed = exp.reason && exp.reason !== "waiting";

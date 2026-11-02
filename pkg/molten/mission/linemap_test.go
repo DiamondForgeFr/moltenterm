@@ -5,7 +5,9 @@ package mission
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -78,6 +80,95 @@ func TestCollectGitLinearHasNoMerges(t *testing.T) {
 	}
 }
 
+func revParse(t *testing.T, dir string, ref string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", ref)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git rev-parse %s: %v", ref, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func tagSource(t *testing.T, snap *GitSnapshot, name string) string {
+	t.Helper()
+	tag := tagNamed(snap, name)
+	if tag == nil {
+		t.Fatalf("no tag %s: %+v", name, snap.Tags)
+	}
+	return tag.Source
+}
+
+// A tag's source (#1727) with SaaSFoundry's rc flow: rc-1.1.0 is cut from develop at C, main is merged into it
+// (reconcile), the release commit follows, rc-1.1.0 is merged into main and tagged, and main is synced back into
+// develop. The tag's second parent is the release commit, which develop's first parents never reach: the source is C.
+// v1.0.0, merged straight from develop, has develop's head of the time as its source.
+func TestCollectGitTagSourceThroughAnRcBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	dir := t.TempDir()
+	gitRun(t, dir, "init", "-q", "-b", "main")
+	commit(t, dir, "a.txt", "feat(#1): first")
+	gitRun(t, dir, "checkout", "-q", "-b", "develop")
+	commit(t, dir, "b.txt", "feat(#2): second")
+	direct := revParse(t, dir, "HEAD")
+	gitRun(t, dir, "checkout", "-q", "main")
+	gitRun(t, dir, "merge", "-q", "--no-ff", "-m", "Merge branch 'develop'", "develop")
+	gitRun(t, dir, "tag", "-a", "v1.0.0", "-m", "v1.0.0")
+	commit(t, dir, "h.txt", "fix(#3): hotfix on main")
+
+	gitRun(t, dir, "checkout", "-q", "develop")
+	commit(t, dir, "c.txt", "feat(#4): the cut")
+	cut := revParse(t, dir, "HEAD")
+	gitRun(t, dir, "checkout", "-q", "-b", "rc-1.1.0")
+	gitRun(t, dir, "merge", "-q", "--no-ff", "-m", "sync release candidate with master", "main")
+	commit(t, dir, "v.txt", "chore(release): v1.1.0")
+	gitRun(t, dir, "checkout", "-q", "develop")
+	commit(t, dir, "d.txt", "feat(#5): after the cut")
+	gitRun(t, dir, "checkout", "-q", "main")
+	gitRun(t, dir, "merge", "-q", "--no-ff", "-m", "Merge pull request #1122 from rc-1.1.0", "rc-1.1.0")
+	gitRun(t, dir, "tag", "-a", "v1.1.0", "-m", "v1.1.0")
+	gitRun(t, dir, "checkout", "-q", "develop")
+	gitRun(t, dir, "merge", "-q", "--no-ff", "-m", "Merge pull request #1123 from main", "main")
+
+	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Trunk != "develop" || snap.Release != "main" {
+		t.Fatalf("branches: trunk %q release %q", snap.Trunk, snap.Release)
+	}
+	if got := tagSource(t, snap, "v1.1.0"); got != cut {
+		t.Errorf("v1.1.0's source: %q, want the cut %q", got, cut)
+	}
+	if got := tagSource(t, snap, "v1.0.0"); got != direct {
+		t.Errorf("v1.0.0's source: %q, want develop's head when it was merged %q", got, direct)
+	}
+}
+
+// A tag on a develop commit is its own source; in a single-branch project no source is computed.
+func TestCollectGitTagSourceOnTheTrunk(t *testing.T) {
+	dir := makeGitFlowRepo(t)
+	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc := tagNamed(snap, "v1.1.0-1"); rc == nil || rc.Source == "" || rc.Source != rc.Sha {
+		t.Errorf("a tag on develop: %+v", rc)
+	}
+	single := makeMergeRepo(t)
+	gitRun(t, single, "tag", "v1.0.0")
+	snap, err = CollectGit(context.Background(), plainRunner, single, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := tagNamed(snap, "v1.0.0"); got == nil || got.Source != "" {
+		t.Errorf("a single-branch project's tag: %+v", got)
+	}
+}
+
 func TestParseHistoryKeepsTabsInSubjects(t *testing.T) {
 	commits := parseHistory([]string{"abc\t2026-10-01T10:00:00+02:00\t2026-09-30T09:00:00+02:00\tp1 p2\tMerge\tit", "short"})
 	if len(commits) != 1 || commits[0].Subject != "Merge\tit" || strings.Join(commits[0].Parents, ",") != "p1,p2" {
@@ -95,5 +186,110 @@ func TestEarlierDateAcrossOffsets(t *testing.T) {
 	}
 	if earlierDate("garbage", "2026-10-01T09:30:00+00:00") {
 		t.Fatal("an unreadable date is never earlier")
+	}
+}
+
+// The agent tool's worktree branches (#1123): one still on the commit its worktree started from is noise and is left
+// out, even when that commit is ahead of the trunk (a release branch's); one with commits of its own stays, marked.
+func TestCollectGitLeavesOutEmptyAgentBranches(t *testing.T) {
+	dir := makeMergeRepo(t)
+	gitRun(t, dir, "checkout", "-q", "-b", "main")
+	commit(t, dir, "r.txt", "chore(release): v1")
+	gitRun(t, dir, "branch", "worktree-agent-a1")
+	gitRun(t, dir, "branch", "worktree-agent-a2")
+	gitRun(t, dir, "checkout", "-q", "-b", "worktree-agent-b1")
+	commit(t, dir, "w.txt", "feat(#9): the agent's own work")
+	gitRun(t, dir, "checkout", "-q", "develop")
+	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]Branch{}
+	for _, b := range snap.Branches {
+		names[b.Name] = b
+	}
+	if _, ok := names["worktree-agent-a1"]; ok {
+		t.Errorf("an empty agent branch is listed: %+v", names["worktree-agent-a1"])
+	}
+	if _, ok := names["worktree-agent-a2"]; ok {
+		t.Errorf("a second empty agent branch on the same commit is listed")
+	}
+	own, ok := names["worktree-agent-b1"]
+	if !ok || !own.AgentTree || len(own.Commits) == 0 {
+		t.Errorf("the agent branch with its own commit: %+v (listed %v)", own, ok)
+	}
+	if f, ok := names["feature/3-thing"]; !ok || f.AgentTree {
+		t.Errorf("a feature branch: %+v (listed %v)", f, ok)
+	}
+	if _, ok := names["main"]; !ok {
+		t.Errorf("main is missing: %v", names)
+	}
+}
+
+// The agent tool's isolation (#1133): worktree-agent-x starts on main's release commit, which develop lacks, then its
+// worktree checks out feature/9-x from develop. The row is feature/9-x, once it has a commit, and it names its
+// worktree; worktree-agent-x and a branch holding only an rc branch's commits are not drawn, while a branch with
+// commits on neither long-lived branch still is.
+func TestCollectGitNamesTheWorktreeBranchNotTheAgentBranch(t *testing.T) {
+	dir := makeMergeRepo(t)
+	manifest := `{"mainBranch":"main","workflow":{"workingBranch":"develop","branchNaming":{"release":"rc-{version}"}}}`
+	if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(manifest), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "checkout", "-q", "-b", "main")
+	commit(t, dir, "r.txt", "chore(release): v1.0.0-6 (rc)")
+	gitRun(t, dir, "branch", "worktree-agent-x")
+	gitRun(t, dir, "checkout", "-q", "-b", "rc-1.0.0", "develop")
+	commit(t, dir, "v.txt", "chore(release): bump to 1.0.0")
+	gitRun(t, dir, "branch", "fix/11-from-rc")
+	gitRun(t, dir, "checkout", "-q", "-b", "feature/10-own", "develop")
+	commit(t, dir, "o.txt", "feat(#10): work of its own")
+	gitRun(t, dir, "checkout", "-q", "develop")
+	tree := filepath.Join(t.TempDir(), "agent-x")
+	gitRun(t, dir, "worktree", "add", "-q", tree, "worktree-agent-x")
+	gitRun(t, tree, "checkout", "-q", "-b", "feature/9-x", "develop")
+
+	read := func() map[string]Branch {
+		snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := map[string]Branch{}
+		for _, b := range snap.Branches {
+			names[b.Name] = b
+		}
+		return names
+	}
+	names := read()
+	if b, ok := names["worktree-agent-x"]; ok {
+		t.Errorf("the agent branch on main's release commit is listed: %+v", b)
+	}
+	if b := names["feature/9-x"]; len(b.Commits) != 0 {
+		t.Errorf("feature/9-x before its first commit: %+v", b)
+	}
+	if b := names["fix/11-from-rc"]; len(b.Commits) != 0 {
+		t.Errorf("a branch holding only the rc branch's commits: %+v", b)
+	}
+	if b := names["feature/10-own"]; len(b.Commits) != 1 || b.Worktree != "" {
+		t.Errorf("a branch with its own commit, in no worktree: %+v", b)
+	}
+	if b := names["rc-1.0.0"]; len(b.Commits) != 1 {
+		t.Errorf("the rc branch keeps its own commit: %+v", b)
+	}
+
+	commit(t, tree, "n.txt", "feat(#9): the agent's work")
+	names = read()
+	b, ok := names["feature/9-x"]
+	if !ok || len(b.Commits) != 1 || b.AgentTree {
+		t.Fatalf("feature/9-x with a commit: %+v (listed %v)", b, ok)
+	}
+	if filepath.Base(b.Worktree) != "agent-x" {
+		t.Errorf("feature/9-x's worktree: %q", b.Worktree)
+	}
+	if _, ok := names["worktree-agent-x"]; ok {
+		t.Errorf("the agent branch is listed once its worktree moved on")
+	}
+	if d := names["develop"]; d.Worktree != "" {
+		t.Errorf("the main checkout is named: %+v", d.Worktree)
 	}
 }

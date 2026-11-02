@@ -10,25 +10,52 @@ import {
     LayoutTreeActionType,
     type LayoutNode,
     type LayoutTreeInsertNodeAction,
+    type LayoutTreeInsertNodeAtIndexAction,
     type LayoutTreeSplitHorizontalAction,
     type LayoutTreeSplitVerticalAction,
 } from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { windowWidthAtom } from "../narrow-window";
 import { showToast } from "../toast-store";
-import { CarpetReservePx, scrollToRevealColumn, visibleCarpetColumnIds } from "./carpet-model";
+import {
+    CarpetColumnGapPx,
+    CarpetReservePx,
+    carpetScrollStops,
+    scrollToRevealColumn,
+    visibleCarpetColumnIds,
+    type CarpetLayout,
+} from "./carpet-model";
 import { ResizeSettleMs } from "./view360-decision";
-import { View360FixedPxMetaKey, View360MetaKey, View360PinsMetaKey } from "./view360-meta";
+import { View360FixedPxMetaKey, View360FractionsMetaKey, View360MetaKey, View360PinsMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
+import { resetView360Notice, View360NoticeToastId } from "./view360-notice";
 
 const settingAtom = vi.hoisted(() => ({ current: null as unknown }));
 const terminalFloor = vi.hoisted(() => ({ px: null as number }));
+const giveFocus = vi.hoisted(() => ({ calls: [] as string[] }));
 
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
     settingAtom.current = atom<string>("auto");
-    return { getSettingsKeyAtom: () => settingAtom.current };
+    return {
+        getSettingsKeyAtom: () => settingAtom.current,
+        getBlockComponentModel: (blockId: string) => ({
+            viewModel: { giveFocus: () => (giveFocus.calls.push(blockId), true) },
+        }),
+    };
 });
+// The screen's column threshold (#1083): high by default, so the readable-minimum tests below see that rule alone.
+const screenThreshold = vi.hoisted(() => ({ atom: null as unknown }));
+vi.mock("./screen-store", async () => {
+    const { atom } = await import("jotai");
+    screenThreshold.atom = atom(8);
+    return { ScreenModel: { getInstance: () => ({ thresholdAtom: screenThreshold.atom }) } };
+});
+
+function setThreshold(n: number) {
+    globalStore.set(screenThreshold.atom as PrimitiveAtom<number>, n);
+}
 vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: vi.fn(() => Promise.resolve()) } }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
 vi.mock("../toast-store", () => ({ showToast: vi.fn() }));
@@ -172,6 +199,36 @@ describe("View360Model", () => {
         };
         const right = model.rewriteAction(splitRight, root) as LayoutTreeSplitHorizontalAction;
         expect([right.targetNodeId, right.position]).toEqual(["stack", "after"]);
+    });
+
+    it("puts a reopened pane back at its index among the columns, the end of the carpet past the last one (FR-SHELL-126-AC4)", () => {
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a"), leaf("b"), leaf("c"), leaf("d")],
+        };
+        const { model } = makeModel(true, root);
+        const reopen = (indexArr: number[]): LayoutTreeInsertNodeAtIndexAction => ({
+            type: LayoutTreeActionType.InsertNodeAtIndex,
+            node: leaf("new"),
+            indexArr,
+            magnified: false,
+            focused: true,
+        });
+        const after = (indexArr: number[]) => {
+            const rewritten = model.rewriteAction(reopen(indexArr), root) as LayoutTreeSplitHorizontalAction;
+            expect(rewritten.type).toBe(LayoutTreeActionType.SplitHorizontal);
+            expect(rewritten.position).toBe("after");
+            expect(rewritten.focused).toBe(true);
+            return rewritten.targetNodeId;
+        };
+        expect(after([0])).toBe("a");
+        expect(after([1])).toBe("b");
+        expect(after([2])).toBe("c");
+        expect(after([3])).toBe("d");
+        expect(after([9])).toBe("d");
+        expect(after([1, 0])).toBe("d");
     });
 
     it("wraps a lone panel so the new one becomes the first carpet column", () => {
@@ -430,14 +487,49 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(globalStore.get(model.signalAtom)).toBe(2);
     });
 
+    it("keeps two columns in the normal layout at any width and floor (#1225)", () => {
+        terminalFloor.px = 900;
+        try {
+            const root = rowOf(2);
+            const { model } = makeModel(null, root);
+            for (const width of [600, 900, 1100, 1260, 1500]) {
+                model.evaluate(root, boundsOf(width));
+                expect(model.active).toBe(false);
+            }
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
+    it("in a narrow window, two columns that cannot fit go to 360 view, a large floor alone does not (FR-SHELL-109)", () => {
+        globalStore.set(windowWidthAtom, 820);
+        terminalFloor.px = 900;
+        try {
+            // 920 px fits 520 + 360 at their readable minimums: the 900 px floor alone keeps the normal layout.
+            const wide = makeModel(null, rowOf(2)).model;
+            wide.evaluate(rowOf(2), boundsOf(920));
+            expect(wide.active).toBe(false);
+            const { model } = makeModel(null, rowOf(2));
+            model.evaluate(rowOf(2), boundsOf(800));
+            expect(model.active).toBe(true);
+            expect(globalStore.get(model.decisionAtom)).toMatchObject({ source: "auto", reason: "fit" });
+            // Widening the window past the threshold gives #1225's rule back at once.
+            globalStore.set(windowWidthAtom, 1400);
+            expect(model.active).toBe(false);
+        } finally {
+            terminalFloor.px = null;
+            globalStore.set(windowWidthAtom, 1400);
+        }
+    });
+
     it("enters when a panel opened leaves no room for the first column's floor (#731, #848), and reports what fits", () => {
         terminalFloor.px = 900;
         try {
             const { model } = makeModel(null, rowOf(1));
             model.evaluate(rowOf(1), boundsOf(1200));
             expect(model.active).toBe(false);
-            // 900 (floor) + 360 > 1200, while the readable minimums alone (520 + 360) would fit.
-            model.evaluate(rowOf(2), boundsOf(1200));
+            // 900 (floor) + 360 + 360 > 1500, while the readable minimums alone (520 + 720) would fit.
+            model.evaluate(rowOf(3), boundsOf(1500));
             expect(model.active).toBe(true);
             expect(model.fitsAtCurrentFloors()).toBe(false);
             expect(model.fitsAtReadableMinimums()).toBe(true);
@@ -536,32 +628,18 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(model.active).toBe(false);
     });
 
-    it("asks before readjusting when only the first column's floor keeps the panels apart (#733)", () => {
+    it("leaves below the first column's floor without readjusting anything, turned off by hand (#733, #1083)", () => {
         terminalFloor.px = 900;
         try {
-            const root = rowOf(2);
+            const root = rowOf(3);
             const { model, layoutModel } = makeModel(true, root);
-            model.evaluate(root, boundsOf(1200));
-            expect(model.requestLeave()).toEqual({ kind: "readjust" });
-            expect(globalStore.get(model.exitAskAtom)).toEqual({ kind: "readjust" });
-            expect(metaWrites()).toEqual([]);
-            // "Stay in 360 view"
-            model.closeExitAsk();
+            model.evaluate(root, boundsOf(1500));
+            expect(model.requestLeave()).toEqual({ kind: "leave" });
             expect(globalStore.get(model.exitAskAtom)).toBeNull();
-            expect(model.active).toBe(true);
-            // "Readjust every size": the floor cleared, the columns sharing the width, back to automatic.
-            model.requestLeave();
-            model.readjustAndLeave();
-            expect(terminalFloor.px).toBeNull();
-            expect(globalStore.get(model.exitAskAtom)).toBeNull();
-            expect(layoutModel.treeReducer).toHaveBeenCalledWith({
-                type: LayoutTreeActionType.ResizeNode,
-                resizeOperations: [
-                    { nodeId: "c0", size: 50 },
-                    { nodeId: "c1", size: 50 },
-                ],
-            });
-            expect(metaWrites()).toEqual([{ [View360MetaKey]: null }]);
+            // The floor stays, no size is shared again, and the tab stays off although the floor no longer fits.
+            expect(terminalFloor.px).toBe(900);
+            expect(layoutModel.treeReducer).not.toHaveBeenCalled();
+            expect(metaWrites()).toEqual([{ [View360MetaKey]: false }]);
         } finally {
             terminalFloor.px = null;
         }
@@ -614,7 +692,8 @@ describe("View360Model mode (FR-SHELL-066)", () => {
             expect(grip.id).toBe(model.gripHandleId(root));
             expect(grip.stuckTitleKey).toBeUndefined();
             expect(model.onResizeMove(grip, 820)).toBe(true);
-            expect(model.dragFixedPx).toBe(816);
+            // The grip sits on the fixed zone's edge since #1545: the pointer is the width.
+            expect(model.dragFixedPx).toBe(820);
             expect(model.onResizeMove(grip, 1200)).toBe(true);
             expect(model.dragFixedPx).toBe(1280 - CarpetReservePx);
             // The grip sets the floor, so it narrows below the current one down to the fixed zone's minimum.
@@ -623,6 +702,38 @@ describe("View360Model mode (FR-SHELL-066)", () => {
             expect(model.computeLayout(root, boundsOf(1280)).fixed.width).toBe(520);
             expect(model.onResizeEnd()).toBe(true);
             expect(terminalFloor.px).toBe(520);
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
+    it("lets the grip widen the fixed zone past half of a wide window, and again after the drag set the floor (#1745)", () => {
+        terminalFloor.px = null;
+        try {
+            const root = rowOf(2);
+            const { model, layoutModel } = makeModel(true, root);
+            Object.assign(layoutModel, {
+                displayContainerRef: { current: { getBoundingClientRect: () => ({ left: 0, width: 1600 }) } },
+                setter: vi.fn(),
+                pendingTreeAction: { throttledValueAtom: null },
+            });
+            model.evaluate(root, boundsOf(1600));
+            // Entering, the zone opens at the first column's half of the normal layout.
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(800);
+            const grip = model.rootResizeHandles(root, 10, [])[0];
+            expect(model.onResizeMove(grip, 800)).toBe(true);
+            expect(model.onResizeEnd()).toBe(true);
+            expect(terminalFloor.px).toBe(800);
+            // The floor the first drag set at half does not hold the next drag there.
+            expect(model.onResizeMove(grip, 1100)).toBe(true);
+            expect(model.dragFixedPx).toBe(1100);
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1100);
+            expect(model.onResizeMove(grip, 1500)).toBe(true);
+            expect(model.dragFixedPx).toBe(1600 - CarpetReservePx);
+            expect(model.onResizeEnd()).toBe(true);
+            // The width is kept once the drag ends.
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1600 - CarpetReservePx);
+            expect(model.gripNoRoom()).toBeNull();
         } finally {
             terminalFloor.px = null;
         }
@@ -663,5 +774,364 @@ describe("View360Model mode (FR-SHELL-066)", () => {
             focused: false,
         };
         expect(model.rewriteAction(insert, root).type).toBe(LayoutTreeActionType.SplitHorizontal);
+    });
+});
+
+function sizedRow(...sizes: number[]): LayoutNode {
+    return {
+        id: "root",
+        flexDirection: FlexDirection.Row,
+        size: 10,
+        children: sizes.map((size, i) => ({ ...leaf(`c${i}`), size })),
+    };
+}
+
+// One layout pass, as the layout runs it.
+function pass(model: View360Model, root: LayoutNode, width: number) {
+    model.evaluate(root, boundsOf(width));
+    return model.computeLayout(root, boundsOf(width));
+}
+
+describe("View360Model threshold per screen and proportions (#1083)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        setSetting("auto");
+        vi.mocked(RpcApi.SetMetaCommand).mockClear();
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        setThreshold(8);
+    });
+
+    it("laptop, 2 columns at 40/60: a third panel switches to 360 view, the carpet keeps the 60 % slot", () => {
+        setThreshold(2);
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        expect(pass(model, sizedRow(40, 60), 1600)).toBeNull();
+        expect(metaWrites()).toContainEqual({ [View360FractionsMetaKey]: [0.4, 0.6] });
+        // The split gave the new panel half of the last column: 40/30/30 in the tree.
+        const three = sizedRow(40, 30, 30);
+        const layout = pass(model, three, 1600);
+        expect(model.active).toBe(true);
+        expect(globalStore.get(model.decisionAtom)).toMatchObject({ source: "auto", reason: "columns" });
+        expect(globalStore.get(model.signalAtom)).toBe(1);
+        // The fixed zone keeps 40 %, each carpet panel takes the whole carpet like the 60 % column did (#1131, the
+        // end reserve gone with FR-SHELL-125).
+        expect(layout.fixed.width).toBe(640);
+        const room = layout.viewport.width;
+        expect(layout.columns.map((c) => c.width)).toEqual([room, room]);
+        // Entering touched nothing in the tree.
+        expect(three.children.map((c) => c.size)).toEqual([40, 30, 30]);
+        // Closing the third panel: back to the normal layout with 40/60, not the 40/30 the tree was left with.
+        const back = sizedRow(40, 30);
+        expect(pass(model, back, 1600)).toBeNull();
+        expect(model.active).toBe(false);
+        expect(back.children.map((c) => c.size)).toEqual([40, 60]);
+        vi.runAllTimers();
+        expect(layoutModel.treeReducer).toHaveBeenCalledWith({
+            type: LayoutTreeActionType.ResizeNode,
+            resizeOperations: [
+                { nodeId: "c0", size: 40 },
+                { nodeId: "c1", size: 60 },
+            ],
+        });
+    });
+
+    it("wide screen, 3 columns at 30/35/35: a fourth shows two carpet panels side by side at the 35 % slots", () => {
+        setThreshold(3);
+        const { model } = makeModel(null, sizedRow(30, 35, 35));
+        expect(pass(model, sizedRow(30, 35, 35), 3000)).toBeNull();
+        const layout = pass(model, sizedRow(30, 35, 35, 35), 3000);
+        expect(model.active).toBe(true);
+        expect(layout.fixed.width).toBe(900);
+        const slot = (layout.viewport.width - CarpetColumnGapPx) / 2;
+        expect(layout.columns.map((c) => c.width)).toEqual([slot, slot, slot]);
+    });
+
+    it("keeps the readable minimums as a safety net within the threshold", () => {
+        setThreshold(3);
+        const { model } = makeModel(null, rowOf(3));
+        // 3 columns in 1100 px do not fit at 520 + 360 + 360.
+        pass(model, rowOf(3), 1100);
+        expect(model.active).toBe(true);
+        expect(globalStore.get(model.decisionAtom).reason).toBe("fit");
+    });
+
+    it("turned off by hand beyond the threshold stays off, and follows the threshold again once back to it", () => {
+        setThreshold(2);
+        const { model, tabAtom } = makeModel(null, rowOf(2));
+        pass(model, rowOf(2), 1600);
+        pass(model, rowOf(3), 1600);
+        expect(model.active).toBe(true);
+        expect(model.requestLeave()).toEqual({ kind: "leave" });
+        expect(metaWrites()).toContainEqual({ [View360MetaKey]: false });
+        globalStore.set(tabAtom, { oid: "tab-1", meta: { [View360MetaKey]: false } } as unknown as Tab);
+        pass(model, rowOf(4), 1600);
+        expect(model.active).toBe(false);
+        vi.mocked(RpcApi.SetMetaCommand).mockClear();
+        pass(model, rowOf(2), 1600);
+        expect(metaWrites()).toContainEqual({ [View360MetaKey]: null });
+    });
+
+    it("takes the decision again when the screen or its threshold changes", () => {
+        setThreshold(3);
+        const { model, layoutModel } = makeModel(null, rowOf(3));
+        pass(model, rowOf(3), 1600);
+        expect(model.active).toBe(false);
+        vi.mocked(layoutModel.updateTree).mockClear();
+        setThreshold(2);
+        expect(layoutModel.updateTree).toHaveBeenCalled();
+        pass(model, rowOf(3), 1600);
+        expect(model.active).toBe(true);
+    });
+
+    it("lets a carpet column dragged during the view keep its width over the slot", () => {
+        setThreshold(2);
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        Object.assign(layoutModel, {
+            displayContainerRef: { current: { getBoundingClientRect: () => ({ left: 0, width: 1600 }) } },
+            setter: vi.fn(),
+            pendingTreeAction: { throttledValueAtom: null },
+        });
+        pass(model, sizedRow(40, 60), 1600);
+        const root = sizedRow(40, 30, 30);
+        const layout = pass(model, root, 1600);
+        const handle = model.rootResizeHandles(root, 10, [])[1];
+        const column = layout.columns[0];
+        expect(model.onResizeMove(handle, layout.viewport.left + column.x + 500)).toBe(true);
+        expect(model.onResizeEnd()).toBe(true);
+        const after = pass(model, root, 1600);
+        expect(after.columns[0].width).toBeLessThan(layout.columns[0].width);
+        expect(after.columns[1].width).toBe(layout.columns[1].width);
+    });
+});
+
+// Every panel and invitation at least partly in view at this position is wholly in view.
+function wholeAt(layout: CarpetLayout, pos: number): boolean {
+    const end = pos + layout.viewport.width;
+    const items = layout.columns;
+    return items
+        .filter((c) => c.x + c.width > pos + 1 && c.x < end - 1)
+        .every((c) => c.x >= pos - 0.5 && c.x + c.width <= end + 0.5);
+}
+
+describe("360 view carpet positions per screen width (#1131)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        setSetting("auto");
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        setThreshold(8);
+    });
+
+    const screens = [
+        { name: "wide", width: 3440, threshold: 3, sizes: [30, 35, 35], open: [30, 35, 35, 35, 35], visible: 2 },
+        { name: "normal", width: 1920, threshold: 2, sizes: [50, 50], open: [50, 25, 25, 25], visible: 1 },
+        { name: "narrow", width: 1440, threshold: 2, sizes: [40, 60], open: [40, 30, 30, 30], visible: 1 },
+        // Two half-pixel slots: rounding them up would push the last panel past the carpet's edge.
+        {
+            name: "narrow, odd width",
+            width: 1441,
+            threshold: 3,
+            sizes: [30, 35, 35],
+            open: [30, 35, 35, 35, 35],
+            visible: 2,
+        },
+    ];
+
+    for (const screen of screens) {
+        describe(`${screen.name} screen (${screen.width} px)`, () => {
+            function carpet(): CarpetLayout {
+                setThreshold(screen.threshold);
+                const { model } = makeModel(null, sizedRow(...screen.sizes));
+                pass(model, sizedRow(...screen.sizes), screen.width);
+                const layout = pass(model, sizedRow(...screen.open), screen.width);
+                expect(model.active).toBe(true);
+                return layout;
+            }
+
+            it("the first position shows whole panels", () => {
+                const layout = carpet();
+                expect(wholeAt(layout, 0)).toBe(true);
+                expect(visibleCarpetColumnIds(layout, 0)).toHaveLength(screen.visible);
+            });
+
+            it("the last position shows whole panels", () => {
+                const layout = carpet();
+                const last = layout.maxScroll;
+                expect(wholeAt(layout, last)).toBe(true);
+                expect(visibleCarpetColumnIds(layout, last)).toHaveLength(screen.visible);
+                // A panel's start edge: nothing of the panel before it is cut.
+                expect(layout.columns.some((c) => Math.abs(c.x - last) < 0.5)).toBe(true);
+            });
+
+            it("snaps on panel edges: whole panels, and no edge of the next one (FR-SHELL-125-AC7)", () => {
+                const layout = carpet();
+                const stops = carpetScrollStops(layout);
+                expect(stops[0]).toBe(0);
+                expect(stops[stops.length - 1]).toBe(layout.maxScroll);
+                for (const stop of stops.slice(1)) {
+                    expect(layout.columns.some((c) => Math.abs(c.x - stop) < 0.5)).toBe(true);
+                    const end = stop + layout.viewport.width;
+                    const whole = layout.columns.filter((c) => c.x >= stop - 0.5 && c.x + c.width <= end + 0.5);
+                    expect(whole).toHaveLength(screen.visible);
+                    // No edge of a stored panel shows beside the places.
+                    // Columns touch (#1545): less than a pixel of the next one is its own half gap, not a cut panel.
+                    const cut = layout.columns.filter((c) => c.x < end - 1 && c.x + c.width > end + 1);
+                    expect(cut).toEqual([]);
+                }
+            });
+
+            it("stepping to any panel from any position stops on a snap position showing it whole", () => {
+                const layout = carpet();
+                const stops = carpetScrollStops(layout);
+                for (const from of [0, layout.maxScroll / 3, ...stops]) {
+                    for (const column of layout.columns) {
+                        const to = scrollToRevealColumn(layout, column.nodeId, from);
+                        expect(visibleCarpetColumnIds(layout, to)).toContain(column.nodeId);
+                        expect(column.x).toBeGreaterThanOrEqual(to - 0.5);
+                        expect(column.x + column.width).toBeLessThanOrEqual(to + layout.viewport.width + 0.5);
+                        // A panel already whole in view does not move the carpet; otherwise it lands on a snap.
+                        if (to !== from) {
+                            expect(stops).toContain(to);
+                        }
+                    }
+                }
+                expect(scrollToRevealColumn(layout, layout.columns[0].nodeId, layout.maxScroll)).toBe(0);
+                const lastId = layout.columns[layout.columns.length - 1].nodeId;
+                expect(scrollToRevealColumn(layout, lastId, 0)).toBe(layout.maxScroll);
+            });
+        });
+    }
+});
+
+describe("View360Model first-switch notice and focus (FR-SHELL-066-AC10, #1654)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.mocked(showToast).mockClear();
+        resetView360Notice();
+        giveFocus.calls.length = 0;
+        setThreshold(2);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        setThreshold(8);
+        setSetting("auto");
+    });
+
+    const noticeToasts = () => vi.mocked(showToast).mock.calls.filter((c) => c[0].id === View360NoticeToastId);
+
+    it("announces the first automatic switch while the setting was never chosen, once", () => {
+        setSetting(undefined);
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        pass(model, sizedRow(40, 30, 30), 1600);
+        expect(model.active).toBe(true);
+        expect(noticeToasts()).toHaveLength(1);
+        pass(model, sizedRow(40, 60), 1600);
+        pass(model, sizedRow(40, 30, 30), 1600);
+        expect(noticeToasts()).toHaveLength(1);
+    });
+
+    it("never announces once a choice is stored", () => {
+        setSetting("auto");
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        pass(model, sizedRow(40, 30, 30), 1600);
+        expect(model.active).toBe(true);
+        expect(noticeToasts()).toHaveLength(0);
+    });
+
+    it("keeps the grid beyond the threshold under Keep the grid", () => {
+        setSetting("grid");
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        expect(pass(model, sizedRow(40, 30, 30), 1600)).toBeNull();
+        expect(model.active).toBe(false);
+        expect(noticeToasts()).toHaveLength(0);
+    });
+
+    it("brings the focused panel into view after a switch", () => {
+        setSetting("auto");
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        const three = sizedRow(40, 30, 30);
+        globalStore.set(layoutModel.focusedNode as PrimitiveAtom<LayoutNode>, three.children[1]);
+        const reveal = vi.spyOn(model, "revealBlock");
+        pass(model, three, 1600);
+        vi.runOnlyPendingTimers();
+        expect(reveal).toHaveBeenCalledWith("b-c1");
+        // The panel had no keyboard focus here: the switch does not take it.
+        expect(giveFocus.calls).toEqual([]);
+    });
+
+    it("Keep the grid from the notice gives the focus back to the focused panel once back in the grid", () => {
+        setSetting(undefined);
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        const three = sizedRow(40, 30, 30);
+        globalStore.set(layoutModel.focusedNode as PrimitiveAtom<LayoutNode>, three.children[2]);
+        pass(model, three, 1600);
+        vi.runOnlyPendingTimers();
+        giveFocus.calls.length = 0;
+        model.answerNotice("grid");
+        setSetting("grid");
+        expect(pass(model, three, 1600)).toBeNull();
+        vi.runOnlyPendingTimers();
+        expect(giveFocus.calls).toEqual(["b-c2"]);
+    });
+
+    it("Use 360 from the notice keeps the view and gives the focus back", () => {
+        setSetting(undefined);
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        const three = sizedRow(40, 30, 30);
+        globalStore.set(layoutModel.focusedNode as PrimitiveAtom<LayoutNode>, three.children[2]);
+        pass(model, three, 1600);
+        model.answerNotice("auto");
+        vi.runOnlyPendingTimers();
+        expect(model.active).toBe(true);
+        expect(giveFocus.calls).toEqual(["b-c2"]);
+    });
+});
+
+describe("View360Model decision for a column about to be added (#1668)", () => {
+    beforeEach(() => {
+        setThreshold(2);
+    });
+    afterEach(() => {
+        setThreshold(8);
+        setSetting("auto");
+    });
+
+    it("unset or automatic: a third column beyond the threshold wants 360 view, through the automatic decision", () => {
+        for (const setting of [undefined, "auto"]) {
+            setSetting(setting);
+            const { model } = makeModel(null, sizedRow(40, 60));
+            pass(model, sizedRow(40, 60), 1630);
+            expect(model.wantsWithColumns(3, 1630, 8)).toBe(true);
+            expect(model.wantsWithColumns(2, 1630, 8)).toBe(false);
+        }
+    });
+
+    it("Keep the grid: a third column that fits at its readable minimum stays in the grid", () => {
+        setSetting("grid");
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1630);
+        expect(model.wantsWithColumns(3, 1630, 8)).toBe(false);
+    });
+
+    it("Keep the grid: columns that cannot fit even at their readable minimums still go to 360 view", () => {
+        setSetting("grid");
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1200);
+        expect(model.wantsWithColumns(3, 1200, 8)).toBe(true);
+    });
+
+    it("a view turned off by hand stays in the grid while the columns fit", () => {
+        setSetting("auto");
+        const { model } = makeModel(false, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1630);
+        expect(model.wantsWithColumns(3, 1630, 8)).toBe(false);
     });
 });

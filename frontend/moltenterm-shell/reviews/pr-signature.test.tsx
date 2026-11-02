@@ -32,11 +32,14 @@ describe("PrSignature (#847)", () => {
         expect(renderToStaticMarkup(<PrSignature agents={[valentin]} testId="sig" />)).not.toContain("sig-reviewed");
     });
 
-    it("says unknown agent when nothing signed the PR, and guesses nothing", () => {
+    it("shows nothing when nothing signed the PR, never a scary unknown agent (#954)", () => {
         for (const agents of [undefined, []]) {
-            const html = renderToStaticMarkup(<PrSignature agents={agents} testId="sig" />);
-            expect(html).toContain('data-unknown="true"');
-            expect(html).toContain(">unknown agent<");
+            expect(renderToStaticMarkup(<PrSignature agents={agents} testId="sig" />)).toBe("");
         }
+        const reviewed = renderToStaticMarkup(
+            <PrSignature agents={[]} reviewed={{ name: "Anthony", date: "2026-10-16" }} testId="sig" />
+        );
+        expect(reviewed).toContain("reviewed by Anthony");
+        expect(reviewed).not.toContain("unknown");
     });
 });

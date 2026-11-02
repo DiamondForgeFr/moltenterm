@@ -2,13 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { branchCi, branchMark, CiRunRecord, defaultCiJob, formatCiDuration, parseAnsi, upsertCiRun } from "./ci-model";
+import {
+    branchCi,
+    branchMark,
+    ciRunLabel,
+    CiRunRecord,
+    defaultCiJob,
+    formatCiDuration,
+    parseAnsi,
+    upsertCiRun,
+} from "./ci-model";
 
 function run(id: string, startedat: number, extra: Partial<CiRunRecord> = {}): CiRunRecord {
     return { id, dir: "/p", sha: "abcdef0123", tree: "t", startedat, status: "success", jobs: [], ...extra };
 }
 
 describe("local CI model (FR-MC-011)", () => {
+    it("labels a run by its branch, or as detached at its commit, never silently branchless (#1072)", () => {
+        const t = (key: string, vars?: Record<string, string>) => `${key}${vars ? JSON.stringify(vars) : ""}`;
+        expect(ciRunLabel(run("a", 1, { branch: "feature/b" }), t)).toBe("feature/b");
+        expect(ciRunLabel(run("a", 1, { detached: true }), t)).toBe('mc.ciLocal.detached{"sha":"abcdef0"}');
+        expect(ciRunLabel(run("a", 1, { detached: true, heads: ["x", "y"] }), t)).toBe(
+            'mc.ciLocal.detachedOn{"sha":"abcdef0","branches":"x, y"}'
+        );
+        expect(ciRunLabel(run("a", 1), t)).toBe("mc.ciLocal.noBranch");
+    });
+
     it("keeps runs newest first, replacing an updated one", () => {
         const list = upsertCiRun([run("a", 1), run("b", 3)], run("a", 1, { status: "failure" }));
         expect(list.map((r) => [r.id, r.status])).toEqual([

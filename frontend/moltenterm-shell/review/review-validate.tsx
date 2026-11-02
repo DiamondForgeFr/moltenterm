@@ -15,8 +15,8 @@ import { MoltenWave } from "../molten-button";
 import { useBatchRun } from "../reviews/reviews-batch-client";
 import { BatchItem, batchRowMark, batchStepText, canWithdraw, queueItem } from "../reviews/reviews-batch-model";
 import { ReviewsModel } from "../reviews/reviews-store";
-import { SegmentedControl } from "../segmented-control";
 import { DominoLoader } from "../suite/suite";
+import { MergeMethodPicker } from "./merge-method-picker";
 import { cleanupLeftovers, cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
 import { mergedFooter } from "./review-done";
@@ -138,8 +138,16 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                 <ValidateStepper
                     steps={steps}
                     mergeTop={
-                        !locked && !plan?.queue && (plan?.methods?.length ?? 0) > 1 ? (
-                            <MethodPicker plan={plan} method={method} onSelect={(m) => model.setValidateMethod(m)} />
+                        !locked && (plan?.methods?.length ?? 0) > 0 ? (
+                            <MergeMethodPicker
+                                methods={plan.methods}
+                                defaultMethod={plan.method}
+                                method={method}
+                                refused={plan.methodrefused}
+                                queue={plan.queue}
+                                onSelect={(m) => model.setValidateMethod(m)}
+                                testId="validate-method"
+                            />
                         ) : null
                     }
                     checksExtra={
@@ -335,34 +343,5 @@ function SheetButtons({
                 <MoltenWave />
             </button>
         </>
-    );
-}
-
-// The merge method (#673): only the ones the repository and the base's rules allow, the last one used preselected.
-function MethodPicker({
-    plan,
-    method,
-    onSelect,
-}: {
-    plan: ReviewMergePlan;
-    method: ReviewMergeMethod;
-    onSelect: (method: ReviewMergeMethod) => void;
-}) {
-    const t = useT();
-    const segments = (plan.methods ?? []).map((m) => ({
-        value: m,
-        label: t(`review.validate.method.${m}`),
-        title: t(`review.validate.methodTitle.${m}`),
-    }));
-    return (
-        <div className="mt-1 mb-1 flex items-center gap-2" data-testid="validate-method">
-            <span className="text-12 text-secondary">{t("review.validate.methodLabel")}</span>
-            <SegmentedControl
-                label={t("review.validate.methodLabel")}
-                segments={segments}
-                selected={method}
-                onSelect={onSelect}
-            />
-        </div>
     );
 }

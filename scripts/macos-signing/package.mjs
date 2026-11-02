@@ -15,7 +15,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
+import { assertMacosPolicy, contextFromEnv, releasePolicy } from "../release-policy.mjs";
 import { finalizeArtifacts } from "./artifacts.mjs";
+import { verifyDeliveryArtifacts } from "./delivery.mjs";
 import { loadToolchain, readStage, sessionContext } from "./hooks.mjs";
 import { ARCHES, MODE_DEVELOPER_ID, signingMode } from "./policy.mjs";
 import { runOwnedProcess } from "./process.mjs";
@@ -67,7 +69,11 @@ async function leftovers(outDir) {
         throw error;
     }
     return names.filter(
-        (name) => MetadataName.test(name) || /-darwin-.*\.(?:dmg|zip|blockmap)$/.test(name) || /^mac(?:-|$)/.test(name)
+        (name) =>
+            name === "macos-verification.json" ||
+            MetadataName.test(name) ||
+            /-darwin-.*\.(?:dmg|zip|blockmap)$/.test(name) ||
+            /^mac(?:-|$)/.test(name)
     );
 }
 
@@ -104,10 +110,15 @@ export async function packageRelease({
     tools,
     builderCli,
     log = (message) => console.log(message),
+    verifyDelivery = verifyDeliveryArtifacts,
+    writeEvidence = async (...args) => (await import("../release-inventory.mjs")).writeMacEvidence(...args),
 } = {}) {
     if (signingMode(env) !== MODE_DEVELOPER_ID) throw new Error("Developer ID packaging needs every signing input");
+    const context = env.RELEASE_MODE != null || env.RELEASE_CHANNEL != null ? await contextFromEnv(env) : null;
+    if (context) assertMacosPolicy(context, MODE_DEVELOPER_ID);
     const args = builderArgs(extraArgs);
     const layout = await releaseLayout(projectDir);
+    if (context && context.version !== layout.version) throw new Error("Release context and package versions differ");
     if ((await leftovers(layout.outDir)).length)
         throw new Error(`Earlier macOS build output is in ${OUT_DIR}/: run task clean first`);
     const toolchain = () => (tools ??= loadToolchain(projectDir));
@@ -152,6 +163,12 @@ export async function packageRelease({
                             appleApiIssuer: inputs.issuer,
                         }),
                 });
+                if (context && releasePolicy(context).requireDeveloperId) {
+                    stage = "verifying final delivered applications";
+                    await verifyDelivery(manifest, inputs, { run, productName: layout.productName });
+                    stage = "recording final artifact evidence";
+                    await writeEvidence(manifest.outDir, context, { teamId: inputs.teamId });
+                }
                 log("Developer ID signed, notarized and stapled: both apps and disk images verified");
                 return manifest;
             } catch (error) {
@@ -167,7 +184,10 @@ export async function packageRelease({
 async function main(argv) {
     const [action, ...rest] = argv;
     if (action === "mode") {
-        console.log(signingMode(process.env));
+        const mode = signingMode(process.env);
+        if (process.env.RELEASE_MODE != null || process.env.RELEASE_CHANNEL != null)
+            assertMacosPolicy(await contextFromEnv(), mode);
+        console.log(mode);
         return;
     }
     if (action === "package") {

@@ -37,16 +37,34 @@ type PipelineVersions struct {
 	Notes     string `json:"notes,omitempty"`
 	// The first public release's number (X.Y.Z): proposed for it, and tags below its first candidate are not releases.
 	FirstPublic string `json:"firstpublic,omitempty"`
+	// How the next release candidates are numbered (#1155): "numeric" (X.Y.Z-N, the default) or "rcdot" (X.Y.Z-rc.N).
+	// Both forms are always read as the project's releases.
+	RcFormat string `json:"rcformat,omitempty"`
 	// The files that carry the version; the first one holds the project's current version (FR-REL-001).
 	Files []versions.VersionFile `json:"files,omitempty"`
 	// The coding agent CLI that writes the public notes from the release's facts (FR-REL-003), as argv: the prompt goes
 	// to its standard input and the notes come back on its standard output. Empty: the notes are the commit subjects.
 	NotesAgent []string `json:"notesagent,omitempty"`
+	// Files a release may change beside the version files and the notes, such as changelogs edited by hand before the cut
+	// (FR-MC-037): the cut commits them with the release.
+	Changelogs []string `json:"changelogs,omitempty"`
+	// The project's formatter for the files a release writes (#1095), e.g. "npx prettier --write": the files are appended
+	// as arguments. Empty: detected (prettier), else none.
+	Format string `json:"format,omitempty"`
+	// Lines the release setup found as version labels and the developer dismissed as not one (#1791): never offered
+	// again, so a false positive does not keep the setup update offered.
+	NotLabels []PipelineNotLabel `json:"notlabels,omitempty"`
+}
+
+// A dismissed version label: its file and its line as it reads (trimmed), not its number, which moves.
+type PipelineNotLabel struct {
+	Path string `json:"path"`
+	Text string `json:"text"`
 }
 
 // A command Moltenterm may run in the project: in `cwd` (relative to the project, default its root), with `env` added.
 type PipelineCommand struct {
-	Run string            `json:"run"`
+	Run string            `json:"run,omitempty"`
 	Cwd string            `json:"cwd,omitempty"`
 	Env map[string]string `json:"env,omitempty"`
 }
@@ -117,7 +135,24 @@ type PipelineStep struct {
 	Confirm string `json:"confirm,omitempty"`
 	// The step rewrites the public notes: offered beside them, not run in order.
 	Notes bool `json:"notes,omitempty"`
+	// A manual step (FR-MC-037): what the developer does by hand, shown in place of a command; the release waits until
+	// they confirm it is done, and nothing runs. It has no `run`.
+	Manual string `json:"manual,omitempty"`
+	// What proves a manual step done (#1095), checked before it is recorded: a file of the project holding a text.
+	Check *PipelineStepCheck `json:"check,omitempty"`
 	PipelineCommand
+}
+
+// A manual step's proof (#1095): `path` (a file of the project, read in the release worktree) holds `contains`, both
+// with {tag} and {version} expanded, e.g. {"path": "CHANGELOG.md", "contains": "## [{version}]"}.
+type PipelineStepCheck struct {
+	Path     string `json:"path"`
+	Contains string `json:"contains"`
+}
+
+// IsManual tells whether the step is done by hand rather than run.
+func (s PipelineStep) IsManual() bool {
+	return strings.TrimSpace(s.Manual) != ""
 }
 
 type PipelineRelease struct {
@@ -160,13 +195,47 @@ type Pipeline struct {
 	Group     string               `json:"group,omitempty"`
 	DependsOn []PipelineDependency `json:"dependson,omitempty"`
 	// The project's own icon, relative to the project folder; offered before any guessed image (#189).
-	Icon     string                `json:"icon,omitempty"`
+	Icon string `json:"icon,omitempty"`
+	// Where the pipeline setup writes the technical documentation, relative to the project and outside any docs site
+	// (#1226); empty: DefaultTechDocPath.
+	TechDoc  string                `json:"techdoc,omitempty"`
 	Branches *PipelineBranches     `json:"branches,omitempty"`
 	Versions *PipelineVersions     `json:"versions,omitempty"`
 	Ci       *PipelineCi           `json:"ci,omitempty"`
 	Builds   []PipelineBuild       `json:"builds,omitempty"`
 	Release  *PipelineRelease      `json:"release,omitempty"`
 	Steps    []PipelineAdapterStep `json:"steps,omitempty"`
+	// How the Reviews view serves a version of the project on this computer (FR-REV-031): proposed, never run, until
+	// the developer confirms it in the launch recipe dialog.
+	Launch *PipelineLaunch `json:"launch,omitempty"`
+}
+
+const (
+	PipelineLaunchWhereMain     = "main"
+	PipelineLaunchWhereWorktree = "worktree"
+)
+
+type PipelineLaunchStep struct {
+	Id    string `json:"id"`
+	Title string `json:"title,omitempty"`
+	PipelineCommand
+}
+
+type PipelineLaunchServer struct {
+	Id    string `json:"id"`
+	Title string `json:"title,omitempty"`
+	// Ready once a connection to this local port is accepted; 0: started is ready.
+	Port int `json:"port,omitempty"`
+	PipelineCommand
+}
+
+type PipelineLaunch struct {
+	// "main" (default): the main checkout, detached at the version's head; "worktree": the branch's worktree when it has one.
+	Where   string                 `json:"where,omitempty"`
+	Prepare []PipelineLaunchStep   `json:"prepare,omitempty"`
+	Servers []PipelineLaunchServer `json:"servers"`
+	// The page opened in the browser once every server is ready.
+	Url string `json:"url,omitempty"`
 }
 
 // must match the sections in frontend/moltenterm-shell/mission and pipeline-format.md
@@ -314,7 +383,14 @@ func (c *pipelineChecker) checkSteps(where string, steps []PipelineStep) {
 	for i, step := range steps {
 		label := fmt.Sprintf("%s[%d]", where, i)
 		c.checkId(label, step.Id, seen)
-		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
+		if step.IsManual() {
+			c.checkManual(label, step, phases[i])
+		} else {
+			c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
+			if step.Check != nil {
+				c.errorf("%s (%s): only a manual step declares a check", label, step.Id)
+			}
+		}
 		confirmed = confirmed || step.Confirm != ""
 		if step.Phase != "" && releasePhaseIndex(step.Phase) < 0 {
 			c.errorf("%s (%s): phase %q is not one of %s", label, step.Id, step.Phase, strings.Join(PipelineReleasePhases, ", "))
@@ -342,6 +418,30 @@ func (c *pipelineChecker) checkSteps(where string, steps []PipelineStep) {
 	}
 	if !confirmed {
 		c.warnf("%s: no step declares confirm: the step that pushes the tag runs on a plain click, unless it waits on notes drafted for the release", where)
+	}
+}
+
+// checkManual: a manual step runs nothing, so it holds no command, and it cannot be one of the steps that run on their
+// own as soon as a release starts.
+func (c *pipelineChecker) checkManual(label string, step PipelineStep, phase string) {
+	where := label + " (" + step.Id + ")"
+	if strings.TrimSpace(step.Run) != "" || step.Cwd != "" || len(step.Env) > 0 {
+		c.errorf("%s: a manual step has no run, cwd or env: the developer does it by hand", where)
+	}
+	if step.Notes {
+		c.errorf("%s: a manual step cannot rewrite the notes (notes: true)", where)
+	}
+	if phase == PipelineReleasePhasePrepare {
+		c.errorf("%s: a manual step cannot be in the prepare phase, which runs as soon as the release starts: give it the phase cut (or a later one)", where)
+	}
+	if check := step.Check; check != nil {
+		expanded := filepath.FromSlash(strings.NewReplacer("{tag}", "v1.0.0", "{version}", "1.0.0").Replace(check.Path))
+		if strings.TrimSpace(check.Path) == "" || strings.Contains(check.Path, "..") || !insideProject(c.dir, expanded) {
+			c.errorf("%s: check.path must name a file of the project, without .. (got %q)", where, check.Path)
+		}
+		if strings.TrimSpace(check.Contains) == "" {
+			c.errorf("%s: check.contains is empty: name the text that proves the step done (e.g. \"## [{version}]\")", where)
+		}
 	}
 }
 
@@ -387,6 +487,15 @@ func ReleasePreparation(steps []PipelineStep) []PipelineStep {
 		}
 	}
 	return rtn
+}
+
+func (c *pipelineChecker) checkTechDoc(path string) {
+	if path == "" {
+		return
+	}
+	if !strings.HasSuffix(strings.ToLower(path), ".md") || strings.Contains(path, "\\") || !insideProject(c.dir, path) || strings.HasPrefix(filepath.ToSlash(filepath.Clean(path)), ".git/") {
+		c.errorf("techdoc: %q must be a relative path to a .md file inside the project", path)
+	}
 }
 
 func (c *pipelineChecker) checkIcon(icon string) {
@@ -488,6 +597,19 @@ func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 	if v.TagPrefix != "" && !tagPrefixRegex.MatchString(v.TagPrefix) {
 		c.errorf("versions.tagprefix must start with a letter and hold only letters, digits, '.', '_', '/' or '-' (got %q)", v.TagPrefix)
 	}
+	for i, path := range v.Changelogs {
+		if strings.TrimSpace(path) == "" || strings.Contains(path, "..") || !insideProject(c.dir, filepath.FromSlash(path)) {
+			c.errorf("versions.changelogs[%d] must name a file of the project, without .. (got %q)", i, path)
+		}
+	}
+	if v.Format != "" && strings.TrimSpace(v.Format) == "" {
+		c.errorf("versions.format is blank: name the formatter's command (e.g. \"npx prettier --write\"), or leave it out")
+	}
+	for i, n := range v.NotLabels {
+		if strings.TrimSpace(n.Path) == "" || strings.Contains(n.Path, "..") || strings.TrimSpace(n.Text) == "" {
+			c.errorf("versions.notlabels[%d] must name a file of the project, without .., and the line's text (got %q, %q)", i, n.Path, n.Text)
+		}
+	}
 	for i, arg := range v.NotesAgent {
 		if strings.TrimSpace(arg) == "" {
 			c.errorf("versions.notesagent[%d] is empty: name the program, then its arguments (e.g. [\"claude\", \"-p\"])", i)
@@ -497,6 +619,9 @@ func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 		if _, err := versions.ParseBase(v.FirstPublic); err != nil {
 			c.errorf("versions.firstpublic must be a public version, X.Y.Z (got %q)", v.FirstPublic)
 		}
+	}
+	if !versions.ValidRcFormat(v.RcFormat) {
+		c.errorf("versions.rcformat must be %q (X.Y.Z-N) or %q (X.Y.Z-rc.N) (got %q)", versions.RcFormatNumeric, versions.RcFormatRcDot, v.RcFormat)
 	}
 	current := ""
 	for i, f := range v.Files {
@@ -528,6 +653,7 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		c.errorf("name is required")
 	}
 	c.checkIcon(p.Icon)
+	c.checkTechDoc(p.TechDoc)
 	if c.groupSet {
 		if _, err := GroupName(p.Group); err != nil {
 			c.errorf("group: %v", err)
@@ -609,8 +735,42 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		c.checkStepEnvironment(label, step, environments)
 		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
 	}
-	if p.Ci == nil && len(p.Builds) == 0 && p.Release == nil && len(p.Steps) == 0 {
-		c.warnf("the pipeline declares nothing to run (ci, builds, release, steps)")
+	if p.Launch != nil {
+		c.checkLaunch(p.Launch)
+	}
+	if p.Ci == nil && len(p.Builds) == 0 && p.Release == nil && len(p.Steps) == 0 && p.Launch == nil {
+		c.warnf("the pipeline declares nothing to run (ci, builds, release, steps, launch)")
+	}
+}
+
+func (c *pipelineChecker) checkLaunch(l *PipelineLaunch) {
+	if l.Where != "" && l.Where != PipelineLaunchWhereMain && l.Where != PipelineLaunchWhereWorktree {
+		c.errorf("launch.where must be %q or %q (got %q)", PipelineLaunchWhereMain, PipelineLaunchWhereWorktree, l.Where)
+	}
+	seen := map[string]bool{}
+	for i, step := range l.Prepare {
+		label := fmt.Sprintf("launch.prepare[%d]", i)
+		c.checkId(label, step.Id, seen)
+		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
+	}
+	if len(l.Servers) == 0 {
+		c.errorf("launch.servers is empty: declare at least one server")
+	}
+	ports := map[int]bool{}
+	for i, server := range l.Servers {
+		label := fmt.Sprintf("launch.servers[%d]", i)
+		c.checkId(label, server.Id, seen)
+		c.checkCommand(label+" ("+server.Id+")", server.PipelineCommand)
+		if server.Port < 0 || server.Port > 65535 {
+			c.errorf("%s (%s): port must be between 1 and 65535 (got %d)", label, server.Id, server.Port)
+		}
+		if server.Port > 0 && ports[server.Port] {
+			c.errorf("%s (%s): port %d is declared twice", label, server.Id, server.Port)
+		}
+		ports[server.Port] = true
+	}
+	if l.Url != "" && !strings.HasPrefix(l.Url, "http://") && !strings.HasPrefix(l.Url, "https://") {
+		c.errorf("launch.url must start with http:// or https:// (got %q)", l.Url)
 	}
 }
 
@@ -663,6 +823,17 @@ func ValidatePipeline(dir string) PipelineReport {
 		report.Errors = append(report.Errors, err.Error())
 		return report
 	}
+	return validatePipelineData(dir, data, report)
+}
+
+// ValidatePipelineData checks a proposed `.molten/project.json` as if it were the project's file (FR-MC-036): the
+// release setup validates its draft before anything is written. It never runs a declared command.
+func ValidatePipelineData(dir string, data []byte) PipelineReport {
+	report := PipelineReport{Path: filepath.Join(dir, ProjectPipelineFile), Present: true, Errors: []string{}, Warnings: []string{}}
+	return validatePipelineData(dir, data, report)
+}
+
+func validatePipelineData(dir string, data []byte, report PipelineReport) PipelineReport {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	var pipeline Pipeline

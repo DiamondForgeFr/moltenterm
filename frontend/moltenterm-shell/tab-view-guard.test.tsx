@@ -57,7 +57,7 @@ describe("TabViewGuard (FR-PERF-001)", () => {
         const html = render();
         // The visible form of #450: a quiet progress line, not an empty surface.
         expect(html).toContain('data-molten-view-pending="loading"');
-        expect(html).toContain("molten-view-pending-line");
+        expect(html).toContain("df-dominos");
         expect(html).toContain("Opening…");
     });
 

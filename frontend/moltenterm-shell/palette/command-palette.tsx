@@ -12,11 +12,29 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFeatureMatrix } from "../agent-info/agent-features-model";
+import type { AgentStateInfo } from "../agent-state-model";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
+import { FavoritesRow } from "../newview/favorites-row";
+import {
+    chooserAriaKey,
+    chooserFooterKey,
+    chooserKey,
+    chooserListEntries,
+    chooserPreselect,
+    firstAgentIndex,
+    suggestionEntries,
+} from "../newview/new-view-model";
+import { NewViewMorphHint } from "../newview/new-view-morph-hint";
 import { formatShortcutById } from "../shortcuts/format";
+import { keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
+import { keepViewKeysLabel } from "../sidebar/view-pin-actions";
+import { isProjectTab } from "../sidebar/view-pins-model";
+import { ViewPins } from "../sidebar/view-pins-store";
 import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
 import { pickerFitsInline, PickerMinPx, pickerPopoverRect, SplitFromMetaKey } from "../split/split-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
@@ -38,7 +56,13 @@ import {
     paletteKeyCommand,
     PickerGroupOrder,
 } from "./palette-model";
-import { buildPaletteEntries, paletteGroupTitles, PaletteWorkspace, PickerSource } from "./palette-sources";
+import {
+    addressEntry,
+    buildPaletteEntries,
+    paletteGroupTitles,
+    PaletteWorkspace,
+    PickerSource,
+} from "./palette-sources";
 
 export type CommandPaletteHost = "pane" | "modal";
 
@@ -52,6 +76,24 @@ type CommandPaletteProps = {
     autoFocus?: boolean;
     // "open" when an entry was chosen (its pane takes the focus), "dismiss" on Esc.
     onClose?: (reason: "open" | "dismiss") => void;
+    // A new view's chooser (FR-SHELL-089): favourites on top, Enter opens in the view, Escape cancels the view.
+    newView?: NewViewChooser;
+};
+
+export type NewViewChooser = {
+    favorites: PaletteEntry[];
+    // Each favourite's direct shortcut as shown, by position.
+    favoriteKeys: string[];
+    onOpen: (entry: PaletteEntry) => void;
+    onCancel: () => void;
+    // Nothing matches (#1672): the view goes and the agent gets the morph call with what was typed, not sent.
+    onAskAgent: (agent: AgentStateInfo, request: string) => Promise<void>;
+    // Opened by "Start an agent" (#1672): the first agent of the list is selected instead of a favourite.
+    focusAgents?: boolean;
+    // Opened as a new panel (#1742): the id of the entry selected first, a favourite or a row of the list.
+    preselect?: string;
+    // A new panel's chooser: Escape cancels the new panel, which the footer and the dialog's label say.
+    inPanel?: boolean;
 };
 
 type OtherWorkspaces = { list: PaletteWorkspace[]; folders: string[] };
@@ -131,8 +173,10 @@ function usePickerSource(host: CommandPaletteHost, blockId: string): PickerSourc
     }, [sourceId, view, cwd, connection]);
 }
 
-function usePaletteEntries(picker: PickerSource) {
+// Also the sidebar's top field (#1187): every palette command stays reachable from it.
+export function usePaletteEntries(picker: PickerSource) {
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
+    const installedAgents = useKnownCodingAgents();
     const ws = useAtomValue(atoms.workspace);
     const [others, setOthers] = useState<OtherWorkspaces>({ list: [], folders: [] });
     const wsId = ws?.oid;
@@ -155,7 +199,21 @@ function usePaletteEntries(picker: PickerSource) {
         fireAndForget(() => BrowserEngineModel.getInstance().ensureLoaded());
     }, []);
     const outdatedTerminals = useAtomValue(TermUpdates.getInstance().countAtom);
+    const pins = ViewPins.getInstance();
+    const viewState = useAtomValue(pins.stateAtom(tabId));
+    const viewModified = useAtomValue(pins.modifiedAtom(tabId));
     const locale = useLocale();
+    const matrix = useFeatureMatrix();
+    const projectTab = isProjectTab(tab);
+    const hasTab = tab != null;
+    const viewPin = useMemo(
+        () => ({
+            moves: hasTab ? pinMoves(viewMenuPlan(viewState, viewModified, projectTab)) : [],
+            keepMove: keepToggleMove(viewState, projectTab),
+            keepHint: keepViewKeysLabel(),
+        }),
+        [viewState, viewModified, projectTab, hasTab, locale]
+    );
     const installedBrowser = browserList?.chosen ?? null;
     const hasBrowserPanel = (tab?.blockids ?? []).some(
         (blockId) => WOS.getObjectValue<Block>(WOS.makeORef("block", blockId))?.meta?.view === MoltentermBrowserView
@@ -169,6 +227,8 @@ function usePaletteEntries(picker: PickerSource) {
         () =>
             buildPaletteEntries({
                 presets: fullConfig?.presets,
+                installedAgents,
+                matrix,
                 widgets: fullConfig?.widgets,
                 workspaceId: wsId,
                 folder,
@@ -182,9 +242,11 @@ function usePaletteEntries(picker: PickerSource) {
                 outdatedTerminals,
                 picker,
                 shortcutsHint: formatShortcutById("shortcuts"),
+                viewPin,
             }),
         [
             fullConfig,
+            installedAgents,
             wsId,
             folder,
             recentKey,
@@ -196,6 +258,8 @@ function usePaletteEntries(picker: PickerSource) {
             outdatedTerminals,
             picker,
             locale,
+            viewPin,
+            matrix,
         ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home, locale]);
@@ -308,6 +372,13 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
             <span className="shrink-0 whitespace-nowrap">
                 <Highlighted text={entry.label} indices={indices} />
             </span>
+            {entry.panelIcons?.length ? (
+                <span className="flex shrink-0 items-center gap-1 text-11 text-muted" aria-hidden>
+                    {entry.panelIcons.map((icon, i) => (
+                        <i key={i} className={makeIconClass(icon, true)} />
+                    ))}
+                </span>
+            ) : null}
             {entry.detail && <span className="min-w-0 truncate text-12 text-muted">{entry.detail}</span>}
             {aside && (
                 <span
@@ -323,12 +394,19 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
     );
 }
 
-export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, onClose }: CommandPaletteProps) {
+export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, onClose, newView }: CommandPaletteProps) {
     const t = useT();
     const picker = usePickerSource(host, blockId);
     const { entries, titles } = usePaletteEntries(picker);
     const [query, setQuery] = useState("");
     const [selected, setSelected] = useState(0);
+    const favCount = newView?.favorites?.length ?? 0;
+    // The selected favourite of a new view's chooser; -1 while the selection is in the list.
+    const [fav, setFav] = useState(favCount > 0 ? 0 : -1);
+    // "Start an agent" (#1672): the selection goes to the first agent once the cleared search shows the whole list.
+    const agentsFocus = useRef(false);
+    // The launcher's empty result action, Enter's when nothing matches (#1672).
+    const morphAction = useRef<() => void>(null);
     const ownInputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const order = picker != null ? PickerGroupOrder : PaletteGroupOrder;
@@ -342,10 +420,13 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 : [],
         [host, blockId, searching]
     );
-    const listed = useMemo(
-        () => (searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries),
-        [entries, panelEntries, searching]
-    );
+    const locale = useLocale();
+    const listed = useMemo(() => {
+        const all = searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries;
+        const base = newView != null ? [...suggestionEntries(t), ...chooserListEntries(all)] : all;
+        const address = addressEntry(query);
+        return address != null ? [address, ...base] : base;
+    }, [entries, panelEntries, searching, query, newView, locale]);
     const sections = useMemo(() => filterPalette(listed, query, titles, order), [listed, query, titles, order]);
     const flat = useMemo(() => flattenSections(sections), [sections]);
     const input = inputRef ?? ownInputRef;
@@ -369,8 +450,40 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     }, [inPopover]);
 
     useEffect(() => {
+        if (agentsFocus.current) {
+            agentsFocus.current = false;
+            setFav(-1);
+            setSelected(Math.max(firstAgentIndex(flat), 0));
+            return;
+        }
         setSelected(Math.max(bestMatchIndex(sections, query), 0));
+        if (favCount > 0) {
+            setFav(query.trim() === "" ? 0 : -1);
+        }
     }, [query]);
+    // A new panel's chooser (#1742) starts on the type of the focused panel, until the developer moves the selection.
+    const preselectPending = useRef(newView?.preselect != null);
+    useEffect(() => {
+        if (!preselectPending.current || newView?.preselect == null) {
+            return;
+        }
+        const pick = chooserPreselect(newView.favorites, flat, newView.preselect);
+        if (pick == null) {
+            return;
+        }
+        preselectPending.current = false;
+        setFav(pick.fav);
+        setSelected(pick.selected);
+    }, [flat, newView]);
+    // A chooser opened by the Library's "Start an agent" (#1672) starts on the first agent.
+    const focusAgents = newView?.focusAgents === true;
+    useEffect(() => {
+        if (!focusAgents) {
+            return;
+        }
+        setFav(-1);
+        setSelected(Math.max(firstAgentIndex(flat), 0));
+    }, [focusAgents]);
     // A click on another panel before anything was chosen or typed cancels the split; the clicked panel keeps the
     // focus (DS-SHELL-066).
     useEffect(() => {
@@ -406,6 +519,10 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         if (entry == null) {
             return;
         }
+        if (newView != null) {
+            newView.onOpen(entry);
+            return;
+        }
         // In a split's picker the entry fills the new panel: it was opened for that.
         const placement: PalettePlacement = right && blockId && picker == null ? "right" : inPlace;
         if (host === "modal") {
@@ -432,18 +549,41 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         if (e.nativeEvent.isComposing) {
             return;
         }
-        const command = paletteKeyCommand({
-            key: e.key,
-            shift: e.shiftKey,
-            ctrl: e.ctrlKey,
-            meta: e.metaKey,
-            alt: e.altKey,
-        });
+        const key = { key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey, meta: e.metaKey, alt: e.altKey };
+        preselectPending.current = false;
+        if (newView != null) {
+            const action = chooserKey({ fav, favCount, selected, listCount: flat.length, query }, key);
+            if (action != null) {
+                e.preventDefault();
+                e.stopPropagation();
+                switch (action.kind) {
+                    case "fav":
+                        setFav(action.index);
+                        break;
+                    case "list":
+                        setFav(-1);
+                        setSelected(action.index);
+                        break;
+                    case "openfav":
+                        newView.onOpen(newView.favorites[action.index]);
+                        break;
+                    case "cancel":
+                        newView.onCancel();
+                        break;
+                }
+                return;
+            }
+        }
+        const command = paletteKeyCommand(key);
         if (command == null) {
             return;
         }
         e.preventDefault();
         e.stopPropagation();
+        if (command === "open" && flat.length === 0 && morphAction.current != null) {
+            morphAction.current();
+            return;
+        }
         if (command === "open" || command === "open-right") {
             open(flat[selected], command === "open-right");
             return;
@@ -467,6 +607,18 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         setSelected(moveSelection(selected, command, flat.length));
     };
 
+    const startAgent = () => {
+        agentsFocus.current = true;
+        setQuery("");
+        input.current?.focus();
+    };
+
+    const onListHover = (i: number) => {
+        preselectPending.current = false;
+        setFav(-1);
+        setSelected(i);
+    };
+
     let index = 0;
     const palette = (
         <div
@@ -477,9 +629,18 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             )}
             style={pickerInPane && !inPopover ? { minHeight: PickerMinPx } : undefined}
             role="dialog"
-            aria-label={t("palette.ariaPalette")}
+            aria-label={t(newView != null ? chooserAriaKey(newView.inPanel === true) : "palette.ariaPalette")}
             data-role={pickerInPane ? (inPopover ? "split-picker-popover" : "split-picker") : undefined}
         >
+            {newView != null ? (
+                <FavoritesRow
+                    favorites={newView.favorites}
+                    keys={newView.favoriteKeys}
+                    selected={fav}
+                    onHover={setFav}
+                    onOpen={newView.onOpen}
+                />
+            ) : null}
             <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
                 <span className="font-mono text-accent">❯</span>
                 <input
@@ -496,7 +657,17 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 />
             </div>
             <div ref={listRef} id="molten-palette-list" role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1">
-                {flat.length === 0 && <div className="px-3.5 py-3 text-12 text-muted">{t("palette.noMatch", { query })}</div>}
+                {flat.length === 0 && (
+                    <div className="px-3.5 py-3 text-12 text-muted">{t("palette.noMatch", { query })}</div>
+                )}
+                {flat.length === 0 && newView != null && query.trim() !== "" && (
+                    <NewViewMorphHint
+                        query={query}
+                        onAsk={newView.onAskAgent}
+                        onStartAgent={startAgent}
+                        actionRef={morphAction}
+                    />
+                )}
                 {sections.map((section) => (
                     <div key={section.group}>
                         {/* Not uppercased: a title can hold a path, and paths are case-sensitive. */}
@@ -510,9 +681,9 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                                     key={entry.id}
                                     entry={entry}
                                     index={i}
-                                    selected={i === selected}
+                                    selected={fav < 0 && i === selected}
                                     query={query}
-                                    onHover={setSelected}
+                                    onHover={onListHover}
                                     onOpen={open}
                                 />
                             );
@@ -520,21 +691,33 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                     </div>
                 ))}
             </div>
-            <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted">
-                <span>↑↓ {t("palette.footer.choose")}</span>
-                <span>↵ {t(inPlace === "replace" ? "palette.footer.openHere" : "palette.footer.open")}</span>
-                {blockId && picker == null && <span>⇥ {t("palette.footer.openRight")}</span>}
-                <span>
-                    esc{" "}
-                    {t(
-                        host === "modal"
-                            ? "palette.footer.close"
-                            : picker != null
-                              ? "palette.footer.cancelSplit"
-                              : "palette.footer.clear"
-                    )}
-                </span>
-            </div>
+            {newView != null ? (
+                <div
+                    className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted"
+                    data-testid="new-view-hint"
+                >
+                    <span>← → {t("newView.hint.choose")}</span>
+                    <span>↵ {t("newView.hint.open")}</span>
+                    <span>↓ {t("newView.hint.all")}</span>
+                    <span>esc {t(chooserFooterKey(newView.inPanel === true))}</span>
+                </div>
+            ) : (
+                <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted">
+                    <span>↑↓ {t("palette.footer.choose")}</span>
+                    <span>↵ {t(inPlace === "replace" ? "palette.footer.openHere" : "palette.footer.open")}</span>
+                    {blockId && picker == null && <span>⇥ {t("palette.footer.openRight")}</span>}
+                    <span>
+                        esc{" "}
+                        {t(
+                            host === "modal"
+                                ? "palette.footer.close"
+                                : picker != null
+                                  ? "palette.footer.cancelSplit"
+                                  : "palette.footer.clear"
+                        )}
+                    </span>
+                </div>
+            )}
         </div>
     );
     if (!pickerInPane) {

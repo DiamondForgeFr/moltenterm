@@ -3,13 +3,13 @@
 
 // The Reviews view's Recently merged (#843): the PRs merged into the target lately, from the collector's GitHub read,
 // with where each one ships, read by wavesrv from the project's git (pkg/molten/mission/reviews_merged.go). The
-// collapsed or expanded section is remembered on this computer.
+// collapsed or expanded section is remembered in the settings.
 
-import { globalStore } from "@/app/store/jotaiStore";
-import { atom, PrimitiveAtom } from "jotai";
+import { atom, Atom } from "jotai";
 import { t } from "../i18n/i18n";
 import type { ReviewNote } from "../review/review-notes";
 import type { AgentSignature } from "./reviews-model";
+import { MergedFold, ReviewsFolds } from "./reviews-order-store";
 
 // must match ReviewMergedDays in pkg/molten/mission/reviews_merged.go
 export const MergedDays = 7;
@@ -76,28 +76,16 @@ export function notesByPr(notes: readonly ReviewNote[]): Record<number, number> 
     return rtn;
 }
 
-export const MergedOpenStorageKey = "moltenterm:reviews:mergedopen";
-
-function readOpen(): boolean {
-    try {
-        return globalThis.localStorage?.getItem(MergedOpenStorageKey) !== "closed";
-    } catch {
-        return true;
-    }
-}
-
-// Whether Recently merged is expanded (AC2), shared by the windows of this computer; expanded when storage fails.
+// Whether Recently merged is expanded (AC3): the developer's fold, saved with the other sections' (#1758); null when
+// never chosen, the section follows its default then (#1061: folded when the panel is long).
 export class MergedOpenPref {
     private static instance: MergedOpenPref = null;
 
-    openAtom = atom(readOpen()) as PrimitiveAtom<boolean>;
+    openAtom: Atom<boolean>;
 
     private constructor() {
-        globalThis.addEventListener?.("storage", (e: StorageEvent) => {
-            if (e.key === MergedOpenStorageKey) {
-                globalStore.set(this.openAtom, readOpen());
-            }
-        });
+        const folds = ReviewsFolds.getInstance();
+        this.openAtom = atom((get) => get(folds.savedAtom)[MergedFold] ?? null);
     }
 
     static getInstance(): MergedOpenPref {
@@ -112,11 +100,6 @@ export class MergedOpenPref {
     }
 
     set(open: boolean) {
-        globalStore.set(this.openAtom, open);
-        try {
-            globalThis.localStorage?.setItem(MergedOpenStorageKey, open ? "open" : "closed");
-        } catch {
-            // The choice still holds for this session.
-        }
+        ReviewsFolds.getInstance().set(MergedFold, open);
     }
 }

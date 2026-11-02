@@ -35,7 +35,7 @@ describe("review cleanup", () => {
                 dir: "/p",
                 repo: "acme/app",
                 number: 7,
-                steps: ["agent-worktree", "local-branch"],
+                steps: ["agent-worktree", "local-branch", "remote-branch"],
                 worktreeconfirmed: risk,
             },
             expect.objectContaining({ route: "molten:review" })

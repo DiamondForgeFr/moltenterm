@@ -41,10 +41,14 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | --- | --- |
 | `authkey.ts` | `get-auth-key` |
 | `moltenterm-accessibility.ts` | `moltenterm:get-accessibility-support` |
+| `moltenterm-window-buttons.ts` | `moltenterm-window-buttons` |
+| `moltenterm-window-look.ts` | `moltenterm-window-look`, `moltenterm-window-look-support` |
 | `moltenterm-hang-watch.ts` | `moltenterm-hang-pong`, `moltenterm-slow-sync-ipc`, `moltenterm-hang-diagnostics`, `moltenterm-hang-copy` |
+| `moltenterm-renderer-gone.ts` | `moltenterm-show-log` |
 | `emain-platform.ts` | `get-is-dev`, `get-platform`, `get-user-name`, `get-host-name`, `get-webview-preload`, `get-data-dir`, `get-config-dir`, `get-home-dir` |
-| `emain-ipc.ts` | `open-external`, `download`, `get-cursor-point`, `capture-screenshot`, `get-env`, `get-about-modal-details`, `get-zoom-factor`, `webview-focus`, `register-global-webview-keys`, `set-keyboard-chord-mode`, `set-is-active`, `update-window-controls-overlay`, `quicklook`, `clear-webview-storage`, `open-native-path`, `set-window-init-status`, `fe-log`, `increment-term-commands`, `native-paste`, `open-builder`, `set-builder-window-appid`, `open-new-window`, `close-builder-window`, `do-refresh`, `save-text-file` |
-| `emain-window.ts` | `set-active-tab`, `create-tab`, `set-waveai-open`, `close-tab`, `switch-workspace`, `create-workspace`, `delete-workspace`, `reset-workspace` |
+| `emain-ipc.ts` | `open-external`, `download`, `get-cursor-point`, `capture-screenshot`, `get-env`, `get-about-modal-details`, `get-zoom-factor`, `webview-focus`, `register-global-webview-keys`, `set-keyboard-chord-mode`, `set-is-active`, `update-window-controls-overlay`, `quicklook`, `clear-webview-storage`, `set-window-init-status`, `fe-log`, `increment-term-commands`, `native-paste`, `open-builder`, `set-builder-window-appid`, `open-new-window`, `close-builder-window`, `do-refresh`, `save-text-file` |
+| `moltenterm-native-path.ts` | `open-native-path`, `reveal-native-path` |
+| `emain-window.ts` | `set-active-tab`, `create-tab`, `set-waveai-open`, `close-tab`, `switch-workspace`, `create-workspace`, `delete-workspace`, `reset-workspace`, `undo-workspace` |
 | `emain-menu.ts` | `contextmenu-show`, `workspace-appmenu-show`, `builder-appmenu-show` |
 | `updater.ts` | `install-app-update`, `get-app-update-status`, `get-updater-channel` |
 | `moltenterm-update.ts` | `moltenterm-update-check`, `moltenterm-update-apply`, `moltenterm-update-last` |
@@ -53,6 +57,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `moltenterm-i18n.ts` | `moltenterm-system-languages`, `moltenterm-set-language-packs`, `moltenterm-set-locale` |
 | `moltenterm-system-notify.ts` | `moltenterm-system-notify`, `moltenterm-system-notify-close` |
 | `moltenterm-tab-activity.ts` | `moltenterm-window-activity-get` |
+| `moltenterm-screen.ts` | `moltenterm-screen-get` |
 | `moltenterm-tabview-host.ts` | `moltenterm-view-pending-action` |
 | `moltenterm-busy-close.ts` | `moltenterm-busy-reply` |
 | `moltenterm-site-permissions.ts` | `moltenterm-site-permission-answer` |

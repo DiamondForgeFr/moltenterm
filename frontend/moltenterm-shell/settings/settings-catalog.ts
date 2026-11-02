@@ -15,14 +15,17 @@ import { ProjectMetaKey, WorkspaceFolderMetaKey } from "../workspace-project";
 
 export type SettingsSectionId =
     | "general"
+    | "spaces"
     | "appearance"
     | "terminal"
     | "agents"
     | "browser"
     | "mission"
+    | "notifications"
     | "keyboard"
     | "mods"
     | "secrets"
+    | "tips"
     | "advanced";
 
 export type SettingsControl = "toggle" | "select" | "number" | "slider" | "text" | "path" | "multi" | "json";
@@ -30,19 +33,26 @@ export type SettingsControl = "toggle" | "select" | "number" | "slider" | "text"
 // description: the line under the section's title (#534).
 export type SettingsSection = { id: SettingsSectionId; title: string; icon: string; description: string };
 
-// The fixed order of the left list (DS-SHELL-091).
+// The fixed order of the left list (DS-SHELL-091). The Library's Settings page lists the same sections, Tips included,
+// so the two lists never drift apart (FR-SHELL-106).
 export const SettingsSections: SettingsSection[] = [
     {
         id: "general",
         title: "General",
         icon: "sliders",
-        description: "This workspace, quitting and closing, startup, panels and files.",
+        description: "Quitting and closing, startup, panels and files.",
+    },
+    {
+        id: "spaces",
+        title: "Workspaces and views",
+        icon: "layer-group",
+        description: "The sidebar, the views pinned everywhere, new views and what a new workspace starts with.",
     },
     {
         id: "appearance",
         title: "Appearance",
         icon: "palette",
-        description: "The window, the 360 view, its text and the magnified panel.",
+        description: "The theme, the window, the 360 view, its text and the magnified panel.",
     },
     {
         id: "terminal",
@@ -60,13 +70,20 @@ export const SettingsSections: SettingsSection[] = [
         id: "browser",
         title: "Browser",
         icon: "globe",
-        description: "The browser panel, how pages open, and the browser agents use.",
+        description: "The Web page panel, how pages open, and the browser agents use.",
     },
     {
         id: "mission",
-        title: "Mission Control",
+        title: "Project",
         icon: "diagram-project",
-        description: "Mission Control's CI/CD and line map.",
+        description: "The Project, CI/CD and Line map panels.",
+    },
+    // The levels set per subject live in the client's meta, not in settings.json (notification-settings.tsx).
+    {
+        id: "notifications",
+        title: "Notifications",
+        icon: "bell",
+        description: "What each subject tells you, and when the notification panel opens by itself.",
     },
     { id: "keyboard", title: "Keyboard", icon: "keyboard", description: "Keys and every shortcut." },
     // The mods this tab view runs and what each costs (FR-PERF-014); no settings.json key maps here.
@@ -79,6 +96,7 @@ export const SettingsSections: SettingsSection[] = [
         description:
             "Values stored in your system's secret store, for connections and commands. Never shown unless you ask.",
     },
+    { id: "tips", title: "Tips", icon: "lightbulb", description: "Reshape MoltenTerm, work faster, every shortcut." },
     {
         id: "advanced",
         title: "Advanced",
@@ -107,6 +125,8 @@ export type SettingEntry = {
     // What the app uses when the key is unset.
     defaultValue?: unknown;
     platform?: string;
+    // A multi whose list holds the options turned off: an option shows ticked when it is absent (#947).
+    inverted?: boolean;
     scope: SettingScope;
     order: number;
 };
@@ -125,6 +145,7 @@ type SchemaMeta = {
     default?: unknown;
     platform?: string;
     hidden?: boolean;
+    inverted?: boolean;
     order?: number;
 };
 
@@ -206,6 +227,7 @@ export function buildCatalog(
             unit: meta.unit,
             defaultValue: defaults?.[key] ?? meta.default,
             platform: meta.platform,
+            inverted: meta.inverted || undefined,
             scope: "global",
             order: meta.order ?? idx,
         });
@@ -214,7 +236,8 @@ export function buildCatalog(
 }
 
 // The settings of the current workspace (FR-SHELL-050-AC4): they live in the workspace's meta, not in settings.json,
-// so the schema cannot carry them. Each sits at the top of its section.
+// so the schema cannot carry them. They are edited in the workspace sheet, not in General, a section for the whole
+// app (FR-SHELL-101): the search still finds them and opens the sheet.
 export const WorkspaceSettings: SettingEntry[] = [
     {
         key: WorkspaceFolderMetaKey,
@@ -231,7 +254,7 @@ export const WorkspaceSettings: SettingEntry[] = [
         section: "general",
         group: "This workspace",
         label: "Project folder",
-        description: "The project this workspace is linked to, for Mission Control.",
+        description: "The project this workspace is linked to, for the Project panel.",
         control: "path",
         scope: "workspace",
         order: -1,
@@ -296,8 +319,9 @@ export function localizeSection(section: SettingsSection, tr: TFunction): Settin
     };
 }
 
+// The rows a section shows: the app's settings only, the workspace's live in its sheet (FR-SHELL-101).
 export function sectionEntries(entries: SettingEntry[], section: SettingsSectionId): SettingEntry[] {
-    return entries.filter((e) => e.section === section).sort((a, b) => a.order - b.order);
+    return entries.filter((e) => e.section === section && e.scope !== "workspace").sort((a, b) => a.order - b.order);
 }
 
 // The rows of a section by group, groups in the order of their first row.
@@ -456,4 +480,18 @@ export function settingChoices(
         list.unshift({ value: "", label: entry.unsetLabel });
     }
     return list.length <= MaxChoiceRows ? list : null;
+}
+
+// A multi's option is ticked when its value is in the list, or, inverted, when it is absent (#947: "Agents with the
+// integration" stores the agents turned off in agent:integrateoff).
+export function multiOptionOn(entry: SettingEntry, value: unknown, option: string): boolean {
+    const chosen = Array.isArray(value) ? (value as string[]) : [];
+    return entry.inverted ? !chosen.includes(option) : chosen.includes(option);
+}
+
+// The list to write once the option is clicked; null clears an empty list.
+export function multiToggled(entry: SettingEntry, value: unknown, option: string): string[] {
+    const chosen = Array.isArray(value) ? (value as string[]) : [];
+    const next = chosen.includes(option) ? chosen.filter((v) => v !== option) : [...chosen, option];
+    return next.length ? next : null;
 }

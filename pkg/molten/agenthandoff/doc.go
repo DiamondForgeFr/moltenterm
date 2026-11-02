@@ -16,15 +16,24 @@ package agenthandoff
 import "github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
 
 type (
-	ListRequest   = handoffwire.ListRequest
-	ListResult    = handoffwire.ListResult
-	AgentEntry    = handoffwire.AgentEntry
-	FileRef       = handoffwire.FileRef
-	LinkRef       = handoffwire.LinkRef
-	Brief         = handoffwire.Brief
-	SendRequest   = handoffwire.SendRequest
-	SendResult    = handoffwire.SendResult
-	AnswerRequest = handoffwire.AnswerRequest
+	ListRequest       = handoffwire.ListRequest
+	ListResult        = handoffwire.ListResult
+	AgentEntry        = handoffwire.AgentEntry
+	CallerEntry       = handoffwire.CallerEntry
+	FileRef           = handoffwire.FileRef
+	LinkRef           = handoffwire.LinkRef
+	Brief             = handoffwire.Brief
+	SendRequest       = handoffwire.SendRequest
+	SendResult        = handoffwire.SendResult
+	AnswerRequest     = handoffwire.AnswerRequest
+	LinkNoticeRequest = handoffwire.LinkNoticeRequest
+	PairsRequest      = handoffwire.PairsRequest
+	PairsResult       = handoffwire.PairsResult
+	PairEntry         = handoffwire.PairEntry
+	PendingEntry      = handoffwire.PendingEntry
+	ForgetRequest     = handoffwire.ForgetRequest
+	HistoryEntry      = handoffwire.HistoryEntry
+	HistoryResult     = handoffwire.HistoryResult
 )
 
 const (
@@ -32,6 +41,13 @@ const (
 	ListCommand           = handoffwire.ListCommand
 	SendCommand           = handoffwire.SendCommand
 	AnswerCommand         = handoffwire.AnswerCommand
+	LinkNoticeCommand     = handoffwire.LinkNoticeCommand
+	LinkNoticeKeyPrefix   = handoffwire.LinkNoticeKeyPrefix
+	PairsCommand          = handoffwire.PairsCommand
+	ForgetCommand         = handoffwire.ForgetCommand
+	HistoryCommand        = handoffwire.HistoryCommand
+	HistoryEvent          = handoffwire.HistoryEvent
+	LinksGesture          = handoffwire.LinksGesture
 	AnswerGesture         = handoffwire.AnswerGesture
 	NotificationKeyPrefix = handoffwire.NotificationKeyPrefix
 	NotificationSource    = handoffwire.NotificationSource

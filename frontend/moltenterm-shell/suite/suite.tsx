@@ -5,7 +5,7 @@
 // moves as is into the shared UI kit. Text comes from the caller (each app owns its translations); icons are
 // components, the suite's Lucide set (suite-icons.ts).
 
-import { useId, useRef } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 import "./suite.css";
 
 export type SuiteIcon = React.ComponentType<{ className?: string; strokeWidth?: number; "aria-hidden"?: boolean }>;
@@ -48,8 +48,13 @@ export function SectionBlock({
     ...rest
 }: SectionBlockProps) {
     const headingId = useId();
+    const blockRef = useRef<HTMLElement>(null);
+    const pocketRef = useRef<HTMLSpanElement>(null);
+    const footerRef = useRef<HTMLSpanElement>(null);
+    useNotchWidths(blockRef, pocketRef, footerRef, !!title, !!footer);
     return (
         <section
+            ref={blockRef}
             aria-labelledby={title ? headingId : undefined}
             {...rest}
             className={joinClasses("df-block", className)}
@@ -65,7 +70,7 @@ export function SectionBlock({
                 </span>
             ) : null}
             {title ? (
-                <span className="df-pocket">
+                <span className="df-pocket" ref={pocketRef}>
                     <span className="df-chip">
                         <h3 id={headingId} className="df-chip-text">
                             {title}
@@ -77,16 +82,107 @@ export function SectionBlock({
                 {description ? <p className="df-block-desc">{description}</p> : null}
                 {children}
             </div>
-            {footer ? <span className="df-pocket df-pocket-bottom">{footer}</span> : null}
+            {footer ? (
+                <span className="df-pocket df-pocket-bottom" ref={footerRef}>
+                    {footer}
+                </span>
+            ) : null}
         </section>
     );
 }
 
+// The pockets are notches cut out of the block (#1615): the block's fill and outline leave them out, so the background
+// the block sits on shows around the chip. Blocks sit on several backgrounds, so the notch cannot be painted in one
+// colour; the fill's mask needs each pocket's width instead, which only layout knows (a chip's label, a footer's
+// button).
+function useNotchWidths(
+    blockRef: React.RefObject<HTMLElement>,
+    pocketRef: React.RefObject<HTMLSpanElement>,
+    footerRef: React.RefObject<HTMLSpanElement>,
+    hasPocket: boolean,
+    hasFooter: boolean
+) {
+    useLayoutEffect(() => {
+        const block = blockRef.current;
+        if (block == null) {
+            return;
+        }
+        const notches: [HTMLElement, string][] = [
+            [pocketRef.current, "--df-notch-top"],
+            [footerRef.current, "--df-notch-bottom"],
+        ];
+        // Rounded down: a notch a fraction narrower than its pocket hides under the pocket's side line, a wider one
+        // would break the block's outline beside it. The scale undoes a transform on an ancestor (a block revealed
+        // with a zoom).
+        const measure = () => {
+            const blockWidth = block.getBoundingClientRect().width;
+            const scale = blockWidth > 0 ? block.offsetWidth / blockWidth : 1;
+            for (const [pocket, prop] of notches) {
+                if (pocket == null) {
+                    block.style.removeProperty(prop);
+                    continue;
+                }
+                block.style.setProperty(prop, `${Math.floor(pocket.getBoundingClientRect().width * scale)}px`);
+            }
+        };
+        measure();
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(measure);
+        for (const [pocket] of notches) {
+            if (pocket != null) {
+                observer.observe(pocket);
+            }
+        }
+        return () => observer.disconnect();
+    }, [hasPocket, hasFooter]);
+}
+
 const DominoCount = 8;
+type CycleAnimation = Pick<Animation, "startTime" | "effect">;
+
+// Every domino chain falls on one clock (#1399): its start goes back onto the last whole cycle counted from the
+// document timeline's origin. Chains started apart would otherwise change on different frames (N chains, N times the
+// frames), and Chromium runs a main-thread frame at each lap of each phase. Back, never forward: a start in the
+// future would leave the bars lying flat until it comes.
+export function snapToCycle(anim: CycleAnimation) {
+    if (anim.startTime == null) {
+        return;
+    }
+    const duration = anim.effect?.getComputedTiming().duration;
+    if (typeof duration !== "number" || !Number.isFinite(duration) || !(duration > 0)) {
+        return;
+    }
+    const start = Number(anim.startTime);
+    const snapped = Math.floor(start / duration) * duration;
+    if (Math.abs(snapped - start) < 0.01) {
+        return;
+    }
+    anim.startTime = snapped;
+}
+
+// Run when a bar's animation starts: on mount, and when the dominoes move again after standing still.
+function snapDomino(bar: Element) {
+    for (const anim of bar.getAnimations?.() ?? []) {
+        anim.ready.then(() => snapToCycle(anim)).catch(() => {});
+    }
+}
+
+// Waiting = domino (DS-UI-WAIT, #1714): every place the user waits for an action or an agent works shows this loader,
+// sized for its place. "inline" sits in a button, a line of text or a panel header, in the text colour; "card" is the
+// accent chain at half size, for a card, a row or a section that waits; "large" is the accent chain of a panel's first
+// draw (LoadingState). A determinate progress bar is the only other waiting sign, for work that knows its share done.
+export type DominoSize = "inline" | "card" | "large";
+
+const DominoSizeClass: Record<DominoSize, string> = {
+    inline: "df-domino-loader",
+    card: "df-dominos df-dominos-card",
+    large: "df-dominos",
+};
 
 export type DominoLoaderProps = {
-    // "inline" fits a button or a line of text in the text colour; "large" is the accent chain of a loading state.
-    size?: "inline" | "large";
+    size?: DominoSize;
     // Names what works when the loader stands alone (a status); without it the loader is hidden from assistive tech,
     // because a text next to it already says it.
     label?: string;
@@ -99,15 +195,33 @@ export type DominoLoaderProps = {
 export function DominoLoader({ size = "inline", label, className }: DominoLoaderProps) {
     return (
         <span
-            className={joinClasses(size === "large" ? "df-dominos" : "df-domino-loader", className)}
+            className={joinClasses(DominoSizeClass[size] ?? DominoSizeClass.inline, className)}
             role={label ? "status" : undefined}
             aria-label={label || undefined}
             aria-hidden={label ? undefined : true}
+            onAnimationStart={(e) => snapDomino(e.target as Element)}
         >
             {Array.from({ length: DominoCount }, (_, i) => (
                 <span key={i} />
             ))}
         </span>
+    );
+}
+
+// The suite's loading state (#1070): the large dominoes over what loads, filling the room the content will take, so
+// nothing moves when it arrives. Only for a first draw: a refresh keeps the content and shows the inline dominoes.
+export function LoadingState({ caption, className, testId }: { caption: string; className?: string; testId?: string }) {
+    return (
+        <div
+            className={joinClasses("df-loading-state", className)}
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            data-testid={testId}
+        >
+            <DominoLoader size="large" />
+            <p className="df-loading-caption">{caption}</p>
+        </div>
     );
 }
 

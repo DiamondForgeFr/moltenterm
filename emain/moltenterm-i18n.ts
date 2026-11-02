@@ -20,6 +20,7 @@ import {
     SystemLanguage,
     translate,
 } from "../frontend/moltenterm-shell/i18n/i18n-core";
+import "../frontend/moltenterm-shell/i18n/i18n-locales-eager";
 import { LanguagePackInput, LanguagePackRegistry } from "../frontend/moltenterm-shell/i18n/language-packs";
 
 export const MoltentermSystemLanguageVarName = "MOLTENTERM_SYSTEM_LANGUAGE";

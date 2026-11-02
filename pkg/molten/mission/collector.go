@@ -20,14 +20,18 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity/checkpoint"
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/gitwatch"
+	"github.com/wavetermdev/waveterm/pkg/molten/materials"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
+	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -58,6 +62,7 @@ const (
 	ReleaseFactsCommand     = "moltenmissionreleasefacts"
 	ReleaseStepCommand      = "moltenmissionreleasestep"
 	ReleaseRerunCommand     = "moltenmissionreleasererun"
+	ReleaseDispatchCommand  = "moltenmissionreleasedispatch"
 	ReleaseNotesCommand     = "moltenmissionreleasenotes"
 	ReleaseSaveCommand      = "moltenmissionreleasenotessave"
 	ReleaseMilestoneCommand = "moltenmissionreleasemilestone"
@@ -68,13 +73,34 @@ const (
 	TreePrsCommand          = "moltenmissiontreeprs"
 	WorkCommand             = "moltenmissionwork"
 	GitInitCommand          = "moltenmissiongitinit"
-	UpdateEvent             = "molten:mission:update"
-	RunEvent                = "molten:mission:run"
-	CiEvent                 = "molten:mission:ci"
-	DefaultMaxAgeSec        = 60
-	collectTimeout          = 2 * time.Minute
-	fetchEvery              = 5 * time.Minute
-	minForcedInterval       = 10 * time.Second
+	ReposCommand            = "moltenmissionrepos"
+	// The release setup (FR-MC-036): draft, refine with the coding agent, write on the developer's click.
+	SetupDraftCommand  = "moltenmissionsetupdraft"
+	SetupRefineCommand = "moltenmissionsetuprefine"
+	// The agent's step changes (#1099): the ticked ones applied to the draft, and the request any agent can answer.
+	SetupApplyCommand  = "moltenmissionsetupapply"
+	SetupPromptCommand = "moltenmissionsetupprompt"
+	SetupWriteCommand  = "moltenmissionsetupwrite"
+	// Updating an existing setup (#1086): the check writes nothing, the update is the developer's click.
+	SetupCheckCommand  = "moltenmissionsetupcheck"
+	SetupUpdateCommand = "moltenmissionsetupupdate"
+	// Write and Update open a pull request (#1098): its progress, and the issues its commit can name.
+	SetupPrStateCommand = "moltenmissionsetupprstate"
+	SetupTicketsCommand = "moltenmissionsetuptickets"
+	// Step 3 follows the pull request the setup opened (#1104): read only.
+	SetupPrStatusCommand = "moltenmissionsetupprstatus"
+	// The developer takes the setup's draft out of draft (#1788): step 3's Mark ready, or its notification's.
+	SetupPrReadyCommand = "moltenmissionsetupprready"
+	// The stepper's step 1 and its answers kept between openings (FR-MC-038).
+	SetupSurveyCommand  = "moltenmissionsetupsurvey"
+	SetupAnswersCommand = "moltenmissionsetupanswers"
+	UpdateEvent         = "molten:mission:update"
+	RunEvent            = "molten:mission:run"
+	CiEvent             = "molten:mission:ci"
+	DefaultMaxAgeSec    = 60
+	collectTimeout      = 2 * time.Minute
+	fetchEvery          = 5 * time.Minute
+	minForcedInterval   = 10 * time.Second
 	// NFR-MC-003: GitHub is read at most once a minute per project, however many panels ask.
 	minGithubInterval = time.Minute
 	// FR-PERF-011: the projects known at once (a status bar asks about every folder a terminal visits); past it, the
@@ -89,6 +115,15 @@ const (
 	// request): GitHub at most this often, git only after a change, never a fetch.
 	passiveGithubInterval = 10 * time.Minute
 	passiveGitMaxAge      = fetchEvery
+
+	// Step 2b's "another project as a model" (FR-MC-041): the linked projects' committed pipelines, only read.
+	SetupModelsCommand = "moltenmissionsetupmodels"
+	// The pipeline's technical documentation as the pull request would leave it (FR-MC-043), only read.
+	SetupTechDocCommand = "moltenmissionsetuptechdoc"
+	// Step 4's pipeline templates on this computer (FR-MC-042): listed for a project, saved, forgotten.
+	SetupTemplatesCommand      = "moltenmissionsetuptemplates"
+	SetupTemplateSaveCommand   = "moltenmissionsetuptemplatesave"
+	SetupTemplateDeleteCommand = "moltenmissionsetuptemplatedelete"
 	// The rail's Reviews counts (#688): a passive ask that reads GitHub this often, so a merge or a new PR shows
 	// without opening the view.
 	railGithubInterval = 2 * time.Minute
@@ -180,6 +215,17 @@ func (c *Collector) Size() int {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	return len(c.projects)
+}
+
+// SetupAnswersDir: the pipeline setup stepper's answers, one file per project (FR-MC-038).
+func SetupAnswersDir(dataDir string) string {
+	return filepath.Join(CacheDir(dataDir), "setup-answers")
+}
+
+// SetupTemplatesDir: the pipeline templates saved on this computer (FR-MC-042), outside the cache: they are the
+// developer's own.
+func SetupTemplatesDir(dataDir string) string {
+	return filepath.Join(dataDir, "molten", "pipeline-templates")
 }
 
 func CacheDir(dataDir string) string {
@@ -604,6 +650,8 @@ func UseStarter(start func()) {
 // Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 func Start() {
 	agentchoice.Start()
+	agentcontinuity.StartToolkitRoute()
+	agentcontinuity.StartFeaturesRoute()
 	dataDir := wavebase.GetWaveDataDir()
 	// The groups (FR-MC-026) follow every collector refresh and every CI run's end; set before the route takes requests.
 	var groups *Groups
@@ -634,6 +682,10 @@ func Start() {
 		if rec.Status != CiStateRunning {
 			go groups.Refreshed()
 		}
+		// The Integration cards read the local CI's statuses with it (#1713): a run that starts or ends shows at once.
+		if rec.Status != CiStateRunning || ciRunJustStarted(rec) {
+			go reviews.CiChanged(rec.Dir)
+		}
 	})
 	runs.UseCi(ci)
 	runs.UseAgentEnv(func(dir string) []string { return agentchoice.Resolve(dir, "").RunEnv() })
@@ -654,13 +706,26 @@ func Start() {
 	railorder.SetGrouping(ProductWorkspaces, func() { go groups.Reordered() }, func(displaced []railorder.Displaced) {
 		go notifyRailGroups(displaced)
 	})
+	// The groups become workspaces of several projects, once (FR-SHELL-087).
+	startProjectsMigration()
 	// What runs now is also work for the keep-awake (FR-SHELL-023).
 	useCurrentWork(runs, ci)
 	reviews = MakeReviews(collector, ExecRunner, publishReviews)
 	reviews.notify = attention.PublishNotification
+	reviews.ci = ci
 	worktrees := MakeWorktrees(ExecRunner, nil)
 	runs.UseWorktrees(worktrees, dataDir)
-	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews); err != nil {
+	// Launching a PR's or a branch's version from Reviews (FR-REV-031).
+	launches := MakeLaunches(LaunchDir(dataDir), ExecRunner, publishLaunch)
+	// A run refused from a terminal for untrusted commands asks the developer (DS-MC-005, #1017).
+	asks := MakeTrustAsks()
+	asks.notify = attention.PublishNotification
+	asks.resolve = attention.ResolveNotification
+	asks.workspaceOf = attention.ProjectWorkspace
+	asks.tell = func(ctx context.Context, blockId string, line string) bool {
+		return termupdate.TypeHandoffLine(ctx, blockId, line).Result == termupdate.InputSent
+	}
+	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches, asks, DepSyncTreesDir(dataDir), SetupAnswersDir(dataDir), SetupTemplatesDir(dataDir)); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.
@@ -669,6 +734,8 @@ func Start() {
 	companion.Start()
 	// The workspace task checkpoint (FR-CONT-007) updates from the agents' turns the companion reads.
 	checkpoint.Start()
+	// The materials registry (FR-MAT-001) reads the signals of the sessions the checkpoint follows.
+	materials.Start()
 	// Pages handed off to the installed browser (FR-BRW-002).
 	browsers.StartRoute(func() browsers.Settings {
 		s := wconfig.GetWatcher().GetFullConfig().Settings
@@ -679,6 +746,8 @@ func Start() {
 		}
 		return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserSites: sites})
 	})
+	// The MCP servers' links to MoltenTerm (FR-CONT-022), before the routes that refuse a stopped link's calls.
+	agentlinks.Start()
 	// The agent sessions of `molten mcp browser` (FR-BRW-008).
 	browseragent.Start()
 	// Handing work from one agent to another by first name (FR-CONT-015).

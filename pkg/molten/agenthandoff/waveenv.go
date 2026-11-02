@@ -14,10 +14,12 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
+	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
@@ -54,6 +56,10 @@ func (waveEnv) Run(blockId string) (molten.AgentRunInfo, bool) {
 	return attention.AgentRun(blockId)
 }
 
+func (waveEnv) Subagents(blockId string) []companion.SubagentIdentity {
+	return companion.PaneSubagents(blockId)
+}
+
 func (waveEnv) Locate(ctx context.Context, blockId string) (Location, error) {
 	block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
 	if err != nil {
@@ -75,7 +81,7 @@ func (waveEnv) Locate(ctx context.Context, blockId string) (Location, error) {
 	}
 	rtn.TabId = tabId
 	if tab, err := wstore.DBGet[*waveobj.Tab](ctx, tabId); err == nil && tab != nil {
-		rtn.TabName = tab.Name
+		rtn.TabName = wconfig.ViewNameText(tab.Name)
 	}
 	wsId, err := wstore.DBFindWorkspaceForTabId(ctx, tabId)
 	if err != nil {
@@ -92,7 +98,8 @@ func (waveEnv) Locate(ctx context.Context, blockId string) (Location, error) {
 }
 
 // projectDirOf: the workspace's project when the folder is in it (or unknown), else the folder's git root, else the
-// folder.
+// folder. A linked worktree belongs to its main checkout (#1123): the merge queue's agent works in a tree under
+// MoltenTerm's data folder, and its worktree's name is never its project.
 func projectDirOf(folder string, project string) string {
 	if project != "" && (folder == "" || within(folder, project)) {
 		return project
@@ -100,22 +107,39 @@ func projectDirOf(folder string, project string) string {
 	if folder == "" {
 		return ""
 	}
-	if root := molten.FindGitRoot(folder); root != "" {
+	root := molten.FindGitRoot(folder)
+	if root == "" {
+		return folder
+	}
+	main := molten.MainCheckoutOfTree(root)
+	if main == "" {
 		return root
 	}
-	return folder
+	if project != "" && samePath(main, project) {
+		return project
+	}
+	return main
+}
+
+func samePath(a string, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && ra == rb
 }
 
 func (waveEnv) TypePrompt(ctx context.Context, blockId string, line string) TypeResult {
 	out := termupdate.TypeHandoffLine(ctx, blockId, line)
 	if out.Result == termupdate.InputSent {
-		return TypeResult{Sent: true, Submitted: out.Submitted, Message: out.Message}
+		return TypeResult{Sent: true, Submitted: out.Submitted, Message: out.Message, MessageText: out.MessageText}
 	}
 	switch out.Reason {
 	case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
-		return TypeResult{Retry: true, Message: out.Message}
+		return TypeResult{Retry: true, Message: out.Message, MessageText: out.MessageText}
 	}
-	return TypeResult{Message: out.Message}
+	return TypeResult{Message: out.Message, MessageText: out.MessageText}
 }
 
 func (waveEnv) BrowserPage(ctx context.Context, blockId string, tabId int64) (string, string, bool) {
@@ -148,6 +172,8 @@ func (waveEnv) RecordHandoff(ctx context.Context, fromBlockId string, toBlockId 
 	if fromBlockId == "" || toBlockId == "" || fromBlockId == toBlockId {
 		return
 	}
+	// The windows read the history again (FR-SHELL-084): the event carries no data, History has it.
+	wps.Broker.Publish(wps.WaveEvent{Event: HistoryEvent})
 	block, err := wstore.DBGet[*waveobj.Block](ctx, toBlockId)
 	if err != nil || block == nil || block.Meta.GetString(molten.HandedByMetaKey, "") != "" {
 		return

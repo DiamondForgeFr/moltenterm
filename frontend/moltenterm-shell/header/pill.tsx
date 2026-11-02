@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The one Pill of MoltenTerm's headers (FR-SHELL-052, DS-SHELL-093): 20 px high, radius 6, 11/500, tones neutral,
-// warning and danger, an optional 6 px dot and an optional trailing action. It replaces the header's label styles
-// (agent label, tree chip, offers, the durable shield). The header is the panel's drag handle: the pill's buttons
+// warning, waiting (an agent waits on you, FR-SHELL-116) and danger, an optional 6 px dot shaped by its tone's state
+// and an optional trailing action. It replaces the header's label styles (agent label, tree chip, offers, the durable
+// shield). The header is the panel's drag handle: the pill's buttons
 // keep the pointer to themselves.
 
 import { cn, makeIconClass } from "@/util/util";
 import type { MouseEvent } from "react";
+import { DominoLoader } from "../suite/suite";
 import type { PillTone } from "./header-model";
 import "./header.css";
 
@@ -17,6 +19,8 @@ export type PillProps = {
     title?: string;
     dot?: boolean;
     icon?: string;
+    // Something loads or works: the inline dominoes take the icon's place (DS-SHELL-154).
+    busy?: boolean;
     // The whole pill as a button (open the session options, stop multi input).
     onClick?: () => void;
     // A trailing action ("Go"), its own button.
@@ -37,6 +41,7 @@ export function Pill({
     title,
     dot,
     icon,
+    busy,
     onClick,
     action,
     actionLabel,
@@ -48,7 +53,8 @@ export function Pill({
     const body = (
         <>
             {dot ? <span className="molten-pill-dot" aria-hidden /> : null}
-            {icon ? <i className={cn(makeIconClass(icon, false), "molten-pill-icon")} aria-hidden /> : null}
+            {busy ? <DominoLoader /> : null}
+            {icon && !busy ? <i className={cn(makeIconClass(icon, false), "molten-pill-icon")} aria-hidden /> : null}
             <span className="molten-pill-label">{label}</span>
         </>
     );

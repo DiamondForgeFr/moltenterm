@@ -15,16 +15,17 @@ import {
     Placement,
     shift,
     useDismiss,
-    useFloating,
     useInteractions,
-} from "@floating-ui/react";
+} from "@floating-ui/react"; // MOLTENTERM-PATCH (#1440)
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { MoltentermAddPanelWidget } from "../../moltenterm-shell/add-panel"; // MOLTENTERM-PATCH (#49)
+import { useFloatingInPlace } from "../../moltenterm-shell/floating-in-place"; // MOLTENTERM-PATCH (#1440)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
 import { MoltentermAddPanel } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#49)
 import { MoltentermDevChannelText } from "../../moltenterm-shell/status-bar-model"; // MOLTENTERM-PATCH (#107)
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 export type WidgetsEnv = WaveEnvSubset<{
     isDev: WaveEnv["isDev"];
@@ -144,7 +145,8 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement, placement 
     const env = useWaveEnv<WidgetsEnv>();
     const t = useT(); // MOLTENTERM-PATCH (#742)
 
-    const { refs, floatingStyles, context } = useFloating({
+    const { refs, floatingStyles, context } = useFloatingInPlace({
+        // MOLTENTERM-PATCH (#1440)
         open: isOpen,
         onOpenChange: onClose,
         placement: placement ?? "left-start", // MOLTENTERM-PATCH (#110)
@@ -203,7 +205,8 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement, placement 
                 <div className="p-4">
                     {loading ? (
                         <div className="flex items-center justify-center p-8">
-                            <i className="fa fa-solid fa-spinner fa-spin text-2xl text-muted"></i>
+                            {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                            <DominoLoader size="card" />
                         </div>
                     ) : apps.length === 0 ? (
                         <div className="text-muted text-sm p-4 text-center">{t("wave.apps.none")}</div>
@@ -265,7 +268,8 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement, placement 
 const SettingsFloatingWindow = memo(
     ({ isOpen, onClose, referenceElement, hasConfigErrors, placement }: FloatingWindowPropsType) => {
         const env = useWaveEnv<WidgetsEnv>();
-        const { refs, floatingStyles, context } = useFloating({
+        const { refs, floatingStyles, context } = useFloatingInPlace({
+            // MOLTENTERM-PATCH (#1440)
             open: isOpen,
             onOpenChange: onClose,
             placement: placement ?? "left-start", // MOLTENTERM-PATCH (#110)

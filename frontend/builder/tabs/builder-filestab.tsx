@@ -12,6 +12,7 @@ import { arrayToBase64 } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
+import { DominoLoader } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#1714)
 
 const MaxFileSize = 5 * 1024 * 1024; // 5MB
 const ReadOnlyFileNames = ["static/tw.css"];
@@ -350,7 +351,11 @@ const BuilderFilesTab = memo(() => {
 
             <div className="flex-1 overflow-auto">
                 {loading && files.length === 0 ? (
-                    <div className="text-center text-secondary py-8">Loading files...</div>
+                    <div className="text-center text-secondary py-8">
+                        {/* MOLTENTERM-PATCH (#1714): waiting = domino (DS-SHELL-154) */}
+                        <DominoLoader className="mr-1.5" />
+                        Loading files...
+                    </div>
                 ) : files.length === 0 ? (
                     <div className="text-center text-secondary py-12">
                         <i className="fa fa-file text-4xl mb-3 opacity-50" />

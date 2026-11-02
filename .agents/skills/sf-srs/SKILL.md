@@ -10,22 +10,30 @@ When delegation is available and authorized, assign independent work to agents; 
 execute the same steps sequentially. A sequential self-review is not an independent review:
 report that limitation and retain any required human review. Tool names in legacy examples
 describe capabilities, not required APIs. Use the user's current request as skill arguments.
-Do not assume Claude Code hooks, model selection, tool permissions or credentials transfer.
+Do not assume Claude Code hooks, tool permissions or credentials transfer.
 Run preconditions explicitly, and stop to report a missing capability when no equivalent exists.
+When a workflow step names a task kind, resolve its tier with
+`sf agents route --task <kind> --provider <current-agent>` and delegate the step to the
+`sf-<tier>` agent it names: that agent carries its own model and effort, so never name a
+model or an effort yourself. When the route fails or the agent cannot delegate, run the step
+in the session.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
 The project manifest and workflow rules take precedence over generic skill examples,
 including branch names, commit formats, staging, pushing and approval requirements.
 Legacy /task examples name roles: use native delegation if available and authorized,
 or perform the role's work sequentially with the review limitation stated above.
 
+Who builds a ticket, and the consent behind it, follow "Session orchestration and delegated ticket delivery" in the project instructions (`AGENTS.md`); read the `delegation:` line of `sf status --agent-friendly --no-network`.
+
 ## Parallel implementation and Git worktrees
 
-Propose parallel worktrees only when the user's request contains independent writing streams
-that can be delivered concurrently. Read-only exploration and review may use parallel agents
-without separate worktrees. Work with sequential dependencies, overlapping file ownership or
-unclear boundaries must use one feature worktree and sequential execution.
+Open a worktree per ticket when the recorded delegation is `allowed`, or when the developer
+asks for parallel work, and only for independent writing streams that can be delivered
+concurrently. Read-only exploration and review may use parallel agents without separate
+worktrees. Work with sequential dependencies, overlapping file ownership or unclear boundaries
+must use one feature worktree and sequential execution.
 
-Before proposing parallel implementation, read `.saasfoundry.json` and use
+Before opening a worktree, read `.saasfoundry.json` and use
 `workflow.workingBranch`; never hardcode a branch name. Keep the primary checkout on that
 configured working branch. Do not let feature workers write in the primary checkout while
 parallel worktrees are active.
@@ -33,8 +41,9 @@ parallel worktrees are active.
 For each independent writing stream, define one ticket, branch and worktree path, plus its owned
 files and dependency boundary. Start from a synchronized configured working branch. Each worker
 must stay inside its assigned worktree and ownership boundary, preserve other agents' changes
-and never revert unrelated work. The agent proposes this execution shape; the user retains
-control when parallel implementation was not already authorized. If authorization, clean
+and never revert unrelated work. The recorded delegation authorizes ticket delivery only: for
+any other parallel writing stream, and for tickets when it is not `allowed` or the current
+request says otherwise, propose this execution shape and wait for the answer. If clean
 separation, Git support or a synchronized base is unavailable, explain the constraint and use
 one worktree or sequential execution.
 
@@ -43,8 +52,6 @@ return to the primary checkout, check out and synchronize the configured working
 the merge, then remove the completed worktree and local branch only when they are merged and no
 longer in use. Never remove or overwrite user-owned worktrees, branches, uncommitted changes,
 stashes or credentials implicitly.
-
-
 
 # SRS SaaSFoundry AI
 
@@ -233,10 +240,47 @@ the exact state #542 was filed to prevent, and the moment to raise it is while t
 Every Story needs a `complexity:` label before it leaves Backlog. An FR candidate may carry `"complexity": "bug" | "low" | "medium" | "complex"`: the FR page shows it and spawn labels the Story with
 it. `--complexity <level>` labels the Stories whose FR page states none. The summary names any Story left without one; tag it with `workflow-cli.sh retag <ticket> <level>` before moving it.
 
+### Existing tickets are reused, with or without a plan
+
+`spawn` reads the board before it writes, in every mode: a run without `--reconciliation-plan` is not a blind create. Each FR is matched on its canonical page link among the tickets that carry it,
+open or closed, native children of the target Epic or without a parent:
+
+- a match is **reused**, never created again. A closed one is reused as it is and is not reopened;
+- a ticket closed as **not planned** is ignored: that is how a duplicate is closed, and it keeps the FR page link it was spawned with;
+- an FR with no match is created;
+- two matches for one page, a ticket that names the FR id without owning its page, or a match under another parent stop the run with exit 10, before the milestone or any ticket is touched. Nothing is
+  reparented implicitly.
+
+Without `--ticket`, the open `sf-epic` named `<feature> - <version>` that a previous run created is adopted rather than created again.
+
+`--dry-run` prints one line per FR, so a re-run shows what it reuses before it writes anything:
+
+```
+  existing tickets:
+    FR-LIVE-007: reuse #929
+    FR-LIVE-008: reuse #930 (closed)
+    FR-LIVE-009: reuse #931; ignored #1028 (closed as not planned)
+    FR-LIVE-010: create
+    FR-LIVE-011: blocked — FR-LIVE-011 already belongs to parent #9 through ticket #77; it will not be reparented implicitly
+```
+
+A `blocked` line makes the run exit 10, a dry run included. With a plan, the same lines read `partial → reuse #929`, `missing → create`, and so on.
+
+A duplicate that did get created, by an older spawn or by hand, is cleaned up without a raw API call: detach it from the Epic so the Epic can reach Done, then close it as not planned so that every
+later spawn ignores it.
+
+```bash
+.claude/skills/sf-workflow/workflow-cli.sh unlink-subtask <epic> <duplicate>
+gh issue close <duplicate> --reason "not planned"
+```
+
+`unlink-subtask` refuses a child that belongs to another parent and does nothing for one that has none.
+
 ### Evidence-first reconciliation
 
-When an approved SRS version may overlap existing work, `--reconciliation-plan` is required by the drafting transition. Build a versioned JSON plan that exactly covers every selected FR and records
-verified evidence from the board, SRS, and implementation (source, tests, or docs). Classify each FR as `delivered`, `partial`, `missing`, or `superseded`:
+When an approved SRS version may overlap existing work, `--reconciliation-plan` is required by the drafting transition. Reuse itself does not wait for a plan (see above); the plan adds the evidence
+that lets `spawn` skip an FR as delivered or superseded. Build a versioned JSON plan that exactly covers every selected FR and records verified evidence from the board, SRS, and implementation
+(source, tests, or docs). Classify each FR as `delivered`, `partial`, `missing`, or `superseded`:
 
 ```json
 {
@@ -278,16 +322,16 @@ A feature holding its FRs directly still spawns from `--epic` alone — 25 real 
 
 **A page that is neither an FR nor a version aborts the run and creates nothing.** Producing a ticket from a raw title is worse than failing: it looks planned and is empty.
 
-| Action         | Purpose                                                                     | Populated by |
-| -------------- | --------------------------------------------------------------------------- | ------------ |
-| `help`         | Print available actions                                                     | SUB-14.3     |
-| `validate`     | Smoke-test the configured backend via `createSrsAdapter().init()`           | SUB-14.3     |
-| `browse`       | List direct children of a backend page (tree navigation helper)             | SUB-6        |
-| `draft`        | Run the drafter matching `--from <source>` (notion-pages \| codebase)       | SUB-6, 13    |
-| `write`        | Apply a `DraftCandidate[]` spec to the backend + clear pending flag         | SUB-6        |
-| `spawn`        | Spawn GitHub tickets from a published SRS                                   | SUB-9        |
-| `apply-update` | Apply a conversational eval-hook patch (ADD-only : UR / FR / DS / TC / NFR) | SUB-10       |
-| `eval`         | Compute freshness score comparing the SRS to the codebase (batch)           | SUB-16       |
+| Action         | Purpose                                                                 | Populated by |
+| -------------- | ----------------------------------------------------------------------- | ------------ |
+| `help`         | Print available actions                                                 | SUB-14.3     |
+| `validate`     | Smoke-test the configured backend via `createSrsAdapter().init()`       | SUB-14.3     |
+| `browse`       | List direct children of a backend page (tree navigation helper)         | SUB-6        |
+| `draft`        | Run the drafter matching `--from <source>` (notion-pages \| codebase)   | SUB-6, 13    |
+| `write`        | Apply a `DraftCandidate[]` spec to the backend + clear pending flag     | SUB-6        |
+| `spawn`        | Spawn GitHub tickets from a published SRS                               | SUB-9        |
+| `apply-update` | Apply an eval-hook patch: add a UR / FR / DS / TC / NFR, or `update-fr` | SUB-10, #945 |
+| `eval`         | Compute freshness score comparing the SRS to the codebase (batch)       | SUB-16       |
 
 ## Freshness eval (SUB-16)
 
@@ -479,15 +523,15 @@ known so far: typos and missing Epics are easy to spot. An FR must hang under a 
 
 Every TS entrypoint under `src/srs/bin/` honours the same contract. The skill must branch on these codes rather than parsing stderr :
 
-| Code | Meaning                                                                              |
-| ---- | ------------------------------------------------------------------------------------ |
-| 0    | Success                                                                              |
-| 2    | Bad input — missing / malformed flag, zero candidates, empty `--ids`, bad spec shape |
-| 3    | SRS backend missing from the manifest (`tools.srs` absent)                           |
-| 4    | Unknown / invalid backend name declared in the manifest                              |
-| 5    | Backend runtime error (network, adapter `init()` failure, fetch failure)             |
-| 6    | `write` only — partial failure, JSON payload carries `rollbackHint`                  |
-| 7    | `write` only — pages created successfully but clearing `pendingIngestion` failed     |
+| Code | Meaning                                                                                           |
+| ---- | ------------------------------------------------------------------------------------------------- |
+| 0    | Success                                                                                           |
+| 2    | Bad input — missing / malformed flag, zero candidates, empty `--ids`, bad spec shape              |
+| 3    | SRS backend missing from the manifest (`tools.srs` absent)                                        |
+| 4    | Unknown / invalid backend name declared in the manifest                                           |
+| 5    | Backend runtime error (network, adapter `init()` failure, fetch failure)                          |
+| 6    | Partial write: `write` carries `rollbackHint`, `update-fr` carries `applied`, `pending`, `before` |
+| 7    | `write` only — pages created successfully but clearing `pendingIngestion` failed                  |
 
 ## Drafting from codebase (SUB-13)
 
@@ -601,10 +645,42 @@ Detection heuristics, confirmation prompt, patch shape, and v1 scope limits live
 - `detect-eval-signals.sh --classify "<text>"` (or stdin) — crude regex prefilter over a turn, returns `{signal, confidence, target}`. Use it to cheap-skip trivial turns; the agent still has the final
   say on whether to fire.
 
-Fire at most **once per conversation turn**. On a signal hit, propose a diff in plain text, wait for `accept / edit / reject`, and — on accept — pipe the patch through `sf srs apply-update`. It is
-ADD-only (changing an existing FR is #945). What it adds goes where `write` puts it: a UR / DS / TC / NFR to its table on the feature page, with the version of the target page; an FR to the target
-version's FR table and change list, and to the feature's tables. Only when the page is not part of the SRS or the table is missing does it fall back to an "Added …" heading at the end of the page; the
-result's `placed` and `notPlaced` say so.
+Fire at most **once per conversation turn**. On a signal hit, propose a diff in plain text, wait for `accept / edit / reject`, and — on accept — pipe the patch through `sf srs apply-update`. A UR / DS
+/ TC / NFR can only be added, and an FR can be added or changed in place (`update-fr`, below). What an `add-*` patch adds goes where `write` puts it: a UR / DS / TC / NFR to its table on the feature
+page, with the version of the target page; an FR to the target version's FR table and change list, and to the feature's tables. Only when the page is not part of the SRS or the table is missing does
+it fall back to an "Added …" heading at the end of the page; the result's `placed` and `notPlaced` say so.
+
+### Changing an existing FR (`update-fr`)
+
+A "revision" of an FR — its description reworded, a criterion added or dropped, its priority moved — is applied to the FR where it is listed, never appended as a design item. The patch names the FR by
+its id and the fields that change:
+
+```json
+{
+  "kind": "update-fr",
+  "frId": "FR-AEX-014",
+  "changes": {
+    "description": "Routes by the cost of delivering a ticket, duration included.",
+    "acceptanceCriteria": { "add": ["Durations break ties between tiers"], "remove": ["Exact text of a criterion to drop"] }
+  },
+  "change": "Amends FR-AEX-014 — cost per delivered ticket",
+  "versionPageId": "optional: the version that records the change"
+}
+```
+
+- **Fields.** `title`, `description`, `priority` (`P1` / `P2` / `P3`), `complexity`, `endpoint`, `requestBody`, `securityRationale`, `acceptanceCriteria` and `validationRules`. A list takes the whole
+  array, which replaces it and keeps its order, or `{ add, remove }`, which edits it by exact text (an entry already listed is not repeated; one that is not listed only warns). `id`, `group` and the
+  references `urRefs`, `dsRefs`, `tcRefs` are refused with exit 2 (the references are also listed in the tables of the UR, DS and TC: follow-up #1056); an empty patch and an unknown field are refused
+  too. `pageId` names the FR page when two pages carry the same id.
+- **Where it lands.** The FR page (its Summary and Field/Value tables, and — for a new title — its heading and page title), the FR table of its version and the FR table of its feature (the title and
+  the priority are the fields they show), then one line in the "What changed in this version" of the version that holds the FR. `versionPageId` records the line on another version of the same feature,
+  for an FR of an earlier version amended during later work; `change` words the line, `Amends <id> — <title> (<fields>)` otherwise. Nothing is appended as a separate item.
+- **Dry run first.** `sf srs apply-update --dry-run` prints the old → new plan (`changes`, the `changeLine`, `warnings`) and writes nothing: show it to the user, and apply only on accept.
+- **Refused before any write** (exit 2): an unknown or duplicated FR id, a `pageId` or `versionPageId` that does not fit, and an FR page that cannot take the change (a page written before the
+  Complexity row existed, or edited by hand). A backend whose adapter cannot amend a page exits 5 and writes nothing.
+- **Safe to repeat.** A cell already at its value is left alone and the change line is not written twice, so a second run makes no write. A write that stops midway exits 6 with `applied`, `pending`
+  and `before`: apply the same patch again to finish it, or apply a patch whose `changes` is that `before` to go back.
+- **The spawned Story keeps its old text.** Its body is not rewritten (re-syncing is follow-up #1057): the result's `followUps` names the Story spawned from the FR, and the user edits it by hand.
 
 After any change to the rules or classifier, run a short dogfood session: 5 utterances (one per signal row + one trivial control), confirm the hook fires exactly on the four signals and skips the
 trivial one.

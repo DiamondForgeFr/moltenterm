@@ -28,6 +28,10 @@ const (
 	AgentOriginInvestigate = "investigate"
 	// AgentOriginBatch: the batch merge's agent (FR-REV-025, batch_agent.go), for Count PRs into Base.
 	AgentOriginBatch = "batch"
+	// AgentOriginFinish: Check the agents (#954), the agent verifies the PR and finishes what is left.
+	AgentOriginFinish = "finish"
+	// AgentOriginLead: the lead agent that owns a PR, resumed on its session to take its work back (#1779).
+	AgentOriginLead = "lead"
 
 	// OriginMetaKey: the AgentOrigin of a terminal MoltenTerm started; must match
 	// frontend/moltenterm-shell/reviews/agent-origin.ts.
@@ -44,10 +48,14 @@ type AgentOrigin struct {
 	Branch string `json:"branch"`
 	Base   string `json:"base,omitempty"`
 	// MergedPr: the merge that put the PR in conflict (#691); Round: the review round handed over (Restart work).
-	MergedPr int    `json:"mergedpr,omitempty"`
-	Round    int    `json:"round,omitempty"`
-	Count    int    `json:"count,omitempty"`
-	Mode     string `json:"mode"`
+	MergedPr int `json:"mergedpr,omitempty"`
+	Round    int `json:"round,omitempty"`
+	Count    int `json:"count,omitempty"`
+	// Tag, Phase and Step: the failed release step an agent works on (#945).
+	Tag   string `json:"tag,omitempty"`
+	Phase string `json:"phase,omitempty"`
+	Step  string `json:"step,omitempty"`
+	Mode  string `json:"mode"`
 	// At: when the developer asked, Unix milliseconds.
 	At int64 `json:"at"`
 }
@@ -63,6 +71,12 @@ func defaultAgentTabName(kind string, number int) string {
 	}
 	if kind == AgentOriginInvestigate {
 		return "CI #" + strconv.Itoa(number)
+	}
+	if kind == AgentOriginFinish {
+		return "Finish #" + strconv.Itoa(number)
+	}
+	if kind == AgentOriginLead {
+		return "Resume #" + strconv.Itoa(number)
 	}
 	return "Rebase #" + strconv.Itoa(number)
 }

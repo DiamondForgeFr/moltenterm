@@ -130,3 +130,53 @@ func TestWriteVersionRefusesWhatItCannotWrite(t *testing.T) {
 		t.Error("a missing key must be refused")
 	}
 }
+
+const readmeMd = "# App\n\n**v0.14.5**\n\nCurrent version: 0.14.5-beta (npm package `app`).\nThe changelog mentions 0.14.4.\n"
+
+func TestTextLabels(t *testing.T) {
+	dir := writeTestProject(t)
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readmeMd), 0644); err != nil {
+		t.Fatal(err)
+	}
+	files := []VersionFile{
+		testFiles[0],
+		{Path: "README.md", Format: FileFormatText, Pattern: `\*\*v{version}\*\*`},
+		{Path: "README.md", Format: FileFormatText, Pattern: TextLabelPattern("Current version: ", " (npm package `app`).")},
+	}
+	values, err := ReadFileVersions(dir, files[2])
+	if err != nil || strings.Join(values, ",") != "0.14.5-beta" {
+		t.Fatalf("label = %v, %v", values, err)
+	}
+	if err := WriteVersion(dir, files, "1.0.0-1"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "README.md"))
+	want := strings.NewReplacer("**v0.14.5**", "**v1.0.0-1**", "0.14.5-beta", "1.0.0-1").Replace(readmeMd)
+	if string(data) != want {
+		t.Errorf("README.md:\n%s", data)
+	}
+}
+
+func TestTextLabelRefusals(t *testing.T) {
+	dir := writeTestProject(t)
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readmeMd), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		pattern string
+		want    string
+	}{
+		{`\*\*v0\.14\.5\*\*`, "{version} exactly once"},
+		{`{version}{version}`, "{version} exactly once"},
+		{`(v){version}`, "no capture group of its own"},
+		{`{version}`, "exactly once (it matches 3 times)"},
+		{`nothing {version}`, "exactly once (it matches 0 times)"},
+		{`[{version}`, "pattern:"},
+	}
+	for _, c := range cases {
+		err := CheckFile(dir, VersionFile{Path: "README.md", Format: FileFormatText, Pattern: c.pattern})
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%q: got %v, want %q", c.pattern, err, c.want)
+		}
+	}
+}

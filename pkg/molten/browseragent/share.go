@@ -96,6 +96,10 @@ func (m *Manager) sessionRefs() []sessionRef {
 	defer m.lock.Unlock()
 	rtn := make([]sessionRef, 0, len(m.sessions))
 	for _, s := range m.sessions {
+		// A parked session has no link: the terminal's connections do not show it connected either.
+		if s.parked {
+			continue
+		}
 		rtn = append(rtn, sessionRef{id: s.id, blockId: s.blockId, agentName: s.agentName, started: s.started.UnixNano()})
 	}
 	return rtn
@@ -204,7 +208,7 @@ func (m *Manager) Share(ctx context.Context, source string, req ShareRequest) (S
 		return ShareResult{}, shareError(refusal)
 	}
 	key := TabKey{PanelId: req.BlockId, BrowserTabId: req.BrowserTabId}
-	outcome := m.shareTab(s.id, key, req.Move)
+	outcome := m.shareTab(s.id, key, req.Move, siteOf(page.Url))
 	switch outcome.result {
 	case shareHeld:
 		return ShareResult{Result: ShareResultMove, AgentName: s.agentName, Holder: outcome.holder.agentName}, nil
@@ -214,8 +218,13 @@ func (m *Manager) Share(ctx context.Context, source string, req ShareRequest) (S
 		return ShareResult{}, shareError(errShareTooManyTabs)
 	}
 	if outcome.moved {
-		m.env.SetControl(key, false)
+		m.syncControl(key)
 		m.logf("%s session=%s agent=%q control=moved\n", logPrefix, shortId(outcome.holder.id), outcome.holder.agentName)
+	}
+	if outcome.resumed {
+		// emain paused the tab on the user's input; sharing it again hands it back, as Give back does.
+		m.syncControl(key)
+		m.logf("%s session=%s agent=%q control=giveback (shared again)\n", logPrefix, shortId(s.id), s.agentName)
 	}
 	m.publishPanel(key.PanelId)
 	if outcome.tabId != 0 {
@@ -228,7 +237,7 @@ func (m *Manager) sessionById(sessionId string) (sessionInfo, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	s := m.sessions[sessionId]
-	if s == nil {
+	if s == nil || s.parked {
 		return sessionInfo{}, false
 	}
 	return sessionInfo{id: s.id, blockId: s.blockId, agentName: s.agentName}, true
@@ -246,12 +255,14 @@ type shareOutcome struct {
 	result int
 	tabId  int64
 	moved  bool
-	holder sessionInfo
+	// resumed: the session held the tab, taken over by the user; sharing it again gave it back (#971).
+	resumed bool
+	holder  sessionInfo
 }
 
 // shareTab takes the tab from its holder (with move) and adds it to the session, in one step so no call can slip in
-// between.
-func (m *Manager) shareTab(sessionId string, key TabKey, move bool) shareOutcome {
+// between. A share always leaves the tab active for the session (#971).
+func (m *Manager) shareTab(sessionId string, key TabKey, move bool, site string) shareOutcome {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	s := m.sessions[sessionId]
@@ -261,7 +272,14 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool) shareOutcome
 	var out shareOutcome
 	if holderId, held := m.owners[key]; held {
 		if holderId == sessionId {
-			return shareOutcome{result: shareKept}
+			t := s.tabFor(key)
+			if t == nil || t.state != TabStateTakenOver {
+				return shareOutcome{result: shareKept}
+			}
+			t.state = TabStateActive
+			t.controlled = true
+			s.addNotice(t.id, noteGivenBack, givenBackNotice(t.id))
+			return shareOutcome{result: shareKept, tabId: t.id, resumed: true}
 		}
 		holder := m.sessions[holderId]
 		if holder != nil {
@@ -269,15 +287,7 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool) shareOutcome
 			if !move {
 				return shareOutcome{result: shareHeld, holder: out.holder}
 			}
-			if t := holder.tabFor(key); t != nil {
-				cancelCallsLocked(t)
-				m.endRequestsLocked(holder.id, t.id)
-				t.state = TabStateStopped
-				t.viewport = nil
-			}
-			out.moved = true
 		}
-		delete(m.owners, key)
 	}
 	open := 0
 	for _, t := range s.tabs {
@@ -287,6 +297,18 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool) shareOutcome
 	}
 	if open >= maxTabsPerSession {
 		return shareOutcome{result: shareFull}
+	}
+	if holderId, held := m.owners[key]; held {
+		if holder := m.sessions[holderId]; holder != nil {
+			if t := holder.tabFor(key); t != nil {
+				cancelCallsLocked(t)
+				m.endRequestsLocked(holder.id, t.id)
+				t.state = TabStateStopped
+				t.viewport = nil
+			}
+			out.moved = true
+		}
+		delete(m.owners, key)
 	}
 	m.nextTabId++
 	now := m.now()
@@ -300,6 +322,7 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool) shareOutcome
 		calls:     make(map[int64]context.CancelFunc),
 	}
 	m.owners[key] = sessionId
+	s.addNotice(m.nextTabId, noteSharedJustNow, sharedNotice(m.nextTabId, site))
 	out.result = shareAdded
 	out.tabId = m.nextTabId
 	return out
@@ -312,7 +335,7 @@ func (m *Manager) engageTab(sessionId string, tabId int64) {
 	if !ok {
 		return
 	}
-	m.env.SetControl(key, true)
+	m.syncControl(key)
 	m.publishPanel(key.PanelId)
 }
 
@@ -320,10 +343,11 @@ func (m *Manager) markEngaged(sessionId string, tabId int64) (TabKey, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	t := m.sessions[sessionId].tabOrNil(tabId)
-	if t == nil || t.engaged || m.owners[t.key] != sessionId {
+	if t == nil || t.engaged || t.state != TabStateActive || m.owners[t.key] != sessionId {
 		return TabKey{}, false
 	}
 	t.engaged = true
+	t.controlled = true
 	t.action = actionEngaged
 	t.actionTs = m.now().UnixMilli()
 	return t.key, true

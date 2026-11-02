@@ -131,6 +131,80 @@ func (e *Env) warnOpenIssues(m *Milestone) {
 
 // CloseMilestone closes the milestone of a public release once its GitHub release is published (not a draft); a
 // release candidate leaves it open, as the public release it leads to ships it.
+type tagRun struct {
+	HeadBranch   string `json:"headBranch"`
+	Status       string `json:"status"`
+	Conclusion   string `json:"conclusion"`
+	Url          string `json:"url"`
+	WorkflowName string `json:"workflowName"`
+}
+
+// waitPublished waits until the tag's release is out (#1046): every workflow run the tag started has ended green (an
+// environment approval, such as an npm publication's, keeps its run waiting), and the GitHub release, when the project
+// makes one, is no longer a draft. A run that fails, or a draft once the runs are done, stops it.
+func (e *Env) waitPublished(ctx context.Context, p *Project, tag string) error {
+	poll, limit := e.CiPoll, e.CiLimit
+	if poll <= 0 {
+		poll = ciPollInterval
+	}
+	if limit <= 0 {
+		limit = ciWaitLimit
+	}
+	begin := e.now()
+	said := ""
+	for {
+		out, err := e.gh(ctx, p.Root, "run", "list", "--limit", "50", "--json", "headBranch,status,conclusion,url,workflowName")
+		if err != nil {
+			return fmt.Errorf("could not read the runs of %s: %w", tag, err)
+		}
+		var all []tagRun
+		if err := json.Unmarshal(out, &all); err != nil {
+			return fmt.Errorf("gh run list: unreadable answer")
+		}
+		var runs, pending []tagRun
+		for _, r := range all {
+			if r.HeadBranch == tag {
+				runs = append(runs, r)
+			}
+		}
+		for _, r := range runs {
+			if r.Status != "completed" {
+				pending = append(pending, r)
+			} else if redConclusions[r.Conclusion] {
+				return fmt.Errorf("%s ended in %s on %s (%s): the release is not published, the milestone stays open", r.WorkflowName, r.Conclusion, tag, r.Url)
+			}
+		}
+		var rel struct {
+			IsDraft bool   `json:"isDraft"`
+			Url     string `json:"url"`
+		}
+		relOut, relErr := e.gh(ctx, p.Root, "release", "view", tag, "--json", "isDraft,url")
+		hasRelease := relErr == nil && json.Unmarshal(relOut, &rel) == nil
+		if len(pending) == 0 && hasRelease && rel.IsDraft {
+			return fmt.Errorf("the GitHub release of %s is still a draft: publish it first (%s)", tag, rel.Url)
+		}
+		if len(pending) == 0 && (len(runs) > 0 || hasRelease) {
+			return nil
+		}
+		now := "no run of " + tag + " yet"
+		if len(pending) > 0 {
+			names := []string{}
+			for _, r := range pending {
+				names = append(names, fmt.Sprintf("%s (%s)", r.WorkflowName, r.Status))
+			}
+			now = strings.Join(names, ", ")
+		}
+		if now != said {
+			e.printf("Waiting for the publication of %s: %s.\n", tag, now)
+			said = now
+		}
+		if e.now().Sub(begin) > limit {
+			return fmt.Errorf("%s is still not published after %s (%s): the milestone stays open, run it again later", tag, limit, now)
+		}
+		e.sleep(poll)
+	}
+}
+
 func (e *Env) CloseMilestone(ctx context.Context, tag string) error {
 	p, err := e.LoadProject(ctx)
 	if err != nil {
@@ -148,19 +222,8 @@ func (e *Env) CloseMilestone(ctx context.Context, tag string) error {
 		e.printf("origin is not on GitHub: no milestone to close.\n")
 		return nil
 	}
-	out, err := e.gh(ctx, p.Root, "release", "view", tag, "--json", "isDraft,url")
-	if err != nil {
-		return fmt.Errorf("no GitHub release for %s yet: %w", tag, err)
-	}
-	var rel struct {
-		IsDraft bool   `json:"isDraft"`
-		Url     string `json:"url"`
-	}
-	if err := json.Unmarshal(out, &rel); err != nil {
-		return fmt.Errorf("gh release view: unreadable answer")
-	}
-	if rel.IsDraft {
-		return fmt.Errorf("the GitHub release of %s is still a draft: publish it first (%s)", tag, rel.Url)
+	if err := e.waitPublished(ctx, p, tag); err != nil {
+		return err
 	}
 	// A milestone of the whole line ("v1") stays open for the next versions of the line.
 	m, err := e.milestoneOf(ctx, p.Root, v.String(), true)

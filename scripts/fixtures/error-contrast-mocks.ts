@@ -48,3 +48,4 @@ const host = {
     checkBudgets: () => {},
 };
 export const MoltenHost = { getInstance: () => host };
+export const refusePinnedClose = () => false;

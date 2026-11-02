@@ -12,7 +12,11 @@ import {
     isFreshIntent,
     moveRadio,
     parseIntent,
+    partOfField,
+    ProjectSheetBlocks,
+    projectSheetBlocks,
     radioTabStop,
+    WorkspaceEditParts,
 } from "./workspace-edit-model";
 import { LastWorkspaceReason } from "./workspace-reset-model";
 
@@ -120,5 +124,39 @@ describe("a double-click handed over between tab views (DS-SHELL-035)", () => {
         expect(isFreshIntent(intent, "w2", 1100, 500)).toBe(false);
         expect(isFreshIntent(intent, "w1", 900, 500)).toBe(false);
         expect(isFreshIntent(null, "w1", 1000, 500)).toBe(false);
+    });
+});
+
+describe("Identity, Appearance and Projects, then the Project sheet (FR-SHELL-105, TC-SHELL-206)", () => {
+    it("puts name, icon and colour under Identity, the look under Appearance, projects and folder under Projects", () => {
+        expect(WorkspaceEditParts.identity).toEqual(["name", "icon", "useProjectLogo", "colour"]);
+        expect(WorkspaceEditParts.appearance).toEqual(["look"]);
+        expect(WorkspaceEditParts.projects).toEqual(["projects", "folder"]);
+        expect(partOfField("name")).toBe("identity");
+        expect(partOfField("look")).toBe("appearance");
+        expect(partOfField("folder")).toBe("projects");
+    });
+
+    it("places every field in exactly one block", () => {
+        const all = Object.values(WorkspaceEditParts).flat();
+        expect(new Set(all).size).toBe(all.length);
+    });
+
+    it("gives the project's own settings to the Project sheet, the logo there only", () => {
+        expect(Object.values(WorkspaceEditParts).flat()).not.toContain("logo");
+        expect(ProjectSheetBlocks.logo).toEqual(["logo"]);
+        expect(Object.values(ProjectSheetBlocks).flat()).toEqual([
+            "folder",
+            "type",
+            "branch",
+            "logo",
+            "pipeline",
+            "agent",
+        ]);
+    });
+
+    it("keeps the folder, type and branch for a project without a folder, the rest once it has one", () => {
+        expect(projectSheetBlocks(true)).toEqual(["repository", "details", "logo", "pipeline", "agent"]);
+        expect(projectSheetBlocks(false)).toEqual(["repository", "details"]);
     });
 });

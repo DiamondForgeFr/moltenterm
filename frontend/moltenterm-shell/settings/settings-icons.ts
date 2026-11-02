@@ -13,10 +13,13 @@ import {
     ExternalLink,
     Eye,
     Laptop,
-    PanelLeft,
-    PanelTop,
+    LayoutGrid,
+    Moon,
     Rocket,
+    Shapes,
     Square,
+    Sun,
+    SunMoon,
     TextCursor,
     Underline,
     Wand2,
@@ -27,24 +30,29 @@ import type { SettingsSectionId } from "./settings-catalog";
 
 export const SettingsSectionConcepts: Record<SettingsSectionId, SuiteIconName> = {
     general: "settings",
+    spaces: "workspace",
     appearance: "appearance",
     terminal: "terminal",
     agents: "agent",
     browser: "web",
     mission: "mission",
+    notifications: "notifications",
     keyboard: "keyboard",
     mods: "mods",
     secrets: "secrets",
+    tips: "tips",
     advanced: "tools",
 };
 
 const GroupConcepts: Record<string, SuiteIconName> = {
     thisWorkspace: "workspace",
+    sidebar: "display",
     quittingAndClosing: "quitting",
     startup: "startup",
     panels: "panels",
+    newViews: "panels",
     filesAndEditor: "notes",
-    power: "power",
+    energy: "power",
     updates: "updates",
     language: "language",
     window: "window",
@@ -52,6 +60,7 @@ const GroupConcepts: Record<string, SuiteIconName> = {
     text: "text",
     magnifiedPanel: "magnify",
     look: "appearance",
+    theme: "appearance",
     behaviour: "behaviour",
     shell: "shell",
     connections: "connections",
@@ -77,12 +86,12 @@ export function settingsGroupIcon(slug: string): SuiteIconName {
 
 // The icon of each choice where one says more than the label; a choice missing here has none.
 const OptionIcons: Record<string, Record<string, SuiteIcon>> = {
-    "app:tabbar": { top: PanelTop, left: PanelLeft },
     "browser:default": { app: AppWindow, installed: ExternalLink },
-    "preview:defaultsort": { name: ArrowDownAZ, modtime: Clock },
+    "preview:defaultsort": { name: ArrowDownAZ, type: Shapes, modtime: Clock },
     "cicd:runs": { local: Laptop, remote: Cloud, cd: Rocket },
     "term:cursor": { block: Square, bar: TextCursor, underline: Underline },
-    "moltenterm:view360": { auto: Wand2, always: Eye },
+    "moltenterm:view360": { auto: Wand2, grid: LayoutGrid, always: Eye },
+    "moltenterm:theme": { dark: Moon, light: Sun, system: SunMoon },
 };
 
 export function settingsOptionIcon(key: string, value: string): SuiteIcon {

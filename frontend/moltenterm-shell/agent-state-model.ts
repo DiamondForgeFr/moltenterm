@@ -33,14 +33,34 @@ export type AgentStateInfo = {
     // message's code when MoltenTerm holds the state (#896): "fixing the CI of #12", "waiting for the CI of #12".
     messagetext?: ServerText;
     since?: number;
+    // When the agent's run started (Unix ms): the tab names its longest-running agent (#1033).
+    started?: number;
     version: number;
     hooked?: boolean;
     // The run's model and effort level as the agent last reported them (#549), absent when unknown.
     model?: string;
     modelname?: string;
     effort?: string;
+    // FR-AGC-008: the host the run talks to when it is not its agent's own provider, its name ("GLM", else the host)
+    // and the agent's own provider ("Anthropic"), whose plan gauges, models and effort levels do not apply then.
+    provider?: string;
+    providername?: string;
+    nativeprovider?: string;
+    // How many sub-agents of the session run (#1092). background: state is working only because of them; the main
+    // session's prompt is idle and takes a message.
+    subagents?: number;
+    background?: boolean;
     cleared?: boolean;
 };
+
+// The main session's prompt (#1092): what typing into it depends on. A pane working only through its sub-agents
+// shows working, but its prompt is idle.
+export function agentPromptState(info: AgentStateInfo): string {
+    if (info?.background) {
+        return "idle";
+    }
+    return info?.state;
+}
 
 export type AgentStatesData = {
     states: Record<string, AgentStateInfo>;
@@ -141,13 +161,16 @@ export function agentStateLabel(state: string): string {
     return state ?? "";
 }
 
-// The dot's colour per state, as class strings (the theme's tokens). Working is a ring, like the tab's mark, so it
-// stays apart from waiting's filled amber dot when it stands still (#473: the dot no longer pulses on its own).
+// The dot's colour and shape per state, as class strings (the heat tokens, FR-SHELL-116). Working is an incandescent
+// 270° arc, like the tab's mark, which turns on the working beat and stays apart from waiting's haloed violet dot when
+// it stands still (#473: the dot has no animation of its own).
 export const AgentStateDotClasses: Record<string, string> = {
-    waiting: "bg-warning",
-    error: "bg-error",
-    working: "border-2 border-[var(--mt-state-working)]",
-    done: "bg-success",
+    waiting:
+        "bg-[var(--mt-state-waiting)] shadow-[0_0_0_2px_color-mix(in_srgb,var(--mt-state-waiting)_30%,transparent)]",
+    error: "rounded-none rotate-45 scale-[0.82] bg-[var(--mt-state-blocked)]",
+    working:
+        "border-2 border-[var(--mt-state-running)] border-r-[color-mix(in_srgb,var(--mt-state-running)_25%,transparent)]",
+    done: "bg-[var(--mt-state-ready)]",
     idle: "bg-secondary",
 };
 
@@ -155,6 +178,43 @@ export const AgentStateDotClasses: Record<string, string> = {
 // a first name. Must match AgentLabel in pkg/molten/agentstate.go.
 export function agentLabel(info: AgentStateInfo, fallback = "Agent"): string {
     const kind = info?.agentname || info?.agent || fallback;
+    const first = (info?.firstname ?? "").trim();
+    return first ? `${first} · ${kind}` : kind;
+}
+
+// The provider a run talks to when it is not its agent's own (FR-AGC-008), "" otherwise.
+export function agentProviderName(info: AgentStateInfo): string {
+    if (!info?.provider) {
+        return "";
+    }
+    return (info.providername || info.provider).trim();
+}
+
+// The agent's tool with the provider behind it: "Claude Code via GLM", the tool alone without one.
+export function agentToolName(info: AgentStateInfo, fallback = ""): string {
+    const tool = (info?.agentname || info?.agent || fallback).trim();
+    const provider = agentProviderName(info);
+    if (!tool || !provider) {
+        return tool;
+    }
+    return t("agent.viaProvider", { agent: tool, provider });
+}
+
+// What the tool's name shows on hover behind another provider: where the requests go.
+export function agentProviderTitle(info: AgentStateInfo): string {
+    if (!agentProviderName(info)) {
+        return "";
+    }
+    const agent = (info.agentname || info.agent || "").trim();
+    if (!info.nativeprovider) {
+        return t("agent.providerHostTitle", { agent, host: info.provider });
+    }
+    return t("agent.providerTitle", { agent, host: info.provider, native: info.nativeprovider });
+}
+
+// agentLabel with the provider behind the run (FR-AGC-008): "Jérôme · Claude Code via GLM".
+export function agentProviderLabel(info: AgentStateInfo, fallback = "Agent"): string {
+    const kind = agentToolName(info, fallback) || fallback;
     const first = (info?.firstname ?? "").trim();
     return first ? `${first} · ${kind}` : kind;
 }

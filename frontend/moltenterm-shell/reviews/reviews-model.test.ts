@@ -3,20 +3,21 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
+import { errorPhrase, wordPhrase } from "../i18n/phrase";
 import {
     blockedReasons,
     ciLabel,
     isReviewable,
-    markReadyError,
+    markReadyError as markReadyPhrase,
     mergeableNow,
     mergeLabel,
     mergeLabelOf,
     navigableRows,
     nextRow,
+    rebaseOutcome as outcomeOf,
     railCountText,
     rebaseAskKey,
     rebaseAskShown,
-    rebaseOutcome,
     reportLabel,
     reviewAriaLabel,
     reviewCounts,
@@ -29,6 +30,20 @@ import {
     splitReviews,
     validateBlocked,
 } from "./reviews-model";
+
+// The outcome with its text worded, as a row shows it (#1058).
+function rebaseOutcome(
+    result: Parameters<typeof outcomeOf>[0],
+    error?: string,
+    what?: Parameters<typeof outcomeOf>[2]
+) {
+    const outcome = outcomeOf(result, error == null ? null : errorPhrase(error), what);
+    return outcome == null ? outcome : { ...outcome, text: wordPhrase(outcome.text) };
+}
+
+function markReadyError(result: Parameters<typeof markReadyPhrase>[0], error?: string): string {
+    return wordPhrase(markReadyPhrase(result, error == null ? null : errorPhrase(error)));
+}
 
 function pr(number: number, extra: Partial<ReviewPr> = {}): ReviewPr {
     return {
@@ -68,6 +83,9 @@ describe("reviews model", () => {
         expect(mergeLabel("conflicts", "develop")).toMatchObject({ label: "conflicts with develop", tone: "pending" });
         expect(mergeLabel("blocked", "develop")).toMatchObject({ label: "blocked", tone: "failure" });
         expect(mergeLabel("unknown", "develop")).toMatchObject({ label: "checking…", tone: "neutral" });
+        // #1059: GitHub's UNSTABLE while checks still run reads as running, never as failing.
+        expect(mergeLabel("running", "develop")).toMatchObject({ label: "checks running", tone: "neutral" });
+        expect(mergeLabel("failing", "develop")).toMatchObject({ label: "checks failing", tone: "failure" });
     });
 
     it("says why a row's Validate cannot open the sheet (#683 AC1)", () => {
@@ -123,7 +141,18 @@ describe("reviews model", () => {
                 firstname: "Rita",
                 branch: "b",
             })
-        ).toMatchObject({ kind: "info", text: "Rita is working on b: ask again once it is done." });
+        ).toMatchObject({ kind: "info", text: "Rita is working on b." });
+        // The busy agent's terminal comes with it (#1062): the card offers to hand it the task after its own.
+        expect(
+            rebaseOutcome({
+                status: "busy",
+                reason: "agentbusy",
+                agentstate: "working",
+                firstname: "Rita",
+                blockid: "blk-rita",
+                branch: "b",
+            }).busy
+        ).toEqual({ blockId: "blk-rita", name: "Rita" });
         expect(
             rebaseOutcome({ status: "busy", reason: "agentbusy", agentstate: "waiting", firstname: "Rita" }).text
         ).toContain("waiting for your answer");
@@ -217,9 +246,9 @@ describe("reviews model", () => {
         expect(rebaseOutcome({ status: "sent", firstname: "Rita" }, null, "investigate")).toMatchObject({
             kind: "asked",
             note: true,
-            text: "Rita investigates and fixes the failed CI: a notification tells you when the checks pass or if it needs you.",
+            text: "Rita analyzes and resolves what blocks the pull request: a notification tells you when nothing fails any more or if it needs you.",
         });
-        expect(rebaseOutcome(null, "boom", "investigate").text).toBe("Investigate and fix could not be asked: boom");
+        expect(rebaseOutcome(null, "boom", "investigate").text).toBe("Analyze and resolve could not be asked: boom");
         expect(rebaseOutcome({ status: "sent", firstname: "Rita" }).note).toBeFalsy();
     });
 
@@ -358,15 +387,15 @@ describe("reviews model", () => {
 
     it("words the rail's counts with plurals and shows real numbers up to 99 (#688 AC1, #775 AC2, AC3)", () => {
         expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 0 })).toBe(
-            "Reviews · pull requests waiting for your review"
+            "Integration · pull requests waiting for your review"
         );
         expect(reviewsRailLabel({ toreview: 5, mergeable: 4, drafts: 0 })).toBe(
-            "Reviews — 5 to review, 4 ready to merge"
+            "Integration — 5 to review, 4 ready to merge"
         );
-        expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 0 })).toBe("Reviews — 1 to review");
-        expect(reviewsRailLabel({ toreview: 0, mergeable: 1, drafts: 0 })).toBe("Reviews — 1 ready to merge");
+        expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 0 })).toBe("Integration — 1 to review");
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 1, drafts: 0 })).toBe("Integration — 1 ready to merge");
         expect(reviewsRailLabel({ toreview: 2, mergeable: 11, drafts: 0 })).toBe(
-            "Reviews — 2 to review, 11 ready to merge"
+            "Integration — 2 to review, 11 ready to merge"
         );
         expect(railCountText(1)).toBe("1");
         expect(railCountText(150)).toBe("99+");
@@ -378,10 +407,12 @@ describe("reviews model", () => {
         expect(reviewCounts(drafts(3))).toEqual({ toreview: 0, mergeable: 0, drafts: 3 });
         expect(reviewCounts({ ...drafts(3), state: "error" })).toEqual({ toreview: 0, mergeable: 0, drafts: 0 });
         expect(reviewsRailLabel({ toreview: 2, mergeable: 1, drafts: 3 })).toBe(
-            "Reviews — 2 to review, 1 ready to merge, 3 drafts"
+            "Integration — 2 to review, 1 ready to merge, 3 drafts"
         );
-        expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Reviews — 1 draft");
-        expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 12 })).toBe("Reviews — 1 to review, 12 drafts");
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Integration — 1 draft");
+        expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 12 })).toBe(
+            "Integration — 1 to review, 12 drafts"
+        );
         expect(railCountText(11)).toBe("11");
         expect(railCountText(99)).toBe("99");
         expect(railCountText(100)).toBe("99+");
@@ -393,16 +424,18 @@ describe("reviews model", () => {
 
         it("words the rail's counts (#775 AC3)", () => {
             expect(reviewsRailLabel({ toreview: 5, mergeable: 4, drafts: 0 })).toBe(
-                "Revues — 5 à relire, 4 prêtes à fusionner"
+                "Intégration — 5 à relire, 4 prêtes à fusionner"
             );
             expect(reviewsRailLabel({ toreview: 1, mergeable: 1, drafts: 0 })).toBe(
-                "Revues — 1 à relire, 1 prête à fusionner"
+                "Intégration — 1 à relire, 1 prête à fusionner"
             );
-            expect(reviewsRailLabel({ toreview: 0, mergeable: 11, drafts: 0 })).toBe("Revues — 11 prêtes à fusionner");
+            expect(reviewsRailLabel({ toreview: 0, mergeable: 11, drafts: 0 })).toBe(
+                "Intégration — 11 prêtes à fusionner"
+            );
             expect(reviewsRailLabel({ toreview: 2, mergeable: 1, drafts: 3 })).toBe(
-                "Revues — 2 à relire, 1 prête à fusionner, 3 brouillons"
+                "Intégration — 2 à relire, 1 prête à fusionner, 3 brouillons"
             );
-            expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Revues — 1 brouillon");
+            expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Intégration — 1 brouillon");
         });
 
         it("names a failed check and why the merge is blocked (#797)", () => {
@@ -413,9 +446,9 @@ describe("reviews model", () => {
                 pending: 0,
                 checks: [{ name: "Backend", state: "failure" as const }],
             };
-            expect(ciLabel(ci).label).toBe("CI : Backend en échec");
+            expect(ciLabel(ci).label).toBe("CI\u00a0: Backend en échec");
             expect(mergeLabelOf(pr(1, { merge: "blocked", ci })).title).toBe(
-                "GitHub bloque la fusion : Backend en échec."
+                "GitHub bloque la fusion\u00a0: Backend en échec."
             );
         });
     });

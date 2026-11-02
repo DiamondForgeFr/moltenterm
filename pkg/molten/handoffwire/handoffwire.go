@@ -5,6 +5,8 @@
 // route (pkg/molten/agenthandoff) exchange, with no dependency on wavesrv.
 package handoffwire
 
+import "strings"
+
 // The route's plain commands (the pattern of pkg/molten/browseragent/route.go): nothing is declared in pkg/wshrpc.
 // Must match frontend/moltenterm-shell/agent-handoff.ts.
 const (
@@ -12,6 +14,20 @@ const (
 	ListCommand   = "moltenagenthandofflist"
 	SendCommand   = "moltenagenthandoffsend"
 	AnswerCommand = "moltenagenthandoffanswer"
+	// An MCP server tells MoltenTerm its link came back after calls failed (#1029).
+	LinkNoticeCommand = "moltenagenthandofflinknotice"
+	// Notifications of one pane's lost link: LinkNoticeKeyPrefix + block id.
+	LinkNoticeKeyPrefix = "agentlink:"
+	// The terminal's connections menu (FR-CONT-022, #1050) reads a pane's pair decisions and pending requests, and
+	// forgets a decision; windows only.
+	PairsCommand  = "moltenagenthandoffpairs"
+	ForgetCommand = "moltenagenthandoffforget"
+	// The sidebar's agent trees and the agent window (FR-SHELL-084, #1188) read the handoffs sent since MoltenTerm
+	// started; HistoryEvent tells the windows a new one was added. Windows only.
+	HistoryCommand = "moltenagenthandoffhistory"
+	HistoryEvent   = "molten:agenthandoffs"
+	// The link notice's action opens that menu on the agent's terminal.
+	LinksGesture = "molten:agentlinks"
 
 	// The notification gesture a window runs for the developer's answer.
 	AnswerGesture = "molten:agenthandoff"
@@ -46,6 +62,24 @@ type ListRequest struct {
 	// WaitName: wait a little for the caller's own first name when its agent is not seen yet (the MCP server asks at
 	// the agent's start, which may come before MoltenTerm sees the agent).
 	WaitName bool `json:"waitname,omitempty"`
+	// Folder: the caller's own folder, sent by `molten agent whoami` (#1756) so MoltenTerm can tell a sub-agent's
+	// call from its session's (ListResult.Caller). Empty: no Caller.
+	Folder string `json:"folder,omitempty"`
+}
+
+// CallerEntry is who, in its pane, made a call that sent its folder (#1756). A sub-agent runs its tools in its
+// session's terminal, with its session's environment: nothing in the call names it. Its folder does when it works in
+// a worktree of its own; else the call may be the session's or one of the sub-agents' that share its folder.
+type CallerEntry struct {
+	// Subagent: the call is a sub-agent's (the folder is a running sub-agent's own worktree). Kind, Model and Effort
+	// are then that sub-agent's, "" when its files do not say.
+	Subagent bool `json:"subagent,omitempty"`
+	// Shared: running sub-agents work in the session's folder, so the call may be one of theirs. Model and Effort are
+	// then what all of them say alike, "" when they differ or are unknown.
+	Shared bool   `json:"shared,omitempty"`
+	Kind   string `json:"kind,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
 }
 
 // AgentEntry is one active agent another agent may address.
@@ -67,12 +101,19 @@ type AgentEntry struct {
 	Model     string `json:"model,omitempty"`
 	ModelName string `json:"modelname,omitempty"`
 	Effort    string `json:"effort,omitempty"`
+	// Provider: the host the run talks to when it is not its agent's own provider (FR-AGC-008); ProviderName: its
+	// provider's name when MoltenTerm knows it, "" for a host it does not.
+	Provider     string `json:"provider,omitempty"`
+	ProviderName string `json:"providername,omitempty"`
 }
 
 type ListResult struct {
 	// You: the caller's own agent, when an agent runs in its pane.
 	You    *AgentEntry  `json:"you,omitempty"`
 	Agents []AgentEntry `json:"agents"`
+	// Caller: set when the request sent its folder and a running sub-agent of the caller's pane may have made it;
+	// nil when the call is the session's own.
+	Caller *CallerEntry `json:"caller,omitempty"`
 }
 
 // FileRef is a file the receiver needs. Path is absolute (a relative one is taken from the sender's folder).
@@ -103,6 +144,9 @@ type Brief struct {
 	Files   []FileRef `json:"files,omitempty"`
 	Links   []LinkRef `json:"links,omitempty"`
 	Reply   bool      `json:"reply,omitempty"`
+	// Closing replaces the outcome-line section of a request MoltenTerm writes itself (fromapp.go). It is never read
+	// from the wire: an agent's brief cannot set it.
+	Closing string `json:"-"`
 }
 
 type SendRequest struct {
@@ -123,4 +167,77 @@ type SendResult struct {
 type AnswerRequest struct {
 	RequestId string `json:"requestid"`
 	Decision  string `json:"decision"`
+}
+
+// LinkNoticeRequest: an MCP server whose link to MoltenTerm came back after some of its calls failed (#1029). Token is
+// the pane's WAVETERM_JWT, verified like a list's; wavesrv tells the developer on that pane.
+type LinkNoticeRequest struct {
+	Token string `json:"token"`
+	// Server: the MCP server's name as the agent knows it (molten-browser, molten-review).
+	Server string `json:"server"`
+	Failed int    `json:"failed"`
+	// FirstName: the name MoltenTerm gave the agent before the outage, shown when MoltenTerm has not seen the agent
+	// again yet (it restarted).
+	FirstName string `json:"firstname,omitempty"`
+}
+
+// PairsRequest: the pane whose handoffs the connections menu shows.
+type PairsRequest struct {
+	BlockId string `json:"blockid"`
+}
+
+// PairEntry is another active agent and the pair's decision: "" asks the developer at the first send, DecisionAlways
+// or DecisionBlock until MoltenTerm restarts.
+type PairEntry struct {
+	BlockId   string `json:"blockid"`
+	FirstName string `json:"firstname"`
+	Agent     string `json:"agent,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
+	Project   string `json:"project,omitempty"`
+	Decision  string `json:"decision,omitempty"`
+}
+
+// PendingEntry is a handoff request waiting for the developer, from or to the pane.
+type PendingEntry struct {
+	RequestId   string `json:"requestid"`
+	FromBlockId string `json:"fromblockid"`
+	ToBlockId   string `json:"toblockid"`
+	From        string `json:"from"`
+	To          string `json:"to"`
+	Goal        string `json:"goal,omitempty"`
+}
+
+type PairsResult struct {
+	Agents  []PairEntry    `json:"agents"`
+	Pending []PendingEntry `json:"pending"`
+}
+
+// HistoryEntry is one handoff MoltenTerm passed on (its brief written, its prompt typed or queued), from one pane to
+// another. From and To are the first names at the time, for an agent that has since ended.
+type HistoryEntry struct {
+	FromBlockId string `json:"fromblockid"`
+	ToBlockId   string `json:"toblockid"`
+	From        string `json:"from,omitempty"`
+	To          string `json:"to,omitempty"`
+	Goal        string `json:"goal,omitempty"`
+	At          int64  `json:"at"`
+}
+
+type HistoryResult struct {
+	Entries []HistoryEntry `json:"entries"`
+}
+
+// ForgetRequest forgets the decision of the pair of two panes: the next send between them asks again.
+type ForgetRequest struct {
+	BlockId      string `json:"blockid"`
+	OtherBlockId string `json:"otherblockid"`
+}
+
+// ModelKey compares model ids: case aside, and without a context-size suffix (claude-opus-5-5[1m]).
+func ModelKey(model string) string {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if i := strings.Index(model, "["); i > 0 {
+		model = model[:i]
+	}
+	return model
 }

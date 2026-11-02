@@ -14,14 +14,42 @@ const (
 
 	ChannelRc     = "rc"
 	ChannelPublic = "public"
+
+	// versions.rcformat (#1155): how a project numbers its release candidates. Numeric (X.Y.Z-N) is the default: an MSI
+	// installer only takes a number after the dash (Notulia's rule).
+	RcFormatNumeric = "numeric"
+	// X.Y.Z-rc.N.
+	RcFormatRcDot = "rcdot"
 )
 
-// Rules are a project's versions settings (versions.tagprefix, versions.firstpublic in .molten/project.json).
+// Rules are a project's versions settings (versions.tagprefix, versions.firstpublic, versions.rcformat in
+// .molten/project.json).
 type Rules struct {
 	TagPrefix string `json:"tagprefix"`
 	// The first public release's number. Tags below its first candidate are not this project's releases: a fork that
 	// fetched its upstream's tags (Wave's v0.14.5) must not read them as its own.
 	FirstPublic string `json:"firstpublic"`
+	// RcFormatNumeric ("" too) or RcFormatRcDot: the form of the next candidates only, both forms are always read.
+	RcFormat string `json:"rcformat,omitempty"`
+}
+
+func ValidRcFormat(f string) bool {
+	return f == "" || f == RcFormatNumeric || f == RcFormatRcDot
+}
+
+func (r Rules) rcLabel() string {
+	if r.RcFormat == RcFormatRcDot {
+		return RcLabelRc
+	}
+	return ""
+}
+
+// RcPattern is how the project's candidates read, for a message: X.Y.Z-N or X.Y.Z-rc.N.
+func (r Rules) RcPattern() string {
+	if r.RcFormat == RcFormatRcDot {
+		return "X.Y.Z-rc.N"
+	}
+	return "X.Y.Z-N"
 }
 
 func (r Rules) prefix() string {
@@ -103,7 +131,8 @@ func (r Rules) LastRc(tags []string) string {
 	return r.highest(tags, true)
 }
 
-// NextRc is the next free candidate number of a public version: one more than the highest X.Y.Z-N already tagged.
+// NextRc is the next free candidate number of a public version: one more than the highest candidate number already
+// tagged, in either form (after X.Y.Z-2, X.Y.Z-rc.3).
 func (r Rules) NextRc(base Version, tags []string) int {
 	max := 0
 	for _, tag := range tags {
@@ -114,6 +143,20 @@ func (r Rules) NextRc(base Version, tags []string) int {
 		max = maxInt(max, v.Rc)
 	}
 	return max + 1
+}
+
+// NextCandidate is the next release candidate of a public version, in the project's format. A version that already
+// has an X.Y.Z-rc.N candidate keeps that form until it is public: an X.Y.Z-N after it would sort below it, and an
+// updater would never offer it.
+func (r Rules) NextCandidate(base Version, tags []string) Version {
+	label := r.rcLabel()
+	for _, tag := range tags {
+		v, ok := r.ReleaseOf(tag)
+		if ok && v.IsRc() && v.RcLabel != "" && Compare(v.Base(), base.Base()) == 0 {
+			label = v.RcLabel
+		}
+	}
+	return base.Base().WithRcLabel(r.NextRc(base, tags), label)
 }
 
 func maxInt(a int, b int) int {

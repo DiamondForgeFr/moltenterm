@@ -15,10 +15,12 @@ describe("browser agent takeover and input", () => {
     let agent: typeof import("./moltenterm-browseragent");
     let wc: EventEmitter & Record<string, any>;
     let session: EventEmitter;
-    let report: ReturnType<typeof vi.fn<(blockId: string, browserTabId: string) => void>>;
+    const ev = () => ({ preventDefault: vi.fn() });
+    const held = () => host.send.mock.calls.filter(([channel]: any[]) => channel === agent.UserInputHeldChannel).length;
     let ask: ReturnType<typeof vi.fn<(blockId: string, browserTabId: string, host: string) => Promise<boolean>>>;
-    let input: (event: any, payload?: any) => void;
+    let input: (event: any, payload?: any) => any;
     let attached: boolean;
+    let host: Record<string, any>;
 
     beforeEach(async () => {
         vi.resetModules();
@@ -27,7 +29,7 @@ describe("browser agent takeover and input", () => {
         Mocks.on.mockReset();
         attached = false;
         session = new EventEmitter();
-        const host = { id: 1, mainFrame: { url: "file:///fixture/index.html" }, isDestroyed: () => false };
+        host = { id: 1, mainFrame: { url: "file:///fixture/index.html" }, isDestroyed: () => false, send: vi.fn() };
         wc = Object.assign(new EventEmitter(), {
             id: 42,
             hostWebContents: host,
@@ -55,12 +57,15 @@ describe("browser agent takeover and input", () => {
         agent = await import("./moltenterm-browseragent");
         const { configurePrivilegedIpc } = await import("./moltenterm-privileged-ipc");
         configurePrivilegedIpc((event) => event.sender === (host as any) && event.senderFrame === host.mainFrame);
-        report = vi.fn();
         ask = vi.fn(async () => true);
-        agent.initMoltentermBrowserAgent(report, ask);
+        agent.initMoltentermBrowserAgent(ask);
         const register = Mocks.on.mock.calls.find(([channel]) => channel === agent.WebviewRegisteredChannel)[1];
         const inputHandler = Mocks.on.mock.calls.find(([channel]) => channel === agent.WebviewInputChannel)[1];
-        input = (event, payload) => inputHandler({ ...event, senderFrame: event.sender.mainFrame }, payload);
+        input = (event, payload) => {
+            const sent = { ...event, senderFrame: event.sender.mainFrame };
+            inputHandler(sent, payload);
+            return sent;
+        };
         register({ sender: host, senderFrame: host.mainFrame }, "panel", "agent-tab", wc.id);
         agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: true, token: Token });
     });
@@ -85,64 +90,120 @@ describe("browser agent takeover and input", () => {
             moltenhost: "example.com",
         });
 
-    it("pauses at once and coalesces native and preload reports until Give back", async () => {
-        wc.emit("before-mouse-event", {}, { type: "mouseDown", button: "left", x: 5, y: 5 });
-        input({ sender: wc }, { type: "mousedown", button: 0, x: 5, y: 5 });
-        vi.advanceTimersByTime(300);
-        wc.emit("before-input-event", {}, { type: "keyDown", key: "a", code: "KeyA" });
-        expect(report).toHaveBeenCalledTimes(1);
-        await expect(agent.runBrowserAgentCdp(call())).rejects.toThrow("The user has taken over");
-        expect(wc.debugger.sendCommand).not.toHaveBeenCalled();
+    // #971: taking over is explicit; the user's click or key never reaches the page and never stops the agent.
+    it("holds back the user's click and key, tells the window, and keeps the agent driving", async () => {
+        const click = { preventDefault: vi.fn() };
+        wc.emit("before-mouse-event", click, { type: "mouseDown", button: "left", x: 5, y: 5 });
+        const key = { preventDefault: vi.fn() };
+        wc.emit("before-input-event", key, { type: "keyDown", key: "a", code: "KeyA" });
+        expect(click.preventDefault).toHaveBeenCalled();
+        expect(key.preventDefault).toHaveBeenCalled();
+        expect(held()).toBe(2);
+        expect(host.send).toHaveBeenLastCalledWith(agent.UserInputHeldChannel, wc.id);
+        await agent.runBrowserAgentCdp(call());
+        expect(wc.debugger.sendCommand).toHaveBeenCalledWith("Page.getNavigationHistory", {});
     });
 
-    it("takes over again immediately after Give back", async () => {
-        wc.emit("before-mouse-event", {}, { type: "mouseDown", button: "left", x: 5, y: 5 });
-        agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: true, token: Token });
-        vi.advanceTimersByTime(1);
-        wc.emit("before-input-event", {}, { type: "keyDown", key: "a", code: "KeyA" });
-        expect(report).toHaveBeenCalledTimes(2);
-        await expect(agent.runBrowserAgentCdp(call())).rejects.toThrow("The user has taken over");
+    it("answers the page's gate: the user's press is held back, the agent's goes through, other pages take all", async () => {
+        const user = input({ sender: wc }, { type: "mousedown", button: 0, x: 300, y: 40 });
+        expect(user.returnValue).toBe(false);
+        expect(held()).toBe(1);
+        wc.debugger.sendCommand.mockImplementation(async () => ({}));
+        await agent.runBrowserAgentCdp(press(100, 200));
+        const own = input({ sender: wc }, { type: "mousedown", button: 0, x: 100, y: 200 });
+        expect(own.returnValue).toBe(true);
+        agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: false, token: Token });
+        const free = input({ sender: wc }, { type: "keydown", key: "a", code: "KeyA" });
+        expect(free.returnValue).toBe(true);
+        expect(held()).toBe(1);
+    });
+
+    it("leaves scrolling, moves, key releases and the page's own frames free", () => {
+        for (const [channel, data] of [
+            ["before-mouse-event", { type: "mouseWheel", x: 5, y: 5, deltaY: 40 }],
+            ["before-mouse-event", { type: "mouseMove", x: 5, y: 5 }],
+            ["before-mouse-event", { type: "mouseUp", button: "left", x: 5, y: 5 }],
+            ["before-input-event", { type: "keyUp", key: "a", code: "KeyA" }],
+        ] as const) {
+            const event = { preventDefault: vi.fn() };
+            wc.emit(channel, event, data);
+            expect(event.preventDefault).not.toHaveBeenCalled();
+        }
+        expect(held()).toBe(0);
+    });
+
+    it("lets the user's input through once control ends (Take over, Stop)", () => {
+        agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: false, token: Token });
+        const click = { preventDefault: vi.fn() };
+        wc.emit("before-mouse-event", click, { type: "mouseDown", button: "left", x: 5, y: 5 });
+        expect(click.preventDefault).not.toHaveBeenCalled();
+        expect(held()).toBe(0);
     });
 
     it("claims the agent's own press on both observers, once each", async () => {
-        wc.debugger.sendCommand.mockImplementation(async () => {
-            wc.emit("before-mouse-event", {}, { type: "mouseDown", button: "left", x: 100, y: 200 });
+        wc.debugger.sendCommand.mockImplementation(async (method: string) => {
+            if (method.startsWith("Input.")) {
+                wc.emit("before-mouse-event", ev(), { type: "mouseDown", button: "left", x: 100, y: 200 });
+            }
             return {};
         });
         await agent.runBrowserAgentCdp(press(100, 200));
         input({ sender: wc }, { type: "mousedown", button: 0, x: 100, y: 200 });
-        expect(report).not.toHaveBeenCalled();
+        expect(held()).toBe(0);
         // The same click again is the user's: each dispatched press covers one press per observer.
         input({ sender: wc }, { type: "mousedown", button: 0, x: 100, y: 200 });
-        expect(report).toHaveBeenCalledTimes(1);
+        expect(held()).toBe(1);
+    });
+
+    it("tells the window around the agent's press, so the page does not take the keyboard focus (#971)", async () => {
+        wc.debugger.sendCommand.mockImplementation(async (method: string, params: any) => {
+            if (method === "Input.dispatchMouseEvent" && params?.type === "mousePressed") {
+                expect(host.send).toHaveBeenLastCalledWith(agent.AgentPressChannel, wc.id, true);
+            }
+            return {};
+        });
+        await agent.runBrowserAgentCdp(press(100, 200));
+        expect(host.send).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(1000);
+        expect(host.send).toHaveBeenLastCalledWith(agent.AgentPressChannel, wc.id, false);
+        await agent.runBrowserAgentCdp(
+            call("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1, moltenhost: "example.com" })
+        );
+        vi.advanceTimersByTime(1000);
+        expect(host.send).toHaveBeenCalledTimes(2);
+        expect(wc.debugger.sendCommand).toHaveBeenCalledWith("Emulation.setFocusEmulationEnabled", { enabled: true });
     });
 
     it("tells the user's click from the agent's while the agent is acting, with no time window", async () => {
-        wc.debugger.sendCommand.mockImplementation(async () => {
-            wc.emit("before-mouse-event", {}, { type: "mouseDown", button: "left", x: 600, y: 40 });
+        wc.debugger.sendCommand.mockImplementation(async (method: string) => {
+            if (method.startsWith("Input.")) {
+                wc.emit("before-mouse-event", ev(), { type: "mouseDown", button: "left", x: 600, y: 40 });
+            }
             return {};
         });
         await agent.runBrowserAgentCdp(press(100, 200));
-        expect(report).toHaveBeenCalledTimes(1);
+        expect(held()).toBe(1);
     });
 
     it("treats a preload report it cannot read as the user's", async () => {
         await agent.runBrowserAgentCdp(press(100, 200));
         input({ sender: wc }, { type: "mousedown" });
-        expect(report).toHaveBeenCalledTimes(1);
+        expect(held()).toBe(1);
     });
 
     it("forgets an unclaimed entry after 2 s, so it never covers later input", async () => {
         await agent.runBrowserAgentCdp(press(100, 200));
         vi.advanceTimersByTime(2001);
-        wc.emit("before-mouse-event", {}, { type: "mouseDown", button: "left", x: 100, y: 200 });
-        expect(report).toHaveBeenCalledTimes(1);
+        wc.emit("before-mouse-event", ev(), { type: "mouseDown", button: "left", x: 100, y: 200 });
+        expect(held()).toBe(1);
     });
 
     it("keeps the agent's keys away from MoltenTerm's shortcuts, for every listener of the event", async () => {
         const event = { type: "keyDown", key: "w", code: "KeyW", meta: true };
-        wc.debugger.sendCommand.mockImplementation(async () => {
-            wc.emit("before-input-event", {}, event);
+        wc.debugger.sendCommand.mockImplementation(async (method: string) => {
+            if (method.startsWith("Input.")) {
+                wc.emit("before-input-event", ev(), event);
+            }
             return {};
         });
         await agent.runBrowserAgentCdp(
@@ -155,7 +216,7 @@ describe("browser agent takeover and input", () => {
                 moltenhost: "example.com",
             })
         );
-        expect(report).not.toHaveBeenCalled();
+        expect(held()).toBe(0);
         expect(agent.isAgentInput(wc.id, event as any)).toBe(true);
         const usersOwn = { type: "keyDown", key: "w", code: "KeyW", meta: true };
         expect(agent.isAgentInput(wc.id, usersOwn as any)).toBe(false);
@@ -204,7 +265,7 @@ describe("browser agent takeover and input", () => {
         await expect(agent.runBrowserAgentCdp(call("Input.insertText", { text: "secret" }))).rejects.toThrow(
             "molten:site-changed"
         );
-        expect(wc.debugger.sendCommand).not.toHaveBeenCalled();
+        expect(wc.debugger.sendCommand.mock.calls.filter(([method]: any[]) => method.startsWith("Input."))).toEqual([]);
         await agent.runBrowserAgentCdp(call("Input.insertText", { text: "ok", moltenhost: "example.com" }));
         expect(wc.debugger.sendCommand).toHaveBeenLastCalledWith("Input.insertText", { text: "ok" });
     });
@@ -288,9 +349,9 @@ describe("browser agent takeover and input", () => {
 
     it("refuses calls after Stop and removes the native input watchers", async () => {
         agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: false, token: Token });
-        wc.emit("before-mouse-event", {}, { type: "mouseDown" });
+        wc.emit("before-mouse-event", ev(), { type: "mouseDown" });
         input({ sender: wc }, { type: "mousedown", button: 0, x: 1, y: 1 });
-        expect(report).not.toHaveBeenCalled();
+        expect(held()).toBe(0);
         await expect(agent.runBrowserAgentCdp(call())).rejects.toThrow("not under agent control");
         expect(wc.listenerCount("before-input-event")).toBe(0);
         expect(wc.listenerCount("before-mouse-event")).toBe(0);

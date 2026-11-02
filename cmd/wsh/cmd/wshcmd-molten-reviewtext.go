@@ -6,6 +6,8 @@ package cmd
 import (
 	"fmt"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
 // The English text of Validate's plan, merge and cleanup for `molten review` (#672): wavesrv gives codes and data, the
@@ -268,7 +270,7 @@ func moltenReviewCleanupDetail(s moltenReviewCleanupStep) string {
 	if len(s.Panels) > 0 {
 		var tabs []string
 		for _, p := range s.Panels {
-			tab := p.Tab
+			tab := wconfig.ViewNameText(p.Tab)
 			if p.Agent != "" {
 				tab += " (agent " + p.Agent + ")"
 			}

@@ -9,7 +9,7 @@ import { t } from "../i18n/i18n";
 import {
     DefaultTagPrefix,
     formatVersion,
-    nextRc,
+    nextCandidate,
     parseBase,
     planRelease,
     releaseOf,
@@ -41,7 +41,7 @@ export type ReleasePlan = {
 export function releasePlan(state: ReleaseState, tagNames: readonly string[], rules: VersionRules = {}): ReleasePlan {
     const base = parseBase(state?.next?.version ?? "");
     return {
-        rc: base ? tagOf(rules, { ...base, rc: nextRc(rules, base, tagNames) }) : null,
+        rc: base ? tagOf(rules, nextCandidate(rules, base, tagNames)) : null,
         publicVersion: state?.next?.version ?? null,
         publicIsDecision: state?.next?.how === "decision",
         reason: state?.next?.reason ?? "",

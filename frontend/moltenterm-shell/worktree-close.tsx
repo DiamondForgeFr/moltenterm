@@ -8,6 +8,7 @@
 // removing anything. Closing what runs (FR-SHELL-061, #489): the same closes read what they would stop first, and ask
 // in one dialog, the worktree dialog when a worktree is linked too (busy-close.tsx).
 
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getWaveObjectAtom, loadAndPinWaveObject, makeORef } from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
@@ -31,6 +32,10 @@ import { serverErrorText, serverText } from "./i18n/server-text";
 import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
 import { recordingTabClose } from "./reopen/reopen-store";
+import { closeUntilGone, PinnedClosePlan } from "./sidebar/pinned-close-model";
+import { pinnedClosePlanOf, showSurvivor } from "./sidebar/view-pins-store";
+import { DominoLoader } from "./suite/suite";
+import { viewDisplayName } from "./tab-identity-ui";
 import {
     ClosePlanView,
     closePlanView,
@@ -70,6 +75,7 @@ type CloseRequest = {
     standalone?: boolean;
     running?: RunningItem[];
     action?: BusyCloseAction;
+    cancelled?: () => void;
 };
 
 // A tab close waits on its grouped dialog: "cancel" keeps the tab, "asked" closes it (the dialog was the
@@ -144,27 +150,43 @@ async function closeAskingRunning(
     blockId: string,
     close: () => void,
     action: BusyCloseAction,
-    running: RunningItem[]
+    running: RunningItem[],
+    cancelled?: () => void
 ): Promise<void> {
     if (running == null || running.length === 0) {
-        closeApproved(blockId, close);
+        if (blockInLayout(blockId)) {
+            closeApproved(blockId, close);
+        } else {
+            cancelled?.();
+        }
         return;
     }
     if (dialogOpen()) {
+        cancelled?.();
         return;
     }
     if (!(await askBusyClose({ action, running, blockId }))) {
+        cancelled?.();
         return;
     }
     markAnswered(blockId);
-    closeApproved(blockId, close);
+    if (blockInLayout(blockId)) {
+        closeApproved(blockId, close);
+    } else {
+        cancelled?.();
+    }
 }
 
 // Every close of a single terminal comes here first (Cmd+W, the header's close and menu, the command panel's Close,
 // Ctrl+Shift+X, an ephemeral pane's backdrop). false: nothing to ask, the caller closes now. true: the close is held
 // (what runs is being read, a dialog shows, or another close dialog is open); close runs once it is answered and must
 // come back here, where the answer lets it through.
-export function interceptTerminalClose(blockId: string, close: () => void, action: BusyCloseAction = "pane"): boolean {
+export function interceptTerminalClose(
+    blockId: string,
+    close: () => void,
+    action: BusyCloseAction = "pane",
+    cancelled?: () => void
+): boolean {
     if (!blockId) {
         return false;
     }
@@ -178,6 +200,7 @@ export function interceptTerminalClose(blockId: string, close: () => void, actio
         return false;
     }
     if (dialogOpen() || PendingCloses.has(blockId)) {
+        cancelled?.();
         return true;
     }
     PendingCloses.add(blockId);
@@ -185,22 +208,135 @@ export function interceptTerminalClose(blockId: string, close: () => void, actio
         let running: RunningItem[] = [];
         try {
             running = check ? await readRunning([closingTerminalOf(block)]) : [];
+        } catch (e) {
+            cancelled?.();
+            throw e;
         } finally {
             PendingCloses.delete(blockId);
         }
         if (!link) {
-            await closeAskingRunning(blockId, close, action, running);
+            if (!blockInLayout(blockId)) {
+                cancelled?.();
+                return;
+            }
+            await closeAskingRunning(blockId, close, action, running, cancelled);
             return;
         }
-        if (dialogOpen()) {
+        if (dialogOpen() || !blockInLayout(blockId)) {
+            cancelled?.();
             return;
         }
-        globalStore.set(CloseRequestAtom, { blockId, path: link, close, running, action });
+        globalStore.set(CloseRequestAtom, { blockId, path: link, close, running, action, cancelled });
     });
     return true;
 }
 
+// The batch waits for each decision before opening the next dialog. A vanished target is skipped by the caller.
+export function confirmTerminalClose(blockId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const approved = () => {
+            ApprovedCloses.delete(blockId);
+            resolve(true);
+        };
+        if (!interceptTerminalClose(blockId, approved, "pane", () => resolve(false))) {
+            resolve(true);
+        }
+    });
+}
+
 type CloseTabFn = (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>;
+
+// setAside: in place of a close that asks nothing more and removes no worktree, the view only goes aside for its
+// toast's Undo (#1656, view-set-aside.ts); false when it cannot, and the tab closes as usual.
+// closed: told how many views really closed (a pinned view closes in every project of the workspace, #1760).
+export type CloseTabOptions = {
+    setAside?: (workspaceId: string, tabId: string) => Promise<boolean>;
+    closed?: (count: number) => void;
+};
+
+// A pinned view closes for every project of the workspace (FR-SHELL-080, #1760): its confirmation, when the workspace
+// holds two projects or more, names them and is the same dialog as the busy-close list when something runs in an
+// instance, so there is at most one. The view on screen closes last, after another view took the screen.
+async function closePinnedViews(
+    closeTab: CloseTabFn,
+    workspaceId: string,
+    tabId: string,
+    plan: PinnedClosePlan,
+    opts?: CloseTabOptions
+): Promise<boolean> {
+    const recorded = recordingTabClose(closeTab);
+    const blocks: Block[] = [];
+    // An instance made for a project that never showed it has no panel: closing it is not recorded, so Undo never
+    // brings back an empty view (the project makes it again when it next shows the pinned view).
+    const placeholders = new Set<string>();
+    for (const id of plan.tabIds) {
+        try {
+            const tab = await loadAndPinWaveObject<Tab>(makeORef("tab", id));
+            if (!!tab?.meta?.["molten:viewsibling"] && (tab.blockids?.length ?? 0) === 0) {
+                placeholders.add(id);
+            }
+            for (const blockId of tab?.blockids ?? []) {
+                const block = await loadAndPinWaveObject<Block>(makeORef("block", blockId));
+                if (block != null) {
+                    blocks.push(block);
+                }
+            }
+        } catch (e) {
+            console.log("panels of the pinned view being closed", e);
+        }
+    }
+    const running = busyCloseEnabled()
+        ? await readRunning(blocks.filter((b) => !answeredRecently(b.oid)).map(closingTerminalOf))
+        : [];
+    if (plan.confirm || running.length > 0) {
+        if (dialogOpen()) {
+            return false;
+        }
+        const tab = await loadAndPinWaveObject<Tab>(makeORef("tab", tabId));
+        const answered = await askBusyClose({
+            action: plan.confirm ? "shared" : "tab",
+            running,
+            tabId,
+            tabName: viewDisplayName(tab),
+            projects: plan.projects,
+        });
+        if (!answered) {
+            return false;
+        }
+    }
+    const own = globalStore.get(atoms.staticTabId);
+    const closingOwn = plan.tabIds.includes(own);
+    if (closingOwn) {
+        await showSurvivor(plan.tabIds);
+    }
+    let count = 0;
+    const closeOne = (id: string) => (placeholders.has(id) ? closeTab : recorded)(workspaceId, id, false);
+    for (const id of plan.tabIds.filter((id) => id !== own)) {
+        try {
+            const gone = await closeUntilGone(
+                (attempt) => (attempt === 0 ? closeOne(id) : closeTab(workspaceId, id, false)),
+                () => globalStore.get(atoms.workspace)?.tabids?.includes(id) !== true,
+                (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+            );
+            if (gone && !placeholders.has(id)) {
+                count++;
+            }
+        } catch (e) {
+            console.log("closing an instance of a pinned view", e);
+        }
+    }
+    if (closingOwn) {
+        try {
+            if ((await closeOne(own)) && !placeholders.has(own)) {
+                count++;
+            }
+        } catch (e) {
+            console.log("closing an instance of a pinned view", e);
+        }
+    }
+    opts?.closed?.(count);
+    return count > 0;
+}
 
 // Every close of a whole tab comes here (the tab's × and its hold, its menu, middle-click, Cmd+Shift+W, the vertical
 // tab bar, the last terminal's close), in place of Electron's closeTab: one read of what its terminals run and of the
@@ -210,13 +346,25 @@ export async function closeTabAskingFirst(
     closeTab: CloseTabFn,
     workspaceId: string,
     tabId: string,
-    confirmClose: boolean
+    confirmClose: boolean,
+    opts?: CloseTabOptions
 ): Promise<boolean> {
     if (dialogOpen()) {
         return false;
     }
+    const pinned = pinnedClosePlanOf(tabId);
+    if (pinned.tabIds.length > 1 || pinned.confirm) {
+        return closePinnedViews(closeTab, workspaceId, tabId, pinned, opts);
+    }
     // A tab that really closes can come back with Cmd+Shift+T (#512).
-    closeTab = recordingTabClose(closeTab);
+    const recorded = recordingTabClose(closeTab);
+    // Electron's own confirmation (tab:confirmclose) keeps the immediate close: it is the answer the developer chose.
+    closeTab = async (wsId, id, confirm) => {
+        if (!confirm && opts?.setAside != null && (await opts.setAside(wsId, id))) {
+            return true;
+        }
+        return recorded(wsId, id, confirm);
+    };
     let blocks: Block[] = [];
     try {
         const tab = await loadAndPinWaveObject<Tab>(makeORef("tab", tabId));
@@ -265,7 +413,11 @@ export async function closeTabAskingFirst(
         }
         return closeTab(workspaceId, tabId, false);
     }
-    return closeTab(workspaceId, tabId, answer === "nothing" ? ownConfirm : false);
+    if (answer !== "nothing") {
+        // A worktree answered for (removed or kept) is not undone: the tab really closes.
+        return recorded(workspaceId, tabId, false);
+    }
+    return closeTab(workspaceId, tabId, ownConfirm);
 }
 
 function PlanLine({ text, warn }: { text: string; warn?: boolean }) {
@@ -361,12 +513,19 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
         }
         if (closeTerminal) {
             markAnswered(request.blockId);
-            closeApproved(request.blockId, request.close);
+            if (blockInLayout(request.blockId)) {
+                closeApproved(request.blockId, request.close);
+            } else {
+                request.cancelled?.();
+            }
+        } else {
+            request.cancelled?.();
         }
     };
     useEffect(() => {
         if (!standalone && block == null && step !== "working") {
             onDone();
+            request.cancelled?.();
         }
     }, [block == null]);
     useEffect(() => {
@@ -384,7 +543,13 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
                     if (!standalone && busy) {
                         onDone();
                         fireAndForget(() =>
-                            closeAskingRunning(request.blockId, request.close, request.action ?? "pane", running)
+                            closeAskingRunning(
+                                request.blockId,
+                                request.close,
+                                request.action ?? "pane",
+                                running,
+                                request.cancelled
+                            )
                         );
                         return;
                     }
@@ -520,6 +685,7 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
                             }
                             onClick={onRemove}
                         >
+                            {step === "working" ? <DominoLoader className="mr-1.5" /> : null}
                             {step === "working" ? t("worktree.close.removing") : t("worktree.close.remove")}
                             <MoltenWave />
                         </button>
@@ -529,14 +695,22 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
         </>
     );
     return (
-        <DialogFrame role="molten-worktree-close" title={title} subtitle={request.path} buttons={buttons}
-            onEscape={step === "working" ? undefined : () => finish(step === "done")}>
+        <DialogFrame
+            role="molten-worktree-close"
+            title={title}
+            subtitle={request.path}
+            buttons={buttons}
+            onEscape={step === "working" ? undefined : () => finish(step === "done")}
+        >
             {standalone && step === "plan" ? <div className="text-muted">{t("worktree.close.standalone")}</div> : null}
             {step === "plan" || step === "working" ? (
                 <RunningList items={running} heading={t("worktree.close.stops")} />
             ) : null}
             {plan == null && error == null && notice == null ? (
-                <div className="text-muted">{t("worktree.close.reading")}</div>
+                <div className="text-muted">
+                    <DominoLoader className="mr-1.5" />
+                    {t("worktree.close.reading")}
+                </div>
             ) : null}
             {plan != null && (step === "plan" || step === "working") ? <PlanFacts plan={plan} view={view} /> : null}
             {plan != null && step === "confirm" ? (
@@ -605,7 +779,10 @@ function TabCloseRowView({
                 )}
             </div>
             {row.plan == null && row.error == null ? (
-                <div className="text-muted">{t("worktree.close.reading")}</div>
+                <div className="text-muted">
+                    <DominoLoader className="mr-1.5" />
+                    {t("worktree.close.reading")}
+                </div>
             ) : null}
             {row.plan != null && !row.removed ? <PlanFacts plan={row.plan} view={view} /> : null}
             {row.plan != null && !row.removed && row.choice === "remove" && view.canDeleteBranch ? (
@@ -748,6 +925,7 @@ export function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; 
                     className={remove.length > 0 || busy ? DangerButton : AccentButton}
                     onClick={onClose}
                 >
+                    {step === "working" ? <DominoLoader className="mr-1.5" /> : null}
                     {step === "working" ? t("worktree.close.removing") : closeLabel}
                     <MoltenWave />
                 </button>
@@ -756,7 +934,7 @@ export function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; 
     return (
         <DialogFrame
             role="molten-worktree-tab-close"
-            onEscape={step === "working" ? undefined : () => step === "confirm" ? setStep("plan") : answer("cancel")}
+            onEscape={step === "working" ? undefined : () => (step === "confirm" ? setStep("plan") : answer("cancel"))}
             title={title}
             subtitle={step === "confirm" ? null : t("worktree.tab.subtitle")}
             wide

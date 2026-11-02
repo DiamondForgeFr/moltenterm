@@ -151,15 +151,31 @@ type Session struct {
 	name       string
 	customName bool
 	branch     string
-	topics     []*topic
-	prsSeen    map[int]bool
-	subagents  []*subagent
-	activity   *ActivityInfo
+	// folderBranch: the branch read from the session's folder on disk, once folderRead (#967, gitbranch.go).
+	folderBranch string
+	folderRead   bool
+	topics       []*topic
+	prsSeen      map[int]bool
+	// branchPRs: the pull requests of each topic branch, as gh answered (#991, branchprs.go).
+	branchPRs map[string][]PRLink
+	subagents []*subagent
+	activity  *ActivityInfo
+	// commands: the programs the main agent ran in a shell (commands.go, FR-SHELL-084).
+	commands      []string
+	commandCounts map[string]int
 	// The main agent's model and effort as its latest records say them, and the ticket it works on (#601,
 	// tickets.go).
 	model  string
 	effort string
 	ticket ticketRef
+	// The materials' signals (materials.go, FR-MAT-001): answeredTurn is the turn whose last message was recorded,
+	// publishInputs the linked files of publishing calls still waiting for their result.
+	materialSeq     int64
+	materialSignals []MaterialSignal
+	answeredTurn    int
+	publishInputs   map[string]map[string]string
+	// materialSink takes each signal instead of the bounded list (a past session read whole, FR-MAT-008).
+	materialSink func(MaterialSignal)
 }
 
 func MakeSession() *Session {
@@ -301,6 +317,8 @@ func (s *Session) StartTurn(at int64) {
 		s.pending = nil
 		s.touch()
 	}
+	// A turn the agent left without its end recorded (interrupted) still had a last message.
+	s.closeTurnAnswer(false)
 	cur := s.currentTurn()
 	if cur != nil && !cur.hasText && !cur.toolSinceText {
 		cur.at = at
@@ -354,6 +372,7 @@ func (s *Session) AddText(text string, at int64) {
 	if at > 0 {
 		cur.at = at
 	}
+	s.noteLinks(text, at)
 	s.touch()
 }
 
@@ -418,6 +437,7 @@ func (s *Session) ResolveTool(id string) {
 // EndTurn: the agent finished its turn, nothing it asked is pending any more.
 func (s *Session) EndTurn() {
 	s.turnsEnded++
+	s.closeTurnAnswer(true)
 	if len(s.pending) == 0 {
 		return
 	}
@@ -489,6 +509,9 @@ func (s *Session) AddFileEdit(path string, kind string, diff string, at int64) {
 	}
 	s.fileSeq++
 	fc := s.files[path]
+	if kind == FileAdded && (fc == nil || fc.kind != FileAdded) {
+		s.addMaterialSignal(MaterialSignal{Kind: SignalWritten, At: at, Path: path})
+	}
 	if fc == nil {
 		fc = &fileChange{path: path, kind: kind}
 		s.files[path] = fc

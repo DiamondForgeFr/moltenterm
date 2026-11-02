@@ -147,6 +147,8 @@ type agentRecord struct {
 	settings molten.AgentSettings
 	// firstName: the pane's agent name (FR-CONT-014), held from the names allocator while the record lives.
 	firstName string
+	// subagents: the sub-agents of the session its hooks reported running (subagents.go, #1092).
+	subagents map[string]bool
 }
 
 type noticeMark struct {
@@ -341,6 +343,10 @@ func (a *agentStates) attention(blockId string, signal AttentionSignal) {
 // agent's UserPromptSubmit hook, if any, reports working right after. An interrupt key while it works may end its
 // turn without any hook (#915): the output activity then judges it (interruptedLocked).
 func (a *agentStates) input(blockId string, data []byte) {
+	if a.procs != nil && bytes.ContainsAny(data, "\r\n") {
+		// Before the states' lock: the watcher's is taken first (lock order: watcher, then agent states).
+		a.procs.entered(blockId)
+	}
 	now := a.now()
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -374,6 +380,20 @@ func (a *agentStates) seen(blockId string, version int64) bool {
 	return a.setStateLocked(blockId, rec, molten.AgentStateIdle, "")
 }
 
+// turnEndRedundant tells whether a turn-end report (Codex's notify, the fallback until its hooks are trusted) comes
+// for a pane whose hooks already report this agent's states: their Stop said done, and a second done would come late,
+// after the user may have answered (#988).
+func (a *agentStates) turnEndRedundant(req molten.AgentStateRequest) bool {
+	if !req.TurnEnd {
+		return false
+	}
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[req.BlockId]
+	p := a.panes[req.BlockId]
+	return rec != nil && p != nil && p.hookedAgent == rec.agent && p.hookedDone && (req.Agent == "" || req.Agent == rec.agent)
+}
+
 // report applies a hook's report; it returns the notification to raise, if any.
 func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, string, error) {
 	if !molten.ValidAgentState(req.State) {
@@ -381,6 +401,9 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	}
 	if req.Agent != "" && !molten.ValidAgentId(req.Agent) {
 		return nil, "", fmt.Errorf("invalid agent name %q", req.Agent)
+	}
+	if len(req.Subagent) > maxSubagentIdLength {
+		return nil, "", fmt.Errorf("invalid sub-agent id")
 	}
 	message := molten.CleanAgentMessage(req.Message)
 	a.lock.Lock()
@@ -402,17 +425,34 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.source = sourceHook
 		rec.pid, rec.pidStart = 0, 0
 		rec.settings = molten.AgentSettings{}
+		rec.subagents = nil
 		a.markDirtyLocked(req.BlockId)
 	}
+	a.providerLocked(req, rec)
 	if !req.TurnEnd {
 		a.hookedLocked(req.BlockId, rec.agent)
+		if req.State == molten.AgentStateDone && req.Subagent == "" {
+			a.paneLocked(req.BlockId).hookedDone = true
+		}
 		// Hooks MoltenTerm's launcher added for this run are not the user's: remembering them would hide the hook
 		// setup offer once the integration is off (FR-SHELL-040-AC5).
 		if a.integratedRun == nil || !a.integratedRun(req.BlockId, agentRunRecord{agent: rec.agent, running: rec.running, pid: rec.pid, started: rec.started, source: rec.source}) {
 			a.agentHookedLocked(rec.agent)
 		}
 	}
+	if req.Subagent != "" {
+		a.subagentLocked(req.BlockId, rec, req.Subagent, req.State)
+		return nil, "", nil
+	}
 	rec.fromActivity = false
+	if req.Start || subagentsTurnEnd(req.State) {
+		a.forgetSubagentsLocked(req.BlockId, rec)
+	}
+	if req.Start && (previous == molten.AgentStateWorking || previous == molten.AgentStateWaiting) {
+		// A session started again in the middle of a turn (Codex's /clear while it works, a resume racing the first
+		// prompt): the start only makes the states precise.
+		return nil, "", nil
+	}
 	a.setStateLocked(req.BlockId, rec, req.State, message)
 	if previous == req.State || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {
 		return nil, "", nil
@@ -507,13 +547,20 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		Message:     rec.message,
 		MessageText: rec.messageText,
 		Since:       rec.since,
+		Started:     rec.started,
 		Version:     rec.version,
 		Hooked:      a.hookedAgents[rec.agent],
 		Model:       rec.settings.Model,
 		ModelName:   rec.settings.ModelName,
 		Effort:      rec.settings.Effort,
 	}
+	if rec.settings.Provider != "" {
+		info.Provider = rec.settings.Provider
+		info.ProviderName = molten.ProviderDisplayName(rec.settings.Provider)
+		info.NativeProvider = molten.NativeProviderName(rec.agent)
+	}
 	a.heldInfoLocked(blockId, rec, &info)
+	subagentsInfo(rec, &info)
 	return info
 }
 
@@ -529,6 +576,24 @@ func (a *agentStates) setSettings(blockId string, agent string, settings molten.
 	rec.settings = settings
 	a.markDirtyLocked(blockId)
 	return true
+}
+
+// providerLocked records the provider a Claude Code report names (FR-AGC-008). A start report tells the run's
+// provider, none for Anthropic; a later report may only name one (a user's own `molten agent state` hooks never
+// send a start).
+func (a *agentStates) providerLocked(req molten.AgentStateRequest, rec *agentRecord) {
+	if rec.agent != molten.AgentIdClaude || req.Subagent != "" || req.TurnEnd {
+		return
+	}
+	host := molten.CleanProviderHost(req.Provider)
+	if !req.Start && host == "" {
+		return
+	}
+	if rec.settings.Provider == host {
+		return
+	}
+	rec.settings.Provider = host
+	a.markDirtyLocked(req.BlockId)
 }
 
 // clearEffort forgets the run's effort level: MoltenTerm just changed it and the agent has not reported the new one.
@@ -687,6 +752,9 @@ func ReportAgentState(ctx context.Context, req molten.AgentStateRequest) error {
 			return fmt.Errorf("block %s is not a terminal", req.BlockId)
 		}
 	}
+	if defaultAgentStates.turnEndRedundant(req) {
+		return nil
+	}
 	signal, kind, err := defaultAgentStates.report(req)
 	if err != nil {
 		return err
@@ -756,7 +824,7 @@ func (a *agentStates) runOf(blockId string) (molten.AgentRunInfo, bool) {
 	if rec == nil {
 		return molten.AgentRunInfo{}, false
 	}
-	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName}, true
+	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: len(rec.subagents)}, true
 }
 
 func (a *agentStates) allRuns() []molten.AgentRunInfo {
@@ -764,7 +832,7 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 	defer a.lock.Unlock()
 	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
 	for blockId, rec := range a.records {
-		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName})
+		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: len(rec.subagents)})
 	}
 	return rtn
 }
@@ -784,6 +852,18 @@ func AgentStatesSnapshot() []molten.AgentStateInfo {
 }
 
 // ForgetBlock drops what is known of a closed block.
+// EndAgentRun ends the agent run recorded for a terminal found closed or with its shell ended when something was to be
+// typed into it (#1024): no list names that agent any more. The terminal's other state stays.
+func EndAgentRun(blockId string) {
+	defaultAgentStates.endRun(blockId)
+}
+
+func (a *agentStates) endRun(blockId string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.removeLocked(blockId)
+}
+
 func ForgetBlock(blockId string) {
 	defaultAttentionWatcher.forget(blockId)
 	defaultAgentStates.forget(blockId)

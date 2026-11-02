@@ -9,7 +9,9 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -39,11 +41,42 @@ func liveUpcomingEnv(collector *Collector, run Runner) UpcomingEnv {
 			}
 			return Snapshot{}, false
 		},
-		Agents: liveAgentPlaces,
+		Agents:    liveAgentPlaces,
+		Subagents: liveSubagents,
+		Procs:     LiveProcFacts,
+		ReviewTreesDir: func(projectDir string) string {
+			return molten.ReviewTreesDir(wavebase.GetWaveDataDir(), projectDir)
+		},
 	}
 }
 
-// liveAgentPlaces lists the running agents of local terminals with their folders, symlinks resolved like git's paths.
+// liveSubagents reads the sub-agents of each running agent panel from their own files, through the companion
+// (#1035): the same identity the Now card shows.
+func liveSubagents(places []AgentPlace) []PaneSubagent {
+	return PaneSubagentsOf(places, companion.PaneSubagents)
+}
+
+// PaneSubagentsOf gives each running agent panel the sub-agents read finds for it: read asks the panel's agent
+// adapter, which lists none for an agent without sub-agents (#1463: no agent is singled out here).
+func PaneSubagentsOf(places []AgentPlace, read func(blockId string) []companion.SubagentIdentity) []PaneSubagent {
+	var rtn []PaneSubagent
+	for _, p := range places {
+		if p.Review || p.Agent == "" {
+			continue
+		}
+		for _, id := range read(p.BlockId) {
+			if id.Worktree == "" || !filepath.IsAbs(id.Worktree) {
+				continue
+			}
+			id.Worktree = realPath(id.Worktree)
+			rtn = append(rtn, PaneSubagent{ParentBlockId: p.BlockId, ParentFirstName: p.FirstName, Agent: p.Agent, SubagentIdentity: id})
+		}
+	}
+	return rtn
+}
+
+// liveAgentPlaces lists the running agents of local terminals with their folders, symlinks resolved like git's paths:
+// the terminal's, the worktree it is linked to, and where its agent's adapter reads the session works (#1476).
 func liveAgentPlaces(ctx context.Context) []AgentPlace {
 	var rtn []AgentPlace
 	for _, run := range attention.AgentRuns() {
@@ -54,14 +87,20 @@ func liveAgentPlaces(ctx context.Context) []AgentPlace {
 		if err != nil || block == nil || block.Meta.GetString(waveobj.MetaKey_View, "") != "term" {
 			continue
 		}
-		place := AgentPlace{BlockId: run.BlockId, Agent: run.Agent, FirstName: run.FirstName, Started: run.Started}
+		place := AgentPlace{BlockId: run.BlockId, Agent: run.Agent, FirstName: run.FirstName, Started: run.Started, Pid: run.Pid}
 		if link := block.Meta.GetString(molten.WorktreeMetaKey, ""); link != "" {
 			place.Link = realPath(link)
 		}
 		conn := block.Meta.GetString(waveobj.MetaKey_Connection, "")
 		cwd := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
-		if (conn == "" || conn == "local") && filepath.IsAbs(cwd) {
+		local := conn == "" || conn == "local"
+		if local && filepath.IsAbs(cwd) {
 			place.Cwd = realPath(cwd)
+		}
+		if local {
+			if work := companion.PaneWorkFolder(run.BlockId); filepath.IsAbs(work) {
+				place.Work = realPath(work)
+			}
 		}
 		_, place.Review = block.Meta[mcpreview.SessionMetaKey]
 		rtn = append(rtn, place)

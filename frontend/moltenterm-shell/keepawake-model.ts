@@ -5,15 +5,17 @@
 // DS-SHELL-063): the sleep policy, the coffees of the rail, the blocks the shims reported. wavesrv decides
 // (pkg/molten/keepawake); this file holds the rules the views need, apart from the components so they can be tested.
 
-import { t } from "./i18n/i18n";
+import { t, tCount } from "./i18n/i18n";
 import { ServerText, serverText, serverTexts } from "./i18n/server-text";
 import { workspaceShownName } from "./workspace-default-name";
+import { viewNameText } from "./workspace-views/workspace-views-model";
 
 export const KeepAwakeRoute = "molten:keepawake";
 export const KeepAwakeEvent = "molten:keepawake";
 export const KeepAwakeStateCommand = "keepawakestate";
 export const KeepAwakeCoffeeCommand = "keepawakecoffee";
 export const KeepAwakeOverrideCommand = "keepawakeoverride";
+export const KeepAwakeStopCommand = "keepawakestop";
 // The ask-once notification's actions run this gesture with the chosen policy.
 export const SleepPolicyGesture = "molten:sleeppolicy";
 export const SleepPolicySetting = "power:sleeppolicy";
@@ -46,6 +48,9 @@ export type KeepAwakeAttempt = {
     parentname?: string;
     since: number;
     outcome: "allowed" | "neutralised";
+    // When the tool ends by itself (a bare caffeinate's -t), and whether ending it stops only the keep-awake (#1780).
+    endsat?: number;
+    stoppable?: boolean;
 };
 
 // must match Override in pkg/molten/keepawake/keepawake.go
@@ -210,11 +215,125 @@ export function attemptAlive(attempt: KeepAwakeAttempt): boolean {
     return attempt.outcome === "allowed";
 }
 
-// The status bar's count: MoltenTerm's own block once, whatever the number of coffees, plus each session whose
-// reported block was let through (FR-SHELL-022-AC7). A neutralised attempt blocks nothing.
+// One reason keeping the computer awake, as the cup's menu lists it (#1780): a terminal whose block went through, a
+// workspace kept awake at the user's request (coffee mode), or the Until work ends setting while it holds.
+export type KeepAwakeHold = {
+    kind: "terminal" | "coffee" | "work";
+    key: string;
+    label: string;
+    detail: string;
+    blockid?: string;
+    workspaceid?: string;
+    // Stop ends the hold: a terminal's bare keep-awake process, or a coffee. The setting has no Stop: the menu's
+    // options right below change it.
+    canStop: boolean;
+};
+
+// "2 h 40", "12 min", "45 s": how long a hold still lasts, rounded up so it never reads 0 before it ends.
+export function formatTimeLeft(endsAt: number, now: number): string {
+    const seconds = Math.max(0, Math.ceil((endsAt - now) / 1000));
+    if (seconds < 60) {
+        return t("keepawake.left.seconds", { count: seconds });
+    }
+    const minutes = Math.ceil(seconds / 60);
+    if (minutes < 60) {
+        return t("keepawake.left.minutes", { count: minutes });
+    }
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return t("keepawake.left.hours", { hours, minutes: rest.toString().padStart(2, "0") });
+}
+
+function terminalHold(blockid: string, attempts: KeepAwakeAttempt[], now: number): KeepAwakeHold {
+    const latest = attempts[attempts.length - 1];
+    const tab = viewNameText(latest.tabname, t);
+    const where = workspaceShownName(latest.workspacename, t);
+    const label = tab ? t("keepawake.row.terminal", { name: tab }) : t("keepawake.aTerminal");
+    const ends = attempts.map((a) => a.endsat ?? 0);
+    const endsAt = ends.every((e) => e > 0) ? Math.max(...ends) : 0;
+    const command = describeAttempt(latest) + (attempts.length > 1 ? ` (+${attempts.length - 1})` : "");
+    const parts = [command];
+    if (endsAt > 0 && now != null) {
+        parts.push(t("keepawake.row.left", { time: formatTimeLeft(endsAt, now) }));
+    }
+    if (where) {
+        parts.push(where);
+    }
+    return {
+        kind: "terminal",
+        key: `terminal:${blockid}`,
+        label,
+        detail: parts.join(" · "),
+        blockid,
+        canStop: attempts.some((a) => a.stoppable),
+    };
+}
+
+function coffeeHold(coffee: KeepAwakeCoffee, now: number): KeepAwakeHold {
+    const name = workspaceShownName(coffee.workspacename, t) || t("keepawake.workspace");
+    let detail: string;
+    if (coffee.working || !coffee.endsat || now == null) {
+        const why = coffeeReason(coffee);
+        detail = why ? t("keepawake.row.coffeeWhy", { why }) : t("keepawake.row.coffee");
+    } else {
+        detail = t("keepawake.row.coffeeEnding", { time: formatCountdown(coffee.endsat, now) });
+    }
+    return {
+        kind: "coffee",
+        key: `coffee:${coffee.workspaceid}`,
+        label: name,
+        detail,
+        workspaceid: coffee.workspaceid,
+        canStop: true,
+    };
+}
+
+function workHold(state: KeepAwakeState, now: number): KeepAwakeHold {
+    let detail: string;
+    if (state.policyworking || !state.policyendsat || now == null) {
+        const why = state.policyworking ? reasonsText(state.policyreasons, state.policyreasonstext) : "";
+        detail = why ? t("keepawake.row.workWhy", { why }) : t("keepawake.row.work");
+    } else {
+        detail = t("keepawake.row.workEnding", { time: formatCountdown(state.policyendsat, now) });
+    }
+    return { kind: "work", key: "work", label: t("keepawake.row.workLabel"), detail, canStop: false };
+}
+
+// The reasons keeping the computer awake, one per row (#1780): each terminal whose block went through (a neutralised
+// attempt blocks nothing), each coffee, then the Until work ends setting while it holds. The cup's count, its tooltip
+// and its menu all read this list, so they never disagree. Without a clock the rows leave out what time left they
+// would show.
+export function keepAwakeHolds(state: KeepAwakeState, now?: number): KeepAwakeHold[] {
+    const holds: KeepAwakeHold[] = [];
+    const byBlock = new Map<string, KeepAwakeAttempt[]>();
+    for (const attempt of state.attempts.filter(attemptAlive)) {
+        const list = byBlock.get(attempt.blockid) ?? [];
+        list.push(attempt);
+        byBlock.set(attempt.blockid, list);
+    }
+    for (const [blockid, attempts] of byBlock) {
+        holds.push(terminalHold(blockid, attempts, now));
+    }
+    for (const coffee of state.coffees) {
+        holds.push(coffeeHold(coffee, now));
+    }
+    if (state.policyholding) {
+        holds.push(workHold(state, now));
+    }
+    if (state.hold && state.coffees.length === 0 && !state.policyholding) {
+        holds.push({ kind: "work", key: "hold", label: t("keepawake.row.workLabel"), detail: "", canStop: false });
+    }
+    return holds;
+}
+
+// The cup's count: the number of reasons the menu lists (#1780).
 export function keepAwakeCount(state: KeepAwakeState): number {
-    const sessions = new Set(state.attempts.filter(attemptAlive).map((a) => a.blockid));
-    return (state.hold ? 1 : 0) + sessions.size;
+    return keepAwakeHolds(state).length;
+}
+
+// "2 reasons keep this computer awake", for the cup's tooltip and the menu's heading.
+export function keepAwakeCountLabel(count: number): string {
+    return tCount("keepawake.reasonsCount", count);
 }
 
 export type KeepAwakeSession = {
@@ -225,7 +344,7 @@ export type KeepAwakeSession = {
 };
 
 function sessionLabel(tabname: string, workspacename: string): string {
-    const parts = [tabname, workspaceShownName(workspacename, t)].filter((p) => p);
+    const parts = [viewNameText(tabname, t), workspaceShownName(workspacename, t)].filter((p) => p);
     return parts.length > 0 ? parts.join(" · ") : t("keepawake.aTerminal");
 }
 
@@ -261,28 +380,44 @@ export function keepAwakeSessions(state: KeepAwakeState): KeepAwakeSession[] {
     return [...sessions.values()];
 }
 
-export type SleepPolicyChoice = { policy: SleepPolicy; label: string; detail: string };
-
-// The popover's one sentence (DS-SHELL-101): the segmented control of the policies completes it.
-export function sleepPolicySentence(_platform: string): string {
-    return t("keepawake.policySentence");
+// The four options of the sleep setting, worded once: Preferences, the sidebar indicator and the workspace menu all
+// read these (FR-SHELL-103-AC3). Unset is the fourth: the first block asks.
+export function sleepPolicyLabel(policy: string): string {
+    const base = `settings.items.${SleepPolicySetting}`;
+    switch (cleanSleepPolicy(policy)) {
+        case "allow":
+            return t(`${base}.options.allow`);
+        case "untilworkends":
+            return t(`${base}.options.untilworkends`);
+        case "letsleep":
+            return t(`${base}.options.letsleep`);
+        default:
+            return t(`${base}.unset`);
+    }
 }
 
-// The labels answer that sentence; each detail is its segment's tooltip.
-export function sleepPolicyChoices(_platform: string): SleepPolicyChoice[] {
-    return [
-        { policy: "allow", label: t("keepawake.policy.allow"), detail: t("keepawake.policy.allowDetail") },
-        {
-            policy: "untilworkends",
-            label: t("keepawake.policy.untilWorkEnds"),
-            detail: t("keepawake.policy.untilWorkEndsDetail"),
-        },
-        {
-            policy: "letsleep",
-            label: t("keepawake.policy.letSleep"),
-            detail: t("keepawake.policy.letSleepDetail"),
-        },
-    ];
+// What the chosen option does, shown under the setting in Preferences; "" while unset.
+export function sleepPolicyDetail(policy: string): string {
+    switch (cleanSleepPolicy(policy)) {
+        case "allow":
+            return t("keepawake.policy.allowDetail");
+        case "untilworkends":
+            return t("keepawake.policy.untilWorkEndsDetail");
+        case "letsleep":
+            return t("keepawake.policy.letSleepDetail");
+        default:
+            return t("keepawake.policy.unsetDetail");
+    }
+}
+
+// The indicator shows only while something keeps the computer awake (FR-SHELL-103-AC1).
+export function keepAwakeActive(state: KeepAwakeState): boolean {
+    return keepAwakeCount(state) > 0;
+}
+
+// One line per reason for the cup's tooltip: "Terminal “Scoping” · caffeinate -i -t 600 · 9 min left".
+export function holdLine(hold: KeepAwakeHold): string {
+    return hold.detail ? `${hold.label} · ${hold.detail}` : hold.label;
 }
 
 export function cleanSleepPolicy(value: string): SleepPolicy {
@@ -309,7 +444,7 @@ export function coffeeSessions(state: KeepAwakeState, workspaceId: string): Keep
 export function sessionWhere(session: KeepAwakeAutoApprove): string {
     return t("keepawake.sessionWhere", {
         agent: session.agentname || session.agent,
-        where: session.tabname || t("keepawake.aTerminalLower"),
+        where: viewNameText(session.tabname, t) || t("keepawake.aTerminalLower"),
     });
 }
 
@@ -348,10 +483,10 @@ export function approvalSummary(approvals: KeepAwakeApproval[]): string {
     const { approved, asked } = approvalCounts(approvals);
     const parts: string[] = [];
     if (approved > 0) {
-        parts.push(t("keepawake.approvedCount", { count: approved }));
+        parts.push(tCount("keepawake.approvedCount", approved));
     }
     if (asked > 0) {
-        parts.push(t("keepawake.askedCount", { count: asked }));
+        parts.push(tCount("keepawake.askedCount", asked));
     }
     return parts.join(" · ");
 }

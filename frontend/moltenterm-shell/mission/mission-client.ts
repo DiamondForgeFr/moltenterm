@@ -41,6 +41,8 @@ export const MissionLogCommand = "moltenmissionlog";
 export const MissionCancelCommand = "moltenmissioncancel";
 export const MissionCloseCommand = "moltenmissionclose";
 export const MissionTrustCommand = "moltenmissiontrust";
+// must match UntrustedCommand in pkg/molten/mission/trust_ask.go
+export const MissionUntrustedCommand = "moltenmissionuntrusted";
 export const MissionRunEvent = "molten:mission:run";
 export const MissionCiStateCommand = "moltenmissioncistate";
 export const MissionCiRunCommand = "moltenmissioncirun";
@@ -54,6 +56,7 @@ export const MissionReleaseEndCommand = "moltenmissionreleaseend";
 export const MissionReleaseFactsCommand = "moltenmissionreleasefacts";
 export const MissionReleaseStepCommand = "moltenmissionreleasestep";
 export const MissionReleaseRerunCommand = "moltenmissionreleasererun";
+export const MissionReleaseDispatchCommand = "moltenmissionreleasedispatch";
 export const MissionReleaseNotesCommand = "moltenmissionreleasenotes";
 export const MissionReleaseNotesSaveCommand = "moltenmissionreleasenotessave";
 export const MissionReleaseMilestoneCommand = "moltenmissionreleasemilestone";
@@ -63,6 +66,7 @@ export const MissionBranchesAutoDeleteCommand = "moltenmissionbranchesautodelete
 export const MissionBranchesCloseCommand = "moltenmissionbranchesclose";
 export const MissionTreePrsCommand = "moltenmissiontreeprs";
 export const MissionGitInitCommand = "moltenmissiongitinit";
+export const MissionReposCommand = "moltenmissionrepos";
 // must match pkg/molten/mission/github_run.go
 export const MissionGithubRunLogCommand = "moltenmissionghrunlog";
 export const MissionGithubRunRerunCommand = "moltenmissionghrunrerun";
@@ -77,6 +81,18 @@ const MissionPollMs = 15000;
 export function missionGitInit(dir: string): Promise<MissionSnapshot> {
     return TabRpcClient.wshRpcCall(
         MissionGitInitCommand,
+        { dir },
+        { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
+    );
+}
+
+// The Git repositories of a project's folder (FR-SHELL-105): the choices of its code repository. self: the folder is
+// itself a repository, the only one listed.
+export type MissionReposAnswer = { dir: string; repos: string[]; self: boolean };
+
+export function missionRepos(dir: string): Promise<MissionReposAnswer> {
+    return TabRpcClient.wshRpcCall(
+        MissionReposCommand,
         { dir },
         { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
     );
@@ -264,6 +280,11 @@ export function missionTrust(dir: string, hash: string): Promise<void> {
     return missionCall(MissionTrustCommand, { dir, hash });
 }
 
+// The folder's commands as a run reads them, when they are not trusted yet; null once they are (#1017).
+export function missionUntrusted(dir: string): Promise<UntrustedInfo> {
+    return missionCall(MissionUntrustedCommand, { dir });
+}
+
 // The project's runs, newest first, kept current by the collector's run events.
 export function useMissionRuns(dir: string): RunRecord[] {
     const { value: runs, setValue: setRuns } = useMissionScope<RunRecord[]>(dir, null);
@@ -419,10 +440,26 @@ export function missionBuilds(dir: string, fresh: boolean): Promise<BuildsFacts>
     return TabRpcClient.wshRpcCall(MissionBuildsCommand, { dir, fresh }, { route: MissionRouteId, timeout: 60000 });
 }
 
-export type ReleaseStartResult = { session?: ReleaseSession; run?: RunRecord; untrusted?: UntrustedInfo };
+// must match PipelineDrift in pkg/molten/mission/release_drift.go: the checkout's pipeline is not the one the release
+// branch is made from (#1095).
+export type PipelineDrift = { uncommitted?: boolean; base?: string };
 
-export function releaseStart(dir: string, channel: ReleaseChannel, tag: string): Promise<ReleaseStartResult> {
-    return missionCall(MissionReleaseStartCommand, { dir, channel, tag });
+export type ReleaseStartResult = {
+    session?: ReleaseSession;
+    run?: RunRecord;
+    untrusted?: UntrustedInfo;
+    // Nothing started: the pipeline is uncommitted or differs from origin's trunk, to be confirmed.
+    pipelinedrift?: PipelineDrift;
+};
+
+// force: starts although the pipeline drifted, the developer having confirmed it.
+export function releaseStart(
+    dir: string,
+    channel: ReleaseChannel,
+    tag: string,
+    force?: boolean
+): Promise<ReleaseStartResult> {
+    return missionCall(MissionReleaseStartCommand, { dir, channel, tag, force: force || undefined });
 }
 
 // Ends the release launched from the Project tab, or stops following a tag cut at the terminal.
@@ -486,12 +523,18 @@ function releaseCall<T>(command: string, data: any): Promise<T> {
     return TabRpcClient.wshRpcCall(command, data, { route: MissionRouteId, timeout: ReleaseFactsTimeoutMs });
 }
 
-export function releaseRunStep(dir: string, tag: string, step: string): Promise<RunResult> {
-    return releaseCall(MissionReleaseStepCommand, { dir, tag, step });
+// force: records a manual step although its check failed (#1095).
+export function releaseRunStep(dir: string, tag: string, step: string, force?: boolean): Promise<RunResult> {
+    return releaseCall(MissionReleaseStepCommand, { dir, tag, step, force: force || undefined });
 }
 
 export function releaseRerunFailed(dir: string, tag: string): Promise<void> {
     return releaseCall(MissionReleaseRerunCommand, { dir, tag });
+}
+
+// Starts on the tag a workflow the tag should have started and did not (#1040).
+export function releaseDispatchWorkflow(dir: string, tag: string, workflow: string): Promise<void> {
+    return releaseCall(MissionReleaseDispatchCommand, { dir, tag, workflow });
 }
 
 export function releaseNotes(dir: string, tag: string): Promise<{ path: string; text: string }> {
@@ -562,7 +605,12 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
 }
 
 // must match BranchPlan and BranchesCleanResult in pkg/molten/mission/branches.go
-export type BranchDeleteReason = "merged-pr" | "merged-pr-worktree" | "on-trunk" | "patches-on-trunk";
+export type BranchDeleteReason =
+    | "merged-pr"
+    | "merged-pr-worktree"
+    | "merged-worktree"
+    | "on-trunk"
+    | "patches-on-trunk";
 export type BranchKeepReason =
     | "protected"
     | "not-on-trunk"
@@ -574,18 +622,35 @@ export type BranchKeepReason =
     | "not-in-pr"
     | "worktree-changes"
     | "worktree-in-use"
+    | "worktree-operation"
+    | "worktree-process"
+    | "worktree-refused"
+    | "worktree-commits"
     | "pr-assets"
     | "tool-branch";
+export type TreeTool = "moltenterm" | "claude-code" | "conductor" | "codex";
+export type TreeProcess = { pid: number; name: string };
 export type BranchPlan = {
     name: string;
     remote: boolean;
     action: "delete" | "keep";
     reason?: BranchDeleteReason | BranchKeepReason;
     pr?: number;
-    // MoltenTerm's worktree holding the branch (#906): removed with it, or why it stays.
+    // The linked worktree holding the branch (#906, #1028): removed with it, or why it stays.
     worktree?: string;
     // The terminals holding that worktree open, with worktree-in-use (#932).
     terminals?: WorktreeTerminal[];
+    // #1028: the tool that made the worktree, outside the project folder, locked, the ignored files going with it, the
+    // processes working in it, the git operation in progress; confirm: it goes only when the developer checks it.
+    tool?: TreeTool;
+    outside?: boolean;
+    locked?: boolean;
+    ignoredfiles?: number;
+    processes?: TreeProcess[];
+    // Not from wavesrv's plan: the processes as a kept branch's error already lists them (cleanErrorLines).
+    processestext?: string;
+    operation?: string;
+    confirm?: boolean;
 };
 export type BranchesPlan = { trunk: string; branches: BranchPlan[]; autodeleteoffer?: boolean };
 export type BranchesCleanResult = {
@@ -600,8 +665,9 @@ export function branchesPlan(dir: string): Promise<BranchesPlan> {
     return releaseCall(MissionBranchesPlanCommand, { dir });
 }
 
-export function branchesClean(dir: string, names: string[]): Promise<BranchesCleanResult> {
-    return releaseCall(MissionBranchesCleanCommand, { dir, names });
+// worktrees: the folders of the confirm worktrees the developer checked (#1028); wavesrv removes no other.
+export function branchesClean(dir: string, names: string[], worktrees?: string[]): Promise<BranchesCleanResult> {
+    return releaseCall(MissionBranchesCleanCommand, { dir, names, worktrees });
 }
 
 // Closes the terminals holding a merged PR's worktree, then cleans its branch (#932): wavesrv plans twice, hence the

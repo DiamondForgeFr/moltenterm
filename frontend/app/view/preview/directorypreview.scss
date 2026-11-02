@@ -13,8 +13,10 @@
         display: flex;
         flex-direction: column;
 
+        // MOLTENTERM-PATCH (#1340): the scrolled header is raised to surface 2; lifting the panel colour's lightness
+        // by 0.5 assumed Wave's black panel and turned surface 1 almost white.
         &:not([data-scroll-height="0"]) .dir-table-head::after {
-            background: oklch(from var(--block-bg-color) calc(l + 0.5) c h);
+            background: var(--mt-surface-2);
             backdrop-filter: blur(2px);
             content: "";
             z-index: -1;
@@ -113,8 +115,11 @@
                     padding: 0 6px;
                     min-width: var(--min-row-width);
 
+                    // MOLTENTERM-PATCH (#1336): the selected row is the raised surface with a neutral bar, never the
+                    // action's orange, which marks actions only (FR-SHELL-116).
                     &.focused {
-                        background-color: rgb(from var(--accent-color) r g b / 0.5);
+                        background-color: var(--mt-surface-2);
+                        box-shadow: inset 2px 0 0 var(--mt-text-2);
                         color: var(--main-text-color);
 
                         .dir-table-body-cell {
@@ -128,7 +133,8 @@
                     }
 
                     &:focus {
-                        background-color: rgb(from var(--accent-color) r g b / 0.5);
+                        background-color: var(--mt-surface-2);
+                        box-shadow: inset 2px 0 0 var(--mt-text-2);
                         color: var(--main-text-color);
 
                         .dir-table-body-cell {
@@ -142,11 +148,11 @@
                     }
 
                     &:nth-child(odd):not(.focused):not(:focus) {
-                        background-color: rgba(255, 255, 255, 0.06);
+                        background-color: var(--mt-line-1);
                     }
 
                     &:hover:not(:focus):not(.focused) {
-                        background-color: var(--highlight-bg-color);
+                        background-color: var(--mt-line-2);
                     }
 
                     .dir-table-body-cell {
@@ -202,6 +208,36 @@
     min-width: 90px;
 }
 
+// MOLTENTERM-PATCH (#1346): a narrow panel drops columns instead of cutting them (FR-SHELL-109): Permissions first,
+// then Type, then Size. Name and Modified stay. Each step lowers the row's minimum to what the columns left need.
+.dir-table-container {
+    container-type: inline-size;
+}
+@container (max-width: 30rem) {
+    .dir-table-container .dir-table {
+        --min-row-width: 24rem;
+    }
+    .dir-table-container .dir-table .col-modestr {
+        display: none !important;
+    }
+}
+@container (max-width: 24rem) {
+    .dir-table-container .dir-table {
+        --min-row-width: 18rem;
+    }
+    .dir-table-container .dir-table .col-mimetype {
+        display: none !important;
+    }
+}
+@container (max-width: 18rem) {
+    .dir-table-container .dir-table {
+        --min-row-width: 14.5rem;
+    }
+    .dir-table-container .dir-table .col-size {
+        display: none !important;
+    }
+}
+
 .entry-manager-overlay {
     display: flex;
     flex-direction: column;
@@ -210,8 +246,9 @@
     padding: 10px;
     gap: 10px;
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: #212121;
+    // MOLTENTERM-PATCH (#1340): the new-entry popup is an overlay: surface 3 and the strong line.
+    border: 1px solid var(--mt-line-2);
+    background: var(--mt-surface-3);
     box-shadow: 0px 8px 24px 0px rgba(0, 0, 0, 0.3);
 
     .entry-manager-buttons {

@@ -23,7 +23,7 @@ type PlanResult struct {
 	How     string `json:"how"`
 	// The public version the release leads to.
 	Base string `json:"base,omitempty"`
-	// The release's own version: Base, or Base-N for a release candidate.
+	// The release's own version: Base, or Base-N (Base-rc.N) for a release candidate.
 	Version string `json:"version,omitempty"`
 	Tag     string `json:"tag,omitempty"`
 	Level   string `json:"level,omitempty"`
@@ -95,11 +95,10 @@ func (r Rules) Plan(tags []string, commits []CommitInput, channel string, overri
 	}
 	version := base
 	if channel == ChannelRc {
-		rc := r.NextRc(base, tags)
-		if rc > MaxRc {
+		version = r.NextCandidate(base, tags)
+		if version.Rc > MaxRc {
 			return refused(channel, lastPublic, "%s has no candidate number left (at most %d).", base, MaxRc)
 		}
-		version = base.WithRc(rc)
 	}
 	rtn.Base = base.String()
 	rtn.Version = version.String()

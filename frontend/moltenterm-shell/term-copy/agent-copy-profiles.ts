@@ -50,6 +50,8 @@ export const AgentCopyProfiles: AgentCopyProfile[] = [
     {
         id: "codex",
         name: "Codex",
+        // codex-cli 0.163.0 (#990): to the system clipboard, OSC 52 as its fallback.
+        copyCommand: "/copy",
         // • starts a message or a command, └ its output, › the prompt.
         gutters: ["•", "└", "›", "■"],
         frames: CommonFrames,

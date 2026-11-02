@@ -135,16 +135,18 @@ declare global {
         installAppUpdate: () => void; // install-app-update
         onMenuItemAbout: (callback: () => void) => void; // menu-item-about
         updateWindowControlsOverlay: (rect: Dimensions) => void; // update-window-controls-overlay
-        onReinjectKey: (callback: (waveEvent: WaveKeyboardEvent) => void) => void; // reinject-key
+        onReinjectKey: (callback: (waveEvent: WaveKeyboardEvent, guestId?: number) => void) => void; // reinject-key; MOLTENTERM-PATCH (#1722): guestId, the page that held the key back
         setWebviewFocus: (focusedId: number) => void; // webview-focus, focusedId is the getWebContentsId of the webview
         registerGlobalWebviewKeys: (keys: string[]) => void; // register-global-webview-keys
         onControlShiftStateUpdate: (callback: (state: boolean) => void) => void; // control-shift-state-update
+        onMoltentermKeyNotice?: (callback: (waveEvent: WaveKeyboardEvent) => void) => void; // moltenterm-key-notice (MOLTENTERM-PATCH #1242)
         createWorkspace: () => void; // create-workspace
         switchWorkspace: (workspaceId: string) => void; // switch-workspace
         deleteWorkspace: (workspaceId: string) => void; // delete-workspace
         resetWorkspace: (workspaceId: string) => void; // reset-workspace (MOLTENTERM-PATCH #222)
+        undoWorkspace: (undoId: string, workspaceId: string) => void; // undo-workspace (MOLTENTERM-PATCH #1324)
         setActiveTab: (tabId: string) => void; // set-active-tab
-        createTab: () => void; // create-tab
+        createTab: (blockDef?: BlockDef) => void; // create-tab (MOLTENTERM-PATCH #1232: a new view may start with a given block)
         closeTab: (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>; // close-tab
         setWindowInitStatus: (status: "ready" | "wave-ready") => void; // set-window-init-status
         onWaveInit: (callback: (initOpts: WaveInitOpts) => void) => void; // wave-init
@@ -152,10 +154,14 @@ declare global {
         sendLog: (log: string) => void; // fe-log
         onQuicklook: (filePath: string) => void; // quicklook
         openNativePath(filePath: string): void; // open-native-path
-        captureScreenshot(rect: Electron.Rectangle): Promise<string>; // capture-screenshot
+        revealNativePath(filePath: string): void; // reveal-native-path; MOLTENTERM-PATCH (#1575)
+        captureScreenshot(rect: Electron.Rectangle, opts?: { width?: number }): Promise<string>; // capture-screenshot; MOLTENTERM-PATCH (#1545): optional thumbnail width (a JPEG)
         setKeyboardChordMode: () => void; // set-keyboard-chord-mode
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage
         setWaveAIOpen: (isOpen: boolean) => void; // set-waveai-open
+        setWindowButtons: (state: { visible: boolean; zoom: number; peekGap?: number } | null) => void; // moltenterm-window-buttons, MOLTENTERM-PATCH (#1216, #1279, #1293)
+        setWindowLook: (look: { translucent: boolean; blur: boolean }) => void; // moltenterm-window-look, MOLTENTERM-PATCH (#1281)
+        getWindowLookSupport: () => Promise<{ translucent: boolean; blur: boolean }>; // MOLTENTERM-PATCH (#1281)
         closeBuilderWindow: () => void; // close-builder-window
         incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => void; // increment-term-commands
         nativePaste: () => void; // native-paste
@@ -195,6 +201,7 @@ declare global {
         enabled?: boolean;
         sublabel?: string;
         accelerator?: string; // MOLTENTERM-PATCH (#370): an Electron accelerator, from the shortcut registry
+        tooltip?: string; // MOLTENTERM-PATCH (#1344): shown on hover by MoltenTerm's menus, not by native ones
     };
 
     type KeyPressDecl = {
@@ -231,6 +238,7 @@ declare global {
         title?: string;
         disabled?: boolean;
         noAction?: boolean;
+        pressed?: boolean; // MOLTENTERM-PATCH (#1328): a button that switches something on or off says which
     };
 
     type IconButtonDecl = IconButtonCommon & {
@@ -289,6 +297,7 @@ declare global {
         tone?: "neutral" | "warning" | "danger";
         title?: string;
         icon?: string;
+        busy?: boolean; // MOLTENTERM-PATCH (#1714): the pill draws the domino loader (DS-SHELL-154)
         onClick?: () => void;
     };
 

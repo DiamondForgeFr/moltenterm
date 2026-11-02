@@ -8,7 +8,7 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { ErrorBoundary } from "@/app/element/errorboundary";
-import { fireAndForget } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { atom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
@@ -28,8 +28,11 @@ import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "../m
 import { MissionSnapshot, UntrustedInfo } from "../mission/mission-model";
 import { TrustPrompt, useStartRun } from "../mission/runs-view";
 import { openMoltentermView } from "../open-view";
+import { ProjectSwitchChips } from "../sidebar/project-chips";
+import { openProjectSheet } from "../workspace-edit";
 import { pathBaseName } from "../workspace-project";
-import { BuiltinProjectCards } from "./project-builtin-cards";
+import { useMapFull } from "./map-full";
+import { BuiltinProjectCards, LineMapCardId } from "./project-builtin-cards";
 import { layoutProjectCards, ProjectCard } from "./project-cards";
 import { ProjectCardProps, registerProjectCard, useProjectCards } from "./project-context";
 import { MoltentermProjectView } from "./project-model";
@@ -62,14 +65,15 @@ export class ProjectViewModel implements ViewModel {
     }
 }
 
-function ProjectView({ blockId }: ViewComponentProps<ProjectViewModel>) {
+function ProjectView({ blockId, model }: ViewComponentProps<ProjectViewModel>) {
     const t = useT();
     return (
-        <MissionFrame title={t("project.frameTitle")}>
+        <MissionFrame title={t("project.frameTitle")} gitPanel="project">
             {({ project, snapshot, refresh }) => (
                 <ProjectContent
                     key={project.dir}
                     blockId={blockId}
+                    nodeModel={model?.nodeModel}
                     project={project}
                     snapshot={snapshot}
                     refresh={refresh}
@@ -123,11 +127,13 @@ function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props:
 
 function ProjectContent({
     blockId,
+    nodeModel,
     project,
     snapshot,
     refresh,
 }: {
     blockId: string;
+    nodeModel?: BlockNodeModel;
     project: ActiveProject;
     snapshot: MissionSnapshot;
     refresh: () => void;
@@ -143,6 +149,7 @@ function ProjectContent({
     const [ciError, setCiError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<{ branch: string; info: UntrustedInfo }>(null);
     const rootRef = useRef<HTMLDivElement>(null);
+    const { mapFull, toggleMapFull } = useMapFull(nodeModel);
     const report = snapshot?.pipeline;
     const pipeline = report?.valid ? report.pipeline : null;
     // The CI's verdicts are read for the branches' heads: when the trunk moves, the verdict on its new head is asked
@@ -208,11 +215,23 @@ function ProjectContent({
         showRuns,
         group,
         blockId,
+        mapFull,
+        toggleMapFull,
     };
     const problem = error ?? ciError;
+    const fullMapCard = mapFull ? regions.map.find((card) => card.id === LineMapCardId) : null;
     return (
         <>
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
+                <button
+                    type="button"
+                    onClick={(e) => openProjectSheet(undefined, e.currentTarget, project.workspace?.oid)}
+                    className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
+                    data-action="project-sheet"
+                    title={t("projectSheet.openTitle")}
+                >
+                    {t("projectSheet.open")}
+                </button>
                 <button
                     type="button"
                     onClick={() => fireAndForget(() => openMoltentermView(MoltentermCicdView))}
@@ -223,7 +242,21 @@ function ProjectContent({
                     CI/CD
                 </button>
             </MissionHeader>
-            <div ref={rootRef} className="flex min-h-0 flex-1 flex-col overflow-auto" data-testid="project-view">
+            <ProjectSwitchChips workspace={project.workspace} />
+            {fullMapCard != null ? (
+                <div
+                    className="flex min-h-0 flex-1 flex-col p-3"
+                    data-card={fullMapCard.id}
+                    data-testid="project-map-full"
+                >
+                    <CardBody card={fullMapCard} props={props} />
+                </div>
+            ) : null}
+            <div
+                ref={rootRef}
+                className={cn("flex min-h-0 flex-1 flex-col overflow-auto", fullMapCard != null && "hidden")}
+                data-testid="project-view"
+            >
                 {regions.header.length > 0 ? (
                     <section
                         aria-label={t("project.headerAria")}

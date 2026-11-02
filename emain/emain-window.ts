@@ -6,7 +6,6 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { fireAndForget } from "@/util/util";
 import { BaseWindow, BaseWindowConstructorOptions, dialog, globalShortcut, screen } from "electron";
-import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { globalEvents } from "emain/emain-events";
 import path from "path";
 import { debounce } from "throttle-debounce";
@@ -23,9 +22,12 @@ import { getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview"; //
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
 import { readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
+import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
+import { opaqueBackground, titleBarSymbolColor } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
+import { noteWindowCreatedLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
 // MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts); the
 // window's actions run in emain/moltenterm-window-actions.ts
-import { askDeleteStops, askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
+import { askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): dialogs in the interface language
 import {
@@ -34,9 +36,10 @@ import {
     positionWindowTabViews,
     removeWindowTabView,
     sweepDeletedTabViews,
+    windowShowsItsActiveView, // MOLTENTERM-PATCH (#1250)
     windowTabViews,
 } from "./moltenterm-tabview-host";
-import { isWindowOnWorkspace, runWindowAction, WindowAction } from "./moltenterm-window-actions";
+import { isTabGone, isWindowOnWorkspace, runWindowAction, WindowAction } from "./moltenterm-window-actions"; // MOLTENTERM-PATCH (#1778): isTabGone
 import { askEditNewWorkspace } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#743)
 import { updater } from "./updater";
 
@@ -134,6 +137,7 @@ function isNonEmptyUnsavedWorkspace(workspace: Workspace): boolean {
 
 export class WaveBrowserWindow extends BaseWindow {
     waveWindowId: string;
+    readonly hasTitleBarOverlay: boolean;
     workspaceId: string;
     private canClose: boolean;
     private deleteAllowed: boolean;
@@ -165,24 +169,21 @@ export class WaveBrowserWindow extends BaseWindow {
         };
 
         const isTransparent = settings?.["window:transparent"] ?? false;
-        const isBlur = !isTransparent && (settings?.["window:blur"] ?? false);
 
         if (opts.unamePlatform === "darwin") {
             winOpts.titleBarStyle = "hiddenInset";
             winOpts.titleBarOverlay = false;
             winOpts.autoHideMenuBar = !settings?.["window:showmenubar"];
             winOpts.acceptFirstMouse = true;
-            if (isTransparent) {
-                winOpts.transparent = true;
-            } else if (isBlur) {
-                winOpts.vibrancy = "fullscreen-ui";
-            } else {
-                winOpts.backgroundColor = "#222222";
-            }
+            // MOLTENTERM-PATCH (#1281): created transparent once so a workspace's look can turn see-through without a
+            // restart; the tab views keep their opaque background until a look asks otherwise (moltenterm-window-look.ts)
+            winOpts.transparent = true;
+            // MOLTENTERM-PATCH (#1629): no creation-time vibrancy for window:blur (on by default): the look's hud
+            // vibrancy comes with the first view that asks for it, so a saved opaque workspace never opens blurred
         } else if (opts.unamePlatform === "linux") {
             winOpts.titleBarStyle = settings["window:nativetitlebar"] ? "default" : "hidden";
             winOpts.titleBarOverlay = {
-                symbolColor: "white",
+                symbolColor: titleBarSymbolColor("white"), // MOLTENTERM-PATCH (#1341): readable in the light theme
                 color: "#00000000",
             };
             winOpts.icon = path.join(getElectronAppBasePath(), "public/logos/moltenterm-logo.png"); // MOLTENTERM-PATCH (#4)
@@ -190,25 +191,29 @@ export class WaveBrowserWindow extends BaseWindow {
             if (isTransparent) {
                 winOpts.transparent = true;
             } else {
-                winOpts.backgroundColor = "#222222";
+                winOpts.backgroundColor = opaqueBackground(); // MOLTENTERM-PATCH (#1341)
             }
         } else if (opts.unamePlatform === "win32") {
             winOpts.titleBarStyle = "hidden";
+            // MOLTENTERM-PATCH (#1341): the overlay and the background follow the interface theme
             winOpts.titleBarOverlay = {
-                color: "#222222",
-                symbolColor: "#c3c8c2",
+                color: opaqueBackground(),
+                symbolColor: titleBarSymbolColor("#c3c8c2"),
                 height: 32,
             };
+            // MOLTENTERM-PATCH (#1629): no acrylic for window:blur (on by default): the workspace look draws opaque on a
+            // window not created transparent, which would only show the material while resizing
             if (isTransparent) {
                 winOpts.transparent = true;
-            } else if (isBlur) {
-                winOpts.backgroundMaterial = "acrylic";
             } else {
-                winOpts.backgroundColor = "#222222";
+                winOpts.backgroundColor = opaqueBackground();
             }
         }
 
         super(winOpts);
+        this.hasTitleBarOverlay = opts.unamePlatform !== "darwin" && winOpts.titleBarStyle !== "default";
+        // MOLTENTERM-PATCH (#1281): what this window can become without a restart
+        noteWindowCreatedLook(this, winOpts.transparent === true, winOpts.vibrancy != null, opts.unamePlatform);
 
         if (opts.unamePlatform === "win32") {
             this.setMenu(null);
@@ -376,10 +381,21 @@ export class WaveBrowserWindow extends BaseWindow {
     }
 
     // MOLTENTERM-PATCH (#490): false when the user kept the workspace left (FR-SHELL-062)
-    async switchWorkspace(workspaceId: string): Promise<boolean> {
+    // MOLTENTERM-PATCH (#1250): askingWebContentsId is the renderer that asked, when one did
+    async switchWorkspace(workspaceId: string, askingWebContentsId?: number): Promise<boolean> {
         console.log("switchWorkspace", workspaceId, this.waveWindowId);
         // MOLTENTERM-PATCH (#449): coming back to the workspace on screen while a switch is under way cancels that switch
         if (workspaceId == this.workspaceId && !this.actionQueue.hasWorkspaceChange()) {
+            // MOLTENTERM-PATCH (#1250): a renderer asking for the workspace emain shows believes another one is on
+            // screen; the window shows its active tab again instead of doing nothing
+            if (!windowShowsItsActiveView(this, askingWebContentsId) || !(await this.showsTabOfItsWorkspace())) {
+                console.log(
+                    "switchWorkspace already on this workspace, but not on screen: resyncing",
+                    this.waveWindowId
+                );
+                await this.queueShowActiveTab("switch to the workspace emain shows");
+                return true;
+            }
             console.log("switchWorkspace already on this workspace", this.waveWindowId);
             return true;
         }
@@ -424,8 +440,9 @@ export class WaveBrowserWindow extends BaseWindow {
         positionWindowTabViews(this);
     }
 
-    async queueCreateTab() {
-        await this._queueActionInternal({ op: "createtab" });
+    // MOLTENTERM-PATCH (#1232): a new view may start with a given block (the chooser or a type opened directly)
+    async queueCreateTab(blockDef?: BlockDef) {
+        await this._queueActionInternal({ op: "createtab", blockDef });
     }
 
     async queueCloseTab(tabId: string) {
@@ -440,6 +457,28 @@ export class WaveBrowserWindow extends BaseWindow {
     // MOLTENTERM-PATCH (#449): a delete goes through the queue, so it cannot race a switch to the same workspace
     async queueDeleteWorkspace(workspaceId: string) {
         await this._queueActionInternal({ op: "deleteworkspace", workspaceId });
+    }
+
+    // MOLTENTERM-PATCH (#1324)
+    async queueUndoWorkspace(undoId: string) {
+        await this._queueActionInternal({ op: "undoworkspace", undoId });
+    }
+
+    // MOLTENTERM-PATCH (#1250): the active view is a tab of the workspace emain says is shown
+    private async showsTabOfItsWorkspace(): Promise<boolean> {
+        const tabId = this.activeTabView?.waveTabId;
+        const ws = await WorkspaceService.GetWorkspace(this.workspaceId).catch((): Workspace => null);
+        return tabId != null && ws?.tabids?.includes(tabId) == true;
+    }
+
+    // MOLTENTERM-PATCH (#1250): shows the window's active tab again (its view recreated if needed) once the view on
+    // screen is gone or no longer matches; one is enough while it waits
+    async queueShowActiveTab(reason: string) {
+        if (this.isDestroyed() || this.actionQueue.entries.slice(1).some((e) => e.op === "showactivetab")) {
+            return;
+        }
+        console.log("[#1250] showing the window's active tab again:", reason, this.waveWindowId);
+        await this._queueActionInternal({ op: "showactivetab" });
     }
 
     // MOLTENTERM-PATCH (#449): the window shows the workspace, is switching to it, or its backend window is on it
@@ -560,11 +599,14 @@ onAppIpc("set-active-tab", async (event, tabId) => {
     await ww?.setActiveTab(tabId, true);
 });
 
-onAppIpc("create-tab", async (event, _opts) => {
+onAppIpc("create-tab", async (event, opts) => {
     const senderWc = event.sender;
     const ww = getWaveWindowByWebContentsId(senderWc.id);
     if (ww != null) {
-        await ww.queueCreateTab();
+        // MOLTENTERM-PATCH (#1232): only a block definition with a meta object is passed on
+        const blockDef =
+            opts?.blockdef?.meta != null && typeof opts.blockdef.meta === "object" ? opts.blockdef : undefined;
+        await ww.queueCreateTab(blockDef);
     }
     event.returnValue = true;
     return null;
@@ -597,14 +639,15 @@ handleAppIpc("close-tab", async (event, workspaceId: string, tabId: string, conf
         }
     }
     await ww.queueCloseTab(tabId);
-    return true;
+    // MOLTENTERM-PATCH (#1778): the close has run once the queue answers; true only when the tab is gone
+    return await isTabGone(workspaceId, tabId);
 });
 
 onAppIpc("switch-workspace", (event, workspaceId) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWebContentsId(event.sender.id);
         console.log("switch-workspace", workspaceId, ww?.waveWindowId);
-        await ww?.switchWorkspace(workspaceId);
+        await ww?.switchWorkspace(workspaceId, event.sender.id); // MOLTENTERM-PATCH (#1250)
     });
 });
 
@@ -644,34 +687,26 @@ onAppIpc("delete-workspace", (event, workspaceId) => {
 
         const _workspaceHasWindow = !!workspaceList.find((wse) => wse.workspaceid === workspaceId)?.windowid;
 
-        // MOLTENTERM-PATCH (#222): the last workspace of a window is reset from the rail, never deleted
-        if (!(await WorkspaceService.CanCloseWorkspace(workspaceId))) {
-            console.log("delete-workspace refused: last workspace of its window", workspaceId, ww?.waveWindowId);
-            return;
-        }
+        // MOLTENTERM-PATCH (#222, #1250): the rail resets the last workspace of a window instead; a delete of it that
+        // still comes (a stale rail) makes a new workspace for the window to land on, never an empty window
+        const isLast = !(await WorkspaceService.CanCloseWorkspace(workspaceId));
 
-        // MOLTENTERM-PATCH (#490): when its terminals run something, MoltenTerm's dialog replaces this box
-        const busy = await askDeleteStops(event.sender, workspaceId);
-        if (busy === BusyOutcomeCancel) {
-            console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);
-            return;
-        }
-        if (busy !== BusyOutcomeClose) {
-            const choice = dialog.showMessageBoxSync(this, {
-                type: "question",
-                buttons: [mt("common.cancel"), mt("dialog.deleteWorkspace.button")], // MOLTENTERM-PATCH (#623)
-                title: mt("common.confirm"),
-                message: mt("dialog.deleteWorkspace.message"),
-            });
-            if (choice === 0) {
-                console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);
+        // MOLTENTERM-PATCH (#1324): the renderer has already confirmed in its own dialog, which lists what runs
+        // (workspace-reset.tsx, FR-SHELL-095); Wave's native box and the busy ask of #490 are gone
+        // MOLTENTERM-PATCH (#1250)
+        if (isLast) {
+            const newWsId = await WorkspaceService.CreateWorkspace("", "", "", true);
+            if (!newWsId) {
+                console.log("delete-workspace: last workspace of its window, no new one made", workspaceId);
                 return;
             }
+            console.log("delete-workspace: last workspace of its window, new one to land on", workspaceId, newWsId);
         }
 
         // MOLTENTERM-PATCH (#449): applied by the action queue of the window that shows the workspace or is switching to
         // it (runDeleteWorkspace), so it cannot race that switch
         const owner = getAllWaveWindows().find((w) => w.isOnWorkspace(workspaceId)) ?? ww;
+        await captureWorkspaceUndo(workspaceId, "delete", ww, ww != null && ww.isOnWorkspace(workspaceId)); // MOLTENTERM-PATCH (#1324)
         if (owner == null) {
             await WorkspaceService.DeleteWorkspace(workspaceId);
             console.log("delete-workspace done", workspaceId);
@@ -688,6 +723,8 @@ onAppIpc("reset-workspace", (event, workspaceId: string) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWorkspaceId(workspaceId) ?? getWaveWindowByWebContentsId(event.sender.id);
         console.log("reset-workspace", workspaceId, ww?.waveWindowId);
+        // MOLTENTERM-PATCH (#1324): the undo is offered in the window that asked
+        await captureWorkspaceUndo(workspaceId, "reset", getWaveWindowByWebContentsId(event.sender.id) ?? ww, false);
         if (ww == null || ww.workspaceId != workspaceId) {
             // Not on screen: the views a window kept for it (#68) belong to tabs that no longer exist.
             const oldWs = await WorkspaceService.GetWorkspace(workspaceId);
@@ -698,6 +735,41 @@ onAppIpc("reset-workspace", (event, workspaceId: string) => {
             return;
         }
         await ww.queueResetWorkspace();
+    });
+});
+
+// MOLTENTERM-PATCH (#1324): undo after a reset or a delete (FR-SHELL-095). wavesrv keeps the snapshot and the offer;
+// emain remembers which deletes took a workspace off the asking window's screen, so their undo shows it there again,
+// while an undo of what was not on screen only brings it back in the sidebar.
+const undoReshows = new Map<string, boolean>();
+
+async function captureWorkspaceUndo(workspaceId: string, kind: string, ww: WaveBrowserWindow, wasShown: boolean) {
+    try {
+        const undoId = await WorkspaceService.CaptureWorkspaceUndo(workspaceId, kind, ww?.waveWindowId ?? "");
+        if (wasShown && undoId) {
+            undoReshows.set(undoId, true);
+            setTimeout(() => undoReshows.delete(undoId), 60_000);
+        }
+    } catch (e) {
+        console.log("no undo for this workspace", kind, workspaceId, e);
+    }
+}
+
+onAppIpc("undo-workspace", (event, undoId: string, workspaceId: string) => {
+    fireAndForget(async () => {
+        const sender = getWaveWindowByWebContentsId(event.sender.id);
+        const reshow = undoReshows.get(undoId) == true;
+        undoReshows.delete(undoId);
+        const owner = getAllWaveWindows().find((w) => w.isOnWorkspace(workspaceId)) ?? (reshow ? sender : null);
+        console.log("undo-workspace", undoId, workspaceId, owner?.waveWindowId);
+        if (owner != null) {
+            await owner.queueUndoWorkspace(undoId);
+            return;
+        }
+        const rtn = await WorkspaceService.RestoreWorkspaceUndo(undoId);
+        for (const tabId of rtn?.closedtabids ?? []) {
+            getWaveWindowByTabId(tabId)?.removeTabView(tabId, false);
+        }
     });
 });
 

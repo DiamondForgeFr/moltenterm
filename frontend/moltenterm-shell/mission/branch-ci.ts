@@ -141,14 +141,38 @@ export function jobElapsedMs(job: BranchCiJob, now: number): number {
     return Number.isNaN(end) ? null : Math.max(0, end - start);
 }
 
+// From the first job's start to the last job's end; null when no job started.
+function jobsSpanMs(jobs: BranchCiJob[], now: number): number {
+    let first = NaN;
+    let last = NaN;
+    for (const job of jobs ?? []) {
+        const start = timeOf(job.startedat);
+        if (Number.isNaN(start)) {
+            continue;
+        }
+        const end = job.status === "completed" ? timeOf(job.completedat) : now;
+        first = Number.isNaN(first) ? start : Math.min(first, start);
+        if (!Number.isNaN(end)) {
+            last = Number.isNaN(last) ? end : Math.max(last, end);
+        }
+    }
+    if (Number.isNaN(first) || Number.isNaN(last) || last <= first) {
+        return null;
+    }
+    return last - first;
+}
+
+// How long a run has run. A finished run never takes 0 ms on GitHub: missing or equal timestamps give its jobs' span,
+// else null (unknown, FR-SHELL-100), never "0 s".
 export function runElapsedMs(run: BranchCiRun, now: number): number {
     let start = timeOf(run.startedAt);
     if (Number.isNaN(start)) {
         start = timeOf(run.createdAt);
     }
-    if (Number.isNaN(start)) {
-        return null;
-    }
     const end = isActive(run) ? now : timeOf(run.updatedAt);
-    return Number.isNaN(end) ? null : Math.max(0, end - start);
+    const own = Number.isNaN(start) || Number.isNaN(end) ? null : Math.max(0, end - start);
+    if (own != null && (own > 0 || isActive(run))) {
+        return own;
+    }
+    return jobsSpanMs(run.jobs, now);
 }

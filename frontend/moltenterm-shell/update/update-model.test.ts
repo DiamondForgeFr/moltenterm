@@ -6,6 +6,7 @@ import {
     groupNotes,
     installedSince,
     restartWarning,
+    retryOffer,
     shouldOffer,
     summarizeTerminals,
     updateLabel,
@@ -23,6 +24,14 @@ describe("update model", () => {
         ]);
         expect([groups.features.length, groups.fixes.length, groups.other.length]).toEqual([1, 1, 2]);
         expect(groupNotes(null).other).toEqual([]);
+    });
+
+    it("offers a rolled-back build again on Try again, or a newer one, never an older one (#1193)", () => {
+        expect(retryOffer(manifest, 200)).toBe(manifest);
+        expect(retryOffer(manifest, 150)).toBe(manifest);
+        expect(retryOffer(manifest, 201)).toBeNull();
+        expect(retryOffer(null, 200)).toBeNull();
+        expect(retryOffer(manifest, 0)).toBeNull();
     });
 
     it("offers a build unless the user put it off, and offers newer ones again", () => {

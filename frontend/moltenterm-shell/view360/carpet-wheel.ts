@@ -21,7 +21,20 @@ export type CarpetWheelState = {
 export type CarpetWheelMessage = {
     delta: number;
     deltaMode: number;
+    // When the event happened, in epoch ms (timeOrigin + timeStamp): the host reads the gesture's pauses from it, as
+    // the message may wait behind a busy thread (#1466).
+    at?: number;
 };
+
+// The guest event's time on the host page's clock, or now when the message carries none.
+export function hostWheelTime(msg: CarpetWheelMessage, timeOrigin: number, now: number): number {
+    const at = msg?.at;
+    if (typeof at !== "number" || !Number.isFinite(at)) {
+        return now;
+    }
+    // Clocks of two processes: never in the future.
+    return Math.min(now, at - timeOrigin);
+}
 
 export type WheelRoute = "carpet" | "panel";
 

@@ -1,12 +1,27 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { RpcApi } from "@/app/store/wshclientapi";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MergedSection } from "./reviews-merged";
-import { MergedOpenPref, MergedOpenStorageKey, notesByPr, ReviewMergedPr, shipsLabel } from "./reviews-merged-model";
+import { MergedOpenPref, notesByPr, ReviewMergedPr, shipsLabel } from "./reviews-merged-model";
 import { ReviewsAnswer } from "./reviews-model";
+import { ReviewsFolds, ReviewsFoldsKey } from "./reviews-order-store";
+
+// The settings the page holds, as the app's global atoms give them once initialised.
+vi.mock("@/app/store/global", async (importOriginal) => {
+    const { atom } = await import("jotai");
+    const fullConfigAtom = atom(null);
+    const settingsAtom = atom((get) => (get(fullConfigAtom) as any)?.settings ?? {});
+    return {
+        ...(await importOriginal<object>()),
+        atoms: { fullConfigAtom, settingsAtom },
+        getSettingsKeyAtom: (key: string) => atom((get) => (get(settingsAtom) as any)[key]),
+    };
+});
 
 vi.mock("../review/review-notes", () => ({
     useReviewNotes: () => ({
@@ -52,6 +67,8 @@ function answer(rows: ReviewMergedPr[]): ReviewsAnswer {
 describe("Recently merged (#843)", () => {
     afterEach(() => {
         MergedOpenPref.resetInstance();
+        ReviewsFolds.resetInstance();
+        globalStore.set(atoms.fullConfigAtom, null);
         vi.unstubAllGlobals();
     });
 
@@ -69,42 +86,88 @@ describe("Recently merged (#843)", () => {
         expect(notesByPr([{ pr: { number: 3 } }, { pr: { number: 3 } }, { pr: null }] as any)).toEqual({ 3: 2 });
     });
 
-    it("shows when, who and where each PR ships", () => {
+    it("groups the PRs by version, one compact row each (#1061)", () => {
         vi.stubGlobal("localStorage", memoryStorage());
         const html = renderToStaticMarkup(
             <MergedSection
                 answer={answer([
-                    merged(7, { ticket: 801, ships: "next" }),
-                    merged(6, { ships: "tag", shipsin: "v1.0.0-4" }),
+                    merged(7, {
+                        ticket: 801,
+                        title: "[#801] Terminal header icon",
+                        ships: "next",
+                        author: "boss",
+                        agents: [{ firstname: "Paul", agent: "claude", model: "opus" }],
+                    }),
+                    merged(6, { ships: "tag", shipsin: "v1.0.0-4", author: "boss" }),
+                    merged(5, { ships: "tag", shipsin: "v1.0.0-4", author: "ana" }),
                 ])}
                 onShowNotes={() => {}}
             />
         );
         expect(html).toContain("Recently merged");
-        expect(html).toContain("merged 1 hour ago by boss");
+        expect(html).toContain("In the next version");
+        expect(html).toContain("Prepare the notes");
+        expect(html).toContain("In v1.0.0-4");
+        expect(html).toContain("Release notes");
         expect(html).toContain("#801");
-        expect(html).toContain("next release");
-        expect(html).toContain("in v1.0.0-4");
-        expect(html).toContain("2 notes");
-        expect(html.match(/data-testid="reviews-merged-row"/g)).toHaveLength(2);
+        expect(html).toContain("Terminal header icon");
+        expect(html).not.toContain("[#801]");
+        expect(html).toContain("Paul · Opus");
+        // The developer merged it: "by you" is not said; the developer's own PR without an agent says "you".
+        expect(html).not.toContain("by boss");
+        expect(html).toContain(">you<");
+        expect(html).toContain("by ana");
+        expect(html).not.toContain("next release");
+        expect(html).toContain("✎");
+        expect(html).toContain("1 h");
+        expect(html.match(/data-testid="reviews-merged-row"/g)).toHaveLength(3);
+        expect(html).not.toContain("reviews-merged-detail");
+        // #960, #1070: the way to the whole history, which opens only when asked.
+        expect(html).toContain("All merged pull requests");
+        expect(html.indexOf("reviews-merged-all")).toBeLessThan(html.indexOf("reviews-merged-row"));
+        expect(html).not.toContain("merged-history");
     });
 
-    it("remembers collapsed and expanded", () => {
+    it("shows six rows a group, then the rest in the history", () => {
+        vi.stubGlobal("localStorage", memoryStorage());
+        const rows = Array.from({ length: 9 }, (_, i) => merged(100 + i, { ships: "next" }));
+        const html = renderToStaticMarkup(<MergedSection answer={answer(rows)} onShowNotes={() => {}} />);
+        expect(html.match(/data-testid="reviews-merged-row"/g)).toHaveLength(6);
+        expect(html).toContain("… 3 more");
+        expect(html).toContain("Show all");
+    });
+
+    it("remembers collapsed and expanded, else follows its default", () => {
         const storage = memoryStorage();
         vi.stubGlobal("localStorage", storage);
-        expect(globalStore.get(MergedOpenPref.getInstance().openAtom)).toBe(true);
+        expect(globalStore.get(MergedOpenPref.getInstance().openAtom)).toBeNull();
+        const folded = renderToStaticMarkup(
+            <MergedSection answer={answer([merged(7)])} onShowNotes={() => {}} defaultOpen={false} />
+        );
+        expect(folded).not.toContain("reviews-merged-row");
+        const save = vi.spyOn(RpcApi, "SetConfigCommand").mockResolvedValue(undefined);
         MergedOpenPref.getInstance().set(false);
-        expect(storage.data.get(MergedOpenStorageKey)).toBe("closed");
+        expect(save.mock.calls[0]?.[1]).toEqual({ [ReviewsFoldsKey]: { merged: false } });
+        save.mockRestore();
+        // A new page reads it from the settings (#1758).
+        globalStore.set(atoms.fullConfigAtom, {
+            settings: { [ReviewsFoldsKey]: { merged: false } },
+        } as unknown as FullConfigType);
         MergedOpenPref.resetInstance();
+        ReviewsFolds.resetInstance();
         expect(globalStore.get(MergedOpenPref.getInstance().openAtom)).toBe(false);
         const html = renderToStaticMarkup(<MergedSection answer={answer([merged(7)])} onShowNotes={() => {}} />);
         expect(html).toContain('aria-expanded="false"');
         expect(html).not.toContain("reviews-merged-row");
+        // The whole history stays one click away with the section collapsed (#1070).
+        expect(html).toContain("reviews-merged-all");
     });
 
     it("tells an empty window", () => {
         vi.stubGlobal("localStorage", memoryStorage());
         const html = renderToStaticMarkup(<MergedSection answer={answer([])} onShowNotes={() => {}} />);
         expect(html).toContain("No pull request merged into develop in the last 7 days.");
+        // Older PRs stay reachable (#960).
+        expect(html).toContain("reviews-merged-all");
     });
 });

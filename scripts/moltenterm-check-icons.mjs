@@ -83,7 +83,8 @@ for (const rel of files) {
             }
             return;
         }
-        if (isCode && /Icons\s*(?::[^=]*)?=\s*.*[[{]\s*$/.test(line)) {
+        // A component named "...Icons" (const HeaderEndIcons = React.memo((...) => {) opens a body, not a list.
+        if (isCode && /Icons\s*(?::[^=]*)?=\s*.*[[{]\s*$/.test(line) && !/=>/.test(line)) {
             inIconList = true;
             return;
         }

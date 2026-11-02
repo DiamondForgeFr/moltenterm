@@ -4,13 +4,16 @@
 import { describe, expect, it } from "vitest";
 import {
     describeCron,
+    githubOnlySchedules,
     mergeStateLabel,
     nextRuns,
     parseCron,
     prSummary,
+    releaseNotesText,
     runState,
     scheduledWorkflows,
     summarizeChecks,
+    WorkflowRun,
 } from "./github";
 
 describe("checks", () => {
@@ -94,6 +97,31 @@ describe("scheduled workflows", () => {
         expect(scheduledWorkflows(files)).toEqual([{ file: "ci.yml", name: "CI", crons: ["17 2 * * *"] }]);
     });
 
+    it("keeps the workflows GitHub runs on a schedule without a local file (FR-SHELL-100)", () => {
+        const run = (id: number, workflowName: string, event: string, createdAt: string) =>
+            ({ databaseId: id, workflowName, event, createdAt }) as WorkflowRun;
+        const runs = [
+            run(1, "Nightly e2e", "schedule", "2026-10-28T02:00:00Z"),
+            run(2, "Nightly e2e", "schedule", "2026-10-29T02:00:00Z"),
+            run(3, "CI", "schedule", "2026-10-29T02:00:00Z"),
+            run(4, "Old cron", "schedule", "2026-10-01T02:00:00Z"),
+            run(5, ".github/workflows/bare.yml", "schedule", "2026-10-29T02:00:00Z"),
+            run(6, "Release", "push", "2026-10-29T02:00:00Z"),
+        ];
+        const files = [
+            { name: "ci.yml", text: "name: CI\non:\n  schedule:\n    - cron: '17 2 * * *'\n" },
+            { name: "old.yml", text: "name: Old cron\non: push\n" },
+            { name: "bare.yml", text: "on:\n  schedule:\n    - cron: '0 1 * * *'\n" },
+        ];
+        expect(githubOnlySchedules(runs, files).map((r) => r.databaseId)).toEqual([2]);
+        expect(githubOnlySchedules(runs, []).map((r) => r.workflowName)).toEqual([
+            ".github/workflows/bare.yml",
+            "CI",
+            "Nightly e2e",
+            "Old cron",
+        ]);
+    });
+
     it("computes the next runs in UTC and says them in words", () => {
         const runs = nextRuns("0 3 * * 1-5", new Date("2026-10-02T12:00:00Z"), 2);
         expect(runs.map((d) => d.toISOString())).toEqual(["2026-10-05T03:00:00.000Z", "2026-10-06T03:00:00.000Z"]);
@@ -110,5 +138,29 @@ describe("prSummary", () => {
         expect(prSummary("## Summary\n\n- Adds **panels**\n\n## Tests\nall")).toBe("• Adds panels");
         expect(prSummary("Resolves #31\nShows the plan.")).toBe("Shows the plan.");
         expect(prSummary("")).toBeNull();
+    });
+});
+
+describe("releaseNotesText", () => {
+    it("leaves the front matter out", () => {
+        const notes =
+            "---\ndate: 2026-10-22\n---\n\n## What this version brings\n\nYou can **validate** a pull request.\n";
+        expect(releaseNotesText(notes)).toBe("You can validate a pull request.");
+    });
+
+    it("reads notes without front matter as before", () => {
+        expect(releaseNotesText("First line.\n\n- an item")).toBe("First line.\n\n• an item");
+    });
+
+    it("has nothing to show for a front matter alone", () => {
+        expect(releaseNotesText("---\ndate: 2026-10-22\ndraft: true\n---\n")).toBe("");
+        expect(releaseNotesText(null)).toBe("");
+    });
+
+    it("skips a heading that comes first, and keeps it when it is all the notes say", () => {
+        expect(releaseNotesText("# v1.0.0-6\n\nThe first paragraph.")).toBe("The first paragraph.");
+        expect(releaseNotesText("---\ndate: 2026-10-22\n---\n## Fixes for the **Versions** card")).toBe(
+            "Fixes for the Versions card"
+        );
     });
 });
