@@ -194,6 +194,46 @@ describe("Resume with a lead agent (#1779)", () => {
         expect(await model().askFinish("/p", pr(), "acme/app", true, Arthur)).toMatchObject({ kind: "failed" });
         expect(showPanel).not.toHaveBeenCalled();
     });
+
+    it("one click reaches the lead once: a second ask for the same PR joins the open one", async () => {
+        let answer: (r: Awaited<ReturnType<typeof askReviewFinish>>) => void;
+        vi.mocked(askReviewFinish).mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+        const first = model().askFinish("/p", pr(), "acme/app", true, Arthur);
+        const second = model().askFinish("/p", pr(), "acme/app", true, Arthur);
+        const menu = model().askFinish("/p", pr(), "acme/app", true);
+        expect(second).toBe(first);
+        expect(menu).toBe(first);
+        answer({ status: "sent", lead: true, firstname: "Arthur", blockid: "arthur-block" });
+        expect(await first).toMatchObject({ kind: "asked", name: "Arthur" });
+        expect(requests()).toHaveLength(1);
+        expect(showPanel).toHaveBeenCalledTimes(1);
+        // Once answered, the next click is a new ask, and another PR's ask never waits for this one.
+        vi.mocked(askReviewFinish).mockResolvedValue({ status: "sent", lead: true, firstname: "Arthur", blockid: "b" });
+        await model().askFinish("/p", pr(), "acme/app", true, Arthur);
+        await model().askFinish("/p", { ...pr(), number: 1773 }, "acme/app", true, Arthur);
+        expect(requests()).toHaveLength(3);
+    });
+
+    it("the lead's task is not done while the PR is a draft: the agent line never says nothing is left", async () => {
+        vi.mocked(askReviewFinish).mockResolvedValue({
+            status: "sent",
+            lead: true,
+            firstname: "Arthur",
+            blockid: "arthur-block",
+        });
+        const asks = () => globalStore.get(model().rebaseAsksAtom);
+        await model().askFinish("/p", pr(), "acme/app", true, Arthur);
+        expect(asks()["/p#1772"]).toMatchObject({
+            kind: "finish",
+            name: "Arthur",
+            blockId: "arthur-block",
+            markReady: true,
+        });
+        await model().askFinish("/p", { ...pr(), number: 1774, draft: false }, "acme/app", true, Arthur);
+        expect(asks()["/p#1774"]).not.toHaveProperty("markReady");
+        await model().askFinish("/p", { ...pr(), number: 1775 }, "acme/app", false, Arthur);
+        expect(asks()["/p#1775"]).not.toHaveProperty("markReady");
+    });
 });
 
 describe("naming the lead to wavesrv (#1779)", () => {

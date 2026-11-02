@@ -128,6 +128,46 @@ func TestResumeHandsTheBriefToTheRunningLead(t *testing.T) {
 	}
 }
 
+// One click reaches the lead once: an ask for a PR whose hand-off is still on its way is refused as in flight, so a double
+// click, a second window or a retry never types the brief twice.
+func TestResumeHandsTheBriefOnce(t *testing.T) {
+	f := makeLeadFixture(t)
+	f.arthurRuns()
+	entered, release := make(chan struct{}), make(chan struct{})
+	f.r.env.SendLead = func(ctx context.Context, req agenthandoff.AppRequest) (agenthandoff.AppSent, error) {
+		f.lock.Lock()
+		f.sent = append(f.sent, req)
+		first := len(f.sent) == 1
+		f.lock.Unlock()
+		if first {
+			close(entered)
+			<-release
+		}
+		return f.sendOut, nil
+	}
+	done := make(chan RestartResult)
+	go func() {
+		res, _ := f.r.AskFinish(context.Background(), f.leadRequest())
+		done <- res
+	}()
+	<-entered
+	second, err := f.r.AskFinish(context.Background(), f.leadRequest())
+	if err != nil || second.Status != RestartBusy || second.Reason != RestartReasonInFlight || second.Lead {
+		t.Fatalf("an ask while the hand-off is on its way: %+v %v", second, err)
+	}
+	close(release)
+	if first := <-done; first.Status != RestartSent || first.BlockId != "lead-block" {
+		t.Fatalf("the first ask: %+v", first)
+	}
+	if sent := f.sentRequests(); len(sent) != 1 {
+		t.Fatalf("the brief is sent once: %+v", sent)
+	}
+	again, _ := f.r.AskFinish(context.Background(), f.leadRequest())
+	if again.Status != RestartSent || len(f.sentRequests()) != 2 {
+		t.Fatalf("once answered, the next click is a new ask: %+v", again)
+	}
+}
+
 // The brief asks the lead to stay available, for any CLI (FR-REV-022 AC19, FR-CONT-015): delegate, keep the turn short,
 // do it itself only when trivial; the typed goal fits the guarded typing path and holds none of the PR's words.
 func TestLeadBriefAsksToDelegateAndKeepTheTurnShort(t *testing.T) {

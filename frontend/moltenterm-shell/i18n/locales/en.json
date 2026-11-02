@@ -6216,7 +6216,8 @@
                 "conflicts": "conflicts with {base} remain",
                 "ci": "the CI is still red",
                 "changes": "changes are still requested",
-                "report": "no test report yet"
+                "report": "no test report yet",
+                "draft": "the draft is not marked ready yet"
             },
             "stuck": "stopped before finishing {what}: {left}",
             "gone": "its session ended before finishing {what}: {left}",

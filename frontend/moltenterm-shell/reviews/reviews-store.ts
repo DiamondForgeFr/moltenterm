@@ -90,6 +90,8 @@ export class ReviewsModel {
     // last read showed, which the next read is compared with.
     afterMergeAtom = atom({}) as PrimitiveAtom<Record<string, AfterMerge>>;
     queueMemories: Record<string, QueueMemory> = {};
+    // The check-and-finish asks still open, by rebaseAskKey (#1779).
+    finishAsks = new Map<string, Promise<RebaseOutcome>>();
     // The PRs the developer took out of the group merge (#1108, FR-REV-024), by project folder: kept while the app
     // runs, forgotten once a PR leaves the list. Every queueable PR is in by default.
     groupOutAtom = atom({}) as PrimitiveAtom<Record<string, number[]>>;
@@ -239,7 +241,9 @@ export class ReviewsModel {
     }
 
     // noteTask records the work an agent took on a PR (#954): its row's agent line then follows it to done or stuck.
-    noteTask(dir: string, pr: ReviewPr, kind: PrTaskKind, outcome: RebaseOutcome) {
+    // markReady: the ask was Resume on a draft (#1212), whose last step is the agent's: the task is not done while the
+    // PR is a draft.
+    noteTask(dir: string, pr: ReviewPr, kind: PrTaskKind, outcome: RebaseOutcome, markReady?: boolean) {
         if (outcome?.kind !== "asked" || !dir || pr == null) {
             return;
         }
@@ -247,7 +251,14 @@ export class ReviewsModel {
         const asks = globalStore.get(this.rebaseAsksAtom);
         globalStore.set(this.rebaseAsksAtom, {
             ...asks,
-            [key]: { kind, name: outcome.name, blockId: outcome.blockId, head: pr.headoid ?? "", at: Date.now() },
+            [key]: {
+                kind,
+                name: outcome.name,
+                blockId: outcome.blockId,
+                head: pr.headoid ?? "",
+                at: Date.now(),
+                ...(markReady && pr.draft ? { markReady: true } : {}),
+            },
         });
     }
 
@@ -387,8 +398,20 @@ export class ReviewsModel {
     // Check and finish one PR (#954), from its row's Retry: the agent on the branch, else the developer's choice.
     // markReady (#1212): Resume on a draft its agent stopped before marking ready, in a workflow without Human Testing.
     // lead (#1779): Resume hands the work to the lead agent that owns it, running or resumed on the developer's choice,
-    // before the agent on the branch; New agent and the other tasks pass none.
-    async askFinish(
+    // before the agent on the branch; New agent and the other tasks pass none. A second call for a PR whose ask is still
+    // open (a double click, another listener) joins that ask: one click reaches an agent once.
+    askFinish(dir: string, pr: ReviewPr, repo: string, markReady?: boolean, lead?: LeadFacts): Promise<RebaseOutcome> {
+        const key = rebaseAskKey(dir, pr?.number);
+        const open = this.finishAsks.get(key);
+        if (open != null) {
+            return open;
+        }
+        const asked = this.askFinishOnce(dir, pr, repo, markReady, lead).finally(() => this.finishAsks.delete(key));
+        this.finishAsks.set(key, asked);
+        return asked;
+    }
+
+    private async askFinishOnce(
         dir: string,
         pr: ReviewPr,
         repo: string,
@@ -437,7 +460,7 @@ export class ReviewsModel {
             return this.finishOnce(dir, pr, repo, null, markReady, lead, true);
         }
         if (answer === "new") {
-            return this.askFinish(dir, pr, repo, markReady);
+            return this.askFinishOnce(dir, pr, repo, markReady);
         }
         return null;
     }
@@ -490,7 +513,7 @@ export class ReviewsModel {
         } catch (e) {
             outcome = rebaseOutcome(null, errorPhrase(e), "finish");
         }
-        this.noteTask(dir, pr, "finish", outcome);
+        this.noteTask(dir, pr, "finish", outcome, markReady);
         return outcome;
     }
 
