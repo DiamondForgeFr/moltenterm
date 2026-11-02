@@ -205,6 +205,7 @@ func restoreTab(ctx context.Context, e reopen.Entry) (reopen.ReopenResult, error
 	if err := QueueLayoutActionForTab(ctx, tabId, actions...); err != nil {
 		return rtn, err
 	}
+	settleReopenedInstance(ctx, wsId, tabId)
 	SendActiveTabUpdate(ctx, wsId, tabId)
 	return rtn, nil
 }
