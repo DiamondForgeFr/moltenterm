@@ -29,6 +29,11 @@ export function placementFallbackBlockId(): string {
     return keyOriginBlockId || getFocusedBlockId();
 }
 
+// The panel a key counts as pressed in while its handlers run (#1759): the page's panel for a key sent back from a page.
+export function currentKeyOriginBlockId(): string {
+    return keyOriginBlockId;
+}
+
 export function currentFocusedBlockId(): string {
     const active = typeof document === "undefined" ? null : document.activeElement;
     return focusedPanelBlockId({

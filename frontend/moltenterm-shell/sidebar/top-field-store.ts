@@ -74,7 +74,7 @@ export function openTopField(from?: string): boolean {
     return TopFieldModel.getInstance().open(from);
 }
 
-function openFromKey(): boolean {
+export function openTopFieldFromKey(): boolean {
     if (modalIsOpen()) {
         return false;
     }
@@ -87,6 +87,6 @@ export function registerTopFieldKeys(keyMap: Map<string, (e: WaveKeyboardEvent) 
         return;
     }
     for (const keys of [shortcut.keys, ...(shortcut.alt ?? [])]) {
-        keyMap.set(keys, () => openFromKey());
+        keyMap.set(keys, () => openTopFieldFromKey());
     }
 }

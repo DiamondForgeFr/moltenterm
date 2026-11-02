@@ -117,8 +117,9 @@ describe("shortcut registry (TC-SHELL-086)", () => {
         }
     });
 
-    it("never gives two global entries the same keys", () => {
-        const global = Shortcuts.filter((s) => s.scope === "global")
+    it.each([true, false])("never gives two global entries the same keys on one platform (macOS: %s)", (mac) => {
+        const global = platformShortcuts(mac)
+            .filter((s) => s.scope === "global")
             .flatMap(shortcutBindings)
             .map(normalizeKeys);
         expect(new Set(global).size).toBe(global.length);
@@ -387,5 +388,134 @@ describe("the new view's favourite shortcuts (FR-SHELL-089, TC-SHELL-168)", () =
         expect(formatShortcutById("new-view-favorite", true)).toBe("⌥⌘1–4");
         expect(formatShortcutById("new-view-favorite-other", false)).toBe("Alt+Shift+1–4");
         expect(formatKeys("Cmd:Alt:c{Digit2}", true)).toBe("⌥⌘2");
+    });
+});
+
+describe("the browser's Ctrl keys, the panel keys and find next (#1759, FR-SHELL-139 AC8 to AC11, TC-SHELL-254)", () => {
+    const entry = (id: string) => Shortcuts.find((s) => s.id === id);
+    const mine = new Set([
+        ...["new-panel-ctrl", "close-panel-ctrl", "new-tab-ctrl", "close-tab-ctrl", "top-field-ctrl", "top-field-f6"],
+        ...["previous-panel", "previous-panel-other", "next-panel", "next-panel-other"],
+        ...["find-next", "find-previous", "find-next-ctrl", "find-previous-ctrl"],
+    ]);
+
+    it.each([true, false])("take keys no other window shortcut uses (macOS: %s)", (mac) => {
+        const shortcuts = platformShortcuts(mac).filter((s) => s.scope === "global");
+        const own = shortcuts
+            .filter((s) => mine.has(s.id))
+            .flatMap((s) => shortcutBindings(s).flatMap((b) => physicalKeys(b, mac)));
+        expect(own.length).toBeGreaterThan(0);
+        expect(new Set(own).size).toBe(own.length);
+        // A browser panel's own keys (scope "browser") win while its page has the focus and do the same thing.
+        const others = new Set([
+            ...shortcuts
+                .filter((s) => !mine.has(s.id))
+                .flatMap((s) => shortcutBindings(s).flatMap((b) => physicalKeys(b, mac))),
+            ...keyModelBindings().flatMap((b) => physicalKeys(b, mac)),
+        ]);
+        expect(own.filter((k) => others.has(k))).toEqual([]);
+    });
+
+    it("lists the Ctrl twins off macOS only, each marked as bound outside a terminal", () => {
+        const twins = ["new-panel-ctrl", "close-panel-ctrl", "new-tab-ctrl", "close-tab-ctrl", "top-field-ctrl"];
+        for (const id of twins) {
+            expect(entry(id).notMac, id).toBe(true);
+            expect(entry(id).outsideTerminal, id).toBe(true);
+            expect(
+                platformShortcuts(true).map((s) => s.id),
+                id
+            ).not.toContain(id);
+            expect(
+                platformShortcuts(false).map((s) => s.id),
+                id
+            ).toContain(id);
+            expect(entry(id).label, id).toContain("outside a terminal");
+        }
+        expect(twins.map((id) => entry(id).keys)).toEqual(["Ctrl:t", "Ctrl:w", "Ctrl:n", "Ctrl:Shift:w", "Ctrl:l"]);
+    });
+
+    it("keeps the Alt keys, which work in a terminal too, as the entries they were", () => {
+        expect(entry("new-panel").keys).toBe("Cmd:t");
+        expect(entry("new-tab").keys).toBe("Cmd:n");
+        expect(entry("close-panel").keys).toBe("Cmd:w");
+        expect(entry("close-tab").keys).toBe("Cmd:Shift:w");
+        expect(entry("top-field").keys).toBe("Cmd:l");
+        for (const id of ["new-panel", "new-tab", "close-panel", "close-tab", "top-field"]) {
+            expect(entry(id).outsideTerminal, id).toBeUndefined();
+            expect(entry(id).notMac, id).toBeUndefined();
+        }
+    });
+
+    it("gives the panels a browser's tab keys: ⌘⌥← ⌘⌥→ on macOS, Ctrl+PageUp and PageDown everywhere, in a terminal too", () => {
+        expect(entry("previous-panel").keys).toBe("Cmd:Alt:ArrowLeft");
+        expect(entry("next-panel").keys).toBe("Cmd:Alt:ArrowRight");
+        expect(entry("previous-panel").alt).toEqual(["Ctrl:PageUp"]);
+        expect(entry("next-panel").alt).toEqual(["Ctrl:PageDown"]);
+        expect(entry("previous-panel-other").keys).toBe("Ctrl:PageUp");
+        expect(entry("next-panel-other").keys).toBe("Ctrl:PageDown");
+        for (const id of ["previous-panel", "next-panel", "previous-panel-other", "next-panel-other"]) {
+            expect(entry(id).outsideTerminal, id).toBeUndefined();
+            expect(entry(id).category, id).toBe("Panels");
+        }
+        const macIds = platformShortcuts(true).map((s) => s.id);
+        const otherIds = platformShortcuts(false).map((s) => s.id);
+        expect(macIds).toEqual(expect.arrayContaining(["previous-panel", "next-panel"]));
+        expect(macIds).not.toEqual(expect.arrayContaining(["previous-panel-other"]));
+        expect(otherIds).toEqual(expect.arrayContaining(["previous-panel-other", "next-panel-other"]));
+        expect(otherIds).not.toContain("previous-panel");
+    });
+
+    it("keeps the views' keys: ⌘⇧[ and ⌘⇧] still switch views and the carpet's keys stay", () => {
+        expect(entry("next-tab").alt).toEqual(["Shift:Cmd:]"]);
+        expect(entry("previous-tab").alt).toEqual(["Shift:Cmd:["]);
+        expect(entry("carpet-previous").alt).toEqual(["Ctrl:Shift:PageUp"]);
+        expect(entry("carpet-next").alt).toEqual(["Ctrl:Shift:PageDown"]);
+    });
+
+    it("shares ⌘G between the connection and find next, which has no binding of its own", () => {
+        expect(entry("connection").keys).toBe("Cmd:g");
+        expect(entry("find-next").keys).toBe("Cmd:g");
+        expect(shortcutBindings(entry("find-next"))).toEqual([]);
+        expect(entry("find-previous").keys).toBe("Shift:Cmd:g");
+        expect(entry("find-next-ctrl").keys).toBe("Ctrl:g");
+        expect(entry("find-previous-ctrl").keys).toBe("Ctrl:Shift:g");
+        expect(platformShortcuts(false).map((s) => s.id)).not.toContain("find-next");
+        expect(platformShortcuts(true).map((s) => s.id)).not.toContain("find-next-ctrl");
+    });
+
+    it("opens the top field with F6 on every platform, outside a terminal", () => {
+        expect(entry("top-field-f6").keys).toBe("F6");
+        expect(entry("top-field-ctrl").alt).toEqual(["F6"]);
+        expect(platformShortcuts(true).map((s) => s.id)).toContain("top-field-f6");
+        expect(platformShortcuts(false).map((s) => s.id)).toContain("top-field-ctrl");
+    });
+
+    it("draws the platform's glyphs and words", () => {
+        expect(formatShortcutById("previous-panel", true)).toBe("⌥⌘←");
+        expect(formatShortcutById("next-panel", true)).toBe("⌥⌘→");
+        expect(formatKeys("Ctrl:PageUp", true)).toBe("⌃⇞");
+        expect(formatShortcutById("previous-panel-other", false)).toBe("Ctrl+PgUp");
+        expect(formatShortcutById("next-panel-other", false)).toBe("Ctrl+PgDn");
+        expect(formatShortcutById("new-panel-ctrl", false)).toBe("Ctrl+T");
+        expect(formatShortcutById("new-tab-ctrl", false)).toBe("Ctrl+N");
+        expect(formatShortcutById("close-panel-ctrl", false)).toBe("Ctrl+W");
+        expect(formatShortcutById("close-tab-ctrl", false)).toBe("Ctrl+Shift+W");
+        expect(formatShortcutById("top-field-ctrl", false)).toBe("Ctrl+L");
+        expect(formatShortcutById("top-field-f6", true)).toBe("F6");
+        expect(formatShortcutById("find-next", true)).toBe("⌘G");
+        expect(formatShortcutById("find-previous", true)).toBe("⇧⌘G");
+        expect(formatShortcutById("find-next-ctrl", false)).toBe("Ctrl+G");
+        expect(formatShortcutById("find-previous-ctrl", false)).toBe("Ctrl+Shift+G");
+    });
+
+    it("finds them in the sheet by their names", () => {
+        const ids = (query: string, mac: boolean) =>
+            filterShortcuts(platformShortcuts(mac), query, mac).flatMap((s) => s.shortcuts.map((x) => x.id));
+        expect(ids("previous panel", true)).toContain("previous-panel");
+        expect(ids("ctrl+pgdn", false)).toContain("next-panel-other");
+        expect(ids("find next", true)).toContain("find-next");
+        expect(ids("find next", false)).toContain("find-next-ctrl");
+        expect(ids("ctrl+g", false)).toContain("find-next-ctrl");
+        expect(ids("F6", true)).toContain("top-field-f6");
     });
 });

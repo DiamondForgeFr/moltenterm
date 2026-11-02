@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { atom, useAtom, WritableAtom } from "jotai";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#750)
+import { registerFindSteps } from "../../moltenterm-shell/shortcuts/find-step"; // MOLTENTERM-PATCH (#1759)
 import { IconButton, ToggleIconButton } from "./iconbutton";
 import { Input } from "./input";
 import "./search.scss";
@@ -113,6 +114,12 @@ const SearchComponent = ({
         () => (onNext ? onNext() : setIndex((index + 1) % numResults)),
         [onNext, index, numResults]
     );
+
+    // MOLTENTERM-PATCH (#1759): ⌘G and ⌘⇧G step the open bar from the window's key model; the ref always holds the
+    // callbacks of the latest render
+    const stepsRef = useRef({ next: onNextWrapper, prev: onPrevWrapper });
+    stepsRef.current = { next: onNextWrapper, prev: onPrevWrapper };
+    useEffect(() => registerFindSteps(isOpenAtom, stepsRef), [isOpenAtom]);
 
     const onKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
