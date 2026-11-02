@@ -10,6 +10,13 @@ import { colord } from "colord";
 
 export type GenClipboardItem = { text?: string; image?: Blob };
 
+// MOLTENTERM-PATCH (#1735): template contents stay inert, including resource loads and event handlers.
+function clipboardHtmlText(html: string): string {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    return template.content.textContent || "";
+}
+
 export function trimTerminalSelection(text: string): string {
     return text
         .split("\n")
@@ -148,9 +155,7 @@ export async function extractClipboardData(item: ClipboardItem): Promise<GenClip
         if (!html) {
             return null;
         }
-        const tempDiv = document.createElement("div");
-        tempDiv.innerHTML = html;
-        const text = tempDiv.textContent || "";
+        const text = clipboardHtmlText(html);
         return text ? { text } : null;
     }
 
@@ -276,9 +281,7 @@ export async function extractDataTransferItems(items: DataTransferItemList): Pro
                     resolve([]);
                     return;
                 }
-                const tempDiv = document.createElement("div");
-                tempDiv.innerHTML = html;
-                const text = tempDiv.textContent || "";
+                const text = clipboardHtmlText(html);
                 resolve(text ? [{ text }] : []);
             });
         });
