@@ -65,24 +65,37 @@ export function agentProjectLabel(folder: string, projects: WorkspaceProjectEntr
     return text === "" ? null : { text, outside: true };
 }
 
-// The project whose folder holds `folder`, the longest match when projects nest; null when none does. must match
-// ProjectOfDir in pkg/molten/projectviews/projectviews.go
+// The project whose folder holds `folder`, the longest match when projects nest; null when none does. A project with a
+// repository inside its folder matches by it too, which is longer: of the projects sharing a client's folder, the one
+// whose repository holds `folder` owns it (#1777). must match ProjectOfDir in pkg/molten/projectviews/projectviews.go
 export function projectOfFolder(folder: string, projects: WorkspaceProjectEntry[]): WorkspaceProjectEntry {
     const here = trimPath(folder);
     let owner: WorkspaceProjectEntry = null;
+    let ownerLength = -1;
     if (here === "") {
         return null;
     }
     for (const p of projects ?? []) {
-        const dir = trimPath(p.dir);
-        if (dir === "" || !holds(dir, here)) {
-            continue;
-        }
-        if (owner == null || dir.length > trimPath(owner.dir).length) {
+        const matched = matchLength(p, here);
+        if (matched > ownerLength) {
             owner = p;
+            ownerLength = matched;
         }
     }
     return owner;
+}
+
+// How much of `here` a project's places hold: its repository first, else its folder; -1 for none.
+function matchLength(p: WorkspaceProjectEntry, here: string): number {
+    const dir = trimPath(p.dir);
+    if (dir === "") {
+        return -1;
+    }
+    const repo = trimPath(p.repo ?? "");
+    if (repo !== "" && repo !== dir && holds(dir, repo) && holds(repo, here)) {
+        return repo.length;
+    }
+    return holds(dir, here) ? dir.length : -1;
 }
 
 function trimPath(path: string): string {
