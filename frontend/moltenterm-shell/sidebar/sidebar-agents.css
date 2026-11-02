@@ -160,23 +160,30 @@
     max-width: 70%;
 }
 
+/* The project chip reads as the suite's label chip: secondary text on a solid fill one step above the row (the veil
+   mixed into the sidebar's surface, so it lightens on the dark theme and darkens on the light one, as the active row
+   does). The outside chip has no fill and a dashed outline, in the discreet text. */
 .mt-sb-agent-proj {
     overflow: hidden;
     min-width: 0;
     flex: 0 1 auto;
     padding: 0 5px;
+    border: 1px solid transparent;
     border-radius: 4px;
-    background: rgb(255 255 255 / 0.07);
-    color: var(--mt-sb-fg-3);
+    background: color-mix(in srgb, var(--mt-veil) 24%, var(--mt-surface-0));
+    color: var(--mt-text-2);
     font-size: var(--mt-text-11);
     font-weight: 500;
-    line-height: 16px;
+    line-height: 14px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .mt-sb-agent-proj.is-outside {
-    opacity: 0.6;
+    border-style: dashed;
+    border-color: var(--mt-text-3);
+    background: transparent;
+    color: var(--mt-text-3);
 }
 
 /* The suite's dominoes, incandescent (FR-SHELL-116, decision 2: an agent at work glows, never in the action's
