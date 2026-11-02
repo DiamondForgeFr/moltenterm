@@ -19,7 +19,7 @@ export function readinessDeadlineMs(isDev: boolean): number {
     return isDev ? MoltentermDevReadinessDeadlineMs : MoltentermReadinessDeadlineMs;
 }
 
-export type QueuedAction = { op: string; workspaceId?: string };
+export type QueuedAction = { op: string; workspaceId?: string; tabId?: string };
 
 export class SupersededError extends Error {
     constructor() {
@@ -69,6 +69,29 @@ function isKeptAction(entry: QueuedAction): boolean {
     return entry.op === "deleteworkspace" || entry.op === "showactivetab";
 }
 
+// The pending action `entry` folds into, when running both would end where running that one alone does (#1778): a
+// close of a tab already being closed, a show of the active tab after another, and a tab switch after the tab switch
+// the queue ends with (only the last tab of a burst of switches ends on screen; `replace` puts the newer one in its
+// place). Anything else, a close or a new tab above all, runs in its turn: a pending action is never dropped for
+// another kind of action.
+function foldTarget<E extends QueuedAction>(pending: E[], entry: E): { target: E; replace: boolean } {
+    if (entry.op === "closetab") {
+        const same = pending.find((p) => p.op === "closetab" && p.tabId === entry.tabId);
+        return same == null ? null : { target: same, replace: false };
+    }
+    const last = pending[pending.length - 1];
+    if (last == null || last.op !== entry.op) {
+        return null;
+    }
+    if (entry.op === "showactivetab") {
+        return { target: last, replace: false };
+    }
+    if (entry.op === "switchtab") {
+        return { target: last, replace: true };
+    }
+    return null;
+}
+
 export type QueueLog = (msg: string, ...args: any[]) => void;
 
 export class WindowActionQueue<E extends QueuedAction> {
@@ -76,6 +99,9 @@ export class WindowActionQueue<E extends QueuedAction> {
     entries: E[] = [];
     generation = 0;
     supersedeRunning: () => void = null;
+    // The calls waiting for an action (#1778): each resolves once the action it asked for, or the one it was folded
+    // into, has run, so a close answers only after it happened.
+    waiters = new Map<E, Array<() => void>>();
 
     constructor(
         readonly runAction: (entry: E, run: ActionRun) => Promise<void>,
@@ -98,10 +124,12 @@ export class WindowActionQueue<E extends QueuedAction> {
     }
 
     // Resolves once the queue has drained when this call started the drain (Wave's contract: the caller that found
-    // the queue empty waits for its action); otherwise at once.
+    // the queue empty waits for its action); otherwise once the action it queued, or the one it was folded into, has
+    // run or the window is gone (#1778). Wave answered at once, before the action ran.
     async enqueue(entry: E): Promise<void> {
         if (entry.op === "switchworkspace" && isDuplicateSwitch(this.entries, entry.workspaceId)) {
             this.log("[#283] switchworkspace already pending, coalesced", entry.workspaceId);
+            await this.waitFor(this.entries[this.entries.length - 1]);
             return;
         }
         const running = this.entries[0];
@@ -117,24 +145,71 @@ export class WindowActionQueue<E extends QueuedAction> {
             this.entries.slice(1).every((p) => p.op === "switchworkspace")
         ) {
             this.log("[#449] switchworkspace already running, pending switches dropped", entry.workspaceId);
+            for (const dropped of this.entries.slice(1)) {
+                this.moveWaiters(dropped, running);
+            }
             this.entries = [running];
+            await this.waitFor(running);
             return;
         }
         if (supersedes(entry, running)) {
             this.log("[#449] superseding the running action", running.op, running.workspaceId ?? "", "by", entry.op);
             this.bumpGeneration();
         }
-        // A delete, or a show of the active tab after the view on screen went (#1250), is never dropped nor replaces or
-        // is replaced; otherwise the newest pending action replaces the previous one, as in Wave (there is no point
-        // running an action that is about to be overwritten).
-        const pending = this.entries.slice(1).filter((p) => isKeptAction(p) || !supersedes(entry, p));
-        const last = pending[pending.length - 1];
-        if (last != null && !isKeptAction(last) && !isKeptAction(entry)) {
-            pending[pending.length - 1] = entry;
-        } else {
-            pending.push(entry);
+        // A pending workspace switch that a newer switch or the delete of its workspace overtakes is dropped, its
+        // callers then waiting for the newer action. A delete and a show of the active tab after the view on screen
+        // went (#1250) are never dropped. Everything else runs in order (#1778): Wave kept one pending action, so the
+        // second of two closes asked while an action ran replaced the first, which never ran.
+        const pending: E[] = [];
+        for (const p of this.entries.slice(1)) {
+            if (isKeptAction(p) || !supersedes(entry, p)) {
+                pending.push(p);
+            } else {
+                this.moveWaiters(p, entry);
+            }
         }
+        const fold = foldTarget(pending, entry);
+        if (fold == null) {
+            pending.push(entry);
+            this.entries = [running, ...pending];
+            await this.waitFor(entry);
+            return;
+        }
+        if (fold.replace) {
+            pending[pending.indexOf(fold.target)] = entry;
+            this.moveWaiters(fold.target, entry);
+            this.entries = [running, ...pending];
+            await this.waitFor(entry);
+            return;
+        }
+        this.log("[#1778] same action already pending, coalesced", entry.op, entry.tabId ?? "");
         this.entries = [running, ...pending];
+        await this.waitFor(fold.target);
+    }
+
+    waitFor(entry: E): Promise<void> {
+        return new Promise<void>((resolve) => {
+            const list = this.waiters.get(entry) ?? [];
+            list.push(resolve);
+            this.waiters.set(entry, list);
+        });
+    }
+
+    moveWaiters(from: E, to: E) {
+        const list = this.waiters.get(from);
+        if (list == null) {
+            return;
+        }
+        this.waiters.delete(from);
+        this.waiters.set(to, [...(this.waiters.get(to) ?? []), ...list]);
+    }
+
+    settle(entry: E) {
+        const list = this.waiters.get(entry);
+        this.waiters.delete(entry);
+        for (const resolve of list ?? []) {
+            resolve();
+        }
     }
 
     bumpGeneration() {
@@ -192,7 +267,11 @@ export class WindowActionQueue<E extends QueuedAction> {
     async drain() {
         while (this.entries.length > 0) {
             if (this.shouldStop()) {
+                const left = this.entries;
                 this.entries = [];
+                for (const e of left) {
+                    this.settle(e);
+                }
                 return;
             }
             const entry = this.entries[0];
@@ -207,6 +286,7 @@ export class WindowActionQueue<E extends QueuedAction> {
             } finally {
                 this.supersedeRunning = null;
                 this.entries.shift();
+                this.settle(entry);
             }
         }
     }

@@ -121,17 +121,28 @@ describe("WindowActionQueue: never stuck", () => {
         expect(queue.length).toBe(0);
     });
 
-    it("resolves the call that started the drain once the queue is empty, the others at once", async () => {
-        const { queue } = makeQueue();
+    it("resolves the call that started the drain once the queue is empty, the others once their action ran (#1778)", async () => {
+        const { queue, done } = makeQueue();
         let firstDone = false;
-        let secondDone = false;
+        let secondDoneSeen: string[] = null;
         queue.enqueue({ op: "createtab", id: "first" }).then(() => (firstDone = true));
-        queue.enqueue({ op: "closetab", id: "second" }).then(() => (secondDone = true));
+        queue.enqueue({ op: "closetab", tabId: "t", id: "second" }).then(() => (secondDoneSeen = [...done]));
         await vi.advanceTimersByTimeAsync(0);
-        expect(secondDone).toBe(true);
-        expect(firstDone).toBe(false);
+        expect(secondDoneSeen).toBeNull();
         await vi.advanceTimersByTimeAsync(300);
+        expect(secondDoneSeen).toEqual(["first", "second"]);
         expect(firstDone).toBe(true);
+    });
+
+    it("resolves the calls still pending when the window goes", async () => {
+        let stopped = false;
+        const { queue } = makeQueue({ stop: () => stopped });
+        queue.enqueue({ op: "createtab", id: "first" });
+        const second = queue.enqueue({ op: "closetab", tabId: "t", id: "second" });
+        stopped = true;
+        await vi.advanceTimersByTimeAsync(500);
+        await second;
+        expect(queue.waiters.size).toBe(0);
     });
 });
 
@@ -210,12 +221,59 @@ describe("WindowActionQueue: pending actions", () => {
         return queue.entries.slice(1).map((e) => e.id);
     }
 
-    it("replaces the pending action by a newer one, as Wave did", () => {
+    it("keeps every pending action, in order, where Wave kept only the newest (#1778)", () => {
         const { queue } = makeQueue();
         queue.enqueue({ op: "createtab", id: "running" });
         queue.enqueue({ op: "createtab", id: "p1" });
-        queue.enqueue({ op: "closetab", id: "p2" });
-        expect(pendingIds(queue)).toEqual(["p2"]);
+        queue.enqueue({ op: "closetab", tabId: "t1", id: "p2" });
+        queue.enqueue({ op: "switchtab", tabId: "t2", id: "p3" });
+        queue.enqueue({ op: "closetab", tabId: "t3", id: "p4" });
+        expect(pendingIds(queue)).toEqual(["p1", "p2", "p3", "p4"]);
+    });
+
+    it("folds a close of a tab already being closed into the pending one", async () => {
+        const { queue, ran } = makeQueue();
+        queue.enqueue({ op: "createtab", id: "running" });
+        const first = queue.enqueue({ op: "closetab", tabId: "t1", id: "close-1" });
+        queue.enqueue({ op: "closetab", tabId: "t2", id: "close-2" });
+        const again = queue.enqueue({ op: "closetab", tabId: "t1", id: "close-1-again" });
+        expect(pendingIds(queue)).toEqual(["close-1", "close-2"]);
+        await vi.advanceTimersByTimeAsync(1000);
+        await Promise.all([first, again]);
+        expect(ran).toEqual(["running", "close-1", "close-2"]);
+    });
+
+    it("a burst of tab switches shows only the last tab, and every caller hears back", async () => {
+        const { queue, ran } = makeQueue();
+        queue.enqueue({ op: "createtab", id: "running" });
+        const calls = ["a", "b", "c", "b"].map((tab, i) =>
+            queue.enqueue({ op: "switchtab", tabId: tab, id: `switch-${i}` })
+        );
+        expect(pendingIds(queue)).toEqual(["switch-3"]);
+        await vi.advanceTimersByTimeAsync(1000);
+        await Promise.all(calls);
+        expect(ran).toEqual(["running", "switch-3"]);
+        expect(queue.waiters.size).toBe(0);
+    });
+
+    it("a switch never folds over a close between them", () => {
+        const { queue } = makeQueue();
+        queue.enqueue({ op: "createtab", id: "running" });
+        queue.enqueue({ op: "switchtab", tabId: "a", id: "switch-a" });
+        queue.enqueue({ op: "closetab", tabId: "x", id: "close-x" });
+        queue.enqueue({ op: "switchtab", tabId: "b", id: "switch-b" });
+        expect(pendingIds(queue)).toEqual(["switch-a", "close-x", "switch-b"]);
+    });
+
+    it("the callers of a pending switch dropped by a newer one hear back once that one ran", async () => {
+        const { queue, done } = makeQueue();
+        queue.enqueue({ op: "createtab", id: "running" });
+        let seen: string[] = null;
+        queue.enqueue({ op: "switchworkspace", workspaceId: "a", id: "switch-a" }).then(() => (seen = [...done]));
+        queue.enqueue({ op: "switchworkspace", workspaceId: "b", id: "switch-b" });
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(seen).toEqual(["running", "switch-b"]);
+        expect(queue.waiters.size).toBe(0);
     });
 
     it("never drops nor replaces a delete", () => {
