@@ -98,7 +98,7 @@ function PolicyChoices() {
     );
 }
 
-const HoldIcons: Record<KeepAwakeHold["kind"], string> = {
+const HoldIconClasses: Record<KeepAwakeHold["kind"], string> = {
     terminal: "fa-terminal",
     coffee: "fa-mug-hot",
     work: "fa-gear",
@@ -130,7 +130,7 @@ function HoldRow({ hold, onClose }: { hold: KeepAwakeHold; onClose: () => void }
             <i
                 className={cn(
                     "fa fa-solid mt-[3px] w-3 text-center text-11 text-[var(--color-awake)]",
-                    HoldIcons[hold.kind]
+                    HoldIconClasses[hold.kind]
                 )}
                 aria-hidden
             />
