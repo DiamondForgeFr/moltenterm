@@ -5,6 +5,9 @@
 // rows of every project's pull requests by whose turn it is, each tagged with its project.
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { makeORef } from "@/app/store/wos";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
 import type { WorkspaceProjectEntry } from "../sidebar/workspace-projects";
 import type { CardState, CardTurn } from "./reviews-card-model";
@@ -12,6 +15,8 @@ import type { ReviewPr } from "./reviews-model";
 import { TurnOrder } from "./reviews-sections-model";
 
 export const AllProjects = "all";
+// The chip the developer chose, on the workspace (#1758): every view of the workspace shows it, after a restart too.
+export const ReviewsProjectMetaKey = "molten:reviewsproject";
 
 export type ProjectPrRow = { projectId: string; dir: string; pr: ReviewPr; card: CardState };
 
@@ -53,7 +58,23 @@ export function projectLanes(
     return lanes;
 }
 
-// The filter each workspace's Pilotage shows, kept while the app runs.
+// The chip a workspace shows: one this page moved to by itself (a PR another surface asked for, a row opened), else
+// the developer's choice saved on the workspace.
+export function storedProjectFilter(filters: Record<string, string>, workspace: Workspace): string {
+    if (workspace?.oid == null) {
+        return null;
+    }
+    return filters?.[workspace.oid] ?? workspace.meta?.[ReviewsProjectMetaKey] ?? null;
+}
+
+async function writeProjectFilter(workspaceId: string, filter: string): Promise<void> {
+    await RpcApi.SetMetaCommand(TabRpcClient, {
+        oref: makeORef("workspace", workspaceId),
+        meta: { [ReviewsProjectMetaKey]: filter } as MetaType,
+    });
+}
+
+// The filter each workspace's Pilotage shows: set moves this page only, choose is the developer's saved choice.
 export class ReviewsProjectFilter {
     private static instance: ReviewsProjectFilter = null;
 
@@ -77,5 +98,22 @@ export class ReviewsProjectFilter {
             return;
         }
         globalStore.set(this.filtersAtom, { ...filters, [workspaceId]: filter });
+    }
+
+    choose(workspaceId: string, filter: string) {
+        if (!workspaceId) {
+            return;
+        }
+        this.set(workspaceId, filter);
+        writeProjectFilter(workspaceId, filter)
+            .then(() => {
+                // Saved: the page follows the workspace again, so another view's later choice shows here too.
+                const filters = { ...globalStore.get(this.filtersAtom) };
+                if (filters[workspaceId] === filter) {
+                    delete filters[workspaceId];
+                    globalStore.set(this.filtersAtom, filters);
+                }
+            })
+            .catch((e) => console.log("reviews: could not save the project filter", e));
     }
 }
