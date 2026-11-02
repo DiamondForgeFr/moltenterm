@@ -3,12 +3,17 @@
 
 // The window keys that follow the browser's reflexes beyond ⌘ (#1759, FR-SHELL-139 AC8 to AC10): off macOS the browsers'
 // Ctrl+T, Ctrl+N, Ctrl+W, Ctrl+Shift+W and Ctrl+L beside the Alt keys, F6, the previous and next panel, and find
-// next and previous. The keys come from the shortcut registry, per platform; a registry entry marked outsideTerminal is
-// bound only while the keyboard focus is not in a terminal, where Ctrl chords belong to the program running in it.
+// next and previous. The keys come from the shortcut registry, per platform; a registry entry marked
+// outsideTerminalOrEditor is bound only while the keyboard focus is not in a terminal or a code editor, where Ctrl
+// chords belong to the program or the editor (Ctrl+W deletes a word in a shell, Ctrl+L expands the selection and Ctrl+G
+// goes to a line in Monaco).
 
 import { platformShortcuts } from "./registry";
 
 export const TerminalViewType = "term";
+
+// Monaco's root element: the file editor, the configuration editors and the diff editors all hold their focus inside it.
+export const EditorSelector = ".monaco-editor";
 
 type KeyHandler = (e: WaveKeyboardEvent) => boolean;
 
@@ -22,7 +27,7 @@ export type WindowKeyActions = {
     findStep: (direction: 1 | -1) => boolean;
     // false when there is nowhere to go (one panel), so that the program keeps the key.
     stepPanel: (direction: 1 | -1) => boolean;
-    inTerminal: () => boolean;
+    inTerminalOrEditor: () => boolean;
 };
 
 // Where the keyboard focus is when a key is pressed.
@@ -30,17 +35,25 @@ export type KeyFocusFacts = {
     // The panel a key counts as pressed in: the one holding the page a key was sent back from.
     originBlockId?: string;
     inSidebar: boolean;
+    // The DOM focus is inside a code editor (Monaco), whatever panel holds it.
+    inEditor?: boolean;
     // The panel holding the DOM focus. The find bar and other floating fields sit outside every panel.
     domBlockId?: string;
 };
 
 // The layout's focused panel is not read: with nothing in a panel holding the DOM focus (the sidebar, the find bar's
 // field, the page background) the keys go nowhere in a program, so the browser's meaning is safe to give them.
-export function focusInTerminal(facts: KeyFocusFacts, viewOf: (blockId: string) => string): boolean {
+export function focusInTerminalOrEditor(facts: KeyFocusFacts, viewOf: (blockId: string) => string): boolean {
     if (facts.originBlockId) {
         return viewOf(facts.originBlockId) === TerminalViewType;
     }
-    if (facts.inSidebar || !facts.domBlockId) {
+    if (facts.inSidebar) {
+        return false;
+    }
+    if (facts.inEditor) {
+        return true;
+    }
+    if (!facts.domBlockId) {
         return false;
     }
     return viewOf(facts.domBlockId) === TerminalViewType;
@@ -106,7 +119,9 @@ export function windowKeyBindings(mac: boolean, actions: WindowKeyActions): Map<
         if (run == null) {
             continue;
         }
-        const handler: KeyHandler = s.outsideTerminal ? () => (actions.inTerminal() ? false : run()) : () => run();
+        const handler: KeyHandler = s.outsideTerminalOrEditor
+            ? () => (actions.inTerminalOrEditor() ? false : run())
+            : () => run();
         for (const keys of [s.keys, ...(s.alt ?? [])]) {
             rtn.set(keys, handler);
         }

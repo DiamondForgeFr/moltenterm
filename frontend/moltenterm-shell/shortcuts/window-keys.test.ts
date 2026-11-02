@@ -3,7 +3,7 @@
 
 // The browser's Ctrl keys off macOS, the previous and next panel, find next and previous, F6 (#1759, FR-SHELL-139 AC8 to
 // AC10, TC-SHELL-254): the key tables of each platform, read through Wave's own key matcher, and the rule that a terminal
-// keeps its Ctrl chords. Nothing here waits on a clock.
+// or a code editor keeps its Ctrl chords. Nothing here waits on a clock.
 
 import { adaptFromReactOrNativeKeyEvent, checkKeyPressed, setKeyUtilPlatform } from "@/util/keyutil";
 import fs from "node:fs";
@@ -11,7 +11,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { platformShortcuts, Shortcuts } from "./registry";
 import {
-    focusInTerminal,
+    EditorSelector,
+    focusInTerminalOrEditor,
     KeyFocusFacts,
     registerWindowKeys,
     stepPanelId,
@@ -20,10 +21,11 @@ import {
 } from "./window-keys";
 
 const KeyModelSource = fs.readFileSync(path.resolve(__dirname, "../../app/store/keymodel.ts"), "utf8");
+const FocusSource = fs.readFileSync(path.resolve(__dirname, "./window-keys-focus.ts"), "utf8");
 
 type Handler = (e: WaveKeyboardEvent) => boolean;
 
-function fakeActions(inTerminal = false) {
+function fakeActions(inTerminalOrEditor = false) {
     const calls: string[] = [];
     const actions: WindowKeyActions = {
         newPanel: () => void calls.push("newPanel"),
@@ -33,7 +35,7 @@ function fakeActions(inTerminal = false) {
         topField: () => (calls.push("topField"), true),
         findStep: (d) => (calls.push(`findStep${d}`), true),
         stepPanel: (d) => (calls.push(`stepPanel${d}`), true),
-        inTerminal: () => inTerminal,
+        inTerminalOrEditor: () => inTerminalOrEditor,
     };
     return { actions, calls };
 }
@@ -111,17 +113,17 @@ describe("the key tables of each platform (FR-SHELL-139 AC8, AC9, AC10)", () => 
         expect(other.has("Cmd:g")).toBe(false);
     });
 
-    it("registers each registry entry that has an action, and every outside-a-terminal entry has one", () => {
+    it("registers each registry entry that has an action, and every outside-a-terminal-or-editor entry has one", () => {
         for (const mac of [true, false]) {
             const { actions } = fakeActions();
             const bound = windowKeyBindings(mac, actions);
-            for (const s of platformShortcuts(mac).filter((x) => x.outsideTerminal)) {
+            for (const s of platformShortcuts(mac).filter((x) => x.outsideTerminalOrEditor)) {
                 for (const keys of [s.keys, ...(s.alt ?? [])]) {
                     expect(bound.has(keys), `${s.id} ${keys} (macOS ${mac})`).toBe(true);
                 }
             }
         }
-        expect(Shortcuts.filter((s) => s.outsideTerminal).every((s) => s.macOnly || s.notMac)).toBe(true);
+        expect(Shortcuts.filter((s) => s.outsideTerminalOrEditor).every((s) => s.macOnly || s.notMac)).toBe(true);
     });
 
     it("adds its keys to a key map without removing the ones already there", () => {
@@ -166,7 +168,7 @@ describe("macOS: ⌘⌥← ⌘⌥→, Ctrl+PageUp / PageDown, F6 and ⌘⇧G", (
         expect(dispatch(map, { key: "PageDown", ctrl: true, shift: true })).toBeUndefined();
     });
 
-    it("opens the top field with F6 outside a terminal and lets a terminal's program have the key", () => {
+    it("opens the top field with F6 outside a terminal or an editor and lets the program have the key in one", () => {
         const outside = fakeActions(false);
         expect(dispatch(windowKeyBindings(true, outside.actions), { key: "F6" })).toBe(true);
         expect(outside.calls).toEqual(["topField"]);
@@ -186,7 +188,7 @@ describe("macOS: ⌘⌥← ⌘⌥→, Ctrl+PageUp / PageDown, F6 and ⌘⇧G", (
     });
 });
 
-describe("Windows and Linux: the browser's Ctrl keys outside a terminal", () => {
+describe("Windows and Linux: the browser's Ctrl keys outside a terminal or an editor", () => {
     beforeEach(() => {
         setKeyUtilPlatform("linux");
     });
@@ -202,13 +204,13 @@ describe("Windows and Linux: the browser's Ctrl keys outside a terminal", () => 
         { name: "Ctrl+Shift+G", press: { key: "G", ctrl: true, shift: true }, call: "findStep-1" },
     ];
 
-    it.each(keys)("$name acts with the focus outside a terminal", ({ press: p, call }) => {
+    it.each(keys)("$name acts with the focus outside a terminal or an editor", ({ press: p, call }) => {
         const { actions, calls } = fakeActions(false);
         expect(dispatch(windowKeyBindings(false, actions), p)).toBe(true);
         expect(calls).toEqual([call]);
     });
 
-    it.each(keys)("$name reaches the program with the focus in a terminal", ({ press: p }) => {
+    it.each(keys)("$name reaches the program with the focus in a terminal or an editor", ({ press: p }) => {
         const { actions, calls } = fakeActions(true);
         expect(dispatch(windowKeyBindings(false, actions), p)).toBe(false);
         expect(calls).toEqual([]);
@@ -249,30 +251,102 @@ describe("Windows and Linux: the browser's Ctrl keys outside a terminal", () => 
     });
 });
 
-describe("the keyboard focus is in a terminal (FR-SHELL-139 AC8)", () => {
+describe("the keyboard focus is in a terminal or a code editor (FR-SHELL-139 AC8)", () => {
     const views: Record<string, string> = { term1: "term", page1: "molten-browser", files1: "preview", agent1: "term" };
     const viewOf = (id: string) => views[id] ?? null;
     const facts = (f: Partial<KeyFocusFacts>): KeyFocusFacts => ({ inSidebar: false, ...f });
 
     it("is true when the panel holding the DOM focus is a terminal", () => {
-        expect(focusInTerminal(facts({ domBlockId: "term1" }), viewOf)).toBe(true);
-        expect(focusInTerminal(facts({ domBlockId: "agent1" }), viewOf)).toBe(true);
+        expect(focusInTerminalOrEditor(facts({ domBlockId: "term1" }), viewOf)).toBe(true);
+        expect(focusInTerminalOrEditor(facts({ domBlockId: "agent1" }), viewOf)).toBe(true);
+    });
+
+    it("is true when the DOM focus is inside a code editor, in the file editor panel or any other panel", () => {
+        expect(focusInTerminalOrEditor(facts({ inEditor: true, domBlockId: "files1" }), viewOf)).toBe(true);
+        expect(focusInTerminalOrEditor(facts({ inEditor: true, domBlockId: "page1" }), viewOf)).toBe(true);
+        expect(focusInTerminalOrEditor(facts({ inEditor: true }), viewOf)).toBe(true);
+    });
+
+    it("is false in a panel that shows no editor, such as the file panel's directory or a rendered file", () => {
+        expect(focusInTerminalOrEditor(facts({ inEditor: false, domBlockId: "files1" }), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({ domBlockId: "files1" }), viewOf)).toBe(false);
     });
 
     it("is false in a web page, in any other panel, in the sidebar and with the focus outside every panel", () => {
-        expect(focusInTerminal(facts({ domBlockId: "page1" }), viewOf)).toBe(false);
-        expect(focusInTerminal(facts({ domBlockId: "files1" }), viewOf)).toBe(false);
-        expect(focusInTerminal(facts({ inSidebar: true, domBlockId: "term1" }), viewOf)).toBe(false);
-        expect(focusInTerminal(facts({}), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({ domBlockId: "page1" }), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({ domBlockId: "files1" }), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({ inSidebar: true, domBlockId: "term1" }), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({ inSidebar: true, inEditor: true }), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({}), viewOf)).toBe(false);
     });
 
     it("counts a key sent back from a page as pressed in that page's panel, whatever holds the DOM focus", () => {
-        expect(focusInTerminal(facts({ originBlockId: "page1", domBlockId: "term1" }), viewOf)).toBe(false);
-        expect(focusInTerminal(facts({ originBlockId: "term1", domBlockId: "page1" }), viewOf)).toBe(true);
+        expect(focusInTerminalOrEditor(facts({ originBlockId: "page1", domBlockId: "term1" }), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({ originBlockId: "page1", inEditor: true }), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({ originBlockId: "term1", domBlockId: "page1" }), viewOf)).toBe(true);
     });
 
     it("is false for a panel whose view is unknown", () => {
-        expect(focusInTerminal(facts({ domBlockId: "gone" }), viewOf)).toBe(false);
+        expect(focusInTerminalOrEditor(facts({ domBlockId: "gone" }), viewOf)).toBe(false);
+    });
+
+    it("reads Monaco's root element from the DOM focus, which the file, configuration and diff editors share", () => {
+        expect(EditorSelector).toBe(".monaco-editor");
+        expect(FocusSource).toContain("inEditor: active?.closest?.(EditorSelector) != null");
+        expect(FocusSource).toContain("focusInTerminalOrEditor(currentKeyFocusFacts(), viewOfBlock)");
+    });
+});
+
+describe("a code editor keeps its Ctrl keys off macOS (Ctrl+L, Ctrl+N, Ctrl+W, Ctrl+T, Ctrl+G, FR-SHELL-139 AC8)", () => {
+    beforeEach(() => {
+        setKeyUtilPlatform("linux");
+    });
+
+    const views: Record<string, string> = { files1: "preview", page1: "molten-browser" };
+    const viewOf = (id: string) => views[id] ?? null;
+    const guarded: { name: string; press: Press }[] = [
+        { name: "Ctrl+L", press: { key: "l", ctrl: true } },
+        { name: "Ctrl+N", press: { key: "n", ctrl: true } },
+        { name: "Ctrl+W", press: { key: "w", ctrl: true } },
+        { name: "Ctrl+T", press: { key: "t", ctrl: true } },
+        { name: "Ctrl+G", press: { key: "g", ctrl: true } },
+        { name: "Ctrl+Shift+W", press: { key: "W", ctrl: true, shift: true } },
+        { name: "Ctrl+Shift+G", press: { key: "G", ctrl: true, shift: true } },
+        { name: "F6", press: { key: "F6" } },
+    ];
+
+    // The window's real rule behind the guard, fed the facts of a focus: which Ctrl keys run, which reach the editor.
+    function mapFor(f: Partial<KeyFocusFacts>) {
+        const { actions, calls } = fakeActions();
+        actions.inTerminalOrEditor = () => focusInTerminalOrEditor({ inSidebar: false, ...f }, viewOf);
+        return { map: windowKeyBindings(false, actions), calls };
+    }
+
+    it.each(guarded)("$name reaches the editor with the focus inside it, whatever panel holds it", ({ press: p }) => {
+        for (const f of [{ inEditor: true, domBlockId: "files1" }, { inEditor: true }]) {
+            const { map, calls } = mapFor(f);
+            expect(dispatch(map, p)).toBe(false);
+            expect(calls).toEqual([]);
+        }
+    });
+
+    it.each(guarded)("$name acts in the file panel when no editor holds the focus", ({ press: p }) => {
+        const { map, calls } = mapFor({ domBlockId: "files1" });
+        expect(dispatch(map, p)).toBe(true);
+        expect(calls).toHaveLength(1);
+    });
+
+    it("still steps the panels with Ctrl+PageUp and Ctrl+PageDown from an editor", () => {
+        const { map, calls } = mapFor({ inEditor: true, domBlockId: "files1" });
+        expect(dispatch(map, { key: "PageUp", ctrl: true })).toBe(true);
+        expect(dispatch(map, { key: "PageDown", ctrl: true })).toBe(true);
+        expect(calls).toEqual(["stepPanel-1", "stepPanel1"]);
+    });
+
+    it("lets a key held back from a page act even when an editor elsewhere kept the DOM focus", () => {
+        const { map, calls } = mapFor({ originBlockId: "page1", inEditor: true });
+        expect(dispatch(map, { key: "t", ctrl: true })).toBe(true);
+        expect(calls).toEqual(["newPanel"]);
     });
 });
 
@@ -327,6 +401,6 @@ describe("how the key model uses them (keymodel.ts)", () => {
         expect(body).toContain("closeView: simpleCloseStaticTab");
         expect(body).toContain("handleCmdT");
         expect(body).toContain("topField: openTopFieldFromKey");
-        expect(body).toContain("inTerminal: keyboardFocusInTerminal");
+        expect(body).toContain("inTerminalOrEditor: keyboardFocusInTerminalOrEditor");
     });
 });

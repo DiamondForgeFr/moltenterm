@@ -38,7 +38,7 @@ import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-
 import { stepFind } from "../../moltenterm-shell/shortcuts/find-step"; // MOLTENTERM-PATCH (#1759)
 import { stepPanel } from "../../moltenterm-shell/shortcuts/panel-step"; // MOLTENTERM-PATCH (#1759)
 import { registerWindowKeys } from "../../moltenterm-shell/shortcuts/window-keys"; // MOLTENTERM-PATCH (#1759)
-import { keyboardFocusInTerminal } from "../../moltenterm-shell/shortcuts/window-keys-focus"; // MOLTENTERM-PATCH (#1759)
+import { keyboardFocusInTerminalOrEditor } from "../../moltenterm-shell/shortcuts/window-keys-focus"; // MOLTENTERM-PATCH (#1759)
 import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys"; // MOLTENTERM-PATCH (#1183)
 import { openTopFieldFromKey, registerTopFieldKeys } from "../../moltenterm-shell/sidebar/top-field-store"; // MOLTENTERM-PATCH (#1187, #1759)
 import {
@@ -864,8 +864,8 @@ function registerGlobalKeys() {
     registerBrowserHistoryKeys(globalKeyMap); // MOLTENTERM-PATCH (#1744): Alt+← and Alt+→ off macOS
     // MOLTENTERM-PATCH (#1187): Cmd+L and Cmd+K open the sidebar's top field
     registerTopFieldKeys(globalKeyMap);
-    // MOLTENTERM-PATCH (#1759, FR-SHELL-139): off macOS the browser's Ctrl+T, N, W, Shift+W and L (not in a terminal), F6,
-    // previous / next panel, find next / previous (frontend/moltenterm-shell/shortcuts/window-keys.ts)
+    // MOLTENTERM-PATCH (#1759, FR-SHELL-139): off macOS the browser's Ctrl+T, N, W, Shift+W and L (not in a terminal or a
+    // code editor), F6, previous / next panel, find next / previous (frontend/moltenterm-shell/shortcuts/window-keys.ts)
     registerWindowKeys(globalKeyMap, isMacOS(), {
         newPanel: () => {
             fireAndForget(handleCmdT);
@@ -876,7 +876,7 @@ function registerGlobalKeys() {
         topField: openTopFieldFromKey,
         findStep: stepFindInFocusedPanel,
         stepPanel,
-        inTerminal: keyboardFocusInTerminal,
+        inTerminalOrEditor: keyboardFocusInTerminalOrEditor,
     });
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
