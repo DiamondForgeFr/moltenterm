@@ -11,6 +11,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
+	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -43,6 +44,11 @@ func readProjectTabFacts(ctx context.Context, ws *waveobj.Workspace, open bool) 
 		Dir:           ws.Meta.GetString(molten.ProjectMetaKey, ""),
 		RecordedDir:   ws.Meta.GetString(mission.ProjectTabDirMetaKey, ""),
 		TemplateViews: ws.Meta.GetBool(mission.TemplateViewsMetaKey, false),
+	}
+	for _, p := range projectviews.ReadProjects(ws.Meta) {
+		if p.Dir != "" {
+			facts.ProjectDirs = append(facts.ProjectDirs, p.Dir)
+		}
 	}
 	if !open && facts.Dir == "" && facts.RecordedDir == "" {
 		return facts

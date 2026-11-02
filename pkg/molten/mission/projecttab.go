@@ -62,6 +62,9 @@ type ProjectTabResult struct {
 type ProjectTabFacts struct {
 	Dir         string
 	RecordedDir string
+	// The folders of the workspace's projects. The Project tab is shared by them all: the user closing it on one project
+	// closed it for every project, so a switch between two of them is not a reason to make it again (#1760).
+	ProjectDirs []string
 	// The marked tab, when the workspace has one.
 	TabId string
 	// The marked tab holds a project view.
@@ -94,7 +97,22 @@ func DecideProjectTab(facts ProjectTabFacts, open bool) string {
 	if facts.RecordedDir == facts.Dir {
 		return ProjectTabClosed
 	}
+	if projectDirListed(facts.ProjectDirs, facts.RecordedDir) && projectDirListed(facts.ProjectDirs, facts.Dir) {
+		return ProjectTabClosed
+	}
 	return ProjectTabCreate
+}
+
+func projectDirListed(dirs []string, dir string) bool {
+	if dir == "" {
+		return false
+	}
+	for _, d := range dirs {
+		if sameProjectDir(d, dir) {
+			return true
+		}
+	}
+	return false
 }
 
 var projectTabs struct {

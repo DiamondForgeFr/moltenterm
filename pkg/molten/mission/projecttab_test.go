@@ -26,6 +26,14 @@ func TestDecideProjectTab(t *testing.T) {
 		{"template views, linked", ProjectTabFacts{Dir: "/p", TemplateViews: true}, false, ProjectTabNone},
 		{"template views, asked", ProjectTabFacts{Dir: "/p", TemplateViews: true}, true, ProjectTabCreate},
 		{"template views, asked tab kept", ProjectTabFacts{Dir: "/p", RecordedDir: "/p", TabId: "t", HasView: true, TemplateViews: true}, false, ProjectTabKeep},
+		// #1760: the tab is the workspace's, shared by its projects.
+		{"closed on one project, switched to the other", ProjectTabFacts{Dir: "/q", RecordedDir: "/p", ProjectDirs: []string{"/p", "/q"}}, false, ProjectTabClosed},
+		{"closed on one project, switched to the other and back", ProjectTabFacts{Dir: "/p", RecordedDir: "/p", ProjectDirs: []string{"/p", "/q"}}, false, ProjectTabClosed},
+		{"closed, switched to a listed project, trailing slash", ProjectTabFacts{Dir: "/q/", RecordedDir: "/p", ProjectDirs: []string{"/p", "/q"}}, false, ProjectTabClosed},
+		{"closed, then asked on another project", ProjectTabFacts{Dir: "/q", RecordedDir: "/p", ProjectDirs: []string{"/p", "/q"}}, true, ProjectTabCreate},
+		{"closed, linked to a folder outside the projects", ProjectTabFacts{Dir: "/z", RecordedDir: "/p", ProjectDirs: []string{"/p", "/q"}}, false, ProjectTabCreate},
+		{"closed for a project the list no longer holds", ProjectTabFacts{Dir: "/q", RecordedDir: "/gone", ProjectDirs: []string{"/p", "/q"}}, false, ProjectTabCreate},
+		{"tab there, switched to the other project", ProjectTabFacts{Dir: "/q", RecordedDir: "/p", TabId: "t", HasView: true, ProjectDirs: []string{"/p", "/q"}}, false, ProjectTabKeep},
 	}
 	for _, c := range cases {
 		if got := DecideProjectTab(c.facts, c.open); got != c.want {
