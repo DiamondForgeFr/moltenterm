@@ -15,6 +15,7 @@ import { base64ToString } from "@/util/util";
 import { WorkspaceGradientMetaKey } from "./accent";
 import { pushRecentFolder } from "./palette/palette-sources";
 import { ProjectDismissedMetaKey, projectOfGitFile } from "./project-detect";
+import { currentProjectId, listValue, ProjectsMetaKey, readProjects } from "./sidebar/workspace-projects";
 import {
     declaredProjectIcon,
     linkUpdate,
@@ -201,8 +202,20 @@ export async function setWorkspaceLogo(workspaceId: string, logo: string): Promi
 
 // The Project sheet's Logo (FR-SHELL-105). The workspace is read again: its icon follows only if it shows the
 // project's logo now.
-export async function setProjectLogo(ws: Workspace, logo: string): Promise<void> {
-    await setWorkspaceMeta(ws.oid, projectLogoUpdate(readWorkspaceProject(latestWorkspace(ws)), logo));
+export async function setProjectLogo(ws: Workspace, logo: string, projectId?: string): Promise<void> {
+    const latest = latestWorkspace(ws);
+    const projects = readProjects(latest);
+    const own = projectId == null || projects.length < 2 ? null : projects.find((p) => p.id === projectId);
+    // With two projects or more the logo is kept with its project (#1760), so the header shows it whichever project is
+    // current; the workspace's own keys follow the current project only.
+    const meta: Record<string, any> =
+        own == null || own.id === currentProjectId(latest) ? projectLogoUpdate(readWorkspaceProject(latest), logo) : {};
+    if (own != null) {
+        meta[ProjectsMetaKey] = listValue(
+            projects.map((p) => (p.id === own.id ? { ...p, logo: logo || undefined } : p))
+        );
+    }
+    await setWorkspaceMeta(ws.oid, meta);
 }
 
 // A gradient's stops ("#a,#b[,#c]", accent.ts), or null for a flat colour.

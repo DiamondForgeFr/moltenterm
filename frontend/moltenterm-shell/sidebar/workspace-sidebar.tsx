@@ -85,6 +85,7 @@ import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspa
 import { workspaceShownName } from "../workspace-default-name";
 import { openProjectSheet, openWorkspaceEditor } from "../workspace-edit";
 import { WorkspaceIcon } from "../workspace-icon";
+import { workspaceIconSource } from "../workspace-icon-model";
 import { moveWorkspace, neighbourMove, RailMove, slotMove } from "../workspace-order";
 import { readWorkspaceProject } from "../workspace-project";
 import { loadWorkspaceSources, WorkspaceRailHosts } from "../workspace-rail";
@@ -95,6 +96,7 @@ import { closeTabAskingFirst } from "../worktree-close";
 import { statusBarMarker } from "../worktree-model";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
 import { EmptyWorkspace } from "./empty-workspace";
+import { useFoundLogos } from "./header-logo";
 import { plusMenuItems } from "./plus-menu-model";
 import {
     PrDots,
@@ -134,7 +136,7 @@ import {
     zoneProps,
 } from "./sidebar-drag";
 import { SidebarGhost } from "./sidebar-ghost";
-import { workspaceHeaderLogo } from "./sidebar-header-model";
+import { headerIcon } from "./sidebar-header-model";
 import { SidebarHeat } from "./sidebar-heat";
 import { SidebarGlyph } from "./sidebar-icons";
 import { workspaceJumpKeys } from "./sidebar-keys";
@@ -635,7 +637,8 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const projects = readProjects(ws);
     const current = currentProject(ws);
     const type = projects.length > 1 ? projectLabel(current) : (current?.type ?? "");
-    const logo = workspaceHeaderLogo(ws);
+    const foundLogos = useFoundLogos(projects.length > 1 ? (current?.dir ?? "") : "");
+    const icon = headerIcon(ws, foundLogos);
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom);
     const activity = useMemo(
         () =>
@@ -669,9 +672,16 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     return (
         <div className="mt-sb-hdr flex shrink-0 items-center gap-1.5 px-0.5 pt-1.5" data-testid="sidebar-header">
             <span className="mt-sb-place-bar" data-testid="sidebar-place-bar" aria-hidden />
-            {logo ? (
+            {icon.kind === "logo" ? (
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center" data-testid="sidebar-project-logo">
-                    <WorkspaceIcon source={{ icon: "", color: "", image: "", logo }} className="h-4 w-4" />
+                    <WorkspaceIcon source={{ icon: "", color: "", image: "", logo: icon.logo }} className="h-4 w-4" />
+                </span>
+            ) : icon.kind === "workspace" ? (
+                <span
+                    className="flex h-4 w-4 shrink-0 items-center justify-center"
+                    data-testid="sidebar-workspace-icon"
+                >
+                    <WorkspaceIcon source={{ ...workspaceIconSource(ws), logo: "" }} className="h-4 w-4" />
                 </span>
             ) : null}
             <span

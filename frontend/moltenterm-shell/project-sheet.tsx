@@ -301,7 +301,7 @@ function LogoBlock({ ws, project }: { ws: Workspace; project: WorkspaceProjectEn
     const [result, setResult] = useState<{ ok: boolean; text: string }>(null);
     const choose = (logo: string) =>
         fireAndForget(async () => {
-            await setProjectLogo(ws, logo);
+            await setProjectLogo(ws, logo, project.id);
             setResult({ ok: true, text: translateNow("workspace.edit.using", { name: pathBaseName(logo) }) });
         });
     return (

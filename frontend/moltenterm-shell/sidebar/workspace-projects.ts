@@ -25,7 +25,16 @@ export const FirstProjectId = "p1";
 
 // dir: the project's folder, its context and where the Files panel opens. repo: the code repository chosen inside it
 // (#1777), "" for none; the repository a project's agents and Git features work on is projectRepoDir.
-export type WorkspaceProjectEntry = { id: string; type: string; dir: string; branch: string; repo?: string };
+// logo: the image chosen for this project in its Project sheet (#1760), kept with the project so the header shows it
+// whichever project is current.
+export type WorkspaceProjectEntry = {
+    id: string;
+    type: string;
+    dir: string;
+    branch: string;
+    repo?: string;
+    logo?: string;
+};
 
 export type ProjectDraft = { type: string; dir: string; branch: string; repo?: string };
 
@@ -51,7 +60,11 @@ function storedProjects(meta: Record<string, any>): WorkspaceProjectEntry[] {
             continue;
         }
         seen.add(id);
-        rtn.push(withRepo({ id, type: str(item?.type), dir: str(item?.dir), branch: str(item?.branch) }, item?.repo));
+        const entry = withRepo({ id, type: str(item?.type), dir: str(item?.dir), branch: str(item?.branch) }, item?.repo);
+        if (str(item?.logo) !== "") {
+            entry.logo = str(item.logo);
+        }
+        rtn.push(entry);
     }
     return rtn.length > 0 ? rtn : null;
 }
@@ -131,6 +144,9 @@ export function listValue(projects: WorkspaceProjectEntry[]): Record<string, str
         }
         if (p.repo) {
             value.repo = p.repo;
+        }
+        if (p.logo) {
+            value.logo = p.logo;
         }
         return value;
     });
