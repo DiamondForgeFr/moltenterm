@@ -73,7 +73,7 @@ func moltenProjectSyncRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	dir := moltenMetaString(meta, molten.ProjectMetaKey)
+	dir := molten.WorkspaceRepoOfMap(meta)
 	if dir == "" {
 		return fmt.Errorf("this workspace is not linked to a project; link it with: molten project link [folder]")
 	}
