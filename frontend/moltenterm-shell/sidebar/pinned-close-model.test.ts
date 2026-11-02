@@ -1,9 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { slotMembers, SlotsMetaKey } from "../hidden-tabs";
-import { planPinnedClose } from "./pinned-close-model";
+import { CloseAttempts, closeUntilGone, planPinnedClose } from "./pinned-close-model";
 import { GlobalPinMetaKey } from "./view-pins-model";
 
 const Names = ["Desktop", "Website"];
@@ -69,5 +69,59 @@ describe("closing a pinned view (#1760)", () => {
     it("names no choice of closing for one project only", () => {
         const plan = planPinnedClose(ws, "cadrage1", "workspace", false, metaOf, Names);
         expect(Object.keys(plan).sort()).toEqual(["confirm", "projects", "shared", "tabIds"]);
+    });
+});
+
+describe("closeUntilGone", () => {
+    const noWait = () => Promise.resolve();
+
+    it("asks once when the tab goes", async () => {
+        let there = true;
+        const close = vi.fn(async () => {
+            there = false;
+            return true;
+        });
+        expect(await closeUntilGone(close, () => !there, noWait)).toBe(true);
+        expect(close).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks again when the window's queue dropped the close, the tab being still there", async () => {
+        let there = true;
+        const asked: number[] = [];
+        // The first ask answers true and does nothing, as a pending close replaced by the next one does.
+        const close = async (attempt: number) => {
+            asked.push(attempt);
+            there = attempt === 0;
+            return true;
+        };
+        expect(await closeUntilGone(close, () => !there, noWait)).toBe(true);
+        expect(asked).toEqual([0, 1]);
+    });
+
+    it("gives up after a few asks, and says the tab did not go", async () => {
+        const close = vi.fn(async () => true);
+        expect(await closeUntilGone(close, () => false, noWait)).toBe(false);
+        expect(close).toHaveBeenCalledTimes(CloseAttempts);
+    });
+
+    it("does not wait when the close is refused", async () => {
+        const wait = vi.fn(noWait);
+        expect(await closeUntilGone(async () => false, () => false, wait)).toBe(false);
+        expect(wait).not.toHaveBeenCalled();
+    });
+
+    it("waits for the window to say the tab went before asking again", async () => {
+        let there = true;
+        let waits = 0;
+        const close = vi.fn(async () => true);
+        const wait = async () => {
+            waits++;
+            if (waits === 3) {
+                there = false;
+            }
+        };
+        expect(await closeUntilGone(close, () => !there, wait)).toBe(true);
+        expect(close).toHaveBeenCalledTimes(1);
+        expect(waits).toBe(3);
     });
 });

@@ -32,7 +32,7 @@ import { serverErrorText, serverText } from "./i18n/server-text";
 import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
 import { recordingTabClose } from "./reopen/reopen-store";
-import { PinnedClosePlan } from "./sidebar/pinned-close-model";
+import { closeUntilGone, PinnedClosePlan } from "./sidebar/pinned-close-model";
 import { pinnedClosePlanOf, showSurvivor } from "./sidebar/view-pins-store";
 import { DominoLoader } from "./suite/suite";
 import { viewDisplayName } from "./tab-identity-ui";
@@ -310,12 +310,25 @@ async function closePinnedViews(
         await showSurvivor(plan.tabIds);
     }
     let count = 0;
-    for (const id of [...plan.tabIds.filter((id) => id !== own), ...(closingOwn ? [own] : [])]) {
+    const closeOne = (id: string) => (placeholders.has(id) ? closeTab : recorded)(workspaceId, id, false);
+    for (const id of plan.tabIds.filter((id) => id !== own)) {
         try {
-            if (await (placeholders.has(id) ? closeTab : recorded)(workspaceId, id, false)) {
-                if (!placeholders.has(id)) {
-                    count++;
-                }
+            const gone = await closeUntilGone(
+                (attempt) => (attempt === 0 ? closeOne(id) : closeTab(workspaceId, id, false)),
+                () => globalStore.get(atoms.workspace)?.tabids?.includes(id) !== true,
+                (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+            );
+            if (gone && !placeholders.has(id)) {
+                count++;
+            }
+        } catch (e) {
+            console.log("closing an instance of a pinned view", e);
+        }
+    }
+    if (closingOwn) {
+        try {
+            if ((await closeOne(own)) && !placeholders.has(own)) {
+                count++;
             }
         } catch (e) {
             console.log("closing an instance of a pinned view", e);
