@@ -16,6 +16,8 @@ type TabInfo struct {
 	Pin        string
 	ProjectTab bool
 	Hidden     bool
+	// An instance made for a project that never showed it: it has no panel yet.
+	Placeholder bool
 }
 
 // Instance is a view a project is missing: a tile's, built from the configuration of a tab that holds the slot, or a
@@ -160,24 +162,41 @@ type RemoveInput struct {
 
 // RemovePlan says what removing a project does to its views: they move to the project that takes over, and none
 // closes. A tile or a top-row block whose slot or pin the new owner already has an instance of becomes a temporary
-// view, so no project shows the same pinned view twice.
+// view, so no project shows the same pinned view twice. An instance never shown has no panel: it is the one that goes
+// (Drop) when the other is a real one, so the project keeps the instance the developer worked in.
 type RemovePlan struct {
 	Move      map[string]string
 	Temporary []string
+	Drop      []string
 }
 
 func PlanRemove(in RemoveInput) RemovePlan {
 	plan := RemovePlan{Move: map[string]string{}}
-	slotHeld, pinHeld := map[string]bool{}, map[string]bool{}
+	slotHeld, pinHeld := map[string]TabInfo{}, map[string]TabInfo{}
 	for _, t := range in.Tabs {
 		if t.Project != in.NewCurrent {
 			continue
 		}
 		if t.Slot != "" {
-			slotHeld[t.Slot] = true
+			slotHeld[t.Slot] = t
 		}
 		if t.Pin != "" {
-			pinHeld[t.Pin] = true
+			pinHeld[t.Pin] = t
+		}
+	}
+	// settle says what happens to a moved instance of a pinned view the new owner may hold already.
+	settle := func(held map[string]TabInfo, key string, moved TabInfo) {
+		own, has := held[key]
+		switch {
+		case !has:
+			held[key] = moved
+		case own.Placeholder && !moved.Placeholder:
+			plan.Drop = append(plan.Drop, own.Id)
+			held[key] = moved
+		case moved.Placeholder:
+			plan.Drop = append(plan.Drop, moved.Id)
+		default:
+			plan.Temporary = append(plan.Temporary, moved.Id)
 		}
 	}
 	for _, t := range in.Tabs {
@@ -186,14 +205,10 @@ func PlanRemove(in RemoveInput) RemovePlan {
 		}
 		plan.Move[t.Id] = in.NewCurrent
 		switch {
-		case t.Slot != "" && slotHeld[t.Slot]:
-			plan.Temporary = append(plan.Temporary, t.Id)
 		case t.Slot != "":
-			slotHeld[t.Slot] = true
-		case t.Pin != "" && pinHeld[t.Pin]:
-			plan.Temporary = append(plan.Temporary, t.Id)
+			settle(slotHeld, t.Slot, t)
 		case t.Pin != "":
-			pinHeld[t.Pin] = true
+			settle(pinHeld, t.Pin, t)
 		}
 	}
 	return plan
