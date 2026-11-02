@@ -234,4 +234,20 @@ describe("routing a key held back from a page", () => {
         expect(routeBrowserPageKey(ev, 7, [page(7, "b")], () => ({ viewType: "web" }))).toBe(false);
         expect(routeBrowserPageKey(ev, 8, [page(7, "b")], () => browser)).toBe(false);
     });
+
+    it("leaves ⌘T and ⌘N to the window: pressed in a page they reach the key model like anywhere else (#1742)", () => {
+        const handler = (e: WaveKeyboardEvent) => browserKeyAction(e, true) != null;
+        const browser = { viewType: "molten-browser", pageKeyDownHandler: handler };
+        setKeyUtilPlatform("darwin");
+        for (const letter of ["t", "n"]) {
+            const ev = key(letter, { meta: true }, true);
+            expect(browserKeyAction(ev, true)).toBeNull();
+            expect(routeBrowserPageKey(ev, 7, [page(7, "b")], () => browser)).toBe(false);
+        }
+        setKeyUtilPlatform("linux");
+        const alt = key("t", { alt: true }, false);
+        expect(browserKeyAction(alt, false)).toBeNull();
+        expect(browserPageKeys(false)).not.toContain("Cmd:t");
+        expect(browserPageKeys(true)).not.toContain("Cmd:t");
+    });
 });

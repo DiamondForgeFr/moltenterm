@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
     createTab: vi.fn(),
     closeTab: vi.fn(async () => true),
     replaceBlock: vi.fn(async () => "b2"),
+    viewModel: null as { wantAddressFocus: () => void },
     run: vi.fn(async () => {}),
     closeNode: vi.fn(async () => {}),
     mac: true,
@@ -29,6 +30,7 @@ vi.mock("@/app/store/global", () => {
     return {
         atoms,
         getApi: () => ({ createTab: h.createTab, closeTab: h.closeTab }),
+        getBlockComponentModel: () => (h.viewModel == null ? undefined : { viewModel: h.viewModel }),
         getSettingsKeyAtom: (key: string) => `setting:${key}`,
         replaceBlock: h.replaceBlock,
         WOS: { getWaveObjectAtom: () => "tab", makeORef: (t: string, id: string) => `${t}:${id}` },
@@ -61,7 +63,15 @@ vi.mock("@/util/platformutil", () => ({ isMacOS: () => h.mac }));
 vi.mock("../palette/palette-actions", () => ({ runPaletteEntry: h.run }));
 vi.mock("../sidebar/view-pins-store", () => ({ ViewPins: { getInstance: () => ({ createView: vi.fn() }) } }));
 
-import { dismissNewView, openFavorite, openInNewView, openNewView, registerNewViewKeys } from "./new-view";
+import { takeAddressFocus } from "../browser/address-focus";
+import {
+    dismissNewView,
+    openFavorite,
+    openInNewView,
+    openNewView,
+    pageBlockDef,
+    registerNewViewKeys,
+} from "./new-view";
 import { ChooserBlockDef, NewViewRunMetaKey } from "./new-view-model";
 
 async function settle() {
@@ -74,6 +84,8 @@ beforeEach(() => {
     h.tab = { oid: "t1", blockids: ["b1"] };
     h.workspace = { oid: "ws1", tabids: ["t0", "t1"], meta: {} };
     h.mac = true;
+    h.viewModel = null;
+    takeAddressFocus("b2");
     vi.clearAllMocks();
 });
 
@@ -144,6 +156,44 @@ describe("the chooser's choice and cancel (TC-SHELL-166)", () => {
         await openInNewView(sessions as any, "b1");
         expect(h.run).toHaveBeenLastCalledWith(sessions.run, { placement: "new", blockId: null });
         expect(h.closeTab).toHaveBeenCalledWith("ws1", "t1", false);
+    });
+
+    const webPage = {
+        id: "panel:defwidget@web",
+        group: "panels",
+        label: "Web page",
+        icon: "",
+        run: { kind: "widget", blockdef: { meta: { view: "molten-browser" } } },
+    } as const;
+
+    it("asks a new page panel's view for the address field's focus when it exists (#1742)", async () => {
+        const wantAddressFocus = vi.fn();
+        h.viewModel = { wantAddressFocus };
+        await openInNewView(webPage as any, "b1");
+        expect(h.replaceBlock).toHaveBeenCalledWith("b1", webPage.run.blockdef, true);
+        expect(h.run).not.toHaveBeenCalled();
+        expect(wantAddressFocus).toHaveBeenCalledTimes(1);
+        expect(takeAddressFocus("b2")).toBe(false);
+    });
+
+    it("keeps the request for the page's view until it is made, to be taken once (#1742)", async () => {
+        await openInNewView(webPage as any, "b1");
+        expect(takeAddressFocus("b2")).toBe(true);
+        expect(takeAddressFocus("b2")).toBe(false);
+    });
+
+    it("leaves the focus on a page that opens at an address, and on the other types (#1742)", async () => {
+        const typed = {
+            ...webPage,
+            run: { kind: "widget", blockdef: { meta: { view: "molten-browser", url: "https://a.test" } } },
+        };
+        expect(pageBlockDef(typed as any)).toBeNull();
+        expect(pageBlockDef(webPage as any)).toEqual(webPage.run.blockdef);
+        expect(pageBlockDef({ run: { kind: "widget", blockdef: { meta: { view: "term" } } } } as any)).toBeNull();
+        expect(pageBlockDef({ run: { kind: "sessions" } } as any)).toBeNull();
+        await openInNewView(typed as any, "b1");
+        expect(h.run).toHaveBeenCalledWith(typed.run, { placement: "replace", blockId: "b1" });
+        expect(takeAddressFocus("b2")).toBe(false);
     });
 
     it("closes the new view on Escape; split meanwhile only the pane goes; the only view keeps a terminal", async () => {

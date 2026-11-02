@@ -1,9 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// ⌘N, "New panel" (FR-SHELL-086, #1241): carries out new-panel-model.ts on the tab on screen.
+// ⌘T, "New panel" (FR-SHELL-086, #1241, #1742): carries out new-panel-model.ts on the tab on screen.
 
-import { createBlock, getFocusedBlockId, getSettingsKeyAtom, globalStore } from "@/app/store/global";
+import { createBlock, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { ObjectService } from "@/app/store/services";
 import type { LayoutTreeResizeNodeAction } from "@/layout/index";
 import { getLayoutModelForStaticTab, LayoutTreeActionType, newLayoutNode } from "@/layout/index";
@@ -13,21 +13,27 @@ import { rowEqualizeOps } from "../equalize/equalize-rules";
 import { currentNewViewChoices } from "../newview/new-view";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { runPaletteEntry } from "../palette/palette-actions";
+import { currentFocusedView, placementFallbackBlockId } from "./new-panel-focus";
 import { newPanelContent, newPanelSplit, newPanelTarget } from "./new-panel-model";
 import { findPanelUnderPointer } from "./pointer-tracker";
 
 const NewPanelTermSize = { rows: 25, cols: 80 };
 
-// terminalDef: today's ⌘N terminal (keymodel.ts), read when the panel opens.
+// terminalDef: the terminal a new panel opens as when Terminal is set to open directly (keymodel.ts), read when the
+// panel opens. The focus is read first: nothing awaited before it may move it.
 export async function openNewPanel(terminalDef: () => BlockDef): Promise<void> {
-    const content = newPanelContent(globalStore.get(getSettingsKeyAtom(NewViewOpenKey)), currentNewViewChoices());
+    const content = newPanelContent(
+        globalStore.get(getSettingsKeyAtom(NewViewOpenKey)),
+        currentNewViewChoices(),
+        currentFocusedView()
+    );
     if (content.kind === "run") {
         await runPaletteEntry(content.run, { placement: "new", blockId: null });
         return;
     }
     const blockdef = content.kind === "terminal" ? terminalDef() : content.blockdef;
     const under = findPanelUnderPointer();
-    const target = newPanelTarget(under?.hit, under?.x, getFocusedBlockId());
+    const target = newPanelTarget(under?.hit, under?.x, placementFallbackBlockId());
     const layoutModel = getLayoutModelForStaticTab();
     if (target == null || layoutModel?.getNodeByBlockId(target.blockId) == null) {
         await createBlock(blockdef);

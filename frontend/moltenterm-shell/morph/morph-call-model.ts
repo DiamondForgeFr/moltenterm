@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Asking the workspace's agent for a missing tool with /morph (#1653, #1672): the Library's "Missing a tool?" card
-// and the ⌘T launcher's empty result share these rules. Pure functions, tested without the app.
+// and the new view launcher's empty result share these rules. Pure functions, tested without the app.
 
 import { agentRow, currentFeatureMatrix, guideCall, type FeatureMatrix } from "../agent-info/agent-features-model";
 import { agentPromptState, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";

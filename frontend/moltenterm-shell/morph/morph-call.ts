@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Typing the morph call into the workspace's agent (#1653, #1672), for the Library's "Missing a tool?" card and the
-// ⌘T launcher's empty result. The rules are in morph-call-model.ts.
+// new view launcher's empty result. The rules are in morph-call-model.ts.
 
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";

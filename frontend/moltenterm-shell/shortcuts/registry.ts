@@ -156,8 +156,8 @@ export const Shortcuts: Shortcut[] = [
         label: "New panel",
         category: "Panels",
         scope: "global",
-        keys: "Cmd:n",
-        keywords: ["add panel", "pointer", "beside", "terminal"],
+        keys: "Cmd:t",
+        keywords: ["add panel", "pointer", "beside", "terminal", "web page", "chooser"],
     },
     { id: "close-panel", label: "Close the panel", category: "Panels", scope: "global", keys: "Cmd:w" },
     {
@@ -256,7 +256,8 @@ export const Shortcuts: Shortcut[] = [
         keywords: ["find"],
     },
     // Tabs
-    { id: "new-tab", label: "New tab", category: "Tabs", scope: "global", keys: "Cmd:t" },
+    // The id stays "new-tab" (the menu, the sidebar and the onboarding read it); the action is a new view (#1742: ⌘N).
+    { id: "new-tab", label: "New tab", category: "Tabs", scope: "global", keys: "Cmd:n" },
     // #1232: a new view already holding favourite 1 to 4 of its chooser (FR-SHELL-089), by key code like ⌥1…⌥9. Off
     // macOS Wave's Cmd is Alt, so ⌥⌘digit would be Alt+digit (a tab) and Ctrl+Alt+digit is the Workspace menu's.
     {
@@ -443,7 +444,6 @@ export const Shortcuts: Shortcut[] = [
         keywords: ["review", "comment"],
     },
     // Browser
-    { id: "browser-new-tab", label: "New browser tab", category: "Browser", scope: "browser", keys: "Cmd:t" },
     { id: "browser-close-tab", label: "Close the browser tab", category: "Browser", scope: "browser", keys: "Cmd:w" },
     // #1722: the usual browser keys, which win over the window's while the page has the focus (browser-keys.ts). ⌘ on
     // macOS; elsewhere Ctrl, and Alt with the arrows, as browsers do (Wave's Cmd is Alt there).

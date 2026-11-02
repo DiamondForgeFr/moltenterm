@@ -23,6 +23,7 @@ import {
     newViewChoices,
     NewViewFavoritesKey,
     NewViewMetaKey,
+    NewViewPreselectMetaKey,
     NewViewRunMetaKey,
     resolveFavorites,
 } from "./new-view-model";
@@ -42,6 +43,7 @@ export function NewViewChooserView({ blockId, inputRef }: NewViewChooserViewProp
     const installedAgents = useKnownCodingAgents();
     const runId = block?.meta?.[NewViewRunMetaKey as keyof MetaType] as string;
     const focusAgents = block?.meta?.[NewViewAgentsMetaKey as keyof MetaType] === true;
+    const preselect = block?.meta?.[NewViewPreselectMetaKey as keyof MetaType] as string;
     const projectLinked = readWorkspaceProject(ws).dir !== "";
     const choices = useMemo(
         () =>
@@ -78,8 +80,9 @@ export function NewViewChooserView({ blockId, inputRef }: NewViewChooserViewProp
                 await typeMorphCall(agent, request);
             },
             focusAgents,
+            preselect,
         };
-    }, [favoritesSetting, choices, blockId, focusAgents]);
+    }, [favoritesSetting, choices, blockId, focusAgents, preselect]);
     if (runId) {
         return null;
     }

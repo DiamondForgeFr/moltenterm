@@ -154,7 +154,6 @@ function tabItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
             type: "action",
             label: t("cmdpanel.browser.newPageBeside"),
             icon: "plus",
-            shortcut: "⌘T",
             run: () => bt.newTab(),
         },
         {

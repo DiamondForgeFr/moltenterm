@@ -60,10 +60,11 @@ beforeEach(() => {
 });
 
 describe("items bound to a key run the key's handler", () => {
-    it("New view, Close, Reopen, Next and Previous view, Shortcuts, Palette", async () => {
+    it("New view, New panel, Close, Reopen, Next and Previous view, Shortcuts, Palette", async () => {
         const ran: string[] = [];
         const keys = new Map<string, (e: WaveKeyboardEvent) => boolean>();
-        for (const k of ["Cmd:t", "Cmd:Shift:w", "Cmd:Shift:t", "Cmd:]", "Cmd:[", "Cmd:/", "Cmd:Shift:k"]) {
+        const bound = ["Cmd:n", "Cmd:t", "Cmd:Shift:w", "Cmd:Shift:t", "Cmd:]", "Cmd:[", "Cmd:/", "Cmd:Shift:k"];
+        for (const k of bound) {
             keys.set(k, () => {
                 ran.push(k);
                 return true;
@@ -71,6 +72,7 @@ describe("items bound to a key run the key's handler", () => {
         }
         for (const command of [
             "newview",
+            "newpanel",
             "closeview",
             "reopen",
             "nextview",
@@ -80,7 +82,7 @@ describe("items bound to a key run the key's handler", () => {
         ] as const) {
             await runAppMenuCommand(command, keys);
         }
-        expect(ran).toEqual(["Cmd:t", "Cmd:Shift:w", "Cmd:Shift:t", "Cmd:]", "Cmd:[", "Cmd:/", "Cmd:Shift:k"]);
+        expect(ran).toEqual(bound);
     });
 
     it("a key nobody bound runs nothing", () => {

@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The last mouse pointer position in the window, for ⌘N (#1241). One passive listener stores two numbers per move;
+// The last mouse pointer position in the window, for ⌘T (#1241). One passive listener stores two numbers per move;
 // the panel under the pointer is only looked up when the key is pressed (findPanelUnderPointer).
 
 import type { PointerHit } from "./new-panel-model";

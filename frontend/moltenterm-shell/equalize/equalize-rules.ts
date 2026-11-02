@@ -91,7 +91,7 @@ function parentOf(node: LayoutNode, nodeId: string): LayoutNode {
     return null;
 }
 
-// The equalize of the row holding a node only (#1241, a panel opened with ⌘N): the row's children get the same width
+// The equalize of the row holding a node only (#1241, a panel opened with ⌘T): the row's children get the same width
 // per column they span, and nothing inside them is touched, so a stacked column keeps its heights and the other rows
 // keep their widths. Empty when the node's parent is not a row of two or more, or is already even.
 export function rowEqualizeOps(root: LayoutNode, nodeId: string): ResizeNodeOperation[] {
