@@ -55,6 +55,12 @@ func loadAgentNames(a *agentStates) {
 	}
 }
 
+// PreferAgentName offers a terminal a first name for the agent it is about to run: a lead agent resumed on its session
+// takes its name back when it is free (#1779).
+func PreferAgentName(blockId string, name string) {
+	defaultAgentStates.names.Prefer(blockId, name)
+}
+
 // AgentRunByFirstName finds the active agent holding a first name, case-insensitively (handing work to an agent by
 // name, #595).
 func AgentRunByFirstName(name string) (molten.AgentRunInfo, bool) {

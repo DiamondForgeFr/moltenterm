@@ -30,6 +30,8 @@ const (
 	AgentOriginBatch = "batch"
 	// AgentOriginFinish: Check the agents (#954), the agent verifies the PR and finishes what is left.
 	AgentOriginFinish = "finish"
+	// AgentOriginLead: the lead agent that owns a PR, resumed on its session to take its work back (#1779).
+	AgentOriginLead = "lead"
 
 	// OriginMetaKey: the AgentOrigin of a terminal MoltenTerm started; must match
 	// frontend/moltenterm-shell/reviews/agent-origin.ts.
@@ -72,6 +74,9 @@ func defaultAgentTabName(kind string, number int) string {
 	}
 	if kind == AgentOriginFinish {
 		return "Finish #" + strconv.Itoa(number)
+	}
+	if kind == AgentOriginLead {
+		return "Resume #" + strconv.Itoa(number)
 	}
 	return "Rebase #" + strconv.Itoa(number)
 }

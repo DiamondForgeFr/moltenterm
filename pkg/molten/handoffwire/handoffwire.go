@@ -121,6 +121,9 @@ type Brief struct {
 	Files   []FileRef `json:"files,omitempty"`
 	Links   []LinkRef `json:"links,omitempty"`
 	Reply   bool      `json:"reply,omitempty"`
+	// Closing replaces the outcome-line section of a request MoltenTerm writes itself (fromapp.go). It is never read
+	// from the wire: an agent's brief cannot set it.
+	Closing string `json:"-"`
 }
 
 type SendRequest struct {

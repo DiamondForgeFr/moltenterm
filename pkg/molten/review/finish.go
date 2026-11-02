@@ -52,6 +52,11 @@ type FinishRequest struct {
 	TabName     string `json:"tabname,omitempty"`
 	// Agent: the coding agent picked for this run (#845).
 	Agent string `json:"agent,omitempty"`
+	// Lead (#1779): the lead agent that owns the work, from the PR's signature or the sub-agent registry; the work goes
+	// to it before any other agent. ResumeLead: the developer chose to resume its session when it no longer runs (the
+	// tab goes in WorkspaceId, named TabName).
+	Lead       *LeadRef `json:"lead,omitempty"`
+	ResumeLead bool     `json:"resumelead,omitempty"`
 }
 
 func (req FinishRequest) check() error {
@@ -66,6 +71,9 @@ func (req FinishRequest) check() error {
 	}
 	if !reviewsession.ValidRef(req.BaseRef) {
 		return fmt.Errorf("baseref must be the PR's base branch")
+	}
+	if req.ResumeLead && (req.Lead.cleaned() == nil || req.WorkspaceId == "") {
+		return fmt.Errorf("resumelead needs the lead and the workspace to show its tab in")
 	}
 	return req.restartRequest().checkStart()
 }
@@ -105,9 +113,15 @@ func (r *Restarter) AskFinish(ctx context.Context, req FinishRequest) (RestartRe
 		checks = append(checks, name)
 	}
 	req.FailedChecks = checks
+	lead := req.Lead.cleaned()
+	if lead != nil && !req.Start {
+		if result, handled := r.leadFirst(ctx, req, lead); handled {
+			return result, nil
+		}
+	}
 	rreq := req.restartRequest()
 	origin := r.origin(rreq, AgentOriginFinish)
-	return r.askOnBranch(ctx, rreq, origin, func(tree string, result *RestartResult) (string, bool) {
+	result := r.askOnBranch(ctx, rreq, origin, func(tree string, result *RestartResult) (string, bool) {
 		path, err := r.writeFinishBrief(req, tree)
 		if err != nil {
 			result.Status, result.Reason, result.Message = RestartFailed, RestartReasonBrief, fmt.Sprintf("the brief could not be written: %v", err)
@@ -115,7 +129,11 @@ func (r *Restarter) AskFinish(ctx context.Context, req FinishRequest) (RestartRe
 		}
 		result.BriefPath = path
 		return finishPromptLine(req, path), true
-	}), nil
+	})
+	if lead != nil && !req.Start && result.Status == RestartOffer {
+		result = r.leadGone(ctx, req, lead, result)
+	}
+	return result, nil
 }
 
 // finishLeft names what the list read as left on the PR, in the prompt's words.
