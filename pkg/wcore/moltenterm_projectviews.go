@@ -10,6 +10,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
@@ -478,7 +479,19 @@ func assignWorkspaceAtStartup(ctx context.Context, wsId string) error {
 	})
 }
 
-// StartProjectViewsRoute lets the windows switch, add and remove projects; wavesrv calls it once.
-func StartProjectViewsRoute() {
+const projectViewsStartupTimeout = 30 * time.Second
+
+// StartProjectViews lets the windows switch, add and remove projects, and gives the views of the existing workspaces
+// their projects before any window shows one; wavesrv calls it once. A failure leaves the views shared by every
+// project, as before.
+func StartProjectViews() {
 	projectviews.StartRoute(projectviews.Store{Switch: switchProject, Remove: removeProject, Assign: assignViews})
+	defer func() {
+		panichandler.PanicHandler("StartProjectViews", recover())
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), projectViewsStartupTimeout)
+	defer cancel()
+	if err := AssignProjectViewsAtStartup(ctx); err != nil {
+		log.Printf("molten: giving the views their projects: %v\n", err)
+	}
 }
