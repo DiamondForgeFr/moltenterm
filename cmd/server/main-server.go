@@ -599,8 +599,7 @@ func main() {
 	filesearch.StartRoute()     // MOLTENTERM-PATCH (#1625): molten files shows an agent's search in its tab's file panel
 	// MOLTENTERM-PATCH (#1760): a project switch shows the project's own views; once, meta only, the views get their
 	// projects before any window shows a workspace
-	wcore.StartProjectViewsRoute()
-	assignProjectViewsAtStartup()
+	wcore.StartProjectViews()
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()
