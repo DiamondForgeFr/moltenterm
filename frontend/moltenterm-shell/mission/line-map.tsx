@@ -563,7 +563,7 @@ function BuildDetail({ m, model }: { m: BuildMarker; model: LineMapModel }) {
     );
 }
 
-function Detail({
+export function Detail({
     item,
     model,
     trunkCi,
@@ -666,7 +666,11 @@ function Detail({
                         {model.terminus.tag ?? t("mc.lineMap.nextTitle")} · {t("mc.lineMap.publicRelease")}
                     </div>
                     <div className="text-secondary">{model.terminus.note}</div>
-                    {model.terminus.state === "nothing" ? null : (
+                    {model.terminus.state === "nothing" ? null : model.terminus.state === "planned" ? (
+                        <div className="text-muted" data-testid="line-map-terminus-planned">
+                            {t("mc.lineMap.plannedNothing", { trunk: model.trunk })}
+                        </div>
+                    ) : (
                         <div className="text-muted">
                             {t(model.terminus.waiting === 1 ? "mc.lineMap.changeNotYet" : "mc.lineMap.changesNotYet", {
                                 count: model.terminus.waiting,

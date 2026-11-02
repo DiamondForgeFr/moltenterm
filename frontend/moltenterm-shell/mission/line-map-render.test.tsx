@@ -3,7 +3,7 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { MapSvg, MotionStyles, ReplayButton } from "./line-map";
+import { Detail, MapSvg, MotionStyles, ReplayButton } from "./line-map";
 import { layoutLineMap } from "./line-map-geometry";
 import { canSetUpRelease, LineMapBranch, LineMapModel, LineMapStation } from "./line-map-model";
 
@@ -82,7 +82,9 @@ describe("the next version as a button (#1384)", () => {
         expect(canSetUpRelease(terminus("decision", "v1.1.0"), null)).toBe(true);
         expect(canSetUpRelease(terminus("derived", "v1.1.0"), null)).toBe(true);
         expect(canSetUpRelease(terminus("nothing", null), null)).toBe(false);
-        expect(canSetUpRelease(terminus("chosen", "v1.1.0"), { channel: "public", tag: "v1.1.0" } as never)).toBe(false);
+        expect(canSetUpRelease(terminus("chosen", "v1.1.0"), { channel: "public", tag: "v1.1.0" } as never)).toBe(
+            false
+        );
     });
 
     it("draws the ring and the route in the neutral state when it is not", () => {
@@ -241,5 +243,41 @@ describe("motion CSS", () => {
         expect(MotionStyles).toContain(
             "@keyframes lm-chase { 0% { opacity: 1; } 33.333% { opacity: 0; } 100% { opacity: 0; } }"
         );
+    });
+});
+
+describe("the terminus detail of a planned station (#1751)", () => {
+    const terminusDetail = (m: LineMapModel) =>
+        renderToStaticMarkup(
+            <Detail
+                item={{ kind: "terminus" } as Parameters<typeof Detail>[0]["item"]}
+                model={m}
+                trunkCi=""
+                setup={false}
+            />
+        );
+    const withTerminus = (terminus: LineMapModel["terminus"]): LineMapModel => ({ ...model(), terminus });
+
+    it("says the planned version has nothing on the trunk yet, not a count of changes", () => {
+        const html = terminusDetail(
+            withTerminus({
+                tag: "v1.1.1",
+                state: "planned",
+                chip: "to decide",
+                note: "Planned — milestone v1.1.1, 27 open, nothing on develop yet",
+                waiting: 0,
+            })
+        );
+        expect(html).toContain('data-testid="line-map-terminus-planned"');
+        expect(html).toContain("Planned, nothing on develop yet.");
+        expect(html).not.toContain("not yet on main");
+    });
+
+    it("keeps the count of changes for a release the commits justify", () => {
+        const html = terminusDetail(
+            withTerminus({ tag: "v1.2.0", state: "derived", chip: "minor", note: "Derived", waiting: 3 })
+        );
+        expect(html).not.toContain("line-map-terminus-planned");
+        expect(html).toContain("3 changes on develop not yet on main.");
     });
 });
