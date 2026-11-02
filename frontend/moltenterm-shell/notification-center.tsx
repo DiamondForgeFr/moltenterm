@@ -687,7 +687,12 @@ export function NotificationCenter() {
                                   <RowBoundary key={entry.id}>
                                       <NotificationRow
                                           entry={entry}
-                                          label={workspaceLabel(entry.workspaceid, workspaces, currentWorkspace?.oid)}
+                                          label={workspaceLabel(
+                                              entry.workspaceid,
+                                              workspaces,
+                                              currentWorkspace?.oid,
+                                              entry.tabid
+                                          )}
                                           now={now}
                                           archived={tab === "archived"}
                                           highlighted={highlightIds.includes(entry.id)}

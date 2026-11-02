@@ -9501,6 +9501,8 @@
             "typeTitleMany": "Projet courant : {type} · {count} projets dans cet espace de travail",
             "switched": "Projet courant : {project}",
             "switchedHint": "Les nouveaux agents démarrent dans son dossier.",
+            "activityItem": "{count} {state}",
+            "activityLine": "{project} · {activity}",
             "added": "{project} ajouté",
             "addedHint": "Le panneau Intégration suit ses pull requests. Choisissez-le dans l’en-tête pour y travailler.",
             "addTitle": "Ajouter un projet à {name}",

@@ -15,6 +15,7 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { fetchCodingAgent } from "../coding-agent/coding-agent";
+import { projectTabIds } from "../hidden-tabs";
 import { I18nModel, t, tCount } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import { pipelineAgentOf } from "../mission/pipeline-agent";
@@ -151,7 +152,7 @@ export class ViewPins {
             const data = get(AgentStates.getInstance().dataAtom);
             const ids = new Set(get(this.globalPinsAtom).map((p) => p.id));
             const ws = get(atoms.workspace);
-            return (ws?.tabids ?? []).filter((id) => {
+            return projectTabIds(ws).filter((id) => {
                 const tab = get(tabAtom(id));
                 return tab != null && viewStateOf(tab, ids) === "temporary" && !tab.meta?.["molten:projecttab"]
                     ? viewFinished(data, tab.blockids)
@@ -1051,7 +1052,7 @@ export async function announceClosedViews(workspaceId: string, count: number, ki
 // shows the toast once the closes are done. false: every view of the workspace is closing.
 export async function showSurvivor(closing: readonly string[]): Promise<boolean> {
     const ws = globalStore.get(atoms.workspace);
-    const survivor = (ws?.tabids ?? []).find((id) => !closing.includes(id));
+    const survivor = projectTabIds(ws).find((id) => !closing.includes(id));
     if (survivor == null) {
         return false;
     }
