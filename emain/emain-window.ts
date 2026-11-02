@@ -39,7 +39,7 @@ import {
     windowShowsItsActiveView, // MOLTENTERM-PATCH (#1250)
     windowTabViews,
 } from "./moltenterm-tabview-host";
-import { isWindowOnWorkspace, runWindowAction, WindowAction } from "./moltenterm-window-actions";
+import { isTabGone, isWindowOnWorkspace, runWindowAction, WindowAction } from "./moltenterm-window-actions"; // MOLTENTERM-PATCH (#1778): isTabGone
 import { askEditNewWorkspace } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#743)
 import { updater } from "./updater";
 
@@ -639,7 +639,8 @@ handleAppIpc("close-tab", async (event, workspaceId: string, tabId: string, conf
         }
     }
     await ww.queueCloseTab(tabId);
-    return true;
+    // MOLTENTERM-PATCH (#1778): the close has run once the queue answers; true only when the tab is gone
+    return await isTabGone(workspaceId, tabId);
 });
 
 onAppIpc("switch-workspace", (event, workspaceId) => {

@@ -91,6 +91,18 @@ export function isWindowOnWorkspace(win: WaveBrowserWindow, workspaceId: string)
     );
 }
 
+// Whether a tab no longer is in its workspace, once its close ran (#1778). A workspace that is gone (its last tab
+// closed with the window) holds no tab; a backend that cannot answer leaves the close as asked, as before.
+export async function isTabGone(workspaceId: string, tabId: string): Promise<boolean> {
+    try {
+        const ws = await WorkspaceService.GetWorkspace(workspaceId);
+        return ws?.tabids?.includes(tabId) !== true;
+    } catch (e) {
+        console.log("[#1778] could not check the closed tab", tabId, e);
+        return true;
+    }
+}
+
 // While an action runs the hot spare waits to be raised (it would compete with the view being shown); once the queue is
 // empty a pending state that is not a failure goes (#450), and the hidden views past the budget are destroyed (#454).
 export async function runWindowAction(win: WaveBrowserWindow, entry: WindowAction, run: ActionRun) {

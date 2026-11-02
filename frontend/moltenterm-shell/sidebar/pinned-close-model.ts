@@ -46,9 +46,9 @@ export function planPinnedClose(
     return { tabIds: asked, shared: true, confirm: names.length >= 2, projects: names };
 }
 
-// A window's action queue keeps one pending action: a close asked while another action runs (the switch to the view that
-// takes the screen) is replaced by the next close and never runs, though the call answered true. Each close is therefore
-// checked and asked again when the tab is still there; the first ask is the recorded one, the others do not record again.
+// A safety net: since #1778 the window's action queue runs every close in order and closeTab answers true only once the
+// tab is gone, but the workspace this renderer sees can lag behind. Each close is checked and asked again when the tab is
+// still there; the first ask is the recorded one, the others do not record again.
 export const CloseAttempts = 3;
 export const CloseStepMs = 100;
 export const CloseStepsPerAttempt = 20;

@@ -1560,3 +1560,71 @@ describe("a window always shows a live view of its active tab (#1250)", () => {
         expectShowsLive(b.activetabid);
     });
 });
+
+describe("a burst of closes and switches (#1778)", () => {
+    function addTabs(wsId: string, n: number): string[] {
+        const ws = h.backend.workspaces.get(wsId);
+        return Array.from({ length: n }, () => {
+            const id = h.backend.newId("tab-");
+            h.backend.tabs.add(id);
+            ws.tabids.push(id);
+            return id;
+        });
+    }
+
+    function tabsOf(wsId: string): string[] {
+        return h.backend.workspaces.get(wsId).tabids;
+    }
+
+    it("closes every view asked while another action runs, each answering true once it is gone", async () => {
+        const starter = await setup();
+        await warmSpare();
+        const first = starter.activetabid;
+        const tabs = addTabs(starter.oid, 7);
+        const keep = tabs[6];
+        ipc("set-active-tab", keep);
+        await vi.advanceTimersByTimeAsync(1);
+        const answers = tabs.slice(0, 6).map((id) =>
+            (ipc("close-tab", starter.oid, id, false) as Promise<boolean>).then((ok) => ({
+                ok,
+                goneThen: !tabsOf(starter.oid).includes(id),
+            }))
+        );
+        await vi.advanceTimersByTimeAsync(30_000);
+        // Before #1778: the queue kept one pending action, so only the last close of the burst ran.
+        expect(await Promise.all(answers)).toEqual(tabs.slice(0, 6).map(() => ({ ok: true, goneThen: true })));
+        expect(tabsOf(starter.oid)).toEqual([first, keep]);
+        expect(queueLength()).toBe(0);
+    });
+
+    it("runs a burst of switches and closes in order, ending on the last switch", async () => {
+        const starter = await setup();
+        await warmSpare();
+        const first = starter.activetabid;
+        const [a, b, c, d] = addTabs(starter.oid, 4);
+        const calls = [
+            ipc("set-active-tab", a),
+            ipc("close-tab", starter.oid, b, false),
+            ipc("set-active-tab", c),
+            ipc("set-active-tab", d),
+            ipc("close-tab", starter.oid, c, false),
+            ipc("set-active-tab", d),
+        ];
+        await vi.advanceTimersByTimeAsync(30_000);
+        await Promise.all(calls);
+        expect(tabsOf(starter.oid)).toEqual([first, a, d]);
+        expect(h.onScreen()).toBe(d);
+        expect(queueLength()).toBe(0);
+    });
+
+    it("answers false when the close could not remove the tab", async () => {
+        const starter = await setup();
+        await warmSpare();
+        const [a] = addTabs(starter.oid, 1);
+        h.backend.faults.set("CloseTab", "null");
+        const answer = ipc("close-tab", starter.oid, a, false) as Promise<boolean>;
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(await answer).toBe(false);
+        expect(tabsOf(starter.oid)).toContain(a);
+    });
+});
