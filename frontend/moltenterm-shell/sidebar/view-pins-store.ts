@@ -15,7 +15,7 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { fetchCodingAgent } from "../coding-agent/coding-agent";
-import { projectTabIds } from "../hidden-tabs";
+import { projectTabIds, slotMembers } from "../hidden-tabs";
 import { I18nModel, t, tCount } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import { pipelineAgentOf } from "../mission/pipeline-agent";
@@ -28,6 +28,7 @@ import { readWorkspaceProject } from "../workspace-project";
 import { AgentSlotAgentMetaKey } from "../workspace-views/view-suggestions";
 import { ViewNameKeyMetaKey, ViewPendingMetaKey } from "../workspace-views/workspace-views-model";
 import { localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
+import { PinnedClosePlan, planPinnedClose } from "./pinned-close-model";
 import { showUndoToast } from "./sidebar-undo";
 import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
 import {
@@ -39,6 +40,7 @@ import {
     GlobalPinMetaKey,
     GlobalPinRevMetaKey,
     GlobalPinsMetaKey,
+    InstanceMetaKey,
     instanceStale,
     isProjectTab,
     layoutSettled,
@@ -58,6 +60,7 @@ import {
     readGlobalPins,
     readPinConfig,
     replacePin,
+    SlotHintMetaKey,
     undoPins,
     undoPinUpdate,
     viewBusy,
@@ -71,6 +74,7 @@ import {
     viewStateOf,
     withoutPin,
 } from "./view-pins-model";
+import { projectLabel, readProjects } from "./workspace-projects";
 
 const CaptureTimeoutMs = 10000;
 const BuildTimeoutMs = 15000;
@@ -369,9 +373,10 @@ export class ViewPins {
         }
     }
 
-    // Every instance of a pin in this workspace: one after a fork whose block was opened again.
+    // Every instance of a pin in the current project: one after a fork whose block was opened again. The other
+    // projects' instances are theirs: they follow the pin the next time they open (#1760).
     private instancesOf(pinId: string): string[] {
-        const ids = globalStore.get(atoms.workspace)?.tabids ?? [];
+        const ids = projectTabIds(globalStore.get(atoms.workspace));
         return ids.filter((id) => globalStore.get(tabAtom(id))?.meta?.[GlobalPinMetaKey] === pinId);
     }
 
@@ -577,9 +582,44 @@ export class ViewPins {
             if (tab != null && tab.name !== value) {
                 await RpcApi.UpdateTabNameCommand(TabRpcClient, ref.tabId, value);
             }
+            // A tile is one view of the workspace: its instances in the other projects take the name (#1760).
+            for (const id of this.slotSiblings(ref.tabId)) {
+                if (globalStore.get(tabAtom(id))?.name !== value) {
+                    await RpcApi.UpdateTabNameCommand(TabRpcClient, id, value);
+                }
+            }
         } catch (e) {
             pinError(e);
         }
+    }
+
+    // The other instances of a tile's slot, in the other projects (#1760).
+    private slotSiblings(tabId: string): string[] {
+        if (!tabId) {
+            return [];
+        }
+        return slotMembers(globalStore.get(atoms.workspace), tabId).filter((id) => id !== tabId);
+    }
+
+    // The other instances of a pinned view in the workspace, in every project: a tile's slot, or the instances of the
+    // pin everywhere this view is one of.
+    private pinSiblings(tabId: string, state: ViewState): string[] {
+        if (state === "workspace") {
+            return this.slotSiblings(tabId);
+        }
+        const pin = globalStore.get(tabAtom(tabId))?.meta?.[GlobalPinMetaKey];
+        if (state !== "everywhere" || typeof pin !== "string") {
+            return [];
+        }
+        return (globalStore.get(atoms.workspace)?.tabids ?? []).filter(
+            (id) => id !== tabId && globalStore.get(tabAtom(id))?.meta?.[GlobalPinMetaKey] === pin
+        );
+    }
+
+    // An instance a project never showed has no panel yet.
+    private isPlaceholder(tabId: string): boolean {
+        const tab = globalStore.get(tabAtom(tabId));
+        return !!tab?.meta?.[InstanceMetaKey] && (tab.blockids?.length ?? 0) === 0;
     }
 
     // Change icon (FR-SHELL-081): a chosen glyph replaces the panels' icons; null goes back to them. A view pinned
@@ -598,6 +638,9 @@ export class ViewPins {
             }
             if (ref.tabId) {
                 await this.setTabMeta(ref.tabId, { [ViewIconMetaKey]: value });
+                for (const id of this.slotSiblings(ref.tabId)) {
+                    await this.setTabMeta(id, { [ViewIconMetaKey]: value });
+                }
             }
         } catch (e) {
             pinError(e);
@@ -771,17 +814,21 @@ export class ViewPins {
                 return;
             }
             const metaBefore = pinMetaOf(tab?.meta);
+            // A pinned view is the workspace's: the move applies to its instances in the other projects too (#1760).
+            // Instances pinned in the workspace together share one slot, which the window names.
+            const siblings = ref.tabId ? this.pinSiblings(ref.tabId, from) : [];
+            const patch = to === "workspace" ? { ...move.tabMeta, [SlotHintMetaKey]: newSlotName() } : move.tabMeta;
             let built: string = null;
             if (to === "everywhere") {
                 await this.writeGlobalPins(move.pins);
-                await this.setTabMeta(ref.tabId, move.tabMeta);
+                await this.setTabMeta(ref.tabId, patch);
             } else {
                 if (tab != null) {
-                    await this.setTabMeta(ref.tabId, move.tabMeta);
+                    await this.setTabMeta(ref.tabId, patch);
                 } else {
                     const req = {
                         name: move.pin.name,
-                        tabmeta: move.tabMeta,
+                        tabmeta: patch,
                         config: move.pin.config,
                         background: true,
                     };
@@ -790,6 +837,15 @@ export class ViewPins {
                 if (from === "everywhere") {
                     await this.writeGlobalPins(move.pins);
                 }
+            }
+            const siblingsBefore: { id: string; meta: Record<string, any> }[] = [];
+            for (const id of siblings) {
+                if (to === "temporary" && this.isPlaceholder(id)) {
+                    await getApi().closeTab(globalStore.get(atoms.workspace)?.oid, id, false);
+                    continue;
+                }
+                siblingsBefore.push({ id, meta: pinMetaOf(globalStore.get(tabAtom(id))?.meta) });
+                await this.setTabMeta(id, patch);
             }
             showUndoToast(this.moveTitle(from, to, shown), async () => {
                 if (move.pin != null) {
@@ -803,6 +859,9 @@ export class ViewPins {
                 if (tab != null) {
                     await this.setTabMeta(ref.tabId, metaBefore);
                 }
+                for (const sibling of siblingsBefore) {
+                    await this.setTabMeta(sibling.id, sibling.meta);
+                }
             });
         } catch (e) {
             pinError(e);
@@ -811,7 +870,7 @@ export class ViewPins {
 
     // This workspace's instance of a view pinned everywhere, when it opened one.
     private instanceOf(pinId: string): string {
-        const ids = globalStore.get(atoms.workspace)?.tabids ?? [];
+        const ids = projectTabIds(globalStore.get(atoms.workspace));
         return ids.find((id) => globalStore.get(tabAtom(id))?.meta?.[GlobalPinMetaKey] === pinId) ?? undefined;
     }
 
@@ -838,6 +897,11 @@ export class ViewPins {
             const config = await this.capture(tabId);
             if (state === "workspace") {
                 await this.setTabMeta(tabId, { [PinConfigMetaKey]: config });
+                // The tile's instances in the other projects take the new configuration, never rebuilt: they show the
+                // amber ring when their panels differ (FR-SHELL-094, #1760).
+                for (const id of this.slotSiblings(tabId)) {
+                    await this.setTabMeta(id, { [PinConfigMetaKey]: config });
+                }
                 showToast({ title: t("sidebar.pins.saved", { name: shownName(tab) }) });
                 return;
             }
@@ -1000,6 +1064,10 @@ export class ViewPins {
     }
 }
 
+function newSlotName(): string {
+    return makeGlobalPinId(Date.now(), Math.random()).replace(/^g/, "s");
+}
+
 function forkToastId(tabId: string): string {
     return `view-fork:${tabId}`;
 }
@@ -1076,19 +1144,23 @@ export function pinnedViewKeepsTab(tabId: string): boolean {
     return globalStore.get(ViewPins.getInstance().stateAtom(tabId)) !== "temporary";
 }
 
-// A pinned view does not close (FR-SHELL-080): its tab stays and the toast says to unpin it first. True when the
-// close was refused.
-export function refusePinnedClose(tabId: string): boolean {
+// What closing a view closes (FR-SHELL-080, #1760): a temporary view itself; a pinned view for every project of the
+// workspace, with a confirmation naming them when there are two or more.
+export function pinnedClosePlanOf(tabId: string): PinnedClosePlan {
     const tab = globalStore.get(tabAtom(tabId));
-    if (tab == null || globalStore.get(ViewPins.getInstance().stateAtom(tabId)) === "temporary") {
-        return false;
+    const state: ViewState = tab == null ? "temporary" : globalStore.get(ViewPins.getInstance().stateAtom(tabId));
+    if (state === "temporary" && !isProjectTab(tab)) {
+        return { tabIds: [tabId], shared: false, confirm: false, projects: [] };
     }
-    showToast({
-        id: `pinned-close:${tabId}`,
-        title: t("sidebar.pins.noClose", { name: shownName(tab) }),
-        message: t("sidebar.pins.noCloseHint"),
-    });
-    return true;
+    const ws = globalStore.get(atoms.workspace);
+    return planPinnedClose(
+        ws,
+        tabId,
+        state,
+        isProjectTab(tab),
+        (id) => (globalStore.get(tabAtom(id))?.meta ?? null) as Record<string, any>,
+        readProjects(ws).map(projectLabel)
+    );
 }
 
 // "Start an agent" in an agent slot of a view pinned everywhere: the project's coding agent, typed into the slot's

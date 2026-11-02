@@ -35,11 +35,20 @@ export function callProjectViews(command: string, data: Record<string, any>): Pr
     return TabRpcClient.wshRpcCall(command, data, { route: ProjectViewsRoute, timeout: ProjectViewsTimeoutMs });
 }
 
+const ExplicitSwitch = { at: 0 };
+
+// A project made current by the developer choosing it says so itself (switchWorkspaceProject); one made current by
+// showing a view or an agent of another project says it with a short toast (#1760).
+export function lastExplicitSwitchAt(): number {
+    return ExplicitSwitch.at;
+}
+
 export async function switchWorkspaceProject(id: string): Promise<void> {
     const ws = activeWorkspace();
     if (ws == null || switchProjectUpdate(ws, id) == null) {
         return;
     }
+    ExplicitSwitch.at = Date.now();
     await callProjectViews(ProjectSwitchCommand, { workspaceid: ws.oid, projectid: id });
     const project = readProjects(ws).find((p) => p.id === id);
     showToast({

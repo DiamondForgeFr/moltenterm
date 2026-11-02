@@ -70,9 +70,11 @@ func writeSlots(ws *waveobj.Workspace, slots map[string]string) {
 // hint never stays on the tab. A view that is shared stays out of the map.
 func moltenStampTabProject(ws *waveobj.Workspace, tab *waveobj.Tab) {
 	hint := tab.Meta.GetString(projectviews.ViewProjectHintMetaKey, "")
-	if tab.Meta.HasKey(projectviews.ViewProjectHintMetaKey) {
+	slotHint := tab.Meta.GetString(projectviews.SlotHintMetaKey, "")
+	if tab.Meta.HasKey(projectviews.ViewProjectHintMetaKey) || tab.Meta.HasKey(projectviews.SlotHintMetaKey) {
 		meta := maps.Clone(tab.Meta)
 		delete(meta, projectviews.ViewProjectHintMetaKey)
+		delete(meta, projectviews.SlotHintMetaKey)
 		tab.Meta = meta
 	}
 	if !projectviews.Multi(ws.Meta) || sharedTabMeta(tab.Meta) {
@@ -89,7 +91,10 @@ func moltenStampTabProject(ws *waveobj.Workspace, tab *waveobj.Tab) {
 	if isTileMeta(tab.Meta) {
 		slots := projectviews.ReadSlots(ws.Meta)
 		if slots[tab.OID] == "" {
-			slots[tab.OID] = newSlotId()
+			slots[tab.OID] = slotHint
+			if slotHint == "" {
+				slots[tab.OID] = newSlotId()
+			}
 			writeSlots(ws, slots)
 		}
 	}
@@ -125,6 +130,9 @@ func moltenTabMetaWithProject(ws *waveobj.Workspace, tabId string, meta waveobj.
 	}
 	if id := projectviews.ReadTabProjects(ws.Meta)[tabId]; id != "" {
 		meta[projectviews.ViewProjectHintMetaKey] = id
+	}
+	if slot := projectviews.ReadSlots(ws.Meta)[tabId]; slot != "" {
+		meta[projectviews.SlotHintMetaKey] = slot
 	}
 	return meta
 }
@@ -321,9 +329,18 @@ func MoltenTabMetaChanged(ctx context.Context, tabId string, patch waveobj.MetaM
 			writeTabProjects(ws, owners)
 			changed = true
 		}
+		// The window gives the instances it pins together one slot (Pin only in this workspace on a view pinned everywhere).
+		if patch.HasKey(projectviews.SlotHintMetaKey) {
+			if err := wstore.UpdateObjectMeta(tctx, waveobj.MakeORef(waveobj.OType_Tab, tabId), waveobj.MetaMapType{projectviews.SlotHintMetaKey: nil}, false); err != nil {
+				return false, err
+			}
+		}
 		switch {
 		case isTileMeta(tab.Meta) && slots[tabId] == "":
-			slots[tabId] = newSlotId()
+			slots[tabId] = patch.GetString(projectviews.SlotHintMetaKey, "")
+			if slots[tabId] == "" {
+				slots[tabId] = newSlotId()
+			}
 		case !isTileMeta(tab.Meta) && slots[tabId] != "":
 			delete(slots, tabId)
 		default:

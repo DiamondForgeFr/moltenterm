@@ -81,11 +81,10 @@ describe("a view's glyph (DS-SHELL-126)", () => {
 });
 
 describe("the view menu (FR-SHELL-081)", () => {
-    it("never offers Close on a pinned view, and says why", () => {
+    it("offers Close on a pinned view too, which closes it for every project (#1760)", () => {
         for (const state of ["workspace", "everywhere"] as const) {
             const plan = viewMenuPlan(state, false);
-            expect(plan.close).toBe(false);
-            expect(plan.closeNote).toBe(true);
+            expect(plan.close).toBe(true);
             expect(plan.makeTemporary).toBe(true);
             expect(plan.pinHere).toBe(false);
         }
@@ -95,7 +94,6 @@ describe("the view menu (FR-SHELL-081)", () => {
         const plan = viewMenuPlan("temporary", true);
         expect(plan).toMatchObject({ pinHere: true, pinEverywhere: true, close: true, makeTemporary: false });
         expect(plan.saveOrRevert).toBe(false);
-        expect(plan.closeNote).toBe(false);
     });
 
     it("offers each pinned state the other scope", () => {
@@ -123,7 +121,7 @@ describe("the view menu (FR-SHELL-081)", () => {
     it("gives the Project tab no move and keeps its Close", () => {
         const plan = viewMenuPlan(shownViewState("temporary", true), false, true);
         expect(menuMoveTargets(plan)).toEqual([]);
-        expect(plan).toMatchObject({ close: true, closeNote: false, saveOrRevert: false });
+        expect(plan).toMatchObject({ close: true, saveOrRevert: false });
     });
 
     it("gives the palette the menu's moves, in its order (#1652)", () => {

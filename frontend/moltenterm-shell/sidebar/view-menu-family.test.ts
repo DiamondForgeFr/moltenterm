@@ -58,12 +58,11 @@ describe("the view menu by family (FR-SHELL-107)", () => {
         }
     });
 
-    it("turns a pinned view's close note into the tooltip of Make temporary", () => {
+    it("offers a pinned view's Close, and Make temporary without a tooltip about it (#1760)", () => {
         const items = viewMenuItems(target("workspace"), hooks, t);
         expect(labels(items)).not.toContain("sidebar.views.closeNote");
-        expect(labels(items)).not.toContain("sidebar.views.close");
         const make = items.find((i) => i.label === "sidebar.pins.menu.makeTemporary");
-        expect(make.tooltip).toBe("sidebar.views.closeNote");
+        expect(make.tooltip).toBeUndefined();
         expect(make.enabled).not.toBe(false);
     });
 

@@ -10,7 +10,8 @@ import { agentLabel, AgentStateInfo, agentStateLabel, AgentStateName } from "./a
 import { t } from "./i18n/i18n";
 
 // window, quit, delete and switch are asked by Electron main (FR-SHELL-062, busy-close-main.ts).
-export type BusyCloseAction = "pane" | "replace" | "tab" | "window" | "quit" | "delete" | "switch" | "clear";
+// shared: a pinned view closing for every project of the workspace (#1760), with what runs in its instances if any.
+export type BusyCloseAction = "pane" | "replace" | "tab" | "window" | "quit" | "delete" | "switch" | "clear" | "shared";
 
 // What one terminal block says of itself. Unknown fields stay null: a read that failed counts as no signal.
 export type RunningSource = {
@@ -133,7 +134,19 @@ export type BusyCloseText = { title: string; subtitle: string; confirm: string }
 
 // name: the tab's for a tab, the app's for a quit, the workspace's for a delete. quits: a window close that quits the
 // app (the last window on Linux and Windows).
-export function busyCloseText(action: BusyCloseAction, name?: string, quits?: boolean): BusyCloseText {
+export function busyCloseText(
+    action: BusyCloseAction,
+    name?: string,
+    quits?: boolean,
+    projects?: string
+): BusyCloseText {
+    if (action === "shared") {
+        return {
+            title: t("shell.busy.shared.title", { name: name ?? "" }),
+            subtitle: t("shell.busy.shared.subtitle", { name: name ?? "", projects: projects ?? "" }),
+            confirm: t("shell.busy.shared.confirm"),
+        };
+    }
     if (action === "window") {
         return {
             title: t("shell.busy.window.title"),

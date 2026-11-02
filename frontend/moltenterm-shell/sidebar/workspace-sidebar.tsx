@@ -108,6 +108,7 @@ import {
 } from "./pr-counts";
 import { hasPrCounts, PrCounts } from "./pr-counts-model";
 import { activityText, otherProjectsActivity, ProjectActivity, topActivityState } from "./project-activity";
+import { useProjectFollowToast } from "./project-follow";
 import { AgentsSection } from "./sidebar-agents";
 import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
 import {
@@ -167,7 +168,7 @@ import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
 import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
 import { GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
-import { announceClosedViews, ClosedKindView, PinDraft, ViewPins } from "./view-pins-store";
+import { announceClosedViews, ClosedKindCleared, ClosedKindView, PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
 import { followSetAside, setAsideView } from "./view-set-aside";
 import {
@@ -637,6 +638,7 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const projects = readProjects(ws);
     const current = currentProject(ws);
     const type = projects.length > 1 ? projectLabel(current) : (current?.type ?? "");
+    useProjectFollowToast(ws, projects.length > 1 ? (current?.id ?? "") : "");
     const foundLogos = useFoundLogos(projects.length > 1 ? (current?.dir ?? "") : "");
     const icon = headerIcon(ws, foundLogos);
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom);
@@ -758,23 +760,28 @@ function useViewActions(
         // A temporary view closes in one click and goes aside for its toast's Undo (#1656); one that really closes
         // (a worktree answered for, the last view on screen) says so with Undo too, through Put-away views.
         let setAside = false;
-        const opts = temporary
-            ? {
-                  setAside: async (wsId: string, id: string) => {
-                      setAside = await setAsideView(wsId, id);
-                      return setAside;
-                  },
-              }
-            : undefined;
+        // A pinned view closes in every project of the workspace (#1760): the toast counts what closed.
+        let closedCount = 1;
+        const opts = {
+            ...(temporary
+                ? {
+                      setAside: async (wsId: string, id: string) => {
+                          setAside = await setAsideView(wsId, id);
+                          return setAside;
+                      },
+                  }
+                : {}),
+            closed: (count: number) => {
+                closedCount = count;
+            },
+        };
         closeTabAskingFirst(getApi().closeTab, ws?.oid, tabId, confirmClose, opts)
             .then((closed) => {
                 if (!closed || setAside) {
                     return;
                 }
                 deleteLayoutModelForTab(tabId);
-                if (temporary) {
-                    return announceClosedViews(ws?.oid, 1, ClosedKindView);
-                }
+                return announceClosedViews(ws?.oid, closedCount, closedCount > 1 ? ClosedKindCleared : ClosedKindView);
             })
             .catch((e) => console.log("closing a view from the sidebar", e));
     }, [ws?.oid, tabId, confirmClose, temporary]);

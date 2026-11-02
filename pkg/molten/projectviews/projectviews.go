@@ -45,6 +45,9 @@ const (
 	// each project that showed it; the slot is the workspace's pinned view, which closes and renames as one. must match
 	// frontend/moltenterm-shell/hidden-tabs.ts
 	SlotsMetaKey = "molten:viewslots"
+	// Tab meta, transient: the slot a reopened tile belongs to, so its instances in the other projects still share it.
+	// createTabObj moves it into SlotsMetaKey and takes it off the tab.
+	SlotHintMetaKey = "molten:viewslot"
 	// Tab meta, transient: the project a new tab is made for (a reopened view, an agent's tab). createTabObj moves it
 	// into TabProjectsMetaKey and takes it off the tab.
 	ViewProjectHintMetaKey = "molten:viewproject"
