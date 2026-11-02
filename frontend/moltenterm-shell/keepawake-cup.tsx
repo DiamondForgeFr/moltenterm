@@ -135,7 +135,9 @@ function HoldRow({ hold, onClose }: { hold: KeepAwakeHold; onClose: () => void }
                 aria-hidden
             />
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-primary">{hold.label}</span>
+                <span className="truncate text-primary" title={hold.label}>
+                    {hold.label}
+                </span>
                 {hold.detail ? (
                     <span className="line-clamp-2 text-11 text-muted" title={hold.detail}>
                         {hold.detail}
@@ -187,7 +189,7 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
             placement="bottom-end"
             role="dialog"
             ariaLabel={t("keepawake.popover.title")}
-            className="flex w-[300px] flex-col gap-3 p-0"
+            className="flex w-[340px] flex-col gap-3 p-0"
         >
             <div className="flex flex-col gap-1 px-3 pt-3" data-testid="keepawake-now">
                 <div className="text-12 font-medium text-primary">{t("keepawake.popover.title")}</div>
