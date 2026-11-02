@@ -8927,7 +8927,10 @@
                 "codexsessionlink": "Lien de session (à la fin du premier tour)",
                 "codexstatehooksof": "Hooks d'état de l'agent ({events}), une fois les hooks de MoltenTerm approuvés dans /hooks de l'agent",
                 "codexsessionstart": "Lien de session dès le démarrage (une fois les hooks de MoltenTerm approuvés dans /hooks de l'agent)",
-                "codexnotifications": "État en attente par les notifications de l'agent (approbations et questions)"
+                "codexnotifications": "État en attente par les notifications de l'agent (approbations et questions)",
+                "projectfolder": "Dossier du projet comme dossier de travail en plus ({folder})",
+                "projectnote": "Note de départ : où se trouvent le contexte et le code du projet",
+                "projectstart": "Démarré dans le dépôt du projet ({repo})"
             },
             "reason": {
                 "managedhooksonly": "les réglages gérés de votre organisation n'autorisent que leurs propres hooks",
@@ -8935,6 +8938,8 @@
                 "reviewsession": "une session de revue est en lecture seule : le mode café ne répond jamais à ses demandes",
                 "alreadyyours": "déjà présent chez vous, dans {where}",
                 "alreadyyoursflag": "déjà présent chez vous, dans votre {flag}",
+                "alreadyyoursadddir": "déjà présent chez vous, dans votre --add-dir",
+                "projectrepogone": "le dépôt du projet {repo} est introuvable",
                 "alreadyyoursmcpconfig": "déjà présent chez vous, dans votre --mcp-config",
                 "alreadyyoursnotify": "déjà présent chez vous, dans {where} : il tourne comme vous l'avez réglé, et la session est liée autour",
                 "managedstatusline": "les réglages gérés de votre organisation définissent la ligne d'état",
@@ -9301,7 +9306,17 @@
         "agent": "Agent du projet",
         "agentDefault": "Par défaut de l'app ({agent})",
         "agentDefaultNone": "Par défaut de l'app",
-        "agentHint": "L'agent que MoltenTerm lance pour les revues, les notes de version et le compagnon de ce projet. Le même choix que dans les options des panneaux."
+        "agentHint": "L'agent que MoltenTerm lance pour les revues, les notes de version et le compagnon de ce projet. Le même choix que dans les options des panneaux.",
+        "folder": "Dossier du projet",
+        "folderHint": "Contient le contexte du projet, par exemple les documents d'un client. Le panneau Fichiers s'ouvre ici."
+    },
+    "projectRepo": {
+        "label": "Dépôt de code",
+        "none": "Aucun : travailler sur le dossier",
+        "noneFound": "Aucun : pas de dépôt Git trouvé dans le dossier",
+        "hint": "Les agents démarrent dans le dépôt, avec le dossier à portée de main. Intégration, Projet et CI lisent le dépôt.",
+        "folderIsRepo": "Le dossier est lui-même le dépôt.",
+        "gone": "Le dépôt choisi n'est plus dans le dossier : choisissez-en un autre, ou aucun."
     },
     "hang": {
         "title": "La fenêtre n'a pas répondu pendant {seconds} s",
@@ -9538,7 +9553,7 @@
             "removeTitle": "Retire le projet de cet espace de travail ; rien ne change dans son dossier",
             "needTypeOrFolder": "Donnez un type ou un dossier au projet.",
             "typeTooLong": "Un type compte 40 caractères au plus.",
-            "folderTaken": "Ce dossier est déjà un projet de cet espace de travail.",
+            "folderTaken": "Ce dossier et ce dépôt sont déjà un projet de cet espace de travail.",
             "failed": "Le projet n’a pas pu être enregistré : {error}"
         },
         "tiles": {

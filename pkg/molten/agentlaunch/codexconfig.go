@@ -263,6 +263,16 @@ func (c codexConfig) projectRootMarkers() string {
 	return ""
 }
 
+// setsKey names the first file, project files and the managed one included, that sets a top-level key, or "".
+func (c codexConfig) setsKey(key string) string {
+	for _, s := range c.sources {
+		if _, ok := s.keys[key]; ok {
+			return s.display
+		}
+	}
+	return ""
+}
+
 // browserWhere names the file that declares a molten-browser MCP server, or "".
 func (c codexConfig) browserWhere() string {
 	for _, s := range c.sources {

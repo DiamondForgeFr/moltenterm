@@ -8927,7 +8927,10 @@
                 "codexsessionlink": "Session link (at the end of the first turn)",
                 "codexstatehooksof": "Agent state hooks ({events}), once you trust MoltenTerm's hooks in the agent's /hooks",
                 "codexsessionstart": "Session link at start (once you trust MoltenTerm's hooks in the agent's /hooks)",
-                "codexnotifications": "Waiting state from the agent's notifications (approvals and questions)"
+                "codexnotifications": "Waiting state from the agent's notifications (approvals and questions)",
+                "projectfolder": "Project folder as an extra working directory ({folder})",
+                "projectnote": "Start note: where the project's context and code are",
+                "projectstart": "Started in the project's repository ({repo})"
             },
             "reason": {
                 "managedhooksonly": "your organization's managed settings allow only their own hooks",
@@ -8935,6 +8938,8 @@
                 "reviewsession": "a review session is read-only: coffee mode never answers its requests",
                 "alreadyyours": "already yours, in {where}",
                 "alreadyyoursflag": "already yours, in your {flag}",
+                "alreadyyoursadddir": "already yours, in your --add-dir",
+                "projectrepogone": "the project's repository {repo} was not found",
                 "alreadyyoursmcpconfig": "already yours, in your --mcp-config",
                 "alreadyyoursnotify": "already yours, in {where}: it runs as you set it, and the session is linked around it",
                 "managedstatusline": "your organization's managed settings set the status line",
@@ -9301,7 +9306,17 @@
         "agent": "Project's agent",
         "agentDefault": "App default ({agent})",
         "agentDefaultNone": "App default",
-        "agentHint": "The agent MoltenTerm starts for this project's reviews, release notes and companion. The same choice as in the panels' options."
+        "agentHint": "The agent MoltenTerm starts for this project's reviews, release notes and companion. The same choice as in the panels' options.",
+        "folder": "Project folder",
+        "folderHint": "Holds the project's context, for example a client's documents. The Files panel opens here."
+    },
+    "projectRepo": {
+        "label": "Code repository",
+        "none": "None: work on the folder",
+        "noneFound": "None: no Git repository found in the folder",
+        "hint": "Agents start in the repository, with the folder at hand. Integration, Project and CI read the repository.",
+        "folderIsRepo": "The folder is itself the repository.",
+        "gone": "The chosen repository is not in the folder anymore: choose another one, or none."
     },
     "hang": {
         "title": "The window did not respond for {seconds} s",
@@ -9538,7 +9553,7 @@
             "removeTitle": "Takes the project out of this workspace; nothing changes in its folder",
             "needTypeOrFolder": "Give the project a type or a folder.",
             "typeTooLong": "A type holds 40 characters at most.",
-            "folderTaken": "This folder is already a project of this workspace.",
+            "folderTaken": "This folder and repository are already a project of this workspace.",
             "failed": "The project could not be saved: {error}"
         },
         "tiles": {

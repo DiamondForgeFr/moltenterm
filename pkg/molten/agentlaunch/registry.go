@@ -44,6 +44,8 @@ type LaunchContext struct {
 	CodexSystemConfig string
 	// MoltenPath: the absolute path of MoltenTerm's molten (MoltenPath), "" when it is not installed.
 	MoltenPath string
+	// Project: the places of the terminal's workspace project, read by PlanProject only.
+	Project ProjectPlaces
 }
 
 // What a planned file is, for the report.
@@ -72,6 +74,8 @@ type LaunchPlan struct {
 	StepAside string
 	// StepAsideText: StepAside's code for the companion (#656).
 	StepAsideText *uimsg.Text
+	// StartDir: the folder the real binary starts in when it is not the terminal's (the project's repository).
+	StartDir string
 }
 
 // LaunchAdapter integrates one agent at launch.

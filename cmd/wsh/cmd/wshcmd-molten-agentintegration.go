@@ -192,7 +192,7 @@ func moltenPlannedIntegrationWith(adapter agentlaunch.LaunchAdapter, getenv func
 // planMoltenAgentLaunchDry plans like the launcher, without writing the generated file.
 func planMoltenAgentLaunchDry(adapter agentlaunch.LaunchAdapter, real string, getenv func(string) string) molten.AgentIntegrationReport {
 	report := molten.AgentIntegrationReport{Agent: adapter.Id(), RealPath: real}
-	plan, dataDir, err := moltenLaunchPlan(adapter, nil, getenv)
+	plan, dataDir, err := moltenLaunchPlan(adapter, nil, getenv, agentlaunch.ProjectPlaces{})
 	if err != nil {
 		report.StepAside = err.Error()
 		return report
