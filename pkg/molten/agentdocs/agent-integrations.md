@@ -27,6 +27,14 @@ and it hands its work to the agent of that first name with a brief (goal, contex
 MoltenTerm's data folder, after you allow it. Its instructions tell the agent its own first name. From a shell, the
 same is `molten agent list --active` and `molten agent send <name> --goal "..."`.
 
+A project can have a folder for its context (a client's documents, mails, specs) and a code repository inside it,
+chosen in the Project sheet. Started from a terminal that sits in the project folder or in a folder inside it, the
+agent gets the project folder as an extra working directory (`--add-dir`, for Claude Code and Codex alike) and a short
+start note telling it where the context and the code are (`--append-system-prompt` for Claude Code,
+`-c developer_instructions=...` for Codex); started from the project folder itself, it starts in the repository. Your
+own `--add-dir` for that folder, your own `--append-system-prompt` or `developer_instructions` are left alone and
+listed as such. A project whose folder is its repository, or a terminal outside the project folder, gets nothing.
+
 Which MoltenTerm feature works with which agent, and why one does not: `molten agent list --features` (one line per
 feature, one column per agent: N native, A adapted, P process only, - none, then the reasons), `--features --json`
 for the data. Check it before relying on a feature with an agent other than Claude Code or Codex.
