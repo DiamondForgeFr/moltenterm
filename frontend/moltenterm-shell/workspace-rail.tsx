@@ -72,6 +72,7 @@ import {
 } from "./rail-tray-model";
 import { AgentChoiceHost } from "./reviews/agent-choice";
 import { AssistedReviewHost } from "./reviews/assisted-review-dialog";
+import { LeadResumeHost } from "./reviews/lead-resume";
 import { installReviewHandoff } from "./reviews/reviews-handoff";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
@@ -831,6 +832,7 @@ export function WorkspaceRailHosts({ entries }: { entries: WorkspaceRailEntry[] 
             <PaneFocusKeeper />
             <WorktreeCloseHost />
             <AgentChoiceHost />
+            <LeadResumeHost />
             <AssistedReviewHost />
             <WorkspaceResetHost />
             <WorkspaceUndoHost />

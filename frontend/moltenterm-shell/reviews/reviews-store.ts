@@ -13,6 +13,7 @@ import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { CodingAgentChoice, codingAgentName, fetchCodingAgent } from "../coding-agent/coding-agent";
+import { t } from "../i18n/i18n";
 import { errorPhrase, phrase, type Phrase } from "../i18n/phrase";
 import { openMoltentermView } from "../open-view";
 import { showTabFromHere } from "../opener-tab";
@@ -33,14 +34,17 @@ import { openSheetValidate, ReviewValidateModel } from "../review/review-validat
 import { DurableSessions } from "../sessions/sessions-store";
 import { AgentChoiceAnswer, agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
 import { AssistedReviewModel } from "./assisted-review-dialog";
+import { askLeadResume } from "./lead-resume";
 import { BusyAgent, QueuedAsk, ReviewsAskQueue } from "./reviews-ask-queue";
 import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
 import type { Forecast } from "./reviews-forecast-model";
+import { leadRef, showLead } from "./reviews-lead";
 import { ReviewsMerges } from "./reviews-merges";
 import {
     blockersText,
     cleanupRebaseAsks,
     investigateBlockers,
+    LeadFacts,
     markReadyError,
     MoltentermReviewsView,
     ReadiedPrs,
@@ -382,8 +386,19 @@ export class ReviewsModel {
 
     // Check and finish one PR (#954), from its row's Retry: the agent on the branch, else the developer's choice.
     // markReady (#1212): Resume on a draft its agent stopped before marking ready, in a workflow without Human Testing.
-    async askFinish(dir: string, pr: ReviewPr, repo: string, markReady?: boolean): Promise<RebaseOutcome> {
-        const outcome = await this.finishOnce(dir, pr, repo, null, markReady);
+    // lead (#1779): Resume hands the work to the lead agent that owns it, running or resumed on the developer's choice,
+    // before the agent on the branch; New agent and the other tasks pass none.
+    async askFinish(
+        dir: string,
+        pr: ReviewPr,
+        repo: string,
+        markReady?: boolean,
+        lead?: LeadFacts
+    ): Promise<RebaseOutcome> {
+        const outcome = await this.finishOnce(dir, pr, repo, null, markReady, lead);
+        if (outcome?.kind === "leadgone") {
+            return this.resumeGoneLead(dir, pr, repo, markReady, lead, outcome);
+        }
         if (outcome?.kind !== "offer") {
             return outcome;
         }
@@ -401,12 +416,40 @@ export class ReviewsModel {
         return this.finishOnce(dir, pr, repo, choice, markReady);
     }
 
+    // The lead that owns the work no longer runs (#1779): the developer chooses to resume its session, to start a new
+    // agent the usual way, or to do nothing. Nothing starts before the answer.
+    private async resumeGoneLead(
+        dir: string,
+        pr: ReviewPr,
+        repo: string,
+        markReady: boolean,
+        lead: LeadFacts,
+        gone: RebaseOutcome
+    ): Promise<RebaseOutcome> {
+        const answer = await askLeadResume({
+            number: pr.number,
+            name: gone.result?.firstname || lead?.name || "",
+            agent: gone.result?.agentname || lead?.agentName || "",
+            folder: gone.result?.leadfolder ?? "",
+            guessed: gone.result?.leadguessed ?? true,
+        });
+        if (answer === "resume") {
+            return this.finishOnce(dir, pr, repo, null, markReady, lead, true);
+        }
+        if (answer === "new") {
+            return this.askFinish(dir, pr, repo, markReady);
+        }
+        return null;
+    }
+
     private async finishOnce(
         dir: string,
         pr: ReviewPr,
         repo: string,
         choice: AgentChoiceAnswer,
-        markReady?: boolean
+        markReady?: boolean,
+        lead?: LeadFacts,
+        resumeLead?: boolean
     ): Promise<RebaseOutcome> {
         const mode = choice?.mode;
         const repoName = repo || repoOfPrUrl(pr?.url);
@@ -431,9 +474,18 @@ export class ReviewsModel {
                 changesrequested: left.changesRequested || undefined,
                 noreport: left.noReport || undefined,
                 markready: (markReady && pr.draft) || undefined,
+                ...(lead != null ? { lead: leadRef(lead) } : {}),
+                ...(lead != null && resumeLead
+                    ? {
+                          resumelead: true,
+                          workspaceid: globalStore.get(atoms.workspace)?.oid,
+                          tabname: t("reviews.lead.tab", { number: pr.number }),
+                      }
+                    : {}),
                 ...(mode != null ? agentStartOf("finish", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);
+            showLead(result);
             outcome = rebaseOutcome(result, null, "finish");
         } catch (e) {
             outcome = rebaseOutcome(null, errorPhrase(e), "finish");

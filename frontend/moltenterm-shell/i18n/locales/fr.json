@@ -6959,6 +6959,22 @@
         "notRepo": {
             "hint": "Le panneau Intégration suit les changements du projet avec git : ses branches et ses pull requests. Suivez ce dossier avec git pour les voir ici."
         },
+        "lead": {
+            "sent": "Confiée à {name}, l'agent principal à qui ce travail appartient : le brief est dans son terminal, c'est lui qui décide qui s'en charge.",
+            "queued": "{name} est occupé : le brief est tapé dans son terminal quand son invite est libre.",
+            "started": "La session de {name} reprend dans une vue à elle : le brief est envoyé dès que son invite est prête.",
+            "gone": "{name} ne tourne plus.",
+            "tab": "Reprise #{number}",
+            "dialog": {
+                "title": "{name} ne tourne plus",
+                "subtitle": "Pull request #{number}",
+                "what": "{name} ({agent}) possède le travail de #{number}, mais sa session est terminée. MoltenTerm peut relancer {agent} sur sa session dans {folder}, dans une vue qu'il vous montre, et lui confier le travail dès que son invite est prête.",
+                "guessed": "MoltenTerm ne connaît pas la session de {name} avec certitude : {agent} reprend sa session la plus récente dans ce dossier.",
+                "then": "{name} décide ensuite qui fait le travail : il le confie à un sous-agent et garde son propre tour court.",
+                "resume": "Reprendre {name}",
+                "newAgent": "Nouvel agent…"
+            }
+        },
         "check": {
             "button": "Vérifier les agents",
             "buttonTitle": "Demander à l'agent de chaque pull request où il reste quelque chose (conflits, CI rouge, changements demandés, pas de rapport de test) de la vérifier par rapport à son ticket et de la finir. Les autres sont ignorées ; rien ne démarre sans votre confirmation.",
@@ -7079,6 +7095,7 @@
                 "relaunch": "Relancer {name}",
                 "startAgent": "Lancer un agent",
                 "resume": "Reprendre avec {name}",
+                "newAgent": "Nouvel agent",
                 "rebase": "Confier le rebase",
                 "investigate": "Analyser et résoudre",
                 "assistedReview": "Revue assistée",
@@ -7102,7 +7119,7 @@
                 "startAgent": "La session de la tâche est terminée : lancer un nouvel agent dessus",
                 "rebase": "Confier le rebase sur {base} à un agent : celui de la branche, ou un que vous lancez",
                 "investigate": "Un agent de travail résout ce qui bloque cette pull request, dans cet ordre : {blockers}. Il ne fusionne jamais.",
-                "resume": "Demande à {name} de finir cette pull request et de la marquer prête lui-même une fois sa CI verte. Il ne fusionne jamais."
+                "resume": "Reprendre cette pull request avec {name}, l'agent à qui elle appartient : il confie la fin à un sous-agent, garde son propre tour court et marque la PR prête une fois sa CI verte. Il ne fusionne jamais."
             },
             "fact": {
                 "ciFailing": "CI en échec : {names}",
@@ -9174,6 +9191,7 @@
         "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}",
         "investigate": "Lancé par vous à {time} pour analyser et résoudre ce qui bloque #{number}",
         "finish": "Lancé par vous à {time} pour vérifier #{number} et finir ce qui reste",
+        "lead": "Lancé par vous à {time} : la session de l'agent principal reprise pour récupérer #{number}",
         "release": "Lancé par vous à {time} pour analyser et résoudre l'étape en échec {step} de la release {tag}",
         "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté"
     },

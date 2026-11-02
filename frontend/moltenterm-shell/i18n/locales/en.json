@@ -6959,6 +6959,22 @@
         "notRepo": {
             "hint": "The Integration panel follows the project's changes with git: its branches and its pull requests. Start tracking this folder with git to see them here."
         },
+        "lead": {
+            "sent": "Handed to {name}, the lead agent that owns this work: the brief is in its terminal, it decides who does it.",
+            "queued": "{name} is busy: the brief is typed in its terminal when its prompt is idle.",
+            "started": "{name}'s session is resuming in a view of its own: the brief is sent once its prompt is up.",
+            "gone": "{name} no longer runs.",
+            "tab": "Resume #{number}",
+            "dialog": {
+                "title": "{name} is no longer running",
+                "subtitle": "Pull request #{number}",
+                "what": "{name} ({agent}) owns the work on #{number}, but its session ended. MoltenTerm can start {agent} again on its session in {folder}, in a view it shows you, and hand it the work once its prompt is up.",
+                "guessed": "MoltenTerm does not know {name}'s session for sure: {agent} resumes its most recent session in that folder.",
+                "then": "{name} then decides who does the work: it delegates to a subagent and keeps its own turn short.",
+                "resume": "Resume {name}",
+                "newAgent": "New agent…"
+            }
+        },
         "check": {
             "button": "Check the agents",
             "buttonTitle": "Ask the agent on each pull request with something left (conflicts, red CI, requested changes, no test report) to check it against its ticket and finish it. The others are skipped; nothing starts without your confirmation.",
@@ -7079,6 +7095,7 @@
                 "relaunch": "Relaunch {name}",
                 "startAgent": "Start an agent",
                 "resume": "Resume {name}",
+                "newAgent": "New agent",
                 "rebase": "Hand the rebase over",
                 "investigate": "Analyze and resolve",
                 "assistedReview": "Assisted review",
@@ -7102,7 +7119,7 @@
                 "startAgent": "The task's session is gone: start a new agent on it",
                 "rebase": "Hand the rebase on {base} to an agent: the one on the branch, or one you start",
                 "investigate": "A work agent resolves what blocks this pull request, in this order: {blockers}. It never merges.",
-                "resume": "Ask {name} to finish this pull request and mark it ready itself once its CI is green. It never merges."
+                "resume": "Resume this pull request with {name}, the agent that owns it: it delegates the finish to a subagent, keeps its own turn short and marks the PR ready once its CI is green. It never merges."
             },
             "fact": {
                 "ciFailing": "CI failing: {names}",
@@ -9174,6 +9191,7 @@
         "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
         "investigate": "Started by you at {time} to analyze and resolve what blocks #{number}",
         "finish": "Started by you at {time} to check #{number} and finish what is left",
+        "lead": "Started by you at {time}: the lead agent's session resumed to take #{number} back",
         "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
         "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside"
     },

@@ -125,8 +125,18 @@ export type ReviewRound = {
 };
 
 // must match RestartResult in pkg/molten/review/restart.go
-// offer: Ask for a rebase found no agent on the branch (pkg/molten/review/rebase.go).
-export type ReviewRestartStatus = "started" | "sent" | "typed" | "busy" | "noagent" | "failed" | "offer";
+// offer: Ask for a rebase found no agent on the branch (pkg/molten/review/rebase.go); queued and leadgone: the lead
+// agent that owns the work is busy, or no longer runs (pkg/molten/review/lead.go).
+export type ReviewRestartStatus =
+    | "started"
+    | "sent"
+    | "typed"
+    | "queued"
+    | "busy"
+    | "noagent"
+    | "failed"
+    | "offer"
+    | "leadgone";
 
 export type ReviewRestartResult = {
     status: ReviewRestartStatus;
@@ -156,6 +166,10 @@ export type ReviewRestartResult = {
     agentmissing?: boolean;
     agentsource?: string;
     agents?: { id: string; name: string; installed: boolean }[];
+    // The lead agent that owns the work (#1779).
+    lead?: boolean;
+    leadfolder?: string;
+    leadguessed?: boolean;
 };
 
 // How a new agent works (#758): out of sight, or in a tab the window shows; must match agentstart.go.
@@ -738,6 +752,12 @@ export function askReviewFinish(
         changesrequested?: boolean;
         noreport?: boolean;
         markready?: boolean;
+        // The lead agent that owns the work (#1779, pkg/molten/review/lead.go): it gets the work before any other agent;
+        // resumelead (with workspaceid and tabname) restarts it on its session when it no longer runs.
+        lead?: { firstname?: string; agent?: string; blockid?: string };
+        resumelead?: boolean;
+        workspaceid?: string;
+        tabname?: string;
     } & AgentStart
 ): Promise<ReviewRestartResult> {
     return call(FinishCommand, req, RestartTimeoutMs);

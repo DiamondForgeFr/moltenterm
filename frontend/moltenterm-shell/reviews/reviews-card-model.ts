@@ -10,7 +10,7 @@ import { getLocale } from "../i18n/i18n";
 import { phrase, type Phrase } from "../i18n/phrase";
 import { batchStatePhrase } from "./reviews-batch-agent";
 import type { BatchItem, BatchRun } from "./reviews-batch-model";
-import { blockedReasons, checkNames, checksOf, ReviewPr } from "./reviews-model";
+import { blockedReasons, checkNames, checksOf, LeadFacts, ReviewPr } from "./reviews-model";
 import type { PrTask, PrTaskState } from "./reviews-task-model";
 import type { AgentBarFacts, DraftTurn } from "./reviews-upcoming-model";
 
@@ -57,6 +57,7 @@ export type CardActionId =
     | "relaunch"
     | "start-agent"
     | "resume"
+    | "new-agent"
     | "rebase"
     | "investigate"
     | "assisted-review"
@@ -94,6 +95,8 @@ export type CardState = {
     why?: Phrase;
     // The agent the state is about (states 1 to 3), when one is known.
     agent?: AgentBarFacts;
+    // The lead agent that owns the work (#1779), when Resume (agent-finish) can hand it back to one.
+    lead?: LeadFacts;
     // Null when the card asks nothing (#1085: an agent works and no terminal of it is here to follow).
     primary: CardAction;
     // molten: the primary is the developer's move now (one orange button per card at most); else a calm button.
@@ -217,6 +220,37 @@ export function agentName(agent: AgentBarFacts): Phrase {
         return phrase("reviews.card.name", { name: agent.parentName });
     }
     return phrase("reviews.card.anAgent");
+}
+
+// leadOf (#1779, FR-REV-022 AC19): the lead agent that owns the PR's work. First the PR's signature, the newest signer
+// with a first name (FR-REV-029); failing that, the lead whose sub-agent works or worked on the branch (the registry's
+// parent session). A sub-agent of the same lead the signature names adds its terminal and CLI to the signer. null when
+// neither names anybody: Resume then goes the usual way.
+export function leadOf(input: CardInput): LeadFacts {
+    const named = (input.agents ?? []).filter(
+        (a) => (a.kind === "subagent" || (a.kind === "background" && !a.signed)) && (a.parentBlockId || a.parentName)
+    );
+    const signer = (input.pr.agents ?? []).find((a) => (a.firstname ?? "").trim() !== "");
+    if (signer != null) {
+        const name = signer.firstname.trim();
+        const same = named.find((a) => (a.parentName ?? "").trim().toLowerCase() === name.toLowerCase());
+        return {
+            name,
+            agent: same?.agent,
+            agentName: (signer.agent ?? "").trim() || undefined,
+            blockId: same?.parentBlockId || undefined,
+            source: "signature",
+        };
+    }
+    const parent = named[0];
+    if (parent == null) {
+        return null;
+    }
+    const name = (parent.parentName ?? "").trim();
+    if (!name && !parent.parentBlockId) {
+        return null;
+    }
+    return { name, agent: parent.agent, blockId: parent.parentBlockId || undefined, source: "subagent" };
 }
 
 // The terminal to show for an agent: its own panel, a sub-agent's or background agent's parent.
@@ -495,6 +529,7 @@ export function cardState(input: CardInput): CardState {
     let sentence: Phrase;
     let why: Phrase;
     let agent: AgentBarFacts;
+    let lead: LeadFacts;
     let primary: CardAction;
     let menu: CardAction[] = [];
     let history: Phrase;
@@ -571,8 +606,20 @@ export function cardState(input: CardInput): CardState {
             } else {
                 why = phrase("reviews.card.why.agentFinish");
             }
-            primary = action("resume", "reviews.card.action.resume", { name: agentName(agent) });
-            menu = [...agentActions(agent), AssistedReview(), mergeAction(input, null), Launch(), Github()];
+            // The lead that owns the work takes it back (#1779), named on the button; the menu keeps the explicit
+            // choice of a fresh agent.
+            lead = leadOf(input);
+            primary = action("resume", "reviews.card.action.resume", {
+                name: lead?.name ? phrase("reviews.card.name", { name: lead.name }) : agentName(agent),
+            });
+            menu = [
+                ...agentActions(agent),
+                ...(lead != null ? [action("new-agent", "reviews.card.action.newAgent")] : []),
+                AssistedReview(),
+                mergeAction(input, null),
+                Launch(),
+                Github(),
+            ];
             break;
         }
         case "interrupted": {
@@ -713,6 +760,7 @@ export function cardState(input: CardInput): CardState {
         sentence,
         why,
         agent,
+        lead,
         primary,
         molten: primary != null && !QuietKinds.has(kind) && primary.disabled == null,
         menu: menuOrder(menu.filter((a) => a != null && a.id !== primary?.id)),
