@@ -13,19 +13,19 @@ export function BlockErrorFallback({ blockId, error }: { blockId: string; error?
     const t = useT();
     return (
         <div
-            className="flex h-full w-full flex-col gap-2 overflow-auto rounded-4 border border-error/40 bg-panel p-4 text-primary"
+            className="flex h-full w-full flex-col gap-2 overflow-auto rounded-6 border border-line-strong bg-surface-1 p-4"
             data-blockid={blockId}
             data-testid="block-error"
         >
-            <div className="text-sm font-semibold">{t("wave.block.errorTitle")}</div>
-            <div className="text-xs text-secondary">{t("wave.block.errorBody")}</div>
+            <div className="text-13 font-semibold text-primary">{t("wave.block.errorTitle")}</div>
+            <div className="text-12 text-secondary">{t("wave.block.errorBody")}</div>
             {error?.message ? (
-                <pre className="text-[11px] whitespace-pre-wrap break-words text-error/90">{error.message}</pre>
+                <pre className="font-mono text-11 whitespace-pre-wrap break-words text-danger">{error.message}</pre>
             ) : null}
             <div>
                 <button
                     type="button"
-                    className="cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary"
+                    className="molten-btn-secondary cursor-pointer rounded-4 px-3 py-1.5 text-12"
                     onClick={() => uxCloseBlock(blockId)}
                 >
                     {t("wave.block.errorClose")}
