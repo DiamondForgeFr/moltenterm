@@ -187,6 +187,62 @@ export function firstAgentIndex(list: PaletteEntry[]): number {
     return (list ?? []).findIndex((e) => e.group === "agents");
 }
 
+// On the launcher block of a new panel (#1742): the id of the entry the chooser selects first, taken from the focus.
+export const NewViewPreselectMetaKey = "molten:newview:preselect";
+
+// The chooser a new panel opens with: the entry of the focused panel's type selected when there is one, otherwise the
+// chooser's own first favourite.
+export function chooserBlockDef(preselectId: string): BlockDef {
+    if (!preselectId) {
+        return ChooserBlockDef;
+    }
+    return { meta: { ...ChooserBlockDef.meta, [NewViewPreselectMetaKey]: preselectId } as MetaType };
+}
+
+// The page panel's view is "molten-browser", Wave's one-page web view "web": both are a page to the developer.
+const ViewChoiceIds: Record<string, string> = {
+    term: TerminalChoiceId,
+    "molten-browser": WebPageChoiceId,
+    web: WebPageChoiceId,
+};
+
+const ViewAliases: Record<string, string> = { web: "molten-browser" };
+
+function choiceView(entry: PaletteEntry): string {
+    return entry?.run?.kind === "widget" ? ((entry.run.blockdef?.meta?.view as string) ?? "") : "";
+}
+
+// The entry of the chooser holding the type of panel the focus is in, null when the focus gives none: no panel, the
+// sidebar, a type the chooser does not list. Terminal and Web page win over a configured panel of the same view.
+export function preselectEntryId(focusedView: string, choices: PaletteEntry[]): string {
+    if (!focusedView || focusedView === "launcher") {
+        return null;
+    }
+    const list = choices ?? [];
+    const preferred = ViewChoiceIds[focusedView];
+    if (preferred && list.some((c) => c.id === preferred)) {
+        return preferred;
+    }
+    const view = ViewAliases[focusedView] ?? focusedView;
+    return list.find((c) => choiceView(c) === view)?.id ?? null;
+}
+
+export type ChooserPick = { fav: number; selected: number };
+
+// Where the selection starts for a preselected entry: its favourite, otherwise its row of the list (the favourites'
+// row is selected -1 while the list holds the selection); null when neither has it, which keeps the default.
+export function chooserPreselect(favorites: PaletteEntry[], list: PaletteEntry[], id: string): ChooserPick {
+    if (!id) {
+        return null;
+    }
+    const fav = (favorites ?? []).findIndex((e) => e.id === id);
+    if (fav >= 0) {
+        return { fav, selected: 0 };
+    }
+    const row = (list ?? []).findIndex((e) => e.id === id);
+    return row >= 0 ? { fav: -1, selected: row } : null;
+}
+
 // What a new view starts with: a tab holding a block, or an action run without a tab (Sessions, the Project tab).
 export type NewViewStart = { kind: "tab"; blockdef: BlockDef } | { kind: "run"; run: PaletteRun };
 

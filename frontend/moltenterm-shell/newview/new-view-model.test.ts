@@ -10,8 +10,10 @@ import {
     AgentPickerBlockDef,
     ChooserAction,
     ChooserBlockDef,
+    chooserBlockDef,
     chooserKey,
     chooserListEntries,
+    chooserPreselect,
     ChooserState,
     DefaultFavoriteIds,
     favoriteIds,
@@ -20,12 +22,15 @@ import {
     NewViewAgentsMetaKey,
     newViewChoices,
     NewViewMetaKey,
+    NewViewPreselectMetaKey,
     NewViewRunMetaKey,
     newViewStart,
     removeFavorite,
     replaceFavorite,
     resolveDirect,
     resolveFavorites,
+    TerminalChoiceId,
+    WebPageChoiceId,
 } from "./new-view-model";
 
 const DefaultAgents = JSON.parse(
@@ -89,13 +94,13 @@ describe("a new view asks by default (FR-SHELL-089, TC-SHELL-166)", () => {
         expect(resolveFavorites(undefined, choices).map((e) => e.label)).toEqual(["Terminal", "Web page"]);
     });
 
-    it("opens a terminal on ⌘T then Enter", () => {
+    it("opens a terminal on ⌘N then Enter", () => {
         const { opened } = press(["Enter"]);
         expect(opened.run).toEqual({ kind: "widget", blockdef: expect.anything() });
         expect(viewOf(opened)).toBe("term");
     });
 
-    it("opens a web page on ⌘T, → then Enter, and Tab moves the same way", () => {
+    it("opens a web page on ⌘N, → then Enter, and Tab moves the same way", () => {
         expect(viewOf(press(["ArrowRight", "Enter"]).opened)).toBe("molten-browser");
         expect(viewOf(press(["Tab", "Enter"]).opened)).toBe("molten-browser");
         expect(viewOf(press(["ArrowRight", "ArrowLeft", "Enter"]).opened)).toBe("term");
@@ -251,5 +256,54 @@ describe("Start an agent (#1672)", () => {
         expect(firstAgentIndex([e("p", "panels"), e("a1", "agents"), e("a2", "agents")])).toBe(1);
         expect(firstAgentIndex([e("p", "panels")])).toBe(-1);
         expect(firstAgentIndex(null)).toBe(-1);
+    });
+});
+
+describe("a new panel's chooser starts on the focused type (#1742)", () => {
+    const e = (id: string) => ({ id, group: "panels", label: id, icon: "x", run: null }) as PaletteEntry;
+
+    it("selects the favourite holding the type", () => {
+        const favorites = resolveFavorites(undefined, choices);
+        expect(chooserPreselect(favorites, choices, TerminalChoiceId)).toEqual({ fav: 0, selected: 0 });
+        expect(chooserPreselect(favorites, choices, WebPageChoiceId)).toEqual({ fav: 1, selected: 0 });
+    });
+
+    it("selects the row of the list when the type is not a favourite, with the favourites' row left", () => {
+        const list = [e("panel:a"), e("panel:b"), e("panel:c")];
+        expect(chooserPreselect([e("panel:t"), e("panel:w")], list, "panel:c")).toEqual({ fav: -1, selected: 2 });
+    });
+
+    it("keeps the favourite when the list repeats it", () => {
+        const list = [e("panel:t"), e("panel:w")];
+        expect(chooserPreselect([e("panel:t"), e("panel:w")], list, "panel:w")).toEqual({ fav: 1, selected: 0 });
+    });
+
+    it("gives nothing, so the default selection stays, for no id or an id nobody has", () => {
+        const favorites = [e("panel:t")];
+        expect(chooserPreselect(favorites, [e("panel:a")], null)).toBeNull();
+        expect(chooserPreselect(favorites, [e("panel:a")], "")).toBeNull();
+        expect(chooserPreselect(favorites, [e("panel:a")], "panel:gone")).toBeNull();
+        expect(chooserPreselect(null, null, "panel:a")).toBeNull();
+    });
+
+    it("then Enter opens the preselected entry, and an arrow still moves away from it", () => {
+        const favorites = resolveFavorites(undefined, choices);
+        const pick = chooserPreselect(favorites, choices, WebPageChoiceId);
+        const state: ChooserState = {
+            fav: pick.fav,
+            favCount: favorites.length,
+            selected: pick.selected,
+            listCount: 3,
+            query: "",
+        };
+        expect(chooserKey(state, { key: "Enter" })).toEqual({ kind: "openfav", index: 1 });
+        expect(chooserKey(state, { key: "ArrowLeft" })).toEqual({ kind: "fav", index: 0 });
+        expect(chooserKey(state, { key: "Escape" })).toEqual({ kind: "cancel" });
+    });
+
+    it("marks the launcher of a new panel with the entry to select, and only that one", () => {
+        expect((ChooserBlockDef.meta as Record<string, unknown>)[NewViewPreselectMetaKey]).toBeUndefined();
+        expect((chooserBlockDef("panel:x").meta as Record<string, unknown>)[NewViewPreselectMetaKey]).toBe("panel:x");
+        expect(chooserBlockDef(null)).toBe(ChooserBlockDef);
     });
 });

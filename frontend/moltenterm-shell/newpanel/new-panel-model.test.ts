@@ -7,9 +7,23 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { rowEqualizeOps } from "../equalize/equalize-rules";
-import { ChooserBlockDef, newViewChoices, TerminalChoiceId, WebPageChoiceId } from "../newview/new-view-model";
+import {
+    ChooserBlockDef,
+    chooserBlockDef,
+    newViewChoices,
+    NewViewMetaKey,
+    NewViewPreselectMetaKey,
+    TerminalChoiceId,
+    WebPageChoiceId,
+} from "../newview/new-view-model";
 import type { CarpetLayout } from "../view360/carpet-model";
-import { newPanelContent, newPanelSplit, newPanelTarget, type PointerHit } from "./new-panel-model";
+import {
+    focusedPanelBlockId,
+    newPanelContent,
+    newPanelSplit,
+    newPanelTarget,
+    type PointerHit,
+} from "./new-panel-model";
 
 const DefaultAgents = JSON.parse(
     fs.readFileSync(path.resolve(__dirname, "../../../pkg/wconfig/defaultconfig/presets/agents.json"), "utf8")
@@ -186,5 +200,77 @@ describe("what the new panel holds (#1241, FR-SHELL-089)", () => {
         const content = newPanelContent("action:sessions", choices);
         expect(content.kind).toBe("block");
         expect((content as { blockdef: BlockDef }).blockdef.meta.view).toBe("molten-sessions");
+    });
+});
+
+function preselectOf(content: ReturnType<typeof newPanelContent>): string {
+    expect(content.kind).toBe("block");
+    return (content as { blockdef: BlockDef }).blockdef.meta[NewViewPreselectMetaKey as keyof MetaType] as string;
+}
+
+describe("the chooser selects the focused panel's type (#1742, FR-SHELL-086)", () => {
+    const choices = newViewChoices({ presets: DefaultAgents, widgets: DefaultWidgets, workspaceId: "ws1" });
+
+    it("selects Terminal from a terminal panel", () => {
+        expect(preselectOf(newPanelContent(undefined, choices, "term"))).toBe(TerminalChoiceId);
+    });
+
+    it("selects Web page from a page panel, whether it is the panel's view or Wave's one-page web view", () => {
+        expect(preselectOf(newPanelContent(undefined, choices, "molten-browser"))).toBe(WebPageChoiceId);
+        expect(preselectOf(newPanelContent(undefined, choices, "web"))).toBe(WebPageChoiceId);
+    });
+
+    it("selects another panel's own type when the chooser lists it", () => {
+        expect(preselectOf(newPanelContent(undefined, choices, "preview"))).toBe("panel:defwidget@files");
+        expect(preselectOf(newPanelContent(undefined, choices, "sysinfo"))).toBe("panel:defwidget@sysinfo");
+        expect(preselectOf(newPanelContent(undefined, choices, "molten-sessions"))).toBe("panel:sessions");
+        expect(preselectOf(newPanelContent(undefined, choices, "molten-reviews"))).toBe("panel:defwidget@reviews");
+    });
+
+    it("selects nothing from the focus when there is none, or its type is not in the chooser", () => {
+        for (const view of [undefined, null, "", "launcher", "tips", "no-such-view"]) {
+            expect(newPanelContent(undefined, choices, view)).toEqual({ kind: "block", blockdef: ChooserBlockDef });
+        }
+    });
+
+    it("prefers Terminal and Web page over a configured panel of the same view", () => {
+        const widgets = {
+            ...DefaultWidgets,
+            "ssh-box": { label: "ssh box", blockdef: { meta: { view: "term", connection: "box" } } },
+        };
+        const withTwo = newViewChoices({ presets: DefaultAgents, widgets, workspaceId: "ws1" });
+        expect(withTwo.filter((c) => c.run.kind === "widget" && c.run.blockdef.meta.view === "term").length).toBe(2);
+        expect(preselectOf(newPanelContent(undefined, withTwo, "term"))).toBe(TerminalChoiceId);
+    });
+
+    it("keeps a type set to open directly: it is the developer's choice, the focus does not change it", () => {
+        expect(newPanelContent(TerminalChoiceId, choices, "molten-browser")).toEqual({ kind: "terminal" });
+        const direct = newPanelContent(WebPageChoiceId, choices, "term") as { blockdef: BlockDef };
+        expect(direct.blockdef.meta.view).toBe("molten-browser");
+        expect(direct.blockdef.meta[NewViewPreselectMetaKey as keyof MetaType]).toBeUndefined();
+    });
+
+    it("keeps the launcher marked as a new view chooser, so Escape closes it", () => {
+        const def = chooserBlockDef(TerminalChoiceId);
+        expect(def.meta.view).toBe("launcher");
+        expect(def.meta[NewViewMetaKey as keyof MetaType]).toBe(true);
+    });
+});
+
+describe("where the focus is when the key is pressed (#1742)", () => {
+    it("is the panel a page's key came from, whatever the layout believes", () => {
+        expect(
+            focusedPanelBlockId({ originBlockId: "page", inSidebar: false, domBlockId: "term", layoutBlockId: "term" })
+        ).toBe("page");
+    });
+
+    it("is the panel holding the keyboard focus, else the layout's focused panel", () => {
+        expect(focusedPanelBlockId({ inSidebar: false, domBlockId: "files", layoutBlockId: "term" })).toBe("files");
+        expect(focusedPanelBlockId({ inSidebar: false, layoutBlockId: "term" })).toBe("term");
+    });
+
+    it("is no panel with the focus on the workspace sidebar, or with none focused", () => {
+        expect(focusedPanelBlockId({ inSidebar: true, domBlockId: "files", layoutBlockId: "term" })).toBeNull();
+        expect(focusedPanelBlockId({ inSidebar: false })).toBeNull();
     });
 });

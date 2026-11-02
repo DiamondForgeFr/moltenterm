@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The ready-made combinations of panels (FR-SHELL-138, #1709): MoltenTerm makes no view on the user's behalf, so they
-// live only as suggestions, in the new-view launcher (⌘T) and in the first launch's first-view step (FR-ONB-009), the
+// live only as suggestions, in the new-view launcher (⌘N) and in the first launch's first-view step (FR-ONB-009), the
 // same list in the same order. A view made from one is laid out like a template view (DS-SHELL-132): the agent slot on
 // the left, the graphical panels stacked on the right (DS-REV-012), named by a dictionary key until renamed.
 

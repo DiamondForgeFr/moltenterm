@@ -43,6 +43,7 @@ describe("View menu (FR-SHELL-113)", () => {
         const items = makeMoltentermViewsMenu(() => null, "darwin");
         expect(labelled(items).map((i) => i.label)).toEqual([
             "appMenu.newView",
+            "appMenu.newPanel",
             "appMenu.closeView",
             "appMenu.reopenClosed",
             "appMenu.nextView",
@@ -54,9 +55,10 @@ describe("View menu (FR-SHELL-113)", () => {
         ]);
     });
 
-    it("shows each action's shortcut without registering it", () => {
+    it("shows each action's shortcut without registering it: a new view is ⌘N and a new panel ⌘T (#1742)", () => {
         const items = labelled(makeMoltentermViewsMenu(() => null, "darwin"));
         expect(items.map((i) => i.accelerator ?? "")).toEqual([
+            "Command+N",
             "Command+T",
             "Command+Shift+W",
             "Command+Shift+T",
@@ -74,8 +76,9 @@ describe("View menu (FR-SHELL-113)", () => {
 
     it("off macOS shows Wave's Cmd as Alt", () => {
         const items = labelled(makeMoltentermViewsMenu(() => null, "linux"));
-        expect(items[0].accelerator).toBe("Alt+T");
-        expect(items[1].accelerator).toBe("Alt+Shift+W");
+        expect(items[0].accelerator).toBe("Alt+N");
+        expect(items[1].accelerator).toBe("Alt+T");
+        expect(items[2].accelerator).toBe("Alt+Shift+W");
     });
 
     it("a click sends its command to the window's active view", () => {
@@ -89,6 +92,7 @@ describe("View menu (FR-SHELL-113)", () => {
         expect(sent).toEqual(
             [
                 "newview",
+                "newpanel",
                 "closeview",
                 "reopen",
                 "nextview",

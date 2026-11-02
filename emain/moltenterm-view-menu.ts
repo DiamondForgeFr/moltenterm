@@ -20,7 +20,8 @@ type TargetOf = (window: electron.BaseWindow) => electron.WebContents;
 // The keys of the shortcut registry (frontend/moltenterm-shell/shortcuts/registry.ts), in Wave's notation where Cmd is
 // Command on macOS and Alt elsewhere. moltenterm-view-menu.test.ts checks them against the registry.
 export const AppMenuKeys: Partial<Record<AppMenuCommand, string>> = {
-    newview: "Cmd:t",
+    newview: "Cmd:n",
+    newpanel: "Cmd:t",
     closeview: "Cmd:Shift:w",
     reopen: "Cmd:Shift:t",
     nextview: "Cmd:]",
@@ -76,6 +77,7 @@ export function makeMoltentermViewsMenu(targetOf: TargetOf, platform: string): M
     const item = (command: AppMenuCommand, label: string) => commandItem(command, label, targetOf, platform);
     return [
         item("newview", mt("appMenu.newView")),
+        item("newpanel", mt("appMenu.newPanel")),
         item("closeview", mt("appMenu.closeView")),
         item("reopen", mt("appMenu.reopenClosed")),
         { type: "separator" },

@@ -151,13 +151,14 @@ const QuickTips = () => {
                         <div className="text-sm text-accent-400 font-semibold uppercase tracking-wide mb-1">
                             Main Keybindings
                         </div>
+                        {/* MOLTENTERM-PATCH (#1742): ⌘N is a new view, ⌘T a new panel */}
                         <div className="flex flex-col gap-0.5 p-2 rounded-md hover:bg-white/5 transition-colors">
-                            <span className="text-[15px]">New Tab</span>
-                            <KeyBinding keyDecl="Cmd:t" />
+                            <span className="text-[15px]">New View</span>
+                            <KeyBinding keyDecl="Cmd:n" />
                         </div>
                         <div className="flex flex-col gap-0.5 p-2 rounded-md hover:bg-white/5 transition-colors">
-                            <span className="text-[15px]">New Terminal Block</span>
-                            <KeyBinding keyDecl="Cmd:n" />
+                            <span className="text-[15px]">New Panel</span>
+                            <KeyBinding keyDecl="Cmd:t" />
                         </div>
                         {/* MOLTENTERM-PATCH (#25): no Wave AI tips */}
                         {!MoltentermNoAI && (

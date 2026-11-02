@@ -20,7 +20,13 @@ import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
-import { chooserKey, chooserListEntries, firstAgentIndex, suggestionEntries } from "../newview/new-view-model";
+import {
+    chooserKey,
+    chooserListEntries,
+    chooserPreselect,
+    firstAgentIndex,
+    suggestionEntries,
+} from "../newview/new-view-model";
 import { NewViewMorphHint } from "../newview/new-view-morph-hint";
 import { formatShortcutById } from "../shortcuts/format";
 import { keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
@@ -82,6 +88,8 @@ export type NewViewChooser = {
     onAskAgent: (agent: AgentStateInfo, request: string) => Promise<void>;
     // Opened by "Start an agent" (#1672): the first agent of the list is selected instead of a favourite.
     focusAgents?: boolean;
+    // Opened as a new panel (#1742): the id of the entry selected first, a favourite or a row of the list.
+    preselect?: string;
 };
 
 type OtherWorkspaces = { list: PaletteWorkspace[]; folders: string[] };
@@ -449,6 +457,20 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             setFav(query.trim() === "" ? 0 : -1);
         }
     }, [query]);
+    // A new panel's chooser (#1742) starts on the type of the focused panel, until the developer moves the selection.
+    const preselectPending = useRef(newView?.preselect != null);
+    useEffect(() => {
+        if (!preselectPending.current || newView?.preselect == null) {
+            return;
+        }
+        const pick = chooserPreselect(newView.favorites, flat, newView.preselect);
+        if (pick == null) {
+            return;
+        }
+        preselectPending.current = false;
+        setFav(pick.fav);
+        setSelected(pick.selected);
+    }, [flat, newView]);
     // A chooser opened by the Library's "Start an agent" (#1672) starts on the first agent.
     const focusAgents = newView?.focusAgents === true;
     useEffect(() => {
@@ -524,6 +546,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             return;
         }
         const key = { key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey, meta: e.metaKey, alt: e.altKey };
+        preselectPending.current = false;
         if (newView != null) {
             const action = chooserKey({ fav, favCount, selected, listCount: flat.length, query }, key);
             if (action != null) {
@@ -587,6 +610,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     };
 
     const onListHover = (i: number) => {
+        preselectPending.current = false;
         setFav(-1);
         setSelected(i);
     };

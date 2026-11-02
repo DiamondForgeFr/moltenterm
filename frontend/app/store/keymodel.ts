@@ -26,10 +26,11 @@ import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { registerBrowserHistoryKeys, windowHistoryKey } from "../../moltenterm-shell/browser/browser-history-window"; // MOLTENTERM-PATCH (#1744)
-import { browserPageKeys, routeBrowserPageKey } from "../../moltenterm-shell/browser/browser-keys"; // MOLTENTERM-PATCH (#1722)
+import { blockIdOfPage, browserPageKeys, routeBrowserPageKey } from "../../moltenterm-shell/browser/browser-keys"; // MOLTENTERM-PATCH (#1722, #1742)
 import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { openNewPanel } from "../../moltenterm-shell/newpanel/new-panel"; // MOLTENTERM-PATCH (#1241)
+import { runWithKeyOrigin } from "../../moltenterm-shell/newpanel/new-panel-focus"; // MOLTENTERM-PATCH (#1742)
 import { installPointerTracker } from "../../moltenterm-shell/newpanel/pointer-tracker"; // MOLTENTERM-PATCH (#1241)
 import { openNewView, registerNewViewKeys } from "../../moltenterm-shell/newview/new-view"; // MOLTENTERM-PATCH (#1232)
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
@@ -418,9 +419,10 @@ function getDefaultNewBlockDef(): BlockDef {
     return termBlockDef;
 }
 
-// MOLTENTERM-PATCH (#1241): a new panel beside the panel under the pointer, holding what a new view starts with, its
-// row evened out (FR-SHELL-086, frontend/moltenterm-shell/newpanel/); Terminal there gives what this gave.
-async function handleCmdN() {
+// MOLTENTERM-PATCH (#1241, #1742): a new panel beside the panel under the pointer, its chooser selecting the type of
+// the focused panel, its row evened out (FR-SHELL-086, frontend/moltenterm-shell/newpanel/); Terminal set to open
+// directly gives what Wave's Cmd+N gave. Cmd+T since #1742: Cmd+N is the new view.
+async function handleCmdT() {
     await openNewPanel(getDefaultNewBlockDef);
 }
 
@@ -519,7 +521,8 @@ function registerElectronReinjectKeyHandler() {
         if (routeBrowserPageKey(event, guestId, pages, (id) => getBlockComponentModel(id)?.viewModel as any)) {
             return;
         }
-        appHandleKeyDown(event);
+        // MOLTENTERM-PATCH (#1742): Cmd+T pressed in a page counts as pressed in the panel holding that page
+        runWithKeyOrigin(blockIdOfPage(guestId, pages), () => appHandleKeyDown(event));
     });
 }
 
@@ -565,8 +568,9 @@ function registerGlobalKeys() {
         return true;
     });
     installPointerTracker(); // MOLTENTERM-PATCH (#1241)
+    // MOLTENTERM-PATCH (#1742): a new view starts with the chooser, or the type chosen to open directly (FR-SHELL-089)
     globalKeyMap.set("Cmd:n", () => {
-        handleCmdN();
+        openNewView();
         return true;
     });
     globalKeyMap.set("Cmd:d", () => {
@@ -594,9 +598,9 @@ function registerGlobalKeys() {
         handleCmdI();
         return true;
     });
-    // MOLTENTERM-PATCH (#1232): a new view starts with the chooser, or the type chosen to open directly (FR-SHELL-089)
+    // MOLTENTERM-PATCH (#1232, #1742): a new panel, its chooser selecting the focused panel's type (FR-SHELL-086)
     globalKeyMap.set("Cmd:t", () => {
-        openNewView();
+        handleCmdT();
         return true;
     });
     globalKeyMap.set("Cmd:w", () => {

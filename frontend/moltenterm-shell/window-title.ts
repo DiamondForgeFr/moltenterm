@@ -3,7 +3,7 @@
 
 // The window title, "MoltenTerm - <tab>": the tab view's document title, which Electron shows on the window. It reads
 // the tab as the tab bar and the sidebar do: a Project tab is named in the interface language (#741), and a tab that
-// keeps Wave's generic name (T1, T2…) is named after its first panel, which a view made with ⌘T gets after the window
+// keeps Wave's generic name (T1, T2…) is named after its first panel, which a view made with ⌘N gets after the window
 // opened (#1345). The title follows both, and a language change.
 
 import { globalStore } from "@/app/store/jotaiStore";

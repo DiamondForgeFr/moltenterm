@@ -130,6 +130,40 @@ describe("shortcut registry (TC-SHELL-086)", () => {
     });
 });
 
+describe("⌘T is the new panel and ⌘N the new view (#1742, FR-SHELL-086, FR-SHELL-089)", () => {
+    const entry = (id: string) => Shortcuts.find((s) => s.id === id);
+
+    it("lists the keys of each, and the browser panel keeps no key of its own for a tab", () => {
+        expect(entry("new-panel").keys).toBe("Cmd:t");
+        expect(entry("new-tab").keys).toBe("Cmd:n");
+        expect(entry("browser-new-tab")).toBeUndefined();
+        const browser = Shortcuts.filter((s) => s.scope === "browser").flatMap(shortcutBindings);
+        expect(browser.map(normalizeKeys)).not.toContain(normalizeKeys("Cmd:t"));
+    });
+
+    it("draws ⌘T and ⌘N on macOS, Alt+T and Alt+N where Wave's Cmd is Alt", () => {
+        expect(formatShortcutById("new-panel", true)).toBe("⌘T");
+        expect(formatShortcutById("new-tab", true)).toBe("⌘N");
+        expect(formatShortcutById("new-panel", false)).toBe("Alt+T");
+        expect(formatShortcutById("new-tab", false)).toBe("Alt+N");
+    });
+
+    it("binds each in the key model to what the registry says it does", () => {
+        expect(keyModelBindings()).toEqual(expect.arrayContaining(["Cmd:t", "Cmd:n"]));
+        expect(KeyModelSource).toMatch(/globalKeyMap\.set\("Cmd:t", \(\) => \{\s*handleCmdT\(\);/);
+        expect(KeyModelSource).toMatch(/globalKeyMap\.set\("Cmd:n", \(\) => \{\s*openNewView\(\);/);
+        expect(KeyModelSource).toMatch(/async function handleCmdT\(\) \{\s*await openNewPanel\(/);
+    });
+
+    it("finds both in the sheet by their names", () => {
+        const ids = (query: string) =>
+            filterShortcuts(platformShortcuts(true), query, true).flatMap((s) => s.shortcuts.map((x) => x.id));
+        expect(ids("new panel")).toContain("new-panel");
+        expect(ids("⌘T")).toContain("new-panel");
+        expect(ids("⌘N")).toContain("new-tab");
+    });
+});
+
 describe("shortcut formatting (FR-SHELL-042-AC8)", () => {
     it("draws macOS glyphs in the system's order", () => {
         expect(formatKeys("Cmd:d", true)).toBe("⌘D");

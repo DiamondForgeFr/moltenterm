@@ -1,17 +1,23 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// ⌘N, "New panel" (FR-SHELL-086, #1241): a new panel beside the panel under the mouse pointer, on the side of it
-// nearest the pointer, holding what a new view starts with (FR-SHELL-089), then the row it joined evened out. The
-// rules as pure functions, tested without the app; new-panel.ts carries them out.
+// ⌘T, "New panel" (FR-SHELL-086, #1241, #1742): a new panel beside the panel under the mouse pointer, on the side of it
+// nearest the pointer, holding what a new view starts with (FR-SHELL-089) with the type of the focused panel selected,
+// then the row it joined evened out. The rules as pure functions, tested without the app; new-panel.ts carries them out.
 
 import type { LayoutNode } from "@/layout/lib/types";
-import { newViewStart, resolveDirect, TerminalChoiceId } from "../newview/new-view-model";
+import {
+    chooserBlockDef,
+    newViewStart,
+    preselectEntryId,
+    resolveDirect,
+    TerminalChoiceId,
+} from "../newview/new-view-model";
 import type { PaletteEntry, PaletteRun } from "../palette/palette-model";
 import { besidePlace, type BesideSide } from "../split/add-beside-model";
 import type { CarpetLayout } from "../view360/carpet-model";
 
-// The panel found under the pointer when ⌘N is pressed, with its box's horizontal extent.
+// The panel found under the pointer when ⌘T is pressed, with its box's horizontal extent.
 export type PointerHit = { blockId: string; left: number; width: number };
 
 export type NewPanelTarget = { blockId: string; side: BesideSide };
@@ -64,12 +70,36 @@ export function newPanelSplit(
 }
 
 // What the new panel holds, from "When a new view opens" (app:newviewopen): the chooser by default, the type set to
-// open directly otherwise, Terminal giving back the terminal ⌘N always opened.
-export function newPanelContent(setting: unknown, choices: PaletteEntry[]): NewPanelContent {
+// open directly otherwise, Terminal giving back the terminal the new panel key always opened. The chooser selects the type of the
+// panel the focus is in (focusedView, #1742); a type set to open directly is the developer's explicit choice and wins.
+export function newPanelContent(setting: unknown, choices: PaletteEntry[], focusedView?: string): NewPanelContent {
     const direct = resolveDirect(setting, choices);
     if (direct?.id === TerminalChoiceId) {
         return { kind: "terminal" };
     }
+    if (direct == null) {
+        return { kind: "block", blockdef: chooserBlockDef(preselectEntryId(focusedView, choices)) };
+    }
     const start = newViewStart(direct);
     return start.kind === "tab" ? { kind: "block", blockdef: start.blockdef } : { kind: "run", run: start.run };
+}
+
+// The focus when ⌘T is pressed: the panel the key came from (a page's key is sent back with its page, whatever panel
+// the layout believes focused), else the panel holding the keyboard focus, else the layout's focused panel. The
+// workspace sidebar holding the focus is no panel (#1742).
+export type PanelFocusFacts = {
+    originBlockId?: string;
+    inSidebar: boolean;
+    domBlockId?: string;
+    layoutBlockId?: string;
+};
+
+export function focusedPanelBlockId(facts: PanelFocusFacts): string {
+    if (facts.originBlockId) {
+        return facts.originBlockId;
+    }
+    if (facts.inSidebar) {
+        return null;
+    }
+    return facts.domBlockId || facts.layoutBlockId || null;
 }

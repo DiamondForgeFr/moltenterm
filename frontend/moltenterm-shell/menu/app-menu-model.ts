@@ -10,6 +10,7 @@ export const AppMenuCommandChannel = "moltenterm-app-menu-command";
 
 export const AppMenuCommands = [
     "newview",
+    "newpanel",
     "closeview",
     "reopen",
     "nextview",
@@ -28,6 +29,7 @@ export type AppMenuCommand = (typeof AppMenuCommands)[number];
 // key does, whatever later changes the key gets. The ids are the shortcut registry's (shortcuts/registry.ts).
 export const AppMenuCommandShortcuts: Partial<Record<AppMenuCommand, string>> = {
     newview: "new-tab",
+    newpanel: "new-panel",
     closeview: "close-tab",
     reopen: "reopen-closed",
     nextview: "next-tab",

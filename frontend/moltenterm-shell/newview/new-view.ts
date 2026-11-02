@@ -1,14 +1,24 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Opening a new view (FR-SHELL-089): ⌘T, the sidebar's New view, the palette's New view and the tab bar's + all come
+// Opening a new view (FR-SHELL-089): ⌘N, the sidebar's New view, the palette's New view and the tab bar's + all come
 // here. The chooser, or the type the developer chose to open directly; the favourites' direct shortcuts; and what the
 // chooser does when an entry is picked or the view is cancelled.
 
-import { atoms, getApi, getSettingsKeyAtom, globalStore, replaceBlock, WOS } from "@/app/store/global";
+import {
+    atoms,
+    getApi,
+    getBlockComponentModel,
+    getSettingsKeyAtom,
+    globalStore,
+    replaceBlock,
+    WOS,
+} from "@/app/store/global";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { isMacOS } from "@/util/platformutil";
 import { fireAndForget } from "@/util/util";
+import { AddressTarget, requestAddressFocus } from "../browser/address-focus";
+import { MoltentermBrowserView } from "../browser/browser-model";
 import { knownCodingAgents } from "../coding-agent/coding-agent";
 import { runPaletteEntry } from "../palette/palette-actions";
 import { fillsPanel, PaletteEntry } from "../palette/palette-model";
@@ -121,6 +131,16 @@ export async function openSuggestion(id: string, blockId?: string): Promise<void
     }
 }
 
+// A page panel chosen in a chooser has its address field focused, so ⌘V then Enter opens a pasted address (#1742). The
+// entry for a typed address already holds its page (meta url) and keeps the focus on it.
+export function pageBlockDef(entry: PaletteEntry): BlockDef {
+    const run = entry?.run;
+    if (run?.kind !== "widget" || run.blockdef?.meta?.view !== MoltentermBrowserView) {
+        return null;
+    }
+    return run.blockdef.meta.url == null ? run.blockdef : null;
+}
+
 // An entry picked in the chooser fills the view; one that opens nothing in a panel (Sessions, the Project tab) runs,
 // and the empty view goes.
 export async function openInNewView(entry: PaletteEntry, blockId: string): Promise<void> {
@@ -129,6 +149,12 @@ export async function openInNewView(entry: PaletteEntry, blockId: string): Promi
     }
     if (entry.run.kind === "suggestion") {
         await openSuggestion(entry.run.id, blockId);
+        return;
+    }
+    const pageDef = pageBlockDef(entry);
+    if (pageDef != null) {
+        const pageId = await replaceBlock(blockId, pageDef, true);
+        requestAddressFocus(pageId, getBlockComponentModel(pageId)?.viewModel as unknown as AddressTarget);
         return;
     }
     if (fillsPanel(entry.run)) {

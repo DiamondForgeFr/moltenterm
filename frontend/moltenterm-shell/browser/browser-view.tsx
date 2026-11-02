@@ -58,6 +58,7 @@ import { showToast } from "../toast-store";
 import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { CarpetHeaderButton } from "../view360/view360-places";
+import { takeAddressFocus } from "./address-focus";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
@@ -183,6 +184,9 @@ import { TestContextChip } from "./test-context";
 export { MoltentermBrowserView };
 
 const PersistDelayMs = 400;
+// How long a page panel opened from a chooser keeps the focus on its address field against the block's own focusing of
+// the page (#1742): the block asks a few frames after the panel mounts.
+const AddressWishMs = 3000;
 // Below this row width (#1439) Forward, Reload and Magnify join Share and Open in <browser> in the row's "⋯"; the
 // value mirrors the last container query of browser.css.
 const FoldNavPx = 340;
@@ -223,6 +227,8 @@ export class BrowserViewModel implements ViewModel {
     tabBlockIdsAtom: Atom<string[]>;
     webviews = new Map<string, WebviewTag>();
     urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
+    // Until when giveFocus goes to the address field instead of the page (#1742); 0 for a panel nobody asked for.
+    addressWantedUntil = 0;
     // The find bar (#1722), set by the view while it is mounted.
     searchAtoms: SearchAtoms;
     persistTimer: ReturnType<typeof setTimeout> = null;
@@ -249,6 +255,9 @@ export class BrowserViewModel implements ViewModel {
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
+        if (takeAddressFocus(blockId)) {
+            this.addressWantedUntil = Date.now() + AddressWishMs;
+        }
         this.nodeModel = nodeModel;
         this.tabId = tabModel?.tabId ?? null;
         this.tabBlockIdsAtom = atom((get) =>
@@ -817,7 +826,7 @@ export class BrowserViewModel implements ViewModel {
         runReload(this.webviews.get(id), reloadAction(this.loads.isLoading(id), ignoreCache));
     }
 
-    // ⌘T in the page and "Open link in new tab": a page beside this panel (#1187).
+    // "New page beside" of the command panel and "Open link in new tab": a page beside this panel (#1187).
     newTab(url?: string): void {
         const defaultUrl = globalStore.get(getSettingsKeyAtom("web:defaulturl")) || FallbackUrl;
         this.openBeside(url || defaultUrl);
@@ -1227,7 +1236,23 @@ export class BrowserViewModel implements ViewModel {
         };
     }
 
+    // The panel was opened from a chooser's Web page (#1742): the address field, not the page, takes the focus the block
+    // gives the panel while it settles (AddressWishMs).
+    wantAddressFocus(): void {
+        this.addressWantedUntil = Date.now() + AddressWishMs;
+        refocusNode(this.blockId);
+    }
+
+    addressWished(): boolean {
+        return Date.now() < this.addressWantedUntil;
+    }
+
+    // The block asks for the focus when the panel takes the layout's, and again a frame later when the first answer was
+    // no: handing the page the focus then would take it back from the address field.
     giveFocus(): boolean {
+        if (this.addressWished() && this.focusAddress()) {
+            return true;
+        }
         // The engine choice's primary button holds the focus while the bar is up (DS-BRW-007).
         const primary = this.choices.primaryRef.current;
         if (primary != null && this.choices.visible(this.state().activeId, globalStore.get(this.engines.listAtom))) {
@@ -1242,12 +1267,9 @@ export class BrowserViewModel implements ViewModel {
         return true;
     }
 
-    // Cmd+T opens a tab and Cmd+W closes the active one; with one tab left, Cmd+W goes to Wave, which closes the panel.
+    // Cmd+W closes the active tab; with one tab left, Cmd+W goes to Wave, which closes the panel. Cmd+T is the window's
+    // new panel (#1742): a page panel keeps no key for a tab of its own.
     keyDownHandler(e: WaveKeyboardEvent): boolean {
-        if (checkKeyPressed(e, "Cmd:t")) {
-            this.newTab();
-            return true;
-        }
         if (checkKeyPressed(e, "Cmd:w") && this.state().tabs.length > 1) {
             this.closeTab(this.state().activeId);
             return true;
@@ -1284,6 +1306,18 @@ export class BrowserViewModel implements ViewModel {
         return true;
     }
 
+    // With the sidebar on, the panel shows no input: its address is the sidebar's top field, as a click on the address
+    // opens it (FR-SHELL-083). False when neither can take the focus yet (the panel's view is not drawn).
+    focusAddress(): boolean {
+        if (this.urlInputRef.current == null) {
+            this.nodeModel.focusNode();
+            return openTopField(this.blockId);
+        }
+        this.urlInputRef.current.focus();
+        this.urlInputRef.current.select();
+        return true;
+    }
+
     // The shortcut always loads the page again, as browsers do; the Reload button stops a page that is loading.
     runKeyAction(action: string): boolean {
         const id = this.state().activeId;
@@ -1315,15 +1349,7 @@ export class BrowserViewModel implements ViewModel {
                 this.setZoom(100);
                 return true;
             case BrowserKeyAddress:
-                // With the sidebar on, the panel shows no input: its address is the sidebar's top field, as a click on
-                // the address opens it (FR-SHELL-083).
-                if (this.urlInputRef.current == null) {
-                    this.nodeModel.focusNode();
-                    return openTopField(this.blockId);
-                }
-                this.urlInputRef.current.focus();
-                this.urlInputRef.current.select();
-                return true;
+                return this.focusAddress();
             case BrowserKeyStop:
                 if (this.searchAtoms != null && globalStore.get(this.searchAtoms.isOpen)) {
                     globalStore.set(this.searchAtoms.isOpen, false);
@@ -2328,6 +2354,13 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     useEffect(() => {
         if (isFocused) {
             noteBrowserPanelFocus(model.blockId);
+        }
+    }, [model, isFocused]);
+    // A page panel opened from a chooser asked for its address field (#1742): when the block's own focus came before the
+    // field could take it, it takes it now.
+    useEffect(() => {
+        if (model.addressWished() && isFocused) {
+            model.giveFocus();
         }
     }, [model, isFocused]);
     return (

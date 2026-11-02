@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // A workspace without a view of its own (FR-SHELL-110, audit #1316 F5): where its tiles would be, what a workspace is,
-// why this one shows none and how to start. Since #1709 the user arranges it: New view (⌘T, with its suggestions,
+// why this one shows none and how to start. Since #1709 the user arranges it: New view (⌘N, with its suggestions,
 // FR-SHELL-138) is the molten action, and "Add my template views" shows beside it only when the user saved a template
 // in Preferences (FR-SHELL-092). Nothing is added until the developer asks; the first run keeps the place quiet.
 
