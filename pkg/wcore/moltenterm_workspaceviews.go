@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
+	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -271,6 +272,9 @@ func openPendingView(ctx context.Context, tabId string) (viewpin.Config, bool, e
 		return viewpin.Config{}, false, err
 	}
 	cfg, build := pendingViewConfig(tab)
+	if !build {
+		cfg, build = siblingViewConfig(ctx, tab)
+	}
 	if !build && tab.Meta[ViewPendingMetaKey] != nil {
 		if err := clearPendingView(ctx, tabId); err != nil {
 			return viewpin.Config{}, false, err
@@ -279,6 +283,50 @@ func openPendingView(ctx context.Context, tabId string) (viewpin.Config, bool, e
 	return cfg, build, nil
 }
 
+// A view a project shows for the first time (#1760) opens from its pinned view's configuration, read from its own tab
+// (a tile) or from the pin (a view pinned everywhere), never from a window. Its panels pass through NoCommands: the
+// view opens the moment it is shown, so nothing may start by itself, and an agent slot waits for the developer.
+const maxInstancePanes = 24
+
+func siblingViewConfig(ctx context.Context, tab *waveobj.Tab) (viewpin.Config, bool) {
+	var cfg viewpin.Config
+	if tab == nil || !tab.Meta.GetBool(projectviews.SiblingMetaKey, false) || tab.Meta[ViewPendingMetaKey] != true || len(tab.BlockIds) > 0 {
+		return cfg, false
+	}
+	var raw any
+	if isTileMeta(tab.Meta) {
+		raw = tab.Meta[viewpin.PinConfigMetaKey]
+	} else if gid := tab.Meta.GetString(viewpin.GlobalPinMetaKey, ""); gid != "" {
+		raw = clientPinConfig(ctx, gid)
+	}
+	if raw == nil {
+		return cfg, false
+	}
+	if err := utilfn.ReUnmarshal(&cfg, raw); err != nil || len(cfg.Panes) == 0 || len(cfg.Panes) > maxInstancePanes {
+		return viewpin.Config{}, false
+	}
+	for i := range cfg.Panes {
+		cfg.Panes[i] = viewpin.NoCommands(cfg.Panes[i])
+	}
+	return cfg, true
+}
+
+func clientPinConfig(ctx context.Context, pinId string) any {
+	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
+	if err != nil || client == nil {
+		return nil
+	}
+	pins, _ := client.Meta[viewpin.GlobalPinsMetaKey].([]any)
+	for _, p := range pins {
+		if pin, _ := p.(map[string]any); pin != nil {
+			if id, _ := pin["id"].(string); id == pinId {
+				return pin["config"]
+			}
+		}
+	}
+	return nil
+}
+
 func clearPendingView(ctx context.Context, tabId string) error {
-	return wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Tab, tabId), waveobj.MetaMapType{ViewPendingMetaKey: nil}, false)
+	return wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Tab, tabId), waveobj.MetaMapType{ViewPendingMetaKey: nil, projectviews.SiblingMetaKey: nil}, false)
 }

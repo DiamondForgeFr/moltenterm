@@ -37,10 +37,14 @@ const (
 	TabProjectsMetaKey = "molten:tabprojects"
 	// Workspace meta: {projectId: tabId}, the view last shown in each project.
 	ActiveByProjectMetaKey = "molten:projectactivetab"
-	// Workspace meta: the tabs of this workspace have been given their projects once.
-	AssignedMetaKey = "molten:viewprojectsv1"
-	// Tab meta of a tile: the slot the per-project instances of one pinned view share.
-	ViewSlotMetaKey = "molten:viewslot"
+	// Workspace meta: the temporary views of this workspace have been given their projects once (#1760, part 1), and
+	// its pinned views theirs, with a slot each (part 2).
+	AssignedMetaKey       = "molten:viewprojectsv1"
+	AssignedPinnedMetaKey = "molten:viewprojectsv2"
+	// Workspace meta: {tabId: slot}, the slot the per-project instances of one tile share. A tile has one instance in
+	// each project that showed it; the slot is the workspace's pinned view, which closes and renames as one. must match
+	// frontend/moltenterm-shell/hidden-tabs.ts
+	SlotsMetaKey = "molten:viewslots"
 	// Tab meta, transient: the project a new tab is made for (a reopened view, an agent's tab). createTabObj moves it
 	// into TabProjectsMetaKey and takes it off the tab.
 	ViewProjectHintMetaKey = "molten:viewproject"
@@ -270,6 +274,22 @@ func readStringMap(meta waveobj.MetaMapType, key string) map[string]string {
 		}
 	}
 	return rtn
+}
+
+// ReadSlots reads {tabId: slot} from the workspace's meta.
+func ReadSlots(meta waveobj.MetaMapType) map[string]string {
+	return readStringMap(meta, SlotsMetaKey)
+}
+
+// PruneSlots drops the slots of the tabs that are gone.
+func PruneSlots(tabIds []string, slots map[string]string) map[string]string {
+	kept := map[string]string{}
+	for tab, slot := range slots {
+		if slices.Contains(tabIds, tab) {
+			kept[tab] = slot
+		}
+	}
+	return kept
 }
 
 // MapValue turns a string map into the value a meta stores; nil (the key leaves) when it is empty.
