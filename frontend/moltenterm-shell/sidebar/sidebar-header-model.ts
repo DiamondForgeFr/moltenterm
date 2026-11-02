@@ -16,9 +16,9 @@ export function workspaceHeaderLogo(ws: Workspace): string {
 // project in its Project sheet (kept in its entry), else the one the workspace keeps when it is inside the project's
 // folder, else the first image found in the folder. A project without a logo shows the workspace's icon. A workspace
 // with one project keeps the title's logo as it was.
-export type HeaderIcon = { kind: "logo"; logo: string } | { kind: "workspace" } | { kind: "none" };
+export type HeaderMark = { kind: "logo"; logo: string } | { kind: "workspace" } | { kind: "none" };
 
-export function headerIcon(ws: Workspace, found: readonly string[]): HeaderIcon {
+export function headerIcon(ws: Workspace, found: readonly string[]): HeaderMark {
     if (readProjects(ws).length < 2) {
         const logo = workspaceHeaderLogo(ws);
         return logo !== "" ? { kind: "logo", logo } : { kind: "none" };
