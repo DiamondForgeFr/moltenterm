@@ -329,7 +329,12 @@ function Outcome({ job, onAgain }: { job: SetupPrJob; onAgain: () => void }) {
     if (job.prurl) {
         return (
             <div className="flex flex-wrap items-center gap-2 text-12 text-secondary" data-testid="setup-pr-done">
-                <span>{t("mc.setup.pr.done", { number: String(job.prnumber ?? ""), target: job.target })}</span>
+                <span data-testid="setup-pr-done-line" data-draft={job.draft ? "true" : "false"}>
+                    {t(job.draft ? "mc.setup.pr.doneDraft" : "mc.setup.pr.done", {
+                        number: String(job.prnumber ?? ""),
+                        target: job.target,
+                    })}
+                </span>
                 <a
                     href={job.prurl}
                     onClick={(e) => {

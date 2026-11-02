@@ -484,6 +484,7 @@ var windowCommands = map[string]string{
 	SetupPrStateCommand:  "a release setup's pull request is followed from a MoltenTerm window",
 	SetupTicketsCommand:  "a release setup's ticket is picked from a MoltenTerm window",
 	SetupPrStatusCommand: "a release setup's pull request is followed from a MoltenTerm window",
+	SetupPrReadyCommand:  "a release setup's pull request is marked ready from a MoltenTerm window",
 	// Launch (FR-REV-031) switches the checkout and runs the project's servers: the developer's click only.
 	LaunchSaveRecipeCommand: "a launch recipe is confirmed from a MoltenTerm window",
 	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
@@ -585,6 +586,7 @@ func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, workt
 	setup.AnswersDir = setupAnswers
 	setup.TemplatesDir = setupTemplates
 	setup.ProjectDirs = linkedProjectDirs
+	setup.OnDraftPr = MakeSetupPrWatch(setup.Run).Watch
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
 		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks, setup: setup, board: MakeSetupBoardRoute()}
@@ -674,6 +676,12 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 			return nil, err
 		}
 		return ReadSetupPrStatus(ctx, l.setup.Run, req)
+	case SetupPrReadyCommand:
+		var req pipelinesetup.PrReadyRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.PrReady(ctx, req)
 	case SetupSurveyCommand:
 		var req pipelinesetup.SurveyRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

@@ -40,6 +40,7 @@ export const MissionSetupSurveyCommand = "moltenmissionsetupsurvey";
 export const MissionSetupAnswersCommand = "moltenmissionsetupanswers";
 export const MissionSetupModelsCommand = "moltenmissionsetupmodels";
 export const MissionSetupPrStatusCommand = "moltenmissionsetupprstatus";
+export const MissionSetupPrReadyCommand = "moltenmissionsetupprready";
 export const MissionSetupTechDocCommand = "moltenmissionsetuptechdoc";
 export const MissionSetupTemplatesCommand = "moltenmissionsetuptemplates";
 export const MissionSetupTemplateSaveCommand = "moltenmissionsetuptemplatesave";
@@ -207,6 +208,11 @@ export function setupSaveAnswers(dir: string, answers: SetupAnswers): Promise<{ 
 // The pull request the setup opened, as GitHub has it now (#1104): read only.
 export function setupPrStatus(dir: string, number: number): Promise<SetupPrStatus> {
     return setupCall(MissionSetupPrStatusCommand, { dir, number }, SetupDraftTimeoutMs);
+}
+
+// The developer's Mark ready on the setup's draft (#1788): gh pr ready on its address.
+export function setupPrReady(dir: string, url: string): Promise<{ ready: boolean }> {
+    return setupCall(MissionSetupPrReadyCommand, { dir, url }, SetupDraftTimeoutMs);
 }
 
 export function setupTickets(dir: string): Promise<{ tickets: SetupTicket[] }> {

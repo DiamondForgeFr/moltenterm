@@ -4422,7 +4422,8 @@
                 "copyAgain": "Copy it again",
                 "patchReady": "The patch is copied: apply it with git am where your project takes changes.",
                 "copied": "Copied again.",
-                "done": "Pull request #{number} opened as a draft. The Release menu uses the pipeline once it is merged into {target}.",
+                "done": "Pull request #{number} opened for your review. The Release menu uses the pipeline once it is merged into {target}.",
+                "doneDraft": "Pull request #{number} opened as a draft: your project's workflow tests a change by hand before its review, so it waits for you. Mark it ready once you have; a notification tells you when its checks are done. The Release menu uses the pipeline once it is merged into {target}.",
                 "openPr": "Open #{number}",
                 "pushedOnly": "{branch} is pushed. origin is not on GitHub: open the pull request into {target} there.",
                 "prepareAgain": "Prepare again",
@@ -4438,7 +4439,7 @@
                     "write": "the files written there and validated",
                     "commit": "one commit",
                     "push": "pushed to origin",
-                    "pr": "the pull request opened as a draft into {target}",
+                    "pr": "the pull request opened into {target}",
                     "patch": "the patch made",
                     "doc": "the technical documentation written to its page"
                 },
@@ -4857,6 +4858,7 @@
                 "follow": {
                     "reading": "Reading #{number} on GitHub…",
                     "running": "Draft pull request #{number}: its checks are running ({pending} to go).",
+                    "runningReady": "Pull request #{number} is open for review: its checks are running ({pending} to go).",
                     "failed": "#{number}: {failed} failed checks. Open it to see why; nothing is merged.",
                     "green": "#{number} is ready and its checks are green: merge it into {target} when you agree.",
                     "greenDraft": "#{number}'s checks are green. It is still a draft: mark it ready, then merge it into {target} when you agree.",
@@ -4867,7 +4869,10 @@
                     "unread": "GitHub could not be read just now: MoltenTerm tries again."
                 },
                 "openReviews": "Open #{number} in Integration",
-                "openGithub": "Open on GitHub"
+                "openGithub": "Open on GitHub",
+                "markReady": "Mark ready",
+                "markingReady": "Marking ready…",
+                "noPrAddress": "This notification names no pull request."
             },
             "state": {
                 "noAgent": {
@@ -8753,6 +8758,7 @@
                 "prBusy": "A pull request of the release setup is already being prepared for this project.",
                 "prUnknown": "This pull request is no longer followed: prepare it again.",
                 "ticketsUnread": "The open issues could not be read: {detail}",
+                "prReadyFailed": "The pull request could not be marked ready: {detail}",
                 "noGit": "This project is not a git repository with its working branch: there is nothing to open a pull request on.",
                 "ticketNeeded": "The project's commit format names a ticket: pick one or create one.",
                 "includeConflict": "Your uncommitted changes to {path} conflict with {ref}: commit or rebase them first, or leave them out.",
@@ -8787,6 +8793,15 @@
                 "stopped": "Its run card shows at which step, and the end of its log.",
                 "showBuild": "Show the build",
                 "showInFolder": "Show in folder"
+            },
+            "setup": {
+                "prReadyTitle": "The release setup's pull request #{number} is ready for your review",
+                "prReady": "#{number}'s checks are green. It is a draft because your project's workflow tests a change by hand before its review: mark it ready once you have, then merge it into {target}.",
+                "prReadyNoChecks": "#{number} runs no checks. It is a draft because your project's workflow tests a change by hand before its review: mark it ready once you have, then merge it into {target}.",
+                "prFailedTitle": "The release setup's pull request #{number} has failed checks",
+                "prFailed": "#{number} is still a draft: open it to see why. Nothing is merged into {target}.",
+                "markReady": "Mark ready",
+                "open": "Open"
             },
             "worktree": {
                 "keptTitle": "Worktree {name} is still on disk",

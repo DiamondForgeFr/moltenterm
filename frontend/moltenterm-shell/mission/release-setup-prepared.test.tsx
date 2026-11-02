@@ -9,6 +9,7 @@ vi.mock("./release-setup-client", () => ({
     setupRefine: vi.fn(),
     setupWrite: vi.fn(),
     setupPrStatus: vi.fn(),
+    setupPrReady: vi.fn(),
     setupTickets: vi.fn(),
 }));
 vi.mock("./mission-client", () => ({
@@ -355,6 +356,33 @@ describe("the pull request followed in step 3 (#1104)", () => {
         expect(prFollowKey(status({ checks: "success", draft: false }))).toBe("mc.setup.prepared.follow.green");
         expect(prFollowKey(status({ state: "merged" }))).toBe("mc.setup.prepared.follow.merged");
         expect(prFollowKey(status({ state: "closed" }))).toBe("mc.setup.prepared.follow.closed");
+        // Opened ready for review (#1788): its running checks do not call it a draft.
+        expect(prFollowKey(status({ draft: false }))).toBe("mc.setup.prepared.follow.runningReady");
+    });
+
+    it("offers Mark ready on a draft only (#1788)", () => {
+        const draft = renderToStaticMarkup(
+            <PrFollow
+                dir="/p"
+                job={{ ...job, draft: true }}
+                status={status({ checks: "success" })}
+                error={false}
+                onOpenReviews={() => {}}
+            />
+        );
+        expect(draft).toContain('data-testid="prepared-mark-ready"');
+        expect(draft).toContain("Mark ready");
+        const ready = renderToStaticMarkup(
+            <PrFollow
+                dir="/p"
+                job={job}
+                status={status({ draft: false })}
+                error={false}
+                onOpenReviews={() => {}}
+            />
+        );
+        expect(ready).toContain("Pull request #42 is open for review: its checks are running (2 to go).");
+        expect(ready).not.toContain("prepared-mark-ready");
     });
 
     it("shows the line and the ways to open it", () => {

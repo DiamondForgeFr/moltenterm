@@ -21,6 +21,7 @@ import { openAgentLinksGesture } from "./agent-links/agent-links-store";
 import { startAgentSeen } from "./agent-seen";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT, useTCount } from "./i18n/i18n";
+import { registerSetupPrGestures } from "./mission/release-setup-gestures";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
@@ -89,6 +90,7 @@ function registerBuiltInGestures(): () => void {
         }),
         registerNotificationGesture(AgentHandoffGesture, answerAgentHandoff),
         registerNotificationGesture(AgentLinksGesture, openAgentLinksGesture),
+        registerSetupPrGestures(),
     ];
     return () => unregister.forEach((fn) => fn());
 }

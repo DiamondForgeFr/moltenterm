@@ -251,6 +251,8 @@ export type SetupPrJob = {
     commit?: string;
     prurl?: string;
     prnumber?: number;
+    // Opened as a draft: the project's workflow tests a change by hand before its review (#1788).
+    draft?: boolean;
     patch?: string;
     files: string[];
     // The technical documentation's backend page, once written (FR-MC-043).

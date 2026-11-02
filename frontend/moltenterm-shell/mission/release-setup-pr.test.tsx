@@ -239,8 +239,23 @@ describe("the setup's pull request (#1098)", () => {
                 onAgain={() => {}}
             />
         );
-        expect(html).toContain("Pull request #42 opened as a draft.");
+        expect(html).toContain("Pull request #42 opened for your review.");
         expect(html).toContain("Open #42");
+        // A draft says why it waits, and that a notification follows its checks (#1788).
+        const draft = renderToStaticMarkup(
+            <PrPanel
+                dir="/p"
+                plan={plan}
+                choice={newTicket}
+                onChoice={() => {}}
+                job={job({ finished: true, prurl: "https://github.com/o/r/pull/42", prnumber: 42, draft: true })}
+                busy={false}
+                error={null}
+                onAgain={() => {}}
+            />
+        );
+        expect(draft).toContain("opened as a draft: your project&#x27;s workflow tests a change by hand");
+        expect(draft).toContain("a notification tells you when its checks are done");
         expect(
             renderToStaticMarkup(
                 <PrFooterButtons
