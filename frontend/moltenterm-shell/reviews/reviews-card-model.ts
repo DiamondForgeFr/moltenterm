@@ -299,7 +299,10 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     }
     // #1212: in a workflow without Human Testing every draft is the agents' column (AI Testing until it is marked
     // ready), so the column says nothing of an agent at work: only a live agent or a recent commit does.
-    const inferred = input.agentReadies ? input.recentCommit : input.boardTurn?.owner === "agent";
+    // #1790: the branch's own agents, when known, say it better than a guess: none working means the recent commit is
+    // theirs and they stopped, so the card says whose turn it is next, never "an agent is on it" with the dominoes.
+    const known = (input.agents ?? []).length > 0;
+    const inferred = !known && (input.agentReadies ? input.recentCommit : input.boardTurn?.owner === "agent");
     if (working != null || (inferred && pr.draft)) {
         return "agent-working";
     }
@@ -507,6 +510,29 @@ function relaunchAction(input: CardInput): CardAction {
     return action("start-agent", "reviews.card.action.startAgent");
 }
 
+// An agent's own first name, its parent's for a sub-agent or a background agent; "" when it has none.
+function ownName(agent: AgentBarFacts): string {
+    if (agent == null) {
+        return "";
+    }
+    return ((agent.kind === "panel" ? agent.name : "") || agent.parentName || "").trim();
+}
+
+// finishSentence (#1790): whose turn a draft left to its agents is. "Done · Arthur has to mark it ready" once one of
+// the branch's agents told it finished (a red CI or conflicts: "pick it up again"), "Arthur still has to mark it
+// ready" otherwise; the generic sentence when nobody is named.
+function finishSentence(agents: AgentBarFacts[], name: string, blocked: boolean): Phrase {
+    const done = agents.some((a) => a.state === "done");
+    if (done) {
+        const who = name ? phrase("reviews.card.name", { name }) : phrase("reviews.card.theAgent");
+        return phrase(blocked ? "reviews.card.state.agentDoneBlocked" : "reviews.card.state.agentDone", { name: who });
+    }
+    if (name) {
+        return phrase("reviews.card.state.agentFinishBy", { name });
+    }
+    return phrase("reviews.card.state.agentFinish");
+}
+
 // In a menu, Mark ready comes first and says what it does (#1085): it is how the developer takes a draft over.
 function menuOrder(menu: CardAction[]): CardAction[] {
     const ready = menu.find((a) => a.id === "mark-ready");
@@ -596,7 +622,11 @@ export function cardState(input: CardInput): CardState {
         case "agent-finish": {
             // The branch's agent that stopped (a panel first: the one Resume reaches), else the task's.
             agent = agents.find((a) => a.kind === "panel") ?? agents[0] ?? (input.taskLive ? input.taskOwner : null);
-            sentence = phrase("reviews.card.state.agentFinish");
+            // The lead that owns the work takes it back (#1779), named on the button; the menu keeps the explicit
+            // choice of a fresh agent.
+            lead = leadOf(input);
+            const blocked = pr.merge === "conflicts" || failed.length > 0;
+            sentence = finishSentence(agents, lead?.name || ownName(agent), blocked);
             if (pr.merge === "conflicts") {
                 why = phrase("reviews.card.why.conflicts", { base: pr.base });
                 said.add("conflicts");
@@ -606,9 +636,6 @@ export function cardState(input: CardInput): CardState {
             } else {
                 why = phrase("reviews.card.why.agentFinish");
             }
-            // The lead that owns the work takes it back (#1779), named on the button; the menu keeps the explicit
-            // choice of a fresh agent.
-            lead = leadOf(input);
             primary = action("resume", "reviews.card.action.resume", {
                 name: lead?.name ? phrase("reviews.card.name", { name: lead.name }) : agentName(agent),
             });

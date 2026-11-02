@@ -238,7 +238,7 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
             vars: { name: { key: "reviews.card.name", vars: { name: "Olivia" } } },
         });
         expect(solo.molten).toBe(false);
-        expect(solo.sentence).toEqual({ key: "reviews.card.state.agentFinish" });
+        expect(solo.sentence).toEqual({ key: "reviews.card.state.agentFinishBy", vars: { name: "Olivia" } });
         const sections = sectionsByTurn(
             [draft],
             cardStates([draft], {}, (n) => `/p#${n}`, ctx("no")),
@@ -250,6 +250,45 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         expect(gated.turn).toBe("yours");
         expect(gated.primary?.id).toBe("mark-ready");
         expect(gated.sentence).toEqual({ key: "reviews.card.state.draftReady" });
+    });
+
+    // #1790: the sub-agent of Arthur finished 12 min ago on a green draft in AI Testing, its commit still recent: the
+    // card is Arthur's to mark ready, never "An agent is on it" with the dominoes.
+    it("reads a finished sub-agent's recent draft as its lead's turn, not as an agent at work", () => {
+        const draft = pr(1789, { draft: true, agents: [{ firstname: "Arthur", agent: "claude" }] });
+        const states = {
+            states: { ...States.states, arthur: { state: "idle", firstname: "Arthur", since: Now - 60_000 } },
+        } as unknown as AgentStatesData;
+        const sub = (state: "running" | "done") => ({
+            branch: "feature/1789-x",
+            worktree: "/w/1789",
+            kind: "subagent" as const,
+            parentblockid: "arthur",
+            parentfirstname: "Arthur",
+            state,
+            activeat: Now - 12 * 60_000,
+        });
+        const ctx = (state: "running" | "done"): CardContext => ({
+            ...Ctx,
+            states,
+            upcoming: {
+                ...Upcoming,
+                humantesting: "no",
+                agents: [...Upcoming.agents, sub(state)],
+                drafts: [{ branch: "feature/1789-x", ticket: 1778, status: "AI Testing", commitat: Now - 13 * 60_000 }],
+            },
+        });
+        const done = cardState(cardInputOf(draft, null, ctx("done")));
+        expect(done.kind).toBe("agent-finish");
+        expect(done.sentence).toEqual({
+            key: "reviews.card.state.agentDone",
+            vars: { name: { key: "reviews.card.name", vars: { name: "Arthur" } } },
+        });
+        expect(done.primary?.id).toBe("resume");
+        expect([done.works, done.motion]).toEqual([false, null]);
+        const running = cardState(cardInputOf(draft, null, ctx("running")));
+        expect(running.kind).toBe("agent-working");
+        expect(running.works).toBe(true);
     });
 
     // #1172: on a Solo board (no Human Testing) a draft is the agents' turn, its column known or not; with Human

@@ -296,7 +296,7 @@ describe("cardState: the nine states (#1060)", () => {
     it("a draft its agent stopped before marking ready: Resume {name}, never the developer's", () => {
         const w = words({ pr: pr({ draft: true }), agents: [Jeanne], agentReadies: true });
         expect(w.kind).toBe("agent-finish");
-        expect(w.sentence).toBe("The agent still has to mark it ready");
+        expect(w.sentence).toBe("Jeanne still has to mark it ready");
         expect(w.why).toBe("your workflow has no Human Testing: the agent marks its draft ready itself");
         expect(w.primary).toBe("Resume Jeanne");
         expect(w.molten).toBe(false);
@@ -322,6 +322,93 @@ describe("cardState: the nine states (#1060)", () => {
         expect(state({ pr: pr({ draft: true }), boardTurn: aiTesting }).kind).toBe("agent-working");
         expect(state({ pr: pr({ draft: true }), agents: [Nathan], agentReadies: true }).kind).toBe("agent-working");
         expect(state({ pr: pr({ draft: true }), agents: [Diane], agentReadies: true }).kind).toBe("agent-waiting");
+    });
+
+    // #1790: a sub-agent that finished on a green draft in AI Testing, its commit still recent: the card says whose
+    // turn it is, with Resume and no dominoes; the dominoes stay while an agent really works on the PR.
+    describe("a finished agent's draft says whose turn it is (#1790)", () => {
+        const sub = (state: AgentBarFacts["state"]): AgentBarFacts => ({
+            kind: "subagent",
+            name: "",
+            state,
+            since: 1,
+            parentBlockId: "arthur",
+            parentName: "Arthur",
+            subState: state === "done" ? "done" : "running",
+        });
+        const signed = { agents: [{ firstname: "Arthur", agent: "claude" }] } as Partial<ReviewPr>;
+        const aiTesting = { owner: "agent" as const, kind: "agent" as const, status: "AI Testing" };
+
+        it("an agent working: on it, with the dominoes", () => {
+            const s = state({
+                pr: pr({ draft: true, ...signed }),
+                agents: [sub("working")],
+                agentReadies: true,
+                recentCommit: true,
+            });
+            expect(s.kind).toBe("agent-working");
+            expect(wordPhrase(s.sentence)).toBe("Arthur is on it");
+            expect(s.works).toBe(true);
+            expect(s.motion).not.toBeNull();
+        });
+
+        it("finished on a green draft: Done · Arthur has to mark it ready, Resume Arthur, no dominoes", () => {
+            const input = {
+                pr: pr({ draft: true, ...signed }),
+                agents: [sub("done")],
+                agentReadies: true,
+                recentCommit: true,
+                boardStatus: "AI Testing",
+            };
+            const s = state(input);
+            const w = words(input);
+            expect(s.kind).toBe("agent-finish");
+            expect(w.sentence).toBe("Done · Arthur has to mark it ready");
+            expect(w.sentence).not.toBe("An agent is on it");
+            expect(w.primary).toBe("Resume Arthur");
+            expect(s.lead?.name).toBe("Arthur");
+            expect([s.turn, s.works, s.motion, s.molten]).toEqual(["agents", false, null, false]);
+        });
+
+        it("finished on a red CI: Done · Arthur has to pick it up again, the failure as its reason", () => {
+            const input = {
+                pr: pr({ draft: true, ...signed }, [Failed(), ...Green.slice(1)]),
+                agents: [sub("done")],
+                agentReadies: true,
+                recentCommit: true,
+            };
+            const s = state(input);
+            const w = words(input);
+            expect(s.kind).toBe("agent-finish");
+            expect(w.sentence).toBe("Done · Arthur has to pick it up again");
+            expect(w.why).toBe("CI failing: Backend");
+            expect(w.primary).toBe("Resume Arthur");
+            expect([s.works, s.motion]).toEqual([false, null]);
+        });
+
+        it("finished without a name: Done · the agent has to mark it ready", () => {
+            const anon: AgentBarFacts = { ...sub("done"), parentName: "", parentBlockId: "" };
+            const s = state({ pr: pr({ draft: true }), agents: [anon], agentReadies: true, recentCommit: true });
+            expect(s.kind).toBe("agent-finish");
+            expect(wordPhrase(s.sentence)).toBe("Done · the agent has to mark it ready");
+        });
+
+        it("no agent known: a recent commit or an agent's column still reads as an agent on it", () => {
+            const commit = state({ pr: pr({ draft: true }), agentReadies: true, recentCommit: true });
+            expect([commit.kind, wordPhrase(commit.sentence), commit.works]).toEqual([
+                "agent-working",
+                "An agent is on it",
+                true,
+            ]);
+            expect(state({ pr: pr({ draft: true }), boardTurn: aiTesting }).kind).toBe("agent-working");
+        });
+
+        it("finished with Human Testing: the draft is the developer's to test", () => {
+            const s = state({ pr: pr({ draft: true, ...signed }), agents: [sub("done")], recentCommit: true });
+            expect(s.kind).toBe("draft-ready");
+            expect(s.turn).toBe("yours");
+            expect(s.works).toBe(false);
+        });
     });
 
     it("no draft reads Ready, whatever its quick checks say (#1212)", () => {
