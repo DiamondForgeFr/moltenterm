@@ -7,6 +7,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
 import { modalIsOpen } from "../modal-open";
+import { installWorkspaceLetterFilter } from "../sidebar/workspace-letter-filter";
 import { getOverlayController, installShortcutOverlay } from "./overlay-controller";
 import { ShortcutsSheetAltKey, ShortcutsSheetKey } from "./registry";
 
@@ -58,4 +59,5 @@ export function registerShortcutsKeys(keyMap: Map<string, (e: WaveKeyboardEvent)
     keyMap.set(ShortcutsSheetKey, () => toggleShortcutOverlay());
     keyMap.set(ShortcutsSheetAltKey, () => toggleShortcutOverlay());
     installShortcutOverlay();
+    installWorkspaceLetterFilter();
 }
