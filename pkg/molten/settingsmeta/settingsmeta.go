@@ -302,6 +302,9 @@ var settings = []Setting{
 	hidden("app:dismissarchitecturewarning"),
 	// The workspace sidebar's fallback (#1183): false brings back the tab bar, the rail and the status bar.
 	hidden("shell:workspacesidebar"),
+	// The Integration panel's sort and folds (#1758): its switch and section headers are their control.
+	hidden("moltenterm:reviewssort"),
+	hidden("moltenterm:reviewsfolds"),
 }
 
 func init() {

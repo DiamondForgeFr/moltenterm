@@ -142,6 +142,8 @@ const (
 	ConfigKey_MoltentermView360              = "moltenterm:view360"
 	ConfigKey_MoltentermTerminalScreenReader = "moltenterm:terminalscreenreader"
 	ConfigKey_MoltentermCodingAgent          = "moltenterm:codingagent"
+	ConfigKey_MoltentermReviewsSort          = "moltenterm:reviewssort"
+	ConfigKey_MoltentermReviewsFolds         = "moltenterm:reviewsfolds"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"

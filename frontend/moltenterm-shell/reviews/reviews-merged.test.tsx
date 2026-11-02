@@ -1,12 +1,27 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { RpcApi } from "@/app/store/wshclientapi";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MergedSection } from "./reviews-merged";
-import { MergedOpenPref, MergedOpenStorageKey, notesByPr, ReviewMergedPr, shipsLabel } from "./reviews-merged-model";
+import { MergedOpenPref, notesByPr, ReviewMergedPr, shipsLabel } from "./reviews-merged-model";
 import { ReviewsAnswer } from "./reviews-model";
+import { ReviewsFolds, ReviewsFoldsKey } from "./reviews-order-store";
+
+// The settings the page holds, as the app's global atoms give them once initialised.
+vi.mock("@/app/store/global", async (importOriginal) => {
+    const { atom } = await import("jotai");
+    const fullConfigAtom = atom(null);
+    const settingsAtom = atom((get) => (get(fullConfigAtom) as any)?.settings ?? {});
+    return {
+        ...(await importOriginal<object>()),
+        atoms: { fullConfigAtom, settingsAtom },
+        getSettingsKeyAtom: (key: string) => atom((get) => (get(settingsAtom) as any)[key]),
+    };
+});
 
 vi.mock("../review/review-notes", () => ({
     useReviewNotes: () => ({
@@ -52,6 +67,8 @@ function answer(rows: ReviewMergedPr[]): ReviewsAnswer {
 describe("Recently merged (#843)", () => {
     afterEach(() => {
         MergedOpenPref.resetInstance();
+        ReviewsFolds.resetInstance();
+        globalStore.set(atoms.fullConfigAtom, null);
         vi.unstubAllGlobals();
     });
 
@@ -128,9 +145,16 @@ describe("Recently merged (#843)", () => {
             <MergedSection answer={answer([merged(7)])} onShowNotes={() => {}} defaultOpen={false} />
         );
         expect(folded).not.toContain("reviews-merged-row");
+        const save = vi.spyOn(RpcApi, "SetConfigCommand").mockResolvedValue(undefined);
         MergedOpenPref.getInstance().set(false);
-        expect(storage.data.get(MergedOpenStorageKey)).toBe("closed");
+        expect(save.mock.calls[0]?.[1]).toEqual({ [ReviewsFoldsKey]: { merged: false } });
+        save.mockRestore();
+        // A new page reads it from the settings (#1758).
+        globalStore.set(atoms.fullConfigAtom, {
+            settings: { [ReviewsFoldsKey]: { merged: false } },
+        } as unknown as FullConfigType);
         MergedOpenPref.resetInstance();
+        ReviewsFolds.resetInstance();
         expect(globalStore.get(MergedOpenPref.getInstance().openAtom)).toBe(false);
         const html = renderToStaticMarkup(<MergedSection answer={answer([merged(7)])} onShowNotes={() => {}} />);
         expect(html).toContain('aria-expanded="false"');
