@@ -36,6 +36,8 @@ type SubagentIdentity struct {
 	Description string
 	Kind        string
 	Model       string
+	// Effort: the latest effort level its transcript recorded, "" when none (#1756: its signature).
+	Effort string
 	// Worktree: the folder it works in (its worktree, else its records' cwd), as recorded.
 	Worktree string
 	Finished bool
@@ -194,7 +196,7 @@ func (a *ClaudeAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 				}
 				return claudeTailFacts(tail, true), true
 			})
-			id.Model = facts.model
+			id.Model, id.Effort = facts.model, facts.effort
 			if id.Worktree == "" {
 				id.Worktree = facts.cwd
 			}
@@ -248,7 +250,7 @@ func (a *CodexAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 			facts.cwd, facts.ended = codexWorkFolder(cwd, folders), ended
 			return facts, true
 		})
-		id.Model, id.Finished, id.Worktree = facts.model, facts.ended, facts.cwd
+		id.Model, id.Effort, id.Finished, id.Worktree = facts.model, facts.effort, facts.ended, facts.cwd
 		rtn = append(rtn, id)
 	}
 	return rtn
