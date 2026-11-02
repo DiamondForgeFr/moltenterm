@@ -184,6 +184,7 @@ import {
 } from "./window-corner-model";
 import { WorkspaceDotPopover } from "./workspace-dot-popover";
 import { DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
+import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
@@ -2011,6 +2012,7 @@ function moveWorkspaceDot(move: RailMove, refocus: boolean) {
 function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const t = useT();
     const draft = useAtomValue(SidebarModel.getInstance().createDraftAtom);
+    const letter = useAtomValue(WorkspaceLetterFilter.getInstance().letterAtom);
     const notifications = useAtomValue(MoltentermNotifications.getInstance().shownEntriesAtom);
     const unread = unreadByWorkspace(notifications);
     const rowRef = useRef<HTMLDivElement>(null);
@@ -2077,14 +2079,24 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
         onOut: () => hoverRef.current.out(),
         onLeave: () => hoverRef.current.leave(),
     });
-    const count = workspaces.entries.length + (draft != null ? 1 : 0);
+    const shown = filterEntries(workspaces.entries, (w) => w.name, letter);
+    const pendingShown = draft != null && letter == null;
+    const count = shown.length + (pendingShown ? 1 : 0);
     const many = manyDots(count);
     const activeId = workspaces.entries.find((e) => e.active)?.id;
     const centredOnceRef = useRef(false);
-    // The current square (or the pending dot) stays in the middle of a row that scrolls.
+    // The current square (or the pending dot) stays in the middle of a row that scrolls. A filtered row starts at its
+    // first match, so every match it keeps stays in view.
     useLayoutEffect(() => {
         const row = rowRef.current;
-        if (row == null || !many) {
+        if (row == null) {
+            return;
+        }
+        if (letter != null) {
+            row.scrollTo({ left: 0, behavior: "instant" });
+            return;
+        }
+        if (!many) {
             return;
         }
         const on = row.querySelector<HTMLElement>(".mt-sb-dot.is-on");
@@ -2103,12 +2115,13 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
         // dot).
         row.scrollTo({ left, behavior: centredOnceRef.current ? "smooth" : "instant" });
         centredOnceRef.current = true;
-    }, [many, activeId, count, draft != null]);
+    }, [many, activeId, count, draft != null, letter]);
     return (
         <div
             ref={rowRef}
             role="tablist"
             aria-label={t("rail.workspaces")}
+            title={t("rail.letterHint")}
             className={cn(
                 "mt-sb-dots flex min-w-0 flex-1 items-center gap-0.5",
                 many ? "is-many" : "justify-center overflow-hidden"
@@ -2117,7 +2130,21 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
             data-many={many ? "true" : undefined}
             onPointerLeave={() => hoverRef.current.leave()}
         >
-            {workspaces.entries.map((entry, i) => (
+            {letter != null ? (
+                <span
+                    data-testid="sidebar-letter-chip"
+                    title={t("rail.letterChip", { letter: letter.toUpperCase() })}
+                    className="shrink-0 rounded border border-line px-1.5 text-11 leading-5 font-semibold text-primary"
+                >
+                    {letter.toUpperCase()}
+                </span>
+            ) : null}
+            {letter != null && shown.length === 0 ? (
+                <span data-testid="sidebar-letter-none" className="shrink-0 text-11 text-muted">
+                    {t("rail.letterNone")}
+                </span>
+            ) : null}
+            {shown.map((entry) => (
                 <WorkspaceDot
                     key={entry.id}
                     entry={entry}
@@ -2125,11 +2152,11 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
                     unread={unread.get(entry.id) ?? 0}
                     drag={dragOf(entry.id)}
                     hover={hoverOf(entry.id)}
-                    place={i + 1}
+                    place={workspaces.entries.indexOf(entry) + 1}
                     current={entry.active && draft == null}
                 />
             ))}
-            {draft != null ? <PendingDot draft={draft} /> : null}
+            {pendingShown ? <PendingDot draft={draft} /> : null}
         </div>
     );
 }
@@ -2735,6 +2762,8 @@ export function WorkspaceSidebar() {
                 <div
                     className={cn("flex shrink-0 items-center gap-1.5", !hidden && "border-t border-line pt-1.5")}
                     data-testid="sidebar-bottom-bar"
+                    onPointerEnter={() => WorkspaceLetterFilter.getInstance().pointer(true)}
+                    onPointerLeave={() => WorkspaceLetterFilter.getInstance().pointer(false)}
                 >
                     <LibraryButton />
                     <WorkspaceDots workspaces={workspaces} />

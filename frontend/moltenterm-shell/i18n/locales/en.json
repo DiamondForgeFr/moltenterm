@@ -5342,6 +5342,9 @@
         "groupNameTooLong": "A group name is at most {max} characters.",
         "workspaces": "Workspaces",
         "createWorkspace": "Create workspace",
+        "letterHint": "Hold a letter to filter",
+        "letterChip": "Filtering on {letter}",
+        "letterNone": "No workspace",
         "moreActionsFor": "More actions for {name}",
         "editName": "Edit {name}",
         "menu": {
