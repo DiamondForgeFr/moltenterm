@@ -8,7 +8,14 @@ import { describe, expect, it } from "vitest";
 import type { AgentSignIn, OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 import { needsSignIn, pourAgentCards } from "./onboarding-pour-agents";
 import { AgentsScene } from "./onboarding-pour-scenes";
-import { isSignInActive, signInEnded, signInHowKey, signInOpensKey, type SignInRun } from "./onboarding-signin-model";
+import {
+    isSignInActive,
+    signInEnded,
+    signInHowKey,
+    signInOpensKey,
+    signInOutcome,
+    type SignInRun,
+} from "./onboarding-signin-model";
 
 const noop = () => {};
 
@@ -66,6 +73,25 @@ describe("the sign-in line", () => {
         expect(isSignInActive({ state: "running" })).toBe(true);
         expect(isSignInActive({ state: "ended" })).toBe(false);
     });
+
+    it("ends when the command is already done at the first look (#1733)", () => {
+        expect(signInEnded(false, "done", false)).toBe(true);
+        expect(signInEnded(false, "init", false)).toBe(false);
+    });
+
+    it("closes the terminal only on a sign-in wavesrv confirmed (#1733)", () => {
+        expect(signInOutcome({ ended: true, exitcode: 0, signedin: true, checkedby: "status" })).toEqual({
+            state: "signedin",
+            close: true,
+        });
+        expect(signInOutcome({ ended: true, exitcode: 2, signedin: false })).toEqual({
+            state: "notfinished",
+            close: false,
+            exitCode: 2,
+        });
+        expect(signInOutcome({ ended: true, exitcode: 0, signedin: false })).toEqual({ state: "ended", close: false });
+        expect(signInOutcome(null)).toEqual({ state: "ended", close: false });
+    });
 });
 
 describe("Sign in on the first launch's card", () => {
@@ -104,5 +130,8 @@ describe("Sign in on the first launch's card", () => {
         expect(scene("codex", { codex: { state: "failed", error: "boom" } })).toContain(
             "The terminal did not open: boom"
         );
+        const notFinished = scene("codex", { codex: { state: "notfinished", blockId: "b1", exitCode: 1 } });
+        expect(notFinished).toContain("The sign-in did not finish (code 1). The terminal shows why.");
+        expect(notFinished).toContain('data-testid="pour-signin-run"');
     });
 });

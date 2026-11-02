@@ -1491,6 +1491,8 @@
                 },
                 "signInRunning": "Terminez la connexion dans le terminal : MoltenTerm vérifie à nouveau de lui-même.",
                 "signInEnded": "La commande du terminal est terminée. Pas encore connecté ? Reconnectez-vous, ou vérifiez à nouveau.",
+                "signInDone": "Connecté. Le terminal de connexion s'est fermé.",
+                "signInNotFinished": "La connexion n'a pas abouti (code {code}). Le terminal montre pourquoi. Reconnectez-vous une fois le problème réglé.",
                 "signInFailed": "Le terminal ne s'est pas ouvert : {error}",
                 "signInKey": "Sa connexion, c'est la clé de l'offre : créez-la sur la page du fournisseur, puis mettez-la dans la recette.",
                 "keyPage": "Obtenir la clé ↗",

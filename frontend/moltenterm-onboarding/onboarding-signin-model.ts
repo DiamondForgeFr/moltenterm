@@ -4,11 +4,25 @@
 // What Sign in decides (FR-ONB-007 AC-5b, #1723), kept apart from the store so the cards render and test without a
 // window: the one line saying what will happen, and when the sign-in terminal is over.
 
-import type { AgentSignIn } from "./onboarding-agent-model";
+import type { AgentSignIn, AgentSignInDone } from "./onboarding-agent-model";
 
-export type SignInRunState = "opening" | "running" | "ended" | "failed";
+// signedin: confirmed when the command ended, the terminal closed (#1733); notfinished: the command ended with an error
+// code, the terminal stays open on it; ended: ended without a confirmed sign-in; failed: the terminal did not open.
+export type SignInRunState = "opening" | "running" | "signedin" | "notfinished" | "ended" | "failed";
 
-export type SignInRun = { state: SignInRunState; blockId?: string; error?: string };
+export type SignInRun = { state: SignInRunState; blockId?: string; error?: string; exitCode?: number };
+
+// What the end of the sign-in terminal leads to (#1733): only a sign-in wavesrv confirmed closes the terminal; an error
+// leaves it open so its last words stay readable.
+export function signInOutcome(done: AgentSignInDone): { state: SignInRunState; close: boolean; exitCode?: number } {
+    if (done?.signedin) {
+        return { state: "signedin", close: true };
+    }
+    if (done?.ended && done.exitcode !== 0) {
+        return { state: "notfinished", close: false, exitCode: done.exitcode };
+    }
+    return { state: "ended", close: false };
+}
 
 // onboarding.pour.agents.signInHow.<kind>, with {name}, {command}, {slash} and {opens}; {opens} is
 // onboarding.pour.agents.signInOpens.<opens>.
@@ -20,9 +34,10 @@ export function signInOpensKey(signIn: AgentSignIn): string {
     return `onboarding.pour.agents.signInOpens.${signIn?.opens ?? "browser"}`;
 }
 
-// The command ended (the controller no longer runs it, once it was seen running) or its panel is gone.
+// The command ended (the controller says done, or no longer runs it once it was seen running) or its panel is gone. A
+// command over before the first poll is seen done, never running (#1733).
 export function signInEnded(seenRunning: boolean, procStatus: string, blockGone: boolean): boolean {
-    if (blockGone) {
+    if (blockGone || procStatus === "done") {
         return true;
     }
     return seenRunning && procStatus !== "running";

@@ -89,7 +89,9 @@ var agentInstallCatalog = map[string]agentInstall{
 		Commands:  []string{"curl -fsSL https://claude.ai/install.sh | bash"},
 		PlansPage: "https://claude.com/pricing",
 		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"auth", "login"}, Opens: SignInOpensBrowser,
-			Sources: []string{"https://code.claude.com/docs/en/authentication", "https://code.claude.com/docs/en/cli-reference"}},
+			Sources: []string{"https://code.claude.com/docs/en/authentication", "https://code.claude.com/docs/en/cli-reference"},
+			// "Exits with code 0 if logged in, 1 if not" (cli-reference, 2026-11-02).
+			StatusArgs: []string{"auth", "status"}, StatusSources: []string{"https://code.claude.com/docs/en/cli-reference"}},
 		// macOS keeps it in the keychain: the file only proves a sign-in, its absence nothing.
 		Credentials: credentialsIn("CLAUDE_CONFIG_DIR", ".claude", ".credentials.json"),
 	},
@@ -98,7 +100,8 @@ var agentInstallCatalog = map[string]agentInstall{
 		Commands:  []string{"curl -fsSL https://chatgpt.com/codex/install.sh | sh", "npm i -g @openai/codex"},
 		PlansPage: "https://learn.chatgpt.com/docs/pricing",
 		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"login"}, Opens: SignInOpensBrowser,
-			Sources: []string{"https://developers.openai.com/codex/auth"}},
+			Sources:    []string{"https://developers.openai.com/codex/auth"},
+			StatusArgs: []string{"login", "status"}, StatusSources: []string{"https://learn.chatgpt.com/docs/auth"}},
 		// cli_auth_credentials_store may put it in the keyring instead.
 		Credentials: credentialsIn("CODEX_HOME", ".codex", "auth.json"),
 	},
@@ -157,7 +160,9 @@ var agentInstallCatalog = map[string]agentInstall{
 		// "Stored securely" where the docs do not say.
 		PlansPage: "https://cursor.com/pricing",
 		SignIn: agentSignIn{Kind: SignInKindCommand, Args: []string{"login"}, Opens: SignInOpensBrowser,
-			Sources: []string{"https://cursor.com/docs/cli/reference/authentication"}},
+			Sources: []string{"https://cursor.com/docs/cli/reference/authentication"},
+			// Its exit code is not documented: an output saying "not logged in" counts as not signed in too.
+			StatusArgs: []string{"status"}, StatusSources: []string{"https://cursor.com/docs/cli/reference/authentication"}},
 	},
 	molten.AgentIdGrok: {
 		Page:      "https://docs.x.ai/build/overview",
@@ -189,7 +194,8 @@ type AgentEntry struct {
 	InstallCommands []string     `json:"installcommands,omitempty"`
 	PlansPage       string       `json:"planspage,omitempty"`
 	SignIn          *AgentSignIn `json:"signin,omitempty"`
-	// A credentials file the vendor documents is there; false when MoltenTerm cannot tell, never proof of the contrary.
+	// A credentials file the vendor documents is there, or a sign-in run from the card succeeded (#1733, signincheck.go);
+	// false when MoltenTerm cannot tell, never proof of the contrary.
 	SignedIn bool `json:"signedin,omitempty"`
 	// The Library's agent page (#1699): the vendor's links, the profile, and how the copy found comes off.
 	Site             string           `json:"site,omitempty"`
@@ -234,7 +240,8 @@ func ListAgents(env molten.AgentEnv, pathList string, version string) AgentsResu
 		if profile.Executable != "" {
 			entry.FoundPath = molten.LookPathIn(profile.Executable, pathList)
 			entry.Found = entry.FoundPath != ""
-			entry.SignedIn = entry.Found && signedIn(env, agentInstallCatalog[profile.Id])
+			entry.SignedIn = entry.Found && (signedIn(env, agentInstallCatalog[profile.Id]) ||
+				signInRecorded(env.DataDir, profile.Id))
 			if u, ok := matchUninstall(profile.Id, env.Home, entry.FoundPath); ok {
 				entry.Uninstall = &u
 			}

@@ -14,6 +14,8 @@ import {
     OnboardingAgents,
     OnboardingAgentsCommand,
     OnboardingAgentSignInCommand,
+    OnboardingAgentSignInDoneCommand,
+    type AgentSignInDone,
 } from "./onboarding-agent-model";
 import {
     CliInstallCancelCommand,
@@ -120,6 +122,15 @@ export async function agentSignInMeta(id: string, note: string): Promise<MetaTyp
         { route: OnboardingRoute, timeout: OnboardingRefreshTimeoutMs }
     );
     return rtn?.meta;
+}
+
+// The end of the sign-in terminal (#1733): wavesrv reads the exit code itself and may run the agent's status command.
+export function agentSignInDone(id: string, blockId: string): Promise<AgentSignInDone> {
+    return TabRpcClient.wshRpcCall(
+        OnboardingAgentSignInDoneCommand,
+        { id, blockid: blockId },
+        { route: OnboardingRoute, timeout: OnboardingRefreshTimeoutMs }
+    );
 }
 
 export async function installDeclinedAgent(id: string): Promise<OnboardingAgent> {

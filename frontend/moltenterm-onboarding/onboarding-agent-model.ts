@@ -10,6 +10,11 @@ export const OnboardingAgentInstallCommand = "onboardingagentinstall";
 // must match pkg/molten/onboarding/signin.go
 export const OnboardingAgentSignInCommand = "onboardingagentsignin";
 export const SignInBlockMetaKey = "molten:agentsignin";
+// must match pkg/molten/onboarding/signincheck.go
+export const OnboardingAgentSignInDoneCommand = "onboardingagentsignindone";
+
+// How wavesrv saw the sign-in terminal end (#1733): signed in from the agent's status command or the exit code 0.
+export type AgentSignInDone = { ended: boolean; exitcode: number; signedin: boolean; checkedby?: "status" | "exit" };
 
 export type SignInKind = "command" | "slash" | "firstrun";
 export type SignInOpens = "browser" | "device" | "key" | "browserorkey";

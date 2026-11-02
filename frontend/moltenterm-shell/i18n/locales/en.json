@@ -1492,6 +1492,8 @@
                 "signInRunning": "Finish the sign-in in the terminal: MoltenTerm checks again by itself.",
                 "signInEnded": "The terminal's command ended. Not signed in yet? Sign in again, or check again.",
                 "signInFailed": "The terminal did not open: {error}",
+                "signInDone": "Signed in. The sign-in terminal closed.",
+                "signInNotFinished": "The sign-in did not finish (code {code}). The terminal shows why. Sign in again once it is fixed.",
                 "signInKey": "Its sign-in is the plan's key: make it on the vendor's page, then put it in the recipe.",
                 "keyPage": "Get the key ↗",
                 "signInPage": "Create an account / see plans ↗",
