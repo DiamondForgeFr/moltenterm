@@ -114,7 +114,7 @@ describe("toBrowserUrl", () => {
         ["github.com/DiamondForgeFr", "https://github.com/DiamondForgeFr"],
         ["localhost:5173", "http://localhost:5173"],
         ["about:blank", "about:blank"],
-        ["wave terminal tabs", "https://duckduckgo.com/?q=wave%20terminal%20tabs"],
+        ["wave terminal tabs", "https://www.google.com/search?q=wave%20terminal%20tabs"],
         ["   ", null],
     ])("turns %j into %j", (input, want) => {
         expect(toBrowserUrl(input)).toBe(want);
@@ -143,7 +143,7 @@ describe("toBrowserUrl", () => {
     it.each(["wave terminal", "how to use example.com", "readme.m", "e.g.", "v1.2.3", "localhost is down", "12:30"])(
         "searches the words %j",
         (input) => {
-            expect(toBrowserUrl(input)).toMatch(/^https:\/\/duckduckgo\.com\/\?q=/);
+            expect(toBrowserUrl(input)).toMatch(/^https:\/\/www\.google\.com\/search\?q=/);
         }
     );
 
@@ -168,7 +168,7 @@ describe("looksLikeAddress and addressUrl agree with toBrowserUrl (#1743)", () =
     ])("%j is an address, opened as toBrowserUrl opens it", (input) => {
         expect(looksLikeAddress(input)).toBe(true);
         expect(addressUrl(input)).toBe(toBrowserUrl(input));
-        expect(addressUrl(input)).not.toContain("duckduckgo");
+        expect(addressUrl(input)).not.toContain("search?q=");
     });
 
     it.each(["wave terminal", "readme.m", "", "   ", "localhost is down", "https://x.dev/a b"])(
