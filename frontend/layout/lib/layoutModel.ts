@@ -1434,6 +1434,17 @@ export class LayoutModel {
         await this.onNodeDelete?.(nodeToDelete.data);
     }
 
+    // MOLTENTERM-PATCH (#1739): a leaf whose block left the tab goes without deleting anything (gone-block-leaves.ts)
+    dropLeafNode(nodeId: string) {
+        if (this.treeState.rootNode == null || findNode(this.treeState.rootNode, nodeId) == null) {
+            return;
+        }
+        if (nodeId === this.magnifiedNodeId) {
+            this.magnifyNodeToggle(nodeId);
+        }
+        this.treeReducer({ type: LayoutTreeActionType.DeleteNode, nodeId } as LayoutTreeDeleteNodeAction);
+    }
+
     /**
      * Shorthand function for closing the focused node in a layout.
      */
