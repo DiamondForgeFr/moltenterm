@@ -518,6 +518,7 @@ export function PlainFlowScreen({
     question,
     questionBox,
     allChoices,
+    labels,
     board,
     progress,
 }: {
@@ -538,6 +539,9 @@ export function PlainFlowScreen({
     questionBox?: ReactNode;
     // "All the choices", read-only, inside the technical details.
     allChoices?: ReactNode;
+    // The version labels found, each kept or dismissed (#1791): editable, unlike "All the choices", so a false
+    // positive can be dismissed where the update offers it.
+    labels?: ReactNode;
     // The setup's progression (#1163); the three plain markers when the screen stands alone.
     progress?: ReactNode;
 }) {
@@ -587,6 +591,7 @@ export function PlainFlowScreen({
                     </ul>
                 </SectionBlock>
             ) : null}
+            {labels}
             {channels.length === 0 ? (
                 <p className="text-12 text-muted" data-testid="plain-empty">
                     {t("mc.setup.plain.empty")}

@@ -43,6 +43,8 @@ const (
 	// Why an update is offered, read by the frontend as mc.setup.update.reason.<code>.
 	UpdateReasonProtected = "protected"
 	UpdateReasonLabels    = "labels"
+	// Labels the developer dismissed as not version labels (#1791), recorded in versions.notlabels.
+	UpdateReasonNotLabels = "notlabels"
 	UpdateReasonTemplate  = "template"
 	// Steps the developer edited or added differ from the template: kept unless they choose otherwise, and a choice
 	// written once is not offered again.
@@ -951,6 +953,13 @@ func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Cha
 		}
 		if added := len(proposal.Versions.Files) - before; added > 0 {
 			rtn = append(rtn, UpdateReason{Code: UpdateReasonLabels, Detail: fmt.Sprintf("%d", added)})
+		}
+		dismissed := 0
+		if p.Versions != nil {
+			dismissed = len(p.Versions.NotLabels)
+		}
+		if added := len(proposal.Versions.NotLabels) - dismissed; added > 0 {
+			rtn = append(rtn, UpdateReason{Code: UpdateReasonNotLabels, Detail: fmt.Sprintf("%d", added)})
 		}
 	}
 	template, customised, proposed := false, false, false

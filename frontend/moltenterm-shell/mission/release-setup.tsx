@@ -1320,6 +1320,17 @@ export function ReleaseSetup({
                             onConfirm={() => goNext("prepare")}
                             board={board}
                             progress={null}
+                            labels={
+                                writing ? null : (
+                                    <LabelsSection
+                                        draft={draft}
+                                        options={updating ? { ...options, ...(check?.options ?? {}) } : options}
+                                        onChange={updating ? upd.adjust : change}
+                                        sectionClass={SectionClass}
+                                        titleClass={SectionTitle}
+                                    />
+                                )
+                            }
                             allChoices={
                                 <fieldset disabled className="flex flex-col gap-3" data-testid="setup-all-choices">
                                     <legend className="mb-2 text-11 font-medium text-secondary uppercase">

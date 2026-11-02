@@ -4124,7 +4124,10 @@
                 "reconcileHint": "Ne fait rien quand {release} est déjà dans l’historique de la branche RC ; refusé quand {release} porte un commit absent du tronc : rien n’est jamais perdu.",
                 "labels": "Libellés de version",
                 "labelsHint": "Les lignes hors des fichiers de version qui affichent la version ({version}) ; celles gardées sont mises à jour avec elle.",
-                "labelManual": "Aucun motif ne trouve cette ligne seule : vous la mettez à jour à la main, dans une étape avant la coupe."
+                "labelManual": "Aucun motif ne trouve cette ligne seule : vous la mettez à jour à la main, dans une étape avant la coupe.",
+                "notLabel": "Pas un libellé de version",
+                "notLabelDone": "Écarté et noté dans .molten/project.json, il n’est plus proposé.",
+                "notLabelUndo": "Annuler"
             },
             "why": {
                 "title": "Pourquoi ce flux",
@@ -4319,6 +4322,7 @@
                 "reason": {
                     "protected": "{branch} est protégée : les releases passent par une pull request.",
                     "labels": "Libellés de version trouvés hors des fichiers de version : {count}. La release peut les mettre à jour.",
+                    "notlabels": "Lignes écartées comme n’étant pas des libellés de version ({count}), elles ne seront plus proposées.",
                     "template": "Des étapes écrites par une version antérieure de MoltenTerm diffèrent de ce qu’il écrit maintenant.",
                     "customised": "Vous avez modifié des étapes écrites par MoltenTerm : gardez les vôtres ou prenez sa version. Un choix écrit n’est plus proposé.",
                     "adjusted": "Les choix que vous avez ajustés écrivent ces étapes autrement.",

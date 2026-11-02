@@ -60,6 +60,8 @@ type Options struct {
 	Reconcile bool `json:"reconcile"`
 	// The version labels kept (#1046): text entries of versions.files, or a manual step for those without a pattern.
 	Labels []LabelChoice `json:"labels"`
+	// The labels dismissed as "Not a version label" in these choices (#1791), recorded in versions.notlabels.
+	NotLabels []molten.PipelineNotLabel `json:"notlabels,omitempty"`
 	// Step 2b's description (FR-MC-041), empty on the other paths: the trunk and the published branch (the same one:
 	// tags on the trunk), the release candidates (none, published, internal) and where the versions are published.
 	Trunk   string   `json:"trunk,omitempty"`
@@ -568,6 +570,7 @@ func Build(f Facts, o Options, current *molten.Pipeline) Proposal {
 	if o.TagPrefix == "" {
 		o.TagPrefix = versions.DefaultTagPrefix
 	}
+	o.Labels = withoutDismissed(f, o)
 	if o.Kind == KindSaas {
 		steps := saasSteps(f, o, p.Sources)
 		if len(steps) > 0 {
@@ -634,6 +637,7 @@ func proposedVersions(f Facts, o Options, current *molten.Pipeline) *molten.Pipe
 	if len(v.Files) > 0 {
 		v.Files = withLabels(v.Files, o.Labels)
 	}
+	v.NotLabels = withNotLabels(v.NotLabels, o.NotLabels)
 	if o.TagPrefix != versions.DefaultTagPrefix || v.TagPrefix != "" {
 		v.TagPrefix = o.TagPrefix
 	}

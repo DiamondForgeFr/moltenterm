@@ -62,6 +62,8 @@ export type SetupFacts = {
 // must match VersionLabel in pkg/molten/pipelinesetup/labels.go
 export type SetupLabel = { path: string; line: number; text: string; version: string; pattern: string };
 export type SetupLabelChoice = { path: string; line: number; pattern?: string };
+// must match PipelineNotLabel in pkg/molten/pipeline.go
+export type SetupNotLabel = { path: string; text: string };
 
 // must match Protection in pkg/molten/pipelinesetup/remote.go
 export type SetupProtection = {
@@ -119,6 +121,17 @@ export function toggledLabel(options: SetupOptions, label: SetupLabel, on: boole
     return { ...options, labels };
 }
 
+export function labelDismissed(options: SetupOptions, label: SetupLabel): boolean {
+    return (options.notlabels ?? []).some((n) => n.path === label.path && n.text === label.text);
+}
+
+// dismissedLabel records a label as not one (#1791): no longer kept, and not offered again once the setup is written.
+export function dismissedLabel(options: SetupOptions, label: SetupLabel, on: boolean): SetupOptions {
+    const rest = (options.notlabels ?? []).filter((n) => !(n.path === label.path && n.text === label.text));
+    const notlabels = on ? [...rest, { path: label.path, text: label.text }] : rest;
+    return { ...toggledLabel(options, label, false), notlabels };
+}
+
 // The RC branch as the pipeline's text names it (pkg/molten/pipelinesetup rcBranchDisplay).
 export function rcBranchDisplay(facts: SetupFacts): string {
     const pattern = facts.rcbranchpattern?.includes("{version}") ? facts.rcbranchpattern : "rc-{version}";
@@ -146,6 +159,8 @@ export type SetupOptions = {
     environments: string[];
     reconcile: boolean;
     labels: SetupLabelChoice[];
+    // The labels dismissed as "Not a version label" (#1791), recorded in versions.notlabels.
+    notlabels?: SetupNotLabel[];
     // Step 2b's description (FR-MC-041), unset on the other paths.
     trunk?: string;
     release?: string;
@@ -343,7 +358,7 @@ export type SetupChange = {
     local?: boolean;
 };
 export type SetupUpdateReason = {
-    code: "protected" | "labels" | "template" | "customised" | "adjusted" | "local" | "proposed";
+    code: "protected" | "labels" | "notlabels" | "template" | "customised" | "adjusted" | "local" | "proposed";
     detail?: string;
 };
 export type SetupCheck = {

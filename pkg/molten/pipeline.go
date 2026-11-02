@@ -51,6 +51,15 @@ type PipelineVersions struct {
 	// The project's formatter for the files a release writes (#1095), e.g. "npx prettier --write": the files are appended
 	// as arguments. Empty: detected (prettier), else none.
 	Format string `json:"format,omitempty"`
+	// Lines the release setup found as version labels and the developer dismissed as not one (#1791): never offered
+	// again, so a false positive does not keep the setup update offered.
+	NotLabels []PipelineNotLabel `json:"notlabels,omitempty"`
+}
+
+// A dismissed version label: its file and its line as it reads (trimmed), not its number, which moves.
+type PipelineNotLabel struct {
+	Path string `json:"path"`
+	Text string `json:"text"`
 }
 
 // A command Moltenterm may run in the project: in `cwd` (relative to the project, default its root), with `env` added.
@@ -595,6 +604,11 @@ func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 	}
 	if v.Format != "" && strings.TrimSpace(v.Format) == "" {
 		c.errorf("versions.format is blank: name the formatter's command (e.g. \"npx prettier --write\"), or leave it out")
+	}
+	for i, n := range v.NotLabels {
+		if strings.TrimSpace(n.Path) == "" || strings.Contains(n.Path, "..") || strings.TrimSpace(n.Text) == "" {
+			c.errorf("versions.notlabels[%d] must name a file of the project, without .., and the line's text (got %q, %q)", i, n.Path, n.Text)
+		}
 	}
 	for i, arg := range v.NotesAgent {
 		if strings.TrimSpace(arg) == "" {

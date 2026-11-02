@@ -7,7 +7,9 @@
 import { cn } from "@/util/util";
 import { useT, useTCount } from "../i18n/i18n";
 import {
+    dismissedLabel,
     diverged,
+    labelDismissed,
     labelKept,
     rcBranchDisplay,
     reconcilable,
@@ -184,7 +186,8 @@ export function ReconcileCheck({
     );
 }
 
-// LabelsSection: the version labels found outside the version files, each kept or not.
+// LabelsSection: the version labels found outside the version files, each kept or not, or dismissed as not a version
+// label (#1791).
 export function LabelsSection({
     draft,
     options,
@@ -209,25 +212,61 @@ export function LabelsSection({
             <p className="text-11 text-muted">
                 {t("mc.setup.choices.labelsHint", { version: draft.facts.currentversion ?? "" })}
             </p>
-            {labels.map((l) => (
-                <label key={`${l.path}:${l.line}`} className="flex cursor-pointer items-start gap-2 text-12">
-                    <input
-                        type="checkbox"
-                        className="mt-0.5 cursor-pointer"
-                        checked={labelKept(options, l)}
-                        onChange={(e) => onChange(toggledLabel(options, l, e.target.checked))}
-                    />
-                    <span className="min-w-0 flex-1">
-                        <span className="font-mono text-11 text-secondary">
-                            {l.path}:{l.line}
-                        </span>
-                        <span className="block truncate font-mono text-11 text-primary">{l.text}</span>
-                        {l.pattern ? null : (
-                            <span className="block text-11 text-warning">{t("mc.setup.choices.labelManual")}</span>
-                        )}
-                    </span>
-                </label>
-            ))}
+            {labels.map((l) => {
+                const dismissed = labelDismissed(options, l);
+                return (
+                    <div
+                        key={`${l.path}:${l.line}`}
+                        className="flex items-start gap-2 text-12"
+                        data-testid={`setup-label-${l.path}:${l.line}`}
+                    >
+                        <label
+                            className={cn(
+                                "flex min-w-0 flex-1 items-start gap-2",
+                                dismissed ? "opacity-60" : "cursor-pointer"
+                            )}
+                        >
+                            <input
+                                type="checkbox"
+                                className="mt-0.5 cursor-pointer"
+                                checked={labelKept(options, l)}
+                                disabled={dismissed}
+                                onChange={(e) => onChange(toggledLabel(options, l, e.target.checked))}
+                            />
+                            <span className="min-w-0 flex-1">
+                                <span className="font-mono text-11 text-secondary">
+                                    {l.path}:{l.line}
+                                </span>
+                                <span
+                                    className={cn(
+                                        "block truncate font-mono text-11 text-primary",
+                                        dismissed && "line-through"
+                                    )}
+                                >
+                                    {l.text}
+                                </span>
+                                {dismissed ? (
+                                    <span className="block text-11 text-muted">
+                                        {t("mc.setup.choices.notLabelDone")}
+                                    </span>
+                                ) : l.pattern ? null : (
+                                    <span className="block text-11 text-warning">
+                                        {t("mc.setup.choices.labelManual")}
+                                    </span>
+                                )}
+                            </span>
+                        </label>
+                        <button
+                            type="button"
+                            className="shrink-0 cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-11 text-muted hover:text-primary"
+                            onClick={() => onChange(dismissedLabel(options, l, !dismissed))}
+                            data-testid="setup-label-dismiss"
+                        >
+                            {dismissed ? t("mc.setup.choices.notLabelUndo") : t("mc.setup.choices.notLabel")}
+                        </button>
+                    </div>
+                );
+            })}
         </div>
     );
 }
