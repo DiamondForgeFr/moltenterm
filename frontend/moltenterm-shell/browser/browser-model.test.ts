@@ -4,6 +4,8 @@
 import { describe, expect, it } from "vitest";
 import {
     activateTab,
+    addressOfPage,
+    addressUrl,
     addTab,
     besideBlockDef,
     BrowserActiveMetaKey,
@@ -13,16 +15,16 @@ import {
     BrowserTabsMetaKey,
     browserTabTitle,
     closeTab,
-    addressOfPage,
     isBlankPage,
     isStartPage,
-    StartPageUrl,
+    looksLikeAddress,
     moveTab,
     PanelTabs,
     readBrowserState,
     servingTabOf,
     shownAddress,
     splitOutTabs,
+    StartPageUrl,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
@@ -117,6 +119,64 @@ describe("toBrowserUrl", () => {
     ])("turns %j into %j", (input, want) => {
         expect(toBrowserUrl(input)).toBe(want);
     });
+
+    // #1743: an address typed in the top field or the address bar is never searched.
+    it.each([
+        ["example.com?q=1", "https://example.com?q=1"],
+        ["example.com#top", "https://example.com#top"],
+        ["example.com:8080/a?b#c", "https://example.com:8080/a?b#c"],
+        ["localhost:3000?x=1", "http://localhost:3000?x=1"],
+        ["localhost:3000#top", "http://localhost:3000#top"],
+        ["localhost", "http://localhost"],
+        ["192.168.1.5", "http://192.168.1.5"],
+        ["192.168.1.5:8080", "http://192.168.1.5:8080"],
+        ["127.0.0.1:8080/x?y", "http://127.0.0.1:8080/x?y"],
+        ["[::1]:8080", "http://[::1]:8080"],
+        ["[::1]", "http://[::1]"],
+        ["Example.COM/Path", "https://Example.COM/Path"],
+        ["file:///tmp/a.html", "file:///tmp/a.html"],
+        ["https://example.com/a b", "https://example.com/a b"],
+    ])("opens the address %j as %j", (input, want) => {
+        expect(toBrowserUrl(input)).toBe(want);
+    });
+
+    it.each(["wave terminal", "how to use example.com", "readme.m", "e.g.", "v1.2.3", "localhost is down", "12:30"])(
+        "searches the words %j",
+        (input) => {
+            expect(toBrowserUrl(input)).toMatch(/^https:\/\/duckduckgo\.com\/\?q=/);
+        }
+    );
+
+    it("uses the search template it is given for words only", () => {
+        expect(toBrowserUrl("some words", "https://www.google.com/search?q=%s")).toBe(
+            "https://www.google.com/search?q=some%20words"
+        );
+        expect(toBrowserUrl("example.com?q=1", "https://www.google.com/search?q=%s")).toBe("https://example.com?q=1");
+    });
+});
+
+describe("looksLikeAddress and addressUrl agree with toBrowserUrl (#1743)", () => {
+    it.each([
+        "example.com",
+        "example.com?q=1",
+        "example.com#top",
+        "localhost:3000#a",
+        "192.168.1.5:8080",
+        "[::1]:3000",
+        "https://x.dev",
+        "about:blank",
+    ])("%j is an address, opened as toBrowserUrl opens it", (input) => {
+        expect(looksLikeAddress(input)).toBe(true);
+        expect(addressUrl(input)).toBe(toBrowserUrl(input));
+        expect(addressUrl(input)).not.toContain("duckduckgo");
+    });
+
+    it.each(["wave terminal", "readme.m", "", "   ", "localhost is down", "https://x.dev/a b"])(
+        "%j is not an address",
+        (input) => {
+            expect(looksLikeAddress(input)).toBe(false);
+        }
+    );
 });
 
 describe("browserTabTitle", () => {

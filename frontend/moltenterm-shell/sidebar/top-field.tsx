@@ -3,7 +3,8 @@
 
 // The field at the top of the sidebar (FR-SHELL-083, #1187). Closed, it shows the focused panel: a page's address, or
 // "<panel> · <view>". ⌘L or a click opens it: it searches views, agents, workspaces, pull requests, panels and
-// actions (every command of the palette), and opens an address with Enter, ⌥Enter or ⌘Enter as its hint line says.
+// actions (every command of the palette), and opens an address or a search with Enter, ⌘Enter (Alt+Enter) or
+// Shift+Enter as its hint line says, never in a new view unless Shift+Enter asks.
 //
 // This module is the resting field only; the open field loads once the sidebar is on screen (top-field-open.tsx), out
 // of the JS every tab view loads up front (NFR-PERF-003, bundle.initialJsMB). Opened before it arrives, the field
@@ -58,11 +59,12 @@ export function homeDir(): string {
     }
 }
 
-// The focused panel and its view, as the closed field shows them.
-function useFocusFacts() {
+// The focused panel and its view, as the closed field shows them. While the field is open it works on the panel that
+// had the focus when it opened (origin, #1743), whatever has the focus now.
+function useFocusFacts(origin: string) {
     const layoutModel = getLayoutModelForStaticTab();
     const node = useAtomValue(layoutModel?.focusedNode ?? NullNodeAtom);
-    const blockId = node?.data?.blockId ?? null;
+    const blockId = origin ?? node?.data?.blockId ?? null;
     const block = useAtomValue(
         useMemo(
             () =>
@@ -166,7 +168,8 @@ export function TopField() {
     const t = useT();
     const model = TopFieldModel.getInstance();
     const open = useAtomValue(model.openAtom);
-    const focus = useFocusFacts();
+    const origin = useAtomValue(model.originAtom);
+    const focus = useFocusFacts(origin);
     const [, setLoaded] = useState(openFieldModule != null);
     const typedRef = useRef<TypedText>(null);
     const ctx = fieldContext(focus);

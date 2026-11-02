@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The sidebar's top field (FR-SHELL-083, #1187): what it shows for the focused panel, what typing finds, and what
-// Enter, ⌥Enter and ⌘Enter do with an address. Pure rules, tested without the app; top-field.tsx gathers the sources
-// and runs the chosen row.
+// Enter and its modifiers do with an address or words to search (#1743: the field is a view's address bar and never
+// creates a view by itself). Pure rules, tested without the app; top-field.tsx gathers the sources and runs the
+// chosen row.
 
 import { isMacOS } from "@/util/platformutil";
 import { addressUrl, looksLikeAddress, toBrowserUrl } from "../browser/browser-model";
@@ -15,8 +16,9 @@ import { fold } from "./top-field-context";
 
 export { fieldContext, fold, type FieldContext, type FocusFacts } from "./top-field-context";
 
-// Where an address opens: the focused page panel, a panel beside the focused one, a new temporary view.
-export type AddressMode = "here" | "beside" | "newview";
+// Where an address opens: the focused page panel ("here"), a new page panel of the current view beside the focused one
+// ("panel"), a new temporary view ("newview").
+export type AddressMode = "here" | "panel" | "newview";
 
 export type FieldRun =
     | { kind: "address"; url: string; mode: AddressMode }
@@ -69,29 +71,48 @@ export function hostOfUrl(url: string): string {
 }
 
 export type FieldFocus = {
-    // A page panel has the focus: Enter goes there.
+    // A page panel has the focus (the one focused when the field opened): Enter goes there.
     onPage: boolean;
     // The focused page's host, and the view's name, for the address rows.
     pageHost?: string;
     viewName?: string;
 };
 
-// Enter and its modifiers as this platform reads them (#1238): ⌥ and ⌘ on macOS; elsewhere Alt, and Ctrl, which the
-// field takes for ⌘ (top-field-open.tsx).
-export function enterKeys(mod: "" | "alt" | "meta", mac = isMacOS()): string {
+export type EnterMod = "" | "panel" | "view";
+
+// Enter and its modifiers as this platform reads them (#1238, #1743): ⌘↵ on macOS and Alt+Enter elsewhere (Wave's
+// "Cmd" reads as Alt there) open a new panel, Shift+Enter a new view.
+export function enterKeys(mod: EnterMod, mac = isMacOS()): string {
     if (mod === "") {
         return formatKeys("Enter", mac);
     }
-    return formatKeys(`${mod === "alt" ? "Alt" : mac ? "Cmd" : "Ctrl"}:Enter`, mac);
+    return formatKeys(`${mod === "panel" ? "Cmd" : "Shift"}:Enter`, mac);
 }
 
-// The address rows, in the order Enter, ⌥Enter, ⌘Enter take them.
-export function addressRows(text: string, focus: FieldFocus, mac = isMacOS()): FieldRow[] {
-    const url = addressUrl(text);
-    if (url == null) {
-        return [];
+// Where the plain Enter row leads, on the right: the focused page, else the view the new panel joins.
+function targetWhere(focus: FieldFocus): string {
+    if (focus.onPage) {
+        return focus.pageHost
+            ? t("topField.address.inPageHost", { host: focus.pageHost })
+            : t("topField.address.inPage");
     }
+    return focus.viewName || t("topField.address.inThisView");
+}
+
+// The rows an address or a search offers, in the order Enter, ⌘Enter (Alt+Enter) and Shift+Enter take them: with a
+// page focused, that page, a new panel, a new view; else a new panel (the ⌘Enter row would repeat it), a new view.
+function targetRows(url: string, focus: FieldFocus, mac: boolean): FieldRow[] {
     const host = hostOfUrl(url);
+    const newView: FieldRow = {
+        id: "address:newview",
+        group: "address",
+        strong: t("topField.address.newView"),
+        label: host,
+        where: t("topField.address.temporary"),
+        key: enterKeys("view", mac),
+        icon: "square-plus",
+        run: { kind: "address", url, mode: "newview" },
+    };
     if (focus.onPage) {
         return [
             {
@@ -99,90 +120,106 @@ export function addressRows(text: string, focus: FieldFocus, mac = isMacOS()): F
                 group: "address",
                 strong: t("topField.address.goTo"),
                 label: url,
-                where: t("topField.address.inPanel", { host: focus.pageHost || "" }),
+                where: targetWhere(focus),
                 key: enterKeys("", mac),
                 icon: "globe",
                 run: { kind: "address", url, mode: "here" },
             },
             {
-                id: "address:beside",
+                id: "address:panel",
                 group: "address",
-                strong: t("topField.address.beside"),
+                strong: t("topField.address.newPanel"),
                 label: host,
                 where: t("topField.address.inThisView"),
-                key: enterKeys("alt", mac),
+                key: enterKeys("panel", mac),
                 icon: "table-columns",
-                run: { kind: "address", url, mode: "beside" },
+                run: { kind: "address", url, mode: "panel" },
             },
-            {
-                id: "address:newview",
-                group: "address",
-                strong: t("topField.address.newView"),
-                label: host,
-                where: t("topField.address.temporary"),
-                key: enterKeys("meta", mac),
-                icon: "square-plus",
-                run: { kind: "address", url, mode: "newview" },
-            },
+            newView,
         ];
     }
     return [
         {
-            id: "address:newview",
-            group: "address",
-            strong: t("topField.address.newView"),
-            label: url,
-            where: t("topField.address.temporary"),
-            key: enterKeys("", mac),
-            icon: "square-plus",
-            run: { kind: "address", url, mode: "newview" },
-        },
-        {
-            id: "address:beside",
+            id: "address:panel",
             group: "address",
             strong: t("topField.address.addToView"),
-            label: host,
-            where: focus.viewName || t("topField.address.inThisView"),
-            key: enterKeys("alt", mac),
+            label: url,
+            where: targetWhere(focus),
+            key: enterKeys("", mac),
             icon: "plus",
-            run: { kind: "address", url, mode: "beside" },
+            run: { kind: "address", url, mode: "panel" },
         },
+        newView,
     ];
 }
 
-// The hint line under the results: what Enter, ⌥Enter and ⌘Enter do with an address in the current focus.
+export function addressRows(text: string, focus: FieldFocus, mac = isMacOS()): FieldRow[] {
+    if (!looksLikeAddress(text)) {
+        return [];
+    }
+    return targetRows(addressUrl(text), focus, mac);
+}
+
+// Words to search the web with go where an address would: the focused page, else a new panel of the view, with the
+// same other choices. Only the Enter row is listed: ⌘Enter and Shift+Enter reach the others from it. It shows its key
+// when no row comes before it.
+function searchRow(query: string, focus: FieldFocus, first: boolean, mac: boolean): FieldRow {
+    const row = targetRows(toBrowserUrl(query), focus, mac)[0];
+    return {
+        ...row,
+        id: "search:web",
+        strong: t("topField.searchWeb"),
+        label: t("topField.searchQuery", { query }),
+        key: first ? row.key : undefined,
+        icon: "magnifying-glass",
+    };
+}
+
+// The hint line under the results: what Enter, ⌘Enter (Alt+Enter) and Shift+Enter do with an address or words in the
+// current focus.
 export function fieldHint(onPage: boolean, mac = isMacOS()): { keys: string; text: string }[] {
     if (onPage) {
         return [
-            { keys: enterKeys("", mac), text: t("topField.hint.thisPanel") },
-            { keys: enterKeys("alt", mac), text: t("topField.hint.beside") },
-            { keys: enterKeys("meta", mac), text: t("topField.hint.newView") },
+            { keys: enterKeys("", mac), text: t("topField.hint.thisPage") },
+            { keys: enterKeys("panel", mac), text: t("topField.hint.newPanel") },
+            { keys: enterKeys("view", mac), text: t("topField.hint.newView") },
         ];
     }
     return [
-        { keys: enterKeys("", mac), text: t("topField.hint.newView") },
-        { keys: enterKeys("alt", mac), text: t("topField.hint.inThisView") },
+        { keys: enterKeys("", mac), text: t("topField.hint.newPanel") },
+        { keys: enterKeys("view", mac), text: t("topField.hint.newView") },
     ];
 }
 
-export type FieldKeys = { alt?: boolean; meta?: boolean };
+export type FieldKeys = { alt?: boolean; meta?: boolean; shift?: boolean; ctrl?: boolean };
 
-// What Enter runs on a row: on an address row the modifiers choose (⌘ a new view, ⌥ beside), plain Enter the row's own
-// way; any other row runs as it is.
-export function enterRun(row: FieldRow, keys: FieldKeys): FieldRun {
+// The modifier of an Enter as the browsers read it (#1743): the platform's new-tab key (⌘ on macOS, Alt elsewhere) is a
+// new panel, Shift a new view (Shift wins). Ctrl+Enter has no meaning of its own on any platform, since browsers add
+// www. and .com with it: it runs as a plain Enter.
+export function enterMod(keys: FieldKeys, mac = isMacOS()): EnterMod {
+    if (keys?.shift) {
+        return "view";
+    }
+    return (mac ? keys?.meta : keys?.alt) ? "panel" : "";
+}
+
+// What Enter runs on a row: on an address or search row the modifier chooses a new panel or a new view, plain Enter the
+// row's own way; any other row runs as it is.
+export function enterRun(row: FieldRow, keys: FieldKeys, mac = isMacOS()): FieldRun {
     if (row == null) {
         return null;
     }
     if (row.run.kind !== "address") {
         return row.run;
     }
-    if (keys?.meta) {
-        return { ...row.run, mode: "newview" };
+    switch (enterMod(keys, mac)) {
+        case "view":
+            return { ...row.run, mode: "newview" };
+        case "panel":
+            return { ...row.run, mode: "panel" };
+        default:
+            return row.run;
     }
-    if (keys?.alt) {
-        return { ...row.run, mode: "beside" };
-    }
-    return row.run;
 }
 
 function haystack(row: FieldRow): string {
@@ -258,9 +295,16 @@ function capped(sorted: FieldRow[]): FieldRow[] {
 }
 
 // The rows for what is typed. Empty: the workspace's other views, the agents, panels to add, actions, the other
-// workspaces (FR-SHELL-113). Typed: an address first (its Enter, ⌥Enter and ⌘Enter rows), then the best matches;
-// words nothing matches search the web.
-export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus, workspaceName: string): FieldResults {
+// workspaces (FR-SHELL-113). Typed: an address first (its Enter, ⌘Enter and Shift+Enter rows), then the best matches;
+// words that are not an address end with a web search (#1743), alone when nothing matches, so Enter searches, and
+// last otherwise, so the matches keep their place and the search stays one arrow away.
+export function fieldResults(
+    query: string,
+    rows: FieldRow[],
+    focus: FieldFocus,
+    workspaceName: string,
+    mac = isMacOS()
+): FieldResults {
     const q = (query ?? "").trim();
     const list = rows ?? [];
     if (q === "") {
@@ -281,7 +325,7 @@ export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus,
             },
         ]);
     }
-    const address = looksLikeAddress(q) ? addressRows(q, focus) : [];
+    const address = addressRows(q, focus, mac);
     const matched = capped(
         list
             .map((row, order) => ({ row, order, score: matchScore(q, row) }))
@@ -290,18 +334,8 @@ export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus,
             .map((m) => m.row)
     );
     const found = [...address, ...matched];
-    if (found.length === 0) {
-        const url = toBrowserUrl(q);
-        found.push({
-            id: "search:web",
-            group: "address",
-            strong: t("topField.searchWeb"),
-            label: t("topField.searchQuery", { query: q }),
-            where: t("topField.address.temporary"),
-            key: enterKeys(""),
-            icon: "magnifying-glass",
-            run: { kind: "address", url, mode: "newview" },
-        });
+    if (address.length === 0) {
+        found.push(searchRow(q, focus, found.length === 0, mac));
     }
     return results([{ title: "", rows: found }]);
 }

@@ -5,6 +5,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { TermViewModel } from "@/app/view/term/term-model";
+import * as layout from "@/layout/index";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { findShortcut } from "../shortcuts/registry";
 import { SidebarModel } from "./sidebar-store";
@@ -58,6 +59,7 @@ describe("top field keys", () => {
         vi.spyOn(sidebar, "isEnabled").mockReturnValue(true);
         vi.spyOn(sidebar, "isHidden").mockReturnValue(true);
         const peek = vi.spyOn(sidebar, "setPeek").mockImplementation(() => {});
+        vi.spyOn(layout, "getLayoutModelForStaticTab").mockReturnValue(null);
         const keyMap = new Map<string, (e: WaveKeyboardEvent) => boolean>();
         registerTopFieldKeys(keyMap);
         expect(keyMap.get("Cmd:l")(null)).toBe(true);
