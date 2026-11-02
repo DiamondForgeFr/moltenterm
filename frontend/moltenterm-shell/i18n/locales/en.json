@@ -401,7 +401,7 @@
             "projectTab": "Project view",
             "projectTabDetail": "where the project stands: agents, branches, CI, releases, actions",
             "newTab": "New view",
-            "reopenClosed": "Reopen the last closed pane or view",
+            "reopenClosed": "Reopen the last closed panel or view",
             "keepViewHere": "Pin this view in this workspace",
             "keepViewEverywhere": "Pin this view everywhere",
             "makeViewTemporary": "Unpin this view (make it temporary)",
@@ -1979,10 +1979,10 @@
             "search": "Search in the panel",
             "new-tab": "New view",
             "close-tab": "Close the view",
-            "reopen-closed": "Reopen the last closed pane or view",
-            "reopen-closed-ctrl": "Reopen the last closed pane or view",
-            "next-tab": "Next view",
-            "previous-tab": "Previous view",
+            "reopen-closed": "Reopen the last closed panel or view",
+            "reopen-closed-ctrl": "Reopen the last closed panel or view",
+            "next-tab": "Next view (Forward in a web page)",
+            "previous-tab": "Previous view (Back in a web page)",
             "tab-number": "Go to view by number",
             "rename-tab": "Rename the view",
             "toggle-sidebar": "Hide or show the sidebar",
@@ -5824,7 +5824,7 @@
         "panelFallback": "Panel",
         "freshShell": "A new shell started: the closed one cannot be brought back.",
         "freshShellIn": "A new shell started in {path}: the closed one cannot be brought back.",
-        "failed": "The last closed pane could not be reopened"
+        "failed": "The last closed panel could not be reopened"
     },
     "equalize": {
         "command": "Equalize panels",

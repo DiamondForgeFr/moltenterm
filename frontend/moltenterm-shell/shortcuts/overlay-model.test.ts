@@ -81,9 +81,15 @@ describe("shortcut overlay content (FR-SHELL-090)", () => {
         expect(card.rows.find((r) => r.shortcutId === "term-clear").caps).toEqual(["⌘", "K"]);
     });
 
-    it("gives a focused web page ⌘R, and the address bar's ⌘L only without the sidebar", () => {
+    it("gives a focused web page ⌘R and back and forward, and the address bar's ⌘L only without the sidebar", () => {
         const withSidebar = focusedIds(screen({ focused: { blockId: "w", view: "molten-browser", rect: PanelRect } }));
-        expect(withSidebar).toEqual(expect.arrayContaining(["browser-reload", "browser-hard-reload"]));
+        expect(withSidebar).toEqual(
+            expect.arrayContaining(["browser-back", "browser-forward", "browser-reload", "browser-hard-reload"])
+        );
+        const card = overlayContent(screen({ focused: { blockId: "w", view: "molten-browser", rect: PanelRect } }))
+            .cards[0];
+        expect(card.rows.find((r) => r.shortcutId === "browser-back").caps).toEqual(["⌘", "["]);
+        expect(card.rows.find((r) => r.shortcutId === "browser-forward").caps).toEqual(["⌘", "]"]);
         expect(withSidebar).not.toContain("browser-address");
         expect(withSidebar).not.toContain("term-clear");
         const noSidebar = focusedIds(

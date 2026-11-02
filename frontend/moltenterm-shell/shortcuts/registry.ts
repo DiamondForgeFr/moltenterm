@@ -5,6 +5,10 @@
 // list read by the shortcuts sheet, the menus and the picker, so the same action shows the same keys everywhere. Keys
 // use Wave's notation (keyutil.ts): "Cmd" is Command on macOS and Alt elsewhere. A unit test fails when a global
 // binding of Wave's key model has no entry here.
+//
+// The principle of every key (FR-SHELL-139, #1744): a browser reflex does the same thing at the matching level of the
+// interface, a browser window being a view, a browser tab a panel and the address bar the sidebar's top field. A key
+// whose browser meaning is not kept (a terminal or the system owns it) is an exception with a reason.
 
 import { isMacOS } from "@/util/platformutil";
 import { t } from "../i18n/i18n";
@@ -276,35 +280,49 @@ export const Shortcuts: Shortcut[] = [
         notMac: true,
     },
     { id: "close-tab", label: "Close the tab", category: "Tabs", scope: "global", keys: "Cmd:Shift:w" },
+    // #1744: a browser's reopen key, panels and views in one closing order (FR-SHELL-077, FR-SHELL-139).
     {
         id: "reopen-closed",
-        label: "Reopen the last closed pane or tab",
+        label: "Reopen the last closed panel or view",
         category: "Tabs",
         scope: "global",
         keys: "Cmd:Shift:t",
-        keywords: ["undo close", "restore", "closed tab", "closed panel"],
+        keywords: ["undo close", "restore", "closed tab", "closed panel", "closed view", "reopen tab"],
     },
     {
         id: "reopen-closed-ctrl",
-        label: "Reopen the last closed pane or tab",
+        label: "Reopen the last closed panel or view",
         category: "Tabs",
         scope: "global",
         keys: "Ctrl:Shift:t",
-        keywords: ["undo close", "restore", "closed tab", "closed panel"],
+        keywords: ["undo close", "restore", "closed tab", "closed panel", "closed view", "reopen tab"],
         notMac: true,
     },
-    { id: "next-tab", label: "Next tab", category: "Tabs", scope: "global", keys: "Cmd:]", alt: ["Shift:Cmd:]"] },
+    // #1744: with the focus in a browser panel's page or on its controls ⌘[ and ⌘] are Back and Forward (the Browser
+    // entries below); ⌘⇧[ and ⌘⇧] switch views everywhere.
+    {
+        id: "next-tab",
+        label: "Next view (Forward in a web page)",
+        category: "Tabs",
+        scope: "global",
+        keys: "Cmd:]",
+        alt: ["Shift:Cmd:]"],
+        keywords: ["next tab", "switch view"],
+    },
     {
         id: "previous-tab",
-        label: "Previous tab",
+        label: "Previous view (Back in a web page)",
         category: "Tabs",
         scope: "global",
         keys: "Cmd:[",
         alt: ["Shift:Cmd:["],
+        keywords: ["previous tab", "switch view"],
     },
+    // #1744: ⌘1…9 stay with the views, the sidebar's list being the row of tabs; panels keep Ctrl+Shift+1…9
+    // (FR-SHELL-139).
     {
         id: "tab-number",
-        label: "Go to tab by number",
+        label: "Go to view by number",
         category: "Tabs",
         scope: "global",
         keys: "Cmd:{1-9}",

@@ -101,7 +101,7 @@ export function panelTypeShortcutIds(view: string, screen: OverlayScreen): strin
     if (WebViews.includes(view)) {
         // ⌘L is the top field's while the sidebar is on; the page's address bar takes it only without the sidebar.
         const address = screen.sidebarEnabled ? [] : ["browser-address"];
-        return ["browser-reload", "browser-hard-reload", ...address, "search"];
+        return ["browser-back", "browser-forward", "browser-reload", "browser-hard-reload", ...address, "search"];
     }
     if (view === ReviewView) {
         return ["review-ask", "review-comment"];
