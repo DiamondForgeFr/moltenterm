@@ -6224,7 +6224,8 @@
                 "conflicts": "des conflits avec {base} restent",
                 "ci": "la CI est toujours rouge",
                 "changes": "des changements sont toujours demandés",
-                "report": "pas encore de rapport de test"
+                "report": "pas encore de rapport de test",
+                "draft": "le brouillon n'est pas encore marqué prêt"
             },
             "stuck": "s'est arrêté avant de finir {what} : {left}",
             "gone": "sa session s'est terminée avant de finir {what} : {left}",

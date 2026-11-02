@@ -250,3 +250,35 @@ describe("a task on a branch shared by two agents (#1057)", () => {
         expect(taskAgent(null, agents, live)).toBeNull();
     });
 });
+
+// #1779: Resume on a draft hands its last step, marking it ready, to the agent (#1212): the agent's line never says
+// nothing is left while the PR is still a draft.
+describe("Resume on a draft: the task is done once the PR is no longer a draft", () => {
+    const resume: PrTask = { kind: "finish", name: "Lina", blockId: "b1", head: "h", at: Asked, markReady: true };
+    const draft = pr({ draft: true });
+
+    it("a green draft is not done, a PR out of draft is", () => {
+        const idle = bruno("idle", Asked + 10_000);
+        expect(prTaskState(resume, draft, idle, Asked + 10_000)).toBe("stuck");
+        expect(prTaskState(resume, pr({ draft: false }), idle, Asked + 10_000)).toBe("done");
+        // The lead that just received the work is given its moment, as any task's agent is.
+        expect(prTaskState(resume, draft, bruno("idle", Asked - 5_000), Asked + 10_000)).toBe("running");
+        expect(prTaskState(resume, draft, bruno("working", Asked + 1_000), Asked + 10_000)).toBe("running");
+    });
+
+    it("says what is left, the draft included", () => {
+        expect(taskStateText(t, resume, "stuck", true, draft)).toBe(
+            "stopped before finishing the check of the pull request: the draft is not marked ready yet"
+        );
+        const noReport = pr({ draft: true, report: { state: "missing" } });
+        expect(taskStateText(t, resume, "stuck", true, noReport)).toBe(
+            "stopped before finishing the check of the pull request: no test report yet, the draft is not marked ready yet"
+        );
+        expect(taskStateText(t, resume, "done", true, pr({ draft: false }))).toBe("nothing left on this pull request");
+    });
+
+    it("other finish tasks are unchanged: a green draft asked without the last step is done", () => {
+        const check: PrTask = { kind: "finish", name: "Lina", blockId: "b1", head: "h", at: Asked };
+        expect(prTaskState(check, draft, bruno("idle", Asked + 10_000), Asked + 10_000)).toBe("done");
+    });
+});

@@ -13,8 +13,17 @@ import { AgentBarFacts, panelFacts } from "./reviews-upcoming-model";
 
 export type PrTaskKind = "rebase" | "investigate" | "finish";
 
-// A task asked of the agent on a PR: the agent's name and terminal when one took it, the PR's head and when.
-export type PrTask = { kind: PrTaskKind; name: string; blockId?: string; head: string; at: number };
+// A task asked of the agent on a PR: the agent's name and terminal when one took it, the PR's head and when. markReady
+// (#1779): Resume on a draft in a workflow without Human Testing (#1212), whose last step, marking it ready, is the
+// agent's: the task is not done while the PR is a draft.
+export type PrTask = {
+    kind: PrTaskKind;
+    name: string;
+    blockId?: string;
+    head: string;
+    at: number;
+    markReady?: boolean;
+};
 
 export type PrTaskState = "running" | "stuck" | "done";
 
@@ -63,7 +72,7 @@ export function taskGoal(task: PrTask, pr: ReviewPr): "reached" | "pending" | "l
             }
             return ciRuns ? "pending" : "reached";
         case "finish":
-            if (left.conflicts || left.ciRed || left.changesRequested) {
+            if (left.conflicts || left.ciRed || left.changesRequested || (task.markReady && pr.draft)) {
                 return "left";
             }
             return ciRuns ? "pending" : "reached";
@@ -195,7 +204,11 @@ export function taskStateText(t: TFunction, task: PrTask, state: PrTaskState, li
         return t(`reviewsAgents.task.done.${task.kind}`);
     }
     const what = t(`reviewsAgents.task.what.${task.kind}`);
-    const left = leftText(t, prLeft(pr), pr?.base ?? "");
+    const parts = [leftText(t, prLeft(pr), pr?.base ?? "")];
+    if (task.markReady && pr?.draft) {
+        parts.push(t("reviewsAgents.task.left.draft"));
+    }
+    const left = parts.filter((p) => p !== "").join(", ");
     return t(live ? "reviewsAgents.task.stuck" : "reviewsAgents.task.gone", { what, left });
 }
 

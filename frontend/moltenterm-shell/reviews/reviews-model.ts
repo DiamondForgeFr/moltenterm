@@ -194,7 +194,15 @@ export function validateBlocked(pr: ReviewPr): string {
 
 // A rebase asked from a row: to whom, and on which head. It shows until the PR's head changes (the agent pushed).
 // The work asked of a PR's agent (#683), by rebaseAskKey; kind (#954): a rebase when absent.
-export type RebaseAsk = { name: string; head: string; at: number; kind?: PrTaskKind; blockId?: string };
+// markReady (#1779): Resume on a draft, whose last step is the agent's.
+export type RebaseAsk = {
+    name: string;
+    head: string;
+    at: number;
+    kind?: PrTaskKind;
+    blockId?: string;
+    markReady?: boolean;
+};
 
 export function rebaseAskKey(dir: string, number: number): string {
     return `${dir}#${number}`;
