@@ -5,6 +5,8 @@
 // functions: the view applies them and writes the result. Since #1187 (FR-SHELL-083) a panel shows one page: what
 // opened a tab opens a panel beside it, and the list holds that one page.
 
+import { searchUrl, webSearchTemplate } from "./search-engine";
+
 // must match BrowserView, BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenKeyPrefix and BrowserRecentMetaKey in
 // pkg/molten/browser.go
 export const MoltentermBrowserView = "molten-browser";
@@ -401,13 +403,14 @@ function addressOf(text: string): string {
     return WebHostRe.test(text) ? "https://" + text : null;
 }
 
-// What the user types in the address bar: a URL, a host, or words to search.
-export function toBrowserUrl(input: string, searchTemplate = "https://duckduckgo.com/?q=%s"): string {
+// What the user types in the address bar: a URL, a host, or words to search, with the web:defaultsearch engine unless
+// a template is given (#1748).
+export function toBrowserUrl(input: string, searchTemplate?: string): string {
     const text = input.trim();
     if (text === "") {
         return null;
     }
-    return addressOf(text) ?? searchTemplate.replace("%s", encodeURIComponent(text));
+    return addressOf(text) ?? searchUrl(text, searchTemplate ?? webSearchTemplate());
 }
 
 // The address as the bar shows it at rest (FR-SHELL-086): without the web scheme and a lone trailing slash; other

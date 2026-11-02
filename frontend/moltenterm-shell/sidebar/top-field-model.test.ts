@@ -227,7 +227,7 @@ describe("what is typed becomes an address or a search (#1743)", () => {
         expect(res.flat[0].id).toBe("search:web");
         expect(res.flat[0].run).toEqual({
             kind: "address",
-            url: "https://duckduckgo.com/?q=some%20words",
+            url: "https://www.google.com/search?q=some%20words",
             mode: "here",
         });
         expect(res.flat[0].key).toBe("↵");
