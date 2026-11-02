@@ -217,6 +217,58 @@ describe("reopen the last closed pane or tab (#512)", () => {
     });
 });
 
+describe("the browser's reflexes: window = view, tab = panel (#1744, FR-SHELL-139)", () => {
+    // The body of one globalKeyMap.set(...) in registerGlobalKeys.
+    function handlerOf(key: string): string {
+        const start = KeyModelSource.indexOf(`globalKeyMap.set("${key}"`);
+        expect(start, key).toBeGreaterThan(-1);
+        return KeyModelSource.slice(start, KeyModelSource.indexOf("\n    });", start));
+    }
+
+    it("keeps Cmd+1 to 9 on views and Ctrl+Shift+1 to 9 on panels", () => {
+        const view = Shortcuts.find((s) => s.id === "tab-number");
+        const panel = Shortcuts.find((s) => s.id === "focus-number");
+        expect(view.keys).toBe("Cmd:{1-9}");
+        expect(view.label).toBe("Go to view by number");
+        expect(panel.keys).toBe("Ctrl:Shift:{1-9}");
+        expect(KeyModelSource).toContain("switchTabAbs(idx)");
+        expect(KeyModelSource).toContain("switchBlockByBlockNum(idx)");
+    });
+
+    it("asks the browser panel that holds the focus before Cmd+[ and Cmd+] switch views, and never for Cmd+Shift+[ ]", () => {
+        for (const [key, direction] of [
+            ["Cmd:]", 1],
+            ["Cmd:[", -1],
+        ] as const) {
+            const body = handlerOf(key);
+            expect(body, key).toContain(`windowHistoryKey(${direction})`);
+            expect(body.indexOf("windowHistoryKey"), key).toBeLessThan(body.indexOf("switchTab("));
+        }
+        for (const key of ["Shift:Cmd:]", "Shift:Cmd:["]) {
+            expect(handlerOf(key), key).not.toContain("windowHistoryKey");
+        }
+    });
+
+    it("lists the page's back and forward in the Browser section beside the view keys in Tabs", () => {
+        const tabs = Shortcuts.filter((s) => s.category === "Tabs").map((s) => s.id);
+        expect(tabs).toEqual(expect.arrayContaining(["next-tab", "previous-tab", "tab-number", "reopen-closed"]));
+        const history = (s: { category: string; id: string }) =>
+            s.category === "Browser" && /^browser-(back|forward)/.test(s.id);
+        const mac = platformShortcuts(true).filter(history);
+        const other = platformShortcuts(false).filter(history);
+        expect(mac.flatMap((s) => [s.keys, ...(s.alt ?? [])])).toEqual(["Cmd:[", "Cmd:ArrowLeft", "Cmd:]", "Cmd:ArrowRight"]);
+        expect(other.flatMap((s) => [s.keys, ...(s.alt ?? [])])).toEqual(["Alt:ArrowLeft", "Alt:ArrowRight"]);
+    });
+
+    it("shows the keys with the platform's glyphs", () => {
+        expect(formatShortcutById("reopen-closed", true)).toBe("⇧⌘T");
+        expect(formatShortcutById("reopen-closed-ctrl", false)).toBe("Ctrl+Shift+T");
+        expect(formatShortcutById("browser-back", true)).toBe("⌘[");
+        expect(formatShortcutById("browser-back-other", false)).toBe("Alt+←");
+        expect(formatShortcutById("tab-number", true)).toBe("⌘1–9");
+    });
+});
+
 describe("keep the view (#1652)", () => {
     it("takes ⌘⇧O on macOS and Ctrl+Shift+O elsewhere, which nothing else uses", () => {
         const keep = new Set(["keep-view", "keep-view-other"]);
