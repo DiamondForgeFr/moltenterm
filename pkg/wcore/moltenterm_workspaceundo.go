@@ -206,6 +206,7 @@ func CaptureWorkspaceUndo(ctx context.Context, workspaceId string, kind string, 
 		if !ok {
 			continue
 		}
+		tab.Meta = moltenTabMetaWithProject(ws, tabId, tab.Meta)
 		if tabId == ws.ActiveTabId {
 			e.activeIndex = len(e.tabs)
 		}

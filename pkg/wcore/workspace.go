@@ -302,6 +302,7 @@ func createTabObj(ctx context.Context, workspaceId string, name string, meta wav
 		OID: layoutStateId,
 	}
 	ws.TabIds = append(ws.TabIds, tab.OID)
+	moltenStampTabProject(ws, tab) // MOLTENTERM-PATCH (#1760): a temporary view belongs to the project it is made in
 	wstore.DBInsert(ctx, tab)
 	wstore.DBInsert(ctx, layoutState)
 	wstore.DBUpdate(ctx, ws)
@@ -346,6 +347,7 @@ func DeleteTab(ctx context.Context, workspaceId string, tabId string, recursive 
 		moltenForgetClosedTabs(ws) // MOLTENTERM-PATCH (#758)
 	}
 	ws.ActiveTabId = newActiveTabId
+	moltenFollowTabProject(ws, newActiveTabId) // MOLTENTERM-PATCH (#1760): the project of the view now shown is current
 
 	wstore.DBUpdate(ctx, ws)
 	wstore.DBDelete(ctx, waveobj.OType_Tab, tabId)
@@ -384,6 +386,8 @@ func SetActiveTab(ctx context.Context, workspaceId string, tabId string) error {
 		moltenRememberActiveTab(workspace, tabId) // MOLTENTERM-PATCH (#1345): closing the view returns to this one
 		workspace.ActiveTabId = tabId
 		moltenRevealTab(workspace, tabId) // MOLTENTERM-PATCH (#758): a hidden agent tab shown is a tab like any other
+		// MOLTENTERM-PATCH (#1760): showing a view of another project makes it current
+		moltenFollowTabProject(workspace, tabId)
 		wstore.DBUpdate(ctx, workspace)
 	}
 	return nil

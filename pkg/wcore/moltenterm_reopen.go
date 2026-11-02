@@ -72,7 +72,7 @@ func captureReopen(ctx context.Context, req reopen.RecordRequest) (reopen.Entry,
 	e.Tab = &reopen.Tab{
 		Name:   tab.Name,
 		Index:  max(slices.Index(ws.TabIds, req.TabId), 0),
-		Meta:   reopen.CleanMeta(tab.Meta),
+		Meta:   moltenTabMetaWithProject(ws, req.TabId, reopen.CleanMeta(tab.Meta)),
 		Leaves: reopen.LayoutLeaves(root, focused, metaOf),
 	}
 	return e, nil
