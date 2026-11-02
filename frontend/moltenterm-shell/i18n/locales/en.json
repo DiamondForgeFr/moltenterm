@@ -9316,7 +9316,8 @@
         "noneFound": "None: no Git repository found in the folder",
         "hint": "Agents start in the repository, with the folder at hand. Integration, Project and CI read the repository.",
         "folderIsRepo": "The folder is itself the repository.",
-        "gone": "The chosen repository is not in the folder anymore: choose another one, or none."
+        "gone": "The chosen repository is not in the folder anymore: choose another one, or none.",
+        "found": "This folder holds the project's context, and Git repositories: {repos}. Choose the project's code repository: agents start in it and this panel reads it."
     },
     "hang": {
         "title": "The window did not respond for {seconds} s",
