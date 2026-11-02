@@ -102,9 +102,18 @@ func moltenRememberActiveTab(ws *waveobj.Workspace, next string) {
 	molten.RememberActiveTab(ws, next)
 }
 
-// The tab bars send the tabs they show: the hidden tabs and the other projects' views are put back (#1760).
+// The tab bars send the tabs they show: the hidden tabs and the other projects' views are put back (#1760). A reorder
+// never removes a tab: a list is a stale picture of the strip (a drag in the sidebar, a tab bar's debounce), so any tab
+// of the workspace it leaves out goes at the end, and an id the workspace no longer holds is dropped, never added back.
 func moltenKeepHiddenTabs(ws *waveobj.Workspace, tabIds []string) []string {
-	return moltenKeepOtherProjectTabs(ws, molten.KeepHiddenTabs(ws, tabIds))
+	rtn := moltenKeepOtherProjectTabs(ws, molten.KeepHiddenTabs(ws, tabIds))
+	rtn = slices.DeleteFunc(rtn, func(id string) bool { return !slices.Contains(ws.TabIds, id) })
+	for _, id := range ws.TabIds {
+		if !slices.Contains(rtn, id) {
+			rtn = append(rtn, id)
+		}
+	}
+	return rtn
 }
 
 // moltenForgetClosedTabs drops the closed tabs (no longer in ws.TabIds) from the hidden list and from the project maps.

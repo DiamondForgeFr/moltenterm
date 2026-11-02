@@ -215,6 +215,51 @@ func TestSwitchingOnAPinnedViewKeepsItOnScreen(t *testing.T) {
 	}
 }
 
+// A switch that cannot give the target a view to show leaves the view on screen, which is the left project's: that
+// project stays current, never the target with another project's view on screen.
+func TestAFailedSwitchPutsTheLeftProjectBack(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
+	a1 := addProjectTab(t, ctx, wsId, "a1", nil, notuliaDir)
+	activate(t, ctx, wsId, a1)
+	if err := wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Workspace, wsId), projectviews.LiveUpdate(projectviews.Project{Id: "p2", Type: "Website", Dir: notuliaWebsiteDir}), false); err != nil {
+		t.Fatal(err)
+	}
+	if err := restoreProject(ctx, wsId, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	ws := workspaceOf(t, ctx, wsId)
+	if projectviews.CurrentProjectId(ws.Meta) != "p1" || ws.Meta.GetString(projectviews.LiveProjectMetaKey, "") != notuliaDir || ws.ActiveTabId != a1 {
+		t.Fatalf("p1 is current again with its view on screen: %v", ws.Meta)
+	}
+	if err := restoreProject(ctx, wsId, "p1"); err != nil {
+		t.Fatalf("a project already current is left as it is: %v", err)
+	}
+}
+
+func TestASwitchChangesTheProjectAndTheViewShownTogether(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
+	a1 := addProjectTab(t, ctx, wsId, "a1", nil, notuliaDir)
+	if err := wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Workspace, wsId), projectviews.LiveUpdate(projectviews.Project{Id: "p2", Type: "Website", Dir: notuliaWebsiteDir}), false); err != nil {
+		t.Fatal(err)
+	}
+	b1 := addProjectTab(t, ctx, wsId, "b1", nil, notuliaWebsiteDir)
+	if err := wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Workspace, wsId), projectviews.LiveUpdate(projectviews.Project{Id: "p1", Type: "Desktop", Dir: notuliaDir}), false); err != nil {
+		t.Fatal(err)
+	}
+	activate(t, ctx, wsId, a1)
+	if _, err := switchProject(ctx, projectviews.SwitchRequest{WorkspaceId: wsId, ProjectId: "p2"}); err != nil {
+		t.Fatal(err)
+	}
+	ws := workspaceOf(t, ctx, wsId)
+	if projectviews.CurrentProjectId(ws.Meta) != "p2" || ws.ActiveTabId != b1 {
+		t.Fatalf("the project and the view on screen are p2's, read in one go: %q, %q", projectviews.CurrentProjectId(ws.Meta), ws.ActiveTabId)
+	}
+}
+
 func TestSwitchRejectsAWorkspaceWithOneProjectAndAnUnknownProject(t *testing.T) {
 	initWorkspaceViewStores(t)
 	ctx := context.Background()
@@ -298,6 +343,29 @@ func TestTabBarsSendingTheirShownTabsKeepTheOtherProjectsViews(t *testing.T) {
 	}
 	if got := workspaceOf(t, ctx, wsId).TabIds; !slices.Equal(got, []string{b1, a1, a2}) {
 		t.Fatalf("p2's tab bar sent b1 only: %v", got)
+	}
+}
+
+func TestAStaleTabListNeverRemovesATab(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
+	a1 := addProjectTab(t, ctx, wsId, "a1", nil, "")
+	a2 := addProjectTab(t, ctx, wsId, "a2", nil, "")
+	a3 := addProjectTab(t, ctx, wsId, "a3", nil, "")
+	// A list sent before a3 existed (a drag in the sidebar, a tab bar's debounce) and holding a tab that closed since.
+	if err := UpdateWorkspaceTabIds(ctx, wsId, []string{a2, "gone", a1}); err != nil {
+		t.Fatal(err)
+	}
+	if got := workspaceOf(t, ctx, wsId).TabIds; !slices.Equal(got, []string{a2, a1, a3}) {
+		t.Fatalf("the order asked for, the tab the list left out at the end, the dead id dropped: %v", got)
+	}
+	// An empty list changes the order of nothing and removes nothing.
+	if err := UpdateWorkspaceTabIds(ctx, wsId, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := workspaceOf(t, ctx, wsId).TabIds; !slices.Equal(got, []string{a2, a1, a3}) {
+		t.Fatalf("an empty list removes no tab: %v", got)
 	}
 }
 
@@ -458,6 +526,32 @@ func TestStartupAssignmentGivesTemporaryViewsTheirProjectInMetaOnly(t *testing.T
 	if !slices.Equal(again.TabIds, snapshot.TabIds) || again.ActiveTabId != snapshot.ActiveTabId ||
 		projectviews.CurrentProjectId(again.Meta) != projectviews.CurrentProjectId(snapshot.Meta) {
 		t.Errorf("a second assignment changed the workspace: %+v, was %+v", again.Meta, snapshot.Meta)
+	}
+}
+
+// Adding a second project whose folder holds the terminal of the view on screen: that view belongs to the new project,
+// so the project shown follows it instead of the view being hidden.
+func TestAddingAProjectThatHoldsTheViewOnScreenMakesItCurrent(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId := makeProjectWorkspace(t, ctx, waveobj.MetaMapType{projectviews.LiveProjectMetaKey: notuliaDir, projectviews.LiveTypeMetaKey: "Desktop"})
+	other := addProjectTab(t, ctx, wsId, "other", nil, notuliaDir)
+	site := addProjectTab(t, ctx, wsId, "site", nil, notuliaWebsiteDir)
+	activate(t, ctx, wsId, site)
+	// The workspace now lists the website too, as the window writes it, then asks for the assignment.
+	if err := wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Workspace, wsId), notuliaMeta(), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := assignViews(ctx, projectviews.AssignRequest{WorkspaceId: wsId}); err != nil {
+		t.Fatal(err)
+	}
+	ws := workspaceOf(t, ctx, wsId)
+	owners := projectviews.ReadTabProjects(ws.Meta)
+	if owners[site] != "p2" || owners[other] != "p1" {
+		t.Fatalf("owners %v", owners)
+	}
+	if projectviews.CurrentProjectId(ws.Meta) != "p2" || ws.Meta.GetString(projectviews.LiveProjectMetaKey, "") != notuliaWebsiteDir || ws.ActiveTabId != site {
+		t.Fatalf("the project shown follows the view on screen: current %q, active %q", projectviews.CurrentProjectId(ws.Meta), ws.ActiveTabId)
 	}
 }
 

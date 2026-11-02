@@ -5,6 +5,7 @@ package wcore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -313,6 +314,7 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 	ctx = waveobj.ContextWithUpdates(ctx)
 	defer sendProjectViewUpdates(ctx)
 	var plan projectviews.SwitchPlan
+	leaving := ""
 	err := wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
 		tctx := tx.Context()
 		ws, err := GetWorkspace(tctx, req.WorkspaceId)
@@ -326,7 +328,7 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 		if !projectviews.Multi(ws.Meta) {
 			return fmt.Errorf("a workspace with one project has nothing to switch")
 		}
-		leaving := projectviews.CurrentProjectId(ws.Meta)
+		leaving = projectviews.CurrentProjectId(ws.Meta)
 		if _, err := assignProjectViews(tctx, ws, leaving); err != nil {
 			return err
 		}
@@ -343,7 +345,15 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 			Active:     ws.ActiveTabId,
 			Remembered: projectviews.ReadActiveByProject(ws.Meta),
 		})
-		return wstore.DBUpdate(tctx, ws)
+		if err := wstore.DBUpdate(tctx, ws); err != nil {
+			return err
+		}
+		// The project and the view shown change together or not at all: a project current while the view on screen
+		// is another project's would hide that view from the sidebar.
+		if plan.Show == "" {
+			return nil
+		}
+		return SetActiveTab(tctx, req.WorkspaceId, plan.Show)
 	})
 	if err != nil {
 		return projectviews.Result{}, err
@@ -352,18 +362,28 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 	if plan.NewView {
 		newId, err := CreateTab(ctx, req.WorkspaceId, "", true, false)
 		if err != nil {
-			return projectviews.Result{}, err
+			return projectviews.Result{}, errors.Join(err, restoreProject(ctx, req.WorkspaceId, leaving))
 		}
 		tabId = newId
-	} else if tabId != "" {
-		if err := SetActiveTab(ctx, req.WorkspaceId, tabId); err != nil {
-			return projectviews.Result{}, err
-		}
 	}
 	if tabId != "" {
 		SendActiveTabUpdate(ctx, req.WorkspaceId, tabId)
 	}
 	return projectviews.Result{TabId: tabId}, nil
+}
+
+// restoreProject makes the project left current again, after a switch that could not give the target a view to show: the
+// view on screen is the left project's, so that project stays current.
+func restoreProject(ctx context.Context, workspaceId string, projectId string) error {
+	ws, err := GetWorkspace(ctx, workspaceId)
+	if err != nil {
+		return err
+	}
+	update, ok := projectviews.SwitchMeta(ws.Meta, projectId)
+	if !ok {
+		return nil
+	}
+	return wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Workspace, workspaceId), update, false)
 }
 
 // removeProject takes a project out of the workspace: its views go to the project that takes over and none closes.
@@ -438,6 +458,9 @@ func assignViews(ctx context.Context, req projectviews.AssignRequest) (projectvi
 		if _, err := assignProjectViews(tctx, ws, projects[0].Id); err != nil {
 			return err
 		}
+		// The view on screen may belong to the project just added (its terminal is in that folder): the project shown
+		// follows it, or the view on screen would be hidden by the sidebar of the project that was current.
+		moltenFollowTabProject(ws, ws.ActiveTabId)
 		return wstore.DBUpdate(tctx, ws)
 	})
 	return projectviews.Result{}, err
