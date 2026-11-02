@@ -416,11 +416,11 @@ describe("the browser's Ctrl keys, the panel keys and find next (#1759, FR-SHELL
         expect(own.filter((k) => others.has(k))).toEqual([]);
     });
 
-    it("lists the Ctrl twins off macOS only, each marked as bound outside a terminal", () => {
+    it("lists the Ctrl twins off macOS only, each marked as bound outside a terminal or an editor", () => {
         const twins = ["new-panel-ctrl", "close-panel-ctrl", "new-tab-ctrl", "close-tab-ctrl", "top-field-ctrl"];
         for (const id of twins) {
             expect(entry(id).notMac, id).toBe(true);
-            expect(entry(id).outsideTerminal, id).toBe(true);
+            expect(entry(id).outsideTerminalOrEditor, id).toBe(true);
             expect(
                 platformShortcuts(true).map((s) => s.id),
                 id
@@ -429,7 +429,7 @@ describe("the browser's Ctrl keys, the panel keys and find next (#1759, FR-SHELL
                 platformShortcuts(false).map((s) => s.id),
                 id
             ).toContain(id);
-            expect(entry(id).label, id).toContain("outside a terminal");
+            expect(entry(id).label, id).toContain("outside a terminal or editor");
         }
         expect(twins.map((id) => entry(id).keys)).toEqual(["Ctrl:t", "Ctrl:w", "Ctrl:n", "Ctrl:Shift:w", "Ctrl:l"]);
     });
@@ -441,7 +441,7 @@ describe("the browser's Ctrl keys, the panel keys and find next (#1759, FR-SHELL
         expect(entry("close-tab").keys).toBe("Cmd:Shift:w");
         expect(entry("top-field").keys).toBe("Cmd:l");
         for (const id of ["new-panel", "new-tab", "close-panel", "close-tab", "top-field"]) {
-            expect(entry(id).outsideTerminal, id).toBeUndefined();
+            expect(entry(id).outsideTerminalOrEditor, id).toBeUndefined();
             expect(entry(id).notMac, id).toBeUndefined();
         }
     });
@@ -454,7 +454,7 @@ describe("the browser's Ctrl keys, the panel keys and find next (#1759, FR-SHELL
         expect(entry("previous-panel-other").keys).toBe("Ctrl:PageUp");
         expect(entry("next-panel-other").keys).toBe("Ctrl:PageDown");
         for (const id of ["previous-panel", "next-panel", "previous-panel-other", "next-panel-other"]) {
-            expect(entry(id).outsideTerminal, id).toBeUndefined();
+            expect(entry(id).outsideTerminalOrEditor, id).toBeUndefined();
             expect(entry(id).category, id).toBe("Panels");
         }
         const macIds = platformShortcuts(true).map((s) => s.id);
@@ -483,7 +483,7 @@ describe("the browser's Ctrl keys, the panel keys and find next (#1759, FR-SHELL
         expect(platformShortcuts(true).map((s) => s.id)).not.toContain("find-next-ctrl");
     });
 
-    it("opens the top field with F6 on every platform, outside a terminal", () => {
+    it("opens the top field with F6 on every platform, outside a terminal or an editor", () => {
         expect(entry("top-field-f6").keys).toBe("F6");
         expect(entry("top-field-ctrl").alt).toEqual(["F6"]);
         expect(platformShortcuts(true).map((s) => s.id)).toContain("top-field-f6");

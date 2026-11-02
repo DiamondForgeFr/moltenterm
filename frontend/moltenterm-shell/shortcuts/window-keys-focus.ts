@@ -5,13 +5,14 @@
 
 import { globalStore, WOS } from "@/app/store/global";
 import { currentKeyOriginBlockId, SidebarSelector } from "../newpanel/new-panel-focus";
-import { focusInTerminal, KeyFocusFacts } from "./window-keys";
+import { EditorSelector, focusInTerminalOrEditor, KeyFocusFacts } from "./window-keys";
 
 function currentKeyFocusFacts(): KeyFocusFacts {
     const active = typeof document === "undefined" ? null : document.activeElement;
     return {
         originBlockId: currentKeyOriginBlockId(),
         inSidebar: active?.closest?.(SidebarSelector) != null,
+        inEditor: active?.closest?.(EditorSelector) != null,
         domBlockId: active?.closest?.("[data-blockid]")?.getAttribute("data-blockid"),
     };
 }
@@ -21,6 +22,6 @@ function viewOfBlock(blockId: string): string {
     return (block?.meta?.view as string) ?? null;
 }
 
-export function keyboardFocusInTerminal(): boolean {
-    return focusInTerminal(currentKeyFocusFacts(), viewOfBlock);
+export function keyboardFocusInTerminalOrEditor(): boolean {
+    return focusInTerminalOrEditor(currentKeyFocusFacts(), viewOfBlock);
 }
