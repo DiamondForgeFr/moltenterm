@@ -169,7 +169,7 @@
     flex: 0 1 auto;
     padding: 0 5px;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: var(--mt-radius-control);
     background: color-mix(in srgb, var(--mt-veil) 24%, var(--mt-surface-0));
     color: var(--mt-text-2);
     font-size: var(--mt-text-11);
