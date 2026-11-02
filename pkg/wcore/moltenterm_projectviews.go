@@ -50,6 +50,12 @@ func isTileMeta(meta waveobj.MetaMapType) bool {
 	return meta.GetString(viewpin.PinMetaKey, "") == viewpin.PinWorkspace && meta[viewpin.PinConfigMetaKey] != nil
 }
 
+// isPlaceholderTab says a tab is an instance made for a project that never showed it: no panel yet, only the
+// configuration it opens from.
+func isPlaceholderTab(tab *waveobj.Tab) bool {
+	return tab != nil && tab.Meta.GetBool(projectviews.SiblingMetaKey, false) && len(tab.BlockIds) == 0
+}
+
 func newSlotId() string {
 	return "s" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
 }
@@ -314,8 +320,18 @@ func MoltenTabMetaChanged(ctx context.Context, tabId string, patch waveobj.MetaM
 	changed, err := wstore.WithTxRtn(ctx, func(tx *wstore.TxWrap) (bool, error) {
 		tctx := tx.Context()
 		ws, err := GetWorkspace(tctx, wsId)
-		if err != nil || !projectviews.Multi(ws.Meta) {
+		if err != nil {
 			return false, err
+		}
+		// The window gives the instances it pins together one slot (Pin only in this workspace on a view pinned
+		// everywhere). The hint never stays on the tab, in a workspace with one project as in any other.
+		if patch.HasKey(projectviews.SlotHintMetaKey) {
+			if err := wstore.UpdateObjectMeta(tctx, waveobj.MakeORef(waveobj.OType_Tab, tabId), waveobj.MetaMapType{projectviews.SlotHintMetaKey: nil}, false); err != nil {
+				return false, err
+			}
+		}
+		if !projectviews.Multi(ws.Meta) {
+			return false, nil
 		}
 		tab, _ := wstore.DBGet[*waveobj.Tab](tctx, tabId)
 		if tab == nil || tab.Meta.GetBool(mission.ProjectTabMetaKey, false) {
@@ -328,12 +344,6 @@ func MoltenTabMetaChanged(ctx context.Context, tabId string, patch waveobj.MetaM
 			owners[tabId] = projectviews.CurrentProjectId(ws.Meta)
 			writeTabProjects(ws, owners)
 			changed = true
-		}
-		// The window gives the instances it pins together one slot (Pin only in this workspace on a view pinned everywhere).
-		if patch.HasKey(projectviews.SlotHintMetaKey) {
-			if err := wstore.UpdateObjectMeta(tctx, waveobj.MakeORef(waveobj.OType_Tab, tabId), waveobj.MetaMapType{projectviews.SlotHintMetaKey: nil}, false); err != nil {
-				return false, err
-			}
 		}
 		switch {
 		case isTileMeta(tab.Meta) && slots[tabId] == "":
@@ -370,6 +380,7 @@ func tabInfosOf(ctx context.Context, ws *waveobj.Workspace, pins []string) []pro
 		info := projectviews.TabInfo{Id: id, Project: owners[id], Hidden: slices.Contains(hidden, id)}
 		if tab, _ := wstore.DBGet[*waveobj.Tab](ctx, id); tab != nil {
 			info.ProjectTab = tab.Meta.GetBool(mission.ProjectTabMetaKey, false)
+			info.Placeholder = isPlaceholderTab(tab)
 			if sharedTabMeta(tab.Meta) {
 				info.Project = ""
 			}
@@ -407,7 +418,7 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 	ctx = waveobj.ContextWithUpdates(ctx)
 	defer sendProjectViewUpdates(ctx)
 	var plan projectviews.SwitchPlan
-	leaving := ""
+	leaving, tabId := "", ""
 	clientMeta := readClientMeta(ctx)
 	err := wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
 		tctx := tx.Context()
@@ -429,6 +440,7 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 		update, ok := projectviews.SwitchMeta(ws.Meta, req.ProjectId)
 		if !ok {
 			plan = projectviews.SwitchPlan{Show: ws.ActiveTabId, ShowMade: -1}
+			tabId = ws.ActiveTabId
 			return wstore.DBUpdate(tctx, ws)
 		}
 		ws.Meta = waveobj.MergeMeta(ws.Meta, update, false)
@@ -444,25 +456,26 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 		if err := wstore.DBUpdate(tctx, ws); err != nil {
 			return err
 		}
-		// The project and the view shown change together or not at all: a project current while the view on screen
-		// is another project's would hide that view from the sidebar.
-		if plan.Show == "" {
+		// The project, the instances the target lacks and the view shown change together or not at all: a project
+		// current while the view on screen is another project's would hide that view from the sidebar.
+		made, err := makeInstances(tctx, req.WorkspaceId, req.ProjectId, plan.Make, clientMeta)
+		if err != nil {
+			return err
+		}
+		tabId = plan.Show
+		if plan.ShowMade >= 0 && plan.ShowMade < len(made) {
+			tabId = made[plan.ShowMade]
+		}
+		if tabId == "" {
 			return nil
 		}
-		return SetActiveTab(tctx, req.WorkspaceId, plan.Show)
+		return SetActiveTab(tctx, req.WorkspaceId, tabId)
 	})
 	if err != nil {
 		return projectviews.Result{}, err
 	}
-	made, err := makeInstances(ctx, req.WorkspaceId, req.ProjectId, plan.Make, clientMeta)
-	if err != nil {
-		return projectviews.Result{}, err
-	}
-	tabId := plan.Show
-	if plan.ShowMade >= 0 && plan.ShowMade < len(made) {
-		tabId = made[plan.ShowMade]
-	}
-	// An instance whose source went meanwhile leaves nothing to show: the project gets a new view, never a blank one.
+	// Nothing to show (the project has no view, or the source of the instance went meanwhile): the project gets a new
+	// view, never a blank one.
 	if tabId == "" {
 		plan.NewView = true
 	}
@@ -538,7 +551,12 @@ func removeProject(ctx context.Context, req projectviews.RemoveRequest) (project
 			if err != nil {
 				return err
 			}
-			if placeholder {
+			if placeholder && !slices.Contains(placeholders, tabId) {
+				placeholders = append(placeholders, tabId)
+			}
+		}
+		for _, tabId := range plan.Drop {
+			if !slices.Contains(placeholders, tabId) {
 				placeholders = append(placeholders, tabId)
 			}
 		}
@@ -563,14 +581,75 @@ func removeProject(ctx context.Context, req projectviews.RemoveRequest) (project
 	if err != nil {
 		return projectviews.Result{}, err
 	}
-	// A placeholder never shown has no panel: a duplicate of a pinned view the project already holds goes, nothing the
-	// developer made is lost.
+	// A placeholder never shown has no panel: it goes when the project already holds an instance of the pinned view, so
+	// the instance the developer worked in is the one kept and nothing the developer made is lost.
 	for _, tabId := range placeholders {
 		if _, err := DeleteTab(ctx, req.WorkspaceId, tabId, false); err != nil {
 			log.Printf("molten: removing the unopened duplicate %s of a pinned view: %v\n", tabId, err)
 		}
 	}
 	return projectviews.Result{}, nil
+}
+
+// settleReopenedInstance keeps one instance of a pinned view per project once a closed view is reopened: closing a
+// pinned view closed every instance, and reopening them one at a time can meet an instance a switch made meanwhile. The
+// placeholder (never shown, nothing in it) goes and the reopened view, which has its panels, stays; a real instance
+// already there makes the reopened one a temporary view, so no project shows the same pinned view twice.
+func settleReopenedInstance(ctx context.Context, wsId string, tabId string) {
+	projectViewsLock.Lock()
+	defer projectViewsLock.Unlock()
+	ctx = waveobj.ContextWithUpdates(ctx)
+	defer sendProjectViewUpdates(ctx)
+	ws, err := GetWorkspace(ctx, wsId)
+	if err != nil || !projectviews.Multi(ws.Meta) {
+		return
+	}
+	var reopened projectviews.TabInfo
+	infos := tabInfosOf(ctx, ws, clientPinIds(readClientMeta(ctx)))
+	for _, info := range infos {
+		if info.Id == tabId {
+			reopened = info
+		}
+	}
+	if reopened.Id == "" || reopened.Project == "" || (reopened.Slot == "" && reopened.Pin == "") {
+		return
+	}
+	twin := func(info projectviews.TabInfo) bool {
+		if info.Id == tabId || info.Project != reopened.Project {
+			return false
+		}
+		return (reopened.Slot != "" && info.Slot == reopened.Slot) || (reopened.Pin != "" && info.Pin == reopened.Pin)
+	}
+	kept := true
+	for _, info := range infos {
+		if !twin(info) {
+			continue
+		}
+		if !info.Placeholder {
+			kept = false
+			continue
+		}
+		if _, err := DeleteTab(ctx, wsId, info.Id, false); err != nil {
+			log.Printf("molten: removing the unopened duplicate %s of a reopened pinned view: %v\n", info.Id, err)
+		}
+	}
+	if kept {
+		return
+	}
+	if _, err := makeTabTemporary(ctx, tabId); err != nil {
+		log.Printf("molten: making the reopened duplicate %s of a pinned view a temporary view: %v\n", tabId, err)
+		return
+	}
+	fresh, err := GetWorkspace(ctx, wsId)
+	if err != nil {
+		return
+	}
+	slots := projectviews.ReadSlots(fresh.Meta)
+	delete(slots, tabId)
+	writeSlots(fresh, slots)
+	if err := wstore.DBUpdate(ctx, fresh); err != nil {
+		log.Printf("molten: taking the slot off the reopened duplicate %s: %v\n", tabId, err)
+	}
 }
 
 // makeTabTemporary takes the pin keys off a tab; placeholder is true for an instance made for a project that was never
@@ -580,7 +659,7 @@ func makeTabTemporary(ctx context.Context, tabId string) (placeholder bool, err 
 	if tab == nil {
 		return false, nil
 	}
-	if tab.Meta.GetBool(projectviews.SiblingMetaKey, false) && len(tab.BlockIds) == 0 {
+	if isPlaceholderTab(tab) {
 		return true, nil
 	}
 	patch := waveobj.MetaMapType{

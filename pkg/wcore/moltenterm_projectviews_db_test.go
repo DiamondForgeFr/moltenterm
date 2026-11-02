@@ -311,6 +311,40 @@ func TestSwitchOnAViewPinnedEverywhereMakesTheTargetsInstanceFromThePin(t *testi
 	}
 }
 
+// Tab meta can be written from a terminal: a tile edited to name a shell, an environment or an init script opens
+// without them in the project that never showed it.
+func TestAnInstanceNeverOpensWithAKeyThatPicksTheProgramItRuns(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
+	tileMeta := commandTileMeta()
+	panes := tileMeta[viewpin.PinConfigMetaKey].(map[string]any)["panes"].([]any)
+	panes[0] = map[string]any{
+		"view": "term", "controller": "shell", "cmd:cwd": notuliaDir,
+		"term:localshellpath": "/tmp/evil", "term:localshellopts": []any{"-c", "id"},
+		"cmd:env": map[string]any{"A": "b"}, "cmd:shell": true, "cmd:initscript": "id", "cmd:initscript.zsh": "id",
+		"molten:resumeagent": "claude",
+	}
+	tile := addProjectTab(t, ctx, wsId, "Cadrage", tileMeta, notuliaDir)
+	activate(t, ctx, wsId, tile)
+	res, err := switchProject(ctx, projectviews.SwitchRequest{WorkspaceId: wsId, ProjectId: "p2"})
+	if err != nil || res.TabId == tile {
+		t.Fatalf("p2 gets its own instance: %q, %v", res.TabId, err)
+	}
+	cfg, build, err := openPendingView(ctx, res.TabId)
+	if err != nil || !build || len(cfg.Panes) != 2 {
+		t.Fatalf("it opens from the configuration: %v %v %+v", build, err, cfg)
+	}
+	for _, key := range []string{"term:localshellpath", "term:localshellopts", "cmd:env", "cmd:shell", "cmd:initscript", "cmd:initscript.zsh", "molten:resumeagent"} {
+		if _, has := cfg.Panes[0][key]; has {
+			t.Errorf("%q reaches the panel: %v", key, cfg.Panes[0])
+		}
+	}
+	if cfg.Panes[0].GetString(waveobj.MetaKey_CmdCwd, "") != notuliaDir {
+		t.Fatalf("the folder stays: %v", cfg.Panes[0])
+	}
+}
+
 // A switch that cannot give the target a view to show leaves the view on screen, which is the left project's: that
 // project stays current, never the target with another project's view on screen.
 func TestAFailedSwitchPutsTheLeftProjectBack(t *testing.T) {
@@ -495,6 +529,28 @@ func TestPinningAViewGivesItASlotAndMakingItTemporaryTakesItBack(t *testing.T) {
 	}
 }
 
+// The slot hint a window sends with a pin is read once and never stays on the tab, whatever the number of projects: a
+// workspace that gets its second project later must not find a stale hint in a pinned view.
+func TestTheSlotHintNeverStaysOnATabEvenInAWorkspaceWithOneProject(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId := makeProjectWorkspace(t, ctx, waveobj.MetaMapType{projectviews.LiveProjectMetaKey: notuliaDir})
+	a1 := addProjectTab(t, ctx, wsId, "a1", nil, "")
+	patch := pinnedTabMeta()
+	patch[projectviews.SlotHintMetaKey] = "sHint"
+	if err := wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Tab, a1), patch, false); err != nil {
+		t.Fatal(err)
+	}
+	MoltenTabMetaChanged(ctx, a1, patch)
+	tab, _ := wstore.DBGet[*waveobj.Tab](ctx, a1)
+	if tab.Meta.HasKey(projectviews.SlotHintMetaKey) {
+		t.Fatalf("the hint is gone: %v", tab.Meta)
+	}
+	if !isTileMeta(tab.Meta) {
+		t.Fatalf("the pin itself stays: %v", tab.Meta)
+	}
+}
+
 func TestRemovingAProjectKeepsEveryViewAndHandsItsViewsOver(t *testing.T) {
 	initWorkspaceViewStores(t)
 	ctx := context.Background()
@@ -549,6 +605,130 @@ func TestRemovingAProjectMovesItsViewsToTheOneThatTakesOver(t *testing.T) {
 	}
 	if projectviews.CurrentProjectId(ws.Meta) != "p1" {
 		t.Fatalf("current %q", projectviews.CurrentProjectId(ws.Meta))
+	}
+}
+
+func addBlockTo(t *testing.T, ctx context.Context, tabId string, cwd string) {
+	t.Helper()
+	block := &waveobj.Block{
+		OID:        uuid.NewString(),
+		ParentORef: waveobj.MakeORef(waveobj.OType_Tab, tabId).String(),
+		Meta:       waveobj.MetaMapType{waveobj.MetaKey_View: "term", waveobj.MetaKey_CmdCwd: cwd},
+	}
+	if err := wstore.DBInsert(ctx, block); err != nil {
+		t.Fatal(err)
+	}
+	stored, _ := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+	stored.BlockIds = append(stored.BlockIds, block.OID)
+	if err := wstore.DBUpdate(ctx, stored); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A tile with a real instance in p1 and a placeholder in p2 (made by a switch, never shown).
+func tileWithAPlaceholderInP2(t *testing.T, ctx context.Context) (wsId string, tile string, placeholder string) {
+	t.Helper()
+	wsId = makeProjectWorkspace(t, ctx, notuliaMeta())
+	tile = addProjectTab(t, ctx, wsId, "Cadrage", commandTileMeta(), notuliaDir)
+	activate(t, ctx, wsId, tile)
+	res, err := switchProject(ctx, projectviews.SwitchRequest{WorkspaceId: wsId, ProjectId: "p2"})
+	if err != nil || res.TabId == tile || res.TabId == "" {
+		t.Fatalf("p2 gets a placeholder: %q, %v", res.TabId, err)
+	}
+	return wsId, tile, res.TabId
+}
+
+// Removing a project must keep the instance the developer worked in, whichever project it belonged to.
+func TestRemovingAProjectKeepsTheInstanceTheDeveloperWorkedIn(t *testing.T) {
+	for _, removed := range []string{"p1", "p2"} {
+		t.Run("removing "+removed, func(t *testing.T) {
+			initWorkspaceViewStores(t)
+			ctx := context.Background()
+			wsId, tile, placeholder := tileWithAPlaceholderInP2(t, ctx)
+			if _, err := removeProject(ctx, projectviews.RemoveRequest{WorkspaceId: wsId, ProjectId: removed}); err != nil {
+				t.Fatal(err)
+			}
+			ws := workspaceOf(t, ctx, wsId)
+			if slices.Contains(ws.TabIds, placeholder) || !slices.Contains(ws.TabIds, tile) {
+				t.Fatalf("the placeholder goes, the instance with panels stays: %v (tile %s, placeholder %s)", ws.TabIds, tile, placeholder)
+			}
+			kept, _ := wstore.DBGet[*waveobj.Tab](ctx, tile)
+			if kept == nil || !isTileMeta(kept.Meta) || len(kept.BlockIds) == 0 {
+				t.Fatalf("it is still the tile, panels included: %+v", kept)
+			}
+		})
+	}
+}
+
+func TestRemovingAProjectMakesTwoRealInstancesOfATileTemporary(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId, tile, placeholder := tileWithAPlaceholderInP2(t, ctx)
+	addBlockTo(t, ctx, placeholder, notuliaWebsiteDir)
+	if _, err := removeProject(ctx, projectviews.RemoveRequest{WorkspaceId: wsId, ProjectId: "p2"}); err != nil {
+		t.Fatal(err)
+	}
+	ws := workspaceOf(t, ctx, wsId)
+	if !slices.Contains(ws.TabIds, tile) || !slices.Contains(ws.TabIds, placeholder) {
+		t.Fatalf("both worked-in instances stay: %v", ws.TabIds)
+	}
+	moved, _ := wstore.DBGet[*waveobj.Tab](ctx, placeholder)
+	if isTileMeta(moved.Meta) || moved.Meta.HasKey(projectviews.SiblingMetaKey) {
+		t.Fatalf("the moved one is a temporary view: %v", moved.Meta)
+	}
+	original, _ := wstore.DBGet[*waveobj.Tab](ctx, tile)
+	if !isTileMeta(original.Meta) {
+		t.Fatalf("the project's own instance stays the tile: %v", original.Meta)
+	}
+}
+
+func reopenedTile(t *testing.T, ctx context.Context, wsId string, tile string) string {
+	t.Helper()
+	slot := projectviews.ReadSlots(workspaceOf(t, ctx, wsId).Meta)[tile]
+	meta := commandTileMeta()
+	meta[projectviews.ViewProjectHintMetaKey] = "p2"
+	meta[projectviews.SlotHintMetaKey] = slot
+	return addProjectTab(t, ctx, wsId, "Cadrage", meta, notuliaWebsiteDir)
+}
+
+// Reopening the instances of a closed tile one at a time can meet the instance a switch made meanwhile.
+func TestReopeningAnInstanceDropsTheNeverShownOneOfItsProject(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId, tile, placeholder := tileWithAPlaceholderInP2(t, ctx)
+	slot := projectviews.ReadSlots(workspaceOf(t, ctx, wsId).Meta)[tile]
+	reopened := reopenedTile(t, ctx, wsId, tile)
+	settleReopenedInstance(ctx, wsId, reopened)
+	ws := workspaceOf(t, ctx, wsId)
+	if slices.Contains(ws.TabIds, placeholder) || !slices.Contains(ws.TabIds, reopened) || !slices.Contains(ws.TabIds, tile) {
+		t.Fatalf("p2 has one instance of the tile, the reopened one: %v", ws.TabIds)
+	}
+	if got := projectviews.ReadSlots(ws.Meta)[reopened]; got != slot {
+		t.Fatalf("the reopened instance has the tile's slot: %q, want %q", got, slot)
+	}
+	if projectviews.ReadTabProjects(ws.Meta)[reopened] != "p2" {
+		t.Fatalf("it is p2's: %v", projectviews.ReadTabProjects(ws.Meta))
+	}
+}
+
+func TestReopeningAnInstanceNextToARealOneMakesItATemporaryView(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	wsId, tile, placeholder := tileWithAPlaceholderInP2(t, ctx)
+	addBlockTo(t, ctx, placeholder, notuliaWebsiteDir)
+	reopened := reopenedTile(t, ctx, wsId, tile)
+	settleReopenedInstance(ctx, wsId, reopened)
+	ws := workspaceOf(t, ctx, wsId)
+	if !slices.Contains(ws.TabIds, placeholder) || !slices.Contains(ws.TabIds, reopened) {
+		t.Fatalf("nothing is closed: %v", ws.TabIds)
+	}
+	slots := projectviews.ReadSlots(ws.Meta)
+	if slots[reopened] != "" || slots[placeholder] == "" {
+		t.Fatalf("one instance keeps the slot, the reopened one does not: %v", slots)
+	}
+	tab, _ := wstore.DBGet[*waveobj.Tab](ctx, reopened)
+	if isTileMeta(tab.Meta) {
+		t.Fatalf("the reopened one is a temporary view: %v", tab.Meta)
 	}
 }
 
