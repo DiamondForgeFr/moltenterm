@@ -95,7 +95,7 @@ func activate(t *testing.T, ctx context.Context, wsId string, tabId string) {
 	}
 }
 
-func TestATemporaryViewBelongsToTheProjectItIsMadeIn(t *testing.T) {
+func TestAViewBelongsToTheProjectItIsMadeIn(t *testing.T) {
 	initWorkspaceViewStores(t)
 	ctx := context.Background()
 	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
@@ -113,8 +113,12 @@ func TestATemporaryViewBelongsToTheProjectItIsMadeIn(t *testing.T) {
 	if _, ok := owners[project]; ok {
 		t.Fatalf("the Project tab is every project's: %v", owners)
 	}
-	if _, ok := owners[pinned]; ok {
-		t.Fatalf("a pinned view is every project's: %v", owners)
+	if owners[pinned] != "p2" {
+		t.Fatalf("a pinned view has one instance per project, this one is p2's: %v", owners)
+	}
+	slots := projectviews.ReadSlots(workspaceOf(t, ctx, wsId).Meta)
+	if slots[pinned] == "" || len(slots) != 1 {
+		t.Fatalf("a tile has a slot its instances in the other projects share, a temporary view none: %v", slots)
 	}
 }
 
@@ -176,15 +180,20 @@ func TestSwitchBetweenTwoProjectsKeepsEveryTabAndRemembersTheLastView(t *testing
 		ws.Meta.GetString(projectviews.LiveFolderMetaKey, "") != notuliaWebsiteDir {
 		t.Fatalf("the live keys follow p2: %v", ws.Meta)
 	}
-	if !slices.Equal(ws.TabIds, before.TabIds) {
-		t.Fatalf("a switch closes, adds and moves no tab: %v, was %v", ws.TabIds, before.TabIds)
+	if len(ws.TabIds) != len(before.TabIds)+1 || !slices.Equal(ws.TabIds[:len(before.TabIds)], before.TabIds) {
+		t.Fatalf("a switch closes and moves no tab, it only makes p2's instance of the tile: %v, was %v", ws.TabIds, before.TabIds)
 	}
 	if got := countObjs[*waveobj.Block](t, ctx, waveobj.OType_Block); got != blocksBefore {
-		t.Fatalf("a switch closes no panel: %d blocks, was %d", got, blocksBefore)
+		t.Fatalf("a switch closes no panel and opens none: %d blocks, was %d", got, blocksBefore)
 	}
+	sibling := ws.TabIds[len(ws.TabIds)-1]
 	shown := projectviews.ShownTabs(ws.TabIds, projectviews.ReadTabProjects(ws.Meta), projectviews.ReadProjects(ws.Meta), "p2")
-	if !slices.Equal(shown, []string{tile, b1, b2}) {
-		t.Fatalf("p2 shows its own views and the pinned tile: %v", shown)
+	if !slices.Equal(shown, []string{b1, b2, sibling}) {
+		t.Fatalf("p2 shows its own views and its instance of the tile, not p1's: %v", shown)
+	}
+	slots := projectviews.ReadSlots(ws.Meta)
+	if slots[sibling] == "" || slots[sibling] != slots[tile] {
+		t.Fatalf("the instances share the tile's slot: %v", slots)
 	}
 
 	res, err = switchProject(ctx, projectviews.SwitchRequest{WorkspaceId: wsId, ProjectId: "p1"})
@@ -199,19 +208,106 @@ func TestSwitchBetweenTwoProjectsKeepsEveryTabAndRemembersTheLastView(t *testing
 	}
 }
 
-func TestSwitchingOnAPinnedViewKeepsItOnScreen(t *testing.T) {
+func commandTileMeta() waveobj.MetaMapType {
+	return waveobj.MetaMapType{
+		viewpin.PinMetaKey: viewpin.PinWorkspace,
+		viewpin.PinConfigMetaKey: map[string]any{
+			"tree": map[string]any{"dir": "row", "children": []any{map[string]any{"pane": 0}, map[string]any{"pane": 1}}},
+			"panes": []any{
+				map[string]any{"view": "term", "controller": "cmd", "cmd": "rm", "cmd:args": []any{"-rf", "/"}, "connection": "user@host"},
+				map[string]any{"view": "term", "controller": "shell", viewpin.AgentSlotMetaKey: true},
+			},
+		},
+	}
+}
+
+// The acceptance of #1760: a tile shows project 1's agent on project 1 and project 2's own on project 2, and a switch
+// closes nothing and starts nothing.
+func TestSwitchingOnATileShowsTheTargetsOwnInstanceBuiltFromItsConfiguration(t *testing.T) {
 	initWorkspaceViewStores(t)
 	ctx := context.Background()
 	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
 	addProjectTab(t, ctx, wsId, "a1", nil, notuliaDir)
-	tile := addProjectTab(t, ctx, wsId, "tile", pinnedTabMeta(), notuliaDir)
+	tile := addProjectTab(t, ctx, wsId, "Cadrage", commandTileMeta(), notuliaDir)
 	activate(t, ctx, wsId, tile)
+	blocksBefore := countObjs[*waveobj.Block](t, ctx, waveobj.OType_Block)
+
 	res, err := switchProject(ctx, projectviews.SwitchRequest{WorkspaceId: wsId, ProjectId: "p2"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.TabId != tile || workspaceOf(t, ctx, wsId).ActiveTabId != tile {
-		t.Fatalf("a pinned view is every project's, it stays: %q", res.TabId)
+	instance := res.TabId
+	if instance == tile || instance == "" || workspaceOf(t, ctx, wsId).ActiveTabId != instance {
+		t.Fatalf("p2 shows its own instance of Cadrage, not p1's: %q (tile %q)", res.TabId, tile)
+	}
+	made, _ := wstore.DBGet[*waveobj.Tab](ctx, instance)
+	if made.Name != "Cadrage" || len(made.BlockIds) != 0 || made.Meta[ViewPendingMetaKey] != true || made.Meta[projectviews.SiblingMetaKey] != true {
+		t.Fatalf("the instance is made without a panel, pending: %+v", made)
+	}
+	if owner := ownersOf(t, ctx, wsId)[instance]; owner != "p2" {
+		t.Fatalf("it belongs to p2: %q", owner)
+	}
+	if got := countObjs[*waveobj.Block](t, ctx, waveobj.OType_Block); got != blocksBefore {
+		t.Fatalf("nothing of p1 closed, no panel opened yet: %d blocks, was %d", got, blocksBefore)
+	}
+	original, _ := wstore.DBGet[*waveobj.Tab](ctx, tile)
+	if !isTileMeta(original.Meta) {
+		t.Fatalf("p1's tile is as it was: %v", original.Meta)
+	}
+
+	cfg, build, err := openPendingView(ctx, instance)
+	if err != nil || !build || len(cfg.Panes) != 2 {
+		t.Fatalf("the first show opens it from the configuration: %v %v %+v", build, err, cfg)
+	}
+	for _, pane := range cfg.Panes {
+		if pane.GetString(waveobj.MetaKey_Cmd, "") != "" || pane[waveobj.MetaKey_CmdArgs] != nil || pane[waveobj.MetaKey_Connection] != nil {
+			t.Fatalf("nothing starts by itself: %v", pane)
+		}
+	}
+	if cfg.Panes[0].GetString(waveobj.MetaKey_Controller, "") != "shell" || cfg.Panes[1][viewpin.AgentSlotMetaKey] != true {
+		t.Fatalf("a command pane opens as a plain shell, the agent slot waits for a click: %+v", cfg.Panes)
+	}
+	if dir := projectDirOfTab(ctx, wsId, instance); dir != notuliaWebsiteDir {
+		t.Fatalf("it is made on p2's folder, not the folder of the project shown before: %q", dir)
+	}
+
+	back, err := switchProject(ctx, projectviews.SwitchRequest{WorkspaceId: wsId, ProjectId: "p1"})
+	if err != nil || back.TabId != tile {
+		t.Fatalf("and back, p1's own instance: %q, %v", back.TabId, err)
+	}
+	again, err := switchProject(ctx, projectviews.SwitchRequest{WorkspaceId: wsId, ProjectId: "p2"})
+	if err != nil || again.TabId != instance {
+		t.Fatalf("p2's instance again, never a second one: %q, %v", again.TabId, err)
+	}
+	if got := len(workspaceOf(t, ctx, wsId).TabIds); got != 3 {
+		t.Fatalf("a1, the tile and its one instance in p2: %d tabs", got)
+	}
+}
+
+func TestSwitchOnAViewPinnedEverywhereMakesTheTargetsInstanceFromThePin(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	client := &waveobj.Client{OID: uuid.NewString(), Meta: waveobj.MetaMapType{viewpin.GlobalPinsMetaKey: []any{map[string]any{
+		"id": "g1", "name": "Terminal", "rev": 2,
+		"config": map[string]any{"tree": map[string]any{"pane": 0}, "panes": []any{map[string]any{"view": "term", "controller": "cmd", "cmd": "make"}}},
+	}}}}
+	if err := wstore.DBInsert(ctx, client); err != nil {
+		t.Fatal(err)
+	}
+	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
+	inst := addProjectTab(t, ctx, wsId, "Terminal", waveobj.MetaMapType{viewpin.GlobalPinMetaKey: "g1", viewpin.GlobalPinRevMetaKey: 2}, notuliaDir)
+	activate(t, ctx, wsId, inst)
+	res, err := switchProject(ctx, projectviews.SwitchRequest{WorkspaceId: wsId, ProjectId: "p2"})
+	if err != nil || res.TabId == inst || res.TabId == "" {
+		t.Fatalf("p2 shows its own instance of the pin: %q, %v", res.TabId, err)
+	}
+	made, _ := wstore.DBGet[*waveobj.Tab](ctx, res.TabId)
+	if made.Meta.GetString(viewpin.GlobalPinMetaKey, "") != "g1" || made.Name != "Terminal" {
+		t.Fatalf("the instance is the pin's: %+v", made)
+	}
+	cfg, build, err := openPendingView(ctx, res.TabId)
+	if err != nil || !build || cfg.Panes[0].GetString(waveobj.MetaKey_Cmd, "") != "" || cfg.Panes[0].GetString(waveobj.MetaKey_Controller, "") != "shell" {
+		t.Fatalf("it opens from the pin without its command: %v %v %+v", build, err, cfg)
 	}
 }
 
@@ -369,7 +465,7 @@ func TestAStaleTabListNeverRemovesATab(t *testing.T) {
 	}
 }
 
-func TestPinningAndUnpinningAViewMovesItInAndOutOfTheMap(t *testing.T) {
+func TestPinningAViewGivesItASlotAndMakingItTemporaryTakesItBack(t *testing.T) {
 	initWorkspaceViewStores(t)
 	ctx := context.Background()
 	wsId := makeProjectWorkspace(t, ctx, notuliaMeta())
@@ -379,18 +475,24 @@ func TestPinningAndUnpinningAViewMovesItInAndOutOfTheMap(t *testing.T) {
 		t.Fatal(err)
 	}
 	MoltenTabMetaChanged(ctx, a1, pinnedTabMeta())
-	if _, ok := ownersOf(t, ctx, wsId)[a1]; ok {
-		t.Fatal("a view pinned belongs to every project")
+	ws := workspaceOf(t, ctx, wsId)
+	if ownersOf(t, ctx, wsId)[a1] != "p1" || projectviews.ReadSlots(ws.Meta)[a1] == "" {
+		t.Fatalf("a view pinned stays in its project and gets a slot: %v", ws.Meta)
+	}
+	slot := projectviews.ReadSlots(ws.Meta)[a1]
+	MoltenTabMetaChanged(ctx, a1, waveobj.MetaMapType{"molten:viewicon": "x"})
+	if projectviews.ReadSlots(workspaceOf(t, ctx, wsId).Meta)[a1] != slot {
+		t.Fatalf("a patch that touches no pin key changes nothing")
 	}
 	unpin := waveobj.MetaMapType{viewpin.PinMetaKey: nil, viewpin.PinConfigMetaKey: nil}
 	if err := wstore.UpdateObjectMeta(ctx, oref, unpin, false); err != nil {
 		t.Fatal(err)
 	}
 	MoltenTabMetaChanged(ctx, a1, unpin)
-	if got := ownersOf(t, ctx, wsId)[a1]; got != "p1" {
-		t.Fatalf("a view made temporary belongs to the project the developer works in: %q", got)
+	ws = workspaceOf(t, ctx, wsId)
+	if ownersOf(t, ctx, wsId)[a1] != "p1" || projectviews.ReadSlots(ws.Meta)[a1] != "" {
+		t.Fatalf("made temporary it keeps its project and loses its slot: %v", ws.Meta)
 	}
-	MoltenTabMetaChanged(ctx, a1, waveobj.MetaMapType{"molten:viewicon": "x"})
 }
 
 func TestRemovingAProjectKeepsEveryViewAndHandsItsViewsOver(t *testing.T) {
@@ -481,19 +583,20 @@ func TestStartupAssignmentGivesTemporaryViewsTheirProjectInMetaOnly(t *testing.T
 	}
 	ws := workspaceOf(t, ctx, wsId)
 	owners := projectviews.ReadTabProjects(ws.Meta)
-	want := map[string]string{desktop: "p1", mobile: "p1", site: "p2", lost: "p1"}
+	want := map[string]string{desktop: "p1", mobile: "p1", site: "p2", lost: "p1", tile: "p2"}
 	for id, project := range want {
 		if owners[id] != project {
-			t.Errorf("view %s is p%s's, got %q", id, project, owners[id])
+			t.Errorf("view %s is %s's, got %q", id, project, owners[id])
 		}
-	}
-	if _, ok := owners[tile]; ok {
-		t.Errorf("a pinned view stays every project's")
 	}
 	if _, ok := owners[projectTab]; ok {
 		t.Errorf("the Project tab stays every project's")
 	}
-	if !ws.Meta.GetBool(projectviews.AssignedMetaKey, false) {
+	slots := projectviews.ReadSlots(ws.Meta)
+	if slots[tile] == "" || len(slots) != 1 {
+		t.Errorf("the tile gets a slot, in the workspace's meta: %v", slots)
+	}
+	if !ws.Meta.GetBool(projectviews.AssignedMetaKey, false) || !ws.Meta.GetBool(projectviews.AssignedPinnedMetaKey, false) {
 		t.Errorf("the assignment is marked done")
 	}
 	if projectviews.CurrentProjectId(ws.Meta) != "p2" || ws.ActiveTabId != site {

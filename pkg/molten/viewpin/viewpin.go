@@ -39,11 +39,13 @@ const (
 	browserTabsMetaKey = "molten:browser:tabs"
 
 	// A pinned view's tab and the client, as frontend/moltenterm-shell/sidebar/view-pins-model.ts names them.
-	PinMetaKey        = "molten:pin"
-	PinWorkspace      = "workspace"
-	PinConfigMetaKey  = "molten:pinconfig"
-	GlobalPinMetaKey  = "molten:globalpin"
-	GlobalPinsMetaKey = "molten:globalpins"
+	PinMetaKey       = "molten:pin"
+	PinWorkspace     = "workspace"
+	PinConfigMetaKey = "molten:pinconfig"
+	GlobalPinMetaKey = "molten:globalpin"
+	// The version of the pin's configuration an instance was made from.
+	GlobalPinRevMetaKey = "molten:pinrev"
+	GlobalPinsMetaKey   = "molten:globalpins"
 )
 
 // Node is a view's layout: a split (Dir "row" puts its children side by side, "column" stacks them) or a panel.
@@ -170,6 +172,27 @@ func PaneConfig(meta waveobj.MetaMapType, agent bool, p Project) waveobj.MetaMap
 	}
 	if file, ok := rtn[waveobj.MetaKey_File].(string); ok {
 		rtn[waveobj.MetaKey_File] = tokenizePath(file, p.Dir)
+	}
+	return rtn
+}
+
+// NoCommands makes a configured panel safe to open without a click (#1760): a view a project shows for the first time
+// is made from the pinned configuration the moment it is shown, so a panel that ran a command opens as a plain shell
+// (agent slots wait for the developer as they do), and a remote connection is not dialled. Tab meta can be written
+// from a terminal, and nothing may start by itself from it.
+func NoCommands(meta waveobj.MetaMapType) waveobj.MetaMapType {
+	rtn := waveobj.MetaMapType{}
+	for k, v := range meta {
+		if k == waveobj.MetaKey_Connection || k == waveobj.MetaKey_Cmd {
+			continue
+		}
+		if strings.HasPrefix(k, "cmd:") && k != waveobj.MetaKey_CmdCwd {
+			continue
+		}
+		rtn[k] = v
+	}
+	if rtn.GetString(waveobj.MetaKey_Controller, "") == "cmd" {
+		rtn[waveobj.MetaKey_Controller] = "shell"
 	}
 	return rtn
 }

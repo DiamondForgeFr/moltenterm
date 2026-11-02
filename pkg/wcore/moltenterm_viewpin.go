@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
 	"github.com/wavetermdev/waveterm/pkg/molten/reopen"
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -34,6 +35,23 @@ func workspaceProjectDir(ctx context.Context, workspaceId string) string {
 	return viewProjectDir(ws.Meta)
 }
 
+// projectDirOfTab is the folder a view is made on or read against: the folder of the project that owns the tab when the
+// workspace has two projects or more (#1760), else the workspace's project folder.
+func projectDirOfTab(ctx context.Context, workspaceId string, tabId string) string {
+	ws, err := GetWorkspace(ctx, workspaceId)
+	if err != nil || ws == nil {
+		return ""
+	}
+	if tabId != "" && projectviews.Multi(ws.Meta) {
+		if owner := projectviews.ReadTabProjects(ws.Meta)[tabId]; owner != "" {
+			if p, ok := projectviews.FindProject(projectviews.ReadProjects(ws.Meta), owner); ok && p.Dir != "" {
+				return p.Dir
+			}
+		}
+	}
+	return viewProjectDir(ws.Meta)
+}
+
 func viewProjectDir(meta waveobj.MetaMapType) string {
 	if dir := meta.GetString(viewpin.ProjectMetaKey, ""); dir != "" {
 		return dir
@@ -50,7 +68,7 @@ func captureViewPin(ctx context.Context, req viewpin.CaptureRequest) (viewpin.Co
 	for _, id := range req.AgentBlocks {
 		agents[id] = true
 	}
-	dir := workspaceProjectDir(ctx, req.WorkspaceId)
+	dir := projectDirOfTab(ctx, req.WorkspaceId, req.TabId)
 	project := viewpin.Project{Dir: dir, RepoUrl: viewpin.RepoWebUrl(dir)}
 	metaOf := func(blockId string) (waveobj.MetaMapType, bool) {
 		if !slices.Contains(tab.BlockIds, blockId) {
@@ -94,7 +112,7 @@ func buildViewPin(ctx context.Context, req viewpin.BuildRequest) (viewpin.BuildR
 		}
 		req.Config = cfg
 	}
-	dir := workspaceProjectDir(ctx, req.WorkspaceId)
+	dir := projectDirOfTab(ctx, req.WorkspaceId, req.TabId)
 	project := viewpin.Project{Dir: dir, RepoUrl: viewpin.RepoWebUrl(dir)}
 	panes := req.Config.Panes
 	metaOf := func(blockId string) (map[string]any, bool) {
