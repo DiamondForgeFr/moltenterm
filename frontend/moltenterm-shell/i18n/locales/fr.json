@@ -9542,7 +9542,9 @@
             "resting": "au repos",
             "goTo": "Aller à la vue de {name}",
             "expand": "Afficher ce à quoi {name} est relié",
-            "collapse": "Masquer ce à quoi {name} est relié"
+            "collapse": "Masquer ce à quoi {name} est relié",
+            "projectTitle": "Tourne dans {project}",
+            "outsideTitle": "Tourne dans {folder}, hors des projets de cet espace de travail"
         },
         "view": {
             "equalize": "Égaliser la largeur des panneaux",

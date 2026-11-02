@@ -2481,6 +2481,7 @@ export function WorkspaceSidebar() {
     const projectPage = useAtomValue(model.projectPageAtom);
     const tinted = useAtomValue(getSettingsKeyAtom(SidebarTintSettingKey)) === true;
     const sections = useSidebarSections(split);
+    const projects = useMemo(() => readProjects(ws), [ws]);
     const draft = useAtomValue(model.createDraftAtom);
     const libraryOpen = useAtomValue(model.libraryAtom) != null;
     const contentRef = useRef<HTMLDivElement>(null);
@@ -2632,7 +2633,7 @@ export function WorkspaceSidebar() {
                                     activeTabId={activeTabId}
                                     label={t("sidebar.tiles.label", { name })}
                                 />
-                                <AgentsSection agents={sections.agents} activeTabId={activeTabId} />
+                                <AgentsSection agents={sections.agents} activeTabId={activeTabId} projects={projects} />
                                 <TemporaryViews
                                     ids={sections.temporary}
                                     activeTabId={activeTabId}
