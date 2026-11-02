@@ -7036,6 +7036,7 @@
         },
         "card": {
             "anAgent": "un agent",
+            "theAgent": "l'agent",
             "name": "{name}",
             "more": "Plus d'actions",
             "moreTitle": "Plus d'actions sur la PR #{number}",
@@ -7057,6 +7058,9 @@
                 "agentWorking": "{name} s'en occupe",
                 "agentAway": "Un agent s'en occupe",
                 "agentFinish": "L'agent doit encore la marquer prête",
+                "agentFinishBy": "{name} doit encore la marquer prête",
+                "agentDone": "Fini · {name} doit la marquer prête",
+                "agentDoneBlocked": "Fini · {name} doit la reprendre",
                 "agentOn": {
                     "rebase": "{name} rebase sur {base}",
                     "investigate": "{name} résout ce qui la bloque",
