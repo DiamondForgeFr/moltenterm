@@ -6,6 +6,7 @@ package wcore
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -101,15 +102,17 @@ func moltenRememberActiveTab(ws *waveobj.Workspace, next string) {
 	molten.RememberActiveTab(ws, next)
 }
 
+// The tab bars send the tabs they show: the hidden tabs and the other projects' views are put back (#1760).
 func moltenKeepHiddenTabs(ws *waveobj.Workspace, tabIds []string) []string {
-	return molten.KeepHiddenTabs(ws, tabIds)
+	return moltenKeepOtherProjectTabs(ws, molten.KeepHiddenTabs(ws, tabIds))
 }
 
-// moltenForgetClosedTabs drops the closed tabs (no longer in ws.TabIds) from the hidden list.
+// moltenForgetClosedTabs drops the closed tabs (no longer in ws.TabIds) from the hidden list and from the project maps.
 func moltenForgetClosedTabs(ws *waveobj.Workspace) {
 	if _, ok := ws.Meta[molten.HiddenTabsMetaKey]; ok {
 		molten.SetHiddenTabIds(ws, molten.HiddenTabIds(ws))
 	}
+	moltenPruneProjectMaps(ws)
 }
 
 // moltenNextActiveTab is the tab shown once the active tab at idx (already out of ws.TabIds) is closed: a shown tab
@@ -118,6 +121,14 @@ func moltenForgetClosedTabs(ws *waveobj.Workspace) {
 // goes back to the view shown before it (#1345).
 func moltenNextActiveTab(ws *waveobj.Workspace, idx int, closed *waveobj.Tab) string {
 	hidden := molten.HiddenTabIds(ws)
+	// #1760: the next view is one of the closed view's own project; another project's views are skipped like hidden ones
+	// and only chosen when the project has no view left.
+	closedProject := ""
+	if closed != nil {
+		closedProject = moltenProjectOfTab(ws, closed.OID)
+	}
+	other := moltenOtherProjectTabs(ws, closedProject)
+	hidden = append(slices.Clone(hidden), other...)
 	moltenForgetClosedTabs(ws)
 	if len(ws.TabIds) == 0 {
 		return ""

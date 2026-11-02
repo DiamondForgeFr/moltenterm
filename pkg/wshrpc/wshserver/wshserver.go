@@ -187,6 +187,9 @@ func (ws *WshServer) SetMetaCommand(ctx context.Context, data wshrpc.CommandSetM
 	if err != nil {
 		return fmt.Errorf("error updating object meta: %w", err)
 	}
+	if oref.OType == waveobj.OType_Tab {
+		wcore.MoltenTabMetaChanged(ctx, oref.OID, data.Meta) // MOLTENTERM-PATCH (#1760): a view pinned or made temporary changes projects
+	}
 	wcore.SendWaveObjUpdate(oref)
 	return nil
 }
