@@ -30,7 +30,8 @@
                 "kind": "panel",
                 "blockid": "b0",
                 "agent": "claude",
-                "firstname": "Adrien"
+                "firstname": "Adrien",
+                "started": 1792999700000
             },
             {
                 "branch": "feature/1029-notes",
@@ -90,7 +91,8 @@
                 "kind": "panel",
                 "blockid": "b0",
                 "agent": "codex",
-                "firstname": "Adrien"
+                "firstname": "Adrien",
+                "started": 1792999700000
             },
             {
                 "branch": "feature/1029-notes",
