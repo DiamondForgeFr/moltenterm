@@ -62,7 +62,9 @@ func waitSnapshot(t *testing.T, published chan Snapshot) Snapshot {
 func TestCollectorInvalidateReadsTheNewTag(t *testing.T) {
 	dir := makeGitFlowRepo(t)
 	published := make(chan Snapshot, 4)
-	c := MakeCollector(t.TempDir(), plainRunner, func(s Snapshot) { published <- s })
+	// The first refresh calls gh: a real one can stall on a loaded runner (network, auth) for up to collectTimeout,
+	// longer than waitSnapshot's bound (#1835).
+	c := MakeCollector(t.TempDir(), withoutGh, func(s Snapshot) { published <- s })
 	c.Get(dir, time.Hour, false)
 	waitSnapshot(t, published)
 	gitRun(t, dir, "tag", "v1.1.0-2")
