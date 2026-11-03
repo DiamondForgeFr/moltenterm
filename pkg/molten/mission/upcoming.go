@@ -342,7 +342,10 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 	ticketRes := branchTicketRes(readBranchNaming(dir))
 	answer.Agents = MatchBranchAgents(trees, places)
 	if u.env.Subagents != nil {
-		answer.Agents = append(answer.Agents, SubagentBranchAgents(trees, answer.Agents, u.env.Subagents(places))...)
+		subs := u.env.Subagents(places)
+		panels := answer.Agents
+		answer.Agents = append(answer.Agents, SubagentBranchAgents(trees, panels, subs)...)
+		answer.Agents = append(answer.Agents, UnplacedSubagents(trees, panels, subs)...)
 	}
 	targetRef := answer.Target
 	if _, err := g.out("rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+answer.Target); err == nil {
@@ -620,11 +623,8 @@ func SubagentBranchAgents(trees []treeEntry, panels []BranchAgent, subs []PaneSu
 	}
 	best := map[string]PaneSubagent{}
 	for _, s := range subs {
-		if s.Worktree == "" || !filepath.IsAbs(s.Worktree) {
-			continue
-		}
-		tree, ok := treeOf(trees, filepath.Clean(s.Worktree))
-		if !ok || tree.path == trees[0].path || tree.branch == "" || busy[tree.path] {
+		tree, ok := subagentTree(trees, busy, s)
+		if !ok {
 			continue
 		}
 		have, ok := best[tree.path]
@@ -647,6 +647,43 @@ func SubagentBranchAgents(trees []treeEntry, panels []BranchAgent, subs []PaneSu
 		rtn = append(rtn, BranchAgent{
 			Branch: tree.branch, Worktree: tree.path, Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started,
 			ActiveAt: s.LastWrite, ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
+			Description: s.Description, State: s.State,
+		})
+	}
+	return rtn
+}
+
+// subagentTree: the linked worktree without an agent panel a sub-agent works in, as SubagentBranchAgents places it.
+func subagentTree(trees []treeEntry, busy map[string]bool, s PaneSubagent) (treeEntry, bool) {
+	if len(trees) < 2 || s.Worktree == "" || !filepath.IsAbs(s.Worktree) {
+		return treeEntry{}, false
+	}
+	tree, ok := treeOf(trees, filepath.Clean(s.Worktree))
+	if !ok || tree.path == trees[0].path || tree.branch == "" || busy[tree.path] {
+		return treeEntry{}, false
+	}
+	return tree, true
+}
+
+// UnplacedSubagents (#1825): the sub-agents still at work that SubagentBranchAgents places in no worktree, a
+// read-only reviewer's in the main checkout or in its panel's own worktree among them. They come on no branch and in
+// no worktree: the Integration cards tie one to a PR only when its task names the PR or its ticket.
+func UnplacedSubagents(trees []treeEntry, panels []BranchAgent, subs []PaneSubagent) []BranchAgent {
+	busy := map[string]bool{}
+	for _, a := range panels {
+		busy[a.Worktree] = true
+	}
+	var rtn []BranchAgent
+	for _, s := range subs {
+		if s.State == companion.SubagentDone {
+			continue
+		}
+		if _, placed := subagentTree(trees, busy, s); placed {
+			continue
+		}
+		rtn = append(rtn, BranchAgent{
+			Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started, ActiveAt: s.LastWrite,
+			ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
 			Description: s.Description, State: s.State,
 		})
 	}

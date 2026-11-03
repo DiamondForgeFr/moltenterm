@@ -58,6 +58,51 @@ func TestSubagentBranchAgents(t *testing.T) {
 	}
 }
 
+// #1825: a read-only sub-agent (the main checkout, a panel's own worktree, or no folder) is listed on no branch, so
+// the Integration cards can match its task with their ticket or PR; a finished one and a placed one are not.
+func TestUnplacedSubagents(t *testing.T) {
+	trees := []treeEntry{
+		{path: "/p", branch: "develop"},
+		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},
+		{path: "/x/d", branch: "feature/10-d"},
+	}
+	panels := []BranchAgent{{Branch: "feature/10-d", Worktree: "/x/d", Kind: UpcomingAgentPanel}}
+	sub := func(worktree string, state string, desc string) PaneSubagent {
+		return PaneSubagent{ParentBlockId: "parent", ParentFirstName: "Arthur", Agent: "claude", SubagentIdentity: companion.SubagentIdentity{
+			Worktree: worktree, State: state, LastWrite: 5, Started: 1, Description: desc, Model: "claude-opus-5-5",
+		}}
+	}
+	subs := []PaneSubagent{
+		sub("/p/.claude/worktrees/a", companion.SubagentRunning, "#7 placed"),
+		sub("/p", companion.SubagentRunning, "Review PR #1824 meta guard"),
+		sub("/p/src", companion.SubagentQuiet, "Review #1825 quietly"),
+		sub("/x/d", companion.SubagentRunning, "Review inside a panel's worktree"),
+		sub("", companion.SubagentRunning, "no folder"),
+		sub("/elsewhere", companion.SubagentRunning, "outside the repository"),
+		sub("/p", companion.SubagentDone, "Review PR #1800, finished"),
+	}
+	got := UnplacedSubagents(trees, panels, subs)
+	var descs []string
+	for _, a := range got {
+		if a.Branch != "" || a.Worktree != "" || a.Kind != UpcomingAgentSubagent || a.ParentBlockId != "parent" || a.ParentFirstName != "Arthur" ||
+			a.Agent != "claude" || a.Model != "claude-opus-5-5" || a.ActiveAt != 5 || a.Started != 1 {
+			t.Fatalf("unplaced sub-agent: %+v", a)
+		}
+		descs = append(descs, a.Description)
+	}
+	want := []string{"Review PR #1824 meta guard", "Review #1825 quietly", "Review inside a panel's worktree", "no folder", "outside the repository"}
+	if fmt.Sprint(descs) != fmt.Sprint(want) {
+		t.Fatalf("unplaced: %q, want %q", descs, want)
+	}
+	if br := agentBranches(got); br["develop"] || br["feature/10-d"] {
+		t.Fatalf("an unplaced sub-agent works on no branch: %+v", br)
+	}
+	// Without linked worktrees, the main checkout's read-only sub-agents are still listed.
+	if one := UnplacedSubagents(trees[:1], nil, subs[1:2]); len(one) != 1 {
+		t.Fatalf("main checkout only: %+v", one)
+	}
+}
+
 // The ticket's fixture (#1035): a parent session with two sub-agent meta files, one running and one finished, whose
 // worktrees hold two ticket branches; the two Upcoming rows carry the parent, tool, model, task and state.
 func TestUpcomingNamesSubagents(t *testing.T) {
