@@ -15,14 +15,14 @@ import { findNode, findParent } from "@/layout/lib/layoutNode";
 import type { LayoutTreeSplitHorizontalAction, LayoutTreeSplitVerticalAction } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
 import { besideColumns } from "./add-beside-model";
-import { HalfSplit, splitAxis, SplitDirection, SplitFromMetaKey, splitSizes } from "./split-model";
+import { HalfSplit, pickerBlockDef, splitAxis, SplitDirection, SplitFromMetaKey, splitSizes } from "./split-model";
 
 // The pickers opened by a split and not chosen or cancelled yet (new block id -> source block id). Not persisted: a
 // picker left open across a restart still cancels, from its block meta.
 const pendingSplits = new Map<string, string>();
 
-export function splitPickerBlockDef(sourceBlockId: string): BlockDef {
-    return { meta: { view: "launcher", [SplitFromMetaKey]: sourceBlockId } as MetaType };
+export function splitPickerBlockDef(sourceBlockId: string, newPanel = false): BlockDef {
+    return pickerBlockDef(sourceBlockId, newPanel);
 }
 
 export function readSplitFrom(blockId: string): string {
@@ -109,8 +109,9 @@ export function insertBlockBeside(
 }
 
 // A new top-level column opening on the picker, like a split (#702: the 360 view's "add a panel" at each end of the
-// carpet). place is read once the block exists, the layout may have changed meanwhile; the picker reads its context
-// (directory, connection) from sourceBlockId, and cancelling it gives the focus back there. A place with columnSizes
+// carpet). place is read once the block exists, the layout may have changed meanwhile; the picker reads its connection
+// from sourceBlockId but not its folder, being a new panel and not a split (#1839: its terminal and files start in the
+// workspace folder), and cancelling it gives the focus back there. A place with columnSizes
 // (#732) then sizes the top-level columns, the new one included, before the layout is drawn. Returns the new block id,
 // null when there is no place.
 export async function addPickerColumn(
@@ -122,7 +123,7 @@ export async function addPickerColumn(
         return null;
     }
     prunePendingSplits();
-    const newBlockId = await ObjectService.CreateBlock(splitPickerBlockDef(sourceBlockId), {
+    const newBlockId = await ObjectService.CreateBlock(splitPickerBlockDef(sourceBlockId, true), {
         termsize: { rows: 25, cols: 80 },
     });
     const where = place();

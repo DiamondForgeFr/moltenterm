@@ -3,17 +3,68 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    newTerminalBlockDef,
     panelKindRank,
+    pickerBlockDef,
     pickerFitsInline,
     PickerMinPx,
     PickerMinRows,
     pickerPopoverRect,
     PickerPopoverWidthPx,
     PickerRowPx,
+    pickerSourceMeta,
+    sourceContext,
     splitAxis,
+    SplitFromMetaKey,
+    SplitNewPanelMetaKey,
     splitSizes,
     terminalBlockDefFrom,
 } from "./split-model";
+
+// FR-SHELL-009 (#1839): a new terminal or file panel starts in the workspace folder, which wavesrv fills in for a
+// block without a folder of its own (pkg/wcore/moltenterm_folder.go): the active project's, home without one. Only a
+// split carries the source panel's folder.
+describe("what a new panel takes from the panel it opens from (FR-SHELL-009, #1839)", () => {
+    const HomeTerminal = { view: "term", controller: "shell", "cmd:cwd": "/home/me", connection: "local" };
+
+    it("keeps the source's folder for a split", () => {
+        expect(sourceContext(HomeTerminal, true)).toEqual({ view: "term", "cmd:cwd": "/home/me", connection: "local" });
+    });
+
+    it("keeps only the connection for a new panel, so it starts in the workspace folder", () => {
+        expect(sourceContext(HomeTerminal, false)).toEqual({ view: "term", connection: "local" });
+        expect(sourceContext({ view: "term", "cmd:cwd": "/x" }, false)).toEqual({ view: "term" });
+        expect(sourceContext(null, false)).toEqual({ view: undefined });
+    });
+
+    it("opens ⌘T's direct terminal without the focused terminal's folder (getDefaultNewBlockDef)", () => {
+        expect(newTerminalBlockDef(HomeTerminal)).toEqual({
+            meta: { view: "term", controller: "shell", connection: "local" },
+        });
+        expect(newTerminalBlockDef({ view: "preview", file: "/x", connection: "dev@box" })).toEqual({
+            meta: { view: "term", controller: "shell", connection: "dev@box" },
+        });
+        expect(newTerminalBlockDef(null)).toEqual({ meta: { view: "term", controller: "shell" } });
+    });
+
+    it("marks the picker of a new column (carpet end, Add a panel on the left / right), not a split's", () => {
+        expect(pickerBlockDef("src", false)).toEqual({ meta: { view: "launcher", [SplitFromMetaKey]: "src" } });
+        expect(pickerBlockDef("src", true)).toEqual({
+            meta: { view: "launcher", [SplitFromMetaKey]: "src", [SplitNewPanelMetaKey]: true },
+        });
+    });
+
+    it("gives a split's picker the source's folder, a new column's picker only its connection", () => {
+        const split = { view: "launcher", [SplitFromMetaKey]: "src" };
+        const column = { ...split, [SplitNewPanelMetaKey]: true };
+        expect(pickerSourceMeta(split, HomeTerminal)).toEqual({
+            view: "term",
+            "cmd:cwd": "/home/me",
+            connection: "local",
+        });
+        expect(pickerSourceMeta(column, HomeTerminal)).toEqual({ view: "term", connection: "local" });
+    });
+});
 
 describe("split directions", () => {
     it("maps right and down to Wave's horizontal and vertical splits after the panel", () => {

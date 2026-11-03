@@ -48,6 +48,7 @@ import {
     pinnedViewKeepsTab,
 } from "../../moltenterm-shell/sidebar/view-pins-store"; // MOLTENTERM-PATCH (#1185, #1345)
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
+import { newTerminalBlockDef } from "../../moltenterm-shell/split/split-model"; // MOLTENTERM-PATCH (#1839)
 import { enterSplitPlacementFocused } from "../../moltenterm-shell/split/split-place"; // MOLTENTERM-PATCH (#677)
 import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
 import { revealPanelOnCarpet } from "../../moltenterm-shell/view360/carpet-reveal"; // MOLTENTERM-PATCH (#747)
@@ -411,27 +412,15 @@ function getDefaultNewBlockDef(): BlockDef {
         };
     }
     // "term", blank, anything else, fall back to terminal
-    const termBlockDef: BlockDef = {
-        meta: {
-            view: "term",
-            controller: "shell",
-        },
-    };
+    // MOLTENTERM-PATCH (#1839): a new terminal keeps the focused panel's connection but starts in the workspace folder
+    // (the active project's, FR-SHELL-009), not in the focused terminal's folder: only a split carries that.
     const layoutModel = getLayoutModelForStaticTab();
     const focusedNode = globalStore.get(layoutModel.focusedNode);
-    if (focusedNode != null) {
-        const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", focusedNode.data?.blockId));
-        const blockData = globalStore.get(blockAtom);
-        if (blockData?.meta?.view == "term") {
-            if (blockData?.meta?.["cmd:cwd"] != null) {
-                termBlockDef.meta["cmd:cwd"] = blockData.meta["cmd:cwd"];
-            }
-        }
-        if (blockData?.meta?.connection != null) {
-            termBlockDef.meta.connection = blockData.meta.connection;
-        }
+    if (focusedNode == null) {
+        return newTerminalBlockDef(null);
     }
-    return termBlockDef;
+    const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", focusedNode.data?.blockId));
+    return newTerminalBlockDef(globalStore.get(blockAtom)?.meta);
 }
 
 // MOLTENTERM-PATCH (#1241, #1742): a new panel beside the panel under the pointer, its chooser selecting the type of
@@ -442,7 +431,7 @@ async function handleCmdT() {
 }
 
 // MOLTENTERM-PATCH (#370): a split opens the content picker in the new panel (FR-SHELL-042,
-// frontend/moltenterm-shell/split/); choosing Terminal there gives what getDefaultNewBlockDef gave.
+// frontend/moltenterm-shell/split/); choosing Terminal there opens it in the source terminal's folder.
 async function handleSplitHorizontal(position: "before" | "after") {
     splitFocusedPanel(position === "before" ? "left" : "right");
 }

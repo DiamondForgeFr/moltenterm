@@ -26,8 +26,8 @@ export type NewPanelTarget = { blockId: string; side: BesideSide };
 // scrolls: its columns keep their widths).
 export type NewPanelSplit = { targetNodeId: string; position: "before" | "after"; equalizeRow: boolean };
 
-// What the new panel holds: a block, today's terminal (its directory and connection come from the panel the key was
-// pressed in), or an entry that opens nothing in a panel (Sessions, the Project tab), which just runs.
+// What the new panel holds: a block, today's terminal (on the connection of the panel the key was pressed in, in the
+// workspace folder, #1839), or an entry that opens nothing in a panel (Sessions, the Project tab), which just runs.
 export type NewPanelContent =
     | { kind: "block"; blockdef: BlockDef }
     | { kind: "terminal" }

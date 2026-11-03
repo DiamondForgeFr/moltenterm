@@ -8,6 +8,9 @@ export type SplitDirection = "right" | "down" | "left" | "up";
 
 // The block meta key of a new panel's picker: the panel it was split from (DS-SHELL-066).
 export const SplitFromMetaKey = "molten:splitfrom";
+// Set on the picker of a new column beside its source (a carpet end, "Add a panel on the left / right"), which is a
+// new panel and not a split: it takes the source's connection, never its folder (#1839).
+export const SplitNewPanelMetaKey = "molten:splitnew";
 
 // Wave's layout refuses to resize a panel below 40 px (layoutModel.ts MinNodeSizePx); a split keeps both panels above.
 export const MinPanelPx = 40;
@@ -38,8 +41,43 @@ export function splitSizes(sourceSize: number, fraction: number): { source: numb
     return { source: sourceSize * (1 - f), added: sourceSize * f };
 }
 
-// What Enter on Terminal opens: a shell in the source panel's folder and on its connection, as Wave's Cmd+D did
-// (keymodel.ts getDefaultNewBlockDef). A shell without cmd:cwd starts in the workspace folder (FR-SHELL-009, #82).
+// What a new panel takes from the panel it opens from (FR-SHELL-009, #1839): its connection always, its folder only
+// for a split (keepFolder). A terminal or a file panel without a folder of its own starts in the workspace folder,
+// which wavesrv fills in where every block is created (pkg/wcore/moltenterm_folder.go): inside the active project, the
+// home folder without one. Every creator of a new terminal or file panel goes through here or names its own folder.
+export function sourceContext(meta: MetaType, keepFolder: boolean): MetaType {
+    const rtn: MetaType = { view: meta?.view };
+    if (keepFolder && meta?.["cmd:cwd"] != null) {
+        rtn["cmd:cwd"] = meta["cmd:cwd"];
+    }
+    if (meta?.connection != null) {
+        rtn.connection = meta.connection;
+    }
+    return rtn;
+}
+
+// ⌘T's terminal when Terminal opens directly (keymodel.ts getDefaultNewBlockDef): a new panel, so on the focused
+// panel's connection and in the workspace folder, not in the focused terminal's folder (#1839).
+export function newTerminalBlockDef(focused: MetaType): BlockDef {
+    return terminalBlockDefFrom(sourceContext(focused, false));
+}
+
+// The picker a split (newPanel false) or a new column beside sourceBlockId (newPanel true) opens on.
+export function pickerBlockDef(sourceBlockId: string, newPanel: boolean): BlockDef {
+    const meta: Record<string, unknown> = { view: "launcher", [SplitFromMetaKey]: sourceBlockId };
+    if (newPanel) {
+        meta[SplitNewPanelMetaKey] = true;
+    }
+    return { meta: meta as MetaType };
+}
+
+// The context a picker's entries open in, from the picker's own meta and its source's.
+export function pickerSourceMeta(pickerMeta: Record<string, unknown>, sourceMeta: MetaType): MetaType {
+    return sourceContext(sourceMeta, pickerMeta?.[SplitNewPanelMetaKey] !== true);
+}
+
+// What Enter on Terminal opens: a shell in the source panel's folder and on its connection, as Wave's Cmd+D did. A
+// shell without cmd:cwd starts in the workspace folder (FR-SHELL-009, #82).
 export function terminalBlockDefFrom(source: MetaType): BlockDef {
     const meta: MetaType = { view: "term", controller: "shell" };
     if (source?.view === "term" && source?.["cmd:cwd"] != null) {
