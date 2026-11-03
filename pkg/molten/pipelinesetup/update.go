@@ -49,6 +49,9 @@ const (
 	// Steps the developer edited or added differ from the template: kept unless they choose otherwise, and a choice
 	// written once is not offered again.
 	UpdateReasonCustomised = "customised"
+	// A step whose template version the developer declined at an earlier update, written differently by the template
+	// since (#1843): one reason per step, its title in Detail.
+	UpdateReasonChangedSince = "changedsince"
 	// The changes come from the choices the developer adjusted in step 2a (#1102), not from a newer template.
 	UpdateReasonAdjusted = "adjusted"
 	// The developer's uncommitted edits are included as changes to check (#1102).
@@ -881,7 +884,7 @@ func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, in checkInp
 		}
 	}
 	answer.Changes = append(append([]Change{}, local...), template...)
-	answer.Reasons = updateReasons(f, pipeline, proposal, template, answer.Adjusted, len(local) > 0)
+	answer.Reasons = updateReasons(f, pipeline, proposal, template, rec, answer.Adjusted, len(local) > 0)
 	answer.State = UpdateStateUpToDate
 	if len(answer.Changes) > 0 {
 		answer.State = UpdateStateUpdate
@@ -934,7 +937,7 @@ func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, in checkInp
 
 // updateReasons says why, in the order a developer cares about: their own edits, the protection, the labels, then the
 // template or their adjustment.
-func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Change, adjusted bool, local bool) []UpdateReason {
+func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Change, rec *Record, adjusted bool, local bool) []UpdateReason {
 	rtn := []UpdateReason{}
 	if local {
 		rtn = append(rtn, UpdateReason{Code: UpdateReasonLocal})
@@ -963,7 +966,12 @@ func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Cha
 		}
 	}
 	template, customised, proposed := false, false, false
+	var since []UpdateReason
 	for _, c := range changes {
+		if changedSinceChoice(rec, c) {
+			since = append(since, UpdateReason{Code: UpdateReasonChangedSince, Detail: decidedTitle(c)})
+			continue
+		}
 		if proposedOnly(c) {
 			proposed = true
 			continue
@@ -983,7 +991,25 @@ func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Cha
 	if customised {
 		rtn = append(rtn, UpdateReason{Code: UpdateReasonCustomised})
 	}
-	return rtn
+	return append(rtn, since...)
+}
+
+// changedSinceChoice: the developer kept their side of this change at an earlier update, and the template writes
+// something else there since.
+func changedSinceChoice(rec *Record, c Change) bool {
+	return rec != nil && rec.Declined[c.Key] != "" && rec.Declined[c.Key] != changeHash(c)
+}
+
+// decidedTitle names the step as the developer knows it: the file's title, the template's for a step it adds.
+func decidedTitle(c Change) string {
+	var before molten.PipelineStep
+	if c.Before != "" && json.Unmarshal([]byte(c.Before), &before) == nil && before.Title != "" {
+		return before.Title
+	}
+	if c.Title != "" {
+		return c.Title
+	}
+	return c.Key
 }
 
 // proposedOnly: a change that only adds what step 2a proposes (#1104): a check on a manual step, or the formatter.
@@ -1112,12 +1138,20 @@ func updateFilesOf(c *checked, choices map[string]bool) (prFiles, error) {
 			rec.Declined[key] = hash
 		}
 	}
+	var written molten.Pipeline
+	readWritten := json.Unmarshal(c.text, &written) == nil
 	for _, change := range c.answer.Changes {
 		// An uncommitted edit left out is the developer's, not a template change to remember as declined.
 		if change.Local {
 			continue
 		}
-		if chosen(change, choices) {
+		// What the file ends up with decides, not the tick: an agent's refined text (#1099) can keep the developer's
+		// step under a ticked change, and that choice must not come back at the next check (#1843).
+		take := chosen(change, choices)
+		if readWritten {
+			take = takenIn(&written, c.merged, change)
+		}
+		if take {
 			delete(rec.Declined, change.Key)
 		} else {
 			rec.Declined[change.Key] = changeHash(change)
@@ -1129,6 +1163,26 @@ func updateFilesOf(c *checked, choices map[string]bool) (prFiles, error) {
 	}
 	files.add(RecordFile, data)
 	return files, nil
+}
+
+// takenIn: the written file has the template's side of the change (the step as the template writes it, the step gone,
+// the versions block).
+func takenIn(written *molten.Pipeline, merged *molten.PipelineRelease, c Change) bool {
+	if c.Kind == ChangeVersions {
+		return versionsText(written.Versions) == c.After
+	}
+	if merged == nil {
+		return false
+	}
+	steps := merged.Rc
+	if c.Channel == ChannelPublic {
+		steps = merged.Public
+	}
+	s, ok := stepById(steps, c.Id)
+	if c.Kind == ChangeRemoved {
+		return !ok
+	}
+	return ok && stepText(s) == c.After
 }
 
 // ChangeKeys lists the keys of the changes, sorted, for tests and logs.

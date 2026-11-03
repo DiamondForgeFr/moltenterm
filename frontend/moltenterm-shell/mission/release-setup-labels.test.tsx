@@ -94,4 +94,19 @@ describe("Not a version label", () => {
             I18nModel.getInstance().setLanguageSetting("en");
         }
     });
+
+    it("names the step the template changed since the developer's choice (#1843)", () => {
+        const reason = { code: "changedsince" as const, detail: "Commit, tag and push" };
+        expect(setupReasonText(t, reason)).toBe(
+            "MoltenTerm changed the step “Commit, tag and push” since your choice: keep yours or take its new version."
+        );
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(setupReasonText(t, reason)).toContain(
+                "MoltenTerm a changé l’étape « Commit, tag and push » depuis votre choix"
+            );
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+    });
 });
