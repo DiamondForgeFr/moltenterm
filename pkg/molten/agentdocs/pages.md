@@ -1,0 +1,41 @@
+# Pages: show them in MoltenTerm's browser
+
+When the developer asks you to open a page ("open the doc", "show me the page", "open the preview"), open it in
+MoltenTerm's browser panel, next to your terminal. Do not open it with `open`, `xdg-open`, `start`, `python -m
+webbrowser` or any other command that starts the system browser: the developer would have to leave MoltenTerm to see
+it, and you could not read or drive it. This holds for any agent that runs in a MoltenTerm terminal.
+
+The exception is the developer asking for their own browser ("open it in Brave", "in my browser"): then say so with
+`--browser`, below.
+
+## With the molten-browser tools (Claude Code, Codex, any MCP agent)
+
+1. `tabs_create` opens an empty page in the panel of your tab and gives you its `tabId`.
+2. `navigate` loads the address in that tab. Only http and https; a bare host gets https (http for `localhost`).
+3. Read it with `get_page_text`, `read_page` or `find`, and act on it with `computer` or `form_input`, when the
+   developer wants you to work in it. The first action on each site asks the developer, who may allow it once, always,
+   or block it.
+4. Close the tabs you opened with `tabs_close` when you no longer need them, unless the developer wants them kept.
+
+Prefer a tab the developer shared with you (`tabs_context` lists it) to opening another one for the same page.
+
+## From a shell
+
+```sh
+molten open https://example.com/docs        # MoltenTerm's browser, or the engine the developer chose for the site
+molten open localhost:3000                  # a bare localhost gets http
+molten open --browser installed <url>       # the developer's own browser, only when they ask for it
+molten browsers                             # the browsers found on this computer
+```
+
+Programs that read the `BROWSER` variable (`gh pr view --web`, `npm`, `python -m webbrowser`) already open their pages
+in MoltenTerm in a local MoltenTerm terminal: it is set to MoltenTerm's own handler.
+
+## What the developer sees
+
+- The page opens as a panel to the right of your terminal, which keeps the keyboard focus. Nothing opens in another tab
+  or workspace.
+- In a 360 view, a page you open or navigate that is off-screen on the carpet is scrolled into view, so the developer
+  sees what you show. The carpet only scrolls: the focus does not move and no view is switched. Reading, clicking or
+  typing in the page never scrolls it.
+- A bar on the tab says you are controlling it; the developer can stop you or take over at any time.
