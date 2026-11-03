@@ -51,8 +51,8 @@ import {
 import {
     canPinBeside,
     CarpetColumnGapPx,
-    carpetColumnKind,
     carpetColumnHasHandle,
+    carpetColumnKind,
     carpetColumnRect,
     CarpetLayout,
     carpetNodeTransform,

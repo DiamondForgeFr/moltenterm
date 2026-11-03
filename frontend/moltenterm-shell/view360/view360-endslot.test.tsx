@@ -7,9 +7,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { fileURLToPath } from "url";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nModel } from "../i18n/i18n";
+import { addCarpetPanel } from "./carpet-add";
 import { computeCarpetLayout } from "./carpet-model";
 import { endSlotRect } from "./carpet-peeks";
-import { addCarpetPanel } from "./carpet-add";
 import { addAtSlot, CarpetEndSlot } from "./view360-endslot";
 
 vi.mock("./carpet-add", () => ({ addCarpetPanel: vi.fn(() => Promise.resolve("new-block")) }));
@@ -40,7 +40,7 @@ describe("the add-panel slot at an end of the carpet (#1836, FR-SHELL-065 AC15)"
         vi.mocked(addCarpetPanel).mockClear();
     });
 
-    it("is a button named and described \"Add a panel here\", with a plus", () => {
+    it('is a button named and described "Add a panel here", with a plus', () => {
         I18nModel.getInstance().setLanguageSetting("en");
         const html = slot("left");
         expect(html).toMatch(/^<button type="button"/);
