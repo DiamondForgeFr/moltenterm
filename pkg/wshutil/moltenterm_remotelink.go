@@ -116,11 +116,12 @@ func sameRemoteConn(a string, b string) bool {
 	return isRemoteConnName(a) && NormConnName(a) == NormConnName(b)
 }
 
-// checkRemoteAnnounce refuses a route a host's router link may not announce: only free routes of its own scope
-// (its connection's conn: route, its processes' proc: routes, its connection's jobs), never wavesrv's, a window's,
-// Electron main's or a controller's, and never a route another link holds (but the same connection's earlier link,
-// while it reconnects). A host that took conn:local or a local job's route would receive what wavesrv sends there.
-// The job's connection is checked first, outside the router's lock (MoltenJobConn).
+// checkRemoteAnnounce refuses a job route a host may not bind, announced or authenticated by a job manager: only its
+// own connection's jobs, checked outside the router's lock (MoltenJobConn). remoteAnnounceRefusal_withlock refuses
+// the other routes: a host announces only free routes of its own scope (its connection's conn: route, its processes'
+// proc: routes, its connection's jobs), never wavesrv's, a window's, Electron main's or a controller's, and never a
+// route another link holds (but the same connection's earlier link, while it reconnects). A host that took conn:local
+// or a local job's route would receive what wavesrv sends there.
 func (router *WshRouter) checkRemoteAnnounce(linkId baseds.LinkId, routeId string) error {
 	conn, remote := router.RemoteLinkConn(linkId)
 	if !remote || !strings.HasPrefix(routeId, RoutePrefix_Job) {

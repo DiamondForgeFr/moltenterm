@@ -6,8 +6,14 @@ package wshserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/metaguard"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -31,26 +37,66 @@ type promptCall struct {
 	target string
 }
 
-// guardFixture replaces the window's question, the known connections and the block and job lookups.
+// guardFixture replaces the window's question, the known connections, name resolution and the block and job
+// lookups.
 type guardFixture struct {
-	prompts []promptCall
-	allow   bool
-	always  bool
+	lock      sync.Mutex
+	prompts   []promptCall
+	questions []moltenQuestion
+	allow     bool
+	remember  bool
+	// gate, when set, holds the window's answer until the test lets it go.
+	gate chan struct{}
+}
+
+func (f *guardFixture) asked() []promptCall {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return append([]promptCall(nil), f.prompts...)
+}
+
+func (f *guardFixture) last() moltenQuestion {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return f.questions[len(f.questions)-1]
 }
 
 func setupGuard(t *testing.T) *guardFixture {
 	t.Helper()
 	f := &guardFixture{}
-	savedPrompt, savedKnown, savedBlock, savedJob := moltenRemotePrompt, moltenKnownConnFn, moltenBlockConn, moltenJobConn
+	savedPrompt, savedKnown, savedBlock, savedJob, savedHosts, savedResolve, savedAsk := moltenRemotePrompt, moltenKnownConnFn, moltenBlockConn, moltenJobConn, moltenHopHostsFn, moltenResolveHost, moltenAsk
 	t.Cleanup(func() {
-		moltenRemotePrompt, moltenKnownConnFn, moltenBlockConn, moltenJobConn = savedPrompt, savedKnown, savedBlock, savedJob
-		moltenAskGrantsLock.Lock()
-		defer moltenAskGrantsLock.Unlock()
-		moltenAskGrants = map[moltenAskGrant]bool{}
+		moltenRemotePrompt, moltenKnownConnFn, moltenBlockConn, moltenJobConn, moltenHopHostsFn, moltenResolveHost, moltenAsk = savedPrompt, savedKnown, savedBlock, savedJob, savedHosts, savedResolve, savedAsk
 	})
-	moltenRemotePrompt = func(server string, kind string, target string) (bool, bool) {
-		f.prompts = append(f.prompts, promptCall{server, kind, target})
-		return f.allow, f.allow && f.always
+	moltenAsk = makeMoltenAskState()
+	moltenRemotePrompt = func(q moltenQuestion) (bool, bool) {
+		f.lock.Lock()
+		f.prompts = append(f.prompts, promptCall{q.Server, q.Kind, q.Target})
+		f.questions = append(f.questions, q)
+		gate := f.gate
+		f.lock.Unlock()
+		if gate != nil {
+			<-gate
+		}
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		return f.allow, f.remember
+	}
+	moltenHopHostsFn = func(conn string) []string {
+		host := metaguard.ConnHost(conn)
+		if host == "vm-alias" {
+			return []string{host, "localhost"}
+		}
+		return []string{host}
+	}
+	moltenResolveHost = func(_ context.Context, host string) ([]net.IPAddr, error) {
+		switch host {
+		case "loop.example":
+			return []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, nil
+		case "new.example", "build.example", "known.example":
+			return []net.IPAddr{{IP: net.ParseIP("203.0.113.7")}}, nil
+		}
+		return nil, errors.New("no such host")
 	}
 	moltenKnownConnFn = func(conn string) bool { return conn == "known@server" }
 	blocks := map[string]string{ownBlock: guardTestConn, serverBlock: "known@server", localBlock: ""}
@@ -139,45 +185,183 @@ func TestRemoteCreateBlockRunsOnTheHost(t *testing.T) {
 }
 
 // A preview of this computer's file the host names on purpose, and a file of this computer in wsh file, are asked
-// in the window, never refused flat; "always" holds for that server and kind.
+// in the window, never refused flat; the question shows the cleaned absolute path.
 func TestRemoteLocalFilesAreAsked(t *testing.T) {
 	f := setupGuard(t)
-	preview := wshrpc.CommandCreateBlockData{TabId: "t", BlockDef: &waveobj.BlockDef{Meta: waveobj.MetaMapType{waveobj.MetaKey_View: "preview", waveobj.MetaKey_File: "/Users/me/report.md", waveobj.MetaKey_Connection: "local"}}}
+	dir := t.TempDir()
+	report := filepath.Join(dir, "report.md")
+	preview := wshrpc.CommandCreateBlockData{TabId: "t", BlockDef: &waveobj.BlockDef{Meta: waveobj.MetaMapType{waveobj.MetaKey_View: "preview", waveobj.MetaKey_File: report, waveobj.MetaKey_Connection: "local"}}}
 	_, err := guardAsk(t, "createblock", preview)
 	mustGuardRefuse(t, "denied local preview", err)
-	if len(f.prompts) != 1 || f.prompts[0] != (promptCall{guardTestConn, moltenAskRead, "/Users/me/report.md"}) {
-		t.Fatalf("asked %+v", f.prompts)
+	if asked := f.asked(); len(asked) != 1 || asked[0] != (promptCall{guardTestConn, moltenAskRead, metaguard.CleanLocalPath(report)}) {
+		t.Fatalf("asked %+v", asked)
 	}
 	f.allow = true
 	got, err := guardAsk(t, "createblock", preview)
 	if err != nil || createdMeta(t, got)[waveobj.MetaKey_Connection] != "local" {
 		t.Fatalf("allowed local preview: %v %v", got, err)
 	}
-	copyDown := wshrpc.CommandFileCopyData{SrcUri: "wsh://dev@build.example/tmp/build.log", DestUri: "wsh://local/~/Downloads/build.log"}
-	f.always = true
+	_, err = guardAsk(t, "fileread", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "/etc/../etc/passwd\n"}})
+	if q := f.last(); q.Target != metaguard.CleanLocalPath("/etc/passwd\n") || !strings.HasPrefix(q.Target, string(filepath.Separator)) {
+		t.Fatalf("the question shows %q, not the cleaned absolute path", q.Target)
+	}
+	if shown := metaguard.ShownPath(f.last().Target); strings.ContainsAny(shown, "\n\r") {
+		t.Fatalf("the question prints a control character: %q", shown)
+	}
+	_ = err
+}
+
+// #1831 re-review: "always" covered the whole disk. It covers the approved path's folder and its subfolders only; a
+// credential, startup or MoltenTerm location is asked every time; a wide folder (home, root) gets no "always".
+func TestRemoteAlwaysIsScopedToAFolder(t *testing.T) {
+	f := setupGuard(t)
+	downloads := filepath.Join(t.TempDir(), "Downloads")
+	if err := os.MkdirAll(filepath.Join(downloads, "builds"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f.allow, f.remember = true, true
+	copyDown := wshrpc.CommandFileCopyData{SrcUri: "wsh://dev@build.example/tmp/build.log", DestUri: "wsh://local/" + filepath.ToSlash(filepath.Join(downloads, "build.log"))}
 	if _, err := guardAsk(t, "filecopy", copyDown); err != nil {
-		t.Fatalf("copy to this computer, allowed always: %v", err)
+		t.Fatalf("copy to this computer: %v", err)
 	}
-	if last := f.prompts[len(f.prompts)-1]; last != (promptCall{guardTestConn, moltenAskWrite, "~/Downloads/build.log"}) {
-		t.Fatalf("asked %+v", last)
+	if q := f.last(); q.Kind != moltenAskWrite || q.Folder != metaguard.CleanLocalPath(downloads) || q.Sensitive {
+		t.Fatalf("asked %+v", q)
 	}
-	asked := len(f.prompts)
+	asked := len(f.asked())
+	f.allow, f.remember = false, false
+	for _, inside := range []string{filepath.Join(downloads, "other.log"), filepath.Join(downloads, "builds", "x.bin")} {
+		if _, err := guardAsk(t, "filewrite", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/" + filepath.ToSlash(inside)}}); err != nil {
+			t.Fatalf("a write in the remembered folder: %v", err)
+		}
+	}
+	if len(f.asked()) != asked {
+		t.Fatal("the remembered folder was asked again")
+	}
+	home, _ := os.UserHomeDir()
+	for _, outside := range []string{filepath.Join(filepath.Dir(downloads), "elsewhere.txt"), filepath.Join(home, ".ssh", "authorized_keys"), filepath.Join(home, ".zshrc"), filepath.Join(home, "Library", "LaunchAgents", "x.plist"), filepath.Join(home, ".config", "autostart", "x.desktop")} {
+		before := len(f.asked())
+		_, err := guardAsk(t, "filewrite", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/" + filepath.ToSlash(outside)}})
+		mustGuardRefuse(t, "outside the folder "+outside, err)
+		if len(f.asked()) != before+1 {
+			t.Fatalf("%s was not asked", outside)
+		}
+	}
+	// A credential location is asked every time, even right after an Allow with "remember".
+	f.allow, f.remember = true, true
+	key := filepath.Join(home, ".ssh", "id_ed25519")
+	for i := 0; i < 2; i++ {
+		before := len(f.asked())
+		moltenAsk.lock.Lock()
+		moltenAsk.once = map[moltenOnceKey]moltenOnceGrant{}
+		moltenAsk.lock.Unlock()
+		if _, err := guardAsk(t, "fileread", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/" + filepath.ToSlash(key)}}); err != nil {
+			t.Fatal(err)
+		}
+		if q := f.last(); len(f.asked()) != before+1 || !q.Sensitive || q.Folder != "" {
+			t.Fatalf("a key read was not asked as sensitive: %+v", q)
+		}
+	}
+	if folder, ok := metaguard.AlwaysFolder(metaguard.CleanLocalPath(filepath.Join(home, "notes.txt"))); ok {
+		t.Fatalf("a file of the home folder offers always for %s", folder)
+	}
+	if _, ok := metaguard.AlwaysFolder("/notes.txt"); ok {
+		t.Fatal("a file of the root offers always")
+	}
+}
+
+// One user action asks once: the info wsh checks before a copy is not asked, and an Allow covers the same path for a
+// moment (a write covers a read).
+func TestRemoteOneQuestionPerAction(t *testing.T) {
+	f := setupGuard(t)
+	src := filepath.Join(t.TempDir(), "notes.txt")
+	f.allow = true
+	if _, err := guardAsk(t, "fileinfo", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/" + filepath.ToSlash(src)}}); err != nil {
+		t.Fatalf("fileinfo: %v", err)
+	}
+	if len(f.asked()) != 0 {
+		t.Fatal("a file's info was asked")
+	}
+	if _, err := guardAsk(t, "filecopy", wshrpc.CommandFileCopyData{SrcUri: "wsh://local/" + filepath.ToSlash(src), DestUri: "wsh://dev@build.example/tmp/notes.txt"}); err != nil {
+		t.Fatalf("copy up: %v", err)
+	}
 	f.allow = false
-	if _, err := guardAsk(t, "filewrite", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/~/Downloads/other.log"}}); err != nil {
-		t.Fatalf("a write after always: %v", err)
+	if _, err := guardAsk(t, "fileread", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/" + filepath.ToSlash(src)}}); err != nil {
+		t.Fatalf("a read of the path just allowed: %v", err)
 	}
-	if len(f.prompts) != asked {
-		t.Fatal("always did not hold for this server")
+	if asked := f.asked(); len(asked) != 1 {
+		t.Fatalf("one copy asked %d times: %+v", len(asked), asked)
 	}
-	_, err = guardAsk(t, "fileread", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "/etc/passwd"}})
-	mustGuardRefuse(t, "a read is another kind", err)
-	if last := f.prompts[len(f.prompts)-1]; last.kind != moltenAskRead || last.target != "/etc/passwd" {
-		t.Fatalf("a bare path names this computer: asked %+v", last)
+	home, _ := os.UserHomeDir()
+	_, err := guardAsk(t, "fileinfo", wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/" + filepath.ToSlash(filepath.Join(home, ".ssh", "id_ed25519"))}})
+	mustGuardRefuse(t, "a key's info is asked", err)
+}
+
+// One question per server at a time, and a remembered Deny refuses everything that server asks until restart.
+func TestRemotePromptFlood(t *testing.T) {
+	f := setupGuard(t)
+	f.gate = make(chan struct{})
+	dir := t.TempDir()
+	errs := make(chan error, 5)
+	for i := 0; i < 5; i++ {
+		path := filepath.Join(dir, "f"+string(rune('a'+i)))
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			_, err := moltenCheckRemoteRequest(ctx, guardTestHost, "fileread", asWire(t, wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/" + filepath.ToSlash(path)}}))
+			errs <- err
+		}()
+	}
+	deadline := time.After(time.Minute)
+	for len(f.asked()) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("no question was asked")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	if n := len(f.asked()); n != 1 {
+		t.Fatalf("%d questions open at once for one server", n)
+	}
+	f.lock.Lock()
+	f.allow, f.remember = false, true
+	f.lock.Unlock()
+	close(f.gate)
+	for i := 0; i < 5; i++ {
+		mustGuardRefuse(t, "after a remembered deny", <-errs)
+	}
+	if n := len(f.asked()); n != 1 {
+		t.Fatalf("a denied server was asked again (%d questions)", n)
+	}
+	_, err := guardAsk(t, "connconnect", wshrpc.ConnRequest{Host: "new@new.example"})
+	if err == nil || !strings.Contains(err.Error(), "you denied") {
+		t.Fatalf("a denied server's other request: %v", err)
 	}
 	other := metaguard.Remote{Conn: "other@host"}
-	f.allow = false
-	_, err = moltenCheckRemoteRequest(context.Background(), other, "filewrite", asWire(t, wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/~/x"}}))
-	mustGuardRefuse(t, "always holds for one server only", err)
+	f.lock.Lock()
+	f.gate, f.allow, f.remember = nil, true, false
+	f.lock.Unlock()
+	if _, err := moltenCheckRemoteRequest(context.Background(), other, "fileread", asWire(t, wshrpc.FileData{Info: &wshrpc.FileInfo{Path: "wsh://local/" + filepath.ToSlash(filepath.Join(dir, "x"))}})); err != nil {
+		t.Fatalf("another server is not denied: %v", err)
+	}
+}
+
+// The question waits as long as the request does (wsh file waits 75 s on a server), within the bounds.
+func TestRemoteAskTimeoutFollowsTheRequest(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
+	if got := moltenAskTimeoutFor(ctx); got != moltenAskTimeout {
+		t.Errorf("a 75 s request: the question waits %v", got)
+	}
+	short, cancelShort := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancelShort()
+	if got := moltenAskTimeoutFor(short); got > 20*time.Second || got < 15*time.Second {
+		t.Errorf("a 20 s request: the question waits %v", got)
+	}
+	tiny, cancelTiny := context.WithTimeout(context.Background(), time.Second)
+	defer cancelTiny()
+	if got := moltenAskTimeoutFor(tiny); got != moltenAskMinTimeout {
+		t.Errorf("a 1 s request: the question waits %v", got)
+	}
 }
 
 func TestRemoteRequestsThatReachThisComputer(t *testing.T) {
@@ -206,7 +390,7 @@ func TestRemoteRequestsThatReachThisComputer(t *testing.T) {
 		"controllerresync":                  wshrpc.CommandControllerResyncData{BlockId: localBlock, ForceRestart: true},
 		"debugterm":                         wshrpc.CommandDebugTermData{BlockId: localBlock},
 		"wavefilereadstream":                wshrpc.CommandWaveFileReadStreamData{ZoneId: "local-job", Name: "term"},
-		"fetchsuggestions":                  wshrpc.FetchSuggestionsData{SuggestionType: "file", FileCwd: "~/.ssh"},
+		"fetchsuggestions":                  wshrpc.FetchSuggestionsData{SuggestionType: "file", FileCwd: "~/.ssh", FileConnection: guardTestConn},
 		"setmeta":                           wshrpc.CommandSetMetaData{ORef: waveobj.MakeORef(waveobj.OType_Block, ownBlock), Meta: waveobj.MetaMapType{waveobj.MetaKey_Connection: "dev@localhost"}},
 	}
 	for command, data := range refused {
@@ -224,7 +408,7 @@ func TestRemoteRequestsThatReachThisComputer(t *testing.T) {
 		"controllerinput":        wshrpc.CommandBlockInputData{BlockId: serverBlock, InputData64: "aWQK"},
 		"deleteblock":            wshrpc.CommandDeleteBlockData{BlockId: ownBlock},
 		"wavefilereadstream":     wshrpc.CommandWaveFileReadStreamData{ZoneId: "own-job", Name: "term"},
-		"fetchsuggestions":       wshrpc.FetchSuggestionsData{SuggestionType: "file", FileConnection: guardTestConn},
+		"fetchsuggestions":       wshrpc.FetchSuggestionsData{SuggestionType: "bookmark", Query: "x"},
 		"getmeta":                wshrpc.CommandGetMetaData{ORef: waveobj.MakeORef(waveobj.OType_Tab, "t")},
 		"setmeta":                wshrpc.CommandSetMetaData{ORef: waveobj.MakeORef(waveobj.OType_Block, ownBlock), Meta: waveobj.MetaMapType{waveobj.MetaKey_Connection: "known@server"}},
 	}
@@ -236,23 +420,23 @@ func TestRemoteRequestsThatReachThisComputer(t *testing.T) {
 }
 
 // A host makes this computer connect to another server only for a known connection, or after the window's
-// confirmation; never to this computer's own SSH server.
+// confirmation; never to this computer's own SSH server, by name, numeric form, alias or DNS answer.
 func TestRemoteHopToAnotherServer(t *testing.T) {
 	f := setupGuard(t)
-	for _, host := range []string{"me@localhost", "127.0.0.1", "root@127.0.0.2:2222", "[::1]:22", "me@LOCALHOST."} {
+	for _, host := range []string{"me@localhost", "127.0.0.1", "root@127.0.0.2:2222", "[::1]:22", "me@LOCALHOST.", "127.1", "2130706433", "0x7f.1", "0177.0.0.1", "me@loop.example", "vm-alias", "0"} {
 		_, err := guardAsk(t, "connconnect", wshrpc.ConnRequest{Host: host})
 		mustGuardRefuse(t, "loopback "+host, err)
 	}
-	if len(f.prompts) != 0 {
-		t.Fatalf("a loopback address was asked: %+v", f.prompts)
+	if asked := f.asked(); len(asked) != 0 {
+		t.Fatalf("a loopback address was asked: %+v", asked)
 	}
-	_, err := guardAsk(t, "connconnect", wshrpc.ConnRequest{Host: "new@server"})
+	_, err := guardAsk(t, "connconnect", wshrpc.ConnRequest{Host: "new@new.example"})
 	mustGuardRefuse(t, "an unknown server, denied", err)
-	if len(f.prompts) != 1 || f.prompts[0] != (promptCall{guardTestConn, moltenAskConnect, "new@server"}) {
-		t.Fatalf("asked %+v", f.prompts)
+	if asked := f.asked(); len(asked) != 1 || asked[0] != (promptCall{guardTestConn, moltenAskConnect, "new@new.example"}) {
+		t.Fatalf("asked %+v", asked)
 	}
 	f.allow = true
-	if _, err := guardAsk(t, "createblock", wshrpc.CommandCreateBlockData{TabId: "t", BlockDef: &waveobj.BlockDef{Meta: waveobj.MetaMapType{waveobj.MetaKey_View: "term", waveobj.MetaKey_Controller: "shell", waveobj.MetaKey_Connection: "new@server"}}}); err != nil {
+	if _, err := guardAsk(t, "createblock", wshrpc.CommandCreateBlockData{TabId: "t", BlockDef: &waveobj.BlockDef{Meta: waveobj.MetaMapType{waveobj.MetaKey_View: "term", waveobj.MetaKey_Controller: "shell", waveobj.MetaKey_Connection: "new@new.example"}}}); err != nil {
 		t.Fatalf("wsh ssh -n to an allowed server: %v", err)
 	}
 }

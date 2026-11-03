@@ -308,6 +308,36 @@ func TestConnSocketLinksAreRemote(t *testing.T) {
 	}
 }
 
+// A job manager that authenticates on a connection's socket binds only a job of that connection (#1831 re-review).
+func TestRemoteJobManagerBindsOnlyItsConnectionsJobs(t *testing.T) {
+	saved := MoltenJobConn
+	t.Cleanup(func() { MoltenJobConn = saved })
+	MoltenJobConn = func(jobId string) (string, bool) {
+		switch jobId {
+		case "remotejob":
+			return remoteTestConn, true
+		case "localjob":
+			return "local", true
+		}
+		return "", false
+	}
+	router := NewWshRouter()
+	router.SetAsRootRouter()
+	for jobId, ok := range map[string]bool{"remotejob": true, "localjob": false, "unknownjob": false} {
+		link := router.registerUntrustedConnLink(makeRemoteTestPeer(t), remoteTestConn)
+		router.trustLink(link, LinkKind_Leaf)
+		err := router.bindRoute(link, MakeJobRouteId(jobId), true)
+		if ok != (err == nil) {
+			t.Errorf("a job manager on the connection's socket binding %s: %v", jobId, err)
+		}
+	}
+	local := router.registerUntrustedConnLink(makeRemoteTestPeer(t), "")
+	router.trustLink(local, LinkKind_Leaf)
+	if err := router.bindRoute(local, MakeJobRouteId("localjob"), true); err != nil {
+		t.Fatalf("a local job manager: %v", err)
+	}
+}
+
 func TestNormConnName(t *testing.T) {
 	cases := map[string]string{"": "local", "local": "local", "local:gitbash": "local", "dev@host:22": "dev@host", "dev@host:2222": "dev@host:2222", "wsl://Ubuntu": "wsl://Ubuntu"}
 	for in, want := range cases {

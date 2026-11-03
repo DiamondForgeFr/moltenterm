@@ -816,10 +816,8 @@ func (router *WshRouter) bindRouteLocally(linkId baseds.LinkId, routeId string, 
 }
 
 func (router *WshRouter) bindRoute(linkId baseds.LinkId, routeId string, isSourceRoute bool) error {
-	if !isSourceRoute {
-		if err := router.checkRemoteAnnounce(linkId, routeId); err != nil { // MOLTENTERM-PATCH (#1831)
-			return err
-		}
+	if err := router.checkRemoteAnnounce(linkId, routeId); err != nil { // MOLTENTERM-PATCH (#1831): a job route only for its connection
+		return err
 	}
 	err := router.bindRouteLocally(linkId, routeId, isSourceRoute)
 	if err != nil {

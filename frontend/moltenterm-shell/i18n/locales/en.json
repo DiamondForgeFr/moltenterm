@@ -8488,7 +8488,12 @@
             "write": "{server} wants to write {path} on this computer.",
             "connectTitle": "A server wants this computer to connect to another server",
             "connect": "{server} wants this computer to open a connection to {target}.",
-            "always": "Always allow {server} to do this until MoltenTerm restarts",
+            "readSensitive": "{server} wants to read {path} on this computer. This location holds credentials or settings that can run programs.",
+            "writeSensitive": "{server} wants to write {path} on this computer. This location holds credentials or settings that can run programs.",
+            "rememberRead": "Remember until MoltenTerm restarts (Allow: {server} may read files in {folder}; Deny: refuse everything {server} asks)",
+            "rememberWrite": "Remember until MoltenTerm restarts (Allow: {server} may write files in {folder}; Deny: refuse everything {server} asks)",
+            "rememberConnect": "Remember until MoltenTerm restarts (Allow: {server} may connect this computer to {target}; Deny: refuse everything {server} asks)",
+            "rememberDeny": "If I deny, refuse everything {server} asks until MoltenTerm restarts (this location is asked every time)",
             "allow": "Allow",
             "deny": "Deny"
         },
