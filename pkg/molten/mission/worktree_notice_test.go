@@ -94,7 +94,7 @@ func TestWorktreePlanTellsTheCanonicalPath(t *testing.T) {
 	if err := os.Symlink(tree, alias); err != nil {
 		t.Fatal(err)
 	}
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	byLink, err := w.Plan(WorktreeRequest{Dir: alias})
 	if err != nil {
 		t.Fatal(err)

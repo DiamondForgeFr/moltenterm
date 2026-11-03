@@ -64,7 +64,7 @@ func makePaneRepo(t *testing.T) (string, string) {
 
 func TestPaneStateFollowsTheTree(t *testing.T) {
 	base, clone := makePaneRepo(t)
-	panes := MakePanes(plainRunner, nil, nil)
+	panes := MakePanes(withoutGh, nil, nil)
 	sub := filepath.Join(clone, "src")
 	os.MkdirAll(sub, 0755)
 	state, err := panes.Get(PaneRequest{Dir: sub})
@@ -102,14 +102,14 @@ func TestPaneStateFollowsTheTree(t *testing.T) {
 
 func TestPaneOutsideARepository(t *testing.T) {
 	dir := t.TempDir()
-	state, err := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: dir})
+	state, err := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if state.Root != "" || state.Branch != "" || state.Name != filepath.Base(dir) {
 		t.Fatalf("plain folder: %+v", state)
 	}
-	if _, err := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: "relative"}); err == nil {
+	if _, err := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: "relative"}); err == nil {
 		t.Fatal("a relative folder was accepted")
 	}
 }
@@ -155,8 +155,8 @@ func TestPaneReadsTheCollectorCacheOnly(t *testing.T) {
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/108-status")
 	cacheDir := t.TempDir()
-	collector := MakeCollector(cacheDir, plainRunner, nil)
-	panes := MakePanes(plainRunner, nil, collector)
+	collector := MakeCollector(cacheDir, withoutGh, nil)
+	panes := MakePanes(withoutGh, nil, collector)
 	state, _ := panes.Get(PaneRequest{Dir: clone})
 	if state.Pr != nil {
 		t.Fatalf("no snapshot, yet a pull request: %+v", state.Pr)
@@ -229,12 +229,12 @@ func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
 	gitRun(t, clone, "checkout", "-q", "--detach", "origin/feature/109-loader")
 
 	cacheDir := t.TempDir()
-	collector := MakeCollector(cacheDir, plainRunner, nil)
+	collector := MakeCollector(cacheDir, withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{
 		State: GithubStateOk,
 		Prs:   json.RawMessage(`[{"number":109,"title":"Loader","url":"u109","headRefName":"feature/109-loader"}]`),
 	}})
-	panes := MakePanes(plainRunner, nil, collector)
+	panes := MakePanes(withoutGh, nil, collector)
 	state, err := panes.Get(PaneRequest{Dir: clone})
 	if err != nil {
 		t.Fatal(err)
@@ -284,7 +284,7 @@ func TestPaneFolderAboveARepository(t *testing.T) {
 	os.MkdirAll(filepath.Join(parent, "notes"), 0755)
 	os.MkdirAll(filepath.Join(parent, ".hidden", ".git"), 0755)
 
-	state, err := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: parent})
+	state, err := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: parent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestPaneFolderAboveARepository(t *testing.T) {
 	other := filepath.Join(parent, "other")
 	os.MkdirAll(other, 0755)
 	gitRun(t, other, "init", "-q", "-b", "main")
-	state, _ = MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: parent})
+	state, _ = MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: parent})
 	if state.Below || state.Root != "" || state.Branch != "" || state.Name != filepath.Base(parent) {
 		t.Fatalf("two repositories below: %+v", state)
 	}

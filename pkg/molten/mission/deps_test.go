@@ -101,7 +101,7 @@ func makeDepFixture(t *testing.T) *depFixture {
 
 func (f *depFixture) evaluate(t *testing.T, dep molten.PipelineDependency) DependencyState {
 	t.Helper()
-	return EvaluateDependency(context.Background(), plainRunner, &f.group, f.site, "notulia-website", 0, dep, time.Now(), nil)
+	return EvaluateDependency(context.Background(), withoutGh, &f.group, f.site, "notulia-website", 0, dep, time.Now(), nil)
 }
 
 func siteDependency() molten.PipelineDependency {
@@ -225,12 +225,12 @@ func TestDependencyNotFound(t *testing.T) {
 		t.Fatalf("a malformed declaration: %+v", got)
 	}
 	// Outside a group no member resolves.
-	if got := EvaluateDependency(context.Background(), plainRunner, nil, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
+	if got := EvaluateDependency(context.Background(), withoutGh, nil, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
 		t.Fatalf("no group: %+v", got)
 	}
 	// A project that is not a member (unlinked) is never found, even with the right name in the same folder tree.
 	alone := molten.ProjectGroup{Key: "notulia", Name: "Notulia", Members: f.group.Members[1:]}
-	if got := EvaluateDependency(context.Background(), plainRunner, &alone, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
+	if got := EvaluateDependency(context.Background(), withoutGh, &alone, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
 		t.Fatalf("an unlinked source: %+v", got)
 	}
 	// The default branch is the source's trunk.
@@ -252,7 +252,7 @@ func TestCommitTickets(t *testing.T) {
 
 func depGroups(t *testing.T, f *depFixture, notified *[]DependencyNotices) *Groups {
 	links := []molten.GroupLink{{WorkspaceId: "w-app", WorkspaceName: "App", Dir: f.app}, {WorkspaceId: "w-site", WorkspaceName: "Site", Dir: f.site}}
-	return MakeGroups(nil, nil, nil, plainRunner, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil },
+	return MakeGroups(nil, nil, nil, withoutGh, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil },
 		func(GroupsAnswer) {}, func(n DependencyNotices) error {
 			*notified = append(*notified, n)
 			return nil

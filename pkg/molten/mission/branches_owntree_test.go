@@ -131,7 +131,7 @@ func makeOwnTreeFixture(t *testing.T) ownTreeFixture {
 	}
 	inUse := realPath(f.tree(12))
 	f.terms = map[string]WorktreeTerminal{"block-12": {BlockId: "block-12", Tab: "Review"}}
-	r.UseWorktrees(MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
+	r.UseWorktrees(MakeWorktrees(withoutGh, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 		rtn := []WorktreeTerminal{}
 		if realPath(path) != inUse {
 			return rtn

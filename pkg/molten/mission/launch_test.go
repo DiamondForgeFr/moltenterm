@@ -87,7 +87,7 @@ func TestLaunchRecipeProposalAndSave(t *testing.T) {
 	}}`)
 	writeLaunchFile(t, dir, "scripts/migrate.sh", "#!/bin/sh\n")
 	writeLaunchFile(t, dir, "package.json", `{"scripts": {"dev": "vite"}}`)
-	l := MakeLaunches(t.TempDir(), plainRunner, nil)
+	l := MakeLaunches(t.TempDir(), withoutGh, nil)
 	answer, err := l.RecipeOf(LaunchRecipeRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestLaunchRecipeProposalAndSave(t *testing.T) {
 		saved.Servers[0].Cwd != "" || saved.Servers[1].Id != "web-2" {
 		t.Fatalf("saved: %+v", saved)
 	}
-	again := MakeLaunches(l.baseDir, plainRunner, nil)
+	again := MakeLaunches(l.baseDir, withoutGh, nil)
 	if answer, _ := again.RecipeOf(LaunchRecipeRequest{Dir: dir}); answer.Saved == nil || answer.Saved.Servers[0].Port != 5173 {
 		t.Fatalf("the saved recipe is kept: %+v", answer)
 	}
@@ -497,7 +497,7 @@ func TestLaunchAfterRestartFollowsItsServers(t *testing.T) {
 }
 
 func TestLaunchRefusesBadTargets(t *testing.T) {
-	l := MakeLaunches(t.TempDir(), plainRunner, nil)
+	l := MakeLaunches(t.TempDir(), withoutGh, nil)
 	dir := t.TempDir()
 	for _, target := range []LaunchTarget{{Kind: "x"}, {Kind: LaunchTargetPr, Branch: "a"}, {Kind: LaunchTargetBranch, Branch: "--upload-pack=x"}, {Kind: LaunchTargetBranch}} {
 		if _, err := l.Start(LaunchStartRequest{Dir: dir, Target: target}); err == nil {

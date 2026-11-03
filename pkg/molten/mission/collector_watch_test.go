@@ -21,7 +21,7 @@ import (
 
 func TestCollectorProjectsBounded(t *testing.T) {
 	base := t.TempDir()
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := MakeCollector(t.TempDir(), withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	var dirs []string
@@ -48,7 +48,7 @@ func TestCollectorProjectsBounded(t *testing.T) {
 
 func TestCollectorEvictsGoneFoldersFirst(t *testing.T) {
 	base := t.TempDir()
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := MakeCollector(t.TempDir(), withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	gone := map[string]bool{}
@@ -83,7 +83,7 @@ func TestCollectorEvictsGoneFoldersFirst(t *testing.T) {
 }
 
 func TestStartRefreshPassiveAndWatched(t *testing.T) {
-	c := MakeCollector("", plainRunner, nil)
+	c := MakeCollector("", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	read := func(gitAge time.Duration, githubAge time.Duration) *projectState {
@@ -125,7 +125,7 @@ func TestStartRefreshPassiveAndWatched(t *testing.T) {
 // #688: the rail's Reviews counts read GitHub every railGithubInterval, and never call gh for a project without a
 // GitHub origin or once gh was missing or signed out.
 func TestStartRefreshRailReviews(t *testing.T) {
-	c := MakeCollector("", plainRunner, nil)
+	c := MakeCollector("", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	read := func(githubAge time.Duration, remote string, ghState string) *projectState {

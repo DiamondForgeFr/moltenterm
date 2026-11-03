@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/ghguard"
 )
 
 func gitRun(t *testing.T, dir string, args ...string) {
@@ -35,7 +37,13 @@ func commit(t *testing.T, dir string, file string, subject string) {
 	gitRun(t, dir, "commit", "-q", "-m", subject)
 }
 
+// plainRunner runs git and any other local program for real, and never gh (#1857): a test that needs gh answers it
+// with withoutGh or a fake of its own. The refusal is recorded, so the run fails even when the code under test
+// swallows the error.
 func plainRunner(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+	if name == "gh" {
+		return nil, ghguard.Refuse(dir, args)
+	}
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	out, err := cmd.Output()
@@ -234,7 +242,7 @@ func TestCollectorKeepsTheLastGithubReadOverAnOutage(t *testing.T) {
 	outage := CollectGithub(context.Background(), ghFake(nil, map[string]error{
 		"gh repo view": errors.New("gh repo view --json nameWithOwner,url: HTTP 503: No server is currently available to service your request."),
 	}), dir)
-	c := MakeCollector("", plainRunner, nil)
+	c := MakeCollector("", withoutGh, nil)
 	c.applyRefresh(dir, refreshPlan{github: true}, nil, nil, good)
 	snap := c.applyRefresh(dir, refreshPlan{github: true}, nil, nil, outage)
 	if snap.Github.State != GithubStateError || !strings.Contains(snap.Github.Message, "503") {
@@ -307,7 +315,7 @@ func TestCollectorRunsOneRefreshAndCaches(t *testing.T) {
 }
 
 func TestCollectorMissingFolder(t *testing.T) {
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := MakeCollector(t.TempDir(), withoutGh, nil)
 	snap, err := c.Get(filepath.Join(t.TempDir(), "gone"), time.Minute, false)
 	if err != nil || !snap.Missing || snap.Refreshing {
 		t.Fatalf("missing folder: %+v, %v", snap, err)
@@ -318,7 +326,7 @@ func TestCollectorMissingFolder(t *testing.T) {
 }
 
 func TestStartRefreshThrottlesGithub(t *testing.T) {
-	c := MakeCollector("", plainRunner, nil)
+	c := MakeCollector("", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	state := &projectState{snap: Snapshot{GitAt: now.Add(-5 * time.Second).UnixMilli(), GithubAt: now.Add(-30 * time.Second).UnixMilli()}}
@@ -330,7 +338,7 @@ func TestStartRefreshThrottlesGithub(t *testing.T) {
 
 func TestCollectorReportsThePipeline(t *testing.T) {
 	dir := makeGitFlowRepo(t)
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := MakeCollector(t.TempDir(), withoutGh, nil)
 	snap, _ := c.Get(dir, time.Hour, false)
 	if snap.Pipeline == nil || snap.Pipeline.Present {
 		t.Fatalf("no pipeline yet: %+v", snap.Pipeline)

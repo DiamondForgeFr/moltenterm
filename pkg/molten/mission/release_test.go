@@ -38,7 +38,7 @@ func makeReleaseFixture(t *testing.T, pipeline string) (*Runs, string) {
 	data := t.TempDir()
 	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
-	r.git = plainRunner
+	r.git = withoutGh
 	return r, dir
 }
 

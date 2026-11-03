@@ -185,7 +185,7 @@ func TestPaneWorktreeKindWithoutGit(t *testing.T) {
 }
 
 func TestPaneCiVerdictsForgottenOnCiChange(t *testing.T) {
-	p := MakePanes(plainRunner, nil, nil)
+	p := MakePanes(withoutGh, nil, nil)
 	p.storeCi(paneCiKey{project: "/a", sha: "1"}, CiStateSuccess)
 	p.storeCi(paneCiKey{project: "/b", sha: "1"}, CiStateFailure)
 	p.CiChanged("/a")
@@ -205,7 +205,7 @@ func TestPaneCiVerdictsForgottenOnCiChange(t *testing.T) {
 
 func TestPaneProjectsBounded(t *testing.T) {
 	base := t.TempDir()
-	p := MakePanes(plainRunner, nil, nil)
+	p := MakePanes(withoutGh, nil, nil)
 	for i := 0; i < paneMaxProjects+40; i++ {
 		dir := filepath.Join(base, fmt.Sprintf("d%03d", i))
 		os.MkdirAll(dir, 0755)

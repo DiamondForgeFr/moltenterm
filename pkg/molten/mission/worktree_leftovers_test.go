@@ -134,7 +134,7 @@ func TestWorktreeRemovalGitRefusesStillFails(t *testing.T) {
 
 func TestRemoveLeftoverRefuses(t *testing.T) {
 	base, clone, tree := makeWorktreeFixture(t)
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	hooks := &leftoverHooks{}
 	hooks.install(w)
 	ctx := context.Background()

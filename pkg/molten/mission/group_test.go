@@ -67,7 +67,7 @@ func groupProject(name string, group string) func(dir string) molten.ProjectInfo
 
 func TestGroupsGet(t *testing.T) {
 	app, site, molt := "/p/app", "/p/site", "/p/molten"
-	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector := MakeCollector(t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{
 		Dir:   app,
 		GitAt: 1000,
