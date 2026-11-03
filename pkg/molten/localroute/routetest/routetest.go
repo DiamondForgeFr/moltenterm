@@ -32,10 +32,11 @@ type From struct {
 }
 
 type Env struct {
-	Router   *wshutil.WshRouter
-	window   baseds.LinkId
-	terminal baseds.LinkId
-	remote   baseds.LinkId
+	Router     *wshutil.WshRouter
+	window     baseds.LinkId
+	terminal   baseds.LinkId
+	remote     baseds.LinkId
+	windowPeer *peer
 }
 
 type peer struct {
@@ -89,7 +90,8 @@ func announce(t *testing.T, p *peer, source string) {
 }
 
 // Make builds the router: the windows' websocket announces "tab:window" and Electron main, a local terminal's leaf is
-// "proc:local" for block TerminalBlock, and a remote connection announces "proc:remote" and the forged "tab:forged".
+// "proc:local" for block TerminalBlock, and a remote connection announces "proc:remote" and claims the source "tab:forged" (since #1831 it cannot announce a "tab:"
+// route).
 func Make(t *testing.T) *Env {
 	t.Helper()
 	router := wshutil.NewWshRouter()
@@ -101,13 +103,13 @@ func Make(t *testing.T) *Env {
 		t.Fatal(err)
 	}
 	window := makePeer(t)
+	e.windowPeer = window
 	e.window = router.RegisterWindowRouter(window)
 	announce(t, window, wshutil.MakeTabRouteId(WindowTabId))
 	announce(t, window, wshutil.ElectronRoute)
 	remote := makePeer(t)
 	e.remote = router.RegisterTrustedRouter(remote)
 	announce(t, remote, "proc:remote")
-	announce(t, remote, "tab:forged")
 	return e
 }
 
@@ -136,6 +138,23 @@ func (e *Env) Forged() []From {
 		{Name: "terminal names electron", Source: wshutil.ElectronRoute, Link: e.terminal},
 		{Name: "no source", Source: "", Link: e.window},
 	}
+}
+
+// WindowRoute announces another route on the windows' websocket (a frontend client such as "feblock:<id>").
+func (e *Env) WindowRoute(t *testing.T, source string) From {
+	t.Helper()
+	announce(t, e.windowPeer, source)
+	return From{Name: "window route " + source, Source: source, Link: e.window}
+}
+
+// InProcess registers a leaf of wavesrv's own, as its bare client is ("bare:<id>").
+func (e *Env) InProcess(t *testing.T, source string) From {
+	t.Helper()
+	link, err := e.Router.RegisterTrustedLeaf(makePeer(t), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return From{Name: "in-process " + source, Source: source, Link: link}
 }
 
 // NonWindows: every caller a window-only command refuses.

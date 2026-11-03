@@ -132,6 +132,23 @@ describe("Help menu (FR-SHELL-113)", () => {
         ]);
     });
 
+    it("holds Check for updates now off macOS only, where the app menu has it (#1806)", () => {
+        const target = fakeTarget();
+        const off = labelled(makeMoltentermHelpMenu(Gs, () => target.contents, "linux"));
+        expect(off.map((i) => i.label)).toEqual([
+            "appMenu.gettingStarted",
+            "appMenu.checkUpdates",
+            "appMenu.shortcuts",
+            "appMenu.palette",
+        ]);
+        click(off[1]);
+        expect(target.send).toHaveBeenCalledWith(AppMenuCommandChannel, "checkupdates");
+
+        const mac = labelled(makeMoltentermHelpMenu(Gs, () => target.contents, "darwin"));
+        expect(mac.map((i) => i.label)).not.toContain("appMenu.checkUpdates");
+        expect(AppMenuCommandShortcuts.checkupdates).toBeUndefined();
+    });
+
     it("is the help role, and both menus have their titles", () => {
         const { views, help } = makeMoltentermMenus(Gs, () => null, "darwin");
         expect(views.label).toBe("appMenu.viewsMenu");

@@ -1,0 +1,110 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The add-panel slot at each end of the carpet (#1836, FR-SHELL-065 AC15): in the gutter where a peek would stand, a
+   slim bar the height of the places with a "+", so the room the tilt needs never reads as a hole. At rest it is the
+   ghost of a column (a hairline, a dark fill, a muted "+"); on hover or keyboard focus the action lights it and a
+   light runs once along the bar, which is the one moving thing. Everything that moves is transform and opacity on the
+   light, the duration is a motion token (0 under reduced motion) and the reduced-motion rules below leave only the
+   colour change. The slot's own box only places it and takes the clicks. */
+
+.mt-endslot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    overflow: hidden;
+    isolation: isolate;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--df-radius-sm);
+    background-color: color-mix(in srgb, var(--mt-surface-1) 78%, transparent);
+    color: var(--mt-text-3);
+    outline: none;
+    pointer-events: auto;
+    transition:
+        border-color var(--mt-duration-base) var(--mt-ease),
+        background-color var(--mt-duration-base) var(--mt-ease),
+        color var(--mt-duration-base) var(--mt-ease);
+}
+
+/* The plus is drawn, not typeset: two lines of the text colour, crisp at any scale and exactly as wide as the bar allows. */
+.mt-endslot-plus {
+    width: 8px;
+    height: 8px;
+    background:
+        linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat,
+        linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat;
+}
+
+.mt-endslot:hover,
+.mt-endslot:focus-visible {
+    border-color: color-mix(in srgb, var(--mt-action) 55%, transparent);
+    background-color: color-mix(in srgb, var(--mt-action) 14%, var(--mt-surface-1));
+    color: var(--mt-action-text);
+}
+
+.mt-endslot:focus-visible {
+    box-shadow: 0 0 0 1px var(--mt-focus, var(--mt-action));
+}
+
+.mt-endslot:active {
+    border-color: var(--mt-action-press);
+}
+
+/* The light: a soft band of the action's glint, a third of the bar tall, that crosses it from top to bottom once each
+   time the bar is entered or focused, then leaves it lit by the wash alone. */
+.mt-endslot-light {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.mt-endslot-light::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 30%;
+    background: linear-gradient(
+        180deg,
+        transparent,
+        color-mix(in srgb, var(--mt-action-glint) 45%, var(--mt-action)) 50%,
+        transparent
+    );
+    opacity: 0;
+    transform: translateY(-100%);
+}
+
+.mt-endslot:hover .mt-endslot-light::before,
+.mt-endslot:focus-visible .mt-endslot-light::before {
+    animation: mt-endslot-run var(--mt-duration-glow) var(--mt-ease) 1 both;
+}
+
+@keyframes mt-endslot-run {
+    from {
+        opacity: 0.85;
+        transform: translateY(-100%);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(340%);
+    }
+}
+
+/* As specific as the rule that runs the light, and after it, so that nothing runs under reduced motion. */
+.prefers-reduced-motion .mt-endslot:hover .mt-endslot-light::before,
+.prefers-reduced-motion .mt-endslot:focus-visible .mt-endslot-light::before {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-endslot:hover .mt-endslot-light::before,
+    .mt-endslot:focus-visible .mt-endslot-light::before {
+        animation: none;
+    }
+}

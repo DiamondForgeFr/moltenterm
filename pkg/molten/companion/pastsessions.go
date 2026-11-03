@@ -6,6 +6,7 @@ package companion
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -24,6 +25,8 @@ import (
 const (
 	// The records read whole at the start of a transcript: its folder, branch and first prompt.
 	pastHeadLines = 40
+	// How much of a transcript's start is read for the folder it started in.
+	pastHeadBytes = 1 << 20
 	// A longer record (a whole tool output) never carries a publication: skipped.
 	pastLineMax = 8 * 1024 * 1024
 	// The signals one transcript may give.
@@ -39,7 +42,7 @@ const (
 var pastMarkers = [][]byte{[]byte(`"frame-link"`), []byte(`"artifact_id"`), []byte(`"Artifact"`), []byte(`"ai-title"`), []byte(`"custom-title"`)}
 
 // PastSession is what a finished transcript says of its materials: its signals (publications and addresses only),
-// with the session's id, folder, subject, branch and ticket.
+// with the session's id, folder (the one it started in), subject, branch and ticket.
 type PastSession struct {
 	Path  string
 	Agent string
@@ -115,6 +118,9 @@ func ReadPastSession(adapter Adapter, path string, hosts []string) (PastSession,
 	s.materialSink = nil
 	b := s.MaterialSignals(0)
 	b.Signals, b.Seq = signals, 0
+	if start := PastSessionFolder(adapter, path); start != "" {
+		b.Cwd = start
+	}
 	if len(branches) > 1 {
 		// Claude Code records the branch of whichever worktree its process last touched: a session that saw several
 		// (the main checkout's, while its agents worked in worktrees) tells no ticket by its branch.
@@ -127,6 +133,72 @@ func ReadPastSession(adapter Adapter, path string, hosts []string) (PastSession,
 		b.SessionId = strings.TrimSuffix(filepath.Base(path), ".jsonl")
 	}
 	return PastSession{Path: path, Agent: adapter.Id(), Batch: b}, nil
+}
+
+// PastSessionFolder is the folder a transcript's session started in: the first one its records name. Not the last: an
+// agent that changes folder as it works (into a worktree, into another project's folder) still belongs to the project
+// it was started in, which is also the one whose folder holds the transcript.
+func PastSessionFolder(adapter Adapter, path string) string {
+	if adapter == nil {
+		return ""
+	}
+	if adapter.Id() == molten.AgentIdCodex {
+		head, _ := readCodexHead(path)
+		return head.cwd
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	br := bufio.NewReaderSize(io.LimitReader(f, pastHeadBytes), 64*1024)
+	for n := 0; n < pastHeadLines; n++ {
+		line, err := br.ReadBytes('\n')
+		if len(line) > 0 && bytes.Contains(line, cwdMarker) {
+			var rec struct {
+				Cwd string `json:"cwd"`
+			}
+			if json.Unmarshal(line, &rec) == nil && rec.Cwd != "" {
+				return rec.Cwd
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return ""
+}
+
+var cwdMarker = []byte(`"cwd":`)
+
+// FindPastSession is the transcript of a session id, for Claude Code (<project folder>/<id>.jsonl under its roots) and
+// for the agents that can resolve one themselves (Codex).
+func FindPastSession(adapter Adapter, id string) (string, bool) {
+	if adapter == nil || id == "" {
+		return "", false
+	}
+	if finder, ok := adapter.(SessionFinder); ok {
+		return finder.FindSession(id)
+	}
+	if adapter.Id() != molten.AgentIdClaude || strings.ContainsAny(id, `/\`) || strings.HasPrefix(id, ".") {
+		return "", false
+	}
+	for _, root := range adapter.Roots() {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			path := filepath.Join(root, e.Name(), id+".jsonl")
+			if _, ok := regularFile(path); ok {
+				return path, true
+			}
+		}
+	}
+	return "", false
 }
 
 var gitBranchMarker = []byte(`"gitBranch":"`)
@@ -156,9 +228,11 @@ func carriesAny(line []byte, markers [][]byte) bool {
 
 // PastSessionPaths lists the transcripts of an agent that may belong to one of the folders (a project's main checkout
 // and its worktrees), newest first. Claude Code names a session's folder after its working directory: the folder's
-// own slug, or one starting with it for a folder under it (its agents' worktrees, <slug>--claude-worktrees-agent-…);
-// sub-agents' transcripts sit in <session>/subagents/. Codex rollouts are kept when their session_meta folder is one
-// of the folders or under one. The caller checks each transcript's own folder: a slug is not a path.
+// own slug, or, for a folder that is a repository, one starting with it for a folder under it (its agents' worktrees,
+// <slug>--claude-worktrees-agent-…); a folder that is not a repository holds no project under it, whose slug merely
+// starts with its own. Sub-agents' transcripts sit in <session>/subagents/. Codex rollouts are kept when their
+// session_meta folder is one of the folders, or under one that is a repository. The caller checks each transcript's
+// own folder: a slug is not a path.
 func PastSessionPaths(adapter Adapter, folders []string) []string {
 	if adapter == nil {
 		return nil
@@ -194,11 +268,18 @@ func regularFile(path string) (int64, bool) {
 	return info.ModTime().UnixMilli(), true
 }
 
+type slugRule struct {
+	slug string
+	// nested: the folder is a repository, so a slug that continues the folder's is a folder under it (a subfolder, a
+	// worktree) and not a project of its own.
+	nested bool
+}
+
 func claudePastFiles(roots []string, folders []string) []pastFile {
-	var slugs []string
+	var slugs []slugRule
 	for _, folder := range folders {
 		if folder != "" {
-			slugs = append(slugs, ClaudeSlug(filepath.Clean(folder)))
+			slugs = append(slugs, slugRule{slug: ClaudeSlug(filepath.Clean(folder)), nested: isRepoRoot(folder)})
 		}
 	}
 	var rtn []pastFile
@@ -223,13 +304,40 @@ func claudePastFiles(roots []string, folders []string) []pastFile {
 	return rtn
 }
 
-func claudeSlugMatches(name string, slugs []string) bool {
-	for _, slug := range slugs {
-		if name == slug || strings.HasPrefix(name, slug+"-") {
+func claudeSlugMatches(name string, slugs []slugRule) bool {
+	for _, rule := range slugs {
+		if name == rule.slug || rule.nested && strings.HasPrefix(name, rule.slug+"-") {
 			return true
 		}
 	}
 	return false
+}
+
+func isRepoRoot(folder string) bool {
+	_, err := os.Stat(filepath.Join(folder, ".git"))
+	return err == nil
+}
+
+// SessionFolderBelongs tells whether a session that started in cwd can belong to the project folder: it is the folder,
+// or under it when the folder is a repository (a subfolder, a worktree). A folder that is not a repository is no
+// parent project: the repositories under it are projects of their own, so a parent folder such as ~/Projects never
+// swallows their sessions (#1816). The caller still places the session by its own folder.
+func SessionFolderBelongs(project string, cwd string) bool {
+	if project == "" || cwd == "" {
+		return false
+	}
+	project, cwd = filepath.Clean(project), filepath.Clean(cwd)
+	if cwd == project {
+		return true
+	}
+	if !isRepoRoot(project) {
+		return false
+	}
+	if strings.HasPrefix(cwd, project+string(filepath.Separator)) {
+		return true
+	}
+	real, err := filepath.EvalSymlinks(project)
+	return err == nil && real != project && (cwd == real || strings.HasPrefix(cwd, real+string(filepath.Separator)))
 }
 
 // claudeFolderFiles: <dir>/<session>.jsonl and <dir>/<session>/subagents/agent-*.jsonl.
@@ -318,7 +426,7 @@ func codexPastFiles(roots []string, folders []string) []pastFile {
 			}
 			path := filepath.Join(day.path, name)
 			head, ok := readCodexHead(path)
-			if !ok || !FolderWithin(head.cwd, folders) {
+			if !ok || !belongsToAny(folders, head.cwd) {
 				continue
 			}
 			if mod, ok := regularFile(path); ok {
@@ -327,6 +435,15 @@ func codexPastFiles(roots []string, folders []string) []pastFile {
 		}
 	}
 	return rtn
+}
+
+func belongsToAny(folders []string, cwd string) bool {
+	for _, f := range folders {
+		if SessionFolderBelongs(f, cwd) {
+			return true
+		}
+	}
+	return false
 }
 
 // FolderWithin tells whether a folder is one of the folders or under one, by path (a removed worktree no longer

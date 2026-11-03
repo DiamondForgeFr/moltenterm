@@ -219,6 +219,47 @@ func TestCollectGithubSections(t *testing.T) {
 	}
 }
 
+// #1808: SaaSFoundryAI's GitHub answered `gh repo view` with an HTTP 503 once; the refresh replaced the good read, so
+// the open milestones v1.1.1 and v1.2.0 left the snapshot and the next station read "nothing for now".
+func TestCollectorKeepsTheLastGithubReadOverAnOutage(t *testing.T) {
+	dir := t.TempDir()
+	milestones := `[{"number":10,"title":"v1.1.1","due_on":"2026-11-13T00:00:00Z","open_issues":23},{"number":9,"title":"v1.2.0","due_on":"2026-11-27T00:00:00Z","open_issues":29}]`
+	good := CollectGithub(context.Background(), ghFake(map[string]string{
+		"gh repo view":    `{"nameWithOwner":"DiamondForgeFr/SaasFoundryAI","url":"https://github.com/DiamondForgeFr/SaasFoundryAI"}`,
+		"gh pr list":      `[{"number":1}]`,
+		"gh run list":     `[]`,
+		"gh release list": `[{"tagName":"v1.1.0"}]`,
+		"gh api repos/DiamondForgeFr/SaasFoundryAI/milestones?state=open&per_page=20": milestones,
+	}, nil), dir)
+	outage := CollectGithub(context.Background(), ghFake(nil, map[string]error{
+		"gh repo view": errors.New("gh repo view --json nameWithOwner,url: HTTP 503: No server is currently available to service your request."),
+	}), dir)
+	c := MakeCollector("", plainRunner, nil)
+	c.applyRefresh(dir, refreshPlan{github: true}, nil, nil, good)
+	snap := c.applyRefresh(dir, refreshPlan{github: true}, nil, nil, outage)
+	if snap.Github.State != GithubStateError || !strings.Contains(snap.Github.Message, "503") {
+		t.Fatalf("the outage is still told: %+v", snap.Github)
+	}
+	if string(snap.Github.Milestones) != milestones || string(snap.Github.Prs) != `[{"number":1}]` || snap.Github.Repo != "DiamondForgeFr/SaasFoundryAI" {
+		t.Fatalf("the last good read is kept: %+v", snap.Github)
+	}
+
+	partial := CollectGithub(context.Background(), ghFake(map[string]string{
+		"gh repo view": `{"nameWithOwner":"DiamondForgeFr/SaasFoundryAI","url":"https://github.com/DiamondForgeFr/SaasFoundryAI"}`,
+		"gh pr list":   `[]`,
+	}, map[string]error{"gh api repos/DiamondForgeFr/SaasFoundryAI/milestones?state=open&per_page=20": errors.New("HTTP 502")}), dir)
+	snap = c.applyRefresh(dir, refreshPlan{github: true}, nil, nil, partial)
+	if snap.Github.State != GithubStateOk || string(snap.Github.Milestones) != milestones || string(snap.Github.Prs) != `[]` || snap.Github.Errors["milestones"] == "" {
+		t.Fatalf("a failed section keeps its last read, the others are new: %+v", snap.Github)
+	}
+
+	signedOut := CollectGithub(context.Background(), ghFake(nil, map[string]error{"gh repo view": errors.New("gh auth login")}), dir)
+	snap = c.applyRefresh(dir, refreshPlan{github: true}, nil, nil, signedOut)
+	if snap.Github.State != GithubStateLoggedOut || snap.Github.Milestones != nil || snap.Github.Prs != nil {
+		t.Fatalf("a definite answer keeps nothing: %+v", snap.Github)
+	}
+}
+
 // Two panels asking at the same time run one collection; the result is cached and published.
 func TestCollectorRunsOneRefreshAndCaches(t *testing.T) {
 	dir := makeGitFlowRepo(t)

@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/bookmarks"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
@@ -562,6 +563,10 @@ func removeProject(ctx context.Context, req projectviews.RemoveRequest) (project
 		}
 		writeSlots(ws, slots)
 		meta := waveobj.MetaMapType{projectviews.ProjectsMetaKey: projectviews.ListValue(next)}
+		// Project ids are reused (the next free "pN"): a removed project's bookmarks must not reach the next project.
+		if left, changed := bookmarks.WithoutProject(ws.Meta, req.ProjectId); changed {
+			meta[molten.BookmarksMetaKey] = left
+		}
 		if current == req.ProjectId {
 			maps.Copy(meta, projectviews.LiveUpdate(next[0]))
 		}

@@ -59,6 +59,7 @@ var fileCmd = &cobra.Command{
 Wave Terminal is capable of managing files from remote SSH hosts and your local
 computer. Files are addressed via URIs.` + UriHelpText}
 
+// MOLTENTERM-PATCH (#1831): requests use moltenFileTimeout(), raised on a server to cover the window's question.
 var fileTimeout int64
 
 func init() {
@@ -193,7 +194,7 @@ func fileInfoRun(cmd *cobra.Command, args []string) error {
 		Info: &wshrpc.FileInfo{
 			Path: path}}
 
-	info, err := wshclient.FileInfoCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: fileTimeout})
+	info, err := wshclient.FileInfoCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 	err = convertNotFoundErr(err)
 	if err != nil {
 		return fmt.Errorf("getting file info: %w", err)
@@ -230,7 +231,7 @@ func fileRmRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = wshclient.FileDeleteCommand(RpcClient, wshrpc.CommandDeleteFileData{Path: path, Recursive: recursive}, &wshrpc.RpcOpts{Timeout: fileTimeout})
+	err = wshclient.FileDeleteCommand(RpcClient, wshrpc.CommandDeleteFileData{Path: path, Recursive: recursive}, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 	if err != nil {
 		return fmt.Errorf("removing file: %w", err)
 	}
@@ -256,7 +257,7 @@ func fileWriteRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("input exceeds maximum file size of %d bytes", MaxFileSize)
 	}
 	fileData.Data64 = base64.StdEncoding.EncodeToString(data)
-	err = wshclient.FileWriteCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: fileTimeout})
+	err = wshclient.FileWriteCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 	if err != nil {
 		return fmt.Errorf("writing file: %w", err)
 	}
@@ -302,7 +303,7 @@ func fileAppendRun(cmd *cobra.Command, args []string) error {
 
 		if buf.Len() >= 8192 { // 8KB batch size
 			fileData.Data64 = base64.StdEncoding.EncodeToString(buf.Bytes())
-			err = wshclient.FileAppendCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: fileTimeout})
+			err = wshclient.FileAppendCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 			if err != nil {
 				return fmt.Errorf("appending to file: %w", err)
 			}
@@ -313,7 +314,7 @@ func fileAppendRun(cmd *cobra.Command, args []string) error {
 
 	if buf.Len() > 0 {
 		fileData.Data64 = base64.StdEncoding.EncodeToString(buf.Bytes())
-		err = wshclient.FileAppendCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: fileTimeout})
+		err = wshclient.FileAppendCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 		if err != nil {
 			return fmt.Errorf("appending to file: %w", err)
 		}
@@ -327,7 +328,7 @@ func checkFileSize(path string, maxSize int64) (*wshrpc.FileInfo, error) {
 		Info: &wshrpc.FileInfo{
 			Path: path}}
 
-	info, err := wshclient.FileInfoCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: fileTimeout})
+	info, err := wshclient.FileInfoCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 	err = convertNotFoundErr(err)
 	if err != nil {
 		return nil, fmt.Errorf("getting file info: %w", err)

@@ -3,6 +3,11 @@
 
 // The gold swap script run for real against fake app bundles (#1193): a liveness check that cannot run never rolls
 // back a build that started, and a build that really quits is still rolled back.
+//
+// The script judges the reopened build after a grace period, a clock. On a loaded machine the fake build starts and
+// exits late: its process was still in startup when the clock ran out and a build that quits was kept (#1826). The
+// test replaces the clock: the `sleep` the script finds first on its PATH returns once the fake build is in the
+// state the scenario describes, however long that takes.
 
 import { execFileSync, spawn } from "child_process";
 import fs from "fs";
@@ -28,7 +33,7 @@ const FakeApp = `#!/bin/sh
 echo $$ >> "$FAKE_PIDS"
 [ -n "$FAKE_WRITE_MARKER" ] && echo $$ > "$FAKE_MARKER"
 [ -n "$FAKE_QUIT" ] && exit 0
-while :; do sleep 1; done
+while :; do /bin/sleep 1; done
 `;
 
 const OldApp = `#!/bin/sh
@@ -79,6 +84,30 @@ function bundle(app: string, exe: string, sign: boolean) {
 
 type Scenario = { brokenListing: boolean; writeMarker: boolean; quit: boolean };
 
+// When the fake build is in the state the scenario describes: gone for a build that quits, running with its start
+// marker for one that writes it, started for the others. A pid is tested with a signal, as the script does.
+function settledWhen(s: Scenario, pids: string, marker: string): string {
+    if (s.quit) {
+        return `[ -s "${pids}" ] && ! kill -0 "$(tail -n 1 "${pids}")" 2>/dev/null`;
+    }
+    if (s.writeMarker) {
+        return `[ -s "${marker}" ] && kill -0 "$(cat "${marker}")" 2>/dev/null`;
+    }
+    return `[ -s "${pids}" ]`;
+}
+
+// Gives up after a minute, so a build that never settles fails the test on its status instead of hanging it.
+function sleepShim(settled: string): string {
+    return `#!/bin/sh
+n=0
+until ${settled}; do
+    n=$((n + 1))
+    [ "$n" -gt 1200 ] && break
+    /bin/sleep 0.05
+done
+`;
+}
+
 async function runSwap(s: Scenario) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mt-gold-swap-"));
     temps.push(dir);
@@ -88,7 +117,12 @@ async function runSwap(s: Scenario) {
     const staged = path.join(dir, "staged", "Moltenterm.app");
     bundle(staged, FakeApp, true);
     const bin = path.join(dir, "bin");
+    const pids = path.join(dir, "pids");
+    const status = path.join(dir, "swap.status");
+    const marker = path.join(dir, "swap.started");
+    const oldReopened = path.join(dir, "old-reopened");
     fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, "sleep"), sleepShim(settledWhen(s, pids, marker)), { mode: 0o755 });
     if (s.brokenListing) {
         // What a machine without sysmond answers (#1193).
         fs.writeFileSync(path.join(bin, "pgrep"), "#!/bin/sh\necho 'pgrep: Cannot get process list' >&2\nexit 3\n", {
@@ -98,8 +132,6 @@ async function runSwap(s: Scenario) {
             mode: 0o755,
         });
     }
-    const status = path.join(dir, "swap.status");
-    const marker = path.join(dir, "swap.started");
     const script = path.join(dir, "swap.sh");
     fs.writeFileSync(script, SwapScript, { mode: 0o755 });
     const gone = execFileSync("/bin/sh", ["-c", "/usr/bin/true & echo $!; wait"], { encoding: "utf8" }).trim();
@@ -110,12 +142,12 @@ async function runSwap(s: Scenario) {
             env: {
                 PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`,
                 MOLTENTERM_SWAP_DIRECT: "1",
-                MOLTENTERM_SWAP_GRACE: "2",
-                FAKE_PIDS: path.join(dir, "pids"),
+                MOLTENTERM_SWAP_GRACE: "1",
+                FAKE_PIDS: pids,
                 FAKE_MARKER: marker,
                 FAKE_WRITE_MARKER: s.writeMarker ? "1" : "",
                 FAKE_QUIT: s.quit ? "1" : "",
-                FAKE_OLD_REOPENED: path.join(dir, "old-reopened"),
+                FAKE_OLD_REOPENED: oldReopened,
             },
             stdio: ["ignore", "pipe", "pipe"],
         }
@@ -123,8 +155,15 @@ async function runSwap(s: Scenario) {
     let log = "";
     child.stdout.on("data", (d) => (log += d));
     child.stderr.on("data", (d) => (log += d));
-    const code = await new Promise<number>((resolve) => child.on("exit", (c) => resolve(c)));
-    await waitFor(() => fs.existsSync(status));
+    // "close", not "exit": the output the script wrote just before exiting may still be in the pipes at "exit".
+    const code = await new Promise<number>((resolve) => child.on("close", (c) => resolve(c)));
+    // The reopened previous build writes its file after the script exits: a removal of the folder must not race it.
+    if (fs.readFileSync(status, "utf8").startsWith("rolledback")) {
+        await waitFor(
+            "the previous build to reopen",
+            () => fs.existsSync(oldReopened) && fs.statSync(oldReopened).size > 0
+        );
+    }
     return {
         code,
         log,
@@ -136,11 +175,11 @@ async function runSwap(s: Scenario) {
     };
 }
 
-async function waitFor(cond: () => boolean) {
+async function waitFor(what: string, cond: () => boolean) {
     const deadline = Date.now() + WaitMs;
     while (!cond()) {
         if (Date.now() > deadline) {
-            throw new Error("timed out");
+            throw new Error(`timed out waiting for ${what}`);
         }
         await new Promise((r) => setTimeout(r, 50));
     }
@@ -163,7 +202,7 @@ describe.runIf(OnMac)("gold swap liveness (#1193)", () => {
         "keeps a build whose start marker names a running process, without listing processes",
         async () => {
             const r = await runSwap({ brokenListing: true, writeMarker: true, quit: false });
-            expect(r.status).toMatch(new RegExp(`^installed ${Build}( unchecked)?$`));
+            expect(r.status).toBe(`installed ${Build}`);
             expect(r.newKept()).toBe(true);
         },
         WaitMs * 2
@@ -175,7 +214,7 @@ describe.runIf(OnMac)("gold swap liveness (#1193)", () => {
             const r = await runSwap({ brokenListing: false, writeMarker: true, quit: true });
             expect(r.status).toBe(`rolledback ${Build}`);
             expect(r.oldRestored()).toBe(true);
-            await waitFor(() => fs.existsSync(path.join(r.dir, "old-reopened")));
+            expect(fs.readFileSync(path.join(r.dir, "old-reopened"), "utf8").trim()).toBe("reopened");
         },
         WaitMs * 2
     );

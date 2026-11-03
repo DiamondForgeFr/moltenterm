@@ -842,7 +842,7 @@ func connectInternal(ctx context.Context, networkAddr string, clientConfig *ssh.
 	var clientConn net.Conn
 	var err error
 	if currentClient == nil {
-		d := net.Dialer{Timeout: clientConfig.Timeout}
+		d := net.Dialer{Timeout: clientConfig.Timeout, Control: moltenDialControl(ctx)} // MOLTENTERM-PATCH (#1831): no loopback for a server's request
 		blocklogger.Infof(ctx, "[conndebug] ssh dial %s\n", networkAddr)
 		clientConn, err = d.DialContext(ctx, "tcp", networkAddr)
 		if err != nil {
@@ -951,7 +951,7 @@ func ConnectToClient(connCtx context.Context, opts *SSHOpts, currentClient *ssh.
 		return nil, debugInfo.JumpNum, ConnectionError{ConnectionDebugInfo: debugInfo, Err: err}
 	}
 	networkAddr := utilfn.SafeDeref(sshKeywords.SshHostName) + ":" + utilfn.SafeDeref(sshKeywords.SshPort)
-	client, err := connectInternal(connCtx, networkAddr, clientConfig, debugInfo.CurrentClient)
+	client, err := connectInternal(moltenDialContext(connCtx, opts), networkAddr, clientConfig, debugInfo.CurrentClient) // MOLTENTERM-PATCH (#1831)
 	if err != nil {
 		return client, debugInfo.JumpNum, ConnectionError{ConnectionDebugInfo: debugInfo, Err: err}
 	}

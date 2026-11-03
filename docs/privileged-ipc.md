@@ -56,6 +56,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `moltenterm-dialogs.ts` | `moltenterm-choose-path` |
 | `moltenterm-i18n.ts` | `moltenterm-system-languages`, `moltenterm-set-language-packs`, `moltenterm-set-locale` |
 | `moltenterm-system-notify.ts` | `moltenterm-system-notify`, `moltenterm-system-notify-close` |
+| `moltenterm-carpet-thumbs.ts` | `moltenterm-carpet-thumb-put`, `moltenterm-carpet-thumb-read`, `moltenterm-carpet-thumb-remove` (the 360 carpet's thumbnails: the key is checked, a JPEG of at most 1 MB is written only into the application's own `carpet-thumbs` data folder) |
 | `moltenterm-tab-activity.ts` | `moltenterm-window-activity-get` |
 | `moltenterm-screen.ts` | `moltenterm-screen-get` |
 | `moltenterm-tabview-host.ts` | `moltenterm-view-pending-action` |

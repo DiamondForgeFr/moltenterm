@@ -45,6 +45,39 @@ func TestAgentInstructionsMentionMoltenFiles(t *testing.T) {
 	}
 }
 
+// Claude Code and Codex start the same server and read the instructions it returns at initialize: a page shown to the
+// developer opens in MoltenTerm's browser for both, with or without the agent's first name (#1812).
+func TestInitializeTellsEveryAgentToShowPagesInMoltenTerm(t *testing.T) {
+	var seen []string
+	for _, client := range []string{"claude-code", "codex-mcp-client"} {
+		for _, backend := range []Backend{&fakeBackend{}, &namedBackend{name: "Olivia"}} {
+			c := startServer(t, backend)
+			c.send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"` + client + `"}}}`)
+			instructions := c.recv()["result"].(map[string]any)["instructions"].(string)
+			c.close()
+			for _, want := range []string{"tabs_create", "navigate", "molten open", "pages.md", "xdg-open", "system browser", "keyboard focus"} {
+				if !strings.Contains(instructions, want) {
+					t.Fatalf("instructions for %s (%T) lack %q: %s", client, backend, want, instructions)
+				}
+			}
+			seen = append(seen, instructions)
+		}
+	}
+	if seen[0] != seen[2] || seen[1] != seen[3] {
+		t.Fatal("Claude Code and Codex must read the same instructions")
+	}
+}
+
+// Claude Code and Codex both learn of the project's bookmarks from the molten browser server (FR-BRW-020).
+func TestAgentInstructionsMentionMoltenBookmarks(t *testing.T) {
+	for _, name := range []string{"", "Olivia"} {
+		got := AgentInstructions(name)
+		if !strings.Contains(got, "molten bookmarks list") || !strings.Contains(got, "bookmarks.md") {
+			t.Fatalf("instructions for %q do not mention molten bookmarks: %s", name, got)
+		}
+	}
+}
+
 func TestAgentToolsStayOutOfBrowserBatches(t *testing.T) {
 	if ToolNames()[ToolSendToAgent] || ToolNames()[ToolListAgents] {
 		t.Fatal("browser_batch must not run the handoff tools")

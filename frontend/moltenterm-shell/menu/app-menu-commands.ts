@@ -91,6 +91,11 @@ export async function runAppMenuCommand(command: AppMenuCommand, keys: KeyMap = 
         await goToWorkspaceView(nameKey);
         return;
     }
+    if (command === "checkupdates") {
+        const { checkForUpdatesNow } = await import("../update/release-update-store");
+        checkForUpdatesNow();
+        return;
+    }
     if (command === "project") {
         await goToPanel(ProjectView);
         return;

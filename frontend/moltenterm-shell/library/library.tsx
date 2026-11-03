@@ -1162,7 +1162,8 @@ export function Library({
     const info = LibrarySections.find((s) => s.id === section) ?? LibrarySections[0];
     const reopenKeys = formatShortcutById("reopen-closed");
     const workspaceId = useAtomValue(atoms.workspaceId);
-    const materials = useMaterialsDrawer(workspaceId);
+    const workspace = useAtomValue(atoms.workspace);
+    const materials = useMaterialsDrawer(workspaceId, workspace ? readWorkspaceProject(workspace).dir : "");
     const newMaterials = useMaterialsNewCount(materials.view, section === "materials");
     useEffect(() => {
         setQuery("");

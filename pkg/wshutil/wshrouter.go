@@ -66,6 +66,10 @@ type linkMeta struct {
 	// MOLTENTERM-PATCH (#662): who is on the link, for the molten routes' caller checks (moltenterm_linksource.go).
 	isWindow bool
 	blockId  string
+	// MOLTENTERM-PATCH (#1821): a leaf wavesrv registered for its own code (RegisterTrustedLeaf), never a token's.
+	inProcess bool
+	// MOLTENTERM-PATCH (#1831): the remote connection the link's token named (moltenterm_remotelink.go).
+	connName string
 }
 
 func (lm *linkMeta) Name() string {
@@ -363,6 +367,13 @@ func (router *WshRouter) runServer() {
 		routeId := msg.Route
 		if msg.Command != "" {
 			// new comand, setup new rpc
+			if refusal := router.remoteRouteRefusal(msg, input.IngressLinkId); refusal != "" { // MOLTENTERM-PATCH (#1831)
+				router.refuseRemoteRoute(msg, input.IngressLinkId, refusal)
+				continue
+			}
+			if router.refuseRequest(msg, input.IngressLinkId) { // MOLTENTERM-PATCH (#1832): a terminal reads only its own workspace's terminals
+				continue
+			}
 			ok := router.sendRoutedMessage(msgBytes, routeId, msg.Command, input.IngressLinkId)
 			if !ok {
 				router.handleNoRoute(msg, input.IngressLinkId)
@@ -641,6 +652,7 @@ func (router *WshRouter) RegisterTrustedLeaf(rpc AbstractRpcClient, routeId stri
 		return 0, fmt.Errorf("invalid routeid %q", routeId)
 	}
 	linkId := router.RegisterUntrustedLink(rpc)
+	router.markInProcessLink(linkId) // MOLTENTERM-PATCH (#1821)
 	router.trustLink(linkId, LinkKind_Leaf)
 	router.bindRoute(linkId, routeId, true)
 	return linkId, nil
@@ -783,6 +795,9 @@ func (router *WshRouter) bindRouteLocally(linkId baseds.LinkId, routeId string, 
 	if !lm.trusted {
 		return fmt.Errorf("cannot bind route %q, link %d is not trusted", routeId, linkId)
 	}
+	if err := router.remoteAnnounceRefusal_withlock(lm, routeId, isSourceRoute); err != nil { // MOLTENTERM-PATCH (#1831)
+		return err
+	}
 	if isSourceRoute {
 		if lm.linkKind != LinkKind_Leaf {
 			return fmt.Errorf("cannot bind source route %q to link %d (link is not a leaf)", routeId, linkId)
@@ -801,6 +816,9 @@ func (router *WshRouter) bindRouteLocally(linkId baseds.LinkId, routeId string, 
 }
 
 func (router *WshRouter) bindRoute(linkId baseds.LinkId, routeId string, isSourceRoute bool) error {
+	if err := router.checkRemoteAnnounce(linkId, routeId); err != nil { // MOLTENTERM-PATCH (#1831): a job route only for its connection
+		return err
+	}
 	err := router.bindRouteLocally(linkId, routeId, isSourceRoute)
 	if err != nil {
 		return err

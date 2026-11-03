@@ -127,6 +127,8 @@ export type CardInput = {
     boardStatus?: string;
     // The project's workflow has no Human Testing (#1212): a draft is its agent's until the agent marks it ready.
     agentReadies?: boolean;
+    // A ready PR in such a workflow (#1796): nobody tested it yet, so a ready one is the developer's to review and merge.
+    reviewsOnly?: boolean;
     // The draft's branch got a commit lately (DraftActiveMs): someone, probably an agent, works on it.
     recentCommit?: boolean;
     // Checks the list confirmed failing on the PR's head after a stopped task (headStillFails).
@@ -772,7 +774,7 @@ export function cardState(input: CardInput): CardState {
             break;
         }
         case "ready":
-            sentence = phrase("reviews.card.state.ready");
+            sentence = phrase(input.reviewsOnly ? "reviews.card.state.readyReview" : "reviews.card.state.ready");
             primary = mergeAction(input, null);
             menu = [AssistedReview(), Launch(), Github()];
             break;

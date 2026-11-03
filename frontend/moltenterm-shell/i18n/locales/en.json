@@ -44,6 +44,7 @@
     "appMenu": {
         "about": "About {app}",
         "gettingStarted": "Getting Started",
+        "checkUpdates": "Check for updates now",
         "settings": "Settings…",
         "safeModeRestart": "Restart in Safe Mode",
         "safeModeLeave": "Restart Normally",
@@ -417,6 +418,8 @@
             "gettingStartedDetail": "your agent, a first morph, your project",
             "sessions": "Sessions",
             "sessionsDetail": "terminals and agents still running, local and SSH",
+            "checkUpdates": "Check for updates now",
+            "checkUpdatesDetail": "asks GitHub now, even when it was asked today",
             "settings": "Settings",
             "shortcuts": "Keyboard shortcuts",
             "agentCopy": "Copy {agent}'s last answer",
@@ -445,6 +448,7 @@
             "editWorkspace": "workspace, rename, icon, colour, color, settings, delete, reset",
             "switchWorkspace": "workspace",
             "gettingStarted": "onboarding, setup, welcome, tour, first run",
+            "checkUpdates": "check for updates, update, upgrade, release, new version",
             "sessions": "sessions, durable, running, agents, ssh, detached, jobs, processes",
             "settings": "config, preferences",
             "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
@@ -1123,6 +1127,33 @@
         "workspaceSheet": {
             "text": "The working folder and the project of the workspace “{name}” are set in its sheet.",
             "open": "Edit in the workspace"
+        },
+        "bookmarks": {
+            "title": "Bookmarks",
+            "hint": "The web pages each project keeps in the web page panel. The agents of a project read its bookmarks.",
+            "noProject": "This workspace has no project yet: bookmarks belong to a project.",
+            "currentProject": "shown now",
+            "empty": "No bookmark in this project yet.",
+            "add": "Add bookmark",
+            "newFolder": "New folder",
+            "newFolderName": "Folder name",
+            "createFolder": "Create",
+            "edit": "Edit",
+            "editNamed": "Edit {title}",
+            "moveTo": "Move to…",
+            "moveToNamed": "Move {title} to a folder",
+            "moveRoot": "The project, outside any folder",
+            "copyTo": "Copy to project…",
+            "copyToNamed": "Copy {title} to another project",
+            "delete": "Delete",
+            "confirmDelete": "Delete? Click again",
+            "deleteNamed": "Delete {title}",
+            "renameFolder": "Rename",
+            "renameFolderNamed": "Rename the folder {name}",
+            "deleteFolder": "Delete folder",
+            "deleteFolderTitle": "Delete the folder {name}. Its bookmarks stay in the project.",
+            "confirmDeleteFolder": "Delete folder? Click again",
+            "save": "Save"
         },
         "error": {
             "notSaved": "This value was not saved. Check settings.json under Advanced.",
@@ -2143,6 +2174,19 @@
             "buttonTitle": "MoltenTerm {version} is available: open its release page to download it",
             "button": "{version} available"
         },
+        "check": {
+            "button": "Check for updates now",
+            "checking": "Checking for updates…",
+            "installed": "Installed version {version}",
+            "lastChecked": "Last checked {when}",
+            "never": "Never checked",
+            "now": "just now",
+            "checkedAgo": "checked {when}",
+            "latest": "You have the latest version ({version}) · {checked}",
+            "disabled": "This build does not check for updates.",
+            "error": "Could not reach GitHub, try again",
+            "retry": "Try again"
+        },
         "dialog": {
             "title": "A new MoltenTerm gold is ready",
             "built": "{label} · built {date}",
@@ -2179,6 +2223,59 @@
             "copyLink": "Copy link",
             "close": "Close",
             "closeOthers": "Close others"
+        },
+        "bookmarks": {
+            "button": "Bookmarks",
+            "buttonTitle": "Bookmarks of {project}",
+            "menu": {
+                "project": "Bookmarks of {project}",
+                "empty": "No bookmark in this project yet",
+                "noProject": "Bookmarks belong to a project: link one to this workspace first",
+                "bookmarkPage": "Bookmark this page…",
+                "editBookmark": "Edit this bookmark…",
+                "manage": "Manage bookmarks…"
+            },
+            "dialog": {
+                "titleAdd": "Bookmark this page",
+                "titleNew": "Add a bookmark",
+                "titleEdit": "Edit bookmark",
+                "subtitle": "In the project {project}",
+                "address": "Address",
+                "title": "Title",
+                "description": "Description",
+                "descriptionHint": "What this page is for. The agents of this project read it.",
+                "descriptionPlaceholder": "For example: the staging site, to check a change before it ships",
+                "folder": "Folder",
+                "folderNone": "In the project, outside any folder",
+                "folderNew": "New folder…",
+                "newFolderName": "Name of the new folder",
+                "alsoAdd": "Also add to another project",
+                "alsoAddHint": "A separate copy in each project you tick. Nothing is shared by itself.",
+                "alreadyThere": "already there",
+                "add": "Add bookmark",
+                "save": "Save",
+                "cancel": "Cancel"
+            },
+            "problem": {
+                "noAddress": "Enter the address of the page.",
+                "notWeb": "Only web addresses (http or https) can be bookmarked.",
+                "notAddress": "This is not a web address.",
+                "credentials": "Remove the user name and password from the address: the agents of the project read bookmarks.",
+                "addressTooLong": "This address is too long ({max} characters at most).",
+                "alreadyThere": "This address is already bookmarked in this project.",
+                "tooMany": "This project already has {max} bookmarks, the most it keeps.",
+                "tooManyFolders": "This project already has {max} folders, the most it keeps.",
+                "titleTooLong": "The title is too long ({max} characters at most).",
+                "descriptionTooLong": "The description is too long ({max} characters at most).",
+                "noFolderName": "Name the folder.",
+                "folderNameTooLong": "The folder name is too long ({max} characters at most).",
+                "folderTaken": "This project already has a folder with that name.",
+                "gone": "This bookmark or folder no longer exists.",
+                "notSaved": "The bookmarks could not be saved. Try again.",
+                "sameProject": "Choose another project.",
+                "alsoTooMany": "{project} already has {max} bookmarks, the most it keeps: nothing was saved.",
+                "alsoTooManyFolders": "{project} already has {max} folders, the most it keeps: nothing was saved."
+            }
         },
         "error": {
             "dns": "The address could not be found. Check it for typos.",
@@ -5981,6 +6078,9 @@
         "peek": {
             "show": "Show {title}"
         },
+        "endSlot": {
+            "add": "Add a panel here"
+        },
         "pin": {
             "pinBeside": "Pin beside",
             "pinStacked": "Pin in the first column",
@@ -6084,6 +6184,8 @@
     "reviewsAgents": {
         "agent": "Agent",
         "background": "Background agent",
+        "busyOn": "busy on #{number}",
+        "busyElsewhere": "busy elsewhere",
         "state": {
             "working": "working",
             "waiting": "waiting for you",
@@ -7090,6 +7192,7 @@
                 "ciRunning": "CI running",
                 "mergeChecking": "GitHub is checking the merge",
                 "ready": "Ready to merge",
+                "readyReview": "Ready · yours to review and merge",
                 "batch": {
                     "checking": "Read on GitHub before its merge",
                     "rebasing": "{name} rebases it on {base}",
@@ -8378,6 +8481,22 @@
         }
     },
     "server": {
+        "remoteask": {
+            "readTitle": "A server wants to read a file of this computer",
+            "read": "{server} wants to read {path} on this computer.",
+            "writeTitle": "A server wants to write a file on this computer",
+            "write": "{server} wants to write {path} on this computer.",
+            "connectTitle": "A server wants this computer to connect to another server",
+            "connect": "{server} wants this computer to open a connection to {target}.",
+            "readSensitive": "{server} wants to read {path} on this computer. This location holds credentials or settings that can run programs.",
+            "writeSensitive": "{server} wants to write {path} on this computer. This location holds credentials or settings that can run programs.",
+            "rememberRead": "Remember until MoltenTerm restarts (Allow: {server} may read files in {folder}; Deny: refuse everything {server} asks)",
+            "rememberWrite": "Remember until MoltenTerm restarts (Allow: {server} may write files in {folder}; Deny: refuse everything {server} asks)",
+            "rememberConnect": "Remember until MoltenTerm restarts (Allow: {server} may connect this computer to {target}; Deny: refuse everything {server} asks)",
+            "rememberDeny": "If I deny, refuse everything {server} asks until MoltenTerm restarts (this location is asked every time)",
+            "allow": "Allow",
+            "deny": "Deny"
+        },
         "agentHold": {
             "fixing": "resolving what blocks #{number}",
             "ci": "waiting for the CI of #{number}",
@@ -9690,7 +9809,7 @@
             "renameTitle": "Rename",
             "iconTitle": "Icon of “{name}”",
             "iconChoice": "Icon {icon}",
-            "panelIcons": "Panels' icons",
+            "panelIcons": "What the view shows",
             "copyName": "{name} (copy)",
             "duplicated": "“{name}” created: the same configuration",
             "reordered": "Order changed",
@@ -9978,6 +10097,21 @@
             "thisProject": "This project · {name}",
             "thisProjectUnnamed": "This project",
             "noProject": "No project",
+            "scope": {
+                "label": "Materials of",
+                "other": "Another project",
+                "all": "All projects",
+                "none": "No project",
+                "pick": "Choose a project",
+                "noOther": "No other project has materials yet."
+            },
+            "scopeEmptyTitle": "Nothing in this selection",
+            "scopeEmpty": "No material of this selection matches. Choose All projects to see every one.",
+            "projectChip": "Produced in {name}",
+            "detail": {
+                "label": "Selected material",
+                "close": "Close the preview"
+            },
             "emptyTitle": "No materials yet",
             "empty": "What an agent produces outside the repository and shows you (a published page, a document, an image, a link it names) is kept here, per project.",
             "failedTitle": "Materials are not available",

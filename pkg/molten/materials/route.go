@@ -177,12 +177,22 @@ func (r *Registry) View(key string, all bool) (molten.MaterialsView, error) {
 	v := molten.MaterialsView{Project: project, Materials: list, WorkFiles: len(work), Usage: r.store.Usage(key, r.limits)}
 	if all {
 		v.Projects = r.store.Projects()
+		for _, p := range v.Projects {
+			if p.Key == key {
+				continue
+			}
+			others, err := r.store.List(p.Key)
+			if err != nil {
+				continue
+			}
+			v.Materials = append(v.Materials, others...)
+		}
 	}
 	return v, nil
 }
 
 func publishChanged(ev molten.MaterialsChanged) {
-	wps.Broker.Publish(wps.WaveEvent{Event: molten.MaterialsEvent, Scopes: []string{ev.Project}, Data: ev})
+	wps.Broker.Publish(wps.WaveEvent{Event: molten.MaterialsEvent, Scopes: []string{ev.Project, molten.MaterialsAllScope}, Data: ev})
 }
 
 // StoreRoot is <data dir>/molten/materials.
@@ -227,6 +237,12 @@ func start() {
 		r.Run(make(chan struct{}))
 	}()
 	go sweepLoop(r)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:materials:attribute", recover())
+		}()
+		r.AttributeRecovered()
+	}()
 	checkpoint.SetMaterialsSink(r.Feed)
 	if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{r: r}).route()); err != nil {
 		log.Printf("molten: materials route not started: %v\n", err)

@@ -23,6 +23,11 @@ import {
 } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import {
+    makeMoltentermSettingsMenuItem,
+    makeMoltentermViewMenu,
+    makeMoltentermWindowMenu,
+} from "./moltenterm-app-menu"; // MOLTENTERM-PATCH (#1325)
+import {
     ContextMenuEvents,
     contextMenuTargetLive,
     contextMenuWindow,
@@ -30,17 +35,12 @@ import {
     liveContextMenuHost,
 } from "./moltenterm-contextmenu";
 import { contextMenuRole } from "./moltenterm-contextmenu-policy";
-import {
-    makeMoltentermSettingsMenuItem,
-    makeMoltentermViewMenu,
-    makeMoltentermWindowMenu,
-} from "./moltenterm-app-menu"; // MOLTENTERM-PATCH (#1325)
 import { mt, onMainLocaleChange } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): the menus follow app:language
 import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; // MOLTENTERM-PATCH (#161)
 import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
 import { makeMoltentermSidebarMenuItem } from "./moltenterm-sidebar-menu"; // MOLTENTERM-PATCH (#1279)
-import { makeMoltentermMenus } from "./moltenterm-view-menu"; // MOLTENTERM-PATCH (#1350)
+import { makeMoltentermCheckUpdatesMenuItem, makeMoltentermMenus } from "./moltenterm-view-menu"; // MOLTENTERM-PATCH (#1350, #1806)
 import { makeMoltentermEditWorkspaceMenuItem } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#294)
 // MOLTENTERM-PATCH (#5): `updater` is no longer imported; the menu has no update item.
 
@@ -219,6 +219,15 @@ function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemC
         // MOLTENTERM-PATCH (#161, #1350): Getting Started moved to the Help menu (emain/moltenterm-view-menu.ts)
         // MOLTENTERM-PATCH (#5): no "Check for Updates" item: it polled Wave's
         // update feed even with auto-update disabled.
+        // MOLTENTERM-PATCH (#1806): on macOS, the app menu's "Check for updates now" asks MoltenTerm's own release feed
+        ...(unamePlatform === "darwin"
+            ? [
+                  makeMoltentermCheckUpdatesMenuItem(
+                      (window) => getWindowWebContents(window) ?? webContents,
+                      unamePlatform
+                  ),
+              ]
+            : []),
         { type: "separator" },
         makeMoltentermSettingsMenuItem((window) => getWindowWebContents(window) ?? webContents), // MOLTENTERM-PATCH (#1325)
         { type: "separator" },

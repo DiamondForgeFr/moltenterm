@@ -5,6 +5,7 @@
 // of the neighbouring panel, tilted like a carousel card. It is the panel's still capture (carpet-captures.ts) or its
 // placeholder, never a live view. A peek is keyed by its panel, so a new neighbour mounts and swings in (a CSS
 // animation of transform and opacity); it renders when the set of columns in view changes, never per scroll frame.
+// At an end of the carpet, where no peek exists, the same gutter holds an add-panel slot (view360-endslot.tsx, #1836).
 // This file also runs the captures of the carpet's panels while it rests.
 
 import { getApi } from "@/app/store/global";
@@ -20,11 +21,27 @@ import {
     carpetCaptureAtom,
     CarpetCaptureScheduler,
     dropCarpetCaptures,
+    readCarpetCapture,
+    registerCarpetScheduler,
     writeCarpetCapture,
 } from "./carpet-captures";
 import { CarpetLayout } from "./carpet-model";
-import { CaptureColumn, captureProbePoints, captureTargets, peekNeighbours, peekRect, PeekSide } from "./carpet-peeks";
+import {
+    CaptureColumn,
+    captureProbePoints,
+    captureTargets,
+    endSlotSides,
+    endSlotsShown,
+    overlapsCapture,
+    peekNeighbours,
+    peekRect,
+    PeekSide,
+} from "./carpet-peeks";
+import { readLivePanel, watchLivePanel } from "./carpet-thumb-live";
+import { CarpetThumbTracker } from "./carpet-thumb-state";
+import { ElectronThumbBackend } from "./carpet-thumbs";
 import type { RadarTick } from "./radar-model";
+import { CarpetEndSlot } from "./view360-endslot";
 import "./view360-peeks.css";
 
 function halfGapPx(layoutModel: LayoutModel): number {
@@ -33,9 +50,20 @@ function halfGapPx(layoutModel: LayoutModel): number {
     return gap / 2;
 }
 
+// The tab strip's cards (a panel's preview, the visible area's hint) float over the columns: one over any part of a
+// column would be captured in its thumbnail, a card in a card (#1814).
+function coveredByCard(rect: CaptureRect): boolean {
+    return [...document.querySelectorAll(".mt-radar-card")].some((el) =>
+        overlapsCapture(el.getBoundingClientRect(), rect)
+    );
+}
+
 // Whatever covers one of a column's probe points (a menu, a popover, a panel being dragged) would be captured as the
 // panel: the column is captured only when every point lands in its own panels.
 function uncovered(rect: CaptureRect, leafNodeIds: string[]): boolean {
+    if (coveredByCard(rect)) {
+        return false;
+    }
     const ids = new Set(leafNodeIds);
     return captureProbePoints(rect).every((p) => {
         const node = document.elementFromPoint(p.x, p.y)?.closest<HTMLElement>(".tile-node");
@@ -43,11 +71,15 @@ function uncovered(rect: CaptureRect, leafNodeIds: string[]): boolean {
     });
 }
 
-// Captures the carpet's columns while it rests (DS-SHELL-152). Woken by a scroll frame, a layout pass or a focus
-// change, each of which only restarts one timer; at rest nothing runs.
+// Captures the carpet's columns while it rests (DS-SHELL-152). Woken by a scroll frame, a layout pass, a focus change or
+// a change of a page's state, each of which only restarts one timer; at rest nothing runs. The thumbnails are kept on
+// disk (#1814): the tracker fills the columns from the store when they come to the carpet and empties one whose page
+// moved on, and every capture taken is stored.
 export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColumn[]) {
     const view360 = layoutModel.moltenView360;
-    const columnKey = columns.map((c) => `${c.columnId}:${c.leafNodeIds.join("+")}`).join(",");
+    const columnKey = columns
+        .map((c) => `${c.columnId}:${c.leafNodeIds.join("+")}:${(c.blockIds ?? []).join("+")}`)
+        .join(",");
     useEffect(() => {
         dropCarpetCaptures(columns.map((c) => c.columnId));
     }, [columnKey]);
@@ -58,7 +90,16 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
         }
         const leaves = new Map(columns.map((c) => [c.columnId, c.leafNodeIds]));
         const root = () => layoutModel.displayContainerRef.current?.parentElement;
-        const scheduler = new CarpetCaptureScheduler(
+        let scheduler: CarpetCaptureScheduler = null;
+        const tracker = new CarpetThumbTracker(columns, {
+            readPanel: readLivePanel,
+            watchPanel: watchLivePanel,
+            readCapture: readCarpetCapture,
+            writeCapture: writeCarpetCapture,
+            backend: ElectronThumbBackend,
+            wake: () => scheduler?.noteChange(),
+        });
+        scheduler = new CarpetCaptureScheduler(
             {
                 atRest: () =>
                     document.visibilityState === "visible" &&
@@ -71,6 +112,7 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
                     !globalStore.get(layoutModel.activeDrag) &&
                     globalStore.get(layoutModel.magnifiedNodeIdAtom) == null,
                 targets: () => {
+                    tracker.attach();
                     const container = layoutModel.displayContainerRef.current;
                     if (container == null) {
                         return [];
@@ -83,12 +125,28 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
                         halfGapPx(layoutModel)
                     ).filter((t) => leaves.has(t.columnId) && uncovered(t.rect, leaves.get(t.columnId)));
                 },
-                capture: (rect) => api.captureScreenshot(rect, { width: CaptureThumbPx }),
+                capture: (rect, target) =>
+                    api.captureScreenshot(rect, {
+                        width: CaptureThumbPx,
+                        flatSkipTop: tracker.flatSkipTop(target.columnId),
+                    }),
+                inspect: (columnId) => tracker.inspect(columnId),
             },
             undefined,
             undefined,
             (columnId, capture) => {
                 writeCarpetCapture(columnId, capture);
+                const key = tracker.keyOf(columnId);
+                if (key != null && capture.tag != null) {
+                    ElectronThumbBackend.put({
+                        key,
+                        tag: capture.tag,
+                        url: capture.url,
+                        width: capture.width,
+                        height: capture.height,
+                        at: capture.at,
+                    });
+                }
                 // The same capture is the card visual of the materials the panel shows (#1560).
                 const nodeIds = leaves.get(columnId) ?? [];
                 const blockIds = nodeIds.map(
@@ -101,6 +159,7 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
             }
         );
         const wake = () => scheduler.noteChange();
+        const unregister = registerCarpetScheduler(scheduler);
         const unsubs = [
             globalStore.sub(view360.scrollLeftAtom, wake),
             globalStore.sub(view360.layoutAtom, wake),
@@ -108,9 +167,16 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
             globalStore.sub(layoutModel.magnifiedNodeIdAtom, wake),
         ];
         document.addEventListener("visibilitychange", wake);
+        tracker.attach();
+        void tracker.sync();
+        // A page's view model registers while its block renders, which may come after this pass.
+        const frame = requestAnimationFrame(() => tracker.attach());
         wake();
         return () => {
+            cancelAnimationFrame(frame);
+            unregister();
             scheduler.dispose();
+            tracker.dispose();
             unsubs.forEach((u) => u());
             document.removeEventListener("visibilitychange", wake);
         };
@@ -175,9 +241,22 @@ export const CarpetPeeks = memo(
         onGo: (tick: RadarTick) => void;
     }) => {
         const { left, right } = useMemo(() => peekNeighbours(ticks), [ticks]);
+        const slotSides = useMemo(() => endSlotSides(ticks), [ticks]);
+        const magnified = useAtomValue(layoutModel.magnifiedNodeIdAtom);
+        const dragging = useAtomValue(layoutModel.activeDrag);
         const halfGap = halfGapPx(layoutModel);
         return (
             <>
+                {endSlotsShown(magnified, dragging) &&
+                    slotSides.map((side) => (
+                        <CarpetEndSlot
+                            key={`s:${side}`}
+                            layoutModel={layoutModel}
+                            layout={layout}
+                            side={side}
+                            halfGap={halfGap}
+                        />
+                    ))}
                 {left != null && (
                     <CarpetPeek
                         key={`l:${left.columnId}`}

@@ -48,6 +48,7 @@ import { openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { openTopField } from "../sidebar/top-field-store";
+import { projectLabel, readProjects } from "../sidebar/workspace-projects";
 import { splitPanel } from "../split/split";
 import { splitMenuItems } from "../split/split-menu";
 import { DominoLoader } from "../suite/suite";
@@ -55,6 +56,7 @@ import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
+import { revealPanelOnCarpet } from "../view360/carpet-reveal";
 import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { CarpetHeaderButton } from "../view360/view360-places";
@@ -62,6 +64,9 @@ import { AddressHold, takeAddressFocus } from "./address-focus";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
+import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
+import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
+import { bookmarksMenu } from "./bookmarks-menu";
 import {
     AgentControlAction,
     agentName,
@@ -250,6 +255,8 @@ export class BrowserViewModel implements ViewModel {
     handledCloseIds = new Set<string>();
     // Hidden pages frozen and discarded by the main process (#459).
     lifecycle: BrowserLifecycleModel;
+    // The add or edit dialog of a bookmark, set by the Bookmarks menu (FR-BRW-019).
+    bookmarkDialogAtom = atom(null) as PrimitiveAtom<BookmarkDialogRequest>;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -265,6 +272,7 @@ export class BrowserViewModel implements ViewModel {
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
         this.agents = new BrowserAgentModel(blockId);
+        this.agents.onShown = () => revealPanelOnCarpet(blockId);
         this.agents.start();
         this.lifecycle = new BrowserLifecycleModel(blockId);
         this.lifecycle.start((tabId, webContentsId, scroll) => this.discardTab(tabId, webContentsId, scroll));
@@ -683,6 +691,14 @@ export class BrowserViewModel implements ViewModel {
                     click: () => this.copyTabLink(tab.id),
                 });
             }
+            if (tab != null) {
+                menu.push({
+                    label: t("browser.bookmarks.button"),
+                    icon: "bookmark",
+                    type: "submenu",
+                    submenu: this.bookmarkMenuItems(tab),
+                });
+            }
             menu.push(...(await this.shareItems(tab)));
             const engine = this.engineMenuItems(tab);
             if (engine.length > 0) {
@@ -1017,6 +1033,47 @@ export class BrowserViewModel implements ViewModel {
             );
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         });
+    }
+
+    // The Bookmarks button's menu: the project's bookmarks, opened in the shown tab on a click (FR-BRW-019).
+    showBookmarksMenu(e: React.MouseEvent, tab: BrowserTab): void {
+        e.preventDefault();
+        ContextMenuModel.getInstance().showContextMenu(this.bookmarkMenuItems(tab), e);
+    }
+
+    bookmarkMenuItems(tab: BrowserTab): ContextMenuItem[] {
+        const ws = globalStore.get(atoms.workspace);
+        const projects = readProjects(ws);
+        const projectId = projectIdOfTab(ws, this.tabId);
+        const project = projects.find((p) => p.id === projectId);
+        const projectName = project != null ? projectLabel(project) : null;
+        const data = readProjectBookmarks(ws?.meta, projectId);
+        return bookmarksMenu(
+            { projectName, multi: projects.length > 1, data, pageUrl: bookmarkablePage(tab?.url) },
+            {
+                open: (url) => this.navigate(url),
+                bookmarkPage: () =>
+                    this.askBookmark({
+                        projectId,
+                        projectName,
+                        mode: "page",
+                        initial: { url: tab.url, title: browserTabTitle(tab), description: "", folder: "" },
+                    }),
+                editBookmark: (b) =>
+                    this.askBookmark({
+                        projectId,
+                        projectName,
+                        mode: "edit",
+                        editingId: b.id,
+                        initial: { url: b.url, title: b.title, description: b.description, folder: b.folder },
+                    }),
+                manage: () => fireAndForget(() => openSettingsSection("browser")),
+            }
+        );
+    }
+
+    askBookmark(request: BookmarkDialogRequest): void {
+        globalStore.set(this.bookmarkDialogAtom, request);
     }
 
     // The toolbar's Share with agent button opens the same entries as the tab menu (FR-BRW-011 AC1).
@@ -1586,6 +1643,12 @@ function TabWebview({
             }
         };
         const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
+        // The 360 carpet keeps the page's previous thumbnail while its process is gone (#1814).
+        const onProcessGone = (e: any) => {
+            if ((e.details?.reason ?? e.reason) !== "clean-exit") {
+                model.loads.noteCrash(tab.id);
+            }
+        };
         // emain/preload.ts routes a page's new window by this attribute; the preload cannot call the element's methods.
         let offHeld: () => void = null;
         const onDomReady = () => {
@@ -1634,6 +1697,7 @@ function TabWebview({
         webview.addEventListener("did-stop-loading", onStopLoading);
         webview.addEventListener("did-fail-load", onFailLoad);
         webview.addEventListener("page-favicon-updated", onFavicon);
+        webview.addEventListener("render-process-gone", onProcessGone);
         const onFoundInPage = (e: any) => model.noteFoundInPage(tab.id, e.result);
         webview.addEventListener("found-in-page", onFoundInPage);
         return () => {
@@ -1642,6 +1706,7 @@ function TabWebview({
             webview.removeEventListener("did-stop-loading", onStopLoading);
             webview.removeEventListener("did-fail-load", onFailLoad);
             webview.removeEventListener("page-favicon-updated", onFavicon);
+            webview.removeEventListener("render-process-gone", onProcessGone);
             webview.removeEventListener("found-in-page", onFoundInPage);
             document.removeEventListener("visibilitychange", onVisibility);
             removeContextMenu?.();
@@ -2034,6 +2099,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 className={cn("molten-browser-drag h-full min-w-6", topField && "flex-1")}
             />
             <span className="mt-focus-only molten-fold-2 flex min-w-0 shrink items-center gap-1">
+                <BookmarksButton model={model} tab={active} />
                 <ShareButton model={model} tab={active} />
                 <EngineButton model={model} tab={active} />
             </span>
@@ -2058,6 +2124,34 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 </div>
             ) : null}
         </div>
+    );
+}
+
+// The Bookmarks button (FR-BRW-019), next to Share with agent: the current project's bookmarks. The icon is filled while
+// the shown page is bookmarked in the project.
+function BookmarksButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const t = useT();
+    const workspace = useAtomValue(atoms.workspace);
+    if (tab == null) {
+        return null;
+    }
+    const projectId = projectIdOfTab(workspace, model.tabId);
+    const project = readProjects(workspace).find((p) => p.id === projectId);
+    const data = readProjectBookmarks(workspace?.meta, projectId);
+    const saved = findBookmarkByAddress(data, bookmarkablePage(tab.url)) != null;
+    const label = t("browser.bookmarks.button");
+    return (
+        <button
+            type="button"
+            aria-label={label}
+            title={project != null ? t("browser.bookmarks.buttonTitle", { project: projectLabel(project) }) : label}
+            onClick={(e) => model.showBookmarksMenu(e, tab)}
+            data-testid="browser-bookmarks-button"
+            data-saved={saved ? "true" : "false"}
+            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+        >
+            <i className={cn("fa text-12", saved ? "fa-solid fa-bookmark text-accent" : "fa-regular fa-bookmark")} />
+        </button>
     );
 }
 
@@ -2407,6 +2501,16 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
             </div>
             <Search {...searchProps} />
+            <BookmarkDialogHost model={model} />
         </div>
     );
+}
+
+// The add and edit dialog of a bookmark (FR-BRW-019), shown while the Bookmarks menu has asked for it.
+function BookmarkDialogHost({ model }: { model: BrowserViewModel }) {
+    const request = useAtomValue(model.bookmarkDialogAtom);
+    if (request == null) {
+        return null;
+    }
+    return <BookmarkDialog request={request} onClose={() => globalStore.set(model.bookmarkDialogAtom, null)} />;
 }

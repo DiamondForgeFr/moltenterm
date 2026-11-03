@@ -34,6 +34,7 @@ import { readProjectFacts } from "../workspace-project-store";
 import { libraryAddAsk, whenText } from "./library-model";
 import { LibraryPrefs } from "./library-prefs";
 import {
+    ActiveScope,
     CardRect,
     filterMaterials,
     findOpenPanel,
@@ -53,6 +54,7 @@ import {
     materialKeepOffer,
     MaterialKindDocument,
     MaterialKindPage,
+    materialLargeVisual,
     materialLinkedFiles,
     MaterialOpen,
     MaterialOpenedCommand,
@@ -61,9 +63,12 @@ import {
     MaterialPinCommand,
     MaterialPlace,
     materialPlaceText,
+    materialProjectName,
     MaterialRenameCommand,
     MaterialRestoreCommand,
     MaterialsCardsMinWidth,
+    MaterialsDetailMinWidth,
+    materialsInScope,
     materialSizeText,
     MaterialsNoProject,
     materialsProjectName,
@@ -71,6 +76,7 @@ import {
     MaterialsRecovered,
     MaterialsRecoverTimeoutMs,
     MaterialsRoute,
+    MaterialsScope,
     materialStateChip,
     MaterialsView,
     materialTitleIsHost,
@@ -79,9 +85,13 @@ import {
     materialVisual,
     newMaterialsCount,
     OpenPanel,
+    otherProjects,
     recoveredParts,
     renamedTitle,
+    ScopeProject,
+    validScope,
 } from "./materials-model";
+import { useMaterialsAllProjects } from "./use-materials-all";
 
 const CallTimeoutMs = 5000;
 const PreviewView = "preview";
@@ -678,8 +688,8 @@ function primaryLabel(t: TFunction, open: ShownPanel, plan: MaterialOpen): strin
 
 // ---------- Cards (#1546, DS-MAT-010) ----------
 
-function MaterialVisualBox({ m }: { m: Material }) {
-    const visual = materialVisual(m);
+function MaterialVisualBox({ m, large = false }: { m: Material; large?: boolean }) {
+    const visual = large ? materialLargeVisual(m) : materialVisual(m);
     const [failed, setFailed] = useState(false);
     const src = visual.path
         ? logoUrl(getWebServerEndpoint(), visual.path) + (visual.version ? `&v=${visual.version}` : "")
@@ -688,13 +698,58 @@ function MaterialVisualBox({ m }: { m: Material }) {
         setFailed(false);
     }, [src]);
     if (src && !failed) {
-        return <img className="mt-lib-card-img" src={src} alt="" draggable={false} onError={() => setFailed(true)} />;
+        return (
+            <img
+                className={cn("mt-lib-card-img", large && "is-large")}
+                src={src}
+                alt=""
+                draggable={false}
+                data-testid={large ? "library-detail-image" : "library-material-image"}
+                data-kind={m.kind}
+                onError={() => setFailed(true)}
+            />
+        );
     }
     const host = linkHost(m.link).replace(/^www\./, "");
     return (
-        <span className="mt-lib-card-icon" aria-hidden>
+        <span className="mt-lib-card-icon" data-testid="library-material-icon" aria-hidden>
             <i className={makeIconClass(KindIcons[m.kind] ?? "file", true)} />
             {host ? <span className="mt-lib-card-host">{host}</span> : null}
+        </span>
+    );
+}
+
+// A row's small visual: the same preview as the card's when there is one, else the kind icon.
+function RowThumb({ m }: { m: Material }) {
+    const visual = materialVisual(m);
+    const [failed, setFailed] = useState(false);
+    const src = visual.path
+        ? logoUrl(getWebServerEndpoint(), visual.path) + (visual.version ? `&v=${visual.version}` : "")
+        : "";
+    useEffect(() => {
+        setFailed(false);
+    }, [src]);
+    return (
+        <span className="mt-lib-mat-th" aria-hidden>
+            {src && !failed ? (
+                <img className="mt-lib-card-img" src={src} alt="" draggable={false} onError={() => setFailed(true)} />
+            ) : (
+                <i className={makeIconClass(KindIcons[m.kind] ?? "file", true)} />
+            )}
+        </span>
+    );
+}
+
+// The project a material was produced in, when the list mixes several (All projects).
+function ProjectChip({ name, className }: { name: string; className?: string }) {
+    const t = useT();
+    return (
+        <span
+            className={cn("mt-lib-card-proj", className)}
+            title={t("library.materials.projectChip", { name })}
+            data-testid="library-material-project"
+        >
+            {name}
         </span>
     );
 }
@@ -709,6 +764,7 @@ function MaterialCard({
     onSelect,
     onRenameDone,
     asked,
+    projectLabel,
     children,
 }: {
     m: Material;
@@ -720,6 +776,7 @@ function MaterialCard({
     onSelect: () => void;
     onRenameDone: () => void;
     asked: boolean;
+    projectLabel?: string;
     children?: React.ReactNode;
 }) {
     const t = useT();
@@ -771,6 +828,7 @@ function MaterialCard({
                         {formLabel(t, chip, m, locale)}
                     </span>
                 ) : null}
+                {projectLabel != null ? <ProjectChip name={projectLabel} className="mt-lib-card-proj-vis" /> : null}
                 {!renaming ? (
                     <div className="mt-lib-card-acts">
                         {!asked && (open != null || plan != null) ? (
@@ -841,6 +899,7 @@ function MaterialRow({
     onSelect,
     onRenameDone,
     asked,
+    projectLabel,
 }: {
     m: Material;
     timeOnly: boolean;
@@ -852,6 +911,7 @@ function MaterialRow({
     onRenameDone: () => void;
     // A question is open under the row: its own buttons answer, the row's orange one steps aside.
     asked: boolean;
+    projectLabel?: string;
 }) {
     const t = useT();
     const locale = useLocale();
@@ -883,9 +943,7 @@ function MaterialRow({
                 showMaterialMenu(e, m, handlers, locale);
             }}
         >
-            <span className="mt-lib-mat-th" aria-hidden>
-                <i className={makeIconClass(KindIcons[m.kind] ?? "file", true)} />
-            </span>
+            <RowThumb m={m} />
             {renaming ? (
                 <RenameField m={m} onDone={onRenameDone} />
             ) : (
@@ -894,6 +952,7 @@ function MaterialRow({
                     <MaterialFacts m={m} timeOnly={timeOnly} />
                 </span>
             )}
+            {projectLabel != null ? <ProjectChip name={projectLabel} /> : null}
             {m.pinned ? (
                 <i
                     className={cn(makeIconClass("thumbtack", true), "mt-lib-mat-pin")}
@@ -1096,6 +1155,330 @@ function useWideEnough(el: HTMLElement, min: number): boolean {
     return wide;
 }
 
+// ---------- Which project's materials (FR-MAT-002 AC15) ----------
+
+function ScopeChip({
+    id,
+    selected,
+    count,
+    onClick,
+    children,
+}: {
+    id: string;
+    selected: boolean;
+    count?: number;
+    onClick: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            className={cn("mt-lib-scope cursor-pointer", selected && "is-on")}
+            data-testid={`library-materials-scope-${id}`}
+            onClick={onClick}
+        >
+            <span className="min-w-0 truncate">{children}</span>
+            {count != null ? <span className="mt-lib-scope-n">{count}</span> : null}
+        </button>
+    );
+}
+
+function ScopeBar({
+    scope,
+    onScope,
+    activeLabel,
+    activeCount,
+    allCount,
+    noneCount,
+    withNone,
+    others,
+    children,
+}: {
+    scope: MaterialsScope;
+    onScope: (scope: MaterialsScope) => void;
+    activeLabel: string;
+    activeCount: number;
+    allCount: number;
+    noneCount: number;
+    withNone: boolean;
+    others: ScopeProject[];
+    children?: React.ReactNode;
+}) {
+    const t = useT();
+    const [picking, setPicking] = useState(false);
+    const pickRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!picking) {
+            return;
+        }
+        const onDown = (e: MouseEvent) => {
+            if (!pickRef.current?.contains(e.target as Node)) {
+                setPicking(false);
+            }
+        };
+        document.addEventListener("mousedown", onDown);
+        return () => document.removeEventListener("mousedown", onDown);
+    }, [picking]);
+    const chosen = scope.kind === "project" ? others.find((p) => p.key === scope.key) : null;
+    return (
+        <div className="flex items-center gap-1.5">
+            <div
+                className="mt-lib-scopes"
+                role="radiogroup"
+                aria-label={t("library.materials.scope.label")}
+                data-testid="library-materials-scope"
+                data-scope={scope.kind}
+            >
+                <ScopeChip
+                    id="active"
+                    selected={scope.kind === "active"}
+                    count={activeCount}
+                    onClick={() => onScope({ kind: "active" })}
+                >
+                    {activeLabel}
+                </ScopeChip>
+                <div className="relative" ref={pickRef}>
+                    <button
+                        type="button"
+                        role="radio"
+                        aria-checked={scope.kind === "project"}
+                        aria-haspopup="listbox"
+                        aria-expanded={picking}
+                        className={cn("mt-lib-scope cursor-pointer", scope.kind === "project" && "is-on")}
+                        data-testid="library-materials-scope-other"
+                        onClick={() => setPicking((v) => !v)}
+                    >
+                        <span className="min-w-0 truncate">
+                            {chosen ? chosen.name : t("library.materials.scope.other")}
+                        </span>
+                        {chosen ? <span className="mt-lib-scope-n">{chosen.count}</span> : null}
+                        <i className={makeIconClass("chevron-down", true)} aria-hidden />
+                    </button>
+                    {picking ? (
+                        <div
+                            className="mt-lib-scope-menu"
+                            role="listbox"
+                            aria-label={t("library.materials.scope.pick")}
+                            data-lib-escape="local"
+                            data-testid="library-materials-scope-list"
+                            onKeyDown={(e) => {
+                                if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setPicking(false);
+                                }
+                            }}
+                        >
+                            {others.length === 0 ? (
+                                <div className="mt-lib-scope-none">{t("library.materials.scope.noOther")}</div>
+                            ) : (
+                                others.map((p) => (
+                                    <button
+                                        key={p.key}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={scope.kind === "project" && scope.key === p.key}
+                                        className="mt-lib-scope-opt cursor-pointer"
+                                        title={p.folder}
+                                        data-testid="library-materials-scope-option"
+                                        data-project={p.key}
+                                        onClick={() => {
+                                            setPicking(false);
+                                            onScope({ kind: "project", key: p.key });
+                                        }}
+                                    >
+                                        <span className="min-w-0 truncate">{p.name}</span>
+                                        <span className="mt-lib-scope-n">{p.count}</span>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    ) : null}
+                </div>
+                <ScopeChip
+                    id="all"
+                    selected={scope.kind === "all"}
+                    count={allCount}
+                    onClick={() => onScope({ kind: "all" })}
+                >
+                    {t("library.materials.scope.all")}
+                </ScopeChip>
+                {withNone ? (
+                    <ScopeChip
+                        id="none"
+                        selected={scope.kind === "none"}
+                        count={noneCount}
+                        onClick={() => onScope({ kind: "none" })}
+                    >
+                        {t("library.materials.scope.none")}
+                    </ScopeChip>
+                ) : null}
+            </div>
+            {children}
+        </div>
+    );
+}
+
+// ---------- The selected material's panel (FR-MAT-002 AC17) ----------
+
+function MaterialDetail({
+    m,
+    open,
+    handlers,
+    projectName,
+    renaming,
+    onRenameDone,
+    onClose,
+    children,
+}: {
+    m: Material;
+    open: ShownPanel;
+    handlers: RowHandlers;
+    projectName: string;
+    renaming: boolean;
+    onRenameDone: () => void;
+    onClose: () => void;
+    children?: React.ReactNode;
+}) {
+    const t = useT();
+    const locale = useLocale();
+    const chip = materialStateChip(m);
+    const plan = materialOpenPlan(m);
+    const title = shownTitle(t, m);
+    const folder = materialFolderPath(m);
+    const keep = materialKeepOffer(m);
+    const asked = children != null;
+    return (
+        <aside
+            className="mt-lib-detail"
+            aria-label={t("library.materials.detail.label")}
+            data-testid="library-material-detail"
+            data-material-id={m.id}
+            data-lib-escape="local"
+            onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClose();
+                }
+            }}
+        >
+            <div className="mt-lib-detail-vis">
+                <MaterialVisualBox m={m} large />
+                <span className={cn("mt-lib-card-kind", `is-${m.kind}`)}>
+                    <i className={makeIconClass(KindIcons[m.kind] ?? "file", true)} aria-hidden />
+                    {t(`library.materials.kind.${m.kind}`)}
+                </span>
+                <button
+                    type="button"
+                    className="mt-lib-detail-close cursor-pointer"
+                    title={t("library.materials.detail.close")}
+                    aria-label={t("library.materials.detail.close")}
+                    data-testid="library-detail-close"
+                    onClick={onClose}
+                >
+                    <i className={makeIconClass("xmark", true)} aria-hidden />
+                </button>
+            </div>
+            <div className="mt-lib-detail-body">
+                {renaming ? (
+                    <RenameField m={m} onDone={onRenameDone} />
+                ) : (
+                    <b className="mt-lib-detail-title" data-testid="library-detail-title">
+                        {title}
+                    </b>
+                )}
+                <div className="mt-lib-detail-chips">
+                    {projectName ? <ProjectChip name={projectName} /> : null}
+                    {chip ? (
+                        <span className={cn("mt-lib-mat-form", chip.warn && "is-warn")}>
+                            {formLabel(t, chip, m, locale)}
+                        </span>
+                    ) : null}
+                </div>
+                <MaterialPlaceLine m={m} open={open} />
+                <span className="mt-lib-card-origin is-wrap">
+                    <MaterialFacts m={m} timeOnly={false} withKind={false} />
+                </span>
+                {m.link ? <span className="mt-lib-detail-link">{m.link}</span> : null}
+                {children}
+                {!asked ? (
+                    <div className="mt-lib-detail-acts">
+                        {open != null || plan != null ? (
+                            <button
+                                type="button"
+                                className="mt-lib-mat-go molten-btn cursor-pointer rounded-4 px-3 py-1.5 text-12"
+                                data-testid="library-detail-open"
+                                onClick={() => handlers.onOpen(m, plan)}
+                            >
+                                {primaryLabel(t, open, plan)}
+                                <MoltenWave />
+                            </button>
+                        ) : null}
+                        <button
+                            type="button"
+                            className="mt-lib-btn cursor-pointer"
+                            data-testid="library-detail-pin"
+                            onClick={() => fireAndForget(() => pinMaterial(m, !m.pinned))}
+                        >
+                            {t(m.pinned ? "library.materials.menu.unpin" : "library.materials.menu.pin")}
+                        </button>
+                        <button
+                            type="button"
+                            className="mt-lib-btn cursor-pointer"
+                            data-testid="library-detail-rename"
+                            onClick={() => handlers.onRename(m)}
+                        >
+                            {t("library.materials.menu.rename")}
+                        </button>
+                        {folder ? (
+                            <button
+                                type="button"
+                                className="mt-lib-btn cursor-pointer"
+                                onClick={() => showInFolder(folder)}
+                            >
+                                {t("library.materials.menu.showInFolder")}
+                            </button>
+                        ) : null}
+                        {m.link ? (
+                            <button
+                                type="button"
+                                className="mt-lib-btn cursor-pointer"
+                                onClick={() => fireAndForget(() => copyText(m.link, "library.materials.linkCopied"))}
+                            >
+                                {t("library.materials.menu.copyLink")}
+                            </button>
+                        ) : null}
+                        {keep != null ? (
+                            <button
+                                type="button"
+                                className="mt-lib-btn cursor-pointer"
+                                onClick={() => fireAndForget(() => keepCopy(m, keep === "keepanyway"))}
+                            >
+                                {keep === "keepanyway"
+                                    ? t("library.materials.menu.keepAnyway")
+                                    : t("library.materials.menu.keepCopy", {
+                                          size: materialSizeText(m.size, locale) || "?",
+                                      })}
+                            </button>
+                        ) : null}
+                        <button
+                            type="button"
+                            className="mt-lib-btn cursor-pointer"
+                            data-testid="library-detail-delete"
+                            onClick={() => handlers.onDelete(m)}
+                        >
+                            {t("library.materials.menu.delete")}
+                        </button>
+                    </div>
+                ) : null}
+            </div>
+        </aside>
+    );
+}
+
 const ArrowMoves: Record<string, GridMove> = {
     ArrowUp: "up",
     ArrowDown: "down",
@@ -1110,6 +1493,7 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     const panels = useOpenPanels(workspaceId);
     const workspaceProjectName = useWorkspaceProjectName();
     const [selected, setSelected] = useState<string>(null);
+    const [detailOpen, setDetailOpen] = useState(false);
     const [renaming, setRenaming] = useState<string>(null);
     const [asking, setAsking] = useState<{ id: string; plan: MaterialOpen }>(null);
     const [deleting, setDeleting] = useState<string>(null);
@@ -1117,11 +1501,35 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     const listRef = useRef<HTMLDivElement>(null);
     const [rootEl, setRootEl] = useState<HTMLDivElement>(null);
     const cards = useWideEnough(rootEl, MaterialsCardsMinWidth);
-    const shown = useMemo(() => filterMaterials(view?.materials, query), [view, query]);
+    const detailRoom = useWideEnough(rootEl, MaterialsDetailMinWidth);
+    // The default is always the workspace's project; the choice lasts while the section stays open.
+    const [scopeChoice, setScopeChoice] = useState<MaterialsScope>(ActiveScope);
+    const workspace = useAtomValue(atoms.workspace);
+    const allProjects = useMaterialsAllProjects(workspaceId, workspace ? readWorkspaceProject(workspace).dir : "");
+    const activeKey = view?.project?.key ?? "";
+    const others = useMemo(
+        () => otherProjects(allProjects?.projects, allProjects?.materials, activeKey),
+        [allProjects, activeKey]
+    );
+    const scope = validScope(scopeChoice, others, activeKey);
+    const scopeKey = scope.kind === "project" ? scope.key : "";
+    const scoped = useMemo(
+        () =>
+            scope.kind === "active"
+                ? view?.materials
+                : materialsInScope(
+                      allProjects?.materials,
+                      { kind: scope.kind, key: scopeKey } as MaterialsScope,
+                      activeKey
+                  ),
+        [view, allProjects, scope.kind, scopeKey, activeKey]
+    );
+    const shown = useMemo(() => filterMaterials(scoped, query), [scoped, query]);
     const groups = useMemo(() => groupMaterials(shown, Date.now(), locale), [shown, locale]);
     const order = groups.flatMap((g) => g.items);
     // The first row stands selected until the developer picks another.
     const current = order.find((m) => m.id === selected) ?? order[0] ?? null;
+    const detail = detailOpen && detailRoom && cards && current != null;
     if (failed && view == null) {
         return (
             <div className="mt-lib-empty" data-testid="library-materials-failed">
@@ -1133,9 +1541,19 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     if (view == null) {
         return null;
     }
-    const noProject = view.project?.key === MaterialsNoProject;
+    const noProject = activeKey === MaterialsNoProject;
     const named = materialsProjectName(workspaceProjectName, view.project);
     const projectName = noProject ? t("library.materials.noProject") : named;
+    const activeLabel =
+        noProject || !projectName
+            ? projectName || t("library.materials.thisProjectUnnamed")
+            : t("library.materials.thisProject", { name: projectName });
+    const projectLabelOf = (m: Material): string =>
+        m.project === MaterialsNoProject
+            ? t("library.materials.noProject")
+            : materialProjectName(m, activeKey, named, allProjects?.projects) || m.project.slice(0, 6);
+    const projectLabel = (m: Material): string => (scope.kind === "all" ? projectLabelOf(m) : undefined);
+    const scopeEmpty = (scoped?.length ?? 0) === 0;
     const focusRow = (id: string) =>
         requestAnimationFrame(() =>
             listRef.current?.querySelector<HTMLElement>(`[data-material-id="${CSS.escape(id)}"]`)?.focus()
@@ -1209,6 +1627,34 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
             handlers.onOpen(current, materialOpenPlan(current));
         }
     };
+    const asksFor = (m: Material) => (
+        <>
+            {asking?.id === m.id ? (
+                <WhereAsk
+                    m={m}
+                    plan={asking.plan}
+                    onCancel={() => {
+                        setAsking(null);
+                        focusRow(m.id);
+                    }}
+                />
+            ) : null}
+            {deleting === m.id ? (
+                <DeleteAsk
+                    m={m}
+                    onCancel={() => {
+                        setDeleting(null);
+                        focusRow(m.id);
+                    }}
+                    onConfirm={() => {
+                        setDeleting(null);
+                        fireAndForget(() => deleteCopy(m));
+                    }}
+                />
+            ) : null}
+        </>
+    );
+    const onlyActiveEmpty = scopeEmpty && scope.kind === "active";
     return (
         <div
             ref={setRootEl}
@@ -1216,13 +1662,25 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
             data-testid="library-materials"
             data-project={view.project?.key}
             data-layout={cards ? "cards" : "rows"}
+            data-scope={scope.kind}
+            data-detail={detail ? "open" : "closed"}
         >
-            <div className="flex items-center gap-1.5">
-                <div className="mt-lib-mat-scope" data-testid="library-materials-scope">
-                    {noProject || !projectName
-                        ? projectName || t("library.materials.thisProjectUnnamed")
-                        : t("library.materials.thisProject", { name: projectName })}
-                </div>
+            <ScopeBar
+                scope={scope}
+                onScope={(next) => {
+                    setScopeChoice(next);
+                    setSelected(null);
+                    setAsking(null);
+                    setDeleting(null);
+                    setRenaming(null);
+                }}
+                activeLabel={activeLabel}
+                activeCount={view.materials?.length ?? 0}
+                allCount={allProjects?.materials?.length ?? view.materials?.length ?? 0}
+                noneCount={materialsInScope(allProjects?.materials, { kind: "none" }, activeKey).length}
+                withNone={!noProject}
+                others={others}
+            >
                 {!noProject ? (
                     <button
                         type="button"
@@ -1235,19 +1693,22 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
                         <i className={makeIconClass("ellipsis", true)} aria-hidden />
                     </button>
                 ) : null}
-            </div>
+            </ScopeBar>
             <RecoverStatus state={recover} onDismiss={dismissRecover} />
             {shown.length === 0 ? (
                 <div className="mt-lib-empty" data-testid="library-materials-empty">
                     <b>
                         {t(
-                            (view.materials?.length ?? 0) === 0
+                            onlyActiveEmpty
                                 ? "library.materials.emptyTitle"
-                                : "library.nothingFound"
+                                : scopeEmpty
+                                  ? "library.materials.scopeEmptyTitle"
+                                  : "library.nothingFound"
                         )}
                     </b>
-                    {(view.materials?.length ?? 0) === 0 ? <span>{t("library.materials.empty")}</span> : null}
-                    {(view.materials?.length ?? 0) === 0 && !noProject ? (
+                    {onlyActiveEmpty ? <span>{t("library.materials.empty")}</span> : null}
+                    {scopeEmpty && !onlyActiveEmpty ? <span>{t("library.materials.scopeEmpty")}</span> : null}
+                    {onlyActiveEmpty && !noProject ? (
                         <>
                             <span>{t("library.materials.recover.hint")}</span>
                             <button
@@ -1264,82 +1725,83 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
                     ) : null}
                 </div>
             ) : (
-                <div
-                    ref={listRef}
-                    className="flex flex-col gap-0.5"
-                    role="listbox"
-                    aria-label={t("library.sections.materials.title")}
-                    onKeyDown={onListKey}
-                >
-                    {groups.map((g) => (
-                        <div
-                            key={g.key}
-                            role="group"
-                            aria-label={g.labelKey ? t(`library.materials.day.${g.labelKey}`) : g.label}
-                        >
-                            <div className="mt-lib-day">
-                                {g.labelKey ? t(`library.materials.day.${g.labelKey}`) : g.label}
-                            </div>
-                            <div className={cards ? "mt-lib-cards" : "contents"}>
-                                {g.items.map((m) => {
-                                    const asks = (
-                                        <>
-                                            {asking?.id === m.id ? (
-                                                <WhereAsk
-                                                    m={m}
-                                                    plan={asking.plan}
-                                                    onCancel={() => {
-                                                        setAsking(null);
-                                                        focusRow(m.id);
-                                                    }}
-                                                />
-                                            ) : null}
-                                            {deleting === m.id ? (
-                                                <DeleteAsk
-                                                    m={m}
-                                                    onCancel={() => {
-                                                        setDeleting(null);
-                                                        focusRow(m.id);
-                                                    }}
-                                                    onConfirm={() => {
-                                                        setDeleting(null);
-                                                        fireAndForget(() => deleteCopy(m));
-                                                    }}
-                                                />
-                                            ) : null}
-                                        </>
-                                    );
-                                    const props = {
-                                        m,
-                                        timeOnly: g.timeOnly,
-                                        selected: m.id === current?.id,
-                                        renaming: renaming === m.id,
-                                        asked: asking?.id === m.id || deleting === m.id,
-                                        open: findOpenPanel(panels, m) as ShownPanel,
-                                        handlers,
-                                        onSelect: () => setSelected(m.id),
-                                        onRenameDone: () => {
-                                            setRenaming(null);
-                                            focusRow(m.id);
-                                        },
-                                    };
-                                    if (cards) {
+                <div className={cn("mt-lib-mat-main", detail && "has-detail")}>
+                    <div
+                        ref={listRef}
+                        className="mt-lib-mat-list flex flex-col gap-0.5"
+                        role="listbox"
+                        aria-label={t("library.sections.materials.title")}
+                        onKeyDown={onListKey}
+                    >
+                        {groups.map((g) => (
+                            <div
+                                key={g.key}
+                                role="group"
+                                aria-label={g.labelKey ? t(`library.materials.day.${g.labelKey}`) : g.label}
+                            >
+                                <div className="mt-lib-day">
+                                    {g.labelKey ? t(`library.materials.day.${g.labelKey}`) : g.label}
+                                </div>
+                                <div className={cards ? "mt-lib-cards" : "contents"}>
+                                    {g.items.map((m) => {
+                                        // The panel carries the questions and the title field of the material it shows.
+                                        const inPanel = detail && m.id === current?.id;
+                                        const props = {
+                                            m,
+                                            timeOnly: g.timeOnly,
+                                            selected: m.id === current?.id,
+                                            renaming: renaming === m.id && !inPanel,
+                                            asked: asking?.id === m.id || deleting === m.id,
+                                            open: findOpenPanel(panels, m) as ShownPanel,
+                                            handlers,
+                                            projectLabel: projectLabel(m),
+                                            onSelect: () => {
+                                                setSelected(m.id);
+                                                setDetailOpen(true);
+                                            },
+                                            onRenameDone: () => {
+                                                setRenaming(null);
+                                                focusRow(m.id);
+                                            },
+                                        };
+                                        if (cards) {
+                                            return (
+                                                <MaterialCard key={m.id} {...props}>
+                                                    {inPanel ? null : asksFor(m)}
+                                                </MaterialCard>
+                                            );
+                                        }
                                         return (
-                                            <MaterialCard key={m.id} {...props}>
-                                                {asks}
-                                            </MaterialCard>
+                                            <div key={m.id} className="flex flex-col">
+                                                <MaterialRow {...props} />
+                                                {asksFor(m)}
+                                            </div>
                                         );
-                                    }
-                                    return (
-                                        <div key={m.id} className="flex flex-col">
-                                            <MaterialRow {...props} />
-                                            {asks}
-                                        </div>
-                                    );
-                                })}
+                                    })}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
+                    {detail ? (
+                        <MaterialDetail
+                            key={current.id}
+                            m={current}
+                            open={findOpenPanel(panels, current) as ShownPanel}
+                            handlers={handlers}
+                            projectName={projectLabelOf(current)}
+                            renaming={renaming === current.id}
+                            onRenameDone={() => {
+                                setRenaming(null);
+                                focusRow(current.id);
+                            }}
+                            onClose={() => {
+                                setDetailOpen(false);
+                                focusRow(current.id);
+                            }}
+                        >
+                            {asking?.id === current.id || deleting === current.id ? asksFor(current) : null}
+                        </MaterialDetail>
+                    ) : null}
                 </div>
             )}
         </div>

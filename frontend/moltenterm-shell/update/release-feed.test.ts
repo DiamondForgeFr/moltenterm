@@ -8,16 +8,21 @@ import {
     dueForCheck,
     feedReleasesOf,
     GithubRelease,
+    isJustNow,
     isNewerRelease,
+    JustNowMs,
     notesAsText,
     pickReleaseOffer,
+    ReleaseCheck,
     ReleaseCheckIntervalMs,
     releaseFeedEnabled,
+    releaseFeedOverride,
     releaseFeedUrl,
     ReleaseNotesMaxChars,
     releaseNotesOf,
     releaseNotificationTitle,
     ReleaseRetryIntervalMs,
+    updateCheckStateOf,
 } from "./release-feed";
 
 const Rules = { tagprefix: "v", firstpublic: "1.0.0" };
@@ -207,5 +212,54 @@ describe("release notification (#188)", () => {
             Rules
         );
         expect(offer.tag).toBe("v1.0.1");
+    });
+});
+
+describe("Check for updates now (#1806)", () => {
+    const Loopback = "http://127.0.0.1:9/feed.json";
+
+    it("is the loopback feed of a test instance only, the override that lets a dev build check", () => {
+        expect(releaseFeedOverride({ MOLTENTERM_BACKGROUND: "1", MOLTENTERM_RELEASE_FEED_URL: Loopback })).toBe(
+            Loopback
+        );
+        expect(releaseFeedOverride({ MOLTENTERM_RELEASE_FEED_URL: Loopback })).toBeNull();
+        expect(
+            releaseFeedOverride({ MOLTENTERM_BACKGROUND: "1", MOLTENTERM_RELEASE_FEED_URL: "https://x.example/f" })
+        ).toBeNull();
+        expect(releaseFeedOverride({ MOLTENTERM_BACKGROUND: "1" })).toBeNull();
+        expect(releaseFeedOverride(undefined)).toBeNull();
+    });
+
+    it("enables a dev build only with the test override; otherwise the release channels of a packaged build", () => {
+        const env = { MOLTENTERM_BACKGROUND: "1", MOLTENTERM_RELEASE_FEED_URL: Loopback };
+        expect(releaseFeedEnabled("dev", false, env)).toBe(true);
+        expect(releaseFeedEnabled("dev", false)).toBe(false);
+        expect(releaseFeedEnabled("gold", true, env)).toBe(true);
+        expect(releaseFeedEnabled("gold", true)).toBe(false);
+        expect(releaseFeedEnabled("public", true)).toBe(true);
+    });
+
+    it("tells the result states apart: disabled, an error, a release out, the latest version", () => {
+        expect(updateCheckStateOf({ enabled: false, version: "1.0.0-7" })).toEqual({ state: "disabled" });
+        const failed: ReleaseCheck = { enabled: true, error: "GitHub answered 503", checkedat: 5 };
+        expect(updateCheckStateOf(failed)).toEqual({ state: "error", error: "GitHub answered 503" });
+        const offer = { tag: "v1.0.0-8", version: "1.0.0-8", url: "https://x", notes: "", publishedat: "" };
+        expect(updateCheckStateOf({ enabled: true, offer, checkedat: 5, version: "1.0.0-7" })).toEqual({
+            state: "available",
+            offer,
+        });
+        expect(updateCheckStateOf({ enabled: true, checkedat: 9, version: "1.0.0-7" })).toEqual({
+            state: "latest",
+            version: "1.0.0-7",
+            checkedat: 9,
+        });
+    });
+
+    it("reads 'just now' for a check of the last minute, and a check made in the future too", () => {
+        const at = 1_000_000;
+        expect(isJustNow(at, at + JustNowMs - 1)).toBe(true);
+        expect(isJustNow(at, at + JustNowMs)).toBe(false);
+        expect(isJustNow(at, at - 5_000)).toBe(true);
+        expect(isJustNow(0, 1)).toBe(false);
     });
 });

@@ -44,6 +44,7 @@
     "appMenu": {
         "about": "À propos de {app}",
         "gettingStarted": "Premiers pas",
+        "checkUpdates": "Rechercher une mise à jour maintenant",
         "settings": "Réglages…",
         "safeModeRestart": "Redémarrer en mode sans échec",
         "safeModeLeave": "Redémarrer normalement",
@@ -417,6 +418,8 @@
             "gettingStartedDetail": "votre agent, un premier morph, votre projet",
             "sessions": "Sessions",
             "sessionsDetail": "terminaux et agents encore en cours, locaux et SSH",
+            "checkUpdates": "Rechercher une mise à jour maintenant",
+            "checkUpdatesDetail": "interroge GitHub maintenant, même si elle a été faite aujourd'hui",
             "settings": "Réglages",
             "shortcuts": "Raccourcis clavier",
             "agentCopy": "Copier la dernière réponse de {agent}",
@@ -445,6 +448,7 @@
             "editWorkspace": "espace de travail, renommer, icône, couleur, réglages, supprimer, réinitialiser",
             "switchWorkspace": "espace de travail",
             "gettingStarted": "prise en main, configuration, bienvenue, visite, premier lancement",
+            "checkUpdates": "mise à jour, mettre à jour, rechercher, version, nouvelle version, publication",
             "sessions": "sessions, durables, en cours, agents, ssh, détachées, tâches, processus",
             "settings": "configuration, préférences, paramètres, options",
             "shortcuts": "touches, raccourcis, aide, aide-mémoire",
@@ -542,6 +546,33 @@
         "workspaceSheet": {
             "text": "Le dossier de travail et le projet de l'espace « {name} » se règlent dans sa fiche.",
             "open": "Modifier dans l'espace"
+        },
+        "bookmarks": {
+            "title": "Favoris",
+            "hint": "Les pages web que chaque projet garde dans le panneau de page web. Les agents d'un projet lisent ses favoris.",
+            "noProject": "Cet espace de travail n'a pas encore de projet : les favoris appartiennent à un projet.",
+            "currentProject": "affiché maintenant",
+            "empty": "Aucun favori dans ce projet pour l'instant.",
+            "add": "Ajouter un favori",
+            "newFolder": "Nouveau dossier",
+            "newFolderName": "Nom du dossier",
+            "createFolder": "Créer",
+            "edit": "Modifier",
+            "editNamed": "Modifier {title}",
+            "moveTo": "Déplacer vers…",
+            "moveToNamed": "Déplacer {title} vers un dossier",
+            "moveRoot": "Le projet, hors de tout dossier",
+            "copyTo": "Copier vers le projet…",
+            "copyToNamed": "Copier {title} vers un autre projet",
+            "delete": "Supprimer",
+            "confirmDelete": "Supprimer ? Cliquez encore",
+            "deleteNamed": "Supprimer {title}",
+            "renameFolder": "Renommer",
+            "renameFolderNamed": "Renommer le dossier {name}",
+            "deleteFolder": "Supprimer le dossier",
+            "deleteFolderTitle": "Supprimer le dossier {name}. Ses favoris restent dans le projet.",
+            "confirmDeleteFolder": "Supprimer le dossier ? Cliquez encore",
+            "save": "Enregistrer"
         },
         "error": {
             "notSaved": "Cette valeur n'a pas été enregistrée. Vérifiez settings.json dans Avancé.",
@@ -2143,6 +2174,19 @@
             "buttonTitle": "MoltenTerm {version} est disponible : ouvrez sa page de version pour le télécharger",
             "button": "{version} disponible"
         },
+        "check": {
+            "button": "Rechercher une mise à jour maintenant",
+            "checking": "Recherche d'une mise à jour…",
+            "installed": "Version installée {version}",
+            "lastChecked": "Dernière vérification {when}",
+            "never": "Jamais vérifiée",
+            "now": "à l'instant",
+            "checkedAgo": "vérifiée {when}",
+            "latest": "Vous avez la dernière version ({version}) · {checked}",
+            "disabled": "Cette version ne recherche pas de mise à jour.",
+            "error": "GitHub n'a pas répondu, réessayez",
+            "retry": "Réessayer"
+        },
         "dialog": {
             "title": "Une nouvelle gold de MoltenTerm est prête",
             "built": "{label} · compilée le {date}",
@@ -2179,6 +2223,59 @@
             "copyLink": "Copier le lien",
             "close": "Fermer",
             "closeOthers": "Fermer les autres"
+        },
+        "bookmarks": {
+            "button": "Favoris",
+            "buttonTitle": "Favoris de {project}",
+            "menu": {
+                "project": "Favoris de {project}",
+                "empty": "Aucun favori dans ce projet pour l'instant",
+                "noProject": "Les favoris appartiennent à un projet : liez-en un à cet espace de travail d'abord",
+                "bookmarkPage": "Ajouter cette page aux favoris…",
+                "editBookmark": "Modifier ce favori…",
+                "manage": "Gérer les favoris…"
+            },
+            "dialog": {
+                "titleAdd": "Ajouter cette page aux favoris",
+                "titleNew": "Ajouter un favori",
+                "titleEdit": "Modifier le favori",
+                "subtitle": "Dans le projet {project}",
+                "address": "Adresse",
+                "title": "Titre",
+                "description": "Description",
+                "descriptionHint": "À quoi sert cette page. Les agents de ce projet la lisent.",
+                "descriptionPlaceholder": "Par exemple : le site de recette, pour vérifier un changement avant sa livraison",
+                "folder": "Dossier",
+                "folderNone": "Dans le projet, hors de tout dossier",
+                "folderNew": "Nouveau dossier…",
+                "newFolderName": "Nom du nouveau dossier",
+                "alsoAdd": "Ajouter aussi à un autre projet",
+                "alsoAddHint": "Une copie séparée dans chaque projet que vous cochez. Rien n'est partagé de lui-même.",
+                "alreadyThere": "déjà présent",
+                "add": "Ajouter le favori",
+                "save": "Enregistrer",
+                "cancel": "Annuler"
+            },
+            "problem": {
+                "noAddress": "Saisissez l'adresse de la page.",
+                "notWeb": "Seules les adresses web (http ou https) peuvent être ajoutées aux favoris.",
+                "notAddress": "Ce n'est pas une adresse web.",
+                "credentials": "Retirez le nom d'utilisateur et le mot de passe de l'adresse : les agents du projet lisent les favoris.",
+                "addressTooLong": "Cette adresse est trop longue ({max} caractères au plus).",
+                "alreadyThere": "Cette adresse est déjà dans les favoris de ce projet.",
+                "tooMany": "Ce projet a déjà {max} favoris, le maximum conservé.",
+                "tooManyFolders": "Ce projet a déjà {max} dossiers, le maximum conservé.",
+                "titleTooLong": "Le titre est trop long ({max} caractères au plus).",
+                "descriptionTooLong": "La description est trop longue ({max} caractères au plus).",
+                "noFolderName": "Nommez le dossier.",
+                "folderNameTooLong": "Le nom du dossier est trop long ({max} caractères au plus).",
+                "folderTaken": "Ce projet a déjà un dossier de ce nom.",
+                "gone": "Ce favori ou ce dossier n'existe plus.",
+                "notSaved": "Les favoris n'ont pas pu être enregistrés. Réessayez.",
+                "sameProject": "Choisissez un autre projet.",
+                "alsoTooMany": "{project} a déjà {max} favoris, le maximum conservé : rien n'a été enregistré.",
+                "alsoTooManyFolders": "{project} a déjà {max} dossiers, le maximum conservé : rien n'a été enregistré."
+            }
         },
         "error": {
             "dns": "L'adresse est introuvable. Vérifiez qu'elle ne contient pas de faute de frappe.",
@@ -5981,6 +6078,9 @@
         "peek": {
             "show": "Afficher {title}"
         },
+        "endSlot": {
+            "add": "Ajouter un panneau ici"
+        },
         "pin": {
             "pinBeside": "Épingler à côté",
             "pinStacked": "Épingler dans la première colonne",
@@ -6084,6 +6184,8 @@
     "reviewsAgents": {
         "agent": "Agent",
         "background": "Agent en arrière-plan",
+        "busyOn": "occupé sur #{number}",
+        "busyElsewhere": "occupé ailleurs",
         "state": {
             "working": "au travail",
             "waiting": "vous attend",
@@ -7090,6 +7192,7 @@
                 "ciRunning": "CI en cours",
                 "mergeChecking": "GitHub vérifie la fusion",
                 "ready": "Prête à fusionner",
+                "readyReview": "Prête · à vous de relire et fusionner",
                 "batch": {
                     "checking": "Relue sur GitHub avant sa fusion",
                     "rebasing": "{name} la rebase sur {base}",
@@ -8378,6 +8481,22 @@
         }
     },
     "server": {
+        "remoteask": {
+            "readTitle": "Un serveur veut lire un fichier de cet ordinateur",
+            "read": "{server} veut lire {path} sur cet ordinateur.",
+            "writeTitle": "Un serveur veut écrire un fichier sur cet ordinateur",
+            "write": "{server} veut écrire {path} sur cet ordinateur.",
+            "connectTitle": "Un serveur veut que cet ordinateur se connecte à un autre serveur",
+            "connect": "{server} veut que cet ordinateur ouvre une connexion vers {target}.",
+            "readSensitive": "{server} veut lire {path} sur cet ordinateur. Cet emplacement contient des identifiants ou des réglages qui peuvent lancer des programmes.",
+            "writeSensitive": "{server} veut écrire {path} sur cet ordinateur. Cet emplacement contient des identifiants ou des réglages qui peuvent lancer des programmes.",
+            "rememberRead": "Retenir jusqu'au redémarrage de MoltenTerm (Autoriser : {server} peut lire les fichiers de {folder} ; Refuser : refuser tout ce que {server} demande)",
+            "rememberWrite": "Retenir jusqu'au redémarrage de MoltenTerm (Autoriser : {server} peut écrire des fichiers dans {folder} ; Refuser : refuser tout ce que {server} demande)",
+            "rememberConnect": "Retenir jusqu'au redémarrage de MoltenTerm (Autoriser : {server} peut connecter cet ordinateur à {target} ; Refuser : refuser tout ce que {server} demande)",
+            "rememberDeny": "Si je refuse, refuser tout ce que {server} demande jusqu'au redémarrage de MoltenTerm (cet emplacement est demandé à chaque fois)",
+            "allow": "Autoriser",
+            "deny": "Refuser"
+        },
         "agentHold": {
             "fixing": "résout ce qui bloque #{number}",
             "ci": "attend la CI de #{number}",
@@ -9690,7 +9809,7 @@
             "renameTitle": "Renommer",
             "iconTitle": "Icône de « {name} »",
             "iconChoice": "Icône {icon}",
-            "panelIcons": "Icônes des panneaux",
+            "panelIcons": "Ce que la vue montre",
             "copyName": "{name} (copie)",
             "duplicated": "« {name} » créée : même configuration",
             "reordered": "Ordre modifié",
@@ -9978,6 +10097,21 @@
             "thisProject": "Ce projet · {name}",
             "thisProjectUnnamed": "Ce projet",
             "noProject": "Sans projet",
+            "scope": {
+                "label": "Matériaux de",
+                "other": "Un autre projet",
+                "all": "Tous les projets",
+                "none": "Sans projet",
+                "pick": "Choisir un projet",
+                "noOther": "Aucun autre projet n'a encore de matériaux."
+            },
+            "scopeEmptyTitle": "Rien dans cette sélection",
+            "scopeEmpty": "Aucun matériau de cette sélection ne correspond. Choisissez Tous les projets pour les voir tous.",
+            "projectChip": "Produit dans {name}",
+            "detail": {
+                "label": "Matériau sélectionné",
+                "close": "Fermer l'aperçu"
+            },
             "emptyTitle": "Aucun matériau pour l'instant",
             "empty": "Ce qu'un agent produit hors du dépôt et vous montre (une page publiée, un document, une image, un lien qu'il nomme) est gardé ici, par projet.",
             "failedTitle": "Les matériaux ne sont pas disponibles",

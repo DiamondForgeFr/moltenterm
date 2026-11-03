@@ -37,6 +37,7 @@ import {
 } from "../panel-size/panel-size-store";
 import { showToast } from "../toast-store";
 import { gestureStepEvent, GestureSteps, initialGestureSteps } from "../wheel-gesture";
+import { isAgentPagePanel } from "./carpet-agent-page";
 import { closeAnchorColumn } from "./carpet-close";
 import {
     CarpetGroup,
@@ -50,6 +51,7 @@ import {
 import {
     canPinBeside,
     CarpetColumnGapPx,
+    carpetColumnHasHandle,
     carpetColumnKind,
     carpetColumnRect,
     CarpetLayout,
@@ -1281,8 +1283,9 @@ export class View360Model {
         return this.fixedNoRoom(sideBySide[sideBySide.length - 1]);
     }
 
-    // The root's handles in 360 view: the fixed zone's grip, then one on the right edge of every carpet column. A
-    // vertical stack alone keeps its own handles beside the grip.
+    // The root's handles in 360 view: the fixed zone's grip, then one on the right edge of every carpet column that
+    // has something after it (carpetColumnHasHandle, #1836). A vertical stack alone keeps its own handles beside the
+    // grip.
     rootResizeHandles(
         rootNode: LayoutNode,
         handleSizePx: number,
@@ -1333,6 +1336,9 @@ export class View360Model {
                 });
             });
         layout.columns.forEach((column, i) => {
+            if (!carpetColumnHasHandle(layout, i)) {
+                return;
+            }
             const rect = carpetColumnRect(layout, column);
             const dims: Rect = {
                 top: rect.top,
@@ -1428,8 +1434,9 @@ export class View360Model {
     }
 
     // Called once the layout has placed newly added blocks: the carpet scrolls to the last one laid on it.
-    // Under a 360 × N only a panel that took the focus is shown (a page opened from a page): one opened without it (an
-    // agent's page) waits on the carpet and what the developer looks at stays (FR-SHELL-123-AC11).
+    // Under a 360 × N only a panel that took the focus is shown (a page opened from a page), and the page an agent
+    // opens through the molten-browser server, which the developer is meant to see (#1812, FR-SHELL-123-AC11): any
+    // other panel opened without the focus waits on the carpet and what the developer looks at stays.
     onBlocksAdded(blockIds: string[]): void {
         if (!blockIds?.length) {
             return;
@@ -1438,6 +1445,11 @@ export class View360Model {
         if (globalStore.get(this.shownPlacesAtom) != null) {
             const focusedBlockId = globalStore.get(this.layoutModel.focusedNode)?.data?.blockId;
             if (focusedBlockId !== last) {
+                fireAndForget(async () => {
+                    if (await isAgentPagePanel(last)) {
+                        this.revealBlock(last);
+                    }
+                });
                 return;
             }
         }
@@ -1694,7 +1706,8 @@ export class View360Model {
             return true;
         } else {
             const column = layout.columns[handle.parentIndex - 1];
-            if (column == null) {
+            // A handle drawn before the carpet changed may name what is now the last column, which has none (#1836).
+            if (column == null || !carpetColumnHasHandle(layout, handle.parentIndex - 1)) {
                 return true;
             }
             const columnNode = findNode(rootNode, column.nodeId);

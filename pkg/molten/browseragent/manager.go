@@ -50,6 +50,8 @@ type agentTab struct {
 	action   string
 	actionTs int64
 	cue      *ActionCue
+	// shownTs: when the agent last put the page in front of the developer (Unix ms), see PanelAgentTab.ShownTs.
+	shownTs int64
 	// viewport is the size the resize tool emulates, until control ends.
 	viewport *Viewport
 	// download is the latest download confirmation of the tab, which the call that started it waits for.
@@ -571,6 +573,7 @@ func (m *Manager) panelState(panelId string) PanelState {
 			Viewport:     t.viewport,
 			Engaged:      t.engaged,
 			Since:        t.createdAt.UnixMilli(),
+			ShownTs:      t.shownTs,
 		})
 	}
 	sort.Slice(rtn.Tabs, func(i, j int) bool { return rtn.Tabs[i].BrowserTabId < rtn.Tabs[j].BrowserTabId })
@@ -612,7 +615,7 @@ func (m *Manager) addTab(sessionId string, key TabKey, origin string, action str
 	}
 	m.nextTabId++
 	now := m.now()
-	s.tabs[m.nextTabId] = &agentTab{
+	t := &agentTab{
 		id:         m.nextTabId,
 		key:        key,
 		origin:     origin,
@@ -625,6 +628,11 @@ func (m *Manager) addTab(sessionId string, key TabKey, origin string, action str
 		controlled: origin == OriginOpened,
 		calls:      make(map[int64]context.CancelFunc),
 	}
+	// A tab the agent opens is a page it shows; a tab the user shared is already in front of them.
+	if origin == OriginOpened {
+		t.shownTs = now.UnixMilli()
+	}
+	s.tabs[m.nextTabId] = t
 	m.owners[key] = sessionId
 	return m.nextTabId
 }
@@ -807,6 +815,25 @@ func (m *Manager) setAction(sessionId string, tabId int64, action string, cue *A
 	t.action = action
 	t.actionTs = m.now().UnixMilli()
 	t.cue = cue
+	return t.key.PanelId
+}
+
+// markShown tells the panel the agent is putting the tab's page in front of the developer (tabs_create, navigate): a
+// panel off-screen on the 360 carpet scrolls into view (#1812). It is published before the site check, whose question
+// is asked in that panel.
+func (m *Manager) markShown(sessionId string, tabId int64) {
+	m.publishPanel(m.stampShown(sessionId, tabId))
+}
+
+// stampShown keeps ShownTs increasing, so that two pages shown within the same millisecond still differ.
+func (m *Manager) stampShown(sessionId string, tabId int64) string {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	t := m.sessions[sessionId].tabOrNil(tabId)
+	if t == nil {
+		return ""
+	}
+	t.shownTs = max(m.now().UnixMilli(), t.shownTs+1)
 	return t.key.PanelId
 }
 

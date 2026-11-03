@@ -304,7 +304,7 @@ func (conn *SSHConn) OpenDomainSocketListener(ctx context.Context) error {
 		if monitor != nil {
 			updateCallback = monitor.UpdateLastActivityTime
 		}
-		wshutil.RunWshRpcOverListener(listener, updateCallback)
+		wshutil.RunConnWshRpcOverListener(listener, conn.GetName(), updateCallback) // MOLTENTERM-PATCH (#1831)
 	}()
 	return nil
 }

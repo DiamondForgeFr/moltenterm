@@ -155,7 +155,7 @@ declare global {
         onQuicklook: (filePath: string) => void; // quicklook
         openNativePath(filePath: string): void; // open-native-path
         revealNativePath(filePath: string): void; // reveal-native-path; MOLTENTERM-PATCH (#1575)
-        captureScreenshot(rect: Electron.Rectangle, opts?: { width?: number }): Promise<string>; // capture-screenshot; MOLTENTERM-PATCH (#1545): optional thumbnail width (a JPEG)
+        captureScreenshot(rect: Electron.Rectangle, opts?: { width?: number; flatSkipTop?: number }): Promise<string>; // capture-screenshot; MOLTENTERM-PATCH (#1545, #1814): optional thumbnail width (a JPEG), and the share of the top left out when a frame of one flat colour is refused (the answer is then "")
         setKeyboardChordMode: () => void; // set-keyboard-chord-mode
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage
         setWaveAIOpen: (isOpen: boolean) => void; // set-waveai-open

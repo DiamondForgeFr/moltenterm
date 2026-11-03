@@ -479,6 +479,24 @@ export function carpetInsertPlace(
     return { targetNodeId: onCarpet[onCarpet.length - 1].nodeId, position: "after" };
 }
 
+// Whether a region follows the carpet in the view. None does yet (a layout with a panel after the 360 zone does not
+// exist), so nothing lies beyond the last carpet column for its right edge to resize against (#1836).
+export const RegionFollowsCarpet = false;
+
+// Whether the right edge of a carpet column carries a width handle (#1836): one between two carpet columns, and one
+// before a region that follows the carpet; never after the last column of a carpet that ends the view, where dragging
+// would only open empty space. The handle between the fixed zone and the carpet is the grip, not one of these.
+export function carpetColumnHasHandle(
+    layout: CarpetLayout,
+    index: number,
+    regionFollows: boolean = RegionFollowsCarpet
+): boolean {
+    if (layout == null || index < 0 || index >= layout.columns.length) {
+        return false;
+    }
+    return regionFollows || index < layout.columns.length - 1;
+}
+
 // The inline CSS for a node drawn on the carpet: its position follows the --mt-carpet-scroll variable, so scrolling
 // changes one property on the layout's root and nothing is rendered again; the clip cuts it at the carpet's edges
 // while leaving room for its shadow.

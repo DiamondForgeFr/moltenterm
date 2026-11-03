@@ -276,6 +276,7 @@ func (m *Manager) navigate(ctx context.Context, s sessionInfo, loc BlockLocation
 			params["url"] = target
 			action = fmt.Sprintf(actionNavigate, siteOf(target))
 		}
+		m.markShown(s.id, tabId)
 		if target != "" {
 			if err := m.ensureSite(ctx, s, tabId, key, target); err != nil {
 				return err

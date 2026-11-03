@@ -14,6 +14,7 @@ import {
 import { buildPaletteEntries, pickerPanelEntries, PickerSource } from "../palette/palette-sources";
 import { shouldOpenBlockBodyMenu } from "./split-body-menu";
 import { SplitDownLabel, SplitRightLabel, withoutSplitItems } from "./split-menu";
+import { pickerSourceMeta, SplitFromMetaKey, SplitNewPanelMetaKey } from "./split-model";
 
 const DefaultAgents = JSON.parse(
     fs.readFileSync(path.resolve(__dirname, "../../../pkg/wconfig/defaultconfig/presets/agents.json"), "utf8")
@@ -86,6 +87,27 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
             blockdef: { meta: { view: "molten-companion", "molten:companion:block": "src" } },
         });
         expect(companion.shortcut).toBe("⇧⌘J");
+    });
+
+    it("opens a new column's terminal and files in the workspace folder, on the source's connection (#1839)", () => {
+        // A carpet end or "Add a panel on the left / right": the picker's source has no folder (pickerSourceMeta), so
+        // wavesrv starts the panel in the workspace folder (FR-SHELL-009).
+        const column = {
+            view: "launcher",
+            [SplitFromMetaKey]: "src",
+            [SplitNewPanelMetaKey]: true,
+        };
+        const source: PickerSource = { ...TermSource, meta: pickerSourceMeta(column, TermSource.meta) };
+        const panels = pickerPanelEntries(DefaultWidgets, "ws", source);
+        expect(panels.find((e) => e.label === "Terminal").run).toEqual({
+            kind: "widget",
+            blockdef: { meta: { view: "term", controller: "shell", connection: "dev@box" } },
+        });
+        expect(panels.find((e) => e.label === "Files").run).toEqual({
+            kind: "widget",
+            blockdef: { meta: { view: "preview" } },
+        });
+        expect(panels.map((e) => e.label)).toContain("Companion");
     });
 
     it("offers no companion for a source that is not a terminal, and Project with or without a project", () => {

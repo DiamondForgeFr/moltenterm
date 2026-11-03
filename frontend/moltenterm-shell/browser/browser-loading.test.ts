@@ -90,4 +90,16 @@ describe("BrowserLoadModel", () => {
         m.noteStop("a");
         expect(m.get("a")).toBe(before);
     });
+
+    it("knows a page whose process is gone until it starts loading again (#1814)", () => {
+        const m = new BrowserLoadModel();
+        m.noteStart("a");
+        m.noteCrash("a");
+        expect(m.isCrashed("a")).toBe(true);
+        expect(m.isLoading("a")).toBe(false);
+        expect(m.isCrashed("b")).toBe(false);
+        m.noteStart("a");
+        expect(m.isCrashed("a")).toBe(false);
+        expect(m.isLoading("a")).toBe(true);
+    });
 });

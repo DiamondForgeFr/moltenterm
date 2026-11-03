@@ -334,7 +334,7 @@ func (conn *WslConn) StartConnServer(ctx context.Context, afterUpdate bool) (boo
 			panichandler.PanicHandler("wsl:StartConnServer:handleStdIOClient", recover())
 		}()
 		logName := fmt.Sprintf("wslconn:%s", conn.GetName())
-		wshutil.HandleStdIOClient(logName, linesChan, inputPipeWrite)
+		wshutil.HandleConnStdIOClient(logName, conn.GetName(), linesChan, inputPipeWrite) // MOLTENTERM-PATCH (#1831)
 	}()
 	conn.Infof(ctx, "connserver started, waiting for route to be registered\n")
 	regCtx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)

@@ -6,6 +6,7 @@
 // app; palette-sources.ts builds the entries and palette-actions.ts runs them.
 
 import { t } from "../i18n/i18n";
+import type { GlyphIcon } from "../sidebar/view-menu-model";
 import type { WorkspaceIconSource } from "../workspace-icon-model";
 
 // "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed. "suggestions":
@@ -42,6 +43,8 @@ export type PaletteRun =
     | { kind: "updateterminals" }
     // The shortcuts sheet (FR-SHELL-042, DS-SHELL-067).
     | { kind: "shortcuts" }
+    // Check for updates now (#1806): asks GitHub at once, whatever the day's check said.
+    | { kind: "checkupdates" }
     // The workspace's last closed pane or tab, back (#512).
     | { kind: "reopenclosed" }
     // The split placement mode on the pane the palette was opened from, or the focused one (#677).
@@ -81,8 +84,8 @@ export type PaletteEntry = {
     // In a split's picker: how to reach the entry from the keyboard ("⌘D co ↵"), and its own global shortcut.
     keyPath?: string;
     shortcut?: string;
-    // A suggestion's panels, their icons shown before its detail (FR-SHELL-138).
-    panelIcons?: string[];
+    // A suggestion's panels, their icons shown before its detail (FR-SHELL-138); a 360 carpet is a cube (#1823).
+    panelIcons?: GlyphIcon[];
     run: PaletteRun;
 };
 

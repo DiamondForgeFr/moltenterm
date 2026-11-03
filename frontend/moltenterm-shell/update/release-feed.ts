@@ -29,6 +29,10 @@ export const ReleaseCandidatesSettingKey = "moltenterm:releasecandidates";
 // must match the channel in emain/preload.ts
 export const MoltentermReleaseCheckChannel = "moltenterm-release-check";
 
+// due: the daily check when it is due (the notification's); now: asked at once, whatever the last check (#1806); read:
+// what emain remembers, with no request.
+export type ReleaseCheckMode = "due" | "now" | "read";
+
 // What the GitHub Releases API returns, reduced to what is read.
 export type GithubRelease = {
     tag_name: string;
@@ -51,6 +55,8 @@ export type ReleaseOffer = {
 export type ReleaseCheck = {
     // false for builds that never look (gold, dev, local builds).
     enabled: boolean;
+    // The version running (emain's app.getVersion()).
+    version?: string;
     offer?: ReleaseOffer;
     checkedat?: number;
     error?: string;
@@ -70,9 +76,35 @@ export type ReleaseCheckCache = {
     failed?: boolean;
 };
 
+// The feed a test instance may point at (MOLTENTERM_RELEASE_FEED_URL, http://127.0.0.1 only, with MOLTENTERM_BACKGROUND=1):
+// the instance checks it as a release build would, whatever its build. Production never sets MOLTENTERM_BACKGROUND, so
+// the override is off there (#1806).
+export function releaseFeedOverride(env: Record<string, string | undefined>): string {
+    const override = env?.MOLTENTERM_RELEASE_FEED_URL;
+    if (!override || env?.MOLTENTERM_BACKGROUND !== "1") {
+        return null;
+    }
+    try {
+        const url = new URL(override);
+        if (url.protocol === "http:" && url.hostname === "127.0.0.1") {
+            return url.toString();
+        }
+    } catch {
+        // unreadable: no override
+    }
+    return null;
+}
+
 // Only the builds made by the release workflow look: a gold updates from the local builds folder (#64), a dev or
 // local build never.
-export function releaseFeedEnabled(channel: string, isPackaged: boolean): boolean {
+export function releaseFeedEnabled(
+    channel: string,
+    isPackaged: boolean,
+    env: Record<string, string | undefined> = {}
+): boolean {
+    if (releaseFeedOverride(env) != null) {
+        return true;
+    }
     return isPackaged && (channel === "rc" || channel === "public");
 }
 
@@ -187,16 +219,9 @@ export function pickReleaseOffer(
 // point it at a feed served on this machine (MOLTENTERM_RELEASE_FEED_URL, http://127.0.0.1 only); any other override
 // is ignored.
 export function releaseFeedUrl(repoUrl: string, env: Record<string, string | undefined>): string {
-    const override = env?.MOLTENTERM_RELEASE_FEED_URL;
-    if (override && env?.MOLTENTERM_BACKGROUND === "1") {
-        try {
-            const url = new URL(override);
-            if (url.protocol === "http:" && url.hostname === "127.0.0.1") {
-                return url.toString();
-            }
-        } catch {
-            // unreadable: the real feed is used
-        }
+    const override = releaseFeedOverride(env);
+    if (override != null) {
+        return override;
     }
     const repo = new URL(repoUrl).pathname.replace(/^\/|\/$/g, "");
     return `https://api.github.com/repos/${repo}/releases?per_page=30`;
@@ -240,4 +265,31 @@ export function notesAsText(notes: string): string {
 
 export function releaseNotificationTitle(offer: ReleaseOffer): string {
     return `MoltenTerm ${offer.version} is available`;
+}
+
+// What the Check for updates action shows (#1806): a build that never looks, a failed request, a release out, or the
+// latest version with the time of the check. The error takes precedence: the offer may come from an earlier check.
+export type UpdateCheckState =
+    | { state: "disabled" }
+    | { state: "error"; error: string }
+    | { state: "available"; offer: ReleaseOffer }
+    | { state: "latest"; version: string; checkedat: number };
+
+export function updateCheckStateOf(check: ReleaseCheck): UpdateCheckState {
+    if (!check?.enabled) {
+        return { state: "disabled" };
+    }
+    if (check.error) {
+        return { state: "error", error: check.error };
+    }
+    if (check.offer != null) {
+        return { state: "available", offer: check.offer };
+    }
+    return { state: "latest", version: check.version ?? "", checkedat: check.checkedat ?? 0 };
+}
+
+// A check made a moment ago reads "just now"; an older one is shown by its age.
+export const JustNowMs = 60 * 1000;
+export function isJustNow(checkedat: number, now: number): boolean {
+    return checkedat > 0 && now - checkedat < JustNowMs;
 }

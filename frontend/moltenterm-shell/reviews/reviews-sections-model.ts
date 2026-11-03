@@ -45,7 +45,7 @@ export type CardContext = {
 
 // cardAgents: every agent of the PR's branch, and the merge queue's agent while the queue works on the PR (#1128).
 export function cardAgents(pr: ReviewPr, ctx: CardContext): AgentBarFacts[] {
-    const agents = branchAgents(ctx.upcoming, ctx.states, pr.branch);
+    const agents = branchAgents(ctx.upcoming, ctx.states, pr.branch, pr.ticket, pr.number);
     return withBatchAgent(agents, ctx.batchRun?.(pr.base), pr, ctx.states);
 }
 
@@ -80,6 +80,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         boardTurn,
         boardStatus,
         agentReadies: pr.draft && workflowTurn,
+        reviewsOnly: !pr.draft && workflowTurn,
         recentCommit: !!draft?.commitat && ctx.now - draft.commitat < DraftActiveMs,
         headFails: headStillFails(pr, agents[0] ?? null, taskState),
         rerunnable: checksOf(pr.ci, "failure").some((c) => (c.runid ?? 0) > 0),

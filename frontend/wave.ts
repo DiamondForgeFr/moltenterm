@@ -40,6 +40,7 @@ import "./moltenterm-shell/molten-button.css"; // MOLTENTERM-PATCH (#145): molte
 import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
 import { startAppTheme } from "./moltenterm-shell/app-theme"; // MOLTENTERM-PATCH (#1341)
 import { startHangReport } from "./moltenterm-shell/hang-report"; // MOLTENTERM-PATCH (#849)
+import { startCarpetThumbCleanup } from "./moltenterm-shell/view360/carpet-thumbs"; // MOLTENTERM-PATCH (#1814)
 import { startMoltentermI18n, whenMoltentermI18nReady } from "./moltenterm-shell/i18n/i18n-start"; // MOLTENTERM-PATCH (#623, #1213)
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
 import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
@@ -208,6 +209,7 @@ async function initWave(initOpts: WaveInitOpts) {
         getApi().sendLog("Error in initialization (wave.ts, loading required objects) " + e.message + "\n" + e.stack);
     }
     startHangReport(); // MOLTENTERM-PATCH (#849): long tasks to the log, the "did not respond" notification
+    startCarpetThumbCleanup(); // MOLTENTERM-PATCH (#1814): a closed panel's 360 thumbnail goes with it
     registerGlobalKeys();
     registerElectronReinjectKeyHandler();
     registerControlShiftStateUpdateHandler();

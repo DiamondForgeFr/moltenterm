@@ -154,11 +154,14 @@ func (ws *WshServer) GetMetaCommand(ctx context.Context, data wshrpc.CommandGetM
 	if obj == nil {
 		return nil, fmt.Errorf("object not found: %s", data.ORef)
 	}
-	return waveobj.GetMeta(obj), nil
+	return moltenReadMeta(ctx, data.ORef, waveobj.GetMeta(obj)) // MOLTENTERM-PATCH (#1821): a terminal reads only its own workspace's project link
 }
 
 func (ws *WshServer) UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error {
 	oref := waveobj.ORef{OType: waveobj.OType_Tab, OID: tabId}
+	if err := moltenCheckOwnWorkspace(ctx, oref, "rename a tab"); err != nil { // MOLTENTERM-PATCH (#1821)
+		return err
+	}
 	err := wstore.UpdateTabName(ctx, tabId, newName)
 	if err != nil {
 		return fmt.Errorf("error updating tab name: %w", err)
@@ -169,6 +172,9 @@ func (ws *WshServer) UpdateTabNameCommand(ctx context.Context, tabId string, new
 
 func (ws *WshServer) UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error {
 	oref := waveobj.ORef{OType: waveobj.OType_Workspace, OID: workspaceId}
+	if err := moltenCheckTabOrder(ctx, workspaceId, tabIds); err != nil { // MOLTENTERM-PATCH (#1821): a terminal only reorders its own tabs
+		return err
+	}
 	err := wcore.UpdateWorkspaceTabIds(ctx, workspaceId, tabIds)
 	if err != nil {
 		return fmt.Errorf("error updating workspace tab ids: %w", err)
@@ -182,6 +188,9 @@ func (ws *WshServer) SetMetaCommand(ctx context.Context, data wshrpc.CommandSetM
 	oref := data.ORef
 	if oref.OType == waveobj.OType_Block {
 		data.Meta = moltenFileMeta(ctx, data.Meta) // MOLTENTERM-PATCH (#1624): only a window approves a file panel outside its project
+	}
+	if err := moltenCheckMetaWrite(ctx, oref, data.Meta); err != nil { // MOLTENTERM-PATCH (#1821): the meta the window trusts is the window's
+		return err
 	}
 	err := wstore.UpdateObjectMeta(ctx, oref, data.Meta, false)
 	if err != nil {
@@ -237,6 +246,9 @@ func (ws *WshServer) CreateBlockCommand(ctx context.Context, data wshrpc.Command
 		blockDef := *data.BlockDef
 		blockDef.Meta = moltenFileMeta(ctx, blockDef.Meta)
 		data.BlockDef = &blockDef
+	}
+	if err := moltenCheckCreateBlock(ctx, tabId, data.BlockDef); err != nil { // MOLTENTERM-PATCH (#1821): a terminal opens panels in its own workspace only
+		return nil, err
 	}
 	blockData, err := wcore.CreateBlock(ctx, tabId, data.BlockDef, data.RtOpts)
 	if err != nil {
@@ -529,6 +541,9 @@ func (ws *WshServer) EventPublishCommand(ctx context.Context, data wps.WaveEvent
 	if rpcSource == "" {
 		return fmt.Errorf("no rpc source set")
 	}
+	if err := moltenCheckPublish(ctx, data.Event); err != nil { // MOLTENTERM-PATCH (#1821): only wavesrv publishes the events the window trusts
+		return err
+	}
 	if data.Sender == "" {
 		data.Sender = rpcSource
 	}
@@ -540,6 +555,9 @@ func (ws *WshServer) EventSubCommand(ctx context.Context, data wps.SubscriptionR
 	rpcSource := wshutil.GetRpcSourceFromContext(ctx)
 	if rpcSource == "" {
 		return fmt.Errorf("no rpc source set")
+	}
+	if err := moltenCheckSubscribe(ctx, data); err != nil { // MOLTENTERM-PATCH (#1821): a terminal follows only its own workspace's objects
+		return err
 	}
 	wps.Broker.Subscribe(rpcSource, data)
 	return nil
@@ -564,6 +582,9 @@ func (ws *WshServer) EventUnsubAllCommand(ctx context.Context) error {
 }
 
 func (ws *WshServer) EventReadHistoryCommand(ctx context.Context, data wshrpc.CommandEventReadHistoryData) ([]*wps.WaveEvent, error) {
+	if err := moltenCheckSubscribe(ctx, wps.SubscriptionRequest{Event: data.Event, Scopes: []string{data.Scope}}); err != nil { // MOLTENTERM-PATCH (#1821)
+		return nil, err
+	}
 	events := wps.Broker.ReadEventHistory(data.Event, data.Scope, data.MaxItems)
 	return events, nil
 }
@@ -578,7 +599,7 @@ func (ws *WshServer) SetConnectionsConfigCommand(ctx context.Context, data wshrp
 
 func (ws *WshServer) GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error) {
 	watcher := wconfig.GetWatcher()
-	return watcher.GetFullConfig(), nil
+	return moltenListedConfig(ctx, watcher.GetFullConfig()), nil // MOLTENTERM-PATCH (#1831): no tokens or key paths for a server
 }
 
 func (ws *WshServer) GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AIModeConfigUpdate, error) {
@@ -857,6 +878,9 @@ func (ws *WshServer) DebugTermCommand(ctx context.Context, data wshrpc.CommandDe
 	if data.Size <= 0 {
 		return nil, fmt.Errorf("size must be greater than 0")
 	}
+	if err := moltenCheckTermOutputRead(ctx, data.BlockId); err != nil { // MOLTENTERM-PATCH (#1832): a terminal reads only its own workspace's terminals
+		return nil, err
+	}
 	waveFile, err := filestore.WFS.Stat(ctx, data.BlockId, wavebase.BlockFile_Term)
 	if err == fs.ErrNotExist {
 		return &wshrpc.CommandDebugTermRtnData{}, nil
@@ -958,6 +982,7 @@ func (ws *WshServer) BlocksListCommand(
 			}
 		}
 	}
+	moltenListedBlocks(ctx, results) // MOLTENTERM-PATCH (#1821): a terminal reads other workspaces' blocks without their molten:* keys
 	return results, nil
 }
 
@@ -977,6 +1002,7 @@ func (ws *WshServer) WorkspaceListCommand(ctx context.Context) ([]wshrpc.Workspa
 			WorkspaceData: workspaceData,
 		})
 	}
+	moltenListedWorkspaces(ctx, rtn) // MOLTENTERM-PATCH (#1821): a terminal gets no other workspace's meta
 	return rtn, nil
 }
 
@@ -1052,6 +1078,9 @@ func (ws *WshServer) WriteAppFileCommand(ctx context.Context, data wshrpc.Comman
 func (ws *WshServer) WaveFileReadStreamCommand(ctx context.Context, data wshrpc.CommandWaveFileReadStreamData) (*wshrpc.WaveFileInfo, error) {
 	const maxStreamFileSize = 5 * 1024 * 1024
 
+	if err := moltenCheckZoneRead(ctx, data.ZoneId); err != nil { // MOLTENTERM-PATCH (#1832): a terminal reads only its own workspace's terminals
+		return nil, err
+	}
 	waveFile, err := filestore.WFS.Stat(ctx, data.ZoneId, data.Name)
 	if err != nil {
 		return nil, fmt.Errorf("error statting wavefile: %w", err)
@@ -1541,7 +1570,8 @@ func (ws *WshServer) JobCmdExitedCommand(ctx context.Context, data wshrpc.Comman
 }
 
 func (ws *WshServer) JobControllerListCommand(ctx context.Context) ([]*waveobj.Job, error) {
-	return wstore.DBGetAllObjsByType[*waveobj.Job](ctx, waveobj.OType_Job)
+	jobs, err := wstore.DBGetAllObjsByType[*waveobj.Job](ctx, waveobj.OType_Job)
+	return moltenListedJobs(ctx, jobs), err // MOLTENTERM-PATCH (#1831): a server sees its jobs only, without tokens
 }
 
 func (ws *WshServer) JobControllerDeleteJobCommand(ctx context.Context, jobId string) error {
