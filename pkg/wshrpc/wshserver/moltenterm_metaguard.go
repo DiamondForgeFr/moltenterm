@@ -5,6 +5,7 @@ package wshserver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/metaguard"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -119,6 +120,23 @@ func moltenCheckCreateBlock(ctx context.Context, tabId string, blockDef *waveobj
 		meta = blockDef.Meta
 	}
 	return metaguard.CheckCreateBlock(caller, moltenInWorkspace(ctx, caller, waveobj.MakeORef(waveobj.OType_Tab, tabId)), meta)
+}
+
+// moltenCheckTabOrder: a terminal reorders its own workspace's tabs, never adds or drops one.
+func moltenCheckTabOrder(ctx context.Context, workspaceId string, tabIds []string) error {
+	oref := waveobj.MakeORef(waveobj.OType_Workspace, workspaceId)
+	if err := moltenCheckOwnWorkspace(ctx, oref, "reorder tabs"); err != nil {
+		return err
+	}
+	caller := moltenMetaCaller(ctx, false)
+	if caller.Trusted {
+		return nil
+	}
+	ws, err := wstore.DBGet[*waveobj.Workspace](ctx, workspaceId)
+	if err != nil || ws == nil {
+		return fmt.Errorf("workspace not found: %q", workspaceId)
+	}
+	return metaguard.CheckTabOrder(caller, ws.TabIds, tabIds)
 }
 
 func moltenCheckOwnWorkspace(ctx context.Context, oref waveobj.ORef, what string) error {

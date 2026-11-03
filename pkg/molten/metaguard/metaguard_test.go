@@ -6,6 +6,7 @@ package metaguard_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -185,7 +186,19 @@ func TestTooWideProjectFolder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, folder := range []string{"/", "//", home, home + "/", home + "/."} {
+	link := filepath.Join(t.TempDir(), "root")
+	if err := os.Symlink("/", link); err != nil {
+		t.Fatal(err)
+	}
+	homeLink := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(home, homeLink); err != nil {
+		t.Fatal(err)
+	}
+	wide := []string{"/", "//", home, home + "/", home + "/.", filepath.Dir(home), link, homeLink, home + "/code/..", filepath.Join(link, filepath.Dir(home))}
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		wide = append(wide, strings.ToUpper(home), strings.ToUpper(filepath.Dir(home)))
+	}
+	for _, folder := range wide {
 		mustRefuse(t, "project folder "+folder, metaguard.CheckWrite(terminal(), own, waveobj.MetaMapType{molten.ProjectMetaKey: folder}))
 		if err := metaguard.CheckWrite(metaguard.Caller{Trusted: true}, own, waveobj.MetaMapType{molten.ProjectMetaKey: folder}); err != nil {
 			t.Errorf("the window was refused %s: %v", folder, err)
@@ -308,6 +321,31 @@ func TestReadBlockMeta(t *testing.T) {
 	}
 	if got := metaguard.ReadBlockMeta(metaguard.Caller{Trusted: true}, false, meta); len(got) != 3 {
 		t.Errorf("the window: %v", got)
+	}
+}
+
+func TestTabOrder(t *testing.T) {
+	current := []string{"t1", "t2", "t3"}
+	if err := metaguard.CheckTabOrder(terminal(), current, []string{"t3", "t1", "t2"}); err != nil {
+		t.Errorf("a reorder: %v", err)
+	}
+	refused := [][]string{
+		{"t1", "t2", "t3", "other-ws-tab"},
+		{"t1", "t2", "other-ws-tab"},
+		{"t1", "t2"},
+		{"t1", "t1", "t2"},
+		{"t1", "t2", "t3", "t3"},
+		{},
+	}
+	for _, next := range refused {
+		for _, u := range untrusted() {
+			if err := metaguard.CheckTabOrder(u.c, current, next); err == nil || !strings.HasPrefix(err.Error(), "refused: a terminal can only reorder") {
+				t.Errorf("%s set the tabs to %v: %v", u.name, next, err)
+			}
+		}
+		if err := metaguard.CheckTabOrder(metaguard.Caller{Trusted: true}, current, next); err != nil {
+			t.Errorf("the window was refused %v: %v", next, err)
+		}
 	}
 }
 
