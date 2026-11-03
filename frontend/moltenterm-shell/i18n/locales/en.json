@@ -1148,14 +1148,12 @@
             "delete": "Delete",
             "confirmDelete": "Delete? Click again",
             "deleteNamed": "Delete {title}",
-            "folder": "Folder {name}",
             "renameFolder": "Rename",
             "renameFolderNamed": "Rename the folder {name}",
             "deleteFolder": "Delete folder",
             "deleteFolderTitle": "Delete the folder {name}. Its bookmarks stay in the project.",
             "confirmDeleteFolder": "Delete folder? Click again",
-            "save": "Save",
-            "cancel": "Cancel"
+            "save": "Save"
         },
         "error": {
             "notSaved": "This value was not saved. Check settings.json under Advanced.",
