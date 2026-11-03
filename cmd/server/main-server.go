@@ -22,6 +22,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/molten"             // MOLTENTERM-PATCH (#19)
+	"github.com/wavetermdev/waveterm/pkg/molten/bookmarks"   // MOLTENTERM-PATCH (#1811)
 	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine" // MOLTENTERM-PATCH (#1624)
 	"github.com/wavetermdev/waveterm/pkg/molten/filesearch"  // MOLTENTERM-PATCH (#1625)
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"     // MOLTENTERM-PATCH (#31)
@@ -597,6 +598,7 @@ func main() {
 	wcore.StartViewPinRoute()   // MOLTENTERM-PATCH (#1184): pinned views are read and opened on a project
 	fileconfine.StartRoute()    // MOLTENTERM-PATCH (#1624): the file panels ask where a path really is
 	filesearch.StartRoute()     // MOLTENTERM-PATCH (#1625): molten files shows an agent's search in its tab's file panel
+	bookmarks.StartRoute()      // MOLTENTERM-PATCH (#1811): molten bookmarks list reads a project's web page bookmarks
 	// MOLTENTERM-PATCH (#1760): a project switch shows the project's own views; once, meta only, the views get their
 	// projects before any window shows a workspace
 	wcore.StartProjectViews()

@@ -68,6 +68,16 @@ func TestInitializeTellsEveryAgentToShowPagesInMoltenTerm(t *testing.T) {
 	}
 }
 
+// Claude Code and Codex both learn of the project's bookmarks from the molten browser server (FR-BRW-020).
+func TestAgentInstructionsMentionMoltenBookmarks(t *testing.T) {
+	for _, name := range []string{"", "Olivia"} {
+		got := AgentInstructions(name)
+		if !strings.Contains(got, "molten bookmarks list") || !strings.Contains(got, "bookmarks.md") {
+			t.Fatalf("instructions for %q do not mention molten bookmarks: %s", name, got)
+		}
+	}
+}
+
 func TestAgentToolsStayOutOfBrowserBatches(t *testing.T) {
 	if ToolNames()[ToolSendToAgent] || ToolNames()[ToolListAgents] {
 		t.Fatal("browser_batch must not run the handoff tools")

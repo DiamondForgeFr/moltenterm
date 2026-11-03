@@ -112,11 +112,18 @@ const PagesInstructions = " To show a page to the user (\"open the doc\", \"show
 	"installed <url>`). The page appears next to this terminal, in view, and the terminal keeps the keyboard focus. " +
 	"Details: pages.md in the folder `molten docs` prints."
 
+// BookmarksInstructions: the web pages the developer bookmarked for the project, with a note on each (FR-BRW-020,
+// pkg/molten/agentdocs/bookmarks.md); agents only read them.
+const BookmarksInstructions = " The developer keeps the project's useful web pages as bookmarks with a note on each: " +
+	"`molten bookmarks list [--json]` lists them (read-only); opening one goes through these browser tools. " +
+	"Details: bookmarks.md in the folder `molten docs` prints."
+
 // AgentInstructions completes the server's instructions with the agent's own first name (FR-CONT-014): Claude Code
 // puts server instructions in its system prompt, so the agent can sign its briefs and knows it is addressed.
 func AgentInstructions(firstName string) string {
 	rtn := PagesInstructions + " To hand work to another agent when the user asks (\"send this to Jérôme\"), call " +
-		"list_agents, then send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions + FilesInstructions
+		"list_agents, then send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions + FilesInstructions +
+		BookmarksInstructions
 	if firstName != "" {
 		rtn = fmt.Sprintf(" In MoltenTerm your first name is %s: the user and other agents call you by it, and handoffs you "+
 			"send are signed with it.", firstName) + rtn + SignInstructions
