@@ -52,6 +52,7 @@ import {
     canPinBeside,
     CarpetColumnGapPx,
     carpetColumnKind,
+    carpetColumnHasHandle,
     carpetColumnRect,
     CarpetLayout,
     carpetNodeTransform,
@@ -1282,8 +1283,9 @@ export class View360Model {
         return this.fixedNoRoom(sideBySide[sideBySide.length - 1]);
     }
 
-    // The root's handles in 360 view: the fixed zone's grip, then one on the right edge of every carpet column. A
-    // vertical stack alone keeps its own handles beside the grip.
+    // The root's handles in 360 view: the fixed zone's grip, then one on the right edge of every carpet column that
+    // has something after it (carpetColumnHasHandle, #1836). A vertical stack alone keeps its own handles beside the
+    // grip.
     rootResizeHandles(
         rootNode: LayoutNode,
         handleSizePx: number,
@@ -1334,6 +1336,9 @@ export class View360Model {
                 });
             });
         layout.columns.forEach((column, i) => {
+            if (!carpetColumnHasHandle(layout, i)) {
+                return;
+            }
             const rect = carpetColumnRect(layout, column);
             const dims: Rect = {
                 top: rect.top,
@@ -1701,7 +1706,8 @@ export class View360Model {
             return true;
         } else {
             const column = layout.columns[handle.parentIndex - 1];
-            if (column == null) {
+            // A handle drawn before the carpet changed may name what is now the last column, which has none (#1836).
+            if (column == null || !carpetColumnHasHandle(layout, handle.parentIndex - 1)) {
                 return true;
             }
             const columnNode = findNode(rootNode, column.nodeId);
