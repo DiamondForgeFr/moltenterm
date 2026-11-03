@@ -4,6 +4,8 @@
 package materials
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -77,5 +79,48 @@ func TestRouteCommands(t *testing.T) {
 		if !policy.Admits(cmd, term) || policy.Admits(cmd, localroute.Caller{}) {
 			t.Errorf("policy of %s", cmd)
 		}
+	}
+}
+
+// A window asking for every project gets the materials of each drawer, each naming its own (the project filter of the
+// Materials section, #1816).
+func TestListAllProjectsMaterials(t *testing.T) {
+	h := makeHarness(t)
+	l := &routeLink{r: h.r}
+	window := localroute.Caller{IsWindow: true, TabId: "tab-1"}
+	other := filepath.Join(filepath.Dir(h.project), "other")
+	os.MkdirAll(other, 0o755)
+	otherKey, otherFolder := ProjectKey(other)
+	own := h.write("own.md", "# Own")
+	foreign := h.write("foreign.md", "# Foreign")
+	if _, _, err := h.r.capture(Capture{Project: h.key(), Folder: h.project, Source: molten.MaterialSourceBrought, Path: own}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := h.r.capture(Capture{Project: otherKey, Folder: otherFolder, Source: molten.MaterialSourceBrought, Path: foreign}); err != nil {
+		t.Fatal(err)
+	}
+	out, err := l.handle(molten.MaterialsListCommand, window, molten.MaterialsRequest{WorkspaceId: "ws-1"})
+	if err != nil || len(out.(molten.MaterialsView).Materials) != 1 {
+		t.Fatalf("without All, the workspace's drawer only: %+v %v", out, err)
+	}
+	out, err = l.handle(molten.MaterialsListCommand, window, molten.MaterialsRequest{WorkspaceId: "ws-1", All: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := out.(molten.MaterialsView)
+	if view.Project.Key != h.key() || len(view.Projects) != 2 || len(view.Materials) != 2 {
+		t.Fatalf("view %+v", view)
+	}
+	keys := map[string]bool{}
+	for _, m := range view.Materials {
+		keys[m.Project] = true
+	}
+	if !keys[h.key()] || !keys[otherKey] {
+		t.Errorf("each material names its drawer: %v", keys)
+	}
+	term := localroute.Caller{IsLocalTerminal: true, BlockId: "block-1"}
+	out, err = l.handle(molten.MaterialsListCommand, term, molten.MaterialsRequest{BlockId: "block-1", All: true})
+	if err != nil || len(out.(molten.MaterialsView).Materials) != 1 {
+		t.Errorf("a terminal never reads the other projects: %+v %v", out, err)
 	}
 }

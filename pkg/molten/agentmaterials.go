@@ -12,6 +12,8 @@ const (
 	MaterialsRoute = "molten:materials"
 	// MaterialsEvent is published, scoped to the drawer's key, after each change of a drawer.
 	MaterialsEvent = "molten:materials"
+	// MaterialsAllScope: the event is also published under this scope, for a window listing every project's materials.
+	MaterialsAllScope = "all"
 
 	MaterialsListCommand      = "moltenmaterialslist"
 	MaterialGetCommand        = "moltenmaterialget"
@@ -181,7 +183,7 @@ type MaterialsUsage struct {
 }
 
 // MaterialsView is a list's answer: one drawer's materials, newest first (pinned ones first), and with All the other
-// drawers' too.
+// drawers' too (each material names its drawer in Project; Projects lists the drawers that hold materials).
 type MaterialsView struct {
 	Project   MaterialsProject   `json:"project"`
 	Materials []Material         `json:"materials"`
