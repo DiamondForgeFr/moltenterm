@@ -20,6 +20,7 @@ import (
 // sub-agents' included) are read again; each published page or production address they name goes through the same
 // capture as live (guard, secret detection, limits). The republications of one address are one material: each source
 // that still exists is a version, numbered after the publication it matches; a source already erased leaves a link.
+// A session belongs to the project of the folder it started in, not to every project below its folder (#1816).
 
 const maxRecoveredLinks = 2000
 
@@ -96,8 +97,11 @@ func (r *Registry) recover(key string, folder string, adapters []companion.Adapt
 	var named []pastPublication
 	for _, adapter := range adapters {
 		for _, path := range companion.PastSessionPaths(adapter, folders) {
+			if !sessionOfProject(companion.PastSessionFolder(adapter, path), key) {
+				continue
+			}
 			past, err := companion.ReadPastSession(adapter, path, hosts)
-			if err != nil || !r.sessionOfProject(past.Batch.Cwd, key, folders) {
+			if err != nil {
 				continue
 			}
 			out.Sessions++
@@ -143,20 +147,55 @@ func (r *Registry) recover(key string, folder string, adapters []companion.Adapt
 	return out
 }
 
-// sessionOfProject: the folder the session ran in is the project's (a worktree maps back to it), or lay under one of
-// its folders (a worktree since removed).
-func (r *Registry) sessionOfProject(cwd string, key string, folders []string) bool {
+// sessionOfProject: the folder the session started in belongs to the project's drawer, by the rule that files a live
+// capture (ProjectKey): a worktree maps back to its repository. Not "lies under the project's folder": a project folder
+// that is not a repository (a parent such as ~/Projects) would take every repository under it, and a recovered
+// material would show under the wrong project (#1816).
+func sessionOfProject(cwd string, key string) bool {
+	p, ok := placeSession(cwd)
+	return ok && p.key == key
+}
+
+// placedSession is the project a session's folder belongs to: its drawer's key, its root folder, and whether that root
+// is a repository.
+type placedSession struct {
+	key  string
+	root string
+	repo bool
+}
+
+// placeSession finds the project of a session's folder. A folder that no longer exists (a worktree since removed) is
+// placed by the repository its nearest existing parent belongs to; without one it cannot be placed.
+func placeSession(cwd string) (placedSession, bool) {
 	if cwd == "" || !filepath.IsAbs(cwd) {
-		return false
+		return placedSession{}, false
 	}
-	if companion.FolderWithin(cwd, folders) {
-		return true
+	dir := filepath.Clean(cwd)
+	if _, err := os.Stat(dir); err == nil {
+		return placeExisting(dir)
 	}
-	if _, err := os.Stat(cwd); err != nil {
-		return false
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return placedSession{}, false
+		}
+		dir = parent
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+		if molten.FindGitRoot(dir) == "" {
+			return placedSession{}, false
+		}
+		return placeExisting(dir)
 	}
-	k, _ := ProjectKey(cwd)
-	return k == key
+}
+
+func placeExisting(dir string) (placedSession, bool) {
+	key, root := ProjectKey(dir)
+	if root == "" || key == molten.MaterialsNoProject {
+		return placedSession{}, false
+	}
+	return placedSession{key: key, root: root, repo: molten.FindGitRoot(root) != ""}, true
 }
 
 func pastCapture(key string, folder string, p pastPublication) Capture {

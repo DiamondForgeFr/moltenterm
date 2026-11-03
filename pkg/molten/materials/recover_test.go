@@ -80,6 +80,7 @@ func pastPublishLines(cwd string, url string, path string, title string, seq int
 // duplicates nothing.
 func TestRecoverPastSessions(t *testing.T) {
 	h := makeHarness(t)
+	h.makeRepo(h.project)
 	h.writeProposal()
 	roots := h.pastRoots()
 	slug := companion.ClaudeSlug(h.project)

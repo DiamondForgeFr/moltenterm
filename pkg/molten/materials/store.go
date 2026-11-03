@@ -517,11 +517,24 @@ func (s *Store) DeleteCopy(key string, id string) (string, error) {
 		s.lock.Unlock()
 		return "", err
 	}
+	trashId, err := s.trashLocked(d, i)
+	dkey := d.key
+	s.lock.Unlock()
+	if err != nil {
+		return "", err
+	}
+	s.changed(dkey, id)
+	return trashId, nil
+}
+
+// trashLocked moves the drawer's i-th material to the trash.
+func (s *Store) trashLocked(d *drawer, i int) (string, error) {
 	m := d.index.Materials[i]
+	id := m.Id
 	dir := s.drawerDir(d.key)
 	item := filepath.Join(dir, itemsDir, id)
 	trashId := fmt.Sprintf("%s-%d", id, s.now().UnixMilli())
-	err = func() error {
+	err := func() error {
 		if err := ensureDir(item); err != nil {
 			return err
 		}
@@ -539,13 +552,7 @@ func (s *Store) DeleteCopy(key string, id string) (string, error) {
 		}
 		return os.Rename(item, filepath.Join(dir, deletedDir, trashId))
 	}()
-	dkey := d.key
-	s.lock.Unlock()
-	if err != nil {
-		return "", err
-	}
-	s.changed(dkey, id)
-	return trashId, nil
+	return trashId, err
 }
 
 // Restore brings a deleted material back from the trash (Undo).
