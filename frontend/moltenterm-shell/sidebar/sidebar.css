@@ -696,6 +696,17 @@
     mask: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);
 }
 
+/* A many-dot row that fits stays centred between the library and "+" (#1813). Auto margins rather than
+   justify-content: center, which would push an overflowing row's first dots out of the scroll range; an overflowing
+   row leaves the margins at zero and scrolls from its start as before. */
+.mt-sb-dots.is-many > :first-child {
+    margin-left: auto;
+}
+
+.mt-sb-dots.is-many > :last-child {
+    margin-right: auto;
+}
+
 .mt-sb-dots.is-many::-webkit-scrollbar {
     display: none;
 }
