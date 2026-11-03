@@ -1158,7 +1158,10 @@ describe("window pending state (#450)", () => {
         expect(page.moltenPendingState).toBe("loading");
         await vi.advanceTimersByTimeAsync(7000);
         expect(page.moltenPendingState).toBe("retrying");
+        // Its renderer lives: the launch keeps waiting past both readiness periods (#1665), then gives up.
         await vi.advanceTimersByTimeAsync(10100);
+        expect(page.moltenPendingState).toBe("retrying");
+        await vi.advanceTimersByTimeAsync(120000);
         expect(page.moltenPendingState).toBe("failed");
         expect(h.onScreen()).toBe("(pending)");
         win = await h.startup;
@@ -1171,6 +1174,34 @@ describe("window pending state (#450)", () => {
         expect(page.webContents.destroyed).toBe(true);
         // Once the window is visible it always shows the pending page or a tab, never nothing.
         expect(h.screen.filter((e) => e[0] >= 3000 && e[1] === "")).toEqual([]);
+    });
+
+    it("a launch whose first tab boots after both readiness periods shows it, without Reload (#1665)", async () => {
+        const ws = await setup({ silentStart: true });
+        await vi.advanceTimersByTimeAsync(25000);
+        const page: any = h.allViews.find((v: any) => v.moltenPendingView);
+        expect(page.moltenPendingState).toBe("retrying");
+        const [view] = viewsForTab(ws.activetabid);
+        expect(view.webContents.destroyed).toBe(false);
+        // Before #1665 the view was dropped at the second deadline and the window stayed on the failed page.
+        view.initResolve();
+        await vi.advanceTimersByTimeAsync(2000);
+        win = await h.startup;
+        expect(h.onScreen()).toBe(ws.activetabid);
+        expect(viewsForTab(ws.activetabid)).toEqual([view]);
+        expect(page.webContents.destroyed).toBe(true);
+    });
+
+    it("a launch stops waiting for a first tab whose renderer crashed while it booted (#1665)", async () => {
+        const ws = await setup({ silentStart: true });
+        await vi.advanceTimersByTimeAsync(25000);
+        const page: any = h.allViews.find((v: any) => v.moltenPendingView);
+        expect(page.moltenPendingState).toBe("retrying");
+        const [view] = viewsForTab(ws.activetabid);
+        view.webContents.isCrashed = () => true;
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(page.moltenPendingState).toBe("failed");
+        expect(h.onScreen()).toBe("(pending)");
     });
 
     it("a launch whose first tab loads in time never shows the pending page", async () => {
