@@ -17,7 +17,7 @@ import { describeScreen, readScreen, sameScreen, ScreenMetaKey } from "./screen-
 import type { View360Model } from "./view360-model";
 
 // A carpet that is still moving, or a layout pass that follows another, settles before anything is written.
-export const ScreenPublishDelayMs = 250;
+export const ScreenPublishDelayMs = 100;
 
 const NoLayoutAtom = atom(null) as Atom<CarpetLayout>;
 const NoIdsAtom = atom([] as string[]);
