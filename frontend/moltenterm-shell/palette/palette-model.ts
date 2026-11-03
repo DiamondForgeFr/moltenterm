@@ -42,6 +42,8 @@ export type PaletteRun =
     | { kind: "updateterminals" }
     // The shortcuts sheet (FR-SHELL-042, DS-SHELL-067).
     | { kind: "shortcuts" }
+    // Check for updates now (#1806): asks GitHub at once, whatever the day's check said.
+    | { kind: "checkupdates" }
     // The workspace's last closed pane or tab, back (#512).
     | { kind: "reopenclosed" }
     // The split placement mode on the pane the palette was opened from, or the focused one (#677).

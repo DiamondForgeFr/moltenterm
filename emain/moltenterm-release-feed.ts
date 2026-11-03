@@ -5,7 +5,8 @@
 // window together, and keeps the releases it read in <data>/molten/update/release-check.json so a restart does not ask
 // again. The offer is picked from them at every answer, for the version running then and the release candidates preference
 // read then (#948): an upgrade or a change of the preference never shows an offer made for another build or choice. The request is anonymous, from a session of its own,
-// and carries nothing about the user; nothing is downloaded.
+// and carries nothing about the user; nothing is downloaded. Check for updates now (#1806) asks at once, whatever the
+// day's check said, and records its time like the daily one.
 
 import * as electron from "electron";
 import fs from "fs";
@@ -19,6 +20,7 @@ import {
     ReleaseCandidatesSettingKey,
     ReleaseCheck,
     ReleaseCheckCache,
+    ReleaseCheckMode,
     releaseFeedEnabled,
     ReleaseFeedTimeoutMs,
     releaseFeedUrl,
@@ -99,13 +101,19 @@ async function fetchReleases(url: string) {
     return feedReleasesOf(releases);
 }
 
-// The releases known for today: from memory or the cache file, asked of GitHub when the day's check is due.
-async function currentReleases(): Promise<ReleaseCheckCache> {
+async function knownCache(): Promise<ReleaseCheckCache> {
     if (memo === undefined) {
         memo = await readReleaseCache(cacheFile());
     }
+    return memo;
+}
+
+// The releases known for today: from memory or the cache file, asked of GitHub when the day's check is due, or at
+// once when forced (Check for updates now, #1806).
+async function currentReleases(force: boolean): Promise<ReleaseCheckCache> {
+    await knownCache();
     const now = Date.now();
-    if (!dueForCheck(memo, now)) {
+    if (!force && !dueForCheck(memo, now)) {
         return memo;
     }
     const previous = memo;
@@ -132,8 +140,9 @@ async function currentReleases(): Promise<ReleaseCheckCache> {
 // The offer for the build running now. The first window to hear of a release announces it; a release no longer
 // offered (installed since, or replaced by a newer one) is withdrawn from the notification center.
 function answer(cache: ReleaseCheckCache, includeCandidates: boolean): ReleaseCheck {
-    const offer = pickReleaseOffer(cache.releases, includeCandidates, electron.app.getVersion(), Rules);
-    const rtn: ReleaseCheck = { enabled: true, offer, checkedat: cache.checkedat, error: cache.error };
+    const version = electron.app.getVersion();
+    const offer = pickReleaseOffer(cache.releases, includeCandidates, version, Rules);
+    const rtn: ReleaseCheck = { enabled: true, version, offer, checkedat: cache.checkedat, error: cache.error };
     if (offer != null && cache.notifiedtag !== offer.tag) {
         rtn.announce = true;
         rtn.withdraw = cache.notifiedtag;
@@ -148,19 +157,29 @@ function answer(cache: ReleaseCheckCache, includeCandidates: boolean): ReleaseCh
 }
 
 // Every window asks; one request runs at a time and they share it. Each window's answer is made after it, one after
-// the other on the main thread, so only the first one is told to announce a release.
-export async function checkReleaseFeed(): Promise<ReleaseCheck> {
+// the other on the main thread, so only the first one is told to announce a release. A forced check that finds a
+// request already running shares its answer: that request was made just now.
+export async function checkReleaseFeed(mode: ReleaseCheckMode = "due"): Promise<ReleaseCheck> {
     const channel = __MOLTENTERM_CHANNEL__;
-    if (!releaseFeedEnabled(channel, electron.app.isPackaged)) {
-        return { enabled: false };
+    const version = electron.app.getVersion();
+    if (!releaseFeedEnabled(channel, electron.app.isPackaged, process.env)) {
+        return { enabled: false, version };
+    }
+    if (mode === "read") {
+        const cache = await knownCache();
+        return { enabled: true, version, checkedat: cache?.checkedat };
     }
     if (inflight == null) {
-        inflight = currentReleases().finally(() => {
+        inflight = currentReleases(mode === "now").finally(() => {
             inflight = null;
         });
     }
     const releases = await inflight;
     return answer(releases, await wantsReleaseCandidates());
+}
+
+function modeOf(value: unknown): ReleaseCheckMode {
+    return value === "now" || value === "read" ? value : "due";
 }
 
 // Read at every answer, so a change applies at the next check without a restart. The build's own channel never
@@ -176,5 +195,5 @@ async function wantsReleaseCandidates(): Promise<boolean> {
 }
 
 export function initMoltentermReleaseFeed() {
-    handleAppIpc(MoltentermReleaseCheckChannel, () => checkReleaseFeed());
+    handleAppIpc(MoltentermReleaseCheckChannel, (_event, mode) => checkReleaseFeed(modeOf(mode)));
 }

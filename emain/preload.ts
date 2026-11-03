@@ -105,7 +105,8 @@ contextBridge.exposeInMainWorld("api", {
     onQuicklook: (filePath: string) => ipcRenderer.send("quicklook", filePath),
     openNativePath: (filePath: string) => ipcRenderer.send("open-native-path", filePath),
     revealNativePath: (filePath: string) => ipcRenderer.send("reveal-native-path", filePath), // MOLTENTERM-PATCH (#1575)
-    captureScreenshot: (rect: Rectangle, opts?: { width?: number }) => ipcRenderer.invoke("capture-screenshot", rect, opts), // MOLTENTERM-PATCH (#1545): optional thumbnail width
+    captureScreenshot: (rect: Rectangle, opts?: { width?: number }) =>
+        ipcRenderer.invoke("capture-screenshot", rect, opts), // MOLTENTERM-PATCH (#1545): optional thumbnail width
     setKeyboardChordMode: () => ipcRenderer.send("set-keyboard-chord-mode"),
     clearWebviewStorage: (webContentsId: number) => ipcRenderer.invoke("clear-webview-storage", webContentsId),
     setWaveAIOpen: (isOpen: boolean) => ipcRenderer.send("set-waveai-open", isOpen),
@@ -132,8 +133,8 @@ contextBridge.exposeInMainWorld("api", {
     moltentermUpdateApply: (buildId: number, when: string) =>
         ipcRenderer.invoke("moltenterm-update-apply", buildId, when),
     moltentermUpdateLast: () => ipcRenderer.invoke("moltenterm-update-last"),
-    // MOLTENTERM-PATCH (#188): newer releases on GitHub (emain/moltenterm-release-feed.ts)
-    moltentermReleaseCheck: () => ipcRenderer.invoke("moltenterm-release-check"),
+    // MOLTENTERM-PATCH (#188, #1806): newer releases on GitHub (emain/moltenterm-release-feed.ts); the mode is due, now or read
+    moltentermReleaseCheck: (mode?: string) => ipcRenderer.invoke("moltenterm-release-check", mode),
     // MOLTENTERM-PATCH (#300): a browser panel tab's webview, for the agents' DevTools controller (emain/moltenterm-browseragent.ts)
     moltentermRegisterWebview: (blockId: string, browserTabId: string, webContentsId: number) =>
         ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId),

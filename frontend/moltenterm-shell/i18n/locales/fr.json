@@ -44,6 +44,7 @@
     "appMenu": {
         "about": "À propos de {app}",
         "gettingStarted": "Premiers pas",
+        "checkUpdates": "Rechercher une mise à jour maintenant",
         "settings": "Réglages…",
         "safeModeRestart": "Redémarrer en mode sans échec",
         "safeModeLeave": "Redémarrer normalement",
@@ -417,6 +418,8 @@
             "gettingStartedDetail": "votre agent, un premier morph, votre projet",
             "sessions": "Sessions",
             "sessionsDetail": "terminaux et agents encore en cours, locaux et SSH",
+            "checkUpdates": "Rechercher une mise à jour maintenant",
+            "checkUpdatesDetail": "interroge GitHub maintenant, même si elle a été faite aujourd'hui",
             "settings": "Réglages",
             "shortcuts": "Raccourcis clavier",
             "agentCopy": "Copier la dernière réponse de {agent}",
@@ -445,6 +448,7 @@
             "editWorkspace": "espace de travail, renommer, icône, couleur, réglages, supprimer, réinitialiser",
             "switchWorkspace": "espace de travail",
             "gettingStarted": "prise en main, configuration, bienvenue, visite, premier lancement",
+            "checkUpdates": "mise à jour, mettre à jour, rechercher, version, nouvelle version, publication",
             "sessions": "sessions, durables, en cours, agents, ssh, détachées, tâches, processus",
             "settings": "configuration, préférences, paramètres, options",
             "shortcuts": "touches, raccourcis, aide, aide-mémoire",
@@ -2142,6 +2146,19 @@
             "download": "Télécharger",
             "buttonTitle": "MoltenTerm {version} est disponible : ouvrez sa page de version pour le télécharger",
             "button": "{version} disponible"
+        },
+        "check": {
+            "button": "Rechercher une mise à jour maintenant",
+            "checking": "Recherche d'une mise à jour…",
+            "installed": "Version installée {version}",
+            "lastChecked": "Dernière vérification {when}",
+            "never": "Jamais vérifiée",
+            "now": "à l'instant",
+            "checkedAgo": "vérifiée {when}",
+            "latest": "Vous avez la dernière version ({version}) · {checked}",
+            "disabled": "Cette version ne recherche pas de mise à jour.",
+            "error": "GitHub n'a pas répondu, réessayez",
+            "retry": "Réessayer"
         },
         "dialog": {
             "title": "Une nouvelle gold de MoltenTerm est prête",

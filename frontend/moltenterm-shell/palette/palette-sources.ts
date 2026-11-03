@@ -416,6 +416,15 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         keywords: paletteKeywords("settings"),
         run: { kind: "settings" },
     });
+    rtn.push({
+        id: "action:checkupdates",
+        group: "actions",
+        label: t("palette.actions.checkUpdates"),
+        detail: t("palette.actions.checkUpdatesDetail"),
+        icon: "circle-arrow-up",
+        keywords: paletteKeywords("checkUpdates", "update", "release"),
+        run: { kind: "checkupdates" },
+    });
     rtn.push(shortcutsEntry());
     return rtn;
 }

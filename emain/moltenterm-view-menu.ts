@@ -91,11 +91,20 @@ export function makeMoltentermViewsMenu(targetOf: TargetOf, platform: string): M
     ];
 }
 
-// Help: Getting started (moved here from the app menu), the shortcut overlay and the palette, in the top field.
+// Check for updates now (#1806): the app menu's item on macOS, the Help menu's elsewhere; the renderer asks GitHub.
+export function makeMoltentermCheckUpdatesMenuItem(targetOf: TargetOf, platform: string): MenuItem {
+    return commandItem("checkupdates", mt("appMenu.checkUpdates"), targetOf, platform);
+}
+
+// Help: Getting started (moved here from the app menu), Check for updates now off macOS, the shortcut overlay and the
+// palette, in the top field.
 export function makeMoltentermHelpMenu(gettingStarted: MenuItem, targetOf: TargetOf, platform: string): MenuItem[] {
     return [
         gettingStarted,
         { type: "separator" },
+        ...(platform === "darwin"
+            ? []
+            : [makeMoltentermCheckUpdatesMenuItem(targetOf, platform), { type: "separator" } as MenuItem]),
         commandItem("shortcuts", mt("appMenu.shortcuts"), targetOf, platform),
         commandItem("palette", mt("appMenu.palette"), targetOf, platform),
     ];
