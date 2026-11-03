@@ -13,6 +13,7 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { MotionClass } from "../molten-motion";
+import { usePanelOrigin } from "../panel-cta";
 import { DominoLoader } from "../suite/suite";
 import { analysePipeline, optionsOfAnswers, PointAnswers, sameOptions } from "./release-setup-analyse-model";
 import { BoardSection, useBoardText, useSetupBoard } from "./release-setup-board";
@@ -604,6 +605,7 @@ export function ReleaseSetup({
     aside?: React.ReactNode;
 }) {
     const t = useT();
+    const origin = usePanelOrigin();
     const [draft, setDraft] = useState<SetupDraft>(null);
     const [options, setOptions] = useState<SetupOptions>(null);
     // Step 2a's answers to the points of the existing pipeline (FR-MC-040).
@@ -860,8 +862,8 @@ export function ReleaseSetup({
     };
     const openPipelineFile = () =>
         fireAndForget(async () => {
-            const { createBlock } = await import("@/app/store/global");
-            await createBlock({ meta: { view: "preview", file: `${dir}/.molten/project.json` } });
+            const { openFromPanel } = await import("../app-panel");
+            await openFromPanel(origin(), { meta: { view: "preview", file: `${dir}/.molten/project.json` } });
         });
     const choosePath = (next: SetupPath) => {
         setPath(next);
@@ -968,7 +970,7 @@ export function ReleaseSetup({
     const openReviews = (prDir: string, number: number) =>
         fireAndForget(async () => {
             const { ReviewsModel } = await import("../reviews/reviews-store");
-            await ReviewsModel.getInstance().openReviews(prDir, number);
+            await ReviewsModel.getInstance().openReviews(prDir, number, undefined, origin());
         });
     const again = () => {
         pr.reset();

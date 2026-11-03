@@ -12,8 +12,10 @@ vi.mock("./release-setup-client", () => ({
     setupUpdate: vi.fn(),
 }));
 vi.mock("@/app/store/global", () => ({ createBlock: vi.fn(), openLink: vi.fn(), getApi: vi.fn() }));
+vi.mock("../app-panel", () => ({ openFromPanel: vi.fn() }));
 
 import { createBlock } from "@/app/store/global";
+import { openFromPanel } from "../app-panel";
 import { TechDocChanges, techDocCounts, techDocFile, techDocWhere } from "./release-setup-techdoc";
 import { openTechDoc, TechDocLinkButton } from "./release-techdoc-link";
 
@@ -98,9 +100,12 @@ describe("pipeline technical documentation (FR-MC-043)", () => {
         );
         expect(html).toContain("How this project ships");
         expect(html).toContain("cursor-pointer");
-        openTechDoc({ backend: "repository", path: "/p/.molten/release-pipeline.md" });
-        expect(createBlock).toHaveBeenCalledWith({
+        // The file opens beside the panel the menu is in (#1844), the call naming that panel.
+        const origin = { blockId: "block-project", newView: false };
+        openTechDoc({ backend: "repository", path: "/p/.molten/release-pipeline.md" }, origin);
+        expect(openFromPanel).toHaveBeenCalledWith(origin, {
             meta: { view: "preview", file: "/p/.molten/release-pipeline.md" },
         });
+        expect(createBlock).not.toHaveBeenCalled();
     });
 });

@@ -5927,6 +5927,9 @@
         "loadingEditor": "Loading editor…",
         "loadingDiff": "Loading diff…"
     },
+    "cta": {
+        "newViewHint": "{title} (Shift-click: in a new view)"
+    },
     "split": {
         "right": "Split right",
         "down": "Split down",

@@ -5927,6 +5927,9 @@
         "loadingEditor": "Chargement de l'éditeur…",
         "loadingDiff": "Chargement du diff…"
     },
+    "cta": {
+        "newViewHint": "{title} (Maj-clic : dans une nouvelle vue)"
+    },
     "split": {
         "right": "Diviser à droite",
         "down": "Diviser en bas",

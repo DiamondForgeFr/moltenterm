@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TFunction, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
+import { useNewViewHint, usePanelOrigin } from "../panel-cta";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
@@ -387,6 +388,8 @@ function RecentRunsBlock({ github, dir, onRefresh }: { github: MissionGithub; di
 export function ReviewsLine({ github, target, dir }: { github: MissionGithub; target: string; dir: string }) {
     const t = useT();
     const tCount = useTCount();
+    const origin = usePanelOrigin();
+    const hint = useNewViewHint();
     if (github == null || github.errors?.prs) {
         return null;
     }
@@ -394,9 +397,11 @@ export function ReviewsLine({ github, target, dir }: { github: MissionGithub; ta
     return (
         <button
             type="button"
-            onClick={() => fireAndForget(() => ReviewsModel.getInstance().openReviews(dir))}
+            onClick={(e) =>
+                fireAndForget(() => ReviewsModel.getInstance().openReviews(dir, undefined, undefined, origin(e)))
+            }
             className="flex cursor-pointer items-center gap-2 self-start rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
-            title={t("mc.remote.toReviewsTitle")}
+            title={hint(t("mc.remote.toReviewsTitle"))}
             data-testid="ci-remote-reviews-line"
             data-count={count}
         >

@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
+import type { PanelOrigin } from "../app-panel-model";
 import { CodingAgentChoice, codingAgentName, fetchCodingAgent } from "../coding-agent/coding-agent";
 import { t } from "../i18n/i18n";
 import { errorPhrase, phrase, type Phrase } from "../i18n/phrase";
@@ -106,14 +107,15 @@ export class ReviewsModel {
     }
 
     // Opens the Reviews view of the active tab (or focuses it), on a PR when one is named, else on the Upcoming entry
-    // of a branch when one is named.
-    async openReviews(dir?: string, number?: number, branch?: string): Promise<void> {
+    // of a branch when one is named. From a call to action inside a panel, origin opens it beside that panel in the same
+    // view (#1844).
+    async openReviews(dir?: string, number?: number, branch?: string, origin?: PanelOrigin): Promise<void> {
         if (dir && number) {
             globalStore.set(this.focusAtom, { dir, number, at: Date.now() });
         } else if (dir && branch) {
             globalStore.set(this.focusAtom, { dir, number: 0, branch, at: Date.now() });
         }
-        await openMoltentermView(MoltentermReviewsView);
+        await openMoltentermView(MoltentermReviewsView, origin);
     }
 
     // A row's action: the PR's Review tab in this workspace, created the first time, shown after.
