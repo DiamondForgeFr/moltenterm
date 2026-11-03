@@ -7092,7 +7092,7 @@
                 "ciRunning": "CI en cours",
                 "mergeChecking": "GitHub vérifie la fusion",
                 "ready": "Prête à fusionner",
-                "readyReview": "Prête · à vous de la relire et la fusionner",
+                "readyReview": "Prête · à vous de relire et fusionner",
                 "batch": {
                     "checking": "Relue sur GitHub avant sa fusion",
                     "rebasing": "{name} la rebase sur {base}",
