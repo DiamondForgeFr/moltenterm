@@ -10,7 +10,7 @@
 import type { AgentStatesData } from "../agent-state-model";
 import { batchWorkItem, withBatchAgent } from "./reviews-batch-agent";
 import type { BatchRun } from "./reviews-batch-model";
-import { CardInput, CardState, cardState, CardStateKinds, CardTurn } from "./reviews-card-model";
+import { CardInput, CardState, cardState, CardStateKinds, CardTurn, openWaits } from "./reviews-card-model";
 import type { ReviewMergedPr } from "./reviews-merged-model";
 import { checksOf, RebaseAsk, ReviewPr } from "./reviews-model";
 import { headStillFails, PrTask, prTaskState, taskAgent, taskAgentLive } from "./reviews-task-model";
@@ -86,6 +86,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         rerunnable: checksOf(pr.ci, "failure").some((c) => (c.runid ?? 0) > 0),
         others: prOtherBranches(ctx.upcoming, pr),
         batch: batchItem != null ? { run, item: batchItem } : undefined,
+        waitsOn: openWaits(pr),
     };
 }
 

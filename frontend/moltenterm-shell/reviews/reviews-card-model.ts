@@ -10,7 +10,7 @@ import { getLocale } from "../i18n/i18n";
 import { phrase, type Phrase } from "../i18n/phrase";
 import { batchStatePhrase } from "./reviews-batch-agent";
 import type { BatchItem, BatchRun } from "./reviews-batch-model";
-import { blockedReasons, checkNames, checksOf, LeadFacts, ReviewPr } from "./reviews-model";
+import { blockedReasons, checkNames, checksOf, LeadFacts, ReviewDependency, ReviewPr } from "./reviews-model";
 import type { PrTask, PrTaskState } from "./reviews-task-model";
 import type { AgentBarFacts, DraftTurn } from "./reviews-upcoming-model";
 
@@ -18,6 +18,7 @@ import type { AgentBarFacts, DraftTurn } from "./reviews-upcoming-model";
 export const CardStateKinds = [
     "agent-waiting",
     "agent-working",
+    "waiting-on",
     "agent-finish",
     "interrupted",
     "conflicts",
@@ -69,16 +70,19 @@ export type CardActionId =
     | "approve-commands"
     | "run-ci"
     | "launch"
-    | "github";
+    | "github"
+    | "go-to-pr";
 
 // An action of the card. disabled: why GitHub refuses it (shown, never hidden); confirm: what the developer confirms
-// before it runs (#943: a soft signal asks, it never blocks); blockId: the agent's terminal it acts on.
+// before it runs (#943: a soft signal asks, it never blocks); blockId: the agent's terminal it acts on; target: the PR
+// or issue it goes to (#1841).
 export type CardAction = {
     id: CardActionId;
     label: Phrase;
     disabled?: Phrase;
     confirm?: Phrase;
     blockId?: string;
+    target?: ReviewDependency;
 };
 
 // running: checks still run, with a still mark (the card's one animation is its state line or its agent line, #1085).
@@ -141,11 +145,19 @@ export type CardInput = {
     others?: { branch: string; worktree?: string }[];
     // The merge queue's step while the queue works on the PR (#1128); its agent is in agents (withBatchAgent).
     batch?: { run: BatchRun; item: BatchItem };
+    // The open PRs or issues the PR waits on (#1841, openWaits): a draft held until they merge.
+    waitsOn?: ReviewDependency[];
 };
+
+// openWaits (#1841): what a PR waits on that is still open, as wavesrv last read it.
+export function openWaits(pr: ReviewPr): ReviewDependency[] {
+    return (pr?.waitson ?? []).filter((w) => w.number > 0 && w.number !== pr.number && w.state === "open");
+}
 
 const Tones: Record<CardStateKind, CardTone> = {
     "agent-waiting": "you",
     "agent-working": "agent",
+    "waiting-on": "wait",
     "agent-finish": "draft",
     interrupted: "you",
     conflicts: "broken",
@@ -162,6 +174,7 @@ const Tones: Record<CardStateKind, CardTone> = {
 const Turns: Record<CardStateKind, CardTurn> = {
     "agent-waiting": "yours",
     "agent-working": "agents",
+    "waiting-on": "agents",
     "agent-finish": "agents",
     interrupted: "yours",
     conflicts: "blocked",
@@ -178,8 +191,9 @@ const Turns: Record<CardStateKind, CardTurn> = {
 // Calm primaries: nothing is the developer's to do right now. The same states are the ones where something works
 // (#1085): their card shows the dominoes.
 const CalmKinds = new Set<CardStateKind>(["agent-working", "ci-running"]);
-// A draft left to its agent (#1212) asks nothing of the developer either, but nothing works on it: calm, no dominoes.
-const QuietKinds = new Set<CardStateKind>([...CalmKinds, "agent-finish", "ci-elsewhere"]);
+// A draft left to its agent (#1212), or held until another PR merges (#1841), asks nothing of the developer either, but
+// nothing works on it: calm, no dominoes.
+const QuietKinds = new Set<CardStateKind>([...CalmKinds, "waiting-on", "agent-finish", "ci-elsewhere"]);
 
 // agentLineMoves: an agent line shows the dominoes (reviews-agent-bar.tsx) while its agent works or runs in the
 // background, unless it tells a stopped task. The card reads the same so it never shows a second animation.
@@ -305,7 +319,15 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     // theirs and they stopped, so the card says whose turn it is next, never "an agent is on it" with the dominoes.
     const known = (input.agents ?? []).length > 0;
     const inferred = !known && (input.agentReadies ? input.recentCommit : input.boardTurn?.owner === "agent");
-    if (working != null || (inferred && pr.draft)) {
+    if (working != null) {
+        return "agent-working";
+    }
+    // #1841: a draft held until another PR or issue is done is neither finished nor the developer's; a commit pushed
+    // before it was held does not make it worked on.
+    if (pr.draft && (input.waitsOn?.length ?? 0) > 0) {
+        return "waiting-on";
+    }
+    if (inferred && pr.draft) {
         return "agent-working";
     }
     // #1212: a draft no agent works on is still its agent's (it stopped before marking it ready), whatever its CI or
@@ -561,6 +583,7 @@ export function cardState(input: CardInput): CardState {
     let primary: CardAction;
     let menu: CardAction[] = [];
     let history: Phrase;
+    const extra: CardFact[] = [];
     const relaunch = relaunchAction(input);
     if (input.task != null && input.taskState === "stuck" && !input.taskLive && kind !== "interrupted") {
         history = phrase("reviews.card.history.gone", { name: input.task.name || "", what: taskWhat(input.task) });
@@ -619,6 +642,34 @@ export function cardState(input: CardInput): CardState {
                 Launch(),
                 Github(),
             ];
+            break;
+        }
+        case "waiting-on": {
+            const waits = input.waitsOn;
+            const first = waits[0];
+            agent = agents.find((a) => a.kind === "panel") ?? agents[0] ?? null;
+            sentence = phrase(first.title ? "reviews.card.state.waitingOn" : "reviews.card.state.waitingOnNumber", {
+                number: first.number,
+                title: first.title ?? "",
+            });
+            why = phrase(`reviews.card.why.waitsOn.${first.from ?? "body"}`, { number: first.number });
+            if (waits.length > 1) {
+                extra.push({
+                    id: "waits",
+                    text: phrase("reviews.card.fact.alsoWaitsOn", {
+                        numbers: waits
+                            .slice(1)
+                            .map((w) => `#${w.number}`)
+                            .join(", "),
+                    }),
+                    tone: "muted",
+                });
+            }
+            primary = {
+                ...action("go-to-pr", "reviews.card.action.goTo", { number: first.number }),
+                target: first,
+            };
+            menu = [...agentActions(agent), AssistedReview(), mergeAction(input, null), Launch(), Github()];
             break;
         }
         case "agent-finish": {
@@ -793,7 +844,7 @@ export function cardState(input: CardInput): CardState {
         primary,
         molten: primary != null && !QuietKinds.has(kind) && primary.disabled == null,
         menu: menuOrder(menu.filter((a) => a != null && a.id !== primary?.id)),
-        facts: cardFacts(input, kind, said),
+        facts: [...extra, ...cardFacts(input, kind, said)],
         history,
     };
 }

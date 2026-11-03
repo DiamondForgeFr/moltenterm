@@ -45,6 +45,7 @@ import {
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
 import {
     AgentBarFacts,
+    barPlaceText,
     barStateText,
     barTimeText,
     boardStatusText,
@@ -222,13 +223,8 @@ export function AgentBar({
     const barTime = barTimeText(t, facts, now);
     // The merge queue's agent says the queue's work (#1128), as a held state says what MoltenTerm has it do.
     const work = facts.work != null && facts.state !== "waiting" ? word(facts.work) : "";
-    // A lead busy on another ticket (#1796) says where, never as work on this branch.
-    const elsewhere =
-        facts.elsewhere == null
-            ? ""
-            : facts.elsewhere.ticket > 0
-              ? t("reviewsAgents.busyOn", { number: facts.elsewhere.ticket })
-              : t("reviewsAgents.busyElsewhere");
+    // A lead busy on another ticket (#1796), or only passing through (#1841), says so, never as work on this branch.
+    const elsewhere = barPlaceText(t, facts);
     const said = facts.held != null || !!work || !!elsewhere;
     // A finished sub-agent says its state once, with its time: "finished 13 min ago".
     const finishedLine = !taskShown && !said && subagent && facts.subState === "done" ? barTime : "";

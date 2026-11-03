@@ -163,6 +163,10 @@ type ReviewPr struct {
 	// Agents: who worked on the PR, the last agent first (#847): the commits' Molten-Agent trailers once the reports
 	// query read them, then the body's signature block. Empty: unknown agent.
 	Agents []agentsign.Signature `json:"agents,omitempty"`
+	// WaitsOn (#1841): the open PRs or issues the PR waits on, once the reports query read them (reviews_waits.go).
+	WaitsOn []ReviewDependency `json:"waitson,omitempty"`
+	// What the PR's body says it waits on, read with the PR.
+	declared []reviewDeclared
 }
 
 type ReviewsAnswer struct {
@@ -557,6 +561,7 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 		}
 	}
 	rtn.Merge = reviewMergeWithChecks(rtn.Merge, rtn.Ci)
+	rtn.declared = withDeclared(nil, rtn, pr.Body, ReviewWaitFromBody)
 	return rtn
 }
 
@@ -613,6 +618,7 @@ type reviewReportsState struct {
 	reports  map[int]ReviewReport
 	tickets  map[int]reviewTicket
 	commits  map[int][]string
+	waits    map[int][]ReviewDependency
 	err      string
 	usedAt   time.Time
 	repoRef  string
@@ -744,7 +750,7 @@ func (r *Reviews) prepareReports(answer *ReviewsAnswer, force bool) bool {
 	key := reviewReportsKey(repoRef, prs)
 	if len(prs) == 0 {
 		state.key, state.at, state.err = key, now, ""
-		state.reports, state.tickets, state.commits = nil, nil, nil
+		state.reports, state.tickets, state.commits, state.waits = nil, nil, nil, nil
 		return false
 	}
 	if state.running {
@@ -800,6 +806,7 @@ func (r *Reviews) applyLocked(answer *ReviewsAnswer, state *reviewReportsState) 
 			if messages, ok := state.commits[pr.Number]; ok {
 				pr.Agents = withCommitAgents(messages, pr.Agents)
 			}
+			pr.WaitsOn = state.waits[pr.Number]
 		}
 	}
 	fill(answer.Ready)
@@ -826,15 +833,20 @@ func (r *Reviews) readReports(dir string) {
 	repoRef, prs := r.takeQuery(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), reviewReportsTimeout)
 	defer cancel()
-	reports, tickets, commits, err := readReviewFacts(ctx, r.run, dir, repoRef, prs)
+	facts, err := readAllReviewFacts(ctx, r.run, dir, repoRef, prs)
 	msg := ""
 	if err != nil {
 		msg = err.Error()
 		log.Printf("molten: reading the review reports of %s: %v\n", dir, err)
 	} else {
-		r.storeCommits(dir, commits)
+		r.storeCommits(dir, facts.commits)
+		if facts.waitsErr != nil {
+			log.Printf("molten: reading what the pull requests of %s wait on: %v\n", dir, facts.waitsErr)
+		} else {
+			r.storeWaits(dir, facts.waits)
+		}
 	}
-	again := r.storeReports(dir, reports, tickets, msg)
+	again := r.storeReports(dir, facts.reports, facts.tickets, msg)
 	if snap, ok := r.collector.Cached(dir); ok && r.publish != nil {
 		r.publish(r.answerOf(snap))
 	}
@@ -862,6 +874,15 @@ func (r *Reviews) storeCommits(dir string, commits map[int][]string) {
 	}
 }
 
+// storeWaits keeps what each PR waits on, as a query read it (#1841).
+func (r *Reviews) storeWaits(dir string, waits map[int][]ReviewDependency) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if state := r.reports[dir]; state != nil {
+		state.waits = waits
+	}
+}
+
 // storeReports keeps a query's result; true when the PRs changed while it ran, so another one follows.
 func (r *Reviews) storeReports(dir string, reports map[int]ReviewReport, tickets map[int]reviewTicket, errMsg string) bool {
 	r.lock.Lock()
@@ -882,8 +903,11 @@ func (r *Reviews) storeReports(dir string, reports map[int]ReviewReport, tickets
 }
 
 type ghReviewComment struct {
-	Body string `json:"body"`
-	Url  string `json:"url"`
+	Body   string `json:"body"`
+	Url    string `json:"url"`
+	Author *struct {
+		Login string `json:"login"`
+	} `json:"author"`
 }
 
 type ghReviewComments struct {
@@ -893,8 +917,13 @@ type ghReviewComments struct {
 type ghReviewNode struct {
 	Title    string           `json:"title"`
 	Url      string           `json:"url"`
+	Body     string           `json:"body"`
 	Comments ghReviewComments `json:"comments"`
-	Commits  *struct {
+	// The issues GitHub says block a ticket (#1841).
+	BlockedBy *struct {
+		Nodes []ghWaitItem `json:"nodes"`
+	} `json:"blockedBy"`
+	Commits *struct {
 		Nodes []struct {
 			Commit struct {
 				Message string `json:"message"`
@@ -943,19 +972,24 @@ func latestTestReport(comments []ghReviewComment) (string, bool) {
 }
 
 // reviewReportsQuery reads, in one GraphQL query, the last comments of each PR and of its ticket, and the ticket's
-// title. Numbers are integers formatted here, never text from GitHub.
-func reviewReportsQuery(prs []ReviewPr) string {
+// title. With relations, also the issues GitHub says block each ticket (#1841). Numbers are integers formatted here,
+// never text from GitHub.
+func reviewReportsQuery(prs []ReviewPr, relations bool) string {
+	blockedBy := ""
+	if relations {
+		blockedBy = fmt.Sprintf(" blockedBy(first:%d){nodes{__typename number title url state}}", reviewBlockedByRead)
+	}
 	var sb strings.Builder
 	sb.WriteString("query($owner:String!,$name:String!){repository(owner:$owner,name:$name){")
 	seen := map[int]bool{}
 	for _, pr := range prs {
-		fmt.Fprintf(&sb, "p%d:pullRequest(number:%d){title url comments(last:%d){nodes{body url}} commits(last:%d){nodes{commit{message}}}}",
+		fmt.Fprintf(&sb, "p%d:pullRequest(number:%d){title url comments(last:%d){nodes{body url author{login}}} commits(last:%d){nodes{commit{message}}}}",
 			pr.Number, pr.Number, reviewCommentsRead, reviewCommitsRead)
 		if pr.Ticket <= 0 || pr.Ticket == pr.Number || seen[pr.Ticket] {
 			continue
 		}
 		seen[pr.Ticket] = true
-		fmt.Fprintf(&sb, "t%d:issueOrPullRequest(number:%d){...on Issue{title url comments(last:%d){nodes{body url}}}}", pr.Ticket, pr.Ticket, reviewCommentsRead)
+		fmt.Fprintf(&sb, "t%d:issueOrPullRequest(number:%d){...on Issue{title url body comments(last:%d){nodes{body url}}%s}}", pr.Ticket, pr.Ticket, reviewCommentsRead, blockedBy)
 	}
 	sb.WriteString("}}")
 	return sb.String()
@@ -978,15 +1012,45 @@ func ReadReviewReports(ctx context.Context, run Runner, dir string, repoRef stri
 
 // readReviewFacts is ReadReviewReports with the messages of each PR's last commits, oldest first (#847).
 func readReviewFacts(ctx context.Context, run Runner, dir string, repoRef string, prs []ReviewPr) (map[int]ReviewReport, map[int]reviewTicket, map[int][]string, error) {
+	f, err := readAllReviewFacts(ctx, run, dir, repoRef, prs)
+	return f.reports, f.tickets, f.commits, err
+}
+
+// reviewFacts is what one reports query reads, with what the PRs wait on (#1841), read right after it.
+type reviewFacts struct {
+	reports  map[int]ReviewReport
+	tickets  map[int]reviewTicket
+	commits  map[int][]string
+	waits    map[int][]ReviewDependency
+	waitsErr error
+}
+
+// ghRepoBaseArgs: the query variables naming the repository, and its host for GitHub Enterprise.
+func ghRepoBaseArgs(repoRef string) ([]string, bool) {
 	parts := strings.Split(repoRef, "/")
 	if len(parts) < 2 {
-		return nil, nil, nil, fmt.Errorf("no repository to read the test reports from")
+		return nil, false
 	}
-	owner, name := parts[len(parts)-2], parts[len(parts)-1]
-	args := []string{"api", "graphql", "-f", "query=" + reviewReportsQuery(prs), "-f", "owner=" + owner, "-f", "name=" + name}
+	base := []string{"-f", "owner=" + parts[len(parts)-2], "-f", "name=" + parts[len(parts)-1]}
 	if len(parts) == 3 {
-		args = append(args, "--hostname", parts[0])
+		base = append(base, "--hostname", parts[0])
 	}
+	return base, true
+}
+
+// authorComments: the bodies of the comments the PR's author wrote, the account its agents post with.
+func authorComments(comments []ghReviewComment, author string) []string {
+	var rtn []string
+	for _, c := range comments {
+		if c.Author != nil && author != "" && strings.EqualFold(c.Author.Login, author) {
+			rtn = append(rtn, c.Body)
+		}
+	}
+	return rtn
+}
+
+func queryReviewNodes(ctx context.Context, run Runner, dir string, base []string, prs []ReviewPr, relations bool) (map[string]*ghReviewNode, error) {
+	args := append([]string{"api", "graphql", "-f", "query=" + reviewReportsQuery(prs, relations)}, base...)
 	out, err := run(ctx, dir, "gh", args...)
 	var answer struct {
 		Data struct {
@@ -996,17 +1060,38 @@ func readReviewFacts(ctx context.Context, run Runner, dir string, repoRef string
 	// gh prints the data it got along with GraphQL errors (a ticket number that is not an issue): keep what came.
 	if jsonErr := json.Unmarshal(out, &answer); jsonErr != nil || answer.Data.Repository == nil {
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("%s", shortGhError(err))
+			return nil, fmt.Errorf("%s", shortGhError(err))
 		}
-		return nil, nil, nil, fmt.Errorf("gh api graphql: unreadable answer")
+		return nil, fmt.Errorf("gh api graphql: unreadable answer")
 	}
-	nodes := answer.Data.Repository
+	return answer.Data.Repository, nil
+}
+
+func readAllReviewFacts(ctx context.Context, run Runner, dir string, repoRef string, prs []ReviewPr) (reviewFacts, error) {
+	base, ok := ghRepoBaseArgs(repoRef)
+	if !ok {
+		return reviewFacts{}, fmt.Errorf("no repository to read the test reports from")
+	}
+	nodes, err := queryReviewNodes(ctx, run, dir, base, prs, true)
+	if err != nil {
+		// A GitHub without issue relationships (an older GitHub Enterprise) refuses the whole query.
+		nodes, err = queryReviewNodes(ctx, run, dir, base, prs, false)
+	}
+	if err != nil {
+		return reviewFacts{}, err
+	}
 	reports := map[int]ReviewReport{}
 	tickets := map[int]reviewTicket{}
 	commits := map[int][]string{}
+	declared := map[int][]reviewDeclared{}
+	blocked := map[int][]ghWaitItem{}
 	for _, pr := range prs {
 		report := ReviewReport{State: ReviewReportMissing}
+		waits := append([]reviewDeclared{}, pr.declared...)
 		if node := nodes[fmt.Sprintf("p%d", pr.Number)]; node != nil {
+			for _, body := range authorComments(node.Comments.Nodes, pr.Author) {
+				waits = withDeclared(waits, pr, body, ReviewWaitFromComment)
+			}
 			if node.Commits != nil {
 				messages := []string{}
 				for _, c := range node.Commits.Nodes {
@@ -1033,11 +1118,20 @@ func readReviewFacts(ctx context.Context, run Runner, dir string, repoRef string
 						report = ReviewReport{State: ReviewReportPresent, Url: url, Where: "ticket"}
 					}
 				}
+				waits = withDeclared(waits, pr, node.Body, ReviewWaitFromTicket)
+				if node.BlockedBy != nil {
+					blocked[pr.Number] = node.BlockedBy.Nodes
+				}
 			}
 		}
 		reports[pr.Number] = report
+		if len(waits) > 0 {
+			declared[pr.Number] = waits
+		}
 	}
-	return reports, tickets, commits, nil
+	facts := reviewFacts{reports: reports, tickets: tickets, commits: commits}
+	facts.waits, facts.waitsErr = readReviewWaits(ctx, run, dir, base, prs, declared, blocked)
+	return facts, nil
 }
 
 // withCommitAgents puts the agents the commit trailers name first, the last one leading, before those only the PR

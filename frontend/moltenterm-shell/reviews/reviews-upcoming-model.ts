@@ -68,7 +68,10 @@ export type BranchAgent = {
     blockid?: string;
     agent?: string;
     firstname?: string;
+    // A panel's time on the branch (#1841: never before it entered the worktree), a sub-agent's start.
     started?: number;
+    // #1841: a panel whose session only passed through the worktree (it wrote nothing there since it came).
+    visiting?: boolean;
     activeat?: number;
     parentblockid?: string;
     parentfirstname?: string;
@@ -149,6 +152,8 @@ export type AgentBarFacts = {
     // A panel on the branch whose only work is sub-agents on other tickets (#1796): idle here, its line says where it
     // is busy; ticket 0 when the sub-agents' branch names none.
     elsewhere?: { ticket: number };
+    // A panel whose session only passed through the branch's worktree (#1841): idle here, its line says so.
+    visiting?: boolean;
 };
 
 // The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv; so does
@@ -284,7 +289,13 @@ export function branchAgents(
             continue;
         }
         const elsewhere = busyElsewhere(upcoming, info, branch, own.ticket, own.pr);
-        found.push(elsewhere != null ? { ...facts, state: "idle", held: undefined, elsewhere } : facts);
+        if (elsewhere != null) {
+            found.push({ ...facts, state: "idle", held: undefined, elsewhere });
+        } else if (a.visiting) {
+            found.push({ ...facts, state: "idle", held: undefined, visiting: true });
+        } else {
+            found.push(facts);
+        }
     }
     const rank = (f: AgentBarFacts) => KindRank[f.kind] * 10 + (f.kind === "panel" ? BarUrgency[f.state] : 0);
     return found
@@ -326,9 +337,7 @@ export function busyElsewhere(
 
 // namesWork: a sub-agent's task names the ticket ("#1821") or the PR ("PR #1824", "#1824", "PR 1824").
 function namesWork(text: string, own: { ticket: number; pr: number }): boolean {
-    return [own.ticket, own.pr].some(
-        (n) => n > 0 && new RegExp(`(?:#|\\bPR\\s*#?)${n}(?!\\d)`, "i").test(text ?? "")
-    );
+    return [own.ticket, own.pr].some((n) => n > 0 && new RegExp(`(?:#|\\bPR\\s*#?)${n}(?!\\d)`, "i").test(text ?? ""));
 }
 
 // The first ticket or PR number a sub-agent's task names, 0 when none.
@@ -489,7 +498,8 @@ export function sinceText(since: number, now: number): string {
 
 // The bar's time line: "for 12 min · since 20:41", or for a background agent "last change 3 min ago".
 export function barTimeText(t: TFunction, facts: AgentBarFacts, now: number): string {
-    if (facts == null || !facts.since) {
+    // A lead only passing through the branch has no time on it (#1841).
+    if (facts == null || !facts.since || facts.visiting) {
         return "";
     }
     const elapsed = durationText(t, now - facts.since);
@@ -500,6 +510,20 @@ export function barTimeText(t: TFunction, facts: AgentBarFacts, now: number): st
         return t("reviewsAgents.lastChange", { duration: elapsed });
     }
     return t("reviewsAgents.forSince", { duration: elapsed, since: sinceText(facts.since, now) });
+}
+
+// barPlaceText: what a panel's line says instead of its state when its state is not work on this branch: a lead busy
+// on another ticket (#1796), one only passing through the branch's worktree (#1841). "" otherwise.
+export function barPlaceText(t: TFunction, facts: AgentBarFacts): string {
+    if (facts?.elsewhere != null) {
+        return facts.elsewhere.ticket > 0
+            ? t("reviewsAgents.busyOn", { number: facts.elsewhere.ticket })
+            : t("reviewsAgents.busyElsewhere");
+    }
+    if (facts?.visiting) {
+        return t("reviewsAgents.visiting");
+    }
+    return "";
 }
 
 export function barStateText(t: TFunction, state: BarState): string {

@@ -91,8 +91,12 @@ type BranchAgent struct {
 	BlockId   string `json:"blockid,omitempty"`
 	Agent     string `json:"agent,omitempty"`
 	FirstName string `json:"firstname,omitempty"`
-	// Started: the agent run's start (panel), in Unix milliseconds.
+	// Started: since when a panel is on the branch (#1841: never before it entered the worktree, the worktree or the
+	// branch existed), a sub-agent's run start, in Unix milliseconds.
 	Started int64 `json:"started,omitempty"`
+	// Visiting (#1841): a panel whose session only ran commands in the worktree and wrote nothing there since it came;
+	// it does not work on the branch.
+	Visiting bool `json:"visiting,omitempty"`
 	// ActiveAt: a background agent's last sign of activity, in Unix milliseconds.
 	ActiveAt int64 `json:"activeat,omitempty"`
 	// ParentBlockId: the panel agent that probably started a background agent, when one stands out.
@@ -205,6 +209,8 @@ type Upcoming struct {
 	states map[string]*upcomingState
 	// One computation per project at a time.
 	running map[string]*sync.Mutex
+	// Where each agent terminal was last placed, and since when (#1841), by its block.
+	seen map[string]panelSeen
 }
 
 func MakeUpcoming(env UpcomingEnv) *Upcoming {
@@ -214,7 +220,7 @@ func MakeUpcoming(env UpcomingEnv) *Upcoming {
 	if env.FileTime == nil {
 		env.FileTime = fileTimeMs
 	}
-	return &Upcoming{env: env, states: map[string]*upcomingState{}, running: map[string]*sync.Mutex{}}
+	return &Upcoming{env: env, states: map[string]*upcomingState{}, running: map[string]*sync.Mutex{}, seen: map[string]panelSeen{}}
 }
 
 func fileTimeMs(path string) int64 {
@@ -340,10 +346,10 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		return answer
 	}
 	ticketRes := branchTicketRes(readBranchNaming(dir))
-	answer.Agents = MatchBranchAgents(trees, places)
+	answer.Agents = u.panelsOnBranch(ctx, g, trees, places, MatchBranchAgents(trees, places))
 	if u.env.Subagents != nil {
 		subs := u.env.Subagents(places)
-		panels := answer.Agents
+		panels := atWork(answer.Agents)
 		answer.Agents = append(answer.Agents, SubagentBranchAgents(trees, panels, subs)...)
 		answer.Agents = append(answer.Agents, UnplacedSubagents(trees, panels, subs)...)
 	}
@@ -352,7 +358,7 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		targetRef = "refs/remotes/origin/" + answer.Target
 	}
 	procs := u.procsReader()
-	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, answer.Agents, places, ticketRes, backgroundFacts{
+	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, atWork(answer.Agents), places, ticketRes, backgroundFacts{
 		procs: procs, targetRef: targetRef, prBodies: openPrBodies(snap),
 	})...)
 	refs := parseBranchRefs(g.lines("for-each-ref", "--format=%(refname)%00%(committerdate:unix)", "refs/heads", "refs/remotes/origin"))
