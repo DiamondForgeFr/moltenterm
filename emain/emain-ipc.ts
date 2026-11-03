@@ -30,7 +30,7 @@ import { getWaveVersion } from "./emain-wavesrv";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300, #302)
-import { isFlatBitmap } from "./moltenterm-carpet-thumb-store"; // MOLTENTERM-PATCH (#1814)
+import { isFlatFrame } from "./moltenterm-carpet-thumb-store"; // MOLTENTERM-PATCH (#1814)
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
@@ -272,7 +272,7 @@ export function initIpcHandlers() {
         event.returnValue = retVal;
     });
 
-    handleAppIpc("capture-screenshot", async (event, rect, opts?: { width?: number }) => {
+    handleAppIpc("capture-screenshot", async (event, rect, opts?: { width?: number; flatSkipTop?: number }) => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
         if (!tabView) {
             throw new Error("No tab view found for the given webContents id");
@@ -288,7 +288,7 @@ export function initIpcHandlers() {
             }
             // MOLTENTERM-PATCH (#1814): a frame of one flat colour identifies nothing; the empty answer keeps the
             // panel's previous thumbnail.
-            if (isFlatBitmap(image.toBitmap())) {
+            if (isFlatFrame(image.toBitmap(), image.getSize(), opts?.flatSkipTop)) {
                 return "";
             }
             return `data:image/jpeg;base64,${image.toJPEG(72).toString("base64")}`;

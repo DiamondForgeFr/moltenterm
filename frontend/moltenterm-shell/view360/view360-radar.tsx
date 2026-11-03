@@ -27,7 +27,7 @@ import { suiteIcon } from "../suite/suite-icons";
 import { confirmTerminalClose } from "../worktree-close";
 import { addCarpetPanel } from "./carpet-add";
 import { closeCarpetOthers } from "./carpet-close-others";
-import { carpetCaptureAtom } from "./carpet-captures";
+import { carpetCaptureAtom, wakeCarpetCaptures } from "./carpet-captures";
 import { CarpetLayout, CarpetScrubberPx, CarpetStripPx } from "./carpet-model";
 import { activePageTab, CarpetPageFacts, carpetPageModel, makeCarpetPagesAtom } from "./carpet-page-store";
 import { CarpetStrip, StripDrag, StripHandlers } from "./carpet-tabs";
@@ -498,6 +498,13 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
     const opener = shared ? "" : (hoveredPage?.agentName ?? "");
     const previewShown = hovered != null && !busy;
     const previewId = previewShown ? `mt-strip-preview-${hovered.columnId}` : undefined;
+    const cardShown = previewShown || (windowCard && !busy);
+    // A card floating over the columns keeps them from being captured; once it is gone they may be (#1814).
+    useEffect(() => {
+        if (!cardShown) {
+            wakeCarpetCaptures();
+        }
+    }, [cardShown]);
 
     return (
         <>

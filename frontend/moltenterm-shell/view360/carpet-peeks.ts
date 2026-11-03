@@ -82,6 +82,21 @@ export function captureTargets(
     return rtn;
 }
 
+// Whether a floating element's box (a DOMRect's edges) overlaps a column's capture rect, edges touching not counting.
+export function overlapsCapture(
+    box: { left: number; right: number; top: number; bottom: number },
+    rect: CaptureRect
+): boolean {
+    return (
+        box.right > box.left &&
+        box.bottom > box.top &&
+        box.left < rect.x + rect.width &&
+        box.right > rect.x &&
+        box.top < rect.y + rect.height &&
+        box.bottom > rect.y
+    );
+}
+
 // The points a column is hit-tested at before its capture: its centre and four points near its corners. Whatever
 // covers one of them (a menu, a popover, a dragged panel) would be captured as the panel.
 export function captureProbePoints(rect: CaptureRect): { x: number; y: number }[] {

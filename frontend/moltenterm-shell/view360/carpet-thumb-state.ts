@@ -77,6 +77,14 @@ export function columnCapturable(panels: ColumnPanel[]): boolean {
     return (panels ?? []).length > 0 && panels.every(panelCapturable);
 }
 
+// A page's column starts with the panel's own header (its address and buttons), which would make a blank page look like
+// a picture: the main process leaves this share of the top out when it checks for a frame of one flat colour.
+export const PageHeaderShare = 0.08;
+
+export function columnFlatSkipTop(panels: ColumnPanel[]): number {
+    return panels?.length === 1 && panels[0].page ? PageHeaderShare : 0;
+}
+
 // What a change of panel state is compared by: a title or a favicon changing is not one.
 export function panelFactsKey(p: ColumnPanel): string {
     return [p.blockId, p.page, p.url, p.ready, p.handedOff, p.loading, p.failed, p.crashed, p.unloaded].join("\u0001");
@@ -124,6 +132,10 @@ export class CarpetThumbTracker {
     inspect(columnId: string): { tag: string; capturable: boolean } {
         const panels = this.panels(columnId);
         return { tag: columnTag(panels), capturable: columnCapturable(panels) };
+    }
+
+    flatSkipTop(columnId: string): number {
+        return columnFlatSkipTop(this.panels(columnId));
     }
 
     // The store's key: the column's first panel.

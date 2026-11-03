@@ -13,6 +13,8 @@ import {
     CarpetCapture,
     CarpetCaptureScheduler,
     nextDueInMs,
+    registerCarpetScheduler,
+    wakeCarpetCaptures,
 } from "./carpet-captures";
 
 // A clock whose timers only run when the test advances it.
@@ -332,6 +334,27 @@ describe("thumbnails kept per page (#1814)", () => {
         resolve(good);
         await flush();
         expect(store.size).toBe(0);
+    });
+
+    it("wakes every running scheduler when something that covered the carpet is gone, and none after it is disposed", async () => {
+        const a = setup([{ columnId: "a", rect }]);
+        const b = setup([{ columnId: "b", rect }]);
+        const stopA = registerCarpetScheduler(a.scheduler);
+        const stopB = registerCarpetScheduler(b.scheduler);
+        wakeCarpetCaptures();
+        await a.advance(CaptureSettleMs);
+        await b.advance(CaptureSettleMs);
+        expect(a.calls).toHaveLength(1);
+        expect(b.calls).toHaveLength(1);
+        stopB();
+        a.store.clear();
+        b.store.clear();
+        wakeCarpetCaptures();
+        await a.advance(CaptureSettleMs);
+        await b.advance(CaptureSettleMs);
+        expect(a.calls).toHaveLength(2);
+        expect(b.calls).toHaveLength(1);
+        stopA();
     });
 
     it("captures the columns that may be captured and skips the others in the same pass", async () => {

@@ -277,6 +277,45 @@ export class CarpetThumbStore {
 export const FlatTolerance = 6;
 export const FlatMaxDifferingPixels = 16;
 
+export const FlatSkipTopMax = 0.3;
+// The frame's border (a focused panel's outline, its rounded corners) is left out of the check on the other sides.
+export const FlatEdgeShare = 0.025;
+
+// A capture's frame: its bitmap and size, with the share of its top rows left out of the check (a page's own header)
+// and a thin edge on the other three sides. Flat when the rest is one colour, whatever the panel draws around it.
+export function isFlatFrame(bitmap: Buffer, size: { width: number; height: number }, skipTop?: number): boolean {
+    const width = size?.width ?? 0;
+    const height = size?.height ?? 0;
+    if (bitmap == null || width <= 0 || height <= 0 || bitmap.length < width * height * 4) {
+        return true;
+    }
+    const top = Math.round(height * Math.min(Math.max(Number(skipTop) || 0, 0), FlatSkipTopMax));
+    const bottom = height - Math.round(height * FlatEdgeShare);
+    const left = Math.round(width * FlatEdgeShare);
+    const right = width - left;
+    if (right <= left || bottom <= top) {
+        return true;
+    }
+    const start = (top * width + left) * 4;
+    let differing = 0;
+    for (let y = top; y < bottom; y++) {
+        for (let x = left; x < right; x++) {
+            const i = (y * width + x) * 4;
+            if (
+                Math.abs(bitmap[i] - bitmap[start]) > FlatTolerance ||
+                Math.abs(bitmap[i + 1] - bitmap[start + 1]) > FlatTolerance ||
+                Math.abs(bitmap[i + 2] - bitmap[start + 2]) > FlatTolerance
+            ) {
+                differing++;
+                if (differing > FlatMaxDifferingPixels) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
 export function isFlatBitmap(
     bitmap: Buffer,
     tolerance = FlatTolerance,
