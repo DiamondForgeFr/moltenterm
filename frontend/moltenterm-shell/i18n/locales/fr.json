@@ -6078,6 +6078,9 @@
         "peek": {
             "show": "Afficher {title}"
         },
+        "endSlot": {
+            "add": "Ajouter un panneau ici"
+        },
         "pin": {
             "pinBeside": "Épingler à côté",
             "pinStacked": "Épingler dans la première colonne",

@@ -6078,6 +6078,9 @@
         "peek": {
             "show": "Show {title}"
         },
+        "endSlot": {
+            "add": "Add a panel here"
+        },
         "pin": {
             "pinBeside": "Pin beside",
             "pinStacked": "Pin in the first column",
