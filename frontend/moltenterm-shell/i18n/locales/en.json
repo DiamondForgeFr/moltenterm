@@ -9790,7 +9790,7 @@
             "renameTitle": "Rename",
             "iconTitle": "Icon of “{name}”",
             "iconChoice": "Icon {icon}",
-            "panelIcons": "Panels' icons",
+            "panelIcons": "What the view shows",
             "copyName": "{name} (copy)",
             "duplicated": "“{name}” created: the same configuration",
             "reordered": "Order changed",

@@ -206,8 +206,12 @@
        finished working cools to cast iron in --mt-duration-cool with --mt-ease-cool, the long tail. */
     --mt-duration-turn: 8s;
     --mt-duration-cool: 1600ms;
+    /* The 360 cube of a view's icon turns a quarter to the carpet panel that came in front (#1823); instant under
+       reduced motion, where the front face just changes. */
+    --mt-duration-cube: 300ms;
     --mt-ease: cubic-bezier(0.2, 0, 0, 1);
     --mt-ease-cool: cubic-bezier(0.3, 0, 0.1, 1);
+    --mt-ease-cube: cubic-bezier(0.45, 0, 0.2, 1);
 }
 
 /* The light theme (theme "Coulée" step 8, FR-SHELL-121, #1341): opt-in, dark stays the default. app-theme.ts puts
@@ -423,6 +427,7 @@
         --mt-duration-glow: 0ms;
         --mt-duration-flow: 0ms;
         --mt-duration-cool: 0ms;
+        --mt-duration-cube: 0ms;
     }
 }
 
@@ -433,6 +438,7 @@
     --mt-duration-glow: 0ms;
     --mt-duration-flow: 0ms;
     --mt-duration-cool: 0ms;
+    --mt-duration-cube: 0ms;
 }
 
 /* A workspace's glyph in its own colour, pulled towards the main text colour so it reads at 4.5:1 on every surface

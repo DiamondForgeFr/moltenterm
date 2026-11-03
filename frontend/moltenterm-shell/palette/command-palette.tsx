@@ -31,7 +31,8 @@ import {
 } from "../newview/new-view-model";
 import { NewViewMorphHint } from "../newview/new-view-morph-hint";
 import { formatShortcutById } from "../shortcuts/format";
-import { keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
+import { ViewCube } from "../sidebar/view-cube";
+import { isGlyphCube, keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
 import { keepViewKeysLabel } from "../sidebar/view-pin-actions";
 import { isProjectTab } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
@@ -374,9 +375,13 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
             </span>
             {entry.panelIcons?.length ? (
                 <span className="flex shrink-0 items-center gap-1 text-11 text-muted" aria-hidden>
-                    {entry.panelIcons.map((icon, i) => (
-                        <i key={i} className={makeIconClass(icon, true)} />
-                    ))}
+                    {entry.panelIcons.map((icon, i) =>
+                        isGlyphCube(icon) ? (
+                            <ViewCube key="cube" cube={icon} small />
+                        ) : (
+                            <i key={i} className={makeIconClass(icon, true)} />
+                        )
+                    )}
                 </span>
             ) : null}
             {entry.detail && <span className="min-w-0 truncate text-12 text-muted">{entry.detail}</span>}

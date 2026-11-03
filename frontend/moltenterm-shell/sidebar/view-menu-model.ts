@@ -37,9 +37,21 @@ export function readViewIcon(value: any): string {
     return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
-// A chosen icon replaces the panels' icons; otherwise the first three panels' icons, in order. A view without a
-// panel shows the default square.
-export function viewGlyphIcons(chosen: string, panelIcons: string[]): string[] {
+// The 360 carpet as a view's icon draws it (FR-SHELL-081, #1823): one cube for the whole carpet, whose front face is
+// the icon of the carpet panel in front. id: that panel's block; index and count: its place among the carpet's panels,
+// which tell the way the cube turns when another comes in front.
+export type GlyphCube = { cube: true; id: string; icon: string; index: number; count: number };
+
+// One mark of a view's icon: a panel's icon name, or the carpet's cube.
+export type GlyphIcon = string | GlyphCube;
+
+export function isGlyphCube(icon: GlyphIcon): icon is GlyphCube {
+    return typeof icon === "object" && icon != null && icon.cube === true;
+}
+
+// A chosen icon replaces the panels' icons; otherwise the first three marks, in order (a screen region each, see
+// screenGlyphIcons). A view without a panel shows the default square.
+export function viewGlyphIcons(chosen: string, panelIcons: GlyphIcon[]): GlyphIcon[] {
     const icon = readViewIcon(chosen);
     if (icon != null) {
         return [icon];
