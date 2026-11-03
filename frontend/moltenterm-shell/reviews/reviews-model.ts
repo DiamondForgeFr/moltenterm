@@ -77,6 +77,19 @@ export type ReviewPr = {
     unpublished: number;
     // who worked on the PR, the last agent first (#847); absent: unknown agent
     agents?: AgentSignature[];
+    // What the PR waits on, still open (#1841): declared in its body, its author's comments or its ticket, or GitHub's
+    // "blocked by" relationship.
+    waitson?: ReviewDependency[];
+};
+
+// must match ReviewDependency in pkg/molten/mission/reviews_waits.go
+export type ReviewDependency = {
+    number: number;
+    title?: string;
+    url?: string;
+    kind?: "pr" | "issue";
+    state: string;
+    from: "body" | "comment" | "ticket" | "relation";
 };
 
 // must match Signature in pkg/molten/agentsign/agentsign.go

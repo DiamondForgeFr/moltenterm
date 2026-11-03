@@ -93,6 +93,16 @@ function words(input: Partial<CardInput> & { pr: ReviewPr }) {
 const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr } }[] = [
     { kind: "agent-waiting", input: { pr: pr(), agents: [Diane] } },
     { kind: "agent-working", input: { pr: pr({ merge: "conflicts", draft: true }), agents: [Nathan] } },
+    // #1841: a draft held until another PR merges.
+    {
+        kind: "waiting-on",
+        input: {
+            pr: pr({ draft: true }),
+            agents: [Jeanne],
+            agentReadies: true,
+            waitsOn: [{ number: 1099, title: "Logo palette", kind: "pr", state: "open", from: "body" }],
+        },
+    },
     { kind: "agent-finish", input: { pr: pr({ draft: true }), agents: [Jeanne], agentReadies: true } },
     {
         kind: "interrupted",
@@ -124,6 +134,10 @@ const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr }
     },
     { kind: "ready", input: { pr: pr() } },
 ];
+
+function caseOf(kind: CardStateKind) {
+    return Cases.find((c) => c.kind === kind).input;
+}
 
 describe("cardState: the nine states (#1060)", () => {
     it("covers every state of the table", () => {
@@ -231,7 +245,7 @@ describe("cardState: the nine states (#1060)", () => {
     });
 
     it("work interrupted, session open: Relaunch {name}, molten", () => {
-        const w = words(Cases[3].input);
+        const w = words(caseOf("interrupted"));
         expect(w.sentence).toBe("Work interrupted");
         expect(w.why).toBe("Jeanne stopped before finishing the rebase");
         expect(w.primary).toBe("Relaunch Jeanne");
@@ -433,7 +447,7 @@ describe("cardState: the nine states (#1060)", () => {
     });
 
     it("CI running: calm Assisted review, Validate still in the menu, behind is a fact", () => {
-        const w = words(Cases[11].input);
+        const w = words(caseOf("ci-running"));
         expect(w.sentence).toBe("CI running");
         expect(w.why).toBe("2 of 4, Backend, Build");
         expect(w.primary).toBe("Assisted review");
@@ -578,9 +592,9 @@ describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
     });
 
     it("CI running with nothing asked: the state line shows them", () => {
-        const s = state(Cases[11].input);
+        const s = state(caseOf("ci-running"));
         expect([s.kind, s.works, s.motion]).toEqual(["ci-running", true, "state"]);
-        expect(state({ ...Cases[11].input, agents: [Jeanne] }).motion).toBe("state");
+        expect(state({ ...caseOf("ci-running"), agents: [Jeanne] }).motion).toBe("state");
     });
 
     it("nothing works: no dominoes", () => {
@@ -751,7 +765,7 @@ describe("in French", () => {
         expect(words({ pr: pr({ draft: true }) }).primary).toBe("Passer en revue");
         expect(words({ pr: pr() }).sentence).toBe("Prête à fusionner");
         expect(words({ pr: pr({ merge: "conflicts" }) }).primary).toBe("Confier le rebase");
-        expect(words(Cases[5].input).sentence).toBe("CI en échec\u00a0: Backend");
+        expect(words(caseOf("failing")).sentence).toBe("CI en échec\u00a0: Backend");
         expect(
             words({ pr: pr({ draft: true }, [...Green, { name: "E2E", state: "pending" }]), agents: [Nathan] }).facts
         ).toContain("CI 4/5, 1 en cours");

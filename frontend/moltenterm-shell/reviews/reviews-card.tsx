@@ -118,6 +118,10 @@ function actionTitle(action: CardAction, pr: ReviewPr, name: Phrase): Phrase {
             return phrase("reviews.card.actionTitle.approveCommands");
         case "run-ci":
             return phrase("reviews.card.actionTitle.runCi", { branch: pr.branch });
+        case "go-to-pr":
+            return action.target?.title
+                ? phrase("reviews.card.actionTitle.goTo", { number: action.target.number, title: action.target.title })
+                : null;
     }
     return null;
 }
@@ -307,6 +311,16 @@ export function ReviewRow({
             case "github":
                 fireAndForget(() => openWebLink(pr.url));
                 return;
+            case "go-to-pr": {
+                // #1841: the PR it waits on is a card of this panel; an issue opens on GitHub.
+                const target = action.target;
+                if (target?.kind === "pr") {
+                    fireAndForget(() => model.openReviews(dir, target.number));
+                } else if (target?.url) {
+                    fireAndForget(() => openWebLink(target.url));
+                }
+                return;
+            }
         }
     };
     const group = onGroupMerge != null ? groupMergeAction(groupMerge) : null;

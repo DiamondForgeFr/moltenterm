@@ -6187,6 +6187,7 @@
         "background": "Background agent",
         "busyOn": "busy on #{number}",
         "busyElsewhere": "busy elsewhere",
+        "visiting": "only passed through",
         "state": {
             "working": "working",
             "waiting": "waiting for you",
@@ -7175,6 +7176,8 @@
                 "agentFinishBy": "{name} still has to mark it ready",
                 "agentDone": "Done · {name} has to mark it ready",
                 "agentDoneBlocked": "Done · {name} has to pick it up again",
+                "waitingOn": "Waiting on #{number} · {title}",
+                "waitingOnNumber": "Waiting on #{number}",
                 "agentOn": {
                     "rebase": "{name} is rebasing onto {base}",
                     "investigate": "{name} is resolving what blocks it",
@@ -7223,7 +7226,13 @@
                 "ciStopped": "last heard of on {when}, nothing runs it now ({names})",
                 "ciStoppedUnknown": "nothing runs it now ({names})",
                 "ciElsewhere": "status posted on {when}, no run of it here ({names})",
-                "ciElsewhereUnknown": "no run of it here ({names})"
+                "ciElsewhereUnknown": "no run of it here ({names})",
+                "waitsOn": {
+                    "body": "its description says it depends on #{number}",
+                    "comment": "its agent's comment says it depends on #{number}",
+                    "ticket": "its ticket says it is blocked by #{number}",
+                    "relation": "on GitHub, its ticket is blocked by #{number}"
+                }
             },
             "action": {
                 "approveCommands": "Approve the commands…",
@@ -7244,7 +7253,8 @@
                 "stop": "Stop {name}",
                 "rerun": "Rerun failed jobs: {names}",
                 "markReady": "Mark ready for review",
-                "markReadyMenu": "Mark ready for review: the PR leaves draft"
+                "markReadyMenu": "Mark ready for review: the PR leaves draft",
+                "goTo": "Go to #{number}"
             },
             "ciRun": {
                 "notStarted": "The local CI did not start."
@@ -7252,6 +7262,7 @@
             "actionTitle": {
                 "approveCommands": "Open the project's declared commands to approve them. Approving starts nothing.",
                 "runCi": "Run the local CI on {branch}, asking for the approval of the commands first when it is missing",
+                "goTo": "Show #{number} · {title}",
                 "answer": "Show {name}'s terminal: it is waiting for your answer",
                 "follow": "Show {name}'s terminal",
                 "relaunch": "Send the same task to {name} again, in its session, with the pull request as it is now",
@@ -7277,6 +7288,7 @@
                 "rank": "#{rank} in the merge order",
                 "otherBranch": "also on this ticket: the branch {branches}",
                 "otherBranches": "also on this ticket: the branches {branches}",
+                "alsoWaitsOn": "also waiting on {numbers}",
                 "board": "column {status}"
             },
             "history": {

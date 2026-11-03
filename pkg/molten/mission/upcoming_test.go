@@ -214,7 +214,8 @@ func TestUpcomingGet(t *testing.T) {
 	for _, a := range answer.Agents {
 		agents[a.Branch] = a
 	}
-	if a := agents["feature/11-agent"]; a.Kind != UpcomingAgentPanel || a.BlockId != "b1" || a.Started != 42 {
+	// #1841: the session started at 42, long before its worktree existed: it is on the branch since the worktree is.
+	if a := agents["feature/11-agent"]; a.Kind != UpcomingAgentPanel || a.BlockId != "b1" || a.Started <= 42 {
 		t.Fatalf("panel agent: %+v", a)
 	}
 	if a := agents["feature/12-bg"]; a.Kind != UpcomingAgentBackground || a.ParentBlockId != "b0" || a.ActiveAt == 0 {

@@ -6187,6 +6187,7 @@
         "background": "Agent en arrière-plan",
         "busyOn": "occupé sur #{number}",
         "busyElsewhere": "occupé ailleurs",
+        "visiting": "seulement de passage",
         "state": {
             "working": "au travail",
             "waiting": "vous attend",
@@ -7175,6 +7176,8 @@
                 "agentFinishBy": "{name} doit encore la marquer prête",
                 "agentDone": "Fini · {name} doit la marquer prête",
                 "agentDoneBlocked": "Fini · {name} doit la reprendre",
+                "waitingOn": "En attente de #{number} · {title}",
+                "waitingOnNumber": "En attente de #{number}",
                 "agentOn": {
                     "rebase": "{name} rebase sur {base}",
                     "investigate": "{name} résout ce qui la bloque",
@@ -7223,7 +7226,13 @@
                 "ciStopped": "dernière nouvelle le {when}, plus rien ne la fait tourner ({names})",
                 "ciStoppedUnknown": "plus rien ne la fait tourner ({names})",
                 "ciElsewhere": "statut publié le {when}, aucun lancement ici ({names})",
-                "ciElsewhereUnknown": "aucun lancement ici ({names})"
+                "ciElsewhereUnknown": "aucun lancement ici ({names})",
+                "waitsOn": {
+                    "body": "sa description dit qu'elle dépend de #{number}",
+                    "comment": "un commentaire de son agent dit qu'elle dépend de #{number}",
+                    "ticket": "son ticket dit qu'il est bloqué par #{number}",
+                    "relation": "sur GitHub, son ticket est bloqué par #{number}"
+                }
             },
             "action": {
                 "approveCommands": "Approuver les commandes…",
@@ -7244,6 +7253,7 @@
                 "stop": "Arrêter {name}",
                 "rerun": "Relancer les jobs en échec : {names}",
                 "markReady": "Passer en revue",
+                "goTo": "Aller à #{number}",
                 "markReadyMenu": "Passer en revue : la PR quitte le brouillon"
             },
             "ciRun": {
@@ -7252,6 +7262,7 @@
             "actionTitle": {
                 "approveCommands": "Ouvre les commandes déclarées du projet pour les approuver. Approuver ne lance rien.",
                 "runCi": "Lance la CI locale sur {branch}, en demandant d'abord l'approbation des commandes si elle manque",
+                "goTo": "Afficher #{number} · {title}",
                 "answer": "Afficher le terminal de {name} : il attend votre réponse",
                 "follow": "Afficher le terminal de {name}",
                 "relaunch": "Renvoyer la même tâche à {name}, dans sa session, avec la pull request telle qu'elle est",
@@ -7277,7 +7288,8 @@
                 "rank": "n° {rank} dans l'ordre de fusion",
                 "otherBranch": "aussi sur ce ticket : la branche {branches}",
                 "otherBranches": "aussi sur ce ticket : les branches {branches}",
-                "board": "colonne {status}"
+                "board": "colonne {status}",
+                "alsoWaitsOn": "attend aussi {numbers}"
             },
             "history": {
                 "gone": "{name} s'est arrêté avant de finir {what}."
