@@ -49,3 +49,58 @@ export function sameViewMatch(blockDef: BlockDef): PanelMatch {
     const file = blockDef?.meta?.file ?? null;
     return (meta) => meta?.view === view && (meta?.file ?? null) === file;
 }
+
+// For a panel that every call to action opens afresh (a terminal in the project's folder): no open panel counts.
+export const NoPanelMatch: PanelMatch = () => false;
+
+// A call to action inside a panel that opens another panel (#1844, FR-SHELL-139 AC13): the developer's own gesture in
+// that view, so the panel opens beside the one the call to action is in, even in a pinned view. App actions (the rail,
+// the status bar, a notification...) start outside any panel and keep appPanelStep.
+export type PanelOrigin = {
+    // The panel the call to action is in (usePanelBlockId).
+    blockId?: string;
+    // The call to action asked for a new view: it says so, or Shift (⌘) was held on the click.
+    newView?: boolean;
+};
+
+export type PanelCtaStep =
+    // The view already shows a panel of that kind: it gets the focus and what the call to action names.
+    | { kind: "focus"; blockId: string }
+    // A new column to the right of the panel the call to action is in.
+    | { kind: "beside"; sourceBlockId: string }
+    | { kind: "newview" }
+    // The panel it is in is not laid out (a floating panel, none known): the app action's rules.
+    | { kind: "door" };
+
+export function panelCtaStep(input: {
+    newView: boolean;
+    inActive: string;
+    sourceBlockId: string;
+    sourceLaidOut: boolean;
+}): PanelCtaStep {
+    if (input.newView) {
+        return { kind: "newview" };
+    }
+    if (input.inActive) {
+        return { kind: "focus", blockId: input.inActive };
+    }
+    if (input.sourceBlockId && input.sourceLaidOut) {
+        return { kind: "beside", sourceBlockId: input.sourceBlockId };
+    }
+    return { kind: "door" };
+}
+
+export type ClickModifiers = { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean };
+
+// The browser's "open in a new window" (window = view, FR-SHELL-139): Shift on the click, or the platform's command key
+// (⌘; Ctrl elsewhere, where Ctrl-click is not the context menu).
+export function wantsNewView(mods: ClickModifiers, mac: boolean): boolean {
+    if (mods == null) {
+        return false;
+    }
+    return !!mods.shiftKey || (mac ? !!mods.metaKey : !!mods.ctrlKey);
+}
+
+export function panelOrigin(blockId: string, mods: ClickModifiers, mac: boolean): PanelOrigin {
+    return { blockId, newView: wantsNewView(mods, mac) };
+}

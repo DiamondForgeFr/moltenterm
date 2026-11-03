@@ -20,6 +20,7 @@ import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { MissionPaneEvent } from "../pane-status";
+import { useNewViewHint, usePanelOrigin } from "../panel-cta";
 import { LaunchEvent } from "../reviews/reviews-launch-client";
 import type { LaunchState } from "../reviews/reviews-launch-model";
 import { ReviewsModel } from "../reviews/reviews-store";
@@ -201,6 +202,8 @@ function TestContextDetails({
     onDone: () => void;
 }) {
     const t = useT();
+    const origin = usePanelOrigin();
+    const hint = useNewViewHint();
     const rows = detailRows(answer, t);
     const target = reviewsTarget(answer, workspaceDir);
     const ciState = answer.pr?.ci && answer.pr.ci !== "none" ? checkIconState(answer.pr.ci as CheckState) : null;
@@ -254,10 +257,16 @@ function TestContextDetails({
                             type="button"
                             className="molten-btn cursor-pointer rounded-4 px-3 py-1.5 text-12"
                             data-testid="browser-test-context-reviews"
-                            onClick={() => {
+                            title={hint(t("browser.testContext.openInReviews"))}
+                            onClick={(e) => {
                                 onDone();
                                 fireAndForget(() =>
-                                    ReviewsModel.getInstance().openReviews(target.dir, target.number, target.branch)
+                                    ReviewsModel.getInstance().openReviews(
+                                        target.dir,
+                                        target.number,
+                                        target.branch,
+                                        origin(e)
+                                    )
                                 );
                             }}
                         >
