@@ -18,9 +18,10 @@ import (
 )
 
 // What a server asks that the developer may want is asked in the window, never refused flat (#1831, "never block,
-// confirm instead"): copying a file to or from this computer from the server's terminal, and making this computer
-// connect to another server. The answer "always" holds for that server and that kind of request until MoltenTerm
-// restarts.
+// confirm instead"): reading or writing a file of this computer from the server's terminal, and making this computer
+// connect to another server. One question per server at a time. An answer may be remembered until MoltenTerm
+// restarts: an Allow for the folder of the approved path and its subfolders (never a credential, startup or
+// MoltenTerm location, never the home folder or wider), a Deny for everything that server asks.
 
 const (
 	moltenAskRead    = "read"
@@ -28,113 +29,260 @@ const (
 	moltenAskConnect = "connect"
 )
 
-// moltenAskTimeout is how long the window's question waits for an answer.
-const moltenAskTimeout = 60 * time.Second
+const (
+	// moltenAskTimeout is how long the window's question waits for an answer, at most.
+	moltenAskTimeout = 60 * time.Second
+	// moltenAskMinTimeout is the least a question waits, whatever the request's own deadline.
+	moltenAskMinTimeout = 5 * time.Second
+	// moltenAskOnceTTL is how long one Allow covers the same path, so one user action asks once (an info, then the
+	// read or the copy).
+	moltenAskOnceTTL = 2 * time.Minute
+)
 
-type moltenAskGrant struct {
-	conn string
-	kind string
+// moltenQuestion is one question to the window.
+type moltenQuestion struct {
+	Server    string
+	Kind      string
+	Target    string
+	Folder    string
+	Sensitive bool
+	Timeout   time.Duration
 }
 
-var moltenAskGrantsLock sync.Mutex
-var moltenAskGrants = map[moltenAskGrant]bool{}
-
-func moltenAskGranted(conn string, kind string) bool {
-	moltenAskGrantsLock.Lock()
-	defer moltenAskGrantsLock.Unlock()
-	return moltenAskGrants[moltenAskGrant{conn: wshutil.NormConnName(conn), kind: kind}]
+type moltenAskState struct {
+	lock    sync.Mutex
+	folders map[string][]moltenFolderGrant
+	once    map[moltenOnceKey]moltenOnceGrant
+	denied  map[string]bool
+	slots   map[string]chan struct{}
 }
 
-func moltenGrantAsk(conn string, kind string) {
-	moltenAskGrantsLock.Lock()
-	defer moltenAskGrantsLock.Unlock()
-	moltenAskGrants[moltenAskGrant{conn: wshutil.NormConnName(conn), kind: kind}] = true
+type moltenFolderGrant struct {
+	kind   string
+	folder string
 }
 
-// moltenRemotePrompt asks the window; tests replace it. It returns whether the developer allowed, and "always".
+type moltenOnceKey struct {
+	conn   string
+	target string
+}
+
+type moltenOnceGrant struct {
+	kind    string
+	expires time.Time
+}
+
+var moltenAsk = makeMoltenAskState()
+
+func makeMoltenAskState() *moltenAskState {
+	return &moltenAskState{folders: map[string][]moltenFolderGrant{}, once: map[moltenOnceKey]moltenOnceGrant{}, denied: map[string]bool{}, slots: map[string]chan struct{}{}}
+}
+
+// covers tells whether a granted kind covers kind: a write covers a read of the same files.
+func kindCovers(granted string, kind string) bool {
+	return granted == kind || (granted == moltenAskWrite && kind == moltenAskRead)
+}
+
+func (s *moltenAskState) isDenied(conn string) bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.denied[conn]
+}
+
+func (s *moltenAskState) isGranted(conn string, q moltenQuestion, now time.Time) bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if grant, ok := s.once[moltenOnceKey{conn: conn, target: q.Target}]; ok && now.Before(grant.expires) && kindCovers(grant.kind, q.Kind) {
+		return true
+	}
+	if q.Sensitive {
+		return false
+	}
+	for _, grant := range s.folders[conn] {
+		if !kindCovers(grant.kind, q.Kind) {
+			continue
+		}
+		if q.Kind == moltenAskConnect {
+			if wshutil.NormConnName(grant.folder) == wshutil.NormConnName(q.Target) {
+				return true
+			}
+			continue
+		}
+		if metaguard.PathWithin(q.Target, grant.folder) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *moltenAskState) record(conn string, q moltenQuestion, allowed bool, remember bool, now time.Time) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if !allowed {
+		if remember {
+			s.denied[conn] = true
+		}
+		return
+	}
+	s.once[moltenOnceKey{conn: conn, target: q.Target}] = moltenOnceGrant{kind: q.Kind, expires: now.Add(moltenAskOnceTTL)}
+	if remember && q.Folder != "" {
+		s.folders[conn] = append(s.folders[conn], moltenFolderGrant{kind: q.Kind, folder: q.Folder})
+	}
+}
+
+// slot is the one question a server may have open in the window.
+func (s *moltenAskState) slot(conn string) chan struct{} {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	ch := s.slots[conn]
+	if ch == nil {
+		ch = make(chan struct{}, 1)
+		s.slots[conn] = ch
+	}
+	return ch
+}
+
+// moltenRemotePrompt asks the window; tests replace it. It returns whether the developer allowed, and whether to
+// remember the answer.
 var moltenRemotePrompt = moltenPromptWindow
 
-func moltenAskTexts(server string, kind string, target string) (title *uimsg.Text, query *uimsg.Text, englishTitle string, englishQuery string) {
-	switch kind {
+func moltenQuestionTexts(q moltenQuestion) (title *uimsg.Text, query *uimsg.Text, remember *uimsg.Text, englishTitle string, englishQuery string, englishRemember string) {
+	server, target, folder := q.Server, metaguard.ShownPath(q.Target), metaguard.ShownPath(q.Folder)
+	switch q.Kind {
 	case moltenAskRead:
-		return uimsg.Make("remoteask.readTitle"), uimsg.Make("remoteask.read", "server", server, "path", target),
-			"A server wants to read a file of this computer",
-			fmt.Sprintf("%s wants to read %s on this computer.", server, target)
+		title, englishTitle = uimsg.Make("remoteask.readTitle"), "A server wants to read a file of this computer"
+		query, englishQuery = uimsg.Make("remoteask.read", "server", server, "path", target), fmt.Sprintf("%s wants to read %s on this computer.", server, target)
+		if q.Sensitive {
+			query, englishQuery = uimsg.Make("remoteask.readSensitive", "server", server, "path", target), fmt.Sprintf("%s wants to read %s on this computer. This location holds credentials or settings that can run programs.", server, target)
+		}
 	case moltenAskWrite:
-		return uimsg.Make("remoteask.writeTitle"), uimsg.Make("remoteask.write", "server", server, "path", target),
-			"A server wants to write a file on this computer",
-			fmt.Sprintf("%s wants to write %s on this computer.", server, target)
+		title, englishTitle = uimsg.Make("remoteask.writeTitle"), "A server wants to write a file on this computer"
+		query, englishQuery = uimsg.Make("remoteask.write", "server", server, "path", target), fmt.Sprintf("%s wants to write %s on this computer.", server, target)
+		if q.Sensitive {
+			query, englishQuery = uimsg.Make("remoteask.writeSensitive", "server", server, "path", target), fmt.Sprintf("%s wants to write %s on this computer. This location holds credentials or settings that can run programs.", server, target)
+		}
+	default:
+		title, englishTitle = uimsg.Make("remoteask.connectTitle"), "A server wants this computer to connect to another server"
+		query, englishQuery = uimsg.Make("remoteask.connect", "server", server, "target", target), fmt.Sprintf("%s wants this computer to open a connection to %s.", server, target)
 	}
-	return uimsg.Make("remoteask.connectTitle"), uimsg.Make("remoteask.connect", "server", server, "target", target),
-		"A server wants this computer to connect to another server",
-		fmt.Sprintf("%s wants this computer to open a connection to %s.", server, target)
+	switch {
+	case q.Kind == moltenAskConnect:
+		remember, englishRemember = uimsg.Make("remoteask.rememberConnect", "server", server, "target", target), fmt.Sprintf("Remember until MoltenTerm restarts (Allow: %s may connect this computer to %s; Deny: refuse everything %s asks)", server, target, server)
+	case q.Folder != "" && q.Kind == moltenAskWrite:
+		remember, englishRemember = uimsg.Make("remoteask.rememberWrite", "server", server, "folder", folder), fmt.Sprintf("Remember until MoltenTerm restarts (Allow: %s may write files in %s; Deny: refuse everything %s asks)", server, folder, server)
+	case q.Folder != "":
+		remember, englishRemember = uimsg.Make("remoteask.rememberRead", "server", server, "folder", folder), fmt.Sprintf("Remember until MoltenTerm restarts (Allow: %s may read files in %s; Deny: refuse everything %s asks)", server, folder, server)
+	default:
+		remember, englishRemember = uimsg.Make("remoteask.rememberDeny", "server", server), fmt.Sprintf("If I deny, refuse everything %s asks until MoltenTerm restarts (this location is asked every time)", server)
+	}
+	return
 }
 
-func moltenPromptWindow(server string, kind string, target string) (bool, bool) {
-	title, query, englishTitle, englishQuery := moltenAskTexts(server, kind, target)
-	always := uimsg.Make("remoteask.always", "server", server)
-	allow := uimsg.Make("remoteask.allow")
-	deny := uimsg.Make("remoteask.deny")
-	ctx, cancel := context.WithTimeout(context.Background(), moltenAskTimeout)
+func moltenPromptWindow(q moltenQuestion) (bool, bool) {
+	title, query, remember, englishTitle, englishQuery, englishRemember := moltenQuestionTexts(q)
+	ctx, cancel := context.WithTimeout(context.Background(), q.Timeout)
 	defer cancel()
 	resp, err := userinput.GetUserInput(ctx, &userinput.UserInputRequest{
 		ResponseType: "confirm",
 		Title:        englishTitle,
 		QueryText:    englishQuery,
-		CheckBoxMsg:  fmt.Sprintf("Always allow %s to do this until MoltenTerm restarts", server),
+		CheckBoxMsg:  englishRemember,
 		OkLabel:      "Allow",
 		CancelLabel:  "Deny",
-		MoltenTexts:  map[string]any{"title": title, "querytext": query, "checkboxmsg": always, "oklabel": allow, "cancellabel": deny},
+		MoltenTexts:  map[string]any{"title": title, "querytext": query, "checkboxmsg": remember, "oklabel": uimsg.Make("remoteask.allow"), "cancellabel": uimsg.Make("remoteask.deny")},
 	})
 	if err != nil || resp == nil {
 		return false, false
 	}
-	return resp.Confirm, resp.Confirm && resp.CheckboxStat
+	return resp.Confirm, resp.CheckboxStat
 }
 
-// moltenAskRemote asks the window whether the server may do kind on target; a refusal says the developer did not
-// allow it.
-func moltenAskRemote(remote metaguard.Remote, kind string, target string) error {
+// moltenAskTimeoutFor is how long a question may wait: the request's own deadline, so the answer comes while the
+// server still waits for it, bounded by moltenAskTimeout and moltenAskMinTimeout.
+func moltenAskTimeoutFor(ctx context.Context) time.Duration {
+	wait := moltenAskTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		wait = min(wait, time.Until(deadline)-time.Second)
+	}
+	return max(wait, moltenAskMinTimeout)
+}
+
+func moltenAskVerb(kind string) string {
+	if kind == moltenAskConnect {
+		return "connect this computer to"
+	}
+	return kind
+}
+
+// moltenAskRemote asks the window whether the server may do kind on target (a cleaned path of this computer, or a
+// connection), one question per server at a time.
+func moltenAskRemote(ctx context.Context, remote metaguard.Remote, kind string, target string) error {
 	server := remote.Conn
 	if server == "" {
-		server = "A server"
+		return fmt.Errorf("refused: an SSH or WSL host whose connection is unknown cannot %s %s."+metaguard.RemoteHint, moltenAskVerb(kind), target)
 	}
-	if remote.Conn != "" && moltenAskGranted(remote.Conn, kind) {
-		return nil
+	conn := wshutil.NormConnName(server)
+	q := moltenQuestion{Server: server, Kind: kind, Target: target}
+	if kind != moltenAskConnect {
+		q.Target = metaguard.CleanLocalPath(target)
+		q.Sensitive = metaguard.IsSensitiveLocalPath(q.Target)
+		q.Folder, _ = metaguard.AlwaysFolder(q.Target)
+	} else {
+		q.Folder = target
 	}
-	allowed, always := moltenRemotePrompt(server, kind, target)
+	if err := moltenAskPreCheck(conn, server, q); err != errMoltenAskNeeded {
+		return err
+	}
+	slot := moltenAsk.slot(conn)
+	select {
+	case slot <- struct{}{}:
+	case <-ctx.Done():
+		return fmt.Errorf("refused: %s already has a question waiting in the MoltenTerm window; answer it, then run this again."+metaguard.RemoteHint, server)
+	}
+	defer func() { <-slot }()
+	if err := moltenAskPreCheck(conn, server, q); err != errMoltenAskNeeded {
+		return err
+	}
+	q.Timeout = moltenAskTimeoutFor(ctx)
+	allowed, remember := moltenRemotePrompt(q)
+	moltenAsk.record(conn, q, allowed, remember, time.Now())
 	if !allowed {
-		verb := kind
-		if kind == moltenAskConnect {
-			verb = "connect this computer to"
-		}
-		return fmt.Errorf("refused: %s was not allowed to %s %s (asked in the MoltenTerm window)."+metaguard.RemoteHint, server, verb, target)
-	}
-	if always && remote.Conn != "" {
-		moltenGrantAsk(remote.Conn, kind)
+		return fmt.Errorf("refused: %s was not allowed to %s %s (asked in the MoltenTerm window)."+metaguard.RemoteHint, server, moltenAskVerb(kind), metaguard.ShownPath(q.Target))
 	}
 	return nil
 }
 
+var errMoltenAskNeeded = fmt.Errorf("ask")
+
+func moltenAskPreCheck(conn string, server string, q moltenQuestion) error {
+	if moltenAsk.isDenied(conn) {
+		return fmt.Errorf("refused: you denied %s everything it asks until MoltenTerm restarts."+metaguard.RemoteHint, server)
+	}
+	if moltenAsk.isGranted(conn, q, time.Now()) {
+		return nil
+	}
+	return errMoltenAskNeeded
+}
+
 // moltenCheckRemotePath lets a host use a path of a server, asks the window for a path of this computer (read or
 // write), and refuses the rest (a WSL distribution, another scheme).
-func moltenCheckRemotePath(remote metaguard.Remote, path string, kind string) error {
+func moltenCheckRemotePath(ctx context.Context, remote metaguard.Remote, path string, kind string) error {
 	if err := metaguard.CheckRemotePath(remote, path); err == nil {
-		return moltenCheckRemoteHopPath(remote, path)
+		return moltenCheckRemoteHopPath(ctx, remote, path)
 	}
 	local, ok := metaguard.LocalPath(path)
 	if !ok {
 		return metaguard.CheckRemotePath(remote, path)
 	}
-	return moltenAskRemote(remote, kind, local)
+	return moltenAskRemote(ctx, remote, kind, local)
 }
 
-func moltenCheckRemoteHopPath(remote metaguard.Remote, path string) error {
+func moltenCheckRemoteHopPath(ctx context.Context, remote metaguard.Remote, path string) error {
 	host, ok := metaguard.PathHost(path)
 	if !ok {
 		return nil
 	}
-	return moltenCheckRemoteHop(remote, host)
+	return moltenCheckRemoteHop(ctx, remote, host)
 }
 
 // moltenKnownConn tells whether conn is configured (connections.json) or already connected: a host may ask for it
@@ -154,20 +302,26 @@ func moltenKnownConn(conn string) bool {
 	return false
 }
 
-// moltenKnownConnFn is moltenKnownConn; tests replace it.
+// moltenKnownConnFn and moltenLoopbackConnFn are moltenKnownConn and moltenIsLoopbackTarget; tests replace them.
 var moltenKnownConnFn = moltenKnownConn
+var moltenLoopbackConnFn = moltenIsLoopbackTarget
 
-// moltenCheckRemoteHop bounds a request that makes this computer act on another SSH server: never a loopback
-// address (this computer's own SSH server), a known connection as is, any other after the window's confirmation.
-func moltenCheckRemoteHop(remote metaguard.Remote, conn string) error {
+// moltenCheckRemoteHop bounds a request that makes this computer act on another SSH server: never this computer's
+// own SSH server (the name, its configured HostName and the addresses they resolve to), a known connection as is,
+// any other after the window's confirmation. The connection is then marked as a server's request, so its dial
+// refuses a loopback address too (DNS that changes in between).
+func moltenCheckRemoteHop(ctx context.Context, remote metaguard.Remote, conn string) error {
 	if !metaguard.OtherServer(remote, conn) {
 		return nil
 	}
-	if metaguard.IsLoopbackConn(conn) {
+	if moltenLoopbackConnFn(ctx, conn) {
 		return fmt.Errorf("refused: an SSH or WSL host cannot make this computer connect to %q, which is this computer."+metaguard.RemoteHint, conn)
 	}
-	if moltenKnownConnFn(conn) {
-		return nil
+	if !moltenKnownConnFn(conn) {
+		if err := moltenAskRemote(ctx, remote, moltenAskConnect, conn); err != nil {
+			return err
+		}
 	}
-	return moltenAskRemote(remote, moltenAskConnect, conn)
+	moltenMarkServerRequested(conn)
+	return nil
 }

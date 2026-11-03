@@ -3,6 +3,8 @@
 
 package cmd
 
+// MOLTENTERM-PATCH (#1831): requests use moltenFileTimeout() (wshcmd-molten-filetimeout.go).
+
 import (
 	"context"
 	"encoding/base64"
@@ -29,14 +31,14 @@ func convertNotFoundErr(err error) error {
 }
 
 func ensureFile(fileData wshrpc.FileData) (*wshrpc.FileInfo, error) {
-	info, err := wshclient.FileInfoCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: fileTimeout})
+	info, err := wshclient.FileInfoCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 	err = convertNotFoundErr(err)
 	if err == fs.ErrNotExist {
-		err = wshclient.FileCreateCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: fileTimeout})
+		err = wshclient.FileCreateCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 		if err != nil {
 			return nil, fmt.Errorf("creating file: %w", err)
 		}
-		info, err = wshclient.FileInfoCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: fileTimeout})
+		info, err = wshclient.FileInfoCommand(RpcClient, fileData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 		if err != nil {
 			return nil, fmt.Errorf("getting file info: %w", err)
 		}
@@ -52,7 +54,7 @@ func streamWriteToFile(fileData wshrpc.FileData, reader io.Reader) error {
 	// First truncate the file with an empty write
 	emptyWrite := fileData
 	emptyWrite.Data64 = ""
-	err := wshclient.FileWriteCommand(RpcClient, emptyWrite, &wshrpc.RpcOpts{Timeout: fileTimeout})
+	err := wshclient.FileWriteCommand(RpcClient, emptyWrite, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 	if err != nil {
 		return fmt.Errorf("initializing file with empty write: %w", err)
 	}
@@ -81,7 +83,7 @@ func streamWriteToFile(fileData wshrpc.FileData, reader io.Reader) error {
 		appendData := fileData
 		appendData.Data64 = base64.StdEncoding.EncodeToString(chunk)
 
-		err = wshclient.FileAppendCommand(RpcClient, appendData, &wshrpc.RpcOpts{Timeout: int64(fileTimeout)})
+		err = wshclient.FileAppendCommand(RpcClient, appendData, &wshrpc.RpcOpts{Timeout: moltenFileTimeout()})
 		if err != nil {
 			return fmt.Errorf("appending chunk to file: %w", err)
 		}

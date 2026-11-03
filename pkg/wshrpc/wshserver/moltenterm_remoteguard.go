@@ -105,7 +105,7 @@ func moltenCheckRemoteJob(ctx context.Context, remote metaguard.Remote, jobId st
 // moltenRemoteBlockDef is the block definition a host's new block gets: a preview of this computer's file the host
 // named on purpose (connection local) is asked in the window; any other block meant for this computer runs on the
 // host's connection, and a block on another server is bounded by moltenCheckRemoteHop.
-func moltenRemoteBlockDef(remote metaguard.Remote, def *waveobj.BlockDef) (*waveobj.BlockDef, error) {
+func moltenRemoteBlockDef(ctx context.Context, remote metaguard.Remote, def *waveobj.BlockDef) (*waveobj.BlockDef, error) {
 	if def == nil {
 		def = &waveobj.BlockDef{}
 	}
@@ -116,12 +116,12 @@ func moltenRemoteBlockDef(remote metaguard.Remote, def *waveobj.BlockDef) (*wave
 		if meta.GetBool(waveobj.MetaKey_Edit, false) {
 			kind = moltenAskWrite
 		}
-		if err := moltenAskRemote(remote, kind, meta.GetString(waveobj.MetaKey_File, "")); err != nil {
+		if err := moltenAskRemote(ctx, remote, kind, meta.GetString(waveobj.MetaKey_File, "")); err != nil {
 			return nil, err
 		}
 		return def, nil
 	}
-	if err := moltenCheckRemoteHop(remote, conn); err != nil {
+	if err := moltenCheckRemoteHop(ctx, remote, conn); err != nil {
 		return nil, err
 	}
 	forced, err := metaguard.RemoteCreateMeta(remote, meta)
@@ -150,7 +150,7 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 				return nil, err
 			}
 		}
-		if req.BlockDef, err = moltenRemoteBlockDef(remote, req.BlockDef); err != nil {
+		if req.BlockDef, err = moltenRemoteBlockDef(ctx, remote, req.BlockDef); err != nil {
 			return nil, err
 		}
 		return req, nil
@@ -159,7 +159,7 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 		if err != nil {
 			return nil, err
 		}
-		if req.BlockDef, err = moltenRemoteBlockDef(remote, req.BlockDef); err != nil {
+		if req.BlockDef, err = moltenRemoteBlockDef(ctx, remote, req.BlockDef); err != nil {
 			return nil, err
 		}
 		return req, nil
@@ -176,7 +176,7 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 			return nil, err
 		}
 		if conn, ok := req.Meta[waveobj.MetaKey_Connection].(string); ok {
-			return data, moltenCheckRemoteHop(remote, conn)
+			return data, moltenCheckRemoteHop(ctx, remote, conn)
 		}
 		return data, nil
 	case "controllerresync":
@@ -229,19 +229,31 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 		if req.SuggestionType != "file" {
 			return data, nil
 		}
-		return data, metaguard.CheckRemoteConn(remote, req.FileConnection, "list the folders of")
-	case "fileinfo", "fileread":
+		// The walk reads this computer's folders whatever FileConnection says (pkg/suggestion/filewalk.go).
+		return nil, fmt.Errorf("refused: an SSH or WSL host cannot list the folders of this computer." + metaguard.RemoteHint)
+	case "fileinfo":
 		req, err := moltenDecode[wshrpc.FileData](data)
 		if err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemotePath(remote, moltenFileDataPath(req), moltenAskRead)
+		// A file's info (size, dates) is what wsh checks before a copy: asking for it too would ask twice for one
+		// copy. Only a credential, startup or MoltenTerm location is asked.
+		if local, ok := metaguard.LocalPath(moltenFileDataPath(req)); ok && remote.Conn != "" && !moltenAsk.isDenied(wshutil.NormConnName(remote.Conn)) && !metaguard.IsSensitiveLocalPath(metaguard.CleanLocalPath(local)) {
+			return data, nil
+		}
+		return data, moltenCheckRemotePath(ctx, remote, moltenFileDataPath(req), moltenAskRead)
+	case "fileread":
+		req, err := moltenDecode[wshrpc.FileData](data)
+		if err != nil {
+			return nil, err
+		}
+		return data, moltenCheckRemotePath(ctx, remote, moltenFileDataPath(req), moltenAskRead)
 	case "filecreate", "filemkdir", "filewrite", "fileappend":
 		req, err := moltenDecode[wshrpc.FileData](data)
 		if err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemotePath(remote, moltenFileDataPath(req), moltenAskWrite)
+		return data, moltenCheckRemotePath(ctx, remote, moltenFileDataPath(req), moltenAskWrite)
 	case "filestream":
 		req, err := moltenDecode[wshrpc.CommandFileStreamData](data)
 		if err != nil {
@@ -251,19 +263,19 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 		if req.Info != nil {
 			path = req.Info.Path
 		}
-		return data, moltenCheckRemotePath(remote, path, moltenAskRead)
+		return data, moltenCheckRemotePath(ctx, remote, path, moltenAskRead)
 	case "filedelete":
 		req, err := moltenDecode[wshrpc.CommandDeleteFileData](data)
 		if err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemotePath(remote, req.Path, moltenAskWrite)
+		return data, moltenCheckRemotePath(ctx, remote, req.Path, moltenAskWrite)
 	case "filelist", "fileliststream":
 		req, err := moltenDecode[wshrpc.FileListData](data)
 		if err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemotePath(remote, req.Path, moltenAskRead)
+		return data, moltenCheckRemotePath(ctx, remote, req.Path, moltenAskRead)
 	case "filecopy", "filemove":
 		req, err := moltenDecode[wshrpc.CommandFileCopyData](data)
 		if err != nil {
@@ -273,10 +285,10 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 		if command == "filemove" {
 			srcKind = moltenAskWrite
 		}
-		if err := moltenCheckRemotePath(remote, req.SrcUri, srcKind); err != nil {
+		if err := moltenCheckRemotePath(ctx, remote, req.SrcUri, srcKind); err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemotePath(remote, req.DestUri, moltenAskWrite)
+		return data, moltenCheckRemotePath(ctx, remote, req.DestUri, moltenAskWrite)
 	case "filejoin":
 		paths, err := moltenDecode[[]string](data)
 		if err != nil {
@@ -285,7 +297,7 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 		if len(paths) == 0 {
 			return data, nil
 		}
-		return data, moltenCheckRemotePath(remote, paths[0], moltenAskRead)
+		return data, moltenCheckRemotePath(ctx, remote, paths[0], moltenAskRead)
 	case "path":
 		req, err := moltenDecode[wshrpc.PathCommandData](data)
 		if err != nil {
@@ -300,25 +312,25 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 		if err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemoteConnTarget(remote, req.Host, "connect to")
+		return data, moltenCheckRemoteConnTarget(ctx, remote, req.Host, "connect to")
 	case "connensure", "connreinstallwsh":
 		req, err := moltenDecode[wshrpc.ConnExtData](data)
 		if err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemoteConnTarget(remote, req.ConnName, "set up")
+		return data, moltenCheckRemoteConnTarget(ctx, remote, req.ConnName, "set up")
 	case "conndisconnect", "jobcontrollerreconnectjobsforconn":
 		connName, err := moltenDecode[string](data)
 		if err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemoteConnTarget(remote, connName, "act on")
+		return data, moltenCheckRemoteConnTarget(ctx, remote, connName, "act on")
 	case "jobcontrollerstartjob":
 		req, err := moltenDecode[wshrpc.CommandJobControllerStartJobData](data)
 		if err != nil {
 			return nil, err
 		}
-		return data, moltenCheckRemoteConnTarget(remote, req.ConnName, "start a job on")
+		return data, moltenCheckRemoteConnTarget(ctx, remote, req.ConnName, "start a job on")
 	case "jobcontrollerdeletejob", "jobcontrollerexitjob", "jobcontrollerdisconnectjob", "jobcontrollerreconnectjob", "jobcontrollerdetachjob":
 		jobId, err := moltenDecode[string](data)
 		if err != nil {
@@ -338,11 +350,11 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 	return data, nil
 }
 
-func moltenCheckRemoteConnTarget(remote metaguard.Remote, conn string, what string) error {
+func moltenCheckRemoteConnTarget(ctx context.Context, remote metaguard.Remote, conn string, what string) error {
 	if err := metaguard.CheckRemoteConn(remote, conn, what); err != nil {
 		return err
 	}
-	return moltenCheckRemoteHop(remote, conn)
+	return moltenCheckRemoteHop(ctx, remote, conn)
 }
 
 // moltenListedJobs is the job list a caller gets: an SSH or WSL host sees only the jobs it reaches (its own

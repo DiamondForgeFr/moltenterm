@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
@@ -191,9 +192,8 @@ func OtherServer(r Remote, conn string) bool {
 	return r.reaches(conn) && !r.owns(conn)
 }
 
-// IsLoopbackConn tells whether an SSH connection name points back at this computer (localhost, 127.0.0.0/8, ::1):
-// a server asking for it would reach this computer's own SSH server.
-func IsLoopbackConn(conn string) bool {
+// ConnHost is the host part of an SSH connection name (user@host:port, [v6]:port).
+func ConnHost(conn string) string {
 	host := conn
 	if at := strings.LastIndex(host, "@"); at >= 0 {
 		host = host[at+1:]
@@ -205,14 +205,62 @@ func IsLoopbackConn(conn string) bool {
 	} else if strings.Count(host, ":") == 1 {
 		host = host[:strings.Index(host, ":")]
 	}
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "localhost.localdomain" || host == "::1" || host == "0.0.0.0" || host == "::" {
+	return host
+}
+
+// IsLoopbackConn tells whether an SSH connection name points back at this computer by its name alone (see
+// IsLoopbackHost); the window's guard also checks its configured HostName and what it resolves to.
+func IsLoopbackConn(conn string) bool {
+	return IsLoopbackHost(ConnHost(conn))
+}
+
+// IsLoopbackHost tells whether a host name or address is this computer: localhost names, 127.0.0.0/8, ::1, the
+// unspecified addresses, in every numeric form the system resolver accepts (127.1, 2130706433, 0x7f.1, 0177.0.0.1).
+func IsLoopbackHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "localhost.localdomain" {
 		return true
 	}
 	if ip := net.ParseIP(host); ip != nil {
 		return ip.IsLoopback() || ip.IsUnspecified()
 	}
+	if ip, ok := parseInetAton(host); ok {
+		return ip.IsLoopback() || ip.IsUnspecified()
+	}
 	return false
+}
+
+// parseInetAton reads an IPv4 address the way inet_aton does: one to four parts, each decimal, octal (0...) or hex
+// (0x...), the last part filling the remaining bytes.
+func parseInetAton(host string) (net.IP, bool) {
+	parts := strings.Split(host, ".")
+	if len(parts) == 0 || len(parts) > 4 {
+		return nil, false
+	}
+	values := make([]uint64, len(parts))
+	for i, part := range parts {
+		if part == "" {
+			return nil, false
+		}
+		v, err := strconv.ParseUint(part, 0, 32)
+		if err != nil {
+			return nil, false
+		}
+		values[i] = v
+	}
+	var addr uint64
+	for i, v := range values[:len(values)-1] {
+		if v > 0xff {
+			return nil, false
+		}
+		addr |= v << (24 - 8*uint(i))
+	}
+	last := values[len(values)-1]
+	if last >= 1<<(32-8*uint(len(values)-1)) {
+		return nil, false
+	}
+	addr |= last
+	return net.IPv4(byte(addr>>24), byte(addr>>16), byte(addr>>8), byte(addr)), true
 }
 
 // LocalPath is the path on this computer a file uri names, false when it names a server: wsh://local/..., a bare
