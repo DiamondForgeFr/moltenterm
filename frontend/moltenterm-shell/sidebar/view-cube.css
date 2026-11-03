@@ -21,12 +21,14 @@
     width: calc(var(--cube-s) + var(--cube-d));
     height: calc(var(--cube-s) + var(--cube-d));
     color: inherit;
+    font-size: var(--mt-icon-16);
 }
 
 /* The small glyph (a view row, a tile with counts): the same 4 px of depth on a 10 px face. */
 .mt-cube.is-small {
     --cube-s: 10px;
     --cube-k: 0.4;
+    font-size: var(--mt-icon-14);
 }
 
 .mt-cube-body {
@@ -49,19 +51,18 @@
     align-items: center;
     justify-content: center;
     border: 1px solid var(--cube-edge);
-    border-radius: 2px;
+    border-radius: 15%;
     background-color: color-mix(in srgb, currentColor 9%, transparent);
     backface-visibility: hidden;
-    font-size: 8px;
+    font-size: 1em;
     line-height: 1;
 }
 
-.mt-cube.is-small .mt-cube-face {
-    font-size: 7px;
-}
-
-/* A glyph seen edge-on is noise: only the front face shows its icon, the others fade it with the turn. */
+/* A glyph seen edge-on is noise: only the front face shows its icon, the others fade it with the turn. The icon is
+   half the size of the glyph around the cube (8 px beside a 16 px icon, 7 px beside a 14 px one): the type scale has
+   no step that small, so it is halved by zoom, which lays the glyph out at its final size instead of resampling it. */
 .mt-cube-face > i {
+    zoom: 0.5;
     opacity: 0;
     transition: opacity var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
 }
