@@ -52,6 +52,27 @@ func (router *WshRouter) RegisterTerminalLeaf(rpc AbstractRpcClient, routeId str
 	return linkId, nil
 }
 
+// IsInProcessSource tells whether a request's source is a leaf wavesrv registered for its own code (its bare client,
+// the molten routes, its main client), the link it came in through (#1821). A terminal's leaf is trusted by a token,
+// never registered this way. Takes the router's lock: never call it from SendRpcMessage.
+func (router *WshRouter) IsInProcessSource(ingressLinkId baseds.LinkId, source string) bool {
+	if source == "" || ingressLinkId == baseds.NoLinkId {
+		return false
+	}
+	router.lock.Lock()
+	defer router.lock.Unlock()
+	lm := router.linkMap[ingressLinkId]
+	return lm != nil && lm.trusted && lm.inProcess && lm.linkKind == LinkKind_Leaf && lm.blockId == "" && lm.sourceRouteId == source
+}
+
+func (router *WshRouter) markInProcessLink(linkId baseds.LinkId) {
+	router.lock.Lock()
+	defer router.lock.Unlock()
+	if lm := router.linkMap[linkId]; lm != nil {
+		lm.inProcess = true
+	}
+}
+
 func (router *WshRouter) markWindowLink(linkId baseds.LinkId) {
 	router.lock.Lock()
 	defer router.lock.Unlock()
@@ -65,5 +86,6 @@ func (router *WshRouter) setLinkBlockId(linkId baseds.LinkId, blockId string) {
 	defer router.lock.Unlock()
 	if lm := router.linkMap[linkId]; lm != nil && lm.linkKind == LinkKind_Leaf {
 		lm.blockId = blockId
+		lm.inProcess = false
 	}
 }

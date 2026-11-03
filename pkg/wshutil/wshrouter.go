@@ -66,6 +66,8 @@ type linkMeta struct {
 	// MOLTENTERM-PATCH (#662): who is on the link, for the molten routes' caller checks (moltenterm_linksource.go).
 	isWindow bool
 	blockId  string
+	// MOLTENTERM-PATCH (#1821): a leaf wavesrv registered for its own code (RegisterTrustedLeaf), never a token's.
+	inProcess bool
 }
 
 func (lm *linkMeta) Name() string {
@@ -641,6 +643,7 @@ func (router *WshRouter) RegisterTrustedLeaf(rpc AbstractRpcClient, routeId stri
 		return 0, fmt.Errorf("invalid routeid %q", routeId)
 	}
 	linkId := router.RegisterUntrustedLink(rpc)
+	router.markInProcessLink(linkId) // MOLTENTERM-PATCH (#1821)
 	router.trustLink(linkId, LinkKind_Leaf)
 	router.bindRoute(linkId, routeId, true)
 	return linkId, nil
