@@ -5,6 +5,7 @@ package metaguard
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
@@ -72,7 +73,7 @@ func RemoteCreateMeta(r Remote, meta waveobj.MetaMapType) (waveobj.MetaMapType, 
 		return rtn, nil
 	}
 	if r.Conn == "" {
-		return nil, fmt.Errorf("refused: an SSH or WSL host whose connection is unknown cannot open a panel on this computer."+RemoteHint)
+		return nil, fmt.Errorf("refused: an SSH or WSL host whose connection is unknown cannot open a panel on this computer." + RemoteHint)
 	}
 	rtn[waveobj.MetaKey_Connection] = r.Conn
 	return rtn, nil
@@ -135,7 +136,7 @@ func CheckRemoteMetaWrite(r Remote, oref waveobj.ORef, blockConn string, meta wa
 		if conn, ok := meta[waveobj.MetaKey_Connection]; ok {
 			name, _ := conn.(string)
 			if !r.reaches(name) {
-				return fmt.Errorf("refused: an SSH or WSL host cannot move a panel onto this computer."+RemoteHint)
+				return fmt.Errorf("refused: an SSH or WSL host cannot move a panel onto this computer." + RemoteHint)
 			}
 		}
 		return nil
@@ -184,6 +185,58 @@ func CheckRemoteConn(r Remote, connName string, what string) error {
 	return fmt.Errorf("refused: an SSH or WSL host cannot %s %q, which runs on this computer."+RemoteHint, what, connName)
 }
 
+// OtherServer tells whether conn is an SSH server other than r's own: acting on it may make this computer open a
+// connection, which IsLoopbackConn and the window's confirmation bound.
+func OtherServer(r Remote, conn string) bool {
+	return r.reaches(conn) && !r.owns(conn)
+}
+
+// IsLoopbackConn tells whether an SSH connection name points back at this computer (localhost, 127.0.0.0/8, ::1):
+// a server asking for it would reach this computer's own SSH server.
+func IsLoopbackConn(conn string) bool {
+	host := conn
+	if at := strings.LastIndex(host, "@"); at >= 0 {
+		host = host[at+1:]
+	}
+	if strings.HasPrefix(host, "[") {
+		if end := strings.Index(host, "]"); end > 0 {
+			host = host[1:end]
+		}
+	} else if strings.Count(host, ":") == 1 {
+		host = host[:strings.Index(host, ":")]
+	}
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "localhost.localdomain" || host == "::1" || host == "0.0.0.0" || host == "::" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback() || ip.IsUnspecified()
+	}
+	return false
+}
+
+// LocalPath is the path on this computer a file uri names, false when it names a server: wsh://local/..., a bare
+// path and wsh://current/... (wavesrv's current host is this computer). The window may allow a host to use it.
+func LocalPath(uri string) (string, bool) {
+	conn, err := connparse.ParseURI(uri)
+	if err != nil || conn.Scheme != connparse.ConnectionTypeWsh {
+		return "", false
+	}
+	if conn.Host == connparse.ConnHostCurrent || wshutil.NormConnName(conn.Host) == wshrpc.LocalConnName {
+		return conn.Path, true
+	}
+	return "", false
+}
+
+// PathHost is the SSH server a file uri names, false when it names this computer or is not a wsh path.
+func PathHost(uri string) (string, bool) {
+	conn, err := connparse.ParseURI(uri)
+	if err != nil || conn.Scheme != connparse.ConnectionTypeWsh || conn.Host == connparse.ConnHostCurrent || wshutil.NormConnName(conn.Host) == wshrpc.LocalConnName {
+		return "", false
+	}
+	return conn.Host, true
+}
+
 // RemoteRefusedCommands are the wavesrv commands no SSH or WSL host sends: they write the configuration (a local
 // shell path, widgets), build and run local apps, approve Wave AI's tool calls, or write this computer's files.
 var RemoteRefusedCommands = map[string]bool{
@@ -205,6 +258,8 @@ var RemoteRefusedCommands = map[string]bool{
 	"publishapp":             true,
 	"makedraftfromlocal":     true,
 	"waveaitoolapprove":      true,
+	"getwaveaichat":          true,
+	"waveaigettooldiff":      true,
 }
 
 // CheckRemoteCommand refuses the commands of RemoteRefusedCommands. This computer's own connection server (conn:local:

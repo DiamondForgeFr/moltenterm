@@ -1834,6 +1834,7 @@ declare global {
         publictext: boolean;
         oklabel?: string;
         cancellabel?: string;
+        moltentexts?: {[key: string]: any};
     };
 
     // userinput.UserInputResponse

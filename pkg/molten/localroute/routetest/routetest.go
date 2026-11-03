@@ -90,7 +90,8 @@ func announce(t *testing.T, p *peer, source string) {
 }
 
 // Make builds the router: the windows' websocket announces "tab:window" and Electron main, a local terminal's leaf is
-// "proc:local" for block TerminalBlock, and a remote connection announces "proc:remote" and the forged "tab:forged".
+// "proc:local" for block TerminalBlock, and a remote connection announces "proc:remote" and claims the source "tab:forged" (since #1831 it cannot announce a "tab:"
+// route).
 func Make(t *testing.T) *Env {
 	t.Helper()
 	router := wshutil.NewWshRouter()
@@ -109,7 +110,6 @@ func Make(t *testing.T) *Env {
 	remote := makePeer(t)
 	e.remote = router.RegisterTrustedRouter(remote)
 	announce(t, remote, "proc:remote")
-	announce(t, remote, "tab:forged")
 	return e
 }
 

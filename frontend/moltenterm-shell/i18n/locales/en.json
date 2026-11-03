@@ -8481,6 +8481,17 @@
         }
     },
     "server": {
+        "remoteask": {
+            "readTitle": "A server wants to read a file of this computer",
+            "read": "{server} wants to read {path} on this computer.",
+            "writeTitle": "A server wants to write a file on this computer",
+            "write": "{server} wants to write {path} on this computer.",
+            "connectTitle": "A server wants this computer to connect to another server",
+            "connect": "{server} wants this computer to open a connection to {target}.",
+            "always": "Always allow {server} to do this until MoltenTerm restarts",
+            "allow": "Allow",
+            "deny": "Deny"
+        },
         "agentHold": {
             "fixing": "resolving what blocks #{number}",
             "ci": "waiting for the CI of #{number}",

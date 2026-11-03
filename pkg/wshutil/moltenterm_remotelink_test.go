@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -76,6 +77,10 @@ type remoteTestEnv struct {
 	local      *remoteTestPeer
 	other      *remoteTestPeer
 	job        *remoteTestPeer
+	wavesrv    *remoteTestPeer
+	molten     *remoteTestPeer
+	terminal   *remoteTestPeer
+	window     *remoteTestPeer
 	remote     *remoteTestPeer
 	remoteLink baseds.LinkId
 }
@@ -93,6 +98,22 @@ func makeRemoteTestEnv(t *testing.T) *remoteTestEnv {
 	if _, err := router.RegisterTrustedLeaf(e.job, MakeJobRouteId("localjob")); err != nil {
 		t.Fatal(err)
 	}
+	e.wavesrv = makeRemoteTestPeer(t)
+	if _, err := router.RegisterTrustedLeaf(e.wavesrv, DefaultRoute); err != nil {
+		t.Fatal(err)
+	}
+	e.molten = makeRemoteTestPeer(t)
+	if _, err := router.RegisterTrustedLeaf(e.molten, "molten:browsers"); err != nil {
+		t.Fatal(err)
+	}
+	e.terminal = makeRemoteTestPeer(t)
+	if _, err := router.RegisterTerminalLeaf(e.terminal, "proc:localterm", "block-local"); err != nil {
+		t.Fatal(err)
+	}
+	e.window = makeRemoteTestPeer(t)
+	router.RegisterWindowRouter(e.window)
+	e.announce(t, e.window, MakeTabRouteId("win"))
+	e.announce(t, e.window, ElectronRoute)
 	otherLink := router.RegisterTrustedRouter(e.other)
 	router.setLinkConn(otherLink, "other")
 	e.announce(t, e.other, MakeConnectionRouteId("other"))
@@ -104,10 +125,20 @@ func makeRemoteTestEnv(t *testing.T) *remoteTestEnv {
 
 func (e *remoteTestEnv) announce(t *testing.T, p *remoteTestPeer, route string) {
 	t.Helper()
-	p.send(t, RpcMessage{Command: "routeannounce", Route: ControlRoute, Source: route, ReqId: "announce-" + route})
-	if answer := p.waitAnswer(t, "announce-"+route); answer.Error != "" {
-		t.Fatalf("announce %s: %s", route, answer.Error)
+	if errStr := e.tryAnnounce(t, p, route); errStr != "" {
+		t.Fatalf("announce %s: %s", route, errStr)
 	}
+}
+
+var announceSeq int
+
+// tryAnnounce announces route on p and returns the router's error, "" when the route is bound.
+func (e *remoteTestEnv) tryAnnounce(t *testing.T, p *remoteTestPeer, route string) string {
+	t.Helper()
+	announceSeq++
+	reqId := fmt.Sprintf("announce-%d-%s", announceSeq, route)
+	p.send(t, RpcMessage{Command: "routeannounce", Route: ControlRoute, Source: route, ReqId: reqId})
+	return p.waitAnswer(t, reqId).Error
 }
 
 // ask sends a request from the SSH host and tells whether it reached dest (true) or was refused (false).
@@ -173,6 +204,119 @@ func TestRemoteHostReachesOnlyItsOwnConnection(t *testing.T) {
 	}
 	if !e.ask(t, e.remote, "own-link", MakeLinkRouteId(e.remoteLink), "message", nil) {
 		t.Error("an SSH host's request to its own link was refused")
+	}
+}
+
+// A host reaches wavesrv (whose guard checks each command), the molten routes (which check their callers) and
+// Electron main for a notification; never a window's tab, Electron's other commands or a local terminal.
+func TestRemoteHostRouteAllowlist(t *testing.T) {
+	e := makeRemoteTestEnv(t)
+	if !e.ask(t, e.wavesrv, "wavesrv", DefaultRoute, "createblock", map[string]any{"tabid": "t"}) {
+		t.Error("a request to wavesrv was refused")
+	}
+	if !e.ask(t, e.molten, "molten", "molten:browsers", "moltenbrowseropen", map[string]any{"url": "https://example.com"}) {
+		t.Error("a request to a molten route was refused")
+	}
+	if !e.ask(t, e.window, "notify", ElectronRoute, "notify", map[string]any{"title": "build done"}) {
+		t.Error("a notification was refused")
+	}
+	if e.ask(t, e.window, "decrypt", ElectronRoute, "electrondecrypt", map[string]any{"ciphertext": "x"}) {
+		t.Error("a host asked Electron main to decrypt")
+	}
+	if e.ask(t, e.window, "screenshot", MakeTabRouteId("win"), "captureblockscreenshot", map[string]any{"blockid": "b"}) {
+		t.Error("a host captured a panel of the window")
+	}
+	if e.ask(t, e.terminal, "terminal", "proc:localterm", "message", nil) {
+		t.Error("a host reached a local terminal's wsh")
+	}
+}
+
+// #1831 review: a host's announcement overwrote any route, so it could take conn:local, wavesrv or a window's tab
+// and receive what wavesrv sends there. It announces only free routes of its own scope.
+func TestRemoteHostAnnouncesOnlyItsOwnRoutes(t *testing.T) {
+	e := makeRemoteTestEnv(t)
+	saved := MoltenJobConn
+	t.Cleanup(func() { MoltenJobConn = saved })
+	MoltenJobConn = func(jobId string) (string, bool) {
+		switch jobId {
+		case "remotejob":
+			return remoteTestConn + ":22", true
+		case "localjob", "freelocaljob":
+			return "local", true
+		}
+		return "", false
+	}
+	for _, route := range []string{
+		MakeConnectionRouteId("local"), MakeConnectionRouteId("other"), MakeConnectionRouteId("free@host"),
+		DefaultRoute, ElectronRoute, MakeTabRouteId("win"), MakeTabRouteId("new"), MakeFeBlockRouteId("b"),
+		MakeBuilderRouteId("b"), MakeControllerRouteId("b"), "proc:localterm", MakeJobRouteId("localjob"),
+		MakeJobRouteId("freelocaljob"), MakeJobRouteId("unknownjob"), "molten:browsers", "bare:x",
+	} {
+		if errStr := e.tryAnnounce(t, e.remote, route); !strings.Contains(errStr, "refused") {
+			t.Errorf("a host announced %s (%q)", route, errStr)
+		}
+	}
+	if holder := e.router.GetLinkIdForRoute(MakeConnectionRouteId("local")); holder == e.remoteLink {
+		t.Fatal("conn:local was taken over")
+	}
+	for _, route := range []string{"proc:remote-wsh", MakeJobRouteId("remotejob"), MakeConnectionRouteId(remoteTestConn + ":22")} {
+		if errStr := e.tryAnnounce(t, e.remote, route); errStr != "" {
+			t.Errorf("a connserver's own route %s was refused: %s", route, errStr)
+		}
+	}
+	// A reconnecting connection's new link takes over its own routes while the old link is still registered.
+	again := makeRemoteTestPeer(t)
+	againLink := e.router.RegisterTrustedRouter(again)
+	e.router.setLinkConn(againLink, remoteTestConn)
+	for _, route := range []string{MakeConnectionRouteId(remoteTestConn), "proc:remote-wsh", MakeJobRouteId("remotejob")} {
+		if errStr := e.tryAnnounce(t, again, route); errStr != "" {
+			t.Errorf("the reconnected link could not announce %s: %s", route, errStr)
+		}
+	}
+	if errStr := e.tryAnnounce(t, e.other, "proc:remote-wsh"); !strings.Contains(errStr, "refused") {
+		t.Errorf("another connection took a host's process route (%q)", errStr)
+	}
+}
+
+// Links that arrive through a connection's socket are that connection's before they authenticate, whatever their
+// token says (a leaked local job token included); the token never renames the connection.
+func TestConnSocketLinksAreRemote(t *testing.T) {
+	router := NewWshRouter()
+	router.SetAsRootRouter()
+	leaf := router.registerUntrustedConnLink(makeRemoteTestPeer(t), remoteTestConn)
+	router.trustLink(leaf, LinkKind_Leaf)
+	if err := router.bindRoute(leaf, "proc:stolen", true); err != nil {
+		t.Fatal(err)
+	}
+	router.setLinkBlockId(leaf, "block-local")
+	router.setLinkConn(leaf, "other@host")
+	if conn, ok := router.RemoteLinkConn(leaf); !ok || conn != remoteTestConn {
+		t.Fatalf("a link from the connection's socket: %q %v", conn, ok)
+	}
+	if _, local := router.LeafSourceBlockId(leaf, "proc:stolen"); local {
+		t.Fatal("a local token on a connection's socket passed for a local terminal")
+	}
+	own := router.registerUntrustedConnLink(makeRemoteTestPeer(t), "")
+	router.trustLink(own, LinkKind_Leaf)
+	if _, ok := router.RemoteLinkConn(own); ok {
+		t.Fatal("a link from this computer's socket passed for a remote host")
+	}
+	wsl := router.registerUntrustedConnLink(makeRemoteTestPeer(t), "wsl://Ubuntu")
+	router.trustLink(wsl, LinkKind_Router)
+	if conn, ok := router.RemoteLinkConn(wsl); !ok || conn != "wsl://Ubuntu" {
+		t.Fatalf("a WSL stdio link: %q %v", conn, ok)
+	}
+}
+
+func TestNormConnName(t *testing.T) {
+	cases := map[string]string{"": "local", "local": "local", "local:gitbash": "local", "dev@host:22": "dev@host", "dev@host:2222": "dev@host:2222", "wsl://Ubuntu": "wsl://Ubuntu"}
+	for in, want := range cases {
+		if got := NormConnName(in); got != want {
+			t.Errorf("NormConnName(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if sameRemoteConn("dev@host:2222", "dev@host") || !sameRemoteConn("dev@host", "dev@host:22") || sameRemoteConn("local", "") {
+		t.Fatal("connection names compare wrong")
 	}
 }
 
@@ -279,4 +423,3 @@ func TestMoltenRequestGuardRunsBeforeTheHandler(t *testing.T) {
 		}
 	}
 }
-

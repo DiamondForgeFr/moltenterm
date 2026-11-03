@@ -599,7 +599,7 @@ func (ws *WshServer) SetConnectionsConfigCommand(ctx context.Context, data wshrp
 
 func (ws *WshServer) GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error) {
 	watcher := wconfig.GetWatcher()
-	return watcher.GetFullConfig(), nil
+	return moltenListedConfig(ctx, watcher.GetFullConfig()), nil // MOLTENTERM-PATCH (#1831): no tokens or key paths for a server
 }
 
 func (ws *WshServer) GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AIModeConfigUpdate, error) {
@@ -1570,7 +1570,8 @@ func (ws *WshServer) JobCmdExitedCommand(ctx context.Context, data wshrpc.Comman
 }
 
 func (ws *WshServer) JobControllerListCommand(ctx context.Context) ([]*waveobj.Job, error) {
-	return wstore.DBGetAllObjsByType[*waveobj.Job](ctx, waveobj.OType_Job)
+	jobs, err := wstore.DBGetAllObjsByType[*waveobj.Job](ctx, waveobj.OType_Job)
+	return moltenListedJobs(ctx, jobs), err // MOLTENTERM-PATCH (#1831): a server sees its jobs only, without tokens
 }
 
 func (ws *WshServer) JobControllerDeleteJobCommand(ctx context.Context, jobId string) error {
