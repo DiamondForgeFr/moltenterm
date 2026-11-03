@@ -162,7 +162,7 @@ func TestReviewsRefreshedReadsShipsAfterTheFetch(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
 	commit(t, dir, "e.txt", "fix(#5): merged")
 	oid := gitIn(t, dir, "rev-parse", "HEAD")
-	reviews := MakeReviews(MakeCollector("", plainRunner, nil), plainRunner, nil)
+	reviews := MakeReviews(MakeCollector("", withoutGh, nil), withoutGh, nil)
 	snap := reviewsSnapshot(dir, `[]`)
 	snap.GithubAt = time.Now().UnixMilli()
 	snap.Github.Merged = json.RawMessage("[" + mergedPrJson(7, "develop", time.Now().Add(-time.Hour), oid) + "]")

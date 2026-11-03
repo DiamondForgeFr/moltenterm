@@ -307,7 +307,7 @@ func panelAgents(answer UpcomingAnswer) []BranchAgent {
 
 func TestUpcomingWithoutGithubListsNoBranch(t *testing.T) {
 	dir := makeGitFlowRepo(t)
-	u := MakeUpcoming(UpcomingEnv{Run: plainRunner, Snapshot: func(string) (Snapshot, bool) { return Snapshot{}, false }})
+	u := MakeUpcoming(UpcomingEnv{Run: withoutGh, Snapshot: func(string) (Snapshot, bool) { return Snapshot{}, false }})
 	answer, err := u.Get(UpcomingRequest{Dir: dir})
 	if err != nil || len(answer.Branches) != 0 || answer.Agents == nil {
 		t.Fatalf("without the open PRs nothing is upcoming: %+v %v", answer, err)

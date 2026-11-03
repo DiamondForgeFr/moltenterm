@@ -4,12 +4,17 @@
 package mission
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/ghguard"
 )
 
 // NoGitMaintenanceConfig turns off git's automatic housekeeping in every git the tests start (#794). After a commit,
@@ -27,7 +32,7 @@ const NoGitMaintenanceConfig = "[maintenance]\n\tauto = false\n[gc]\n\tauto = 0\
 var TestGitConfigPath string
 
 func TestMain(m *testing.M) {
-	os.Exit(runWithTestGitConfig(m))
+	os.Exit(ghguard.Wrap(func() int { return runWithTestGitConfig(m) }))
 }
 
 func runWithTestGitConfig(m *testing.M) int {
@@ -69,5 +74,35 @@ func TestGitInTestsSpawnsNoMaintenance(t *testing.T) {
 	}
 	if strings.Contains(string(data), `"maintenance"`) || strings.Contains(string(data), `"gc"`) {
 		t.Fatal("git spawned its detached maintenance: it would outlive the test and race t.TempDir's cleanup")
+	}
+}
+
+// #1857: no test reaches the real gh. plainRunner refuses it and records the refusal, so the run fails even when the
+// code under test swallows the error; withoutGh is the explicit fake that answers it.
+func TestPlainRunnerRefusesGhAndRecordsIt(t *testing.T) {
+	dir := t.TempDir()
+	out, err := plainRunner(context.Background(), dir, "gh", "pr", "list")
+	forgotten := ghguard.Forget(dir)
+	if out != nil || !errors.Is(err, ghguard.ErrRealGh) {
+		t.Fatalf("plainRunner ran gh: %q, %v", out, err)
+	}
+	if len(forgotten) != 1 || forgotten[0] != dir+": gh pr list" {
+		t.Fatalf("the refusal was not recorded: %q", forgotten)
+	}
+}
+
+func TestWithoutGhFailsGhQuietlyAndRunsTheRest(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	dir := t.TempDir()
+	if out, err := withoutGh(context.Background(), dir, "gh", "pr", "list"); out != nil || err == nil {
+		t.Fatalf("withoutGh answered gh: %q, %v", out, err)
+	}
+	if forgotten := ghguard.Forget(dir); len(forgotten) != 0 {
+		t.Fatalf("an explicit fake is not a violation: %q", forgotten)
+	}
+	if out, err := withoutGh(context.Background(), dir, "git", "--version"); err != nil || !strings.HasPrefix(string(out), "git version") {
+		t.Fatalf("withoutGh did not run git: %q, %v", out, err)
 	}
 }

@@ -21,7 +21,9 @@ const releaseFactsPipeline = `{"schema":1,"name":"fixture","versions":{"notes":"
 		{"id":"cut","title":"Cut","phase":"cut","confirm":"The tag is public once pushed.","run":"git tag {tag}"}],
 	"public":[{"id":"cut","title":"Cut","phase":"cut","run":"git tag {tag}"}]}}`
 
-// No gh in tests: GitHub facts are read only through it.
+// No gh in tests: GitHub facts are read only through it. It is the runner of every component a test builds (a
+// collector, panes, groups, runs...), since those read GitHub in the background; plainRunner is for direct git reads
+// and refuses gh (#1857).
 func withoutGh(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
 	if name == "gh" {
 		return nil, errors.New("gh: not in tests")

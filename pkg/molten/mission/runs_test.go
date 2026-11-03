@@ -35,7 +35,7 @@ func makeRunsFixture(t *testing.T, builds string) (*Runs, string) {
 	gitIn(t, dir, "commit", "-q", "-m", "init")
 	data := t.TempDir()
 	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
-	r.git = plainRunner
+	r.git = withoutGh
 	// Registered after both temp folders, so it runs before their removal: a run a test started and did not wait for
 	// still writes its record, its log and its build tree, and the removal then fails with "directory not empty" (#643).
 	t.Cleanup(func() { waitRunsIdle(t, r) })
@@ -208,7 +208,7 @@ func TestClosedFailureSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	restarted := MakeRuns(r.baseDir, r.trust, nil)
-	restarted.git = plainRunner
+	restarted.git = withoutGh
 	runs := restarted.List(dir)
 	if len(runs) != 1 || !runs[0].Closed || runs[0].State != RunStateFailure {
 		t.Fatalf("the closed flag is stored with the run: %+v", runs)
@@ -266,8 +266,8 @@ func TestBuildVerifiesWithTheLocalCiFirst(t *testing.T) {
 	trust := MakeTrustStore(filepath.Join(data, TrustFileName))
 	r := MakeRuns(filepath.Join(data, "runs"), trust, nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
-	r.git = plainRunner
-	r.UseCi(MakeCi(filepath.Join(data, "ci"), trust, plainRunner, nil))
+	r.git = withoutGh
+	r.UseCi(MakeCi(filepath.Join(data, "ci"), trust, withoutGh, nil))
 	failed := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
 	if failed.State != RunStateFailure || strings.Join(failed.Phases, ",") != "verify" {
 		t.Fatalf("a red CI stops the build at verify: %+v", failed)

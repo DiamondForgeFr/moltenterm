@@ -48,7 +48,7 @@ func TestPaneLinkedThroughASymlink(t *testing.T) {
 	if err := os.Symlink(tree, alias); err != nil {
 		t.Skip("no symlinks")
 	}
-	state, _ := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: tree, Worktree: alias})
+	state, _ := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: tree, Worktree: alias})
 	if state.Linked == nil || state.Linked.Missing || !state.Linked.Inside {
 		t.Fatalf("the same worktree spelled another way: %+v", state.Linked)
 	}
@@ -73,7 +73,7 @@ func makeWorktreeFixture(t *testing.T) (string, string, string) {
 
 func TestPaneTellsWorktreesFromMainTrees(t *testing.T) {
 	_, clone, tree := makeWorktreeFixture(t)
-	panes := MakePanes(plainRunner, nil, nil)
+	panes := MakePanes(withoutGh, nil, nil)
 	main, _ := panes.Get(PaneRequest{Dir: clone})
 	if main.Worktree {
 		t.Fatalf("the main checkout read as a worktree: %+v", main)
@@ -109,7 +109,7 @@ func TestPaneSubmoduleIsNoWorktree(t *testing.T) {
 	gitRun(t, lib, "init", "-q", "-b", "main")
 	commit(t, lib, "l.txt", "lib")
 	gitRun(t, clone, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "vendor/lib")
-	state, _ := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: filepath.Join(clone, "vendor", "lib")})
+	state, _ := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: filepath.Join(clone, "vendor", "lib")})
 	if state.Worktree || state.Root != filepath.Join(clone, "vendor", "lib") {
 		t.Fatalf("submodule: %+v", state)
 	}
@@ -117,7 +117,7 @@ func TestPaneSubmoduleIsNoWorktree(t *testing.T) {
 
 func TestWorktreePlanAndCleanRemoval(t *testing.T) {
 	_, clone, tree := makeWorktreeFixture(t)
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	plan, err := w.Plan(WorktreeRequest{Dir: tree})
 	if err != nil {
 		t.Fatal(err)
@@ -164,7 +164,7 @@ func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
 	os.WriteFile(filepath.Join(tree, "draft.txt"), []byte("draft"), 0644)
 	os.WriteFile(filepath.Join(tree, ".gitignore"), []byte(".env\n"), 0644)
 	os.WriteFile(filepath.Join(tree, ".env"), []byte("SECRET=1"), 0644)
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	plan, err := w.Plan(WorktreeRequest{Dir: tree})
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +217,7 @@ func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
 func TestWorktreeUnpushedOnlyStillAsks(t *testing.T) {
 	_, _, tree := makeWorktreeFixture(t)
 	commit(t, tree, "b.txt", "feat(#5): work")
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree}); err == nil {
 		t.Fatal("unpushed commits removed without the second confirmation")
 	}
@@ -231,7 +231,7 @@ func TestWorktreeUnpushedOnlyStillAsks(t *testing.T) {
 func TestWorktreeLockedIsKept(t *testing.T) {
 	_, clone, tree := makeWorktreeFixture(t)
 	gitRun(t, clone, "worktree", "lock", tree)
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	plan, _ := w.Plan(WorktreeRequest{Dir: tree})
 	if !plan.Locked {
 		t.Fatalf("locked: %+v", plan)
@@ -258,7 +258,7 @@ func TestChangePath(t *testing.T) {
 
 func TestWorktreeSharedOrIgnoredNeedsConfirmation(t *testing.T) {
 	_, _, tree := makeWorktreeFixture(t)
-	shared := MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
+	shared := MakeWorktrees(withoutGh, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 		return []WorktreeTerminal{{BlockId: "b2", Linked: true}}
 	})
 	if _, err := shared.Remove(WorktreeRemoveRequest{Dir: tree}); err == nil {
@@ -269,7 +269,7 @@ func TestWorktreeSharedOrIgnoredNeedsConfirmation(t *testing.T) {
 	gitRun(t, tree, "commit", "-q", "-m", "ignore")
 	gitRun(t, tree, "push", "-q", "origin", "HEAD:feature/5-x")
 	os.WriteFile(filepath.Join(tree, ".env"), []byte("SECRET=1"), 0644)
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	plan, _ := w.Plan(WorktreeRequest{Dir: tree})
 	if plan.ChangeCount != 0 || plan.Unpushed != 0 || plan.IgnoredFileCount != 1 {
 		t.Fatalf("only an ignored file: %+v", plan)
@@ -290,7 +290,7 @@ func TestWorktreeCraftedGitFileIsRefused(t *testing.T) {
 	os.WriteFile(filepath.Join(victim, "precious.txt"), []byte("x"), 0644)
 	admin, _ := os.ReadFile(filepath.Join(tree, ".git"))
 	os.WriteFile(filepath.Join(victim, ".git"), admin, 0644)
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	if _, err := w.Plan(WorktreeRequest{Dir: victim}); err == nil {
 		t.Fatal("a crafted .git file was taken for a worktree")
 	}
@@ -304,7 +304,7 @@ func TestWorktreeCraftedGitFileIsRefused(t *testing.T) {
 
 func TestWorktreeRefusesHome(t *testing.T) {
 	_, _, tree := makeWorktreeFixture(t)
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	w.home = filepath.Join(tree, "home-of-someone")
 	plan, err := w.Plan(WorktreeRequest{Dir: tree})
 	if err != nil || plan.Refused == "" {
@@ -334,7 +334,7 @@ func TestWorktreeMergedWithoutRemoteBranchAsksOnce(t *testing.T) {
 	gitRun(t, origin, "add", "b.txt")
 	gitRun(t, origin, "commit", "-q", "-m", "feat(#5): work (#6)")
 	gitRun(t, clone, "fetch", "-q", "origin")
-	w := MakeWorktrees(plainRunner, noTerminals)
+	w := MakeWorktrees(withoutGh, noTerminals)
 	plan, err := w.Plan(WorktreeRequest{Dir: tree})
 	if err != nil {
 		t.Fatal(err)
@@ -373,7 +373,7 @@ func TestWorktreeMergedStillAsksForWorkOrUnknownCommits(t *testing.T) {
 func TestWorktreeClosingTerminalsAreNotOthers(t *testing.T) {
 	_, _, tree := makeWorktreeFixture(t)
 	var seen []string
-	w := MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
+	w := MakeWorktrees(withoutGh, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 		seen = exclude
 		return []WorktreeTerminal{}
 	})

@@ -110,7 +110,7 @@ func TestCollectorInvalidateDuringARefresh(t *testing.T) {
 }
 
 func TestCollectorInvalidateIgnoresARelativeFolder(t *testing.T) {
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := MakeCollector(t.TempDir(), withoutGh, nil)
 	c.Invalidate("relative/path")
 	if len(c.projects) != 0 {
 		t.Fatalf("a relative folder is not a project: %+v", c.projects)

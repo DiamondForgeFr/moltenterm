@@ -43,7 +43,7 @@ func makeCiFixture(t *testing.T, ci string) (*Ci, string) {
 	gitIn(t, dir, "commit", "-q", "-m", "init")
 	data := t.TempDir()
 	trust := MakeTrustStore(filepath.Join(data, TrustFileName))
-	c := MakeCi(filepath.Join(data, "ci"), trust, plainRunner, nil)
+	c := MakeCi(filepath.Join(data, "ci"), trust, withoutGh, nil)
 	report := molten.ValidatePipeline(dir)
 	if !report.Valid {
 		t.Fatalf("pipeline: %v", report.Errors)

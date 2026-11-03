@@ -71,7 +71,7 @@ func TestAdmissionBuildNestedCiKeepsTrustedAliasProject(t *testing.T) {
 				t.Fatal(err)
 			}
 			trustAdmission(t, r, alias)
-			ci := MakeCi(filepath.Join(t.TempDir(), "ci"), r.trust, plainRunner, nil)
+			ci := MakeCi(filepath.Join(t.TempDir(), "ci"), r.trust, withoutGh, nil)
 			r.UseCi(ci)
 			entered, proceed := holdAdmissionRunner(t, &ci.run, "rev-parse")
 			result, err := r.Start(RunRequest{Dir: alias, Kind: RunKindBuild, Id: "build"})
@@ -485,7 +485,7 @@ func TestAdmissionLegacyAliasHistoryAfterRestart(t *testing.T) {
 	writeLegacyAdmissionRecord(t, r, dir, "canonical-history", 0)
 	writeLegacyAdmissionRecord(t, r, alias, "legacy-alias", cmd.Process.Pid)
 	restarted := MakeRuns(r.baseDir, r.trust, nil)
-	restarted.git = plainRunner
+	restarted.git = withoutGh
 	t.Cleanup(func() { waitRunsIdle(t, restarted) })
 	if runs := restarted.List(dir); len(runs) != 2 {
 		t.Fatalf("alias history hidden: %+v", runs)
@@ -620,7 +620,7 @@ func TestAdmissionReleaseWithoutPreparationSurvivesAliasRestart(t *testing.T) {
 		t.Fatalf("session-only release failed: %+v, %v", result, err)
 	}
 	restarted := MakeRuns(r.baseDir, r.trust, nil)
-	restarted.git = plainRunner
+	restarted.git = withoutGh
 	session, err := restarted.ReleaseSessionOf(dir)
 	if err != nil || session == nil || session.Tag != result.Session.Tag {
 		t.Fatalf("session-only identity lost: %+v, %v", session, err)

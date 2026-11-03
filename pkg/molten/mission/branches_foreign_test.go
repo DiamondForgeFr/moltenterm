@@ -85,7 +85,7 @@ func makeForeignTreeFixture(t *testing.T) *foreignTreeFixture {
 		}
 		return plainRunner(ctx, d, name, args...)
 	}
-	r.UseWorktrees(MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
+	r.UseWorktrees(MakeWorktrees(withoutGh, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 		return []WorktreeTerminal{}
 	}), data)
 	busy := f.trees["e"]

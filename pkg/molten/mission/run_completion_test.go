@@ -246,7 +246,7 @@ func TestRunCompletionRestartHelper(t *testing.T) {
 		return
 	}
 	r := MakeRuns(filepath.Join(base, "runs"), nil, nil)
-	r.git = plainRunner
+	r.git = withoutGh
 	_, err := r.launch(base, TrustedCommand{Kind: RunKindStep, Id: "fixture", Run: heldCommand(filepath.Join(base, "release"), 7)}, "", "", "")
 	if err != nil {
 		t.Fatal(err)

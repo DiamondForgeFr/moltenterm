@@ -49,7 +49,7 @@ func makeDepSyncFixture(t *testing.T) *depSyncFixture {
 	runs := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, "trust.json")), nil)
 	t.Cleanup(func() { waitRunsIdle(t, runs) })
 	links := []molten.GroupLink{{WorkspaceId: "w-app", WorkspaceName: "App", Dir: f.app}, {WorkspaceId: "w-site", WorkspaceName: "Site", Dir: f.site}}
-	groups := MakeGroups(nil, nil, runs, plainRunner, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil }, nil, nil)
+	groups := MakeGroups(nil, nil, runs, withoutGh, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil }, nil, nil)
 	trees := filepath.Join(data, "worktrees")
 	groups.UseSync(MakeDepAcks(filepath.Join(data, "deps")), trees)
 	return &depSyncFixture{depFixture: f, groups: groups, runs: runs, trees: trees}
@@ -365,7 +365,7 @@ func TestDepSyncRefusals(t *testing.T) {
 		t.Fatalf("no sync declared: %v", err)
 	}
 	// Not available without its setup.
-	plain := MakeGroups(nil, nil, f.runs, plainRunner, nil, nil, nil)
+	plain := MakeGroups(nil, nil, f.runs, withoutGh, nil, nil, nil)
 	if _, err := plain.Sync(DepSyncRequest{Dir: f.site}); err == nil {
 		t.Fatal("Sync needs UseSync")
 	}
