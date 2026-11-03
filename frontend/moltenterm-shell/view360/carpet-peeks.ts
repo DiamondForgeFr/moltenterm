@@ -5,7 +5,7 @@
 // panel each edge shows, where its sliver is drawn, and which columns in view may be captured.
 
 import type { CaptureRect, CaptureTarget } from "./carpet-captures";
-import { carpetColumnRect, CarpetEdgePx, CarpetLayout, Rect } from "./carpet-model";
+import { carpetColumnRect, CarpetEdgePx, CarpetEnd, CarpetLayout, Rect } from "./carpet-model";
 
 // The sliver: narrower than its gutter, the rest of which keeps the normal gap to the panels beside it.
 export const PeekWidthPx = 12;
@@ -42,6 +42,47 @@ export function peekRect(layout: CarpetLayout, side: PeekSide, halfGapPx: number
     const inner = Math.max(0, CarpetEdgePx - PeekWidthPx - gap);
     const left = side === "left" ? v.left - inner - PeekWidthPx : v.left + v.width + inner;
     return { top, left, width: PeekWidthPx, height };
+}
+
+// The ends of the carpet whose gutter holds an add-panel slot (#1836, FR-SHELL-065 AC15): the side where a panel is in
+// view and none lies beyond it, which is where no peek is drawn, so the room the tilt needs never reads as a hole.
+// "left" is the start of the carpet, "right" its end.
+export function endSlotSides<T extends { columnId: string; visible: boolean }>(ticks: T[]): PeekSide[] {
+    if (!(ticks ?? []).some((t) => t.visible)) {
+        return [];
+    }
+    const { left, right } = peekNeighbours(ticks);
+    const sides: PeekSide[] = [];
+    if (left == null) {
+        sides.push("left");
+    }
+    if (right == null) {
+        sides.push("right");
+    }
+    return sides;
+}
+
+// The slots step aside, like the panels' own chrome, while a panel is magnified or being dragged.
+export function endSlotsShown(magnifiedNodeId: string, dragging: boolean): boolean {
+    return magnifiedNodeId == null && !dragging;
+}
+
+// The end of the carpet an add-panel slot on this side adds its panel at.
+export function carpetEndOfSide(side: PeekSide): CarpetEnd {
+    return side === "left" ? "start" : "end";
+}
+
+// Where an add-panel slot is drawn, in the layout's coordinates: the peek's column of the gutter, the height of the
+// panels it sits beside, so it reads as the edge of a place waiting to be filled.
+export function endSlotRect(layout: CarpetLayout, side: PeekSide, halfGapPx: number): Rect {
+    const gap = Math.max(0, halfGapPx);
+    const peek = peekRect(layout, side, gap);
+    return {
+        top: layout.viewport.top + gap,
+        left: peek.left,
+        width: peek.width,
+        height: Math.max(0, layout.viewport.height - 2 * gap),
+    };
 }
 
 // blockIds: the column's panels' blocks, parallel to leafNodeIds; the first one keys the column's stored thumbnail.

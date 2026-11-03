@@ -5,6 +5,7 @@
 // of the neighbouring panel, tilted like a carousel card. It is the panel's still capture (carpet-captures.ts) or its
 // placeholder, never a live view. A peek is keyed by its panel, so a new neighbour mounts and swings in (a CSS
 // animation of transform and opacity); it renders when the set of columns in view changes, never per scroll frame.
+// At an end of the carpet, where no peek exists, the same gutter holds an add-panel slot (view360-endslot.tsx, #1836).
 // This file also runs the captures of the carpet's panels while it rests.
 
 import { getApi } from "@/app/store/global";
@@ -29,6 +30,8 @@ import {
     CaptureColumn,
     captureProbePoints,
     captureTargets,
+    endSlotSides,
+    endSlotsShown,
     overlapsCapture,
     peekNeighbours,
     peekRect,
@@ -38,6 +41,7 @@ import { readLivePanel, watchLivePanel } from "./carpet-thumb-live";
 import { CarpetThumbTracker } from "./carpet-thumb-state";
 import { ElectronThumbBackend } from "./carpet-thumbs";
 import type { RadarTick } from "./radar-model";
+import { CarpetEndSlot } from "./view360-endslot";
 import "./view360-peeks.css";
 
 function halfGapPx(layoutModel: LayoutModel): number {
@@ -237,9 +241,22 @@ export const CarpetPeeks = memo(
         onGo: (tick: RadarTick) => void;
     }) => {
         const { left, right } = useMemo(() => peekNeighbours(ticks), [ticks]);
+        const slotSides = useMemo(() => endSlotSides(ticks), [ticks]);
+        const magnified = useAtomValue(layoutModel.magnifiedNodeIdAtom);
+        const dragging = useAtomValue(layoutModel.activeDrag);
         const halfGap = halfGapPx(layoutModel);
         return (
             <>
+                {endSlotsShown(magnified, dragging) &&
+                    slotSides.map((side) => (
+                        <CarpetEndSlot
+                            key={`s:${side}`}
+                            layoutModel={layoutModel}
+                            layout={layout}
+                            side={side}
+                            halfGap={halfGap}
+                        />
+                    ))}
                 {left != null && (
                     <CarpetPeek
                         key={`l:${left.columnId}`}
