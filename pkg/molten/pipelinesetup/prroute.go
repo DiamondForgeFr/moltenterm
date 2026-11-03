@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/sfticket"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -25,36 +26,18 @@ import (
 // CLI), so it lands on the board typed, labelled and with a complexity the workflow's guards accept.
 
 const (
-	SetupTicketComplexity = "low"
-	SetupTicketNature     = "internal"
-	SetupTicketType       = "task"
+	SetupTicketComplexity = sfticket.ComplexityLow
+	SetupTicketNature     = sfticket.NatureInternal
+	SetupTicketType       = sfticket.TypeTask
 	SetupSrsBypassReason  = "release-setup"
-
-	sfTicketToolName = "github-projects-cli.sh"
-	sfTicketTool     = "github-projects"
 )
-
-// The places a SaaSFoundry project keeps its ticket CLI, per coding agent.
-var sfTicketToolPaths = []string{
-	".claude/skills/sf-tool-github-projects/" + sfTicketToolName,
-	".agents/skills/sf-tool-github-projects/" + sfTicketToolName,
-}
-
-var issueUrlLineRegex = regexp.MustCompile(`(?m)^Issue URL:\s*(\S+)\s*$`)
 
 type sfWorkflow struct {
 	Workflow struct {
-		Tool       string `json:"tool"`
-		ProjectUrl string `json:"projectUrl"`
-		Statuses   []struct {
+		Statuses []struct {
 			Name string `json:"name"`
 		} `json:"statuses"`
 	} `json:"workflow"`
-	Tools struct {
-		Srs struct {
-			Backend string `json:"backend"`
-		} `json:"srs"`
-	} `json:"tools"`
 }
 
 func readSfWorkflow(dir string) (sfWorkflow, bool) {
@@ -116,20 +99,6 @@ func (s *Setup) prOpensDraft(ctx context.Context, dir string, ticket int, intern
 	return true
 }
 
-// sfTicketToolOf: where the project keeps its ticket CLI, when its workflow uses one on a board.
-func sfTicketToolOf(dir string) string {
-	sf, ok := readSfWorkflow(dir)
-	if !ok || sf.Workflow.Tool != sfTicketTool || strings.TrimSpace(sf.Workflow.ProjectUrl) == "" {
-		return ""
-	}
-	for _, rel := range sfTicketToolPaths {
-		if info, err := os.Stat(filepath.Join(dir, rel)); err == nil && !info.IsDir() {
-			return rel
-		}
-	}
-	return ""
-}
-
 // createSfTicket creates the ticket through the project's own CLI, as its workflow does: on the board, typed as a
 // task, complexity low, nature internal. The CLI is the copy committed at the setup's base, the one the project
 // reviewed, never the working copy's. ok false: nothing was created, the plain issue is made instead.
@@ -138,38 +107,13 @@ func (s *Setup) createSfTicket(ctx context.Context, dir string, base string, rel
 		return 0, false
 	}
 	script, err := s.git(ctx, dir, "show", base+":"+rel)
-	if err != nil || len(script) == 0 {
-		return 0, false
-	}
-	tmp, err := os.MkdirTemp(s.treesDir(), "ticket-")
 	if err != nil {
-		if os.MkdirAll(s.treesDir(), 0700) != nil {
-			return 0, false
-		}
-		if tmp, err = os.MkdirTemp(s.treesDir(), "ticket-"); err != nil {
-			return 0, false
-		}
-	}
-	defer os.RemoveAll(tmp)
-	tool := filepath.Join(tmp, sfTicketToolName)
-	bodyFile := filepath.Join(tmp, "body.md")
-	if os.WriteFile(tool, script, 0700) != nil || os.WriteFile(bodyFile, []byte(body+"\n"), 0600) != nil {
 		return 0, false
 	}
-	args := []string{tool, "create-ticket", SetupTicketType, title, "--body-file", bodyFile,
-		"--complexity", SetupTicketComplexity, "--nature", SetupTicketNature}
-	if sf, _ := readSfWorkflow(dir); strings.TrimSpace(sf.Tools.Srs.Backend) != "" {
-		args = append(args, "--bypass-srs", SetupSrsBypassReason)
-	}
-	out, _ := s.Run(ctx, dir, "bash", args...)
-	// The CLI prints the issue's address once it exists, even when a later step (board, type, label) fails: the
-	// ticket is then the one to use, never a second one.
-	m := issueUrlLineRegex.FindSubmatch(out)
-	if m == nil {
-		return 0, false
-	}
-	n := numberOfUrl(string(m[1]))
-	return n, n > 0
+	spec := sfticket.Spec{Type: SetupTicketType, Title: title, Body: body, Complexity: SetupTicketComplexity,
+		Nature: SetupTicketNature, SrsBypassReason: SetupSrsBypassReason}
+	n, ok, _ := sfticket.Create(ctx, sfticket.Runner(s.Run), dir, script, s.treesDir(), spec)
+	return n, ok
 }
 
 func ticketBody(kind string) string {

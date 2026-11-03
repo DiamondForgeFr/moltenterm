@@ -3,7 +3,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { digest, macPayloadNames, payloadNames, writeChecksums, writeMacEvidence } from "./release-inventory.mjs";
+import { digest, feedPayloadNames, payloadNames, writeChecksums, writeMacEvidence } from "./release-inventory.mjs";
 
 export const publicContext = {
     mode: "release",
@@ -20,12 +20,9 @@ export async function releaseFixture(t, { context = publicContext, signed = fals
     t.after(() => fs.rm(folder, { recursive: true, force: true }));
     const payloads = payloadNames(context);
     for (const name of payloads) await fs.writeFile(path.join(folder, name), `fixture ${name}`);
-    const feeds = {
-        "latest-mac.yml": macPayloadNames(context).filter((name) => /\.(dmg|zip)$/.test(name)),
-        "latest-linux.yml": payloads.filter((name) => name.includes("-x86_64-") && name.endsWith(".AppImage")),
-        "latest-linux-arm64.yml": payloads.filter((name) => name.includes("-arm64-") && name.endsWith(".AppImage")),
-    };
-    for (const [feed, names] of Object.entries(feeds)) {
+    for (const [feed, listed] of Object.entries(feedPayloadNames(context))) {
+        // As electron-builder writes them: the AppImage before the .deb, and `path` on the first entry.
+        const names = [...listed].sort((a, b) => Number(b.endsWith(".AppImage")) - Number(a.endsWith(".AppImage")));
         const files = [];
         for (const name of names) {
             const info = await digest(path.join(folder, name), "sha512", "base64");

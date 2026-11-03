@@ -19,6 +19,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/release"
+	"github.com/wavetermdev/waveterm/pkg/molten/sfticket"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -533,7 +534,7 @@ func numberOfUrl(url string) int {
 func (s *Setup) createTicket(ctx context.Context, dir string, base string, title string, kind string) (int, bool, error) {
 	title = strings.TrimSpace(title)
 	body := ticketBody(kind)
-	if tool := sfTicketToolOf(dir); tool != "" {
+	if tool := sfticket.ToolOf(dir); tool != "" {
 		if n, ok := s.createSfTicket(ctx, dir, base, tool, title, body); ok {
 			return n, true, nil
 		}

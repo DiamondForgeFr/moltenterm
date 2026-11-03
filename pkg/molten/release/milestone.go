@@ -78,13 +78,9 @@ func (e *Env) milestoneOf(ctx context.Context, dir string, version string, exact
 	if _, err := versions.ParseBase(version); err != nil {
 		return nil, fmt.Errorf("%q is not a public version (X.Y.Z)", version)
 	}
-	out, err := e.gh(ctx, dir, "api", "repos/{owner}/{repo}/milestones?state=open&per_page=100")
+	list, err := e.openMilestones(ctx, dir)
 	if err != nil {
 		return nil, err
-	}
-	var list []githubMilestone
-	if err := json.Unmarshal(out, &list); err != nil {
-		return nil, fmt.Errorf("gh api milestones: unreadable answer")
 	}
 	found := pickMilestone(list, version)
 	if found != nil && exact && MilestoneKey(found.Title) != version {
@@ -97,7 +93,7 @@ func (e *Env) milestoneOf(ctx context.Context, dir string, version string, exact
 	if found.OpenIssues == 0 {
 		return rtn, nil
 	}
-	out, err = e.gh(ctx, dir, "api", fmt.Sprintf("repos/{owner}/{repo}/issues?milestone=%d&state=open&per_page=%d", found.Number, maxMilestoneIssues))
+	out, err := e.gh(ctx, dir, "api", fmt.Sprintf("repos/{owner}/{repo}/issues?milestone=%d&state=open&per_page=%d", found.Number, maxMilestoneIssues))
 	if err != nil {
 		return nil, err
 	}

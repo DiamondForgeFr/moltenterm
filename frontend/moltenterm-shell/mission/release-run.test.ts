@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { PipelineReleaseStep } from "./mission-model";
-import { ReleaseFacts, releaseRun, ReleaseStepFact, runsInLog, stepsByPhase } from "./release-run";
+import { ReadyStep, ReleaseFacts, releaseRun, ReleaseStepFact, runsInLog, stepsByPhase } from "./release-run";
 
 const steps: PipelineReleaseStep[] = [
     { id: "warm", title: "Warm the cache", phase: "prepare", run: "x" },
@@ -77,6 +77,33 @@ describe("release run (FR-MC-016)", () => {
             action: { kind: "prepare", label: "Retry the preparation" },
         });
         expect(statuses(facts())).toBe("waiting,todo,todo,todo,todo");
+    });
+
+    it("shows the readiness check the preparation starts with as one step (#1800)", () => {
+        const checking = releaseRun(
+            facts({ preparation: ok({ state: "running", running: true, phases: [ReadyStep] }) }),
+            steps
+        );
+        expect(checking.phases[0]).toMatchObject({ status: "running", expect: "Checking the release is ready…" });
+        const line = "molten: v1.2.0-1 is not ready, nothing was changed: GitHub did not answer";
+        const stopped = releaseRun(
+            facts({ preparation: ok({ state: "failure", exit: 1, phases: [ReadyStep], tail: ["  ok       origin has main", line] }) }),
+            steps
+        );
+        expect(stopped.phases[0]).toMatchObject({
+            status: "failed",
+            expect: "Fix it, then retry the preparation.",
+            cause: `The check stopped the release before anything was written: ${line}`,
+            action: { kind: "prepare", label: "Retry the preparation" },
+            failure: { step: "Checking the release is ready" },
+        });
+        const promoting = releaseRun(
+            facts({ preparation: ok({ state: "running", running: true, phases: [ReadyStep, "promote"] }) }),
+            steps
+        );
+        expect(promoting.phases[0]).toMatchObject({ status: "running", expect: "Promote develop…" });
+        const lost = releaseRun(facts({ preparation: ok({ state: "lost", exit: 0, phases: [ReadyStep] }) }), steps);
+        expect(lost.phases[0].cause).toBe("The preparation stopped without a word (the computer slept?).");
     });
 
     it("runs the cut steps in order, then asks to read the notes and confirm the cut", () => {
