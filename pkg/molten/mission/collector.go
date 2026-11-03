@@ -598,7 +598,7 @@ func (c *Collector) applyRefresh(dir string, plan refreshPlan, gitSnap *GitSnaps
 		}
 	}
 	if plan.github {
-		state.snap.Github = githubSnap
+		state.snap.Github = KeepLastGithub(state.snap.Github, githubSnap)
 		state.snap.GithubAt = now.UnixMilli()
 	}
 	state.refreshing = false

@@ -143,6 +143,38 @@ func isLoggedOutError(err error) bool {
 	return strings.Contains(msg, "gh auth login") || strings.Contains(msg, "not logged") || strings.Contains(msg, "authentication")
 }
 
+// KeepLastGithub carries the last good read of a repository over a failed one (#1808): a GitHub outage (HTTP 503 on
+// `gh repo view`) or one failed section must not empty the panels that read the snapshot, such as the next station's
+// milestones. The new read's state, message and errors stay, so the panels can still say GitHub did not answer. A
+// definite answer (gh missing, signed out, no GitHub repository) keeps nothing.
+func KeepLastGithub(prev *GithubSnapshot, next *GithubSnapshot) *GithubSnapshot {
+	if next == nil || prev == nil || prev.Repo == "" {
+		return next
+	}
+	if next.State != GithubStateOk && next.State != GithubStateError {
+		return next
+	}
+	if next.State == GithubStateOk && next.Repo != prev.Repo {
+		return next
+	}
+	rtn := *next
+	if rtn.State == GithubStateError {
+		rtn.Repo, rtn.Url = prev.Repo, prev.Url
+	}
+	keep := func(cur json.RawMessage, last json.RawMessage) json.RawMessage {
+		if cur == nil {
+			return last
+		}
+		return cur
+	}
+	rtn.Prs = keep(rtn.Prs, prev.Prs)
+	rtn.Runs = keep(rtn.Runs, prev.Runs)
+	rtn.Releases = keep(rtn.Releases, prev.Releases)
+	rtn.Milestones = keep(rtn.Milestones, prev.Milestones)
+	rtn.Merged = keep(rtn.Merged, prev.Merged)
+	return &rtn
+}
+
 // CollectGithub reads the open pull requests, recent runs, releases and open milestones of the folder's GitHub
 // repository. The state says why nothing could be read (gh missing, logged out, not a GitHub repository).
 func CollectGithub(ctx context.Context, run Runner, dir string) *GithubSnapshot {
