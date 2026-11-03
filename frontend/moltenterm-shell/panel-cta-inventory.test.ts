@@ -23,6 +23,7 @@ const InPanelFiles = [
     "mission/release-setup.tsx",
     "mission/release-techdoc-link.tsx",
     "project/project-view.tsx",
+    "reviews/reviews-card.tsx",
     "reviews/reviews-store.ts",
 ];
 
