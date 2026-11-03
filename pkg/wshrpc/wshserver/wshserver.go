@@ -159,6 +159,9 @@ func (ws *WshServer) GetMetaCommand(ctx context.Context, data wshrpc.CommandGetM
 
 func (ws *WshServer) UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error {
 	oref := waveobj.ORef{OType: waveobj.OType_Tab, OID: tabId}
+	if err := moltenCheckOwnWorkspace(ctx, oref, "rename a tab"); err != nil { // MOLTENTERM-PATCH (#1821)
+		return err
+	}
 	err := wstore.UpdateTabName(ctx, tabId, newName)
 	if err != nil {
 		return fmt.Errorf("error updating tab name: %w", err)
@@ -169,6 +172,9 @@ func (ws *WshServer) UpdateTabNameCommand(ctx context.Context, tabId string, new
 
 func (ws *WshServer) UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error {
 	oref := waveobj.ORef{OType: waveobj.OType_Workspace, OID: workspaceId}
+	if err := moltenCheckOwnWorkspace(ctx, oref, "reorder tabs"); err != nil { // MOLTENTERM-PATCH (#1821)
+		return err
+	}
 	err := wcore.UpdateWorkspaceTabIds(ctx, workspaceId, tabIds)
 	if err != nil {
 		return fmt.Errorf("error updating workspace tab ids: %w", err)
@@ -240,6 +246,9 @@ func (ws *WshServer) CreateBlockCommand(ctx context.Context, data wshrpc.Command
 		blockDef := *data.BlockDef
 		blockDef.Meta = moltenFileMeta(ctx, blockDef.Meta)
 		data.BlockDef = &blockDef
+	}
+	if err := moltenCheckCreateBlock(ctx, tabId, data.BlockDef); err != nil { // MOLTENTERM-PATCH (#1821): a terminal opens panels in its own workspace only
+		return nil, err
 	}
 	blockData, err := wcore.CreateBlock(ctx, tabId, data.BlockDef, data.RtOpts)
 	if err != nil {
@@ -532,6 +541,9 @@ func (ws *WshServer) EventPublishCommand(ctx context.Context, data wps.WaveEvent
 	if rpcSource == "" {
 		return fmt.Errorf("no rpc source set")
 	}
+	if err := moltenCheckPublish(ctx, data.Event); err != nil { // MOLTENTERM-PATCH (#1821): only wavesrv publishes the events the window trusts
+		return err
+	}
 	if data.Sender == "" {
 		data.Sender = rpcSource
 	}
@@ -543,6 +555,9 @@ func (ws *WshServer) EventSubCommand(ctx context.Context, data wps.SubscriptionR
 	rpcSource := wshutil.GetRpcSourceFromContext(ctx)
 	if rpcSource == "" {
 		return fmt.Errorf("no rpc source set")
+	}
+	if err := moltenCheckSubscribe(ctx, data); err != nil { // MOLTENTERM-PATCH (#1821): a terminal follows only its own workspace's objects
+		return err
 	}
 	wps.Broker.Subscribe(rpcSource, data)
 	return nil
@@ -567,6 +582,9 @@ func (ws *WshServer) EventUnsubAllCommand(ctx context.Context) error {
 }
 
 func (ws *WshServer) EventReadHistoryCommand(ctx context.Context, data wshrpc.CommandEventReadHistoryData) ([]*wps.WaveEvent, error) {
+	if err := moltenCheckSubscribe(ctx, wps.SubscriptionRequest{Event: data.Event, Scopes: []string{data.Scope}}); err != nil { // MOLTENTERM-PATCH (#1821)
+		return nil, err
+	}
 	events := wps.Broker.ReadEventHistory(data.Event, data.Scope, data.MaxItems)
 	return events, nil
 }
@@ -961,6 +979,7 @@ func (ws *WshServer) BlocksListCommand(
 			}
 		}
 	}
+	moltenListedBlocks(ctx, results) // MOLTENTERM-PATCH (#1821): a terminal reads other workspaces' blocks without their molten:* keys
 	return results, nil
 }
 

@@ -4,6 +4,8 @@
 package metaguard_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 	"github.com/wavetermdev/waveterm/pkg/molten/metaguard"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 )
 
 const (
@@ -173,5 +176,150 @@ func TestWorkspaceReads(t *testing.T) {
 	tab := waveobj.MakeORef(waveobj.OType_Tab, "tab")
 	if got, err := metaguard.ReadMeta(metaguard.Caller{}, tab, waveobj.MetaMapType{molten.BrowserRecentMetaKey: "b"}); err != nil || got[molten.BrowserRecentMetaKey] != "b" {
 		t.Errorf("a tab's meta: %v, %v", got, err)
+	}
+}
+
+func TestTooWideProjectFolder(t *testing.T) {
+	own := waveobj.MakeORef(waveobj.OType_Workspace, ownWs)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, folder := range []string{"/", "//", home, home + "/", home + "/."} {
+		mustRefuse(t, "project folder "+folder, metaguard.CheckWrite(terminal(), own, waveobj.MetaMapType{molten.ProjectMetaKey: folder}))
+		if err := metaguard.CheckWrite(metaguard.Caller{Trusted: true}, own, waveobj.MetaMapType{molten.ProjectMetaKey: folder}); err != nil {
+			t.Errorf("the window was refused %s: %v", folder, err)
+		}
+	}
+	for _, folder := range []string{filepath.Join(home, "code", "app"), "/tmp/p", ""} {
+		if err := metaguard.CheckWrite(terminal(), own, waveobj.MetaMapType{molten.ProjectMetaKey: folder}); err != nil {
+			t.Errorf("project folder %q: %v", folder, err)
+		}
+	}
+	if err := metaguard.CheckWrite(terminal(), own, waveobj.MetaMapType{molten.ProjectMetaKey: nil}); err != nil {
+		t.Errorf("molten project unlink: %v", err)
+	}
+}
+
+func TestPublish(t *testing.T) {
+	for _, event := range []string{wps.Event_Badge, wps.Event_SysInfo, "molten:modschanged"} {
+		for _, u := range untrusted() {
+			if err := metaguard.CheckPublish(u.c, event); err != nil {
+				t.Errorf("%s publishing %s: %v", u.name, event, err)
+			}
+		}
+	}
+	serverOwned := []string{wps.Event_WaveObjUpdate, wps.Event_Config, wps.Event_WorkspaceUpdate, wps.Event_BlockClose, wps.Event_BlockFile,
+		wps.Event_ControllerStatus, wps.Event_UserInput, wps.Event_RouteDown, wps.Event_AIModeConfig, wps.Event_BlockJobStatus,
+		molten.AgentStateEvent, molten.MaterialsEvent, "anything:else"}
+	for _, event := range serverOwned {
+		for _, u := range untrusted() {
+			if err := metaguard.CheckPublish(u.c, event); err == nil || !strings.HasPrefix(err.Error(), "refused: a terminal cannot publish") {
+				t.Errorf("%s published %s: %v", u.name, event, err)
+			}
+		}
+		if err := metaguard.CheckPublish(metaguard.Caller{Trusted: true}, event); err != nil {
+			t.Errorf("wavesrv or the window could not publish %s: %v", event, err)
+		}
+	}
+}
+
+func TestSubscribe(t *testing.T) {
+	inOwn := func(oref waveobj.ORef) bool { return oref.OID == "own-tab" || oref.OID == routetest.TerminalBlock }
+	sub := func(scopes ...string) wps.SubscriptionRequest {
+		return wps.SubscriptionRequest{Event: wps.Event_WaveObjUpdate, Scopes: scopes}
+	}
+	allowed := []wps.SubscriptionRequest{
+		sub("block:" + routetest.TerminalBlock),
+		sub("tab:own-tab", "block:"+routetest.TerminalBlock),
+		{Event: wps.Event_BlockClose, AllScopes: true},
+		{Event: wps.Event_Config, AllScopes: true},
+	}
+	for _, req := range allowed {
+		if err := metaguard.CheckSubscribe(terminal(), req, inOwn); err != nil {
+			t.Errorf("%+v: %v", req, err)
+		}
+	}
+	refused := []wps.SubscriptionRequest{
+		{Event: wps.Event_WaveObjUpdate, AllScopes: true},
+		sub(),
+		sub("workspace:" + ownWs),
+		sub("workspace:" + otherWs),
+		sub("client:c"),
+		sub("window:w"),
+		sub("tab:other-tab"),
+		sub("block:other"),
+		sub("tab:own-tab", "block:other"),
+		sub("block:*"),
+		sub("garbage"),
+	}
+	for _, req := range refused {
+		for _, u := range untrusted() {
+			if err := metaguard.CheckSubscribe(u.c, req, inOwn); err == nil || !strings.HasPrefix(err.Error(), "refused: a terminal cannot follow") {
+				t.Errorf("%s subscribed %+v: %v", u.name, req, err)
+			}
+		}
+		if err := metaguard.CheckSubscribe(metaguard.Caller{Trusted: true}, req, inOwn); err != nil {
+			t.Errorf("the window was refused %+v: %v", req, err)
+		}
+	}
+}
+
+func TestCreateBlock(t *testing.T) {
+	allowed := []waveobj.MetaMapType{
+		{"view": molten.BrowserView, "url": "https://example.com"},
+		molten.BrowserEnvBlockMeta("https://example.com", true),
+		{"view": "preview", "file": "/p/a", "molten:fileorigin": "agent"},
+		{"view": "term", "controller": "cmd"},
+		nil,
+	}
+	for _, meta := range allowed {
+		if err := metaguard.CheckCreateBlock(terminal(), true, meta); err != nil {
+			t.Errorf("%v: %v", meta, err)
+		}
+		if err := metaguard.CheckCreateBlock(metaguard.Caller{}, false, meta); err != nil {
+			t.Errorf("a remote host's %v: %v", meta, err)
+		}
+	}
+	mustRefuse(t, "a panel in another workspace's tab", metaguard.CheckCreateBlock(terminal(), false, waveobj.MetaMapType{"view": "term"}))
+	for _, meta := range []waveobj.MetaMapType{{molten.BrowserTabsMetaKey: []any{}}, {"view": "term", molten.AgentFirstNameMetaKey: "Ada"}, {"molten:pin": true}} {
+		for _, u := range untrusted() {
+			mustRefuse(t, u.name+" creates with molten keys", metaguard.CheckCreateBlock(u.c, true, meta))
+		}
+		if err := metaguard.CheckCreateBlock(metaguard.Caller{Trusted: true}, false, meta); err != nil {
+			t.Errorf("the window was refused %v: %v", meta, err)
+		}
+	}
+}
+
+func TestReadBlockMeta(t *testing.T) {
+	meta := waveobj.MetaMapType{"view": molten.BrowserView, "url": "https://a", molten.BrowserTabsMetaKey: []any{"https://x/?token=1"}}
+	if got := metaguard.ReadBlockMeta(terminal(), true, meta); len(got) != 3 {
+		t.Errorf("own workspace's block: %v", got)
+	}
+	for _, c := range []metaguard.Caller{terminal(), {}} {
+		got := metaguard.ReadBlockMeta(c, false, meta)
+		if len(got) != 2 || got[molten.BrowserTabsMetaKey] != nil || got["view"] != molten.BrowserView {
+			t.Errorf("another workspace's block for %+v: %v", c, got)
+		}
+	}
+	if got := metaguard.ReadBlockMeta(metaguard.Caller{}, true, meta); got[molten.BrowserTabsMetaKey] != nil {
+		t.Errorf("a remote host read molten keys: %v", got)
+	}
+	if got := metaguard.ReadBlockMeta(metaguard.Caller{Trusted: true}, false, meta); len(got) != 3 {
+		t.Errorf("the window: %v", got)
+	}
+}
+
+func TestOwnWorkspace(t *testing.T) {
+	if err := metaguard.CheckOwnWorkspace(terminal(), ownWs, "rename a tab"); err != nil {
+		t.Errorf("own workspace: %v", err)
+	}
+	for _, u := range untrusted() {
+		mustRefuse(t, u.name+" in another workspace", metaguard.CheckOwnWorkspace(u.c, otherWs, "rename a tab"))
+		mustRefuse(t, u.name+" in an unknown workspace", metaguard.CheckOwnWorkspace(u.c, "", "reorder tabs"))
+	}
+	if err := metaguard.CheckOwnWorkspace(metaguard.Caller{Trusted: true}, otherWs, "rename a tab"); err != nil {
+		t.Errorf("the window: %v", err)
 	}
 }
