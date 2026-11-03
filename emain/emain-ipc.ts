@@ -30,6 +30,7 @@ import { getWaveVersion } from "./emain-wavesrv";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300, #302)
+import { isFlatBitmap } from "./moltenterm-carpet-thumb-store"; // MOLTENTERM-PATCH (#1814)
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
@@ -284,6 +285,11 @@ export function initIpcHandlers() {
             const width = Math.min(Math.round(thumbWidth), 1024);
             if (image.getSize().width > width) {
                 image = image.resize({ width, quality: "good" });
+            }
+            // MOLTENTERM-PATCH (#1814): a frame of one flat colour identifies nothing; the empty answer keeps the
+            // panel's previous thumbnail.
+            if (isFlatBitmap(image.toBitmap())) {
+                return "";
             }
             return `data:image/jpeg;base64,${image.toJPEG(72).toString("base64")}`;
         }
