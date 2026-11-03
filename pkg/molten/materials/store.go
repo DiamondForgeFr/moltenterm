@@ -316,19 +316,24 @@ func (s *Store) locateLocked(key string, id string) (*drawer, int, error) {
 	return nil, -1, fmt.Errorf("no such material")
 }
 
+// snapshotMaterial must run while the source is protected by the store lock: a recopy replaces a version in place.
+func snapshotMaterial(m molten.Material) molten.Material {
+	m.Versions = append([]molten.MaterialVersion(nil), m.Versions...)
+	if m.LastOpened != nil {
+		place := *m.LastOpened
+		m.LastOpened = &place
+	}
+	return m
+}
+
 // view fills what is read when a material is shown: the copy's path, whether the original is still there.
 func (s *Store) view(m molten.Material) molten.Material {
-	m.Versions = append([]molten.MaterialVersion(nil), m.Versions...)
 	if n := len(m.Versions); n > 0 {
 		v := m.Versions[n-1]
 		m.CopyPath = filepath.Join(s.drawerDir(m.Project), itemsDir, m.Id, v.Dir, v.Main)
 	}
 	if m.Thumb {
 		m.ThumbPath = filepath.Join(s.drawerDir(m.Project), itemsDir, m.Id, thumbFile)
-	}
-	if m.LastOpened != nil {
-		place := *m.LastOpened
-		m.LastOpened = &place
 	}
 	if m.Original != "" {
 		_, err := os.Stat(m.Original)
@@ -355,7 +360,9 @@ func (s *Store) List(key string) ([]molten.Material, error) {
 	d, err := s.loadLocked(key)
 	var list []molten.Material
 	if err == nil {
-		list = append(list, d.index.Materials...)
+		for _, m := range d.index.Materials {
+			list = append(list, snapshotMaterial(m))
+		}
 	}
 	s.lock.Unlock()
 	if err != nil {
@@ -374,7 +381,7 @@ func (s *Store) Get(key string, id string) (molten.Material, error) {
 	d, i, err := s.locateLocked(key, id)
 	var m molten.Material
 	if err == nil {
-		m = d.index.Materials[i]
+		m = snapshotMaterial(d.index.Materials[i])
 	}
 	s.lock.Unlock()
 	if err != nil {
@@ -436,14 +443,14 @@ func (s *Store) updateWith(key string, id string, touch bool, fn func(m *molten.
 	}
 	m := &d.index.Materials[i]
 	if !fn(m) {
-		out := *m
+		out := snapshotMaterial(*m)
 		s.lock.Unlock()
 		return s.view(out), nil
 	}
 	if touch {
 		m.Updated = s.now().UnixMilli()
 	}
-	out := *m
+	out := snapshotMaterial(*m)
 	err = s.saveLocked(d, "")
 	dkey := d.key
 	s.lock.Unlock()
@@ -608,6 +615,7 @@ func (s *Store) Restore(key string, trashId string) (molten.Material, error) {
 		return s.saveLocked(d, "")
 	}()
 	dkey := d.key
+	rec = snapshotMaterial(rec)
 	s.lock.Unlock()
 	if err != nil {
 		return molten.Material{}, err
