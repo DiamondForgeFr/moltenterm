@@ -7,7 +7,8 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
 
-export type TabLoad = { loading?: boolean; favicon?: string };
+// crashed: the page's process is gone (#1814), so the 360 carpet takes no thumbnail of it until it loads again.
+export type TabLoad = { loading?: boolean; favicon?: string; crashed?: boolean };
 
 export const ReloadStop = "stop";
 export const ReloadNormal = "reload";
@@ -70,8 +71,16 @@ export class BrowserLoadModel {
         globalStore.set(this.loadsAtom, { ...all, [tabId]: { ...current, ...patch } });
     }
 
+    isCrashed(tabId: string): boolean {
+        return !!this.get(tabId)?.crashed;
+    }
+
+    noteCrash(tabId: string): void {
+        this.update(tabId, { crashed: true, loading: false });
+    }
+
     noteStart(tabId: string): void {
-        this.update(tabId, { loading: true });
+        this.update(tabId, this.isCrashed(tabId) ? { loading: true, crashed: false } : { loading: true });
     }
 
     noteStop(tabId: string): void {

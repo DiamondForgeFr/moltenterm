@@ -1586,6 +1586,12 @@ function TabWebview({
             }
         };
         const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
+        // The 360 carpet keeps the page's previous thumbnail while its process is gone (#1814).
+        const onProcessGone = (e: any) => {
+            if ((e.details?.reason ?? e.reason) !== "clean-exit") {
+                model.loads.noteCrash(tab.id);
+            }
+        };
         // emain/preload.ts routes a page's new window by this attribute; the preload cannot call the element's methods.
         let offHeld: () => void = null;
         const onDomReady = () => {
@@ -1634,6 +1640,7 @@ function TabWebview({
         webview.addEventListener("did-stop-loading", onStopLoading);
         webview.addEventListener("did-fail-load", onFailLoad);
         webview.addEventListener("page-favicon-updated", onFavicon);
+        webview.addEventListener("render-process-gone", onProcessGone);
         const onFoundInPage = (e: any) => model.noteFoundInPage(tab.id, e.result);
         webview.addEventListener("found-in-page", onFoundInPage);
         return () => {
@@ -1642,6 +1649,7 @@ function TabWebview({
             webview.removeEventListener("did-stop-loading", onStopLoading);
             webview.removeEventListener("did-fail-load", onFailLoad);
             webview.removeEventListener("page-favicon-updated", onFavicon);
+            webview.removeEventListener("render-process-gone", onProcessGone);
             webview.removeEventListener("found-in-page", onFoundInPage);
             document.removeEventListener("visibilitychange", onVisibility);
             removeContextMenu?.();

@@ -211,6 +211,10 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("moltenterm-system-notify-click", listener);
         return () => ipcRenderer.removeListener("moltenterm-system-notify-click", listener);
     },
+    // MOLTENTERM-PATCH (#1814): the 360 carpet's thumbnails kept on disk (emain/moltenterm-carpet-thumbs.ts)
+    moltentermCarpetThumbPut: (req: any) => ipcRenderer.invoke("moltenterm-carpet-thumb-put", req),
+    moltentermCarpetThumbRead: (items: any[]) => ipcRenderer.invoke("moltenterm-carpet-thumb-read", items),
+    moltentermCarpetThumbRemove: (keys: string[]) => ipcRenderer.invoke("moltenterm-carpet-thumb-remove", keys),
     // MOLTENTERM-PATCH (#849): the window did not answer for a while, and what Electron main recorded about it
     // (emain/moltenterm-hang-watch.ts)
     onMoltentermWindowHang: (callback: (hang: any) => void) => {

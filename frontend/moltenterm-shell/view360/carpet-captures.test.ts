@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
     CaptureClock,
     captureDue,
+    CaptureMaxRetries,
     CaptureMinGapMs,
     CaptureSettleMs,
     CaptureSource,
@@ -53,7 +54,14 @@ async function flush() {
 
 const rect = { x: 0, y: 0, width: 600, height: 800 };
 
-function setup(targets: CaptureTarget[], opts: { atRest?: () => boolean; capture?: () => Promise<string> } = {}) {
+function setup(
+    targets: CaptureTarget[],
+    opts: {
+        atRest?: () => boolean;
+        capture?: () => Promise<string>;
+        inspect?: (columnId: string) => { tag: string; capturable: boolean };
+    } = {}
+) {
     const { clock, advance, pending } = fakeClock();
     const store = new Map<string, CarpetCapture>();
     const calls: CaptureTarget["rect"][] = [];
@@ -64,6 +72,7 @@ function setup(targets: CaptureTarget[], opts: { atRest?: () => boolean; capture
             calls.push(r);
             return opts.capture ? opts.capture() : "data:image/jpeg;base64,AA==";
         },
+        inspect: opts.inspect,
     };
     const scheduler = new CarpetCaptureScheduler(
         source,
@@ -181,5 +190,161 @@ describe("capture budget (FR-SHELL-065 AC12, DS-SHELL-152)", () => {
         expect(captureDue({ url: "x", width: 1, height: 1, at }, at + CaptureMinGapMs)).toBe(true);
         expect(nextDueInMs([{ url: "x", width: 1, height: 1, at }], at + 1000)).toBe(CaptureMinGapMs - 1000);
         expect(nextDueInMs([], at)).toBeNull();
+    });
+
+    it("says a capture is due at once when it was taken for another tag", () => {
+        const at = 5000;
+        const held = { url: "x", width: 1, height: 1, at, tag: "web1@https://a.dev/" };
+        expect(captureDue(held, at + 1, CaptureMinGapMs, "web1@https://a.dev/")).toBe(false);
+        expect(captureDue(held, at + 1, CaptureMinGapMs, "web1@https://a.dev/next")).toBe(true);
+        expect(captureDue(held, at + 1)).toBe(false);
+    });
+});
+
+describe("thumbnails kept per page (#1814)", () => {
+    const good = "data:image/jpeg;base64,AA==";
+    const state = (tag: string, capturable = true) => ({ tag, capturable });
+
+    it("takes no capture of a page that is loading, failed, crashed or unloaded, and keeps the previous one", async () => {
+        const page = state("web1@https://a.dev/", false);
+        const { scheduler, store, calls, advance, pending, clock } = setup([{ columnId: "a", rect }], {
+            inspect: () => ({ ...page }),
+        });
+        const previous = { url: "old", width: 1, height: 1, at: clock.now() - 10 * CaptureMinGapMs, tag: page.tag };
+        store.set("a", previous);
+        scheduler.noteChange();
+        await advance(10 * CaptureSettleMs);
+        expect(calls).toHaveLength(0);
+        expect(store.get("a")).toBe(previous);
+        expect(pending()).toBe(0);
+    });
+
+    it("captures the page once the change that made it ready wakes the scheduler", async () => {
+        const page = state("web1@https://a.dev/", false);
+        const { scheduler, store, calls, advance } = setup([{ columnId: "a", rect }], { inspect: () => ({ ...page }) });
+        scheduler.noteChange();
+        await advance(CaptureSettleMs);
+        expect(calls).toHaveLength(0);
+        page.capturable = true;
+        scheduler.noteChange();
+        await advance(CaptureSettleMs - 1);
+        expect(calls).toHaveLength(0);
+        await advance(1);
+        expect(calls).toHaveLength(1);
+        expect(store.get("a")).toMatchObject({ url: good, tag: "web1@https://a.dev/" });
+    });
+
+    it("takes a new capture at once when the page's address changed, however recent the old one is", async () => {
+        const page = state("web1@https://a.dev/next");
+        const { scheduler, store, calls, advance, clock } = setup([{ columnId: "a", rect }], {
+            inspect: () => ({ ...page }),
+        });
+        store.set("a", { url: "old", width: 1, height: 1, at: clock.now(), tag: "web1@https://a.dev/" });
+        scheduler.noteChange();
+        await advance(CaptureSettleMs);
+        expect(calls).toHaveLength(1);
+        expect(store.get("a")).toMatchObject({ url: good, tag: "web1@https://a.dev/next" });
+    });
+
+    it("refreshes the thumbnail of a page in view when it is older than the gap, as after a restart", async () => {
+        const page = state("web1@https://a.dev/");
+        const { scheduler, store, calls, advance, clock } = setup([{ columnId: "a", rect }], {
+            inspect: () => ({ ...page }),
+        });
+        store.set("a", { url: "stored", width: 1, height: 1, at: clock.now() - 60 * 60 * 1000, tag: page.tag });
+        scheduler.noteChange();
+        await advance(CaptureSettleMs - 1);
+        expect(store.get("a")?.url).toBe("stored");
+        await advance(1);
+        expect(calls).toHaveLength(1);
+        expect(store.get("a")?.url).toBe(good);
+    });
+
+    it("leaves a recent thumbnail of the same page alone: nothing is retaken more often than the gap", async () => {
+        const page = state("web1@https://a.dev/");
+        const { scheduler, store, calls, advance, clock } = setup([{ columnId: "a", rect }], {
+            inspect: () => ({ ...page }),
+        });
+        store.set("a", { url: "stored", width: 1, height: 1, at: clock.now(), tag: page.tag });
+        scheduler.noteChange();
+        await advance(CaptureSettleMs);
+        expect(calls).toHaveLength(0);
+        await advance(CaptureMinGapMs);
+        expect(calls).toHaveLength(1);
+    });
+
+    it("keeps the previous thumbnail when the main process refuses the frame, and retries a bounded number of times", async () => {
+        const page = state("web1@https://a.dev/");
+        const { scheduler, store, calls, advance, pending, clock } = setup([{ columnId: "a", rect }], {
+            inspect: () => ({ ...page }),
+            capture: async () => "",
+        });
+        const previous = { url: "old", width: 1, height: 1, at: clock.now() - 10 * CaptureMinGapMs, tag: page.tag };
+        store.set("a", previous);
+        scheduler.noteChange();
+        await advance(CaptureSettleMs);
+        expect(calls).toHaveLength(1);
+        for (let i = 0; i < CaptureMaxRetries; i++) {
+            expect(pending()).toBe(1);
+            await advance(CaptureMinGapMs);
+        }
+        expect(calls).toHaveLength(1 + CaptureMaxRetries);
+        expect(pending()).toBe(0);
+        await advance(10 * CaptureMinGapMs);
+        expect(calls).toHaveLength(1 + CaptureMaxRetries);
+        expect(store.get("a")).toBe(previous);
+    });
+
+    it("keeps the retried capture when the page has painted by then", async () => {
+        const page = state("web1@https://a.dev/");
+        let answers = [Promise.resolve(""), Promise.resolve(good)];
+        const { scheduler, store, advance } = setup([{ columnId: "a", rect }], {
+            inspect: () => ({ ...page }),
+            capture: () => answers.shift() ?? Promise.resolve(""),
+        });
+        scheduler.noteChange();
+        await advance(CaptureSettleMs);
+        expect(store.size).toBe(0);
+        await advance(CaptureMinGapMs);
+        expect(store.get("a")).toMatchObject({ url: good, tag: page.tag });
+        answers = [];
+    });
+
+    it("drops a capture taken while the page changed under it: a frame of another page, or a page now loading", async () => {
+        const page = state("web1@https://a.dev/");
+        let resolve: (url: string) => void;
+        const { scheduler, store, calls, advance } = setup([{ columnId: "a", rect }], {
+            inspect: () => ({ ...page }),
+            capture: () => new Promise((r) => (resolve = r)),
+        });
+        scheduler.noteChange();
+        await advance(CaptureSettleMs);
+        expect(calls).toHaveLength(1);
+        page.tag = "web1@https://a.dev/next";
+        resolve(good);
+        await flush();
+        expect(store.size).toBe(0);
+
+        page.tag = "web1@https://a.dev/";
+        scheduler.noteChange();
+        await advance(CaptureSettleMs);
+        page.capturable = false;
+        resolve(good);
+        await flush();
+        expect(store.size).toBe(0);
+    });
+
+    it("captures the columns that may be captured and skips the others in the same pass", async () => {
+        const { scheduler, store, calls, advance } = setup(
+            [
+                { columnId: "a", rect },
+                { columnId: "b", rect },
+            ],
+            { inspect: (id) => state(id, id === "b") }
+        );
+        scheduler.noteChange();
+        await advance(CaptureSettleMs);
+        expect(calls).toHaveLength(1);
+        expect([...store.keys()]).toEqual(["b"]);
     });
 });

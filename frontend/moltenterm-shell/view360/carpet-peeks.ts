@@ -44,7 +44,8 @@ export function peekRect(layout: CarpetLayout, side: PeekSide, halfGapPx: number
     return { top, left, width: PeekWidthPx, height };
 }
 
-export type CaptureColumn = { columnId: string; leafNodeIds: string[] };
+// blockIds: the column's panels' blocks, parallel to leafNodeIds; the first one keys the column's stored thumbnail.
+export type CaptureColumn = { columnId: string; leafNodeIds: string[]; blockIds: string[] };
 
 // The columns that may be captured at this scroll position: whole in the band of places (a panel cut at the edge
 // would be kept cut), the rect inset by the panels' half gap so only the panel shows, in the window's coordinates.

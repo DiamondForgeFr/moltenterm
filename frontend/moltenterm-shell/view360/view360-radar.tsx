@@ -162,7 +162,12 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
     const rootNode = layoutModel.treeState?.rootNode;
     const columns = useMemo(() => radarColumns(rootNode, layout), [rootNode, layout]);
     const captureColumns = useMemo(
-        () => columns.map((c) => ({ columnId: c.columnId, leafNodeIds: c.leaves.map((l) => l.nodeId) })),
+        () =>
+            columns.map((c) => ({
+                columnId: c.columnId,
+                leafNodeIds: c.leaves.map((l) => l.nodeId),
+                blockIds: c.leaves.map((l) => l.blockId),
+            })),
         [columns]
     );
     useCarpetCaptures(layoutModel, captureColumns);
