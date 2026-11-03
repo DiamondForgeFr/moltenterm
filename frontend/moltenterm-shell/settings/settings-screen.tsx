@@ -42,6 +42,8 @@ import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
 import { SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import { TipsCards } from "../tips/tips-view";
+import { ReleaseCandidatesSettingKey } from "../update/release-feed";
+import { ReleaseUpdateCheck } from "../update/release-update-ui";
 import { View360SettingKey } from "../view360/view360-decision";
 import { workspaceShownName } from "../workspace-default-name";
 import { openCurrentWorkspaceEditor } from "../workspace-edit";
@@ -797,6 +799,9 @@ export function SettingsSectionPage({
                             {g.entries.some((e) => e.key === SleepPolicySetting) ? <KeepAwakeDetails /> : null}
                             {g.entries.some((e) => e.key === View360SettingKey) ? <View360Screens /> : null}
                             {g.entries.some((e) => e.key === NewViewOpenKey) ? <NewViewFavorites /> : null}
+                            {g.entries.some((e) => e.key === ReleaseCandidatesSettingKey) ? (
+                                <ReleaseUpdateCheck />
+                            ) : null}
                         </PageCard>
                     ))}
                     {section === "spaces" ? <TopRowCard /> : null}

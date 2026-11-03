@@ -21,6 +21,8 @@ export const AppMenuCommands = [
     "pilotage",
     "shortcuts",
     "palette",
+    // Check for updates now (#1806): the app menu on macOS, Help elsewhere; asks GitHub at once.
+    "checkupdates",
 ] as const;
 
 export type AppMenuCommand = (typeof AppMenuCommands)[number];

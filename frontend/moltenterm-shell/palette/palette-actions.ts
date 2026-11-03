@@ -147,6 +147,11 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
         case "shortcuts":
             openShortcutsSheet();
             return;
+        case "checkupdates": {
+            const { checkForUpdatesNow } = await import("../update/release-update-store");
+            checkForUpdatesNow();
+            return;
+        }
         case "reopenclosed":
             await reopenLastClosed();
             return;

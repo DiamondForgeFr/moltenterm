@@ -11,27 +11,42 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { GitHubReleaseLink } from "@/util/moltenterm-web-link";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
-import { t } from "../i18n/i18n";
+import { getLocale, t } from "../i18n/i18n";
 import {
     addMoltentermNotification,
     registerNotificationGesture,
     resolveMoltentermNotification,
 } from "../notifications-store";
 import { openWebLink } from "../open-web-link";
+import { dismissToast, showToast } from "../toast-store";
 import {
+    isJustNow,
     notesAsText,
     ReleaseCandidatesSettingKey,
     ReleaseCheck,
+    ReleaseCheckMode,
     releaseFeedEnabled,
     ReleaseOffer,
+    UpdateCheckState,
+    updateCheckStateOf,
 } from "./release-feed";
 
 export const ReleaseNotifySettingKey = "moltenterm:releasenotify";
 const ReleaseDownloadGesture = "release:download";
 // The first check waits for the window to settle, never long.
 const FirstCheckIdleTimeoutMs = 10_000;
+// One toast for the answer of Check for updates now: the checking toast is replaced by the result.
+const ReleaseCheckToastId = "release:check";
+const RelativeUnits: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["day", 24 * 60 * 60],
+    ["hour", 60 * 60],
+    ["minute", 60],
+];
 
-type ReleaseElectronApi = ElectronApi & { moltentermReleaseCheck: () => Promise<ReleaseCheck> };
+// What the Check for updates action shows while it asks, then its answer (#1806).
+export type UpdateCheckView = UpdateCheckState | { state: "checking" };
+
+type ReleaseElectronApi = ElectronApi & { moltentermReleaseCheck: (mode?: ReleaseCheckMode) => Promise<ReleaseCheck> };
 
 function releaseApi(): ReleaseElectronApi {
     return getApi() as ReleaseElectronApi;
@@ -43,6 +58,29 @@ function readBuild() {
 
 export function releaseAvailableKey(tag: string): string {
     return `release:available:${tag}`;
+}
+
+// The age of a check in the interface language: "just now", or "5 minutes ago" (Intl gives the words of the age).
+export function ageWords(checkedat: number, now: number): string {
+    if (isJustNow(checkedat, now)) {
+        return t("update.check.now");
+    }
+    const seconds = Math.round((checkedat - now) / 1000);
+    const format = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto" });
+    const [unit, size] =
+        RelativeUnits.find(([, s]) => Math.abs(seconds) >= s) ?? RelativeUnits[RelativeUnits.length - 1];
+    return format.format(Math.round(seconds / size), unit);
+}
+
+// "checked just now", "checked 5 minutes ago".
+export function checkedWhen(checkedat: number, now: number): string {
+    return t("update.check.checkedAgo", { when: ageWords(checkedat, now) });
+}
+
+// Asks emain now, whatever the day's check said, and shows the answer in the app: the release notification when one is
+// out, a toast for the latest version or a failure (with Try again). Never a native dialog (#1806).
+export function checkForUpdatesNow() {
+    ReleaseUpdateModel.getInstance().checkNow();
 }
 
 export function sameOffer(a: ReleaseOffer, b: ReleaseOffer): boolean {
@@ -57,6 +95,10 @@ export class ReleaseUpdateModel {
     private static instance: ReleaseUpdateModel = null;
 
     offerAtom = atom(null) as PrimitiveAtom<ReleaseOffer>;
+    // Check for updates now (#1806): its state, the version running and the time of the last check (0: never).
+    checkViewAtom = atom(null) as PrimitiveAtom<UpdateCheckView>;
+    installedAtom = atom("") as PrimitiveAtom<string>;
+    lastCheckedAtom = atom(0) as PrimitiveAtom<number>;
     started = false;
     checking = false;
 
@@ -123,21 +165,90 @@ export class ReleaseUpdateModel {
         this.checking = true;
         fireAndForget(async () => {
             try {
-                const result = await releaseApi().moltentermReleaseCheck();
-                if (!result?.enabled) {
-                    this.setOffer(null);
-                    return;
-                }
-                this.setOffer(result.offer ?? null);
-                if (result.withdraw) {
-                    resolveMoltentermNotification(releaseAvailableKey(result.withdraw));
-                }
-                if (result.announce && result.offer != null) {
-                    this.announce(result.offer);
-                }
+                this.applyCheck(await releaseApi().moltentermReleaseCheck("due"), false);
             } finally {
                 this.checking = false;
             }
+        });
+    }
+
+    // The installed version and the last check's time are read without a request, for Settings.
+    readLastCheck() {
+        fireAndForget(async () => {
+            const check = await releaseApi().moltentermReleaseCheck("read");
+            globalStore.set(this.installedAtom, check?.version ?? "");
+            globalStore.set(this.lastCheckedAtom, check?.checkedat ?? 0);
+        });
+    }
+
+    checkNow() {
+        if (globalStore.get(this.checkViewAtom)?.state === "checking") {
+            return;
+        }
+        globalStore.set(this.checkViewAtom, { state: "checking" });
+        showToast({ kind: "info", id: ReleaseCheckToastId, title: t("update.check.checking") });
+        fireAndForget(async () => {
+            let check: ReleaseCheck;
+            try {
+                check = await releaseApi().moltentermReleaseCheck("now");
+            } catch (e) {
+                check = { enabled: true, error: String(e?.message ?? e) };
+            }
+            this.applyCheck(check, true);
+            const view = updateCheckStateOf(check);
+            globalStore.set(this.checkViewAtom, view);
+            this.tellCheck(view);
+        });
+    }
+
+    // The answer's offer, the withdrawn release and the time of the check. announceAlways: a manual check puts the
+    // release in the notification center even when it was announced before (the center keeps one open entry).
+    private applyCheck(check: ReleaseCheck, announceAlways: boolean) {
+        if (check?.version) {
+            globalStore.set(this.installedAtom, check.version);
+        }
+        if (check?.checkedat) {
+            globalStore.set(this.lastCheckedAtom, check.checkedat);
+        }
+        if (!check?.enabled) {
+            this.setOffer(null);
+            return;
+        }
+        this.setOffer(check.offer ?? null);
+        if (check.withdraw) {
+            resolveMoltentermNotification(releaseAvailableKey(check.withdraw));
+        }
+        if (check.offer != null && (check.announce || announceAlways)) {
+            this.announce(check.offer);
+        }
+    }
+
+    // A release out is shown by its notification; the other answers are a toast, which the next check replaces.
+    private tellCheck(view: UpdateCheckState) {
+        if (view.state === "available") {
+            dismissToast(ReleaseCheckToastId);
+            return;
+        }
+        if (view.state === "disabled") {
+            showToast({ kind: "info", id: ReleaseCheckToastId, title: t("update.check.disabled") });
+            return;
+        }
+        if (view.state === "error") {
+            showToast({
+                kind: "error",
+                id: ReleaseCheckToastId,
+                title: t("update.check.error"),
+                actions: [{ id: "retry", label: t("update.check.retry"), run: () => this.checkNow() }],
+            });
+            return;
+        }
+        showToast({
+            kind: "info",
+            id: ReleaseCheckToastId,
+            title: t("update.check.latest", {
+                version: view.version,
+                checked: checkedWhen(view.checkedat, Date.now()),
+            }),
         });
     }
 

@@ -155,6 +155,7 @@ describe("workspace actions", () => {
             "Getting started",
             "Sessions",
             "Settings",
+            "Check for updates now",
             "Keyboard shortcuts",
         ]);
         expect(actions[2].run).toEqual({ kind: "splitplace" });
@@ -257,6 +258,7 @@ describe("workspace actions", () => {
             "Getting started",
             "Sessions",
             "Settings",
+            "Check for updates now",
             "Keyboard shortcuts",
         ]);
         expect(actions[0].run).toEqual({ kind: "projecttab" });

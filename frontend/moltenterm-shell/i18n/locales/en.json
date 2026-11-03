@@ -44,6 +44,7 @@
     "appMenu": {
         "about": "About {app}",
         "gettingStarted": "Getting Started",
+        "checkUpdates": "Check for updates now",
         "settings": "Settings…",
         "safeModeRestart": "Restart in Safe Mode",
         "safeModeLeave": "Restart Normally",
@@ -417,6 +418,8 @@
             "gettingStartedDetail": "your agent, a first morph, your project",
             "sessions": "Sessions",
             "sessionsDetail": "terminals and agents still running, local and SSH",
+            "checkUpdates": "Check for updates now",
+            "checkUpdatesDetail": "asks GitHub now, even when it was asked today",
             "settings": "Settings",
             "shortcuts": "Keyboard shortcuts",
             "agentCopy": "Copy {agent}'s last answer",
@@ -445,6 +448,7 @@
             "editWorkspace": "workspace, rename, icon, colour, color, settings, delete, reset",
             "switchWorkspace": "workspace",
             "gettingStarted": "onboarding, setup, welcome, tour, first run",
+            "checkUpdates": "check for updates, update, upgrade, release, new version",
             "sessions": "sessions, durable, running, agents, ssh, detached, jobs, processes",
             "settings": "config, preferences",
             "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
@@ -2142,6 +2146,19 @@
             "download": "Download",
             "buttonTitle": "MoltenTerm {version} is available: open its release page to download it",
             "button": "{version} available"
+        },
+        "check": {
+            "button": "Check for updates now",
+            "checking": "Checking for updates…",
+            "installed": "Installed version {version}",
+            "lastChecked": "Last checked {when}",
+            "never": "Never checked",
+            "now": "just now",
+            "checkedAgo": "checked {when}",
+            "latest": "You have the latest version ({version}) · {checked}",
+            "disabled": "This build does not check for updates.",
+            "error": "Could not reach GitHub, try again",
+            "retry": "Try again"
         },
         "dialog": {
             "title": "A new MoltenTerm gold is ready",
