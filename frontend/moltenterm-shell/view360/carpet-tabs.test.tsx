@@ -1,6 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, describe, expect, it } from "vitest";
 import { MoltentermBrowserView } from "../browser/browser-model";
@@ -9,6 +10,7 @@ import { CarpetStrip, StripHandlers } from "./carpet-tabs";
 import { rovingColumnId, stripLayout, stripWidthPx } from "./carpet-tabs-model";
 import { buildRadarTicks, RadarBlockFacts, RadarColumnInput, radarPitchPx, RadarTick } from "./radar-model";
 
+const radarCss = readFileSync(new URL("./radar.css", import.meta.url), "utf8");
 const noop = () => {};
 const handlers: StripHandlers = {
     go: noop,
@@ -158,6 +160,25 @@ describe("the carpet's tab strip (FR-SHELL-125-AC8, AC12)", () => {
         expect(icons.layout.mode).toBe("icons");
         expect(count(icons.html, 'data-testid="mt-carpet-tab-num"')).toBe(2);
         expect(count(icons.html, 'class="mt-strip-glyph')).toBe(10);
+    });
+
+    it("draws one line per meaning: no kind bar, the kind on the icon, the place's liseré on the focused tab only (AC16)", () => {
+        const { html } = strip(5, width);
+        expect(html).not.toContain("mt-strip-kind");
+        const tags = tabTags(html);
+        expect(tags.filter((tag) => tag.includes("data-focus"))).toHaveLength(1);
+        expect(tags[1]).toContain("--mt-radar-color:var(--mt-kind-term)");
+        const rule = (selector: string) =>
+            new RegExp(`\\n${selector.replace(/[.()[\]>:-]/g, "\\$&")} \\{([^}]*)\\}`).exec(radarCss)?.[1] ?? "";
+        const placed = [...radarCss.matchAll(/\n([^\n{]+) \{[^}]*var\(--mt-place\)/g)].map((m) => m[1]);
+        expect(placed).toEqual([".mt-strip-tab[data-focus]"]);
+        expect(rule(".mt-strip-tab[data-focus]")).toContain("--mt-strip-line: inset 0 -2px 0 var(--mt-place);");
+        expect(rule(".mt-strip-tab")).toContain(
+            "box-shadow: var(--mt-strip-line), var(--mt-strip-rim), var(--mt-strip-cast);"
+        );
+        expect(rule(".mt-strip-tab[data-visible]")).not.toContain("--mt-strip-line");
+        expect(rule("i.mt-strip-glyph")).toContain("var(--mt-radar-color)");
+        expect(radarCss).not.toMatch(/--mt-action\b|--accent-color/);
     });
 
     it("shows no number once the keys are released", () => {
