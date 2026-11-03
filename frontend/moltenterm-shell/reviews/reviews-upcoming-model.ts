@@ -234,18 +234,26 @@ const KindRank: Record<AgentBarFacts["kind"], number> = { panel: 2, subagent: 1,
 
 // branchAgents (#1057): every agent on the branch, the one branchAgent picks first: panels by urgency, then
 // sub-agents, then background agents, each kind in wavesrv's order. A card lists them all, each with its own state.
-// ticket: the branch's own ticket, when the caller knows it (a PR's), else read from the branch name.
+// ticket: the branch's own ticket, when the caller knows it (a PR's), else read from the branch name; pr: its PR's
+// number, when it has one. A running sub-agent placed on no branch (a read-only one, without a worktree: #1825) is the
+// branch's when its task names the ticket or the PR.
 export function branchAgents(
     upcoming: UpcomingAnswer,
     states: AgentStatesData,
     branch: string,
-    ticket?: number
+    ticket?: number,
+    pr?: number
 ): AgentBarFacts[] {
     if (upcoming?.agents == null || !branch) {
         return [];
     }
+    const own = { ticket: ticket || branchTicketNumber(branch), pr: pr ?? 0 };
     const found: AgentBarFacts[] = [];
     for (const a of upcoming.agents) {
+        if (a.kind === "subagent" && !a.branch && a.state !== "done" && namesWork(a.description, own)) {
+            found.push(subagentFacts(a, states));
+            continue;
+        }
         if (a.branch !== branch) {
             continue;
         }
@@ -275,7 +283,7 @@ export function branchAgents(
         if (facts == null) {
             continue;
         }
-        const elsewhere = busyElsewhere(upcoming, info, branch, ticket || branchTicketNumber(branch));
+        const elsewhere = busyElsewhere(upcoming, info, branch, own.ticket, own.pr);
         found.push(elsewhere != null ? { ...facts, state: "idle", held: undefined, elsewhere } : facts);
     }
     const rank = (f: AgentBarFacts) => KindRank[f.kind] * 10 + (f.kind === "panel" ? BarUrgency[f.state] : 0);
@@ -286,14 +294,16 @@ export function branchAgents(
 }
 
 // busyElsewhere (#1796, FR-REV-022): a panel on the branch whose main session is idle and whose working state is only
-// its sub-agents' (background) works on this branch only if one of them does. It is busy elsewhere when every one of
-// its running sub-agents is placed in another branch's worktree and none names this ticket in its task. A sub-agent
-// wavesrv does not place (one in the panel's own worktree, never listed) leaves the doubt to the branch: null.
+// its sub-agents' (background) works on this branch only if one of them does. It is busy elsewhere when none of its
+// running sub-agents is placed on this branch or names this ticket or this PR in its task (#1825), and each is placed
+// in another branch's worktree or names other work. A sub-agent wavesrv does not list, or one placed on no branch
+// whose task names nothing, leaves the doubt to the branch: null.
 export function busyElsewhere(
     upcoming: UpcomingAnswer,
     info: AgentStateInfo,
     branch: string,
-    ticket: number
+    ticket: number,
+    pr?: number
 ): { ticket: number } {
     if (!info?.background || info.state !== "working" || !((info.subagents ?? 0) > 0)) {
         return null;
@@ -304,18 +314,26 @@ export function busyElsewhere(
     if (subs.length < info.subagents) {
         return null;
     }
-    if (subs.some((a) => a.branch === branch || (ticket > 0 && namesTicket(a.description, ticket)))) {
+    const own = { ticket, pr: pr ?? 0 };
+    if (subs.some((a) => a.branch === branch || namesWork(a.description, own))) {
         return null;
     }
-    return { ticket: branchTicketNumber(subs[0].branch) || ticketNamed(subs[0].description) };
+    if (subs.some((a) => !a.branch && workNamed(a.description) === 0)) {
+        return null;
+    }
+    return { ticket: branchTicketNumber(subs[0].branch) || workNamed(subs[0].description) };
 }
 
-function namesTicket(text: string, ticket: number): boolean {
-    return new RegExp(`#${ticket}(?!\\d)`).test(text ?? "");
+// namesWork: a sub-agent's task names the ticket ("#1821") or the PR ("PR #1824", "#1824", "PR 1824").
+function namesWork(text: string, own: { ticket: number; pr: number }): boolean {
+    return [own.ticket, own.pr].some(
+        (n) => n > 0 && new RegExp(`(?:#|\\bPR\\s*#?)${n}(?!\\d)`, "i").test(text ?? "")
+    );
 }
 
-function ticketNamed(text: string): number {
-    const m = /#(\d+)/.exec(text ?? "");
+// The first ticket or PR number a sub-agent's task names, 0 when none.
+function workNamed(text: string): number {
+    const m = /(?:#|\bPR\s*#?)(\d+)/i.exec(text ?? "");
     return m ? Number(m[1]) : 0;
 }
 

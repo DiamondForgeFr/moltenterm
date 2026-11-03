@@ -89,6 +89,11 @@ function subagent(branch: string, description: string, state: BranchAgent["state
     };
 }
 
+// A read-only sub-agent (#1825): no worktree of its own, so wavesrv places it on no branch.
+function unplaced(description: string, state: BranchAgent["state"] = "running"): BranchAgent {
+    return { ...subagent("", description, state), worktree: "" };
+}
+
 function ctx(info: AgentStateInfo, agents: BranchAgent[], humantesting: "yes" | "no" = "no"): CardContext {
     const upcoming: UpcomingAnswer = { dir: "/p", branches: [], agents, drafts: [], humantesting, at: Now };
     const states = { states: info != null ? { arthur: info } : {}, versions: {} } as AgentStatesData;
@@ -179,6 +184,25 @@ describe("a lead busy elsewhere (#1796)", () => {
         expect([s.works, s.motion]).toEqual([false, null]);
     });
 
+    it("keeps the agent at work when the sub-agent's task names the PR's number", () => {
+        const { input, card: s } = card(
+            ctx(BusyOnSubagents, [LeadOnBranch, subagent("fix/1900-z", "Review PR #1794 before its merge")])
+        );
+        expect(input.agents[0].elsewhere).toBeUndefined();
+        expect(s.kind).toBe("agent-working");
+    });
+
+    it("leaves the doubt to the branch when the running sub-agent is placed in no worktree", () => {
+        const { input, card: s } = card(ctx(BusyOnSubagents, [LeadOnBranch, unplaced("Explore the cache")]));
+        expect(input.agents[0].elsewhere).toBeUndefined();
+        expect(s.kind).toBe("agent-working");
+    });
+
+    it("reads the lead busy elsewhere when its unplaced sub-agent names another ticket", () => {
+        const { input } = card(ctx(BusyOnSubagents, [LeadOnBranch, unplaced("Review PR #1830 cache")]));
+        expect(input.agents[0].elsewhere).toEqual({ ticket: 1830 });
+    });
+
     it("keeps Ready to merge on a route through Human Testing, the lead busy elsewhere or not", () => {
         const nobody = card(ctx(null, [], "yes")).card;
         expect(nobody.kind).toBe("ready");
@@ -187,5 +211,71 @@ describe("a lead busy elsewhere (#1796)", () => {
         expect(busy.kind).toBe("ready");
         expect(busy.sentence).toEqual({ key: "reviews.card.state.ready" });
         expect(busy.works).toBe(false);
+    });
+});
+
+// #1825: Arthur's read-only reviewer of PR #1824 (#1821) has no worktree; its task names the PR, not the ticket. Arthur's
+// own session sits in the main checkout, and the sub-agent that delivered the PR in its worktree is done.
+describe("a read-only sub-agent reviewing the PR (#1825)", () => {
+    const Red: ReviewCheck[] = [...Green.slice(1), { name: "Frontend", state: "failure" }];
+    const draft = (): ReviewPr =>
+        readyPr({
+            number: 1824,
+            ticket: 1821,
+            branch: "fix/1821-meta-guard",
+            draft: true,
+            ci: { state: "failure", success: Red.length - 1, failure: 1, pending: 0, checks: Red },
+            report: { state: "missing" },
+        });
+    const delivered = subagent("fix/1821-meta-guard", "Deliver #1821 end to end", "done");
+
+    it("reads the draft as done and Arthur's to pick up again while nobody reviews it", () => {
+        const { card: s } = card(ctx(BusyOnSubagents, [delivered], "no"), draft());
+        expect(s.kind).toBe("agent-finish");
+        expect(s.sentence).toMatchObject({ key: "reviews.card.state.agentDoneBlocked" });
+    });
+
+    it.each(["Review PR #1824 meta guard", "Review #1824", "review pr 1824"])(
+        "shows the sub-agent whose task reads %j working on the card",
+        (task) => {
+            const { input, card: s } = card(ctx(BusyOnSubagents, [delivered, unplaced(task)], "no"), draft());
+            expect(s.kind).toBe("agent-working");
+            expect(s.works).toBe(true);
+            expect(s.sentence).toEqual({
+                key: "reviews.card.state.agentWorking",
+                vars: { name: { key: "reviews.card.name", vars: { name: "Arthur" } } },
+            });
+            const reviewer = input.agents.find((a) => a.description === task);
+            expect(reviewer).toMatchObject({ kind: "subagent", state: "working", parentName: "Arthur" });
+            const html = renderToStaticMarkup(<AgentBar facts={reviewer} stacked />);
+            expect(html).toContain("df-domino-loader");
+        }
+    );
+
+    it("counts a read-only sub-agent naming the ticket like one naming the PR", () => {
+        const { card: s } = card(ctx(BusyOnSubagents, [delivered, unplaced("Check #1821's guard")], "no"), draft());
+        expect(s.kind).toBe("agent-working");
+    });
+
+    it("leaves out a sub-agent whose task names neither the ticket nor the PR", () => {
+        for (const other of [
+            unplaced("Review the meta guard"),
+            unplaced("Review PR #18245"),
+            unplaced("Review PR #1830"),
+            subagent("fix/1830-y", "Deliver #1830"),
+        ]) {
+            const { input, card: s } = card(ctx(BusyOnSubagents, [delivered, other], "no"), draft());
+            expect(input.agents.map((a) => a.description)).toEqual([delivered.description]);
+            expect(s.kind).toBe("agent-finish");
+        }
+    });
+
+    it("does not show a finished read-only reviewer as working on the card", () => {
+        const { input, card: s } = card(
+            ctx(BusyOnSubagents, [delivered, unplaced("Review PR #1824", "done")], "no"),
+            draft()
+        );
+        expect(input.agents.some((a) => a.state === "working")).toBe(false);
+        expect(s.kind).toBe("agent-finish");
     });
 });
