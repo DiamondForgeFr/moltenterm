@@ -224,6 +224,39 @@ describe("CarpetThumbTracker keeps the in-memory thumbnails true to the page", (
         expect(t.tracker.inspect("colA").capturable).toBe(true);
     });
 
+    it("shows the stored thumbnail of an edge page not drawn yet, then loading, unloaded and restored, never the placeholder (#1836)", async () => {
+        const t = setup(columns, { web1: thumb("web1@https://a.dev/", 777) });
+        // After a restart: the panel's view model is not registered and its webview is not there.
+        t.panels.set("web1", page("web1", "https://a.dev/", { ready: false }));
+        await t.tracker.sync();
+        expect(t.captures.get("colA")?.at).toBe(777);
+        t.registered.add("web1");
+        t.tracker.attach();
+        await flush();
+        const states: Partial<ColumnPanel>[] = [
+            { ready: true, loading: true },
+            { loading: false },
+            { unloaded: true },
+            { unloaded: false, loading: true },
+            { loading: false },
+        ];
+        for (const patch of states) {
+            t.change("web1", patch);
+            await flush();
+            expect(t.captures.get("colA")?.at).toBe(777);
+        }
+    });
+
+    it("fills a column the carpet shows empty from the store as soon as its page is unloaded, not only once it is visited (#1836)", async () => {
+        const t = setup(columns, { web1: thumb("web1@https://a.dev/", 4242) });
+        t.registered.add("web1");
+        t.panels.set("web1", page("web1", "https://a.dev/", { unloaded: true, ready: false }));
+        t.tracker.attach();
+        await flush();
+        expect(t.captures.get("colA")?.at).toBe(4242);
+        expect(t.tracker.inspect("colA").capturable).toBe(false);
+    });
+
     it("does not ask the store again for a tag it has already asked about", async () => {
         const t = setup(columns);
         await t.tracker.sync();
