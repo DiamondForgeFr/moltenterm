@@ -153,6 +153,11 @@ func TestDebugTermReadsOnlyOwnWorkspace(t *testing.T) {
 	if got, err := read(context.Background(), e.otherBlock); err != nil || got != "output of "+e.otherBlock {
 		t.Errorf("wavesrv reads another workspace's block: %q, %v", got, err)
 	}
+	remote := wshutil.DefaultRouter.RegisterTrustedRouter(&termOutputPeer{in: make(chan []byte)})
+	remoteCtx := wshutil.WithCallerContext(context.Background(), "proc:remote", remote)
+	if got, err := read(remoteCtx, e.otherBlock); err != nil || got != "output of "+e.otherBlock {
+		t.Errorf("a remote host's read changed (#1831's scope): %q, %v", got, err)
+	}
 }
 
 // `wsh readfile` / `wsh jobdebug`: the wave file streams of a block or a durable session follow the same rule.
@@ -209,8 +214,9 @@ func TestScrollbackForwardOnlyOwnWorkspace(t *testing.T) {
 	}
 	mustRefuseTermOutput(t, "another workspace's panel", ask(termOwnSource, scrollback, wshutil.MakeFeBlockRouteId(e.otherBlock)))
 	mustRefuseTermOutput(t, "a tab route", ask(termOwnSource, scrollback, wshutil.MakeTabRouteId(e.otherTab)))
-	if err := ask("proc:forged", scrollback, wshutil.MakeFeBlockRouteId(e.siblingBlock)); err == nil {
-		t.Error("a forged source on the terminal's leaf was forwarded")
+	remote := wshutil.DefaultRouter.RegisterTrustedRouter(&termOutputPeer{in: make(chan []byte)})
+	if err := moltenForwardGuard(wshutil.DefaultRouter, wshutil.RpcMessage{Command: scrollback, ReqId: "r", Source: "proc:remote", Route: wshutil.MakeFeBlockRouteId(e.otherBlock)}, remote); err != nil {
+		t.Errorf("a remote host's scrollback changed (#1831's scope): %v", err)
 	}
 	if err := ask(termOwnSource, "getmeta", wshutil.MakeFeBlockRouteId(e.otherBlock)); err != nil {
 		t.Errorf("a request that reads no output: %v", err)

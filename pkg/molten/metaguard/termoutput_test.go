@@ -43,10 +43,15 @@ func TestTermOutputRead(t *testing.T) {
 	mustRefuse(t, "no block", metaguard.CheckTermOutputRead(term, "", true))
 	mustRefuse(t, "terminal without a workspace", metaguard.CheckTermOutputRead(metaguard.Caller{Local: true, BlockId: routetest.TerminalBlock}, siblingBlock, true))
 	mustRefuse(t, "terminal without a block", metaguard.CheckTermOutputRead(metaguard.Caller{Local: true}, siblingBlock, true))
-	for _, blockId := range []string{routetest.TerminalBlock, siblingBlock} {
-		mustRefuse(t, "remote host reads "+blockId, metaguard.CheckTermOutputRead(metaguard.Caller{BlockId: blockId, WorkspaceId: ownWs}, blockId, true))
+	for _, blockId := range []string{routetest.TerminalBlock, siblingBlock, otherBlock} {
+		if err := metaguard.CheckTermOutputRead(remoteHost, blockId, false); err != nil {
+			t.Errorf("a remote host's read of %s changed (#1831's scope): %v", blockId, err)
+		}
 	}
 }
+
+// remoteHost is an SSH or WSL host: these rules leave it as Wave has it, the remote-host guard (#1831) owns it.
+var remoteHost = metaguard.Caller{}
 
 const (
 	ownTab   = "tab-own"
@@ -69,7 +74,9 @@ func TestForwardedScrollback(t *testing.T) {
 	for _, route := range []string{"", "feblock:", "tab:" + ownTab, "link:3", "wavesrv"} {
 		mustRefuse(t, "route "+route, metaguard.CheckForwardedRequest(term, scrollback, route, "", ownWorkspaceObj))
 	}
-	mustRefuse(t, "remote host", metaguard.CheckForwardedRequest(metaguard.Caller{}, scrollback, "feblock:"+siblingBlock, "", ownWorkspaceObj))
+	if err := metaguard.CheckForwardedRequest(remoteHost, scrollback, "feblock:"+otherBlock, "", ownWorkspaceObj); err != nil {
+		t.Errorf("a remote host's scrollback changed (#1831's scope): %v", err)
+	}
 	if err := metaguard.CheckForwardedRequest(metaguard.Caller{Trusted: true}, scrollback, "feblock:"+otherBlock, "", ownWorkspaceObj); err != nil {
 		t.Errorf("window: %v", err)
 	}
@@ -79,7 +86,7 @@ func TestForwardedScrollback(t *testing.T) {
 }
 
 // A block's screenshot and the AI panel's context go to a window's tab: a terminal reaches its own workspace's tabs
-// and blocks only, a remote host none.
+// and blocks only; a remote host is unchanged.
 func TestForwardedTabRequests(t *testing.T) {
 	term := terminal()
 	for _, command := range []string{"captureblockscreenshot", "waveaiaddcontext"} {
@@ -88,7 +95,9 @@ func TestForwardedTabRequests(t *testing.T) {
 		}
 		mustRefuse(t, command+" to another workspace's tab", metaguard.CheckForwardedRequest(term, command, "tab:"+otherTab, "", ownWorkspaceObj))
 		mustRefuse(t, command+" to a panel route", metaguard.CheckForwardedRequest(term, command, "feblock:"+siblingBlock, "", ownWorkspaceObj))
-		mustRefuse(t, command+" from a remote host", metaguard.CheckForwardedRequest(metaguard.Caller{}, command, "tab:"+ownTab, "", ownWorkspaceObj))
+		if err := metaguard.CheckForwardedRequest(remoteHost, command, "tab:"+otherTab, otherBlock, ownWorkspaceObj); err != nil {
+			t.Errorf("%s from a remote host changed (#1831's scope): %v", command, err)
+		}
 		mustRefuse(t, command+" from a terminal without a workspace", metaguard.CheckForwardedRequest(metaguard.Caller{Local: true, BlockId: routetest.TerminalBlock}, command, "tab:"+ownTab, "", ownWorkspaceObj))
 		if err := metaguard.CheckForwardedRequest(metaguard.Caller{Trusted: true}, command, "tab:"+otherTab, otherBlock, ownWorkspaceObj); err != nil {
 			t.Errorf("%s from the window: %v", command, err)
@@ -119,7 +128,9 @@ func TestBlockFileSubscribe(t *testing.T) {
 	for name, req := range refused {
 		mustRefuse(t, name, metaguard.CheckBlockFileSubscribe(term, req, ownWorkspaceORef))
 	}
-	mustRefuse(t, "remote host", metaguard.CheckBlockFileSubscribe(metaguard.Caller{}, sub(sibling), ownWorkspaceORef))
+	if err := metaguard.CheckBlockFileSubscribe(remoteHost, sub(other), ownWorkspaceORef); err != nil {
+		t.Errorf("a remote host's subscription changed (#1831's scope): %v", err)
+	}
 	if err := metaguard.CheckBlockFileSubscribe(metaguard.Caller{Trusted: true}, wps.SubscriptionRequest{Event: wps.Event_BlockFile, AllScopes: true}, ownWorkspaceORef); err != nil {
 		t.Errorf("window: %v", err)
 	}
