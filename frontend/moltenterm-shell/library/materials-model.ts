@@ -10,6 +10,7 @@ import { matchesQuery } from "./library-model";
 // must match pkg/molten/agentmaterials.go
 export const MaterialsRoute = "molten:materials";
 export const MaterialsEvent = "molten:materials";
+export const MaterialsAllScope = "all";
 export const MaterialsListCommand = "moltenmaterialslist";
 export const MaterialRenameCommand = "moltenmaterialrename";
 export const MaterialPinCommand = "moltenmaterialpin";
@@ -86,6 +87,8 @@ export type MaterialsView = {
     project: MaterialsProject;
     materials: Material[];
     workfiles: number;
+    // With every project asked for: the drawers that hold materials (their materials come with `materials`).
+    projects?: MaterialsProject[];
 };
 
 export type MaterialsChanged = { project: string; ids?: string[] };
@@ -423,9 +426,13 @@ export function recoveredParts(r: MaterialsRecovered): RecoveredPart[] {
 
 // ---------- Cards (#1546, DS-MAT-010) ----------
 
-// From this width the section lays its days out as cards; below it keeps the rows. A window about 1000 px wide leaves
-// the section near 820 px: rows there, cards from about 1150 px.
-export const MaterialsCardsMinWidth = 960;
+// From this width the section lays its days out as cards, which fill the width in as many columns as fit; below it keeps
+// the rows. A window about 1000 px wide leaves the section near 820 px.
+export const MaterialsCardsMinWidth = 520;
+
+// From this width a selected material opens in a panel at the right of the grid (a window about 1000 px wide leaves
+// the grid two columns); in a narrower section its actions stay on the card.
+export const MaterialsDetailMinWidth = 760;
 
 function decodeSegment(segment: string): string {
     try {
@@ -558,6 +565,20 @@ export function materialStateChip(m: Material): MaterialForm {
 // What fills a card's visual: a local image (its preview, else the image itself), a capture, or the kind icon.
 export type MaterialVisual = { path?: string; version?: number };
 
+function materialOriginal(m: Material): string {
+    return m.original && !m.originalgone ? m.original : "";
+}
+
+function materialCapture(m: Material): MaterialVisual {
+    // A page's or a link's visual is the capture of the panel that showed it, kept by the registry (#1560).
+    if (m.thumb && m.thumbpanel && m.thumbpath) {
+        return { path: m.thumbpath, version: m.thumbat };
+    }
+    return {};
+}
+
+// The small preview of a card. An image shows its own pixels, from the smallest file that has them: its preview, else
+// its kept copy, else the original while it exists (#1816).
 export function materialVisual(m: Material): MaterialVisual {
     if (m == null) {
         return {};
@@ -569,12 +590,107 @@ export function materialVisual(m: Material): MaterialVisual {
         if (materialCopied(m) && m.copypath) {
             return { path: m.copypath };
         }
+        const original = materialOriginal(m);
+        if (original) {
+            return { path: original };
+        }
     }
-    // A page's or a link's visual is the capture of the panel that showed it, kept by the registry (#1560).
-    if (m.thumb && m.thumbpanel && m.thumbpath) {
-        return { path: m.thumbpath, version: m.thumbat };
+    return materialCapture(m);
+}
+
+// The larger preview of the panel that opens on a selected material: an image shows the kept copy or the original
+// before its small preview, a page or a link the same capture as its card.
+export function materialLargeVisual(m: Material): MaterialVisual {
+    if (m == null) {
+        return {};
     }
-    return {};
+    if (m.kind === MaterialKindImage) {
+        if (materialCopied(m) && m.copypath) {
+            return { path: m.copypath };
+        }
+        const original = materialOriginal(m);
+        if (original) {
+            return { path: original };
+        }
+    }
+    return materialVisual(m);
+}
+
+// ---------- Which project's materials (#1816, FR-MAT-002 AC15) ----------
+
+// What the section lists: the workspace's project (the default), one other project, every project, or the materials
+// that belong to none.
+export type MaterialsScope = { kind: "active" } | { kind: "project"; key: string } | { kind: "all" } | { kind: "none" };
+
+export const ActiveScope: MaterialsScope = { kind: "active" };
+
+export function materialsInScope(materials: Material[], scope: MaterialsScope, activeKey: string): Material[] {
+    const list = (materials ?? []).filter((m) => m != null);
+    switch (scope?.kind) {
+        case "all":
+            return list;
+        case "none":
+            return list.filter((m) => m.project === MaterialsNoProject);
+        case "project":
+            return list.filter((m) => m.project === scope.key);
+    }
+    return list.filter((m) => m.project === activeKey);
+}
+
+// A drawer's name as the chips say it: its project's name, else its repository folder's.
+export function projectDisplayName(project: MaterialsProject): string {
+    if (project?.key === MaterialsNoProject) {
+        return "";
+    }
+    if (project?.name) {
+        return project.name;
+    }
+    const folder = (project?.folder ?? "").replace(/[\\/]+$/, "");
+    return folder.split(/[\\/]/).pop() ?? "";
+}
+
+export type ScopeProject = { key: string; name: string; folder?: string; count: number };
+
+// The projects other than the workspace's that hold materials, by name; a name two projects share keeps their folder
+// apart in the list.
+export function otherProjects(projects: MaterialsProject[], materials: Material[], activeKey: string): ScopeProject[] {
+    const counts = new Map<string, number>();
+    for (const m of materials ?? []) {
+        counts.set(m.project, (counts.get(m.project) ?? 0) + 1);
+    }
+    const rtn: ScopeProject[] = [];
+    for (const p of projects ?? []) {
+        if (p.key === activeKey || p.key === MaterialsNoProject || !(counts.get(p.key) > 0)) {
+            continue;
+        }
+        rtn.push({ key: p.key, name: projectDisplayName(p), folder: p.folder, count: counts.get(p.key) });
+    }
+    return rtn.sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
+}
+
+// A scope that names a project the list no longer holds falls back to the workspace's.
+export function validScope(scope: MaterialsScope, others: ScopeProject[], activeKey: string): MaterialsScope {
+    if (scope?.kind === "project" && (scope.key === activeKey || !others.some((p) => p.key === scope.key))) {
+        return ActiveScope;
+    }
+    return scope ?? ActiveScope;
+}
+
+// The name on a card's project chip: the workspace's project by the name the section already shows, the others by
+// their drawer's; "" for No project (the interface names it).
+export function materialProjectName(
+    m: Material,
+    activeKey: string,
+    activeName: string,
+    projects: MaterialsProject[]
+): string {
+    if (m == null || m.project === MaterialsNoProject) {
+        return "";
+    }
+    if (m.project === activeKey && activeName) {
+        return activeName;
+    }
+    return projectDisplayName((projects ?? []).find((p) => p.key === m.project));
 }
 
 export type CardRect = { left: number; top: number; width: number; height: number };

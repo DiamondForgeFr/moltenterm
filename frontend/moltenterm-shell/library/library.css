@@ -597,14 +597,90 @@
     line-height: 16px;
 }
 
-.mt-lib-mat-scope {
-    align-self: flex-start;
+/* Which project's materials (#1816): one choice at a time, the workspace's project first. A choice is a state of the
+   list, never the action orange. */
+.mt-lib-scopes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.mt-lib-scope {
+    display: inline-flex;
+    max-width: 260px;
+    align-items: center;
+    gap: 6px;
     padding: 3px 10px;
+    border: 0;
     border-radius: var(--mt-radius-panel);
-    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
-    color: var(--color-primary);
+    color: var(--mt-text-2);
     font-size: var(--mt-text-12);
+}
+
+.mt-lib-scope:hover {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-scope.is-on {
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-text-3);
+    color: var(--color-primary);
+}
+
+.mt-lib-scope-n {
+    flex-shrink: 0;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-scope-menu {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% + 4px);
+    left: 0;
+    display: flex;
+    min-width: 200px;
+    max-width: 320px;
+    max-height: 260px;
+    flex-direction: column;
+    gap: 1px;
+    padding: 4px;
+    overflow-y: auto;
+    border-radius: var(--mt-radius-panel);
+    background: var(--mt-surface-2);
+    box-shadow:
+        var(--mt-shadow-command),
+        inset 0 0 0 1px var(--mt-line-2);
+}
+
+.mt-lib-scope-opt {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+    text-align: left;
+}
+
+.mt-lib-scope-opt:hover,
+.mt-lib-scope-opt[aria-selected="true"] {
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+}
+
+.mt-lib-scope-none {
+    padding: 6px 8px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
 }
 
 .mt-lib-mat {
@@ -633,6 +709,7 @@
     place-items: center;
     width: 44px;
     height: 32px;
+    overflow: hidden;
     border-radius: var(--mt-radius-control);
     background: var(--mt-surface-2);
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
@@ -797,7 +874,7 @@
    action orange stays on the one button. */
 .mt-lib-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 10px;
     padding: 2px 2px 8px;
 }
@@ -1001,6 +1078,153 @@
 .mt-lib-card .mt-lib-mat-ask {
     margin: 6px 0 0;
     cursor: default;
+}
+
+/* The project a material was produced in, when the list mixes several. */
+.mt-lib-card-proj {
+    display: inline-flex;
+    max-width: 100%;
+    flex-shrink: 0;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    overflow: hidden;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 10%, var(--mt-surface-2));
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-card-proj-vis {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    max-width: 55%;
+}
+
+/* The grid and, beside it, the panel of the selected material (#1816): the grid takes what the panel leaves. */
+.mt-lib-mat-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.mt-lib-mat-list {
+    flex: 1;
+    min-width: 0;
+}
+
+.mt-lib-detail {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex: 0 0 min(340px, 38%);
+    min-width: 0;
+    max-height: 100%;
+    flex-direction: column;
+    overflow-y: auto;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-2);
+}
+
+.mt-lib-detail-vis {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: var(--mt-surface-2);
+    box-shadow: inset 0 -1px 0 var(--mt-line-2);
+}
+
+/* A picture shows whole; a capture of a page fills the frame from its top. */
+.mt-lib-card-img.is-large {
+    object-position: top;
+}
+
+.mt-lib-card-img.is-large[data-kind="image"] {
+    object-fit: contain;
+    object-position: center;
+}
+
+.mt-lib-detail-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 12%, var(--mt-surface-2));
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-2);
+}
+
+.mt-lib-detail-close:hover {
+    color: var(--color-primary);
+}
+
+.mt-lib-detail-body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px 12px;
+}
+
+.mt-lib-detail-title {
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-13);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.mt-lib-detail-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.mt-lib-card-origin.is-wrap {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+.mt-lib-detail-link {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    overflow-wrap: anywhere;
+}
+
+.mt-lib-detail-acts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.mt-lib-detail-acts .mt-lib-mat-go {
+    display: inline-flex;
+}
+
+.mt-lib-detail .mt-lib-mat-ask {
+    margin: 4px 0 0;
+}
+
+[data-detail="open"] .mt-lib-card.is-sel .mt-lib-card-acts .mt-lib-mat-go {
+    display: none;
 }
 
 /* Put-away views. */

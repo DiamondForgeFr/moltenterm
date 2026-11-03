@@ -10078,6 +10078,21 @@
             "thisProject": "This project · {name}",
             "thisProjectUnnamed": "This project",
             "noProject": "No project",
+            "scope": {
+                "label": "Materials of",
+                "other": "Another project",
+                "all": "All projects",
+                "none": "No project",
+                "pick": "Choose a project",
+                "noOther": "No other project has materials yet."
+            },
+            "scopeEmptyTitle": "Nothing in this selection",
+            "scopeEmpty": "No material of this selection matches. Choose All projects to see every one.",
+            "projectChip": "Produced in {name}",
+            "detail": {
+                "label": "Selected material",
+                "close": "Close the preview"
+            },
             "emptyTitle": "No materials yet",
             "empty": "What an agent produces outside the repository and shows you (a published page, a document, an image, a link it names) is kept here, per project.",
             "failedTitle": "Materials are not available",

@@ -13,8 +13,12 @@ import {
 } from "./materials-model";
 import { makeMaterialsRefresh } from "./materials-refresh";
 
-// The drawer follows the current workspace and only publishes snapshots that have not been invalidated.
-export function useMaterialsDrawer(workspaceId: string): { view: MaterialsView; failed: boolean } {
+// The drawer follows the current workspace and only publishes snapshots that have not been invalidated. The folder the
+// workspace's project is linked to names the drawer too: linking another project reads the list again.
+export function useMaterialsDrawer(
+    workspaceId: string,
+    projectDir: string = ""
+): { view: MaterialsView; failed: boolean } {
     const [state, setState] = useState<{ workspaceId: string; view: MaterialsView; failed: boolean }>({
         workspaceId,
         view: null,
@@ -47,7 +51,7 @@ export function useMaterialsDrawer(workspaceId: string): { view: MaterialsView; 
                 }));
             }
         );
-    }, [workspaceId, refresh]);
+    }, [workspaceId, projectDir, refresh]);
     useEffect(() => {
         if (!key) return;
         try {
