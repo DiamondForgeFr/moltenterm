@@ -16,6 +16,7 @@ import {
     MinCarpetColumnPx,
     PinnedColumnMinPx,
     canPinBeside,
+    carpetColumnHasHandle,
     carpetColumnKind,
     carpetColumnRect,
     carpetInsertPlace,
@@ -640,5 +641,39 @@ describe("pinned columns (FR-SHELL-067)", () => {
         expect(canPinBeside(2560, 1)).toBe(true);
         expect(canPinBeside(2560, 2)).toBe(true);
         expect(canPinBeside(2558, 2)).toBe(false);
+    });
+});
+
+describe("carpetColumnHasHandle (#1836, FR-SHELL-065 AC16)", () => {
+    function carpetOf(count: number) {
+        return computeCarpetLayout({
+            width: 1600,
+            height: 900,
+            fixedNodeId: "term",
+            fixedPx: 600,
+            columns: Array.from({ length: count }, (_, i) => ({ nodeId: `c${i}`, widthPx: 480 })),
+        });
+    }
+
+    it("gives a handle to every carpet column but the last, which nothing follows", () => {
+        const layout = carpetOf(4);
+        expect(layout.columns.map((_, i) => carpetColumnHasHandle(layout, i))).toEqual([true, true, true, false]);
+    });
+
+    it("gives none to the only carpet column, whose left edge is the fixed zone's grip", () => {
+        expect(carpetColumnHasHandle(carpetOf(1), 0)).toBe(false);
+    });
+
+    it("gives the last column its handle back once a region follows the carpet", () => {
+        const layout = carpetOf(3);
+        expect(carpetColumnHasHandle(layout, 2, true)).toBe(true);
+        expect(carpetColumnHasHandle(layout, 0, true)).toBe(true);
+    });
+
+    it("has no handle for a column that is not on the carpet", () => {
+        const layout = carpetOf(2);
+        expect(carpetColumnHasHandle(layout, -1)).toBe(false);
+        expect(carpetColumnHasHandle(layout, 2)).toBe(false);
+        expect(carpetColumnHasHandle(null, 0)).toBe(false);
     });
 });

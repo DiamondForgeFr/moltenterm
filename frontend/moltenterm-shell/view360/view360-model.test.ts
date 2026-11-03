@@ -13,6 +13,7 @@ import {
     type LayoutTreeInsertNodeAtIndexAction,
     type LayoutTreeSplitHorizontalAction,
     type LayoutTreeSplitVerticalAction,
+    type ResizeHandleProps,
 } from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -902,6 +903,56 @@ describe("View360Model threshold per screen and proportions (#1083)", () => {
         const after = pass(model, root, 1600);
         expect(after.columns[0].width).toBeLessThan(layout.columns[0].width);
         expect(after.columns[1].width).toBe(layout.columns[1].width);
+    });
+
+    it("offers the grip and a handle between carpet columns, and none after the last one (#1836)", () => {
+        setThreshold(2);
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        const root = sizedRow(40, 20, 20, 20);
+        const layout = pass(model, root, 1600);
+        expect(model.active).toBe(true);
+        expect(layout.columns).toHaveLength(3);
+        const handles = model.rootResizeHandles(root, 10, []);
+        expect(handles[0].id).toBe(model.gripHandleId(root));
+        // The grip, then the edge between the carpet's first and second column, and second and third.
+        expect(handles.map((h) => h.parentIndex)).toEqual([0, 1, 2]);
+        expect(handles.some((h) => h.parentIndex === layout.columns.length)).toBe(false);
+    });
+
+    it("keeps only the grip when the carpet holds a single column (#1836)", () => {
+        setThreshold(2);
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1600);
+        const root = sizedRow(40, 30, 30);
+        const layout = pass(model, root, 1600);
+        expect(model.active).toBe(true);
+        expect(layout.columns).toHaveLength(2);
+        const handles = model.rootResizeHandles(root, 10, []);
+        expect(handles.map((h) => h.parentIndex)).toEqual([0, 1]);
+    });
+
+    it("ignores a drag on a right edge that is not a handle any more, so no empty space opens (#1836)", () => {
+        setThreshold(2);
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        Object.assign(layoutModel, {
+            displayContainerRef: { current: { getBoundingClientRect: () => ({ left: 0, width: 1600 }) } },
+            setter: vi.fn(),
+            pendingTreeAction: { throttledValueAtom: null },
+        });
+        pass(model, sizedRow(40, 60), 1600);
+        const root = sizedRow(40, 30, 30);
+        const layout = pass(model, root, 1600);
+        const widths = layout.columns.map((c) => c.width);
+        const last = layout.columns[layout.columns.length - 1];
+        const lastEdge = {
+            id: `${root.id}-${layout.columns.length}`,
+            parentNodeId: root.id,
+            parentIndex: layout.columns.length,
+        } as ResizeHandleProps;
+        model.onResizeMove(lastEdge, layout.viewport.left + last.x + last.width - 300);
+        expect(model.dragColumn).toBeNull();
+        expect(pass(model, root, 1600).columns.map((c) => c.width)).toEqual(widths);
     });
 });
 
