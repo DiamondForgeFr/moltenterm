@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
@@ -101,25 +99,17 @@ func (e *Env) Plan(ctx context.Context, channels []string, override string) ([]P
 	if e.revParse(ctx, p.Root, base) == "" {
 		base = "HEAD"
 	}
-	rangeArg := base
-	if last := p.Rules.LastPublic(tags); last != "" {
-		rangeArg = last + ".." + base
-	}
-	commits := []versions.CommitInput{}
-	args := []string{"log", "--no-merges", "-n", strconv.Itoa(maxPlanCommits), "--format=%s%x1f%b%x1e", rangeArg}
-	if remotes, _ := e.gitLines(ctx, p.Root, "remote"); slices.Contains(remotes, "upstream") {
-		args = append(args, "--not", "--remotes=upstream")
-	}
-	out, err := e.git(ctx, p.Root, args...)
+	// The range of the notes and of the changelog check (#1731): after a sync-back, last..base would count the
+	// previous release's commits again under their other hashes.
+	commits, err := e.rangeCommits(ctx, p.Root, p.Rules.LastPublic(tags), base)
 	if err != nil {
 		return nil, err
 	}
-	for _, record := range strings.Split(out, "\x1e") {
-		subject, body, _ := strings.Cut(strings.TrimSpace(record), "\x1f")
-		if subject == "" {
-			continue
-		}
-		commits = append(commits, versions.CommitInput{Subject: subject, Body: body})
+	if commits == nil {
+		commits = []versions.CommitInput{}
+	}
+	if len(commits) > maxPlanCommits {
+		commits = commits[:maxPlanCommits]
 	}
 	github := e.OnGithub(ctx, p.Root)
 	var finished *githubMilestone
