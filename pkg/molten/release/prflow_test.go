@@ -51,6 +51,8 @@ func (g *fakePrGitHub) run(ctx context.Context, dir string, name string, args ..
 	joined := strings.Join(args, " ")
 	g.calls = append(g.calls, joined)
 	switch {
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/milestones?"):
+		return []byte(`[{"number":12,"title":"1.0.0","html_url":"https://m/12","open_issues":0}]`), nil
 	case strings.HasPrefix(joined, "pr list") && strings.Contains(joined, "--base develop"):
 		if strings.Contains(joined, "--state open") && g.backOpen {
 			data, _ := json.Marshal([]any{map[string]any{"number": 10, "url": "https://github.example/pr/10", "title": g.backTitle, "state": "OPEN", "headRefOid": g.backHead}})
@@ -402,30 +404,6 @@ func assertReleaseGuard(t *testing.T, f *fixture, gh *fakePrGitHub, tag string, 
 		t.Fatalf("the synchronization merge message closes something: %q", syncMessage)
 	}
 	gitIn(t, f.origin, "merge-base", "--is-ancestor", syncMerge, "develop")
-}
-
-func TestReleaseTicketFromTheMilestone(t *testing.T) {
-	f := makeFixture(t)
-	writeFile(t, filepath.Join(f.checkout, ".saasfoundry.json"), `{"workflow":{"commitFormat":{"pattern":"<type>(#<ticket>): <description>","requireTicket":true}}}`)
-	f.gh.milestones = `[{"number":12,"title":"v1.0.0","html_url":"https://m/12","open_issues":1}]`
-	f.gh.issues = `[{"number":41,"title":"A bug"},{"number":1078,"title":"Release v1.0.0"},{"number":7,"title":"Release v1.0.0","pull_request":{"url":"x"}}]`
-	e := f.env()
-	p, err := e.LoadProject(context.Background())
-	mustRun(t, f, "load", err)
-	if !p.Convention.TicketScope {
-		t.Fatal("requireTicket makes the commits name the ticket")
-	}
-	if n, err := e.releaseTicket(context.Background(), p, "1.0.0"); err != nil || n != 1078 {
-		t.Fatalf("ticket %d, %v", n, err)
-	}
-	f.gh.issues = `[]`
-	if _, err := e.releaseTicket(context.Background(), p, "1.0.0"); err == nil || !strings.Contains(err.Error(), "--ticket N") {
-		t.Fatalf("no release ticket: %v", err)
-	}
-	t.Setenv(TicketEnv, "#953")
-	if n, _ := e.releaseTicket(context.Background(), p, "1.0.0"); n != 953 {
-		t.Fatalf("MOLTEN_RELEASE_TICKET: %d", n)
-	}
 }
 
 func TestRcBranch(t *testing.T) {

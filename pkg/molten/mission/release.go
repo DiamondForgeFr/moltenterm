@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -36,6 +37,9 @@ const (
 	// The preparation's run, kept apart from the declared steps: no step id may start with "@", so a project's own
 	// step (Notulia's "prepare") is never read as the preparation, nor the preparation as it (#230).
 	ReleasePreparationStepId = "@preparation"
+	// The phase the preparation starts with when molten cuts the release: the readiness check (#1800). It is no declared
+	// step either.
+	ReleaseReadyStepId = "@ready"
 
 	releaseGitTimeout = 15 * time.Second
 )
@@ -236,10 +240,36 @@ func expandRelease(run string, version string, tag string, branch string) (strin
 	return expandCommand(run, CommandVars{Version: version, Tag: tag, Branch: branch})
 }
 
+// preparesWithMolten tells whether the preparation is cut by `molten release prepare`, which has the readiness check to
+// run before it, and whether it goes by pull request (#1800).
+func preparesWithMolten(steps []molten.PipelineStep) (prepares bool, pr bool) {
+	for _, step := range steps {
+		fields := strings.Fields(step.Run)
+		if len(fields) < 3 || fields[0] != "molten" || fields[1] != "release" || fields[2] != "prepare" {
+			continue
+		}
+		return true, slices.Contains(fields[3:], "--pr")
+	}
+	return false, false
+}
+
 // preparationCommand chains the preparation steps in one shell: each announced as a phase, in its own folder and
-// with its own variables; the first failure stops the rest.
+// with its own variables; the first failure stops the rest. A preparation cut by molten starts with the readiness
+// check, a phase of its own: whatever would stop the release later is listed before the first step writes anything
+// (#1800).
 func preparationCommand(steps []molten.PipelineStep, version string, tag string, branch string) (string, error) {
 	var parts []string
+	if prepares, pr := preparesWithMolten(steps); prepares {
+		run := "molten release ready {tag}"
+		if pr {
+			run += " --pr"
+		}
+		expanded, err := expandRelease(run, version, tag, branch)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, fmt.Sprintf("echo %s && ( %s )", shellQuote("▶ phase: "+ReleaseReadyStepId), expanded))
+	}
 	for _, step := range steps {
 		var line strings.Builder
 		fmt.Fprintf(&line, "echo %s && (", shellQuote("▶ phase: "+step.Id))

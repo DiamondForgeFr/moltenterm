@@ -3482,6 +3482,8 @@
             },
             "preparationLost": "The preparation stopped without a word (the computer slept?).",
             "preparationFailed": "The preparation failed: {words}",
+            "ready": "Checking the release is ready",
+            "readyFailed": "The check stopped the release before anything was written: {words}",
             "stepsDone": "{steps}: done.",
             "preparationNotRun": "The preparation did not run: start it again.",
             "tagged": "{tag} is tagged.",

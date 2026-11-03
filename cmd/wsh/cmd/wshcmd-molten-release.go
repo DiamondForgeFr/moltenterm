@@ -80,6 +80,15 @@ var moltenReleasePrepareCmd = &cobra.Command{
 	}),
 }
 
+var moltenReleaseReadyCmd = &cobra.Command{
+	Use:   "ready <tag>",
+	Short: "check, before anything is written, that the cut of a release can go through (the release ticket is created when the milestone holds none)",
+	Args:  cobra.ExactArgs(1),
+	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		return moltenReleaseEnv().Ready(context.Background(), args[0], moltenReleasePr)
+	}),
+}
+
 var moltenReleaseReconcileCmd = &cobra.Command{
 	Use:   "reconcile <tag>",
 	Short: "once, merge the release branch into the prepared RC branch with -s ours (refused if it holds a commit the trunk lacks)",
@@ -200,6 +209,7 @@ func init() {
 	moltenReleaseRehearseCmd.Flags().StringArrayVarP(&moltenReleaseFields, "field", "f", nil, "an input of the workflow, key=value (repeatable)")
 	moltenReleaseRehearseCmd.Flags().StringVar(&moltenReleaseDownload, "download", "", "download the artifacts into <folder>/<short commit>")
 	moltenReleasePrepareCmd.Flags().BoolVar(&moltenReleasePr, "pr", false, "prepare on the RC branch made from the trunk, for a release branch that takes pull requests only")
+	moltenReleaseReadyCmd.Flags().BoolVar(&moltenReleasePr, "pr", false, "the release goes by pull request, from an RC branch made from the trunk (as prepare --pr)")
 	moltenReleaseTagCmd.Flags().BoolVar(&moltenReleaseRcBranch, "rc-branch", false, "commit the prepared candidate on its RC branch and tag its head: nothing reaches the release branch")
 	moltenReleaseSyncBackCmd.Flags().BoolVar(&moltenReleaseSyncMerge, "merge", false, "merge the tag into the trunk by pull request with a merge commit, once its checks are green")
 	moltenReleaseCmd.PersistentFlags().IntVar(&moltenReleaseTicket, "ticket", 0, "the release's ticket, for a commit format that names one (default: "+release.TicketEnv+", else the milestone's \"Release vX.Y.Z\" issue)")
@@ -207,7 +217,7 @@ func init() {
 	for _, cmd := range []*cobra.Command{moltenReleasePlanCmd, moltenReleasePromoteCmd, moltenReleasePrepareCmd,
 		moltenReleaseNotesCmd, moltenReleaseFinalizeCmd, moltenReleaseSyncBackCmd, moltenReleaseCloseMilestoneCmd,
 		moltenReleaseRehearseCmd, moltenReleaseDispatchCmd, moltenReleaseReconcileCmd, moltenReleaseOpenPrCmd,
-		moltenReleaseMergePrCmd, moltenReleaseTagCmd} {
+		moltenReleaseMergePrCmd, moltenReleaseTagCmd, moltenReleaseReadyCmd} {
 		moltenReleaseCmd.AddCommand(cmd)
 	}
 	moltenCmd.AddCommand(moltenReleaseCmd)

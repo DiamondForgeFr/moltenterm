@@ -71,25 +71,13 @@ func (e *Env) prepare(ctx context.Context, tag string, pr bool) error {
 	if err != nil {
 		return err
 	}
-	if len(p.Files) == 0 {
-		return fmt.Errorf("%s declares no versions.files: nothing would carry %s", p.Root, tag)
-	}
 	unlock, err := e.lock(ctx, p.Root)
 	if err != nil {
 		return err
 	}
 	defer unlock()
-	if err := e.fetch(ctx, p.Root); err != nil {
+	if err := e.readyToPrepare(ctx, p, tag, v, pr); err != nil {
 		return err
-	}
-	if where := e.tagTaken(ctx, p.Root, tag); where != "" {
-		return fmt.Errorf("%s already exists %s: nothing was changed", tag, where)
-	}
-	if err := p.checkNumber(v, e.releaseTags(ctx, p.Root, p)); err != nil {
-		return err
-	}
-	if e.revParse(ctx, p.Root, "origin/"+p.Release) == "" {
-		return p.releaseBranchMissing()
 	}
 	start, onBranch := "origin/"+p.Release, p.Release
 	rcBranch := ""
@@ -98,12 +86,6 @@ func (e *Env) prepare(ctx context.Context, tag string, pr bool) error {
 			return err
 		}
 		start, onBranch = "origin/"+p.Trunk, rcBranch
-		if e.revParse(ctx, p.Root, start) == "" {
-			return fmt.Errorf("origin has no %s branch", p.Trunk)
-		}
-	}
-	if pending := e.releasesNotCarriedBack(ctx, p); len(pending) > 0 {
-		return fmt.Errorf("%s holds release commits %s lacks (%s): merge their sync-back pull request first, or run molten release sync-back", p.Release, p.Trunk, strings.Join(pending, ", "))
 	}
 	wt, err := e.ReleaseWorktree(ctx, p.Root)
 	if err != nil {
@@ -272,20 +254,21 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 	if err := e.fetch(ctx, p.Root); err != nil {
 		return err
 	}
+	ready := e.beginReadiness(tag, "be committed")
 	if where := e.tagTaken(ctx, p.Root, tag); where != "" {
-		return fmt.Errorf("%s already exists %s: nothing was committed", tag, where)
+		ready.problem("%s already exists %s: nothing was committed", tag, where)
+	} else {
+		ready.ok("%s is not taken", tag)
 	}
 	head := e.revParse(ctx, wt, "HEAD")
 	if head == "" || head != e.revParse(ctx, p.Root, "origin/"+p.Release) {
-		return fmt.Errorf("%s moved since the preparation (or nothing is prepared): prepare %s again", p.Release, tag)
+		ready.problem("%s moved since the preparation (or nothing is prepared): prepare %s again", p.Release, tag)
+	} else {
+		ready.ok("%s is where the preparation left it", p.Release)
 	}
 	e.formatRelease(ctx, p, wt, tag)
-	allowed, err := e.checkPrepared(ctx, p, wt, tag, v)
-	if err != nil {
-		return err
-	}
-	ticket, err := e.releaseTicket(ctx, p, v.Base().String())
-	if err != nil {
+	allowed, ticket := e.readyToCommit(ctx, ready, p, wt, tag, v)
+	if err := ready.finish(tag, "nothing was committed"); err != nil {
 		return err
 	}
 	if err := e.commitRelease(ctx, p, wt, allowed, tag, channel, ticket); err != nil {

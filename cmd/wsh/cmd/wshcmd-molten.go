@@ -1413,6 +1413,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"bug comment <issue> --what …", "add your case to an existing MoltenTerm issue; --yes posts it"},
 	{"release plan [--rc|--public]", "the next release of this project, the milestone it ships and its open issues"},
 	{"release promote --workflow <file>", "bring the trunk onto the release branch once its CI is green"},
+	{"release ready <tag> [--pr]", "check, before anything is written, that the cut can go through; creates the release ticket when the milestone holds none"},
 	{"release prepare <tag> [--pr]", "bump the version and draft the notes beside the checkout, without committing (--pr: on the RC branch from the trunk)"},
 	{"release reconcile <tag>", "once, merge the release branch into the prepared RC branch with -s ours"},
 	{"release open-pr <tag>", "commit the prepared release on its RC branch, push it and open its pull request"},

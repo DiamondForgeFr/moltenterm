@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -53,7 +55,19 @@ type fakeGh struct {
 	artifacts  string
 	// The answers to pending_deployments, in turn (JSON); `[]` once spent.
 	pendings []string
+	// The pages of the milestone's issues (JSON), by page number: a page not listed is empty. nil: `issues` answers every
+	// page.
+	issuePages map[int]string
+	// Answers the milestones with this error.
+	milestonesFail error
+	// Answers the issues of the milestone with this error.
+	issuesFail error
+	// The number `issue create` answers with (default 1801), and the error that refuses it.
+	createdNumber int
+	createFails   error
 }
+
+var pageParamRegex = regexp.MustCompile(`[?&]page=(\d+)`)
 
 func (f *fakeGh) record(args []string) {
 	f.lock.Lock()
@@ -134,10 +148,32 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 			return nil, fmt.Errorf("gh release view: release not found")
 		}
 		return []byte(fmt.Sprintf(`{"isDraft":%v,"url":"https://github.example/releases/%s"}`, f.draft, args[2])), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/milestones?") && f.milestonesFail != nil:
+		return nil, f.milestonesFail
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/milestones?") && f.milestones != "":
 		return []byte(f.milestones), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/milestones?"):
 		return []byte(`[{"number":7,"title":"Later","html_url":"https://m/7","open_issues":4},{"number":12,"title":"1.0.0","html_url":"https://m/12","open_issues":2},{"number":3,"title":"v1","html_url":"https://m/3","open_issues":0}]`), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?milestone=12&state=all") && f.issuesFail != nil:
+		return nil, f.issuesFail
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?milestone=12&state=all") && f.issuePages != nil:
+		page := 1
+		if m := pageParamRegex.FindStringSubmatch(joined); m != nil {
+			page, _ = strconv.Atoi(m[1])
+		}
+		if text, ok := f.issuePages[page]; ok {
+			return []byte(text), nil
+		}
+		return []byte(`[]`), nil
+	case strings.HasPrefix(joined, "issue create"):
+		if f.createFails != nil {
+			return nil, f.createFails
+		}
+		n := f.createdNumber
+		if n == 0 {
+			n = 1801
+		}
+		return []byte(fmt.Sprintf("https://github.com/Example/app/issues/%d\n", n)), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?milestone=12"):
 		if f.issues != "" {
 			return []byte(f.issues), nil

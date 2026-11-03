@@ -37,6 +37,8 @@ func TestMoltenReleaseHelper(t *testing.T) {
 	switch {
 	case len(args) == 4 && args[0] == "release" && args[1] == "promote" && args[2] == "--workflow":
 		err = env.Promote(ctx, release.PromoteOptions{Workflows: []string{args[3]}})
+	case len(args) == 3 && args[0] == "release" && args[1] == "ready":
+		err = env.Ready(ctx, args[2], false)
 	case len(args) == 3 && args[0] == "release" && args[1] == "prepare":
 		err = env.Prepare(ctx, args[2])
 	case len(args) == 3 && args[0] == "release" && args[1] == "finalize":
@@ -162,7 +164,7 @@ func cutMoltentermRelease(t *testing.T, r *Runs, dir string, origin string, chan
 	start := startRelease(t, r, dir, channel, tag)
 	mustSucceed(t, r, dir, tag+" preparation", waitRun(t, r, dir, start.Run.Id))
 	facts := mustFacts(t, r, dir)
-	if got := strings.Join(facts.Preparation.Phases, ","); got != "promote,prepare" {
+	if got := strings.Join(facts.Preparation.Phases, ","); got != ReleaseReadyStepId+",promote,prepare" {
 		t.Fatalf("%s: prepared %q", tag, got)
 	}
 	if gitIn(t, origin, "rev-parse", "main") == "" {

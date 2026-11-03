@@ -64,14 +64,23 @@ func finishedMilestone(list []githubMilestone, rules versions.Rules, tags []stri
 	return best
 }
 
+// openMilestones lists every open milestone of the repository, page by page: a repository with more than a hundred of
+// them must not hide the version's.
 func (e *Env) openMilestones(ctx context.Context, dir string) ([]githubMilestone, error) {
-	out, err := e.gh(ctx, dir, "api", "repos/{owner}/{repo}/milestones?state=open&per_page=100")
-	if err != nil {
-		return nil, err
-	}
 	var list []githubMilestone
-	if err := json.Unmarshal(out, &list); err != nil {
-		return nil, fmt.Errorf("gh api milestones: unreadable answer")
+	for page := 1; page <= milestoneMaxPages; page++ {
+		out, err := e.gh(ctx, dir, "api", fmt.Sprintf("repos/{owner}/{repo}/milestones?state=open&per_page=%d&page=%d", milestonePageSize, page))
+		if err != nil {
+			return nil, err
+		}
+		var batch []githubMilestone
+		if err := json.Unmarshal(out, &batch); err != nil {
+			return nil, fmt.Errorf("gh api milestones: unreadable answer")
+		}
+		list = append(list, batch...)
+		if len(batch) < milestonePageSize {
+			break
+		}
 	}
 	return list, nil
 }

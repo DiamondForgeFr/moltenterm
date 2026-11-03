@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -76,6 +77,10 @@ type Env struct {
 	CiLimit time.Duration
 	// --ticket: the release's ticket, for a commit format that names one (#1046).
 	Ticket int
+
+	// The release tickets found or created during this run, by project and version (#1800): one answer for the run.
+	ticketLock sync.Mutex
+	tickets    map[string]ticketAnswer
 }
 
 // Project is what the release commands read from `.molten/project.json`.

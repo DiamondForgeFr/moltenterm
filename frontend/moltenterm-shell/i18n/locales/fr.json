@@ -3484,6 +3484,8 @@
             "preparationFailed": "La préparation a échoué : {words}",
             "stepsDone": "{steps} : fait.",
             "preparationNotRun": "La préparation n'a pas tourné : relancez-la.",
+            "ready": "Vérification que la release est prête",
+            "readyFailed": "La vérification a arrêté la release avant toute écriture : {words}",
             "tagged": "{tag} est tagué.",
             "waitsPreparation": "Attend la préparation.",
             "rewritingNotes": "Réécriture des notes publiques…",
