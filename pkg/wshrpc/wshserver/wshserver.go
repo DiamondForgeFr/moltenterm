@@ -878,6 +878,9 @@ func (ws *WshServer) DebugTermCommand(ctx context.Context, data wshrpc.CommandDe
 	if data.Size <= 0 {
 		return nil, fmt.Errorf("size must be greater than 0")
 	}
+	if err := moltenCheckTermOutputRead(ctx, data.BlockId); err != nil { // MOLTENTERM-PATCH (#1832): a terminal reads only its own workspace's terminals
+		return nil, err
+	}
 	waveFile, err := filestore.WFS.Stat(ctx, data.BlockId, wavebase.BlockFile_Term)
 	if err == fs.ErrNotExist {
 		return &wshrpc.CommandDebugTermRtnData{}, nil
@@ -1075,6 +1078,9 @@ func (ws *WshServer) WriteAppFileCommand(ctx context.Context, data wshrpc.Comman
 func (ws *WshServer) WaveFileReadStreamCommand(ctx context.Context, data wshrpc.CommandWaveFileReadStreamData) (*wshrpc.WaveFileInfo, error) {
 	const maxStreamFileSize = 5 * 1024 * 1024
 
+	if err := moltenCheckZoneRead(ctx, data.ZoneId); err != nil { // MOLTENTERM-PATCH (#1832): a terminal reads only its own workspace's terminals
+		return nil, err
+	}
 	waveFile, err := filestore.WFS.Stat(ctx, data.ZoneId, data.Name)
 	if err != nil {
 		return nil, fmt.Errorf("error statting wavefile: %w", err)
