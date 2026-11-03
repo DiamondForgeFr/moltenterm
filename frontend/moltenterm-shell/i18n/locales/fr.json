@@ -6084,6 +6084,8 @@
     "reviewsAgents": {
         "agent": "Agent",
         "background": "Agent en arrière-plan",
+        "busyOn": "occupé sur #{number}",
+        "busyElsewhere": "occupé ailleurs",
         "state": {
             "working": "au travail",
             "waiting": "vous attend",
@@ -7090,6 +7092,7 @@
                 "ciRunning": "CI en cours",
                 "mergeChecking": "GitHub vérifie la fusion",
                 "ready": "Prête à fusionner",
+                "readyReview": "Prête · à vous de la relire et la fusionner",
                 "batch": {
                     "checking": "Relue sur GitHub avant sa fusion",
                     "rebasing": "{name} la rebase sur {base}",
