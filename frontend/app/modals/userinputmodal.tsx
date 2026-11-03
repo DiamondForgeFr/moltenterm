@@ -8,8 +8,10 @@ import * as keyutil from "@/util/keyutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UserInputService } from "../store/services";
+import { wordUserInputRequest } from "../../moltenterm-shell/i18n/user-input-text"; // MOLTENTERM-PATCH (#1831)
 
-const UserInputModal = (userInputRequest: UserInputRequest) => {
+const UserInputModal = (request: UserInputRequest) => {
+    const userInputRequest = wordUserInputRequest(request); // MOLTENTERM-PATCH (#1831): wavesrv's questions in the interface language
     const [responseText, setResponseText] = useState("");
     const [countdown, setCountdown] = useState(Math.floor(userInputRequest.timeoutms / 1000));
     const checkboxRef = useRef<HTMLInputElement>(null);

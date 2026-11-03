@@ -158,3 +158,38 @@ func TestRemoteCommandsAndConnections(t *testing.T) {
 	mustAccept(t, "another server", CheckRemoteConn(sshHost, "other@host", "connect to"))
 	mustAccept(t, "its own connection", CheckRemoteConn(sshHost, sshHost.Conn, "connect to"))
 }
+
+func TestIsLoopbackConn(t *testing.T) {
+	for _, conn := range []string{"localhost", "me@localhost", "me@localhost:2222", "LOCALHOST.", "127.0.0.1", "root@127.1.2.3:22", "::1", "[::1]:22", "me@[::1]", "0.0.0.0", "app.localhost"} {
+		if !IsLoopbackConn(conn) {
+			t.Errorf("%s is this computer", conn)
+		}
+	}
+	for _, conn := range []string{"dev@build.example", "10.0.0.5", "me@192.168.1.10:2222", "[2001:db8::1]:22", "localhosting.example"} {
+		if IsLoopbackConn(conn) {
+			t.Errorf("%s is not this computer", conn)
+		}
+	}
+}
+
+func TestLocalPathAndPathHost(t *testing.T) {
+	for uri, want := range map[string]string{"/etc/passwd": "/etc/passwd", "wsh://local/~/x": "~/x", "wsh://current/tmp/x": "/tmp/x", "//local/etc/hosts": "etc/hosts"} {
+		if got, ok := LocalPath(uri); !ok || got != want {
+			t.Errorf("LocalPath(%q) = %q %v, want %q", uri, got, ok, want)
+		}
+	}
+	for _, uri := range []string{"wsh://dev@build.example/x", "wavefile://b/term", "wsh://wsl://Ubuntu/x"} {
+		if _, ok := LocalPath(uri); ok {
+			t.Errorf("%s is not a path of this computer", uri)
+		}
+	}
+	if host, ok := PathHost("wsh://other@host/tmp/x"); !ok || host != "other@host" {
+		t.Errorf("PathHost: %q %v", host, ok)
+	}
+	if _, ok := PathHost("wsh://local/tmp/x"); ok {
+		t.Error("PathHost named this computer")
+	}
+	if !OtherServer(sshHost, "other@host") || OtherServer(sshHost, sshHost.Conn+":22") || OtherServer(sshHost, "local") || OtherServer(sshHost, "wsl://Ubuntu") {
+		t.Error("OtherServer")
+	}
+}

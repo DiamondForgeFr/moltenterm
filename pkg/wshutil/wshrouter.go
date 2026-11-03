@@ -795,6 +795,9 @@ func (router *WshRouter) bindRouteLocally(linkId baseds.LinkId, routeId string, 
 	if !lm.trusted {
 		return fmt.Errorf("cannot bind route %q, link %d is not trusted", routeId, linkId)
 	}
+	if err := router.remoteAnnounceRefusal_withlock(lm, routeId, isSourceRoute); err != nil { // MOLTENTERM-PATCH (#1831)
+		return err
+	}
 	if isSourceRoute {
 		if lm.linkKind != LinkKind_Leaf {
 			return fmt.Errorf("cannot bind source route %q to link %d (link is not a leaf)", routeId, linkId)
@@ -813,6 +816,11 @@ func (router *WshRouter) bindRouteLocally(linkId baseds.LinkId, routeId string, 
 }
 
 func (router *WshRouter) bindRoute(linkId baseds.LinkId, routeId string, isSourceRoute bool) error {
+	if !isSourceRoute {
+		if err := router.checkRemoteAnnounce(linkId, routeId); err != nil { // MOLTENTERM-PATCH (#1831)
+			return err
+		}
+	}
 	err := router.bindRouteLocally(linkId, routeId, isSourceRoute)
 	if err != nil {
 		return err

@@ -38,6 +38,9 @@ type UserInputRequest struct {
 	PublicText   bool   `json:"publictext"`
 	OkLabel      string `json:"oklabel,omitempty"`
 	CancelLabel  string `json:"cancellabel,omitempty"`
+	// MOLTENTERM-PATCH (#1831): the window words a field by its pkg/molten/uimsg Text (title, querytext, checkboxmsg,
+	// oklabel, cancellabel), the English above showing for a code it does not know.
+	MoltenTexts map[string]any `json:"moltentexts,omitempty"`
 }
 
 type UserInputResponse struct {

@@ -255,7 +255,9 @@ func ValidateAndExtractRpcContextFromToken(tokenStr string) (*wshrpc.RpcContext,
 	return claimsToRpcCtx(claims), nil
 }
 
-func RunWshRpcOverListener(listener net.Listener, readCallback func()) {
+// MOLTENTERM-PATCH (#1831): every link accepted on a connection's socket is that connection's (connName, "" for this
+// computer's own socket); RunWshRpcOverListener wraps it.
+func RunConnWshRpcOverListener(listener net.Listener, connName string, readCallback func()) {
 	defer log.Printf("domain socket listener shutting down\n")
 	for {
 		conn, err := listener.Accept()
@@ -267,7 +269,7 @@ func RunWshRpcOverListener(listener net.Listener, readCallback func()) {
 			break
 		}
 		log.Print("got domain socket connection\n")
-		go handleDomainSocketClient(conn, readCallback)
+		go handleDomainSocketClient(conn, connName, readCallback)
 	}
 }
 
@@ -280,8 +282,8 @@ type WriteFlusher interface {
 // MOLTENTERM-PATCH (#1831): the link remembers its connection (connName, "" when unknown); HandleStdIOClient wraps it.
 func HandleConnStdIOClient(logName string, connName string, input chan utilfn.LineOutput, output io.Writer) {
 	proxy := MakeRpcProxy(logName)
-	linkId := DefaultRouter.RegisterTrustedRouter(proxy)
-	DefaultRouter.setLinkConn(linkId, connName)
+	linkId := DefaultRouter.registerUntrustedConnLink(proxy, connName)
+	DefaultRouter.trustLink(linkId, LinkKind_Router)
 	rawCh := make(chan []byte, DefaultInputChSize)
 	go func() {
 		defer func() {
@@ -326,7 +328,7 @@ func HandleConnStdIOClient(logName string, connName string, input chan utilfn.Li
 	<-doneCh
 }
 
-func handleDomainSocketClient(conn net.Conn, readCallback func()) {
+func handleDomainSocketClient(conn net.Conn, connName string, readCallback func()) {
 	var linkIdContainer atomic.Int32
 	proxy := MakeRpcProxy("domain")
 	go func() {
@@ -354,7 +356,7 @@ func handleDomainSocketClient(conn net.Conn, readCallback func()) {
 		}()
 		AdaptStreamToMsgCh(conn, proxy.FromRemoteCh, readCallback)
 	}()
-	linkId := DefaultRouter.RegisterUntrustedLink(proxy)
+	linkId := DefaultRouter.registerUntrustedConnLink(proxy, connName)
 	linkIdContainer.Store(int32(linkId))
 }
 
