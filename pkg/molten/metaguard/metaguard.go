@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -143,19 +144,54 @@ func checkWorkspaceWrite(c Caller, oref waveobj.ORef, meta waveobj.MetaMapType) 
 	return nil
 }
 
-// tooWideProjectFolder: the root or the home folder as a project would void the file panel's confinement
-// (FR-FILE-001); only the window links one.
+// tooWideProjectFolder: the root, the home folder or any folder above it as a project would void the file panel's
+// confinement (FR-FILE-001); only the window links one. Links are resolved first, and names compare without case
+// where the disk ignores it (macOS, Windows), so neither a symlink to / nor /USERS gets through.
 func tooWideProjectFolder(folder string) bool {
 	if folder == "" {
 		return false
 	}
-	clean := filepath.Clean(folder)
-	if clean == string(filepath.Separator) || filepath.Dir(clean) == clean {
+	resolved := resolvePath(folder)
+	if filepath.Dir(resolved) == resolved {
 		return true
 	}
 	home, err := os.UserHomeDir()
-	return err == nil && home != "" && clean == filepath.Clean(home)
+	if err != nil || home == "" {
+		return false
+	}
+	home = resolvePath(home)
+	for dir := home; ; dir = filepath.Dir(dir) {
+		if samePath(resolved, dir) {
+			return true
+		}
+		if filepath.Dir(dir) == dir {
+			return false
+		}
+	}
 }
+
+// resolvePath is path made absolute and clean with its links resolved; the part that does not exist yet stays as
+// written.
+func resolvePath(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = filepath.Clean(path)
+	}
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		return real
+	}
+	return abs
+}
+
+func samePath(a string, b string) bool {
+	if caseInsensitiveDisk {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+// caseInsensitiveDisk: macOS and Windows disks ignore case by default.
+var caseInsensitiveDisk = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
 // CheckPublish tells whether c may publish event. Every event the window trusts (object updates, configuration,
 // MoltenTerm's own) is published by wavesrv alone; a terminal publishes only badges, system info and the mods
@@ -231,6 +267,29 @@ func ReadBlockMeta(c Caller, inOwnWorkspace bool, meta waveobj.MetaMapType) wave
 		}
 	}
 	return rtn
+}
+
+// CheckTabOrder tells whether c may set a workspace's tab list to next: a terminal only reorders the tabs it has
+// (current). Adding another workspace's tab would move that tab, and its blocks, into the terminal's workspace and
+// past every own-workspace rule.
+func CheckTabOrder(c Caller, current []string, next []string) error {
+	if c.Trusted {
+		return nil
+	}
+	left := map[string]int{}
+	for _, id := range current {
+		left[id]++
+	}
+	for _, id := range next {
+		if left[id] == 0 {
+			return fmt.Errorf("refused: a terminal can only reorder its workspace's tabs (%s is not one of them, or is listed twice); the MoltenTerm window does the rest", id)
+		}
+		left[id]--
+	}
+	if len(next) != len(current) {
+		return fmt.Errorf("refused: a terminal can only reorder its workspace's tabs, not add or drop any; the MoltenTerm window does")
+	}
+	return nil
 }
 
 // CheckOwnWorkspace tells whether c may act on a tab or the tab list of workspaceId: a terminal only in its own.

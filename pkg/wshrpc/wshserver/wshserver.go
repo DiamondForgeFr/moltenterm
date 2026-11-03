@@ -172,7 +172,7 @@ func (ws *WshServer) UpdateTabNameCommand(ctx context.Context, tabId string, new
 
 func (ws *WshServer) UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error {
 	oref := waveobj.ORef{OType: waveobj.OType_Workspace, OID: workspaceId}
-	if err := moltenCheckOwnWorkspace(ctx, oref, "reorder tabs"); err != nil { // MOLTENTERM-PATCH (#1821)
+	if err := moltenCheckTabOrder(ctx, workspaceId, tabIds); err != nil { // MOLTENTERM-PATCH (#1821): a terminal only reorders its own tabs
 		return err
 	}
 	err := wcore.UpdateWorkspaceTabIds(ctx, workspaceId, tabIds)
