@@ -74,12 +74,17 @@ export async function verifyMacEvidence(folder, context) {
     )
         throw new Error("macOS verification evidence does not match this release and its final payloads");
 }
-async function verifyFeeds(folder, context) {
-    const expected = {
+export function feedPayloadNames(context) {
+    const payloads = payloadNames(context);
+    // electron-builder lists the same-architecture .deb next to the AppImage in each Linux feed (#1802).
+    return {
         "latest-mac.yml": macPayloadNames(context).filter((name) => /\.(dmg|zip)$/.test(name)),
-        "latest-linux.yml": payloadNames(context).filter((name) => /-x86_64-.*\.AppImage$/.test(name)),
-        "latest-linux-arm64.yml": payloadNames(context).filter((name) => /-arm64-.*\.AppImage$/.test(name)),
+        "latest-linux.yml": payloads.filter((name) => /-(x86_64-.*\.AppImage|amd64-.*\.deb)$/.test(name)),
+        "latest-linux-arm64.yml": payloads.filter((name) => /-linux-arm64-.*\.(AppImage|deb)$/.test(name)),
     };
+}
+async function verifyFeeds(folder, context) {
+    const expected = feedPayloadNames(context);
     for (const [feed, names] of Object.entries(expected)) {
         const doc = parse(await fs.readFile(path.join(folder, feed), "utf8"), { uniqueKeys: true });
         if (
