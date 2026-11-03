@@ -27,8 +27,9 @@ import "embed"
 // pipeline-setup-agent.md teaches the pipeline tab's agent the `molten pipeline setup` commands (FR-MC-045, #1163).
 // materials.md tells agents to declare what they produce for the developer with `molten material add` (FR-MAT-001).
 // files.md tells agents to show what they searched for in their tab's file panel with `molten files` (FR-FILE-002).
+// pages.md tells agents to open the pages they show the developer in MoltenTerm's browser, not the system's (#1812).
 //
-//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md materials.md files.md all:examples
+//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md materials.md files.md pages.md all:examples
 var Files embed.FS
 
 const ReviewGuideFile = "review.md"

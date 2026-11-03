@@ -104,11 +104,19 @@ const FilesInstructions = " When the user asks you to find files in the project,
 	"glob with * ? [) prints the matches and filters the panel. A folder outside the project is asked to the user first. " +
 	"Details: files.md in the folder `molten docs` prints."
 
+// PagesInstructions: a page shown to the developer opens in MoltenTerm's browser, whatever agent CLI it is (FR-BRW-008,
+// pkg/molten/agentdocs/pages.md); the 360 carpet then scrolls to it (#1812).
+const PagesInstructions = " To show a page to the user (\"open the doc\", \"show me the page\", a local preview), open it in " +
+	"MoltenTerm's browser: tabs_create then navigate, or `molten open <url>` from a shell. Do not use `open`, " +
+	"`xdg-open`, `start` or the system browser, unless the user asks for their own browser (`molten open --browser " +
+	"installed <url>`). The page appears next to this terminal, in view, and the terminal keeps the keyboard focus. " +
+	"Details: pages.md in the folder `molten docs` prints."
+
 // AgentInstructions completes the server's instructions with the agent's own first name (FR-CONT-014): Claude Code
 // puts server instructions in its system prompt, so the agent can sign its briefs and knows it is addressed.
 func AgentInstructions(firstName string) string {
-	rtn := " To hand work to another agent when the user asks (\"send this to Jérôme\"), call list_agents, then " +
-		"send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions + FilesInstructions
+	rtn := PagesInstructions + " To hand work to another agent when the user asks (\"send this to Jérôme\"), call " +
+		"list_agents, then send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions + FilesInstructions
 	if firstName != "" {
 		rtn = fmt.Sprintf(" In MoltenTerm your first name is %s: the user and other agents call you by it, and handoffs you "+
 			"send are signed with it.", firstName) + rtn + SignInstructions
