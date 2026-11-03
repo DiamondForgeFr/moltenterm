@@ -116,6 +116,9 @@ type PanelAgentTab struct {
 	Engaged bool `json:"engaged,omitempty"`
 	// Since: when the agent got the tab (Unix ms), for the library's Sent to AI (FR-SHELL-088).
 	Since int64 `json:"since,omitempty"`
+	// ShownTs: when the agent last put this page in front of the developer, by opening the tab or going to another
+	// page (Unix ms, always increasing). A panel off-screen on the 360 carpet scrolls into view when it changes (#1812).
+	ShownTs int64 `json:"shownts,omitempty"`
 }
 
 type Viewport struct {
