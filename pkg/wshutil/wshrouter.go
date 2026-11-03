@@ -365,6 +365,9 @@ func (router *WshRouter) runServer() {
 		routeId := msg.Route
 		if msg.Command != "" {
 			// new comand, setup new rpc
+			if router.refuseRequest(msg, input.IngressLinkId) { // MOLTENTERM-PATCH (#1832): a terminal reads only its own workspace's terminals
+				continue
+			}
 			ok := router.sendRoutedMessage(msgBytes, routeId, msg.Command, input.IngressLinkId)
 			if !ok {
 				router.handleNoRoute(msg, input.IngressLinkId)

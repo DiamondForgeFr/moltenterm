@@ -103,6 +103,9 @@ func moltenCheckPublish(ctx context.Context, event string) error {
 }
 
 func moltenCheckSubscribe(ctx context.Context, req wps.SubscriptionRequest) error {
+	if req.Event == wps.Event_BlockFile {
+		return moltenCheckBlockFileSubscribe(ctx, req)
+	}
 	if req.Event != wps.Event_WaveObjUpdate {
 		return nil
 	}
