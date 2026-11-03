@@ -21,10 +21,19 @@ import {
     CarpetCaptureScheduler,
     dropCarpetCaptures,
     readCarpetCapture,
+    registerCarpetScheduler,
     writeCarpetCapture,
 } from "./carpet-captures";
 import { CarpetLayout } from "./carpet-model";
-import { CaptureColumn, captureProbePoints, captureTargets, peekNeighbours, peekRect, PeekSide } from "./carpet-peeks";
+import {
+    CaptureColumn,
+    captureProbePoints,
+    captureTargets,
+    overlapsCapture,
+    peekNeighbours,
+    peekRect,
+    PeekSide,
+} from "./carpet-peeks";
 import { readLivePanel, watchLivePanel } from "./carpet-thumb-live";
 import { CarpetThumbTracker } from "./carpet-thumb-state";
 import { ElectronThumbBackend } from "./carpet-thumbs";
@@ -37,9 +46,20 @@ function halfGapPx(layoutModel: LayoutModel): number {
     return gap / 2;
 }
 
+// The tab strip's cards (a panel's preview, the visible area's hint) float over the columns: one over any part of a
+// column would be captured in its thumbnail, a card in a card (#1814).
+function coveredByCard(rect: CaptureRect): boolean {
+    return [...document.querySelectorAll(".mt-radar-card")].some((el) =>
+        overlapsCapture(el.getBoundingClientRect(), rect)
+    );
+}
+
 // Whatever covers one of a column's probe points (a menu, a popover, a panel being dragged) would be captured as the
 // panel: the column is captured only when every point lands in its own panels.
 function uncovered(rect: CaptureRect, leafNodeIds: string[]): boolean {
+    if (coveredByCard(rect)) {
+        return false;
+    }
     const ids = new Set(leafNodeIds);
     return captureProbePoints(rect).every((p) => {
         const node = document.elementFromPoint(p.x, p.y)?.closest<HTMLElement>(".tile-node");
@@ -101,7 +121,11 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
                         halfGapPx(layoutModel)
                     ).filter((t) => leaves.has(t.columnId) && uncovered(t.rect, leaves.get(t.columnId)));
                 },
-                capture: (rect) => api.captureScreenshot(rect, { width: CaptureThumbPx }),
+                capture: (rect, target) =>
+                    api.captureScreenshot(rect, {
+                        width: CaptureThumbPx,
+                        flatSkipTop: tracker.flatSkipTop(target.columnId),
+                    }),
                 inspect: (columnId) => tracker.inspect(columnId),
             },
             undefined,
@@ -131,6 +155,7 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
             }
         );
         const wake = () => scheduler.noteChange();
+        const unregister = registerCarpetScheduler(scheduler);
         const unsubs = [
             globalStore.sub(view360.scrollLeftAtom, wake),
             globalStore.sub(view360.layoutAtom, wake),
@@ -145,6 +170,7 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
         wake();
         return () => {
             cancelAnimationFrame(frame);
+            unregister();
             scheduler.dispose();
             tracker.dispose();
             unsubs.forEach((u) => u());

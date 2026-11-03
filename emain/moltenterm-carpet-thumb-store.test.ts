@@ -9,6 +9,7 @@ import {
     CarpetThumbStore,
     FlatMaxDifferingPixels,
     isFlatBitmap,
+    isFlatFrame,
     thumbFileName,
     ThumbIndexName,
     ThumbMaxFileBytes,
@@ -243,6 +244,54 @@ describe("isFlatBitmap (a frame of one flat colour is never kept)", () => {
             gradient[i * 4] = 200 + (i % 4);
         }
         expect(isFlatBitmap(gradient)).toBe(true);
+    });
+
+    it("leaves the top of the frame out when asked: a blank page under its own header is blank", () => {
+        const width = 100;
+        const height = 100;
+        const frame = bitmap(width * height, [255, 255, 255, 255]);
+        for (let i = 0; i < width * 6; i++) {
+            frame.set([20, 20, 20, 255], i * 4);
+        }
+        expect(isFlatFrame(frame, { width, height })).toBe(false);
+        expect(isFlatFrame(frame, { width, height }, 0.08)).toBe(true);
+        expect(isFlatFrame(frame, { width, height }, 0.02)).toBe(false);
+        expect(isFlatFrame(frame, { width, height }, 5)).toBe(true);
+        frame.set([0, 0, 0, 255], (50 * width + 10) * 4);
+        for (let i = 0; i < 40; i++) {
+            frame.set([0, 0, 0, 255], (60 * width + i) * 4);
+        }
+        expect(isFlatFrame(frame, { width, height }, 0.08)).toBe(false);
+        expect(isFlatFrame(null, { width, height })).toBe(true);
+    });
+
+    it("ignores a panel's outline and rounded corners around a blank body, but not content inside it", () => {
+        const width = 100;
+        const height = 100;
+        const orange: [number, number, number, number] = [220, 120, 30, 255];
+        const frame = bitmap(width * height, [255, 255, 255, 255]);
+        for (let y = 0; y < height; y++) {
+            for (const x of [0, 1, width - 2, width - 1]) {
+                frame.set(orange, (y * width + x) * 4);
+            }
+        }
+        for (let x = 0; x < width; x++) {
+            frame.set(orange, ((height - 1) * width + x) * 4);
+            frame.set(orange, ((height - 2) * width + x) * 4);
+        }
+        expect(isFlatFrame(frame, { width, height }, 0.08)).toBe(true);
+        for (let i = 0; i < 30; i++) {
+            frame.set([0, 0, 0, 255], (40 * width + 20 + i) * 4);
+        }
+        expect(isFlatFrame(frame, { width, height }, 0.08)).toBe(false);
+    });
+
+    it("compares the rest of the frame to its own colour, not to the border's", () => {
+        const width = 100;
+        const height = 100;
+        const frame = bitmap(width * height, [10, 10, 10, 255]);
+        frame.set([255, 255, 255, 255], 0);
+        expect(isFlatFrame(frame, { width, height })).toBe(true);
     });
 
     it("sees a page with content, however pale, as a picture", () => {

@@ -104,6 +104,23 @@ export type CaptureSource = {
 
 const Uninspected = { tag: undefined as string, capturable: true };
 
+const liveSchedulers = new Set<CarpetCaptureScheduler>();
+
+// Registers a running scheduler with wakeCarpetCaptures; returns the way out.
+export function registerCarpetScheduler(scheduler: CarpetCaptureScheduler): () => void {
+    liveSchedulers.add(scheduler);
+    return () => {
+        liveSchedulers.delete(scheduler);
+    };
+}
+
+// Something that had covered the carpet is gone (the tab strip's preview card): the columns it hid may be captured.
+export function wakeCarpetCaptures(): void {
+    for (const scheduler of liveSchedulers) {
+        scheduler.noteChange();
+    }
+}
+
 // Runs the captures of one carpet. noteChange() is called on each scroll frame, layout pass, focus change or change of
 // a page's state: it only restarts one timer. When the timer ends at rest, the due columns are captured one at a time;
 // a change during a capture discards it (it may show a half-moved frame, or a page that started loading). Columns

@@ -3,7 +3,14 @@
 
 import { describe, expect, it } from "vitest";
 import { CarpetEdgePx, computeCarpetLayout } from "./carpet-model";
-import { captureProbePoints, captureTargets, peekNeighbours, peekRect, PeekWidthPx } from "./carpet-peeks";
+import {
+    captureProbePoints,
+    captureTargets,
+    overlapsCapture,
+    peekNeighbours,
+    peekRect,
+    PeekWidthPx,
+} from "./carpet-peeks";
 
 const ticks = (visible: boolean[]) => visible.map((v, i) => ({ columnId: `c${i}`, visible: v }));
 
@@ -76,5 +83,25 @@ describe("edge peeks (FR-SHELL-065 AC11)", () => {
             expect(p.y).toBeGreaterThan(20);
             expect(p.y).toBeLessThan(620);
         }
+    });
+
+    it("sees a floating card over any part of a column, not only over a probe point (#1814)", () => {
+        const column = { x: 100, y: 0, width: 400, height: 1000 };
+        const card = (left: number, top: number, w: number, h: number) => ({
+            left,
+            top,
+            right: left + w,
+            bottom: top + h,
+        });
+        // A preview card over the lower middle of the column misses the centre and the four corner probes.
+        const probes = captureProbePoints(column);
+        const lowerMiddle = card(200, 800, 200, 190);
+        expect(probes.some((p) => p.x >= 200 && p.x <= 400 && p.y >= 800 && p.y <= 990)).toBe(false);
+        expect(overlapsCapture(lowerMiddle, column)).toBe(true);
+        expect(overlapsCapture(card(500, 0, 100, 100), column)).toBe(false);
+        expect(overlapsCapture(card(0, 0, 100, 100), column)).toBe(false);
+        expect(overlapsCapture(card(0, 1000, 600, 40), column)).toBe(false);
+        expect(overlapsCapture(card(120, 990, 50, 50), column)).toBe(true);
+        expect(overlapsCapture(card(150, 100, 0, 0), column)).toBe(false);
     });
 });

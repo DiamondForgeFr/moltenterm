@@ -9,6 +9,7 @@ import {
     columnCapturable,
     ColumnPanel,
     columnTag,
+    PageHeaderShare,
     panelCapturable,
     panelFactsKey,
     plainPanel,
@@ -278,6 +279,19 @@ describe("CarpetThumbTracker keeps the in-memory thumbnails true to the page", (
         t.tracker.dispose();
         t.change("web1", { loading: true });
         expect(t.wakes()).toBe(1);
+    });
+
+    it("asks the flat-frame check to leave a page's own header out, and only a lone page's", () => {
+        const t = setup([
+            { columnId: "colA", leafNodeIds: ["nA"], blockIds: ["web1"] },
+            { columnId: "colB", leafNodeIds: ["nB", "nC"], blockIds: ["term1", "web2"] },
+            { columnId: "colC", leafNodeIds: ["nD"], blockIds: ["term2"] },
+        ]);
+        t.panels.set("web1", page("web1", "https://a.dev/"));
+        t.panels.set("web2", page("web2", "https://b.dev/"));
+        expect(t.tracker.flatSkipTop("colA")).toBe(PageHeaderShare);
+        expect(t.tracker.flatSkipTop("colB")).toBe(0);
+        expect(t.tracker.flatSkipTop("colC")).toBe(0);
     });
 
     it("keys the store by the column's first panel", () => {
