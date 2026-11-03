@@ -59,6 +59,17 @@ func TestCleanLocalPathAndWithin(t *testing.T) {
 			t.Error("a link to ~/.ssh got through")
 		}
 	}
+	missing := filepath.Join(dir, "missing")
+	dangling := filepath.Join(dir, "dangling")
+	if err := os.Symlink(missing, dangling); err == nil {
+		if got, want := CleanLocalPath(filepath.Join(dangling, "id_ed25519")), CleanLocalPath(filepath.Join(missing, "id_ed25519")); got != want {
+			t.Errorf("a link to a missing folder resolves to %q, want %q", got, want)
+		}
+	}
+	loop := filepath.Join(dir, "loop")
+	if err := os.Symlink(loop, loop); err == nil {
+		CleanLocalPath(filepath.Join(loop, "x"))
+	}
 	if !PathWithin("/a/b/c", "/a/b") || !PathWithin("/a/b", "/a/b") || PathWithin("/a/bc", "/a/b") || PathWithin("/a", "/a/b") || PathWithin("/a/b/../c", "/a/b") {
 		t.Error("PathWithin")
 	}

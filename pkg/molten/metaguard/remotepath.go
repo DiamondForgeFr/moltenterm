@@ -12,6 +12,9 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 )
 
+// maxLinkHops bounds how many links to a missing target are followed, so a loop of such links ends.
+const maxLinkHops = 40
+
 // What a server may be allowed to read or write on this computer is bounded by folder: "always" covers the folder of
 // the path the developer approved and its subfolders, never a wider one, and never the locations a server could use
 // to run code or steal credentials, which are asked every time (#1831).
@@ -47,16 +50,42 @@ func CleanLocalPath(path string) string {
 
 // resolveExisting resolves the links of the longest existing part of path; the rest stays as written.
 func resolveExisting(path string) string {
+	return resolveExistingDepth(path, 0)
+}
+
+// resolveExistingDepth also follows a link whose target does not exist yet: EvalSymlinks fails on it, and keeping
+// the link's own path would let a link to a missing ~/.ssh pass as an ordinary folder.
+func resolveExistingDepth(path string, depth int) string {
 	rest := ""
 	for dir := path; ; dir = filepath.Dir(dir) {
 		if real, err := filepath.EvalSymlinks(dir); err == nil {
 			return filepath.Join(real, rest)
+		}
+		if depth < maxLinkHops {
+			if target, ok := danglingLinkTarget(dir); ok {
+				return resolveExistingDepth(filepath.Join(target, rest), depth+1)
+			}
 		}
 		if filepath.Dir(dir) == dir {
 			return path
 		}
 		rest = filepath.Join(filepath.Base(dir), rest)
 	}
+}
+
+func danglingLinkTarget(path string) (string, bool) {
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		return "", false
+	}
+	target, err := os.Readlink(path)
+	if err != nil {
+		return "", false
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(filepath.Dir(path), target)
+	}
+	return filepath.Clean(target), true
 }
 
 // ShownPath is a path as the window's question prints it: control and format characters (a newline, a right-to-left
