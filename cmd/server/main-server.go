@@ -392,6 +392,7 @@ func createMainWshClient() {
 	rpc := wshserver.GetMainRpcClient()
 	wshutil.DefaultRouter.RegisterTrustedLeaf(rpc, wshutil.DefaultRoute)
 	wps.Broker.SetClient(wshutil.DefaultRouter)
+	wshserver.InstallMoltenRemoteGuard() // MOLTENTERM-PATCH (#1831): what an SSH or WSL host may ask wavesrv
 	// MOLTENTERM-PATCH (#106): durable local shells start from this environment, so it drops inherited agent session markers
 	localInitialEnv := envutil.StripAgentSessionMarkersMap(envutil.PruneInitialEnv(envutil.SliceToMap(os.Environ())))
 	sockName := wavebase.GetDomainSocketName()

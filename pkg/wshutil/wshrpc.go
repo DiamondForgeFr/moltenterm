@@ -374,6 +374,13 @@ func (w *WshRpc) handleRequestInternal(req *RpcMessage, ingressLinkId baseds.Lin
 			respHandler.Finalize()
 		}
 	}()
+	// MOLTENTERM-PATCH (#1831): wavesrv's guard of what an SSH or WSL host may ask (moltenterm_remotelink.go).
+	guardedData, guardErr := runMoltenRequestGuard(respHandler.ctx, req.Command, req.Data)
+	if guardErr != nil {
+		respHandler.SendResponseError(guardErr)
+		return
+	}
+	respHandler.commandData = guardedData
 	handlerFn := serverImplAdapter(w.ServerImpl)
 	isAsync = !handlerFn(respHandler)
 }
