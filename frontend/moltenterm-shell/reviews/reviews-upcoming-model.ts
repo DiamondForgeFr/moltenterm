@@ -7,6 +7,7 @@
 
 import { agentDisplayName, currentFeatureMatrix } from "../agent-info/agent-features-model";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { branchTicketNumber } from "../agent-work-model";
 import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction } from "../i18n/i18n";
 import type { Phrase } from "../i18n/phrase";
@@ -145,6 +146,9 @@ export type AgentBarFacts = {
     work?: Phrase;
     // A background agent named by its signature (#1603); agentName is then its CLI as signed.
     signed?: boolean;
+    // A panel on the branch whose only work is sub-agents on other tickets (#1796): idle here, its line says where it
+    // is busy; ticket 0 when the sub-agents' branch names none.
+    elsewhere?: { ticket: number };
 };
 
 // The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv; so does
@@ -230,7 +234,13 @@ const KindRank: Record<AgentBarFacts["kind"], number> = { panel: 2, subagent: 1,
 
 // branchAgents (#1057): every agent on the branch, the one branchAgent picks first: panels by urgency, then
 // sub-agents, then background agents, each kind in wavesrv's order. A card lists them all, each with its own state.
-export function branchAgents(upcoming: UpcomingAnswer, states: AgentStatesData, branch: string): AgentBarFacts[] {
+// ticket: the branch's own ticket, when the caller knows it (a PR's), else read from the branch name.
+export function branchAgents(
+    upcoming: UpcomingAnswer,
+    states: AgentStatesData,
+    branch: string,
+    ticket?: number
+): AgentBarFacts[] {
     if (upcoming?.agents == null || !branch) {
         return [];
     }
@@ -260,16 +270,53 @@ export function branchAgents(upcoming: UpcomingAnswer, states: AgentStatesData, 
             });
             continue;
         }
-        const facts = panelFacts(a.blockid, states?.states?.[a.blockid], a);
-        if (facts != null) {
-            found.push(facts);
+        const info = states?.states?.[a.blockid];
+        const facts = panelFacts(a.blockid, info, a);
+        if (facts == null) {
+            continue;
         }
+        const elsewhere = busyElsewhere(upcoming, info, branch, ticket || branchTicketNumber(branch));
+        found.push(elsewhere != null ? { ...facts, state: "idle", held: undefined, elsewhere } : facts);
     }
     const rank = (f: AgentBarFacts) => KindRank[f.kind] * 10 + (f.kind === "panel" ? BarUrgency[f.state] : 0);
     return found
         .map((facts, i) => ({ facts, i }))
         .sort((x, y) => rank(y.facts) - rank(x.facts) || x.i - y.i)
         .map((x) => x.facts);
+}
+
+// busyElsewhere (#1796, FR-REV-022): a panel on the branch whose main session is idle and whose working state is only
+// its sub-agents' (background) works on this branch only if one of them does. It is busy elsewhere when every one of
+// its running sub-agents is placed in another branch's worktree and none names this ticket in its task. A sub-agent
+// wavesrv does not place (one in the panel's own worktree, never listed) leaves the doubt to the branch: null.
+export function busyElsewhere(
+    upcoming: UpcomingAnswer,
+    info: AgentStateInfo,
+    branch: string,
+    ticket: number
+): { ticket: number } {
+    if (!info?.background || info.state !== "working" || !((info.subagents ?? 0) > 0)) {
+        return null;
+    }
+    const subs = (upcoming?.agents ?? []).filter(
+        (a) => a.kind === "subagent" && a.parentblockid === info.blockid && a.state !== "done"
+    );
+    if (subs.length < info.subagents) {
+        return null;
+    }
+    if (subs.some((a) => a.branch === branch || (ticket > 0 && namesTicket(a.description, ticket)))) {
+        return null;
+    }
+    return { ticket: branchTicketNumber(subs[0].branch) || ticketNamed(subs[0].description) };
+}
+
+function namesTicket(text: string, ticket: number): boolean {
+    return new RegExp(`#${ticket}(?!\\d)`).test(text ?? "");
+}
+
+function ticketNamed(text: string): number {
+    const m = /#(\d+)/.exec(text ?? "");
+    return m ? Number(m[1]) : 0;
 }
 
 // panelFacts: a panel agent as its terminal's state says it; null when the windows no longer know the terminal.
