@@ -23,10 +23,11 @@ func init() {
 	wshutil.SetRequestGuard(moltenForwardGuard)
 }
 
-// moltenCheckTermOutputRead: a terminal reads the output of its own workspace's blocks only (NFR-FORK-001, #1832).
+// moltenCheckTermOutputRead: a local terminal reads the output of its own workspace's blocks only (NFR-FORK-001,
+// #1832). A remote host is unchanged here: the remote-host guard (#1831) owns it.
 func moltenCheckTermOutputRead(ctx context.Context, blockId string) error {
 	caller := moltenMetaCaller(ctx, true)
-	if caller.Trusted {
+	if caller.Trusted || !caller.Local {
 		return nil
 	}
 	return metaguard.CheckTermOutputRead(caller, blockId, moltenInWorkspace(ctx, caller, waveobj.MakeORef(waveobj.OType_Block, blockId)))
@@ -36,7 +37,7 @@ func moltenCheckTermOutputRead(ctx context.Context, blockId string) error {
 // attached to them (a job's zone), and no other zone.
 func moltenCheckZoneRead(ctx context.Context, zoneId string) error {
 	caller := moltenMetaCaller(ctx, true)
-	if caller.Trusted {
+	if caller.Trusted || !caller.Local {
 		return nil
 	}
 	blockId := zoneId
@@ -61,7 +62,7 @@ func moltenForwardGuard(router *wshutil.WshRouter, msg wshutil.RpcMessage, ingre
 		return nil
 	}
 	caller := metaguard.CallerOf(router, msg.Source, ingressLinkId)
-	if caller.Trusted {
+	if caller.Trusted || !caller.Local {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), moltenForwardLookupTimeout)

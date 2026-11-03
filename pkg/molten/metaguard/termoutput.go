@@ -29,13 +29,11 @@ var ForwardedCommands = map[string]string{
 
 // CheckTermOutputRead tells whether c may read the output of blockId (its terminal file, its scrollback, its live
 // output): a terminal reads its own block and its own workspace's other blocks, whose panes agents read (their
-// companion, a sibling shell); an SSH or WSL host, whose workspace is unknown, reads none (NFR-FORK-001, #1832).
+// companion, a sibling shell), never another workspace's (NFR-FORK-001, #1832). These rules bind local terminals only:
+// an SSH or WSL host, whose workspace is unknown, is the remote-host guard's (#1831), and is unchanged here.
 func CheckTermOutputRead(c Caller, blockId string, inOwnWorkspace bool) error {
-	if c.Trusted {
+	if !bindsTermOutput(c) {
 		return nil
-	}
-	if !c.Local {
-		return fmt.Errorf("refused: a terminal cannot read a terminal's output from an SSH or WSL host (block %s); the MoltenTerm window does", blockId)
 	}
 	if blockId != "" && blockId == c.BlockId {
 		return nil
@@ -46,12 +44,18 @@ func CheckTermOutputRead(c Caller, blockId string, inOwnWorkspace bool) error {
 	return fmt.Errorf("refused: a terminal cannot read the output of block %s, outside its own workspace; the MoltenTerm window does", blockId)
 }
 
+// bindsTermOutput: the terminal-output rules apply to a local terminal, not to the window or wavesrv (trusted), nor to
+// a remote host (#1831's scope).
+func bindsTermOutput(c Caller) bool {
+	return !c.Trusted && c.Local
+}
+
 // CheckForwardedRequest tells whether c may have wavesrv forward command to route. Only ForwardedCommands are
 // checked: each goes only to the route kind it names, of c's own workspace (a panel c may read, CheckTermOutputRead,
-// or a tab), and blockId, the block a screenshot names, is in c's own workspace too. A remote host sends none.
+// or a tab), and blockId, the block a screenshot names, is in c's own workspace too. Local terminals only.
 func CheckForwardedRequest(c Caller, command string, route string, blockId string, inOwnWorkspace func(waveobj.ORef) bool) error {
 	prefix, checked := ForwardedCommands[command]
-	if c.Trusted || !checked {
+	if !bindsTermOutput(c) || !checked {
 		return nil
 	}
 	id, ok := strings.CutPrefix(route, prefix)
@@ -59,10 +63,7 @@ func CheckForwardedRequest(c Caller, command string, route string, blockId strin
 		return fmt.Errorf("refused: a terminal cannot send %s to %q, only to a panel or a tab of its own workspace; the MoltenTerm window does", command, route)
 	}
 	if prefix == feBlockRoutePrefix {
-		return CheckTermOutputRead(c, id, c.Local && inOwnWorkspace(waveobj.MakeORef(waveobj.OType_Block, id)))
-	}
-	if !c.Local {
-		return fmt.Errorf("refused: a terminal cannot send %s to a tab from an SSH or WSL host; the MoltenTerm window does", command)
+		return CheckTermOutputRead(c, id, inOwnWorkspace(waveobj.MakeORef(waveobj.OType_Block, id)))
 	}
 	if c.WorkspaceId == "" || !inOwnWorkspace(waveobj.MakeORef(waveobj.OType_Tab, id)) {
 		return fmt.Errorf("refused: a terminal cannot send %s to tab %s, outside its own workspace; the MoltenTerm window does", command, id)
@@ -74,9 +75,10 @@ func CheckForwardedRequest(c Caller, command string, route string, blockId strin
 }
 
 // CheckBlockFileSubscribe tells whether c may follow a blockfile event (a terminal's live output) or read its history:
-// every scope names a block c may read (CheckTermOutputRead); no wildcard, no all-scopes. Other events are unchanged.
+// every scope names a block c may read (CheckTermOutputRead); no wildcard, no all-scopes. Other events, and callers
+// other than local terminals, are unchanged.
 func CheckBlockFileSubscribe(c Caller, req wps.SubscriptionRequest, inOwnWorkspace func(waveobj.ORef) bool) error {
-	if c.Trusted || req.Event != wps.Event_BlockFile {
+	if !bindsTermOutput(c) || req.Event != wps.Event_BlockFile {
 		return nil
 	}
 	if req.AllScopes || len(req.Scopes) == 0 {
@@ -88,7 +90,7 @@ func CheckBlockFileSubscribe(c Caller, req wps.SubscriptionRequest, inOwnWorkspa
 			return fmt.Errorf("refused: a terminal cannot follow the output of %q; it follows only its own workspace's blocks; the MoltenTerm window does", scope)
 		}
 		oref := waveobj.MakeORef(otype, oid)
-		if err := CheckTermOutputRead(c, oid, c.Local && inOwnWorkspace(oref)); err != nil {
+		if err := CheckTermOutputRead(c, oid, inOwnWorkspace(oref)); err != nil {
 			return err
 		}
 	}
