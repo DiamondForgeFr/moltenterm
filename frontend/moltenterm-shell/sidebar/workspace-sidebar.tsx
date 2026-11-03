@@ -80,6 +80,7 @@ import {
 } from "../tab-identity-ui";
 import { ReleaseUpdateButton } from "../update/release-update-ui";
 import { GoldUpdateButton } from "../update/update-dialog";
+import { useScreenPublisher } from "../view360/screen-publisher";
 import { View360ExitHost } from "../view360/view360-toggle";
 import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
 import { workspaceShownName } from "../workspace-default-name";
@@ -2560,6 +2561,7 @@ export function WorkspaceSidebar() {
     const peek = useAtomValue(model.peekAtom);
     const ws = useAtomValue(atoms.workspace);
     const activeTabId = useAtomValue(atoms.staticTabId);
+    useScreenPublisher();
     const workspaces = useSidebarWorkspaces();
     const onWorkspaceMenu = useWorkspaceMenu(workspaces);
     const asideRef = useRef<HTMLElement>(null);

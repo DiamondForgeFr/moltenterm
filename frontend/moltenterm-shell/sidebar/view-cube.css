@@ -1,0 +1,135 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The 360 cube of a view's icon (FR-SHELL-081, DS-SHELL-126, #1823).
+
+   Drawn in oblique projection, not in perspective: the front face keeps its true size and sits on whole pixels, so its
+   icon stays as crisp as any other glyph at 1x and 2x; the depth shows as a face above and a face on the right, shifted
+   up and to the right by --cube-d. The body is sheared by --cube-k = d / s (a matrix3d whose third column carries z into
+   x and y) and then turned around its vertical axis: at every quarter turn the next face lands exactly where the front
+   one was, so a cube at rest is as crisp as the first one. No perspective, hence no scaling of the faces.
+   The edges and fills come from currentColor, so the cube takes the tile's text colour (workspace colour = place);
+   it carries no accent: orange stays for actions. */
+.mt-cube {
+    --cube-s: 12px;
+    --cube-d: 4px;
+    --cube-k: 0.3333333333;
+    --cube-edge: color-mix(in srgb, currentColor 62%, transparent);
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: calc(var(--cube-s) + var(--cube-d));
+    height: calc(var(--cube-s) + var(--cube-d));
+    color: inherit;
+}
+
+/* The small glyph (a view row, a tile with counts): the same 4 px of depth on a 10 px face. */
+.mt-cube.is-small {
+    --cube-s: 10px;
+    --cube-k: 0.4;
+}
+
+.mt-cube-body {
+    position: absolute;
+    top: calc(var(--cube-d) / 2);
+    left: calc(var(--cube-d) / 2);
+    width: var(--cube-s);
+    height: var(--cube-s);
+    transform-style: preserve-3d;
+    transform: matrix3d(1, 0, 0, 0, 0, 1, 0, 0, calc(var(--cube-k) * -1), var(--cube-k), 1, 0, 0, 0, 0, 1)
+        rotateY(var(--mt-cube-turn, 0deg));
+    transition: transform var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
+}
+
+.mt-cube-face {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--cube-edge);
+    border-radius: 2px;
+    background-color: color-mix(in srgb, currentColor 9%, transparent);
+    backface-visibility: hidden;
+    font-size: 8px;
+    line-height: 1;
+}
+
+.mt-cube.is-small .mt-cube-face {
+    font-size: 7px;
+}
+
+/* A glyph seen edge-on is noise: only the front face shows its icon, the others fade it with the turn. */
+.mt-cube-face > i {
+    opacity: 0;
+    transition: opacity var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
+}
+
+.mt-cube-face[data-role="front"] > i {
+    opacity: 1;
+}
+
+/* A soft light from the top left, written on each face so it turns with the cube. */
+.mt-cube-face::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: linear-gradient(135deg, color-mix(in srgb, currentColor 22%, transparent), transparent 62%);
+    pointer-events: none;
+}
+
+/* The faces beside the front one are in the shade: it eases in and out with the turn, so a face coming forward
+   brightens as it arrives. */
+.mt-cube-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-color: rgb(0 0 0 / 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
+}
+
+.mt-cube-face[data-role="right"]::after,
+.mt-cube-face[data-role="left"]::after,
+.mt-cube-face[data-role="back"]::after {
+    opacity: 1;
+}
+
+.mt-cube-face[data-slot="0"] {
+    transform: translateZ(calc(var(--cube-s) / 2));
+}
+
+.mt-cube-face[data-slot="1"] {
+    transform: rotateY(90deg) translateZ(calc(var(--cube-s) / 2));
+}
+
+.mt-cube-face[data-slot="2"] {
+    transform: rotateY(180deg) translateZ(calc(var(--cube-s) / 2));
+}
+
+.mt-cube-face[data-slot="3"] {
+    transform: rotateY(-90deg) translateZ(calc(var(--cube-s) / 2));
+}
+
+.mt-cube-face.is-top {
+    transform: rotateX(90deg) translateZ(calc(var(--cube-s) / 2));
+    background-color: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-cube-body,
+    .mt-cube-face::after,
+    .mt-cube-face > i {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-cube-body,
+.prefers-reduced-motion .mt-cube-face::after,
+.prefers-reduced-motion .mt-cube-face > i {
+    transition: none;
+}

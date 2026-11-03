@@ -8,7 +8,7 @@
 // "Update the pinned view" (#1272) only when it is next opened.
 
 import type { SidebarTabSplit } from "./sidebar-model";
-import { configPaneIcons, viewGlyphIcons } from "./view-menu-model";
+import { configPaneIcons, viewGlyphIcons, type GlyphIcon } from "./view-menu-model";
 import type { GlobalPin } from "./view-pins-model";
 
 // The top row's lines (FR-SHELL-080, #1651): up to four blocks a line, a 6 px gutter. A line whose blocks each get at
@@ -22,12 +22,12 @@ export const TopRowStackedMinWidth = 52;
 export const TopRowIconWidth = 40;
 
 // tabId: this workspace's instance of the pin, "" when the workspace never opened it.
-export type TopRowBlock = { pin: GlobalPin; tabId: string; name: string; glyph: string[] };
+export type TopRowBlock = { pin: GlobalPin; tabId: string; name: string; glyph: GlyphIcon[] };
 
 export type WorkspaceBlocks = { top: TopRowBlock[]; tiles: string[] };
 
 // A top-row block's glyph: its pin's icon, else the pin's configuration.
-export function pinGlyph(pin: GlobalPin): string[] {
+export function pinGlyph(pin: GlobalPin): GlyphIcon[] {
     return viewGlyphIcons(pin.icon, configPaneIcons(pin.config));
 }
 

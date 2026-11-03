@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The view menu's two small pages (FR-SHELL-081, the #1181 prototype's renameMenu and iconMenu): Rename, a field for a
-// view whose name does not show (a top-row block), and Change icon, a grid of glyphs plus "Panels' icons" to go back.
+// view whose name does not show (a top-row block), and Change icon, a grid of glyphs plus "What the view shows" to go
+// back, drawn as the view's screen draws it now (its panels' icons, or the fixed ones and the 360 cube, #1823).
 // One at a time, placed where the menu was opened; Escape or a click elsewhere closes it.
 
 import { globalStore } from "@/app/store/jotaiStore";
@@ -12,6 +13,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { SidebarGlyph } from "./sidebar-icons";
+import { ViewGlyph, screenGlyphAtom } from "./view-glyph";
 import { ViewIconChoices } from "./view-menu-model";
 import { ViewPins, ViewRef } from "./view-pins-store";
 
@@ -77,6 +79,7 @@ function RenameBody({ state }: { state: ViewPopoverState }) {
 
 function IconBody({ state }: { state: ViewPopoverState }) {
     const t = useT();
+    const screen = useAtomValue(screenGlyphAtom(state.ref?.tabId ?? ""));
     const choose = (icon: string) => {
         closeViewPopover();
         fireAndForget(() => ViewPins.getInstance().setIcon(state.ref, icon));
@@ -111,7 +114,8 @@ function IconBody({ state }: { state: ViewPopoverState }) {
                 onClick={() => choose(null)}
             >
                 <SidebarGlyph name="undo" size={14} />
-                {t("sidebar.views.panelIcons")}
+                <span className="min-w-0 flex-1 truncate">{t("sidebar.views.panelIcons")}</span>
+                {screen.length > 0 ? <ViewGlyph icons={screen} small /> : null}
             </button>
         </>
     );

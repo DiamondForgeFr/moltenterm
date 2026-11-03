@@ -6,6 +6,7 @@
 // app; palette-sources.ts builds the entries and palette-actions.ts runs them.
 
 import { t } from "../i18n/i18n";
+import type { GlyphIcon } from "../sidebar/view-menu-model";
 import type { WorkspaceIconSource } from "../workspace-icon-model";
 
 // "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed. "suggestions":
@@ -83,8 +84,8 @@ export type PaletteEntry = {
     // In a split's picker: how to reach the entry from the keyboard ("⌘D co ↵"), and its own global shortcut.
     keyPath?: string;
     shortcut?: string;
-    // A suggestion's panels, their icons shown before its detail (FR-SHELL-138).
-    panelIcons?: string[];
+    // A suggestion's panels, their icons shown before its detail (FR-SHELL-138); a 360 carpet is a cube (#1823).
+    panelIcons?: GlyphIcon[];
     run: PaletteRun;
 };
 
