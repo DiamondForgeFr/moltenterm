@@ -2,7 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { ActionCueMs, activeCue, AgentTab, applyControl, controlBarView, readPanelAgentState } from "./browser-agent";
+import {
+    ActionCueMs,
+    activeCue,
+    agentShowedPage,
+    AgentTab,
+    applyControl,
+    controlBarView,
+    readPanelAgentState,
+    shownStamps,
+} from "./browser-agent";
 import {
     addTab,
     BrowserState,
@@ -151,5 +160,35 @@ describe("agent tab requests", () => {
             "https://default.example"
         );
         expect(state).toEqual({ tabs: [{ id: "agent-x", url: "about:blank", title: undefined }], activeId: "agent-x" });
+    });
+});
+
+// #1812: which stamps say the agent put a page in front of the developer.
+describe("pages an agent shows", () => {
+    const tabs = (...list: AgentTab[]) => readPanelAgentState({ blockid: "panel", tabs: list });
+
+    it("reads each tab's stamp, 0 when it has none", () => {
+        expect(shownStamps(tabs(tab({ shownts: 500 }), tab({ browsertabid: "shared-1", origin: "shared" })))).toEqual({
+            "agent-1": 500,
+            "shared-1": 0,
+        });
+        expect(shownStamps(null)).toEqual({});
+    });
+
+    it("is a later stamp than the one last read", () => {
+        expect(agentShowedPage(tabs(tab({ shownts: 501 })), { "agent-1": 500 })).toBe(true);
+        expect(agentShowedPage(tabs(tab({ shownts: 500 })), { "agent-1": 500 })).toBe(false);
+        expect(agentShowedPage(tabs(tab({ shownts: 400 })), { "agent-1": 500 })).toBe(false);
+    });
+
+    it("is a tab with a stamp that was not read before", () => {
+        expect(agentShowedPage(tabs(tab({ shownts: 500 })), {})).toBe(true);
+        expect(agentShowedPage(tabs(tab({ shownts: 500 })), null)).toBe(true);
+    });
+
+    it("is not a tab that was never shown (a shared one) or no tab at all", () => {
+        expect(agentShowedPage(tabs(tab({ browsertabid: "shared-1", origin: "shared" })), {})).toBe(false);
+        expect(agentShowedPage(tabs(), { "agent-1": 500 })).toBe(false);
+        expect(agentShowedPage(null, {})).toBe(false);
     });
 });

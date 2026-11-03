@@ -84,6 +84,9 @@ export type AgentTab = {
     engaged?: boolean;
     // When the agent got the tab (Unix ms), for the library's Sent to AI (FR-SHELL-088).
     since?: number;
+    // When the agent last put the page in front of the developer, by opening the tab or going to another page (Unix ms,
+    // always increasing): a panel off-screen on the 360 carpet scrolls into view when it changes (#1812).
+    shownts?: number;
 };
 
 // must match ShareResult, ShareTellResult and SessionEntry in pkg/molten/browseragent/share.go
@@ -128,6 +131,23 @@ export function readPanelAgentState(state: PanelAgentState): AgentTabs {
         }
     }
     return rtn;
+}
+
+// The stamp of each tab's last shown page, by tab id.
+export type ShownStamps = Record<string, number>;
+
+export function shownStamps(tabs: AgentTabs): ShownStamps {
+    const rtn: ShownStamps = {};
+    for (const tab of Object.values(tabs ?? {})) {
+        rtn[tab.browsertabid] = tab.shownts ?? 0;
+    }
+    return rtn;
+}
+
+// Whether the agent put a page in front of the developer since `seen` was read (#1812): a tab opened, or a tab gone to
+// another page, has a later stamp than the one last read.
+export function agentShowedPage(tabs: AgentTabs, seen: ShownStamps): boolean {
+    return Object.values(tabs ?? {}).some((tab) => (tab.shownts ?? 0) > (seen?.[tab.browsertabid] ?? 0));
 }
 
 export function agentName(tab: AgentTab): string {
@@ -347,6 +367,10 @@ export class BrowserAgentModel {
     // The tabs where emain just held back the user's click or key (#971), whose bar says how to take over.
     heldAtom = atom({}) as PrimitiveAtom<Record<string, true>>;
     heldTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    // Asked when the agent puts a page in front of the developer (#1812). Only a state event can ask: the snapshot read
+    // when the panel mounts is where the stamps start, so an agent's old page never moves the carpet.
+    onShown: () => void = null;
+    shownSeen: ShownStamps = {};
 
     constructor(blockId: string) {
         this.blockId = blockId;
@@ -381,7 +405,7 @@ export class BrowserAgentModel {
                 eventType: BrowserAgentStateEvent as WaveEventName,
                 scope: `block:${this.blockId}`,
                 handler: (event) => {
-                    this.apply(event.data as PanelAgentState);
+                    this.apply(event.data as PanelAgentState, true);
                 },
             });
         } catch (e) {
@@ -409,12 +433,18 @@ export class BrowserAgentModel {
         }
     }
 
-    apply(state: PanelAgentState): void {
+    apply(state: PanelAgentState, live = false): void {
         if (state?.blockid !== this.blockId) {
             return;
         }
         this.stateVersion++;
-        globalStore.set(this.tabsAtom, readPanelAgentState(state));
+        const tabs = readPanelAgentState(state);
+        const showed = live && agentShowedPage(tabs, this.shownSeen);
+        this.shownSeen = shownStamps(tabs);
+        globalStore.set(this.tabsAtom, tabs);
+        if (showed) {
+            this.onShown?.();
+        }
     }
 
     control(browserTabId: string, action: AgentControlAction): void {
