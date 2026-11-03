@@ -169,6 +169,10 @@ export type ReleaseRun = {
 // must match ReleasePreparationStepId in pkg/molten/mission/release.go: no declared step id can start with "@".
 export const PreparationStep = "@preparation";
 
+// must match ReleaseReadyStepId in pkg/molten/mission/release.go: the readiness check the preparation starts with when
+// molten cuts the release (#1800), announced as a phase of its own.
+export const ReadyStep = "@ready";
+
 export const PhaseTitles: Record<ReleasePhase, string> = labelRecord("mc.releaseRun.phase", [
     "prepare",
     "cut",
@@ -418,27 +422,27 @@ function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
     };
     const fact = facts.preparation;
     if (fact?.running) {
-        const at = steps.find((s) => s.id === fact.phases[fact.phases.length - 1]);
-        return {
-            ...base,
-            status: "running",
-            expect: `${at ? stepTitle(at) : t("mc.releaseRun.preparing")}…`,
-            log: fact,
-        };
+        const last = fact.phases?.[fact.phases.length - 1];
+        const at = steps.find((s) => s.id === last);
+        const title = last === ReadyStep ? t("mc.releaseRun.ready") : at ? stepTitle(at) : t("mc.releaseRun.preparing");
+        return { ...base, status: "running", expect: `${title}…`, log: fact };
     }
     if (broke(fact)) {
-        const at = steps.find((s) => s.id === fact.phases?.[fact.phases.length - 1]);
+        const last = fact.phases?.[fact.phases.length - 1];
+        const at = steps.find((s) => s.id === last);
+        const checking = last === ReadyStep;
+        const failed = checking
+            ? t("mc.releaseRun.readyFailed", { words: lastWords(fact) })
+            : t("mc.releaseRun.preparationFailed", { words: lastWords(fact) });
+        const stopped = checking ? t("mc.releaseRun.ready") : at ? stepTitle(at) : PhaseTitles.prepare;
         return {
             ...base,
             status: "failed",
             expect: t("mc.releaseRun.fixRetryPreparation"),
-            cause:
-                fact.state === "lost"
-                    ? t("mc.releaseRun.preparationLost")
-                    : t("mc.releaseRun.preparationFailed", { words: lastWords(fact) }),
+            cause: fact.state === "lost" ? t("mc.releaseRun.preparationLost") : failed,
             action: retry,
             log: fact,
-            failure: failureOf(at ? stepTitle(at) : PhaseTitles.prepare, fact),
+            failure: failureOf(stopped, fact),
         };
     }
     if (fact?.state === "success") {

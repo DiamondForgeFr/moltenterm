@@ -4,8 +4,6 @@
 package release
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -137,50 +135,4 @@ func TitleNamesTag(title string, tag string) bool {
 		}
 		from = end
 	}
-}
-
-var releaseTicketTitleRegex = regexp.MustCompile(`(?i)\brelease\b`)
-
-// releaseTicket is the ticket the release's commits name, when the convention wants one: --ticket, then
-// MOLTEN_RELEASE_TICKET, then the issue of the version's milestone titled as its release ("Release v1.2.0").
-func (e *Env) releaseTicket(ctx context.Context, p *Project, base string) (int, error) {
-	if !p.Convention.TicketScope {
-		return 0, nil
-	}
-	if e.Ticket > 0 {
-		return e.Ticket, nil
-	}
-	if n, err := strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(os.Getenv(TicketEnv)), "#")); err == nil && n > 0 {
-		return n, nil
-	}
-	missing := fmt.Errorf("the project's commit format names a ticket (chore(#N): ...): pass --ticket N, or put an issue titled \"Release %s\" in the %s milestone", p.Rules.TagPrefix+base, base)
-	if !e.OnGithub(ctx, p.Root) {
-		return 0, missing
-	}
-	m, err := e.milestoneOf(ctx, p.Root, base, false)
-	if err != nil || m == nil {
-		return 0, missing
-	}
-	out, err := e.gh(ctx, p.Root, "api", fmt.Sprintf("repos/{owner}/{repo}/issues?milestone=%d&state=all&per_page=100", m.Number))
-	if err != nil {
-		return 0, missing
-	}
-	var issues []struct {
-		Number      int             `json:"number"`
-		Title       string          `json:"title"`
-		PullRequest json.RawMessage `json:"pull_request"`
-	}
-	if json.Unmarshal(out, &issues) != nil {
-		return 0, missing
-	}
-	for _, issue := range issues {
-		if len(issue.PullRequest) > 0 || !releaseTicketTitleRegex.MatchString(issue.Title) {
-			continue
-		}
-		if strings.Contains(issue.Title, base) {
-			e.printf("Commits name #%d, the release ticket of milestone %s (%s).\n", issue.Number, m.Title, issue.Title)
-			return issue.Number, nil
-		}
-	}
-	return 0, missing
 }

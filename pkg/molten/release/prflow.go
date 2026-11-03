@@ -187,12 +187,9 @@ func (e *Env) commitPrepared(ctx context.Context, p *Project, wt string, tag str
 		return false, nil
 	}
 	e.formatRelease(ctx, p, wt, tag)
-	allowed, err := e.checkPrepared(ctx, p, wt, tag, v)
-	if err != nil {
-		return false, err
-	}
-	ticket, err := e.releaseTicket(ctx, p, v.Base().String())
-	if err != nil {
+	ready := e.beginReadiness(tag, "be committed")
+	allowed, ticket := e.readyToCommit(ctx, ready, p, wt, tag, v)
+	if err := ready.finish(tag, "nothing was committed"); err != nil {
 		return false, err
 	}
 	if err := e.commitRelease(ctx, p, wt, allowed, tag, channel, ticket); err != nil {
