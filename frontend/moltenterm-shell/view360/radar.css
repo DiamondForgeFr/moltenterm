@@ -265,9 +265,11 @@
     margin-top: 1px;
 }
 
-/* The tab strip (FR-SHELL-125, DS-SHELL-135, mockups #1395 5b-5d). Stored tabs are calm, visible ones light inside the
-   neutral frame, the focused panel's tab carries the place's colour (--mt-place) under it. The sizes match
-   carpet-tabs-model.ts (TabIconPx, TabGapPx, FrameExtraPx, StripPlusPx), which decides titles, icons or ticks. */
+/* The tab strip (FR-SHELL-125, DS-SHELL-135, mockups #1395 5b-5d). One line, one meaning (AC16, #1827): stored tabs
+   are calm, visible ones raised inside the neutral frame with no line, the focused panel's tab alone carries the
+   place's liseré (--mt-place) along its rounded bottom edge, and the kind is told by the icon's colour, never by a
+   second bar. The sizes match carpet-tabs-model.ts (TabIconPx, TabGapPx, FrameExtraPx, StripPlusPx), which decides
+   titles, icons or ticks. */
 .mt-strip-tabs {
     position: relative;
     display: flex;
@@ -291,10 +293,16 @@
     gap: 6px;
     height: 26px;
     --mt-strip-bg: var(--mt-surface-1);
+    /* The tab's box-shadow is three layers, each set by one state: the focus liseré, the raised rim of a visible
+       tab, and the cast shadow of a tab floating outside the visible area (AC13). */
+    --mt-strip-line: 0 0 transparent;
+    --mt-strip-rim: 0 0 transparent;
+    --mt-strip-cast: 0 0 transparent;
     padding: 0 7px;
     border: 1px solid var(--mt-line-1);
     border-radius: var(--mt-radius-control);
     background: var(--mt-strip-bg);
+    box-shadow: var(--mt-strip-line), var(--mt-strip-rim), var(--mt-strip-cast);
     color: var(--mt-text-3);
     font-family: var(--mt-ui-font);
     font-size: var(--mt-text-12);
@@ -313,8 +321,10 @@
     padding: 0;
 }
 
+/* Raised: the lighter surface, a hairline border and a one-pixel light catch on the top edge, no coloured line. */
 .mt-strip-tab[data-visible] {
     --mt-strip-bg: var(--mt-surface-3);
+    --mt-strip-rim: inset 0 1px 0 color-mix(in srgb, var(--mt-text-1) 7%, transparent);
     border-color: var(--mt-line-2);
     color: var(--mt-text-1);
 }
@@ -325,8 +335,10 @@
     color: var(--mt-text-1);
 }
 
+/* The liseré: an inset shadow, not a bar, so it follows the tab's rounded corners and thins out at both ends. It is
+   the only coloured line of the strip, inside or outside the visible area. */
 .mt-strip-tab[data-focus] {
-    box-shadow: inset 0 -2px 0 var(--mt-place);
+    --mt-strip-line: inset 0 -2px 0 var(--mt-place);
 }
 
 .mt-strip-tab:focus-visible {
@@ -338,7 +350,7 @@
     z-index: 2;
     border-color: color-mix(in srgb, var(--mt-text-1) 30%, transparent);
     color: var(--mt-text-1);
-    box-shadow: 0 8px 18px -8px rgb(0 0 0 / 0.8);
+    --mt-strip-cast: 0 8px 18px -8px rgb(0 0 0 / 0.8);
     transition: none;
     cursor: grabbing;
 }
@@ -351,6 +363,20 @@
     height: 14px;
     font-size: var(--mt-text-11);
     object-fit: contain;
+}
+
+/* The kind's colour is the icon's (AC16): quieter on a stored tab, full on a visible, hovered or focused one. A page's
+   favicon keeps its own colours: it already says "page". */
+i.mt-strip-glyph {
+    color: color-mix(in srgb, var(--mt-radar-color) 72%, var(--mt-text-3));
+    transition: color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-strip-tab[data-visible] i.mt-strip-glyph,
+.mt-strip-tab[data-focus] i.mt-strip-glyph,
+.mt-strip-tab:hover i.mt-strip-glyph,
+.mt-strip-tab:focus-visible i.mt-strip-glyph {
+    color: var(--mt-radar-color);
 }
 
 /* The Ctrl+Shift number takes the glyph's place while both keys are held (FR-SHELL-126-AC2): the same 14 px, so the
@@ -412,18 +438,6 @@
 .mt-strip-close:hover {
     background: color-mix(in srgb, var(--mt-text-1) 12%, var(--mt-strip-bg));
     color: var(--mt-text-1);
-}
-
-.mt-strip-kind {
-    position: absolute;
-    right: 6px;
-    bottom: -1px;
-    left: 6px;
-    height: 2px;
-    border-radius: 9999px;
-    background: var(--mt-radar-color);
-    opacity: 0.7;
-    pointer-events: none;
 }
 
 /* The attention mark and the agent's initial sit on the tab's corner (AC3). */
@@ -517,26 +531,26 @@
 
 /* The floating strip (FR-SHELL-125 AC13, #1545): no band behind it since the carpet lost its frame, so the tabs and the
    visible area carry their own subtle shadow over the window. */
-.mt-strip-tabs .mt-strip-tab,
 .mt-strip-tabs .mt-radar-window,
 .mt-radar-ticks,
 .mt-strip-plus {
     box-shadow: 0 4px 12px -6px rgb(0 0 0 / 0.55);
 }
 
-.mt-light .mt-strip-tabs .mt-strip-tab,
 .mt-light .mt-strip-tabs .mt-radar-window,
 .mt-light .mt-radar-ticks,
 .mt-light .mt-strip-plus {
     box-shadow: 0 4px 12px -6px rgb(31 26 21 / 0.22);
 }
 
-.mt-strip-tabs .mt-radar-window .mt-strip-tab {
-    box-shadow: none;
+/* A tab outside the visible area casts its own shadow; one inside sits in the frame, which casts it. Only the cast
+   layer changes, so the liseré stays on a focused tab wherever it is. */
+.mt-strip-tabs > .mt-strip-tab:not(.dragging) {
+    --mt-strip-cast: 0 4px 12px -6px rgb(0 0 0 / 0.55);
 }
 
-.mt-strip-tabs .mt-radar-window .mt-strip-tab[data-focus] {
-    box-shadow: inset 0 -2px 0 var(--mt-place);
+.mt-light .mt-strip-tabs > .mt-strip-tab:not(.dragging) {
+    --mt-strip-cast: 0 4px 12px -6px rgb(31 26 21 / 0.22);
 }
 
 /* The previewed tab rises a few pixels (AC14), transform only; under reduced motion it stays put. */

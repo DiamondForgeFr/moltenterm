@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The tabs of the carpet's tab strip (FR-SHELL-125, DS-SHELL-135), drawn from the strip's rules (carpet-tabs-model.ts)
-// and wired by view360-radar.tsx: one tab per carpet panel with its icon or favicon, its title, its kind's margin, its
+// and wired by view360-radar.tsx: one tab per carpet panel with its icon in its kind's colour or its favicon, its title, its
 // close cross, its attention mark and its share mark (the agent's initial, or a glyph for several agents, #1545); the
 // visible area framing the tabs on screen; the "+" at the end. When even the icons no longer fit, the radar's ticks
 // come back. Nothing here runs per scroll frame.
@@ -214,7 +214,6 @@ const CarpetTab = memo(({ tick, layout, focused, roving, page, num, drag, handle
                     <i className="fa fa-solid fa-xmark" aria-hidden="true" />
                 </span>
             )}
-            <span className="mt-strip-kind" aria-hidden="true" />
         </div>
     );
 });
