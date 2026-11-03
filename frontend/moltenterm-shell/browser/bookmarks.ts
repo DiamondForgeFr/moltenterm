@@ -34,18 +34,38 @@ export type AllBookmarks = Record<string, ProjectBookmarks>;
 // replaces it when the bookmark goes in a folder that does not exist yet.
 export type BookmarkDraft = { url: string; title: string; description: string; folder: string; newFolder?: string };
 
-// A problem is an i18n key, so the component says it in the current language.
-export type BookmarkProblem = string;
+// A problem is an i18n key, so the component says it in the current language; one about another project than the
+// one edited (a copy that did not fit) carries that project's name.
+export type BookmarkProblem = string | { key: string; project: string };
 export type BookmarkResult<T> = { value: T; problem?: undefined } | { value?: undefined; problem: BookmarkProblem };
 
+export function problemKey(problem: BookmarkProblem): string {
+    return typeof problem === "string" ? problem : problem.key;
+}
+
+// The problem in words, with the numbers and the project it names.
+export function problemMessage(
+    problem: BookmarkProblem,
+    translate: (key: string, vars?: Record<string, string | number>) => string
+): string {
+    const key = problemKey(problem);
+    const vars: Record<string, string | number> = problemVars(key);
+    if (typeof problem !== "string") {
+        vars.project = problem.project;
+    }
+    return translate(key, vars);
+}
+
 // The numbers a problem's text names.
-export function problemVars(problem: BookmarkProblem): Record<string, number> {
+export function problemVars(problem: string): Record<string, number> {
     switch (problem) {
         case "browser.bookmarks.problem.addressTooLong":
             return { max: BookmarkLimits.url };
         case "browser.bookmarks.problem.tooMany":
+        case "browser.bookmarks.problem.alsoTooMany":
             return { max: BookmarkLimits.items };
         case "browser.bookmarks.problem.tooManyFolders":
+        case "browser.bookmarks.problem.alsoTooManyFolders":
             return { max: BookmarkLimits.folders };
         case "browser.bookmarks.problem.titleTooLong":
             return { max: BookmarkLimits.title };
@@ -85,6 +105,9 @@ export function singleLine(value: string): string {
 const OtherSchemeRe = /^[a-z][a-z0-9+.-]*:\/\//i;
 const BareSchemeRe = /^(about|file|data|javascript|mailto|blob|view-source|tel):/i;
 
+// What the workspace holds is read as untrusted data: `wsh setmeta` can write any workspace's meta, so a bookmark the
+// window shows or opens is checked again here, as on its way in. An entry whose address is not a safe web address is
+// ignored, the texts are cut to their limits and a project keeps no more than the limits allow.
 export function readProjectBookmarks(meta: Record<string, any>, projectId: string): ProjectBookmarks {
     const all = meta?.[BookmarksMetaKey];
     const entry = all != null && typeof all === "object" ? all[projectId] : null;
@@ -95,8 +118,8 @@ export function readProjectBookmarks(meta: Record<string, any>, projectId: strin
     const folderIds = new Set<string>();
     for (const f of Array.isArray(entry.folders) ? entry.folders : []) {
         const id = text(f?.id);
-        const name = text(f?.name);
-        if (id === "" || name === "" || folderIds.has(id)) {
+        const name = singleLine(typeof f?.name === "string" ? f.name : "").slice(0, BookmarkLimits.folderName);
+        if (id === "" || name === "" || folderIds.has(id) || folders.length >= BookmarkLimits.folders) {
             continue;
         }
         folderIds.add(id);
@@ -106,17 +129,21 @@ export function readProjectBookmarks(meta: Record<string, any>, projectId: strin
     const itemIds = new Set<string>();
     for (const b of Array.isArray(entry.items) ? entry.items : []) {
         const id = text(b?.id);
-        const url = text(b?.url);
-        if (id === "" || url === "" || itemIds.has(id)) {
+        const address = bookmarkAddress(typeof b?.url === "string" ? b.url : "");
+        if (id === "" || address.problem != null || itemIds.has(id) || items.length >= BookmarkLimits.items) {
             continue;
         }
         itemIds.add(id);
         const folder = text(b?.folder);
+        const title = singleLine(typeof b?.title === "string" ? b.title : "").slice(0, BookmarkLimits.title);
         items.push({
             id,
-            url,
-            title: text(b?.title) || url,
-            description: text(b?.description),
+            url: address.value,
+            title: title || address.value.slice(0, BookmarkLimits.title),
+            description: plainText(typeof b?.description === "string" ? b.description : "").slice(
+                0,
+                BookmarkLimits.description
+            ),
             folder: folderIds.has(folder) ? folder : "",
         });
     }
@@ -184,10 +211,19 @@ export function bookmarkAddress(raw: string): BookmarkResult<string> {
     return { value: parsed.href };
 }
 
-// The address of the page a panel shows when it can be bookmarked (a web page, not the start page or a blank one), else
-// "".
+// The address of the page a panel shows when the menu offers to bookmark it, else "": a web page, not the start page or
+// another kind of page. A web page whose address cannot be kept (too long, a user name in it) is still offered, as it
+// was typed, so the dialog can say why instead of the entry going missing.
 export function bookmarkablePage(url: string): string {
-    return bookmarkAddress(url ?? "").value ?? "";
+    const typed = singleLine(url ?? "");
+    const address = bookmarkAddress(typed);
+    if (address.problem == null) {
+        return address.value;
+    }
+    return address.problem === "browser.bookmarks.problem.addressTooLong" ||
+        address.problem === "browser.bookmarks.problem.credentials"
+        ? typed
+        : "";
 }
 
 // Two addresses are the same page for a bookmark when only a fragment or a lone trailing slash differs.

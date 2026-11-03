@@ -15,6 +15,8 @@ import {
     deleteFolder,
     findBookmarkByAddress,
     moveBookmark,
+    problemKey,
+    problemMessage,
     problemVars,
     ProjectBookmarks,
     projectIdOfTab,
@@ -40,7 +42,7 @@ function added(data: ProjectBookmarks, draft: Partial<Parameters<typeof addBookm
         makeId
     );
     if (result.problem != null) {
-        throw new Error(result.problem);
+        throw new Error(problemKey(result.problem));
     }
     return result.value;
 }
@@ -85,6 +87,27 @@ describe("bookmarkAddress", () => {
         expect(bookmarkablePage("about:blank#moltenterm-start")).toBe("");
         expect(bookmarkablePage("")).toBe("");
         expect(bookmarkablePage(undefined)).toBe("");
+        expect(bookmarkablePage("file:///tmp/page.html")).toBe("");
+    });
+
+    it("still offers a web page whose address cannot be kept, so the dialog says why", () => {
+        const long = "https://example.com/" + "a".repeat(BookmarkLimits.url);
+        expect(bookmarkablePage(long)).toBe(long);
+        expect(bookmarkAddress(long).problem).toBe("browser.bookmarks.problem.addressTooLong");
+        const withPassword = "https://user:secret@example.com/";
+        expect(bookmarkablePage(withPassword)).toBe(withPassword);
+        expect(bookmarkAddress(withPassword).problem).toBe("browser.bookmarks.problem.credentials");
+    });
+
+    it("says a problem with its numbers and, for another project, that project's name", () => {
+        const say = (key: string, vars?: Record<string, string | number>) => `${key}|${JSON.stringify(vars)}`;
+        expect(problemMessage("browser.bookmarks.problem.tooMany", say)).toBe(
+            `browser.bookmarks.problem.tooMany|{"max":${BookmarkLimits.items}}`
+        );
+        expect(problemMessage({ key: "browser.bookmarks.problem.alsoTooMany", project: "Website" }, say)).toBe(
+            `browser.bookmarks.problem.alsoTooMany|{"max":${BookmarkLimits.items},"project":"Website"}`
+        );
+        expect(problemKey({ key: "k", project: "p" })).toBe("k");
     });
 
     it("takes a fragment or a lone trailing slash for the same page", () => {
@@ -334,13 +357,59 @@ describe("what the workspace stores", () => {
         const data = readProjectBookmarks(meta, "p1");
         expect(data.folders).toEqual([{ id: "f1", name: "Docs" }]);
         expect(data.items).toEqual([
-            { id: "b1", url: "https://a.example.com", title: "A", description: "note", folder: "f1" },
-            { id: "b2", url: "https://b.example.com", title: "https://b.example.com", description: "", folder: "" },
+            { id: "b1", url: "https://a.example.com/", title: "A", description: "note", folder: "f1" },
+            { id: "b2", url: "https://b.example.com/", title: "https://b.example.com/", description: "", folder: "" },
         ]);
         expect(readProjectBookmarks(meta, "p2").items).toEqual([]);
         expect(readProjectBookmarks(meta, "p9").items).toEqual([]);
         expect(readProjectBookmarks({}, "p1").items).toEqual([]);
         expect(readProjectBookmarks(null, "p1").items).toEqual([]);
+    });
+
+    // `wsh setmeta workspace:<id>` writes any key: what the window shows and opens is checked again as it is read.
+    it("ignores a bookmark whose address is not a safe web address, whoever wrote it", () => {
+        const planted = {
+            [BookmarksMetaKey]: {
+                p1: {
+                    folders: [],
+                    items: [
+                        { id: "a", url: "javascript:alert(document.cookie)", title: "Docs" },
+                        { id: "b", url: "file:///etc/passwd", title: "Passwords" },
+                        { id: "c", url: "data:text/html,<script>1</script>", title: "Page" },
+                        { id: "d", url: "vscode://file/etc/hosts", title: "Editor" },
+                        { id: "e", url: "https://user:secret@example.com/", title: "With a password" },
+                        { id: "f", url: "https://example.com/" + "a".repeat(BookmarkLimits.url), title: "Too long" },
+                        { id: "g", url: "https://good.example.com/page", title: "Good" },
+                        { id: "h", url: "good.example.org/page", title: "No scheme" },
+                    ],
+                },
+            },
+        };
+        const items = readProjectBookmarks(planted, "p1").items;
+        expect(items.map((b) => b.id)).toEqual(["g", "h"]);
+        expect(items.map((b) => b.url)).toEqual(["https://good.example.com/page", "https://good.example.org/page"]);
+    });
+
+    it("cuts what is read to the limits: texts, folders and bookmarks", () => {
+        const folders = Array.from({ length: BookmarkLimits.folders + 20 }, (_, i) => ({
+            id: `f${i}`,
+            name: i === 0 ? "n".repeat(BookmarkLimits.folderName + 40) : `Folder ${i}`,
+        }));
+        const items = Array.from({ length: BookmarkLimits.items + 50 }, (_, i) => ({
+            id: `b${i}`,
+            url: `https://example.com/${i}`,
+            title: i === 0 ? "t".repeat(BookmarkLimits.title + 300) : `Page ${i}`,
+            description: i === 0 ? "d".repeat(BookmarkLimits.description + 500) : "",
+            folder: i === 1 ? `f${BookmarkLimits.folders + 5}` : "f0",
+        }));
+        const data = readProjectBookmarks({ [BookmarksMetaKey]: { p1: { folders, items } } }, "p1");
+        expect(data.folders).toHaveLength(BookmarkLimits.folders);
+        expect(data.folders[0].name).toHaveLength(BookmarkLimits.folderName);
+        expect(data.items).toHaveLength(BookmarkLimits.items);
+        expect(data.items[0].title).toHaveLength(BookmarkLimits.title);
+        expect(data.items[0].description).toHaveLength(BookmarkLimits.description);
+        // A folder beyond the limit is gone, so its bookmark reads as directly in the project.
+        expect(data.items[1].folder).toBe("");
     });
 
     it("keeps only the projects the workspace has, and none for an empty project", () => {

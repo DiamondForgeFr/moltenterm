@@ -13,7 +13,14 @@ import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { projectLabel, readProjects } from "../sidebar/workspace-projects";
-import { bookmarkAddress, BookmarkLimits, findBookmarkByAddress, problemVars, readProjectBookmarks } from "./bookmarks";
+import {
+    bookmarkAddress,
+    BookmarkLimits,
+    BookmarkProblem,
+    findBookmarkByAddress,
+    problemMessage,
+    readProjectBookmarks,
+} from "./bookmarks";
 import { addProjectBookmark, updateProjectBookmark } from "./bookmarks-store";
 
 export type BookmarkDialogRequest = {
@@ -47,14 +54,17 @@ export function BookmarkDialog({ request, onClose }: { request: BookmarkDialogRe
     const data = readProjectBookmarks(ws?.meta, request.projectId);
     const others = readProjects(ws).filter((p) => p.id !== request.projectId);
     const [url, setUrl] = useState(request.initial.url);
-    const [title, setTitle] = useState(request.initial.title);
+    const [title, setTitle] = useState(request.initial.title.slice(0, BookmarkLimits.title));
     const [description, setDescription] = useState(request.initial.description);
     const [folder, setFolder] = useState(
         data.folders.some((f) => f.id === request.initial.folder) ? request.initial.folder : ""
     );
     const [newFolder, setNewFolder] = useState("");
     const [also, setAlso] = useState<string[]>([]);
-    const [problem, setProblem] = useState<string>(null);
+    // A page whose address cannot be kept says why as soon as the dialog opens, not when saving fails.
+    const [problem, setProblem] = useState<BookmarkProblem>(() =>
+        request.mode === "page" ? (bookmarkAddress(request.initial.url).problem ?? null) : null
+    );
     const [busy, setBusy] = useState(false);
     const editing = request.mode === "edit";
     const typed = bookmarkAddress(url).value ?? "";
@@ -207,7 +217,7 @@ export function BookmarkDialog({ request, onClose }: { request: BookmarkDialogRe
             ) : null}
             {problem != null ? (
                 <div role="alert" className="text-danger" data-testid="bookmark-problem">
-                    {t(problem, problemVars(problem))}
+                    {problemMessage(problem, t)}
                 </div>
             ) : null}
         </DialogFrame>

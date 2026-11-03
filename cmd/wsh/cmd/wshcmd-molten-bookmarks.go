@@ -93,7 +93,11 @@ func formatMoltenBookmarks(view molten.BookmarksView) string {
 		if b.Withheld {
 			address = "(address withheld: it carries a credential)"
 		}
-		fmt.Fprintf(&sb, "- %s: %s\n", oneLineTitle(b.Title), address)
+		title := oneLineTitle(b.Title)
+		if title == "" {
+			title = "(untitled)"
+		}
+		fmt.Fprintf(&sb, "- %s: %s\n", title, address)
 		if b.Description != "" {
 			fmt.Fprintf(&sb, "  %s\n", oneLineTitle(b.Description))
 		}

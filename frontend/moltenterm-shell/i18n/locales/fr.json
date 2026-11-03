@@ -2272,7 +2272,9 @@
                 "folderTaken": "Ce projet a déjà un dossier de ce nom.",
                 "gone": "Ce favori ou ce dossier n'existe plus.",
                 "notSaved": "Les favoris n'ont pas pu être enregistrés. Réessayez.",
-                "sameProject": "Choisissez un autre projet."
+                "sameProject": "Choisissez un autre projet.",
+                "alsoTooMany": "{project} a déjà {max} favoris, le maximum conservé : rien n'a été enregistré.",
+                "alsoTooManyFolders": "{project} a déjà {max} dossiers, le maximum conservé : rien n'a été enregistré."
             }
         },
         "error": {

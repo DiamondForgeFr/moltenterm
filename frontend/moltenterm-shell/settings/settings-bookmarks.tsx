@@ -15,7 +15,7 @@ import {
     BookmarkFolder,
     BookmarkProblem,
     bookmarksOfFolder,
-    problemVars,
+    problemMessage,
     ProjectBookmarks,
     readProjectBookmarks,
 } from "../browser/bookmarks";
@@ -384,7 +384,7 @@ function ProjectBlock({
             ) : null}
             {problem != null ? (
                 <div role="alert" className="px-5 pb-2 text-12 text-danger">
-                    {t(problem, problemVars(problem))}
+                    {problemMessage(problem, t)}
                 </div>
             ) : null}
             {data.items.length === 0 && data.folders.length === 0 ? (

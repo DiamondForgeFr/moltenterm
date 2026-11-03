@@ -2272,7 +2272,9 @@
                 "folderTaken": "This project already has a folder with that name.",
                 "gone": "This bookmark or folder no longer exists.",
                 "notSaved": "The bookmarks could not be saved. Try again.",
-                "sameProject": "Choose another project."
+                "sameProject": "Choose another project.",
+                "alsoTooMany": "{project} already has {max} bookmarks, the most it keeps: nothing was saved.",
+                "alsoTooManyFolders": "{project} already has {max} folders, the most it keeps: nothing was saved."
             }
         },
         "error": {
