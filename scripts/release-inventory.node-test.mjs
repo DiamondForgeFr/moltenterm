@@ -60,18 +60,23 @@ test("pinned builder AppImage metadata and Linux architecture names pass final i
         const file = path.join(folder, name);
         await fs.writeFile(file, Buffer.alloc(4096, 0x61));
         const updateInfo = await appendBlockmap(file);
+        const publish = [{ provider: "github", owner: "fixture", repo: "fixture" }];
         const tasks = await createUpdateInfoTasks(
-            {
-                file,
-                arch,
-                updateInfo,
-                packager,
-                target: { outDir: folder },
-            },
-            [{ provider: "github", owner: "fixture", repo: "fixture" }]
+            { file, arch, updateInfo, packager, target: { outDir: folder } },
+            publish
         );
+        // The builder merges the .deb into the same feed as the AppImage (#1802).
+        const deb = path.join(
+            folder,
+            `${publicContext.packageName}-linux-${getArtifactArchName(arch, "deb")}-${publicContext.version}.deb`
+        );
+        tasks.push(...(await createUpdateInfoTasks({ file: deb, arch, packager, target: { outDir: folder } }, publish)));
         await writeUpdateInfoFiles(tasks, packager);
         const feed = parse(await fs.readFile(tasks[0].file, "utf8"));
+        assert.deepEqual(
+            feed.files.map((entry) => path.basename(entry.url)),
+            [name, path.basename(deb)]
+        );
         assert.equal(feed.files[0].blockMapSize, updateInfo.blockMapSize);
         assert.ok(updateInfo.blockMapSize > 0);
     }
@@ -148,6 +153,35 @@ test("metadata hashes, architecture URLs and exact checksum coverage are enforce
         if (corruption === "coverage") await fs.appendFile(path.join(folder, CHECKSUMS), "unexpected coverage\n");
         if (corruption === "evidence") await fs.rm(path.join(folder, MAC_EVIDENCE));
         await assert.rejects(verifyChecksums(folder, publicContext, { macosSigning: "developer-id" }));
+    }
+});
+test("each Linux feed lists exactly its architecture's AppImage and deb, as electron-builder writes it", async (t) => {
+    const folder = await releaseFixture(t);
+    for (const [feed, arch] of [
+        ["latest-linux.yml", "amd64"],
+        ["latest-linux-arm64.yml", "arm64"],
+    ]) {
+        const doc = JSON.parse(await fs.readFile(path.join(folder, feed), "utf8"));
+        assert.deepEqual(
+            doc.files.map((entry) => entry.url.replace(/^.*\./, "")),
+            ["AppImage", "deb"]
+        );
+        assert.ok(doc.files[1].url.includes(`-linux-${arch}-`));
+    }
+    for (const corruption of ["no-deb", "other-arch-deb"]) {
+        const broken = await releaseFixture(t);
+        const file = path.join(broken, "latest-linux.yml"),
+            doc = JSON.parse(await fs.readFile(file, "utf8"));
+        if (corruption === "no-deb") doc.files.pop();
+        if (corruption === "other-arch-deb") {
+            const other = JSON.parse(await fs.readFile(path.join(broken, "latest-linux-arm64.yml"), "utf8"));
+            doc.files[1] = other.files[1];
+        }
+        await fs.writeFile(file, JSON.stringify(doc));
+        await assert.rejects(
+            verifyChecksums(broken, publicContext, { macosSigning: "developer-id" }),
+            /update metadata/
+        );
     }
 });
 test("unsigned rehearsal and candidate inventories remain admitted", async (t) => {
