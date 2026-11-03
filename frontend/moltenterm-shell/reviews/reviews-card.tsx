@@ -16,6 +16,7 @@ import { useLocale, useT } from "../i18n/i18n";
 import { Phrase, phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { usePanelOrigin } from "../panel-cta";
 import { showPanel } from "../review/review-panels";
 import { StateMark, type StateMarkKind } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
@@ -192,6 +193,7 @@ export function ReviewRow({
     useHeadStillFails(dir, pr, input.agents, input.taskState);
     const markReady = useMarkReady(dir, pr.number, repo);
     const rerun = useRerunFailed(dir, pr.number);
+    const origin = usePanelOrigin();
     const [busy, setBusy] = useState<string>(null);
     const [outcome, setOutcome] = useState<RebaseOutcome>(null);
     // The task the outcome answers, for the offer to queue it for a busy agent (#1062).
@@ -315,7 +317,7 @@ export function ReviewRow({
                 // #1841: the PR it waits on is a card of this panel; an issue opens on GitHub.
                 const target = action.target;
                 if (target?.kind === "pr") {
-                    fireAndForget(() => model.openReviews(dir, target.number));
+                    fireAndForget(() => model.openReviews(dir, target.number, undefined, origin()));
                 } else if (target?.url) {
                     fireAndForget(() => openWebLink(target.url));
                 }
