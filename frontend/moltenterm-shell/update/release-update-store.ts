@@ -18,7 +18,7 @@ import {
     resolveMoltentermNotification,
 } from "../notifications-store";
 import { openWebLink } from "../open-web-link";
-import { dismissToast, showToast } from "../toast-store";
+import { showToast } from "../toast-store";
 import {
     isJustNow,
     notesAsText,
@@ -35,7 +35,7 @@ export const ReleaseNotifySettingKey = "moltenterm:releasenotify";
 const ReleaseDownloadGesture = "release:download";
 // The first check waits for the window to settle, never long.
 const FirstCheckIdleTimeoutMs = 10_000;
-// One toast for the answer of Check for updates now: the checking toast is replaced by the result.
+// One toast for the answers of Check for updates now (the latest version, a failure, a build that does not check).
 const ReleaseCheckToastId = "release:check";
 const RelativeUnits: [Intl.RelativeTimeFormatUnit, number][] = [
     ["day", 24 * 60 * 60],
@@ -186,7 +186,6 @@ export class ReleaseUpdateModel {
             return;
         }
         globalStore.set(this.checkViewAtom, { state: "checking" });
-        showToast({ kind: "info", id: ReleaseCheckToastId, title: t("update.check.checking") });
         fireAndForget(async () => {
             let check: ReleaseCheck;
             try {
@@ -226,7 +225,6 @@ export class ReleaseUpdateModel {
     // A release out is shown by its notification; the other answers are a toast, which the next check replaces.
     private tellCheck(view: UpdateCheckState) {
         if (view.state === "available") {
-            dismissToast(ReleaseCheckToastId);
             return;
         }
         if (view.state === "disabled") {

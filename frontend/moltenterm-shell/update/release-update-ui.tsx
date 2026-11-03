@@ -60,7 +60,7 @@ export function ReleaseUpdateCheck() {
                     data-testid="release-check-now"
                     disabled={checking}
                     onClick={() => model.checkNow()}
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-4 border border-line-strong px-3 py-1 text-12 text-primary transition-colors hover:bg-surface-2 disabled:cursor-default disabled:opacity-60"
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-4 border border-line-strong px-3 py-1 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-surface-2 disabled:cursor-default disabled:opacity-60"
                 >
                     {checking ? <DominoLoader className="mr-1.5" /> : null}
                     {t("update.check.button")}
@@ -85,7 +85,7 @@ function ReleaseUpdateStatus({ view, now }: { view: UpdateCheckView; now: number
     }
     if (view.state === "error") {
         return (
-            <div className="flex items-center gap-2 text-12 text-error">
+            <div className="flex items-center gap-2 text-12 text-danger">
                 <span data-testid="release-check-error">{t("update.check.error")}</span>
                 <button
                     type="button"
