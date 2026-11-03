@@ -48,26 +48,53 @@ func TestTermOutputRead(t *testing.T) {
 	}
 }
 
-func TestForwardedRead(t *testing.T) {
+const (
+	ownTab   = "tab-own"
+	otherTab = "tab-other"
+)
+
+func ownWorkspaceObj(oref waveobj.ORef) bool {
+	return ownWorkspaceORef(oref) || (oref.OType == waveobj.OType_Tab && oref.OID == ownTab)
+}
+
+func TestForwardedScrollback(t *testing.T) {
 	const scrollback = "termgetscrollbacklines"
 	term := terminal()
-	if err := metaguard.CheckForwardedRead(term, scrollback, "feblock:"+routetest.TerminalBlock, ownWorkspaceBlock); err != nil {
-		t.Errorf("own block: %v", err)
+	for _, blockId := range []string{routetest.TerminalBlock, siblingBlock} {
+		if err := metaguard.CheckForwardedRequest(term, scrollback, "feblock:"+blockId, "", ownWorkspaceObj); err != nil {
+			t.Errorf("panel %s: %v", blockId, err)
+		}
 	}
-	if err := metaguard.CheckForwardedRead(term, scrollback, "feblock:"+siblingBlock, ownWorkspaceBlock); err != nil {
-		t.Errorf("sibling pane: %v", err)
+	mustRefuse(t, "other workspace's panel", metaguard.CheckForwardedRequest(term, scrollback, "feblock:"+otherBlock, "", ownWorkspaceObj))
+	for _, route := range []string{"", "feblock:", "tab:" + ownTab, "link:3", "wavesrv"} {
+		mustRefuse(t, "route "+route, metaguard.CheckForwardedRequest(term, scrollback, route, "", ownWorkspaceObj))
 	}
-	mustRefuse(t, "other workspace's panel", metaguard.CheckForwardedRead(term, scrollback, "feblock:"+otherBlock, ownWorkspaceBlock))
-	for _, route := range []string{"", "feblock:", "tab:window", "link:3", "wavesrv"} {
-		mustRefuse(t, "route "+route, metaguard.CheckForwardedRead(term, scrollback, route, ownWorkspaceBlock))
-	}
-	mustRefuse(t, "remote host", metaguard.CheckForwardedRead(metaguard.Caller{}, scrollback, "feblock:"+siblingBlock, ownWorkspaceBlock))
-	if err := metaguard.CheckForwardedRead(metaguard.Caller{Trusted: true}, scrollback, "feblock:"+otherBlock, ownWorkspaceBlock); err != nil {
+	mustRefuse(t, "remote host", metaguard.CheckForwardedRequest(metaguard.Caller{}, scrollback, "feblock:"+siblingBlock, "", ownWorkspaceObj))
+	if err := metaguard.CheckForwardedRequest(metaguard.Caller{Trusted: true}, scrollback, "feblock:"+otherBlock, "", ownWorkspaceObj); err != nil {
 		t.Errorf("window: %v", err)
 	}
-	if err := metaguard.CheckForwardedRead(metaguard.Caller{}, "vdomcreatecontext", "feblock:"+otherBlock, ownWorkspaceBlock); err != nil {
+	if err := metaguard.CheckForwardedRequest(metaguard.Caller{}, "vdomcreatecontext", "feblock:"+otherBlock, "", ownWorkspaceObj); err != nil {
 		t.Errorf("a request that reads no output: %v", err)
 	}
+}
+
+// A block's screenshot and the AI panel's context go to a window's tab: a terminal reaches its own workspace's tabs
+// and blocks only, a remote host none.
+func TestForwardedTabRequests(t *testing.T) {
+	term := terminal()
+	for _, command := range []string{"captureblockscreenshot", "waveaiaddcontext"} {
+		if err := metaguard.CheckForwardedRequest(term, command, "tab:"+ownTab, siblingBlock, ownWorkspaceObj); err != nil {
+			t.Errorf("%s in its own tab: %v", command, err)
+		}
+		mustRefuse(t, command+" to another workspace's tab", metaguard.CheckForwardedRequest(term, command, "tab:"+otherTab, "", ownWorkspaceObj))
+		mustRefuse(t, command+" to a panel route", metaguard.CheckForwardedRequest(term, command, "feblock:"+siblingBlock, "", ownWorkspaceObj))
+		mustRefuse(t, command+" from a remote host", metaguard.CheckForwardedRequest(metaguard.Caller{}, command, "tab:"+ownTab, "", ownWorkspaceObj))
+		mustRefuse(t, command+" from a terminal without a workspace", metaguard.CheckForwardedRequest(metaguard.Caller{Local: true, BlockId: routetest.TerminalBlock}, command, "tab:"+ownTab, "", ownWorkspaceObj))
+		if err := metaguard.CheckForwardedRequest(metaguard.Caller{Trusted: true}, command, "tab:"+otherTab, otherBlock, ownWorkspaceObj); err != nil {
+			t.Errorf("%s from the window: %v", command, err)
+		}
+	}
+	mustRefuse(t, "screenshot of another workspace's block", metaguard.CheckForwardedRequest(term, "captureblockscreenshot", "tab:"+ownTab, otherBlock, ownWorkspaceObj))
 }
 
 func TestBlockFileSubscribe(t *testing.T) {

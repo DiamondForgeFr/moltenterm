@@ -44,6 +44,7 @@ type termOutputEnv struct {
 	link         baseds.LinkId
 	ownWs        string
 	otherWs      string
+	ownTab       string
 	otherTab     string
 	ownBlock     string
 	siblingBlock string
@@ -70,6 +71,7 @@ func termOutputFixture(t *testing.T) *termOutputEnv {
 	e := &termOutputEnv{ownWs: uuid.NewString(), otherWs: uuid.NewString(), otherTab: uuid.NewString(), ownBlock: uuid.NewString(),
 		siblingBlock: uuid.NewString(), otherBlock: uuid.NewString(), siblingJob: uuid.NewString(), otherJob: uuid.NewString()}
 	ownTab := uuid.NewString()
+	e.ownTab = ownTab
 	ctx := context.Background()
 	objs := []waveobj.WaveObj{
 		&waveobj.Workspace{OID: e.ownWs, TabIds: []string{ownTab}},
@@ -213,4 +215,21 @@ func TestScrollbackForwardOnlyOwnWorkspace(t *testing.T) {
 	if err := ask(termOwnSource, "getmeta", wshutil.MakeFeBlockRouteId(e.otherBlock)); err != nil {
 		t.Errorf("a request that reads no output: %v", err)
 	}
+}
+
+// A block's screenshot and the AI panel's context, which the window's tab answers: own workspace only.
+func TestTabRequestsForwardOnlyOwnWorkspace(t *testing.T) {
+	e := termOutputFixture(t)
+	ask := func(command string, tabId string, blockId string) error {
+		var data any = map[string]any{"text": "hello"}
+		if blockId != "" {
+			data = map[string]any{"blockid": blockId}
+		}
+		return moltenForwardGuard(wshutil.DefaultRouter, wshutil.RpcMessage{Command: command, ReqId: "r", Source: termOwnSource, Route: wshutil.MakeTabRouteId(tabId), Data: data}, e.link)
+	}
+	mustAllowTermOutput(t, "screenshot of a sibling pane", ask("captureblockscreenshot", e.ownTab, e.siblingBlock))
+	mustAllowTermOutput(t, "AI context in its own tab", ask("waveaiaddcontext", e.ownTab, ""))
+	mustRefuseTermOutput(t, "screenshot in another workspace's tab", ask("captureblockscreenshot", e.otherTab, e.otherBlock))
+	mustRefuseTermOutput(t, "screenshot of another workspace's block", ask("captureblockscreenshot", e.ownTab, e.otherBlock))
+	mustRefuseTermOutput(t, "AI context in another workspace's tab", ask("waveaiaddcontext", e.otherTab, ""))
 }

@@ -54,10 +54,10 @@ func moltenCheckBlockFileSubscribe(ctx context.Context, req wps.SubscriptionRequ
 	return metaguard.CheckBlockFileSubscribe(caller, req, func(oref waveobj.ORef) bool { return moltenInWorkspace(ctx, caller, oref) })
 }
 
-// moltenForwardGuard checks the requests the root router forwards to a panel's frontend client with a terminal's
-// output (metaguard.TermOutputCommands): the window answers whoever asks, so the caller is checked before it does.
+// moltenForwardGuard checks the requests the root router forwards to the window's frontend clients that read or act
+// on the panes (metaguard.ForwardedCommands): the window answers whoever asks, so the caller is checked before it does.
 func moltenForwardGuard(router *wshutil.WshRouter, msg wshutil.RpcMessage, ingressLinkId baseds.LinkId) error {
-	if !metaguard.TermOutputCommands[msg.Command] {
+	if _, checked := metaguard.ForwardedCommands[msg.Command]; !checked {
 		return nil
 	}
 	caller := metaguard.CallerOf(router, msg.Source, ingressLinkId)
@@ -69,7 +69,11 @@ func moltenForwardGuard(router *wshutil.WshRouter, msg wshutil.RpcMessage, ingre
 	if caller.BlockId != "" {
 		caller.WorkspaceId = moltenWorkspaceOf(ctx, waveobj.MakeORef(waveobj.OType_Block, caller.BlockId))
 	}
-	return metaguard.CheckForwardedRead(caller, msg.Command, msg.Route, func(blockId string) bool {
-		return moltenInWorkspace(ctx, caller, waveobj.MakeORef(waveobj.OType_Block, blockId))
+	var blockId string
+	if data, ok := msg.Data.(map[string]any); ok {
+		blockId, _ = data["blockid"].(string)
+	}
+	return metaguard.CheckForwardedRequest(caller, msg.Command, msg.Route, blockId, func(oref waveobj.ORef) bool {
+		return moltenInWorkspace(ctx, caller, oref)
 	})
 }

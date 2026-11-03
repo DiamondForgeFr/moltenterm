@@ -11,13 +11,20 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wps"
 )
 
-// feBlockRoutePrefix is wshutil.RoutePrefix_FeBlock, the route of a panel's frontend client.
-const feBlockRoutePrefix = "feblock:"
+// feBlockRoutePrefix is wshutil.RoutePrefix_FeBlock, the route of a panel's frontend client; tabRoutePrefix is
+// wshutil.RoutePrefix_Tab, a window's tab.
+const (
+	feBlockRoutePrefix = "feblock:"
+	tabRoutePrefix     = "tab:"
+)
 
-// TermOutputCommands are the requests a panel's frontend client answers with a terminal's output (#1832): wavesrv
-// forwards them to the window, which answers whoever asks, so the router checks them before forwarding.
-var TermOutputCommands = map[string]bool{
-	"termgetscrollbacklines": true,
+// ForwardedCommands are the requests the window answers for whoever asks, which the router checks before it forwards
+// them (#1832): a terminal's scrollback (to the panel's "feblock:<block>" route), a block's screenshot and the AI
+// panel's context (to the window's "tab:<tab>" route), which show and act on what the panes hold.
+var ForwardedCommands = map[string]string{
+	"termgetscrollbacklines": feBlockRoutePrefix,
+	"captureblockscreenshot": tabRoutePrefix,
+	"waveaiaddcontext":       tabRoutePrefix,
 }
 
 // CheckTermOutputRead tells whether c may read the output of blockId (its terminal file, its scrollback, its live
@@ -39,17 +46,31 @@ func CheckTermOutputRead(c Caller, blockId string, inOwnWorkspace bool) error {
 	return fmt.Errorf("refused: a terminal cannot read the output of block %s, outside its own workspace; the MoltenTerm window does", blockId)
 }
 
-// CheckForwardedRead tells whether c may have wavesrv forward command to route. Only TermOutputCommands are checked,
-// and they go only to a panel's frontend route ("feblock:<block>") whose block c may read (CheckTermOutputRead).
-func CheckForwardedRead(c Caller, command string, route string, inOwnWorkspace func(blockId string) bool) error {
-	if c.Trusted || !TermOutputCommands[command] {
+// CheckForwardedRequest tells whether c may have wavesrv forward command to route. Only ForwardedCommands are
+// checked: each goes only to the route kind it names, of c's own workspace (a panel c may read, CheckTermOutputRead,
+// or a tab), and blockId, the block a screenshot names, is in c's own workspace too. A remote host sends none.
+func CheckForwardedRequest(c Caller, command string, route string, blockId string, inOwnWorkspace func(waveobj.ORef) bool) error {
+	prefix, checked := ForwardedCommands[command]
+	if c.Trusted || !checked {
 		return nil
 	}
-	blockId, ok := strings.CutPrefix(route, feBlockRoutePrefix)
-	if !ok || blockId == "" {
-		return fmt.Errorf("refused: a terminal cannot send %s to %q, only to a terminal panel of its own workspace; the MoltenTerm window does", command, route)
+	id, ok := strings.CutPrefix(route, prefix)
+	if !ok || id == "" {
+		return fmt.Errorf("refused: a terminal cannot send %s to %q, only to a panel or a tab of its own workspace; the MoltenTerm window does", command, route)
 	}
-	return CheckTermOutputRead(c, blockId, c.Local && inOwnWorkspace(blockId))
+	if prefix == feBlockRoutePrefix {
+		return CheckTermOutputRead(c, id, c.Local && inOwnWorkspace(waveobj.MakeORef(waveobj.OType_Block, id)))
+	}
+	if !c.Local {
+		return fmt.Errorf("refused: a terminal cannot send %s to a tab from an SSH or WSL host; the MoltenTerm window does", command)
+	}
+	if c.WorkspaceId == "" || !inOwnWorkspace(waveobj.MakeORef(waveobj.OType_Tab, id)) {
+		return fmt.Errorf("refused: a terminal cannot send %s to tab %s, outside its own workspace; the MoltenTerm window does", command, id)
+	}
+	if blockId != "" {
+		return CheckTermOutputRead(c, blockId, inOwnWorkspace(waveobj.MakeORef(waveobj.OType_Block, blockId)))
+	}
+	return nil
 }
 
 // CheckBlockFileSubscribe tells whether c may follow a blockfile event (a terminal's live output) or read its history:
