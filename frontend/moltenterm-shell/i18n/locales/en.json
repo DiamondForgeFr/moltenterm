@@ -4424,6 +4424,7 @@
                     "notlabels": "Lines dismissed as not version labels: {count}. They are not offered again.",
                     "template": "Steps written by an earlier version of MoltenTerm differ from what it writes now.",
                     "customised": "You changed steps MoltenTerm wrote: keep yours or take its version. A choice you write is not offered again.",
+                    "changedsince": "MoltenTerm changed the step “{step}” since your choice: keep yours or take its new version.",
                     "adjusted": "Your adjusted choices write these steps differently.",
                     "local": "Your uncommitted edits are included: each one is a change to check.",
                     "proposed": "MoltenTerm proposes what a new setup gets: a check that proves each step done by hand is done, and your project's formatter on the files the release changes."
