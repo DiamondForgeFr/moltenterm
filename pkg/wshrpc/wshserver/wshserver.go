@@ -154,7 +154,7 @@ func (ws *WshServer) GetMetaCommand(ctx context.Context, data wshrpc.CommandGetM
 	if obj == nil {
 		return nil, fmt.Errorf("object not found: %s", data.ORef)
 	}
-	return waveobj.GetMeta(obj), nil
+	return moltenReadMeta(ctx, data.ORef, waveobj.GetMeta(obj)) // MOLTENTERM-PATCH (#1821): a terminal reads only its own workspace's project link
 }
 
 func (ws *WshServer) UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error {
@@ -182,6 +182,9 @@ func (ws *WshServer) SetMetaCommand(ctx context.Context, data wshrpc.CommandSetM
 	oref := data.ORef
 	if oref.OType == waveobj.OType_Block {
 		data.Meta = moltenFileMeta(ctx, data.Meta) // MOLTENTERM-PATCH (#1624): only a window approves a file panel outside its project
+	}
+	if err := moltenCheckMetaWrite(ctx, oref, data.Meta); err != nil { // MOLTENTERM-PATCH (#1821): the meta the window trusts is the window's
+		return err
 	}
 	err := wstore.UpdateObjectMeta(ctx, oref, data.Meta, false)
 	if err != nil {
@@ -977,6 +980,7 @@ func (ws *WshServer) WorkspaceListCommand(ctx context.Context) ([]wshrpc.Workspa
 			WorkspaceData: workspaceData,
 		})
 	}
+	moltenListedWorkspaces(ctx, rtn) // MOLTENTERM-PATCH (#1821): a terminal gets no other workspace's meta
 	return rtn, nil
 }
 
