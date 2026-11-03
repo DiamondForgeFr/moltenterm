@@ -176,9 +176,12 @@ export class Instance {
     }
     delete env.ELECTRON_RUN_AS_NODE;
     delete env.ELECTRON_RENDERER_URL;
+    // Resolved before the clock starts: on a fresh install (CI) the first call downloads the Electron binary, which is
+    // not part of the start-up (#1665).
+    const binary = this.electronBinary();
     const out = fs.openSync(path.join(this.root, `electron-${++this.launches}.out`), "a");
     this.startMs = Date.now();
-    const child = spawn(this.electronBinary(), args, { cwd: this.repoRoot, env, stdio: ["ignore", out, out] });
+    const child = spawn(binary, args, { cwd: this.repoRoot, env, stdio: ["ignore", out, out] });
     fs.closeSync(out);
     this.child = child;
     this.pid = child.pid;
