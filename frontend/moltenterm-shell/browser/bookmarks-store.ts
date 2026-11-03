@@ -7,10 +7,11 @@
 
 import { atoms, globalStore } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
-import { readProjects } from "../sidebar/workspace-projects";
+import { projectLabel, readProjects } from "../sidebar/workspace-projects";
 import { writeMeta } from "../sidebar/workspace-projects-store";
 import {
     addBookmark,
+    AllBookmarks,
     Bookmark,
     BookmarkDraft,
     BookmarkProblem,
@@ -22,6 +23,7 @@ import {
     deleteFolder,
     findBookmarkByAddress,
     moveBookmark,
+    problemKey,
     ProjectBookmarks,
     readProjectBookmarks,
     renameFolder,
@@ -42,25 +44,66 @@ function latestWorkspace(ws: Workspace): Workspace {
 type Read = (projectId: string) => ProjectBookmarks;
 type Change = (read: Read) => BookmarkResult<Record<string, ProjectBookmarks>>;
 
-// Applies a change to the workspace's latest bookmarks. The answer is the problem to tell, or null once saved.
-export async function changeBookmarks(ws: Workspace, change: Change): Promise<BookmarkProblem> {
+// Every change rewrites the whole `molten:bookmarks` key from what it read, so two running together would erase each
+// other: they run one after the other, and each reads the workspace again once the one before it has saved.
+let queue: Promise<unknown> = Promise.resolve();
+
+// The window's copy of the workspace follows a save a moment later: until a newer version of it arrives, the next
+// change reads what the last one wrote, so it never starts from the older value. The server sends the versions in
+// order, so the first newer one holds that write.
+let saved: { oid: string; value: AllBookmarks; version: number } = null;
+
+function metaNow(latest: Workspace): Record<string, any> {
+    const meta = (latest.meta ?? {}) as Record<string, any>;
+    if (saved != null && saved.oid === latest.oid && saved.version === latest.version) {
+        return { ...meta, [BookmarksMetaKey]: saved.value };
+    }
+    return meta;
+}
+
+async function applyChange(ws: Workspace, change: Change): Promise<BookmarkProblem> {
     const latest = latestWorkspace(ws);
     if (latest == null) {
         return SaveFailedProblem;
     }
+    const meta = metaNow(latest);
     const known = readProjects(latest).map((p) => p.id);
-    const result = change((id) => readProjectBookmarks(latest.meta, id));
+    const result = change((id) => readProjectBookmarks(meta, id));
     if (result.problem != null) {
         return result.problem;
     }
-    const value = withProjectsBookmarks(latest.meta, result.value, known);
+    const value = withProjectsBookmarks(meta, result.value, known);
     try {
         await writeMeta(latest, { [BookmarksMetaKey]: value });
     } catch (e) {
         console.error("bookmarks: save failed", e);
+        saved = null;
         return SaveFailedProblem;
     }
+    saved = { oid: latest.oid, value, version: latest.version };
     return null;
+}
+
+// Applies a change to the workspace's latest bookmarks. The answer is the problem to tell, or null once saved.
+export function changeBookmarks(ws: Workspace, change: Change): Promise<BookmarkProblem> {
+    const run = queue.then(() => applyChange(ws, change));
+    queue = run.catch(() => null);
+    return run;
+}
+
+const OtherProjectProblems: Record<string, string> = {
+    "browser.bookmarks.problem.tooMany": "browser.bookmarks.problem.alsoTooMany",
+    "browser.bookmarks.problem.tooManyFolders": "browser.bookmarks.problem.alsoTooManyFolders",
+};
+
+// A problem met in a project other than the one edited names that project: "this project" would read as the edited one.
+function aboutProject(ws: Workspace, projectId: string, problem: BookmarkProblem): BookmarkProblem {
+    const project = readProjects(latestWorkspace(ws)).find((p) => p.id === projectId);
+    const key = problemKey(problem);
+    if (project == null || OtherProjectProblems[key] == null) {
+        return problem;
+    }
+    return { key: OtherProjectProblems[key], project: projectLabel(project) };
 }
 
 function inProject(projectId: string, mutate: (data: ProjectBookmarks) => BookmarkResult<ProjectBookmarks>): Change {
@@ -98,7 +141,7 @@ export function addProjectBookmark(
                 newFolder: folderNameOf(added.value.data, added.value.bookmark),
             });
             if (copy.problem != null) {
-                return { problem: copy.problem };
+                return { problem: aboutProject(ws, other, copy.problem) };
             }
             updates[other] = copy.value.data;
         }
@@ -179,6 +222,8 @@ export function copyProjectBookmark(
             return { problem: "browser.bookmarks.problem.sameProject" };
         }
         const copied = copyBookmarkTo(read(fromProjectId), id, read(toProjectId));
-        return copied.problem != null ? { problem: copied.problem } : { value: { [toProjectId]: copied.value } };
+        return copied.problem != null
+            ? { problem: aboutProject(ws, toProjectId, copied.problem) }
+            : { value: { [toProjectId]: copied.value } };
     });
 }

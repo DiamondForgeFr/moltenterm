@@ -33,6 +33,16 @@ func TestFormatMoltenBookmarksGroupsByFolderAndKeepsTheNote(t *testing.T) {
 	}
 }
 
+func TestFormatMoltenBookmarksNeverPrintsAnEmptyTitle(t *testing.T) {
+	got := formatMoltenBookmarks(molten.BookmarksView{
+		Project:   molten.BookmarksProject{Id: "p1", Name: "Desktop"},
+		Bookmarks: []molten.Bookmark{{Withheld: true, Description: "Expires."}},
+	})
+	if !strings.Contains(got, "- (untitled): (address withheld: it carries a credential)\n") || strings.Contains(got, "- :") {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestFormatMoltenBookmarksSaysWhenThereIsNone(t *testing.T) {
 	got := formatMoltenBookmarks(molten.BookmarksView{Project: molten.BookmarksProject{Id: "p2", Name: "Website"}})
 	if !strings.Contains(got, "No bookmark in project Website") || !strings.Contains(got, "developer adds") {

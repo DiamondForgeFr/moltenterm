@@ -206,4 +206,36 @@ describe("the bookmark dialog", () => {
         expect(html).toContain(">Note</textarea>");
         expect(html).toContain(">Save<");
     });
+
+    it("cuts the title prefilled from a long page title to what a bookmark keeps", () => {
+        current.ws = workspace();
+        const html = render(
+            <BookmarkDialog
+                request={{ ...request, initial: { ...request.initial, title: "T".repeat(500) } }}
+                onClose={() => {}}
+            />
+        );
+        expect(html).toContain(`value="${"T".repeat(200)}"`);
+        expect(html).not.toContain("T".repeat(201));
+    });
+
+    it("says why a page cannot be bookmarked as soon as the dialog opens", () => {
+        current.ws = workspace();
+        const tooLong = "https://example.com/" + "a".repeat(2100);
+        const long = render(
+            <BookmarkDialog
+                request={{ ...request, initial: { ...request.initial, url: tooLong } }}
+                onClose={() => {}}
+            />
+        );
+        expect(long).toContain("This address is too long (2048 characters at most).");
+        const password = render(
+            <BookmarkDialog
+                request={{ ...request, initial: { ...request.initial, url: "https://me:secret@example.com/" } }}
+                onClose={() => {}}
+            />
+        );
+        expect(password).toContain("Remove the user name and password from the address");
+        expect(render(<BookmarkDialog request={request} onClose={() => {}} />)).not.toContain('role="alert"');
+    });
 });
