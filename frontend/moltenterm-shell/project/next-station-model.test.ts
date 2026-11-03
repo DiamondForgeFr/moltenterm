@@ -529,3 +529,65 @@ describe("the planned station: the open milestone when nothing is released (FR-M
         expect(canSetUpRelease(model.terminus, null)).toBe(false);
     });
 });
+
+// #1808: SaaSFoundryAI as the gold read it on 2026-11-03: only chore and test commits since v1.1.0, two dated open
+// milestones. The model names v1.1.1 from these milestones; the panel read "nothing" because a GitHub outage had
+// emptied the snapshot's milestones (kept since by KeepLastGithub in pkg/molten/mission/github.go).
+describe("the planned station on SaaSFoundryAI's data (#1808)", () => {
+    const Nov3 = new Date("2026-11-03T13:00:00Z").getTime();
+    const chores = commits(
+        "chore(#1108): clear CLI dependency advisories and drop unused simple-git",
+        "test(#1108): keep the host PATH out of the capture probe assertion",
+        "chore(#1108): keep the test lanes' .tmp output out of format:check"
+    );
+    const SaasFoundry = git({
+        release: "master",
+        ahead: chores,
+        sincepublic: [...chores].reverse(),
+        lastpublic: "v1.1.0",
+        remoteurl: "https://github.com/DiamondForgeFr/SaasFoundryAI",
+        tags: [
+            { name: "v1.1.0", sha: "18b3409", date: "2026-11-01T21:22:12+01:00" },
+            { name: "v1.0.1", sha: "a615e6a", date: "2026-10-09T19:40:28+02:00" },
+            { name: "v1.0.0", sha: "bea9d4d", date: "2026-09-28T14:27:35+02:00" },
+            { name: "v1.0.0-beta", sha: "eec27f5", date: "2025-06-25T11:42:15+02:00" },
+            { name: "v0.3.0-beta", sha: "d1", date: "2025-05-01T10:00:00+02:00" },
+        ],
+    });
+    const Milestones: Milestone[] = [
+        {
+            number: 10,
+            title: "v1.1.1",
+            due_on: "2026-11-13T00:00:00Z",
+            open_issues: 23,
+            closed_issues: 0,
+            html_url: "https://github.com/DiamondForgeFr/SaasFoundryAI/milestone/10",
+        },
+        {
+            number: 9,
+            title: "v1.2.0",
+            due_on: "2026-11-27T00:00:00Z",
+            open_issues: 29,
+            closed_issues: 0,
+            html_url: "https://github.com/DiamondForgeFr/SaasFoundryAI/milestone/9",
+        },
+    ];
+
+    it("is v1.1.1 with its due date, in the header and on the line map", () => {
+        const station = nextStation(SaasFoundry, null, Milestones, Nov3);
+        expect(station).toMatchObject({
+            tag: "v1.1.1",
+            state: "planned",
+            chip: "due Nov 13",
+            chiptitle: "Due Nov 13 (milestone v1.1.1)",
+            note: "Planned — milestone v1.1.1, 23 open, nothing on develop yet",
+        });
+        const map = buildLineMap({ git: SaasFoundry, milestones: Milestones, now: Nov3, days: 21 });
+        expect(map.terminus).toMatchObject({ tag: "v1.1.1", state: "planned", chip: "due Nov 13" });
+        expect(stationSchedule(station, Milestones, "v", Nov3).then?.label).toContain("v1.2.0");
+    });
+
+    it("has nothing yet only while the snapshot holds no milestone", () => {
+        expect(nextStation(SaasFoundry, null, undefined, Nov3)).toMatchObject({ tag: null, state: "nothing" });
+    });
+});
