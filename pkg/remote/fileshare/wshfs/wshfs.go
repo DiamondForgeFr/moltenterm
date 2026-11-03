@@ -299,5 +299,6 @@ func copyInternal(srcConn, destConn *connparse.Connection, opts *wshrpc.FileCopy
 	if timeout == 0 {
 		timeout = DefaultTimeout.Milliseconds()
 	}
+	defer moltenGrantCopySource(srcConn, destConn)() // MOLTENTERM-PATCH (#1831)
 	return wshclient.RemoteFileCopyCommand(RpcClient, wshrpc.CommandFileCopyData{SrcUri: srcConn.GetFullURI(), DestUri: destConn.GetFullURI(), Opts: opts}, &wshrpc.RpcOpts{Route: wshutil.MakeConnectionRouteId(destConn.Host), Timeout: timeout})
 }

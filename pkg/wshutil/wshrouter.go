@@ -68,6 +68,8 @@ type linkMeta struct {
 	blockId  string
 	// MOLTENTERM-PATCH (#1821): a leaf wavesrv registered for its own code (RegisterTrustedLeaf), never a token's.
 	inProcess bool
+	// MOLTENTERM-PATCH (#1831): the remote connection the link's token named (moltenterm_remotelink.go).
+	connName string
 }
 
 func (lm *linkMeta) Name() string {
@@ -365,6 +367,10 @@ func (router *WshRouter) runServer() {
 		routeId := msg.Route
 		if msg.Command != "" {
 			// new comand, setup new rpc
+			if refusal := router.remoteRouteRefusal(msg, input.IngressLinkId); refusal != "" { // MOLTENTERM-PATCH (#1831)
+				router.refuseRemoteRoute(msg, input.IngressLinkId, refusal)
+				continue
+			}
 			if router.refuseRequest(msg, input.IngressLinkId) { // MOLTENTERM-PATCH (#1832): a terminal reads only its own workspace's terminals
 				continue
 			}

@@ -8,10 +8,11 @@ import "github.com/wavetermdev/waveterm/pkg/baseds"
 // LeafSourceBlockId tells whether a request came in through the leaf link whose own route is its source: a client
 // connected to this router itself (a local terminal's wsh), not one forwarded by a router link. A remote connection's
 // wsh also carries a "proc:" source, but reaches wavesrv through its connection's router link (#368). It also returns
-// the block the leaf authenticated for: the block id its token was issued to, or "" when the leaf has none (#662).
+// the block the leaf authenticated for: the block id its token was issued to, or "" when the leaf has none (#662). A leaf
+// whose token named a remote connection is an SSH or WSL host, never a local terminal (#1831).
 func (router *WshRouter) LeafSourceBlockId(ingressLinkId baseds.LinkId, source string) (string, bool) {
 	lm := router.getLinkMeta(ingressLinkId)
-	if lm == nil || !lm.trusted || lm.linkKind != LinkKind_Leaf || source == "" || lm.sourceRouteId != source {
+	if lm == nil || !lm.trusted || lm.linkKind != LinkKind_Leaf || lm.connName != "" || source == "" || lm.sourceRouteId != source {
 		return "", false
 	}
 	return lm.blockId, true

@@ -111,11 +111,13 @@ func (impl *WshRouterControlImpl) AuthenticateCommand(ctx context.Context, data 
 	if newCtx.IsRouter {
 		log.Printf("wshrouter authenticate success linkid=%d (router)", linkId)
 		impl.Router.trustLink(linkId, LinkKind_Router)
+		impl.Router.setLinkConn(linkId, newCtx.Conn) // MOLTENTERM-PATCH (#1831)
 	} else {
 		log.Printf("wshrouter authenticate success linkid=%d routeid=%q", linkId, routeId)
 		impl.Router.trustLink(linkId, LinkKind_Leaf)
 		impl.Router.bindRoute(linkId, routeId, true)
 		impl.Router.setLinkBlockId(linkId, newCtx.BlockId) // MOLTENTERM-PATCH (#662)
+		impl.Router.setLinkConn(linkId, newCtx.Conn)       // MOLTENTERM-PATCH (#1831)
 	}
 
 	return rtnData, nil
@@ -212,6 +214,7 @@ func (impl *WshRouterControlImpl) AuthenticateTokenCommand(ctx context.Context, 
 	impl.Router.trustLink(linkId, LinkKind_Leaf)
 	impl.Router.bindRoute(linkId, rtnData.RouteId, true)
 	impl.Router.setLinkBlockId(linkId, rtnData.RpcContext.BlockId) // MOLTENTERM-PATCH (#662)
+	impl.Router.setLinkConn(linkId, rtnData.RpcContext.Conn)       // MOLTENTERM-PATCH (#1831)
 
 	return rtnData, nil
 }

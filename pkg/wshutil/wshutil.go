@@ -277,9 +277,11 @@ type WriteFlusher interface {
 }
 
 // blocking, returns if there is an error, or on EOF of input
-func HandleStdIOClient(logName string, input chan utilfn.LineOutput, output io.Writer) {
+// MOLTENTERM-PATCH (#1831): the link remembers its connection (connName, "" when unknown); HandleStdIOClient wraps it.
+func HandleConnStdIOClient(logName string, connName string, input chan utilfn.LineOutput, output io.Writer) {
 	proxy := MakeRpcProxy(logName)
 	linkId := DefaultRouter.RegisterTrustedRouter(proxy)
+	DefaultRouter.setLinkConn(linkId, connName)
 	rawCh := make(chan []byte, DefaultInputChSize)
 	go func() {
 		defer func() {
