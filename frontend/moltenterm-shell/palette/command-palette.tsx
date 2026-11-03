@@ -37,7 +37,14 @@ import { keepViewKeysLabel } from "../sidebar/view-pin-actions";
 import { isProjectTab } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
 import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
-import { pickerFitsInline, PickerMinPx, pickerPopoverRect, SplitFromMetaKey } from "../split/split-model";
+import {
+    pickerFitsInline,
+    PickerMinPx,
+    pickerPopoverRect,
+    pickerSourceMeta,
+    SplitFromMetaKey,
+    SplitNewPanelMetaKey,
+} from "../split/split-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { WorkspaceIcon } from "../workspace-icon";
 import { workspaceIconSource } from "../workspace-icon-model";
@@ -149,6 +156,7 @@ function usePickerSource(host: CommandPaletteHost, blockId: string): PickerSourc
     const own = useBlock(host === "pane" ? blockId : null);
     const from = own?.meta?.[SplitFromMetaKey as keyof MetaType];
     const sourceId = typeof from === "string" && from !== "" ? from : null;
+    const newPanel = own?.meta?.[SplitNewPanelMetaKey as keyof MetaType] === true;
     const source = useBlock(sourceId);
     // Only what the picker reads of the source: its other meta changes (a terminal's state) must not rebuild the list.
     const view = source?.meta?.view;
@@ -158,20 +166,15 @@ function usePickerSource(host: CommandPaletteHost, blockId: string): PickerSourc
         if (sourceId == null) {
             return null;
         }
-        const meta: MetaType = { view };
-        if (cwd != null) {
-            meta["cmd:cwd"] = cwd;
-        }
-        if (connection != null) {
-            meta.connection = connection;
-        }
+        // A new column's picker opens its terminal and files in the workspace folder, a split's where the source is.
+        const meta = pickerSourceMeta({ [SplitNewPanelMetaKey]: newPanel }, { view, "cmd:cwd": cwd, connection });
         return {
             blockId: sourceId,
             meta,
             splitKeys: formatShortcutById("split-right"),
             companionKeys: formatShortcutById("companion"),
         };
-    }, [sourceId, view, cwd, connection]);
+    }, [sourceId, newPanel, view, cwd, connection]);
 }
 
 // Also the sidebar's top field (#1187): every palette command stays reachable from it.
