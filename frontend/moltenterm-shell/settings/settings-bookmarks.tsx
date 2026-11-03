@@ -62,6 +62,7 @@ function BookmarkRow({
     onConfirm,
     onEdit,
     report,
+    nested,
 }: {
     ws: Workspace;
     project: WorkspaceProjectEntry;
@@ -72,12 +73,14 @@ function BookmarkRow({
     onConfirm: (id: string) => void;
     onEdit: (b: Bookmark) => void;
     report: Report;
+    // In a folder: indented under the folder's name.
+    nested: boolean;
 }) {
     const t = useT();
     const run = makeRunner(report);
     return (
         <div
-            className="flex flex-wrap items-start gap-x-3 gap-y-2 px-5 py-2"
+            className={cn("flex flex-wrap items-start gap-x-3 gap-y-2 py-2 pr-5", nested ? "pl-9" : "pl-5")}
             data-testid={`bookmark-row-${bookmark.id}`}
         >
             <div className="min-w-0 flex-1 basis-56">
@@ -306,6 +309,7 @@ function ProjectBlock({
     const row = (b: Bookmark) => (
         <BookmarkRow
             key={b.id}
+            nested={b.folder !== ""}
             ws={ws}
             project={project}
             bookmark={b}

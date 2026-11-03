@@ -567,14 +567,12 @@
             "delete": "Supprimer",
             "confirmDelete": "Supprimer ? Cliquez encore",
             "deleteNamed": "Supprimer {title}",
-            "folder": "Dossier {name}",
             "renameFolder": "Renommer",
             "renameFolderNamed": "Renommer le dossier {name}",
             "deleteFolder": "Supprimer le dossier",
             "deleteFolderTitle": "Supprimer le dossier {name}. Ses favoris restent dans le projet.",
             "confirmDeleteFolder": "Supprimer le dossier ? Cliquez encore",
-            "save": "Enregistrer",
-            "cancel": "Annuler"
+            "save": "Enregistrer"
         },
         "error": {
             "notSaved": "Cette valeur n'a pas été enregistrée. Vérifiez settings.json dans Avancé.",

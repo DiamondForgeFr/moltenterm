@@ -38,16 +38,21 @@ function bookmarkItem(b: Bookmark, open: (url: string) => void): ContextMenuItem
 }
 
 export function bookmarksMenu(input: BookmarksMenuInput, actions: BookmarksMenuActions): ContextMenuItem[] {
+    const manage: ContextMenuItem = {
+        label: t("browser.bookmarks.menu.manage"),
+        icon: "sliders",
+        click: () => actions.manage(),
+    };
+    // A menu has no inert rows (FR-SHELL-054): what is missing is said under the row that can fix it.
     if (input.projectName == null) {
-        return [{ type: "header", label: t("browser.bookmarks.menu.noProject") }];
+        return [{ ...manage, sublabel: t("browser.bookmarks.menu.noProject") }];
     }
     const { data } = input;
+    const empty = data.items.length === 0 ? t("browser.bookmarks.menu.empty") : undefined;
     const menu: ContextMenuItem[] = [];
-    if (input.multi) {
+    // A heading only shows when the menu has two sections: the project's bookmarks, then the actions.
+    if (input.multi && !empty) {
         menu.push({ type: "header", label: t("browser.bookmarks.menu.project", { project: input.projectName }) });
-    }
-    if (data.items.length === 0) {
-        menu.push({ type: "header", label: t("browser.bookmarks.menu.empty") });
     }
     for (const b of bookmarksOfFolder(data, "")) {
         menu.push(bookmarkItem(b, actions.open));
@@ -74,9 +79,16 @@ export function bookmarksMenu(input: BookmarksMenuInput, actions: BookmarksMenuA
                       icon: "pen",
                       click: () => actions.editBookmark(existing),
                   }
-                : { label: t("browser.bookmarks.menu.bookmarkPage"), icon: "plus", click: () => actions.bookmarkPage() }
+                : {
+                      label: t("browser.bookmarks.menu.bookmarkPage"),
+                      icon: "plus",
+                      sublabel: empty,
+                      click: () => actions.bookmarkPage(),
+                  }
         );
+        menu.push(manage);
+        return menu;
     }
-    menu.push({ label: t("browser.bookmarks.menu.manage"), icon: "sliders", click: () => actions.manage() });
+    menu.push({ ...manage, sublabel: empty });
     return menu;
 }

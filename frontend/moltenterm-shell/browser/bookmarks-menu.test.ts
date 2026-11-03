@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it, vi } from "vitest";
+import { layoutMenuItems } from "../menu/menu-model";
 import { ProjectBookmarks } from "./bookmarks";
 import { BookmarksMenuActions, bookmarksMenu } from "./bookmarks-menu";
 
@@ -29,6 +30,8 @@ const data: ProjectBookmarks = {
         },
     ],
 };
+
+const none: ProjectBookmarks = { folders: [], items: [] };
 
 function actions(): BookmarksMenuActions {
     return { open: vi.fn(), bookmarkPage: vi.fn(), editBookmark: vi.fn(), manage: vi.fn() };
@@ -92,22 +95,39 @@ describe("the Bookmarks menu", () => {
         expect(labels(menu)).toContain("Manage bookmarks…");
     });
 
-    it("names the project when the workspace has several, and says when there is no bookmark", () => {
+    it("heads the bookmarks with the project's name when the workspace has several projects", () => {
         const menu = bookmarksMenu(
-            { projectName: "Website", multi: true, data: { folders: [], items: [] }, pageUrl: "https://example.com/" },
+            { projectName: "Website", multi: true, data, pageUrl: "https://example.com/" },
             actions()
         );
-        expect(menu[0]).toMatchObject({ type: "header", label: "Bookmarks of Website" });
-        expect(menu[1]).toMatchObject({ type: "header", label: "No bookmark in this project yet" });
-        expect(labels(menu)).toContain("Bookmark this page…");
+        const shown = layoutMenuItems(menu);
+        expect(shown[0]).toMatchObject({ type: "header", label: "Bookmarks of Website" });
+        expect(shown.find((i) => i.label === "Staging")).toBeDefined();
     });
 
-    it("explains that bookmarks belong to a project in a workspace without one", () => {
+    it("says there is no bookmark under the row that adds one, never as an inert row", () => {
         const menu = bookmarksMenu(
-            { projectName: null, multi: false, data, pageUrl: "https://example.com/" },
+            { projectName: "Website", multi: true, data: none, pageUrl: "https://example.com/" },
             actions()
         );
+        expect(menu.some((i) => i.type === "header")).toBe(false);
+        const shown = layoutMenuItems(menu);
+        expect(shown.map((i) => i.label)).toEqual(["Bookmark this page…", "Manage bookmarks…"]);
+        expect(shown[0].sublabel).toBe("No bookmark in this project yet");
+        const startPage = layoutMenuItems(
+            bookmarksMenu({ projectName: "Website", multi: false, data: none, pageUrl: "" }, actions())
+        );
+        expect(startPage.map((i) => i.label)).toEqual(["Manage bookmarks…"]);
+        expect(startPage[0].sublabel).toBe("No bookmark in this project yet");
+    });
+
+    it("explains that bookmarks belong to a project in a workspace without one, on a row that does something", () => {
+        const a = actions();
+        const menu = bookmarksMenu({ projectName: null, multi: false, data, pageUrl: "https://example.com/" }, a);
         expect(menu).toHaveLength(1);
-        expect(menu[0].type).toBe("header");
+        expect(menu[0].label).toBe("Manage bookmarks…");
+        expect(menu[0].sublabel).toContain("belong to a project");
+        menu[0].click();
+        expect(a.manage).toHaveBeenCalled();
     });
 });
