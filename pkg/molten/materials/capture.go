@@ -503,18 +503,27 @@ func (s *Store) match(key string, artifactId string, link string, original strin
 	if err != nil {
 		return molten.Material{}, false
 	}
+	i := matchLocked(d, artifactId, link, original)
+	if i < 0 {
+		return molten.Material{}, false
+	}
+	return d.index.Materials[i], true
+}
+
+// matchLocked is the index of the drawer's material a sighting is of, -1 for none.
+func matchLocked(d *drawer, artifactId string, link string, original string) int {
 	for _, try := range []func(m molten.Material) bool{
 		func(m molten.Material) bool { return artifactId != "" && m.ArtifactId == artifactId },
 		func(m molten.Material) bool { return link != "" && m.Link == link },
 		func(m molten.Material) bool { return original != "" && m.Original == original },
 	} {
-		for _, m := range d.index.Materials {
+		for i, m := range d.index.Materials {
 			if try(m) {
-				return m, true
+				return i
 			}
 		}
 	}
-	return molten.Material{}, false
+	return -1
 }
 
 // commit writes a sighting into the drawer: the new material, or what changes of the known one, with its new version
