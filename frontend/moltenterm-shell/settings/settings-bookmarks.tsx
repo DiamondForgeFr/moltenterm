@@ -96,7 +96,7 @@ function BookmarkRow({
                     </div>
                 ) : null}
             </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <div className="flex max-w-full flex-wrap items-center gap-1.5">
                 <button
                     type="button"
                     className={SecondaryButton}
@@ -229,7 +229,7 @@ function FolderHeader({
             ) : (
                 <span className="min-w-0 flex-1 truncate text-12 font-semibold text-primary">{folder.name}</span>
             )}
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex max-w-full flex-wrap items-center gap-1.5">
                 {renaming ? (
                     <button type="button" className={SecondaryButton} onClick={save}>
                         {t("settings.bookmarks.save")}
