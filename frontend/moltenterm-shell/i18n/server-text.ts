@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // wavesrv's sentences in the interface language (#656): a result field a window shows comes with a code beside it
 // (pkg/molten/uimsg's Text, in a field named after it plus "text": message → messagetext), and an error from a molten

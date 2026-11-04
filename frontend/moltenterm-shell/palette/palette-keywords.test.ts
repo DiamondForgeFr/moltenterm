@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The palette's search words are translated like its labels (#1670, FR-SHELL-013): every list exists in each
 // language, every entry's words resolve, and the words on screen find their command.

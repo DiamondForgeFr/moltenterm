@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The preload's side of the hang watch (#849): channels shared with Electron main, and sendSync timed. A sendSync
 // blocks the page until Electron main answers, so a busy main freezes the window even when the handler itself is

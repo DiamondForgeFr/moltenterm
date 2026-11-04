@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge
-   SPDX-License-Identifier: Apache-2.0 */
+   SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The keep-awake cup (FR-SHELL-103, DS-SHELL-151, #1470): the mug is drawn in SVG and its three steam lines are
    separate boxes, so they can move on their own.

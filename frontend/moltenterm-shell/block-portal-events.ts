@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // React bubbles a portal's events through the React tree, not the DOM: a click in a dialog drawn over the window
 // (DialogFrame portals into document.body) reaches the onClick of the block whose view opened it. Wave's block then

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One menu per view, and pinned blocks reorder by drag (FR-SHELL-081, DS-SHELL-126): what the view menu offers in each
 // state, a view's glyph (its panels' icons separated by a slash, or the icon the developer chose), and where a dragged

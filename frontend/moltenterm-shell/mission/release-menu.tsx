@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project header's Release menu (FR-MC-015), as Notulia's ReleaseLauncher: the next release candidate and the next
 // public release with their numbers, computed when the menu opens; a click starts the preparation on its own and every

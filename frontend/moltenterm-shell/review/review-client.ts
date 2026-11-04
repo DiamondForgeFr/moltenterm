@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Review tab's side of wavesrv (FR-REV-002, DS-REV-002, DS-REV-007): the PR's file list and one file's two sides,
 // computed by local git on commit ids (pkg/molten/review), the review store, and the tab itself. The frontend never

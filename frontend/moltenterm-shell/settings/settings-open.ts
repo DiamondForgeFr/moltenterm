@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Opens the settings screen on one of its sections, for the places that point to settings instead of repeating them
 // (the first run's agent step links to Agents, where #322 keeps the agent integration). Every way into Preferences

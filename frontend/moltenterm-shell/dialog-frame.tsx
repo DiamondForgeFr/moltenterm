@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // MoltenTerm's confirmation dialogs (the worktree close, the Sessions view): a frame over the window, a title and its
 // subtitle, the content, then the buttons; Escape answers like the dialog's cancel.

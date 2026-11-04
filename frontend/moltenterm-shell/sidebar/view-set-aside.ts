@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One click closes a temporary view, with Undo (FR-SHELL-025 revision #1656). The view is set aside rather than
 // closed: hidden and marked in the workspace's meta (view-set-aside-model.ts), so its blocks, shells and agents keep

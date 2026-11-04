@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The search engine of every place that searches the web with typed words (#1748): the browser panel's address bar,
 // the sidebar's top field and the panel launcher, like Wave's web view. One setting, web:defaultsearch, read at each

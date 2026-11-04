@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's + menu (FR-SHELL-107, prototype item 16): what to create, by where it goes. In this view: a terminal, a
 // web page, an agent, another panel; in the workspace: a view, a project; and a new workspace. The panels and the

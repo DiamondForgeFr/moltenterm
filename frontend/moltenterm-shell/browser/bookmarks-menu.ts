@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The menu of the web page panel's Bookmarks button (FR-BRW-019), shown by the MenuHost like every MoltenTerm menu: the
 // current project's bookmarks (those directly in the project, then each folder as a submenu), then Bookmark this page…

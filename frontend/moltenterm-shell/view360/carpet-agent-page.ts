@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A page an agent shows the developer (#1812, FR-BRW-008, FR-SHELL-065 AC13): the panel of a tab it opened through the
 // molten-browser server carries an agent tab id, which tells it from a panel the developer opened.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library (FR-SHELL-088): what is not in the sidebar, over the window, behind the sidebar's bottom-left button.
 // Its own navigation on the left, a wide page on the right: every workspace side by side, the panel kinds explained,

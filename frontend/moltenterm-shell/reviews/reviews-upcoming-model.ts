@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's upcoming work and the agents on each branch (#712, FR-REV-022, DS-REV-015): wavesrv places the
 // agents on branches (pkg/molten/mission/upcoming.go), the window adds what its agent-state store knows now (state,

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The interface theme in Electron main (FR-SHELL-121, #1341): nativeTheme.themeSource follows moltenterm:theme, so
 // native menus and dialogs, the system's form controls and the pages of the browser panel (prefers-color-scheme)

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Agents in the browser panel (FR-BRW-008, DS-BRW-011): which tabs of this panel an agent controls, as wavesrv's
 // sessions publish it (pkg/molten/browseragent), and what the control bar shows. Stop, takeover and Give back go to

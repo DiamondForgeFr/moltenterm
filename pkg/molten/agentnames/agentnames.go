@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentnames gives every agent session running in a pane a first name, unique among the active agents of the
 // whole app (FR-CONT-014, DS-CONT-028), so the developer can tell three Claude Code sessions of one tab apart. An owner

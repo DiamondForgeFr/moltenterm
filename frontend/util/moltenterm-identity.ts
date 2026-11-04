@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Moltenterm's application identity. A rename starts here, in
 // pkg/wavebase/moltenterm_identity.go, in package.json (name, productName,

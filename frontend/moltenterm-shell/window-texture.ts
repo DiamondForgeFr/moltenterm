@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace's texture (#1294, FR-SHELL-091, DS-SHELL-131): a quiet grain or pattern over the frame's tint and under
 // the content. Each texture is a small SVG tile written here (a fractal-noise filter or a few shapes), no image file and

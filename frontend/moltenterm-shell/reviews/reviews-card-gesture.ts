@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A PR's notification opens its card (#1130, FR-REV-001 AC2): a click on the notification, or its "Show in Control
 // room", opens the Control room on that card, brought into sight and marked as from the other surfaces (#962).

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's top field (FR-SHELL-083, #1187): what it shows for the focused panel, what typing finds, and what
 // Enter and its modifiers do with an address or words to search (#1743: the field is a view's address bar and never

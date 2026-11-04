@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Check for updates now (#1806), run against the release feed's request with a fake session, a fake preference and an
 // injected clock: the day's check keeps its once-a-day rule, the action asks at once and records its time, the channel

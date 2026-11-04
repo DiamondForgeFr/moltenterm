@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A Reviews card (#1060, FR-REV-001 AC11): one computed state (reviews-card-model.ts) draws the left rail, one state
 // sentence with its reason, one primary action and a "…" menu for the rest; the facts line carries what is true but

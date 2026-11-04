@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package forecast simulates merging open pull requests one onto another (FR-REV-023, DS-REV-016, NFR-REV-009): for
 // each PR A waiting for review, the base with A merged by the repository's method, then every other open PR B on top

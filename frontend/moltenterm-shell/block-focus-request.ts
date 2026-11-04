@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A block's request to take the focus (#1750). Two layout effects of BlockFull settle it: the first turns a change of
 // the layout's focus into a request, the second carries the request out, giving the block's view the keyboard and,

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The temporary views' motion (FR-SHELL-080, #1253), as in Arc: a new row slides in while the rows below make room, a
 // closed row's neighbours close the gap, Clear folds the rows away downward, staggered. Only transform and opacity

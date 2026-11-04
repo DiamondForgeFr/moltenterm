@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Process tree of a launched instance: CPU from cumulative CPU time, memory as macOS footprint (phys_footprint)
 // or Linux PSS, falling back to RSS. Only the tree of the pid the harness started is ever looked at.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews merge queue (#1062, FR-REV-024, FR-REV-025): the numbered queue at the top of "Yours", readable without
 // hovering (rank, ⟲ rebased by your agent, ◔ waits for its CI), its cost in rebases, a legend for the marks shown and

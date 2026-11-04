@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Opening Getting started (app menu, command palette, notification): the workspace's panel when it has one, sent to
 // the page reopening lands on; else a new panel docked on the left of the active tab.

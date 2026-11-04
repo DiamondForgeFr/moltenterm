@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Electron main asks a renderer what a window close, a quit, a workspace delete or a switch away from an unsaved
 // workspace would stop (FR-SHELL-062, DS-SHELL-109). The renderer acks at once, reads what runs (FR-SHELL-061's reader,

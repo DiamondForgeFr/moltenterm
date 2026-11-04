@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The close guard's decisions (FR-SHELL-061, DS-SHELL-107): what closes at once, what asks, and that one close never
 // asks twice. The reader and the dialog are replaced by stubs; the worktree rule is the real one.

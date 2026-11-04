@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The setup's write by pull request (FR-MC-036, #1098): where it starts and goes, the ticket its commit names, the live
 // progress of the job, its outcome. The folder opened is never written; "Copy the patch" gives the same commit.

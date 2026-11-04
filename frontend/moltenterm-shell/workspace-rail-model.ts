@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The entries of the workspace rail (FR-SHELL-001), from Wave's workspace list. Kept apart from the component so the
 // rules can be tested without the app.

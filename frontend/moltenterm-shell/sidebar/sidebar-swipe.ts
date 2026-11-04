@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Swiping between workspaces (FR-SHELL-082, DS-SHELL-130, #1248): the sidebar follows a horizontal two-finger gesture
 // 1:1, settles on the neighbour or springs back on release, and past either end resists like a rubber band while a

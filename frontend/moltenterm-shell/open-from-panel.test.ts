@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A call to action inside a panel opens its panel beside, in the same view (#1844, FR-SHELL-139 AC13): the choice
 // between reuse, a panel beside, a new view and the app action's rules, on a faked store and layout.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tests read every shipped dictionary synchronously, as Electron main does; the app loads them on demand (#1213).
 

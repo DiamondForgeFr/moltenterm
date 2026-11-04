@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Wires the mod host to the running tab. `frontend/wave.ts` calls startMoltenHost once, after the first render,
 // through its only Moltenterm patch for the host.

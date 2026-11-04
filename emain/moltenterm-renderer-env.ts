@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // UI transport locations and presentation/startup flags only. Credentials and arbitrary environment
 // access are never part of the renderer contract. Home/config/data paths have separate guarded APIs.

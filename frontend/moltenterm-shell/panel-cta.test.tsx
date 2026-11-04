@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What each family of call to action hands the door (#1844, FR-SHELL-139 AC13): the panel it is in, the click's
 // modifiers, the tooltip that says how to get a new view. The doors themselves are tested in open-from-panel.test.ts.

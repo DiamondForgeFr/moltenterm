@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release notification in the renderer (#188): once the window is idle after start, and when it gets the focus,
 // asks emain whether a newer release is out. emain asks GitHub at most once a day, answers from memory otherwise, and

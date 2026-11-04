@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The file panel's filter (FR-FILE-002, DS-FILE-002). It lives in the block meta, so it survives a remount and a
 // restart, whoever set it: the developer's type-to-filter, or an agent's `molten files` (pkg/molten/filesearch), which

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Help from the pipeline setup (#1152, FR-MC-044): one way to talk to the AI, the coding agent in the setup tab's
 // terminal. "Ask for help" and each step's "Question" build the context (which screen or step, what the panel shows,

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The site permission bar (FR-BRW-009, DS-BRW-013): the first action of an agent on a site asks here, in the control
 // bar's slot and style. Allow once lasts for the agent's session, Always for this site and Block are remembered for

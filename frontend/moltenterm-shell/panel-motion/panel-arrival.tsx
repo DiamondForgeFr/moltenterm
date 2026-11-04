@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The edge of a panel's arrival (FR-SHELL-112, #1349), over the panel's frame (blockframe.tsx) while the model
 // (panel-arrival-model.ts) says it arrives; panel-motion.css runs it once around the frame, then puts it out.

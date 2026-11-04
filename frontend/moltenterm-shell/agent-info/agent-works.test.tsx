@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // FR-AGC-004 (#1685): what works with an agent, from the compatibility matrix, the same words for every agent.
 

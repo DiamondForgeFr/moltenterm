@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A leftover whose worktree a live agent holds (#1143, FR-REV-022 AC16): Clean up asks that owner to check and remove
 // it (pkg/molten/review/leftover_ask.go), and the leftover's card then follows the request with the PR card's own

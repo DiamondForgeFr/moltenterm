@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The main process's side of the tab activity model (FR-PERF-009, DS-PERF-008): every tab view of a window learns
 // whether the window is focused, minimised or shown, when it starts and at each change. Which view is on screen the

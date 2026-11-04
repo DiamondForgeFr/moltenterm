@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Real dependency compatibility checks with disposable loopback servers; no application/user data or external URLs.
 /* global AbortSignal, clearTimeout, console, process, setImmediate, setTimeout, URL */

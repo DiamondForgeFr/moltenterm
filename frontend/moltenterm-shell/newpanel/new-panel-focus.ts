@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where the focus is when ⌘T is pressed (FR-SHELL-086, #1742), read from the window: the panel a page's key came from,
 // the panel holding the keyboard focus, or the layout's focused panel; the sidebar holding the focus is no panel.

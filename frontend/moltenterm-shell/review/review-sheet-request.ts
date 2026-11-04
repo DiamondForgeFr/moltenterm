@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A sheet asked for a Review tab by `molten review publish|merge|restart` (FR-REV-014). Each tab of a window is a page
 // of its own, and a Review tab just created has no page yet when the terminal's request arrives: the page that opens

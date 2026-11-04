@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The conflict forecast's links (FR-REV-023): thin warning-toned brackets in the list's left gutter, from the hovered or
    focused card to each card it conflicts with, either way (#1062). Each line draws once from the cause to the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The seen rule of the agent marks (#784): green means finished and not seen yet. Each tab view watches the done
 // agents it shows (doneAgentsInView) and tells wavesrv once the user has seen one; wavesrv clears it to idle for every

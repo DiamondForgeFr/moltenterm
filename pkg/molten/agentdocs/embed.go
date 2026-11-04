@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentdocs holds the documentation coding agents read to build mods (DS-MORPH-006): the mod format, the
 // morph guide, and complete example mods; and to connect projects to Mission Control (FR-MC-008): the

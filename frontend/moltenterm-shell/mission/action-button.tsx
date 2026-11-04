@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The look of the Project header's actions (FR-MC-021): Run CI on develop is the molten primary, Build local, Release
 // and Clean branches are calm bordered secondaries of the same size, and an action under way reads as running.

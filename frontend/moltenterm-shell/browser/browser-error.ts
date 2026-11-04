@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A page that fails to load (FR-SHELL-051, DS-SHELL-092): MoltenTerm draws its own error page over the webview instead
 // of Chromium's black one. The error is sorted into a class (DNS, refused, timeout, TLS, offline) told in one plain

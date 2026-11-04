@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tab bar's equalize button (#825), left of the 360 toggle: a click evens out the tab's panel columns once; a long
 // press (the tab close's hold gesture and ring, DS-SHELL-059) turns the tab's auto mode on, and the button stays lit.

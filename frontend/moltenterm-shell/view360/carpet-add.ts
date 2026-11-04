@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Add a panel" at an end of the carpet (#702, FR-SHELL-065): a new carpet column at that end, opening on the picker
 // of a split (FR-SHELL-042, DS-SHELL-066), focused; the layout then glides the carpet to it.

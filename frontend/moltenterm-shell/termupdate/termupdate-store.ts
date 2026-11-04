@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The windows' copy of wavesrv's outdated terminals (FR-SHELL-041): a snapshot at start, then the molten:termupdate
 // events; and the calls of Update terminal.

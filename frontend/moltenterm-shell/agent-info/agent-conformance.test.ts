@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The frontend part of the adapter conformance suite (FR-AGC-006): every cell of the compatibility matrix whose code
 // lives here (an FS/ adapter) is checked against that code, for every agent of the matrix. The matrix comes from

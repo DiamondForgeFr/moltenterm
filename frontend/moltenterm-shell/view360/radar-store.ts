@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The radar's live inputs (FR-SHELL-068): the carpet columns' panels read from the layout tree, and per block its view,
 // title, agent and attention, read from the stores the app already keeps (blocks, agent states, notifications).

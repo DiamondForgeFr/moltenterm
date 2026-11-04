@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Ask for help" in the setup panel (FR-MC-038, #1150; the screen's context, #1152): the click opens the agent's terminal on the left, starts the
 // agent when none runs there, and hands it the screen's context. With no coding agent installed, or the chosen one

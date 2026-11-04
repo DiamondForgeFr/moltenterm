@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Agent states (FR-SHELL-011, DS-SHELL-011): wavesrv keeps the coding agent of each terminal and its state
 // (pkg/molten/attention/agentstate.go); the windows show them in the pane header, on the tab and on the workspace

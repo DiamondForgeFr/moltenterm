@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Clean copy and file links on terminal blocks (FR-SHELL-017, DS-SHELL-018): the glue between xterm, the agent states
 // (FR-SHELL-011), wavesrv's stat and the preview. The rules themselves are pure and live next to this file.

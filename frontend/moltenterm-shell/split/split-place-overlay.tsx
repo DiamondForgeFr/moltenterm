@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The split placement mode on one panel (#677): four zones, triangles from the centre to each edge; the zone under the
 // pointer, or the one picked with the arrows, shows the half the new panel would take with its label. A click or Enter

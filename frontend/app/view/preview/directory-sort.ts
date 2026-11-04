@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The file panel's order (FR-FILE-003, DS-FILE-003): folders first in every sort and direction, ".." on top, one
 // column at a time. A panel keeps its sort in its block meta; without one it uses the preview:defaultsort setting.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The connections icon of a terminal's header and its menu (FR-CONT-022): the agents of the terminal and, per agent,
 // every MoltenTerm connection with its state and action; then the terminal's handoffs and the site permissions of the

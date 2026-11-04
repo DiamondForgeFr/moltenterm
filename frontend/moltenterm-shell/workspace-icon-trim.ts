@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every image badge at the same visual size (#522): a logo drawn with a wide transparent margin looked tiny next to
 // one drawn edge to edge, and the badge's box sized the file, not what it shows. Once per image and run, the visible

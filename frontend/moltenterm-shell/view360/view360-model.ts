@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // 360 view of a workspace tab (FR-SHELL-065), wired to its layout. One model per LayoutModel: the layout asks it where
 // the root's columns are drawn, and it owns the carpet's scroll position. The API the next 360 view stories build on:

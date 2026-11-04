@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Find next and previous from the keyboard (#1759, FR-SHELL-139 AC10). Each panel's find bar (a terminal's, a web page's)
 // knows how to step its own matches; the bar registers them under its isOpen atom, which is also the panel's

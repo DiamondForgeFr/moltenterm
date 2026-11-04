@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The carpet's IntersectionObserver (FR-SHELL-069, DS-SHELL-120): one observer per carpet, its root the carpet
 // surface and its margin one default column on each side, so the neighbours of the columns in view stay ready. It

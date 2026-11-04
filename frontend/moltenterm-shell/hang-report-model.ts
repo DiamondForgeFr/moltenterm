@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pure side of the renderer's hang report (#849): which long tasks are logged, how one reads in waveapp.log, and
 // the diagnostics text the "did not respond" notification copies. hang-report.ts wires it to the page.

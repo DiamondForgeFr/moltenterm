@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The molten command (FR-MORPH-005, DS-MORPH-004). The mod host runs in each tab's renderer, so molten asks the tab
 // it runs in. It sends plain command names over the tab route instead of declaring RPC types in pkg/wshrpc, the

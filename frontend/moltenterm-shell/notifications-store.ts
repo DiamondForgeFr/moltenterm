@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The notification center's store (FR-SHELL-002, FR-MC-010), shared by every window through the client object's meta
 // (see notifications-model.ts).

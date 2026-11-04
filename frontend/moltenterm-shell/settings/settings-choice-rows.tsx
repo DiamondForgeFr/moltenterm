@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The option rows a select setting with few choices shows (#1408 moved them out of settings-screen.tsx so the
 // keep-awake popover draws the very same control as Preferences › Energy).

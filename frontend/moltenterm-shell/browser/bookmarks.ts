@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The bookmarks of the web page panel, kept per project (FR-BRW-019, DS-BRW-026). They live in the workspace's meta
 // under one key, {projectId: {folders: [{id, name}], items: [{id, url, title, description, folder}]}}, next to the

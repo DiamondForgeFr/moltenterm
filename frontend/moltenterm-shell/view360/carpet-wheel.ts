@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Who gets a horizontal scroll in 360 view (FR-SHELL-065, #676): the carpet, or the panel under the pointer. Shared by
 // the carpet's own wheel listener and by the browser panels' guest pages (emain/preload-webview.ts), whose wheel never

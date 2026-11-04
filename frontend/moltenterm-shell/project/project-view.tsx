@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project view (FR-MC-020, DS-MC-012): Mission Control's single overview of the linked project, shown by the
 // Project tab (FR-SHELL-015, DS-SHELL-015). Top to bottom: the header band with the actions, the line map, then one

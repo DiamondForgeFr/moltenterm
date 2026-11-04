@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Claude Code side of `molten` (FR-MORPH-010, DS-MORPH-009). `molten` runs in the user's shell, so it finds the
 // user's `claude` on the PATH: it checks a mod's Claude Code part with `claude plugin validate` (which reads the

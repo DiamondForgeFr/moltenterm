@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The connections of a terminal's agents (FR-CONT-022, DS-CONT-031): what wavesrv's link registry
 // (pkg/molten/agentlinks) and handoff route say, and what the header icon and its menu make of it. Provider-agnostic:

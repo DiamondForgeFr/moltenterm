@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Lean renderer bundle (FR-PERF-007, DS-PERF-006): every tab view, including the hot spare, parses and evaluates the
 // entry chunk and everything it imports statically (index.html modulepreloads exactly that set). The heavy libraries

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package release cuts a project's releases from its `.molten/project.json` (FR-REL-002, DS-REL-002): the commands
 // behind `molten release`, which a project's release.rc and release.public steps call so that Mission Control runs

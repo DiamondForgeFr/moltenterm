@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Renderer loss recovery (#973, FR-PERF-004). A window whose renderer is gone (killed, crashed, out of memory) showed
 // an empty window until the app was quit: Electron keeps the dead view in place and nothing loaded it again. Here the

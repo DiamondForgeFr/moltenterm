@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Panels off-screen on the carpet (FR-SHELL-069, DS-SHELL-120). The sensors only exist for the carpet's
    IntersectionObserver. An off-carpet panel's content keeps its layout box and its DOM (nothing is unloaded) but is

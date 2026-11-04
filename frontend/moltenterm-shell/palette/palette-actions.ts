@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Carries out a palette entry (FR-SHELL-013). "in place" replaces the pane the palette lives in, or opens a new pane
 // from the global palette; "right" splits the given pane to its right.

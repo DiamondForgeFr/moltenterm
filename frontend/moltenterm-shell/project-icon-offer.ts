@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The project icon offer (FR-SHELL-059, DS-SHELL-101): once a workspace is linked to a project that has a real image,
 // a toast with that image's thumbnail offers it as the workspace icon, with Use this icon and Dismiss. A project

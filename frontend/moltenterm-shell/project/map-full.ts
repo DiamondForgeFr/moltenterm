@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The line map's Full size in the Project panel (FR-SHELL-094): the map takes the whole panel and the panel is
 // magnified, as ⌘M does, so the view's layout never changes and a pinned view stays as pinned. The same button or Esc

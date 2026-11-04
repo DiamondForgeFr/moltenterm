@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The coding agent MoltenTerm starts on its own (#845): the reviews' investigate, rebase, restart and batch merge, the
 // assisted review and the release notes. One choice, per project with a global default, set in the options (command

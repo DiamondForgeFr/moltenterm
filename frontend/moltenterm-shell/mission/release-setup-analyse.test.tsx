@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 2a (FR-MC-040, TC-MC-049): the existing pipeline of a SaaSFoundryAI-shaped repository, read into points and
 // drawn; the answers reach the draft's options.

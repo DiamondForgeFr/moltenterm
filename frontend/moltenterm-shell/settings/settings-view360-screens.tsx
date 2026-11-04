@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Under Settings › Appearance › 360 view (FR-SHELL-066, #1083): the screens the 360 view remembers a column threshold
 // for, and the current one with its default, each editable; a remembered screen can be forgotten (it takes its default

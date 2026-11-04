@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's "Leftovers to clean up" group (#1088, FR-REV-022 AC14), right after Upcoming: a merged PR whose
 // branch holds nothing new is no upcoming work, it is what the merge left (a worktree, an agent session, the branches).

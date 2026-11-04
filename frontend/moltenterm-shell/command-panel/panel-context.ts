@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the command panel knows about the panel it opens for (DS-SHELL-086): its view, meta, view model, the agent
 // running in it and the capabilities providers match on.

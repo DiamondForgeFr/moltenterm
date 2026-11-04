@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the closed top field shows (FR-SHELL-083): kept apart from top-field-model.ts, whose search rules load with the
 // open field, so the resting field costs the JS every tab view loads up front almost nothing (NFR-PERF-003).

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Sign in runs the agent's own sign-in in a terminal panel, the plans page apart (FR-ONB-007 AC-5b, #1723).
 

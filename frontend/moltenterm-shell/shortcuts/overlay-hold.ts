@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Holding ⌘ alone shows the shortcut overlay (FR-SHELL-090, DS-SHELL-129): a bare ⌘ (Alt off macOS, where Wave's Cmd is
 // Alt) arms a timer; any other key, a click, the window losing focus or the release disarms it. Nothing is

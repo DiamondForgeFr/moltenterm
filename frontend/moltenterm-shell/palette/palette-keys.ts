@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The global shortcut of the command palette (FR-SHELL-013). Cmd+K is taken: in a terminal it clears the scrollback
 // (Wave's term-model.ts, the macOS terminal convention), so the palette takes the closest free binding, Cmd+Shift+K.

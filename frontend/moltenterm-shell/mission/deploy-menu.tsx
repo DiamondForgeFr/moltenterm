@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project header's Deploy to shortcut (#559): the cd steps that name an environment, one direct button or a menu
 // of them, run by the CD tab's own runner. A production-like environment, or one marked confirm, asks first in the

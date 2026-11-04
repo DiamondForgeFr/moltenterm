@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What a mod's code adds to the page, owned by the host (FR-MORPH-012, DS-MORPH-010). A mod is supported only through
 // MoltenApi, but its code runs in the tab and can reach `document` (audit #713, probe P2: an injected <style> kept the

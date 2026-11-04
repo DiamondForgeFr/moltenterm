@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Spaces frame (DS-SHELL-127, #1216, #1279): the window buttons come and go with the workspace sidebar, and sit on
 // the window row's centre line, or inside the floating panel while the sidebar is hidden (#1293). macOS draws them at the top left: they are placed and shown or hidden. Elsewhere the

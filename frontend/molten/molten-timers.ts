@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The timers of one mod (FR-PERF-014, DS-PERF-012). The host shadows setTimeout, setInterval, clearTimeout and
 // clearInterval in the mod's module scope with these, so that it can count them, measure their callbacks, stop them

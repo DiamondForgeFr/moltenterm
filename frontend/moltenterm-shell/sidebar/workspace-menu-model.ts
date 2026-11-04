@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace menu (FR-SHELL-079, FR-SHELL-107): one list for the header's ⋯, a workspace dot and the sidebar's
 // background, in three families: the workspace itself, its projects, and Delete or reset last. Every item is an action

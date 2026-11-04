@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where the releases stand, first ported from Notulia (src/components/dev/ReleaseStatePanel.tsx), now two of the
 // Project overview's cards (FR-MC-024): Next public release (what waits on the trunk for it, by kind, and how far its

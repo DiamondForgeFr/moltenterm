@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A panel's arrival (FR-SHELL-112, #1349): a panel that a split, an insert or an agent adds to a view that already
 // shows panels arrives instead of appearing: an orange edge runs once around its frame, then goes out

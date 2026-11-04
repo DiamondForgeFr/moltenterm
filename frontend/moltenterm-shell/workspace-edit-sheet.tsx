@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace edit sheet (FR-SHELL-030, DS-SHELL-036, DS-SHELL-101, FR-SHELL-105): its folder under the title; an
 // Identity block (name, one Icon field, Symbol or Image, "Use the project's logo", then the colour), an Appearance

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What pinning a carpet panel says (FR-SHELL-067), read in the interface language each time it is shown (#623).
 

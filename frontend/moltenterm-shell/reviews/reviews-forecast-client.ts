@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The conflict forecast's side of wavesrv (FR-REV-023, NFR-REV-010): asked while the Reviews list shows, each time the
 // PRs or the base it lists move, and on its refresh. wavesrv answers at once with the last forecast and computes in

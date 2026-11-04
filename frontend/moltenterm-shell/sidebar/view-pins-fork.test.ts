@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view pinned everywhere stays a base (FR-SHELL-080, #1272): changing its panels makes it a temporary view of the
 // workspace, and Update the pinned view applies the change to every workspace.

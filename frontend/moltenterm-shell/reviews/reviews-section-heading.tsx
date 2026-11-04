@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A Reviews section's heading (#1061, FR-REV-001 AC12): a fold chevron, the title, its count and a short muted hint,
 // with the section's own actions at the end of the line. Every section of the panel shares it, so they read as one

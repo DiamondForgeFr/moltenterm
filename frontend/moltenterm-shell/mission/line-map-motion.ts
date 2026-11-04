@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The line map's motion (FR-MC-023, DS-MC-015), the parts that are logic rather than CSS: when the load sequence
 // plays, how each mark's start is staggered along time, and the switches the frame carries. The motion itself is the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Sign-in popups in the in-app engine (FR-BRW-003, DS-BRW-003). Pure functions shared by emain
 // (emain/moltenterm-popups.ts, which owns the popup windows) and the browser panel (the refusal bar): no Electron and

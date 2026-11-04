@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The view menu holds only what is about the view (FR-SHELL-107): Reopen what was closed (the workspace's), the tab bar
 // position (the app's) and Copy id (the developer's) leave it, and a pinned view says why it has no Close on hover.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A narrow window (FR-SHELL-109): below this width the sidebar floats on its own (FR-SHELL-079) and two columns that
 // do not fit at their readable minimums go to the 360 view (FR-SHELL-066). One signal, so both switch together.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The scenes of the pour where the user sets the workshop up (#1709): the project (FR-ONB-007 P-4), the first view
 // and its place (FR-ONB-009), and the last one, ready (P-6). Each takes what it shows as props, so they render

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Checks that every Font Awesome icon name used by the app resolves with what Moltenterm ships:
 // Font Awesome Free (public/fontawesome-free/) plus the compatibility layer (public/moltenterm-icons.css).

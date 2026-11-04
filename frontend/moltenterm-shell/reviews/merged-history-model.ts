@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The merged history (#960, FR-REV-030): every PR merged into the project's PR target, opened from Recently merged.
 // wavesrv reads it from GitHub in pages and keeps it per project (pkg/molten/mission/reviews_history.go); this side

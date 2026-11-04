@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A Reviews card's local CI that nothing runs (#1713): Run again asks for the approval first when the commands wait for
 // it, and never runs after the developer closed the sheet.

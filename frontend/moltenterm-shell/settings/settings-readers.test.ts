@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // No dead setting on the screen (FR-SHELL-096, #1325): every key Preferences shows is read somewhere in the app's code,
 // besides the screen itself, the schema and the generated files. A key the code no longer reads is hidden in

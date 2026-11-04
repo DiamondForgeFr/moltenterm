@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view's glyph (DS-SHELL-126, FR-SHELL-081): the icon the developer chose, or one mark per screen region separated by
 // a slash, up to three ("folder / branch"), never overlapping squares. A grid view has a mark per panel; a view drawn in

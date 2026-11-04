@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Language packs in the mod host (FR-I18N-002): data-only mods load without trust and without code, a pack that
 // breaks a placeholder is refused whole, and the host hands the packs to the dictionaries after each sync.

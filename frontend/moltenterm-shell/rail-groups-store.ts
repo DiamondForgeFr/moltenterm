@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the rail's product groups read (FR-MC-027): the groups from Mission Control's collector, and the local groups
 // kept in the client meta (this machine, never in a project).

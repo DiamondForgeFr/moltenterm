@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release setup (FR-MC-036, DS-MC-030): what wavesrv drafts (pkg/molten/pipelinesetup), the stepper's choices,
 // the flow diagram's model and the review's line diff. Pure functions, tested without the app.

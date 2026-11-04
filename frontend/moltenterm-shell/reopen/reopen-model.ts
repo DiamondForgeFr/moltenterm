@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Reopening the last closed pane or tab (#512): names shared with pkg/molten/reopen, and the toast that says what came
 // back.

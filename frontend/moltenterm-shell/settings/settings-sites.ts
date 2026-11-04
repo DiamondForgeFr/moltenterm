@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Browser › the per-site settings as lists (FR-SHELL-106): a site per row, its choice changed or the site removed,
 // without editing JSON. The browser panel's bars still add the sites; these rules only change or remove what is

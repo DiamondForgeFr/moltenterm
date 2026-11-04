@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pipeline's technical documentation among step 3's files and the update's changes (FR-MC-043): where it goes and
 // its diff against the current one, built by the backend from the proposed pipeline. Nothing is written here: Write

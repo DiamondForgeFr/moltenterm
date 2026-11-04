@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Resume with a lead agent that no longer runs (#1779, FR-REV-022 AC19): nothing starts unasked (#758), so before the
 // lead's session starts again this dialog says what will happen. Resume {name} (the default, Enter) starts the lead's

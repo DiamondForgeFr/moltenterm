@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The merge method of every sheet that merges (FR-REV-012 AC2, FR-REV-025, #957): Validate and the batch modal show
 // the same picker, preselected on the repository's remembered method, say the choice is the repository's default, and

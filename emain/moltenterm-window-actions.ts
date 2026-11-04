@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A window's actions (#461): what Wave's processActionQueue did for each queued entry, with what #68, #222, #448,
 // #449, #450 and #454 changed in it, out of emain-window.ts. Each action runs in the window's WindowActionQueue

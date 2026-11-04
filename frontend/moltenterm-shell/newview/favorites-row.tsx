@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The favourites row on top of the new view chooser (FR-SHELL-089, DS-SHELL-128): 2 to 4 equal, flat choices, the
 // selected one in the accent, each with its direct shortcut.

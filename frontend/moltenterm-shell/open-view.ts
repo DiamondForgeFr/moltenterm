@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Opening one of MoltenTerm's views from the shell (the notification center, the status bar): the one already in the
 // active tab gets the focus, else a new block opens, in a temporary view when the active one is pinned (FR-SHELL-094).

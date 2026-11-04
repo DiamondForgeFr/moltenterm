@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What both Mission Control panels share (FR-MC-002): they follow the active workspace's project (FR-MC-001), show the
 // action that fixes a missing piece (link a project, create the pipeline), and frame the collector's snapshot with

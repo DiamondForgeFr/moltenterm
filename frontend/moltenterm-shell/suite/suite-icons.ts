@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The suite's icons (#658): one Lucide icon per concept, so a concept looks the same in every DiamondForge app.
 // lucide-react is pinned to Notulia's version (0.563.0). Named imports only, so the bundle keeps the icons used here.

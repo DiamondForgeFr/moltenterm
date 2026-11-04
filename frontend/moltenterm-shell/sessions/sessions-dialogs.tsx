@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Sessions view's confirmations (FR-SHELL-020): ending one session, ending every session no pane shows. Keep is
 // focused, so Enter by habit keeps; Escape keeps too.

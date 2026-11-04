@@ -1,3 +1,6 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 

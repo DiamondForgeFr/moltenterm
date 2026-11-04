@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project overview's own cards (FR-MC-020, DS-MC-012), composed from Mission Control's panels, one home for each
 // piece of information: the group strip of a product's member (group-strip.tsx, FR-MC-028), the next station band with

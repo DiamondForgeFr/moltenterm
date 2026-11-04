@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The ready-made combinations as the new-view launcher's Suggestions (FR-SHELL-138, TC-SHELL-250, TC-SHELL-251).
 

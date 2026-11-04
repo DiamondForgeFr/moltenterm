@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's Upcoming section (#712, FR-REV-022 AC1 and AC11), after the PR sections: the ticket branches with
 // commits and no PR yet. Each is a card like a PR's (#1061): a rail and a state sentence (an agent waits for you, an

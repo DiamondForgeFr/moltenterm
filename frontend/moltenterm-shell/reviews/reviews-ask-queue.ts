@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Queued asks for a busy agent (#1062, FR-REV-022 AC12): a task asked from a card that reached an agent busy on the
 // branch waits here, on the developer's "Hand the rebase to {name} after its task", and is sent to that agent once it

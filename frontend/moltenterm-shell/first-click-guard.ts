@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Wave swallows the click that brings a deactivated macOS window back to the front (frontend/app/app.tsx). The window
 // also gets a `focus` event whenever the user clicks the host page while a <webview> (the browser panel's page) holds

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Size of the built renderer bundle (dist/frontend) and of the JavaScript every tab view loads up front: the entry
 // script of index.html and its modulepreloads. Machine-independent, so CI gates it.

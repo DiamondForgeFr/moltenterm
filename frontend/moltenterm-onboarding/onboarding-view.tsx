@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The first-run panel (FR-ONB-001, DS-ONB-001): a block that fills the first tab on a fresh install, or docks on the
 // left of the tab when Getting started opens it again; it resizes like any pane and stays in place across a restart.

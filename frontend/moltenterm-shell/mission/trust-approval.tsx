@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Approving a project's commands without running them (DS-MC-005, #1017): the notification of a run refused from a
 // terminal, and the Reviews line of the agent that was refused, open the trust sheet in approve-only mode. The sheet

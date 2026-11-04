@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // How a panel's menus reach the command panel (FR-SHELL-047): a right-click on the header opens the panel at the
 // pointer; a right-click in the body keeps a short menu (FR-SHELL-043) that ends with More… ⌘., which opens the panel

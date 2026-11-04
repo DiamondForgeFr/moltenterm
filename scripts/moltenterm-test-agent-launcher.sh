@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 
 # Shell-level test of the claude launcher of local MoltenTerm terminals (FR-SHELL-036, DS-SHELL-044/045): with a fake
 # claude that records its arguments, environment, stdin and parent, in a temporary HOME and data folder, it checks

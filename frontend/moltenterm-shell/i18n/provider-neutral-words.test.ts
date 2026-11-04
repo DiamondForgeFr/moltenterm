@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // MoltenTerm is provider-agnostic (FR-I18N-001 AC11, #1452): you connect any agent CLI or model to it, so a sentence
 // never names Claude, Codex, Anthropic, OpenAI, GPT or Gemini as a fixed word. An agent is named by its first name, a

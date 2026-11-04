@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A product in the workspace rail (FR-MC-027, DS-MC-018): one entry for a group of two members or more. A click opens
 // or closes it like a folder. Closed, it carries the worst member state, its members' unread dot and most urgent agent

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // No silent failure for an agent-dependent action (FR-AGC-005): before MoltenTerm offers an action that needs the
 // agent's MCP, hooks, guides or runner, it reads the agent's cell of the compatibility matrix (FR-AGC-001). A cell at

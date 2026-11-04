@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the window does around Resume with a lead agent (#1779, FR-REV-022 AC19): it names the lead to wavesrv, which
 // resolves it again against the running agents, and shows the lead's tab once the work is handed to it (the developer's

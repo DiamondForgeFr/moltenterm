@@ -1,5 +1,5 @@
 // Copyright 2026, MoltenTerm Authors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Deferred integration: importing this bridge never accesses a keychain or contacts Apple.
 // Finalization (DMG notarization, update metadata) runs in package.mjs once the builder has exited, because the

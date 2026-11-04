@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's Recently merged section (#843), last in the panel: a merged PR leaves the review list, and this
 // says it merged, when and where it ships. The PRs are grouped by the version that ships them (#1061, FR-REV-027 AC6

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The palette's entries (FR-SHELL-013), from configuration and the workspace: agent presets (presets "agent@<id>"),
 // panels (widgets.json), recent folders (FR-SHELL-009) and workspace actions. Pure, so the rules are tested without

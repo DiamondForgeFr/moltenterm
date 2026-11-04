@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Your way of publishing" (FR-MC-044, #1151): the pipeline setup's first screen. What the survey found, told in plain
 // words: one block per channel with its diagram and its numbered sentences, each with who does it; the step and its

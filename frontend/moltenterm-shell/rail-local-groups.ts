@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Local rail groups (FR-MC-032, DS-MC-028): groups the user makes of any saved workspaces from the rail's link bud,
 // its menus or `molten rail group`. wavesrv stores them in the client meta beside the rail order and is their only

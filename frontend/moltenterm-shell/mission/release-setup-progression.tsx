@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pipeline setup's progression (epic #1149, #1163): the three markers Understand, Adjust and Validate, each a large
 // icon tile with its parts as small tiles beside it, in the DiamondForge suite's progression look (the forge stepper of

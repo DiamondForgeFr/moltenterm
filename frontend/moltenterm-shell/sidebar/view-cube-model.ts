@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The 360 cube of a view's icon (FR-SHELL-081, #1823, #1861): which face shows which panels, how many icons it draws,
 // and which motion a change of screen makes. It has four faces around its vertical axis, each a belt of the carpet's

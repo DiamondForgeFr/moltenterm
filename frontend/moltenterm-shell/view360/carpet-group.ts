@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "360 on the pages" (FR-SHELL-124, DS-SHELL-136): the chooser's "On the carpet: All panels · The pages". With the
 // pages, only the browser panels stay on the carpet; every other column right of the agent is pinned in the fixed

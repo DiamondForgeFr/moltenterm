@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Share with agent (FR-BRW-011, DS-BRW-017): a tab the user opened can be given to one of the agents running in the
 // panes of the browser panel's own tab (#594). The agents are the tab's agent states (the companion's and the command

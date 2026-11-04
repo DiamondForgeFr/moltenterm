@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 2a of the pipeline setup (FR-MC-040, DS-MC-030): the reader that turns what step 1's survey and the draft read
 // of the repository (branches, the release branch's protection, the workflows and their triggers, environments, tags,

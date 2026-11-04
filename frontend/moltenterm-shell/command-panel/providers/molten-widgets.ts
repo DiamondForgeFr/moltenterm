@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The options of MoltenTerm's own widgets (FR-SHELL-049, DS-SHELL-090, v7 D3): the companion (plan usage and its
 // source, the linked session), the line map (time window, animation), CI/CD (the runs shown), the Project view (the

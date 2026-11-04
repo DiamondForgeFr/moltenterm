@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The paint check of a reused tab view (#223) cannot misfire on a window that cannot show frames (#461).
 

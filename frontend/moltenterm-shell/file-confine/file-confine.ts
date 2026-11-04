@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A file panel of a workspace linked to a project stays inside the project folder (FR-FILE-001, DS-FILE-001). One
 // gate sits where the panel's model applies a new file meta, so every route goes through it: the parent folder, the

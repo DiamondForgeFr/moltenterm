@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The row of four cards under the line map (FR-MC-024, DS-MC-012), each the only home of its summary: Next public
 // release (what waits on the trunk, by kind, and the milestone), Releases (the last release candidate and the last

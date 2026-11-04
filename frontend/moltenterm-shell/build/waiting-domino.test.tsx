@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Waiting = domino (DS-SHELL-154, FR-SHELL-076 AC4, #1714): where the user waits for an action or an agent works, the
 // one domino loader shows, never a spinner icon and never a busy label alone. The guard reads the sources: a spinner

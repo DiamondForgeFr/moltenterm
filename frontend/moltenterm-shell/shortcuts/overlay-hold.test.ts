@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Hold ⌘ to show the shortcut overlay, ⌘/ to keep it (FR-SHELL-090, TC-SHELL-172).
 

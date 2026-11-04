@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A material's card shows the capture of the panel that showed it (#1560, FR-MAT-002, DS-MAT-010). There is no capture
 // of its own: the 360 carpet already captures each panel at rest (view360/carpet-captures.ts) and offers each capture

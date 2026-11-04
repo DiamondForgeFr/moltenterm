@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Electron main's interface language (FR-I18N-001, DS-I18N-002, DS-I18N-003): the app menu, the dock menu, the menu
 // entries MoltenTerm adds and the native dialogs follow app:language, resolved with the same rules and dictionaries as

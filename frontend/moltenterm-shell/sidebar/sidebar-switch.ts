@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Switching workspaces from the sidebar (FR-SHELL-082): a dot, a swipe and ⌥1…⌥9 go through switchFromSidebar, so they
 // land the same way. Each workspace's tab is its own renderer: the one left records which way the switch goes, its

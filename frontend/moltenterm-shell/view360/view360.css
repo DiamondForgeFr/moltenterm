@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* 360 view (FR-SHELL-065, DS-SHELL-115, DS-SHELL-152): the carpet has no frame since #1545. Its places sit on the
    window like the normal layout's panels; the edge peeks and the tab strip tell the tab is in 360 view. Panels laid on

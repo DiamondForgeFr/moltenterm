@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews card's one state (#1060, FR-REV-001 AC11, FR-REV-022 AC10, FR-REV-028 AC12): computed from the PR, every
 // agent on its branch and the task asked, it decides the card's rail colour, its state sentence, its one primary action

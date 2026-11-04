@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The shortcut overlay (FR-SHELL-090, DS-SHELL-129): flat key caps over the interface, next to what they act on, a card
 // on the focused panel and on the panel under the pointer, and "All shortcuts" to open the full sheet. Loaded on its

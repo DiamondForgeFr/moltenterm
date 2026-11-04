@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews icon's counts in the rail (#688, #775), in the Sessions badge's style: the PRs waiting for review that
 // cannot merge yet at the top right, those that can merge now at the bottom right in the success colour. The two add

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What works with an agent, in a few plain words (FR-AGC-004, #1685): the agent card (first run, the agent's window)
 // and the agent picker read the compatibility matrix the same way for every agent. Two groups at a glance, what

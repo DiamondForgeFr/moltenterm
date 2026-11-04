@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The keys of a focused web page that the shortcut overlay needs (FR-SHELL-090, DS-SHELL-129): holding ⌘ over a page
 // shows it too, and a chord or Escape closes it. A page's keys never reach the window's document, so Electron main

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The notification center's data (FR-SHELL-002, DS-SHELL-003, FR-MC-010, DS-MC-009). Each notification is one key of
 // the client object's meta, "molten:notif:<id>". Wave persists that meta, sends it to every window, and merges updates

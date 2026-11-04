@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The line map in pixels (FR-MC-022, DS-MC-014), from the model of line-map-model.ts: time runs left to right over
 // the window up to "now", then a short future holds the route to the next public release. main is the top line,

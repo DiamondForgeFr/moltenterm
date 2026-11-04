@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The keep-awake cup of the window row (FR-SHELL-103, #1408): a shortcut dedicated to the function it stands for. A left
 // click turns coffee mode on or off for the workspace the window shows; a right click (Shift+F10 or the context-menu key

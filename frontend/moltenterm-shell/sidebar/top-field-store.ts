@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Whether the sidebar's top field is open (FR-SHELL-083, #1187), and its key: ⌘L opens it wherever the focus is while
 // the sidebar is on; a hidden sidebar peeks in for it and stays while the field is open. A focused page keeps ⌘L for

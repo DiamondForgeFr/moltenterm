@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Linking a project from the terminal (#77): when the focused terminal of a workspace without a project goes into a
 // project's folder, a modal offers to link it and to name the workspace after it. A linked workspace that still shows

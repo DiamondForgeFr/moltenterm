@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where the panel a call to action opens is laid (#1844, FR-SHELL-139 AC13, FR-SHELL-065 AC17): a column to the right
 // of the panel's own, in the normal layout and in 360 view, on a faked layout.

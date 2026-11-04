@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The right-click menu of a browser tab (FR-SHELL-051, DS-SHELL-092): Reload, Duplicate, Copy link, Close, Close
 // others, shown by the MenuHost like every MoltenTerm menu, with the icons of the command panel's rows for the same

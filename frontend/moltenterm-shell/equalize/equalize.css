@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The equalize button (#825) wears the 360 toggle's look (mt-v360-toggle: calm border, lit when on) with the hold
    gesture's disc, tint and ring of the tab close (DS-SHELL-059) around its glyph. */

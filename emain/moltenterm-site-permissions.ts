@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Permission handlers for every session (#663): pages outside MoltenTerm's own interface (the browser panel's tabs and
 // their popups, Wave's web blocks) go through frontend/moltenterm-shell/browser/site-permission.ts. Without a handler

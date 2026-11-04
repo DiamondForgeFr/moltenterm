@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The command panel's rules as pure functions (FR-SHELL-047, DS-SHELL-085): which rows a page shows, how search
 // reaches every section and sub-page, the Developer gate behind Option, the keyboard and the scopes of an option.

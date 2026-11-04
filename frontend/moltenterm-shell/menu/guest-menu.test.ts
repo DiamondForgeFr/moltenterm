@@ -1,3 +1,6 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import { describe, expect, it, vi } from "vitest";
 import { guestEditMenu, guestMenuEvent } from "./guest-menu";
 import { menuHasRoles } from "./menu-model";

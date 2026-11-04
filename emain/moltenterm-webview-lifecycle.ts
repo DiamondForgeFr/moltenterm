@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Hidden browser pages frozen and discarded (#459, FR-PERF-013): the Electron side of
 // emain/moltenterm-webview-lifecycle-policy.ts. The browser panel (frontend/moltenterm-shell/browser/browser-view.tsx)

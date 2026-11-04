@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Bulk actions on sessions (#389, from the Sessions table of FR-SHELL-058): select rows, then end them, restart their
 // agents with the current settings, or send their agents one command of the agents' tables. Each action lists the

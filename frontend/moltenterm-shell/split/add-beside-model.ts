@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Add a panel on the left / on the right" (#732): a new top-level column beside the column holding a panel, never a
 // split of it, so the panels already there keep their size. Pure rules (where the column goes, whether it fits without

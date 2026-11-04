@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Showing a pane anywhere (FR-SHELL-020): in this tab, focus it; in another tab of this workspace, switch tab; in
 // another workspace, switch workspace. A tab's layout belongs to that tab's renderer, so a pane in another tab is

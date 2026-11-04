@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace colour as a place cue (FR-SHELL-004, DS-SHELL-005, #1319). This module sets --mt-place from the
 // colour of the window's active workspace, with a readable text colour for content drawn on it (NFR-SHELL-003). The

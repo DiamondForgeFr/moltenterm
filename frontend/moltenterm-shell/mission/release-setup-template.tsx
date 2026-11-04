@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 4 of the deployment pipeline setup (FR-MC-042): save the pipeline prepared at step 3 as a template on this
 // computer, and the saved templates offered in step 2b's "Start from". A template keeps the flow and the hand steps;

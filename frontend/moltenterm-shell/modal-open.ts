@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The overlay rule (FR-SHELL-054, DS-SHELL-096): every modal dims the app with this scrim (tokens.css) and no surface
 // draws its own; command surfaces (palette, command panel, menus, popovers) have none, only shadow-command.

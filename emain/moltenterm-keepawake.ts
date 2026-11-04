@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // MoltenTerm's own keep-awake (FR-SHELL-023, DS-SHELL-025, DS-SHELL-062): wavesrv decides (pkg/molten/keepawake), Electron
 // main holds at most one power save blocker while wavesrv says hold. Only 'prevent-app-suspension': system idle sleep

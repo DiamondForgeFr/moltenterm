@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the windows show of the keep-awake (FR-SHELL-023, DS-SHELL-062; FR-SHELL-103): the coffee droplet on a rail item
 // and on a collapsed product, and the Energy card's details: the workspace's coffee, what holds the computer awake now

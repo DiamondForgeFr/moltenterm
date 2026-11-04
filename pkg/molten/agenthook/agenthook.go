@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agenthook is the cheap path of the agents' hooks (FR-PERF-012, DS-PERF-011). Claude Code's hooks run
 // `molten agent state` after every tool call and its status line runs `molten agent statusline` after every message:

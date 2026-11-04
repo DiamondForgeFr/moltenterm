@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Validate's plan sheet, the pure part (FR-REV-012, DS-REV-010): when Merge can be clicked and why not, and which merge
 // and cleanup the sheet shows. wavesrv decides again on the click; the sheet only reflects the plan. The steps

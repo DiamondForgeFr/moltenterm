@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // File references in terminal text (FR-SHELL-017): path, path:line and path:line:col, relative or absolute. The
 // matcher is generous (any word with a slash or an extension); only references whose file exists become links,

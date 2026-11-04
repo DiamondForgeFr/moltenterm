@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // DiamondForge suite kit (#658): plain React over suite.css, with no app import and no Tailwind class, so the folder
 // moves as is into the shared UI kit. Text comes from the caller (each app owns its translations); icons are

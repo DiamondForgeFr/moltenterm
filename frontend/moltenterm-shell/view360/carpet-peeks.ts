@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The carpet's edge peeks (FR-SHELL-065 AC11, DS-SHELL-152), kept apart from React so they are tested alone: which
 // panel each edge shows, where its sliver is drawn, and which columns in view may be captured.

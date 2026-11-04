@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Asking the workspace's agent for a missing tool with /morph (#1653, #1672): the Library's "Missing a tool?" card
 // and the new view launcher's empty result share these rules. Pure functions, tested without the app.

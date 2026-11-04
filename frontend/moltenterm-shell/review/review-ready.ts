@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The one path of the review actions that type into the PR's session (#638): Ask the AI, Discuss and the translation
 // request of Publish review. A session one of them just started has an agent that is not ready for a typed prompt

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Clean up on a merged PR's leftovers (#1088, FR-REV-022 AC14), through the cleanup after a merge (FR-REV-013,
 // pkg/molten/review/cleanup.go) and its safety checks: wavesrv keeps a worktree that would lose work or that a panel

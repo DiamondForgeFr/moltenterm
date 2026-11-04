@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Review tab's diff editor and its line selection (FR-REV-003, DS-REV-003), on MonacoDiffViewer's onMount: the
 // selection of either side becomes the tab's (base = LEFT, head = RIGHT), its actions show next to it and answer

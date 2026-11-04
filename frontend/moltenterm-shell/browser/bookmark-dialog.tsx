@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The dialog that adds or edits a bookmark (FR-BRW-019): address, title, description, folder, and for a new bookmark the
 // other projects to also add it to (a separate copy in each, nothing ticked by default). Opened by the web page panel's

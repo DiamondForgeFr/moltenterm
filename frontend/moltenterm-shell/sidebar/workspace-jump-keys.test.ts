@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The top field's workspace rows show the workspace keys the menu binds: ⌥1…⌥9 on macOS (#1345), Ctrl+Alt+1…9
 // elsewhere (#1379, FR-SHELL-108).

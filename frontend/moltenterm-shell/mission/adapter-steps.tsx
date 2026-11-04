@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A project's adapter steps (FR-MC-018): the project-specific actions its pipeline declares under `steps`, each shown in
 // the section it names, run through the trust rule, with its last run's state and last lines.

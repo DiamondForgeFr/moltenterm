@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mounted once per window view with the sidebar; draws the library while it is open. The library loads on its first
 // opening, out of the JS every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).

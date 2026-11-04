@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tab activity model (FR-PERF-009, DS-PERF-008): one per tab view, it says whether this view is active, visible
 // in an unfocused window, hidden behind another tab or workspace, or in a minimised window. The window's state comes

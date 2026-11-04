@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The browser panel (FR-SHELL-007, DS-SHELL-007): one page per panel since #1187 (FR-SHELL-083), with no tab strip;
 // what opened a tab opens a panel to the right. The tab list of the block meta stays, holding that one page, so the

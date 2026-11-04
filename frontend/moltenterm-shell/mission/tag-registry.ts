@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The CI/CD workshop's full tag registry (FR-MC-025, absorbing FR-MC-004's version catalogue): every version the
 // project has, planned (an open milestone named after a version not tagged yet), in release candidate or published,

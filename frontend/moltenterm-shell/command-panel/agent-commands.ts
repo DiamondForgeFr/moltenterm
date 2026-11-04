@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Agent section of the command panel (FR-SHELL-048, DS-SHELL-088): the commands of the coding agent running in a
 // terminal, typed by wavesrv's guarded moltenagentinput (pkg/molten/termupdate/agentinput.go), and what the panel

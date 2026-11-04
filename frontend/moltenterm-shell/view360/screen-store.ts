@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The screen this window is on and the 360 view's column threshold remembered for each screen (FR-SHELL-066, #1083),
 // wired to the main process (emain/moltenterm-screen.ts) and to the client's meta (the same for every tab and window,

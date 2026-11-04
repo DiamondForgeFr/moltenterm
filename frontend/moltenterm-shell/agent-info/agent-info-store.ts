@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The window's copy of wavesrv's handoff history (FR-SHELL-084): read at start and again on each molten:agenthandoffs
 // event. Also which agent's "Everything about" window is open, the sidebar's agent trees, opened or closed, and the

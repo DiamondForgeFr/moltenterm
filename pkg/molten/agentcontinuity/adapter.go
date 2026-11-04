@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentcontinuity holds what MoltenTerm knows of each coding agent, whatever its provider (FR-CONT-006,
 // DS-CONT-006): how to detect it, start it with a model and an initial prompt, resume one of its sessions, give it a

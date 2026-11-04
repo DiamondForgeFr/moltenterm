@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { useMaterialsDrawer } from "./use-materials-drawer";

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The 360 carpet in a view's icon (FR-SHELL-081, DS-SHELL-126, #1823, #1861): a small cube whose front face is the icon
 // of the carpet panel in front, stretched into a prism of one icon per panel on screen (at most three, then +N) when

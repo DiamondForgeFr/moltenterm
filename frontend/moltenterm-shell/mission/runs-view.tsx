@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Starting and following a project's declared builds (FR-MC-006, DS-MC-005): the trust prompt the first run of a
 // project's commands asks for, the card of a build (phases, last lines of its log, the whole log on demand, cancel,

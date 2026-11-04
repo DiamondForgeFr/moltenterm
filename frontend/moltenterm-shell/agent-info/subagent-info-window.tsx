@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A sub-agent's own card (FR-SHELL-104, #1333): what a sub-agent row of the sidebar opens, instead of its parent's
 // "Everything about". Its description, type, model, effort, branch and duration come from the companion's view; its

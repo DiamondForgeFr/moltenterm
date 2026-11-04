@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Opener tabs (#892, pkg/molten/openertab.go): a tab MoltenTerm shows on the developer's behalf from this tab (a PR's
 // Review tab from the PR list, an agent's tab...) keeps this tab's id in its meta, and closing it comes back here

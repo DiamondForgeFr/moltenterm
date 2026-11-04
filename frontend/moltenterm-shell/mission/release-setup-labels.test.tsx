@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Not a version label" (#1791): a label the release setup found is dismissed, recorded in versions.notlabels, so a
 // false positive does not keep the setup update offered.

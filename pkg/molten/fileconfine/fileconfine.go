@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package fileconfine keeps a workspace's file panels inside its project folder (FR-FILE-001, DS-FILE-001). It is a
 // guardrail on what a panel shows, not a sandbox: the panel's model asks before it shows a path outside the project,

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Settings › General › New views (FR-SHELL-089, DS-SHELL-128): the choices of "When a new view opens", and the editor
 // of the chooser's favourites (2 to 4, in order) under it.

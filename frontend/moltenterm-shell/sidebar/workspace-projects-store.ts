@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The writes of a workspace's projects (FR-SHELL-087): switch here, add, edit and remove in
 // workspace-projects-edit-store.ts. A switch, a removal and the assignment after an addition go through wavesrv

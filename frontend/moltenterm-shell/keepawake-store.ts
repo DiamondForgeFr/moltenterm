@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The windows' copy of wavesrv's keep-awake state (FR-SHELL-023, DS-SHELL-062): a read at start, then the
 // molten:keepawake events, which carry the whole state on every change, so every window agrees within a moment

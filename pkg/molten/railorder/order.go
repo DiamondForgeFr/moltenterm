@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package railorder holds the order of the workspace rail (FR-MC-031, DS-MC-024): a list of workspace ids in the client
 // meta "molten:workspaceorder". wavesrv is its only writer (pkg/wcore/moltenterm_workspaceorder.go); windows ask for a

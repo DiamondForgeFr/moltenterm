@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the pipeline setup's tab (#1150) gives the screens it hosts: the project, the setup panel's block, and
 // askAgent, the one way a screen asks the developer's agent for help (pipeline-agent.ts): it opens or reuses the

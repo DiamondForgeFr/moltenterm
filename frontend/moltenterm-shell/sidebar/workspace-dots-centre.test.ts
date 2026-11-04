@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The bottom bar's workspace dots stay centred between the library and "+" (#1813), however many there are: a row of
 // more than seven that fits used to start at the left (sidebar.css .mt-sb-dots.is-many).

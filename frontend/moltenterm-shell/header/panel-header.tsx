@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The panel header's lead and pill for every panel (FR-SHELL-052, DS-SHELL-093), drawn by Wave's blockframe-header:
 // [16 px icon] Title (12/600), the muted context (a terminal's project and branch, once; the connection only when

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package stdinwatch tells wavesrv when its parent (Electron main) is gone (#1043). wavesrv reads its standard input,
 // a pipe from Electron, and nothing is ever written to it: EOF means the parent closed it, so wavesrv shuts down.

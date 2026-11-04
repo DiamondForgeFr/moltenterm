@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The "PR merged" mark of the Sessions list (FR-SHELL-058, #932): a session whose worktree branch has a merged pull
 // request is a finished one. wavesrv asks GitHub (the cleanup's rule: the branch's head is the PR's head, or one it

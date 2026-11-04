@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What MoltenTerm knows about one agent (FR-SHELL-084, #1188), for the sidebar's agent tree and the "Everything about
 // <agent>" window: its sub-agents (the companion's, read from Claude Code's or Codex's own files), the agents it is

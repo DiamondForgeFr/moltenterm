@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // FR-AGC-003 (#1684): an empty answer from wavesrv does not replace the matrix shipped in the build, or the interface
 // would offer nothing to any agent.

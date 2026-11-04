@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The hook setup offer (#221): the header of a terminal whose agent's hooks never reported offers the setup of
 // agent-states.md, so its states become precise. wavesrv decides (pkg/molten/agenthooks.go): it reads the agent's

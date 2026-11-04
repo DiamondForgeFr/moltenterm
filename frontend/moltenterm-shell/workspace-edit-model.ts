@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The rules of the workspace edit sheet (FR-SHELL-030, DS-SHELL-035/036), kept apart from the components so they are
 // tested without the app: the name check, what the icon and colour controls are called, how the arrow keys move in

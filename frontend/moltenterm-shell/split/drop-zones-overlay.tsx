@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The drop zones' layer (FR-SHELL-060, DS-SHELL-102): over the panel under the pointer, a quiet ring and the ghost
 // of the zone's new panel; the dragged tab as a chip. It also follows the two drags the page does not hand over by

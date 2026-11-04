@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Hold a letter over the bottom switcher to filter the workspaces by their first letter (FR-SHELL-082, #1784).
 

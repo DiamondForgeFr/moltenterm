@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Check the agents (#954, FR-REV-022 AC8): on the developer's click only, the agent on each listed PR with something
 // left (conflicts, red CI, requested changes, no test report) is asked to verify the PR against its ticket and finish

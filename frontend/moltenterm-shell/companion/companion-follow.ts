@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Follows a terminal's companion without showing it (#967): Mission Control's Now card lists each agent's running
 // sub-agents as the companion's Agents at work does. Same calls as the companion view, under this mount's own lease:

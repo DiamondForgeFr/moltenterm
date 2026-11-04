@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The AI panel's questions and answers (FR-REV-006): the questions waiting for the agent to be idle, with Remove, and
 // the agent's answers as cards grouped by the lines they are about, a follow-up under the first answer. A gutter

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package proctree reads the local process table in one pass (FR-SHELL-011): which processes run, their parents,
 // their process groups and the foreground process group of their terminal. wavesrv uses it to find the coding agent a

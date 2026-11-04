@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Product groups in the workspace rail (FR-MC-027, DS-MC-018): a group of two members or more is one collapsible
 // product entry, its workspaces indented below it. The rail order stays one flat list of workspace ids (FR-MC-031); the

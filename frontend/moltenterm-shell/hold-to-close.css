@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* FR-SHELL-025 / NFR-SHELL-010: the top tab bar hides its close button with visibility, which also takes it out of
    the keyboard order. Opacity hides it the same way and keeps it reachable with Tab; pointer events stay off while it

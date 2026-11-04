@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package usage holds the per-agent usage adapters (FR-SHELL-026 to 029, DS-SHELL-028): each coding agent with a
 // companion declares its provider's usage page and, optionally, the sources the plan gauges read, best first. Another

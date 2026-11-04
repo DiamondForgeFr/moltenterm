@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Anything the interface can do, a command can do" (FR-SHELL-047): the command palette lists the items of the
 // command panel of the pane it was opened from (actions, toggles, each value of a choice) while a query is typed,

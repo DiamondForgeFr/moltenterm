@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 2a for a project already set up (FR-MC-040 AC8–AC12, #1102; the #1086 update, FR-MC-036): the declared
 // pipeline drawn with the changes, the numbered list, the up-to-date state, and the menu's single entry.

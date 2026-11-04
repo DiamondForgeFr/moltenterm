@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentlaunch starts coding agents with MoltenTerm's integration for one run (FR-SHELL-036, DS-SHELL-044 to
 // 048, FR-SHELL-038 for Codex). In a local MoltenTerm terminal, `claude` and `codex` are launchers placed first on

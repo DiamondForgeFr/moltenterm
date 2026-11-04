@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The header's close button (#705, #939). A magnified panel draws none: reaching for un-magnify, right next to it,
 // too often closed the panel instead. No slot is kept either (#939), so the end icons reach the right edge and

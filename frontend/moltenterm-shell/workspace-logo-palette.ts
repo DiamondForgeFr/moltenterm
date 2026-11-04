@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The dominant colours of a workspace's image (#657), offered first in the editor's colour field. Computed here, from
 // the image drawn small, and kept for the run per image: nothing leaves the app.

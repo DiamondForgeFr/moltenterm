@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Sign-in popups in the in-app engine (FR-BRW-003, DS-BRW-003). Wave denied every window.open of a page and turned it
 // into a new tab, so window.open returned null and a sign-in that posts its result to window.opener could never

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Menus, popovers and flyouts appear at their place (#1440). floating-ui places a surface with an inline
 // `transform: translate(x, y)` by default: an entrance keyframe on `transform` (a short scale or rise from the anchor)

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every way into another panel is either a call to action inside a panel, which names its panel (openMoltentermView,
 // openCicdTab and ReviewsModel.openReviews take an origin, #1844, FR-SHELL-139 AC13), or an app action started outside

@@ -1,3 +1,6 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import { describe, expect, it } from "vitest";
 import { contextMenuRole, ownedMenuGuest, supportedMenuImage } from "./moltenterm-contextmenu-policy";
 describe("context menu action boundary", () => {

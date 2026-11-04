@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Equalize panels (#825): the rules, kept apart from the layout so they are tested alone. Every panel column of a tab
 // gets the same width; a column split vertically keeps its row heights. Sizes are flex weights, so a resize only gives

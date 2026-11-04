@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The native file and folder pickers the Moltenterm shell asks emain for (FR-MC-001: linking a workspace to its
 // project, choosing its logo). Shared by emain/moltenterm-dialogs.ts and the renderer.

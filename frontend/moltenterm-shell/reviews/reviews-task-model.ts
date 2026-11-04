@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The work asked of a PR's agent and whether it got done (#954, FR-REV-022 AC6 to AC8): a row's Ask for a rebase,
 // Investigate, or the list's Check the agents records a task; the row's agent line then tells a running task from a

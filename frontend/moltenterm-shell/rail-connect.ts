@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Connect mode (FR-MC-032-AC2 to AC4, DS-MC-029): More › Group with… puts a workspace, or its local group, in connect
 // mode; a workspace clicked (DS-SHELL-081, #399) or dragged onto the target joins it. One target per window, never

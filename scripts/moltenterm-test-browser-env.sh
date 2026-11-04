@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 
 # Shell-level test of molten-open, the BROWSER of local MoltenTerm terminals (FR-BRW-007): it runs the handler the way
 # programs do ("$BROWSER <url> [more args]") from bash, zsh and fish when they are installed, and from Python's

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agenthandoff hands work from one agent to another by first name (FR-CONT-015, DS-CONT-029). The sending agent
 // fills a brief (goal, context, files, links, whether it expects a reply); wavesrv writes it as Markdown in MoltenTerm's

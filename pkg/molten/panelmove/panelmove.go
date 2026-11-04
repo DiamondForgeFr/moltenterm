@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package panelmove moves a tab's main panel into another tab of the same workspace (drag to split, FR-SHELL-060):
 // the panel keeps its block, so a terminal keeps its shell and its scrollback.

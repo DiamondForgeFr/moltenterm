@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A minimal MCP client for `molten mcp browser` (FR-BRW-008 to FR-BRW-010): starts the server over stdio and checks
 // initialize, tools/list, the tab tools, the reading tools and the input tools, the way an agent would call them. Run it from a terminal

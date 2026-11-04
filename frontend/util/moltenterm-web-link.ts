@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The web pages MoltenTerm's interface opens from data it did not write (#663): pull request, CI and release addresses
 // from gh or GitHub's API, links in a review. Such an address could name file:///…/x.app or an app's own scheme while

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Renderer measurements over CDP on one page: JS evaluated, Performance.getMetrics deltas and a short trace.
 

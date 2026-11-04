@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Handing work to another agent by first name (FR-CONT-015, NFR-CONT-005): the first send between two agents raises a
 // notification (pkg/molten/agenthandoff) whose buttons run this gesture, which gives the developer's answer to

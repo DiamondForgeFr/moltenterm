@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's Recently merged (#843): the PRs merged into the target lately, from the collector's GitHub read,
 // with where each one ships, read by wavesrv from the project's git (pkg/molten/mission/reviews_merged.go). The

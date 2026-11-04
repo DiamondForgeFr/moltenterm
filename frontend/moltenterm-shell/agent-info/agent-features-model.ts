@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The compatibility matrix (FR-AGC-001, DS-AGC-002): how each MoltenTerm feature works with each coding agent, held by
 // wavesrv's agent adapters (pkg/molten/agentcontinuity/features.go). The interface reads it here instead of keeping

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The cleanup after a merge (FR-REV-013, DS-REV-010), run by wavesrv (pkg/molten/review/cleanup.go): Validate calls it
 // right after its merge, and it also runs on its own for a PR merged earlier. Each step comes back done, skipped or

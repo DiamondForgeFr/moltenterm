@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The 360 view's column threshold per screen (FR-SHELL-066, #1083): "360 view beyond N columns", remembered for each
 // screen the window has been on (keyed by the display's size and scale factor, emain/moltenterm-screen.ts). A screen

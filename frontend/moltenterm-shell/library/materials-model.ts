@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library's Materials section (FR-MAT-002, DS-MAT-005): what agents produced outside the repository, kept per
 // project by wavesrv's registry (FR-MAT-001, pkg/molten/materials). The route's names and types, and the rules the

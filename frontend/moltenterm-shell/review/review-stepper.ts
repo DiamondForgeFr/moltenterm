@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Validate's stepper, the pure part (#672, FR-REV-012, FR-REV-013): the five steps in the order they happen (checks,
 // the merge, ticket, cleanup, other open PRs), built from the plan, the merge record and the cleanup result.

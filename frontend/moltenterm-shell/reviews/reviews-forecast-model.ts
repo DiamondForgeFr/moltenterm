@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The conflict forecast's data (FR-REV-023, DS-REV-016): wavesrv simulates the merges (pkg/molten/review/forecast.go,
 // pkg/molten/forecast); this side builds the request from the Reviews list and reads the answer. Pure helpers, so the

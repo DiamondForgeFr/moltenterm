@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Release menu's "How this project ships" (FR-MC-043): the pipeline's technical documentation, the repository
 // file in a preview panel or the backend's page in the browser panel. Kept apart from the setup's dialogs, which load

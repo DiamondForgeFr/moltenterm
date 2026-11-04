@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The command palette (FR-SHELL-013, DS-SHELL-013): one filterable, grouped list served by an empty pane and by the
 // global shortcut. This file holds the rules (fuzzy match, grouping, keyboard) as pure functions, tested without the

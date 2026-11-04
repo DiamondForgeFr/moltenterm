@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // xterm's WebGL addon hands one glyph atlas to every terminal of the window with the same font, size, theme and pixel
 // ratio (`acquireTextureAtlas`). Clearing it (`clearTextureAtlas`, #290's full repaint) wipes every page for all of

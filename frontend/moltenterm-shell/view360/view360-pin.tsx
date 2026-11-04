@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Pinning a carpet panel from its menus and the keyboard (FR-SHELL-067). The header's pins moved into the chooser of
 // "Store on the carpet" (FR-SHELL-123, view360-places.tsx); a pinned panel keeps its filled pin there.

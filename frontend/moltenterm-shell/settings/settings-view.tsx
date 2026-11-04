@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The waveconfig view as MoltenTerm shows it (FR-SHELL-050): the settings screen, or, once a JSON file is open (from
 // Advanced, or a "file" in the block's meta such as the rail's Edit widgets.json), Wave's editor under a bar that

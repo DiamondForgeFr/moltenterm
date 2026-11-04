@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the Build local menu says (FR-MC-012): mirrors BuildsFacts in pkg/molten/mission/builds.go. Kept apart from the
 // components so the wording can be tested without the app.

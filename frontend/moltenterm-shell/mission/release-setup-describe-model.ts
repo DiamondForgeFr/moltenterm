@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 2b of the pipeline setup (FR-MC-041): what the developer's description turns into, as pure functions tested
 // without the app. The template itself stays in wavesrv (pkg/molten/pipelinesetup/describe.go).

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The setup panel of the pipeline setup's tab (FR-MC-038, #1150): the stepper, with "Ask for help" under its title;
 // the screens it hosts ask the agent through the tab's askAgent (pipeline-tab-context.ts). The tab is closed through the

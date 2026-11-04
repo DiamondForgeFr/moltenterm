@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The field takes the keyboard focus, so it remembers the panel that had the focus when it opened (FR-SHELL-083,
 // #1743): Enter goes to that page, whatever the layout focuses meanwhile.

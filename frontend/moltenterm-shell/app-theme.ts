@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The interface's theme (theme "Coulée" step 8, FR-SHELL-121, #1341): Preferences › Appearance › Theme is Dark (the
 // default, also when unset or unknown), Light, or Same as the system. Light puts .mt-light on the root, which holds

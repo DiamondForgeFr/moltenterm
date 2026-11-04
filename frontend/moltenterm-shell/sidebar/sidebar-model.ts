@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace sidebar's rules (FR-SHELL-079, DS-SHELL-123, DS-SHELL-124): its width bounds, the tile grid, which tabs
 // are tiles and which are temporary views, the build letter and the ⌘S guard. Kept apart from the components so the

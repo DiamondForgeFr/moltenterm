@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The outdated terminal's update (FR-SHELL-041, DS-SHELL-076). Update terminal is a suggestion of the command panel
 // (FR-SHELL-052, header/header-proposals.ts); the header hosts its dialog. Choosing it checks first: an idle shell is

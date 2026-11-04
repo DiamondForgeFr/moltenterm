@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package i18nlang resolves the interface language (app:language, FR-I18N-001) on the wavesrv side, with the rules of
 // frontend/moltenterm-shell/i18n/i18n-core.ts: an explicit value wins, else the language MoltenTerm picked from the OS

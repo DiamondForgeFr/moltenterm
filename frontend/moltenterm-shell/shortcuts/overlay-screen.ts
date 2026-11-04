@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Reads what is on screen for the shortcut overlay (FR-SHELL-090): the controls that declare a shortcut and are
 // visible, the focused panel, the panel under the pointer, the sidebar and the 360 view.

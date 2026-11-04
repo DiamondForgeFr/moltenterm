@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The end of the sign-in terminal (FR-ONB-007 AC-5b, #1733): a confirmed sign-in closes it and updates the card, an
 // error leaves it open.

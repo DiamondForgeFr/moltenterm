@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Launch from the Reviews view (FR-REV-031, DS-REV-018, DS-REV-019): the words and the decisions of the launch bar,
 // the cards' Launch button, the confirmation and the recipe dialog. wavesrv (pkg/molten/mission/launch*.go) runs it.

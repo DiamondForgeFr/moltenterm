@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tool section of the workspace rail (FR-SHELL-012, DS-SHELL-012): what Wave's right widget bar offered (the user's
 // widgets.json widgets, apps, settings), icon-only at the bottom of the rail, so the content gains the bar's width. Apps

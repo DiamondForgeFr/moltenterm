@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Outdated terminals (FR-SHELL-041, DS-SHELL-076): what wavesrv's terminal update route answers and the words the
 // header chip, its dialog and the palette use. Pure functions, tested without the app.

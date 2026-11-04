@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Regenerates MoltenTerm's macOS icons from the brand kit's symbol (#73), as Notulia does (scripts/gen-icons.sh):
 // macOS lays every app icon on one grid (an 824x824 tile at (100,100) of a 1024 canvas), so the macOS icons are drawn

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Service calls to wavesrv that could not even connect (#849). On 2026-10-16 every tab click failed for five minutes
 // with net::ERR_ADDRESS_INVALID: Chromium's name for EADDRNOTAVAIL, the error connect() returns when the machine has

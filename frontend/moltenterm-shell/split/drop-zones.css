@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge
-   SPDX-License-Identifier: Apache-2.0 */
+   SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Drag to split (FR-SHELL-060, DS-SHELL-102): a fixed layer over the app, drawn over the panel under the pointer. It
    takes no pointer (except the file drop catcher, laid over the zone only while a react-dnd file drag is in it), and

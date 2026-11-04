@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The project chip on an agent's name line (FR-SHELL-084, #1746): two projects or more, the project the agent's folder
 // is in; one project, nothing.

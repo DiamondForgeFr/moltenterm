@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package browsers hands web pages off to the user's installed Chromium browser (FR-BRW-002, DS-BRW-002): it finds
 // the browsers (macOS app bundles, Linux desktop entries), routes a page to an engine (explicit choice, then the

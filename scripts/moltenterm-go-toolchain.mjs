@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Go toolchain every Moltenterm binary is built with (#258): the `toolchain` line of go.mod when there is one, else
 // its `go` line (`go mod tidy` drops a `toolchain` line equal to the `go` line, so it only exists to pin a newer one).

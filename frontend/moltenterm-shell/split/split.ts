@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): one entry point for the menus, the placement
 // mode, Cmd+D / Cmd+Shift+D and the Ctrl+Shift+S chord. The new panel opens on the picker (the command palette in

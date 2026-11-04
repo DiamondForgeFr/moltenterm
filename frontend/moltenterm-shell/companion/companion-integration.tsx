@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Integrated by MoltenTerm" in the session bar and the details it opens (FR-SHELL-040-AC3, DS-SHELL-051): what the
 // launcher added to this run and what it left alone, the guide, and the switches that turn it off from the next

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The open top field (FR-SHELL-083): its sources, search results, popover and runs. Loaded once the sidebar is on
 // screen, or on the first ⌘L or click when that comes first (top-field.tsx), so it stays out of the JS every tab

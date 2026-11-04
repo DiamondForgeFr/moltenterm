@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The confirmation a close shows when it would stop what runs in a terminal (FR-SHELL-061, DS-SHELL-108): one dialog
 // per action, the running list (agents first, with their state in words, then commands, each with its workspace and

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view's icon says what its screen shows (FR-SHELL-081, #1823): one mark per screen region. The fixed zone keeps its
 // panels' icons, the carpet is one cube whose front face is the carpet panel in front.

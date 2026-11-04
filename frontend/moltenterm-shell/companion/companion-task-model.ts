@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace task checkpoint (FR-CONT-007, DS-CONT-008): what wavesrv keeps of a workspace's task
 // (pkg/molten/agentcontinuity/checkpoint), and the pure rules of the companion's "Workspace task" section.

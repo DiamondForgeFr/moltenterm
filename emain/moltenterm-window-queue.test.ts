@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Characterization of a window's action queue (#449, FR-PERF-003): the real emain-window.ts and emain-tabview.ts run
 // against a fake backend, fake tab view renderers and a fake electron. Times are virtual (fake timers).

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package gitwatch tells when a repository's state may have changed without running git (FR-PERF-011, DS-PERF-010):
 // one file-system watch per working tree on what git rewrites when the branch, the index or a ref moves (HEAD, index,

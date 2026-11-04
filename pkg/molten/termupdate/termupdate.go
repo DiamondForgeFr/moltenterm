@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package termupdate finds the terminals still running with an older MoltenTerm shell environment and brings them up
 // to date in one action (FR-SHELL-041). Durable local shells outlive MoltenTerm's updates (FR-SHELL-020), so a shell

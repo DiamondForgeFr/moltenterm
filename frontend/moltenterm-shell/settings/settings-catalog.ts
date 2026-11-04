@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the settings screen shows (FR-SHELL-050, DS-SHELL-091), read from schema/settings.json: the add-config path
 // generates the schema from wconfig.SettingsType, and cmd/generateschema adds each key's "x-moltenterm" metadata

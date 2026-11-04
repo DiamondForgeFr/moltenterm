@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package companion is the agent companion (FR-SHELL-018, DS-SHELL-019): wavesrv follows the session transcript of
 // the coding agent running in a terminal block, read in place and never written, and normalises it into the events

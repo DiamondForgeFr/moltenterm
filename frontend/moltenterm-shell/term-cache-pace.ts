@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pace of a terminal's cache save (#849). Wave serializes the whole buffer on the page's thread every 5 s while
 // output flows: a busy agent terminal with a long scrollback on a loaded machine can make that a long task, repeated

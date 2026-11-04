@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): the rules, pure so they are tested without
 // the app. split.ts carries them out on the layout.

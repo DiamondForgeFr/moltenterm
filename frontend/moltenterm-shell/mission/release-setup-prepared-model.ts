@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 3 of the pipeline setup (#1104, FR-MC-038): the prepared pipeline read as changes against the committed one,
 // change by change (release steps by channel, versions fields, the other blocks the setup owns), the keys it leaves

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Keyboard overlays and modes drawn on a panel (the split placement, find, the connection switcher) first bring that
 // panel into view on the 360 carpet (#747), so a keyboard user never lands in a mode they cannot see.

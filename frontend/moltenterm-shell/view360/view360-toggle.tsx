@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tab bar's "360" toggle (FR-SHELL-066, DS-SHELL-117, #733): it shows whether the tab on screen is in 360 view and
 // what holds it on. A click turns the view on on demand, or leaves it at once with the developer's proportions

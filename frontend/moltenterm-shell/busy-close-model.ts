@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What a close would stop (FR-SHELL-061, DS-SHELL-106): a close that stops something running in a terminal asks first,
 // so a coding agent or a command is never stopped by accident. The rule only reads signals MoltenTerm already has: the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The add-panel slot at an end of the carpet (#1836, FR-SHELL-065 AC15, DS-SHELL-152): where no peek is drawn, a slim
 // bar with a "+" in the gutter, which adds a panel at that end through the same path as the tab strip's "+"

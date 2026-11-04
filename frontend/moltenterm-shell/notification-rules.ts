@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The notification center's arbitration (FR-MC-019, FR-SHELL-055), after Notulia's notificationPrefs.ts: what toasts
 // and for how long, and what each subject may say. Pure, so the rules can be read and tested apart from the timers

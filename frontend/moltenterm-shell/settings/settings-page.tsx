@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The page language Settings, Secrets and Tips share (#534): a page filling its panel, a header with a title and one
 // line, and blocks holding a group of rows, flowing into columns on a wide panel (#674). One place, so the three read

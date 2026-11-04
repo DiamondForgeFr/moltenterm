@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* A translucent workspace (FR-SHELL-091, DS-SHELL-131, #1281): only the frame and the sidebar's background let the
    desktop through, at --mt-window-alpha (window-look.tsx sets it). The panels keep what they show today: their own

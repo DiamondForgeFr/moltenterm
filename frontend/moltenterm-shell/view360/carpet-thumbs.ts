@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The renderer's side of the carpet's thumbnail store (#1814, FR-SHELL-065 AC12, DS-SHELL-152): the thumbnails live on
 // disk in Electron main (emain/moltenterm-carpet-thumbs.ts), keyed by a carpet column's first panel and valid for one

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the group strip of the Project tab says (FR-MC-028, DS-MC-012): every member of the linked project's product, in
 // rail order, with its state as the collector last read it, the stale flags and their Sync. It shows no other action:

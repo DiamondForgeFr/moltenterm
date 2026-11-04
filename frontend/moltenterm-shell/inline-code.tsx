@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Messages written for a terminal (an agent's question, a build's error) quote commands and paths between backticks
 // (FR-SHELL-055, DS-SHELL-097): they are shown as inline code, never as raw backticks. Only text is produced, so a

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The batch merge and the merge queue in the Reviews list (FR-REV-025, FR-REV-026, DS-REV-017): the confirmation
 // modal, opened from the merge queue's Merge in this order (#1062), (the order, the method, what the agent does, the main checkout untouched; Enter adds them

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The merge queue (FR-REV-026, #912), which the batch merge feeds (FR-REV-025), the window's side: the confirmation
 // modal's order (the suggested merge order of the selected PRs, #781), the order sent each time PRs join, the banner

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the shortcut overlay shows for a screen (FR-SHELL-090, DS-SHELL-129): caps next to the controls that declare a
 // shortcut (data-mt-shortcut), a card on the focused panel with its keys and the keys of its type, a calm card on the

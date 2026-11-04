@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // #1848: the sidebar's agent row says the CLI, model and effort its run reported in its tooltip, a Codex agent's like
 // a Claude Code agent's.

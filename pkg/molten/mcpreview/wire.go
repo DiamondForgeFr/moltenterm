@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package mcpreview is `molten mcp review` (FR-REV-004, DS-REV-005): the stdio MCP server a review session's agent
 // runs to read the PR it reviews and to post into MoltenTerm. Like mcpbrowser, it holds the protocol and the tool

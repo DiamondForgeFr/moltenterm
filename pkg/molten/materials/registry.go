@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package materials is the materials registry (FR-MAT-001, DS-MAT-001 to DS-MAT-004): what agents produce for the
 // developer outside the repository and show them (published, named in an answer, declared), kept per project on this

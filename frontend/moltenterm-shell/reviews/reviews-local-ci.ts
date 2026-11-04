@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A Reviews card's local CI that nothing runs (#1713, FR-REV-001, FR-MC-011): Approve the commands opens the
 // approve-only sheet (approving starts nothing), and Run the local CI again runs it on the PR's branch, asking for the

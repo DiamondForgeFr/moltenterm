@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The split placement mode (#677): "Split…" (menus, palette, ⇧⌘S) and the edge "+" handles show four drop zones on the
 // panel; the chosen side splits it and the new panel opens on the picker, as every split does. One panel at a time.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The agent a top tab names after its own name (FR-SHELL-056, #1033): the one whose run started first, "+N" for the
 // others; the tooltip lists them all. Read from the agent states the window already holds (agent-state-store.ts).

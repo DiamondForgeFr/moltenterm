@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Drag to split (FR-SHELL-060, DS-SHELL-102), wired to the app: the panels of the shown tab are hit-tested from the
 // page, a drop is carried out on the layout, and the tab bar's own drag (tabbar.tsx) hands its tab over here once the

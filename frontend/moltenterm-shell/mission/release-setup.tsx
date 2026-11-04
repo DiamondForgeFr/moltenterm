@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The deployment pipeline setup (FR-MC-036, FR-MC-038, DS-MC-030): a stepper in the setup's own tab (#1150).
 // It drafts the missing release flow from the repository (SaaSFoundryAI's CLI when it offers one, else MoltenTerm's

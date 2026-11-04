@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The developer's sort of the Reviews panel (FR-REV-001 AC13, #1061; FR-REV-024 AC-5), by state or by the suggested
 // merge order, and the sections they folded or opened: MoltenTerm settings (moltenterm:reviewssort,

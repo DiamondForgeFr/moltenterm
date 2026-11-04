@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The mods shipped inside Moltenterm. Their files are bundled as text and go through the same manifest check and
 // loading as a user mod, so each one stays an honest example of the public API.

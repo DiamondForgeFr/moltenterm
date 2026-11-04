@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The CI/CD state icons (FR-SHELL-057, DS-SHELL-099): 14 px, one shape per state, so a state never rests on its colour
 // alone (NFR-SHELL-026): a check, a cross, the falling dominoes, a clock, a minus, and a triangle for a run cut short. The

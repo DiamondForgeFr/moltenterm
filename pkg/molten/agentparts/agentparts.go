@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentparts holds the agent part of a morph (FR-MORPH-010, DS-MORPH-009): a mod may carry, beside its
 // MoltenTerm part, a Claude Code plugin folder that runs inside the Claude Code sessions started in MoltenTerm

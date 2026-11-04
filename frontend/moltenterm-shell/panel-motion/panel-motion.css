@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Panel motion (FR-SHELL-112, #1349): the three moments of theme Coulée, one at a time (the proposal's rule 5), on the
    molten motion of #1163 and its tokens. Only transform and opacity change, so the compositor runs them and no

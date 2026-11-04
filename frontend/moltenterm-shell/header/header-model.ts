@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The panel header's rules (FR-SHELL-052, DS-SHELL-093): [16 px icon] Title (12/600), muted context (folder, branch
 // once, the connection only when remote), then at most one Pill. Kept apart from the components so the choice of the

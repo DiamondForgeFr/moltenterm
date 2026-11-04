@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Moltenterm's shell style (Workspace shell, FR-SHELL-004/005). Imported last from frontend/wave.ts, so it overrides
    Wave's theme without editing its files. Corner radii are capped at build time (build/cap-radius.ts). */

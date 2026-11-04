@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Panel size memory (#606), wired to the layout: a dragged splitter records the size of the side panels it moved, in
 // the client's meta like the companion's choices (the same for every tab and window, kept across restarts); a side

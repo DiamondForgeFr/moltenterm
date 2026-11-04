@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The welcome and agents scenes of the pour (FR-ONB-007): each takes what it shows as props, so the scenes render
 // without a window in tests. The scenes that set the workshop up are in onboarding-pour-build.tsx (#1709);

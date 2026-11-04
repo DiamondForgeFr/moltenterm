@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What each mod costs, and its budget (FR-PERF-014, DS-PERF-012). Every tab view runs its own mods, so a mod that
 // keeps working while the user does nothing is paid once per open view: the host measures each mod's script time,

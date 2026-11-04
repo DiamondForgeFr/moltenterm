@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Project groups (FR-MC-026, DS-MC-017): wavesrv resolves them from the workspace links and each member's
 // `.molten/project.json`, with a state summary per member. The rail (FR-MC-027) and the group strip (FR-MC-028) read

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Which icon a workspace shows (FR-SHELL-031, DS-SHELL-037), decided in one place for every surface: the image
 // imported for it, then its project's logo (FR-MC-001), then its built-in icon and colour. The built-in icon and colour

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The settings screen (FR-SHELL-050, DS-SHELL-091): the sections on the left, a search over label, key and
 // description, and on the right the rows of a section, each with its label, a one-line description, its control and a
