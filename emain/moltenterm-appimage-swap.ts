@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Linux half of the in-app update of a release (#1860): the AppImage file that runs is replaced by the staged one
 // once the app has quit, and put back when the new one does not stay open. It is the macOS swap (moltenterm-update.ts,

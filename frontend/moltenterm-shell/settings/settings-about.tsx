@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Settings › About (#1860): the build that runs, where MoltenTerm comes from, and its updates (Check for updates and the
 // state of the update in place, FR-REL-005). The About dialog of the application menu says the same of the build; the

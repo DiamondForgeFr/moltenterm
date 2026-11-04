@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The in-app update of a release (#1860, FR-REL-005, Notulia's flow), as Electron main runs it: on the user's acceptance
 // of the release the check offered, download its file, verify it, stage it and install it through the gold swap (#64).

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the in-app update of a release does with the zip of a macOS app (#1860): unpacking only a MoltenTerm.app, and
 // judging the app before anything is replaced. The system's tools run for real on fake apps made here (signed ad hoc);
