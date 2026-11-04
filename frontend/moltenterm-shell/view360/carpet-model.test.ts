@@ -430,10 +430,9 @@ describe("computeCarpetLayout", () => {
             { nodeId: "preview", x: 720 + CarpetColumnGapPx, width: 500 },
             { nodeId: "files", x: 1220 + 2 * CarpetColumnGapPx, width: 400 },
         ]);
-        // Free widths do not add up to the carpet's: the last position is a panel's edge, with empty room after the
-        // last panel rather than a cut panel (#1131).
-        expect(layout.maxScroll).toBe(layout.columns[1].x);
-        expect(layout.maxScroll).toBeGreaterThan(layout.contentWidth - layout.viewport.width);
+        // Free widths do not add up to the carpet's: the last position puts the last panel against the carpet's right
+        // edge, so the last screen is full (#1862), not a panel's edge with empty room after the last panel.
+        expect(layout.maxScroll).toBe(layout.contentWidth - layout.viewport.width);
     });
 
     it("gives a panel as wide as the carpet the whole band, with no end reserve (FR-SHELL-125-AC7)", () => {
@@ -507,13 +506,14 @@ describe("scrolling", () => {
 
     it("lists the columns in view", () => {
         expect(visibleCarpetColumnIds(layout, 0)).toEqual(["a", "b"]);
-        expect(visibleCarpetColumnIds(layout, layout.maxScroll)).toEqual(["c"]);
+        // The last screen is full: the last panel at its right, the end of the one before at its left (#1862).
+        expect(visibleCarpetColumnIds(layout, layout.maxScroll)).toEqual(["b", "c"]);
         expect(visibleCarpetColumnIds(null, 0)).toEqual([]);
     });
 
     it("reveals a column at the nearest snap position showing it whole (#1131)", () => {
         const b = layout.columns[1];
-        expect(carpetScrollStops(layout)).toEqual([0, b.x, layout.columns[2].x]);
+        expect(carpetScrollStops(layout)).toEqual([0, b.x, layout.contentWidth - viewWidth]);
         expect(scrollToRevealColumn(layout, "b", 0)).toBe(b.x);
         expect(scrollToRevealColumn(layout, "b", layout.maxScroll)).toBe(b.x);
         // Already whole in view: the carpet stays.
@@ -552,6 +552,65 @@ describe("scrolling", () => {
             `calc(${Math.floor(rect.left) + rect.width - (v.left + v.width)}px - var(--mt-carpet-scroll, 0px))`
         );
     });
+});
+
+describe("revealing a panel at an end of the carpet fills the screen (#1862)", () => {
+    // Most room a full screen may leave after the last panel: the rounding of the floored slots.
+    const RoundingPx = 8;
+    // Wider and narrower panels than a place, as a view's remembered proportions give them.
+    const Uneven = [0.9, 1.2, 0.85, 1.25, 1.1];
+
+    function carpetOf(width: number, n: number, uneven: boolean) {
+        const probe = computeCarpetLayout({ width, height: 900, fixedNodeId: "term", fixedPx: 600, columns: [] });
+        const place = probe.viewport.width / n;
+        return computeCarpetLayout({
+            width,
+            height: 900,
+            fixedNodeId: "term",
+            fixedPx: 600,
+            columns: Array.from({ length: n + 2 }, (_, i) => ({
+                nodeId: `c${i}`,
+                widthPx: uneven ? place * Uneven[i] : place,
+            })),
+        });
+    }
+
+    for (const n of [1, 2, 3]) {
+        for (const uneven of [false, true]) {
+            for (const width of [2400, 2401]) {
+                const name = `${n} panel(s) shown, ${uneven ? "uneven" : "equal"} widths, ${width} px`;
+                it(`${name}: the last one lands against the right edge, the first at the start`, () => {
+                    const layout = carpetOf(width, n, uneven);
+                    const view = layout.viewport.width;
+                    const first = layout.columns[0];
+                    const last = layout.columns[layout.columns.length - 1];
+                    const froms = [0, layout.maxScroll / 2, ...carpetScrollStops(layout), layout.maxScroll];
+                    for (const from of froms) {
+                        const end = scrollToRevealColumn(layout, last.nodeId, from);
+                        expect(end).toBe(layout.maxScroll);
+                        const room = end + view - (last.x + last.width);
+                        expect(room).toBeGreaterThanOrEqual(-0.5);
+                        expect(room).toBeLessThanOrEqual(RoundingPx);
+                        const start = scrollToRevealColumn(layout, first.nodeId, from);
+                        expect(start).toBe(0);
+                    }
+                    // Never past the last full screen, whatever asks for it.
+                    expect(clampScroll(layout, 1e6) + view).toBeLessThanOrEqual(layout.contentWidth + RoundingPx);
+                    expect(clampScroll(layout, -1e6)).toBe(0);
+                });
+
+                if (!uneven) {
+                    it(`${name}: the last screen shows the last ${n} panel(s) whole`, () => {
+                        const layout = carpetOf(width, n, false);
+                        const at = layout.maxScroll;
+                        const end = at + layout.viewport.width;
+                        const whole = layout.columns.filter((c) => c.x >= at - 0.5 && c.x + c.width <= end + 0.5);
+                        expect(whole.map((c) => c.nodeId)).toEqual(layout.columns.slice(-n).map((c) => c.nodeId));
+                    });
+                }
+            }
+        }
+    }
 });
 
 describe("pinned columns (FR-SHELL-067)", () => {
