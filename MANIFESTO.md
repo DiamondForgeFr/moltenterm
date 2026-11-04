@@ -89,6 +89,16 @@ These are the non-negotiables. A feature that breaks one of them does not ship i
    something you can share, not a local configuration that nobody else can use.
 7. **Safe to share.** Mods declare what they touch. Declarative mods are safe by construction.
    Mods that run code ask for explicit trust.
+8. **A complex workflow opens its own view.** When a complex workflow starts, such as a pipeline setup
+   ([#1149](https://github.com/DiamondForgeFr/moltenterm/issues/1149)) or the mod design that `/morph` opens, MoltenTerm
+   opens a view set up for that task. The guiding panel sits on the right: plain-word steps, clickable choices, a live
+   preview, the app's real components. The agent's terminal sits on the left, beside it, as the free path for any
+   precision the panel does not cover. The panel never blocks: every step can be skipped or done in the terminal, both
+   stay in sync through `molten`, so the user never types twice, and the flow is the same for every agent CLI.
+9. **The app learns from the user.** The adjustments a user makes during a workflow (answers, skipped steps,
+   corrections, preferred choices) are remembered, so the next run asks less. What was learned stays visible, editable
+   and resettable, and it stays on the user's computer unless they choose otherwise. MoltenTerm grows with the person
+   using it, and never without their knowledge.
 
 ## What is in the box
 
