@@ -49,16 +49,32 @@ describe("describeScreen (#1823)", () => {
     const root = row(leaf("n1", "agent"), leaf("n2", "companion"), leaf("n3", "page"));
     const layout = layoutOf(["n1"], ["n2", "n3"]);
 
-    it("names the fixed panels, the carpet's panels in order and the one in front", () => {
+    it("names the fixed panels, the carpet's panels in order, the one in front and how many are on screen", () => {
         expect(describeScreen(root, layout, ["n3"])).toEqual({
             fixed: ["agent"],
             carpet: ["companion", "page"],
             front: "page",
+            shown: 1,
         });
     });
 
     it("puts the first column in view in front, whatever is further on (360 x N)", () => {
         expect(describeScreen(root, layout, ["n2", "n3"]).front).toBe("companion");
+    });
+
+    it("counts the carpet columns in view: one, two, three (#1861)", () => {
+        const wide = row(leaf("n1", "agent"), leaf("n2", "companion"), leaf("n3", "page"), leaf("n4", "files"));
+        const wideLayout = layoutOf(["n1"], ["n2", "n3", "n4"]);
+        expect(describeScreen(wide, wideLayout, ["n3"]).shown).toBe(1);
+        expect(describeScreen(wide, wideLayout, ["n2", "n3"])).toMatchObject({ front: "companion", shown: 2 });
+        expect(describeScreen(wide, wideLayout, ["n2", "n3", "n4"])).toMatchObject({ front: "companion", shown: 3 });
+        expect(describeScreen(wide, wideLayout, ["n3", "n4"])).toMatchObject({ front: "page", shown: 2 });
+    });
+
+    it("counts a column in view that holds no panel as no place, and shows at least one", () => {
+        const hollow = row(leaf("n1", "agent"), column("n2"), leaf("n3", "page"));
+        expect(describeScreen(hollow, layoutOf(["n1"], ["n2", "n3"]), ["n2", "n3"]).shown).toBe(1);
+        expect(describeScreen(root, layout, []).shown).toBe(1);
     });
 
     it("falls back to the first carpet column when none is reported in view", () => {
@@ -81,19 +97,32 @@ describe("describeScreen (#1823)", () => {
             fixed: ["agent", "term", "review"],
             carpet: ["page"],
             front: "page",
+            shown: 1,
         });
     });
 });
 
 describe("screenGlyphIcons (#1823)", () => {
-    const screen: ScreenDescription = { fixed: ["agent"], carpet: ["companion", "page"], front: "page" };
+    const screen: ScreenDescription = { fixed: ["agent"], carpet: ["companion", "page"], front: "page", shown: 1 };
     const live = ["agent", "companion", "page"];
+    const Carpet = [
+        { id: "companion", icon: "gauge" },
+        { id: "page", icon: "globe" },
+    ];
 
     it("draws the agent's icon, then a cube whose front face is the page", () => {
         const icons = screenGlyphIcons(screen, live, iconOf);
         expect(icons).toHaveLength(2);
         expect(icons[0]).toBe("robot");
-        expect(cubeOf(icons)).toEqual({ cube: true, id: "page", icon: "globe", index: 1, count: 2 });
+        expect(cubeOf(icons)).toEqual({
+            cube: true,
+            id: "page",
+            icon: "globe",
+            index: 1,
+            count: 2,
+            shown: 1,
+            panels: Carpet,
+        });
     });
 
     it("turns the cube to the companion when the carpet scrolls to it", () => {
@@ -106,6 +135,7 @@ describe("screenGlyphIcons (#1823)", () => {
             fixed: ["agent"],
             carpet: ["companion", "page", "files", "review"],
             front: "files",
+            shown: 1,
         };
         const icons = screenGlyphIcons(many, [...live, "files", "review"], iconOf);
         expect(icons.filter(isGlyphCube)).toHaveLength(1);
@@ -113,8 +143,33 @@ describe("screenGlyphIcons (#1823)", () => {
         expect(cubeOf(icons)).toMatchObject({ id: "files", index: 2, count: 4 });
     });
 
+    it("carries the carpet's icons in order and how many panels are on screen (#1861)", () => {
+        const two: ScreenDescription = { ...screen, front: "companion", shown: 2 };
+        const cube = cubeOf(screenGlyphIcons(two, live, iconOf));
+        expect(cube.shown).toBe(2);
+        expect(cube.panels.map((p) => p.icon)).toEqual(["gauge", "globe"]);
+        expect(screenGlyphIcons(two, live, iconOf)).toHaveLength(2);
+    });
+
+    it("never counts more panels on screen than the carpet holds from the front one on (#1861)", () => {
+        expect(cubeOf(screenGlyphIcons({ ...screen, shown: 3 }, live, iconOf)).shown).toBe(1);
+        expect(cubeOf(screenGlyphIcons({ ...screen, front: "companion", shown: 5 }, live, iconOf)).shown).toBe(2);
+        expect(cubeOf(screenGlyphIcons({ ...screen, shown: 0 }, live, iconOf)).shown).toBe(1);
+    });
+
+    it("forgets a panel that closed from the panels on screen (#1861)", () => {
+        const two: ScreenDescription = { ...screen, front: "companion", shown: 2 };
+        const cube = cubeOf(screenGlyphIcons(two, ["agent", "companion"], iconOf));
+        expect(cube).toMatchObject({ id: "companion", shown: 1, count: 1 });
+    });
+
     it("keeps at most three marks: the fixed zone gives way so the cube always shows", () => {
-        const wide: ScreenDescription = { fixed: ["agent", "term", "review"], carpet: ["page"], front: "page" };
+        const wide: ScreenDescription = {
+            fixed: ["agent", "term", "review"],
+            carpet: ["page"],
+            front: "page",
+            shown: 1,
+        };
         const icons = screenGlyphIcons(wide, ["agent", "term", "review", "page"], iconOf);
         expect(icons.slice(0, 2)).toEqual(["robot", "terminal"]);
         expect(isGlyphCube(icons[2])).toBe(true);
@@ -145,7 +200,7 @@ describe("screenGlyphIcons (#1823)", () => {
 });
 
 describe("readScreen and sameScreen", () => {
-    const screen: ScreenDescription = { fixed: ["a"], carpet: ["b", "c"], front: "c" };
+    const screen: ScreenDescription = { fixed: ["a"], carpet: ["b", "c"], front: "c", shown: 1 };
 
     it("reads what the tab's meta holds and nothing else", () => {
         expect(readScreen({ ...screen })).toEqual(screen);
@@ -156,8 +211,17 @@ describe("readScreen and sameScreen", () => {
         expect(readScreen({ fixed: ["a"], carpet: ["b"] })).toBeNull();
     });
 
-    it("compares descriptions by their panels and their front", () => {
+    it("reads how many carpet panels are on screen, one for a description written without it (#1861)", () => {
+        expect(readScreen({ ...screen, shown: 3 }).shown).toBe(3);
+        expect(readScreen({ fixed: ["a"], carpet: ["b", "c"], front: "c" }).shown).toBe(1);
+        expect(readScreen({ ...screen, shown: 0 }).shown).toBe(1);
+        expect(readScreen({ ...screen, shown: 1.5 }).shown).toBe(1);
+        expect(readScreen({ ...screen, shown: "2" }).shown).toBe(1);
+    });
+
+    it("compares descriptions by their panels, their front and how many are on screen", () => {
         expect(sameScreen(screen, { ...screen, carpet: [...screen.carpet] })).toBe(true);
+        expect(sameScreen(screen, { ...screen, shown: 2 })).toBe(false);
         expect(sameScreen(screen, { ...screen, front: "b" })).toBe(false);
         expect(sameScreen(screen, { ...screen, carpet: ["b"] })).toBe(false);
         expect(sameScreen(screen, null)).toBe(false);

@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { panelIcon } from "../tab-identity";
 import { ScreenMetaKey } from "../view360/screen-glyph";
-import { screenGlyphAtom, viewGlyphAtom } from "./view-glyph";
+import { screenGlyphAtom, ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { isGlyphCube, ViewIconMetaKey, type GlyphCube } from "./view-menu-model";
 import { openViewPopover, ViewPopoverHost } from "./view-popover";
 
@@ -38,7 +38,12 @@ function seed(tabId: string, meta: Record<string, any>) {
     WOS.setObjectValue({ otype: "tab", oid: tabId, version: 1, blockids: Object.keys(Panels), meta } as any);
 }
 
-const Screen = (front: string) => ({ fixed: ["blk-term"], carpet: ["blk-files", "blk-page"], front });
+const Screen = (front: string, shown = 1) => ({
+    fixed: ["blk-term"],
+    carpet: ["blk-files", "blk-page"],
+    front,
+    shown,
+});
 const iconOf = (id: string) => panelIcon(Panels[id]);
 
 describe("the icon of a view in the sidebar (#1823)", () => {
@@ -52,7 +57,43 @@ describe("the icon of a view in the sidebar (#1823)", () => {
         const glyph = globalStore.get(viewGlyphAtom("tab-360"));
         expect(glyph).toHaveLength(2);
         expect(glyph[0]).toBe(iconOf("blk-term"));
-        expect(glyph[1]).toEqual({ cube: true, id: "blk-page", icon: iconOf("blk-page"), index: 1, count: 2 });
+        expect(glyph[1]).toEqual({
+            cube: true,
+            id: "blk-page",
+            icon: iconOf("blk-page"),
+            index: 1,
+            count: 2,
+            shown: 1,
+            panels: [
+                { id: "blk-files", icon: iconOf("blk-files") },
+                { id: "blk-page", icon: iconOf("blk-page") },
+            ],
+        });
+    });
+
+    it("draws a prism of both carpet panels when the tab publishes two on screen (#1861)", () => {
+        seed("tab-two", { [ScreenMetaKey]: Screen("blk-files", 2) });
+        const cube = globalStore.get(viewGlyphAtom("tab-two"))[1] as GlyphCube;
+        expect(cube).toMatchObject({ id: "blk-files", index: 0, shown: 2 });
+        const html = renderToStaticMarkup(<ViewGlyph icons={globalStore.get(viewGlyphAtom("tab-two"))} small />);
+        expect(html).toContain('data-cells="2"');
+        expect(html).not.toContain("view-cube-more");
+    });
+
+    it("reads a screen published before the prism as one panel on screen (#1861)", () => {
+        seed("tab-old", {
+            [ScreenMetaKey]: { fixed: ["blk-term"], carpet: ["blk-files", "blk-page"], front: "blk-page" },
+        });
+        expect((globalStore.get(viewGlyphAtom("tab-old"))[1] as GlyphCube).shown).toBe(1);
+    });
+
+    it("keeps the same atom value while the screen is republished unchanged, and changes it when the count changes (#1861)", () => {
+        seed("tab-same", { [ScreenMetaKey]: Screen("blk-files", 1) });
+        const first = globalStore.get(viewGlyphAtom("tab-same"));
+        seed("tab-same", { [ScreenMetaKey]: Screen("blk-files", 1) });
+        expect(globalStore.get(viewGlyphAtom("tab-same"))).toBe(first);
+        seed("tab-same", { [ScreenMetaKey]: Screen("blk-files", 2) });
+        expect(globalStore.get(viewGlyphAtom("tab-same"))).not.toBe(first);
     });
 
     it("turns the cube to the files when the carpet scrolls to them, and back", () => {

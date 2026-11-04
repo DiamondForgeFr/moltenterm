@@ -32,7 +32,15 @@ const NoGlyphAtom = jotai.atom<GlyphIcon[]>([]);
 
 function sameIcon(a: GlyphIcon, b: GlyphIcon): boolean {
     if (isGlyphCube(a) && isGlyphCube(b)) {
-        return a.id === b.id && a.icon === b.icon && a.index === b.index && a.count === b.count;
+        return (
+            a.id === b.id &&
+            a.icon === b.icon &&
+            a.index === b.index &&
+            a.count === b.count &&
+            a.shown === b.shown &&
+            a.panels.length === b.panels.length &&
+            a.panels.every((p, i) => p.id === b.panels[i].id && p.icon === b.panels[i].icon)
+        );
     }
     return a === b;
 }

@@ -37,10 +37,23 @@ export function readViewIcon(value: any): string {
     return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
-// The 360 carpet as a view's icon draws it (FR-SHELL-081, #1823): one cube for the whole carpet, whose front face is
-// the icon of the carpet panel in front. id: that panel's block; index and count: its place among the carpet's panels,
-// which tell the way the cube turns when another comes in front.
-export type GlyphCube = { cube: true; id: string; icon: string; index: number; count: number };
+// A carpet panel as the cube draws it: its block and its icon.
+export type GlyphCubePanel = { id: string; icon: string };
+
+// The 360 carpet as a view's icon draws it (FR-SHELL-081, #1823, #1861): one mark for the whole carpet, a cube whose
+// front face is the icon of the carpet panel in front, or a prism of the icons of the panels on screen. id and icon:
+// the first panel on screen; index and count: its place among the carpet's panels, which tell the way the cube turns
+// when another comes in front; shown: how many panels are on screen from it on; panels: the carpet's panels in order,
+// the belt the face slides along.
+export type GlyphCube = {
+    cube: true;
+    id: string;
+    icon: string;
+    index: number;
+    count: number;
+    shown: number;
+    panels: GlyphCubePanel[];
+};
 
 // One mark of a view's icon: a panel's icon name, or the carpet's cube.
 export type GlyphIcon = string | GlyphCube;
