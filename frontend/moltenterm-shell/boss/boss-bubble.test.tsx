@@ -21,6 +21,7 @@ vi.mock("./boss-store", async () => {
         dragAtom: atom(null),
         cueAtom: atom(0),
         peekOpenAtom: atom(false),
+        cardOpenAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         peekAtom: atom({ waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: "", latest: null }),
         attach: vi.fn(() => () => {}),
@@ -29,9 +30,15 @@ vi.mock("./boss-store", async () => {
         expand: vi.fn(),
         resetPosition: vi.fn(),
         drop: vi.fn(),
+        toggleCard: vi.fn(),
+        closeCard: vi.fn(),
     };
     return { BossBubbleModel: { getInstance: () => model } };
 });
+// The card has its own tests (boss-card.test.tsx): here it only stands where the bubble puts it.
+vi.mock("./boss-card", () => ({
+    BossCard: ({ style }: { style: Record<string, string> }) => <div data-testid="boss-card" style={style} />,
+}));
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { BossBubbleHost } from "./boss-bubble";
@@ -52,6 +59,7 @@ beforeEach(() => {
     globalStore.set(model.dragAtom, null);
     globalStore.set(model.cueAtom, 0);
     globalStore.set(model.peekOpenAtom, false);
+    globalStore.set(model.cardOpenAtom, false);
     globalStore.set(model.badgeAtom, { count: 0, text: "", tone: "waiting" });
     globalStore.set(model.peekAtom, {
         waiting: [],
@@ -250,6 +258,70 @@ describe("the peek (AC7)", () => {
         globalStore.set(model.peekOpenAtom, true);
         globalStore.set(model.dragAtom, { left: 10, top: 10, width: 44, height: 44 });
         expect(render()).not.toContain('data-testid="boss-peek"');
+    });
+});
+
+describe("the Sessions card (FR-BOSS-002)", () => {
+    it("is not drawn until the developer asks, and the buttons say a card hangs off them", () => {
+        const html = render();
+        expect(html).not.toContain('data-testid="boss-card"');
+        expect(attr(html, "boss-bubble", "aria-haspopup")).toBe("dialog");
+        expect(attr(html, "boss-bubble", "aria-expanded")).toBe("false");
+        globalStore.set(model.collapsedAtom, true);
+        expect(attr(render(), "boss-pennant", "aria-haspopup")).toBe("dialog");
+        expect(attr(render(), "boss-pennant", "aria-expanded")).toBe("false");
+    });
+
+    it("marks the bubble and the pennant as its anchor, so a press on them is the toggle's", () => {
+        expect(render()).toMatch(/data-testid="boss-bubble"[^>]*data-boss-anchor=""/);
+        globalStore.set(model.collapsedAtom, true);
+        expect(render()).toMatch(/data-testid="boss-pennant"[^>]*data-boss-anchor=""/);
+    });
+
+    it("sits beside the bubble, on the side of its corner, once opened", () => {
+        globalStore.set(model.cardOpenAtom, true);
+        const html = render();
+        expect(attr(html, "boss-bubble", "aria-expanded")).toBe("true");
+        const style = attr(html, "boss-card", "style");
+        expect(style).toContain("right:max(8px, min(16px, calc(100% - 52px)))");
+        expect(style).toContain("bottom:calc(max(8px, min(16px, calc(100% - 52px))) + 52px)");
+        expect(style).toContain("max-height:calc(100% - calc(max(8px, min(16px, calc(100% - 52px))) + 52px) - 8px)");
+    });
+
+    it("hangs under the pennant, aligned with its edge, when collapsed", () => {
+        globalStore.set(model.collapsedAtom, true);
+        globalStore.set(model.cardOpenAtom, true);
+        const style = attr(render(), "boss-card", "style");
+        expect(style).toContain("top:22px");
+        expect(style).toContain("right:24px");
+        expect(style).toContain("max-height:calc(100% - 30px)");
+    });
+
+    it("takes the peek's place: the peek does not show over an open card", () => {
+        globalStore.set(model.peekOpenAtom, true);
+        globalStore.set(model.cardOpenAtom, true);
+        const html = render();
+        expect(html).toContain('data-testid="boss-card"');
+        expect(html).not.toContain('data-testid="boss-peek"');
+    });
+
+    it("is gone while the bubble is dragged", () => {
+        globalStore.set(model.cardOpenAtom, true);
+        globalStore.set(model.dragAtom, { left: 10, top: 10, width: 44, height: 44 });
+        expect(render()).not.toContain('data-testid="boss-card"');
+    });
+
+    it("is drawn in the layer over the content, not in the layout: it takes the pointer and no room", () => {
+        const css = readFileSync(join(__dirname, "boss-bubble.css"), "utf8");
+        expect(css).toMatch(/\.mt-boss-card \{[^}]*position: absolute;/);
+        expect(css).toMatch(/\.mt-boss-card \{[^}]*pointer-events: auto;/);
+        expect(css).toMatch(/\.mt-boss-layer \{[^}]*pointer-events: none;/);
+    });
+
+    it("is not drawn at all when the bubble is turned off", () => {
+        globalStore.set(model.cardOpenAtom, true);
+        globalStore.set(model.showAtom, false);
+        expect(render()).toBe("");
     });
 });
 

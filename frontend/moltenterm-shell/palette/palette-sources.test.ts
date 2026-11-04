@@ -5,12 +5,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { formatShortcutById } from "../shortcuts/format";
-import { bestMatchIndex, filterPalette, flattenSections, PickerGroupOrder } from "./palette-model";
+import { bestMatchIndex, fillsPanel, filterPalette, flattenSections, PickerGroupOrder } from "./palette-model";
 import {
     actionEntries,
     addressEntry,
     agentCopyEntries,
     agentEntries,
+    bossCardEntries,
     browserEntries,
     buildPaletteEntries,
     folderEntries,
@@ -273,6 +274,41 @@ describe("sessions", () => {
         for (const word of ["durable", "running", "agents", "ssh", "detached", "jobs", "processes"]) {
             expect(entry.keywords).toContain(word);
         }
+    });
+});
+
+describe("Ferrand's card (FR-BOSS-002-AC1)", () => {
+    const base = {
+        presets: {},
+        widgets: {},
+        workspaceId: "w1",
+        folder: "",
+        recentFolders: [] as string[],
+        otherFolders: [] as string[],
+        workspaces: [] as any[],
+        home: "/home/me",
+    };
+
+    it("is offered with the foreman's name while his bubble shows, found by the words people use", () => {
+        const entry = buildPaletteEntries({ ...base, bossName: "Léa" }).find((e) => e.id === "action:bosscard");
+        expect(entry).toMatchObject({
+            group: "actions",
+            label: "Show Léa's card",
+            run: { kind: "bosscard" },
+        });
+        for (const word of ["sessions", "bubble", "foreman", "Léa"]) {
+            expect(entry.keywords).toContain(word);
+        }
+    });
+
+    it("is not offered when the bubble is off: there is nothing to anchor it to", () => {
+        expect(buildPaletteEntries({ ...base }).filter((e) => e.run.kind === "bosscard")).toEqual([]);
+        expect(buildPaletteEntries({ ...base, bossName: "" }).filter((e) => e.run.kind === "bosscard")).toEqual([]);
+    });
+
+    it("opens nothing in a panel: it runs where it is, as the other actions do", () => {
+        const entry = bossCardEntries("Ferrand")[0];
+        expect(fillsPanel(entry.run)).toBe(false);
     });
 });
 
