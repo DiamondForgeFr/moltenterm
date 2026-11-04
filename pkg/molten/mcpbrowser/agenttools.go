@@ -118,12 +118,19 @@ const BookmarksInstructions = " The developer keeps the project's useful web pag
 	"`molten bookmarks list [--json]` lists them (read-only); opening one goes through these browser tools. " +
 	"Details: bookmarks.md in the folder `molten docs` prints."
 
+// LearningInstructions: a guided workflow remembers what the developer adjusts, and an agent that drives one reads and
+// feeds that memory (FR-LRN-002, pkg/molten/agentdocs/learning.md), whatever agent CLI it is.
+const LearningInstructions = " A guided workflow (a pipeline setup, a mod design) learns from the developer: when you " +
+	"start one, read `molten learn defaults <workflow>` and start from what it prefills; record only what the developer " +
+	"adjusted in that workflow with `molten learn record <workflow>`. Details: learning.md in the folder `molten docs` " +
+	"prints."
+
 // AgentInstructions completes the server's instructions with the agent's own first name (FR-CONT-014): Claude Code
 // puts server instructions in its system prompt, so the agent can sign its briefs and knows it is addressed.
 func AgentInstructions(firstName string) string {
 	rtn := PagesInstructions + " To hand work to another agent when the user asks (\"send this to Jérôme\"), call " +
 		"list_agents, then send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions + FilesInstructions +
-		BookmarksInstructions
+		BookmarksInstructions + LearningInstructions
 	if firstName != "" {
 		rtn = fmt.Sprintf(" In MoltenTerm your first name is %s: the user and other agents call you by it, and handoffs you "+
 			"send are signed with it.", firstName) + rtn + SignInstructions

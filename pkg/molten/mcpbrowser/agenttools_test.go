@@ -78,6 +78,18 @@ func TestAgentInstructionsMentionMoltenBookmarks(t *testing.T) {
 	}
 }
 
+// Claude Code and Codex both learn of `molten learn` from the molten browser server (FR-LRN-002).
+func TestAgentInstructionsMentionMoltenLearn(t *testing.T) {
+	for _, name := range []string{"", "Olivia"} {
+		got := AgentInstructions(name)
+		for _, want := range []string{"molten learn defaults", "molten learn record", "learning.md"} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("instructions for %q do not mention %q: %s", name, want, got)
+			}
+		}
+	}
+}
+
 func TestAgentToolsStayOutOfBrowserBatches(t *testing.T) {
 	if ToolNames()[ToolSendToAgent] || ToolNames()[ToolListAgents] {
 		t.Fatal("browser_batch must not run the handoff tools")
