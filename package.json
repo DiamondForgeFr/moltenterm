@@ -143,7 +143,9 @@
         "monaco-editor@0.55.1": {
             "dompurify": "3.4.17"
         },
+        "glob@>=9.0.0 <15.0.0": "14.0.3",
         "katex": "0.18.10",
+        "minimatch@>=7.0.0 <12.0.0": "11.0.4",
         "postcss-selector-parser": "7.1.6",
         "satori": {
             ".": "0.33.5",

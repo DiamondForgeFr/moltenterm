@@ -41,6 +41,37 @@ Two dependency-specific overrides are deliberately bounded:
   Validate actual Agent/fetch streaming and rejection of private download addresses before removing this override
   or changing either version. This does not grant an exception for any Undici advisory.
 
+minimatch and glob are moved by range overrides (#1913). GHSA-g3hv-75wg-m249 (minimatch `>=7.0.0 <11.0.1`) and
+GHSA-3g3m-2fjr-6pw4 (glob `>=9.0.0 <=14.0.1`) have no fix on the 9.x and 10.x lines, and no current release of a
+consumer asks for a fixed one. The root `package.json` overrides `minimatch@>=7.0.0 <12.0.0` to 11.0.4 and
+`glob@>=9.0.0 <15.0.0` to 14.0.3. npm applies a ranged key to every dependency whose requested range meets it: the
+`^9`/`^10` requests move, while the 3.x and 5.x copies (outside the advisory, on an older API) and glob 7 keep their
+versions. Each key's range must contain its own value: npm 10.9.2 matches a key against the edge's current spec,
+which is the override's value once applied, so a key bounded at the advisory's fix (`<11.0.1`) drops the override
+on the next reload (glob stayed 10.5.0 under unified-engine). With an existing lock, `npm install` also left the
+hoisted glob 10.5.0 in place, invalid; `npm update glob` replaced it, and a clean `npm ci` reproduces the tree. Both
+are qualified compatibility exceptions outside the consumers' declared ranges:
+
+- minimatch 11 matches each path portion with a `Matcher` in place of a `RegExp`, and removes `makeRe()`,
+  `Minimatch#regexp` and `matchOne()`. The consumers moved here use only `minimatch()`, `minimatch.match()`,
+  `new Minimatch()`, `Minimatch#match(path, partial)`, `negate` and `set` (tested for non-string items):
+  @electron/universal 2.0.3 (`matchBase` allow lists), app-builder-lib 26.17.0 (`fileMatcher.js`, `util/filter.js`),
+  @typescript-eslint/typescript-estree 8.56.1 (`allowDefaultProject`, unused by this configuration) and
+  @npmcli/map-workspaces 3.0.6.
+- glob 10 recognises a pattern portion by `instanceof RegExp`, so it cannot run on minimatch 11: glob 14 is the line
+  built for it. Its consumers, @npmcli/map-workspaces 3.0.6, @npmcli/package-json 5.2.1 and unified-engine 11.2.2
+  (remark-cli, eslint-mdx), call `glob()` and `hasMagic()` with `cwd`, `ignore`, `nocase` and `mark`, which glob 14
+  keeps. None passes the removed `debug` option.
+
+The qualification compared each consumer before and after on the same tree. The unsigned arm64 app directory and a
+universal merge (both wavesrv binaries in each architecture, so @electron/universal reaches its `x64ArchFiles`,
+`singleArchFiles` and plist calls) built by electron-builder hold the same files and app.asar entries, byte for
+byte, except the packaged `package.json`, which carries the two new overrides, and the `ElectronAsarIntegrity` hash
+that follows it in the Info.plist files. Workspace discovery, package normalisation (`directories.bin`,
+`directories.man`, `gypfile`, readme), docs globs, remark-cli and eslint-mdx on the docs, and the electron-builder
+file filters give the same results. A new consumer of an affected line is moved too: qualify it when it enters the
+lock, and drop each override once every consumer asks for a fixed version.
+
 Lock resolution initially hit npm 10.9.2's internal Arborist `edgesOut` null error when introducing Vitest 4.
 An isolated npm 11.16.0 resolved the peers; npm 10.9.2 then reconciled the lock and reproduced clean `npm ci`.
 The project and security scanner retain npm 10.9.2. No global npm or another worktree's installation was changed.
