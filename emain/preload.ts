@@ -135,6 +135,17 @@ contextBridge.exposeInMainWorld("api", {
     moltentermUpdateLast: () => ipcRenderer.invoke("moltenterm-update-last"),
     // MOLTENTERM-PATCH (#188, #1806): newer releases on GitHub (emain/moltenterm-release-feed.ts); the mode is due, now or read
     moltentermReleaseCheck: (mode?: string) => ipcRenderer.invoke("moltenterm-release-check", mode),
+    // MOLTENTERM-PATCH (#1860): the in-app update of a release (emain/moltenterm-release-install.ts)
+    moltentermReleaseInstallState: () => ipcRenderer.invoke("moltenterm-release-install-state"),
+    moltentermReleaseInstallStart: (tag: string) => ipcRenderer.invoke("moltenterm-release-install-start", tag),
+    moltentermReleaseInstallApply: (when: string) => ipcRenderer.invoke("moltenterm-release-install-apply", when),
+    moltentermReleaseInstallReveal: () => ipcRenderer.invoke("moltenterm-release-install-reveal"),
+    moltentermReleaseInstallLast: () => ipcRenderer.invoke("moltenterm-release-install-last"),
+    onMoltentermReleaseInstall: (callback: (state: any) => void) => {
+        const listener = (_event, state: any) => callback(state);
+        ipcRenderer.on("moltenterm-release-install-event", listener);
+        return () => ipcRenderer.removeListener("moltenterm-release-install-event", listener);
+    },
     // MOLTENTERM-PATCH (#300): a browser panel tab's webview, for the agents' DevTools controller (emain/moltenterm-browseragent.ts)
     moltentermRegisterWebview: (blockId: string, browserTabId: string, webContentsId: number) =>
         ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId),

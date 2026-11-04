@@ -53,6 +53,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `updater.ts` | `install-app-update`, `get-app-update-status`, `get-updater-channel` |
 | `moltenterm-update.ts` | `moltenterm-update-check`, `moltenterm-update-apply`, `moltenterm-update-last` |
 | `moltenterm-release-feed.ts` | `moltenterm-release-check` |
+| `moltenterm-release-install.ts` | `moltenterm-release-install-state`, `moltenterm-release-install-start` (main accepts only the release its own last check offers, builds the file addresses from the release tag and the file name, and installs nothing before the signed checksums, the file's SHA-256 and the platform's signature check pass), `moltenterm-release-install-apply`, `moltenterm-release-install-reveal`, `moltenterm-release-install-last` |
 | `moltenterm-dialogs.ts` | `moltenterm-choose-path` |
 | `moltenterm-i18n.ts` | `moltenterm-system-languages`, `moltenterm-set-language-packs`, `moltenterm-set-locale` |
 | `moltenterm-system-notify.ts` | `moltenterm-system-notify`, `moltenterm-system-notify-close` |

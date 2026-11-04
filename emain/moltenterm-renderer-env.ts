@@ -10,6 +10,9 @@ export const RendererEnvironmentNames = [
     "WAVETERM_DEV_VITE",
     "MOLTENTERM_CHANNEL",
     "MOLTENTERM_SAFE_MODE",
+    // A test instance's local release feed (#1806, #1860): the renderer only learns that the build looks for releases;
+    // Electron main alone decides whether the override is honoured (moltenterm-release-feed.ts).
+    "MOLTENTERM_RELEASE_FEED_URL",
 ] as const;
 const rendererEnvironmentNames = new Set<string>(RendererEnvironmentNames);
 
