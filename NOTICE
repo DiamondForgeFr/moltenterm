@@ -16,7 +16,7 @@ Which licence applies to which part
   public mod interface, is in LICENSE-EXCEPTION.
 - The files that come from Wave Terminal (copyright Command Line Inc.), including the ones MoltenTerm
   patched (marked MOLTENTERM-PATCH and listed in UPSTREAM.md), stay under the Apache License,
-  Version 2.0. The text is in LICENSE-APACHE.
+  Version 2.0 (Apache-2.0). The text is in LICENSE-APACHE.
 - Each source file says which one applies in its SPDX-License-Identifier header. A file without one is
   MoltenTerm's own, unless it comes from Wave Terminal or is third-party material listed below.
 - Releases published before this change (v1.0.0-8 and earlier at the time of writing, #1870) were

@@ -21,8 +21,29 @@ import { Modal } from "./modal";
 
 const WaveTerminalRepoUrl = "https://github.com/wavetermdev/waveterm";
 
+// NOTICE says which part is under which licence; the source it points to is the Corresponding Source of the AGPL.
+const MoltentermNoticeUrl = `${MoltentermRepoUrl}/blob/main/NOTICE`;
+
 const linkClassName =
     "inline-flex items-center justify-center px-4 py-2 rounded border border-border hover:bg-hoverbg transition-colors duration-200";
+
+const AboutLicenseLine = () => {
+    const t = useT();
+    return (
+        <a
+            href={MoltentermNoticeUrl}
+            target="_blank"
+            rel="noopener"
+            title={t("about.licenseTitle")}
+            className="cursor-pointer text-xs text-secondary hover:underline"
+            data-testid="about-license"
+        >
+            {t("about.license")}
+        </a>
+    );
+};
+
+AboutLicenseLine.displayName = "AboutLicenseLine";
 
 interface MoltentermAboutModalVProps {
     identity: BuildIdentity;
@@ -66,6 +87,7 @@ const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps
                         <div className="text-xs text-secondary font-mono">{identity.commitLine}</div>
                     ) : null}
                     <div className="mt-2">{t("about.basedOn", { wave: identity.waveBase })}</div>
+                    <AboutLicenseLine />
                 </div>
                 <div className="grid grid-cols-2 gap-[10px] self-stretch w-full">
                     <button
@@ -103,4 +125,4 @@ const AboutModal = () => {
 
 AboutModal.displayName = "AboutModal";
 
-export { AboutModal, MoltentermAboutModalV };
+export { AboutLicenseLine, AboutModal, MoltentermAboutModalV };

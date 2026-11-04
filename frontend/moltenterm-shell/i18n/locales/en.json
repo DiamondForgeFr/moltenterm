@@ -1449,7 +1449,7 @@
                 "start": "Ready"
             },
             "legal": {
-                "license": "Open source, Apache License 2.0",
+                "license": "Open source, AGPL-3.0 (parts from Wave Terminal: Apache-2.0)",
                 "licence": "Licence",
                 "privacy": "Privacy",
                 "about": "About"
@@ -5900,6 +5900,8 @@
         "unknownVersion": "unknown",
         "releaseNotes": "Release notes",
         "basedOn": "Based on Wave Terminal {wave} by Command Line Inc. (Apache-2.0)",
+        "license": "Open source, AGPL-3.0 (parts from Wave Terminal: Apache-2.0)",
+        "licenseTitle": "Which licence covers which part, and the source code",
         "copyright": "© {year} DiamondForge. Portions © Command Line Inc."
     },
     "releases": {
