@@ -7,8 +7,8 @@
 
 import { getBlockMetaKeyAtom } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { atom, useAtomValue } from "jotai";
+import { useMemo, useState } from "react";
 import { agentFactsLine, agentRunFacts } from "../agent-facts";
 import {
     goToAgent,
@@ -30,6 +30,8 @@ import { useCompanionFollow } from "../companion/companion-follow";
 import type { CompanionView } from "../companion/companion-model";
 import { useT, useTCount } from "../i18n/i18n";
 import { DominoLoader } from "../suite/suite";
+import { projectIdOfAgent } from "./project-activity";
+import { activeProjectOf, agentGroups } from "./sidebar-agents-group";
 import {
     agentProjectLabel,
     agentRowLook,
@@ -39,7 +41,7 @@ import {
 } from "./sidebar-agents-model";
 import "./sidebar-agents.css";
 import { SidebarGlyph } from "./sidebar-icons";
-import type { WorkspaceProjectEntry } from "./workspace-projects";
+import { projectLabel, type WorkspaceProjectEntry } from "./workspace-projects";
 
 const AgentPaths = {
     sub: (
@@ -317,10 +319,12 @@ function AgentBlock({
     info,
     active,
     projects,
+    grouped,
 }: {
     info: AgentStateInfo;
     active: boolean;
     projects: WorkspaceProjectEntry[];
+    grouped: boolean;
 }) {
     const t = useT();
     const tree = useAtomValue(AgentInfoModel.getInstance().treeAtom(info.blockid));
@@ -329,7 +333,7 @@ function AgentBlock({
     const look = agentRowLook(info);
     const name = agentDisplayName(info);
     const doing = agentDoing(info);
-    const label = agentProjectLabel(folder, projects);
+    const label = grouped ? null : agentProjectLabel(folder, projects);
     const go = () => fireAndForget(() => goToAgent(agentRowTarget(info)));
     const toggleLabel = t(open ? "sidebar.agents.collapse" : "sidebar.agents.expand", { name });
     return (
@@ -390,20 +394,60 @@ function AgentBlock({
     );
 }
 
+// The folder of each agent's terminal, read from its block: the groups follow a terminal that changes folder (#1867).
+function useAgentFolders(agents: AgentStateInfo[]): Record<string, string> {
+    const ids = (agents ?? []).map((a) => a.blockid).join(",");
+    const foldersAtom = useMemo(
+        () =>
+            atom((get) =>
+                Object.fromEntries(
+                    ids
+                        .split(",")
+                        .filter((id) => id !== "")
+                        .map((id): [string, string] => [id, get(getBlockMetaKeyAtom(id, "cmd:cwd")) ?? ""])
+                )
+            ),
+        [ids]
+    );
+    return useAtomValue(foldersAtom);
+}
+
+// The separator that opens a project's group (FR-SHELL-084, #1867): a thin rule, and the project's name where the
+// temporary views' "Close all" row sits. Not a button.
+function AgentGroupSeparator({ name }: { name: string }) {
+    return (
+        <div className="mt-sb-ag-sep" role="separator" aria-label={name} data-testid="sidebar-agent-group-sep">
+            <span className="mt-sb-ag-line" />
+            <span className="mt-sb-ag-name text-11 text-muted" data-testid="sidebar-agent-group-name">
+                {name}
+            </span>
+        </div>
+    );
+}
+
 export function AgentsSection({
     agents,
     activeTabId,
     projects,
+    ws,
 }: {
     agents: AgentStateInfo[];
     activeTabId: string;
     projects?: WorkspaceProjectEntry[];
+    ws?: { meta?: Record<string, any> };
 }) {
     const t = useT();
     const tc = useTCount();
+    const folders = useAgentFolders(agents);
     if (agents.length === 0) {
         return null;
     }
+    const groups = agentGroups(
+        agents,
+        projects,
+        (info) => projectIdOfAgent(ws ?? {}, projects, info, folders[info.blockid] ?? ""),
+        activeProjectOf(ws, activeTabId)
+    );
     const live = agents.filter((a) => {
         const look = agentRowLook(a);
         return look === "working" || look === "waiting" || look === "error";
@@ -416,11 +460,41 @@ export function AgentsSection({
                     {live > 0 ? tc("sidebar.agents.active", live) : t("sidebar.agents.resting")}
                 </span>
             </div>
-            <div className="flex flex-col gap-px">
-                {agents.map((a) => (
-                    <AgentBlock key={a.blockid} info={a} active={a.tabid === activeTabId} projects={projects} />
-                ))}
-            </div>
+            {groups == null ? (
+                <div className="flex flex-col gap-px">
+                    {agents.map((a) => (
+                        <AgentBlock
+                            key={a.blockid}
+                            info={a}
+                            active={a.tabid === activeTabId}
+                            projects={projects}
+                            grouped={false}
+                        />
+                    ))}
+                </div>
+            ) : (
+                groups.map((g) => (
+                    <div
+                        key={g.project?.id ?? "none"}
+                        className="mt-sb-ag-group flex flex-col gap-px"
+                        data-testid="sidebar-agent-group"
+                        data-project={g.project?.id ?? undefined}
+                    >
+                        <AgentGroupSeparator
+                            name={g.project ? projectLabel(g.project) : t("sidebar.agents.noProject")}
+                        />
+                        {g.agents.map((a) => (
+                            <AgentBlock
+                                key={a.blockid}
+                                info={a}
+                                active={a.tabid === activeTabId}
+                                projects={projects}
+                                grouped
+                            />
+                        ))}
+                    </div>
+                ))
+            )}
         </div>
     );
 }

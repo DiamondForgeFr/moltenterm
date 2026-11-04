@@ -2729,7 +2729,12 @@ export function WorkspaceSidebar() {
                                     activeTabId={activeTabId}
                                     label={t("sidebar.tiles.label", { name })}
                                 />
-                                <AgentsSection agents={sections.agents} activeTabId={activeTabId} projects={projects} />
+                                <AgentsSection
+                                    agents={sections.agents}
+                                    activeTabId={activeTabId}
+                                    projects={projects}
+                                    ws={ws}
+                                />
                                 <TemporaryViews
                                     ids={sections.temporary}
                                     activeTabId={activeTabId}

@@ -244,6 +244,35 @@
     text-transform: none;
 }
 
+/* The separator opening a project's group (#1867): the temporary views' rule, with the project's name where their
+   Close all sits. */
+.mt-sb-ag-group + .mt-sb-ag-group {
+    margin-top: 6px;
+}
+
+.mt-sb-ag-sep {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 16px;
+    margin: 0 0 2px;
+    padding: 0 2px 0 6px;
+}
+
+.mt-sb-ag-line {
+    flex: 1;
+    height: 1px;
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+}
+
+.mt-sb-ag-name {
+    min-width: 0;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .mt-sb-leaf {
     display: flex;
     align-items: center;

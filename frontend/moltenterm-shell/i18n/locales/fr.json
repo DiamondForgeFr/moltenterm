@@ -9881,7 +9881,8 @@
             "expand": "Afficher ce à quoi {name} est relié",
             "collapse": "Masquer ce à quoi {name} est relié",
             "projectTitle": "Tourne dans {project}",
-            "outsideTitle": "Tourne dans {folder}, hors des projets de cet espace de travail"
+            "outsideTitle": "Tourne dans {folder}, hors des projets de cet espace de travail",
+            "noProject": "Hors projet"
         },
         "view": {
             "equalize": "Égaliser la largeur des panneaux",
