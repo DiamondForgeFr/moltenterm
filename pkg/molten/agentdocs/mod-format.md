@@ -270,26 +270,6 @@ build the mod with `molten`. MoltenTerm installs the guides itself, at user leve
 below found on the login shell's PATH, and again when its version changes. Nothing is needed for an agent that is
 already there; an agent installed later gets them at the next start, or at once with `molten agent install`.
 
-The guide is one flow, the same for every agent below, written once in `morph.md`:
-
-1. **Look first** at what already exists (`molten mod list --json`).
-2. **One to three questions**, only about what the request leaves open, as choices when possible. A request that says
-   to just do it ("fais-le", "just do it", in any language) gets none.
-3. **A reformulation and a plan** whose detail matches how precise the request was. The plan states the split rule
-   and lists every access the mod will need.
-4. **Trust, when the user agrees to the plan**, with that list: the mod is created with the planned capabilities and
-   `molten mod enable` shows the trust prompt. Nothing is enabled before that agreement, and an access the plan did
-   not list is asked again before it is used.
-5. **The design view**, when the installed version has it (`molten help` lists `morph design`); otherwise the same
-   steps run in the terminal.
-6. **A live build**, marked as a draft, with sample data first; each save reloads the mod.
-7. **Adjustments** through the conversation.
-8. **Validation**: a name, three icons to pick from, a category. Giving up runs `molten undo`.
-9. **Your mods**: where the mod lives, and what to do to undo or turn it off.
-
-The split rule, which says what goes in the mod's MoltenTerm part (`mod.json` and `main.js`) and what in its agent
-part (today a Claude Code part, `claude-code-parts.md`), is written once, in `morph.md`.
-
 ```
 molten agent list                 # coding agents: installed, version, capabilities; where the guides go
 molten agent install <agent>      # shows the path, asks, writes (--yes to skip the question)
@@ -317,6 +297,26 @@ Copilot CLI, Cursor, Grok Build and Mistral Vibe. Gemini CLI is kept for those w
 Enterprise, paid API keys); personal Google accounts use Antigravity CLI (`agy`) since 2026-06-18.
 `/morph` replaced `/molten-feature`: `molten agent install` deletes a `molten-feature` guide that molten wrote, and
 leaves a file of the same name that someone else wrote.
+
+The guide is one flow, the same for every agent above, written once in `morph.md`:
+
+1. **Look first** at what already exists (`molten mod list --json`).
+2. **One to three questions**, only about what the request leaves open, as choices when possible. A request that says
+   to just do it ("fais-le", "just do it", in any language) gets none.
+3. **A reformulation and a plan** whose detail matches how precise the request was. The plan states the split rule
+   and lists every access the mod will need.
+4. **Trust, when the user agrees to the plan**, with that list: the mod is created with the planned capabilities and
+   `molten mod enable` shows the trust prompt. Nothing is enabled before that agreement, and an access the plan did
+   not list is asked again before it is used.
+5. **The design view**, when the installed version has it (`molten help` lists `morph design`); otherwise the same
+   steps run in the terminal.
+6. **A live build**, marked as a draft, with sample data first; each save reloads the mod.
+7. **Adjustments** through the conversation.
+8. **Validation**: a name, three icons to pick from, a category. Giving up runs `molten undo`.
+9. **Your mods**: where the mod lives, and what to do to undo or turn it off.
+
+The split rule, which says what goes in the mod's MoltenTerm part (`mod.json` and `main.js`) and what in its agent
+part (today a Claude Code part, `claude-code-parts.md`), is written once, in `morph.md`.
 
 ## A complete example: the copy box
 
