@@ -25,7 +25,7 @@ func TestSubagentBranchAgents(t *testing.T) {
 	panels := []BranchAgent{{Branch: "feature/10-d", Worktree: "/x/d", Kind: UpcomingAgentPanel}}
 	sub := func(worktree string, state string, at int64, desc string) PaneSubagent {
 		return PaneSubagent{ParentBlockId: "parent", ParentFirstName: "Valentin", Agent: "claude", SubagentIdentity: companion.SubagentIdentity{
-			Worktree: worktree, State: state, LastWrite: at, Description: desc, Model: "claude-opus-5-5",
+			Worktree: worktree, State: state, LastWrite: at, Description: desc, Model: "claude-opus-5-5", Effort: "high",
 		}}
 	}
 	subs := []PaneSubagent{
@@ -41,7 +41,7 @@ func TestSubagentBranchAgents(t *testing.T) {
 		t.Fatalf("one sub-agent per linked worktree without a panel: %+v", got)
 	}
 	if a := got[0]; a.Branch != "feature/7-a" || a.Kind != UpcomingAgentSubagent || a.Description != "#7 working" || a.State != companion.SubagentRunning ||
-		a.ParentBlockId != "parent" || a.ParentFirstName != "Valentin" || a.Agent != "claude" || a.Model != "claude-opus-5-5" {
+		a.ParentBlockId != "parent" || a.ParentFirstName != "Valentin" || a.Agent != "claude" || a.Model != "claude-opus-5-5" || a.Effort != "high" {
 		t.Fatalf("the running sub-agent wins: %+v", a)
 	}
 	if a := got[1]; a.Branch != "feature/8-b" || a.State != companion.SubagentDone || a.ActiveAt != 20 {
@@ -69,7 +69,7 @@ func TestUnplacedSubagents(t *testing.T) {
 	panels := []BranchAgent{{Branch: "feature/10-d", Worktree: "/x/d", Kind: UpcomingAgentPanel}}
 	sub := func(worktree string, state string, desc string) PaneSubagent {
 		return PaneSubagent{ParentBlockId: "parent", ParentFirstName: "Arthur", Agent: "claude", SubagentIdentity: companion.SubagentIdentity{
-			Worktree: worktree, State: state, LastWrite: 5, Started: 1, Description: desc, Model: "claude-opus-5-5",
+			Worktree: worktree, State: state, LastWrite: 5, Started: 1, Description: desc, Model: "claude-opus-5-5", Effort: "low",
 		}}
 	}
 	subs := []PaneSubagent{
@@ -85,7 +85,7 @@ func TestUnplacedSubagents(t *testing.T) {
 	var descs []string
 	for _, a := range got {
 		if a.Branch != "" || a.Worktree != "" || a.Kind != UpcomingAgentSubagent || a.ParentBlockId != "parent" || a.ParentFirstName != "Arthur" ||
-			a.Agent != "claude" || a.Model != "claude-opus-5-5" || a.ActiveAt != 5 || a.Started != 1 {
+			a.Agent != "claude" || a.Model != "claude-opus-5-5" || a.Effort != "low" || a.ActiveAt != 5 || a.Started != 1 {
 			t.Fatalf("unplaced sub-agent: %+v", a)
 		}
 		descs = append(descs, a.Description)

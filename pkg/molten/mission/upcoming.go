@@ -103,8 +103,10 @@ type BranchAgent struct {
 	ParentBlockId   string `json:"parentblockid,omitempty"`
 	ParentFirstName string `json:"parentfirstname,omitempty"`
 	// A sub-agent's (#1035): its model, its task, and its state (companion.SubagentRunning, SubagentQuiet,
-	// SubagentDone); ActiveAt is then its last write, or its end.
+	// SubagentDone); ActiveAt is then its last write, or its end. Effort (#1848) is the effort level its own files
+	// record; Model and Effort of a signed background agent are those of its signature. "" when unknown, never a guess.
 	Model       string `json:"model,omitempty"`
+	Effort      string `json:"effort,omitempty"`
 	Description string `json:"description,omitempty"`
 	State       string `json:"state,omitempty"`
 	// Signed (#1603): a background agent named by its work's signature (FirstName, AgentName: the CLI's name as
@@ -653,7 +655,7 @@ func SubagentBranchAgents(trees []treeEntry, panels []BranchAgent, subs []PaneSu
 		rtn = append(rtn, BranchAgent{
 			Branch: tree.branch, Worktree: tree.path, Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started,
 			ActiveAt: s.LastWrite, ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
-			Description: s.Description, State: s.State,
+			Effort: s.Effort, Description: s.Description, State: s.State,
 		})
 	}
 	return rtn
@@ -689,7 +691,7 @@ func UnplacedSubagents(trees []treeEntry, panels []BranchAgent, subs []PaneSubag
 		}
 		rtn = append(rtn, BranchAgent{
 			Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started, ActiveAt: s.LastWrite,
-			ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
+			ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model, Effort: s.Effort,
 			Description: s.Description, State: s.State,
 		})
 	}

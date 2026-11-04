@@ -8,6 +8,7 @@ import { t } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import type { ReviewPr, ReviewsAnswer } from "./reviews-model";
 import {
+    agentDetails,
     aheadText,
     barTimeText,
     BoardStatusKeys,
@@ -17,7 +18,6 @@ import {
     draftTurn,
     durationText,
     prOtherBranches,
-    subagentDetails,
     UpcomingAnswer,
     upcomingFocusBranch,
     upcomingRows,
@@ -203,7 +203,7 @@ describe("branchAgent (#712 AC2, AC4)", () => {
         });
         const facts = branchAgent(signed, states({ b7: { agent: "codex", firstname: "Jérôme" } }), "feature/4-d");
         expect(facts).toMatchObject({ kind: "background", name: "Jérôme", signed: true, blockId: "b7" });
-        expect(subagentDetails(facts)).toBe("Codex");
+        expect(agentDetails(facts)).toBe("Codex");
         expect(branchAgent(signed, states({}), "feature/4-d").blockId).toBeUndefined();
     });
 
@@ -257,14 +257,14 @@ describe("sub-agents on the upcoming rows (#1035)", () => {
             parentBlockId: "b9",
             parentName: "Valentin",
         });
-        expect(subagentDetails(facts)).toBe("Claude Code · Opus 5.5 · #1033 agent name in tabs");
+        expect(agentDetails(facts)).toBe("Claude Code · Opus 5.5 · #1033 agent name in tabs");
         expect(barTimeText(t, facts, Now)).toBe("last change 2 min ago");
     });
 
     it("says a finished sub-agent is done and since when, over a background guess", () => {
         const facts = branchAgent(upcoming, live, "feature/1029-notes");
         expect(facts).toMatchObject({ kind: "subagent", state: "done", subState: "done", parentName: "Jérôme" });
-        expect(subagentDetails(facts)).toBe("Codex · gpt-6-astra · audit reliability");
+        expect(agentDetails(facts)).toBe("Codex · gpt-6-astra · audit reliability");
         expect(barTimeText(t, facts, Now)).toBe("finished 12 min ago");
         expect(translate("fr", "reviewsAgents.subagent.finishedAgo", { duration: "12 min" })).toBe(
             "terminé il y a 12 min"

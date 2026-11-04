@@ -104,6 +104,7 @@
                 "parentblockid": "b0",
                 "parentfirstname": "Adrien",
                 "model": "gpt-5.5",
+                "effort": "high",
                 "description": "ticket 1029 release notes",
                 "state": "done"
             },
@@ -117,6 +118,7 @@
                 "parentblockid": "b0",
                 "parentfirstname": "Adrien",
                 "model": "gpt-5.5",
+                "effort": "high",
                 "description": "ticket 1462 codex sessions",
                 "state": "running"
             }

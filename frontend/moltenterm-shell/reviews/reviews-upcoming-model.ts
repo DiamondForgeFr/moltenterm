@@ -5,10 +5,10 @@
 // agents on branches (pkg/molten/mission/upcoming.go), the window adds what its agent-state store knows now (state,
 // first name), so a bar turns from working to waiting at once. Kept apart from the components to be tested alone.
 
+import { agentFactsLine, type AgentFacts } from "../agent-facts";
 import { agentDisplayName, currentFeatureMatrix } from "../agent-info/agent-features-model";
-import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { agentToolName, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import { branchTicketNumber } from "../agent-work-model";
-import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction } from "../i18n/i18n";
 import type { Phrase } from "../i18n/phrase";
 import type { ServerText } from "../i18n/server-text";
@@ -75,8 +75,10 @@ export type BranchAgent = {
     activeat?: number;
     parentblockid?: string;
     parentfirstname?: string;
-    // A sub-agent's (#1035): its model, its task, its state; activeat is then its last write, or its end.
+    // A sub-agent's (#1035): its model, its task, its state; activeat is then its last write, or its end. effort
+    // (#1848) is its effort level; a signed background agent has the model and effort it signed.
     model?: string;
+    effort?: string;
     description?: string;
     state?: SubagentState;
     // #1603: a background agent named by its work's signature; agentname is its CLI as signed, blockid the signer's
@@ -133,9 +135,13 @@ export type AgentBarFacts = {
     since: number;
     parentBlockId?: string;
     parentName?: string;
-    // A sub-agent's (#1035): what its own files say of it.
+    // The CLI, model and effort every agent line says in that order (#1848): a panel's are those its terminal's run
+    // reports, a sub-agent's what its own files say of it (#1035), a signed background agent's its signature's.
+    // modelName: the model as the agent itself names it, when it gave no id.
     agentName?: string;
     model?: string;
+    modelName?: string;
+    effort?: string;
     description?: string;
     subState?: SubagentState;
     // When the agent's state last changed, and whether it is in error (#954: a task's agent stopped since the ask).
@@ -278,6 +284,8 @@ export function branchAgents(
                 parentName: states?.states?.[a.parentblockid]?.firstname || a.parentfirstname,
                 signed: a.signed,
                 agentName: a.signed ? a.agentname : undefined,
+                model: a.signed ? a.model : undefined,
+                effort: a.signed ? a.effort : undefined,
                 // The signer's session, while the windows still know its terminal.
                 blockId: a.signed && a.blockid && states?.states?.[a.blockid] != null ? a.blockid : undefined,
             });
@@ -361,6 +369,10 @@ export function panelFacts(blockId: string, info: AgentStateInfo, placed?: Branc
         since: placed != null ? (placed.started ?? 0) : (info.since ?? 0),
         stateSince: info.since ?? 0,
         errored: info.state === "error",
+        agentName: agentToolName(info) || toolName(placed?.agent),
+        model: info.model,
+        modelName: info.modelname,
+        effort: info.effort,
     };
     if (info.messagetext != null) {
         facts.held = { text: info.messagetext, english: info.message ?? "" };
@@ -390,23 +402,32 @@ function subagentFacts(a: BranchAgent, states: AgentStatesData): AgentBarFacts {
         parentBlockId: a.parentblockid,
         parentName: (parent?.firstname || a.parentfirstname || "").trim(),
         model: a.model,
+        effort: a.effort,
         description: a.description,
         subState,
     };
 }
 
-// What the bar says after a sub-agent's name: "Claude Code · Opus 5.5 · #1033 agent name in tabs".
-// A signed background agent's (#1603): its CLI, as data, never in a sentence.
-export function subagentDetails(facts: AgentBarFacts): string {
-    if (facts?.kind === "background" && facts.signed) {
-        return facts.agentName || toolName(facts.agent);
+// agentFacts: the CLI, model and effort an agent line says after its name, in that order (#1848), each only when
+// known; a signed background agent's (#1603) come from its signature, as data, never in a sentence. A panel named by
+// its CLI for want of a first name does not say it twice.
+export function agentFacts(facts: AgentBarFacts): AgentFacts {
+    if (facts == null || (facts.kind === "background" && !facts.signed)) {
+        return {};
     }
-    if (facts?.kind !== "subagent") {
-        return "";
-    }
-    return [facts.agentName || toolName(facts.agent), modelDisplayName(facts.model), (facts.description ?? "").trim()]
-        .filter((s) => !!s)
-        .join(" · ");
+    const cli = facts.agentName || toolName(facts.agent);
+    return {
+        cli: facts.kind === "panel" && cli.toLowerCase() === (facts.name ?? "").trim().toLowerCase() ? "" : cli,
+        model: facts.model,
+        modelName: facts.modelName,
+        effort: facts.effort,
+    };
+}
+
+// What the bar says after an agent's name: "Codex · gpt-5.5 · high", and a sub-agent's task after them:
+// "Claude Code · Opus 5.5 · high · #1033 agent name in tabs".
+export function agentDetails(facts: AgentBarFacts): string {
+    return agentFactsLine(agentFacts(facts), facts?.kind === "subagent" ? facts.description : "");
 }
 
 const BarUrgency: Record<BarState, number> = { waiting: 4, working: 3, done: 2, idle: 1, background: 0 };

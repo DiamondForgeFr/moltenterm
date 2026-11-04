@@ -10,7 +10,7 @@ import type { AgentStatesData } from "../agent-state-model";
 import { tCount } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import { upcomingEntries, UpcomingEntry } from "./reviews-sections-model";
-import { branchAgent, subagentDetails, UpcomingAnswer, upcomingRows } from "./reviews-upcoming-model";
+import { agentDetails, branchAgent, UpcomingAnswer, upcomingRows } from "./reviews-upcoming-model";
 import golden from "./testdata/upcoming-subagent-card.json";
 
 const Answers = golden as unknown as Record<"claude" | "codex", UpcomingAnswer>;
@@ -19,7 +19,16 @@ const ToolNames = { claude: "Claude Code", codex: "Codex" };
 
 function live(agent: "claude" | "codex"): AgentStatesData {
     return {
-        states: { b0: { blockid: "b0", version: 1, agent, agentname: ToolNames[agent], firstname: "Adrien", state: "working" } },
+        states: {
+            b0: {
+                blockid: "b0",
+                version: 1,
+                agent,
+                agentname: ToolNames[agent],
+                firstname: "Adrien",
+                state: "working",
+            },
+        },
         versions: { b0: 1 },
     };
 }
@@ -72,15 +81,15 @@ describe("a Codex session's Integration card (#1463)", () => {
         }
     });
 
-    it("shows the model and task as data on each sub-agent's line", () => {
+    it("shows the CLI, model, effort and task as data on each sub-agent's line", () => {
         const session = entriesOf("codex")[0];
         expect(session.kind).toBe("session");
         if (session.kind !== "session") {
             return;
         }
-        expect(session.items.map((i) => subagentDetails(i.agent))).toEqual([
-            "Codex · gpt-5.5 · ticket 1029 release notes",
-            "Codex · gpt-5.5 · ticket 1462 codex sessions",
+        expect(session.items.map((i) => agentDetails(i.agent))).toEqual([
+            "Codex · gpt-5.5 · high · ticket 1029 release notes",
+            "Codex · gpt-5.5 · high · ticket 1462 codex sessions",
         ]);
         expect(tCount("reviewsAgents.upcoming.session.orchestrates", session.items.length, { name: "Adrien" })).toBe(
             "Adrien orchestrates 2 tickets"

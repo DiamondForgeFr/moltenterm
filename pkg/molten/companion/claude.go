@@ -155,7 +155,8 @@ func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (Subage
 	if dir == "" {
 		dir = tf.cwd
 	}
-	facts := SubagentFacts{Model: tf.model, Effort: tf.effort, Worktree: dir}
+	model, effort := a.withAgentDefinition(tf.model, tf.effort, meta.AgentType, dir)
+	facts := SubagentFacts{Model: model, Effort: effort, Worktree: dir}
 	facts.Branch = FolderBranch(dir)
 	return facts, facts.Model != "" || facts.Effort != "" || facts.Branch != ""
 }
