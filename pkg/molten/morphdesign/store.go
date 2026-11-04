@@ -319,7 +319,7 @@ func cleanChoices(kind string, choices []molten.MorphDesignChoice) ([]molten.Mor
 		if label == "" {
 			return nil, fmt.Errorf("a choice cannot be empty")
 		}
-		if kind == molten.MorphKindIcon && !molten.MorphIconRegex.MatchString(label) {
+		if kind == molten.MorphKindGlyphs && !molten.MorphIconRegex.MatchString(label) {
 			return nil, fmt.Errorf("%q is not a Font Awesome icon name (lowercase letters, digits and \"-\")", label)
 		}
 		if seen[label] {
@@ -343,7 +343,7 @@ func (s *Store) Ask(mod string, q molten.MorphDesignQuestion) (molten.MorphDesig
 	if q.Kind == "" {
 		q.Kind = molten.MorphKindChoice
 	}
-	if q.Kind != molten.MorphKindChoice && q.Kind != molten.MorphKindIcon {
+	if q.Kind != molten.MorphKindChoice && q.Kind != molten.MorphKindGlyphs {
 		return molten.MorphDesign{}, fmt.Errorf("unknown question kind %q: use choice or icon", q.Kind)
 	}
 	if q.Step == "" {

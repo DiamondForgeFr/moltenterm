@@ -125,7 +125,7 @@ func TestAskChecksTheQuestionAndBringsItsStepInView(t *testing.T) {
 		"too many":        {Key: "a", Text: "Who?", Choices: make([]molten.MorphDesignChoice, molten.MorphDesignMaxChoices+1)},
 		"unknown kind":    {Key: "a", Text: "Who?", Kind: "free", Choices: twoChoices()},
 		"unknown step":    {Key: "a", Text: "Who?", Step: "later", Choices: twoChoices()},
-		"icon name":       {Key: "a", Text: "Which?", Kind: molten.MorphKindIcon, Choices: []molten.MorphDesignChoice{{Label: "A Clock"}}},
+		"icon name":       {Key: "a", Text: "Which?", Kind: molten.MorphKindGlyphs, Choices: []molten.MorphDesignChoice{{Label: "A Clock"}}},
 		"recommend":       {Key: "a", Text: "Who?", Choices: twoChoices(), Recommended: "Nobody"},
 	}
 	for name, q := range bad {
@@ -141,7 +141,7 @@ func TestAskChecksTheQuestionAndBringsItsStepInView(t *testing.T) {
 	if q.Text != "Who will use it?" || q.Step != molten.MorphStepQuestions || q.Kind != molten.MorphKindChoice || d.Current != molten.MorphStepQuestions {
 		t.Fatalf("the question: %+v current %s", q, d.Current)
 	}
-	icons, err := s.Ask("branch-box", molten.MorphDesignQuestion{Key: "icon", Step: molten.MorphStepFinish, Kind: molten.MorphKindIcon, Text: "Which icon?",
+	icons, err := s.Ask("branch-box", molten.MorphDesignQuestion{Key: "icon", Step: molten.MorphStepFinish, Kind: molten.MorphKindGlyphs, Text: "Which icon?",
 		Choices: []molten.MorphDesignChoice{{Label: "code-branch"}, {Label: "clock"}}})
 	if err != nil || icons.Current != molten.MorphStepFinish {
 		t.Fatalf("an icon question brings the finishing step in view: %+v %v", icons, err)

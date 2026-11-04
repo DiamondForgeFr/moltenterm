@@ -302,7 +302,7 @@ func moltenMorphAskRun(cmd *cobra.Command, args []string) error {
 	}
 	kind := molten.MorphKindChoice
 	if moltenMorphIcons {
-		kind = molten.MorphKindIcon
+		kind = molten.MorphKindGlyphs
 	}
 	req := molten.MorphDesignRequest{
 		Mod: moltenMorphMod, Key: args[0], Text: args[1], Kind: kind, Choices: choices, Recommended: moltenMorphRecommend, Step: moltenMorphStepFlag,

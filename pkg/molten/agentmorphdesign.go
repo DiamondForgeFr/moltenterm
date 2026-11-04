@@ -58,7 +58,7 @@ const (
 
 	// A question's answers are labels to pick; an icon question's labels are Font Awesome names, drawn as icons.
 	MorphKindChoice = "choice"
-	MorphKindIcon   = "icon"
+	MorphKindGlyphs = "icon"
 
 	MorphDraftNone   = "none"
 	MorphDraftSample = "sample"
