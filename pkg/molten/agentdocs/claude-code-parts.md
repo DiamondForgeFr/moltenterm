@@ -118,6 +118,13 @@ await $.process.run(['wsh', 'notify', 'Tests failed'])
 part cannot call into Claude Code: the Claude Code part pulls, by running a `molten` command the MoltenTerm part
 registered.
 
+## License
+
+The Claude Code part belongs to its mod and to its author. A part that reaches MoltenTerm only through the `molten`
+and `wsh` commands, as above, is not covered by MoltenTerm's AGPL-3.0: the author licenses it as they wish, paid
+included (the additional permission in `LICENSE-EXCEPTION`; `mod-format.md`, "License of a mod"). `examples/test-band/`
+may be copied into a mod and used under that mod's license.
+
 ## The example: test-band
 
 `examples/test-band/` shows the last test run in a band above the Claude Code prompt, and a failing run's output in

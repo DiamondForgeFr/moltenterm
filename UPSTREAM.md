@@ -1,8 +1,8 @@
 # Upstream: Wave Terminal
 
 Moltenterm is a soft fork of [Wave Terminal](https://github.com/wavetermdev/waveterm) (Apache-2.0, Command Line Inc.).
-This file explains how the fork is built, how Wave releases are merged, and every place where Moltenterm changes Wave's
-code.
+This file explains how the fork is built, how Wave releases are merged, which licence covers which file ("Licensing") and
+every place where Moltenterm changes Wave's code.
 
 ## Current base
 
@@ -260,6 +260,33 @@ gh repo set-default DiamondForgeFr/moltenterm
 `gh` resolves a remote named `upstream` before `origin`. Without `gh repo set-default`, ticket and pull request commands
 (including the SaaSFoundryAI workflow scripts) silently target Wave's repository.
 
+## Licensing
+
+From #1870 on, Moltenterm's own code is **AGPL-3.0-only** and the code that comes from Wave stays **Apache-2.0** (the
+decision and its why are in `MANIFESTO.md`, "Licence"). `NOTICE` says which is which for readers; this section is the rule
+for contributors and for Wave merges. Releases published before #1870 keep Apache-2.0.
+
+- **A Wave file** is a file that exists in the "Current base" commit above, patched or not. It keeps Wave's header as it
+  is: Command Line Inc.'s copyright line and `SPDX-License-Identifier: Apache-2.0`, MOLTENTERM-PATCH edits included.
+  Never edit that copyright line, and never change that identifier. A file added since the base that carries Command Line
+  Inc.'s copyright (a Wave file moved to another path) is a Wave file too.
+- **A Moltenterm file** is any other file. Its header is `Copyright 2026, DiamondForge` and
+  `SPDX-License-Identifier: AGPL-3.0-only`. Files in formats without comments, and third-party material
+  (`public/fontawesome-free/`, fonts, the harness folders `.claude/` and `.agents/`), carry no header and are left alone.
+- `LICENSE` is the AGPL-3.0 text, `LICENSE-APACHE` the Apache-2.0 text for the Wave files, `LICENSE-EXCEPTION` the AGPL
+  section 7 additional permission for mods and agent parts that use only the public mod interface, `NOTICE` the notices
+  and `TRADEMARKS.md` the name and logo policy. Contributions go through `CLA.md` (see "Continuous integration").
+- `node scripts/moltenterm-check-license.mjs` is the check (CI, Quick checks): a Moltenterm file with another
+  identifier or no header, a Wave file whose copyright or identifier line differs from the base, and a missing licence
+  file are problems. `--apply` rewrites the identifier of the Moltenterm files and writes the missing headers; it is the
+  only tool that touches headers in bulk, and it never touches a Wave file.
+- **Merging a Wave release:** incoming files keep their Apache-2.0 header. Once "Current base" names the new release,
+  every file it brings counts as a Wave file with no further step. A file that Wave deletes and Moltenterm keeps still
+  carries Command Line Inc.'s copyright, so it stays a Wave file.
+- **A Wave file Moltenterm rewrites entirely** (same path, nothing of Wave's code left) is noted in the patch ledger with
+  "rewritten"; its header stays Wave's, because the path is Wave's. Move the new code to a new path to make it
+  Moltenterm's own.
+
 ## Merging a Wave release
 
 1. Open a ticket and a branch `feature/<N>-merge-wave-<version>` from `develop`.
@@ -308,9 +335,9 @@ result directly before handing execution to the same supervisor.
 | `.gitignore`                                                                                                       | Union of both, but never ignore `.claude` (it holds the SaaSFoundryAI harness).                                                                       |
 | `.github/`                                                                                                         | Keep ours. Delete any new upstream workflow, `dependabot.yml` or `FUNDING.yml`.                                                                       |
 | `CNAME`                                                                                                            | Stays deleted: it points to Wave's documentation domain.                                                                                              |
-| `README.md`, `NOTICE`                                                                                              | Keep ours. `NOTICE` must keep Wave Terminal's notice line. `README.ko.md` and `README.zh-TW.md` stay deleted.                                         |
+| `README.md`, `NOTICE`, `CONTRIBUTING.md`                                                                           | Keep ours. `NOTICE` must keep Wave Terminal's notice line. `README.ko.md` and `README.zh-TW.md` stay deleted. `CONTRIBUTING.md` carries the CLA (#1870). |
 | `public/fontawesome/`, `docs/static/fontawesome/`                                                                  | Stay deleted: Font Awesome Pro is not redistributable. If Wave adds or updates Pro files, delete them again and extend `public/moltenterm-icons.css`. |
-| `LICENSE`                                                                                                          | Upstream's file (Apache-2.0).                                                                                                                         |
+| `LICENSE`                                                                                                          | Keep ours (#1870): the AGPL-3.0 text. Wave's Apache-2.0 text is `LICENSE-APACHE`; take no change of upstream's `LICENSE` ("Licensing", above).        |
 | `.claude/`, `.agents/`, `.saasfoundry.json`, `AGENTS.md`, `GEMINI.md`, `MANIFESTO.md`, `PRIVACY.md`, `UPSTREAM.md` | Moltenterm only; no upstream counterpart.                                                                                                             |
 
 ## Identity and rename procedure

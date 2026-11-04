@@ -8,6 +8,23 @@ Command Line Inc. and licensed under the Apache License, Version 2.0. The notice
 Terminal's and is kept as the licence requires. MoltenTerm is an independent project and is not
 affiliated with, sponsored by or endorsed by Command Line Inc.
 
+Which licence applies to which part
+
+- MoltenTerm's own code, the files written for MoltenTerm (copyright DiamondForge), is licensed under
+  the GNU Affero General Public License, version 3 only (AGPL-3.0-only). The text is in LICENSE. An
+  additional permission under section 7 of that licence, for mods and agent parts that use only the
+  public mod interface, is in LICENSE-EXCEPTION.
+- The files that come from Wave Terminal (copyright Command Line Inc.), including the ones MoltenTerm
+  patched (marked MOLTENTERM-PATCH and listed in UPSTREAM.md), stay under the Apache License,
+  Version 2.0. The text is in LICENSE-APACHE.
+- Each source file says which one applies in its SPDX-License-Identifier header. A file without one is
+  MoltenTerm's own, unless it comes from Wave Terminal or is third-party material listed below.
+- Releases published before this change (v1.0.0-8 and earlier at the time of writing, #1870) were
+  published under the Apache License, Version 2.0 and keep it for the code they contained.
+
+The name MoltenTerm and its logo are not licensed by any of the above. See TRADEMARKS.md.
+Contributions are accepted under CLA.md. See CONTRIBUTING.md.
+
 This product bundles Font Awesome Free 6.7.2 by Fonticons, Inc. (https://fontawesome.com):
 icons under CC BY 4.0, fonts under the SIL Open Font License 1.1, code under the MIT License.
 See public/fontawesome-free/LICENSE.txt.

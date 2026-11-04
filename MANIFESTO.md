@@ -207,6 +207,26 @@ DiamondForge funds it the way an open project can, without breaking the principl
 What it will not do: resell model access or proxy tokens (Principle 1), sell usage data, or make the free version
 worse to push the paid one.
 
+## Licence
+
+*Decided on 2026-11-04.* MoltenTerm's own code is licensed **AGPL-3.0-only**. The code inherited from Wave Terminal
+stays **Apache-2.0**, with its authors' copyright, and each file says which licence applies to it.
+
+- **Free forever.** The AGPL lets anyone use, study, change and share MoltenTerm, and requires whoever distributes or
+  runs a modified version for others to share their changes under the same licence. Nobody else can ship a closed,
+  proprietary copy of MoltenTerm and sell it. A permissive licence would have allowed that.
+- **The Mozilla model.** The code is free, the name and the logo are protected by a trademark and a policy
+  ([TRADEMARKS.md](TRADEMARKS.md)), and contributions come with a contributor agreement ([CLA.md](CLA.md)). A fork is
+  welcome; it is called something else.
+- **Mods stay free to license.** A mod or an agent part that uses only the public mod interface is not a covered work
+  ([LICENSE-EXCEPTION](LICENSE-EXCEPTION), an AGPL section 7 additional permission). Its author licenses it as they
+  wish, paid mods included: a shared mod library can have both free and paid mods.
+- **DiamondForge's own paid services stay possible.** Contributors keep their copyright and give DiamondForge the right
+  to relicense (the CLA), which is what lets it offer teams and cost-governance services around the free core without
+  ever putting the core behind a paywall.
+- **What this does not change.** Releases published before this decision keep the Apache licence they were published
+  under. Wave Terminal's releases keep being merged, and what comes from Wave stays Apache-2.0.
+
 ## Foundation
 
 *This is the current technical direction. It is not frozen.*
@@ -250,7 +270,6 @@ These phases have no dates. Each one validates the next.
   service?
 - **Fork strategy.** How much can go upstream? Wave's roadmap already plans an AI widget builder and the import and
   export of layouts.
-- **Licence.** Probably Apache-2.0, like Wave.
 - **Name.** A trademark search is required before any public launch.
 
 ## The name
