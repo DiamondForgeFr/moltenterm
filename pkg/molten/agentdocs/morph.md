@@ -12,9 +12,9 @@ user agrees to it, open the design view, build live, adjust, validate, and say w
 same for every coding agent, because every one of them goes through `molten`. Speak to the user in the language of
 the conversation, in plain words; commands, ids and file names stay as they are.
 
-The steps run in this terminal, or in MoltenTerm's dedicated design view when the installed version has it: a tab with a
-guiding panel beside a terminal, that you keep in step with the conversation. Step 5 tells you how to open it, and the
-steps and their order stay the same.
+The steps run in this terminal, or in MoltenTerm's dedicated design view when the installed version has it: a guiding
+panel to the right of this terminal, that you keep in step with the conversation. Step 5 tells you how to open it, and
+the steps and their order stay the same.
 
 ## Preconfigured morphs
 
@@ -136,8 +136,10 @@ environment. The MoltenTerm part cannot call into Claude Code: the agent part pu
 
 5. **Open the design view when the installed version has it.** Run `molten help`. If it lists `morph design`, run
    `molten morph design <id> --name "<the mod's name>"`, with the id the mod will have (step 4 creates it): MoltenTerm
-   opens a design tab with a guiding panel beside a terminal. Do it right after step 1, so steps 2 to 4 show in the
-   panel; reaching this step without having opened it, open it now and show what steps 2 to 4 settled (`answer`, `plan`).
+   opens a guiding panel to the right of this terminal, in its tab, so the user sees you on the left and the panel on
+   the right (only when it cannot go there does it open a tab of its own, and the command says so). Do it right after
+   step 1, so steps 2 to 4 show in the panel; reaching this step without having opened it, open it now and show what
+   steps 2 to 4 settled (`answer`, `plan`).
    Keep the panel in step as you go with `molten morph design step|ask|answer|plan|draft` (`morph-design.md` in the
    `molten docs` folder); the steps keep the same order, and the terminal stays the free way to say anything the panel
    does not offer. If `molten help` does not list `morph design`, or the command says the view did not open, the

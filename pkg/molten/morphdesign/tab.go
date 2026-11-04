@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -39,16 +40,22 @@ const (
 	tabTimeout = 10 * time.Second
 )
 
-// PanelTarget is what the design panel shows, in its block's meta.
+// PanelTarget is what the design panel shows, in its block's meta. Term is the agent's terminal beside it, when the
+// panel was placed next to one.
 type PanelTarget struct {
 	Mod  string `json:"mod"`
 	Name string `json:"name,omitempty"`
 	Dir  string `json:"dir"`
+	Term string `json:"term,omitempty"`
 }
 
+// tabName is the window's name for the tab, cut to maxTabName characters (never bytes: a French name is not English).
 func tabName(req molten.MorphDesignTabRequest) string {
 	name := strings.TrimSpace(req.TabName)
-	if name != "" && len(name) <= maxTabName {
+	if utf8.RuneCountInString(name) > maxTabName {
+		name = string([]rune(name)[:maxTabName-1]) + "…"
+	}
+	if name != "" {
 		return name
 	}
 	shown := strings.TrimSpace(req.Name)
@@ -87,6 +94,34 @@ func findTab(ctx context.Context, ws *waveobj.Workspace, mod string) string {
 		}
 	}
 	return ""
+}
+
+// placePanel adds the design's panel to the right of the agent's terminal, in that terminal's own tab (agent left,
+// graphics right, DS-REV-012): the live agent pane stays where it is and keeps the keyboard.
+func placePanel(callerBlockId string, tabId string, target PanelTarget) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), tabTimeout)
+	defer cancel()
+	block, err := wcore.CreateBlock(ctx, tabId, &waveobj.BlockDef{Meta: waveobj.MetaMapType{
+		waveobj.MetaKey_View: View,
+		PanelMetaKey:         target,
+	}}, nil)
+	if err != nil {
+		return "", err
+	}
+	size := panelNodeSize
+	action := waveobj.LayoutActionData{ActionType: wcore.LayoutActionDataType_SplitHorizontal, BlockId: block.OID,
+		TargetBlockId: callerBlockId, Position: "after", NodeSize: &size, Focused: false}
+	if err := wcore.QueueLayoutActionForTab(ctx, tabId, action); err != nil {
+		return "", err
+	}
+	tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
+	if err != nil {
+		return "", err
+	}
+	wcore.SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Block, block.OID))
+	wcore.SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Tab, tabId))
+	wcore.SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_LayoutState, tab.LayoutState))
+	return block.OID, nil
 }
 
 var tabs struct {

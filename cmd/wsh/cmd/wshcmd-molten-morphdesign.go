@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,11 +17,11 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 )
 
-// `molten morph design` (FR-MORPH-019, DS-MORPH-016): the mod design view /morph opens, a tab with a guiding panel
-// beside a terminal. The agent opens it, then keeps the panel in step with the conversation: the step, a question
-// with choices, the plan, the draft. What the developer decides in the panel reaches the agent as a line in its
-// prompt. The output is for agents, whichever CLI: English, plain text or JSON. Exit codes: 2 for bad usage, 1 for any
-// other failure.
+// `molten morph design` (FR-MORPH-019, DS-MORPH-016): the mod design view /morph opens, a guiding panel to the right of
+// the agent's terminal (a tab of its own when it cannot go there). The agent opens it, then keeps the panel in step with
+// the conversation: the step, a question with choices, the plan, the draft. What the developer decides in the panel
+// reaches the agent as a line in its prompt. The output is for agents, whichever CLI: English, plain text or JSON. Exit
+// codes: 2 for bad usage, 1 for any other failure.
 
 const (
 	moltenMorphTimeoutMs = 20000
@@ -62,11 +63,12 @@ var moltenMorphCmd = &cobra.Command{
 
 var moltenMorphDesignCmd = &cobra.Command{
 	Use:   "design <mod-id> [--name <title>]",
-	Short: "open the mod design view: a tab with a guiding panel beside a terminal (a second call focuses it)",
-	Long: "/morph opens a dedicated tab for the mod you design with the developer: a terminal on the left, a guiding panel on " +
-		"the right. You keep the panel in step with the conversation with the commands below; what the developer decides in " +
-		"the panel reaches your prompt as a line. The panel never blocks: every step can be skipped or done in the terminal. " +
-		"Details: morph-design.md in the folder `molten docs` prints.",
+	Short: "open the mod design view: a guiding panel to the right of this terminal, in its tab (a second call focuses it)",
+	Long: "/morph opens a guiding panel for the mod you design with the developer, to the right of this terminal, in this " +
+		"terminal's tab: you stay on the left. Only when it cannot go there does the design get a tab of its own, with a " +
+		"terminal on its left; the output says so. You keep the panel in step with the conversation with the commands " +
+		"below; what the developer decides in the panel reaches your prompt as a line. The panel never blocks: every step " +
+		"can be skipped or done in the terminal. Details: morph-design.md in the folder `molten docs` prints.",
 	Args:    cobra.MaximumNArgs(1),
 	RunE:    moltenLearnWrap(moltenMorphDesignRun),
 	Example: "  molten morph design branch-box --name \"Branch box\"\n  molten morph design step plan --say \"Here is what I will build\"",
@@ -134,8 +136,8 @@ var moltenMorphDesignDraftCmd = &cobra.Command{
 func init() {
 	moltenCmd.AddCommand(moltenMorphCmd)
 	moltenMorphCmd.AddCommand(moltenMorphDesignCmd)
-	moltenMorphDesignCmd.Flags().StringVar(&moltenMorphName, "name", "", "the mod's name as the developer reads it (the tab's title)")
-	moltenMorphDesignOpenCmd.Flags().StringVar(&moltenMorphName, "name", "", "the mod's name as the developer reads it (the tab's title)")
+	moltenMorphDesignCmd.Flags().StringVar(&moltenMorphName, "name", "", "the mod's name as the developer reads it (the panel's title)")
+	moltenMorphDesignOpenCmd.Flags().StringVar(&moltenMorphName, "name", "", "the mod's name as the developer reads it (the panel's title)")
 	moltenMorphDesignStepCmd.Flags().StringVar(&moltenMorphSay, "say", "", "one plain sentence shown under the step")
 	moltenMorphDesignStepCmd.Flags().BoolVar(&moltenMorphDone, "done", false, "settle the step: done")
 	moltenMorphDesignStepCmd.Flags().BoolVar(&moltenMorphSkipped, "skipped", false, "settle the step: skipped (for example, the developer said to just do it)")
@@ -199,8 +201,10 @@ func moltenMorphDesignRun(cmd *cobra.Command, args []string) error {
 	return runMoltenMorphOpen(moltenMorphCall, time.Sleep, args[0], moltenMorphName, cwd, moltenJson, WrappedStdout)
 }
 
-// runMoltenMorphOpen asks for the design, then looks for the window's answer: the design's Opened holds the hand-off
-// once the tab is there, so an agent learns whether the view opened and goes on in the terminal when it did not.
+// runMoltenMorphOpen asks for the design. wavesrv puts its panel to the right of this terminal, in this terminal's tab,
+// and says so at once; only a dedicated tab (the panel could not go there) needs the window: the design's Opened holds
+// the hand-offs the window answered, so an agent learns whether the view opened and goes on in the terminal when it
+// did not. A hand-off answered after another call's is still found in the list.
 func runMoltenMorphOpen(call moltenMorphCaller, sleep func(time.Duration), mod string, name string, cwd string, asJson bool, stdout io.Writer) error {
 	if !molten.MorphModIdRegex.MatchString(mod) {
 		return moltenMorphUsage("invalid mod id %q: use lowercase letters, digits, \".\", \"_\" or \"-\", starting with a letter or digit", mod)
@@ -210,25 +214,41 @@ func runMoltenMorphOpen(call moltenMorphCaller, sleep func(time.Duration), mod s
 		return err
 	}
 	design := opened.Design
-	shown := design.Opened == opened.HandoffId
+	answered := func() bool { return opened.HandoffId == "" || slices.Contains(design.Opened, opened.HandoffId) }
+	shown := opened.Placement == molten.MorphPlacementPanel || answered()
 	for look := 0; !shown && look < moltenMorphOpenLooks; look++ {
 		sleep(moltenMorphOpenPoll)
 		if err := call(molten.MorphDesignShowCommand, molten.MorphDesignRequest{Mod: mod}, &design); err != nil {
 			return err
 		}
-		shown = design.Opened == opened.HandoffId
+		shown = answered()
 	}
 	if asJson {
-		if err := moltenWriteJsonTo(stdout, map[string]any{"design": design, "shown": shown}); err != nil {
+		if err := moltenWriteJsonTo(stdout, map[string]any{"design": design, "shown": shown, "placement": opened.Placement,
+			"created": opened.Created, "fallback": opened.Fallback}); err != nil {
 			return err
 		}
 	} else if shown {
-		fmt.Fprintf(stdout, "The design view of %s is open in this window, beside a terminal. Keep it in step with molten morph design step|ask|answer|plan|draft; the developer's choices arrive as lines in your prompt.\n", mod)
+		fmt.Fprint(stdout, formatMoltenMorphOpened(mod, opened))
 	}
 	if !shown {
 		return fmt.Errorf("the design view did not open: no MoltenTerm window of this workspace answered. Go on in this terminal, with the same steps")
 	}
 	return nil
+}
+
+func formatMoltenMorphOpened(mod string, opened molten.MorphDesignOpened) string {
+	const keepInStep = "Keep it in step with molten morph design step|ask|answer|plan|draft; the developer's choices arrive as lines in your prompt.\n"
+	switch {
+	case opened.Placement == molten.MorphPlacementPanel && opened.Created:
+		return fmt.Sprintf("The design panel of %s is open to the right of this terminal, in this tab: the developer sees you on the left and the panel on the right. %s", mod, keepInStep)
+	case opened.Placement == molten.MorphPlacementPanel:
+		return fmt.Sprintf("The design panel of %s was already open: it is brought into view. %s", mod, keepInStep)
+	case opened.Fallback != "":
+		return fmt.Sprintf("The design panel of %s could not go beside this terminal (%s), so it opened as its own tab of this window, with a terminal of its own. %s",
+			mod, moltenPrintable(opened.Fallback), keepInStep)
+	}
+	return fmt.Sprintf("The design view of %s is open in its own tab of this window. %s", mod, keepInStep)
 }
 
 func moltenMorphShowRun(cmd *cobra.Command, args []string) error {

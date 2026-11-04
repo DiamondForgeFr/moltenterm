@@ -54,6 +54,15 @@ function settle(d: MorphDesign, id: MorphStepId, state: "done" | "skipped", by: 
     return { ...d, steps: d.steps.map((s) => (s.id === id ? { ...s, state, by } : s)) };
 }
 
+function busy(...keys: string[]): ReadonlySet<string> {
+    return new Set(keys);
+}
+
+// The controls the markup disables: the attribute, not the Tailwind "disabled:" classes or "data-disabled".
+function disabledCount(html: string): number {
+    return (html.match(/ disabled=""/g) ?? []).length;
+}
+
 function render(id: MorphStepId, d: MorphDesign, over: Partial<StepProps> = {}): string {
     return renderToStaticMarkup(
         <StepBlock
@@ -61,7 +70,7 @@ function render(id: MorphStepId, d: MorphDesign, over: Partial<StepProps> = {}):
             design={d}
             defaults={emptyDefaults(WorkflowMorphDesign)}
             actions={NoActions}
-            busy=""
+            busy={busy()}
             run={() => {}}
             focusTerminal={() => {}}
             {...over}
@@ -181,11 +190,22 @@ describe("never blocking: every step has a way out", () => {
         expect(html).not.toContain('data-testid="morph-step-skip"');
     });
 
-    it("waits on the one control that was clicked", () => {
-        const html = render("preview", design(), { busy: "skip:preview" });
+    it("waits on the one control that was clicked, and on nothing else", () => {
+        const html = render("preview", design(), { busy: busy("skip:preview") });
         expect(html).toContain("df-domino-loader");
         expect(html).toMatch(/data-testid="morph-step-skip"/);
-        expect(html.match(/disabled=""/g)?.length).toBeGreaterThanOrEqual(2);
+        expect(disabledCount(html)).toBe(2);
+        // Another step's click, and another control's, leave this step's gestures usable.
+        const other = render("preview", design(), { busy: busy("skip:adjust", "agree", "choose:audience:My team") });
+        expect(other).not.toContain("df-domino-loader");
+        expect(disabledCount(other)).toBe(0);
+    });
+
+    it("keeps the other steps usable while one click is in flight", () => {
+        for (const id of ["need", "plan", "adjust", "validate", "collect"] as const) {
+            const html = render(id, design(), { busy: busy("skip:preview") });
+            expect(disabledCount(html), id).toBe(0);
+        }
     });
 });
 
@@ -236,10 +256,15 @@ describe("questions to click", () => {
         expect(html).toContain("fa-clock");
     });
 
-    it("waits on the question being sent", () => {
-        const html = render("questions", design({ questions: [question()] }), { busy: "choose:audience:My team" });
+    it("waits on the question being sent, and only on that one", () => {
+        const questions = [question(), question({ key: "refresh", text: "How often?" })];
+        const html = render("questions", design({ questions }), { busy: busy("choose:audience:My team") });
         expect(html).toContain("df-domino-loader");
-        expect(html).toContain("disabled");
+        // The choices of the question asked wait, the choices of the other question stay usable.
+        const choices = questions[0].choices.length;
+        expect(disabledCount(html)).toBe(choices);
+        const none = render("questions", design({ questions }), { busy: busy("agree") });
+        expect(disabledCount(none)).toBe(0);
     });
 
     it("says what to expect when nothing was asked", () => {
@@ -326,6 +351,19 @@ describe("validation and collection", () => {
         expect(html).toContain("Validate");
         expect(html).toContain('data-testid="morph-giveup"');
         expect(html).not.toContain("morph-giveup-confirm");
+    });
+
+    it("makes validating and giving up wait for each other, and for nothing else", () => {
+        const waiting = render("validate", design(), { busy: busy("validate") });
+        expect(waiting).toContain("df-domino-loader");
+        expect(disabledCount(waiting)).toBe(2);
+        expect(disabledCount(render("validate", design(), { busy: busy("giveup") }))).toBe(2);
+        expect(render("validate", design(), { busy: busy("agree", "skip:plan") })).not.toContain("df-domino-loader");
+        const plan = { summary: "A box.", moltenpart: [], agentpart: [], accesses: [], waits: [] };
+        const agreeing = render("plan", design({ plan }), { busy: busy("agree") });
+        expect(agreeing).toContain("df-domino-loader");
+        expect(agreeing).toContain('data-testid="morph-plan-change"');
+        expect(disabledCount(agreeing)).toBe(1);
     });
 
     it("says what the developer decided", () => {

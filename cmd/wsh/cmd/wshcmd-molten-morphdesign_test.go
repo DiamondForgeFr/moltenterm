@@ -84,12 +84,21 @@ func TestMoltenMorphStepStateTakesAtMostOneFlag(t *testing.T) {
 	}
 }
 
-func openedAnswer(opened string) molten.MorphDesignOpened {
-	return molten.MorphDesignOpened{Design: molten.MorphDesign{Mod: "branch-box", Opened: opened}, HandoffId: "h-1"}
+// tabAnswer is wavesrv's answer when the design got a dedicated tab: the window has yet to answer the hand-off h-1, and
+// has answered the ones in opened.
+func tabAnswer(fallback string, opened ...string) molten.MorphDesignOpened {
+	return molten.MorphDesignOpened{
+		Design: molten.MorphDesign{Mod: "branch-box", Opened: opened}, Placement: molten.MorphPlacementTab, Fallback: fallback, HandoffId: "h-1",
+	}
 }
 
-func TestOpenSaysTheViewIsOpenWhenTheWindowAnswered(t *testing.T) {
-	call, calls := fakeMorph(t, openedAnswer("h-1"))
+func panelAnswer(created bool) molten.MorphDesignOpened {
+	return molten.MorphDesignOpened{Design: molten.MorphDesign{Mod: "branch-box"}, Placement: molten.MorphPlacementPanel, Created: created}
+}
+
+// The panel goes beside this terminal, in this tab: no window has to answer, so the command does not wait.
+func TestOpenSaysThePanelIsBesideThisTerminal(t *testing.T) {
+	call, calls := fakeMorph(t, panelAnswer(true))
 	var out bytes.Buffer
 	slept := 0
 	if err := runMoltenMorphOpen(call, func(time.Duration) { slept++ }, "branch-box", "Branch box", "/work/app", false, &out); err != nil {
@@ -101,15 +110,64 @@ func TestOpenSaysTheViewIsOpenWhenTheWindowAnswered(t *testing.T) {
 	if got := (*calls)[0].req; got.Mod != "branch-box" || got.Name != "Branch box" || got.Cwd != "/work/app" {
 		t.Fatalf("the request: %+v", got)
 	}
-	for _, want := range []string{"branch-box", "molten morph design step|ask|answer|plan|draft", "choices arrive as lines in your prompt"} {
+	for _, want := range []string{"branch-box", "to the right of this terminal, in this tab", "molten morph design step|ask|answer|plan|draft", "choices arrive as lines in your prompt"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("the output lacks %q: %s", want, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "own tab") {
+		t.Errorf("the output speaks of a tab: %s", out.String())
+	}
+}
+
+func TestASecondOpenSaysThePanelWasAlreadyThere(t *testing.T) {
+	call, _ := fakeMorph(t, panelAnswer(false))
+	var out bytes.Buffer
+	if err := runMoltenMorphOpen(call, func(time.Duration) {}, "branch-box", "", "/work", false, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "was already open") {
+		t.Fatalf("the output: %s", out.String())
+	}
+}
+
+// With a tab instead, the output says so and why, once the window answered.
+func TestOpenSaysWhenThePanelCouldNotGoBesideTheTerminal(t *testing.T) {
+	call, calls := fakeMorph(t, tabAnswer("the layout has no room", "h-1"))
+	var out bytes.Buffer
+	if err := runMoltenMorphOpen(call, func(time.Duration) {}, "branch-box", "", "/work", false, &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(*calls) != 1 {
+		t.Fatalf("calls %+v", *calls)
+	}
+	for _, want := range []string{"could not go beside this terminal (the layout has no room)", "its own tab of this window", "a terminal of its own"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("the output lacks %q: %s", want, out.String())
 		}
 	}
 }
 
+// Two calls open at once: the window's answers come in any order, and a call finds its own among the last ones.
+func TestOpenFindsItsOwnAnswerAmongOthers(t *testing.T) {
+	call, calls := fakeMorph(t, tabAnswer("", "h-0", "h-1", "h-2"))
+	var out bytes.Buffer
+	slept := 0
+	if err := runMoltenMorphOpen(call, func(time.Duration) { slept++ }, "branch-box", "", "/work", false, &out); err != nil {
+		t.Fatalf("an answer that came before another's was taken for no answer: %v", err)
+	}
+	if slept != 0 || len(*calls) != 1 {
+		t.Fatalf("it looked again for an answer that was there: slept %d, calls %d", slept, len(*calls))
+	}
+	late, lateCalls := fakeMorph(t, tabAnswer(""), molten.MorphDesign{Mod: "branch-box", Opened: []string{"h-0"}}, molten.MorphDesign{Mod: "branch-box", Opened: []string{"h-0", "h-2", "h-1"}})
+	slept = 0
+	if err := runMoltenMorphOpen(late, func(time.Duration) { slept++ }, "branch-box", "", "/work", false, &out); err != nil || slept != 2 || len(*lateCalls) != 3 {
+		t.Fatalf("a late answer: %v, slept %d, calls %d", err, slept, len(*lateCalls))
+	}
+}
+
 func TestOpenWaitsForTheWindowThenGivesUpWithAMessageToGoOnInTheTerminal(t *testing.T) {
-	call, calls := fakeMorph(t, openedAnswer(""), molten.MorphDesign{Mod: "branch-box", Opened: "h-0"}, molten.MorphDesign{Mod: "branch-box", Opened: "h-1"})
+	call, calls := fakeMorph(t, tabAnswer(""), molten.MorphDesign{Mod: "branch-box", Opened: []string{"h-0"}}, molten.MorphDesign{Mod: "branch-box", Opened: []string{"h-1"}})
 	var out bytes.Buffer
 	slept := 0
 	if err := runMoltenMorphOpen(call, func(time.Duration) { slept++ }, "branch-box", "", "/work", false, &out); err != nil {
@@ -119,7 +177,7 @@ func TestOpenWaitsForTheWindowThenGivesUpWithAMessageToGoOnInTheTerminal(t *test
 		t.Fatalf("it looks again until the window answers: slept %d, calls %+v", slept, *calls)
 	}
 
-	never, neverCalls := fakeMorph(t, openedAnswer(""), molten.MorphDesign{Mod: "branch-box", Opened: "h-0"})
+	never, neverCalls := fakeMorph(t, tabAnswer(""), molten.MorphDesign{Mod: "branch-box", Opened: []string{"h-0"}})
 	slept = 0
 	out.Reset()
 	err := runMoltenMorphOpen(never, func(time.Duration) { slept++ }, "branch-box", "", "/work", false, &out)
@@ -135,7 +193,7 @@ func TestOpenWaitsForTheWindowThenGivesUpWithAMessageToGoOnInTheTerminal(t *test
 }
 
 func TestOpenChecksTheModIdBeforeAskingAnything(t *testing.T) {
-	call, calls := fakeMorph(t, openedAnswer("h-1"))
+	call, calls := fakeMorph(t, panelAnswer(true))
 	for _, bad := range []string{"", "Branch Box", "-x", "a b"} {
 		if err := runMoltenMorphOpen(call, func(time.Duration) {}, bad, "", "/work", false, &bytes.Buffer{}); !isLearnUsage(err) {
 			t.Errorf("%q: %v, want bad usage", bad, err)
@@ -146,17 +204,28 @@ func TestOpenChecksTheModIdBeforeAskingAnything(t *testing.T) {
 	}
 }
 
-func TestOpenAsJsonSaysWhetherTheViewWasShown(t *testing.T) {
-	call, _ := fakeMorph(t, openedAnswer("h-1"))
+func TestOpenAsJsonSaysWhereTheViewIsAndWhetherItWasShown(t *testing.T) {
+	call, _ := fakeMorph(t, panelAnswer(true))
 	var out bytes.Buffer
 	if err := runMoltenMorphOpen(call, func(time.Duration) {}, "branch-box", "", "/work", true, &out); err != nil {
 		t.Fatal(err)
 	}
 	var got struct {
-		Design molten.MorphDesign `json:"design"`
-		Shown  bool               `json:"shown"`
+		Design    molten.MorphDesign `json:"design"`
+		Shown     bool               `json:"shown"`
+		Placement string             `json:"placement"`
+		Created   bool               `json:"created"`
+		Fallback  string             `json:"fallback"`
 	}
-	if err := json.Unmarshal(out.Bytes(), &got); err != nil || !got.Shown || got.Design.Mod != "branch-box" {
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil || !got.Shown || got.Design.Mod != "branch-box" || got.Placement != "panel" || !got.Created || got.Fallback != "" {
+		t.Fatalf("json %q: %+v %v", out.String(), got, err)
+	}
+	tabbed, _ := fakeMorph(t, tabAnswer("no room", "h-1"))
+	out.Reset()
+	if err := runMoltenMorphOpen(tabbed, func(time.Duration) {}, "branch-box", "", "/work", true, &out); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil || got.Placement != "tab" || got.Fallback != "no room" {
 		t.Fatalf("json %q: %+v %v", out.String(), got, err)
 	}
 }

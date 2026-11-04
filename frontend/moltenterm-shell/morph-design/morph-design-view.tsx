@@ -1,26 +1,27 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The mod design panel (FR-MORPH-019, DS-MORPH-016): the right half of the tab /morph opens, beside the agent's
-// terminal. It carries the steps of the guide in plain words, kept in step with the conversation by the agent through
-// `molten morph design`, and relays the developer's clicks to the agent. It never blocks: every step can be skipped or
-// done in the terminal. What the developer decides is remembered by the workflow's memory (#1879), shown at the end.
+// The mod design panel (FR-MORPH-019, DS-MORPH-016): what /morph opens to the right of the agent's own terminal, in its
+// tab (a tab of its own, with a terminal on its left, only when it cannot go there). It carries the steps of the guide
+// in plain words, kept in step with the conversation by the agent through `molten morph design`, and relays the
+// developer's clicks to the agent. It never blocks: every step can be skipped or done in the terminal. What the
+// developer decides is remembered by the workflow's memory (#1879), shown at the end.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { getApi, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getActiveTabModel } from "@/app/store/tab-model";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
-import { atom, useAtomValue } from "jotai";
+import { Atom, atom, useAtomValue } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState } from "../empty-state";
-import { useT } from "../i18n/i18n";
+import { I18nModel, useT } from "../i18n/i18n";
+import { translate } from "../i18n/i18n-core";
 import { serverErrorText } from "../i18n/server-text";
 import { LearnedSection } from "../learning/learned-section";
 import { WorkflowMorphDesign } from "../learning/learning-model";
 import { useLearned } from "../learning/use-learned";
-import { tAtom } from "../mission/mission-i18n";
 import { LoadingState } from "../suite/suite";
 import { DesignActions, makeDesignActions } from "./morph-design-actions";
 import {
@@ -32,6 +33,7 @@ import {
     MorphDesignTermMetaKey,
     MorphReceiver,
     MorphSteps,
+    panelTitleOf,
     readMorphDesignTarget,
     receiverOf,
     ToldKeys,
@@ -47,12 +49,19 @@ export class MorphDesignViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom(MorphDesignTabIcon);
-    viewName = tAtom("morphDesign.viewName");
+    // "Conception · <mod>", following the interface language: the panel's title in its header, beside the agent.
+    viewName: Atom<string>;
     noPadding = atom(true);
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
+        const blockAtom = getWaveObjectAtom<Block>(makeORef("block", blockId));
+        this.viewName = atom((get) => {
+            const locale = get(I18nModel.getInstance().localeAtom);
+            const target = readMorphDesignTarget(get(blockAtom)?.meta?.[MorphDesignPanelMetaKey]);
+            return panelTitleOf(target, (key, vars) => translate(locale, key, vars));
+        });
     }
 
     get viewComponent(): ViewComponent {
@@ -63,8 +72,9 @@ export class MorphDesignViewModel implements ViewModel {
 const HelpButton =
     "inline-flex cursor-pointer items-center gap-1.5 rounded-4 border border-border px-2.5 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
-// The terminal the tab opened beside the panel, followed live: the one marked with the mod, else the tab's first.
-export function useDesignTerminal(mod: string): string {
+// The terminal beside the panel, followed live: the agent's own terminal the panel was placed next to (term, while it
+// is still in the tab), else the one a dedicated tab opened for the mod, else the tab's first.
+export function useDesignTerminal(mod: string, term?: string): string {
     const tabAtom = getActiveTabModel()?.tabAtom;
     const terminalAtom = useMemo(
         () =>
@@ -73,9 +83,10 @@ export function useDesignTerminal(mod: string): string {
                 const terms = (tab?.blockids ?? [])
                     .map((id) => get(getWaveObjectAtom<Block>(makeORef("block", id))))
                     .filter((b) => b?.meta?.view === "term");
-                return (terms.find((b) => b.meta[MorphDesignTermMetaKey] === mod) ?? terms[0])?.oid ?? "";
+                const beside = term ? terms.find((b) => b.oid === term) : null;
+                return (beside ?? terms.find((b) => b.meta[MorphDesignTermMetaKey] === mod) ?? terms[0])?.oid ?? "";
             }),
-        [tabAtom, mod]
+        [tabAtom, mod, term]
     );
     return useAtomValue(terminalAtom, { store: globalStore });
 }
@@ -161,30 +172,38 @@ function MorphDesignView({ model }: ViewComponentProps<MorphDesignViewModel>) {
             />
         );
     }
-    return <DesignPanel key={target.mod} mod={target.mod} name={target.name} />;
+    return <DesignPanel key={target.mod} mod={target.mod} name={target.name} term={target.term} />;
 }
 
-function DesignPanel({ mod, name }: { mod: string; name?: string }) {
+function DesignPanel({ mod, name, term }: { mod: string; name?: string; term?: string }) {
     const t = useT();
     const state = useMorphDesign(mod);
     const learned = useLearned(WorkflowMorphDesign);
-    const terminal = useDesignTerminal(mod);
+    const terminal = useDesignTerminal(mod, term);
     const terminalAgent = useBlockAgentState(terminal || null);
     // The agent wavesrv named may have ended since: the window's agent states say so at once, without waiting for the
     // design to change.
     const receiverAgent = useBlockAgentState(state.design?.agent?.blockid || null);
     const actions: DesignActions = useMemo(() => makeDesignActions(mod), [mod]);
-    const [busy, setBusy] = useState("");
+    // The clicks in flight, each by its own key: only the control that was clicked waits, the rest of the panel stays
+    // usable.
+    const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set<string>());
     const [error, setError] = useState<string>(null);
     const apply = state.apply;
     const run = useCallback(
         (key: string, action: () => Promise<MorphDesign>) => {
-            setBusy(key);
+            setBusy((cur) => new Set(cur).add(key));
             setError(null);
             action()
                 .then((design) => apply(design))
                 .catch((e) => setError(serverErrorText(e)))
-                .finally(() => setBusy(""));
+                .finally(() =>
+                    setBusy((cur) => {
+                        const next = new Set(cur);
+                        next.delete(key);
+                        return next;
+                    })
+                );
         },
         [apply]
     );

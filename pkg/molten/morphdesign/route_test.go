@@ -6,6 +6,8 @@ package morphdesign
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -21,13 +23,23 @@ type fakeAgent struct {
 	agent string
 }
 
-// fakeBackend is a workspace with an agent's terminal in tab-chat and the design's own tab, tab-design, once it opens.
+type placeCall struct {
+	caller string
+	tab    string
+	target PanelTarget
+}
+
+// fakeBackend is a workspace with an agent's terminal in tab-chat, where the panel is placed, and a dedicated tab,
+// tab-design, for the fallback; panels are blocks of the blocks map until a test takes them away.
 type fakeBackend struct {
 	lock       sync.Mutex
 	tabOf      map[string]string
 	designTabs map[string]string
 	terminals  map[string][]string
 	agents     map[string]fakeAgent
+	blocks     map[string]string
+	placed     []placeCall
+	placeErr   error
 	opened     []molten.MorphDesignTabRequest
 	handoffs   []molten.MorphDesignHandoff
 }
@@ -38,7 +50,33 @@ func makeFakeBackend() *fakeBackend {
 		designTabs: map[string]string{"tab-design": "branch-box"},
 		terminals:  map[string][]string{"tab-design": {"block-left"}},
 		agents:     map[string]fakeAgent{routetest.TerminalBlock: {first: "Marion", agent: "claude-code"}},
+		blocks:     map[string]string{},
 	}
+}
+
+func (b *fakeBackend) PlacePanel(callerBlockId string, tabId string, target PanelTarget) (string, error) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	if b.placeErr != nil {
+		return "", b.placeErr
+	}
+	b.placed = append(b.placed, placeCall{callerBlockId, tabId, target})
+	id := fmt.Sprintf("panel-%d", len(b.placed))
+	b.blocks[id] = tabId
+	return id, nil
+}
+
+func (b *fakeBackend) BlockTab(blockId string) (string, bool) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	tab, ok := b.blocks[blockId]
+	return tab, ok
+}
+
+func (b *fakeBackend) closePanel(blockId string) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	delete(b.blocks, blockId)
 }
 
 func (b *fakeBackend) Locate(blockId string) (string, string, error) {
@@ -206,17 +244,70 @@ func TestCommandsAreAnsweredToTheirOwnCallers(t *testing.T) {
 	}
 }
 
-func TestOpenAsksTheTerminalsWindowToShowTheTab(t *testing.T) {
+// Agent left, graphics right: the panel goes to the right of the calling terminal, in its own tab; nothing moves and no
+// window has to answer.
+func TestOpenPlacesThePanelBesideTheCallingTerminal(t *testing.T) {
 	f := makeFixture(t)
 	opened := f.open()
+	if len(f.b.placed) != 1 {
+		t.Fatalf("%d panels placed", len(f.b.placed))
+	}
+	if p := f.b.placed[0]; p.caller != routetest.TerminalBlock || p.tab != "tab-chat" ||
+		p.target != (PanelTarget{Mod: "branch-box", Name: "Branch box", Dir: f.dir, Term: routetest.TerminalBlock}) {
+		t.Fatalf("the panel: %+v", p)
+	}
+	if opened.Placement != molten.MorphPlacementPanel || !opened.Created || opened.HandoffId != "" || opened.Fallback != "" {
+		t.Fatalf("the answer: %+v", opened)
+	}
+	if len(f.b.handoffs) != 0 || len(f.b.opened) != 0 {
+		t.Fatalf("a panel beside the terminal asks no window to open a tab: %+v %+v", f.b.handoffs, f.b.opened)
+	}
+	d := opened.Design
+	if d.Panel != "panel-1" || d.TabId != "tab-chat" {
+		t.Fatalf("the design knows its panel: %+v", d)
+	}
+	if d.Agent == nil || d.Agent.FirstName != "Marion" || !d.Agent.Here {
+		t.Fatalf("the agent that opened it receives the clicks, in the terminal beside the panel: %+v", d.Agent)
+	}
+}
+
+// A second call focuses the panel it already has; once the developer closed it, the next call places a new one.
+func TestASecondOpenFocusesThePanelAndAClosedOneIsPlacedAgain(t *testing.T) {
+	f := makeFixture(t)
+	f.open()
+	second := f.open()
+	if len(f.b.placed) != 1 || second.Created || second.Placement != molten.MorphPlacementPanel || second.HandoffId != "" {
+		t.Fatalf("a second call placed %d panels: %+v", len(f.b.placed), second)
+	}
+	if len(f.b.handoffs) != 1 {
+		t.Fatalf("%d hand-offs", len(f.b.handoffs))
+	}
+	if h := f.b.handoffs[0]; h.Kind != molten.MorphHandoffFocus || h.TabId != "tab-chat" || h.BlockId != "panel-1" || h.WorkspaceId != "ws-1" || h.Mod != "branch-box" {
+		t.Fatalf("the window is asked to focus the panel: %+v", h)
+	}
+	f.b.closePanel("panel-1")
+	third := f.open()
+	if !third.Created || len(f.b.placed) != 2 || third.Design.Panel != "panel-2" {
+		t.Fatalf("a closed panel is placed again: %+v (%d placed)", third, len(f.b.placed))
+	}
+}
+
+// When the panel cannot go beside the terminal, the design gets its own tab as before, and the answer says why.
+func TestOpenFallsBackToADedicatedTabAndSaysWhy(t *testing.T) {
+	f := makeFixture(t)
+	f.b.placeErr = errors.New("the layout has no room")
+	opened := f.open()
+	if opened.Placement != molten.MorphPlacementTab || opened.Created || !strings.Contains(opened.Fallback, "the layout has no room") || opened.HandoffId == "" {
+		t.Fatalf("the answer: %+v", opened)
+	}
 	if len(f.b.handoffs) != 1 {
 		t.Fatalf("%d hand-offs", len(f.b.handoffs))
 	}
 	h := f.b.handoffs[0]
-	if h.Id == "" || h.Id != opened.HandoffId || h.WorkspaceId != "ws-1" || h.Mod != "branch-box" || h.Dir != f.dir || h.Name != "Branch box" {
+	if h.Kind != molten.MorphHandoffTab || h.Id != opened.HandoffId || h.WorkspaceId != "ws-1" || h.Mod != "branch-box" || h.Dir != f.dir || h.Name != "Branch box" {
 		t.Fatalf("the hand-off: %+v for %+v", h, opened)
 	}
-	if opened.Design.Opened != "" || opened.Design.TabId != "" {
+	if len(opened.Design.Opened) != 0 || opened.Design.TabId != "" || opened.Design.Panel != "" {
 		t.Fatalf("no window answered yet: %+v", opened.Design)
 	}
 	if opened.Design.Agent == nil || opened.Design.Agent.FirstName != "Marion" {
@@ -237,13 +328,14 @@ func TestOpenRefusesWhatItCannotShow(t *testing.T) {
 			t.Errorf("%s: open was accepted", name)
 		}
 	}
-	if len(f.b.handoffs) != 0 {
-		t.Fatal("a refused open asked the window")
+	if len(f.b.handoffs) != 0 || len(f.b.placed) != 0 {
+		t.Fatal("a refused open placed a panel or asked the window")
 	}
 }
 
 func TestTheWindowMakesTheTabAndTheDesignRemembersIt(t *testing.T) {
 	f := makeFixture(t)
+	f.b.placeErr = errors.New("no room")
 	opened := f.open()
 	var result molten.MorphDesignTabResult
 	if errStr := f.ask(f.e.Window(), molten.MorphDesignTabCommand,
@@ -257,8 +349,28 @@ func TestTheWindowMakesTheTabAndTheDesignRemembersIt(t *testing.T) {
 		t.Fatalf("the tab request: %+v", req)
 	}
 	d := f.agentCall(molten.MorphDesignShowCommand, molten.MorphDesignRequest{Mod: "branch-box"})
-	if d.TabId != "tab-design" || d.Opened != opened.HandoffId {
+	if d.TabId != "tab-design" || !slices.Contains(d.Opened, opened.HandoffId) {
 		t.Fatalf("the design must say the window answered this hand-off: %+v", d)
+	}
+}
+
+// Two calls open at once: the window's answers come in any order, and each call still finds its own.
+func TestOverlappingOpensEachFindTheirOwnAnswer(t *testing.T) {
+	f := makeFixture(t)
+	f.b.placeErr = errors.New("no room")
+	first := f.open()
+	second := f.open()
+	if first.HandoffId == "" || second.HandoffId == "" || first.HandoffId == second.HandoffId {
+		t.Fatalf("two hand-offs: %+v %+v", first, second)
+	}
+	for _, id := range []string{second.HandoffId, first.HandoffId} {
+		if errStr := f.ask(f.e.Window(), molten.MorphDesignTabCommand, molten.MorphDesignRequest{Mod: "branch-box", Handoff: id}, nil); errStr != "" {
+			t.Fatal(errStr)
+		}
+	}
+	d := f.agentCall(molten.MorphDesignShowCommand, molten.MorphDesignRequest{Mod: "branch-box"})
+	if !slices.Contains(d.Opened, first.HandoffId) || !slices.Contains(d.Opened, second.HandoffId) {
+		t.Fatalf("an answer that came before another is lost: %v", d.Opened)
 	}
 }
 
@@ -345,9 +457,15 @@ func TestAClickInThePanelReachesTheAgentAsAPromptLine(t *testing.T) {
 	if len(msgs) != 1 || msgs[0].block != routetest.TerminalBlock {
 		t.Fatalf("the click went to %+v", msgs)
 	}
-	for _, want := range []string{"branch-box", "My team", "Who will use it?", "audience"} {
+	for _, want := range []string{`"branch-box"`, `choice 2 of 2`, `"audience"`, "molten morph design show"} {
 		if !strings.Contains(msgs[0].goal, want) {
 			t.Errorf("the line lacks %q: %s", want, msgs[0].goal)
+		}
+	}
+	// MoltenTerm signs this request: the agent's own words (the question, the label) are not in it.
+	for _, notWant := range []string{"My team", "Just me", "Who will use it?"} {
+		if strings.Contains(msgs[0].goal, notWant) {
+			t.Errorf("the agent's own words %q reached a line MoltenTerm signs: %s", notWant, msgs[0].goal)
 		}
 	}
 	if d.Questions[0].Answer != "My team" || d.Told == nil || d.Told.Status != molten.MorphToldSent || d.Told.To != "Marion" {
@@ -380,6 +498,7 @@ func TestAClickWithNoAgentStaysInTheDesign(t *testing.T) {
 
 func TestAnAgentStartedInTheDesignTabsTerminalTakesTheClicks(t *testing.T) {
 	f := makeFixture(t)
+	f.b.placeErr = errors.New("no room")
 	opened := f.open()
 	f.ask(f.e.Window(), molten.MorphDesignTabCommand, molten.MorphDesignRequest{Mod: "branch-box", Handoff: opened.HandoffId}, nil)
 	f.b.setAgent(routetest.TerminalBlock, nil)
@@ -451,14 +570,15 @@ func TestAFailedSendIsNotTheDevelopersProblem(t *testing.T) {
 // can, and a design nobody runs is free to any agent.
 func TestAnotherAgentElsewhereCannotChangeADesignAnAgentRuns(t *testing.T) {
 	f := makeFixture(t)
-	opened := f.open()
-	f.ask(f.e.Window(), molten.MorphDesignTabCommand, molten.MorphDesignRequest{Mod: "branch-box", Handoff: opened.HandoffId}, nil)
+	f.open()
 	f.b.lock.Lock()
 	f.b.tabOf["block-other"] = "tab-other"
 	f.b.agents["block-other"] = fakeAgent{first: "Jérôme", agent: "codex"}
+	f.b.tabOf["block-sibling"] = "tab-chat"
 	f.b.lock.Unlock()
 	other := localroute.Caller{IsLocalTerminal: true, BlockId: "block-other"}
 	ctx := context.Background()
+	before, _ := f.s.Store.Get("branch-box")
 
 	for _, command := range []string{molten.MorphDesignStepCommand, molten.MorphDesignAskCommand, molten.MorphDesignAnswerCommand, molten.MorphDesignPlanCommand, molten.MorphDesignDraftCommand} {
 		_, err := f.s.Handle(ctx, command, other, molten.MorphDesignRequest{
@@ -479,29 +599,77 @@ func TestAnotherAgentElsewhereCannotChangeADesignAnAgentRuns(t *testing.T) {
 	if f.s.Store.Driver("branch-box") != routetest.TerminalBlock {
 		t.Fatal("a refused agent, or one that only read, took the clicks")
 	}
-	if _, err := f.s.Handle(ctx, molten.MorphDesignOpenCommand, other, molten.MorphDesignRequest{Mod: "branch-box", Cwd: f.dir}); err != nil {
-		t.Fatalf("opening again only shows the tab: %v", err)
+	// Opening again is a change too: refused, and nothing of the design moves (its name, folder, workspace, tab, panel
+	// and driver stay what the agent that runs it made them).
+	_, err := f.s.Handle(ctx, molten.MorphDesignOpenCommand, other, molten.MorphDesignRequest{Mod: "branch-box", Name: "Another name", Cwd: t.TempDir()})
+	if err == nil || !strings.Contains(err.Error(), "is driven by Marion claude-code") {
+		t.Fatalf("opening again from another agent: %v", err)
 	}
-	if f.s.Store.Driver("branch-box") != routetest.TerminalBlock {
-		t.Fatal("opening again took the clicks")
+	after, _ := f.s.Store.Get("branch-box")
+	if after.Name != before.Name || after.Dir != before.Dir || after.WorkspaceId != before.WorkspaceId || after.TabId != before.TabId ||
+		after.Panel != before.Panel || after.Driver != before.Driver || !slices.Equal(after.Opened, before.Opened) {
+		t.Fatalf("a refused open changed the design: %+v, was %+v", after, before)
+	}
+	if len(f.b.placed) != 1 || len(f.b.handoffs) != 0 {
+		t.Fatalf("a refused open placed a panel or asked the window: %d placed, %+v", len(f.b.placed), f.b.handoffs)
 	}
 
-	// An agent started in the design's own tab takes over.
-	f.b.setAgent("block-left", &fakeAgent{first: "Léon", agent: "claude-code"})
-	left := localroute.Caller{IsLocalTerminal: true, BlockId: "block-left"}
-	if _, err := f.s.Handle(ctx, molten.MorphDesignStepCommand, left, molten.MorphDesignRequest{Mod: "branch-box", Step: molten.MorphStepPlan}); err != nil {
+	// An agent started in the design's own tab takes over, but only by a command that changes the design.
+	f.b.setAgent("block-sibling", &fakeAgent{first: "Léon", agent: "claude-code"})
+	sibling := localroute.Caller{IsLocalTerminal: true, BlockId: "block-sibling"}
+	if _, err := f.s.Handle(ctx, molten.MorphDesignShowCommand, sibling, molten.MorphDesignRequest{Mod: "branch-box"}); err != nil {
+		t.Fatal(err)
+	}
+	if f.s.Store.Driver("branch-box") != routetest.TerminalBlock {
+		t.Fatal("reading with show took the clicks")
+	}
+	if _, err := f.s.Handle(ctx, molten.MorphDesignStepCommand, sibling, molten.MorphDesignRequest{Mod: "branch-box", Step: molten.MorphStepPlan}); err != nil {
 		t.Fatalf("an agent of the design's tab: %v", err)
 	}
-	if f.s.Store.Driver("branch-box") != "block-left" {
+	if f.s.Store.Driver("branch-box") != "block-sibling" {
 		t.Fatal("the agent of the design's tab drives now")
 	}
 	// Once nobody runs the design, any agent may take it.
-	f.b.setAgent("block-left", nil)
+	f.b.setAgent("block-sibling", nil)
+	f.b.setAgent(routetest.TerminalBlock, nil)
 	if _, err := f.s.Handle(ctx, molten.MorphDesignStepCommand, other, molten.MorphDesignRequest{Mod: "branch-box", Step: molten.MorphStepPreview}); err != nil {
 		t.Fatalf("a design nobody runs: %v", err)
 	}
 	if f.s.Store.Driver("branch-box") != "block-other" {
 		t.Fatal("the agent that changed a free design drives it")
+	}
+}
+
+// Eight live designs make a ninth refused, with the way out in the message; a design whose agent left and whose panel was
+// closed is the one dropped.
+func TestAnOpenDesignIsNotEvictedForANewOne(t *testing.T) {
+	f := makeFixture(t)
+	open := func(mod string) (molten.MorphDesignOpened, string) {
+		var opened molten.MorphDesignOpened
+		errStr := f.ask(f.e.Terminal(), molten.MorphDesignOpenCommand, molten.MorphDesignRequest{Mod: mod, Cwd: f.dir}, &opened)
+		return opened, errStr
+	}
+	for i := 0; i < molten.MorphDesignMaxDesigns; i++ {
+		if _, errStr := open(fmt.Sprintf("d%d", i)); errStr != "" {
+			t.Fatalf("design %d: %s", i, errStr)
+		}
+	}
+	if _, errStr := open("d8"); !strings.Contains(errStr, "are open and in use") {
+		t.Fatalf("a ninth live design: %q", errStr)
+	}
+	if len(f.s.Store.Mods()) != molten.MorphDesignMaxDesigns {
+		t.Fatalf("a refused design dropped another: %v", f.s.Store.Mods())
+	}
+	f.b.setAgent(routetest.TerminalBlock, nil)
+	f.b.closePanel("panel-4")
+	if _, errStr := open("d8"); errStr != "" {
+		t.Fatalf("a design nothing uses makes room: %s", errStr)
+	}
+	if _, ok := f.s.Store.Get("d3"); ok {
+		t.Error("the design nothing used stayed")
+	}
+	if _, ok := f.s.Store.Get("d0"); !ok {
+		t.Error("a design with its panel open was dropped")
 	}
 }
 

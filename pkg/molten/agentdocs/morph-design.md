@@ -1,9 +1,10 @@
 # The mod design view: keeping its panel in step with the conversation
 
-`/morph` can open a dedicated view for the mod you design with the developer: a tab "Design · <mod>" ("Conception ·
-<mod>" in French) with a terminal on the left and a guiding panel on the right. The panel shows the steps of the
-`/morph` guide in plain words, and you keep it in step with the conversation through `molten`. Every agent CLI drives it
-the same way, because the panel only talks to `molten`.
+`/morph` can open a dedicated view for the mod you design with the developer: a guiding panel titled "Design · <mod>"
+("Conception · <mod>" in French), placed to the right of your own terminal, in your terminal's tab. The developer sees
+you on the left and the panel on the right; your terminal never moves. The panel shows the steps of the `/morph` guide
+in plain words, and you keep it in step with the conversation through `molten`. Every agent CLI drives it the same way,
+because the panel only talks to `molten`.
 
 The panel never blocks. The developer can skip a step, say they do it in the terminal, or ignore the panel and talk to
 you: the terminal stays the free way for open precisions and for anything the panel does not offer. Never insist on a
@@ -17,15 +18,20 @@ molten morph design branch-box --name "Branch box"
 ```
 
 - The id is the one the mod will have (`molten mod new <id>` creates it later, at step 4 of the guide). The name is how
-  the developer reads it, in their language: it titles the tab.
-- The tab opens in the window of this terminal's workspace and is focused. A second call for the same mod focuses the
-  tab again and keeps its state. Nothing opens without this command or the developer's own click.
-- The command waits for the window. If it exits with "the design view did not open", go on in this terminal with the
-  same steps and the same words: never present that as a problem.
+  the developer reads it, in their language: it titles the panel.
+- The panel opens at once to the right of the terminal you run the command in, in that terminal's tab; your terminal
+  keeps the keyboard. A second call for the same mod brings the panel into view and keeps its state; if the developer
+  closed it, the call places a new one. Nothing opens without this command or the developer's own click.
+- Only when the panel cannot go there (this terminal has no tab, or the layout has no room) does the design open as a
+  tab of its own, "Design · <mod>", with a new terminal on the left; the command says so and why, and waits for the
+  window. In that case your own terminal stays where it is and you keep driving from it.
+- If the command exits with "the design view did not open", go on in this terminal with the same steps and the same
+  words: never present that as a problem.
+- Opening a mod whose design another agent runs is refused (see "Good to know").
 - A mod whose id is also a command name (`show`, `step`, `ask`, `answer`, `plan`, `draft`, `open`) opens with
   `molten morph design open <id>`.
-- The commands below find the design from the terminal you run them in: the tab's own terminal, else the design you
-  opened. With several designs open, name one with `--mod <id>`.
+- The commands below find the design from the terminal you run them in: the design whose panel is in this terminal's
+  tab, else the one you drive. With several designs open, name one with `--mod <id>`.
 
 ## The steps
 
@@ -64,8 +70,10 @@ molten morph design show                            # the design as the panel sh
   recommend first. `--choice "label::detail"` adds a line under a label. `--icons` makes the labels Font Awesome icon
   names, drawn as icons. A question asked again with the same key replaces the first. Ask in the developer's language.
 - **The developer's click reaches you as a line in your prompt**, written by MoltenTerm ("In the mod design view of
-  …, the developer picked …"). Take it as their answer and go on: show the next step with `step`, `ask` or `plan`. If
-  you were not running when they clicked, `show` still lists their answers.
+  …, the developer picked choice 2 of 3 for the question with the key …"). The line holds only what MoltenTerm itself
+  knows: the mod, the question's key and the choice's number, never the question or the label you wrote. Read their
+  answer with `molten morph design show`, take it as theirs and go on: show the next step with `step`, `ask` or
+  `plan`. If you were not running when they clicked, `show` still lists their answers.
 - `answer` shows in the panel what the developer answered in the terminal, so nothing is asked twice. It also records
   the answer in the memory of the `morph-design` workflow (`molten learn`), so the next design starts from it;
   `--no-learn` records nothing. Use the same keys the panel uses when you can: `name`, `icon`, `category`.
@@ -106,10 +114,12 @@ developer can still change each one. The keys the view records:
 
 - The panel shows and relays; it grants nothing. A choice in the panel never widens an access: an access the plan did
   not list goes back to the developer (step 4 of the guide).
-- One agent drives a design at a time: the one that last ran a design command, which also receives the developer's clicks.
-  While it runs, another agent elsewhere cannot change the design (`show` stays open to all): the command says who
-  drives it. An agent started in the design tab's own terminal takes over by running a command, and a design no agent
-  runs is free to any.
+- One agent drives a design at a time: the one that last ran a command that changes it (`open`, `step`, `ask`,
+  `answer`, `plan`, `draft`; never `show`), which also receives the developer's clicks. While it runs, another agent
+  elsewhere cannot change the design, nor open it again: the command says who drives it, and nothing of the design
+  moves. An agent in the design's own tab (a terminal beside the panel) takes over by running such a command, and a
+  design no agent runs is free to any. At most eight designs are open at once; a design whose agent left and whose panel
+  was closed makes room for a new one, and with all eight in use a new one is refused.
 - The commands work in a MoltenTerm terminal of this computer only. Everything is English, plain text or `--json`. Exit
   codes: 2 for bad usage, 1 for any other failure.
 - The design lives in MoltenTerm while it runs. A restart of MoltenTerm forgets the panel's state (not the mod, which

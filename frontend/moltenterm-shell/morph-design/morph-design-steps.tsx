@@ -16,12 +16,16 @@ import { DominoLoader, OptionList, OptionRow, SectionBlock, SuiteIcon } from "..
 import { suiteIcon, SuiteIconName } from "../suite/suite-icons";
 import type { DesignActions } from "./morph-design-actions";
 import {
+    BusyKeys,
+    decisionBusy,
     MorphDesign,
     MorphQuestion,
     MorphStepId,
     prefilledChoice,
+    questionBusy,
     questionsOf,
     stepFolded,
+    stepGestureBusy,
     stepHasContent,
     stepOf,
     stepView,
@@ -63,8 +67,8 @@ export type StepProps = {
     design: MorphDesign;
     defaults: LearningDefaults;
     actions: DesignActions;
-    // What is in flight ("" when nothing): the click's own key, so only its control waits.
-    busy: string;
+    // The clicks in flight, by their own keys: only the control that was clicked waits.
+    busy: BusyKeys;
     // Runs a click: the panel shows it waiting, applies the design it returns, and says what failed.
     run: (key: string, action: () => Promise<MorphDesign>) => void;
     focusTerminal: () => void;
@@ -107,6 +111,8 @@ function StepStatus({ view }: { view: ReturnType<typeof stepView> }) {
 function StepControls({ id, view, ...p }: StepProps & { id: MorphStepId; view: ReturnType<typeof stepView> }) {
     const t = useT();
     const settled = view === "skipped" || view === "done" || view === "terminal";
+    // A step's own gestures wait for each other, never for another step's or another control's click.
+    const waiting = stepGestureBusy(p.busy, id);
     return (
         <div className="flex flex-wrap items-center gap-1.5" data-testid="morph-step-controls">
             {settled ? (
@@ -114,7 +120,7 @@ function StepControls({ id, view, ...p }: StepProps & { id: MorphStepId; view: R
                     <button
                         type="button"
                         className={GhostButton}
-                        disabled={p.busy !== ""}
+                        disabled={waiting}
                         onClick={() => p.run(`back:${id}`, () => p.actions.takeBack(id))}
                         data-testid="morph-step-back"
                     >
@@ -126,21 +132,21 @@ function StepControls({ id, view, ...p }: StepProps & { id: MorphStepId; view: R
                     <button
                         type="button"
                         className={GhostButton}
-                        disabled={p.busy !== ""}
+                        disabled={waiting}
                         onClick={() => p.run(`skip:${id}`, () => p.actions.skipStep(id))}
                         data-testid="morph-step-skip"
                     >
-                        {p.busy === `skip:${id}` ? <DominoLoader /> : null}
+                        {p.busy.has(`skip:${id}`) ? <DominoLoader /> : null}
                         {t("morphDesign.step.skip")}
                     </button>
                     <button
                         type="button"
                         className={GhostButton}
-                        disabled={p.busy !== ""}
+                        disabled={waiting}
                         onClick={() => p.run(`terminal:${id}`, () => p.actions.doInTerminal(id))}
                         data-testid="morph-step-terminal"
                     >
-                        {p.busy === `terminal:${id}` ? <DominoLoader /> : null}
+                        {p.busy.has(`terminal:${id}`) ? <DominoLoader /> : null}
                         {t("morphDesign.step.terminal")}
                     </button>
                 </>
@@ -152,7 +158,7 @@ function StepControls({ id, view, ...p }: StepProps & { id: MorphStepId; view: R
 function QuestionBlock({ question, ...p }: StepProps & { question: MorphQuestion }) {
     const t = useT();
     const prefilled = prefilledChoice(question, p.defaults);
-    const waiting = p.busy.startsWith(`choose:${question.key}:`);
+    const waiting = questionBusy(p.busy, question.key);
     const name = `morph-question-${question.key}`;
     return (
         <div className="flex flex-col gap-1.5" data-testid="morph-question" data-key={question.key}>
@@ -181,7 +187,7 @@ function QuestionBlock({ question, ...p }: StepProps & { question: MorphQuestion
                                 meta={meta || undefined}
                                 selected={question.answer === choice.label}
                                 selectedLabel={t("morphDesign.questions.selected")}
-                                disabled={p.busy !== ""}
+                                disabled={waiting}
                                 onSelect={() =>
                                     p.run(`choose:${question.key}:${choice.label}`, () =>
                                         p.actions.choose(question, choice.label)
@@ -280,11 +286,11 @@ function PlanBody(p: StepProps) {
                     <button
                         type="button"
                         className={PrimaryButton}
-                        disabled={p.busy !== ""}
+                        disabled={p.busy.has("agree")}
                         onClick={() => p.run("agree", () => p.actions.agree())}
                         data-testid="morph-plan-agree"
                     >
-                        {p.busy === "agree" ? <DominoLoader /> : null}
+                        {p.busy.has("agree") ? <DominoLoader /> : null}
                         {t("morphDesign.plan.agree")}
                         <MoltenWave />
                     </button>
@@ -390,11 +396,11 @@ function ValidateBody(p: StepProps) {
                     <button
                         type="button"
                         className={DestructiveButton}
-                        disabled={p.busy !== ""}
+                        disabled={decisionBusy(p.busy)}
                         onClick={() => p.run("giveup", () => p.actions.giveUp())}
                         data-testid="morph-giveup-yes"
                     >
-                        {p.busy === "giveup" ? <DominoLoader /> : null}
+                        {p.busy.has("giveup") ? <DominoLoader /> : null}
                         {t("morphDesign.validate.giveUp")}
                     </button>
                     <button type="button" className={GhostButton} onClick={() => setConfirming(false)}>
@@ -406,17 +412,18 @@ function ValidateBody(p: StepProps) {
                     <button
                         type="button"
                         className={PrimaryButton}
-                        disabled={p.busy !== ""}
+                        disabled={decisionBusy(p.busy)}
                         onClick={() => p.run("validate", () => p.actions.validate())}
                         data-testid="morph-validate"
                     >
-                        {p.busy === "validate" ? <DominoLoader /> : null}
+                        {p.busy.has("validate") ? <DominoLoader /> : null}
                         {t("morphDesign.validate.validate")}
                         <MoltenWave />
                     </button>
                     <button
                         type="button"
                         className={SecondaryButton}
+                        disabled={decisionBusy(p.busy)}
                         onClick={() => setConfirming(true)}
                         data-testid="morph-giveup"
                     >

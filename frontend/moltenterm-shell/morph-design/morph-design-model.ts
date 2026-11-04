@@ -69,13 +69,27 @@ export type MorphDesign = {
     told?: MorphTold;
     outcome?: "validated" | "gaveup";
     updated: number;
-    opened?: string;
+    panel?: string;
+    opened?: string[];
 };
 
-export type MorphHandoff = { id: string; mod: string; name?: string; dir: string; workspaceid: string; at: number };
+// A hand-off asks the window to open a design's tab (kind tab) or to bring an open panel into view (kind focus).
+export type MorphHandoffKind = "tab" | "focus";
+export type MorphHandoff = {
+    id: string;
+    kind: MorphHandoffKind;
+    mod: string;
+    name?: string;
+    dir: string;
+    workspaceid: string;
+    tabid?: string;
+    blockid?: string;
+    at: number;
+};
 
-// What the panel shows: the mod, as /morph named it, and the folder the tab's terminal starts in.
-export type MorphDesignTarget = { mod: string; name?: string; dir: string };
+// What the panel shows: the mod, as /morph named it, the folder it was opened in, and the agent's terminal beside it
+// when the panel was placed next to one.
+export type MorphDesignTarget = { mod: string; name?: string; dir: string; term?: string };
 
 export function readMorphDesignTarget(value: unknown): MorphDesignTarget {
     if (value == null || typeof value !== "object") {
@@ -85,9 +99,15 @@ export function readMorphDesignTarget(value: unknown): MorphDesignTarget {
     if (typeof v.mod !== "string" || !v.mod || typeof v.dir !== "string" || !v.dir) {
         return null;
     }
-    return { mod: v.mod, name: typeof v.name === "string" && v.name ? v.name : undefined, dir: v.dir };
+    return {
+        mod: v.mod,
+        name: typeof v.name === "string" && v.name ? v.name : undefined,
+        dir: v.dir,
+        term: typeof v.term === "string" && v.term ? v.term : undefined,
+    };
 }
 
+// A hand-off the window can act on: a tab needs the mod and its folder, a focus needs the panel's tab and block.
 export function readMorphHandoff(data: any): MorphHandoff {
     if (data == null || typeof data.id !== "string" || !data.id) {
         return null;
@@ -98,7 +118,25 @@ export function readMorphHandoff(data: any): MorphHandoff {
     if (typeof data.workspaceid !== "string" || !data.workspaceid) {
         return null;
     }
-    return data as MorphHandoff;
+    const kind: MorphHandoffKind = data.kind === "focus" ? "focus" : "tab";
+    if (
+        kind === "focus" &&
+        (typeof data.tabid !== "string" || !data.tabid || typeof data.blockid !== "string" || !data.blockid)
+    ) {
+        return null;
+    }
+    return { ...data, kind } as MorphHandoff;
+}
+
+// The title the panel carries in its header and in a tab's name: "Conception · <mod>", the name /morph gave else the id.
+export function panelTitleOf(
+    target: MorphDesignTarget,
+    tr: (key: string, vars?: Record<string, string>) => string
+): string {
+    if (target == null) {
+        return tr("morphDesign.viewName");
+    }
+    return tr("morphDesign.tabName", { mod: target.name || target.mod });
 }
 
 export function readMorphDesign(data: any): MorphDesign {
@@ -204,6 +242,28 @@ export function receiverOf(design: MorphDesign, fallback: { blockId: string; nam
         return { blockId: fallback.blockId, name: fallback.name, tabId: design.tabid ?? "", here: true };
     }
     return null;
+}
+
+// The clicks in flight, each by its own key ("skip:preview", "choose:audience:My team", "agree"). A control waits only
+// for its own click, or for the clicks of the small group it belongs to (a step's gestures, a question's choices, the
+// validation and the give up): the rest of the panel stays usable.
+export type BusyKeys = ReadonlySet<string>;
+
+export function stepGestureBusy(busy: BusyKeys, step: MorphStepId): boolean {
+    return busy.has(`skip:${step}`) || busy.has(`terminal:${step}`) || busy.has(`back:${step}`);
+}
+
+export function questionBusy(busy: BusyKeys, key: string): boolean {
+    for (const k of busy) {
+        if (k.startsWith(`choose:${key}:`)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+export function decisionBusy(busy: BusyKeys): boolean {
+    return busy.has("validate") || busy.has("giveup");
 }
 
 // The agent wavesrv named ended since it published the design: the window's own agent states know at once, so the panel
