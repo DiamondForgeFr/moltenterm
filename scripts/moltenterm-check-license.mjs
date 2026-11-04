@@ -47,8 +47,11 @@ export const ExemptPrefixes = [
     ".github/workflows/pr-review-sync.yml",
     "node_modules/",
     "public/fontawesome-free/",
-    "pkg/molten/agentdocs/examples/",
 ];
+// The example mods the guides print for mod authors to copy (LICENSE-EXCEPTION, section 4). The copy box example is a
+// byte copy of the built-in mod (pkg/molten/agents_test.go), so a header it has follows the built-in's; the others
+// stay without one, and a header is never required there.
+export const OptionalHeaderPrefixes = ["pkg/molten/agentdocs/examples/"];
 export const ExemptSegments = ["testdata", "fixtures", "fontawesome-free"];
 const MinifiedFile = /\.min\.[A-Za-z0-9]+$/;
 
@@ -72,6 +75,10 @@ export function isExempt(file) {
         return true;
     }
     return file.split("/").some((segment) => ExemptSegments.includes(segment));
+}
+
+export function isHeaderOptional(file) {
+    return OptionalHeaderPrefixes.some((p) => file.startsWith(p));
 }
 
 export function headerOf(content) {
@@ -182,7 +189,7 @@ export function checkHeaders(files) {
             });
             continue;
         }
-        if (!RequiredExts.has(ext)) {
+        if (!RequiredExts.has(ext) || isHeaderOptional(f.file)) {
             counts.ownNoHeader++;
             continue;
         }
