@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's agents grouped by project (FR-SHELL-084, #1867): two projects or more, a separator opens each group and
 // its rows drop the project chip; one project, the flat list of #1746.
