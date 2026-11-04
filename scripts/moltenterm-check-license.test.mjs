@@ -184,6 +184,9 @@ describe("isExempt", () => {
     it("matches the harness, third-party folders and test data", () => {
         expect(isExempt(".claude/skills/sf-workflow/workflow-cli.sh")).toBe(true);
         expect(isExempt("public/fontawesome-free/css/all.css")).toBe(true);
+        expect(isExempt("docs/static/fontawesome-free/css/brands.min.css")).toBe(true);
+        expect(isExempt("vendor/lib/thing.min.js")).toBe(true);
+        expect(isExempt("frontend/app/admin.js")).toBe(false);
         expect(isExempt("pkg/molten/mission/testdata/x.yml")).toBe(true);
         expect(isExempt("scripts/fixtures/x.mjs")).toBe(true);
         expect(isExempt(".github/workflows/ci.yml")).toBe(false);

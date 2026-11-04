@@ -49,7 +49,8 @@ export const ExemptPrefixes = [
     "public/fontawesome-free/",
     "pkg/molten/agentdocs/examples/",
 ];
-export const ExemptSegments = ["testdata", "fixtures"];
+export const ExemptSegments = ["testdata", "fixtures", "fontawesome-free"];
+const MinifiedFile = /\.min\.[A-Za-z0-9]+$/;
 
 export const LicenseFiles = [
     { file: "LICENSE", mustContain: ["GNU AFFERO GENERAL PUBLIC LICENSE", "Version 3, 19 November 2007"] },
@@ -67,7 +68,7 @@ export const RegisteredMarkPrefixes = ["frontend/moltenterm-shell/i18n/locales/"
 const RegisteredMarkSymbol = "®";
 
 export function isExempt(file) {
-    if (ExemptPrefixes.some((p) => file.startsWith(p))) {
+    if (ExemptPrefixes.some((p) => file.startsWith(p)) || MinifiedFile.test(file)) {
         return true;
     }
     return file.split("/").some((segment) => ExemptSegments.includes(segment));
