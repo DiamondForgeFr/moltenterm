@@ -294,6 +294,19 @@ itself, never an older one); on, candidates too. Needs two successive candidates
       opens the right release. Turning it off again withdraws the candidate's notification.
 - [ ] Turning the notification off in the settings stops it. A gold and a dev build never show it.
 
+Install from the app (#1860), with the earlier candidate installed from its zip (macOS) or AppImage (Linux) in a folder
+the user can write, and the later one published and signed (`SHA256SUMS.txt.asc` among its files):
+
+- [ ] Settings › About shows the installed version and the last check; "Check for updates" finds the later release, and
+      its Update button downloads it (progress), checks it, and offers "Restart now"; "Later" keeps it for the quit.
+- [ ] Restart now: the app quits, the later version opens in the same place, About shows it as installed and a
+      notification says what is new. Configuration, workspaces and mods are as they were.
+- [ ] Quitting instead of restarting installs the update too, and the next start is the later version.
+- [ ] A release published without `SHA256SUMS.txt.asc` is offered but refused by the app, with its reason and a link to
+      the release page. A copy in a read-only place downloads and checks the file, and shows it in its folder.
+- [ ] macOS: the update never asks for an administrator password and the app keeps its privacy grants (the Developer ID
+      requirement is the same from one release to the next).
+
 ### 5. The release page
 
 - [ ] The title, the notes (plain words, no ticket numbers), the install text and the Verify section (its
