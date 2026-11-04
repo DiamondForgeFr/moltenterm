@@ -193,10 +193,12 @@ func TestMorphGuideOpensTheDesignViewOrFallsBackToTheTerminal(t *testing.T) {
 		}
 		flat := squashSpaces(content)
 		for _, want := range []string{
-			"If it lists `morph design`, run `molten morph design <id>`",
-			"If `molten help` does not list it",
-			"skip this step and run steps 6 to 9 here, in this terminal, with the same words and the same order",
-			"dedicated design view (story #1888) will host them",
+			"If it lists `morph design`, run `molten morph design <id> --name \"<the mod's name>\"`",
+			"Do it right after step 1, so steps 2 to 4 show in the panel",
+			"If `molten help` does not list `morph design`, or the command says the view did not open",
+			"skip this step and run the steps here, in this terminal, with the same words and the same order",
+			"in MoltenTerm's dedicated design view when the installed version has it",
+			"`molten morph design step|ask|answer|plan|draft`",
 		} {
 			if !strings.Contains(flat, want) {
 				t.Errorf("%s: the guide lacks %q", p.Id, want)

@@ -58,7 +58,8 @@ the view and you share one memory: `molten learn list <workflow>` shows the keys
 | Workflow | Keys | Kind | Meaning |
 | --- | --- | --- | --- |
 | `pipeline-setup` | `merge`, `rcformat`, `tagprefix`, `notes`, `milestone`, `syncback` | `correction` | the choices of the description step the developer changed from the proposal (values are the option ids the step shows, `true` or `false` for a switch, the prefix itself) |
-| `morph-design` | the keys the design view records | any | none is fixed yet: pick short keys and reuse them |
+| `morph-design` | the key of each question asked in the design panel (`audience`, `refresh`…); `name`, `icon`, `category` | `answer` | what the developer picked or said (the label, or the Font Awesome name of an icon); `molten morph design answer` records it for you |
+| `morph-design` | `need`, `questions`, `plan`, `preview`, `adjust`, `finish`, `validate`, `collect` | `skip` | a step of the design the developer skipped (folded after two runs in a row) |
 
 ## Read and forget
 

@@ -31,8 +31,10 @@ import "embed"
 // bookmarks.md tells agents to read the project's web page bookmarks with `molten bookmarks list` (FR-BRW-020).
 // learning.md tells agents to read what a guided workflow learned of the developer and to record their adjustments
 // with `molten learn` (FR-LRN-002).
+// morph-design.md teaches the agent that /morph runs the `molten morph design` commands that keep the mod design view's
+// panel in step with the conversation (FR-MORPH-019).
 //
-//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md materials.md files.md pages.md bookmarks.md learning.md all:examples
+//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md materials.md files.md pages.md bookmarks.md learning.md morph-design.md all:examples
 var Files embed.FS
 
 const ReviewGuideFile = "review.md"
