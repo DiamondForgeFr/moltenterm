@@ -446,7 +446,7 @@ func (m *Merger) waitQueue(ctx context.Context, plan MergePlan, record MergeReco
 		if err != nil {
 			failures++
 			if failures >= maxPollErrors {
-				m.end(k, record, MergeFailed, "", MergeCodePollError, err)
+				m.endGh(k, record, MergeCodePollError, err)
 				return ghMergePr{}, record, false
 			}
 			continue

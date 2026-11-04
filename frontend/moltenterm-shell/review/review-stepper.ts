@@ -217,6 +217,10 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
             return t("review.validate.outcome.newred", { names: listNames(t, record.names ?? []) });
         case "citimeout":
             return t("review.validate.outcome.citimeout", { minutes: record.minutes ?? 0 });
+        case "unavailable":
+            return record.status
+                ? t("review.validate.outcome.unavailable", { status: record.status })
+                : t("review.validate.outcome.unavailableNoStatus");
         case "reread":
         case "mergedaway":
         case "headmoved":

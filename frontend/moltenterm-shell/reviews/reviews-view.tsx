@@ -33,6 +33,7 @@ import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
     batchItemEnded,
     batchPlan,
+    batchRetryRequest,
     batchRowMark,
     batchShown,
     batchStartRequest,
@@ -436,6 +437,21 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         setConfirming(false);
         return null;
     };
+    // Try again on a PR the queue stopped (#1871): it alone goes back in the queue, the others stay as they are.
+    const retryBatchItem = async (number: number): Promise<Phrase> => {
+        const item = batchRun?.items.find((it) => it.number === number);
+        if (item == null) {
+            return null;
+        }
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        try {
+            const order = queueOrder(forecast, listed, batchRun, [number]);
+            await BatchRuns.getInstance().add(batchRetryRequest(batchRun, item, workspaceId, order));
+        } catch (e) {
+            return errorPhrase(e);
+        }
+        return null;
+    };
     useEffect(() => {
         model.noteQueueRead(dir, answer, listed, baseQueue, forecast, takenByQueue);
     }, [dir, answer, listed, baseQueue, forecast]);
@@ -552,6 +568,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         onGroupMerge: (inGroup: boolean) => model.setInGroupMerge(dir, pr.number, inGroup),
         queued: queuedAsks[rebaseAskKey(dir, pr.number)],
         batchMark: batchRowMark(batchRun, pr.number),
+        onBatchRetry: () => retryBatchItem(pr.number),
     });
     const edgeText = (number: number, where: EdgeWhere) =>
         word(

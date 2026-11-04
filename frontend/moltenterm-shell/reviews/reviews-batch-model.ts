@@ -48,6 +48,7 @@ export type BatchReason =
     | "unknown"
     | "mergefailed"
     | "read"
+    | "unavailable"
     | "headmoved"
     | "draft"
     | "mergedaway"
@@ -75,6 +76,7 @@ const WordedReasons = new Set<BatchReason>([
     "unknown",
     "mergefailed",
     "read",
+    "unavailable",
     "headmoved",
     "draft",
     "mergedaway",
@@ -118,6 +120,8 @@ export type BatchItem = BatchPr & {
     note?: string;
     detail?: string;
     code?: string;
+    // status: GitHub's HTTP status when it did not answer (reason unavailable), none for a timeout or the network.
+    status?: number;
     byyou?: boolean;
     head?: string;
     rebases?: number;
@@ -388,7 +392,10 @@ export function batchHeadline(run: BatchRun, firstName: string, ids?: ShownIds):
     const list = run.items.map((it) => `#${batchItemId(it, ids)}`).join(" → ");
     const group = run.items.some((it) => it.source === "batch");
     if (firstName) {
-        return t(group ? "reviews.batch.headline.groupBy" : "reviews.batch.headline.queueBy", { name: firstName, list });
+        return t(group ? "reviews.batch.headline.groupBy" : "reviews.batch.headline.queueBy", {
+            name: firstName,
+            list,
+        });
     }
     return t(group ? "reviews.batch.headline.group" : "reviews.batch.headline.queue", { list });
 }
@@ -466,6 +473,11 @@ export function batchReasonText(item: BatchItem, base: string): string {
     if (item.reason === "method") {
         return t("reviews.batch.why.method", { method: methodText(item.names?.[0] ?? "") });
     }
+    if (item.reason === "unavailable") {
+        return item.status
+            ? t("reviews.batch.why.unavailable", { status: item.status })
+            : t("reviews.batch.why.unavailableNoStatus");
+    }
     if (!WordedReasons.has(item.reason)) {
         return t("reviews.batch.why.notreached", vars);
     }
@@ -511,7 +523,100 @@ export function queueRank(run: BatchRun, number: number): number {
     return waiting.findIndex((it) => it.number === number) + 1;
 }
 
-export type BatchRowMark = { label: string; tone: Tone; title: string; current: boolean };
+// What the developer can do about a PR the queue stopped (#1871): try it again alone, have it rebased, validate it
+// again, look at its CI or at the PR on GitHub.
+export type BatchStopAction = "retry" | "rebase" | "revalidate" | "ci" | "github";
+
+// BatchStopHelp: why the PR stopped in one plain sentence, the action that answers it, whether GitHub itself did not
+// answer (a link to its status page then), and the raw error, one click away.
+export type BatchStopHelp = { sentence: string; action: BatchStopAction; outage: boolean; detail: string };
+
+const StopActions: Partial<Record<BatchReason, BatchStopAction>> = {
+    unavailable: "retry",
+    mergefailed: "retry",
+    read: "retry",
+    unknown: "retry",
+    agentexited: "retry",
+    agenttimeout: "retry",
+    agentstart: "retry",
+    conflict: "rebase",
+    ambiguous: "rebase",
+    headmoved: "revalidate",
+    warnings: "revalidate",
+    method: "revalidate",
+    pushed: "revalidate",
+    failing: "ci",
+    citimeout: "ci",
+    blocked: "github",
+};
+
+// The reasons whose raw error is shown behind Details instead of inside the sentence.
+const DetailReasons = new Set<BatchReason>(["mergefailed", "read", "agentstart", "unavailable"]);
+
+// batchStopHelp: what the row of a PR the queue stopped or set aside says and offers; null for any other PR.
+export function batchStopHelp(item: BatchItem, base: string): BatchStopHelp {
+    if (item?.state !== "stopped" && item?.state !== "failed") {
+        return null;
+    }
+    if (item.waiting) {
+        return null;
+    }
+    const detail = DetailReasons.has(item.reason) ? [item.detail, item.code].filter(Boolean).join(" ") : "";
+    const sentence =
+        item.reason === "mergefailed" || item.reason === "read" || item.reason === "agentstart"
+            ? t(`reviews.batch.stop.${item.reason}`)
+            : item.state === "failed"
+              ? t("reviews.batch.step.failed", { names: (item.names ?? []).join(", ") })
+              : batchReasonText(item, base);
+    return {
+        sentence,
+        action: StopActions[item.reason] ?? null,
+        outage: item.reason === "unavailable",
+        detail: item.reason === "unavailable" ? (item.detail ?? "") : detail,
+    };
+}
+
+// batchRetryRequest: Try again on a PR the queue stopped puts it back alone (#1871), bound to the commit the developer
+// validated, with the method it had; the others are left as they are. A queue still running takes it back in its
+// place, an ended one starts again with it alone.
+export function batchRetryRequest(
+    run: BatchRun,
+    item: BatchItem,
+    workspaceid: string,
+    order?: number[]
+): QueueAddRequest {
+    return {
+        dir: run.dir,
+        repo: run.repo,
+        base: run.base,
+        method: item.method || run.method,
+        prs: [
+            {
+                number: item.number,
+                headref: item.headref,
+                headoid: item.valid || item.headoid,
+                title: item.title,
+                url: item.url,
+                ticket: item.ticket,
+                method: item.method || run.method,
+            },
+        ],
+        source: item.source ?? "validate",
+        order: order?.length ? order : [item.number],
+        workspaceid,
+        tabname: t("reviews.batch.tabName"),
+    };
+}
+
+export type BatchRowMark = {
+    label: string;
+    tone: Tone;
+    title: string;
+    current: boolean;
+    // stop: why a stopped PR stopped and what to do (#1871), with the queue's item it is about.
+    stop?: BatchStopHelp;
+    item?: BatchItem;
+};
 
 // batchRowMark: the PR's place in the queue, on its row of the Reviews list (FR-REV-026 AC7); null when it is not part
 // of the queue shown.
@@ -531,6 +636,8 @@ export function batchRowMark(run: BatchRun, number: number): BatchRowMark {
         tone,
         title,
         current,
+        stop: batchStopHelp(item, run.base),
+        item,
     });
     if (item.waiting) {
         return mark("needsAnswer", "failure");

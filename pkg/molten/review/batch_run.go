@@ -39,6 +39,26 @@ type batchStop struct {
 	note   string
 	detail string
 	code   string
+	status int
+}
+
+// unavailableStop: a stop on a raw error that is only GitHub not answering says so (#1871), so the developer is told to
+// try again later rather than to look into the PR.
+func unavailableStop(stop batchStop) batchStop {
+	if stop.reason != BatchReasonRead && stop.reason != BatchReasonMergeFailed {
+		return stop
+	}
+	if stop.code == MergeCodeUnavailable {
+		stop.reason = BatchReasonUnavailable
+		return stop
+	}
+	if stop.detail == "" {
+		return stop
+	}
+	if status, ok := ghTransient(stop.detail); ok {
+		stop.reason, stop.status = BatchReasonUnavailable, status
+	}
+	return stop
 }
 
 func (b *BatchRunner) cancelAsked(ctl *batchCtl) bool {
@@ -195,12 +215,14 @@ func (b *BatchRunner) runItem(ctx context.Context, ctl *batchCtl, i int) {
 }
 
 func (b *BatchRunner) stopItem(ctl *batchCtl, i int, stop batchStop) int {
+	stop = unavailableStop(stop)
 	state := BatchItemStopped
 	if stop.reason == BatchReasonFailing {
 		state = BatchItemFailed
 	}
 	b.setItem(ctl, i, func(it *BatchItem) {
 		it.State, it.Reason, it.Names, it.Note, it.Detail, it.Code = state, stop.reason, stop.names, stop.note, stop.detail, stop.code
+		it.Status = stop.status
 		it.Waiting = false
 		if state == BatchItemStopped {
 			it.EndedAt = b.env.Now().UnixMilli()
@@ -608,7 +630,7 @@ func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr) (int, b
 	case MergeCodeCiTimeout:
 		return batchStopped, batchStop{reason: BatchReasonCiTimeout}
 	}
-	return batchStopped, batchStop{reason: BatchReasonMergeFailed, code: final.Code, detail: final.Error}
+	return batchStopped, batchStop{reason: BatchReasonMergeFailed, code: final.Code, detail: final.Error, status: final.Status}
 }
 
 // waitMerge waits for Validate's merge to end. A cancel stops it only while GitHub updates the branch or CI runs on
