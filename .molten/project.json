@@ -35,6 +35,12 @@
                 "lane": "quick",
                 "run": "node scripts/moltenterm-check-ledger.mjs && node scripts/moltenterm-check-icons.mjs"
             },
+            {
+                "name": "lockfile",
+                "title": "Lockfile",
+                "lane": "quick",
+                "run": "node scripts/moltenterm-check-lockfile.mjs --committed"
+            },
             { "name": "typecheck", "title": "TypeScript", "lane": "frontend", "run": "task check:ts" },
             { "name": "lint", "title": "ESLint", "lane": "frontend", "run": "npx eslint . --quiet" },
             { "name": "vitest", "title": "Frontend tests", "lane": "frontend", "run": "npx vitest run" },

@@ -93,7 +93,8 @@ American English. Follow the existing formatting and conventions: `gofmt`, `pret
 
 See [README.md](README.md) and [UPSTREAM.md](UPSTREAM.md) ("Toolchain"), and [BUILD.md](BUILD.md) for the Wave build
 notes. The checks before a pull request: `task check:ts`, `npx vitest run`, `go test ./cmd/... ./pkg/...`,
-`node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-license.mjs`.
+`node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-license.mjs`,
+`node scripts/moltenterm-check-lockfile.mjs`.
 
 ## Code of Conduct
 

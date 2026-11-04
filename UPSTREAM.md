@@ -35,6 +35,7 @@ every place where Moltenterm changes Wave's code.
 | `task generate`                            | Regenerate TypeScript bindings after changing Go RPC types.                                                        |
 | `node scripts/moltenterm-check-ledger.mjs` | Check the patch ledger against the last merged Wave release.                                                       |
 | `node scripts/moltenterm-check-license.mjs` | Check the licence headers (AGPL-3.0-only for Moltenterm's files, Apache-2.0 for Wave's); `--apply` fixes them ("Licensing"). |
+| `node scripts/moltenterm-check-lockfile.mjs` | Check that `npm install` would leave `package-lock.json` as it is ("Continuous integration"). |
 
 Test instances (CI, worktree agents, scripted runs of the built app) start with `MOLTENTERM_SKIP_ONBOARDING=1` unless
 the test is about the first run: the first run is recorded as done and the first tab gets Wave's starter layout, as
@@ -115,7 +116,7 @@ both ignored nested failures and detected current-checkout failures with isolate
 
 | Job           | When                              | Steps                                                                                                                                         |
 | ------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Quick checks  | Always, drafts included           | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-license.mjs`, `node scripts/moltenterm-check-icons.mjs`           |
+| Quick checks  | Always, drafts included           | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-license.mjs`, `node scripts/moltenterm-check-icons.mjs`, `node scripts/moltenterm-check-lockfile.mjs` |
 | CLA           | Pull requests, drafts included    | `.github/workflows/cla.yml` (`pull_request_target`, read-only token, no secret): `node scripts/moltenterm-check-cla.mjs <PR>`. See "Contributor agreement" below. |
 | Dependency security | Always, drafts included | Reusable secret-free `security-scan.yml`: pinned npm/govulncheck, both module graphs and declared targets, scoped policy verdict and raw evidence artifact |
 | Frontend      | Skipped on draft pull requests    | `npm ci`, `npx tsc --noEmit` (the command behind `task check:ts`), `npx eslint . --quiet`, `npx vitest run`, `npm run build:prod`             |
@@ -128,6 +129,13 @@ Marking a draft pull request ready for review starts the full run, and returning
 instead of waiting for them through `needs`, so its check is pending from the first second: a pull request just marked
 ready cannot satisfy the ruleset with its draft's result while the full run is still going. Run the same commands
 locally before pushing: the ledger check reads the working tree, so it also sees uncommitted changes.
+
+`node scripts/moltenterm-check-lockfile.mjs` refuses a `package-lock.json` that `npm install` would rewrite (#1877),
+which `npm ci` lets through for most fields. It asks npm on a throwaway copy of the manifests and the lock: offline, with
+an empty cache and no `node_modules`, so the job stays quick. npm's version can change what it writes, so Quick checks
+first installs the one `packageManager` names. The release writes the three version fields of `versions.files` in
+`.molten/project.json`, as `npm version` does, so a bump stays green. The local CI's job passes `--committed` to read
+HEAD: its `ci.prepare` runs `npm install`, which would heal the working tree's lock before the job looks at it.
 
 The Taskfile's `npm install` steps (`task dev`, `task start`, `task init`) skip npm's audit and funding notes (#1276):
 npm's raw count mixes the docs site with the app. Dependency risks are triaged by surface in the Dependency security job,
