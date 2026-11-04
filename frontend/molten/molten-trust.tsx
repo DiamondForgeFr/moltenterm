@@ -213,7 +213,8 @@ function Identity({ req }: { req: MoltenTrustRequest }) {
 }
 
 function FactRow({ fact }: { fact: MoltenTrustFact }) {
-    const Icon = suiteIcon(fact.kind === "part" ? "agent" : "shell");
+    const concept = fact.kind === "part" ? "agent" : "shell";
+    const Icon = suiteIcon(concept);
     return (
         <div className="flex items-start gap-3 px-4 py-2.5" data-fact={fact.kind}>
             <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-secondary" aria-hidden />
