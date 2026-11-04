@@ -93,6 +93,7 @@ import { SectionHeading } from "./reviews-section-heading";
 import {
     cardStates,
     filledAction,
+    queueSectionOf,
     sectionOf,
     sectionRows,
     sectionsByTurn,
@@ -585,10 +586,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     // Check the agents sits on the heading of the section of what runs (agents work there), else of the first PR
     // section shown.
     const checkTurn = sections.some((s) => s.turn === "waiting") ? "waiting" : sections[0]?.turn;
-    // The queue and the after-merge line sit at the top of the first section when it is the developer's ("Yours" or
-    // "Ready"), else above the sections.
-    const firstTurn = sections[0]?.turn;
-    const queueTurn: CardTurn = firstTurn === "yours" || firstTurn === "ready" ? firstTurn : null;
+    const queueTurn = queueSectionOf(sections);
     const queueBlock = (
         <>
             <AfterMergeLine

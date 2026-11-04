@@ -162,6 +162,16 @@ export function withTurnShown(sections: TurnSection[], turn: CardTurn, shown: bo
     return [...rtn, { turn, prs: [] }, ...sections.slice(rtn.length)];
 }
 
+// queueSectionOf (#1876): where the merge queue and the after-merge line sit. The queue is the merge action of the PRs
+// the developer can merge now, so it heads "Ready to merge" (its call to action), not "Needs you", which holds what is
+// stuck. Without that section, at the top of "Needs you" when it comes first; null: above the sections.
+export function queueSectionOf(sections: readonly TurnSection[]): CardTurn {
+    if (sections.some((s) => s.turn === "ready")) {
+        return "ready";
+    }
+    return sections[0]?.turn === "yours" ? "yours" : null;
+}
+
 // The cards a keyboard walks: those of the open sections, in their shown order.
 export function sectionRows(sections: readonly TurnSection[], folded: Partial<Record<CardTurn, boolean>>): ReviewPr[] {
     return sections.filter((s) => !folded?.[s.turn]).flatMap((s) => s.prs);
