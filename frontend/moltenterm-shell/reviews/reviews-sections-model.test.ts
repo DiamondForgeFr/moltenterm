@@ -18,6 +18,7 @@ import {
     mergedGroups,
     mergedTitle,
     mergedWho,
+    queueSectionOf,
     sectionOf,
     sectionRows,
     sectionsByTurn,
@@ -152,6 +153,16 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[0]).toEqual(["yours", [1104, 1103, 1102, 1107]]);
         expect(turns(panel(), "merge", { 1104: 2, 1101: 1 })[0]).toEqual(["yours", [1104, 1103, 1102, 1107]]);
         expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[1]).toEqual(["ready", [1101]]);
+    });
+
+    it("puts the merge queue at the head of Ready to merge, where its call to action is (#1876)", () => {
+        const at = (...turns: ("yours" | "ready" | "waiting" | "agents")[]) =>
+            queueSectionOf(turns.map((turn) => ({ turn, prs: [] })));
+        expect(at("yours", "ready", "waiting")).toBe("ready");
+        expect(at("ready")).toBe("ready");
+        expect(at("yours", "waiting")).toBe("yours");
+        expect(at("waiting", "agents")).toBeNull();
+        expect(at()).toBeNull();
     });
 
     it("walks the open sections only, and finds a card's section", () => {
