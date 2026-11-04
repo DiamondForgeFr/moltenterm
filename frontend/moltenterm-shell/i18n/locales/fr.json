@@ -644,6 +644,10 @@
                 "title": "Agents",
                 "description": "Le compagnon des agents, et ce que MoltenTerm ajoute quand un agent démarre dans ses terminaux."
             },
+            "boss": {
+                "title": "{name}",
+                "description": "La bulle qui compte ce qui vous attend dans tous les espaces de travail."
+            },
             "browser": {
                 "title": "Navigateur",
                 "description": "Le panneau Page web, l'ouverture des pages, et le navigateur qu'utilisent les agents."
@@ -728,9 +732,22 @@
             "codingAgent": "Agent de code",
             "newViews": "Nouvelles vues",
             "sidebar": "Barre latérale",
-            "theme": "Thème"
+            "theme": "Thème",
+            "bubble": "Bulle"
         },
         "items": {
+            "boss:name": {
+                "label": "Nom",
+                "description": "Le nom de la bulle, de 1 à 24 caractères. Son initiale, son aperçu et ses menus le reprennent."
+            },
+            "boss:show": {
+                "label": "Afficher la bulle",
+                "description": "Une bulle dans chaque fenêtre compte les agents qui vous attendent. Désactivée, ni elle ni son fanion ne s'affichent."
+            },
+            "boss:collapseontype": {
+                "label": "Replier quand je tape dessous",
+                "description": "La bulle se replie en fanion quand vous tapez dans un terminal dessous, puis revient."
+            },
             "moltenterm:theme": {
                 "label": "Thème",
                 "description": "Les couleurs de l'interface. Les terminaux restent sombres, sauf si vous choisissez un thème de terminal clair.",
@@ -2866,6 +2883,31 @@
         },
         "palette": {
             "open": "Commandes et options : {panel}…"
+        }
+    },
+    "boss": {
+        "label": "{name}, {count} en attente",
+        "menu": {
+            "collapse": "Replier {name}",
+            "bringBack": "Rappeler {name}",
+            "resetPosition": "Réinitialiser la position",
+            "settings": "Réglages de {name}"
+        },
+        "peek": {
+            "quiet": "Rien n'attend votre réponse.",
+            "waitingTitle": "Vous attendent",
+            "workingTitle": "Au travail",
+            "usageTitle": "Usage du forfait",
+            "usage": "{agent} : {label}, {used}",
+            "latestTitle": "Dernière notification",
+            "more": {
+                "one": "et 1 autre",
+                "other": "et {count} autres"
+            },
+            "moreWorkspaces": {
+                "one": "et 1 autre espace de travail",
+                "other": "et {count} autres espaces de travail"
+            }
         }
     },
     "keepawake": {

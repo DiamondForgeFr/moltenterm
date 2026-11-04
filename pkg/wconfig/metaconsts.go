@@ -137,6 +137,11 @@ const (
 	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"
 	ConfigKey_MoltentermSidebarTint          = "moltenterm:sidebartint"
 	ConfigKey_MoltentermSidebarHeat          = "moltenterm:sidebarheat"
+
+	ConfigKey_BossName                       = "boss:name"
+	ConfigKey_BossShow                       = "boss:show"
+	ConfigKey_BossCollapseOnType             = "boss:collapseontype"
+
 	ConfigKey_MoltentermSettingsReveal       = "moltenterm:settingsreveal"
 	ConfigKey_MoltentermTheme                = "moltenterm:theme"
 	ConfigKey_MoltentermView360              = "moltenterm:view360"

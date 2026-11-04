@@ -30,6 +30,8 @@ export class AgentStates {
     private static instance: AgentStates = null;
 
     dataAtom = atom(EmptyAgentStates) as PrimitiveAtom<AgentStatesData>;
+    // True once the first snapshot is in: what arrives before it is a window starting, not an agent changing state.
+    loadedAtom = atom(false) as PrimitiveAtom<boolean>;
     blockAtoms = new Map<string, Atom<AgentStateInfo>>();
     workspaceAtoms = new Map<string, Atom<AgentStateInfo>>();
     started = false;
@@ -78,6 +80,7 @@ export class AgentStates {
                         { route: AgentStatesRoute, timeout: SnapshotTimeoutMs }
                     );
                     this.apply(snapshot ?? []);
+                    globalStore.set(this.loadedAtom, true);
                 } catch {
                     // wavesrv still starting: the route comes up with Mission Control.
                     if (++tries < SnapshotMaxTries) {

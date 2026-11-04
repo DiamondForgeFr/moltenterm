@@ -20,10 +20,12 @@ const (
 	SectionAppearance = "appearance"
 	SectionTerminal   = "terminal"
 	SectionAgents     = "agents"
-	SectionBrowser    = "browser"
-	SectionMission    = "mission"
-	SectionKeyboard   = "keyboard"
-	SectionAdvanced   = "advanced"
+	// The foreman's bubble (FR-BOSS-001): the screen titles the section with his name, which the developer chooses.
+	SectionBoss     = "boss"
+	SectionBrowser  = "browser"
+	SectionMission  = "mission"
+	SectionKeyboard = "keyboard"
+	SectionAdvanced = "advanced"
 )
 
 const (
@@ -53,6 +55,7 @@ var Sections = []string{
 	SectionAppearance,
 	SectionTerminal,
 	SectionAgents,
+	SectionBoss,
 	SectionBrowser,
 	SectionMission,
 	SectionKeyboard,
@@ -200,6 +203,12 @@ var settings = []Setting{
 	// Agents
 	{Key: "companion:usagegauges", Section: SectionAgents, Group: "Companion", Label: "Plan usage", Description: "The agents whose plan usage the companion shows.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 	{Key: "agent:sessionroots", Section: SectionAgents, Group: "Companion", Label: "More session folders", Description: "Extra configuration folders per agent whose sessions the companion reads.", Control: ControlJSON},
+
+	// The foreman (FR-BOSS-001): the bubble that counts what waits across every workspace.
+	// Range, for a text, is its length in characters.
+	{Key: "boss:name", Section: SectionBoss, Group: "Bubble", Label: "Name", Description: "The name the bubble goes by, from 1 to 24 characters. Its initial, peek and menus use it.", Control: ControlText, Range: rng(1, 24, 1), Default: "Ferrand"},
+	{Key: "boss:show", Section: SectionBoss, Group: "Bubble", Label: "Show the bubble", Description: "A bubble in every window counts the agents that wait for you. Off, neither it nor its pennant shows.", Control: ControlToggle, Default: true},
+	{Key: "boss:collapseontype", Section: SectionBoss, Group: "Bubble", Label: "Collapse while I type under it", Description: "The bubble folds into its pennant while you type in a terminal under it, then comes back.", Control: ControlToggle, Default: true},
 
 	// Browser
 	{Key: "browser:default", Section: SectionBrowser, Group: "Opening pages", Label: "Open web pages in", Description: "Where links and web pages open by default.", Control: ControlSelect, UnsetLabel: "Ask for each site", Options: []Option{{Value: "app", Label: "MoltenTerm's browser"}, {Value: "installed", Label: "The installed browser"}}},
