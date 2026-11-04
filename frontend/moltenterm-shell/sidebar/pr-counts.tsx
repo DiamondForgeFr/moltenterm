@@ -4,9 +4,9 @@
 // The pull request status dots on the block that shows Integration (FR-SHELL-085, #1304; FR-SHELL-098, #1327): one
 // small dot per section of the panel with pull requests, stacked in the block's corner column under its agent mark
 // or modified ring, the most critical at the top. No number on the block: each dot's tooltip and accessible name
-// give the section's title and the number of PRs it lists. Each dot takes its state's shape (FR-SHELL-116: blocked a
-// diamond, yours a haloed dot, ready a filled dot, running an arc, the agents' a hollow dot). Dots showing up fade in
-// once, a dot whose count changes glows once; only the running arc moves, on the working beat.
+// give the section's title and the number of PRs it lists. Each dot takes its state's shape (FR-SHELL-116: yours a
+// haloed dot, ready a filled dot, running an arc, the agents' a hollow dot). Dots showing up fade in once, a dot whose
+// count changes glows once; only the running arc moves, on the working beat.
 
 import { atoms } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
@@ -29,8 +29,8 @@ import {
     PrCountKind,
     PrCountKinds,
     PrCounts,
-    prCountSectionKey,
     prCounts,
+    prCountSectionKey,
     shownPrKinds,
     ViewBlocks,
 } from "./pr-counts-model";

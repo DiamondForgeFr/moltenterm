@@ -141,7 +141,7 @@ describe("Reviews card (#1060)", () => {
         expect(primary(html)).toContain("Assisted review");
     });
 
-    it("something works: the dominoes replace the state dot (#1085)", () => {
+    it("something works: the dominoes sit beside the status line, which says what runs (#1085, #1876)", () => {
         const running = rowHtml(
             pr(8, {
                 ci: {
@@ -156,10 +156,20 @@ describe("Reviews card (#1060)", () => {
         expect(running).toContain('data-works="state"');
         expect(running).toContain('data-testid="reviews-card-working"');
         expect(running).toContain("df-domino-loader");
-        expect(running).not.toContain('data-testid="reviews-card-dot"');
+        const status = /data-testid="reviews-card-status"[^>]*>(.*?)<\/div>/.exec(running)?.[1] ?? "";
+        expect(status).toContain("reviews-card-working");
+        expect(status.replace(/<[^>]*>/g, "")).toBe("CI running · 1/2 · Backend");
         const ready = rowHtml(pr(9));
         expect(ready).not.toContain("df-domino-loader");
         expect(ready).toContain('data-testid="reviews-card-dot"');
+        expect(ready).not.toContain("data-works");
+    });
+
+    it("nothing works: the status line says so and why, still (#1876)", () => {
+        const html = rowHtml(pr(9, { merge: "conflicts" }));
+        const status = /data-testid="reviews-card-status"[^>]*>(.*?)<\/div>/.exec(html)?.[1] ?? "";
+        expect(status).not.toContain("df-domino-loader");
+        expect(status.replace(/<[^>]*>/g, "")).toBe("Nothing runs · conflicts with develop");
     });
 
     it("conflicts: one action, Hand the rebase over", () => {
@@ -202,7 +212,9 @@ describe("Reviews card (#1060)", () => {
 
     it("the card's accessible name carries its state and facts", () => {
         const html = rowHtml(pr(12));
-        expect(html).toMatch(/aria-label="PR 12, pull request #12, Ready to merge, CI 2\/2, report"/);
+        expect(html).toMatch(
+            /aria-label="PR 12, pull request #12, Ready to merge, Nothing runs · CI green, CI 2\/2, report"/
+        );
     });
 
     describe("in French", () => {

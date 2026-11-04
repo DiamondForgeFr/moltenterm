@@ -56,6 +56,10 @@ func (waveEnv) Run(blockId string) (molten.AgentRunInfo, bool) {
 	return attention.AgentRun(blockId)
 }
 
+func (waveEnv) SettleStop(blockId string, by string, note string) string {
+	return attention.SettleAgentStop(blockId, by, note)
+}
+
 func (waveEnv) Subagents(blockId string) []companion.SubagentIdentity {
 	return companion.PaneSubagents(blockId)
 }

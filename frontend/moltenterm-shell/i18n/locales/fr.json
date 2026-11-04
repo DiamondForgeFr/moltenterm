@@ -7304,7 +7304,8 @@
                 "ciTrust": "CI locale en attente de votre approbation",
                 "ciStopped": "CI locale interrompue",
                 "ciElsewhere": "CI locale non lancée sur cet ordinateur",
-                "ciRunning": "CI en cours",
+                "ciRunning": "En attente de la CI",
+                "queueStopped": "La file de fusion s'est arrêtée dessus",
                 "mergeChecking": "GitHub vérifie la fusion",
                 "ready": "Prête à fusionner",
                 "readyReview": "Prête · à vous de relire et fusionner",
@@ -7332,7 +7333,6 @@
                 "approval": "GitHub attend une approbation",
                 "reasons": "{reasons}",
                 "yours": "à vous",
-                "running": "{count} sur {total}, {names}",
                 "ciTrust": "ses commandes doivent être approuvées avant que la CI tourne ({names})",
                 "ciStopped": "dernière nouvelle le {when}, plus rien ne la fait tourner ({names})",
                 "ciStoppedUnknown": "plus rien ne la fait tourner ({names})",
@@ -7364,6 +7364,7 @@
                 "stop": "Arrêter {name}",
                 "rerun": "Relancer les jobs en échec : {names}",
                 "markReady": "Passer en revue",
+                "settle": "Marquer l'arrêt comme réglé",
                 "goTo": "Aller à #{number}",
                 "markReadyMenu": "Passer en revue : la PR quitte le brouillon"
             },
@@ -7385,7 +7386,6 @@
             "fact": {
                 "ciFailing": "CI en échec : {names}",
                 "othersGreen": "{count} autres vérifications vertes",
-                "ciRunning": "CI {success}/{total}, {pending} en cours",
                 "ciGreen": "CI {success}/{total}",
                 "ciSkipped": "CI {success}/{total}, ignorées : {skipped}",
                 "report": "rapport",
@@ -7404,6 +7404,46 @@
             },
             "history": {
                 "gone": "{name} s'est arrêté avant de finir {what}."
+            },
+            "status": {
+                "idle": "Rien ne tourne · {why}",
+                "ci": "CI en cours · {done}/{total} · {names}",
+                "ciSince": "CI en cours · {done}/{total} · {names} · {elapsed}",
+                "agent": "{name} travaille dessus",
+                "agentSince": "{name} travaille dessus · {elapsed}",
+                "agentProbably": "Un agent y travaille probablement",
+                "merge": "GitHub vérifie la fusion",
+                "why": {
+                    "agentWaiting": "{name} attend votre réponse",
+                    "waitingOn": "attend la fusion de #{number}",
+                    "agentFinish": "{name} s'est arrêté avant de la marquer prête",
+                    "interrupted": "la tâche de {name} s'est arrêtée avant la fin",
+                    "conflicts": "conflits avec {base}",
+                    "changes": "modifications demandées",
+                    "queueStopped": "la file de fusion s'est arrêtée dessus",
+                    "ciTrust": "la CI locale attend votre accord",
+                    "ciStopped": "la CI locale a été interrompue",
+                    "ciElsewhere": "la CI locale ne tourne pas sur cet ordinateur",
+                    "approval": "attend une approbation",
+                    "rule": "une règle bloque la fusion",
+                    "draftToTest": "brouillon à tester · {ci}",
+                    "ciGreenAgo": "CI terminée il y a {ago}, verte",
+                    "ciGreen": "CI verte",
+                    "ciNone": "aucun résultat de CI pour l'instant",
+                    "ciFailedAgo": "CI terminée il y a {ago}, rouge sur {names}",
+                    "ciFailed": "CI terminée, rouge sur {names}"
+                }
+            },
+            "settled": {
+                "by": "réglé par {name} : {note}",
+                "byNoNote": "réglé par {name}",
+                "you": "réglé par vous : {note}",
+                "youNoNote": "réglé par vous",
+                "markedReady": "marquée prête"
+            },
+            "settle": {
+                "none": "Plus aucun arrêt n'attend cet agent.",
+                "ownPrompt": "Cet agent est bloqué sur une question de son propre terminal : répondez-y là."
             }
         },
         "sort": {
@@ -7413,15 +7453,14 @@
             "merge": "Ordre de fusion"
         },
         "sections": {
-            "yours": "À vous",
-            "yoursHint": "répondre, relire, tester",
-            "ready": "Prêtes",
-            "readyHint": "à fusionner",
-            "agents": "Aux agents",
-            "blocked": "Bloquées",
-            "blockedHint": "personne dessus",
+            "yours": "Intervention requise",
+            "yoursHint": "bloquées tant que vous n'agissez pas",
+            "ready": "Prêtes à fusionner",
+            "readyHint": "CI verte, rien d'ouvert",
             "waiting": "En cours",
-            "waitingHint": "en attente de la CI",
+            "waitingHint": "quelque chose tourne",
+            "agents": "Aux agents",
+            "agentsHint": "rien ne tourne, rien pour vous",
             "none": "Aucune pull request ouverte vers",
             "working": "Du travail est en cours dans cette section"
         }

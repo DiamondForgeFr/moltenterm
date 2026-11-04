@@ -182,6 +182,8 @@ type RestartEnv struct {
 	Gh           GhRunner
 	HoldState    func(blockId string, state string, message string, text *uimsg.Text)
 	ReleaseState func(blockId string, state string, message string, text *uimsg.Text)
+	// StopSettled (#1876): the terminal's stop was settled by the lead or the developer, so it raises no notification.
+	StopSettled func(blockId string) bool
 	// The lead agent that owns a PR (#1779, lead.go): FindLead says which running agent a LeadQuery names, SendLead gives
 	// it MoltenTerm's own brief through the handoffs (the developer's click is the approval), LeadSession says how a lead
 	// that no longer runs is resumed, PreferName gives a resumed terminal the lead's first name back. LeadStartWait and

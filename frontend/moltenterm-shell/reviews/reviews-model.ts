@@ -36,6 +36,8 @@ export type ReviewCheck = {
     startedat?: string;
     // ms; an interrupted local CI check's last sign of life
     stoppedat?: number;
+    // When a finished check ended (RFC 3339), for the card's "CI finished 3 h ago" (#1876); absent while it runs.
+    completedat?: string;
 };
 
 export type ReviewCi = {

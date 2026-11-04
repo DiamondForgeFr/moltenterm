@@ -24,7 +24,15 @@ import { RowAgentLine, useCardContext, useHeadStillFails } from "./reviews-agent
 import type { QueuedAsk } from "./reviews-ask-queue";
 import { BatchRowChip, BatchStopLine } from "./reviews-batch";
 import type { BatchRowMark, BatchStopAction } from "./reviews-batch-model";
-import { CardAction, CardFact, CardFactTone, cardState, CardState, CardTone } from "./reviews-card-model";
+import {
+    CardAction,
+    CardFact,
+    CardFactTone,
+    cardState,
+    CardState,
+    CardTone,
+    settledPhrase,
+} from "./reviews-card-model";
 import { RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { relationClass } from "./reviews-forecast";
 import { LaunchCardActions } from "./reviews-launch";
@@ -37,6 +45,7 @@ import { MergeOrderRank } from "./reviews-order";
 import { QueuedAskLine } from "./reviews-queue";
 import { CardRelation, groupMergeAction } from "./reviews-queue-model";
 import { cardInputOf } from "./reviews-sections-model";
+import { settleAll, settleFromCard } from "./reviews-settle-client";
 import { ReviewsModel } from "./reviews-store";
 import type { PrTaskKind } from "./reviews-task-model";
 
@@ -194,7 +203,10 @@ export function ReviewRow({
     const input = useMemo(() => cardInputOf(pr, rebaseAsk, ctx), [pr, rebaseAsk, ctx]);
     const prTask = input.task;
     useHeadStillFails(dir, pr, input.agents, input.taskState);
-    const markReady = useMarkReady(dir, pr.number, repo);
+    // Marking it ready from this panel is the developer's decision about the question its agent stopped on (#1876).
+    const markReady = useMarkReady(dir, pr.number, repo, () =>
+        fireAndForget(() => settleAll(input.agents, t("reviews.card.settled.markedReady")))
+    );
     const rerun = useRerunFailed(dir, pr.number);
     const origin = usePanelOrigin();
     const [busy, setBusy] = useState<string>(null);
@@ -301,6 +313,9 @@ export function ReviewRow({
                 }
                 runPhrase(action.id, () => model.stopAgent(action.blockId));
                 return;
+            case "settle":
+                runPhrase(action.id, () => settleFromCard(action.blockId, ""));
+                return;
             case "rerun":
                 rerun.ask();
                 return;
@@ -396,6 +411,8 @@ export function ReviewRow({
             ? word(card.primary.confirm)
             : word(card.menu.find((a) => a.id === "mark-ready")?.confirm);
     const sentence = word(card.sentence);
+    const status = word(card.status.line);
+    const settledText = word(settledPhrase(card.settled));
     // A queued card says its place in the order where its own state gives no reason, or only the CI's.
     const queueSays = queueWhy != null && (card.why == null || card.kind === "ready" || card.kind === "ci-running");
     const why = word(queueSays ? queueWhy : card.why);
@@ -439,6 +456,7 @@ export function ReviewRow({
                 t("reviews.aria.pr", { number: pr.number }),
                 pr.draft ? t("reviews.card.draftTag") : "",
                 why ? `${sentence} · ${why}` : sentence,
+                status,
                 ...facts.map((f) => word(f.text)),
                 relationFact,
                 relationTag,
@@ -498,7 +516,8 @@ export function ReviewRow({
                             </span>
                         ) : null}
                     </div>
-                    <CardStateLine tone={card.tone} sentence={sentence} why={why} working={card.motion === "state"} />
+                    <CardStateLine tone={card.tone} sentence={sentence} why={why} working={false} />
+                    <CardStatusLine running={card.status.running} moving={card.motion === "state"} text={status} />
                     {wait ? (
                         <div
                             className="flex min-w-0 items-center gap-1.5 text-11 leading-4 text-secondary"
@@ -551,6 +570,15 @@ export function ReviewRow({
                     {card.history ? (
                         <div className="text-11 leading-4 text-muted" data-testid="reviews-card-history">
                             {word(card.history)}
+                        </div>
+                    ) : null}
+                    {settledText ? (
+                        <div
+                            className="min-w-0 truncate text-11 leading-4 text-muted"
+                            title={settledText}
+                            data-testid="reviews-card-settled"
+                        >
+                            {settledText}
                         </div>
                     ) : null}
                 </div>
@@ -694,6 +722,31 @@ export function CardStateLine({
             <span className="min-w-0 truncate" title={why ? `${sentence} · ${why}` : sentence}>
                 {sentence}
                 {why ? <span className="font-normal text-secondary"> · {why}</span> : null}
+            </span>
+        </div>
+    );
+}
+
+// The card's status line (#1876, FR-REV-001 AC17): what runs on the PR now, with the dominoes beside it while nothing
+// else of the card moves, or "Nothing runs" and why, still. It is always there, so a card never reads idle while a check
+// runs, nor busy when nothing does.
+export function CardStatusLine({ running, moving, text }: { running: boolean; moving: boolean; text: string }) {
+    return (
+        <div
+            className={cn(
+                "flex min-w-0 items-center gap-1.5 text-11 leading-4",
+                running ? "text-secondary" : "text-muted"
+            )}
+            data-testid="reviews-card-status"
+            data-running={running || undefined}
+        >
+            {moving ? (
+                <span className="-mx-1 inline-flex shrink-0 scale-75" data-testid="reviews-card-working">
+                    <DominoLoader />
+                </span>
+            ) : null}
+            <span className="min-w-0 truncate" title={text}>
+                {text}
             </span>
         </div>
     );

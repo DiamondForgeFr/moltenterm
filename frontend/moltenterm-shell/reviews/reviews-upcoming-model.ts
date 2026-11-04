@@ -160,6 +160,9 @@ export type AgentBarFacts = {
     elsewhere?: { ticket: number };
     // A panel whose session only passed through the branch's worktree (#1841): idle here, its line says so.
     visiting?: boolean;
+    // The stop this panel made for a decision was settled by its lead or the developer (#1876): it is idle, and this
+    // says who settled it and why. by is "" for the developer.
+    settled?: { by: string; note: string; at: number };
 };
 
 // The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv; so does
@@ -376,6 +379,9 @@ export function panelFacts(blockId: string, info: AgentStateInfo, placed?: Branc
     };
     if (info.messagetext != null) {
         facts.held = { text: info.messagetext, english: info.message ?? "" };
+    }
+    if (info.settled != null) {
+        facts.settled = { by: info.settled.by ?? "", note: info.settled.note ?? "", at: info.settled.at };
     }
     return facts;
 }

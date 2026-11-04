@@ -7304,7 +7304,8 @@
                 "ciTrust": "Local CI waiting for your approval",
                 "ciStopped": "Local CI interrupted",
                 "ciElsewhere": "Local CI not running on this computer",
-                "ciRunning": "CI running",
+                "ciRunning": "Waiting for the CI",
+                "queueStopped": "The merge queue stopped on it",
                 "mergeChecking": "GitHub is checking the merge",
                 "ready": "Ready to merge",
                 "readyReview": "Ready · yours to review and merge",
@@ -7332,7 +7333,6 @@
                 "approval": "GitHub awaits an approval",
                 "reasons": "{reasons}",
                 "yours": "yours",
-                "running": "{count} of {total}, {names}",
                 "ciTrust": "its commands must be approved before the CI runs ({names})",
                 "ciStopped": "last heard of on {when}, nothing runs it now ({names})",
                 "ciStoppedUnknown": "nothing runs it now ({names})",
@@ -7365,6 +7365,7 @@
                 "rerun": "Rerun failed jobs: {names}",
                 "markReady": "Mark ready for review",
                 "markReadyMenu": "Mark ready for review: the PR leaves draft",
+                "settle": "Mark the stop as settled",
                 "goTo": "Go to #{number}"
             },
             "ciRun": {
@@ -7385,7 +7386,6 @@
             "fact": {
                 "ciFailing": "CI failing: {names}",
                 "othersGreen": "{count} other checks green",
-                "ciRunning": "CI {success}/{total}, {pending} running",
                 "ciGreen": "CI {success}/{total}",
                 "ciSkipped": "CI {success}/{total}, {skipped} skipped",
                 "report": "report",
@@ -7404,6 +7404,46 @@
             },
             "history": {
                 "gone": "{name} stopped before finishing {what}."
+            },
+            "status": {
+                "idle": "Nothing runs · {why}",
+                "ci": "CI running · {done}/{total} · {names}",
+                "ciSince": "CI running · {done}/{total} · {names} · {elapsed}",
+                "agent": "{name} is working on it",
+                "agentSince": "{name} is working on it · {elapsed}",
+                "agentProbably": "An agent is probably working on it",
+                "merge": "GitHub is checking the merge",
+                "why": {
+                    "agentWaiting": "{name} waits for your answer",
+                    "waitingOn": "waiting for #{number} to merge",
+                    "agentFinish": "{name} stopped before marking it ready",
+                    "interrupted": "{name}'s task stopped before it was done",
+                    "conflicts": "conflicts with {base}",
+                    "changes": "changes requested",
+                    "queueStopped": "the merge queue stopped on it",
+                    "ciTrust": "the local CI waits for your approval",
+                    "ciStopped": "the local CI was interrupted",
+                    "ciElsewhere": "the local CI does not run on this computer",
+                    "approval": "waiting for an approval",
+                    "rule": "a rule blocks the merge",
+                    "draftToTest": "draft to test · {ci}",
+                    "ciGreenAgo": "CI finished {ago} ago, green",
+                    "ciGreen": "CI green",
+                    "ciNone": "no CI result yet",
+                    "ciFailedAgo": "CI finished {ago} ago, red on {names}",
+                    "ciFailed": "CI finished, red on {names}"
+                }
+            },
+            "settled": {
+                "by": "settled by {name}: {note}",
+                "byNoNote": "settled by {name}",
+                "you": "settled by you: {note}",
+                "youNoNote": "settled by you",
+                "markedReady": "marked ready"
+            },
+            "settle": {
+                "none": "No stop waits on this agent any more.",
+                "ownPrompt": "This agent is blocked on a prompt of its own terminal: answer it there."
             }
         },
         "sort": {
@@ -7413,15 +7453,14 @@
             "merge": "Merge order"
         },
         "sections": {
-            "yours": "Yours",
-            "yoursHint": "answer, review, test",
-            "ready": "Ready",
-            "readyHint": "merge",
+            "yours": "Needs you",
+            "yoursHint": "stuck until you act",
+            "ready": "Ready to merge",
+            "readyHint": "CI green, nothing open",
+            "waiting": "In progress",
+            "waitingHint": "something runs",
             "agents": "With the agents",
-            "blocked": "Blocked",
-            "blockedHint": "nobody on it",
-            "waiting": "Running",
-            "waitingHint": "waiting on CI",
+            "agentsHint": "nothing runs, nothing for you",
             "none": "No pull request open into",
             "working": "Work in progress in this section"
         }

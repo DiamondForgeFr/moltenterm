@@ -352,7 +352,7 @@ export function BatchConfirmDialog({
     );
 }
 
-// The banner in the Reviews list's "Agents on it" section (FR-REV-026 AC7, #1123): who works on the queue and its PRs
+// The banner in the Reviews list's "In progress" section (FR-REV-026 AC7, #1123, #1876): who works on the queue and its PRs
 // in order, the dominoes while it runs, its progress and the PR in progress, each validated PR with its place and
 // Cancel validation until its merge starts, Stop and the way to the agent's terminal; the summary once it ended, until
 // Hide.
@@ -516,7 +516,7 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
     );
 }
 
-// The pointer a hidden, finished queue leaves in "Agents on it" while its agent's session is open (#1128,
+// The pointer a hidden, finished queue leaves in "In progress" while its agent's session is open (#1128,
 // FR-REV-026 AC13): one line with Go there; it goes with the session.
 export function BatchPointer({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
     const t = useT();

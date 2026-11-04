@@ -69,7 +69,7 @@ function cardOf(p: ReviewPr, r: BatchRun, states?: AgentStatesData) {
 }
 
 describe("the card of a PR in a running group merge", () => {
-    it("is in the agents' section while the queue reads it, rebases it, waits for its checks and merges it", () => {
+    it("is in the In progress section while the queue reads it, rebases it, waits for its checks and merges it", () => {
         const steps: [BatchItemState, Partial<BatchItem>, string][] = [
             ["checking", {}, "Read on GitHub before its merge"],
             ["rebasing", {}, "Rémi rebases it on develop"],
@@ -79,7 +79,7 @@ describe("the card of a PR in a running group merge", () => {
         ];
         for (const [state, over, sentence] of steps) {
             const card = cardOf(pr(1118), run(item(1118, 1102, state, over)));
-            expect(card.turn, state).toBe("agents");
+            expect(card.turn, state).toBe("waiting");
             expect(card.kind).toBe("agent-working");
             expect(wordPhrase(card.sentence)).toBe(sentence);
             expect(card.agent?.batch).toBe(true);
@@ -104,15 +104,18 @@ describe("the card of a PR in a running group merge", () => {
     it("keeps its own section while it waits its turn", () => {
         const r = run(item(1118, 1102, "rebasing"));
         const waiting = cardOf(pr(1119), r);
-        expect(waiting.turn).toBe("blocked");
+        expect(waiting.turn).toBe("yours");
         expect(waiting.agent).toBeUndefined();
     });
 
     it("goes back to its own section once the queue left it: done, voided, set aside or the queue ended", () => {
-        expect(cardOf(pr(1118), run(item(1118, 1102, "merged"))).turn).toBe("blocked");
-        expect(cardOf(pr(1118), run(item(1118, 1102, "voided"))).turn).toBe("blocked");
-        expect(cardOf(pr(1118, { merge: "clean" }), run(item(1118, 1102, "failed"))).turn).toBe("ready");
-        expect(cardOf(pr(1118), run(item(1118, 1102, "rebasing"), { state: "cancelled" })).turn).toBe("blocked");
+        expect(cardOf(pr(1118), run(item(1118, 1102, "merged"))).turn).toBe("yours");
+        expect(cardOf(pr(1118), run(item(1118, 1102, "voided"))).turn).toBe("yours");
+        // Set aside on a failing check, the queue's stop is the developer's move (#1876): the row says what to do.
+        const setAside = cardOf(pr(1118, { merge: "clean" }), run(item(1118, 1102, "failed")));
+        expect([setAside.kind, setAside.turn]).toEqual(["queue-stopped", "yours"]);
+        expect(cardOf(pr(1118, { merge: "clean" }), run(item(1118, 1102, "queued"))).turn).toBe("ready");
+        expect(cardOf(pr(1118), run(item(1118, 1102, "rebasing"), { state: "cancelled" })).turn).toBe("yours");
     });
 
     it("is the developer's when the agent waits for an answer", () => {
@@ -126,7 +129,7 @@ describe("the card of a PR in a running group merge", () => {
     it("names the agent before its terminal is known, without a terminal to reach", () => {
         const r = run(item(1118, 1102, "rebasing"), { blockid: "", agentname: "" });
         const card = cardOf(pr(1118), r, { states: {} } as unknown as AgentStatesData);
-        expect(card.turn).toBe("agents");
+        expect(card.turn).toBe("waiting");
         expect(wordPhrase(card.sentence)).toBe("Your agent rebases it on develop");
         expect(card.primary).toBeNull();
     });

@@ -1,15 +1,15 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The Reviews panel's sections by whose turn it is (#1061, FR-REV-001 AC12 and AC13, FR-REV-022 AC11, FR-REV-027 AC6
-// to AC8): the cards' one state (reviews-card-model.ts) sorts them into Yours, Agents on it, Blocked and Waiting; the
-// header's sort orders each section by state or by the suggested merge order; Upcoming puts what waits for the
-// developer first and groups sub-agents under their session; Recently merged groups the PRs by the version that ships
-// them. Pure, so the list and each card read the same state.
+// The Reviews panel's sections by what the developer must do (#1061, #1876, FR-REV-001 AC13 and AC16, FR-REV-022 AC11,
+// FR-REV-027 AC6 to AC8): the cards' one state (reviews-card-model.ts) sorts them into Needs you, Ready to merge, In
+// progress and With the agents; the header's sort orders each section by state or by the suggested merge order;
+// Upcoming puts what waits for the developer first and groups sub-agents under their session; Recently merged groups
+// the PRs by the version that ships them. Pure, so the list and each card read the same state.
 
 import type { AgentStatesData } from "../agent-state-model";
 import { batchWorkItem, withBatchAgent } from "./reviews-batch-agent";
-import type { BatchRun } from "./reviews-batch-model";
+import { batchRowMark, type BatchRun } from "./reviews-batch-model";
 import { CardInput, CardState, cardState, CardStateKinds, CardTurn, openWaits } from "./reviews-card-model";
 import type { ReviewMergedPr } from "./reviews-merged-model";
 import { checksOf, RebaseAsk, ReviewPr } from "./reviews-model";
@@ -25,7 +25,7 @@ import {
 } from "./reviews-upcoming-model";
 
 // The PR sections, in the order the panel shows them.
-export const TurnOrder: CardTurn[] = ["yours", "ready", "agents", "blocked", "waiting"];
+export const TurnOrder: CardTurn[] = ["yours", "ready", "waiting", "agents"];
 
 // must match the sort choices of reviews-order-store.ts; "learn" joins with the learning grades (#788, #1064).
 export type ReviewsSort = "state" | "merge";
@@ -87,6 +87,8 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         others: prOtherBranches(ctx.upcoming, pr),
         batch: batchItem != null ? { run, item: batchItem } : undefined,
         waitsOn: openWaits(pr),
+        now: ctx.now,
+        batchStopped: batchRowMark(run, pr.number)?.stop != null,
     };
 }
 
@@ -150,7 +152,7 @@ export function sectionsByTurn(
 }
 
 // withTurnShown: the sections with turn's present, empty when no card is in it, at its place in TurnOrder. The merge
-// queue's banner lives in "Agents on it" (#1123): the section shows while the queue does, cards or not.
+// queue's banner lives in "In progress" (#1123, #1876): the section shows while the queue does, cards or not.
 export function withTurnShown(sections: TurnSection[], turn: CardTurn, shown: boolean): TurnSection[] {
     if (!shown || sections.some((s) => s.turn === turn)) {
         return sections;

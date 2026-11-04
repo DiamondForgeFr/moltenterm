@@ -128,7 +128,10 @@ type agentRecord struct {
 	// messageText: message's code when MoltenTerm wrote it (the end of a hold, agenthold.go).
 	messageText *uimsg.Text
 	since       int64
-	version     int64
+	// stateSeq: a number no other state change of the app has, so a settled stop (agenthold.go) tells the state it
+	// answers from a later one even when the clock gave both the same millisecond.
+	stateSeq int64
+	version  int64
 	// started: when the agent's command started (or its first report came), for the companion's session discovery.
 	started int64
 	// running: the agent's command still runs (an exited agent keeps its error until the next command).
@@ -160,10 +163,11 @@ type agentStates struct {
 	lock    sync.Mutex
 	records map[string]*agentRecord
 	// Blocks whose state changed since the publisher's last pass.
-	dirty   map[string]bool
-	version int64
-	notices map[string]noticeMark
-	panes   map[string]*paneActivity
+	dirty    map[string]bool
+	version  int64
+	stateSeq int64
+	notices  map[string]noticeMark
+	panes    map[string]*paneActivity
 	// holds: the blocks whose state MoltenTerm owns (agenthold.go, #896).
 	holds map[string]*agentHold
 	// hookedAgents: the agents whose hooks reported in this run; onHooked is told of each once (agenthookoffer.go).
@@ -254,6 +258,8 @@ func (a *agentStates) setStateLocked(blockId string, rec *agentRecord, state str
 	}
 	if rec.state != state {
 		rec.since = a.now().UnixMilli()
+		a.stateSeq++
+		rec.stateSeq = a.stateSeq
 		rec.fromActivity = false
 	}
 	rec.state = state

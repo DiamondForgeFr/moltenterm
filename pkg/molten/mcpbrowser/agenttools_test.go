@@ -45,6 +45,16 @@ func TestAgentInstructionsMentionMoltenFiles(t *testing.T) {
 	}
 }
 
+// A lead of any CLI learns to settle the stop of an agent whose question it decided (#1876).
+func TestAgentInstructionsMentionSettlingAStop(t *testing.T) {
+	for _, name := range []string{"", "Arthur"} {
+		got := AgentInstructions(name)
+		if !strings.Contains(got, "molten agent decision settle") || !strings.Contains(got, "agent-decisions.md") {
+			t.Fatalf("instructions for %q do not mention settling a stop: %s", name, got)
+		}
+	}
+}
+
 // Claude Code and Codex start the same server and read the instructions it returns at initialize: a page shown to the
 // developer opens in MoltenTerm's browser for both, with or without the agent's first name (#1812).
 func TestInitializeTellsEveryAgentToShowPagesInMoltenTerm(t *testing.T) {

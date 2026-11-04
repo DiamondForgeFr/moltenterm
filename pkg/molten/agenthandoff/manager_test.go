@@ -36,6 +36,27 @@ type fakeEnv struct {
 	dataDir  string
 	onNotify func(input molten.NotificationInput)
 	handoffs [][2]string
+	// stops: the status SettleStop answers per block (none when absent); settled records the calls.
+	stops   map[string]string
+	settled []settleCall
+}
+
+type settleCall struct{ blockId, by, note string }
+
+func (e *fakeEnv) SettleStop(blockId string, by string, note string) string {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	e.settled = append(e.settled, settleCall{blockId, by, note})
+	if status, ok := e.stops[blockId]; ok {
+		return status
+	}
+	return molten.AgentSettleNone
+}
+
+func (e *fakeEnv) settleCalls() []settleCall {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	return append([]settleCall(nil), e.settled...)
 }
 
 func (e *fakeEnv) VerifyToken(token string) (string, error) {
