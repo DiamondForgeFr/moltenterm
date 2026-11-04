@@ -9794,7 +9794,8 @@
             "expand": "Show what {name} is linked to",
             "collapse": "Hide what {name} is linked to",
             "projectTitle": "Runs in {project}",
-            "outsideTitle": "Runs in {folder}, outside this workspace's projects"
+            "outsideTitle": "Runs in {folder}, outside this workspace's projects",
+            "noProject": "No project"
         },
         "view": {
             "equalize": "Equalize panel widths",
