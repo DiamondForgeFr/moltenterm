@@ -188,6 +188,26 @@ func (s *Service) noteDriver(mod string, caller localroute.Caller) {
 	}
 }
 
+// mayChange tells whether the caller may change the design: nobody runs it, the caller does, or the caller is in the
+// design's own tab. Another agent elsewhere never rewrites what the developer is looking at, nor takes their clicks.
+func (s *Service) mayChange(mod string, caller localroute.Caller) error {
+	d, ok := s.Store.Get(mod)
+	if !ok || d.Driver == "" || d.Driver == caller.BlockId {
+		return nil
+	}
+	first, agent, running := s.B.Agent(d.Driver)
+	if !running {
+		return nil
+	}
+	if d.TabId != "" {
+		if _, tabId, err := s.B.Locate(caller.BlockId); err == nil && tabId == d.TabId {
+			return nil
+		}
+	}
+	return fmt.Errorf("the design of %q is driven by %s: only that agent, or a terminal of the design's own tab, changes it",
+		mod, strings.TrimSpace(first+" "+agent))
+}
+
 func (s *Service) handleAgent(command string, caller localroute.Caller, req molten.MorphDesignRequest) (any, error) {
 	if command == molten.MorphDesignOpenCommand {
 		return s.open(caller, req)
@@ -196,7 +216,13 @@ func (s *Service) handleAgent(command string, caller localroute.Caller, req molt
 	if err != nil {
 		return nil, err
 	}
-	s.noteDriver(mod, caller)
+	changeErr := s.mayChange(mod, caller)
+	if changeErr != nil && command != molten.MorphDesignShowCommand {
+		return nil, changeErr
+	}
+	if changeErr == nil {
+		s.noteDriver(mod, caller)
+	}
 	var d molten.MorphDesign
 	switch command {
 	case molten.MorphDesignShowCommand:
@@ -249,11 +275,14 @@ func (s *Service) open(caller localroute.Caller, req molten.MorphDesignRequest) 
 	if err != nil || workspaceId == "" {
 		return nil, fmt.Errorf("this terminal's window could not be found")
 	}
+	changeErr := s.mayChange(req.Mod, caller)
 	d, err := s.Store.Open(req.Mod, req.Name, dir, workspaceId)
 	if err != nil {
 		return nil, err
 	}
-	s.noteDriver(d.Mod, caller)
+	if changeErr == nil {
+		s.noteDriver(d.Mod, caller)
+	}
 	d, _ = s.Store.Get(d.Mod)
 	h := molten.MorphDesignHandoff{Id: uuid.NewString(), Mod: d.Mod, Name: d.Name, Dir: d.Dir, WorkspaceId: workspaceId, At: s.now().UnixMilli()}
 	s.B.PublishHandoff(workspaceId, h)

@@ -42,6 +42,8 @@ var englishFields = map[string]string{
 	"pipelinesetup.BoardExplain.Note":       "the setup agent's own words beside the highlighted step (#1163)",
 	"pipelinesetup.BoardRefusal.Detail":     "`molten pipeline setup` output, agent-facing (#1163)",
 	"mission.SetupAgentRequest.Why":         "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
+	"molten.MorphDesignChoice.Detail":       "the design agent's own line under a choice, shown as it wrote it in the design panel (#1888)",
+	"molten.MorphDesignDraft.Note":          "the design agent's own sentence about its draft, shown as it wrote it in the design panel (#1888)",
 	"mission.SetupAgentRequest.Note":        "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
 	"onboarding.agentSignInRequest.Note":    "a line the frontend already translated (signInNote), printed above the sign-in command (#1723)",
 	"review.MergePlan.Warnings":             "check ids (MergeCheck codes), worded by the Validate sheet",
