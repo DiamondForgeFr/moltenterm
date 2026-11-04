@@ -447,6 +447,64 @@ func TestAFailedSendIsNotTheDevelopersProblem(t *testing.T) {
 	}
 }
 
+// Another agent in another tab cannot rewrite a design an agent runs, nor take its clicks; an agent in the design's own tab
+// can, and a design nobody runs is free to any agent.
+func TestAnotherAgentElsewhereCannotChangeADesignAnAgentRuns(t *testing.T) {
+	f := makeFixture(t)
+	opened := f.open()
+	f.ask(f.e.Window(), molten.MorphDesignTabCommand, molten.MorphDesignRequest{Mod: "branch-box", Handoff: opened.HandoffId}, nil)
+	f.b.lock.Lock()
+	f.b.tabOf["block-other"] = "tab-other"
+	f.b.agents["block-other"] = fakeAgent{first: "Jérôme", agent: "codex"}
+	f.b.lock.Unlock()
+	other := localroute.Caller{IsLocalTerminal: true, BlockId: "block-other"}
+	ctx := context.Background()
+
+	for _, command := range []string{molten.MorphDesignStepCommand, molten.MorphDesignAskCommand, molten.MorphDesignAnswerCommand, molten.MorphDesignPlanCommand, molten.MorphDesignDraftCommand} {
+		_, err := f.s.Handle(ctx, command, other, molten.MorphDesignRequest{
+			Mod: "branch-box", Step: molten.MorphStepPlan, Key: "audience", Text: "Who?", Value: "x",
+			Choices: []molten.MorphDesignChoice{{Label: "A"}}, Plan: &molten.MorphDesignPlan{Summary: "x"}, Draft: &molten.MorphDesignDraft{},
+		})
+		if err == nil || !strings.Contains(err.Error(), "is driven by Marion claude-code") {
+			t.Errorf("%s from another agent: %v", command, err)
+		}
+	}
+	d, _ := f.s.Store.Get("branch-box")
+	if len(d.Questions) != 0 || d.Plan != nil || d.Current != molten.MorphStepNeed {
+		t.Fatalf("a refused agent changed the design: %+v", d)
+	}
+	if _, err := f.s.Handle(ctx, molten.MorphDesignShowCommand, other, molten.MorphDesignRequest{Mod: "branch-box"}); err != nil {
+		t.Fatalf("reading is open to every local terminal: %v", err)
+	}
+	if f.s.Store.Driver("branch-box") != routetest.TerminalBlock {
+		t.Fatal("a refused agent, or one that only read, took the clicks")
+	}
+	if _, err := f.s.Handle(ctx, molten.MorphDesignOpenCommand, other, molten.MorphDesignRequest{Mod: "branch-box", Cwd: f.dir}); err != nil {
+		t.Fatalf("opening again only shows the tab: %v", err)
+	}
+	if f.s.Store.Driver("branch-box") != routetest.TerminalBlock {
+		t.Fatal("opening again took the clicks")
+	}
+
+	// An agent started in the design's own tab takes over.
+	f.b.setAgent("block-left", &fakeAgent{first: "Léon", agent: "claude-code"})
+	left := localroute.Caller{IsLocalTerminal: true, BlockId: "block-left"}
+	if _, err := f.s.Handle(ctx, molten.MorphDesignStepCommand, left, molten.MorphDesignRequest{Mod: "branch-box", Step: molten.MorphStepPlan}); err != nil {
+		t.Fatalf("an agent of the design's tab: %v", err)
+	}
+	if f.s.Store.Driver("branch-box") != "block-left" {
+		t.Fatal("the agent of the design's tab drives now")
+	}
+	// Once nobody runs the design, any agent may take it.
+	f.b.setAgent("block-left", nil)
+	if _, err := f.s.Handle(ctx, molten.MorphDesignStepCommand, other, molten.MorphDesignRequest{Mod: "branch-box", Step: molten.MorphStepPreview}); err != nil {
+		t.Fatalf("a design nobody runs: %v", err)
+	}
+	if f.s.Store.Driver("branch-box") != "block-other" {
+		t.Fatal("the agent that changed a free design drives it")
+	}
+}
+
 func TestAStateReadNeedsAnOpenDesign(t *testing.T) {
 	f := makeFixture(t)
 	if _, errStr := f.windowCall(molten.MorphDesignStateCommand, molten.MorphDesignRequest{}); !strings.Contains(errStr, "no design is open") {

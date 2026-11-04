@@ -32,6 +32,7 @@ const (
 type Store struct {
 	lock     sync.Mutex
 	designs  map[string]*molten.MorphDesign
+	order    []string
 	now      func() time.Time
 	onChange func(molten.MorphDesign)
 }
@@ -168,13 +169,15 @@ func (s *Store) evictOldest() {
 	if len(s.designs) < molten.MorphDesignMaxDesigns {
 		return
 	}
+	// Two designs changed within the same millisecond: the one made first goes, whatever the map's order.
 	oldest := ""
-	for mod, d := range s.designs {
-		if oldest == "" || d.Updated < s.designs[oldest].Updated {
+	for _, mod := range s.order {
+		if oldest == "" || s.designs[mod].Updated < s.designs[oldest].Updated {
 			oldest = mod
 		}
 	}
 	delete(s.designs, oldest)
+	s.order = slices.DeleteFunc(s.order, func(mod string) bool { return mod == oldest })
 }
 
 // Open makes the design of a mod, or finds it again: a second call keeps the steps, the questions and the plan, and
@@ -201,6 +204,7 @@ func (s *Store) openLocked(mod string, name string, dir string, workspaceId stri
 		s.evictOldest()
 		d = makeDesign(mod, s.now().UnixMilli())
 		s.designs[mod] = d
+		s.order = append(s.order, mod)
 	}
 	if name = cleanLine(name, molten.MorphDesignMaxLabel); name != "" {
 		d.Name = name

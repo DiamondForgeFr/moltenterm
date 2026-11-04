@@ -106,6 +106,10 @@ developer can still change each one. The keys the view records:
 
 - The panel shows and relays; it grants nothing. A choice in the panel never widens an access: an access the plan did
   not list goes back to the developer (step 4 of the guide).
+- One agent drives a design at a time: the one that last ran a design command, which also receives the developer's clicks.
+  While it runs, another agent elsewhere cannot change the design (`show` stays open to all): the command says who
+  drives it. An agent started in the design tab's own terminal takes over by running a command, and a design no agent
+  runs is free to any.
 - The commands work in a MoltenTerm terminal of this computer only. Everything is English, plain text or `--json`. Exit
   codes: 2 for bad usage, 1 for any other failure.
 - The design lives in MoltenTerm while it runs. A restart of MoltenTerm forgets the panel's state (not the mod, which
