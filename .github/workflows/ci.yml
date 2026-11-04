@@ -52,6 +52,11 @@ jobs:
               run: node scripts/moltenterm-check-icons.mjs
             - name: Shell scripts
               run: node scripts/moltenterm-check-shell.mjs
+            # The lockfile check asks npm what it would rewrite, and the answer follows npm's version.
+            - name: The project's npm
+              run: npm install --global --ignore-scripts --no-audit --no-fund "$(node -p "require('./package.json').packageManager")"
+            - name: Lockfile
+              run: node scripts/moltenterm-check-lockfile.mjs
 
     frontend:
         name: Frontend
