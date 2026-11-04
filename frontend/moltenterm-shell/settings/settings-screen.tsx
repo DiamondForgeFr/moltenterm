@@ -23,6 +23,7 @@ import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
+import { useBossName } from "../boss/use-boss-name";
 import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
@@ -243,6 +244,7 @@ function TextField({
     parse,
     className,
     placeholder,
+    maxLength,
 }: {
     entry: SettingEntry;
     value: unknown;
@@ -250,6 +252,7 @@ function TextField({
     parse?: (raw: string) => unknown;
     className?: string;
     placeholder?: string;
+    maxLength?: number;
 }) {
     const saved = value == null ? "" : String(value);
     const [draft, setDraft] = useState(saved);
@@ -277,6 +280,7 @@ function TextField({
             value={draft}
             spellCheck={false}
             placeholder={placeholder}
+            maxLength={maxLength}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => {
@@ -428,6 +432,7 @@ function Control({
                     onSet={onSet}
                     className="w-72"
                     placeholder={entry.defaultValue != null ? String(entry.defaultValue) : t(PlaceholderKeyFor.text)}
+                    maxLength={entry.range?.max}
                 />
             );
         case "path":
@@ -688,7 +693,8 @@ export function useSettingsPageData(): SettingsPageData {
         () => new Map(settingsCatalog(platformName()).map((e) => [e.key, groupSlug(e.group)])),
         []
     );
-    const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
+    const bossName = useBossName();
+    const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t, bossName)), [t, bossName]);
     const themes = useMemo(
         () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
         [fullConfig?.termthemes]
@@ -834,6 +840,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const t = useT();
     const data = useSettingsPageData();
     const { catalog, sections } = data;
+    const bossName = useBossName();
     const [section, setSectionState] = useState<SettingsSectionId>(
         () => initialSection ?? openedOnSection(blockId) ?? LastSection.get(blockId) ?? "general"
     );
@@ -1077,7 +1084,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                     <ScopeLine scope="workspace" className="shrink-0" />
                                                 ) : (
                                                     <span className="shrink-0 text-11 text-muted">
-                                                        {sectionTitle(entry.section, t)}
+                                                        {sectionTitle(entry.section, t, bossName)}
                                                     </span>
                                                 )}
                                             </li>

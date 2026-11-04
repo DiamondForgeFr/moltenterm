@@ -71,6 +71,7 @@ describe("settings catalog (FR-SHELL-050)", () => {
             "Appearance",
             "Terminal",
             "Agents",
+            "Ferrand",
             "Browser",
             "Project",
             "Notifications",
@@ -406,5 +407,57 @@ describe("Agents with the integration (FR-SHELL-040, #947)", () => {
             ["codex", "Without the hookup"],
             ["Valentin · Claude Code", "With the hookup"],
         ]);
+    });
+});
+
+describe("Ferrand's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
+    const boss = SettingsSections.find((s) => s.id === "boss");
+    const tr = (key: string, vars?: Record<string, string | number>) => translate("en", key, vars);
+    const trFr = (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars);
+
+    it("holds the name, Show the bubble and Collapse while I type under it, in that order", () => {
+        expect(sectionEntries(catalog(), "boss").map((e) => e.key)).toEqual([
+            "boss:name",
+            "boss:show",
+            "boss:collapseontype",
+        ]);
+    });
+
+    it("shows the bubble and collapses on typing by default, as toggles", () => {
+        expect(entry("boss:show")).toMatchObject({ control: "toggle", defaultValue: true, label: "Show the bubble" });
+        expect(entry("boss:collapseontype")).toMatchObject({
+            control: "toggle",
+            defaultValue: true,
+            label: "Collapse while I type under it",
+        });
+    });
+
+    it("takes a name of 1 to 24 characters, Ferrand by default", () => {
+        expect(entry("boss:name")).toMatchObject({
+            control: "text",
+            defaultValue: "Ferrand",
+            range: { min: 1, max: 24 },
+        });
+    });
+
+    it("is titled with the name the developer chose, in both languages", () => {
+        expect(localizeSection(boss, tr, "Ferrand").title).toBe("Ferrand");
+        expect(localizeSection(boss, tr, "Léa").title).toBe("Léa");
+        expect(localizeSection(boss, trFr, "Léa").title).toBe("Léa");
+        expect(sectionTitle("boss", tr, "Gaston")).toBe("Gaston");
+        expect(localizeSection(boss, tr, "Léa").description).toBe(
+            "The bubble that counts what waits for you in every workspace."
+        );
+    });
+
+    it("leaves the other sections' titles alone", () => {
+        const agents = SettingsSections.find((s) => s.id === "agents");
+        expect(localizeSection(agents, tr, "Léa").title).toBe("Agents");
+    });
+
+    it("speaks French for its three settings", () => {
+        const localized = localizeCatalog(sectionEntries(catalog(), "boss"), trFr);
+        expect(localized.map((e) => e.label)).toEqual(["Nom", "Afficher la bulle", "Replier quand je tape dessous"]);
+        expect(localized.every((e) => e.group === "Bulle")).toBe(true);
     });
 });

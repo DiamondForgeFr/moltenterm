@@ -9,6 +9,7 @@
 
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
+import { DefaultBossName } from "../boss/boss-name";
 import { t, TFunction } from "../i18n/i18n";
 import { hasKey } from "../i18n/i18n-core";
 import { ProjectMetaKey, WorkspaceFolderMetaKey } from "../workspace-project";
@@ -19,6 +20,7 @@ export type SettingsSectionId =
     | "appearance"
     | "terminal"
     | "agents"
+    | "boss"
     | "browser"
     | "mission"
     | "notifications"
@@ -67,6 +69,13 @@ export const SettingsSections: SettingsSection[] = [
         title: "Agents",
         icon: "robot",
         description: "The agent companion, and what MoltenTerm adds when an agent starts in its terminals.",
+    },
+    // Titled with the foreman's name, which the developer chooses (FR-BOSS-001): localizeSection takes it.
+    {
+        id: "boss",
+        title: DefaultBossName,
+        icon: "flag",
+        description: "The bubble that counts what waits for you in every workspace.",
     },
     {
         id: "browser",
@@ -327,11 +336,17 @@ export function localizeCatalog(entries: SettingEntry[], tr: TFunction): Setting
     return entries.map((e) => localizeSettingEntry(e, tr));
 }
 
-export function localizeSection(section: SettingsSection, tr: TFunction): SettingsSection {
+// bossName: the foreman's name, which titles and describes the section that bears it.
+export function localizeSection(
+    section: SettingsSection,
+    tr: TFunction,
+    bossName: string = DefaultBossName
+): SettingsSection {
+    const named: TFunction = (key, vars) => tr(key, { name: bossName, ...vars });
     return {
         ...section,
-        title: translatedOr(tr, `settings.sections.${section.id}.title`, section.title),
-        description: translatedOr(tr, `settings.sections.${section.id}.description`, section.description),
+        title: translatedOr(named, `settings.sections.${section.id}.title`, section.title),
+        description: translatedOr(named, `settings.sections.${section.id}.description`, section.description),
     };
 }
 
@@ -354,9 +369,9 @@ export function groupEntries(entries: SettingEntry[]): { group: string; entries:
     return groups;
 }
 
-export function sectionTitle(id: SettingsSectionId, tr: TFunction = t): string {
+export function sectionTitle(id: SettingsSectionId, tr: TFunction = t, bossName: string = DefaultBossName): string {
     const section = SettingsSections.find((s) => s.id === id);
-    return section != null ? localizeSection(section, tr).title : id;
+    return section != null ? localizeSection(section, tr, bossName).title : id;
 }
 
 function normalize(text: string): string {

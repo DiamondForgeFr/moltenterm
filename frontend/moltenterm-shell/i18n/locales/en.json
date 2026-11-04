@@ -542,9 +542,22 @@
             "codingAgent": "Coding agent",
             "newViews": "New views",
             "sidebar": "Sidebar",
-            "theme": "Theme"
+            "theme": "Theme",
+            "bubble": "Bubble"
         },
         "items": {
+            "boss:name": {
+                "label": "Name",
+                "description": "The name the bubble goes by, from 1 to 24 characters. Its initial, peek and menus use it."
+            },
+            "boss:show": {
+                "label": "Show the bubble",
+                "description": "A bubble in every window counts the agents that wait for you. Off, neither it nor its pennant shows."
+            },
+            "boss:collapseontype": {
+                "label": "Collapse while I type under it",
+                "description": "The bubble folds into its pennant while you type in a terminal under it, then comes back."
+            },
             "moltenterm:theme": {
                 "label": "Theme",
                 "description": "The interface's colours. Terminals stay dark unless you pick a light terminal theme.",
@@ -1224,6 +1237,10 @@
             "agents": {
                 "title": "Agents",
                 "description": "The agent companion, and what MoltenTerm adds when an agent starts in its terminals."
+            },
+            "boss": {
+                "title": "{name}",
+                "description": "The bubble that counts what waits for you in every workspace."
             },
             "browser": {
                 "title": "Browser",
@@ -2866,6 +2883,31 @@
         },
         "palette": {
             "open": "{panel} commands and options…"
+        }
+    },
+    "boss": {
+        "label": "{name}, {count} waiting",
+        "menu": {
+            "collapse": "Collapse {name}",
+            "bringBack": "Bring {name} back",
+            "resetPosition": "Reset position",
+            "settings": "{name} settings"
+        },
+        "peek": {
+            "quiet": "Nothing waits for you.",
+            "waitingTitle": "Waiting for you",
+            "workingTitle": "At work",
+            "usageTitle": "Plan usage",
+            "usage": "{agent}: {label}, {used}",
+            "latestTitle": "Latest notification",
+            "more": {
+                "one": "and 1 more",
+                "other": "and {count} more"
+            },
+            "moreWorkspaces": {
+                "one": "and 1 more workspace",
+                "other": "and {count} more workspaces"
+            }
         }
     },
     "keepawake": {

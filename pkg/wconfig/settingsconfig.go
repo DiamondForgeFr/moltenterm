@@ -228,6 +228,11 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#1409): the sidebar's heat while agents work (FR-SHELL-122, frontend/moltenterm-shell/sidebar/sidebar-heat.tsx).
 	MoltentermSidebarHeat *bool `json:"moltenterm:sidebarheat,omitempty" jsonschema_description:"While agents of the workspace work, a faint heat rises in the free space at the bottom of the sidebar, stronger with more working agents. On when unset; false removes it. Reduced motion removes it too"`
 
+	// MOLTENTERM-PATCH (#1883): Ferrand's bubble, the pennant and the hover peek (FR-BOSS-001, frontend/moltenterm-shell/boss).
+	BossName           string `json:"boss:name,omitempty" jsonschema_description:"The name of the foreman whose bubble shows what waits across every workspace: 1 to 24 characters, Ferrand when unset. The bubble's initial, its peek, its menus and its settings use it"`
+	BossShow           *bool  `json:"boss:show,omitempty" jsonschema_description:"Show the foreman's bubble, or its pennant when collapsed, in every window. On when unset; false shows neither"`
+	BossCollapseOnType *bool  `json:"boss:collapseontype,omitempty" jsonschema_description:"The bubble collapses to its pennant when a keystroke reaches a terminal whose area lies under it, and comes back when the focus leaves that terminal. On when unset; false never collapses it by itself"`
+
 	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
 	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`
 

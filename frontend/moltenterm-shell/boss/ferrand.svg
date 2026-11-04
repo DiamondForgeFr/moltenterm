@@ -1,0 +1,76 @@
+<!-- Copyright 2026, DiamondForge -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- Ferrand, the forge's foreman: a stout smith with a copper beard, a leather cap and brass goggles. An original character of MoltenTerm, still for now. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
+    <defs>
+        <radialGradient id="mt-ferrand-bg" cx="50%" cy="92%" r="90%">
+            <stop offset="0" stop-color="#8a3a10" />
+            <stop offset="0.5" stop-color="#2d1d14" />
+            <stop offset="1" stop-color="#15100c" />
+        </radialGradient>
+        <linearGradient id="mt-ferrand-skin" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#efb892" />
+            <stop offset="1" stop-color="#cf8c64" />
+        </linearGradient>
+        <linearGradient id="mt-ferrand-beard" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#c85d1d" />
+            <stop offset="1" stop-color="#85330f" />
+        </linearGradient>
+        <linearGradient id="mt-ferrand-cap" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#835737" />
+            <stop offset="1" stop-color="#4d2f1a" />
+        </linearGradient>
+        <radialGradient id="mt-ferrand-glass" cx="40%" cy="35%" r="75%">
+            <stop offset="0" stop-color="#ffe2a0" />
+            <stop offset="1" stop-color="#ff7c0d" />
+        </radialGradient>
+    </defs>
+    <rect width="96" height="96" fill="url(#mt-ferrand-bg)" />
+    <circle cx="14" cy="34" r="1.3" fill="#ffb547" opacity="0.85" />
+    <circle cx="82" cy="26" r="1.1" fill="#ffb547" opacity="0.7" />
+    <circle cx="86" cy="52" r="1.5" fill="#ff7c0d" opacity="0.8" />
+    <circle cx="10" cy="58" r="1" fill="#ff7c0d" opacity="0.7" />
+    <path d="M4 96 C6 80 26 74 48 74 C70 74 90 80 92 96 Z" fill="#4a2e1c" />
+    <path d="M33 74 L48 91 L63 74 Z" fill="#2c1b10" />
+    <path d="M27 96 L35 76 M69 96 L61 76" stroke="#6f4729" stroke-width="3.2" stroke-linecap="round" />
+    <path d="M40 60 H56 V76 C52 80 44 80 40 76 Z" fill="#c07b55" />
+    <ellipse cx="28.5" cy="46" rx="3.2" ry="4.6" fill="#d9966f" />
+    <ellipse cx="67.5" cy="46" rx="3.2" ry="4.6" fill="#d9966f" />
+    <ellipse cx="48" cy="45" rx="19.5" ry="21" fill="url(#mt-ferrand-skin)" />
+    <path
+        d="M28.5 48 C27 62 34 76 48 80 C62 76 69 62 67.5 48 C64.5 56 58 60 48 60 C38 60 31.5 56 28.5 48 Z"
+        fill="url(#mt-ferrand-beard)"
+    />
+    <path
+        d="M38 66 C39 72 42 76 44 78 M48 64 V79 M58 66 C57 72 54 76 52 78"
+        stroke="#6a2809"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.55"
+    />
+    <path
+        d="M35 56 C38 50.5 44.5 51.5 48 54 C51.5 51.5 58 50.5 61 56 C57 59 51.5 58.2 48 56.5 C44.5 58.2 39 59 35 56 Z"
+        fill="#a8491a"
+    />
+    <path d="M44.6 45 C44 50.5 45.5 52 48 52 C50.5 52 52 50.5 51.4 45 C50.5 47 45.5 47 44.6 45 Z" fill="#bd7650" />
+    <ellipse cx="40.5" cy="43" rx="2.7" ry="2.2" fill="#fff6e8" />
+    <ellipse cx="55.5" cy="43" rx="2.7" ry="2.2" fill="#fff6e8" />
+    <circle cx="41" cy="43.3" r="1.5" fill="#2a1a10" />
+    <circle cx="55" cy="43.3" r="1.5" fill="#2a1a10" />
+    <circle cx="41.5" cy="42.7" r="0.5" fill="#ffffff" />
+    <circle cx="55.5" cy="42.7" r="0.5" fill="#ffffff" />
+    <path d="M35.5 39 C38 37 42.5 37.4 44.8 39.4" stroke="#7a2e0e" stroke-width="2.4" stroke-linecap="round" fill="none" />
+    <path d="M60.5 39 C58 37 53.5 37.4 51.2 39.4" stroke="#7a2e0e" stroke-width="2.4" stroke-linecap="round" fill="none" />
+    <ellipse cx="35" cy="50" rx="3.2" ry="1.7" fill="#2a1a10" opacity="0.22" transform="rotate(-20 35 50)" />
+    <path d="M27.5 40 C26.5 22 38 13 48 13 C58 13 69.5 22 68.5 40 C62 34.5 34 34.5 27.5 40 Z" fill="url(#mt-ferrand-cap)" />
+    <path d="M26 40.5 C35 34 61 34 70 40.5 L70 44 C61 38.5 35 38.5 26 44 Z" fill="#33200f" />
+    <path d="M29 30 C38 26.5 58 26.5 67 30" stroke="#2c1a0d" stroke-width="3.4" fill="none" />
+    <circle cx="40" cy="28" r="6.2" fill="#c8942e" />
+    <circle cx="40" cy="28" r="4.2" fill="url(#mt-ferrand-glass)" />
+    <circle cx="56" cy="28" r="6.2" fill="#c8942e" />
+    <circle cx="56" cy="28" r="4.2" fill="url(#mt-ferrand-glass)" />
+    <path d="M38.2 26.4 A3 3 0 0 1 41.4 25.2" stroke="#fff3d0" stroke-width="1" fill="none" opacity="0.85" />
+    <path d="M54.2 26.4 A3 3 0 0 1 57.4 25.2" stroke="#fff3d0" stroke-width="1" fill="none" opacity="0.85" />
+    <ellipse cx="48" cy="93" rx="36" ry="10" fill="#ff7c0d" opacity="0.14" />
+</svg>

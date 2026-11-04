@@ -1,0 +1,274 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Ferrand's bubble and pennant (FR-BOSS-001, DS-BOSS-001): a layer over the window's content, above the panels and
+   under the toasts (9400), the menus and the dialogs. The layer takes no pointer; the bubble, the pennant and nothing
+   else do, and neither takes a drag of the window with it (the frame's top margin moves the window). */
+
+.mt-boss-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 800;
+    pointer-events: none;
+}
+
+.mt-boss-bubble,
+.mt-boss-pennant {
+    position: absolute;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--mt-text-1);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+    touch-action: none;
+}
+
+.mt-boss-bubble {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+}
+
+.mt-boss-bubble.is-dragging {
+    cursor: grabbing;
+}
+
+/* The portrait in its round frame; the badge sits outside it, over the rim. */
+.mt-boss-face {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--mt-surface-2);
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--mt-text-1) 20%, transparent),
+        var(--mt-shadow-e2);
+    transition: box-shadow var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-boss-face > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* The bubble is clickable: its rim takes the action colour under the pointer (the orange means "this acts"). */
+.mt-boss-bubble:hover .mt-boss-face,
+.mt-boss-bubble.is-dragging .mt-boss-face {
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--mt-action) 75%, transparent),
+        var(--mt-shadow-e2);
+}
+
+.mt-boss-bubble:focus-visible,
+.mt-boss-pennant:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+.mt-boss-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    box-sizing: border-box;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9999px;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 18px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px var(--mt-surface-1);
+    pointer-events: none;
+}
+
+/* The tone is never told by the colour alone: the count, and the peek's rows name each state. */
+.mt-boss-badge[data-tone="error"] {
+    background: var(--mt-state-blocked);
+    color: var(--mt-state-blocked-fg);
+}
+
+.mt-boss-badge[data-tone="waiting"] {
+    background: var(--mt-state-warning);
+    color: var(--mt-state-warning-fg);
+}
+
+/* The pennant hangs from the window's top edge: a small flag with a swallowtail, a line of its own under the clip. It is
+   14 px high so that it covers no panel content: the panels start one frame margin (8 px) below the edge, and their
+   headers' controls 7 px lower still. */
+.mt-boss-pennant {
+    top: 0;
+    width: 22px;
+    height: 14px;
+    transform-origin: 50% 0;
+    filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.35));
+}
+
+.mt-boss-flag {
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+    background: var(--mt-line-control);
+    transition: background-color var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-boss-flag::before {
+    content: "";
+    position: absolute;
+    inset: 1px 1px 0 1px;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+    background: var(--mt-surface-3);
+}
+
+.mt-boss-pennant:hover .mt-boss-flag {
+    background: var(--mt-action);
+}
+
+.mt-boss-initial {
+    position: absolute;
+    inset: 0 0 4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1;
+}
+
+/* Beside the flag, so that the count never hides its letter. */
+.mt-boss-pennant .mt-boss-badge {
+    top: 0;
+    right: auto;
+    left: -19px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    line-height: 16px;
+}
+
+/* The peek is read only and never takes the pointer, so it leaves with the pointer and the focus stays in the
+   terminal. */
+.mt-boss-peek {
+    position: absolute;
+    box-sizing: border-box;
+    width: 296px;
+    max-width: calc(100% - 16px);
+    pointer-events: none;
+}
+
+/* The one cue (AC6) when the count rises: a short nudge of the bubble, a wave of the pennant, once. Two names for the
+   same motion, so the next rise plays it again without drawing the button anew. Reduced motion changes the badge
+   only. */
+@keyframes mt-boss-nudge-a {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    30% {
+        transform: translateY(-7px);
+    }
+    55% {
+        transform: translateY(0);
+    }
+    75% {
+        transform: translateY(-3px);
+    }
+}
+
+@keyframes mt-boss-nudge-b {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    30% {
+        transform: translateY(-7px);
+    }
+    55% {
+        transform: translateY(0);
+    }
+    75% {
+        transform: translateY(-3px);
+    }
+}
+
+@keyframes mt-boss-wave-a {
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+    25% {
+        transform: rotate(-14deg);
+    }
+    55% {
+        transform: rotate(10deg);
+    }
+    80% {
+        transform: rotate(-4deg);
+    }
+}
+
+@keyframes mt-boss-wave-b {
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+    25% {
+        transform: rotate(-14deg);
+    }
+    55% {
+        transform: rotate(10deg);
+    }
+    80% {
+        transform: rotate(-4deg);
+    }
+}
+
+.mt-boss-bubble.mt-boss-cue-a {
+    animation: mt-boss-nudge-a 640ms var(--mt-ease) 1;
+}
+
+.mt-boss-bubble.mt-boss-cue-b {
+    animation: mt-boss-nudge-b 640ms var(--mt-ease) 1;
+}
+
+.mt-boss-pennant.mt-boss-cue-a {
+    animation: mt-boss-wave-a 800ms var(--mt-ease) 1;
+}
+
+.mt-boss-pennant.mt-boss-cue-b {
+    animation: mt-boss-wave-b 800ms var(--mt-ease) 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-boss-bubble.mt-boss-cue-a,
+    .mt-boss-bubble.mt-boss-cue-b,
+    .mt-boss-pennant.mt-boss-cue-a,
+    .mt-boss-pennant.mt-boss-cue-b {
+        animation: none;
+    }
+
+    .mt-boss-face,
+    .mt-boss-flag {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-boss-bubble.mt-boss-cue-a,
+.prefers-reduced-motion .mt-boss-bubble.mt-boss-cue-b,
+.prefers-reduced-motion .mt-boss-pennant.mt-boss-cue-a,
+.prefers-reduced-motion .mt-boss-pennant.mt-boss-cue-b {
+    animation: none;
+}
+
+.prefers-reduced-motion .mt-boss-face,
+.prefers-reduced-motion .mt-boss-flag {
+    transition: none;
+}

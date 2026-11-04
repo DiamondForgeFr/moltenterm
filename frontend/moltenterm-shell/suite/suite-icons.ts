@@ -8,6 +8,7 @@
 // "proposed": a concept Notulia does not have yet, proposed by MoltenTerm; the shared kit settles it.
 
 import {
+    Anvil,
     AppWindow,
     Bell,
     Bot,
@@ -147,6 +148,7 @@ export const SuiteIcons = {
     microphone: p(Mic),
     location: p(MapPin),
     visibleArea: p(Eye),
+    boss: p(Anvil),
 } satisfies Record<string, SuiteIconEntry>;
 
 export type SuiteIconName = keyof typeof SuiteIcons;
