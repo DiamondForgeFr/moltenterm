@@ -34,6 +34,9 @@ type (
 	ForgetRequest     = handoffwire.ForgetRequest
 	HistoryEntry      = handoffwire.HistoryEntry
 	HistoryResult     = handoffwire.HistoryResult
+	SettleRequest     = handoffwire.SettleRequest
+	SettleResult      = handoffwire.SettleResult
+	SettledEntry      = handoffwire.SettledEntry
 )
 
 const (
@@ -42,6 +45,7 @@ const (
 	SendCommand           = handoffwire.SendCommand
 	AnswerCommand         = handoffwire.AnswerCommand
 	LinkNoticeCommand     = handoffwire.LinkNoticeCommand
+	SettleCommand         = handoffwire.SettleCommand
 	LinkNoticeKeyPrefix   = handoffwire.LinkNoticeKeyPrefix
 	PairsCommand          = handoffwire.PairsCommand
 	ForgetCommand         = handoffwire.ForgetCommand

@@ -125,12 +125,19 @@ const LearningInstructions = " A guided workflow (a pipeline setup, a mod design
 	"adjusted in that workflow with `molten learn record <workflow>`. Details: learning.md in the folder `molten docs` " +
 	"prints."
 
+// DecisionsInstructions: a lead that decided what an agent stopped to ask tells the Integration panel (#1876,
+// pkg/molten/agentdocs/agent-decisions.md), whatever agent CLI it is.
+const DecisionsInstructions = " When an agent stopped to ask for a decision and you decided it (you answered another way, " +
+	"you marked its pull request ready, you fixed what it asked about), settle its stop so the Integration panel stops " +
+	"asking the developer: `molten agent decision settle <ticket|agent> --note \"why\"`. " +
+	"Details: agent-decisions.md in the folder `molten docs` prints."
+
 // AgentInstructions completes the server's instructions with the agent's own first name (FR-CONT-014): Claude Code
 // puts server instructions in its system prompt, so the agent can sign its briefs and knows it is addressed.
 func AgentInstructions(firstName string) string {
 	rtn := PagesInstructions + " To hand work to another agent when the user asks (\"send this to Jérôme\"), call " +
 		"list_agents, then send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions + FilesInstructions +
-		BookmarksInstructions + LearningInstructions
+		BookmarksInstructions + LearningInstructions + DecisionsInstructions
 	if firstName != "" {
 		rtn = fmt.Sprintf(" In MoltenTerm your first name is %s: the user and other agents call you by it, and handoffs you "+
 			"send are signed with it.", firstName) + rtn + SignInstructions

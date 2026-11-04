@@ -13,6 +13,7 @@ export const AgentStateEvent = "molten:agentstate";
 export const AgentStatesRoute = "molten:agents";
 export const AgentStatesCommand = "moltenagentstates";
 export const AgentStateSeenCommand = "moltenagentstateseen";
+export const AgentStopSettleCommand = "moltenagentstopsettle";
 
 // How long a done agent's pane must stay in view, unfocused, before it counts as seen (#784).
 export const AgentSeenDwellMs = 1500;
@@ -51,7 +52,15 @@ export type AgentStateInfo = {
     subagents?: number;
     background?: boolean;
     cleared?: boolean;
+    // #1876: the agent stopped for a decision and someone settled it; state is idle then.
+    settled?: AgentSettled;
 };
+
+// must match AgentSettled in pkg/molten/agentstate.go: by is the settler's first name, "" for the developer.
+export type AgentSettled = { by?: string; note?: string; at: number };
+
+// must match AgentStopSettleResult in pkg/molten/agentstate.go
+export type AgentStopSettleStatus = "settled" | "none" | "ownprompt";
 
 // The main session's prompt (#1092): what typing into it depends on. A pane working only through its sub-agents
 // shows working, but its prompt is idle.

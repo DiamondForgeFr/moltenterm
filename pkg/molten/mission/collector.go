@@ -775,7 +775,9 @@ func Start() {
 	agentlinks.Start()
 	// The agent sessions of `molten mcp browser` (FR-BRW-008).
 	browseragent.Start()
-	// Handing work from one agent to another by first name (FR-CONT-015).
+	// Handing work from one agent to another by first name (FR-CONT-015); settling a stop by its ticket reads the
+	// project's branch patterns (#1876).
+	agenthandoff.BranchTicket = TicketOfBranch
 	agenthandoff.Start()
 	for _, start := range starters {
 		start()

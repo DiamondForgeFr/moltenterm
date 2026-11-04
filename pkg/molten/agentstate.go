@@ -33,6 +33,8 @@ const (
 	AgentStateSetCommand = "moltenagentstateset"
 	// A window tells that the user has seen a done agent (#784): its green mark clears.
 	AgentStateSeenCommand = "moltenagentstateseen"
+	// A window settles the stop held on a terminal (#1876).
+	AgentStopSettleCommand = "moltenagentstopsettle"
 
 	// The last first name a pane's agent had (FR-CONT-014), kept in the block's meta so a session that outlives a
 	// restart of MoltenTerm (a durable terminal) gets it back.
@@ -362,6 +364,41 @@ type AgentStateInfo struct {
 	Background bool `json:"background,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
+	// Settled (#1876): the agent stopped for a decision, MoltenTerm held that stop (State would be waiting), and
+	// someone decided it: State is idle and this says who and why.
+	Settled *AgentSettled `json:"settled,omitempty"`
+}
+
+// AgentSettled is a stop question someone settled (#1876). By is the settler's first name, "" for the developer; Note
+// one line of why; At when, in Unix milliseconds.
+type AgentSettled struct {
+	By   string `json:"by,omitempty"`
+	Note string `json:"note,omitempty"`
+	At   int64  `json:"at"`
+}
+
+// AgentStopSettleRequest settles the stop held on a terminal: the developer's own click in a window (the route is
+// the windows' only), or the lead's `molten agent decision settle` through the handoff route. Note is cleaned and cut
+// to AgentSettleNoteMax.
+type AgentStopSettleRequest struct {
+	BlockId string `json:"blockid"`
+	By      string `json:"by,omitempty"`
+	Note    string `json:"note,omitempty"`
+}
+
+// The results of settling a stop (AgentStopSettleResult.Status).
+const (
+	AgentSettleDone = "settled"
+	// None: the terminal holds no stop that waits for the developer.
+	AgentSettleNone = "none"
+	// OwnPrompt: the agent itself waits on a prompt of its terminal; only answering it there moves it.
+	AgentSettleOwnPrompt = "ownprompt"
+
+	AgentSettleNoteMax = 200
+)
+
+type AgentStopSettleResult struct {
+	Status string `json:"status"`
 }
 
 // AgentSettings is a run's model and effort level as its agent reports them (#549); "" fields are unknown. Provider:

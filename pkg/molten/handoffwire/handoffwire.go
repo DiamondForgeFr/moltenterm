@@ -14,6 +14,8 @@ const (
 	ListCommand   = "moltenagenthandofflist"
 	SendCommand   = "moltenagenthandoffsend"
 	AnswerCommand = "moltenagenthandoffanswer"
+	// `molten agent decision settle` (#1876): the caller says an agent's stop question is decided.
+	SettleCommand = "moltenagenthandoffsettle"
 	// An MCP server tells MoltenTerm its link came back after calls failed (#1029).
 	LinkNoticeCommand = "moltenagenthandofflinknotice"
 	// Notifications of one pane's lost link: LinkNoticeKeyPrefix + block id.
@@ -161,6 +163,28 @@ type SendResult struct {
 	To        string `json:"to"`
 	BriefPath string `json:"briefpath"`
 	Message   string `json:"message"`
+}
+
+// SettleRequest: Token is the calling pane's WAVETERM_JWT. Target is a ticket number ("1872", "#1872"), of the
+// caller's project, or an agent's first name. Note is one line of why.
+type SettleRequest struct {
+	Token  string `json:"token"`
+	Target string `json:"target"`
+	Note   string `json:"note,omitempty"`
+}
+
+// SettledEntry is an agent whose stop was settled.
+type SettledEntry struct {
+	FirstName string `json:"firstname"`
+	Agent     string `json:"agent,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
+}
+
+type SettleResult struct {
+	// Settled: the agents whose open stop the call settled; By: who it is said to be settled by ("" outside an agent).
+	Settled []SettledEntry `json:"settled"`
+	By      string         `json:"by,omitempty"`
+	Note    string         `json:"note,omitempty"`
 }
 
 // AnswerRequest is the developer's answer from a window's notification.

@@ -85,6 +85,9 @@ type Env interface {
 	// RecordHandoff keeps on the receiver's terminal the first terminal that handed it work, which the Sessions table
 	// nests it under (FR-SHELL-058, #933).
 	RecordHandoff(ctx context.Context, fromBlockId string, toBlockId string)
+	// SettleStop settles the stop MoltenTerm holds on a terminal (#1876): one of molten.AgentSettleDone, AgentSettleNone
+	// and AgentSettleOwnPrompt. by is the settler's first name.
+	SettleStop(blockId string, by string, note string) string
 }
 
 // pendingAnswer is a request waiting for the developer. late: the sender stopped waiting, so the answer, whenever it
@@ -105,6 +108,8 @@ type delivery struct {
 	line      string
 	briefPath string
 	queuedAt  time.Time
+	// brief: what the sender asked, for the note of the stop it settles (#1876); empty for MoltenTerm's own requests.
+	brief Brief
 	// receipt: MoltenTerm's own line to the sender of a late answer; failing to type it is only logged.
 	receipt bool
 }
@@ -426,7 +431,7 @@ func (m *Manager) complete(ctx context.Context, from Party, to Party, brief Brie
 	if err != nil {
 		return SendResult{}, fmt.Errorf("MoltenTerm could not write the brief: %v", err)
 	}
-	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now()}
+	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now(), brief: brief}
 	m.addHistory(from, to, brief)
 	m.env.RecordHandoff(ctx, from.BlockId, to.BlockId)
 	return m.deliver(ctx, d)
@@ -698,6 +703,7 @@ func (m *Manager) deliver(ctx context.Context, d *delivery) (SendResult, error) 
 				m.logf("%s from=%q to=%q delivered submitted=%v\n", logPrefix, d.from.callName(), d.to.callName(), out.Submitted)
 				if out.Submitted {
 					rtn.Status, rtn.Message = StatusDelivered, fmt.Sprintf("Sent to %s. The brief is at %s.", d.to.FirstName, d.briefPath)
+					m.settleByReply(d)
 					return rtn, nil
 				}
 				m.notifyTyped(d)
@@ -823,6 +829,8 @@ func (m *Manager) runQueue(blockId string) {
 			m.logf("%s from=%q to=%q delivered from the queue submitted=%v\n", logPrefix, d.from.callName(), d.to.callName(), out.Submitted)
 			if !out.Submitted {
 				m.notifyTyped(d)
+			} else {
+				m.settleByReply(d)
 			}
 		} else {
 			m.notifyUndelivered(d, out.Message, out.MessageText)

@@ -487,16 +487,9 @@
     height: 4px;
 }
 
-/* Each dot takes its state's shape (#1327, FR-SHELL-116, .mt-state-mark, WCAG 1.4.1), so the five stay apart in
-   greyscale. Blocked is a square as wide as the round dots, turned a quarter: its corners reach into the gap between
-   dots, which makes the shape readable at this size. Running turns a quarter per working beat (pr-counts.tsx) and
-   stands still without the beat. */
-.mt-sb-prdot.is-blocked {
-    border-radius: 0;
-    transform: rotate(45deg) scale(0.9);
-    color: var(--mt-state-blocked);
-}
-
+/* Each dot takes its state's shape (#1327, FR-SHELL-116, .mt-state-mark, WCAG 1.4.1), so the four stay apart in
+   greyscale (#1876: the blocked diamond went with the Blocked section, its PRs are Needs you). Running turns a quarter
+   per working beat (pr-counts.tsx) and stands still without the beat. */
 .mt-sb-prdot.is-yours {
     color: var(--mt-state-waiting);
     box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 30%, transparent);

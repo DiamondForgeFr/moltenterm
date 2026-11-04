@@ -79,6 +79,22 @@ func TestSummarizeReviewChecksRerunIsPending(t *testing.T) {
 	}
 }
 
+// #1876: the card says since when the CI is over, so a finished check carries when it finished and a running one does not.
+func TestSummarizeReviewChecksKeepsWhenAFinishedCheckEnded(t *testing.T) {
+	ci := foldRollup(t, `[{"name":"Backend","workflowName":"CI","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-11-04T08:00:00Z","completedAt":"2026-11-04T08:07:30Z"},
+		{"name":"Frontend","workflowName":"CI","status":"IN_PROGRESS","conclusion":"","startedAt":"2026-11-04T08:00:00Z","completedAt":"0001-01-01T00:00:00Z"},
+		{"__typename":"StatusContext","context":"local-ci","state":"SUCCESS","startedAt":"2026-11-04T08:00:00Z"}]`)
+	if got := checkOf(ci, "Backend").CompletedAt; got != "2026-11-04T08:07:30Z" {
+		t.Errorf("a finished check says when: %q", got)
+	}
+	if got := checkOf(ci, "Frontend").CompletedAt; got != "" {
+		t.Errorf("a running check has no end: %q", got)
+	}
+	if got := checkOf(ci, "local-ci").CompletedAt; got != "" {
+		t.Errorf("a status has no end time: %q", got)
+	}
+}
+
 // Two workflows may name a job alike: both are checks of their own.
 func TestSummarizeReviewChecksKeysByWorkflow(t *testing.T) {
 	ci := foldRollup(t, `[{"name":"build","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-10-16T10:00:00Z"},

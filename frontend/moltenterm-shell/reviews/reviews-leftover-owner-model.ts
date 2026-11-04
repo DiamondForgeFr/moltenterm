@@ -130,7 +130,7 @@ export function leftoverOwnerCard(ask: LeftoverAsk, time: string): LeftoverOwner
     return {
         kind: "agent-working",
         tone: "agent",
-        turn: "agents",
+        turn: "waiting",
         sentence: phrase("reviewsAgents.leftovers.owner.asked", { name }),
         primary: {
             id: "follow",

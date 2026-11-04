@@ -249,6 +249,45 @@ func TestInvestigationThatAsksNeedsYou(t *testing.T) {
 	}
 }
 
+// #1876: once the lead or the developer settled the stop, its notification goes and the same reason raises none again.
+func TestASettledStopRaisesNoNotification(t *testing.T) {
+	f, follow, st, ci := investigateFollow(t)
+	settled := false
+	f.r.env.StopSettled = func(blockId string) bool { return settled && blockId == "new-block" }
+	f.r.followAgent(follow, "")
+	if err := os.WriteFile(follow.outcomePath, []byte("needs you: Backend stays red, flaky test #1874\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	f.setAgent(molten.AgentStateDone, 10)
+	f.r.followStep(context.Background(), follow, st)
+	if len(f.notes) != 1 || len(f.resolved) != 0 {
+		t.Fatalf("the question is told once: %+v resolved %v", f.notes, f.resolved)
+	}
+	settled = true
+	f.setAgent(molten.AgentStateDone, 11)
+	f.r.followStep(context.Background(), follow, st)
+	if len(f.notes) != 1 || len(f.resolved) != 1 || !strings.HasPrefix(f.resolved[0], agentNoticePrefix+"needs:") {
+		t.Fatalf("settled: its notification is resolved and none is raised: %+v resolved %v", f.notes, f.resolved)
+	}
+	f.setAgent(molten.AgentStateDone, 12)
+	f.r.followStep(context.Background(), follow, st)
+	if len(f.notes) != 1 || len(f.resolved) != 1 {
+		t.Fatalf("settled, it stays quiet: %+v resolved %v", f.notes, f.resolved)
+	}
+	if ci.lastHold() != "new-block waiting notif.review.asks" {
+		t.Fatalf("the hold itself is the registry's to show settled: %v", ci.holds)
+	}
+	// The stop is not settled any more (the agent worked again and stopped with the same words): the developer is asked.
+	settled = false
+	f.setAgent(molten.AgentStateWorking, 13)
+	f.r.followStep(context.Background(), follow, st)
+	f.setAgent(molten.AgentStateDone, 14)
+	f.r.followStep(context.Background(), follow, st)
+	if len(f.notes) != 2 {
+		t.Fatalf("a new stop asks again: %+v", f.notes)
+	}
+}
+
 // #896: work left in the copy, a push GitHub has not picked up, no required check, a PR merged meanwhile.
 func TestInvestigationReadsTheTreeAndThePr(t *testing.T) {
 	f, follow, st, ci := investigateFollow(t)

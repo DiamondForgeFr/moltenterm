@@ -111,6 +111,8 @@ type ReviewCheck struct {
 	// stopped in ms (#1713).
 	StartedAt string `json:"startedat,omitempty"`
 	StoppedAt int64  `json:"stoppedat,omitempty"`
+	// When the check finished (RFC 3339), "" while it runs: the card says since when the CI is over (#1876).
+	CompletedAt string `json:"completedat,omitempty"`
 }
 
 type ReviewCi struct {
@@ -321,6 +323,9 @@ func SummarizeReviewChecks(rollup []ghReviewRollup) ReviewCi {
 		check.RunId, check.JobId = reviewCheckIds(url)
 		if started != "9999" {
 			check.StartedAt = started
+		}
+		if completed := entry.CompletedAt; completed != "" && !strings.HasPrefix(completed, "0001-") && strings.EqualFold(entry.Status, "COMPLETED") {
+			check.CompletedAt = completed
 		}
 		byKey[key] = check
 	}

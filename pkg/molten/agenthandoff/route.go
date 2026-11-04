@@ -40,8 +40,9 @@ func (l *routeLink) route() localroute.Route {
 				ListCommand:       localroute.AllowLocalTerminal,
 				SendCommand:       localroute.AllowLocalTerminal,
 				LinkNoticeCommand: localroute.AllowLocalTerminal,
+				SettleCommand:     localroute.AllowLocalTerminal,
 			},
-			Refusals: map[string]string{ListCommand: errRemote, SendCommand: errRemote, LinkNoticeCommand: errRemote},
+			Refusals: map[string]string{ListCommand: errRemote, SendCommand: errRemote, LinkNoticeCommand: errRemote, SettleCommand: errRemote},
 		},
 		Handler:       l.handle,
 		RunUnanswered: true,
@@ -91,6 +92,12 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 			return nil, err
 		}
 		return l.manager.Send(ctx, req)
+	case SettleCommand:
+		var req SettleRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.manager.Settle(ctx, req)
 	case LinkNoticeCommand:
 		var req LinkNoticeRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
