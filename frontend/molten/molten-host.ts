@@ -34,6 +34,7 @@ import {
     parseMoltenManifest,
 } from "./molten-manifest";
 import { declaresTimerName, MoltenModTimers, MoltenTimerApi, MoltenTimerClock, timerPrologue } from "./molten-timers";
+import { disableInState, forgetTrust, MoltenTrustRecord, trustRecordsOf } from "./molten-trust-store";
 
 export const MoltenActivateTimeoutMs = 10000;
 export const MoltenNotificationTimeoutMs = 8000;
@@ -62,6 +63,8 @@ export type MoltenHostEnv = {
     listDir(path: string): Promise<MoltenDirEntry[]>;
     // Returns null when the file does not exist.
     readTextFile(path: string): Promise<string>;
+    // Replaces a file's content. Only revoking a trust from Settings writes (revokeTrust); everything else reads.
+    writeTextFile?: (path: string, text: string) => Promise<void>;
     importModule(source: string, sourceName: string): Promise<any>;
     writeClipboard(text: string): Promise<void>;
     // The interface language and its changes (FR-I18N-001, DS-I18N-005); English and no change without them.
@@ -108,6 +111,10 @@ export type MoltenModStatus = {
     usage?: MoltenModUsage;
     // A data-only mod: it brings data (languages) and runs no code, so it needs no trust (FR-I18N-002).
     dataonly?: boolean;
+    // Whether the user trusted the mod's code, and when (FR-MORPH-004, #1880). Left out for a mod that needs no
+    // trust: a built-in mod, a data-only one.
+    trusted?: boolean;
+    trustedat?: string;
     // The language codes a language pack gives.
     languages?: string[];
     // What loading ignored, such as a pack key English does not know.
@@ -238,6 +245,16 @@ function errorMessage(e: unknown): string {
 
 function joinPath(dir: string, name: string): string {
     return dir.endsWith("/") ? dir + name : `${dir}/${name}`;
+}
+
+type ModTrustStatus = Pick<MoltenModStatus, "trusted" | "trustedat">;
+
+// What a row says about trust: the record's date, "not trusted", or nothing for a mod that asks for no trust.
+function trustStatusOf(record: MoltenTrustRecord | undefined, needsNoTrust: boolean): ModTrustStatus {
+    if (record != null) {
+        return record.trustedat ? { trusted: true, trustedat: record.trustedat } : { trusted: true };
+    }
+    return needsNoTrust ? {} : { trusted: false };
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
@@ -384,7 +401,7 @@ export class MoltenHost {
     async syncMods(ids: string[]): Promise<void> {
         let folders: string[];
         let state: ModState;
-        let trusted: Set<string>;
+        let trusted: Map<string, MoltenTrustRecord>;
         try {
             const entries = await this.env.listDir(this.env.modsDir);
             folders = entries
@@ -420,7 +437,10 @@ export class MoltenHost {
             const dir = joinPath(this.env.modsDir, id);
             // No code of a mod is read before the user trusted it, even when mods.json enables it by hand. A
             // data-only mod has no code: its manifest is read to know it, and it loads without trust.
-            const loadable = enabled.has(id) && (trusted.has(id) || isDataOnlyMod(await this.peekManifest(id, dir)));
+            const record = trusted.get(id);
+            const needsNoTrust = record == null && isDataOnlyMod(await this.peekManifest(id, dir));
+            const trust = trustStatusOf(record, needsNoTrust);
+            const loadable = enabled.has(id) && (record != null || needsNoTrust);
             if (!loadable) {
                 this.runtimes.set(id, {
                     status: {
@@ -428,13 +448,14 @@ export class MoltenHost {
                         path: dir,
                         state: enabled.has(id) ? "untrusted" : "disabled",
                         commands: [],
+                        ...trust,
                     },
                     disposers: [],
                     stopped: true,
                 });
                 continue;
             }
-            await this.loadMod(id, dir, (name) => this.env.readTextFile(joinPath(dir, name)), false, state);
+            await this.loadMod(id, dir, (name) => this.env.readTextFile(joinPath(dir, name)), false, state, trust);
         }
         this.sortRuntimes();
         this.publish();
@@ -493,7 +514,7 @@ export class MoltenHost {
     async listPending(): Promise<void> {
         let folders: string[] = [];
         let state: ModState = emptyState();
-        let trusted = new Set<string>();
+        let trusted = new Map<string, MoltenTrustRecord>();
         try {
             folders = (await this.env.listDir(this.env.modsDir))
                 .filter((entry) => entry.isDir && !entry.name.startsWith("."))
@@ -510,15 +531,28 @@ export class MoltenHost {
             }
             const builtin = builtinIds.includes(id);
             let modState: MoltenModState = "pending";
-            if (builtin ? state.disabled.has(id) : !state.enabled.has(id)) {
-                modState = "disabled";
-            } else if (!builtin) {
+            let trust: ModTrustStatus = {};
+            if (builtin) {
+                modState = state.disabled.has(id) ? "disabled" : modState;
+            } else {
                 const dir = joinPath(this.env.modsDir, id);
-                if (isDataOnlyMod(await this.peekManifest(id, dir))) {
-                    await this.loadMod(id, dir, (name) => this.env.readTextFile(joinPath(dir, name)), false, state);
+                const record = trusted.get(id);
+                const enabled = state.enabled.has(id);
+                const dataOnly = (record == null || enabled) && isDataOnlyMod(await this.peekManifest(id, dir));
+                trust = trustStatusOf(record, record == null && dataOnly);
+                if (!enabled) {
+                    modState = "disabled";
+                } else if (dataOnly) {
+                    await this.loadMod(
+                        id,
+                        dir,
+                        (name) => this.env.readTextFile(joinPath(dir, name)),
+                        false,
+                        state,
+                        trust
+                    );
                     continue;
-                }
-                if (!trusted.has(id)) {
+                } else if (record == null) {
                     modState = "untrusted";
                 }
             }
@@ -529,6 +563,7 @@ export class MoltenHost {
                     state: modState,
                     commands: [],
                     ...(builtin ? { builtin } : {}),
+                    ...trust,
                 },
                 disposers: [],
                 stopped: true,
@@ -544,11 +579,13 @@ export class MoltenHost {
     async listForSafeMode(): Promise<void> {
         let folders: string[] = [];
         let state: ModState = emptyState();
+        let trusted = new Map<string, MoltenTrustRecord>();
         try {
             folders = (await this.env.listDir(this.env.modsDir))
                 .filter((entry) => entry.isDir && !entry.name.startsWith("."))
                 .map((entry) => entry.name);
             state = await this.readState();
+            trusted = await this.readTrusted();
         } catch (e) {
             console.error("[molten] safe mode: mods could not be listed", e);
         }
@@ -556,6 +593,13 @@ export class MoltenHost {
         for (const id of [...new Set([...folders, ...builtinIds])].sort()) {
             const builtin = builtinIds.includes(id);
             const off = builtin ? state.disabled.has(id) : !state.enabled.has(id);
+            let trust: ModTrustStatus = {};
+            if (!builtin) {
+                const record = trusted.get(id);
+                const dataOnly =
+                    record == null && isDataOnlyMod(await this.peekManifest(id, joinPath(this.env.modsDir, id)));
+                trust = trustStatusOf(record, dataOnly);
+            }
             this.runtimes.set(id, {
                 status: {
                     id,
@@ -563,6 +607,7 @@ export class MoltenHost {
                     state: off ? "disabled" : "safemode",
                     commands: [],
                     ...(builtin ? { builtin } : {}),
+                    ...trust,
                 },
                 disposers: [],
                 stopped: true,
@@ -599,13 +644,44 @@ export class MoltenHost {
         return { enabled: ids(state?.enabled), disabled: ids(state?.disabled), enabledAt };
     }
 
-    async readTrusted(): Promise<Set<string>> {
-        const trust = await this.readJsonFile(this.env.trustFile);
-        const map = trust?.trusted;
-        if (map == null || typeof map !== "object" || Array.isArray(map)) {
-            return new Set();
+    async readTrusted(): Promise<Map<string, MoltenTrustRecord>> {
+        return trustRecordsOf(await this.readJsonFile(this.env.trustFile));
+    }
+
+    // Withdraws the user's approval of a mod, as `molten mod untrust` does (FR-MORPH-004, #1880): the trust record is
+    // forgotten, the mod is no longer enabled, and its code stops in this view at once, even when the view is hidden.
+    // The other views stop it when wavesrv's watcher announces the two files that changed. The next `molten mod enable`
+    // asks the user again. A file that is not valid JSON is reported and left as it is, never overwritten.
+    async revokeTrust(id: string): Promise<void> {
+        const env = this.env;
+        const status = this.runtimes.get(id)?.status;
+        if (env?.writeTextFile == null || status == null || status.builtin) {
+            throw new Error(`the trust of "${id}" cannot be revoked here`);
         }
-        return new Set(Object.keys(map));
+        try {
+            await this.enqueue(async () => {
+                const trustText = forgetTrust(await this.readJsonFile(env.trustFile), id);
+                const stateText = disableInState(await this.readJsonFile(env.stateFile), id);
+                if (trustText != null) {
+                    await env.writeTextFile(env.trustFile, trustText);
+                }
+                if (stateText != null) {
+                    await env.writeTextFile(env.stateFile, stateText);
+                }
+            });
+        } finally {
+            await this.applyNow(id);
+        }
+    }
+
+    // Stops or reloads one mod now, whether or not this view shows; safe mode loads no code, so it lists again.
+    async applyNow(id: string): Promise<void> {
+        if (this.safeMode) {
+            await this.enqueue(() => this.listForSafeMode());
+            return;
+        }
+        this.pendingReloadIds.add(id);
+        await this.schedulePending();
     }
 
     // Stops a mod without reporting it as failed: the user asked for it.
@@ -661,9 +737,16 @@ export class MoltenHost {
         };
     }
 
-    async loadMod(id: string, path: string, read: ModFileReader, builtin = false, state?: ModState): Promise<void> {
+    async loadMod(
+        id: string,
+        path: string,
+        read: ModFileReader,
+        builtin = false,
+        state?: ModState,
+        trust: ModTrustStatus = {}
+    ): Promise<void> {
         const runtime: ModRuntime = {
-            status: { id, path, state: "loading", commands: [], ...(builtin ? { builtin } : {}) },
+            status: { id, path, state: "loading", commands: [], ...(builtin ? { builtin } : {}), ...trust },
             disposers: [],
             stopped: false,
             enabledAt: state?.enabledAt.get(id) ?? 0,

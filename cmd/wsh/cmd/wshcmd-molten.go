@@ -58,6 +58,8 @@ const (
 	MoltenTrustAnswerTimeout  = "timeout"
 	// What `molten mod enable` reports for a data-only mod, which asks for no trust (FR-I18N-002).
 	MoltenTrustDataOnly = "data"
+	// What `molten mod untrust --json` reports: the mod holds no trust any more, whether or not it did before.
+	MoltenTrustNone = "none"
 	// What `molten mod enable` reports when only the Claude Code part was asked about (FR-MORPH-010).
 	MoltenTrustAnswerPartTrusted  = "part-trusted"
 	MoltenTrustAnswerPartDeclined = "part-declined"
@@ -79,6 +81,9 @@ type MoltenModStatus struct {
 	DataOnly  bool     `json:"dataonly,omitempty"`
 	Languages []string `json:"languages,omitempty"`
 	Warnings  []string `json:"warnings,omitempty"`
+	// Whether the user trusted the mod's code, and when (FR-MORPH-004); absent for a mod that needs no trust.
+	Trusted   *bool  `json:"trusted,omitempty"`
+	TrustedAt string `json:"trustedat,omitempty"`
 	// Filled by molten from the files, not by the tab: the agent parts the mod carries (FR-MORPH-010).
 	Agents map[string]MoltenPartStatus `json:"agents,omitempty"`
 }
@@ -881,30 +886,43 @@ func moltenModUntrustRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	partBefore := parts.state(id)
-	forgotten, err := moltenForgetTrust(dataDir, id)
+	changed, err := moltenUntrustMod(configDir, dataDir, id)
 	if err != nil {
 		return err
 	}
-	disabled, err := moltenSetEnabled(configDir, id, false)
-	if err != nil {
-		return err
-	}
-	changed := forgotten || disabled
 	if changed {
 		moltenAnnounceChange(id)
 	}
 	if !moltenJson {
-		if changed {
-			WriteStdout("mod %q is stopped and no longer trusted; enabling it again asks you first\n", id)
-		} else {
-			WriteStdout("mod %q was not trusted\n", id)
-		}
+		WriteStdout("%s\n", moltenUntrustMessage(id, changed))
 	}
 	note := parts.note(id, partBefore)
 	if moltenJson {
-		return moltenWriteJson(MoltenModChange{Id: id, Action: "untrust", Changed: changed, ClaudeCode: note})
+		return moltenWriteJson(MoltenModChange{Id: id, Action: "untrust", Changed: changed, Trust: MoltenTrustNone, ClaudeCode: note})
 	}
 	return nil
+}
+
+// Takes the user's approval of a mod back (#1880): its trust record is forgotten and it is no longer enabled, so the
+// next `molten mod enable` asks again. "Revoke trust" in Settings > Mods leaves the same two files in the same state
+// (MoltenHost.revokeTrust in frontend/molten/molten-host.ts). Reports whether either file changed.
+func moltenUntrustMod(configDir string, dataDir string, id string) (bool, error) {
+	forgotten, err := moltenForgetTrust(dataDir, id)
+	if err != nil {
+		return false, err
+	}
+	disabled, err := moltenSetEnabled(configDir, id, false)
+	if err != nil {
+		return false, err
+	}
+	return forgotten || disabled, nil
+}
+
+func moltenUntrustMessage(id string, changed bool) string {
+	if changed {
+		return fmt.Sprintf("mod %q is stopped and no longer trusted; enabling it again asks you first", id)
+	}
+	return fmt.Sprintf("mod %q was not trusted", id)
 }
 
 func moltenGetHistory() (*molten.History, error) {

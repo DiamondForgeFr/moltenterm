@@ -91,7 +91,32 @@ version, description, declared capabilities and folder, and `molten` waits for t
 - **No answer within 5 minutes:** the prompt closes and `molten` exits 1; run the command again.
 
 A mod enabled in `mods.json` but not trusted is reported as `untrusted`, and none of its code is read.
-`molten mod untrust <id>` stops the mod and forgets the trust; `molten mod remove` forgets it too.
+`molten mod remove` forgets the trust too.
+
+### Taking the trust back
+
+The user can withdraw their approval of a mod at any time. In MoltenTerm, Settings > Mods shows each mod that runs
+code as trusted (with the date) or not trusted, and a trusted mod has a **Revoke trust** action. The same thing is one
+command, which works from the terminal of any coding agent:
+
+```
+molten mod untrust <id>
+```
+
+- The mod stops in every tab, without a restart: its commands, timers and anything it added to the page go with it
+  (the path of `molten mod disable`).
+- Its trust record is forgotten and it is no longer enabled. The next `molten mod enable <id>` shows the trust prompt
+  again and waits for the user's answer, as for a mod never trusted. An agent never grants the trust back itself.
+- It prints `mod "<id>" is stopped and no longer trusted; enabling it again asks you first`, or
+  `mod "<id>" was not trusted` when there was nothing to change. Both exit 0. A trust file that is not valid JSON is
+  reported (exit 1) and left as it is.
+- With `--json`: `{"id": "<id>", "action": "untrust", "changed": true, "trust": "none"}`, plus a `claudecode` note when
+  the mod's Claude Code part stops with it. `molten mod list --json` gives each mod that runs code `trusted`
+  (`true` or `false`) and, when trusted, `trustedat` (RFC 3339).
+- A built-in mod has no trust to take back: turn it off with `molten mod disable <id>`.
+
+Run it only when the user asks you to take their trust back, or says a mod must not run again: it stops a mod they
+rely on.
 
 Mods are not sandboxed in this version. The prompt keeps code from running by mistake; it does not stop a program
 that already runs with the user's rights, such as a hostile agent, from writing the trust file itself.

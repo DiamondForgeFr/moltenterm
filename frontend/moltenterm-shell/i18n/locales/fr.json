@@ -1286,7 +1286,7 @@
                 "pending": "Se charge quand cette vue s'affiche",
                 "loading": "Chargement",
                 "disabled": "Désactivé",
-                "untrusted": "Non approuvé",
+                "untrusted": "Attend votre approbation",
                 "safemode": "Désactivé (mode sans échec)",
                 "failed": "Arrêté",
                 "refused": "Refusé"
@@ -1299,6 +1299,17 @@
                 },
                 "activation": "activation {ms} ms",
                 "heap": "{mb} Mo à l'activation"
+            },
+            "trust": {
+                "trustedOn": "Confiance accordée le {date}",
+                "trusted": "Confiance accordée",
+                "notTrusted": "Confiance non accordée. L'activer demande d'abord votre accord.",
+                "revoke": "Retirer la confiance",
+                "revoking": "Retrait…",
+                "revokeTitle": "Arrêter ce mod et oublier que vous lui avez fait confiance",
+                "revoked": "Le mod est arrêté. MoltenTerm vous redemandera votre accord à sa prochaine activation.",
+                "failed": "La confiance n'a pas pu être retirée : {error}",
+                "dismiss": "Fermer ce message"
             }
         },
         "secrets": {
@@ -1411,7 +1422,7 @@
             "detailsPart": "Partie Claude Code",
             "detailsPartTarget": "Écrite pour Claude Code {version}",
             "keepsEditing": "L'agent peut continuer à le modifier sans redemander.",
-            "revoke": "Vous pouvez retirer votre confiance à tout moment, depuis un terminal :",
+            "revoke": "Vous pouvez retirer votre confiance à tout moment dans Réglages > Mods, ou depuis un terminal :",
             "ok": "Faire confiance et activer",
             "cancel": "Ne pas faire confiance",
             "partTitle": "Faire confiance à la partie Claude Code de « {name} » ?",
