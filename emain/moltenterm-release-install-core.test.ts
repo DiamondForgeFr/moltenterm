@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The installer of the in-app update of a release (#1860) against a local server with fake files and a fake release
 // key: every refusal happens before anything is staged, armed or kept, and says why. Nothing here reads the real release

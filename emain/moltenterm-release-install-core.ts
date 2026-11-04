@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The installer of the in-app update of a release (#1860, FR-REL-005), without Electron: the glue
 // (moltenterm-release-install.ts) hands it what it needs from the app (the network session, the platform's staging step,

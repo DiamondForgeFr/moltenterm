@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What Settings › About and the notifications say about the in-app update of a release (#1860): which of the card's
 // states the app is in, given the last check and the installer's state, and what a change of that state announces.

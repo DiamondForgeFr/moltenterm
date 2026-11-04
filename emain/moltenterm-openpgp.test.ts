@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release signature check against signatures made by gpg itself (a throwaway key, and the published v1.0.0-8
 // release signed by the real release key: only its public key and signature are read), then against fake keys made

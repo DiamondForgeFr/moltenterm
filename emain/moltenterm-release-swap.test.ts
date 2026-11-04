@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The swaps of the in-app update of a release (#1860), run for real against fake apps: the macOS bundle through the
 // gold swap script (integrity-only requirement, quarantine left alone, system assessment), and the Linux AppImage

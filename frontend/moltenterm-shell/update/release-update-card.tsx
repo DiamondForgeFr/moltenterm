@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Apart from release-update-ui.tsx on purpose: the status bar imports that one, so it sits in the entry chunk every
 // window loads up front (NFR-PERF-003), while this card is only read in Settings, which loads on demand.

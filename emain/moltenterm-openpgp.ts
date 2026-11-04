@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release signature check of the in-app update (#1860): SHA256SUMS.txt.asc is a detached OpenPGP signature made by
 // the DiamondForge release key (#576, scripts/moltenterm-release-sign.sh). The key is an Ed25519 key and the app has

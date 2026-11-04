@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The in-app update of a release install (#1860, FR-REL-005, Notulia's flow): the user accepts an offered release, the
 // app downloads the file for this computer, verifies it against the signed checksums, and installs it. The rules that

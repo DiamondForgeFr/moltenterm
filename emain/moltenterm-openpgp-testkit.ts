@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Fake release keys for the tests of the in-app update (#1860): an Ed25519 key made on the spot, its armoured public
 // key, and detached signatures in the packet layout GnuPG writes. The tests never touch the real release key, and
