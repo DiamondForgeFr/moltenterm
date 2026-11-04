@@ -36,7 +36,7 @@ const GhostButton =
 const DestructiveButton =
     "molten-btn molten-btn-destructive inline-flex cursor-pointer items-center gap-1.5 rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50";
 
-const StepIcons: Record<MorphStepId, SuiteIconName> = {
+const StepGlyphs: Record<MorphStepId, SuiteIconName> = {
     need: "notes",
     questions: "ask",
     plan: "actions",
@@ -480,7 +480,7 @@ export function StepBlock({ id, ...p }: StepProps & { id: MorphStepId }) {
     const body = (
         <SectionBlock
             title={title}
-            icon={suiteIcon(StepIcons[id])}
+            icon={suiteIcon(StepGlyphs[id])}
             description={t(`morphDesign.step.${id}.hint`)}
             glow={view === "current"}
             className={view === "skipped" ? "opacity-70" : undefined}
