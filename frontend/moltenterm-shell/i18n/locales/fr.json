@@ -664,6 +664,10 @@
                 "title": "Secrets",
                 "description": "Des valeurs gardées dans le coffre de secrets du système, pour les connexions et les commandes. Jamais affichées sans votre demande."
             },
+            "learned": {
+                "title": "Ce que MoltenTerm a appris",
+                "description": "Ce que les parcours guidés retiennent de votre façon de travailler : le voir, le modifier, l’oublier."
+            },
             "advanced": {
                 "title": "Avancé",
                 "description": "Les rouages de la fenêtre et de l'app, le débogage, et les fichiers JSON derrière chaque réglage."
@@ -10772,6 +10776,80 @@
                 "none": "MoltenTerm ne peut pas lire l'usage du forfait de {agent}.",
                 "alt": "La page ou la commande d'usage de {agent} l'affiche."
             }
+        }
+    },
+    "learning": {
+        "title": "Ce que MoltenTerm a appris",
+        "intro": "Ce que les parcours guidés retiennent de votre façon de travailler, pour demander moins la fois suivante. Cela reste sur cet ordinateur : modifiez-le, oubliez-le ou remettez-le à zéro quand vous voulez.",
+        "count": {
+            "one": "{count} élément",
+            "other": "{count} éléments"
+        },
+        "empty": "Rien n’a encore été appris dans {workflow}.",
+        "workflow": {
+            "pipelineSetup": "Mise en place du pipeline",
+            "morphDesign": "Conception de mod"
+        },
+        "sentence": {
+            "answer": "{title} : vous avez répondu {value}.",
+            "preference": "{title} : vous préférez {value}.",
+            "correction": "{title} : vous choisissez {value}.",
+            "correctionFrom": "{title} : vous choisissez {value} plutôt que {proposed}.",
+            "skip": "Vous passez {title}."
+        },
+        "keys": {
+            "pipelineSetup": {
+                "merge": "Arrivée sur la branche de release",
+                "rcformat": "Versions candidates",
+                "tagprefix": "Préfixe des tags",
+                "notes": "Notes de version réécrites avec l’agent de code",
+                "milestone": "Fermer le jalon une fois publié",
+                "syncback": "Ramener le commit de release sur la branche de travail"
+            }
+        },
+        "value": {
+            "yes": "oui",
+            "no": "non",
+            "rcformat": {
+                "numeric": "numérotées (…-1, …-2)",
+                "rcdot": "release candidates (…-rc.1, …-rc.2)"
+            }
+        },
+        "confidence": {
+            "low": "à confirmer",
+            "medium": "probable",
+            "high": "acquis"
+        },
+        "meta": {
+            "seen": {
+                "one": "Vu {count} fois",
+                "other": "Vu {count} fois"
+            },
+            "run": "passage {run}"
+        },
+        "by": {
+            "agent": "noté par un agent",
+            "user": "modifié par vous"
+        },
+        "edit": "Modifier",
+        "forget": "Oublier",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "reset": {
+            "button": "Remettre ce parcours à zéro",
+            "confirm": {
+                "one": "Oublier le {count} élément appris ici ? Cela ne peut pas être annulé.",
+                "other": "Oublier les {count} éléments appris ici ? Cela ne peut pas être annulé."
+            },
+            "yes": "Tout oublier"
+        },
+        "prefill": {
+            "mark": "D’après vos choix précédents",
+            "title": "Rempli d’après ce que vous avez choisi aux passages précédents. Changez-le comme vous voulez."
+        },
+        "folded": {
+            "hint": "Vous passez d’habitude cette étape.",
+            "show": "Afficher"
         }
     }
 }

@@ -40,6 +40,7 @@ export const SettingsSectionConcepts: Record<SettingsSectionId, SuiteIconName> =
     keyboard: "keyboard",
     mods: "mods",
     secrets: "secrets",
+    learned: "thinking",
     tips: "tips",
     advanced: "tools",
     about: "identity",

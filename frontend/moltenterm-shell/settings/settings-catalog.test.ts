@@ -77,6 +77,7 @@ describe("settings catalog (FR-SHELL-050)", () => {
             "Keyboard",
             "Mods",
             "Secrets",
+            "What MoltenTerm learned",
             "Tips",
             "About",
             "Advanced",
@@ -106,10 +107,10 @@ describe("settings catalog (FR-SHELL-050)", () => {
         }
     });
 
-    // Notifications, Mods, Secrets, Tips and About hold what settings.json does not.
+    // Notifications, Mods, Secrets, What MoltenTerm learned, Tips and About hold what settings.json does not.
     it("gives each section but Advanced and Keyboard its own settings", () => {
         const all = [...WorkspaceSettings, ...catalog()];
-        const noKeys = ["mods", "secrets", "notifications", "tips", "about"];
+        const noKeys = ["mods", "secrets", "learned", "notifications", "tips", "about"];
         for (const s of SettingsSections.filter((s) => !noKeys.includes(s.id))) {
             expect(sectionEntries(all, s.id).length, s.id).toBeGreaterThan(0);
         }

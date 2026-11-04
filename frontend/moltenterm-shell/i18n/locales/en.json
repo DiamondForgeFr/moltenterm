@@ -1245,6 +1245,10 @@
                 "title": "Secrets",
                 "description": "Values stored in your system's secret store, for connections and commands. Never shown unless you ask."
             },
+            "learned": {
+                "title": "What MoltenTerm learned",
+                "description": "What the guided workflows remember of how you work: see it, change it, forget it."
+            },
             "advanced": {
                 "title": "Advanced",
                 "description": "Window and app internals, debugging, and the JSON files behind every setting."
@@ -10772,6 +10776,80 @@
                 "none": "MoltenTerm cannot read {agent}'s plan usage.",
                 "alt": "{agent}'s own usage page or command shows it."
             }
+        }
+    },
+    "learning": {
+        "title": "What MoltenTerm learned",
+        "intro": "What the guided workflows remember of how you work, so the next run asks less. It stays on this computer: change it, forget it or reset it whenever you like.",
+        "count": {
+            "one": "{count} thing",
+            "other": "{count} things"
+        },
+        "empty": "Nothing learned yet in {workflow}.",
+        "workflow": {
+            "pipelineSetup": "Pipeline setup",
+            "morphDesign": "Mod design"
+        },
+        "sentence": {
+            "answer": "{title}: you answered {value}.",
+            "preference": "{title}: you prefer {value}.",
+            "correction": "{title}: you choose {value}.",
+            "correctionFrom": "{title}: you choose {value} instead of {proposed}.",
+            "skip": "You skip {title}."
+        },
+        "keys": {
+            "pipelineSetup": {
+                "merge": "How the release branch is reached",
+                "rcformat": "Candidate versions",
+                "tagprefix": "Tag prefix",
+                "notes": "Release notes rewritten with the coding agent",
+                "milestone": "Close the milestone once published",
+                "syncback": "Carry the release commit back to the working branch"
+            }
+        },
+        "value": {
+            "yes": "yes",
+            "no": "no",
+            "rcformat": {
+                "numeric": "numbered (…-1, …-2)",
+                "rcdot": "release candidates (…-rc.1, …-rc.2)"
+            }
+        },
+        "confidence": {
+            "low": "tentative",
+            "medium": "likely",
+            "high": "settled"
+        },
+        "meta": {
+            "seen": {
+                "one": "Seen {count} time",
+                "other": "Seen {count} times"
+            },
+            "run": "run {run}"
+        },
+        "by": {
+            "agent": "recorded by an agent",
+            "user": "edited by you"
+        },
+        "edit": "Edit",
+        "forget": "Forget",
+        "save": "Save",
+        "cancel": "Cancel",
+        "reset": {
+            "button": "Reset this workflow",
+            "confirm": {
+                "one": "Forget the {count} thing learned here? This cannot be undone.",
+                "other": "Forget the {count} things learned here? This cannot be undone."
+            },
+            "yes": "Forget everything"
+        },
+        "prefill": {
+            "mark": "Based on your earlier choices",
+            "title": "Filled in from what you chose in earlier runs. Change it as you like."
+        },
+        "folded": {
+            "hint": "You usually skip this step.",
+            "show": "Show"
         }
     }
 }

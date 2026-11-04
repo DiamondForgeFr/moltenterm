@@ -25,6 +25,7 @@ export type SettingsSectionId =
     | "keyboard"
     | "mods"
     | "secrets"
+    | "learned"
     | "tips"
     | "advanced"
     | "about";
@@ -96,6 +97,13 @@ export const SettingsSections: SettingsSection[] = [
         icon: "lock",
         description:
             "Values stored in your system's secret store, for connections and commands. Never shown unless you ask.",
+    },
+    // What the guided workflows remember of the developer lives in MoltenTerm's data folder (FR-LRN-003).
+    {
+        id: "learned",
+        title: "What MoltenTerm learned",
+        icon: "brain",
+        description: "What the guided workflows remember of how you work: see it, change it, forget it.",
     },
     { id: "tips", title: "Tips", icon: "lightbulb", description: "Reshape MoltenTerm, work faster, every shortcut." },
     // The version, its updates and its origin (#1860); no settings.json key maps here.

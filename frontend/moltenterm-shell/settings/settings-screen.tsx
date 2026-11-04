@@ -74,6 +74,7 @@ import {
 import { ChoiceRows } from "./settings-choice-rows";
 import { settingsGroupIcon, SettingsSectionConcepts } from "./settings-icons";
 import { IntegrationRuns } from "./settings-integration-runs";
+import { LearnedCards } from "./settings-learned";
 import { ModsSection } from "./settings-mods";
 import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSectionMetaKey } from "./settings-open";
 import { settingOverriders } from "./settings-overrides";
@@ -715,6 +716,7 @@ function sectionFlowBlocks(section: SettingsSectionId, groups: number): number {
         groups +
         (section === "advanced" ? 1 : 0) +
         (section === "mods" ? 1 : 0) +
+        (section === "learned" ? 1 : 0) +
         (section === "about" ? 2 : 0) +
         (section === "general" ? 1 : 0) +
         (section === "spaces" ? 2 : 0) +
@@ -810,6 +812,7 @@ export function SettingsSectionPage({
                     {section === "notifications" ? <NotificationSubjectsCard /> : null}
                     {section === "notifications" ? <NotificationPanelCard /> : null}
                     {section === "mods" ? <ModsSection /> : null}
+                    {section === "learned" ? <LearnedCards /> : null}
                     {section === "about" ? <AboutBuildCard /> : null}
                     {section === "about" ? <AboutUpdatesCard /> : null}
                 </PageFlow>
