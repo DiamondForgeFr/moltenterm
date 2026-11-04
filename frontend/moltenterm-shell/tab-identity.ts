@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What a top tab shows before and as its name (FR-SHELL-056, DS-SHELL-098): a 14 px icon for the view of its first
 // panel, or the agent's glyph when a coding agent runs in the tab; and, while the tab keeps Wave's generic name

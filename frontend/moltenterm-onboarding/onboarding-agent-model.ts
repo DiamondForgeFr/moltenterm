@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What step 1, "Your agent" (FR-ONB-002, DS-ONB-002), shows, from wavesrv's listing (pkg/molten/onboarding/agents.go).
 // Pure, so the rules are tested without a window. Step 2 (#163) reads the agent chosen here from the step's data.

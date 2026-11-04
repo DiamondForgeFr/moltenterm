@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The session each terminal's open companion shows (DS-SHELL-060): the terminal's agent label names it in its
 // tooltip, so the terminal and its companion match at a glance. Only what a companion view already received.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Browser › Bookmarks (FR-BRW-021): the bookmarks of every project of the workspace, project by project and folder by
 // folder, edited in place. The panel's Bookmarks menu reads the same meta, so a change shows in both at once. Deleting

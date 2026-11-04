@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // How Mission Control's panels write a moment: relative for "when" at a glance, absolute in details. The formatters
 // are built once per interface language: building one per call costs more than everything else the line map computes.

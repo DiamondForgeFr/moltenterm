@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The merge queue's agent on the cards (#1128, FR-REV-026 AC13): the card of the PR the running queue works on is in
 // "Agents on it" with the agent's line at each step, back in its own section once the queue leaves it; a hidden ended

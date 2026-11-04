@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the Project tab (FR-SHELL-015) shows, computed from what Mission Control already collects: the living branches
 // with their local CI verdict and pull request, the agents of the workspace, the work in progress. Kept apart from the

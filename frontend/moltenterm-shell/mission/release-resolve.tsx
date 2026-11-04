@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A failed release step's ways out (#945, FR-MC-016), as the Reviews' failed CI has them (reviews-ci-actions.tsx):
 // Rerun failed jobs (the GitHub runs the step names, after a confirmation in the card), Analyze and resolve (a work

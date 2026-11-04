@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // MoltenApi is the only surface a mod sees (DS-MORPH-002, DS-MORPH-005). It hands out plain functions and data,
 // never Wave objects, so that mods survive upstream changes and can later move into a sandbox unchanged.

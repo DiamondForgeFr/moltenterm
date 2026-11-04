@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Electron side of the tab view budget (#454, emain/moltenterm-tabview-budget.ts): its settings, the agent states
 // that pin a view, the renderers' memory, and the destruction of a view through its window.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A workspace's blocks, read the same by its sidebar and its library card (FR-SHELL-080, FR-SHELL-088, #1307).
 

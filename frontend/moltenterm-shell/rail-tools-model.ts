@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The widgets the workspace rail's tool section shows (FR-SHELL-012, DS-SHELL-012). Kept apart from the component so
 // the rules can be tested without the app.

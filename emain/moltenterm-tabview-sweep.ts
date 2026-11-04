@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Destroys the tab views of deleted tabs (#448, FR-PERF-002, DS-PERF-003). A workspace delete never closed the views
 // windows kept for it: #68 keeps the views of a workspace left, #375 pins a view hosting a browser page, another window

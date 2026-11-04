@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 2b of the deployment pipeline setup (FR-MC-041): no pipeline yet, the developer describes the one they want. A
 // starting point (MoltenTerm's standard pipeline, another linked project as a model, their own words), a few questions

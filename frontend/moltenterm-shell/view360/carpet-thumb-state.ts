@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What makes a carpet column's thumbnail valid and when it may be taken (#1814, FR-SHELL-065 AC12, DS-SHELL-152). A
 // thumbnail is tagged with the column's panels and, for a page, the address it shows: it is shown only while the tag is

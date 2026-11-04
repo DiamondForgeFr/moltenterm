@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What every card of the Project tab receives: the data is read once by the tab (the same hooks as Mission Control's
 // panels) and handed to the cards, so a card never opens its own subscription or poll.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The new-workspace template as the windows read it (FR-SHELL-092), for the surfaces that offer its views to a
 // workspace that has none (FR-SHELL-110): the first run's summary and the empty workspace.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A temporary view closed in one click waits aside for its toast's Undo (#1656): who shows the toast, when the view
 // closes for good, and which view comes on screen meanwhile.

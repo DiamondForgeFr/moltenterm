@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the carpet's tab strip reads of a web page panel (FR-SHELL-125): its favicon once loaded, the agent that opened
 // it, and its page actions for the tab menu. Read from the panel's own view model (browser-view.tsx), which keeps them

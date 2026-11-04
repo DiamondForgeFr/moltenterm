@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view is columns of panels (FR-SHELL-086), wired to the layout: a panel dragged by its header lands on one of the
 // four edge zones of the panel under the pointer, or on its centre, which swaps the two panels (Wave's drop, kept); a

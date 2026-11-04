@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The carpet's tab strip (FR-SHELL-125, DS-SHELL-135), formerly the radar scrubber (FR-SHELL-068, DS-SHELL-119): one
 // tab per carpet panel at the bottom of the carpet, the tabs on screen framed by the visible area, which still scrubs

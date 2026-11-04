@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library's Materials section, simple version (FR-MAT-002, DS-MAT-005): the current project's materials by day,
 // pinned ones on top. A row is renamed in place, pinned, opened in a view of the workspace (or shown when already

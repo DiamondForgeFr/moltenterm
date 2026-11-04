@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package mcpbrowser is `molten mcp browser` (FR-BRW-008, DS-BRW-009): a stdio MCP server an agent started in a
 // MoltenTerm pane launches to drive the browser panel of the pane's tab. This package holds the protocol and the tool

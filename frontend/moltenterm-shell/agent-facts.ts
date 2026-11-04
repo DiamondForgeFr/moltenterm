@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The facts every agent line says in the same order (#1848, FR-REV-022 AC2 and AC9, parity #987): after its name, its
 // CLI, its model, its effort. A lead's, a sub-agent's, Claude Code's and Codex's lines are worded here and nowhere

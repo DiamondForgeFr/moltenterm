@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sub-agents of an agent in its "Everything about" window (FR-SHELL-084, #1542): the running ones first, the
 // failures nobody has looked at yet, then one collapsed line "Done today · N" whose list is grouped by day. Nothing

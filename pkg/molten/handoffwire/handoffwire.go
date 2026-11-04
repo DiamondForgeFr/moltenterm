@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package handoffwire is what wsh (the MCP server, `molten agent list` and `molten agent send`) and wavesrv's handoff
 // route (pkg/molten/agenthandoff) exchange, with no dependency on wavesrv.

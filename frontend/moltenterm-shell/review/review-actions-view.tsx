@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The line selection's views (FR-REV-003): the actions next to the selected lines, the inline comment box, the file's
 // comments under its header (line, file-level and outdated ones, with their state, review-comments-view.tsx), and Ask

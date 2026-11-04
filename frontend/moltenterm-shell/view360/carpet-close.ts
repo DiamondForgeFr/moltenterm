@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Closing a panel of the carpet under a 360 × N (FR-SHELL-126-AC3): the neighbour tab takes the freed place, so N
 // places stay visible while panels are stored. Kept apart from the model so the rule is tested alone.

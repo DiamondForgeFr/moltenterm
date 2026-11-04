@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pour's navigation and records (FR-ONB-007 AC-1, AC-2, AC-9, P-1, P-7, TC-ONB-007), its six scenes since #1709.
 

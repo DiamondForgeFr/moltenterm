@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The requests to a leftover's live owner (#1143), as wavesrv follows them (pkg/molten/review/leftover_ask.go): asked
 // when a Reviews list shows and kept up to date by their event. Asking is the developer's Clean up in this window only.

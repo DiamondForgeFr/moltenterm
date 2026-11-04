@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Switching workspace without the whole window flashing (#68). Wave destroyed every tab view of the window on a
 // workspace switch and attached the next one before it had rendered: the rail, tab bar and status bar were rebuilt in

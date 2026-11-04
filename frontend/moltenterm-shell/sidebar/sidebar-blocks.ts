@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A workspace's blocks as its sidebar shows them (FR-SHELL-080, FR-SHELL-088, #1307): the top row, the views pinned
 // everywhere in the pins' order with the pin's name and glyph (identical in every workspace, #1270), then the

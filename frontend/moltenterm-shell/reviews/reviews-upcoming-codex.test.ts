@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // #1463: a Codex session and its sub-agents get the same Integration card as a Claude Code session's. The answers are
 // the ones wavesrv gives for the two fixtures of pkg/molten/mission/upcoming_codex_subagents_test.go (one session in

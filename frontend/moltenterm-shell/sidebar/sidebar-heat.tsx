@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's heat (FR-SHELL-122, DS-SHELL-133, #1409): while agents of the workspace work, a faint heat rises in
 // the free space at the bottom of the sidebar's page, stronger with more of them, and cools out when the last one

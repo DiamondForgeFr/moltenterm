@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library's own memory (#1763): the Settings tab it reopens on (#1592) and when each project's materials were last
 // seen (the section's new count, AC12). MoltenTerm settings (moltenterm:settingstab, moltenterm:materialsseen), hidden in the

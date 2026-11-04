@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Notifications as toasts (FR-SHELL-055): what arrives while the window is in front shows in the toast stack instead
 // of opening the center. A toast dismissed by the user marks its notification read; one that leaves by itself, or

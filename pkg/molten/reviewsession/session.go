@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package reviewsession is wavesrv's side of the review session (FR-REV-004, DS-REV-004, DS-REV-005, DS-REV-011): the
 // developer's own Claude Code or Codex, started by MoltenTerm in a terminal of the Review tab, in the PR's worktree,

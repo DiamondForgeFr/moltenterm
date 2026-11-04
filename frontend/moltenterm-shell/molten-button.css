@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Molten call-to-action buttons (FR-SHELL-014). Imported from frontend/wave.ts after moltenterm-shell.css: these rules
    are unlayered and come last, so they win over Wave's button.scss and over Tailwind's utilities at equal specificity.

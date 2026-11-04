@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Draws the boxes mods show through `api.boxes` (FR-MORPH-007). They live in the host's own layer and are placed
 // over the bottom-right corner of their terminal block, found by its `data-blockid`, so Wave's layout is not

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What earlier versions kept in localStorage (#1763). The app's pages run in the private session
 // moltenterm-trusted-app-v1 (emain/authkey.ts, #864), kept in memory: its localStorage is gone at every restart, so a

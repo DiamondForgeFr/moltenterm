@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Everything about <agent>" (FR-SHELL-084): one window, from the link under an agent in the sidebar and from the plug
 // in its terminal's header. It shows what MoltenTerm knows of the agent, for Claude Code and Codex alike: its tool,

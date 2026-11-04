@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The copy box, Moltenterm's first morph (FR-MORPH-007) and the reference example of a mod. It is written exactly
 // like a user mod: one ES module, no import, only the MoltenApi it receives in activate.

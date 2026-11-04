@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The banner of connect mode (FR-MC-032-AC2, DS-SHELL-081): under the tab bar, centred over the content, it says what
 // a click does and how to leave; a refused join or a failed group command shows its message in its place for a few

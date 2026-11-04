@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Wave's getSettingsMenuItems() as command panel items (DS-SHELL-086, FR-SHELL-047-AC7), so a Wave widget nobody
 // rewrote still gets the panel, with its checked states: a checkbox becomes a toggle, a submenu of checked or radio

@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The toast stack (FR-SHELL-055, DS-SHELL-097). A toast drops from the bell into place in the panels' 240 ms (#1403);
    the duration token is 0 under reduced motion, so it simply appears (NFR-SHELL-027). */

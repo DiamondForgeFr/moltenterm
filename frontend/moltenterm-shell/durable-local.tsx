@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the shield on a local terminal's header says (#107). Local terminals are durable by default in MoltenTerm
 // (#72), so Wave's texts, written for SSH sessions and Wave restarts, do not describe them.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Copyright 2026, MoltenTerm Authors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Developer ID packaging entry point (#507). Runs electron-builder inside an ephemeral signing session, then finalizes
 // the DMGs and the update metadata once the builder has exited, before anything can be uploaded.

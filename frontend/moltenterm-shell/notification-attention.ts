@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What a new notification does to be noticed (#790). One that needs the developer's answer (a question answered in the
 // notification, like the handoff approval, or a waiting one: an agent waiting, a permission, a prompt waiting for

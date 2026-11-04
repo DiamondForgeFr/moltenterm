@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The 360 cube of a view's icon (#1823, #1861): it turns a quarter when the whole screen changes, slides its icons when
 // the carpet moves by a panel with another one staying, stretches when the number of panels on screen changes, draws

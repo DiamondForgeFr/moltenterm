@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view stays a view whatever it holds (#1246): the temporary list shows every temporary view, those where an agent
 // runs included, and no longer counts views "under their agents".

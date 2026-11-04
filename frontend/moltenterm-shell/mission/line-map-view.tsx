@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The line map full size (FR-MC-022): the same map as the Project overview's, in its own block, over a wider window
 // (60 days unless the user chose another) and with room per day, scrolling sideways when it runs past the pane.

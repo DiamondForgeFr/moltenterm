@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The view's one moment (theme Coulée's rule 5, FR-SHELL-112): the pour of a switch holds it, and a panel arriving
 // meanwhile waits for it to end (panel-arrival-model.ts). Kept apart from the components so that the layout model

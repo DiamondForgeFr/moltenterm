@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Who a settings block applies to (FR-SHELL-101): a tag on the top border of every block of Preferences and of the
 // workspace sheet, across from the block's name, and the notice on an app setting that workspaces replace with their

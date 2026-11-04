@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The carpet's tab strip (FR-SHELL-125, DS-SHELL-135), the radar scrubber turned into tabs: its rules kept apart from
 // the component so they are tested without the app. The tabs are the radar's ticks (radar-model.ts) with a name, a

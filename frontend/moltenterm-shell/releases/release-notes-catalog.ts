@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every version's notes as the version history lists them (FR-REL-004, DS-REL-004), after Notulia's
 // releaseNotesCatalog. The cut commits releases/<tag>.md with the version bump, before the tag, so a build carries its

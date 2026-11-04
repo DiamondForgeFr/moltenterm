@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The split placement mode's rules (#677): four drop zones on the panel, triangles from its centre to each edge, and
 // the half of the panel the new panel takes on each side. Pure, so they are tested without the app.

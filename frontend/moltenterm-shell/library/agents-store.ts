@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Agents section's state (FR-SHELL-088 #1699): wavesrv's catalog listing, the agent page open, and the install or
 // uninstall each agent runs. Install and Uninstall go through the first run's window-only route: the window sends the

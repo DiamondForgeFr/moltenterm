@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The window's pending state (#450, FR-PERF-004, DS-PERF-005): while another workspace's view loads, the view on
 // screen draws it over its panels, sent by emain/moltenterm-view-pending.ts. The rail stays usable: a click on another

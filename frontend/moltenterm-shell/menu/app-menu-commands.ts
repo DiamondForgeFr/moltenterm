@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The app menu's View and Help items run here, in the window's active view (FR-SHELL-113). An item bound to a key runs
 // that key's handler of the key model, so the menu and the key never drift apart; the others go to a view. Their code

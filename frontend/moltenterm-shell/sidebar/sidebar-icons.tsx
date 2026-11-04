@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace sidebar's line glyphs, from the #1181 prototype (24 px grid, 1.8 px stroke).
 

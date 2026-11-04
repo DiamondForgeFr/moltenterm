@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mission Control's CI/CD workshop (FR-MC-025), modelled on Notulia's Dev › CI: CI local, CI remote and CD tabs for the
 // active workspace's project, with history, detail and logs only, and a Jobs tab listing every CI job (#637). The actions and summaries live in Project

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The choice of the PRs in the group merge (#1108, FR-REV-024): the card menu's entry and the model that keeps it.
 

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library's Agents section (FR-SHELL-088 #1699): what the first launch's agents scene offers, always at hand.
 // Every agent of the catalog gets a card, and a page in one layout for all: status, profile, what works in MoltenTerm,

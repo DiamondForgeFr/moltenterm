@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where the local builds sit on the line map (FR-MC-022, #288): the most recent delivered build of each flavor, at the
 // commit it was made from. Placed with the history the map already holds, no new git call; a pure function, tested

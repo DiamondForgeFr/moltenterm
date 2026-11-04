@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The design tokens' lint (FR-SHELL-044 AC1, DS-SHELL-077, TC-SHELL-093): MoltenTerm-owned CSS, TSX and TS write font
 // sizes, weights, radii, icon sizes and transition durations only through the tokens of tokens.css, and no hex colour

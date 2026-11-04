@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Under Settings › Agents › Integration (FR-SHELL-040, #947): the running agent sessions, each with or without
 // MoltenTerm's integration, since a change of the settings applies only to sessions started afterwards.

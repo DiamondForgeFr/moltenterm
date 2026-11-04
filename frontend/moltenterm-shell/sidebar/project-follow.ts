@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Showing a view or an agent of another project makes its project current (FR-SHELL-087, #1760): the header's logo
 // changes and a short toast names the project, so the change is never silent. A switch the developer made from the

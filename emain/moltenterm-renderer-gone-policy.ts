@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Renderer loss recovery (#973, FR-PERF-004): what Electron main decides when a renderer is gone, without Electron.
 // A window whose renderer was killed is reloaded, but a renderer that dies again as soon as it loads would loop: the

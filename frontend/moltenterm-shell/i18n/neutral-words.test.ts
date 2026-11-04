@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // UI text never names the machine or the OS (#628): "this computer", "Show in folder", "the system keychain" work on
 // every platform. Shortcut glyphs adapt per platform elsewhere; a feature that only exists on one platform may say so,

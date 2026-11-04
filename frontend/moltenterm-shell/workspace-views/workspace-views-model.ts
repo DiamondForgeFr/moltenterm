@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The views a new workspace starts with (FR-SHELL-092, DS-SHELL-132): wavesrv makes them from the app:newworkspaceviews
 // template when a workspace is created (pkg/wcore/moltenterm_workspaceviews.go), pinned in that workspace and without

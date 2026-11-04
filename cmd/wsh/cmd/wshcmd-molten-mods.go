@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The file side of `molten mod` (FR-MORPH-005): the mod folders under `<config>/mods/` and the enabled state in
 // `<config>/molten/mods.json`. The state lives outside the mod folders, so an agent editing a mod never enables it by

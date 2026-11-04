@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The companion's remembered choices (#555), in the client's meta like the line map's window: the same for every
 // companion, kept across restarts. A choice shows at once; a failed write only loses the memory of it.

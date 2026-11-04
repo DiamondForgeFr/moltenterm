@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Who made a pull request (#847): agents use the developer's GitHub account, so the PR's author says nothing. Each
 // Reviews row, and the Review tab's header, shows the last agent's signature (Valentin · Claude Code · Opus 5.5 ·

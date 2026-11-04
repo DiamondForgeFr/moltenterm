@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Workspace operations driven like a user would (the preload API of the visible tab), timed from the call to the
 // moment the expected tab view is on screen, which the Electron main process reports through a 4 ms poll.

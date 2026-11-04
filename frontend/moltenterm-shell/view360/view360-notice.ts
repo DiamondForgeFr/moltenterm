@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The first automatic switch to 360 view is announced once (FR-SHELL-066-AC10, #1654): a toast says what happened,
 // with "Keep the grid" and "Use 360", and the answer is stored in the 360 view setting, so it never asks again. Never

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The first view's rules (FR-ONB-009, TC-ONB-012) and the project folder's (FR-ONB-007 P-4, TC-ONB-015).
 

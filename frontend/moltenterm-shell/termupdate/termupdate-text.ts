@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What typing into an agent, Update terminal and Restart with current settings did, in the interface language (#656).
 // wavesrv's results carry a code beside their English (pkg/molten/termupdate/texts.go); a permission mode travels as

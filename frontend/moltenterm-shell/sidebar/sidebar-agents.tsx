@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's agents (FR-SHELL-084): one row per agent of the workspace, between the pinned views and the temporary
 // ones. A row says who, what it is doing and its state; its twisty opens its sub-agents, the agents it is linked to,

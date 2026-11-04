@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Uninstall's confirmation and result (#1699): the settings folders go to the trash only when ticked, the box opens
 // unticked, and the words say what those folders hold.

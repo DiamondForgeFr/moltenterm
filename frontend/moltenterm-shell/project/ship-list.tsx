@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The list of what would ship (#903, FR-MC-021): tickets nested along their parents, behaviour changes first, each row
 // opening a light detail (PR summary, merged when and by whom, the commits, links to GitHub). It only shows the groups

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Terminal section (DS-SHELL-086, DS-SHELL-090): term-model's settings menu rewritten as native options. Theme,
 // Font size, Cursor and Transparency carry This panel and All terminals scopes with a reset; the actions (Save session

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view is columns of panels (FR-SHELL-086): where a panel dragged by its header, or a tab or a file dropped on a
 // panel, lands. Left or right of a panel makes a new top-level column beside that panel's column; above or below

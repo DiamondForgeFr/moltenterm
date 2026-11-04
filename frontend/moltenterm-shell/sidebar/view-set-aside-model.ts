@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One click closes a temporary view, with Undo (FR-SHELL-025 revision #1656). Until its toast leaves, the view is only
 // set aside: hidden (#758, hidden-tabs.ts) and named by the workspace's meta, its panels, terminals and agents still

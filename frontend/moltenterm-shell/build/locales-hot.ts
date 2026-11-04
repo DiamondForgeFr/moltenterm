@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The interface dictionaries under the Vite dev server (#1215). The dev watcher ignores JSON files, so a dictionary
 // changed while `task dev` runs (a pull, a branch switch, an edit) was served as it was when the server started, and a

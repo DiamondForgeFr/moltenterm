@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews panel's sections by turn (#1061, FR-REV-001 AC12 and AC13, FR-REV-022 AC11, FR-REV-027 AC6): the
 // mockup's fixtures (Yours, Agents on it, Blocked, Waiting), both sorts, Upcoming's order and sessions, and Recently

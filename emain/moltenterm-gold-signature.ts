@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The gold update's signature check (#663). The gold folder is writable by any process of the user, so a bundle there
 // is taken only when it is signed by the same identity as the running gold: it must satisfy the running app's

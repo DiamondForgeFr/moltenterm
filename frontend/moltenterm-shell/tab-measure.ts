@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The width a top tab would take for its content (FR-SHELL-056): its padding, icon, agent mark and badges as laid out,
 // plus the full width of its name. The name itself is measured as text, since its box is the tab's width minus the

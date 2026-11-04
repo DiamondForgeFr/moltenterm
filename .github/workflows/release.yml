@@ -1,5 +1,5 @@
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 
 # Builds a release tag and publishes its GitHub release (FR-REL-002, DS-REL-002). The tag is pushed by
 # `molten release finalize` (the cut step of .molten/project.json); see UPSTREAM.md, "Releases".

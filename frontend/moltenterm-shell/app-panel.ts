@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The one door for a panel an app action opens (FR-SHELL-094): the active view's own panel gets the focus, a temporary
 // view takes the panel, and a pinned view stays as the developer pinned it: the view that already shows the panel

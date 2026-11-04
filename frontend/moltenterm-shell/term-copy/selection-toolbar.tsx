@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The small bar under a terminal selection (FR-SHELL-017): Copy clean, Open (when the selection names a file of the
 // pane) and Send to another pane. It shows once the mouse is released and follows the selection when it scrolls.

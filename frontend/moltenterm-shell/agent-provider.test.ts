@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // FR-AGC-008: a Claude Code run behind another provider is named with it, and the Anthropic lists say they are.
 

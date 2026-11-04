@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Work that lives only in this tab view's memory (#476, after #454, FR-PERF-008): the tab view budget may destroy a
 // hidden view, so the main process asks the view first (emain/moltenterm-tabview-budget-live.ts) and keeps one that

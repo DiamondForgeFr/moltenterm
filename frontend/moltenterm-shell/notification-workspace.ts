@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace an item of the notification center belongs to (#282), as the row shows it at the start of its meta
 // line. Kept apart from the component so the rules can be tested without the app.

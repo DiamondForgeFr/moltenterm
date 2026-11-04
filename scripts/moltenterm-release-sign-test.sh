@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # Tests scripts/moltenterm-release-sign.sh with a throwaway key generated here, in a temporary GNUPGHOME, and deleted
 # afterwards: never the release key. Run by .github/workflows/release.yml on the pull requests that change the signing

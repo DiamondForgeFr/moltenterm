@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Which panel's command panel is open and where it is anchored (FR-SHELL-047): under the header trigger, at the
 // pointer for a right-click, or under the trigger of the focused panel for Cmd+. One panel at a time.

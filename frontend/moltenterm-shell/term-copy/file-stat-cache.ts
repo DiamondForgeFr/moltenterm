@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Whether the files a terminal mentions exist (FR-SHELL-017, DS-SHELL-018). xterm asks for the links of each line the
 // mouse enters; the references of the same moment are sent to wavesrv in one stat per folder

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package bookmarks reads the bookmarks of the web page panel (FR-BRW-019, FR-BRW-020, DS-BRW-026). The windows write
 // them in the workspace's meta under molten:bookmarks, as {projectId: {folders: [{id, name}], items: [{id, url, title,

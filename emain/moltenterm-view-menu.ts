@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The app menu's View and Help menus (FR-SHELL-113, #1350), built from a target finder so the templates are tested
 // without Electron. Each item sends a command to the window's active view, which runs it (frontend/moltenterm-shell/

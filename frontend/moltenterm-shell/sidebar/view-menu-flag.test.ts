@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view's menu carries no "Flag tab" (#1287): a view has its icon and name, and MoltenTerm shows no tab bar. Its
 // background item says it applies to this view.

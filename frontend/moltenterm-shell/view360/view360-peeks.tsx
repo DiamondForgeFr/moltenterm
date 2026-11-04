@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The carpet's edge peeks (FR-SHELL-065 AC11-AC12, DS-SHELL-152): in each gutter beside the band of places, a sliver
 // of the neighbouring panel, tilted like a carousel card. It is the panel's still capture (carpet-captures.ts) or its

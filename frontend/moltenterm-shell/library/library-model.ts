@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library behind the sidebar's bottom-left button (FR-SHELL-088): what is not in the sidebar, in one place. Its
 // sections, and the rules each one shows its rows by.

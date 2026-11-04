@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // System notifications for what cannot wait for the developer to come back (#605): an agent handoff question expires
 // after 50 seconds, and while no MoltenTerm window is in front it would only land in the notification center. The

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The view pour (coulée de vue, FR-SHELL-112, #1349): when a view comes on screen through a switch, its content
 // slides 8 px from the side of the tiles and fades in, and the tile that was clicked lights up, in

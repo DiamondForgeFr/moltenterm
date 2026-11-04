@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Previous and next panel from the keyboard (#1759, FR-SHELL-139 AC9): a panel is a browser tab. In 360 view the key
 // steps along the carpet as Ctrl+Tab does (FR-SHELL-126); in any other view it follows the panels' order, wrapping.

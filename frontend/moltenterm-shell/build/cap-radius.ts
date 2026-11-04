@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Moltenterm's two radii (FR-SHELL-005, FR-SHELL-118, DS-SHELL-005): the control radius, 4 px, and the panel radius,
 // 6 px (tokens.css). Wave sets radii in about 60 SCSS and TSX files; snapping them onto the two in the built CSS keeps

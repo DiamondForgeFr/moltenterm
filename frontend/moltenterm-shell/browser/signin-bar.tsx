@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sign-in refusal bar of the browser panel (FR-BRW-003, DS-BRW-003). A provider that refuses embedded browsers
 // (Google's "This browser or app may not be secure") is detected from its URL, in the panel tab itself or in a popup

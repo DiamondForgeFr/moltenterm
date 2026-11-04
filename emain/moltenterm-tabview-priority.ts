@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Tab view scheduling priority (#450, FR-PERF-004, DS-PERF-005). Chromium backgrounds the renderer of a view that is
 // not shown: the hot spare and a view still loading off-screen ran at macOS priority 4 (background QoS, efficiency

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The trust prompt (FR-MORPH-004). `molten mod enable` asks the calling tab, which shows what the mod declares and
 // waits for the user. Mods are not sandboxed in v0 (DS-MORPH-005), so this answer is what stands between a mod and

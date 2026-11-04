@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The first fit of a terminal used to send its size to the block controller before the resync that creates the
 // controller, so every tab view loaded with "no controller found for block" (FR-PERF-005). The first sync resyncs

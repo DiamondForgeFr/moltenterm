@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The CI local tab (FR-MC-011), as Notulia's: pick a branch (marked by what the CI says about it now, the Now card's
 // rule), run what is not green yet or everything again, follow the runs and each job's live log.

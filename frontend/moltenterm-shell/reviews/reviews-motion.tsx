@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews cards' motion (#1063, FR-REV-001 AC14): cards arrive, leave, slide to their new place and travel between
 // sections instead of jumping. FLIP with the Web Animations API, transform and opacity only, never the View Transitions

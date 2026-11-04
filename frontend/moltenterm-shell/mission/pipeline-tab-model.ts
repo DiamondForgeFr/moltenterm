@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pipeline setup's tab (FR-MC-038, #1150): its view type and what its panels carry in their meta. Kept free of
 // React and of the stepper, so the tab strip and the terminals can read them without loading the setup.

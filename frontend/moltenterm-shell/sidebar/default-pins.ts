@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A fresh install's top row (FR-SHELL-080, #1296): Terminal, Web page, Pilotage and Project pinned everywhere, each one
 // panel, named in the interface language. wavesrv marks a client it creates (pkg/wcore/moltenterm_defaultpins.go); the

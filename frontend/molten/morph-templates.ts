@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Preconfigured morphs: ready /morph requests MoltenTerm offers for a personal change it does not ship, each backed by
 // a guide in `molten docs` that the developer's own agent follows (pkg/molten/agentdocs/morph.md, "Preconfigured

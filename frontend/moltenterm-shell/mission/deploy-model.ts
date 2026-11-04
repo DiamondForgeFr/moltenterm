@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project header's Deploy to shortcut (#559): the environments a project's cd steps deploy to, which of them ask
 // before running, and what a deploy takes (the branch checked out in the project, where every step runs).

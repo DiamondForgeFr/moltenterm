@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Still captures of the carpet's panels (FR-SHELL-065 AC11-AC12, FR-SHELL-125 AC14, DS-SHELL-152): the edge peeks and
 // the tab strip's preview show a panel's thumbnail, never a live view (a browser panel is a web view: it cannot be

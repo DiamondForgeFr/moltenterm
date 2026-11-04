@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One word per object (FR-SHELL-093, #1322): the names from before Spaces are retired, in the dictionaries of both
 // languages. A value that uses one fails here, unless its key sits in Allowed with the reason. A new language pack is

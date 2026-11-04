@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Copyright 2026, MoltenTerm Authors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Developer ID probe helpers (#880), used by .github/workflows/macos-signing-probe.yml around the real package.mjs run.
 // The release path reports a failed session only as "Signing session failed"; these stages name the check that failed

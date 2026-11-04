@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Opacity field of the edit sheet's Workspace part (FR-SHELL-091, #1281): a slider from opaque to the readable
 // minimum, Blur what is behind, a Texture with live tiles (#1294), and where the value is saved (this workspace or its

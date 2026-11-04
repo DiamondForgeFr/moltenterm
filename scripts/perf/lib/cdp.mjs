@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Minimal Chrome DevTools Protocol client over Node's global WebSocket (Node 22), for the renderers
 // (--remote-debugging-port) and the Electron main process (--inspect).

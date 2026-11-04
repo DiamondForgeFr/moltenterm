@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mark ready for review (#687), on a draft's row in the Reviews list and in its Review tab's header: the button asks
 // for a confirmation that says what GitHub does next, then runs gh pr ready through ReviewsModel.markReady.

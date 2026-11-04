@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package keepawake is MoltenTerm's own keep-awake and the sleep policy (FR-SHELL-023, DS-SHELL-024, DS-SHELL-025,
 // DS-SHELL-062). wavesrv holds one state: the global policy, the reasons MoltenTerm keeps the computer awake (the

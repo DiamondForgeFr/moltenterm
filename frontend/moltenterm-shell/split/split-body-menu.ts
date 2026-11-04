@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A right-click in a panel's body that its view leaves alone opens the block's menu, so every panel offers Split
 // right / Split down there too (FR-SHELL-042-AC4). A view with its own menu stops the event first; text fields and

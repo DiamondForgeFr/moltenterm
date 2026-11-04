@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package pipelinesetup drafts a missing release pipeline from what a repository says (FR-MC-036, DS-MC-031): the
 // branches, the version files, the changelogs, the GitHub workflows and the packagers. It reads the project and never

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where an app action's panel opens (FR-SHELL-094): Preferences, CI/CD, a notification's view... never into the pinned
 // view it was started from. Kept apart from the store so the rule can be tested without the app.

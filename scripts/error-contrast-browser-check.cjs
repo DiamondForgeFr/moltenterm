@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Run after build:prod with a disposable --user-data-dir. Real components, built shell CSS, mocked side effects.
 const fs = require("node:fs/promises");

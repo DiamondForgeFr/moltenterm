@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every Wave widget nobody rewrote (web, sysinfo, processes, help, apps…) gets its getSettingsMenuItems() as a section
 // named after the panel (FR-SHELL-047-AC7). A fallback: it steps aside when a native widget provider matches.

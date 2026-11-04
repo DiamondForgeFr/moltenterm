@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Add a panel on the left / on the right" (#732), in every panel's menus next to "Split…": a new top-level column
 // beside the panel's column, opening on the picker like a split (FR-SHELL-042). The panels already there keep their

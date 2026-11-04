@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The state mark (FR-SHELL-116): one shape per state, in its heat colour (moltenterm-shell.css, .mt-state-mark), so a
 // state never rests on its colour alone. A running arc holds the working beat while it shows, which turns it a quarter

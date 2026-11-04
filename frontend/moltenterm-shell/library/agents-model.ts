@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library's Agents section (FR-SHELL-088 #1699): every agent of wavesrv's catalog (pkg/molten/onboarding), one
 // page each in the same layout, no vendor ranked first. Pure, so the rules are tested without a window.

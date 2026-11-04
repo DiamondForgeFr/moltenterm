@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The app menu's Settings…, View and Window menus (FR-SHELL-096, #1325), built from callbacks so the templates are
 // tested without Electron. Every label is an appMenu.* key; no label names the system, the menu exists on Linux too.

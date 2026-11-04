@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The deployment pipeline setup stepper (FR-MC-038, DS-MC-030): its four steps, step 1's survey of the repository and
 // the answers kept per project between openings. Pure functions, tested without the app.

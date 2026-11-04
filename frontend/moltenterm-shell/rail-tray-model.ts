@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The rail's hover tray (FR-SHELL-045, DS-SHELL-080, DS-SHELL-081): a rail item extends into a 36 px tray inside the
 // rail's layer, with its name, Edit and More. It replaces the buds of #365, #368, #276 and #390.

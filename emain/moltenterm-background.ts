@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Background test mode (#495). Test instances that agents launch (AI Testing runs, the perf harness) must never take
 // the keyboard focus or cover the user's work: on macOS, BaseWindow.show() and focus(), and webContents.focus(),

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The app menu's View and Help menus (FR-SHELL-113): what each item asks the active view's renderer to do. Pure data
 // shared by Electron main (emain/moltenterm-view-menu.ts builds the menus) and the renderer (app-menu-commands.ts runs

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Scene 2 of the pour, "Your agents heat up" (FR-ONB-007 AC-4, AC-5): one card per catalog agent from wavesrv's real
 // detection (FR-ONB-002, pkg/molten/onboarding/agents.go), and recipe cards for subscriptions that run in Claude Code

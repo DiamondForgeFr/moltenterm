@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 1 of the deployment pipeline setup (FR-MC-038): the app type, detected with its evidence and confirmed, and what
 // the repository shows of a pipeline, which recommends analysing it (2a) or describing one (2b).

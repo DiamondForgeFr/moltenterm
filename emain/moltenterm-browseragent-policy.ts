@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The DevTools operations an agent session may run on a browser panel tab (DS-BRW-012). emain is the last gate: wavesrv
 // decides which tool runs which method, and emain executes only these, on registered panel webviews under agent

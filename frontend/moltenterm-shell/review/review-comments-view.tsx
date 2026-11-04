@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Review comments drafted and discussed in the developer's language (FR-REV-009): one card per comment, used in the
 // file's comments strip and in the AI panel. A card shows the comment's kind (comment or change request), state and

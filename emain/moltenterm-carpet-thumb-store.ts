@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The 360 carpet's thumbnails on disk (#1814, FR-SHELL-065 AC12, DS-SHELL-152): one small JPEG per carpet column,
 // named after the column's first panel, and an index of what each was taken for. The tag is the column's validity key

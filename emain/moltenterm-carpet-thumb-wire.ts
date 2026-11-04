@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the carpet's thumbnail channels accept and answer (#1814): the renderer is trusted as the application, but the
 // store is still handed nothing it has not checked. Kept apart from Electron so the checks are tested alone.

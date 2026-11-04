@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // An isolated MoltenTerm instance for the performance harness. Everything it uses lives in a throwaway root the
 // harness creates under /tmp, or --tmp (short on purpose: wavesrv's unix socket path has a length limit), marked with a file

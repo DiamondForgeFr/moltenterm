@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The rail order (FR-MC-031, DS-MC-024): wavesrv stores it and sorts Wave's workspace list by it
 // (pkg/molten/railorder). A move names a neighbour and a side, never an index, so the group rule of FR-MC-027 can be

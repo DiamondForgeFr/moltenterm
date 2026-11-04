@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The screen a window is on (FR-SHELL-066, #1083): the 360 view's column threshold is remembered per screen, keyed by
 // the display's size and scale factor. Every tab view of a window learns its screen at start and whenever the window

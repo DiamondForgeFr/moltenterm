@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The test context chip at the start of the browser's address bar (FR-BRW-017, #962): on a local tab, the branch and
 // PR the page is served from, with the details and "Open in Reviews" in a popover opened by a click. It asks wavesrv

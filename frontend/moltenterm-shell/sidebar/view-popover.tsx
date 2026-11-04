@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The view menu's two small pages (FR-SHELL-081, the #1181 prototype's renameMenu and iconMenu): Rename, a field for a
 // view whose name does not show (a top-row block), and Change icon, a grid of glyphs plus "What the view shows" to go

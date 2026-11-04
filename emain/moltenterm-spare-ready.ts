@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A tab view taken for a new tab must be ready before it is used, and no step of a window's action queue may wait on a
 // renderer forever (#283). A hot spare that never reports ready used to leave the window blank until a relaunch, and a

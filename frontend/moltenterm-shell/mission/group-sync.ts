@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The group strip's Sync (FR-MC-028-AC3, FR-MC-030): the one function its button calls. It starts the same action as
 // the stale notification's Sync, the dependency:sync gesture, with the same arguments, so the two never drift apart.

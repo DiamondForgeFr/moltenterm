@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The browser panel's side of hidden pages frozen and discarded (#459, FR-PERF-013, emain/moltenterm-webview-lifecycle.ts):
 // each tab's webview reports whether it is shown (its tab is the panel's active one and the tab view shows, per the

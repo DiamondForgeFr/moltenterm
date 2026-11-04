@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Publish sheet (FR-REV-010 AC2 to AC5): each staged comment with its original and its translation side by side,
 // both editable, where it lands, and an optional summary. Post review is the only way anything reaches GitHub

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What Sign in decides (FR-ONB-007 AC-5b, #1723), kept apart from the store so the cards render and test without a
 // window: the one line saying what will happen, and when the sign-in terminal is over.

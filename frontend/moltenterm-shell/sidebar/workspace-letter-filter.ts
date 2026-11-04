@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Hold a letter or digit over the bottom switcher to show only the workspaces whose name starts with it (FR-SHELL-082,
 // #1784). The hold is timed from the first press, so auto-repeat never restarts it and a tap shorter than the delay

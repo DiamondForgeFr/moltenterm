@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Preferences › Notifications (FR-SHELL-106): what each subject may tell, and whether the notification panel opens
 // for every message. Its one home: the bell's « Settings › » and a row's "Don't tell me again…" open this section,

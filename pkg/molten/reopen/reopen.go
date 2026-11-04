@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package reopen keeps the panes and tabs closed in each workspace so the last one can come back (Cmd+Shift+T, #512).
 // A close is kept as a journal entry (who, what, which, the state it had), the shape the workspace history explored

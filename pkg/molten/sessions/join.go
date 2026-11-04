@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package sessions builds the durable sessions (FR-SHELL-020, DS-SHELL-021): every durable terminal still running,
 // local or SSH, joined with its pane, its workspace, its connection, its agent and its folder. wavesrv keeps the last

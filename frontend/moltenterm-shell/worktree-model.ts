@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Worktree per terminal (FR-SHELL-016): what a terminal's header, the status bar and the tab tooltip say about the
 // tree a terminal works in, when the link is offered, and the plan shown before a worktree is removed. Kept apart from

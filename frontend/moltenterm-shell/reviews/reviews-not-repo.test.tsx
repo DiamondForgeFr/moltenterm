@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Integration panel in a project folder without git (#1650, FR-REV-001 AC15): a calm explanation in its own words,
 // one call to action, a confirmation that names the folder. #1671: the other git panels use the same words, and a view

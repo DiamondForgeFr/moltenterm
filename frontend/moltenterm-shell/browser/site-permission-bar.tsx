@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The site permission bar of the browser panel (#663): a page asks for the camera, the microphone, the location or
 // notifications, and the tab asks the user in the slot of the other bars. Allow and Block are remembered for the site

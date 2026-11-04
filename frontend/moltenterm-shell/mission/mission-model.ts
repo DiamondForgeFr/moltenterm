@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the collector in wavesrv answers (pkg/molten/mission), and its translation into the shapes the ported Notulia
 // modules read. Kept apart from the components so the rules can be tested without the app.

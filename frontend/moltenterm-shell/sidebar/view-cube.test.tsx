@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The 360 cube in a view's icon (FR-SHELL-081, #1823, #1861): what each place that draws a view's icon renders, the
 // prism for several panels on screen, and that nothing moves under reduced motion.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The status bar's side of DS-SHELL-010: wavesrv probes the focused pane's tree (at most once a second per tree, off
 // the renderer); the bar asks again when the pane's folder changes, when its shell is back at the prompt (a checkout

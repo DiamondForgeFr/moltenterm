@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Who opens the version history (FR-REL-004): the status bar's build badge, About, and later the update notification
 // (#188), which opens it on the version it offers and sets offeredVersionAtom.

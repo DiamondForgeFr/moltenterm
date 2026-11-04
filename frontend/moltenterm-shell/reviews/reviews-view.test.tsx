@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A Reviews card (#1060, FR-REV-001 AC11): its state's rail, sentence and one primary action, the "…" menu, the facts
 // line and the draft tag.

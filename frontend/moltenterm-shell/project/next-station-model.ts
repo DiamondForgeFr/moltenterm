@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the Project overview's header band shows (FR-MC-021, DS-MC-012, DS-MC-013): the next station, what waits on
 // the trunk, the ticker of those changes and the trunk the Run CI button runs on. Computed from what the core already

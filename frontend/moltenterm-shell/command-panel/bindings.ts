@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where an option's scopes read and write (DS-SHELL-086): This panel in the block's meta, All <kind>s in the
 // settings (the add-config path). Writing null clears a key in both, so Reset restores what the wider scope holds.

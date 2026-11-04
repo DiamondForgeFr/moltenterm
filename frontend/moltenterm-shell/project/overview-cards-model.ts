@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the Project overview's four cards show (FR-MC-024, DS-MC-012), computed from what the core already hands every
 // card: no new git or GitHub call. Kept apart from the components so the rules can be tested without the app.

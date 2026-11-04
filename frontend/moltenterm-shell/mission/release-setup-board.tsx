@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The setup's agent board in the panel (FR-MC-045, #1163): the window publishes what the developer sees, follows the
 // board live, and shows each proposal of the terminal's agent as a card the developer accepts or declines. Every

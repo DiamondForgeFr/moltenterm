@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The empty workspace (FR-SHELL-110 AC-4, audit #1316 F5): what a workspace is, why this one is empty, how to start,
 // with two actions.

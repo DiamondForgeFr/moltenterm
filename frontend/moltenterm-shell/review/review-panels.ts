@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The panels still open in a worktree the cleanup kept (#672): Show the panel takes the window to it, wherever it is;
 // Close the panels and remove closes them before the removal runs again.

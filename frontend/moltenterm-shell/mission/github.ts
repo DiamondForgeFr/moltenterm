@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // GitHub as the CI remote tab shows it (FR-MC-002), ported from Notulia (src/lib/devGithub.ts, devCron.ts): open pull
 // requests with their checks (GitHub's jobs and local-* statuses side by side), recent runs, and scheduled workflows

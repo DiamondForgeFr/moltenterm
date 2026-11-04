@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // `molten mod validate` (FR-MORPH-005). The module is parsed, never imported: validation must not run code the user
 // has not trusted yet (FR-MORPH-004).

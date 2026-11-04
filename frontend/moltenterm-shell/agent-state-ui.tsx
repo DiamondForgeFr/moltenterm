@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where the agent states show (FR-SHELL-011): the pane header (its title, pill and working segment:
 // header/panel-header.tsx), the tab and the workspace icon of the rail (a dot with the most urgent state).

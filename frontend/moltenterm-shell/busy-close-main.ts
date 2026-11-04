@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The renderer's side of FR-SHELL-062 (DS-SHELL-109): Electron main asks what a window close, a quit, a workspace
 // delete or a switch away from an unsaved workspace would stop (emain/moltenterm-busy-close.ts). This renderer acks at

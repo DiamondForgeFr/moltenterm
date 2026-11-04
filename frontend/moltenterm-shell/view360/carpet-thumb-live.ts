@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The app-bound half of the carpet's thumbnail rules (#1814, carpet-thumb-state.ts): reads a panel's page address and
 // load state from the stores the browser panel already keeps (its view model, or its saved block meta while the model

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Validate's stepper (#672): the steps in the order they happen, drawn like the local build panel's phases (FR-MC-013)
 // standing upright, each with its state and what it will do or did underneath. A kept worktree shows what removing it

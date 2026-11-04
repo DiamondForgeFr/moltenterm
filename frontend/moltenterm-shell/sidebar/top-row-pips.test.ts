@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Integration block's pull request status dots sit in the block's corner column, under its agent mark or modified
 // ring (FR-SHELL-085, #1304, sidebar.css .mt-sb-corner). A top-row block that clipped its overflow hid what it carries

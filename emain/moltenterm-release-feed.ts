@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release notification's request (#188): asks the repository's GitHub Releases at most once a day for every
 // window together, and keeps the releases it read in <data>/molten/update/release-check.json so a restart does not ask

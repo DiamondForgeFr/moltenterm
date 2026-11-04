@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package sfticket creates a ticket through the ticket CLI of a SaaSFoundry project (its github-projects tool), as the
 // project's own workflow does: on the board, typed, with a complexity and a nature, so that the workflow's guards accept

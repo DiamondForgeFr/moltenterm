@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // wavesrv's questions in the window (Wave's user input modal) in the interface language (#1831): a request may carry
 // a pkg/molten/uimsg Text per field in moltentexts; the English field shows for a code unknown here.

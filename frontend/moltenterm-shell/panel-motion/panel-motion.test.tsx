@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Panel motion (FR-SHELL-112, #1349): the view pour, a panel's arrival and a working agent's turning light, one
 // moment at a time, transform and opacity only, each with its still state under reduced motion (NFR-SHELL-027).

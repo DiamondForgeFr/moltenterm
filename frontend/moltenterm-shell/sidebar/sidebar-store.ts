@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace sidebar's state (FR-SHELL-079): its width and whether it is hidden live in the window's meta, so every
 // tab view of the window draws the same sidebar and a relaunch keeps them; the peek (the sidebar shown over the content

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Why the release setup chose its flow (#1046, DS-MC-030): what the release branch's protection asks and how far it
 // diverged from the trunk, with the numbers; the one-time reconciliation, and the version labels to keep.

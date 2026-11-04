@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Settings > Mods (FR-PERF-014): the mods this tab view runs, their state, commands and errors, and what each costs
 // against its budget (molten-budget.ts). A mod over budget carries a badge and the measured numbers. Mods are enabled

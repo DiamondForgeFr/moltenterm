@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pour's stage and scenes, rendered without a window (FR-ONB-007 AC-1 to AC-5, P-1 to P-6, FR-ONB-009,
 // TC-ONB-007, TC-ONB-012 to TC-ONB-014).

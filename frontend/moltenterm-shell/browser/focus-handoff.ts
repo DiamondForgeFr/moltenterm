@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A link clicked inside a block hands the focus to a browser panel (#268). Wave's block click handler gives the focus
 // back to the block that was clicked, so the two blocks would trade it forever (React error 185). While a hand-off is

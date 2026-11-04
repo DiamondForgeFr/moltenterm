@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # Checks that a folder holds every file of a MoltenTerm release, then writes SHA256SUMS.txt in it. Run by
 # .github/workflows/release.yml on a release and on a rehearsal, so the two always expect the same files.

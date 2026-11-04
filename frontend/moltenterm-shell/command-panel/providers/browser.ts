@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Browser sections of the command panel (FR-SHELL-051, DS-SHELL-090): Page (Reload, Zoom, Copy link, Open
 // externally, Engine), Tabs, This site (the per-site engine and the agents' decision), Links (web:openlinksinternally,

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What `molten i18n export | check | status` answers (FR-I18N-002, DS-I18N-009). The tab computes it, from the same
 // dictionaries, packs and checks it applies, and molten prints it in English (DS-I18N-007).

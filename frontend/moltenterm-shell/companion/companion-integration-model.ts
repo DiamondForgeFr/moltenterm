@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the companion tells of MoltenTerm's integration of a run (FR-SHELL-040, DS-SHELL-051, DS-SHELL-052): what the
 // launcher added and left alone, and the settings that turn it off (agent:integrate, agent:integrateoff), read at

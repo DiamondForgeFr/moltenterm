@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // An agent slot (FR-SHELL-080): a view pinned everywhere opens in each workspace with its own agent, so the terminal
 // that held an agent when the view was pinned opens empty, in the project's folder, and offers to start one. Nothing

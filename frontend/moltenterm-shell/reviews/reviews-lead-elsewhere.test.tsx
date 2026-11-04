@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // #1796 (FR-REV-022): a lead busy elsewhere does not make every PR it owns look worked on. The card shows "X is on it"
 // and the dominoes only when an agent works on the PR's branch: its own session there, a sub-agent placed there, or a

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every dialog follows the suite frame (#905): 4 px corners, the thin border and the turning light, through DialogFrame
 // or Wave's Modal; overlays that are not dialogs (popovers, menus, toasts, command surfaces) keep low corners.

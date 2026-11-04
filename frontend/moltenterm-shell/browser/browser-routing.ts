@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every web page Moltenterm opens inside the app goes through openInBrowserPanel (#140): it opens beside the browser
 // panel the user last focused in the current tab (a panel of its own since #1187), or in a new panel when the tab has

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Preferences › Workspaces and views (FR-SHELL-106): what is not a key of settings.json. The sidebar docked or
 // floating (the window's meta, as the shortcut does), and the top row, the views pinned everywhere, as the tiles the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Line selection in the Review tab's diff (FR-REV-003, DS-REV-003): the selected lines become an anchor in GitHub's
 // review comment position (path, side, start line, line) on the head shown, with the lines' text as its excerpt. A

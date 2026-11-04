@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Moltenterm's About panel. modalregistry.tsx registers it under Wave's modal
 // name ("AboutModal"), so every existing way of opening About shows this one.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The shipped dictionaries stay complete (TC-I18N-005, NFR-I18N-001, NFR-I18N-003): every language has every key of
 // en.json with the same placeholders, no key English lacks, and every key the code asks for exists in en.json.

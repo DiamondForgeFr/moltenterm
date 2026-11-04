@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Ask for help" in the pipeline setup's tab (FR-MC-038, #1150): the tab opens on the setup panel alone; asking opens
 // the agent's terminal on its left (agent left, graphics right), starts the project's coding agent there when none

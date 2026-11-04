@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One search surface (FR-SHELL-113): the palette's entries live in the top field. Every entry the palette dialog
 // listed is found by typing its name, even among many views of the same name; the empty field shows Views, Agents,

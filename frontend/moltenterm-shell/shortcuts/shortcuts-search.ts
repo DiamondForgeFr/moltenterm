@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The shortcuts sheet's search (DS-SHELL-067): every word of the query must appear in the label, the category, the
 // keywords or the keys as shown ("split", "⌘D", "alt+d").

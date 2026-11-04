@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pure side of the tab activity model (FR-PERF-009, DS-PERF-008): what a tab view's activity is, and the
 // scheduler every periodic job of the MoltenTerm frontend goes through. tab-activity.ts wires it to the window.

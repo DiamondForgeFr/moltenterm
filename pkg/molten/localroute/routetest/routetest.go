@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package routetest builds a router with every kind of caller a molten route meets, for the routes' tests: a window,
 // Electron main, a local terminal, and a remote connection that forwards a terminal of its own and forged sources.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One open request for the workspace edit sheet (DS-SHELL-035). Every entry point (the rail's context menu, pencil and
 // double-click, the command palette, the app menu, Wave's switcher) calls openWorkspaceEditor; WorkspaceEditHost, in

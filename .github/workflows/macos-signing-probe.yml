@@ -1,5 +1,5 @@
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 
 # Developer ID probe (#880): proves, before a release candidate, that the seven secrets of the `release` environment
 # import, sign with the Developer ID (hardened runtime, secure timestamp), notarize (Accepted), staple and pass

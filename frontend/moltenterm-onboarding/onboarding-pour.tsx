@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The first launch, "the pour" (FR-ONB-007, DS-ONB-007): six full-frame scenes in the first-run panel (#1709), six heat
 // bars, Skip always there, Later on the project and the view, Enter or → to move on and ← to come back, sparks after a

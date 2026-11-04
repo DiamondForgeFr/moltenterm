@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pieces of a top tab that MoltenTerm draws (FR-SHELL-056, DS-SHELL-098): the 14 px icon, the name shown in place
 // of Wave's generic T<n>, and the agent mark, whose shape tells the state without its colour (NFR-SHELL-026): a

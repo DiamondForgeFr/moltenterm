@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The merges the Reviews list knows before GitHub is read again (#898): a PR MoltenTerm merged (the Validate sheet, each
 // batch step) leaves the list to review at once and shows in Recently merged; a PR the collector's read lists as merged

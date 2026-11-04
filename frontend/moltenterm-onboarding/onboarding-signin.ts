@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Sign in on an agent's card (FR-ONB-007 AC-5b, #1723), on the first launch and in Library › Agents: a terminal panel
 // in the current workspace runs the agent's own sign-in, the command wavesrv builds from its catalog by agent id

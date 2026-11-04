@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Streamdown pulls shiki, katex and mermaid. It loads with the first AI or onboarding message that renders; until
 // then the message shows as plain text, so it is readable at once and does not jump much when formatting lands.

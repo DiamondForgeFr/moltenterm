@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's heat (FR-SHELL-122, DS-SHELL-133, #1409): shown only while agents of the workspace work, stronger with
 // more of them, off with the setting, reduced motion or the sidebar away, and changing only on the shared frames.

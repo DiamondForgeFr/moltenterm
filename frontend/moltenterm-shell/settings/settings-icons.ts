@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The suite icon (suite/suite-icons.ts, #658) of each settings section and group, so Settings draws the same icon as
 // Notulia for a shared concept. Groups are named by their English slug (groupSlug), which does not change with the

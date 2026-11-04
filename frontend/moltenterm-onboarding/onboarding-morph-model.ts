@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What step 2, "Your first morph" (FR-ONB-003, DS-ONB-003), decides, kept apart from the component so it is tested
 // without a window: the agent the step can start, the requests it proposes in that agent's syntax, and the mod that

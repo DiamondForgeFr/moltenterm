@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Assisted review's confirmation (FR-REV-033, #1352): nothing starts unasked (#758), so before the agent starts on the
 // PR this dialog says what will happen. Start the agent (the default, Enter) opens the Review tab with the agent on the

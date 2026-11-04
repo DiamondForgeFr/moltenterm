@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package settingsmeta is what the settings screen knows about each key of settings.json (FR-SHELL-050,
 // DS-SHELL-091): its section, group, label, one-line description and control. cmd/generateschema writes it into

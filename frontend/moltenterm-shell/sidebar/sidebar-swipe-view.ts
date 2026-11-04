@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace swipe on screen (FR-SHELL-082, DS-SHELL-130, #1248): wheel events go through the pure machine of
 // sidebar-swipe.ts, and one requestAnimationFrame per display frame writes the result as transforms and opacities on

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The notification center (FR-SHELL-002, FR-MC-010, FR-MC-019): a bell in the tab bar gathers what needs the user's
 // attention in every workspace, newest first. A notification opens where it comes from, carries up to two actions,

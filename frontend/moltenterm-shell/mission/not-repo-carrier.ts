@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One call to action per view in a folder without git (#1671, FR-SHELL-053, FR-REV-001 AC15): every git panel of a
 // view showing the same folder registers here, and only the first in GitPanelOrder carries the explanation and the

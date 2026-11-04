@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Restart work (FR-REV-011, DS-REV-009): the rules of the Review tab's button and status line, kept apart from the
 // components so they can be tested without the app. The work itself is wavesrv's (pkg/molten/review/restart.go).

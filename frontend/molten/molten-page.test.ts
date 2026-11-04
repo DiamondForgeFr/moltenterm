@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // FR-MORPH-012, TC-MORPH-013, TC-MORPH-014: the host undoes what a mod's code added to the page.
 

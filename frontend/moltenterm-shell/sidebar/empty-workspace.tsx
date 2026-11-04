@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A workspace without a view of its own (FR-SHELL-110, audit #1316 F5): where its tiles would be, what a workspace is,
 // why this one shows none and how to start. Since #1709 the user arranges it: New view (⌘N, with its suggestions,

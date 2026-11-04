@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Hidden tabs (#758, pkg/molten/hiddentabs.go): an agent the developer let work out of sight runs in a tab of the
 // workspace that the tab bars and the tab-switch keys skip. Activating the tab (Go to, a notification, Show in

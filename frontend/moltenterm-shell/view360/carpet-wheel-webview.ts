@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A browser panel's page runs in its own process: its wheel never reaches the carpet's listener (#676). The host tells
 // the guest page whether its panel lies on a scrollable carpet and has the focus; the page's preload

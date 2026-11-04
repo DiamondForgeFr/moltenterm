@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every string the 360 view's toggle and its leave dialogs show (FR-SHELL-066, #733), read through the interface's keys (FR-I18N-001) at
 // each access: the components that show them call useLocale() so a language switch redraws them.

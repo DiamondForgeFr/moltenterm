@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A window's action queue, versioned (#449, FR-PERF-003, DS-PERF-004). Wave's queue released an action in a `finally`
 // that a `return` inside the loop skipped past, so the queue could stop draining for good; a workspace delete bypassed

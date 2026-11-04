@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The windows' copy of wavesrv's agent states (FR-SHELL-011): a snapshot at start, then the molten:agentstate
 // events. Every window holds all of them, since the rail shows the other workspaces too.

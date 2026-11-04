@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The ready-made combinations of panels (FR-SHELL-138, #1709): MoltenTerm makes no view on the user's behalf, so they
 // live only as suggestions, in the new-view launcher (⌘N) and in the first launch's first-view step (FR-ONB-009), the

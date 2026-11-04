@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The trunk and release branches' GitHub CI (#836), read by wavesrv (pkg/molten/mission/branch_ci.go): the latest run
 // of each workflow on develop and main, its jobs, how long they usually take, and the release waiting for it.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // 360 view (FR-SHELL-065, DS-SHELL-114/115): a workspace tab drawn as a fixed zone on the left, holding the tab's
 // first column, and a carpet that scrolls horizontally with every other column laid on it at the width remembered for

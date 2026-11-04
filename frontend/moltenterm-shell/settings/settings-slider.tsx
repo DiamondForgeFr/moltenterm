@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { t } from "../i18n/i18n";

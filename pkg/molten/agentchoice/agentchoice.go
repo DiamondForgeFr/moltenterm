@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentchoice is the coding agent MoltenTerm starts for a project (#845): every flow that starts or runs an
 // agent on its own (the reviews' investigate, rebase, restart and batch merge, the assisted review, the release notes)

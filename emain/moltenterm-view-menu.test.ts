@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The app menu's View and Help menus (FR-SHELL-113, AC-3), tested through their templates: the native menu cannot be
 // reached from the page, so the items, their shortcuts and what a click sends are checked here.

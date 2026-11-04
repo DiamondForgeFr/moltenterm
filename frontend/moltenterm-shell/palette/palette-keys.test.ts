@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // ⌘⇧K opens the top field, the same field as ⌘L (FR-SHELL-113, AC-1); with the sidebar off it opens the palette dialog,
 // so the palette never goes missing. Help › Command Palette runs the same key.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view's icon says what its screen shows (FR-SHELL-081, #1823), end to end from the tab's meta and its blocks: a grid
 // view keeps a mark per panel, a view drawn in 360 view has its fixed panel and one cube whose front face follows the

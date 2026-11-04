@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mission Control's collector (DS-MC-001): one place in wavesrv reads git and GitHub for the linked projects, caches
 // the result, and publishes it. Every tab runs its own renderer: the panels only ask and display, so a second tab

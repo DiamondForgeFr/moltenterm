@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Hidden tab view budget and real hiding (#454, FR-PERF-008, DS-PERF-007). Wave kept up to 10 cached tab views per
 // app and parked the hidden ones at -15000 px, at full window size, never hidden. Measured at 6 workspaces: 1653 MB in

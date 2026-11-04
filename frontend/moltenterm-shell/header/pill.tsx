@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The one Pill of MoltenTerm's headers (FR-SHELL-052, DS-SHELL-093): 20 px high, radius 6, 11/500, tones neutral,
 // warning, waiting (an agent waits on you, FR-SHELL-116) and danger, an optional 6 px dot shaped by its tone's state

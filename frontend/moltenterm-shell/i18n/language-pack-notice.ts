@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The untranslated strings notice (FR-I18N-002, DS-I18N-011) and the report of a pack that lost its code to another.
 // When the interface speaks a language a pack added and that pack lacks English keys (an update added some), one

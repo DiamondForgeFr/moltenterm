@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Opening a new view (FR-SHELL-089): ⌘N, the sidebar's New view, the palette's New view and the tab bar's + all come
 // here. The chooser, or the type the developer chose to open directly; the favourites' direct shortcuts; and what the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // #1211 (FR-REV-024): the recommended order ranks only the PRs the developer can merge now (CI green, no conflict
 // with the target, no agent working on them); every other queued PR says on its card why to wait; the block shows

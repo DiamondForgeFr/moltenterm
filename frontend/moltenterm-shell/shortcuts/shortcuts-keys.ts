@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Cmd+/ toggles the shortcut overlay (FR-SHELL-090), whose "All shortcuts" opens the shortcuts sheet (FR-SHELL-042-AC8,
 // DS-SHELL-067). It is a global key, so it also works over a web page (Wave hands every global key to the webviews).

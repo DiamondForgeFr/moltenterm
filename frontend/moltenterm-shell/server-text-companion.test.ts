@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // wavesrv's companion, keep-awake and browser agent sentences in the interface language (#656): the code wavesrv
 // sends beside its English words them, and the English shows without one.

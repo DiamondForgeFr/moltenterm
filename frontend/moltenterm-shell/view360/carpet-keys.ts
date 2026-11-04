@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The previous / next carpet panel shortcuts (FR-SHELL-068-AC3, FR-SHELL-126-AC1): in 360 view they move the carpet one
 // panel at a time, wrapping at the ends, and focus that panel. They are bound to Ctrl+Shift+PageUp / PageDown and to

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The windows' copy of wavesrv's durable sessions (FR-SHELL-020): a snapshot at start, then the molten:sessions
 // events, which carry the whole list (a few KB). Nothing is polled from here: wavesrv watches and ticks.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What pages of the browser panel may use (#663). Electron grants every permission a page asks for unless main says
 // otherwise, and the panel holds the user's sign-ins while agents drive it, so emain/moltenterm-site-permissions.ts

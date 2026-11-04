@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The panels' side of Mission Control's collector (DS-MC-001): they ask wavesrv, show the cached answer at once, and
 // take the refreshed snapshot from the event bus. Panels poll only while the window is visible.

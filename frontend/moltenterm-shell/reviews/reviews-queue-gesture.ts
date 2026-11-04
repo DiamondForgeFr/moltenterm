@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Investigate and fix from a merge queue notification (FR-REV-026 AC4, #896): "#N validated but CI failed" hands the
 // failed checks to a work agent as the Reviews row's action does; nothing starts before the developer's click on it.

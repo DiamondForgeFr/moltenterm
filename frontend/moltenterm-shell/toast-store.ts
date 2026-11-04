@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The toast stack's store (FR-SHELL-055): one per window renderer, since a toast belongs to the screen it shows on.
 // showToast is the API for any caller; the notification center pushes its arrivals through it (notification-toasts.ts).

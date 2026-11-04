@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every block view Moltenterm adds, registered by Wave's block registry in one call so new views cost no Wave edit.
 

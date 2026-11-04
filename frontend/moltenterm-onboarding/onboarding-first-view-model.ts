@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the first launch's project, first-view and place scenes decide (FR-ONB-007 P-4, FR-ONB-009), kept apart from
 // the components so the rules are tested without a window: the folder a new project gets, the tools of the view and

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The rules of adding, editing and removing a workspace's projects (FR-SHELL-087). Apart from workspace-projects.ts so
 // only the project page, loaded on demand, carries them (NFR-PERF-003, bundle.initialJsMB).

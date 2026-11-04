@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What a view's icon says of a 360 view (FR-SHELL-081, FR-SHELL-065, #1823, #1861): one mark per screen region, not per
 // panel. The fixed zone keeps its panels' icons; the carpet, whatever it holds, is one cube whose front face is the

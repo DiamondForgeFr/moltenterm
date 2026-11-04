@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // ⌘S hides or shows the workspace sidebar (FR-SHELL-079). An editor that saves on the same key keeps it.
 

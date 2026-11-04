@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The empty and error states of the pipeline setup (#1106, FR-MC-038): never a silent failure. Each state says what
 // happened, what still works and the next action; a soft problem (GitHub not reachable) lets the developer go on with

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Browser › the per-site settings as editable lists (FR-SHELL-106): which browser opens a site, what agents may do on
 // it, and what it may use (camera, microphone, location, notifications). A site per row, its choice changed in place

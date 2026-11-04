@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A working agent on its view's tile (FR-SHELL-112, #1349): the suite's turning light around the tile, in
 // incandescent, in place of the corner dot; it shows only while an agent works for the developer, never as

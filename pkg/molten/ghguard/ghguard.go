@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package ghguard keeps the real gh out of the Go tests (#1857). A unit test that runs it reaches GitHub with the
 // developer's own credentials, and on a loaded machine gh can block for minutes, longer than the tests' waits (#1835).

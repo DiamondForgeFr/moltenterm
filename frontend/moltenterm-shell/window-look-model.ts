@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace's look (#1281, FR-SHELL-091): how opaque the window's frame and sidebar are, and whether what is
 // behind the window is blurred. Saved on the workspace by default, or on its project so every workspace on that project

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The menus Mission Control opens under a button (Build local, Release): portalled out of the pane so no overflow
 // hides them, placed under the button's start, flipped above or shifted sideways when they would leave the pane, and

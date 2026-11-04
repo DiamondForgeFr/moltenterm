@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The shortcut overlay's state (FR-SHELL-090, DS-SHELL-129): closed, held (shown while ⌘ is held, gone on release) or
 // pinned (⌘/, gone on Escape, a click, ⌘/ or any other shortcut, which still runs). Only this small module loads at

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What opens says why (#758): the terminal of an agent MoltenTerm started for the developer carries its origin
 // (pkg/molten/review/agentstart.go), shown in a slim line above it: "Started by you at 11:21 after merging #736, to

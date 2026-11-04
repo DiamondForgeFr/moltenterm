@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tabs of the CI/CD workshop (FR-MC-025, formerly FR-MC-002). CI remote is ported from Notulia's Dev › CI
 // (GithubPanels.tsx): open pull requests with their checks, scheduled workflows with their next runs, recent runs. CD

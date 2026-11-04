@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "360 × N" (FR-SHELL-123, DS-SHELL-134): the fixed zone plus N visible places on the carpet, the other panels stored
 // on it, hidden but alive. The rules of the places, kept apart from the layout so they are tested alone: which numbers

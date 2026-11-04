@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The gutter between panels (FR-SHELL-086): an Arc-like pill centred in the gap, vertical between columns and
    horizontal between stacked panels; shown only on hover and while dragged (#1216), taller then. Wave's accent line,

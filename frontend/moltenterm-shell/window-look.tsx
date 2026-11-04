@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace's look applied to the window (FR-SHELL-091, DS-SHELL-131, #1281). Each tab view draws its own
 // workspace's look: the frame and the sidebar take the opacity as CSS alpha (html.mt-translucent, --mt-window-alpha,

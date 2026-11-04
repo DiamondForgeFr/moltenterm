@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The first-link engine choice (FR-BRW-006, DS-BRW-007): the page of an interface link to a site without a choice is
 // already loading in MoltenTerm's engine; this calm bar above it offers the installed browser, and remembers the answer

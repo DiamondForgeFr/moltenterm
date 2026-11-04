@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A project's code repository (FR-SHELL-105, #1777): the Git repository inside its folder that agents start in and the
 // Git features read. The folder holds the context (a client's documents, mails, specs); this chooses among the

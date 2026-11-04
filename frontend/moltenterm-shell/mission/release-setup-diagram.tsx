@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release setup's flow diagram (DS-MC-030): one inline SVG in the line map's colours (FR-MC-022), the trunk in the
 // accent and the release branch in the neutral tone, one node per step in its phase band, the tag a diamond, manual

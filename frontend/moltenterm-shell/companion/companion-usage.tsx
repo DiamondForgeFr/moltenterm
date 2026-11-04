@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Usage action of the companion (FR-SHELL-026, DS-SHELL-029): the agent's own usage page, opened like any link of
 // MoltenTerm's interface (openLink: the current tab's browser panel, FR-BRW-006). MoltenTerm reads nothing from it.

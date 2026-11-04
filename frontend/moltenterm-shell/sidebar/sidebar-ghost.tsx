@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The neighbour's sidebar that comes in with a swipe (FR-SHELL-082, DS-SHELL-130, #1248). Each workspace lives in its
 // own tab view, so the view on screen draws a light likeness of the next one from the objects in its store: its name

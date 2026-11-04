@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Opening the CI/CD panel on one of its tabs from elsewhere (the release run panel's link to the CI it waits on,
 // #836). Kept apart from the view so its callers do not load it.

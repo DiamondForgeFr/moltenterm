@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The toast stack (FR-SHELL-055, DS-SHELL-097): it comes from the notification bell (#1403), top left under the bell's
 // row and right of the sidebar (toastStackPlace), 360 px wide, the newest nearest the bell. A toast drops in in 240 ms

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What an agent session can use (FR-SHELL-084, FR-CONT-006, #1543): its MCP servers, skills and plugins, read-only.
 // wavesrv's agent adapter reads them from the agent's own configuration files when the agent window opens

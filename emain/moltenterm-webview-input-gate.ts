@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The page side of "taking over is explicit" (#971, FR-BRW-008): in a page an agent drives, the user's click or key
 // never reaches the page. emain holds back what its native observers see (before-mouse-event, before-input-event);

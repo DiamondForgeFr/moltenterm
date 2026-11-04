@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The renderer's hang report (#849): long tasks go to waveapp.log through fe-log, and once the window answers again
 // after Electron main saw it stall, a notification says how long, with "Copy diagnostics". Nothing opens by itself.

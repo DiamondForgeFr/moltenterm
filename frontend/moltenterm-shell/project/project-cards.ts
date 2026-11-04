@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project tab's cards (FR-SHELL-015, DS-SHELL-015): the core lays them out, the cards themselves are
 // contributions. Every built-in card registers here the way a mod's card will; there is no mod loader yet, only this

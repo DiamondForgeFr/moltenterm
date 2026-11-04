@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // #1841 (FR-REV-022 AC10, AC18): an Integration card says what a held draft waits on, and a lead counts as on a
 // branch only for the work it does there. A draft whose PR, lead comment or ticket names an open #N reads "Waiting on

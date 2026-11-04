@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The calls to action that open another panel beside theirs (#1844), each family's button as the developer sees it:
 // present, and its tooltip tells how to open the panel in a new view.

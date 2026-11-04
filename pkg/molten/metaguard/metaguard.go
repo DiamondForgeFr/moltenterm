@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package metaguard keeps the object meta the window trusts out of a terminal's reach (NFR-FORK-001, #1821). Wave's
 // GetMeta, SetMeta and WorkspaceList trust any terminal, so any agent, while MoltenTerm keeps user-trusted data in

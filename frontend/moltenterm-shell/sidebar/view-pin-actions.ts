@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The view menu's pin moves as actions (FR-SHELL-081, #1652): the menu, the command palette and the keep shortcut run
 // the same ones, so the rules stay the menu's (a temporary view's pins open the pin page, a view pinned everywhere

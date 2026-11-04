@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Dragging a rail item to reorder the workspaces (FR-MC-031, DS-MC-025). A press is a click until the pointer moved
 // past the threshold; from then on the item follows the pointer, a line shows where it lands and the rail scrolls near

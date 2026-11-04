@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Hidden browser pages frozen and discarded (#459, FR-PERF-013): the pure side, a tracker per browser panel webview
 // driven by the panel's reports (shown or hidden) and by timers. emain/moltenterm-webview-lifecycle.ts gives it the

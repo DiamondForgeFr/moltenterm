@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Store on the carpet" in the command panel of every panel outside the fixed zone (FR-SHELL-123-AC12): the chooser's
 // offered numbers only (FR-SHELL-049), with the same message and Undo, and in 360 view the pins and Leave.

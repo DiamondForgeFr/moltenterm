@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Preview sections (DS-SHELL-086, DS-SHELL-090): preview-model's settings menu regrouped into File (its actions,
 // in sentence case) and View (Font size and Word wrap as native options with This panel and All previews scopes),

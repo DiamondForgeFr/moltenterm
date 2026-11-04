@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One action at a time on a card (#952, FR-MC-016): from the click until the backend answered, the clicked button shows
 // the domino loader and a short label, and no action of the card can be clicked. The gate is a plain object, not only a

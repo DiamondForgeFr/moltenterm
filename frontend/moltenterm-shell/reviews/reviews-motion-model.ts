@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the Reviews cards' motion plays (#1063, FR-REV-001 AC14), decided from data, never from the DOM: the cards seen
 // in this session, and from the previous and the next layout of the sections, which cards arrive, leave, slide in

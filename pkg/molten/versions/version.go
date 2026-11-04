@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package versions holds a project's release numbering (FR-REL-001, DS-REL-001), ported from Notulia
 // (src/lib/releaseChannel.ts, src/lib/nextVersion.ts): a public release is X.Y.Z, a release candidate X.Y.Z-N or

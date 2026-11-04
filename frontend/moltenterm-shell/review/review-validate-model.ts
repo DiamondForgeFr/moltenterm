@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Validate sheet's state and actions (FR-REV-012), apart from the Review tab (#707): a Review tab owns one, and a
 // Reviews row's Validate opens one in place, with no Review tab. It follows one PR's review store (the merge record and

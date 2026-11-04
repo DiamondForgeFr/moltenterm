@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The windows' side of reopening (#512): before a pane or a tab closes, wavesrv reads and keeps it
 // (pkg/molten/reopen); Cmd+Shift+T asks for the last one back and says what came back.

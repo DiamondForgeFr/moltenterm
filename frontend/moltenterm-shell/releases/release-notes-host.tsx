@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mounts the version history while it is open (FR-REL-004). The window loads on its first opening (FR-PERF-007): the
 // notes it bundles and the markdown renderer never reach the entry every tab view evaluates.

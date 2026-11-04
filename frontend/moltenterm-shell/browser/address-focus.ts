@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A page panel opened by choosing Web page in a chooser has its address field focused (FR-SHELL-086, #1742): ⌘V then
 // Enter opens a pasted address. The panel's view model is made after the chooser asked, so a request waits for it; the

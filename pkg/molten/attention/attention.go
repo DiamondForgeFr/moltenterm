@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package attention records coding agents' calls for the user (FR-SHELL-003, DS-SHELL-004). It lives apart from
 // package molten, which wsh imports, because it needs wavesrv's object store.

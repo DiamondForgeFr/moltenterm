@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Resetting or deleting a workspace (#222, FR-SHELL-095): every entry point (the sidebar, the rail, the workspace
 // editor, Wave's workspace switcher) asks in this one dialog. It names what is lost, what runs in its terminals

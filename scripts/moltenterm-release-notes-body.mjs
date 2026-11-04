@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The public notes of a release as the GitHub release body carries them (FR-REL-003): the markdown of
 // releases/<tag>.md after its front matter (UPSTREAM.md, "Release notes"; the Go reader is

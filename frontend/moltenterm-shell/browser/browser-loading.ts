@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The load state of the browser panel's tabs (#210): whether each tab's page is loading and its favicon, fed by the
 // tab's <webview> events. In memory only: neither is worth restoring after a restart.

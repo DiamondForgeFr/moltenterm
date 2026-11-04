@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The shortcuts sheet (FR-SHELL-042-AC8, DS-SHELL-067): every shortcut of the registry, grouped by category, with a
 // search field; Cmd+/ (again), Escape or Close dismiss it.

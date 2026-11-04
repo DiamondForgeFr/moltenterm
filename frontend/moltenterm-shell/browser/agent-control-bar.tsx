@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The control bar of a tab an agent drives (FR-BRW-008, DS-BRW-011): above the page, in the engine choice's slot and
 // style, calm (no warning colour, no modal). "<Agent> is controlling this tab", the last action on one line, Take over

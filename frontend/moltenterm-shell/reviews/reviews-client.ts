@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's side of wavesrv (FR-REV-001, NFR-REV-002): it asks while it is shown and adds no poller. Mission
 // Control's frame already asks the collector every 15 s while the view shows (whileShown); the review list is asked

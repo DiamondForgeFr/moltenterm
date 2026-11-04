@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release notification of 1.0.0 (#188, FR-REL-005 reduced): an installed release learns from the repository's
 // GitHub Releases that a newer release of its channel is out, and says so once with its notes and a download link.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A workspace's look (FR-SHELL-091, DS-SHELL-131, #1281): the page draws the frame's opacity with CSS alpha and tells
 // Electron main only whether its view must let the desktop through and whether the window blurs it. A window can be

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The command panel of a panel (FR-SHELL-047, DS-SHELL-085, DS-SHELL-086): what providers declare. A provider
 // matches a panel by its capabilities and returns sections of items; the panel orders the sections by kind, never by

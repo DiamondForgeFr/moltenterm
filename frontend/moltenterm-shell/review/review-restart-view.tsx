@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Restart work (FR-REV-011): the Review tab's header button, and the line under the header that follows the agent the
 // round went to (its live state from the agent states) and, after its push, offers the changes since the round; and the

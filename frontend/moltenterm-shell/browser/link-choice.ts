@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Links MoltenTerm's own interface opens (FR-BRW-006): where they go (DS-BRW-006) and when the first link to a site asks
 // which engine to use (DS-BRW-007). Pure functions; browser-routing and the browser panel apply them.

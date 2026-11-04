@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews merge queue (#1062, FR-REV-023 to FR-REV-025): the suggested merge order (reviews-order-model.ts) as a
 // numbered queue readable without hovering, the conflict relations between cards both ways, the words that give each

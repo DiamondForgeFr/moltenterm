@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The renderer's interface language (FR-I18N-001, DS-I18N-001, DS-I18N-002). The resolved language lives in one atom
 // of the I18n model, computed from app:language (the settings atom, so the settings screen, settings.json and

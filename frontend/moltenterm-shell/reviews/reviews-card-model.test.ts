@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews card's one state (#1060, FR-REV-001 AC11): every state of the mockup's table, the precedence between
 // them, the one primary action, the menu and the facts.

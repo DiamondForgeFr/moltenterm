@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Settings > Secrets (#534): the secrets of the system's secret store, in the settings' own language, on the calls
 // of Wave's settings model (WaveConfigViewModel: list, show, save, delete, add). A value is never shown until the

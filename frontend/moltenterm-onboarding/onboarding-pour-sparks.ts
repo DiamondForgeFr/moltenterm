@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sparks after a pour (FR-ONB-007 AC-2, NFR-ONB-003): a few dozen particles on one canvas, drawn by
 // requestAnimationFrame only while some are alive, never under reduced motion or while the document is hidden. Nothing

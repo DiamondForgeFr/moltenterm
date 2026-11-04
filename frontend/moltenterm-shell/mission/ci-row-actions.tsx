@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A CI/CD row's actions (FR-SHELL-057, DS-SHELL-099): Logs, Rerun and GitHub as 24 px ghost buttons that appear inside
 // the row on hover and when the keyboard focuses into it. Their slot keeps its width while hidden, so nothing moves and

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A draft's Review tab (#687): the AI analysis works as on any PR, Validate waits with its reason, and Mark ready for
 // review moves the PR to review from the header, with the same confirmation as the Reviews list's row.

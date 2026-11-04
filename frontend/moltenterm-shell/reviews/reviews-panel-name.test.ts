@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The PR panel is named Integration / Intégration (#1303, FR-REV-001; Control room / Pilotage before, #1124); its keys,
 // view type and stored layouts keep the "reviews" ids. The review action and the Review tab keep the word review. The

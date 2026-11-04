@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The 360 carpet's thumbnails (#1814, FR-SHELL-065 AC12, DS-SHELL-152): the channels the renderer keeps them through.
 // They live in the application's data folder (moltenterm-carpet-thumb-store.ts), so a panel off-screen, unloaded or

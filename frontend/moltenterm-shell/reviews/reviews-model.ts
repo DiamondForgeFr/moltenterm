@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's data (FR-REV-001, DS-REV-001): wavesrv derives the list from Mission Control's collector
 // (pkg/molten/mission/reviews.go); this side only words it. The pure helpers live here so they can be tested.

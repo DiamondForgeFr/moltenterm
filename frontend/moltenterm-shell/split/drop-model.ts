@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Drag to split (FR-SHELL-060, DS-SHELL-102): the rules, pure so they are tested without the app. drop-zones.ts
 // follows the drag and carries the drop out on the layout.

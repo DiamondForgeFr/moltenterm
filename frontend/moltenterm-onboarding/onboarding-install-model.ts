@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Install on a card of the pour (FR-ONB-007 AC-5, #1667): wavesrv runs the agent's catalog command
 // (pkg/molten/onboarding/clinstall.go) and the card follows it. The window sends the agent's id, never a command.

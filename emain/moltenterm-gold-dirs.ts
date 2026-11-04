@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The gold's own folders (#509). A release keeps the product's identity (fr.diamondforge.moltenterm, the "moltenterm"
 // folders); the gold has an identity of its own, as dev builds do, so that a release installed beside it neither

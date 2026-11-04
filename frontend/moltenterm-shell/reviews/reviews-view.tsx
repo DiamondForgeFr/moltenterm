@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view (FR-REV-001, DS-REV-012): the pull requests of the workspace's project waiting for the developer's
 // review, each with its ticket, CI, test report and merge state, read through the developer's gh by Mission Control's

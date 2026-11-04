@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A small segmented control (DS-SHELL-101), drawn like the notification preferences' Notify / Quiet / Off: a bordered
 // track whose chosen segment is filled. It is a WAI-ARIA radio group with one tab stop; the arrows move and choose.

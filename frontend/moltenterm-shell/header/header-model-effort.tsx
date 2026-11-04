@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The agent's model and effort in the header (#549), two click targets (#573): the model opens the command panel's
 // Model choice, the effort its Effort choice, each under what was clicked. Only what the agent reported shows: no

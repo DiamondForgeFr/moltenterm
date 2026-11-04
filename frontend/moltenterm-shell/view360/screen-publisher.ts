@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Publishes what the tab this window draws shows (screen-glyph.ts) in the tab's meta, so the sidebar of every window
 // can draw the view's icon from it (FR-SHELL-081, #1823). Read-only on the carpet: it watches the layout and the

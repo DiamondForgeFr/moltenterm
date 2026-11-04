@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Review tab (FR-REV-002, DS-REV-012): a PR's changed files as a tree with their status, counts and viewed marks;
 // the selected file's diff in Wave's Monaco diff editor, side by side or unified; and the button of the AI panel, a pane

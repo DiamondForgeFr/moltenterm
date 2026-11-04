@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { RpcApi } from "@/app/store/wshclientapi";
 import type * as electron from "electron";

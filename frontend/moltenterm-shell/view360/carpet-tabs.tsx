@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tabs of the carpet's tab strip (FR-SHELL-125, DS-SHELL-135), drawn from the strip's rules (carpet-tabs-model.ts)
 // and wired by view360-radar.tsx: one tab per carpet panel with its icon in its kind's colour or its favicon, its title, its

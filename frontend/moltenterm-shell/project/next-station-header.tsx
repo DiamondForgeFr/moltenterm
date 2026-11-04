@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project overview's header band (FR-MC-021), a passenger information screen: the next station and its state,
 // what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Deploy

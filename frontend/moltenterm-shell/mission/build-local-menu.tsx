@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project header's Build local menu (FR-MC-012), as Notulia's: one card per build the project declares, with what
 // it is, where the CI stands for a build it gates and the last build delivered, then a confirmation. While a build runs

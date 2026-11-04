@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tab view host (#461) at window level: the real emain-window.ts, emain-tabview.ts and host run against a fake
 // backend, fake renderers and a fake electron (trimmed from moltenterm-window-queue.test.ts, which stays as the

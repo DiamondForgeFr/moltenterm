@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package reviewlang finds the language review comments are published in on GitHub (FR-REV-010, DS-REV-008): the
 // project's declaration, else the developer's setting, else what the project's pull requests and README are written

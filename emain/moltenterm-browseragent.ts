@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // emain's side of the agents in the browser panel (FR-BRW-008, DS-BRW-010/011/012). It keeps a registry of the panel
 // tabs' webviews, fed by the panels themselves (the existing lookup by block id only finds a panel's first webview),

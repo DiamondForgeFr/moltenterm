@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tab view host (#461, FR-PERF-015, DS-PERF-013): every tab view's lifecycle in one place, along the state machine
 // of emain/moltenterm-tabview-machine.ts. It owns the hot spare and the tab view cache (Wave's, in emain-tabview.ts
