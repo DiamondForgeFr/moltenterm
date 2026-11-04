@@ -40,6 +40,13 @@ const config = {
             from: "dist/tsunamiscaffold",
             to: "tsunamiscaffold",
         },
+        // MOLTENTERM-PATCH (#1870): the licence texts travel with every build (AGPL-3.0 for MoltenTerm's files, Apache-2.0
+        // for Wave's, the mods permission, the notices and the trademark policy).
+        {
+            from: ".",
+            to: "licenses",
+            filter: ["LICENSE", "LICENSE-APACHE", "LICENSE-EXCEPTION", "NOTICE", "TRADEMARKS.md"],
+        },
     ],
     directories: {
         output: "make",
