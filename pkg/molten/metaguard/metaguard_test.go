@@ -278,6 +278,48 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+// MoltenTerm's own events reach the windows and local terminals, never a remote or unverified caller (#1914).
+func TestSubscribeMoltenEvents(t *testing.T) {
+	never := func(waveobj.ORef) bool { return false }
+	reqs := []wps.SubscriptionRequest{
+		{Event: molten.MorphDesignEvent, AllScopes: true},
+		{Event: molten.MorphDesignHandoffEvent, Scopes: []string{"mod-id"}},
+		{Event: molten.AgentStateEvent, Scopes: []string{"workspace:" + ownWs}},
+		{Event: molten.ModsChangedEvent, AllScopes: true},
+		{Event: "molten:review:state", AllScopes: true},
+	}
+	admitted := []struct {
+		name string
+		c    metaguard.Caller
+	}{
+		{"window", metaguard.Caller{Trusted: true}},
+		{"local terminal", terminal()},
+		{"terminal without a block", metaguard.Caller{Local: true}},
+	}
+	for _, req := range reqs {
+		for _, a := range admitted {
+			if err := metaguard.CheckSubscribe(a.c, req, never); err != nil {
+				t.Errorf("%s refused %+v: %v", a.name, req, err)
+			}
+		}
+		err := metaguard.CheckSubscribe(metaguard.Caller{}, req, never)
+		if err == nil || !strings.HasPrefix(err.Error(), "refused: a remote or unverified terminal cannot follow MoltenTerm's") || !strings.Contains(err.Error(), req.Event) {
+			t.Errorf("remote subscribed %+v: %v", req, err)
+		}
+	}
+	others := []wps.SubscriptionRequest{
+		{Event: wps.Event_BlockClose, AllScopes: true},
+		{Event: wps.Event_Config, AllScopes: true},
+		{Event: wps.Event_Badge, AllScopes: true},
+		{Event: "moltenish", AllScopes: true},
+	}
+	for _, req := range others {
+		if err := metaguard.CheckSubscribe(metaguard.Caller{}, req, never); err != nil {
+			t.Errorf("remote refused %+v outside the molten: family: %v", req, err)
+		}
+	}
+}
+
 func TestCreateBlock(t *testing.T) {
 	allowed := []waveobj.MetaMapType{
 		{"view": molten.BrowserView, "url": "https://example.com"},
