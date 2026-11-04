@@ -180,6 +180,9 @@ type Collector struct {
 	projects map[string]*projectState
 	watch    *gitwatch.Watcher
 	exists   func(dir string) bool
+	// inflight counts the refresh goroutines still running, including the cache write after applyRefresh: the tests
+	// wait for it to reach zero before their temp folders go (#1874).
+	inflight int
 }
 
 func MakeCollector(cacheDir string, run Runner, publish func(Snapshot)) *Collector {
@@ -453,7 +456,7 @@ func (c *Collector) get(dir string, ask refreshAsk) (Snapshot, error) {
 	ask.seq, ask.watched = c.track(dir)
 	snap, plan, start := c.prepareGet(dir, ask)
 	if start {
-		go c.refresh(dir, plan)
+		c.startRefresh(dir, plan)
 	}
 	if !snap.Missing {
 		report := molten.ValidatePipeline(dir)
@@ -492,7 +495,7 @@ func (c *Collector) Invalidate(dir string) {
 	dir = filepath.Clean(dir)
 	seq, watched := c.track(dir)
 	if plan, start := c.prepareInvalidate(dir, seq, watched); start {
-		go c.refresh(dir, plan)
+		c.startRefresh(dir, plan)
 	}
 }
 
@@ -514,7 +517,7 @@ func (c *Collector) prepareInvalidate(dir string, seq uint64, watched bool) (ref
 func (c *Collector) RepoChanged(root string) {
 	seq, watched := c.track(root)
 	if plan, start := c.prepareChanged(root, seq, watched); start {
-		go c.refresh(root, plan)
+		c.startRefresh(root, plan)
 	}
 }
 
@@ -575,8 +578,30 @@ func (c *Collector) refresh(dir string, plan refreshPlan) {
 		c.publish(snap)
 	}
 	if next, start := c.takeAgain(dir); start {
-		go c.refresh(dir, next)
+		c.startRefresh(dir, next)
 	}
+}
+
+// startRefresh counts the refresh before its goroutine starts, so a chained refresh is counted before the one that
+// started it ends.
+func (c *Collector) startRefresh(dir string, plan refreshPlan) {
+	c.addInflight(1)
+	go func() {
+		defer c.addInflight(-1)
+		c.refresh(dir, plan)
+	}()
+}
+
+func (c *Collector) addInflight(delta int) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.inflight += delta
+}
+
+func (c *Collector) refreshesInFlight() int {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.inflight
 }
 
 func (c *Collector) applyRefresh(dir string, plan refreshPlan, gitSnap *GitSnapshot, gitErr error, githubSnap *GithubSnapshot) Snapshot {

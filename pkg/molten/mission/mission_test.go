@@ -53,6 +53,29 @@ func plainRunner(ctx context.Context, dir string, name string, args ...string) (
 	return out, nil
 }
 
+// testCollector makes a collector whose background refreshes end before the test's temp folders go: a refresh still
+// runs git in the project and writes the cache after Get returns (#1874). Make the project and the cache folder before
+// calling it, so its cleanup runs before theirs.
+func testCollector(t *testing.T, cacheDir string, run Runner, publish func(Snapshot)) *Collector {
+	t.Helper()
+	c := MakeCollector(cacheDir, run, publish)
+	t.Cleanup(func() { waitRefreshesIdle(t, c) })
+	return c
+}
+
+func waitRefreshesIdle(t *testing.T, c *Collector) {
+	t.Helper()
+	// Generous: it only bounds a failing run, a passing one returns as soon as the refreshes end.
+	deadline := time.Now().Add(time.Minute)
+	for c.refreshesInFlight() > 0 {
+		if time.Now().After(deadline) {
+			t.Errorf("collector refreshes still going a minute after the test: %d", c.refreshesInFlight())
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // A git-flow project: main holds the releases, develop the work, one feature branch and tags v1.0.0, v1.1.0-1.
 func makeGitFlowRepo(t *testing.T) string {
 	if _, err := exec.LookPath("git"); err != nil {
@@ -242,7 +265,7 @@ func TestCollectorKeepsTheLastGithubReadOverAnOutage(t *testing.T) {
 	outage := CollectGithub(context.Background(), ghFake(nil, map[string]error{
 		"gh repo view": errors.New("gh repo view --json nameWithOwner,url: HTTP 503: No server is currently available to service your request."),
 	}), dir)
-	c := MakeCollector("", withoutGh, nil)
+	c := testCollector(t, "", withoutGh, nil)
 	c.applyRefresh(dir, refreshPlan{github: true}, nil, nil, good)
 	snap := c.applyRefresh(dir, refreshPlan{github: true}, nil, nil, outage)
 	if snap.Github.State != GithubStateError || !strings.Contains(snap.Github.Message, "503") {
@@ -285,7 +308,7 @@ func TestCollectorRunsOneRefreshAndCaches(t *testing.T) {
 	published.Add(1)
 	var last Snapshot
 	cacheDir := t.TempDir()
-	c := MakeCollector(cacheDir, run, func(s Snapshot) { last = s; published.Done() })
+	c := testCollector(t, cacheDir, run, func(s Snapshot) { last = s; published.Done() })
 	first, err := c.Get(dir, time.Minute, false)
 	if err != nil || first.Git != nil || !first.Refreshing {
 		t.Fatalf("first answer: %+v, %v", first, err)
@@ -306,7 +329,7 @@ func TestCollectorRunsOneRefreshAndCaches(t *testing.T) {
 	if fresh.Refreshing || fresh.Git == nil {
 		t.Fatalf("fresh data is not collected again: %+v", fresh)
 	}
-	reloaded := MakeCollector(cacheDir, run, nil)
+	reloaded := testCollector(t, cacheDir, run, nil)
 	reloaded.now = func() time.Time { return time.Now() }
 	cached, _ := reloaded.Get(dir, time.Hour, false)
 	if cached.Git == nil || cached.Git.Trunk != "develop" {
@@ -315,7 +338,7 @@ func TestCollectorRunsOneRefreshAndCaches(t *testing.T) {
 }
 
 func TestCollectorMissingFolder(t *testing.T) {
-	c := MakeCollector(t.TempDir(), withoutGh, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	snap, err := c.Get(filepath.Join(t.TempDir(), "gone"), time.Minute, false)
 	if err != nil || !snap.Missing || snap.Refreshing {
 		t.Fatalf("missing folder: %+v, %v", snap, err)
@@ -326,7 +349,7 @@ func TestCollectorMissingFolder(t *testing.T) {
 }
 
 func TestStartRefreshThrottlesGithub(t *testing.T) {
-	c := MakeCollector("", withoutGh, nil)
+	c := testCollector(t, "", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	state := &projectState{snap: Snapshot{GitAt: now.Add(-5 * time.Second).UnixMilli(), GithubAt: now.Add(-30 * time.Second).UnixMilli()}}
@@ -336,9 +359,39 @@ func TestStartRefreshThrottlesGithub(t *testing.T) {
 	}
 }
 
+// The refresh Get starts in the background is still counted while its git runs, and testCollector's cleanup waits for
+// it to publish before the test's folders go (#1874).
+func TestTestCollectorWaitsForItsRefreshes(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{})
+	var once sync.Once
+	var published atomic.Bool
+	held := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+		once.Do(func() { close(started) })
+		<-release
+		return withoutGh(ctx, dir, name, args...)
+	}
+	var c *Collector
+	t.Run("refresh", func(t *testing.T) {
+		dir := t.TempDir()
+		c = testCollector(t, t.TempDir(), held, func(Snapshot) { published.Store(true) })
+		t.Cleanup(func() { close(release) })
+		if _, err := c.Get(dir, 0, true); err != nil {
+			t.Fatal(err)
+		}
+		<-started
+		if n := c.refreshesInFlight(); n != 1 {
+			t.Fatalf("a refresh running git is counted: %d", n)
+		}
+	})
+	if n := c.refreshesInFlight(); n != 0 || !published.Load() {
+		t.Fatalf("the cleanup waits until the refresh published: in flight %d, published %v", n, published.Load())
+	}
+}
+
 func TestCollectorReportsThePipeline(t *testing.T) {
 	dir := makeGitFlowRepo(t)
-	c := MakeCollector(t.TempDir(), withoutGh, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	snap, _ := c.Get(dir, time.Hour, false)
 	if snap.Pipeline == nil || snap.Pipeline.Present {
 		t.Fatalf("no pipeline yet: %+v", snap.Pipeline)

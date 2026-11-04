@@ -64,7 +64,7 @@ func TestCollectorInvalidateReadsTheNewTag(t *testing.T) {
 	published := make(chan Snapshot, 4)
 	// The first refresh calls gh: a real one can stall on a loaded runner (network, auth) for up to collectTimeout,
 	// longer than waitSnapshot's bound (#1835).
-	c := MakeCollector(t.TempDir(), withoutGh, func(s Snapshot) { published <- s })
+	c := testCollector(t, t.TempDir(), withoutGh, func(s Snapshot) { published <- s })
 	c.Get(dir, time.Hour, false)
 	waitSnapshot(t, published)
 	gitRun(t, dir, "tag", "v1.1.0-2")
@@ -91,7 +91,7 @@ func TestCollectorInvalidateDuringARefresh(t *testing.T) {
 		return plainRunner(ctx, d, name, args...)
 	}
 	published := make(chan Snapshot, 4)
-	c := MakeCollector(t.TempDir(), run, func(s Snapshot) { published <- s })
+	c := testCollector(t, t.TempDir(), run, func(s Snapshot) { published <- s })
 	first, _ := c.Get(dir, time.Hour, false)
 	if !first.Refreshing {
 		t.Fatal("the first read refreshes")
@@ -110,7 +110,7 @@ func TestCollectorInvalidateDuringARefresh(t *testing.T) {
 }
 
 func TestCollectorInvalidateIgnoresARelativeFolder(t *testing.T) {
-	c := MakeCollector(t.TempDir(), withoutGh, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	c.Invalidate("relative/path")
 	if len(c.projects) != 0 {
 		t.Fatalf("a relative folder is not a project: %+v", c.projects)

@@ -85,7 +85,7 @@ func readyReviews(t *testing.T, reviews *Reviews, dir string) {
 func TestReviewsRerunFailed(t *testing.T) {
 	dir := reviewsProject(t, reviewsSfManifest)
 	gh := &rerunGh{}
-	collector := MakeCollector("", gh.run, nil)
+	collector := testCollector(t, "", gh.run, nil)
 	reviews := MakeReviews(collector, gh.run, nil)
 	told := make(chan molten.NotificationInput, 1)
 	reviews.notify = func(ctx context.Context, input molten.NotificationInput) error {

@@ -155,7 +155,7 @@ func TestPaneReadsTheCollectorCacheOnly(t *testing.T) {
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/108-status")
 	cacheDir := t.TempDir()
-	collector := MakeCollector(cacheDir, withoutGh, nil)
+	collector := testCollector(t, cacheDir, withoutGh, nil)
 	panes := MakePanes(withoutGh, nil, collector)
 	state, _ := panes.Get(PaneRequest{Dir: clone})
 	if state.Pr != nil {
@@ -229,7 +229,7 @@ func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
 	gitRun(t, clone, "checkout", "-q", "--detach", "origin/feature/109-loader")
 
 	cacheDir := t.TempDir()
-	collector := MakeCollector(cacheDir, withoutGh, nil)
+	collector := testCollector(t, cacheDir, withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{
 		State: GithubStateOk,
 		Prs:   json.RawMessage(`[{"number":109,"title":"Loader","url":"u109","headRefName":"feature/109-loader"}]`),

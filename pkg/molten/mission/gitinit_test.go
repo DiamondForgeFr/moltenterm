@@ -23,7 +23,7 @@ func TestInitGitCreatesARepository(t *testing.T) {
 		t.Skip("git is not installed")
 	}
 	dir := t.TempDir()
-	c := MakeCollector(t.TempDir(), withoutGh, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	snap, err := c.InitGit(GitInitRequest{Dir: dir})
 	if err != nil {
 		t.Fatalf("git init: %v", err)
@@ -55,7 +55,7 @@ func TestInitGitReadsGithubAgain(t *testing.T) {
 		return nil, errors.New("no git remotes found")
 	}
 	published := make(chan Snapshot, 8)
-	c := MakeCollector(t.TempDir(), run, func(s Snapshot) { published <- s })
+	c := testCollector(t, t.TempDir(), run, func(s Snapshot) { published <- s })
 	next := func(what string) Snapshot {
 		select {
 		case s := <-published:
@@ -94,7 +94,7 @@ func TestInitGitRefusesARepository(t *testing.T) {
 	if err := os.Mkdir(inner, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	c := MakeCollector(t.TempDir(), withoutGh, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	for _, d := range []string{dir, inner} {
 		if _, err := c.InitGit(GitInitRequest{Dir: d}); err == nil || !strings.Contains(err.Error(), "already inside") {
 			t.Fatalf("%s: want a refusal, got %v", d, err)
@@ -106,7 +106,7 @@ func TestInitGitRefusesARepository(t *testing.T) {
 }
 
 func TestInitGitRefusesAMissingOrRelativeFolder(t *testing.T) {
-	c := MakeCollector(t.TempDir(), withoutGh, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	if _, err := c.InitGit(GitInitRequest{Dir: "relative/path"}); err == nil {
 		t.Fatalf("a relative path was accepted")
 	}
@@ -117,7 +117,7 @@ func TestInitGitRefusesAMissingOrRelativeFolder(t *testing.T) {
 
 func TestInitGitOnlyFromAWindow(t *testing.T) {
 	e := routetest.Make(t)
-	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: MakeCollector(t.TempDir(), withoutGh, nil)}).route())
+	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: testCollector(t, t.TempDir(), withoutGh, nil)}).route())
 	if err != nil {
 		t.Fatal(err)
 	}

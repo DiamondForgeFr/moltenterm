@@ -69,7 +69,7 @@ func branchCiFixture(t *testing.T) (string, *BranchCi, *branchCiGh) {
 	os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755)
 	os.WriteFile(filepath.Join(dir, ".github", "workflows", "ci.yml"), []byte("name: CI\non: push\n"), 0o644)
 	gh := &branchCiGh{views: map[string]int{}}
-	collector := MakeCollector(t.TempDir(), gh.runner(), nil)
+	collector := testCollector(t, t.TempDir(), gh.runner(), nil)
 	collector.lock.Lock()
 	state := collector.stateLocked(dir)
 	state.snap.Github = &GithubSnapshot{State: GithubStateOk, Repo: "o/r", Url: "https://github.com/o/r"}
