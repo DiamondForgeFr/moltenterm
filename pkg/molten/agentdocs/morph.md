@@ -12,9 +12,9 @@ user agrees to it, open the design view, build live, adjust, validate, and say w
 same for every coding agent, because every one of them goes through `molten`. Speak to the user in the language of
 the conversation, in plain words; commands, ids and file names stay as they are.
 
-Today the steps run in this terminal. MoltenTerm's dedicated design view (story #1888) will host them, a guiding
-panel beside this terminal, once the installed version has it: step 5 tells you how to find out, and nothing else
-changes for you.
+The steps run in this terminal, or in MoltenTerm's dedicated design view when the installed version has it: a tab with a
+guiding panel beside a terminal, that you keep in step with the conversation. Step 5 tells you how to open it, and the
+steps and their order stay the same.
 
 ## Preconfigured morphs
 
@@ -32,6 +32,8 @@ instead of the nine steps below (the two checks of "Before the steps" still appl
 - Read the documentation of the installed version: run `molten docs`, then read `mod-format.md` in the folder it
   prints, and the complete example in `examples/copy-box/`. If the request is a preconfigured morph (above), read
   its guide there too and follow it.
+- Read what earlier designs learned of the developer: `molten learn defaults morph-design` (`learning.md` in the same
+  folder). Start from those answers instead of asking again, say that you do, and let the developer change them.
 
 {{SANDBOX_RULE}}
 
@@ -65,7 +67,8 @@ environment. The MoltenTerm part cannot call into Claude Code: the agent part pu
 
 1. **Look first.** Run `molten mod list --json`. If a mod already covers this feature, tell the user which one and
    edit it instead of creating a new one, unless the user asked for a new one. This step only reads: it creates,
-   enables and changes nothing.
+   enables and changes nothing. Then open the design view if the installed version has it (step 5 says how), so the
+   questions and the plan show in its panel: pick the id the mod will have, short, lowercase, with hyphens.
 
 2. **Ask one to three questions, only about what is missing.**
    - Ask only what the request leaves open and what looking (the project, the mods, `molten`) cannot tell you. At
@@ -76,6 +79,9 @@ environment. The MoltenTerm part cannot call into Claude Code: the agent part pu
    - A request that says to just do it ("fais-le", "just do it", "go ahead", or the same in any language) skips this
      step: ask nothing, take the safest default for each open point, and say which defaults you took in the plan.
      It skips the questions only: the user still agrees to the plan (steps 3 and 4).
+   - With the design view open (step 5), ask each question in its panel: `molten morph design ask <key> "<question>"
+     --choice "<label>" …`. The user's pick reaches you as a line in your prompt. An answer they give in the terminal
+     goes to the panel with `molten morph design answer <key> "<answer>"`.
 
 3. **Reformulate the request and give a plan scaled to it.** Write, in the user's language:
    - the request in your own words, in a sentence or two, so they see you understood;
@@ -91,6 +97,9 @@ environment. The MoltenTerm part cannot call into Claude Code: the agent part pu
      inside the agent with the user's rights). Write "nothing else" when there is none. The user approves exactly
      this list in step 4.
    - **What waits**: any piece the installed API cannot do yet ("Out of reach for now" below), with its story.
+
+   With the design view open, also show the plan in its panel with `molten morph design plan` (`morph-design.md` lists
+   its options). The user agrees with a click there, which reaches you as a line in your prompt, or in the terminal.
 
    Example of a short plan, for "a box that shows the branch": "I will add a `branch` command that shows the current
    branch in a box next to the terminal. MoltenTerm part: the command and the box. Agent part: none. Accesses: the
@@ -126,14 +135,20 @@ environment. The MoltenTerm part cannot call into Claude Code: the agent part pu
    user's agreement to the plan covers the new accesses it lists, and a disabled mod is enabled as above.
 
 5. **Open the design view when the installed version has it.** Run `molten help`. If it lists `morph design`, run
-   `molten morph design <id>`: MoltenTerm opens a design tab with a guiding panel beside this terminal. The next
-   steps go on there and keep the same order; this terminal stays the free way to say anything the panel does not
-   offer. If `molten help` does not list it, the installed version has no design view yet: skip this step and run
-   steps 6 to 9 here, in this terminal, with the same words and the same order. Never present that as a problem.
+   `molten morph design <id> --name "<the mod's name>"`, with the id the mod will have (step 4 creates it): MoltenTerm
+   opens a design tab with a guiding panel beside a terminal. Do it right after step 1, so steps 2 to 4 show in the
+   panel; reaching this step without having opened it, open it now and show what steps 2 to 4 settled (`answer`, `plan`).
+   Keep the panel in step as you go with `molten morph design step|ask|answer|plan|draft` (`morph-design.md` in the
+   `molten docs` folder); the steps keep the same order, and the terminal stays the free way to say anything the panel
+   does not offer. If `molten help` does not list `morph design`, or the command says the view did not open, the
+   installed version has no design view for you: skip this step and run the steps here, in this terminal, with the same
+   words and the same order. Never present that as a problem.
 
 6. **Build live, with sample data first.**
    - Show it is a draft: the installed version has no draft badge yet (story #1895), so end the mod's `name` in
-     `mod.json` with ` (draft)` until step 8.
+     `mod.json` with ` (draft)` until step 8. With the design view open, tell its panel what the draft draws:
+     `molten morph design draft --state sample --command <name> --box <title>`, and `--state real` once the real data is
+     wired.
    - Show the shape with invented sample data before wiring anything real, so the user sees a result at once. Once
      they confirm the look, replace the sample with the real data the plan listed.
    - Write `main.js` in the folder `molten mod new` printed. `mod.json` keeps the capabilities of the plan's list,
@@ -173,20 +188,24 @@ environment. The MoltenTerm part cannot call into Claude Code: the agent part pu
 
 7. **Adjust through the conversation.** The user looks at the draft and asks for changes in plain words. Make each
    one, save, check `molten mod list` for errors, and say in a line what changed. Do not ask again what they already
-   answered. A change that needs an access the plan did not list goes back to step 4.
+   answered. A change that needs an access the plan did not list goes back to step 4. With the design view open, keep
+   the panel on `molten morph design step adjust --say "<what changed>"`.
 
 8. **Validate: name, icon, category.** When the user is happy, ask for the finishing choices in one message: a
    **name** for the mod, **three icons** to pick from (Font Awesome names, with a word each) and a **category**.
    Apply the name in `mod.json` and drop ` (draft)`. The icon and the category are `mod.json` fields only when
    `mod-format.md` lists them; if it does not, say that these two choices wait for story #1895 and put them in your
    report. If the user gives up instead, run `molten undo`, repeating it (check `molten history`) until the mod is
-   gone, never further back than the change that created it, and say so.
+   gone, never further back than the change that created it, and say so. With the design view open, ask these three in
+   its panel (`molten morph design ask name … --step finish`, `ask icon … --icons --step finish` and
+   `ask category … --step finish`), then `molten morph design step validate`: the user validates or gives up there,
+   and the click reaches you as a line in your prompt.
 
 9. **Your mods, and the report.** Tell the user what the mod does, how to use it and the folder `molten mod new`
    printed (never guess the configuration path), and where to find it: `molten mod list`, and Library > Tools > Your
    mods from the version that has that page (story #1636). Ask them to check the result, and tell them that
    `molten undo` reverts the last change (repeat it to go further back) and `molten mod disable <id>` turns the mod
-   off.
+   off. With the design view open, end with `molten morph design step collect --say "<where it lives>"`.
 
 ## Out of reach for now
 
