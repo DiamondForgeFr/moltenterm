@@ -5645,6 +5645,7 @@
             "reviews": "Intégration",
             "review": "Revue",
             "pipeline": "Mise en place du pipeline",
+            "morphDesign": "Conception d'un mod",
             "companion": "Compagnon",
             "system": "Système",
             "launcher": "Lanceur",
@@ -9588,6 +9589,123 @@
             "goto": "Y aller"
         }
     },
+    "morphDesign": {
+        "tabName": "Conception · {mod}",
+        "viewName": "Conception d'un mod",
+        "title": "Conception de {mod}",
+        "origin": "Ouvert par /morph. Votre agent tient ces étapes à jour au fil de la conversation. Le terminal à gauche reste libre pour tout le reste, et chaque étape peut être passée.",
+        "loading": "Lecture de la conception…",
+        "noDesign": "Aucun mod à concevoir",
+        "noDesignHint": "Demandez à votre agent de rouvrir la conception avec /morph.",
+        "missing": {
+            "title": "Cette conception n'est plus ouverte",
+            "hint": "MoltenTerm a redémarré depuis la création de cette vue. Demandez à votre agent de la rouvrir avec molten morph design {mod}."
+        },
+        "soon": "Bientôt",
+        "agent": {
+            "gets": "{agent} reçoit vos choix.",
+            "getsHere": "{agent} reçoit vos choix, dans le terminal à gauche.",
+            "none": "Aucun agent n'écoute pour l'instant. Dites-le dans le terminal à gauche : vos choix restent ici pour l'agent qui viendra.",
+            "goto": "Y aller",
+            "terminal": "Aller au terminal"
+        },
+        "told": {
+            "sent": "Transmis à {agent}.",
+            "typed": "Tapé dans l'invite de {agent} : cela démarre quand vous appuyez sur Entrée là-bas.",
+            "queued": "{agent} le recevra dès que son invite sera libre.",
+            "noagent": "Aucun agent ne l'a pris. Cela reste ici pour l'agent qui viendra, et vous pouvez aussi le dire dans le terminal à gauche."
+        },
+        "state": {
+            "current": "Étape en cours",
+            "todo": "À faire",
+            "done": "Fait",
+            "terminal": "Fait dans le terminal",
+            "skipped": "Passée"
+        },
+        "step": {
+            "skip": "Passer cette étape",
+            "terminal": "Je le fais dans le terminal",
+            "back": "Reprendre cette étape",
+            "need": {
+                "title": "Votre besoin",
+                "hint": "Ce que vous avez demandé, avec les mots de votre agent.",
+                "empty": "Votre agent reformule ici votre demande avec ses mots, pour vérifier qu'il l'a comprise."
+            },
+            "questions": {
+                "title": "Quelques questions",
+                "hint": "Seulement ce qui manque, en choix à cliquer.",
+                "empty": "S'il manque quelque chose, une question à cliquer apparaît ici. Une demande assez claire n'en pose aucune."
+            },
+            "plan": {
+                "title": "Le plan",
+                "hint": "Ce qui va où, et ce que l'outil pourra atteindre.",
+                "empty": "Le plan apparaît ici avant que quoi que ce soit soit créé."
+            },
+            "preview": {
+                "title": "Aperçu en direct",
+                "hint": "Le brouillon, à mesure qu'il grandit. Il commence avec des données inventées.",
+                "empty": "Rien à montrer pour l'instant. Le brouillon apparaît ici dès que votre agent commence à construire."
+            },
+            "adjust": {
+                "title": "Ajustements",
+                "hint": "Les changements que vous demandez, un par un.",
+                "empty": "Demandez des changements dans le terminal à gauche, avec vos mots. Chacun se voit dans l'aperçu."
+            },
+            "finish": {
+                "title": "Nom, icône et catégorie",
+                "hint": "Les dernières touches, quand vous êtes content.",
+                "empty": "Quand vous êtes content, votre agent demande ici un nom, une icône et une catégorie.",
+                "soon": "L'icône et la catégorie seront gardées avec l'outil dès que la page Vos mods arrivera. Bientôt."
+            },
+            "validate": {
+                "title": "Validation",
+                "hint": "Garder l'outil, ou l'abandonner.",
+                "empty": "Quand tout est prêt, validez l'outil ici. Abandonner annule ce que l'agent a fait."
+            },
+            "collect": {
+                "title": "Vos mods",
+                "hint": "Là où vit l'outil ensuite.",
+                "empty": "Votre agent vous dit où vit l'outil."
+            }
+        },
+        "questions": {
+            "recommended": "Recommandé",
+            "selected": "Choisi",
+            "terminalHint": "Ou répondez dans le terminal à gauche.",
+            "answered": "Réponse : {answer}",
+            "inTerminal": "dans le terminal"
+        },
+        "plan": {
+            "moltenPart": "Dans MoltenTerm",
+            "agentPart": "Dans l'agent",
+            "accesses": "Ce à quoi il accédera",
+            "nothingElse": "Rien d'autre",
+            "waits": "Ce qui attend",
+            "trust": "Les accès sont validés dans la fenêtre de confiance de MoltenTerm, pas ici.",
+            "agree": "Je suis d'accord",
+            "change": "Je veux changer quelque chose",
+            "agreed": "Vous avez accepté ce plan."
+        },
+        "preview": {
+            "draft": "Brouillon",
+            "sample": "Données d'exemple inventées",
+            "real": "Données réelles",
+            "commands": "Commandes",
+            "boxes": "Boîtes",
+            "placeholder": "Le panneau propre de l'outil sera dessiné ici."
+        },
+        "validate": {
+            "validate": "Valider",
+            "giveUp": "Abandonner",
+            "confirm": "Abandonner cet outil ? Votre agent annule ce qu'il a fait.",
+            "keep": "Continuer",
+            "validated": "Vous avez validé l'outil.",
+            "gaveUp": "Vous avez abandonné l'outil : votre agent annule ce qu'il a fait."
+        },
+        "collect": {
+            "soon": "La page Vos mods arrive bientôt. D'ici là, votre agent vous dit où vit l'outil."
+        }
+    },
     "codingAgent": {
         "section": "Agent de code",
         "label": "Agent",
@@ -10805,6 +10923,19 @@
                 "notes": "Notes de version réécrites avec l’agent de code",
                 "milestone": "Fermer le jalon une fois publié",
                 "syncback": "Ramener le commit de release sur la branche de travail"
+            },
+            "morphDesign": {
+                "name": "Nom",
+                "icon": "Icône",
+                "category": "Catégorie",
+                "need": "votre besoin",
+                "questions": "les questions",
+                "plan": "le plan",
+                "preview": "l’aperçu en direct",
+                "adjust": "les ajustements",
+                "finish": "le nom, l’icône et la catégorie",
+                "validate": "la validation",
+                "collect": "la collection"
             }
         },
         "value": {

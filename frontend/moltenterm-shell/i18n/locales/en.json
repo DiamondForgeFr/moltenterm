@@ -5645,6 +5645,7 @@
             "reviews": "Integration",
             "review": "Review",
             "pipeline": "Pipeline setup",
+            "morphDesign": "Mod design",
             "companion": "Companion",
             "system": "System",
             "launcher": "Launcher",
@@ -9588,6 +9589,123 @@
             "goto": "Go there"
         }
     },
+    "morphDesign": {
+        "tabName": "Design · {mod}",
+        "viewName": "Mod design",
+        "title": "Designing {mod}",
+        "origin": "Opened by /morph. Your agent keeps these steps up to date as you talk. The terminal on the left stays free for anything else, and every step can be skipped.",
+        "loading": "Reading the design…",
+        "noDesign": "No mod to design",
+        "noDesignHint": "Ask your agent to open the design again with /morph.",
+        "missing": {
+            "title": "This design is no longer open",
+            "hint": "MoltenTerm was restarted since this view was made. Ask your agent to open it again with molten morph design {mod}."
+        },
+        "soon": "Soon",
+        "agent": {
+            "gets": "{agent} gets your choices.",
+            "getsHere": "{agent} gets your choices, in the terminal on the left.",
+            "none": "No agent is listening right now. Say it in the terminal on the left: your choices stay here for the agent that comes.",
+            "goto": "Go there",
+            "terminal": "Go to the terminal"
+        },
+        "told": {
+            "sent": "Sent to {agent}.",
+            "typed": "Typed in {agent}'s prompt: it starts when you press Enter there.",
+            "queued": "{agent} will get it as soon as its prompt is free.",
+            "noagent": "No agent took it. It stays here for the agent that comes, and you can also say it in the terminal on the left."
+        },
+        "state": {
+            "current": "Current step",
+            "todo": "To do",
+            "done": "Done",
+            "terminal": "Done in the terminal",
+            "skipped": "Skipped"
+        },
+        "step": {
+            "skip": "Skip this step",
+            "terminal": "I'll do it in the terminal",
+            "back": "Take it back",
+            "need": {
+                "title": "Your need",
+                "hint": "What you asked for, in your agent's words.",
+                "empty": "Your agent writes your request in its own words here, to check it understood."
+            },
+            "questions": {
+                "title": "A few questions",
+                "hint": "Only what is missing, as choices to click.",
+                "empty": "If something is missing, a question to click appears here. A request that is clear enough gets none."
+            },
+            "plan": {
+                "title": "The plan",
+                "hint": "What goes where, and what the tool will be allowed to reach.",
+                "empty": "The plan appears here before anything is created."
+            },
+            "preview": {
+                "title": "Live preview",
+                "hint": "The draft, as it grows. It starts with invented data.",
+                "empty": "Nothing to show yet. The draft appears here as soon as your agent starts building."
+            },
+            "adjust": {
+                "title": "Adjustments",
+                "hint": "Changes you ask for, one at a time.",
+                "empty": "Ask for changes in the terminal on the left, in your own words. Each one shows up in the preview."
+            },
+            "finish": {
+                "title": "Name, icon and category",
+                "hint": "The finishing touches, once you are happy.",
+                "empty": "When you are happy, your agent asks for a name, an icon and a category here.",
+                "soon": "The icon and the category are kept with the tool once the Your mods page arrives. Soon."
+            },
+            "validate": {
+                "title": "Validation",
+                "hint": "Keep the tool, or give it up.",
+                "empty": "When everything is set, validate the tool here. Giving up undoes what the agent made."
+            },
+            "collect": {
+                "title": "Your mods",
+                "hint": "Where the tool lives afterwards.",
+                "empty": "Your agent tells you where the tool lives."
+            }
+        },
+        "questions": {
+            "recommended": "Recommended",
+            "selected": "Selected",
+            "terminalHint": "Or answer in the terminal on the left.",
+            "answered": "Answered: {answer}",
+            "inTerminal": "in the terminal"
+        },
+        "plan": {
+            "moltenPart": "In MoltenTerm",
+            "agentPart": "In the agent",
+            "accesses": "What it will access",
+            "nothingElse": "Nothing else",
+            "waits": "What waits",
+            "trust": "Accesses are approved in MoltenTerm's trust prompt, not here.",
+            "agree": "I agree",
+            "change": "Change something",
+            "agreed": "You agreed to this plan."
+        },
+        "preview": {
+            "draft": "Draft",
+            "sample": "Invented sample data",
+            "real": "Real data",
+            "commands": "Commands",
+            "boxes": "Boxes",
+            "placeholder": "The tool's own panel will be drawn here."
+        },
+        "validate": {
+            "validate": "Validate",
+            "giveUp": "Give up",
+            "confirm": "Give up this tool? Your agent undoes what it made.",
+            "keep": "Keep going",
+            "validated": "You validated the tool.",
+            "gaveUp": "You gave the tool up: your agent undoes what it made."
+        },
+        "collect": {
+            "soon": "The Your mods page arrives soon. Until then your agent tells you where the tool lives."
+        }
+    },
     "codingAgent": {
         "section": "Coding agent",
         "label": "Agent",
@@ -10805,6 +10923,19 @@
                 "notes": "Release notes rewritten with the coding agent",
                 "milestone": "Close the milestone once published",
                 "syncback": "Carry the release commit back to the working branch"
+            },
+            "morphDesign": {
+                "name": "Name",
+                "icon": "Icon",
+                "category": "Category",
+                "need": "your need",
+                "questions": "the questions",
+                "plan": "the plan",
+                "preview": "the live preview",
+                "adjust": "the adjustments",
+                "finish": "name, icon and category",
+                "validate": "the validation",
+                "collect": "the collection"
             }
         },
         "value": {

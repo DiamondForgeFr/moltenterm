@@ -238,7 +238,8 @@ describe("plain words", () => {
     });
 
     it("words a skipped step and the confidence levels", () => {
-        expect(itemSentence("morph-design", item({ kind: KindSkip, key: "icon" }), t)).toBe("You skip icon.");
+        expect(itemSentence("morph-design", item({ kind: KindSkip, key: "template" }), t)).toBe("You skip template.");
+        expect(itemSentence("morph-design", item({ kind: KindSkip, key: "preview" }), t)).toBe("You skip the live preview.");
         expect(["low", "medium", "high", "other"].map((c) => t(confidenceKey(c)))).toEqual([
             "tentative",
             "likely",
