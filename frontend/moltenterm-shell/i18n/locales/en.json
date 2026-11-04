@@ -1286,7 +1286,7 @@
                 "pending": "Loads when this view shows",
                 "loading": "Loading",
                 "disabled": "Off",
-                "untrusted": "Not trusted",
+                "untrusted": "Waiting for your approval",
                 "safemode": "Off (safe mode)",
                 "failed": "Stopped",
                 "refused": "Refused"
@@ -1299,6 +1299,17 @@
                 },
                 "activation": "activation {ms} ms",
                 "heap": "{mb} MB at activation"
+            },
+            "trust": {
+                "trustedOn": "Trusted on {date}",
+                "trusted": "Trusted",
+                "notTrusted": "Not trusted. Enabling it asks for your agreement first.",
+                "revoke": "Revoke trust",
+                "revoking": "Revoking…",
+                "revokeTitle": "Stop this mod and forget that you trusted it",
+                "revoked": "The mod is stopped. MoltenTerm will ask for your agreement again the next time it is enabled.",
+                "failed": "Trust could not be revoked: {error}",
+                "dismiss": "Close this message"
             }
         },
         "secrets": {
@@ -1411,7 +1422,7 @@
             "detailsPart": "Claude Code part",
             "detailsPartTarget": "Written for Claude Code {version}",
             "keepsEditing": "The agent can keep editing it without asking again.",
-            "revoke": "You can take your trust back at any time, from a terminal:",
+            "revoke": "You can take your trust back at any time in Settings > Mods, or from a terminal:",
             "ok": "Trust and enable",
             "cancel": "Don't trust",
             "partTitle": "Trust the Claude Code part of “{name}”?",

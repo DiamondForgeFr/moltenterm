@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
 
@@ -400,6 +401,161 @@ func TestMoltenTrustFile(t *testing.T) {
 	os.WriteFile(moltenTrustFile(dataDir), []byte("{oops"), 0644)
 	if err := moltenSetTrusted(dataDir, "c", "C", now); err == nil {
 		t.Fatal("an invalid trust file must be reported, not overwritten")
+	}
+}
+
+func untrustFixture(t *testing.T) (string, string) {
+	t.Helper()
+	configDir := t.TempDir()
+	dataDir := t.TempDir()
+	now := time.Date(2026, 11, 2, 10, 30, 0, 0, time.UTC)
+	for _, id := range []string{"band", "clock"} {
+		if _, err := moltenSetEnabledAt(configDir, id, true, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := moltenSetTrusted(dataDir, id, id, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return configDir, dataDir
+}
+
+func TestMoltenUntrustMod(t *testing.T) {
+	configDir, dataDir := untrustFixture(t)
+
+	changed, err := moltenUntrustMod(configDir, dataDir, "band")
+	if err != nil || !changed {
+		t.Fatalf("untrust band: %v %v", changed, err)
+	}
+	if trusted, _ := moltenIsTrusted(dataDir, "band"); trusted {
+		t.Fatal("the trust record must be gone")
+	}
+	state, err := moltenReadState(moltenStateFile(configDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moltenIsEnabled(state, "band") {
+		t.Fatal("the mod must no longer be enabled")
+	}
+	if _, stamped := state.EnabledAt["band"]; stamped {
+		t.Fatal("the enabled stamp goes with the mod")
+	}
+	if trusted, _ := moltenIsTrusted(dataDir, "clock"); !trusted || !moltenIsEnabled(state, "clock") {
+		t.Fatalf("other mods keep their trust and their state: %+v", state)
+	}
+
+	changed, err = moltenUntrustMod(configDir, dataDir, "band")
+	if err != nil || changed {
+		t.Fatalf("untrust twice must report no change: %v %v", changed, err)
+	}
+}
+
+func TestMoltenUntrustModStopsAnEnabledModWithoutTrust(t *testing.T) {
+	configDir, dataDir := untrustFixture(t)
+	if _, err := moltenForgetTrust(dataDir, "clock"); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := moltenUntrustMod(configDir, dataDir, "clock")
+	if err != nil || !changed {
+		t.Fatalf("an enabled mod without a trust record is still stopped: %v %v", changed, err)
+	}
+	state, _ := moltenReadState(moltenStateFile(configDir))
+	if moltenIsEnabled(state, "clock") {
+		t.Fatal("the mod must no longer be enabled")
+	}
+}
+
+func TestMoltenUntrustModKeepsTheFilesWhenTheTrustFileIsInvalid(t *testing.T) {
+	configDir, dataDir := untrustFixture(t)
+	if err := os.WriteFile(moltenTrustFile(dataDir), []byte("{oops"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(moltenStateFile(configDir))
+
+	changed, err := moltenUntrustMod(configDir, dataDir, "band")
+	if err == nil || changed {
+		t.Fatalf("an invalid trust file must be reported: %v %v", changed, err)
+	}
+	after, _ := os.ReadFile(moltenStateFile(configDir))
+	if string(before) != string(after) {
+		t.Fatalf("the mod must stay enabled when its trust could not be read:\n%s\n%s", before, after)
+	}
+	if raw, _ := os.ReadFile(moltenTrustFile(dataDir)); string(raw) != "{oops" {
+		t.Fatalf("an invalid trust file must be left as it is: %q", raw)
+	}
+}
+
+func TestMoltenUntrustMessage(t *testing.T) {
+	if got := moltenUntrustMessage("band", true); got != `mod "band" is stopped and no longer trusted; enabling it again asks you first` {
+		t.Errorf("changed: %q", got)
+	}
+	if got := moltenUntrustMessage("band", false); got != `mod "band" was not trusted` {
+		t.Errorf("unchanged: %q", got)
+	}
+}
+
+func TestMoltenUntrustJson(t *testing.T) {
+	out, err := json.Marshal(MoltenModChange{Id: "band", Action: "untrust", Changed: true, Trust: MoltenTrustNone})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != `{"id":"band","action":"untrust","changed":true,"trust":"none"}` {
+		t.Fatalf("unexpected JSON: %s", out)
+	}
+}
+
+func TestMoltenUntrustIsDocumented(t *testing.T) {
+	if moltenModUntrustCmd.Use != "untrust <id>" || moltenModUntrustCmd.Parent() != moltenModCmd {
+		t.Fatalf("untrust must be a mod subcommand: %q", moltenModUntrustCmd.Use)
+	}
+	if moltenModUntrustCmd.Flags().Lookup("json") == nil {
+		t.Fatal("untrust must take --json")
+	}
+	found := false
+	for _, entry := range moltenBuiltinHelp {
+		if entry[0] == "mod untrust <id>" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("molten help must list mod untrust")
+	}
+	doc, err := agentdocs.Files.ReadFile("mod-format.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"molten mod untrust <id>", "Revoke trust", "is stopped and no longer trusted; enabling it again asks you first", "was not trusted"} {
+		if !strings.Contains(string(doc), want) {
+			t.Errorf("molten docs (mod-format.md) must document untrust: %q is missing", want)
+		}
+	}
+}
+
+func TestMoltenModListDecodesTrust(t *testing.T) {
+	var list MoltenModList
+	answer := `{"apiversions":[1],"safemode":false,"modsdir":"/cfg/mods","commands":[],"mods":[
+		{"id":"band","path":"/cfg/mods/band","state":"active","commands":[],"trusted":true,"trustedat":"2026-11-02T10:30:00Z"},
+		{"id":"ghost","path":"/cfg/mods/ghost","state":"untrusted","commands":[],"trusted":false},
+		{"id":"copy-box","path":"builtin:copy-box","state":"active","commands":[],"builtin":true}]}`
+	if err := json.Unmarshal([]byte(answer), &list); err != nil {
+		t.Fatal(err)
+	}
+	if list.Mods[0].Trusted == nil || !*list.Mods[0].Trusted || list.Mods[0].TrustedAt != "2026-11-02T10:30:00Z" {
+		t.Errorf("trusted mod: %+v", list.Mods[0])
+	}
+	if list.Mods[1].Trusted == nil || *list.Mods[1].Trusted {
+		t.Errorf("a mod that is not trusted must say so, not stay silent: %+v", list.Mods[1])
+	}
+	if list.Mods[2].Trusted != nil {
+		t.Errorf("a built-in mod needs no trust: %+v", list.Mods[2])
+	}
+	out, err := json.Marshal(list.Mods[1])
+	if err != nil || !strings.Contains(string(out), `"trusted":false`) {
+		t.Errorf("trusted:false must survive molten mod list --json: %s %v", out, err)
+	}
+	out, _ = json.Marshal(list.Mods[2])
+	if strings.Contains(string(out), "trusted") {
+		t.Errorf("a built-in mod prints no trust: %s", out)
 	}
 }
 

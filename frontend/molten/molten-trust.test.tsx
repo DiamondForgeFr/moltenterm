@@ -240,7 +240,7 @@ describe("the trust dialog", () => {
         const html = shown(request("hours"));
         const revoke = html.slice(html.indexOf("molten-trust-revoke"));
         expect(revoke).toContain("The agent can keep editing it without asking again.");
-        expect(revoke).toContain("You can take your trust back at any time, from a terminal:");
+        expect(revoke).toContain("You can take your trust back at any time in Settings &gt; Mods, or from a terminal:");
         expect(revoke).toMatch(/<code[^>]*>molten mod untrust hours<\/code>/);
         expect(html.match(/molten mod untrust/g)).toHaveLength(1);
         expect(html).not.toContain("Undo with");

@@ -3,10 +3,12 @@
 
 // Settings > Mods (FR-PERF-014): the mods this tab view runs, their state, commands and errors, and what each costs
 // against its budget (molten-budget.ts). A mod over budget carries a badge and the measured numbers. Mods are enabled
-// and disabled with molten, so the section only reads.
+// and disabled with molten, so the section only reads, with one exception: a mod that runs code shows whether the
+// user trusted it, and offers to take that trust back (FR-MORPH-004, #1880).
 
-import { cn } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { X } from "lucide-react";
 import { memo, useEffect } from "react";
 import {
     budgetReasonText,
@@ -16,10 +18,13 @@ import {
     MoltenModUsage,
 } from "../../molten/molten-budget";
 import { MoltenHost, MoltenModStatus } from "../../molten/molten-host";
+import { formatTrustDate } from "../../molten/molten-trust-store";
 import { EmptyState } from "../empty-state";
 import { formatNumber, getLocale, TFunction, t as translateNow, useLocale, useT } from "../i18n/i18n";
 import { translateCount } from "../i18n/i18n-core";
+import { DominoLoader } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
+import { ModRevokeNote, ModRevokeRow, ModsRevokeModel } from "./settings-mods-model";
 import { PageCard } from "./settings-page";
 
 // The states with a label of their own, under settings.mods.state.
@@ -53,11 +58,68 @@ function Pill({ children, className, title }: { children: React.ReactNode; class
     );
 }
 
-const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
+// One object for every row without a revoke in progress, so that memo keeps them from rendering again.
+const IdleRevoke: ModRevokeRow = { busy: false };
+const FocusRing =
+    "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)";
+// A calm action: bordered, never the destructive red, since trust can be given again.
+const RevokeButton = cn(
+    "inline-flex shrink-0 cursor-pointer items-center rounded-4 border border-border px-2 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60",
+    FocusRing
+);
+
+// What a row says about the user's trust in the mod's code; empty for a mod that needs none (built-in, data only).
+export function modTrustText(
+    mod: MoltenModStatus,
+    t: TFunction = translateNow,
+    locale: string = getLocale(),
+    timeZone?: string
+): string {
+    if (mod.trusted == null) {
+        return "";
+    }
+    if (!mod.trusted) {
+        return t("settings.mods.trust.notTrusted");
+    }
+    const date = mod.trustedat ? formatTrustDate(mod.trustedat, locale, timeZone) : "";
+    return date ? t("settings.mods.trust.trustedOn", { date }) : t("settings.mods.trust.trusted");
+}
+
+function RevokeNote({ id, note }: { id: string; note: ModRevokeNote }) {
+    const t = useT();
+    const failed = note.kind === "failed";
+    return (
+        <div
+            role={failed ? "alert" : "status"}
+            className={cn(
+                "flex items-start gap-2 rounded-4 border px-2.5 py-1.5 text-11",
+                failed ? "border-danger/40 text-danger" : "border-border bg-surface-2 text-secondary"
+            )}
+            data-mod-note={note.kind}
+        >
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                {failed ? t("settings.mods.trust.failed", { error: note.message }) : t("settings.mods.trust.revoked")}
+            </span>
+            <button
+                type="button"
+                className={cn("shrink-0 cursor-pointer rounded-4 p-0.5 text-muted hover:text-primary", FocusRing)}
+                aria-label={t("settings.mods.trust.dismiss")}
+                onClick={() => ModsRevokeModel.getInstance().dismiss(id)}
+            >
+                <X className="h-3 w-3" aria-hidden />
+            </button>
+        </div>
+    );
+}
+
+const ModRow = memo(({ mod, revoke }: { mod: MoltenModStatus; revoke: ModRevokeRow }) => {
     const t = useT();
     const locale = useLocale();
     const failed = mod.state === "failed" || mod.state === "refused";
     const over = mod.usage?.over;
+    const trustText = modTrustText(mod, t, locale);
+    // The inline confirmation stays until it is closed, unless the user trusts the mod again: then it is out of date.
+    const note = mod.trusted === true && revoke.note?.kind === "done" ? null : revoke.note;
     return (
         <div className="flex flex-col gap-1 px-5 py-2.5" data-mod={mod.id}>
             <div className="flex min-w-0 items-center gap-2">
@@ -84,6 +146,27 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
                 </div>
             ) : null}
             {mod.error ? <div className="text-12 text-danger">{mod.error}</div> : null}
+            {trustText ? (
+                <div className="flex min-w-0 items-center gap-2" data-mod-trust={mod.trusted ? "trusted" : "untrusted"}>
+                    <span className="min-w-0 truncate text-11 text-muted" title={trustText}>
+                        {trustText}
+                    </span>
+                    {mod.trusted ? (
+                        <button
+                            type="button"
+                            className={RevokeButton}
+                            disabled={revoke.busy}
+                            title={t("settings.mods.trust.revokeTitle")}
+                            data-action="revoke-trust"
+                            onClick={() => fireAndForget(() => ModsRevokeModel.getInstance().revoke(mod.id))}
+                        >
+                            {revoke.busy ? <DominoLoader className="mr-1.5" /> : null}
+                            {revoke.busy ? t("settings.mods.trust.revoking") : t("settings.mods.trust.revoke")}
+                        </button>
+                    ) : null}
+                </div>
+            ) : null}
+            {note != null ? <RevokeNote id={mod.id} note={note} /> : null}
             {mod.usage != null ? (
                 <div className={cn("text-11", over ? "text-warning" : "text-muted")} data-mod-usage>
                     {formatModUsage(mod.usage, t, locale)}
@@ -100,9 +183,14 @@ export function ModsSection() {
     const t = useT();
     const host = MoltenHost.getInstance();
     const mods = useAtomValue(host.modsAtom);
+    const revokeModel = ModsRevokeModel.getInstance();
+    const revokeRows = useAtomValue(revokeModel.rowsAtom);
     useEffect(() => {
         host.checkBudgets();
     }, [host]);
+    useEffect(() => {
+        revokeModel.forgetOutdated(mods);
+    }, [revokeModel, mods]);
     const intro = (
         <>
             {t("settings.mods.intro", {
@@ -130,7 +218,7 @@ export function ModsSection() {
                     hint={t("settings.mods.noneHint")}
                 />
             ) : (
-                mods.map((mod) => <ModRow key={mod.id} mod={mod} />)
+                mods.map((mod) => <ModRow key={mod.id} mod={mod} revoke={revokeRows[mod.id] ?? IdleRevoke} />)
             )}
         </PageCard>
     );
