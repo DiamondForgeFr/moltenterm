@@ -26,7 +26,8 @@ export type SettingsSectionId =
     | "mods"
     | "secrets"
     | "tips"
-    | "advanced";
+    | "advanced"
+    | "about";
 
 export type SettingsControl = "toggle" | "select" | "number" | "slider" | "text" | "path" | "multi" | "json";
 
@@ -97,6 +98,13 @@ export const SettingsSections: SettingsSection[] = [
             "Values stored in your system's secret store, for connections and commands. Never shown unless you ask.",
     },
     { id: "tips", title: "Tips", icon: "lightbulb", description: "Reshape MoltenTerm, work faster, every shortcut." },
+    // The version, its updates and its origin (#1860); no settings.json key maps here.
+    {
+        id: "about",
+        title: "About",
+        icon: "circle-info",
+        description: "The version you run, its updates and where MoltenTerm comes from.",
+    },
     {
         id: "advanced",
         title: "Advanced",

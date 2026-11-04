@@ -42,6 +42,7 @@ export const SettingsSectionConcepts: Record<SettingsSectionId, SuiteIconName> =
     secrets: "secrets",
     tips: "tips",
     advanced: "tools",
+    about: "identity",
 };
 
 const GroupConcepts: Record<string, SuiteIconName> = {

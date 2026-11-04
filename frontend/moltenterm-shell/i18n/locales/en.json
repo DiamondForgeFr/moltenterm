@@ -1260,7 +1260,16 @@
             "tips": {
                 "title": "Tips",
                 "description": "Reshape MoltenTerm, work faster, every shortcut."
+            },
+            "about": {
+                "title": "About",
+                "description": "The version you run, its updates and where MoltenTerm comes from."
             }
+        },
+        "about": {
+            "build": "This build",
+            "updates": "Updates",
+            "updatesHint": "MoltenTerm tells you when a new release is out and never installs one before you say so."
         },
         "mods": {
             "label": "Mods",
@@ -2178,7 +2187,10 @@
             "title": "MoltenTerm {version} is available",
             "seeNotes": "See its notes on the release page.",
             "download": "Download",
+            "update": "Update",
+            "notes": "Release notes",
             "buttonTitle": "MoltenTerm {version} is available: open its release page to download it",
+            "buttonTitleInstall": "MoltenTerm {version} is available: open About to update it",
             "button": "{version} available"
         },
         "check": {
@@ -2193,6 +2205,56 @@
             "disabled": "This build does not check for updates.",
             "error": "Could not reach GitHub, try again",
             "retry": "Try again"
+        },
+        "install": {
+            "downloading": "Downloading MoltenTerm {version}…",
+            "percent": "{percent} %",
+            "verifying": "Checking MoltenTerm {version}…",
+            "ready": "MoltenTerm {version} is downloaded and checked.",
+            "readyWhen": "It installs when you quit MoltenTerm, or at once if you restart now.",
+            "restart": "Restart now",
+            "later": "Later",
+            "downloaded": "MoltenTerm {version} was downloaded and checked. Installing it is up to you.",
+            "showInFolder": "Show in folder",
+            "releasePage": "Open the release page",
+            "failed": "MoltenTerm {version} was not installed",
+            "notice": {
+                "readyTitle": "MoltenTerm {version} is ready to install",
+                "readyMessage": "It installs when you quit MoltenTerm, or at once if you restart now.",
+                "downloadedTitle": "MoltenTerm {version} was downloaded and checked",
+                "downloadedMessage": "{why} The file is in your downloads folder.",
+                "failedTitle": "MoltenTerm {version} was not installed",
+                "installedTitle": "MoltenTerm {version} installed",
+                "installedMessage": "Your configuration and workspaces are as you left them.",
+                "whatsNew": "What's new",
+                "rolledBackTitle": "MoltenTerm {version} did not start: MoltenTerm went back to the previous version",
+                "rolledBackMessage": "Try the update again later, or download it from the release page.",
+                "swapFailedTitle": "The update could not be installed",
+                "swapFailedMessage": "MoltenTerm is unchanged. {detail}"
+            },
+            "why": {
+                "readonly": "MoltenTerm cannot replace itself from where it is installed.",
+                "package": "This copy comes from a package that your system manages, so MoltenTerm does not replace it.",
+                "translocated": "MoltenTerm runs from a temporary copy the system made. Move it to where you keep your apps, then open it again.",
+                "platform": "MoltenTerm cannot install updates by itself on this computer yet. The release page has the files.",
+                "dev": "This build does not install updates."
+            },
+            "error": {
+                "network": "MoltenTerm could not download it. Check your connection and try again.",
+                "missing": "This release has no file for this computer, or no checksums.",
+                "unsigned": "This release is not signed, so MoltenTerm will not install it by itself.",
+                "signature": "The release's signature did not check out, so nothing was installed.",
+                "checksum": "The downloaded file does not match its signed checksum, so nothing was installed.",
+                "toolarge": "The file is larger than any MoltenTerm release, so it was not downloaded.",
+                "unpack": "The downloaded file could not be unpacked.",
+                "notapp": "The downloaded app is not the MoltenTerm release it should be.",
+                "codesign": "The downloaded app's code signature did not check out, so nothing was installed.",
+                "disk": "MoltenTerm could not write the file to this computer.",
+                "stale": "This release is no longer the one offered. Check for updates again.",
+                "busy": "Another update is already under way.",
+                "unsupported": "MoltenTerm cannot install updates by itself here.",
+                "swap": "MoltenTerm could not prepare the installation."
+            }
         },
         "dialog": {
             "title": "A new MoltenTerm gold is ready",

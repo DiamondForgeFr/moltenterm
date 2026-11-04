@@ -676,10 +676,19 @@
                 "title": "Notifications",
                 "description": "Ce que chaque sujet vous signale, et quand le panneau des notifications s'ouvre de lui-même."
             },
+            "about": {
+                "title": "À propos",
+                "description": "La version que vous utilisez, ses mises à jour et l'origine de MoltenTerm."
+            },
             "tips": {
                 "title": "Astuces",
                 "description": "Remodeler MoltenTerm, travailler plus vite, tous les raccourcis."
             }
+        },
+        "about": {
+            "build": "Cette version",
+            "updates": "Mises à jour",
+            "updatesHint": "MoltenTerm vous dit quand une nouvelle version est sortie et n'en installe jamais une avant que vous le disiez."
         },
         "groups": {
             "thisWorkspace": "Cet espace de travail",
@@ -2178,6 +2187,9 @@
             "title": "MoltenTerm {version} est disponible",
             "seeNotes": "Voir ses notes sur la page de la version.",
             "download": "Télécharger",
+            "update": "Mettre à jour",
+            "notes": "Notes de version",
+            "buttonTitleInstall": "MoltenTerm {version} est disponible : ouvrez À propos pour le mettre à jour",
             "buttonTitle": "MoltenTerm {version} est disponible : ouvrez sa page de version pour le télécharger",
             "button": "{version} disponible"
         },
@@ -2193,6 +2205,56 @@
             "disabled": "Cette version ne recherche pas de mise à jour.",
             "error": "GitHub n'a pas répondu, réessayez",
             "retry": "Réessayer"
+        },
+        "install": {
+            "downloading": "Téléchargement de MoltenTerm {version}…",
+            "percent": "{percent} %",
+            "verifying": "Vérification de MoltenTerm {version}…",
+            "ready": "MoltenTerm {version} est téléchargé et vérifié.",
+            "readyWhen": "Il s'installe quand vous quittez MoltenTerm, ou tout de suite si vous redémarrez maintenant.",
+            "restart": "Redémarrer maintenant",
+            "later": "Plus tard",
+            "downloaded": "MoltenTerm {version} a été téléchargé et vérifié. À vous de l'installer.",
+            "showInFolder": "Afficher dans le dossier",
+            "releasePage": "Ouvrir la page de la version",
+            "failed": "MoltenTerm {version} n'a pas été installé",
+            "notice": {
+                "readyTitle": "MoltenTerm {version} est prêt à être installé",
+                "readyMessage": "Il s'installe quand vous quittez MoltenTerm, ou tout de suite si vous redémarrez maintenant.",
+                "downloadedTitle": "MoltenTerm {version} a été téléchargé et vérifié",
+                "downloadedMessage": "{why} Le fichier est dans votre dossier de téléchargements.",
+                "failedTitle": "MoltenTerm {version} n'a pas été installé",
+                "installedTitle": "MoltenTerm {version} installé",
+                "installedMessage": "Votre configuration et vos espaces de travail sont tels que vous les avez laissés.",
+                "whatsNew": "Nouveautés",
+                "rolledBackTitle": "MoltenTerm {version} n'a pas démarré : MoltenTerm est revenu à la version précédente",
+                "rolledBackMessage": "Réessayez la mise à jour plus tard, ou téléchargez-la depuis la page de la version.",
+                "swapFailedTitle": "La mise à jour n'a pas pu être installée",
+                "swapFailedMessage": "MoltenTerm n'a pas changé. {detail}"
+            },
+            "why": {
+                "readonly": "MoltenTerm ne peut pas se remplacer là où il est installé.",
+                "package": "Cette copie vient d'un paquet que votre système gère : MoltenTerm ne la remplace pas.",
+                "translocated": "MoltenTerm tourne depuis une copie temporaire faite par le système. Déplacez-le là où vous rangez vos applications, puis rouvrez-le.",
+                "platform": "MoltenTerm ne sait pas encore installer ses mises à jour lui-même sur cet ordinateur. La page de la version a les fichiers.",
+                "dev": "Cette version n'installe pas de mises à jour."
+            },
+            "error": {
+                "network": "MoltenTerm n'a pas pu le télécharger. Vérifiez votre connexion et réessayez.",
+                "missing": "Cette version n'a pas de fichier pour cet ordinateur, ou pas de sommes de contrôle.",
+                "unsigned": "Cette version n'est pas signée : MoltenTerm ne l'installera pas de lui-même.",
+                "signature": "La signature de la version n'est pas valide : rien n'a été installé.",
+                "checksum": "Le fichier téléchargé ne correspond pas à sa somme de contrôle signée : rien n'a été installé.",
+                "toolarge": "Le fichier est plus gros que n'importe quelle version de MoltenTerm : il n'a pas été téléchargé.",
+                "unpack": "Le fichier téléchargé n'a pas pu être décompressé.",
+                "notapp": "L'application téléchargée n'est pas la version de MoltenTerm attendue.",
+                "codesign": "La signature de code de l'application téléchargée n'est pas valide : rien n'a été installé.",
+                "disk": "MoltenTerm n'a pas pu écrire le fichier sur cet ordinateur.",
+                "stale": "Cette version n'est plus celle proposée. Recherchez de nouveau une mise à jour.",
+                "busy": "Une autre mise à jour est déjà en cours.",
+                "unsupported": "MoltenTerm ne peut pas installer ses mises à jour lui-même ici.",
+                "swap": "MoltenTerm n'a pas pu préparer l'installation."
+            }
         },
         "dialog": {
             "title": "Une nouvelle gold de MoltenTerm est prête",

@@ -42,12 +42,11 @@ import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
 import { SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import { TipsCards } from "../tips/tips-view";
-import { ReleaseCandidatesSettingKey } from "../update/release-feed";
-import { ReleaseUpdateCheck } from "../update/release-update-ui";
 import { View360SettingKey } from "../view360/view360-decision";
 import { workspaceShownName } from "../workspace-default-name";
 import { openCurrentWorkspaceEditor } from "../workspace-edit";
 import { NewWorkspaceViewsCard } from "../workspace-views/workspace-views-settings";
+import { AboutBuildCard, AboutUpdatesCard } from "./settings-about";
 import { BookmarksCard } from "./settings-bookmarks";
 import {
     clampSetting,
@@ -716,6 +715,7 @@ function sectionFlowBlocks(section: SettingsSectionId, groups: number): number {
         groups +
         (section === "advanced" ? 1 : 0) +
         (section === "mods" ? 1 : 0) +
+        (section === "about" ? 2 : 0) +
         (section === "general" ? 1 : 0) +
         (section === "spaces" ? 2 : 0) +
         (section === "browser" ? 1 : 0) +
@@ -801,9 +801,6 @@ export function SettingsSectionPage({
                             {g.entries.some((e) => e.key === SleepPolicySetting) ? <KeepAwakeDetails /> : null}
                             {g.entries.some((e) => e.key === View360SettingKey) ? <View360Screens /> : null}
                             {g.entries.some((e) => e.key === NewViewOpenKey) ? <NewViewFavorites /> : null}
-                            {g.entries.some((e) => e.key === ReleaseCandidatesSettingKey) ? (
-                                <ReleaseUpdateCheck />
-                            ) : null}
                         </PageCard>
                     ))}
                     {section === "spaces" ? <TopRowCard /> : null}
@@ -813,6 +810,8 @@ export function SettingsSectionPage({
                     {section === "notifications" ? <NotificationSubjectsCard /> : null}
                     {section === "notifications" ? <NotificationPanelCard /> : null}
                     {section === "mods" ? <ModsSection /> : null}
+                    {section === "about" ? <AboutBuildCard /> : null}
+                    {section === "about" ? <AboutUpdatesCard /> : null}
                 </PageFlow>
             ) : null}
             {section === "tips" ? <TipsCards /> : null}
