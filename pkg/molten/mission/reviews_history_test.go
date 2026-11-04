@@ -100,7 +100,7 @@ func (g *historyGh) run(ctx context.Context, dir string, name string, args ...st
 func historyReviews(t *testing.T, gh *historyGh) (*Reviews, string, *atomic.Int64) {
 	dir := makeGitFlowRepo(t)
 	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
-	collector := MakeCollector("", gh.run, nil)
+	collector := testCollector(t, "", gh.run, nil)
 	reviews := MakeReviews(collector, gh.run, nil)
 	deadline := time.Now().Add(time.Minute)
 	for {

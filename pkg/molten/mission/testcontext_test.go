@@ -128,7 +128,7 @@ func TestTestContextOfAPullRequestBranch(t *testing.T) {
 	os.WriteFile(filepath.Join(clone, "wip.txt"), []byte("wip"), 0644)
 	web := filepath.Join(clone, "apps", "web")
 	os.MkdirAll(web, 0755)
-	collector := MakeCollector(t.TempDir(), withoutGh, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":110,"title":"Loader","url":"https://github.com/o/r/pull/110","headRefName":"feature/12-loader","isDraft":true,
 		  "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"FAILURE"}]}]`)}})
@@ -163,7 +163,7 @@ func TestTestContextOfAWorktreeFindsTheLinkedProjectsPrs(t *testing.T) {
 	base, clone := makePaneRepo(t)
 	tree := filepath.Join(base, "wt")
 	gitRun(t, clone, "worktree", "add", "-q", "-b", "feature/12-loader", tree)
-	collector := MakeCollector(t.TempDir(), withoutGh, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":110,"title":"Loader","url":"u","headRefName":"feature/12-loader"}]`)}})
 	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: tree}}
@@ -184,7 +184,7 @@ func TestTestContextOfADetachedCheckoutAtAPrBranch(t *testing.T) {
 	gitRun(t, clone, "branch", "-q", "-D", "feature/12-loader")
 	gitRun(t, clone, "fetch", "-q", "origin")
 	gitRun(t, clone, "checkout", "-q", "--detach", "origin/feature/12-loader")
-	collector := MakeCollector(t.TempDir(), withoutGh, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":110,"title":"Loader","url":"u","headRefName":"feature/12-loader"}]`)}})
 	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: clone}}
@@ -218,7 +218,7 @@ func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
 	if err := os.Symlink(clone, linked); err != nil {
 		t.Fatal(err)
 	}
-	collector := MakeCollector(t.TempDir(), withoutGh, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: linked, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":7,"title":"Fork","url":"u","headRefName":"feature/7-fork","headRefOid":"` + sha + `"}]`)}})
 	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: realPath(clone)}}
@@ -231,7 +231,7 @@ func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
 
 func TestTestContextFuturePr(t *testing.T) {
 	_, clone := makePaneRepo(t)
-	collector := MakeCollector(t.TempDir(), withoutGh, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk,
 		Prs: json.RawMessage(`[{"number":7,"title":"Other","url":"u","headRefName":"feature/7-other"}]`)}})
 	panes := MakePanes(withoutGh, nil, collector)

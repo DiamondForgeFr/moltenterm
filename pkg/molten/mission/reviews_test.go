@@ -345,7 +345,7 @@ func TestReviewsGetPublishesReports(t *testing.T) {
 		return []byte(`[]`), nil
 	}
 	published := make(chan ReviewsAnswer, 4)
-	collector := MakeCollector("", run, nil)
+	collector := testCollector(t, "", run, nil)
 	reviews := MakeReviews(collector, run, func(a ReviewsAnswer) { published <- a })
 	first, err := reviews.Get(ReviewsRequest{Dir: dir})
 	if err != nil {
@@ -404,7 +404,7 @@ func TestReviewsPassiveGet(t *testing.T) {
 			}
 			return []byte(`[]`), nil
 		}
-		collector := MakeCollector("", run, nil)
+		collector := testCollector(t, "", run, nil)
 		reviews := MakeReviews(collector, run, nil)
 		// Generous: it only bounds a failing run.
 		deadline := time.Now().Add(time.Minute)

@@ -119,7 +119,7 @@ func TestReviewsGetReadsShips(t *testing.T) {
 		return []byte(`[]`), nil
 	}
 	published := make(chan ReviewsAnswer, 8)
-	collector := MakeCollector("", run, nil)
+	collector := testCollector(t, "", run, nil)
 	reviews := MakeReviews(collector, run, func(a ReviewsAnswer) { published <- a })
 	var later atomic.Int64
 	reviews.now = func() time.Time { return time.Now().Add(time.Duration(later.Load())) }
@@ -162,7 +162,7 @@ func TestReviewsRefreshedReadsShipsAfterTheFetch(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
 	commit(t, dir, "e.txt", "fix(#5): merged")
 	oid := gitIn(t, dir, "rev-parse", "HEAD")
-	reviews := MakeReviews(MakeCollector("", withoutGh, nil), withoutGh, nil)
+	reviews := MakeReviews(testCollector(t, "", withoutGh, nil), withoutGh, nil)
 	snap := reviewsSnapshot(dir, `[]`)
 	snap.GithubAt = time.Now().UnixMilli()
 	snap.Github.Merged = json.RawMessage("[" + mergedPrJson(7, "develop", time.Now().Add(-time.Hour), oid) + "]")
