@@ -69,6 +69,19 @@ body {
     --os-handle-bg-active: var(--scrollbar-thumb-active-color);
 }
 
+/* MOLTENTERM-PATCH #1917 (FR-SHELL-120 AC4): panels show no scrollbar, at rest or on hover; wheel, trackpad and
+   keyboard still scroll. Chromium drops the ::-webkit-scrollbar rules above on an element that sets scrollbar-width,
+   and "none" takes no width, so nothing moves when content starts to overflow. :where() keeps it at zero specificity.
+   The terminal keeps its scrollbar: xterm's viewport is left out, and xterm and Monaco draw their own sliders in the
+   DOM, which this does not touch. */
+:where(*:not(.xterm-viewport)) {
+    scrollbar-width: none;
+}
+
+.os-scrollbar {
+    display: none;
+}
+
 .scrollbar-hide-until-hover {
     *::-webkit-scrollbar-thumb,
     *::-webkit-scrollbar-track {
