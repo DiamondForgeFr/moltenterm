@@ -25,6 +25,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/bookmarks"   // MOLTENTERM-PATCH (#1811)
 	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine" // MOLTENTERM-PATCH (#1624)
 	"github.com/wavetermdev/waveterm/pkg/molten/filesearch"  // MOLTENTERM-PATCH (#1625)
+	"github.com/wavetermdev/waveterm/pkg/molten/learning"    // MOLTENTERM-PATCH (#1879)
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"     // MOLTENTERM-PATCH (#31)
 	"github.com/wavetermdev/waveterm/pkg/molten/stdinwatch"  // MOLTENTERM-PATCH (#1043)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -600,6 +601,7 @@ func main() {
 	fileconfine.StartRoute()    // MOLTENTERM-PATCH (#1624): the file panels ask where a path really is
 	filesearch.StartRoute()     // MOLTENTERM-PATCH (#1625): molten files shows an agent's search in its tab's file panel
 	bookmarks.StartRoute()      // MOLTENTERM-PATCH (#1811): molten bookmarks list reads a project's web page bookmarks
+	learning.StartRoute()       // MOLTENTERM-PATCH (#1879): what the guided workflows learned of the developer, molten learn
 	// MOLTENTERM-PATCH (#1760): a project switch shows the project's own views; once, meta only, the views get their
 	// projects before any window shows a workspace
 	wcore.StartProjectViews()
