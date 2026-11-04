@@ -212,11 +212,29 @@ var UntrustedEvents = map[string]bool{
 	"molten:modschanged": true,
 }
 
-// CheckSubscribe tells whether c may receive object updates for the scopes it asks: a terminal receives only its own
-// workspace's blocks and tabs, never a workspace, a window or the client (their meta holds what the window trusts).
-// Other events are unchanged. inOwnWorkspace tells whether a block or tab is in c's workspace.
+// IsMoltenEvent tells whether event is one of MoltenTerm's own (molten:*), which carry the state a Molten feature
+// publishes for the windows.
+func IsMoltenEvent(event string) bool {
+	return strings.HasPrefix(event, moltenKeyPrefix)
+}
+
+// CheckSubscribe tells whether c may receive event for the scopes it asks. MoltenTerm's own events reach the windows
+// and this computer's terminals only, the callers their routes admit (AllowWindow, AllowLocalTerminal): a remote
+// terminal or an unverified caller never reads them (#1914); each event's scopes (mod id, workspace id) stay the
+// publisher's. For object updates a terminal receives only its own workspace's blocks and tabs, never a workspace, a
+// window or the client (their meta holds what the window trusts). Other events are unchanged. inOwnWorkspace tells
+// whether a block or tab is in c's workspace.
 func CheckSubscribe(c Caller, req wps.SubscriptionRequest, inOwnWorkspace func(waveobj.ORef) bool) error {
-	if c.Trusted || req.Event != wps.Event_WaveObjUpdate {
+	if c.Trusted {
+		return nil
+	}
+	if IsMoltenEvent(req.Event) {
+		if c.Local {
+			return nil
+		}
+		return fmt.Errorf("refused: a remote or unverified terminal cannot follow MoltenTerm's %q events; only the MoltenTerm window and this computer's terminals do", req.Event)
+	}
+	if req.Event != wps.Event_WaveObjUpdate {
 		return nil
 	}
 	if req.AllScopes || len(req.Scopes) == 0 {

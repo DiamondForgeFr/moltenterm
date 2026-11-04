@@ -106,10 +106,10 @@ func moltenCheckSubscribe(ctx context.Context, req wps.SubscriptionRequest) erro
 	if req.Event == wps.Event_BlockFile {
 		return moltenCheckBlockFileSubscribe(ctx, req)
 	}
-	if req.Event != wps.Event_WaveObjUpdate {
+	if req.Event != wps.Event_WaveObjUpdate && !metaguard.IsMoltenEvent(req.Event) {
 		return nil
 	}
-	caller := moltenMetaCaller(ctx, true)
+	caller := moltenMetaCaller(ctx, req.Event == wps.Event_WaveObjUpdate)
 	return metaguard.CheckSubscribe(caller, req, func(oref waveobj.ORef) bool { return moltenInWorkspace(ctx, caller, oref) })
 }
 
