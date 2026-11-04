@@ -201,6 +201,7 @@ func (a *ClaudeAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 				id.Worktree = facts.cwd
 			}
 		}
+		id.Model, id.Effort = a.withAgentDefinition(id.Model, id.Effort, f.meta.AgentType, id.Worktree)
 		rtn = append(rtn, id)
 	}
 	return rtn

@@ -13,8 +13,8 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { agentFactsLine } from "../agent-facts";
 import { AgentStates } from "../agent-state-store";
-import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction, useT, useTCount } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -37,6 +37,7 @@ import { useUpcomingAnswer, useUpcomingWatch } from "./reviews-upcoming-client";
 import {
     afterPrText,
     AgentBarFacts,
+    agentFacts,
     aheadText,
     boardStatusText,
     branchAgent,
@@ -516,7 +517,7 @@ function SessionLine({ item, now, url, marked }: { item: UpcomingItem; now: numb
     const detail =
         agent.kind === "background"
             ? t("reviewsAgents.upcoming.session.background")
-            : modelDisplayName(agent.model) || (branch.status ? boardStatusText(t, branch.status) : "");
+            : agentFactsLine(agentFacts(agent)) || (branch.status ? boardStatusText(t, branch.status) : "");
     return (
         <div
             tabIndex={-1}

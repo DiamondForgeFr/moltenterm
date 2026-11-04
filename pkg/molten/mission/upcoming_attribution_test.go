@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agentsign"
 )
 
 // attributionRunner fakes git for the background worktrees: each worktree's last commit is recent, and its commits
@@ -95,6 +97,15 @@ func TestBackgroundAttributionOrder(t *testing.T) {
 	if a := byBranch["feature/13-body"]; !a.Signed || a.FirstName != "Diane" || a.Agent != "" || a.AgentName != "Some New CLI" {
 		t.Errorf("2. the PR's Made by, for a CLI the catalog does not know: %+v", a)
 	}
+	if a := byBranch["feature/12-trailer"]; a.Model != "gpt-5.5-codex" || a.Effort != "high" {
+		t.Errorf("a signed agent says the model and effort it signed (#1848): %+v", a)
+	}
+	if a := byBranch["feature/16-open"]; a.Model != "Opus 5.5" || a.Effort != "" {
+		t.Errorf("a signature without effort gives none (#1848): %+v", a)
+	}
+	if a := byBranch["feature/13-body"]; a.Model != "m1" || a.Effort != "" {
+		t.Errorf("the PR's Made by gives its model (#1848): %+v", a)
+	}
 	if a := byBranch["feature/16-open"]; !a.Signed || a.FirstName != "Valentin" || a.BlockId != "b-valentin" || a.Agent != "claude" {
 		t.Errorf("2. a signer whose session is open gets Go to: %+v", a)
 	}
@@ -159,5 +170,17 @@ func TestLastSigner(t *testing.T) {
 	}
 	if got := commitMessagesOldestFirst("new\n" + commitSep + "\nold\n" + commitSep + "\n"); len(got) != 2 || got[0] != "old" || got[1] != "new" {
 		t.Fatalf("oldest first: %q", got)
+	}
+}
+
+// #1848: a sub-agent that signs with no model of its own writes "subagent" there; the line never says it as a model.
+func TestSignedAgentKeepsNoPlaceholderModel(t *testing.T) {
+	got := SignedAgent(BranchAgent{Kind: UpcomingAgentBackground}, agentsign.Signature{FirstName: "Arthur", Agent: "Claude Code", Model: "subagent", Effort: "high"}, nil)
+	if got.Model != "" || got.Effort != "high" {
+		t.Fatalf("no model, the effort stays: %+v", got)
+	}
+	got = SignedAgent(BranchAgent{Kind: UpcomingAgentBackground}, agentsign.Signature{FirstName: "Arthur", Agent: "Claude Code", Model: " Sonnet 5.5 "}, nil)
+	if got.Model != "Sonnet 5.5" || got.Effort != "" {
+		t.Fatalf("the model as signed, no effort: %+v", got)
 	}
 }

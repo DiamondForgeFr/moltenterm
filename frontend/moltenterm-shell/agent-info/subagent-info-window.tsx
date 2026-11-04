@@ -11,6 +11,8 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { agentModelText } from "../agent-facts";
+import { agentToolName } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { useCompanionFollow } from "../companion/companion-follow";
 import {
@@ -159,7 +161,12 @@ export function SubagentInfoWindow({
                             data-testid="subagent-info-facts"
                         >
                             <Fact label={t("agentInfo.sub.type")} value={kind} title={row.kind} />
-                            <Fact label={t("agentInfo.fact.model")} value={row.model} />
+                            <Fact label={t("agentInfo.fact.tool")} value={agentToolName(parent)} />
+                            <Fact
+                                label={t("agentInfo.fact.model")}
+                                value={agentModelText(row.model)}
+                                title={row.model}
+                            />
                             <Fact label={t("agentInfo.fact.effort")} value={row.effort} />
                             <Fact label={t("agentInfo.fact.branch")} value={row.branch} />
                             <Fact

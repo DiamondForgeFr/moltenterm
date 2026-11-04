@@ -16,17 +16,11 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { agentModelText, agentRunFacts } from "../agent-facts";
 import { AgentLinksPanel } from "../agent-links/agent-links-menu";
 import { BlockLinks } from "../agent-links/agent-links-model";
 import { AgentLinks } from "../agent-links/agent-links-store";
-import {
-    agentEffortPart,
-    agentModelPart,
-    agentProviderTitle,
-    agentStateLabel,
-    agentToolName,
-    type AgentStateInfo,
-} from "../agent-state-model";
+import { agentProviderTitle, agentStateLabel, agentToolName, type AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import {
     AgentTab,
@@ -112,8 +106,9 @@ function FactsSection({ ctx }: { ctx: AgentInfoContext }) {
     const wsName = useWorkspaceName(info?.workspaceid);
     const [workspace] = WOS.useWaveObjectValue<Workspace>(WOS.makeORef("workspace", info?.workspaceid ?? ""));
     const project = pane?.name || pathBaseName(readWorkspaceProject(workspace).dir);
-    const model = agentModelPart(info) || companion?.session?.model || "";
-    const effort = (model && agentEffortPart(info)) || companion?.session?.effort || "";
+    const facts = agentRunFacts(info);
+    const model = agentModelText(facts.model, facts.modelName) || agentModelText(companion?.session?.model);
+    const effort = (facts.effort ?? "").trim() || (companion?.session?.effort ?? "").trim();
     const branch = pane?.branch || companion?.session?.branch || "";
     const worktree = pane?.worktree ? pathBaseName(pane.root || pane.dir) : "";
     const started = info?.started || companion?.session?.started || 0;

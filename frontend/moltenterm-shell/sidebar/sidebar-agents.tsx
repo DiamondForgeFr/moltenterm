@@ -9,6 +9,7 @@ import { getBlockMetaKeyAtom } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
+import { agentFactsLine, agentRunFacts } from "../agent-facts";
 import {
     goToAgent,
     useLinkedAgents,
@@ -19,12 +20,12 @@ import {
 import {
     MaxRunningSubRows,
     subagentGroups,
-    subagentKindKey,
+    subagentLeafTitle,
     subagentRows,
     type SubagentRow,
 } from "../agent-info/agent-info-model";
 import { AgentInfoModel } from "../agent-info/agent-info-store";
-import { agentStateLabel, agentStateMessage, type AgentStateInfo } from "../agent-state-model";
+import { agentStateLabel, agentStateMessage, agentToolName, type AgentStateInfo } from "../agent-state-model";
 import { useCompanionFollow } from "../companion/companion-follow";
 import type { CompanionView } from "../companion/companion-model";
 import { useT, useTCount } from "../i18n/i18n";
@@ -127,14 +128,10 @@ function SectionTitle({
 // A sub-agent row (FR-SHELL-104): its description alone, so a long one keeps the width; its state is a mark, never a
 // word (F26). One loader only: the agent's own row, which works while its sub-agents do (#1092); the section's header
 // carries it only when that row does not (the agent waits on a question while its sub-agents run).
-function SubagentLeaf({ row, onOpen }: { row: SubagentRow; onOpen: () => void }) {
+function SubagentLeaf({ row, cli, onOpen }: { row: SubagentRow; cli: string; onOpen: () => void }) {
     const t = useT();
-    const kindKey = subagentKindKey(row.kind);
-    const kind = kindKey ? t(kindKey) : row.kind;
     const state = t(`agentInfo.subState.${row.state}`);
-    const title = [row.name, [state, kind, row.model].filter(Boolean).join(" · "), t("agentInfo.sub.open")]
-        .filter(Boolean)
-        .join("\n");
+    const title = subagentLeafTitle(t, row, cli);
     return (
         <button
             type="button"
@@ -171,6 +168,7 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
     const running = allRunning ? groups.running : groups.running.slice(0, MaxRunningSubRows);
     const more = groups.running.length - running.length;
     const open = (s: SubagentRow) => model.openSub(info.blockid, s.id);
+    const cli = agentToolName(info);
     const counts = [
         groups.running.length > 0 ? tc("agentInfo.sub.running", groups.running.length) : "",
         doneCount > 0 ? tc("agentInfo.sub.done", doneCount) : "",
@@ -198,7 +196,7 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
             {shut ? null : (
                 <>
                     {running.map((s) => (
-                        <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />
+                        <SubagentLeaf key={s.id} row={s} cli={cli} onOpen={() => open(s)} />
                     ))}
                     {more > 0 ? (
                         <button
@@ -211,7 +209,7 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
                         </button>
                     ) : null}
                     {groups.lingering.map((s) => (
-                        <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />
+                        <SubagentLeaf key={s.id} row={s} cli={cli} onOpen={() => open(s)} />
                     ))}
                 </>
             )}
@@ -345,9 +343,13 @@ function AgentBlock({
                 tabIndex={0}
                 className={cn("mt-sb-row mt-sb-arow", `is-${look}`, active && "is-on")}
                 aria-current={active ? "page" : undefined}
-                title={`${t("sidebar.agents.goTo", { name })}\n${agentStateLabel(info.state)}${
-                    doing !== agentStateLabel(info.state) ? ` · ${doing}` : ""
-                }`}
+                title={[
+                    t("sidebar.agents.goTo", { name }),
+                    `${agentStateLabel(info.state)}${doing !== agentStateLabel(info.state) ? ` · ${doing}` : ""}`,
+                    agentFactsLine(agentRunFacts(info)),
+                ]
+                    .filter(Boolean)
+                    .join("\n")}
                 data-testid="sidebar-agent-row"
                 data-state={look}
                 onClick={go}

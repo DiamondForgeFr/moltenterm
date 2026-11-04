@@ -7,11 +7,13 @@
 // from wavesrv's generic records; the per-agent reading happens in wavesrv's adapters. Only what is known is returned:
 // an empty list hides its section.
 
+import { agentFactsLine } from "../agent-facts";
 import type { BlockLinks, HandoffHistoryEntry, LinkState } from "../agent-links/agent-links-model";
 import type { AgentStateInfo } from "../agent-state-model";
 import type { AgentTab } from "../browser/browser-agent";
 import type { BrowserTab } from "../browser/browser-model";
 import type { CompanionSubagent, CompanionView } from "../companion/companion-model";
+import type { TFunction } from "../i18n/i18n";
 
 export type LinkDirection = "in" | "out";
 
@@ -270,6 +272,18 @@ const SubagentKindKeys: Record<string, string> = {
 export function subagentKindKey(kind: string): string {
     const key = SubagentKindKeys[(kind ?? "").trim().toLowerCase()];
     return key ? `agentInfo.subKind.${key}` : "";
+}
+
+// A sub-agent row's tooltip in the sidebar: its task, then "working · Worker · Claude Code · Sonnet 5.5 · high", the
+// state, its type, and its CLI, model and effort as every agent line words them (#1848); cli: its parent's tool.
+export function subagentLeafTitle(t: TFunction, row: SubagentRow, cli: string): string {
+    const kindKey = subagentKindKey(row.kind);
+    const kind = kindKey ? t(kindKey) : row.kind;
+    const state = t(`agentInfo.subState.${row.state}`);
+    const facts = agentFactsLine({ cli, model: row.model, effort: row.effort });
+    return [row.name, [state, kind, facts].filter(Boolean).join(" · "), t("agentInfo.sub.open")]
+        .filter(Boolean)
+        .join("\n");
 }
 
 // How long a sub-agent ran, or runs so far: "45 s", "4 min", "1 h 20 min", in the interface language.

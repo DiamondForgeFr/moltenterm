@@ -10,6 +10,8 @@
 // background agent also shows the suite's falling dominoes (#739), so the bar visibly works; for a working agent they
 // replace the word "working", which stays their accessible name (#1060). A sub-agent
 // a panel started (#1035) is named by its parent, tool, model and task, with its own state; Go to shows the parent.
+// Every line, a lead's or a sub-agent's, whatever its CLI, says the same facts after its name: CLI, model, effort
+// (#1848), each only when known.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -45,6 +47,7 @@ import {
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
 import {
     AgentBarFacts,
+    agentDetails,
     barPlaceText,
     barStateText,
     barTimeText,
@@ -53,7 +56,6 @@ import {
     DraftTurn,
     draftTurn,
     durationText,
-    subagentDetails,
 } from "./reviews-upcoming-model";
 
 const MinuteMs = 60_000;
@@ -217,7 +219,7 @@ export function AgentBar({
               ? t("reviewsAgents.subagent.of", { name: facts.parentName })
               : t("reviewsAgents.subagent.name")
           : facts.name || t(facts.batch ? "reviews.batch.yourAgent" : "reviewsAgents.agent");
-    const details = subagentDetails(facts);
+    const details = agentDetails(facts);
     const taskShown = task != null && task.state !== "running" && !!task.text;
     const stuck = taskShown && task.state === "stuck";
     const barTime = barTimeText(t, facts, now);
