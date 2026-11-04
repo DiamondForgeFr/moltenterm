@@ -93,6 +93,11 @@ version, description, declared capabilities and folder, and `molten` waits for t
 A mod enabled in `mods.json` but not trusted is reported as `untrusted`, and none of its code is read.
 `molten mod untrust <id>` stops the mod and forgets the trust; `molten mod remove` forgets it too.
 
+A mod built through `/morph` asks for this trust at one moment: when the user agrees to the agent's plan, which lists
+every access the mod will need. The agent creates the mod with those capabilities, enables it, and the prompt above is
+the user's approval of that list. The agent never enables a mod before the agreement, and stops to ask again for an
+access the plan did not list.
+
 Mods are not sandboxed in this version. The prompt keeps code from running by mistake; it does not stop a program
 that already runs with the user's rights, such as a hostile agent, from writing the trust file itself.
 
@@ -265,6 +270,26 @@ build the mod with `molten`. MoltenTerm installs the guides itself, at user leve
 below found on the login shell's PATH, and again when its version changes. Nothing is needed for an agent that is
 already there; an agent installed later gets them at the next start, or at once with `molten agent install`.
 
+The guide is one flow, the same for every agent below, written once in `morph.md`:
+
+1. **Look first** at what already exists (`molten mod list --json`).
+2. **One to three questions**, only about what the request leaves open, as choices when possible. A request that says
+   to just do it ("fais-le", "just do it", in any language) gets none.
+3. **A reformulation and a plan** whose detail matches how precise the request was. The plan states the split rule
+   and lists every access the mod will need.
+4. **Trust, when the user agrees to the plan**, with that list: the mod is created with the planned capabilities and
+   `molten mod enable` shows the trust prompt. Nothing is enabled before that agreement, and an access the plan did
+   not list is asked again before it is used.
+5. **The design view**, when the installed version has it (`molten help` lists `morph design`); otherwise the same
+   steps run in the terminal.
+6. **A live build**, marked as a draft, with sample data first; each save reloads the mod.
+7. **Adjustments** through the conversation.
+8. **Validation**: a name, three icons to pick from, a category. Giving up runs `molten undo`.
+9. **Your mods**: where the mod lives, and what to do to undo or turn it off.
+
+The split rule, which says what goes in the mod's MoltenTerm part (`mod.json` and `main.js`) and what in its agent
+part (today a Claude Code part, `claude-code-parts.md`), is written once, in `morph.md`.
+
 ```
 molten agent list                 # coding agents: installed, version, capabilities; where the guides go
 molten agent install <agent>      # shows the path, asks, writes (--yes to skip the question)
@@ -398,8 +423,12 @@ disable and `molten undo`, skipped in safe mode, recorded in `molten history`):
 | Palette, command panel, keys | show a mod command in the palette and the command panel, and bind it to a key | #724 |
 | Events and state | react to "an agent finished", "a tab opened"…, read the workspace, project and agents | #725 |
 | Cards and status bar items | add Mission Control cards and status bar items, drawn by the host like boxes | #726 |
+| Declarative panel | a layout or panel of the mod's own, described as data and drawn by the host (Morph v7) | #1890 |
+| Declared files | read and write only the paths the mod declares, approved by the user (Morph v7) | #1892 |
+| Sources | collect from a service with a token kept in Secrets, host-side, approved per service (Morph v7) | #1897 |
+| Source notifications | notify when a source has something new, by host-side rules (Morph v7) | #1898 |
 
-Layouts and free-form panels come later. Until then, use only `api`: a mod that reaches into the page (`document`,
+Until these exist, use only `api`: a mod that reaches into the page (`document`,
 injected styles, MoltenTerm's internal objects) is unsupported, breaks on any update, and what it changes stays on
 screen after the mod stops or is undone, beyond the safety net described in "The page is not part of the API".
 
