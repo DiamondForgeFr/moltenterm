@@ -78,7 +78,7 @@ import {
     useTabTooltip,
     viewDisplayName,
 } from "../tab-identity-ui";
-import { ReleaseUpdateButton } from "../update/release-update-ui";
+import { ReleaseUpdateHost } from "../update/release-update-host";
 import { GoldUpdateButton } from "../update/update-dialog";
 import { useScreenPublisher } from "../view360/screen-publisher";
 import { View360ExitHost } from "../view360/view360-toggle";
@@ -1801,7 +1801,7 @@ function BranchLine() {
             <span className="flex shrink-0 items-center gap-1 font-sans">
                 <UpdateStatusBanner />
                 <GoldUpdateButton />
-                <ReleaseUpdateButton />
+                <ReleaseUpdateHost />
                 <button
                     type="button"
                     title={`${view.tooltip}\n\n${t("status.build.releaseNotes")}`}

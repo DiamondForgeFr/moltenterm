@@ -33,7 +33,7 @@ import {
     StatusBarView,
 } from "./status-bar-model";
 import { DominoLoader } from "./suite/suite";
-import { ReleaseUpdateButton } from "./update/release-update-ui";
+import { ReleaseUpdateHost } from "./update/release-update-host";
 import { GoldUpdateButton } from "./update/update-dialog";
 import { folderIconSource, WorkspaceIcon } from "./workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "./workspace-icon-model";
@@ -187,7 +187,7 @@ export function StatusBar() {
             <span className="ml-auto flex shrink-0 items-center gap-3">
                 <KeepAwakeStatusItem />
                 <GoldUpdateButton />
-                <ReleaseUpdateButton />
+                <ReleaseUpdateHost />
                 <button
                     type="button"
                     title={`${view.tooltip}\n\n${t("status.build.releaseNotes")}`}
