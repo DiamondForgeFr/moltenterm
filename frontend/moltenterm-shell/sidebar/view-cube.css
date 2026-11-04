@@ -1,45 +1,77 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The 360 cube of a view's icon (FR-SHELL-081, DS-SHELL-126, #1823).
+/* The 360 cube of a view's icon (FR-SHELL-081, DS-SHELL-126, #1823, #1861).
 
    Drawn in oblique projection, not in perspective: the front face keeps its true size and sits on whole pixels, so its
-   icon stays as crisp as any other glyph at 1x and 2x; the depth shows as a face above and a face on the right, shifted
-   up and to the right by --cube-d. The body is sheared by --cube-k = d / s (a matrix3d whose third column carries z into
-   x and y) and then turned around its vertical axis: at every quarter turn the next face lands exactly where the front
-   one was, so a cube at rest is as crisp as the first one. No perspective, hence no scaling of the faces.
+   icons stay as crisp as any other glyph at 1x and 2x; the depth shows as a face above and a face on the right, shifted
+   up and to the right by --cube-d. The depth is sheared by --cube-k = d / width (a matrix3d whose third column carries
+   z into x and y) and the body is then turned around its vertical axis: at every quarter turn the next face lands
+   exactly where the front one was, so a cube at rest is as crisp as the first one. No perspective, hence no scaling.
    The edges and fills come from currentColor, so the cube takes the tile's text colour (workspace colour = place);
-   it carries no accent: orange stays for actions. */
-.mt-cube {
-    --cube-s: 12px;
-    --cube-d: 4px;
-    --cube-k: 0.3333333333;
-    --cube-edge: color-mix(in srgb, currentColor 62%, transparent);
-    position: relative;
-    display: inline-block;
-    flex: none;
-    width: calc(var(--cube-s) + var(--cube-d));
-    height: calc(var(--cube-s) + var(--cube-d));
-    color: inherit;
-    font-size: var(--mt-icon-16);
+   it carries no accent: orange stays for actions.
+
+   The shape follows the carpet panels on screen. --cube-n is the number of icons the front face draws (1 to 3): the
+   face is n cells wide and as deep as it is wide, so the four faces stay the same size and a quarter turn lands on a
+   face of the same shape. Each face holds a belt of all the carpet's icons seen through that window: the belt sliding
+   along it is the conveyor, the window widening or narrowing is the stretch, the body turning is the turn. */
+@property --cube-n {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 1;
 }
 
-/* The small glyph (a view row, a tile with counts): the same 4 px of depth on a 10 px face. */
+.mt-cube {
+    --cube-s: 16px;
+    --cube-cell: 16px;
+    --cube-d: 4px;
+    --cube-kd: calc(4 / 16);
+    --cube-icon-zoom: calc(10 / 16);
+    --cube-w: calc(var(--cube-n) * var(--cube-cell));
+    --cube-k: calc(var(--cube-kd) / var(--cube-n));
+    --cube-edge: color-mix(in srgb, currentColor 62%, transparent);
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    color: inherit;
+    font-size: var(--mt-icon-16);
+    transition: --cube-n var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
+}
+
+/* The small glyph (a view row, a tile with counts): the same 4 px of depth on a 14 px face. */
 .mt-cube.is-small {
-    --cube-s: 10px;
-    --cube-k: 0.4;
+    --cube-s: 14px;
+    --cube-cell: 14px;
+    --cube-kd: calc(4 / 14);
+    --cube-icon-zoom: calc(8 / 14);
     font-size: var(--mt-icon-14);
+}
+
+.mt-cube-box {
+    position: relative;
+    flex: none;
+    width: calc(var(--cube-w) + var(--cube-d));
+    height: calc(var(--cube-s) + var(--cube-d));
+}
+
+/* The shear and the turn are two elements: the turn transitions, and the shear follows --cube-n frame by frame, which
+   a transition on the same transform would chase. */
+.mt-cube-shear {
+    position: absolute;
+    top: calc(var(--cube-d) / 2);
+    left: calc(var(--cube-d) / 2);
+    width: var(--cube-w);
+    height: var(--cube-s);
+    transform-style: preserve-3d;
+    transform: matrix3d(1, 0, 0, 0, 0, 1, 0, 0, calc(var(--cube-k) * -1), var(--cube-k), 1, 0, 0, 0, 0, 1);
 }
 
 .mt-cube-body {
     position: absolute;
-    top: calc(var(--cube-d) / 2);
-    left: calc(var(--cube-d) / 2);
-    width: var(--cube-s);
-    height: var(--cube-s);
+    inset: 0;
     transform-style: preserve-3d;
-    transform: matrix3d(1, 0, 0, 0, 0, 1, 0, 0, calc(var(--cube-k) * -1), var(--cube-k), 1, 0, 0, 0, 0, 1)
-        rotateY(var(--mt-cube-turn, 0deg));
+    transform: rotateY(var(--mt-cube-turn, 0deg));
     transition: transform var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
 }
 
@@ -47,9 +79,7 @@
     position: absolute;
     inset: 0;
     box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    overflow: hidden;
     border: 1px solid var(--cube-edge);
     border-radius: 15%;
     background-color: color-mix(in srgb, currentColor 9%, transparent);
@@ -58,16 +88,72 @@
     line-height: 1;
 }
 
-/* A glyph seen edge-on is noise: only the front face shows its icon, the others fade it with the turn. The icon is
-   half the size of the glyph around the cube (8 px beside a 16 px icon, 7 px beside a 14 px one): the type scale has
-   no step that small, so it is halved by zoom, which lays the glyph out at its final size instead of resampling it. */
-.mt-cube-face > i {
-    zoom: 0.5;
+/* One rule between two cells, at the last pixel of each cell but the last one of the window: the element is as wide as
+   the cells but the last, and starts under the border like the belt. It shows on the face in front only, like the
+   icons: a face seen edge-on carries neither. */
+.mt-cube-rules {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -1px;
+    width: calc(var(--cube-w) - var(--cube-cell));
+    background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0 calc(var(--cube-cell) - 1px),
+        var(--cube-edge) calc(var(--cube-cell) - 1px) var(--cube-cell)
+    );
     opacity: 0;
     transition: opacity var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
 }
 
-.mt-cube-face[data-role="front"] > i {
+.mt-cube-face[data-role="front"] .mt-cube-rules {
+    opacity: 1;
+}
+
+/* The radius stays 15% of a cell as the face widens: a percentage reads the face's own width. */
+.mt-cube[data-cells="2"] .mt-cube-face {
+    border-radius: 7.5% / 15%;
+}
+
+.mt-cube[data-cells="3"] .mt-cube-face {
+    border-radius: 5% / 15%;
+}
+
+/* The belt starts one pixel left of the padding box, under the border, so a cell sits on its 16 px of the face. */
+.mt-cube-belt {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -1px;
+    display: flex;
+    transform: translateX(calc(var(--mt-cube-first, 0) * var(--cube-cell) * -1));
+}
+
+/* The belt slides only when the carpet moved by a panel, and settles when the count changed: on a face that just
+   turned in, or after a panel opened before the front one, it is already in place. */
+.mt-cube[data-motion="slide"] .mt-cube-belt,
+.mt-cube[data-motion="stretch"] .mt-cube-belt {
+    transition: transform var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
+}
+
+.mt-cube-cell {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--cube-cell);
+}
+
+/* A glyph seen edge-on is noise: only the front face shows its icons, the others fade them with the turn. The icon is
+   10 px beside a 16 px cell (8 px beside a 14 px one): the type scale has no step that small, so it is scaled by zoom,
+   which lays the glyph out at its final size instead of resampling it. */
+.mt-cube-cell > i {
+    zoom: var(--cube-icon-zoom);
+    opacity: 0;
+    transition: opacity var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
+}
+
+.mt-cube-face[data-role="front"] .mt-cube-cell > i {
     opacity: 1;
 }
 
@@ -101,36 +187,63 @@
 }
 
 .mt-cube-face[data-slot="0"] {
-    transform: translateZ(calc(var(--cube-s) / 2));
+    transform: translateZ(calc(var(--cube-w) / 2));
 }
 
 .mt-cube-face[data-slot="1"] {
-    transform: rotateY(90deg) translateZ(calc(var(--cube-s) / 2));
+    transform: rotateY(90deg) translateZ(calc(var(--cube-w) / 2));
 }
 
 .mt-cube-face[data-slot="2"] {
-    transform: rotateY(180deg) translateZ(calc(var(--cube-s) / 2));
+    transform: rotateY(180deg) translateZ(calc(var(--cube-w) / 2));
 }
 
 .mt-cube-face[data-slot="3"] {
-    transform: rotateY(-90deg) translateZ(calc(var(--cube-s) / 2));
+    transform: rotateY(-90deg) translateZ(calc(var(--cube-w) / 2));
 }
 
+/* The lit top is as deep as the faces are wide: a square, centred on the body, laid flat on its top edge. */
 .mt-cube-face.is-top {
-    transform: rotateX(90deg) translateZ(calc(var(--cube-s) / 2));
+    inset: auto;
+    top: calc((var(--cube-s) - var(--cube-w)) / 2);
+    left: 0;
+    width: var(--cube-w);
+    height: var(--cube-w);
+    border-radius: 15% / 15%;
+    background-image: none;
     background-color: color-mix(in srgb, currentColor 22%, transparent);
+    transform: rotateX(90deg) translateZ(calc(var(--cube-s) / 2));
+}
+
+/* The panels on screen beyond the three icons: discreet, in the row's text colour. */
+.mt-cube-more {
+    flex: none;
+    font-size: var(--mt-text-11);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    opacity: 0.72;
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .mt-cube,
     .mt-cube-body,
+    .mt-cube-belt,
+    .mt-cube-rules,
     .mt-cube-face::after,
-    .mt-cube-face > i {
+    .mt-cube-cell > i,
+    .mt-cube[data-motion="slide"] .mt-cube-belt,
+    .mt-cube[data-motion="stretch"] .mt-cube-belt {
         transition: none;
     }
 }
 
+.prefers-reduced-motion .mt-cube,
 .prefers-reduced-motion .mt-cube-body,
+.prefers-reduced-motion .mt-cube-belt,
+.prefers-reduced-motion .mt-cube-rules,
 .prefers-reduced-motion .mt-cube-face::after,
-.prefers-reduced-motion .mt-cube-face > i {
+.prefers-reduced-motion .mt-cube-cell > i,
+.prefers-reduced-motion .mt-cube[data-motion="slide"] .mt-cube-belt,
+.prefers-reduced-motion .mt-cube[data-motion="stretch"] .mt-cube-belt {
     transition: none;
 }

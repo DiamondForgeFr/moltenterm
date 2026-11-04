@@ -1,11 +1,12 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// What a view's icon says of a 360 view (FR-SHELL-081, FR-SHELL-065, #1823): one mark per screen region, not per panel.
-// The fixed zone keeps its panels' icons; the carpet, whatever it holds, is one cube whose front face is the carpet
-// panel in front. Only the window that draws a tab knows its carpet (a tab is a renderer of its own), so that window
-// publishes this small description in the tab's meta and every sidebar reads it. Read-only on the carpet: nothing here
-// moves it. Kept apart from the components so the rules are tested without the app.
+// What a view's icon says of a 360 view (FR-SHELL-081, FR-SHELL-065, #1823, #1861): one mark per screen region, not per
+// panel. The fixed zone keeps its panels' icons; the carpet, whatever it holds, is one cube whose front face is the
+// carpet panel in front, or a prism of the icons of the panels on screen when there are several (#1861). Only the
+// window that draws a tab knows its carpet (a tab is a renderer of its own), so that window publishes this small
+// description in the tab's meta and every sidebar reads it. Read-only on the carpet: nothing here moves it. Kept apart
+// from the components so the rules are tested without the app.
 
 import { findNode } from "@/layout/lib/layoutNode";
 import type { LayoutNode } from "@/layout/lib/types";
@@ -21,6 +22,8 @@ export type ScreenDescription = {
     carpet: string[];
     // The first carpet column in view, by its first panel: the face the view's icon shows (360 × N: the first of the N).
     front: string;
+    // How many carpet columns are in view, from the front one on: the icons the prism shows. At least one.
+    shown: number;
 };
 
 function leafBlockIds(node: LayoutNode): string[] {
@@ -45,11 +48,13 @@ export function describeScreen(root: LayoutNode, layout: CarpetLayout, visibleCo
         return null;
     }
     const visible = new Set(visibleColumnIds ?? []);
-    const front = leads.find((column) => visible.has(column.columnId)) ?? leads[0];
+    const inView = leads.filter((column) => visible.has(column.columnId));
+    const front = inView[0] ?? leads[0];
     return {
         fixed: (layout.fixedColumns ?? []).flatMap((column) => leafBlockIds(findNode(root, column.nodeId))),
         carpet: leads.map((column) => column.lead),
         front: front.lead,
+        shown: Math.max(1, inView.length),
     };
 }
 
@@ -58,7 +63,7 @@ export function sameScreen(a: ScreenDescription, b: ScreenDescription): boolean 
         return a == b;
     }
     const same = (x: string[], y: string[]) => x.length === y.length && x.every((id, i) => id === y[i]);
-    return a.front === b.front && same(a.fixed, b.fixed) && same(a.carpet, b.carpet);
+    return a.front === b.front && a.shown === b.shown && same(a.fixed, b.fixed) && same(a.carpet, b.carpet);
 }
 
 function readIds(value: unknown): string[] {
@@ -67,7 +72,8 @@ function readIds(value: unknown): string[] {
         : null;
 }
 
-// What the tab's meta holds, null when it holds none or something else.
+// What the tab's meta holds, null when it holds none or something else. A description written before the prism (#1861)
+// has no count of panels on screen: it shows one.
 export function readScreen(raw: unknown): ScreenDescription {
     const value = raw as Record<string, unknown>;
     const fixed = readIds(value?.fixed);
@@ -75,7 +81,8 @@ export function readScreen(raw: unknown): ScreenDescription {
     if (fixed == null || carpet == null || carpet.length === 0 || typeof value.front !== "string") {
         return null;
     }
-    return { fixed, carpet, front: value.front };
+    const shown = Number.isInteger(value.shown) && (value.shown as number) >= 1 ? (value.shown as number) : 1;
+    return { fixed, carpet, front: value.front, shown };
 }
 
 // The marks of a tab drawn in 360 view: the fixed zone's panels (all but one place for the cube, at most
@@ -95,12 +102,15 @@ export function screenGlyphIcons(
         return null;
     }
     const frontId = carpet.includes(screen.front) ? screen.front : carpet[0];
+    const index = carpet.indexOf(frontId);
     const cube: GlyphCube = {
         cube: true,
         id: frontId,
         icon: iconOf(frontId),
-        index: carpet.indexOf(frontId),
+        index,
         count: carpet.length,
+        shown: Math.min(Math.max(1, screen.shown ?? 1), carpet.length - index),
+        panels: carpet.map((id) => ({ id, icon: iconOf(id) })),
     };
     const fixed = screen.fixed.filter((id) => live.has(id)).map(iconOf);
     return [...fixed.filter((icon) => !!icon).slice(0, MaxGlyphIcons - 1), cube];

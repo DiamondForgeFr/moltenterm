@@ -1,14 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The 360 carpet in a view's icon (FR-SHELL-081, DS-SHELL-126, #1823): a small cube whose front face is the icon of the
-// carpet panel in front. When the carpet turns to another panel the cube turns a quarter to show it; at rest it does
-// not move, and under reduced motion the front face just changes. The look is in view-cube.css.
+// The 360 carpet in a view's icon (FR-SHELL-081, DS-SHELL-126, #1823, #1861): a small cube whose front face is the icon
+// of the carpet panel in front, stretched into a prism of one icon per panel on screen (at most three, then +N) when
+// the carpet shows several. When the carpet moves by one panel the icons slide along the face, when the whole screen
+// changes the prism turns a quarter, when the number of panels on screen changes it stretches or narrows; at rest it
+// does not move, and under reduced motion the face just changes. The rules are in view-cube-model.ts, the look in
+// view-cube.css.
 
 import { cn, makeIconClass } from "@/util/util";
 import { useState } from "react";
 import { prefersReducedMotion } from "../molten-motion";
-import { cubeAngle, faceRole, nextCube, startCube } from "./view-cube-model";
+import { cubeAngle, cubeShape, faceRole, nextCube, startCube } from "./view-cube-model";
 import "./view-cube.css";
 import type { GlyphCube } from "./view-menu-model";
 
@@ -18,28 +21,53 @@ export function ViewCube({ cube, small }: { cube: GlyphCube; small?: boolean }) 
     if (shown !== state) {
         setState(shown);
     }
+    const { cells, more } = cubeShape(shown);
     return (
         <span
             className={cn("mt-cube", small && "is-small")}
-            style={{ "--mt-cube-turn": `${cubeAngle(shown)}deg` } as React.CSSProperties}
+            style={{ "--cube-n": cells, "--mt-cube-turn": `${cubeAngle(shown)}deg` } as React.CSSProperties}
             data-testid="view-cube"
             data-front={shown.id}
             data-count={cube.count}
+            data-shown={shown.ids.length}
+            data-cells={cells}
+            data-motion={shown.motion}
         >
-            <span className="mt-cube-body">
-                {shown.icons.map((icon, slot) => (
-                    <span
-                        key={slot}
-                        className="mt-cube-face"
-                        data-slot={slot}
-                        data-role={faceRole(shown, slot)}
-                        data-testid="view-cube-face"
-                    >
-                        <i className={makeIconClass(icon, false, { defaultIcon: "square" })} />
+            <span className="mt-cube-box">
+                <span className="mt-cube-shear">
+                    <span className="mt-cube-body">
+                        {shown.faces.map((face, slot) => (
+                            <span
+                                key={slot}
+                                className="mt-cube-face"
+                                data-slot={slot}
+                                data-role={faceRole(shown, slot)}
+                                data-testid="view-cube-face"
+                            >
+                                <span className="mt-cube-rules" />
+                                <span
+                                    className="mt-cube-belt"
+                                    style={{ "--mt-cube-first": face.first } as React.CSSProperties}
+                                >
+                                    {face.panels.map((panel) => (
+                                        <span key={panel.id} className="mt-cube-cell" data-panel={panel.id}>
+                                            <i
+                                                className={makeIconClass(panel.icon, false, { defaultIcon: "square" })}
+                                            />
+                                        </span>
+                                    ))}
+                                </span>
+                            </span>
+                        ))}
+                        <span className="mt-cube-face is-top" />
                     </span>
-                ))}
-                <span className="mt-cube-face is-top" />
+                </span>
             </span>
+            {more > 0 ? (
+                <span className="mt-cube-more" data-testid="view-cube-more">
+                    +{more}
+                </span>
+            ) : null}
         </span>
     );
 }
