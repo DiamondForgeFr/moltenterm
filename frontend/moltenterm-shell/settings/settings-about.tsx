@@ -15,7 +15,7 @@ import { useT } from "../i18n/i18n";
 import { openWebLink } from "../open-web-link";
 import { ReleaseNotesModel } from "../releases/release-notes-store";
 import { suiteIcon } from "../suite/suite-icons";
-import { ReleaseUpdateCard } from "../update/release-update-ui";
+import { ReleaseUpdateCard } from "../update/release-update-card";
 import { PageCard } from "./settings-page";
 
 const WaveTerminalRepoUrl = "https://github.com/wavetermdev/waveterm";
