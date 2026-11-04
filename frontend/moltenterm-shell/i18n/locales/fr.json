@@ -418,6 +418,8 @@
             "gettingStartedDetail": "votre agent, un premier morph, votre projet",
             "sessions": "Sessions",
             "sessionsDetail": "terminaux et agents encore en cours, locaux et SSH",
+            "bossCard": "Afficher la fiche de {name}",
+            "bossCardDetail": "les sessions de tous les espaces de travail, par-dessus l'app",
             "checkUpdates": "Rechercher une mise à jour maintenant",
             "checkUpdatesDetail": "interroge GitHub maintenant, même si elle a été faite aujourd'hui",
             "settings": "Réglages",
@@ -450,6 +452,7 @@
             "gettingStarted": "prise en main, configuration, bienvenue, visite, premier lancement",
             "checkUpdates": "mise à jour, mettre à jour, rechercher, version, nouvelle version, publication",
             "sessions": "sessions, durables, en cours, agents, ssh, détachées, tâches, processus",
+            "bossCard": "chef, contremaître, bulle, fanion, fiche, carte, vue d'ensemble, sessions, agents, en attente",
             "settings": "configuration, préférences, paramètres, options",
             "shortcuts": "touches, raccourcis, aide, aide-mémoire",
             "viewPin": "épingler, désépingler, garder, temporaire, vue, onglet",
@@ -2889,9 +2892,24 @@
         "label": "{name}, {count} en attente",
         "menu": {
             "collapse": "Replier {name}",
-            "bringBack": "Rappeler {name}",
+            "showBubble": "Afficher la bulle",
             "resetPosition": "Réinitialiser la position",
             "settings": "Réglages de {name}"
+        },
+        "card": {
+            "title": "Fiche de {name}",
+            "ariaLabel": "Fiche de {name} : les sessions de tous les espaces de travail",
+            "waiting": {
+                "one": "{count} en attente",
+                "other": "{count} en attente"
+            },
+            "goTo": "Aller à",
+            "goToName": "Aller à {name}",
+            "showIt": "L'afficher",
+            "showItName": "Afficher {name} dans un panneau",
+            "openSessions": "Ouvrir la vue Sessions",
+            "empty": "Aucune session en cours.",
+            "newTerminal": "Nouveau terminal"
         },
         "peek": {
             "quiet": "Rien n'attend votre réponse.",

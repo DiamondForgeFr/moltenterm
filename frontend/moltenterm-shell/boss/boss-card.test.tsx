@@ -1,0 +1,285 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { renderToStaticMarkup } from "react-dom/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
+vi.mock("@/app/store/global", async () => {
+    const { atom } = await import("jotai");
+    return { atoms: { workspace: atom({ oid: "wsB" }) } };
+});
+vi.mock("@/app/store/modalmodel", () => ({ modalsModel: { hasOpenModals: () => false } }));
+vi.mock("../tab-activity", () => ({
+    TabActivity: { getInstance: () => ({ every: () => () => {} }) },
+    whileShown: () => ({}),
+}));
+vi.mock("../sessions/sessions-store", async () => {
+    const { atom } = await import("jotai");
+    const dataAtom = atom(null);
+    return { DurableSessions: { getInstance: () => ({ dataAtom }) } };
+});
+vi.mock("./boss-card-actions", () => ({
+    homeFolder: () => "/Users/me",
+    locateSession: vi.fn(),
+    goToLocation: vi.fn(),
+    openSessionsView: vi.fn(),
+    startTerminal: vi.fn(),
+}));
+vi.mock("./boss-store", async () => {
+    const { atom } = await import("jotai");
+    const model = {
+        nameAtom: atom("Ferrand"),
+        collapsedAtom: atom(false),
+        badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
+        expand: vi.fn(),
+        closeCard: vi.fn(),
+    };
+    return { BossBubbleModel: { getInstance: () => model } };
+});
+
+import { globalStore } from "@/app/store/jotaiStore";
+import { DurableSession } from "../sessions/sessions-model";
+import { DurableSessions } from "../sessions/sessions-store";
+import { BossCard } from "./boss-card";
+import { BossBubbleModel } from "./boss-store";
+
+const model = BossBubbleModel.getInstance() as any;
+const sessionsAtom = DurableSessions.getInstance().dataAtom;
+
+function session(id: string, extra: Partial<DurableSession> = {}): DurableSession {
+    return {
+        id,
+        shortid: id.slice(0, 8),
+        connection: "",
+        connstate: "connected",
+        workspaceorder: 0,
+        shown: true,
+        canshow: true,
+        canend: true,
+        workspaceid: "wsA",
+        workspacename: "Alpha",
+        startedat: Date.now() - 5 * 60 * 1000,
+        ...extra,
+    };
+}
+
+function load(...sessions: DurableSession[]) {
+    globalStore.set(sessionsAtom, { sessions, runningagents: sessions.filter((s) => s.agent).length, version: 1 });
+}
+
+function render(): string {
+    return renderToStaticMarkup(<BossCard style={{ right: "16px", bottom: "68px" }} />);
+}
+
+beforeEach(() => {
+    globalStore.set(model.nameAtom, "Ferrand");
+    globalStore.set(model.collapsedAtom, false);
+    globalStore.set(model.badgeAtom, { count: 0, text: "", tone: "waiting" });
+    globalStore.set(sessionsAtom, null);
+});
+
+function attr(html: string, testId: string, name: string): string {
+    const tag = new RegExp(`<[a-z0-9]+ [^>]*data-testid="${testId}"[^>]*>`).exec(html)?.[0] ?? "";
+    return new RegExp(`${name}="([^"]*)"`).exec(tag)?.[1];
+}
+
+describe("the card's header (FR-BOSS-002, AC1)", () => {
+    it("says it is the foreman's, with his name, in a non-modal dialog anchored by the style it is given", () => {
+        const html = render();
+        expect(attr(html, "boss-card", "role")).toBe("dialog");
+        expect(attr(html, "boss-card", "aria-modal")).toBe("false");
+        expect(attr(html, "boss-card", "aria-label")).toBe("Ferrand&#x27;s card: the sessions of every workspace");
+        expect(attr(html, "boss-card", "style")).toBe("right:16px;bottom:68px");
+        expect(html).toMatch(/data-testid="boss-card-title"[^>]*>Ferrand&#x27;s card</);
+        globalStore.set(model.nameAtom, "Léa");
+        expect(render()).toMatch(/data-testid="boss-card-title"[^>]*>Léa&#x27;s card</);
+    });
+
+    it("can take the focus once it opens, and is no part of the tab order", () => {
+        expect(attr(render(), "boss-card", "tabindex")).toBe("-1");
+    });
+
+    it("shows the badge count in its header, in the badge's tone, hidden at zero", () => {
+        expect(render()).not.toContain('data-testid="boss-card-count"');
+        globalStore.set(model.badgeAtom, { count: 3, text: "3", tone: "waiting" });
+        let html = render();
+        expect(attr(html, "boss-card-count", "data-tone")).toBe("waiting");
+        expect(html).toMatch(/data-testid="boss-card-count"[^>]*>3 waiting</);
+        globalStore.set(model.badgeAtom, { count: 12, text: "9+", tone: "error" });
+        html = render();
+        expect(attr(html, "boss-card-count", "data-tone")).toBe("error");
+        expect(html).toMatch(/data-testid="boss-card-count"[^>]*>12 waiting</);
+    });
+
+    it("has a visible close control with a name", () => {
+        const html = render();
+        expect(html).toContain('data-testid="boss-card-close"');
+        expect(attr(html, "boss-card-close", "aria-label")).toBe("Close");
+        expect(attr(html, "boss-card-close", "type")).toBe("button");
+    });
+
+    it("offers Show the bubble only while the foreman is folded into his pennant (AC6)", () => {
+        expect(render()).not.toContain('data-testid="boss-card-show-bubble"');
+        globalStore.set(model.collapsedAtom, true);
+        expect(render()).toMatch(/data-testid="boss-card-show-bubble"[^>]*>Show the bubble</);
+    });
+});
+
+describe("the sessions (AC2, AC3)", () => {
+    beforeEach(() =>
+        load(
+            session("a1", {
+                agent: "claude",
+                agentname: "Claude Code",
+                agentstate: "waiting",
+                firstname: "Léa",
+                workspaceid: "wsA",
+                workspacename: "Alpha",
+                workspaceorder: 1,
+                worktree: { path: "/Users/me/forge", branch: "feature/12-card", main: "/Users/me/forge" },
+            }),
+            session("b1", {
+                agent: "codex",
+                agentname: "Codex",
+                agentstate: "working",
+                firstname: "Max",
+                workspaceid: "wsB",
+                workspacename: "Beta",
+                workspaceorder: 2,
+                connection: "dev@box",
+                folder: "/srv/api",
+            }),
+            session("p1", {
+                shown: false,
+                workspaceid: "wsB",
+                workspacename: "Beta",
+                workspaceorder: 2,
+                command: "npm run dev",
+            })
+        )
+    );
+
+    it("lists every workspace's sessions in groups, the ones without a pane first, the current workspace marked", () => {
+        const html = render();
+        const groups = [...html.matchAll(/data-testid="boss-card-group" data-group="([^"]*)"/g)].map((m) => m[1]);
+        expect(groups).toEqual(["hidden", "wsA", "wsB"]);
+        expect(html).toContain("Not in a pane");
+        expect(html).toContain("Alpha");
+        expect(html).toContain("Beta");
+        const beta = html.slice(html.indexOf('data-group="wsB"'));
+        expect(beta).toContain("This workspace");
+        expect(html.slice(html.indexOf('data-group="wsA"'), html.indexOf('data-group="wsB"'))).not.toContain(
+            "This workspace"
+        );
+    });
+
+    it("tells each agent's first name, state, project, branch and how long it has run", () => {
+        const html = render();
+        const row = html.slice(html.indexOf('data-session="a1"'), html.indexOf('data-session="b1"'));
+        expect(row).toMatch(/data-testid="boss-card-name"[^>]*>Léa</);
+        expect(row).toMatch(/data-testid="boss-card-state"[^>]*>waiting for you</);
+        expect(row).toMatch(/data-testid="boss-card-project"[^>]*>forge</);
+        expect(row).toContain("feature/12-card");
+        expect(row).toMatch(/data-testid="boss-card-up"[^>]*>up 5 min</);
+    });
+
+    it("names the host of a session that runs elsewhere", () => {
+        const html = render();
+        const row = html.slice(html.indexOf('data-session="b1"'));
+        expect(row).toMatch(/data-testid="boss-card-host"[^>]*>[\s\S]*dev@box/);
+        expect(html.slice(html.indexOf('data-session="a1"'), html.indexOf('data-session="b1"'))).not.toContain(
+            'data-testid="boss-card-host"'
+        );
+    });
+
+    it("offers Go to for a session in a pane and Show it for one whose pane is gone, each named for its row", () => {
+        const html = render();
+        const goTo = html.slice(html.indexOf('data-session="a1"'), html.indexOf('data-session="b1"'));
+        expect(goTo).toMatch(/aria-label="Go to Léa"[^>]*data-testid="boss-card-go"[^>]*>Go to</);
+        const showIt = html.slice(html.indexOf('data-session="p1"'));
+        expect(showIt).toMatch(/aria-label="Show [^"]* in a pane"[^>]*data-testid="boss-card-go"[^>]*>Show it</);
+        expect(html.match(/data-testid="boss-card-go"/g)).toHaveLength(3);
+    });
+
+    it("disables Go to for a session that cannot be shown, and says why", () => {
+        load(
+            session("old", { shown: false, canshow: false, reason: "olderversion", firstname: "Zoé", agent: "claude" })
+        );
+        const html = render();
+        expect(html).toMatch(
+            /title="Started by an older MoltenTerm: it can only be ended\."[^>]*>|<button[^>]*disabled=""/
+        );
+        expect(html).toContain('disabled=""');
+        expect(html).toContain("Started by an older MoltenTerm: it can only be ended.");
+    });
+
+    it("has no bulk action of its own: bulk actions stay in the Sessions view", () => {
+        const html = render();
+        expect(html).not.toContain('type="checkbox"');
+        expect(html).not.toContain("End session");
+    });
+});
+
+describe("the full view (AC4)", () => {
+    it("offers Open the Sessions view, whatever the list holds", () => {
+        expect(render()).toMatch(/data-testid="boss-card-open-sessions"[^>]*>[\s\S]*Open the Sessions view</);
+        load(session("a1"));
+        expect(render()).toContain('data-testid="boss-card-open-sessions"');
+    });
+});
+
+describe("with nothing running (AC7)", () => {
+    it("says so in one line and offers New terminal", () => {
+        load();
+        const html = render();
+        expect(html).toContain('data-testid="boss-card-empty"');
+        expect(html).toContain("No session is running.");
+        expect(html).toMatch(/data-testid="boss-card-new-terminal"[^>]*>New terminal</);
+        expect(html).not.toContain('data-testid="boss-card-group"');
+    });
+
+    it("offers it only then", () => {
+        load(session("a1"));
+        expect(render()).not.toContain('data-testid="boss-card-new-terminal"');
+    });
+
+    it("wears the Molten call to action: its class, and the wave as its last child", () => {
+        load();
+        const html = render();
+        const button = html.slice(html.indexOf('data-testid="boss-card-new-terminal"'));
+        expect(button).toMatch(/^[^>]*>[^<]*New terminal[\s\S]*?<\/button>/);
+        expect(html).toMatch(/class="molten-btn [^"]*"[^>]*data-testid="boss-card-new-terminal"/);
+    });
+});
+
+describe("while the first list is on its way", () => {
+    it("waits with the dominoes and says what for", () => {
+        const html = render();
+        expect(html).toContain('data-testid="boss-card-loading"');
+        expect(html).toContain("Loading sessions…");
+        expect(html).not.toContain('data-testid="boss-card-empty"');
+    });
+});
+
+describe("the card is a layer, not a panel (AC9)", () => {
+    it("holds no native dialog, no scrim, and no form control that would keep the focus", () => {
+        load(session("a1", { agent: "claude", firstname: "Léa" }));
+        const html = render();
+        expect(html).not.toContain("<dialog");
+        expect(html).not.toContain("molten-scrim");
+        expect(html).not.toContain("<input");
+        expect(html).not.toContain("<select");
+        expect(html).not.toContain("<textarea");
+    });
+
+    it("is positioned absolutely over the content and takes no room", () => {
+        const css = readFileSync(join(__dirname, "boss-bubble.css"), "utf8");
+        const rule = /\.mt-boss-card \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(rule).toContain("position: absolute;");
+        expect(rule).toContain("overflow: hidden;");
+        expect(rule).not.toMatch(/\b(position:\s*(static|relative|sticky))\b/);
+    });
+});

@@ -14,6 +14,8 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { createPortal } from "react-dom";
 import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import type { AgentStateInfo } from "../agent-state-model";
+import { BossBubbleModel } from "../boss/boss-store";
+import { useBossName } from "../boss/use-boss-name";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { useKnownCodingAgents } from "../coding-agent/coding-agent";
@@ -208,6 +210,8 @@ export function usePaletteEntries(picker: PickerSource) {
     const viewModified = useAtomValue(pins.modifiedAtom(tabId));
     const locale = useLocale();
     const matrix = useFeatureMatrix();
+    const bossShown = useAtomValue(BossBubbleModel.getInstance().showAtom);
+    const bossName = useBossName();
     const projectTab = isProjectTab(tab);
     const hasTab = tab != null;
     const viewPin = useMemo(
@@ -247,6 +251,7 @@ export function usePaletteEntries(picker: PickerSource) {
                 picker,
                 shortcutsHint: formatShortcutById("shortcuts"),
                 viewPin,
+                bossName: bossShown ? bossName : undefined,
             }),
         [
             fullConfig,
@@ -264,6 +269,8 @@ export function usePaletteEntries(picker: PickerSource) {
             locale,
             viewPin,
             matrix,
+            bossShown,
+            bossName,
         ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home, locale]);

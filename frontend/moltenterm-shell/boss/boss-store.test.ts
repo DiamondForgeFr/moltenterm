@@ -116,6 +116,7 @@ beforeEach(() => {
     globalStore.set(model.typingBlockAtom, null);
     globalStore.set(model.cueAtom, 0);
     globalStore.set(model.peekOpenAtom, false);
+    globalStore.set(model.cardOpenAtom, false);
     globalStore.set(agents.loadedAtom, false);
     setStates();
     model.setRectSource(() => BubbleRect);
@@ -368,6 +369,163 @@ describe("the bubble in the window's meta (AC2, AC3)", () => {
         model.expand();
         await settled();
         expect(globalStore.get(model.collapsedAtom)).toBe(false);
+    });
+});
+
+describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
+    // An element that can hold the focus, as the page's are for the model.
+    function focusable() {
+        return { focus: vi.fn(), isConnected: true, closest: () => null };
+    }
+
+    function attached(active: unknown = null) {
+        const dom = fakeDom() as ReturnType<typeof fakeDom> & { body: object };
+        dom.body = { body: true };
+        dom.activeElement = active;
+        const detach = model.attach(dom);
+        return { dom, detach };
+    }
+
+    it("shows only when asked, and says so in its atom", () => {
+        const { detach } = attached();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(false);
+        model.openCard();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(true);
+        detach();
+    });
+
+    it("takes the peek's place: the peek goes when the card shows", () => {
+        const { detach } = attached();
+        globalStore.set(model.peekOpenAtom, true);
+        model.openCard();
+        expect(globalStore.get(model.peekOpenAtom)).toBe(false);
+        detach();
+    });
+
+    it("does not show for a bubble that Settings hides: there is nothing to anchor it to", () => {
+        const { detach } = attached();
+        globalStore.set(settings, { "boss:show": false });
+        model.openCard();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(false);
+        detach();
+    });
+
+    it("toggles: a second call hides it again", () => {
+        const { detach } = attached();
+        model.toggleCard();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(true);
+        model.toggleCard();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(false);
+        detach();
+    });
+
+    it("gives the focus back to where it was, once the card is gone", () => {
+        vi.useFakeTimers();
+        const terminal = focusable();
+        const { dom, detach } = attached(terminal);
+        model.openCard();
+        dom.activeElement = dom.body;
+        model.closeCard();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(false);
+        expect(terminal.focus).not.toHaveBeenCalled();
+        vi.runAllTimers();
+        expect(terminal.focus).toHaveBeenCalledTimes(1);
+        detach();
+    });
+
+    it("gives it back even when the card, which held it, has not left the page yet", () => {
+        vi.useFakeTimers();
+        const terminal = focusable();
+        const { dom, detach } = attached(terminal);
+        model.openCard();
+        dom.activeElement = { closest: (selector: string) => (selector === "[data-boss-card]" ? {} : null) };
+        model.closeCard();
+        vi.runAllTimers();
+        expect(terminal.focus).toHaveBeenCalledTimes(1);
+        detach();
+    });
+
+    it("leaves the focus where the developer put it meanwhile (a click outside)", () => {
+        vi.useFakeTimers();
+        const terminal = focusable();
+        const { dom, detach } = attached(terminal);
+        model.openCard();
+        model.closeCard();
+        dom.activeElement = focusable();
+        vi.runAllTimers();
+        expect(terminal.focus).not.toHaveBeenCalled();
+        detach();
+    });
+
+    it("gives no focus back when the developer went somewhere (Go to, the full view, a new terminal)", () => {
+        vi.useFakeTimers();
+        const terminal = focusable();
+        const { dom, detach } = attached(terminal);
+        model.openCard();
+        dom.activeElement = dom.body;
+        model.closeCard({ restoreFocus: false });
+        vi.runAllTimers();
+        expect(terminal.focus).not.toHaveBeenCalled();
+        detach();
+    });
+
+    it("gives the focus back to the target the caller named (the palette's origin pane)", () => {
+        vi.useFakeTimers();
+        const origin = focusable();
+        const { dom, detach } = attached(focusable());
+        model.openCard(origin);
+        dom.activeElement = dom.body;
+        model.closeCard();
+        vi.runAllTimers();
+        expect(origin.focus).toHaveBeenCalledTimes(1);
+        detach();
+    });
+
+    it("asks nothing of a page that held no focus", () => {
+        vi.useFakeTimers();
+        const { dom, detach } = attached(null);
+        model.openCard();
+        dom.activeElement = dom.body;
+        model.closeCard();
+        expect(() => vi.runAllTimers()).not.toThrow();
+        detach();
+    });
+
+    it("keeps the bubble folded under it: typing elsewhere does not fold it, the focus leaving does not bring it back", () => {
+        const { dom, detach } = attached();
+        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
+        expect(globalStore.get(model.collapsedAtom)).toBe(true);
+        model.openCard();
+        dom.activeElement = focusedIn("blk-2");
+        model.noteFocusLeft(dom);
+        expect(globalStore.get(model.typingBlockAtom)).toBe("blk-1");
+        model.closeCard({ restoreFocus: false });
+        model.noteFocusLeft(dom);
+        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
+        detach();
+    });
+
+    it("does not fold the bubble for a keystroke while the card shows", () => {
+        const { detach } = attached();
+        model.openCard();
+        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
+        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
+        detach();
+    });
+
+    it("hides with the bubble when the window stops drawing it", () => {
+        const { detach } = attached();
+        model.openCard();
+        detach();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(false);
+    });
+
+    it("sends nothing to wavesrv and writes nothing to the window: the app stays as it was", () => {
+        const { detach } = attached();
+        model.openCard();
+        model.closeCard();
+        expect(m.setMeta).not.toHaveBeenCalled();
+        detach();
     });
 });
 

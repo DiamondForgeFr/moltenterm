@@ -132,6 +132,22 @@ export function peekStyle(
     };
 }
 
+export type CardStyle = PlaceStyle & { maxHeight: string };
+
+// The Sessions card (FR-BOSS-002) where the peek sits, beside the bubble, with the height the window leaves it between
+// the bubble and the far edge: a long list scrolls inside the card, which never grows past the window.
+export function cardStyle(place: BubblePlace, size: number = BubbleSizePx, margin: number = BubbleMarginPx): CardStyle {
+    const vertical = place.corner[0] === "t" ? "top" : "bottom";
+    const anchored = peekStyle(place, size, margin);
+    return { ...anchored, maxHeight: `calc(100% - ${anchored[vertical]} - ${margin}px)` };
+}
+
+// The card under the pennant, aligned with its right edge.
+export function pennantCardStyle(right: number, margin: number = BubbleMarginPx): CardStyle {
+    const top = PennantHeightPx + PeekGapPx;
+    return { top: `${top}px`, right: `${right}px`, maxHeight: `calc(100% - ${top + margin}px)` };
+}
+
 export function rectsOverlap(a: Rect, b: Rect): boolean {
     return (
         a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height

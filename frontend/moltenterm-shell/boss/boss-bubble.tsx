@@ -4,8 +4,8 @@
 // Ferrand's bubble, the pennant and the hover peek (FR-BOSS-001, DS-BOSS-001): a round bubble of 44 px with his still
 // portrait at the bottom right of the window, draggable; folded, a pennant hanging from the top edge with his initial.
 // A badge counts the agents that wait or failed in every workspace, one cue plays when the count rises, and the peek
-// shows on hover without taking the focus. Nothing here opens anything or plays a sound. The click on the bubble is the
-// seam of FR-BOSS-002 (the Sessions card): onActivate below is what it will replace.
+// shows on hover without taking the focus. Nothing here opens anything by itself or plays a sound: the click on the
+// bubble or the pennant, and nothing else, shows the Sessions card (FR-BOSS-002), and the same click hides it again.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -18,15 +18,18 @@ import { useT, useTCount } from "../i18n/i18n";
 import { MotionClass } from "../molten-motion";
 import { openSettingsSection } from "../settings/settings-open";
 import "./boss-bubble.css";
+import { BossCard } from "./boss-card";
 import { bossInitial } from "./boss-name";
 import { BossPeek, bubbleLabel, peekIsQuiet, workplaceNames } from "./boss-overview";
 import {
     Area,
     BubbleSizePx,
+    cardStyle,
     clampRect,
     DefaultPlace,
     PeekGapPx,
     peekStyle,
+    pennantCardStyle,
     PennantHeightPx,
     pennantRightPx,
     placeStyle,
@@ -140,6 +143,7 @@ function BossBubbleLayer() {
     const badge = useAtomValue(model.badgeAtom, { store: globalStore });
     const cue = useAtomValue(model.cueAtom, { store: globalStore });
     const peekOpen = useAtomValue(model.peekOpenAtom, { store: globalStore });
+    const cardOpen = useAtomValue(model.cardOpenAtom, { store: globalStore });
     const peek = useAtomValue(model.peekAtom, { store: globalStore });
     const layerRef = useRef<HTMLDivElement>(null);
     const bubbleRef = useRef<HTMLButtonElement>(null);
@@ -198,7 +202,7 @@ function BossBubbleLayer() {
     };
     const openPeekSoon = (delayMs: number = PeekDelayMs) => {
         clearTimeout(peekTimer.current);
-        if (drag.current?.moved) {
+        if (drag.current?.moved || globalStore.get(model.cardOpenAtom)) {
             return;
         }
         peekTimer.current = setTimeout(() => globalStore.set(model.peekOpenAtom, true), delayMs);
@@ -228,7 +232,7 @@ function BossBubbleLayer() {
         settingsItem,
     ];
     const pennantMenu: ContextMenuItem[] = [
-        { label: t("boss.menu.bringBack", { name }), click: () => model.expand() },
+        { label: t("boss.menu.showBubble"), click: () => model.expand() },
         { type: "separator" },
         settingsItem,
     ];
@@ -269,6 +273,7 @@ function BossBubbleLayer() {
         if (!d.moved) {
             d.moved = true;
             closePeek();
+            model.closeCard();
         }
         const next: Rect = clampRect(
             { left: d.left + dx, top: d.top + dy, width: BubbleSizePx, height: BubbleSizePx },
@@ -298,14 +303,14 @@ function BossBubbleLayer() {
         globalStore.set(model.dragAtom, null);
     };
 
+    // The click shows the card, or hides it again; the peek, which the pointer on the button had brought, gives way.
     const onActivate = () => {
         if (clickAfterDrag.current) {
             clickAfterDrag.current = false;
             return;
         }
-        // The click reads the peek at once, for the keyboard and for a touch, which have no hover. FR-BOSS-002 puts the
-        // Sessions card here.
-        openPeekSoon(0);
+        closePeek();
+        model.toggleCard();
     };
     const hover = {
         onPointerEnter: () => openPeekSoon(),
@@ -341,8 +346,14 @@ function BossBubbleLayer() {
                     style={{ right: pennantRight }}
                     aria-label={label}
                     aria-describedby={descriptionId}
+                    aria-haspopup="dialog"
+                    aria-expanded={cardOpen}
                     data-testid="boss-pennant"
-                    onClick={() => model.expand()}
+                    data-boss-anchor=""
+                    onClick={() => {
+                        closePeek();
+                        model.toggleCard();
+                    }}
                     onContextMenu={(e) => showMenu(e, pennantMenu)}
                     onAnimationEnd={onAnimationEnd}
                     {...hover}
@@ -366,7 +377,10 @@ function BossBubbleLayer() {
                     style={bubbleStyle}
                     aria-label={label}
                     aria-describedby={descriptionId}
+                    aria-haspopup="dialog"
+                    aria-expanded={cardOpen}
                     data-testid="boss-bubble"
+                    data-boss-anchor=""
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
                     onPointerUp={(e) => endDrag(e, true)}
@@ -390,7 +404,10 @@ function BossBubbleLayer() {
             <div id={descriptionId} className="sr-only" data-testid="boss-description">
                 <PeekBody peek={peek} name={name} />
             </div>
-            {peekOpen && dragRect == null ? (
+            {cardOpen && dragRect == null ? (
+                <BossCard style={collapsed ? pennantCardStyle(pennantRight) : cardStyle(shownPlace)} />
+            ) : null}
+            {peekOpen && !cardOpen && dragRect == null ? (
                 <div
                     aria-hidden
                     data-testid="boss-peek"

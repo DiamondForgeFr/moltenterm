@@ -4,7 +4,8 @@
 // Ferrand's bubble in a window (FR-BOSS-001, DS-BOSS-001): where it sits and whether it is collapsed (the window's meta,
 // so every view of the window draws the same and a relaunch keeps them), the count and the peek it tells, the one cue
 // when the count rises, and the collapse while the developer types in a terminal under it. The bubble never takes the
-// focus and opens nothing: it only listens.
+// focus and opens nothing: it only listens. Its Sessions card (FR-BOSS-002) shows only when the developer asks for it
+// and goes back to where the focus was when he hides it.
 
 import { atoms, getSettingsKeyAtom, globalStore, WOS } from "@/app/store/global";
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -17,6 +18,7 @@ import { AgentStates } from "../agent-state-store";
 import { I18nModel } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
 import { DurableSessions } from "../sessions/sessions-store";
+import { FocusTarget, focusTargetOf, restoreFocus } from "./boss-card-model";
 import {
     BossBubbleMetaKey,
     BossCollapseOnTypeSettingKey,
@@ -45,7 +47,13 @@ export type BossDom = {
     addEventListener: (type: string, listener: (event: any) => void, options?: any) => void;
     removeEventListener: (type: string, listener: (event: any) => void, options?: any) => void;
     activeElement?: any;
+    body?: any;
     hasFocus?: () => boolean;
+};
+
+export type CloseCardOptions = {
+    // The card hid because the developer went somewhere (a session, the full view): the focus is that place's.
+    restoreFocus?: boolean;
 };
 
 const TerminalInputClass = "xterm-helper-textarea";
@@ -77,6 +85,8 @@ export class BossBubbleModel {
     cueAtom = atom(0) as PrimitiveAtom<number>;
     // The peek shows.
     peekOpenAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The Sessions card shows (FR-BOSS-002).
+    cardOpenAtom = atom(false) as PrimitiveAtom<boolean>;
 
     windowMetaAtom: Atom<Record<string, any>>;
     stateAtom: Atom<BubbleState>;
@@ -92,6 +102,9 @@ export class BossBubbleModel {
     private writeSeq = 0;
     // The bubble's rectangle on screen, given by the component that draws it.
     private rectSource: () => Rect = null;
+    // Where the focus was when the card opened, and the document it is given back in.
+    private cardReturn: FocusTarget = null;
+    private dom: BossDom = null;
 
     private constructor() {
         this.windowMetaAtom = atom((get) => {
@@ -178,7 +191,7 @@ export class BossBubbleModel {
         this.write({ ...this.state(), collapsed: true });
     }
 
-    // The pennant's click.
+    // Show the bubble: the pennant's menu and the card's header (the pennant's click shows the card).
     expand(): void {
         globalStore.set(this.peekOpenAtom, false);
         globalStore.set(this.typingBlockAtom, null);
@@ -194,10 +207,46 @@ export class BossBubbleModel {
         this.write({ ...this.state(), place: rectToPlace(rect, area) });
     }
 
+    // The developer's click (the bubble, the pennant) or command (the palette) shows the card; nothing else does. The
+    // focus moves into it because he asked, and goes back to returnTo (the element that held it) when the card hides.
+    openCard(returnTo?: FocusTarget): void {
+        if (globalStore.get(this.cardOpenAtom) || !globalStore.get(this.showAtom)) {
+            return;
+        }
+        this.cardReturn = returnTo ?? focusTargetOf(this.dom?.activeElement, this.dom);
+        globalStore.set(this.peekOpenAtom, false);
+        globalStore.set(this.cardOpenAtom, true);
+    }
+
+    // Hides the card and leaves the app as it was: the focus goes back unless the developer put it elsewhere meanwhile
+    // (a click outside lands first).
+    closeCard(options: CloseCardOptions = {}): void {
+        if (!globalStore.get(this.cardOpenAtom)) {
+            return;
+        }
+        const target = this.cardReturn;
+        const dom = this.dom;
+        this.cardReturn = null;
+        globalStore.set(this.cardOpenAtom, false);
+        if (options.restoreFocus === false || target == null || dom == null) {
+            return;
+        }
+        // The card leaves the page on the next render: look at the focus once it has.
+        setTimeout(() => restoreFocus(target, dom), 0);
+    }
+
+    toggleCard(returnTo?: FocusTarget): void {
+        if (globalStore.get(this.cardOpenAtom)) {
+            this.closeCard();
+            return;
+        }
+        this.openCard(returnTo);
+    }
+
     // A keystroke reaching a terminal under the bubble folds it into the pennant at once (AC4). Nothing is stopped or
-    // redirected: the keystroke goes where it was going.
+    // redirected: the keystroke goes where it was going. While the card shows, the bubble keeps its place under it.
     noteKeyDown(event: { target: any; key: string; metaKey?: boolean }): void {
-        if (globalStore.get(this.typingBlockAtom) != null) {
+        if (globalStore.get(this.typingBlockAtom) != null || globalStore.get(this.cardOpenAtom)) {
             return;
         }
         const terminal = terminalBlockOf(event.target);
@@ -218,7 +267,8 @@ export class BossBubbleModel {
     // The focus left the terminal he typed in: the bubble comes back (AC4).
     noteFocusLeft(dom: BossDom): void {
         const typing = globalStore.get(this.typingBlockAtom);
-        if (typing == null) {
+        // The card is a detour of the focus, not a departure: the bubble stays folded under it.
+        if (typing == null || globalStore.get(this.cardOpenAtom)) {
             return;
         }
         // A window that lost the system's focus keeps its focused element: he is still in that terminal.
@@ -251,6 +301,7 @@ export class BossBubbleModel {
     // Listens while a bubble is on screen: the keystrokes and the focus (capture, passive: nothing is stopped), the
     // count, and the usage readings the peek tells.
     attach(dom: BossDom): () => void {
+        this.dom = dom;
         const onKeyDown = (event: any) => this.noteKeyDown(event);
         const onFocusChange = () => this.noteFocusLeft(dom);
         // focusout fires before the focus lands anywhere: look once it has.
@@ -268,6 +319,9 @@ export class BossBubbleModel {
             stopUsage();
             globalStore.set(this.typingBlockAtom, null);
             globalStore.set(this.peekOpenAtom, false);
+            globalStore.set(this.cardOpenAtom, false);
+            this.cardReturn = null;
+            this.dom = null;
         };
     }
 }

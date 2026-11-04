@@ -418,6 +418,8 @@
             "gettingStartedDetail": "your agent, a first morph, your project",
             "sessions": "Sessions",
             "sessionsDetail": "terminals and agents still running, local and SSH",
+            "bossCard": "Show {name}'s card",
+            "bossCardDetail": "the sessions of every workspace, over the app",
             "checkUpdates": "Check for updates now",
             "checkUpdatesDetail": "asks GitHub now, even when it was asked today",
             "settings": "Settings",
@@ -450,6 +452,7 @@
             "gettingStarted": "onboarding, setup, welcome, tour, first run",
             "checkUpdates": "check for updates, update, upgrade, release, new version",
             "sessions": "sessions, durable, running, agents, ssh, detached, jobs, processes",
+            "bossCard": "boss, foreman, bubble, pennant, card, overview, sessions, agents, waiting",
             "settings": "config, preferences",
             "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
             "viewPin": "pin, unpin, keep, temporary, view, tab",
@@ -2889,9 +2892,24 @@
         "label": "{name}, {count} waiting",
         "menu": {
             "collapse": "Collapse {name}",
-            "bringBack": "Bring {name} back",
+            "showBubble": "Show the bubble",
             "resetPosition": "Reset position",
             "settings": "{name} settings"
+        },
+        "card": {
+            "title": "{name}'s card",
+            "ariaLabel": "{name}'s card: the sessions of every workspace",
+            "waiting": {
+                "one": "{count} waiting",
+                "other": "{count} waiting"
+            },
+            "goTo": "Go to",
+            "goToName": "Go to {name}",
+            "showIt": "Show it",
+            "showItName": "Show {name} in a pane",
+            "openSessions": "Open the Sessions view",
+            "empty": "No session is running.",
+            "newTerminal": "New terminal"
         },
         "peek": {
             "quiet": "Nothing waits for you.",

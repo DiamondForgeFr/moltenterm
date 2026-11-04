@@ -126,6 +126,8 @@ export type PaletteSourceInput = {
     picker?: PickerSource;
     // The shortcuts sheet's keys, shown on its entry.
     shortcutsHint?: string;
+    // The foreman's name while his bubble shows (FR-BOSS-002): the palette offers his card. Absent, no card to show.
+    bossName?: string;
     // The pin moves of the view on screen, as its menu offers them, and the move the keep shortcut makes (#1652).
     viewPin?: { moves: PinMove[]; keepMove: PinMove; keepHint: string };
 };
@@ -429,6 +431,25 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
     return rtn;
 }
 
+// "Show Ferrand's card" (FR-BOSS-002-AC1): the Sessions of every workspace over the app, while his bubble or his pennant
+// is there to anchor it.
+export function bossCardEntries(name: string): PaletteEntry[] {
+    if (!name) {
+        return [];
+    }
+    return [
+        {
+            id: "action:bosscard",
+            group: "actions",
+            label: t("palette.actions.bossCard", { name }),
+            detail: t("palette.actions.bossCardDetail"),
+            icon: "layer-group",
+            keywords: paletteKeywords("bossCard", name),
+            run: { kind: "bosscard" },
+        },
+    ];
+}
+
 // The shortcuts sheet (FR-SHELL-042-AC8): the palette names it, with its keys.
 export function shortcutsEntry(hint?: string): PaletteEntry {
     return {
@@ -638,6 +659,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...panels,
         ...folderEntries(folders, input.home),
         ...actions,
+        ...bossCardEntries(input.bossName),
         ...(input.picker == null ? viewPinEntries(input.viewPin) : []),
         ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
         ...termUpdateEntries(input.outdatedTerminals),
