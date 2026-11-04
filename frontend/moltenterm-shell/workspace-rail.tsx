@@ -73,6 +73,7 @@ import {
 import { AgentChoiceHost } from "./reviews/agent-choice";
 import { AssistedReviewHost } from "./reviews/assisted-review-dialog";
 import { LeadResumeHost } from "./reviews/lead-resume";
+import { installMorphDesignHandoff } from "./morph-design/morph-design-open";
 import { installReviewHandoff } from "./reviews/reviews-handoff";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
@@ -825,6 +826,8 @@ export function WorkspaceRailHosts({ entries }: { entries: WorkspaceRailEntry[] 
     const active = useAtomValue(atoms.workspace);
     // `molten review open|publish|merge` in a terminal of this workspace (FR-REV-014).
     useEffect(() => installReviewHandoff(active?.oid), [active?.oid]);
+    // `molten morph design <mod-id>` in a terminal of this workspace (FR-MORPH-019).
+    useEffect(() => installMorphDesignHandoff(active?.oid), [active?.oid]);
     return (
         <>
             <ProjectLinkDetector />

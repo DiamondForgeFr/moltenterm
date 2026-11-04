@@ -188,6 +188,9 @@ export type LearnedKeyInfo = {
 
 export type LearnedWorkflowInfo = { nameKey: string; keys: Record<string, LearnedKeyInfo> };
 
+// The steps of the mod design view (frontend/moltenterm-shell/morph-design): the keys of the steps a developer skips.
+const MorphDesignStepKeys = ["need", "questions", "plan", "preview", "adjust", "finish", "validate", "collect"];
+
 export const MergeChoices = ["merge", "squash", "rebase"];
 export const RcFormatChoices = ["numeric", "rcdot"];
 
@@ -213,7 +216,15 @@ export const LearnedWorkflowInfos: Record<string, LearnedWorkflowInfo> = {
             syncback: { titleKey: "learning.keys.pipelineSetup.syncback", control: "flag" },
         },
     },
-    [WorkflowMorphDesign]: { nameKey: "learning.workflow.morphDesign", keys: {} },
+    [WorkflowMorphDesign]: {
+        nameKey: "learning.workflow.morphDesign",
+        keys: Object.fromEntries(
+            ["name", "icon", "category", ...MorphDesignStepKeys].map((key) => [
+                key,
+                { titleKey: `learning.keys.morphDesign.${key}`, control: "text" as LearnedKeyControl },
+            ])
+        ),
+    },
 };
 
 export function workflowInfo(workflow: string): LearnedWorkflowInfo {

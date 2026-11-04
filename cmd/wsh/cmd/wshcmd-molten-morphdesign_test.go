@@ -197,7 +197,9 @@ func TestAnswerIsRememberedForTheNextDesign(t *testing.T) {
 
 func TestAnswerStillWorksWhenTheMemoryRefusesIt(t *testing.T) {
 	call, _ := fakeMorph(t, molten.MorphDesign{Mod: "branch-box"})
-	learn := func(string, molten.LearningRequest, any) error { return errors.New("a value that looks like a credential is refused") }
+	learn := func(string, molten.LearningRequest, any) error {
+		return errors.New("a value that looks like a credential is refused")
+	}
 	var out, errOut bytes.Buffer
 	if err := runMoltenMorphAnswer(call, learn, molten.MorphDesignRequest{Key: "token", Value: "x"}, true, false, &out, &errOut); err != nil {
 		t.Fatalf("the answer must not fail: %v", err)
