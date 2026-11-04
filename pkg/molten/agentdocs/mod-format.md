@@ -251,7 +251,8 @@ the additional permission under section 7 of the AGPL in `LICENSE-EXCEPTION`, at
 - **Condition:** the mod talks to MoltenTerm only through that interface. It copies no MoltenTerm source, reaches into
   no internals (see "The page is not part of the API"), and does not modify MoltenTerm.
 - **Examples:** the example mods next to this page (`examples/`) and the snippets of these guides may be copied into a
-  mod and used under the mod's license.
+  mod and used under the mod's license. The `copy-box` example is a copy of a built-in mod and carries MoltenTerm's
+  header: replace the header with your own when you copy it.
 - **Built-in mods** are part of MoltenTerm and stay under the AGPL.
 - **Name:** a mod may be called "<name> for MoltenTerm"; it does not use the MoltenTerm logo as its own, and it does not
   claim to come from DiamondForge (`TRADEMARKS.md` at the root of the repository).

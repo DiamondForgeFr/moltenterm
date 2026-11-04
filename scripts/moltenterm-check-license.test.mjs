@@ -125,11 +125,19 @@ describe("checkHeaders", () => {
         const r = checkHeaders([
             own(".claude/skills/x/run.sh", "echo\n"),
             own("pkg/molten/mission/testdata/cijobs/nightly.yml", "# SPDX-License-Identifier: Apache-2.0\n"),
-            own("pkg/molten/agentdocs/examples/test-band/main.js", "export {};\n"),
+            own("docs/static/fontawesome-free/css/brands.min.css", "/* Font Awesome */\n"),
             own("package.json", "{}\n"),
         ]);
         expect(r.problems).toEqual([]);
         expect(r.counts.skipped).toBe(4);
+    });
+
+    it("does not require a header on the example mods, and switches one they have", () => {
+        const noHeader = checkHeaders([own("pkg/molten/agentdocs/examples/test-band/main.js", "export {};\n")]);
+        expect(noHeader.problems).toEqual([]);
+        expect(noHeader.counts.ownNoHeader).toBe(1);
+        const apache = checkHeaders([own("pkg/molten/agentdocs/examples/copy-box/main.js", OwnApache)]);
+        expect(apache.switches).toEqual(["pkg/molten/agentdocs/examples/copy-box/main.js"]);
     });
 });
 
