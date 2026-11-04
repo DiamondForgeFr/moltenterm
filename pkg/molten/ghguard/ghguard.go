@@ -191,6 +191,8 @@ func Forget(dir string) []string {
 	return forgotten
 }
 
+// The Windows shim is found through PATHEXT; the Go tests run on Linux in CI and on the developers' Mac, so that
+// branch has never run.
 func writeShim(dir string, log string) error {
 	if runtime.GOOS == "windows" {
 		script := "@echo off\r\n" +
