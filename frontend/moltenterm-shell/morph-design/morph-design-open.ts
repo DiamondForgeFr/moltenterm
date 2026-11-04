@@ -1,12 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// `molten morph design <mod-id>` (FR-MORPH-019): a local terminal asks, through wavesrv (pkg/molten/morphdesign), the
-// window of its workspace to show the design's tab, as `molten review open` does for a pull request. The window makes
-// the tab, or finds the one the mod already has, and shows it. Nothing opens without that command: opening a tab is the
-// window's gesture, and it is answered once, by the page that is shown.
+// `molten morph design <mod-id>` (FR-MORPH-019): wavesrv (pkg/molten/morphdesign) puts the design's panel to the right of
+// the calling agent's terminal, in that terminal's tab, and needs no window for it. Two things stay the window's
+// gesture, asked as `molten review open` asks for a pull request's tab: a second call brings the open panel into view
+// (kind focus), and a design whose panel could not go beside the terminal gets a tab of its own, which the window makes
+// or finds and shows (kind tab). Nothing opens without that command, and a hand-off is answered once, by the page that
+// is shown.
 
-import { atoms } from "@/app/store/global";
+import { atoms, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { fireAndForget } from "@/util/util";
@@ -27,7 +29,33 @@ const DefaultDeps: MorphOpenDeps = {
     tabName: (title) => t("morphDesign.tabName", { mod: title }),
 };
 
+export type MorphFocusDeps = {
+    shownTab: () => string;
+    showTab: (tabId: string) => void;
+    focusBlock: (blockId: string) => void;
+};
+
+const DefaultFocusDeps: MorphFocusDeps = {
+    shownTab: () => globalStore.get(atoms.staticTabId),
+    showTab: (tabId) => showTabFromHere(tabId),
+    // The panel's own block takes the focus back while the call that asked is handled: the next frame.
+    focusBlock: (blockId) => requestAnimationFrame(() => refocusNode(blockId)),
+};
+
 const handled = new Set<string>();
+
+// Brings an open panel into view and gives it the keyboard; a panel in another tab only has its tab shown (the keyboard
+// goes to the node of the page that is shown, which is not the panel's).
+export function focusMorphDesignPanel(h: MorphHandoff, deps: MorphFocusDeps = DefaultFocusDeps): void {
+    if (!h.tabid || !h.blockid) {
+        return;
+    }
+    if (deps.shownTab() !== h.tabid) {
+        deps.showTab(h.tabid);
+        return;
+    }
+    deps.focusBlock(h.blockid);
+}
 
 // Makes or finds the design's tab and shows it; the tab's id, "" when there is no workspace to open it in.
 export async function openMorphDesignTab(
@@ -68,6 +96,10 @@ export function installMorphDesignHandoff(workspaceId: string): () => void {
                 return;
             }
             handled.add(h.id);
+            if (h.kind === "focus") {
+                focusMorphDesignPanel(h);
+                return;
+            }
             fireAndForget(async () => {
                 try {
                     await openMorphDesignTab(h, workspaceId);

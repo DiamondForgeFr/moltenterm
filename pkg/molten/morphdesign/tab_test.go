@@ -4,7 +4,9 @@
 package morphdesign
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -36,6 +38,23 @@ func TestTabLayoutPutsTheTerminalOnTheLeftAndThePanelOnTheRight(t *testing.T) {
 	target, ok := panel.BlockDef.Meta[PanelMetaKey].(PanelTarget)
 	if !ok || target.Mod != "branch-box" || target.Name != "Branch box" || target.Dir != "/work/app" {
 		t.Errorf("panel target: %+v", panel.BlockDef.Meta[PanelMetaKey])
+	}
+}
+
+// The limit counts characters, not bytes: a French name with accents is not replaced by the English one, and one too
+// long is cut.
+func TestTabNameCountsCharactersNotBytes(t *testing.T) {
+	french := "Conception · " + strings.Repeat("é", 100)
+	if len(french) <= maxTabName {
+		t.Fatalf("the test name must be longer than %d bytes: %d", maxTabName, len(french))
+	}
+	if got := tabName(molten.MorphDesignTabRequest{Mod: "branch-box", Name: "Boîte", TabName: french}); got != french {
+		t.Errorf("a name of %d characters was replaced by %q", len([]rune(french)), got)
+	}
+	long := strings.Repeat("é", maxTabName+30)
+	got := tabName(molten.MorphDesignTabRequest{Mod: "branch-box", TabName: long})
+	if utf8.RuneCountInString(got) != maxTabName || !strings.HasSuffix(got, "…") || !strings.HasPrefix(got, "éé") {
+		t.Errorf("a too long name is cut to %d characters, got %d: %q", maxTabName, utf8.RuneCountInString(got), got)
 	}
 }
 

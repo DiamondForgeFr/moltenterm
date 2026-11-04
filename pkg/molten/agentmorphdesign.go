@@ -81,6 +81,17 @@ const (
 	MorphOutcomeValidated = "validated"
 	MorphOutcomeGaveUp    = "gaveup"
 
+	// Where the panel went: to the right of the terminal that asked, in its tab (agent left, graphics right), or, when
+	// that cannot be done, in a dedicated tab with a terminal of its own.
+	MorphPlacementPanel = "panel"
+	MorphPlacementTab   = "tab"
+
+	MorphHandoffTab   = "tab"
+	MorphHandoffFocus = "focus"
+
+	// MorphDesignMaxOpened is how many answered hand-offs a design remembers.
+	MorphDesignMaxOpened = 8
+
 	MorphDesignMaxQuestions = 20
 	MorphDesignMaxChoices   = 8
 	MorphDesignMaxItems     = 12
@@ -186,8 +197,11 @@ type MorphDesign struct {
 	Told    *MorphDesignTold  `json:"told,omitempty"`
 	Outcome string            `json:"outcome,omitempty"`
 	Updated int64             `json:"updated"`
-	// Opened is the hand-off the window answered last, so `molten morph design` can tell the tab is there.
-	Opened string `json:"opened,omitempty"`
+	// Panel is the block of the design panel placed to the right of the agent's terminal, in that terminal's tab.
+	Panel string `json:"panel,omitempty"`
+	// Opened holds the last hand-offs the window answered, so `molten morph design` can tell its own was answered even
+	// when another call's answer came after it.
+	Opened []string `json:"opened,omitempty"`
 	// Driver is the block of the agent that last ran a design command; the panel's clicks go to it first.
 	Driver string `json:"-"`
 }
@@ -216,20 +230,32 @@ type MorphDesignRequest struct {
 	Handoff string `json:"handoffid,omitempty"`
 }
 
-// MorphDesignOpened answers `open`: the design, and the hand-off to wait for (the design's Opened tells it was answered).
+// MorphDesignOpened answers `open`: the design, where its panel is, and for a dedicated tab the hand-off to wait for
+// (the design's Opened tells it was answered).
 type MorphDesignOpened struct {
-	Design    MorphDesign `json:"design"`
-	HandoffId string      `json:"handoffid"`
+	Design MorphDesign `json:"design"`
+	// Placement: the panel beside the calling terminal, or a dedicated tab of its own.
+	Placement string `json:"placement"`
+	// Created: the panel or the tab was made by this call; false when it was there and is focused.
+	Created bool `json:"created,omitempty"`
+	// Fallback says why the panel could not go beside the terminal, when the design got a tab instead.
+	Fallback  string `json:"fallback,omitempty"`
+	HandoffId string `json:"handoffid,omitempty"`
 }
 
-// MorphDesignHandoff is the event a window gets to open the tab of a design.
+// MorphDesignHandoff is the event a window gets: open the tab of a design (kind tab), or bring an open panel into view
+// and give it the keyboard (kind focus, for a second call).
 type MorphDesignHandoff struct {
 	Id          string `json:"id"`
+	Kind        string `json:"kind"`
 	Mod         string `json:"mod"`
 	Name        string `json:"name,omitempty"`
 	Dir         string `json:"dir"`
 	WorkspaceId string `json:"workspaceid"`
-	At          int64  `json:"at"`
+	// TabId and BlockId name the panel to focus.
+	TabId   string `json:"tabid,omitempty"`
+	BlockId string `json:"blockid,omitempty"`
+	At      int64  `json:"at"`
 }
 
 // MorphDesignTabRequest is the window's request for the tab of a design.

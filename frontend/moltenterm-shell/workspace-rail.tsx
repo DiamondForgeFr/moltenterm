@@ -25,6 +25,7 @@ import { useT, useTCount } from "./i18n/i18n";
 import { coffeeCondition, coffeeSupported, coffeeTooltip, railCoffeeLabel } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
 import { RailCoffeeDrop, usePlatform } from "./keepawake-ui";
+import { installMorphDesignHandoff } from "./morph-design/morph-design-open";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
@@ -73,7 +74,6 @@ import {
 import { AgentChoiceHost } from "./reviews/agent-choice";
 import { AssistedReviewHost } from "./reviews/assisted-review-dialog";
 import { LeadResumeHost } from "./reviews/lead-resume";
-import { installMorphDesignHandoff } from "./morph-design/morph-design-open";
 import { installReviewHandoff } from "./reviews/reviews-handoff";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";

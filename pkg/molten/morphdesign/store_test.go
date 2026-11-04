@@ -21,7 +21,7 @@ func openStore(t *testing.T) (*Store, *[]molten.MorphDesign) {
 		defer lock.Unlock()
 		published = append(published, d)
 	})
-	if _, err := s.Open("branch-box", "Branch box", "/work/app", "ws-1"); err != nil {
+	if _, err := s.Open("branch-box", "Branch box", "/work/app", "ws-1", nil); err != nil {
 		t.Fatal(err)
 	}
 	return s, &published
@@ -38,7 +38,7 @@ func twoChoices() []molten.MorphDesignChoice {
 func TestOpenValidatesTheModAndKeepsAnExistingDesign(t *testing.T) {
 	s, published := openStore(t)
 	for _, bad := range []string{"", "Branch Box", "-box", "a b", strings.Repeat("a", 65)} {
-		if _, err := s.Open(bad, "", "/work", "ws-1"); err == nil {
+		if _, err := s.Open(bad, "", "/work", "ws-1", nil); err == nil {
 			t.Errorf("the mod id %q was accepted", bad)
 		}
 	}
@@ -49,7 +49,7 @@ func TestOpenValidatesTheModAndKeepsAnExistingDesign(t *testing.T) {
 	if _, err := s.Ask("branch-box", molten.MorphDesignQuestion{Key: "audience", Text: "Who?", Choices: twoChoices()}); err != nil {
 		t.Fatal(err)
 	}
-	again, err := s.Open("branch-box", "", "", "")
+	again, err := s.Open("branch-box", "", "", "", nil)
 	if err != nil || again.Name != "Branch box" || again.Dir != "/work/app" || len(again.Questions) != 1 {
 		t.Fatalf("a second open must keep the design: %+v %v", again, err)
 	}
@@ -269,18 +269,80 @@ func TestACommandOnAMissingDesignNamesHowToOpenIt(t *testing.T) {
 	}
 }
 
-func TestTheStoreKeepsAtMostSomeDesignsAndDropsTheOldest(t *testing.T) {
+func TestTheStoreKeepsAtMostSomeDesignsAndDropsTheOldestOneNothingUses(t *testing.T) {
 	s, _ := openStore(t)
-	for i := 0; i < molten.MorphDesignMaxDesigns; i++ {
-		if _, err := s.Open(fmt.Sprintf("mod-%d", i), "", "/work", "ws-1"); err != nil {
+	for i := 0; i < molten.MorphDesignMaxDesigns-1; i++ {
+		if _, err := s.Open(fmt.Sprintf("mod-%d", i), "", "/work", "ws-1", nil); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if got := len(s.Mods()); got != molten.MorphDesignMaxDesigns {
 		t.Fatalf("%d designs", got)
 	}
+	if _, err := s.Open("one-more", "", "/work", "ws-1", nil); err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := s.Get("branch-box"); ok {
 		t.Error("the oldest design stayed")
+	}
+	if got := len(s.Mods()); got != molten.MorphDesignMaxDesigns {
+		t.Fatalf("%d designs after the eviction", got)
+	}
+}
+
+// A design something uses (an agent drives it, its panel is open) is never dropped under the developer's eyes: the oldest
+// one nothing uses goes first, and with all of them in use a new design is refused, with a message that says what to do.
+func TestADesignInUseIsNeverEvicted(t *testing.T) {
+	s, _ := openStore(t)
+	inUse := map[string]bool{"branch-box": true}
+	for i := 0; i < molten.MorphDesignMaxDesigns-1; i++ {
+		if _, err := s.Open(fmt.Sprintf("mod-%d", i), "", "/work", "ws-1", inUse); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Open("one-more", "", "/work", "ws-1", inUse); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.Get("branch-box"); !ok {
+		t.Fatal("a design in use was evicted")
+	}
+	if _, ok := s.Get("mod-0"); ok {
+		t.Error("the oldest design nothing uses stayed")
+	}
+	for _, mod := range s.Mods() {
+		inUse[mod] = true
+	}
+	_, err := s.Open("refused", "", "/work", "ws-1", inUse)
+	if err == nil || !strings.Contains(err.Error(), "are open and in use") || !strings.Contains(err.Error(), `"refused"`) {
+		t.Fatalf("a ninth live design: %v", err)
+	}
+	if _, ok := s.Get("refused"); ok || len(s.Mods()) != molten.MorphDesignMaxDesigns {
+		t.Fatalf("the refused design was made, or another was dropped: %v", s.Mods())
+	}
+	// A design already open is found again, even when the store is full of live ones.
+	if _, err := s.Open("branch-box", "", "", "", inUse); err != nil {
+		t.Fatalf("a second open of a design that exists: %v", err)
+	}
+}
+
+// The window's answers to hand-offs are kept in a small list: the last ones, in order.
+func TestTheStoreRemembersTheLastAnsweredHandoffs(t *testing.T) {
+	s, _ := openStore(t)
+	var d molten.MorphDesign
+	for i := 0; i < molten.MorphDesignMaxOpened+3; i++ {
+		var err error
+		if d, err = s.SetTab("branch-box", "tab-1", fmt.Sprintf("h-%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(d.Opened) != molten.MorphDesignMaxOpened || d.Opened[0] != "h-3" || d.Opened[len(d.Opened)-1] != fmt.Sprintf("h-%d", molten.MorphDesignMaxOpened+2) {
+		t.Fatalf("the answered hand-offs: %v", d.Opened)
+	}
+	if d, _ = s.SetPanel("branch-box", "panel-1", "tab-2"); d.Panel != "panel-1" || d.TabId != "tab-2" {
+		t.Fatalf("the panel: %+v", d)
+	}
+	if d, _ = s.SetTab("branch-box", "tab-3", ""); d.Panel != "" || d.TabId != "tab-3" {
+		t.Fatalf("a dedicated tab replaces the panel: %+v", d)
 	}
 }
 

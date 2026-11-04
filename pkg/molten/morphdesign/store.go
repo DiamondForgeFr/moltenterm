@@ -87,6 +87,7 @@ func cloneDesign(d molten.MorphDesign) molten.MorphDesign {
 	}
 	d.Draft.Commands = slices.Clone(d.Draft.Commands)
 	d.Draft.Boxes = slices.Clone(d.Draft.Boxes)
+	d.Opened = slices.Clone(d.Opened)
 	if d.Agent != nil {
 		agent := *d.Agent
 		d.Agent = &agent
@@ -164,29 +165,39 @@ func (s *Store) Mods() []string {
 	return mods
 }
 
-// evictOldest drops the least recently changed design once the store is full; the caller holds the lock.
-func (s *Store) evictOldest() {
+// evictOldest drops the least recently changed design that nothing uses once the store is full, and says whether there
+// is room for a new one; the caller holds the lock. A design in use (an agent drives it, its panel or tab is open) is
+// never dropped under the developer's eyes. Two designs changed within the same millisecond: the one made first goes,
+// whatever the map's order.
+func (s *Store) evictOldest(inUse map[string]bool) bool {
 	if len(s.designs) < molten.MorphDesignMaxDesigns {
-		return
+		return true
 	}
-	// Two designs changed within the same millisecond: the one made first goes, whatever the map's order.
 	oldest := ""
 	for _, mod := range s.order {
+		if inUse[mod] {
+			continue
+		}
 		if oldest == "" || s.designs[mod].Updated < s.designs[oldest].Updated {
 			oldest = mod
 		}
 	}
+	if oldest == "" {
+		return false
+	}
 	delete(s.designs, oldest)
 	s.order = slices.DeleteFunc(s.order, func(mod string) bool { return mod == oldest })
+	return true
 }
 
 // Open makes the design of a mod, or finds it again: a second call keeps the steps, the questions and the plan, and
-// only completes the name and the folder.
-func (s *Store) Open(mod string, name string, dir string, workspaceId string) (molten.MorphDesign, error) {
+// only completes the name and the folder. inUse names the designs something uses now; with all
+// molten.MorphDesignMaxDesigns in use, a new design is refused.
+func (s *Store) Open(mod string, name string, dir string, workspaceId string, inUse map[string]bool) (molten.MorphDesign, error) {
 	if !molten.MorphModIdRegex.MatchString(mod) {
 		return molten.MorphDesign{}, fmt.Errorf("invalid mod id %q: use lowercase letters, digits, \".\", \"_\" or \"-\", starting with a letter or digit", mod)
 	}
-	d, err := s.openLocked(mod, name, dir, workspaceId)
+	d, err := s.openLocked(mod, name, dir, workspaceId, inUse)
 	if err != nil {
 		return molten.MorphDesign{}, err
 	}
@@ -196,12 +207,15 @@ func (s *Store) Open(mod string, name string, dir string, workspaceId string) (m
 	return d, nil
 }
 
-func (s *Store) openLocked(mod string, name string, dir string, workspaceId string) (molten.MorphDesign, error) {
+func (s *Store) openLocked(mod string, name string, dir string, workspaceId string, inUse map[string]bool) (molten.MorphDesign, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	d := s.designs[mod]
 	if d == nil {
-		s.evictOldest()
+		if !s.evictOldest(inUse) {
+			return molten.MorphDesign{}, fmt.Errorf("%d designs are open and in use: end the agent of one, or close its panel, before opening %q",
+				molten.MorphDesignMaxDesigns, mod)
+		}
 		d = makeDesign(mod, s.now().UnixMilli())
 		s.designs[mod] = d
 		s.order = append(s.order, mod)
@@ -219,11 +233,25 @@ func (s *Store) openLocked(mod string, name string, dir string, workspaceId stri
 	return cloneDesign(*d), nil
 }
 
-// SetTab records the tab the window made or found for the design, and the hand-off it answered.
+// SetPanel records the panel placed beside the agent's terminal, and the tab it is in.
+func (s *Store) SetPanel(mod string, blockId string, tabId string) (molten.MorphDesign, error) {
+	return s.mutate(mod, func(d *molten.MorphDesign) error {
+		d.Panel, d.TabId = blockId, tabId
+		return nil
+	})
+}
+
+// SetTab records the tab the window made or found for the design, and the hand-off it answered. The last answered
+// hand-offs are kept, so a call whose answer came before another's still finds its own.
 func (s *Store) SetTab(mod string, tabId string, handoffId string) (molten.MorphDesign, error) {
 	return s.mutate(mod, func(d *molten.MorphDesign) error {
-		d.TabId = tabId
-		d.Opened = handoffId
+		d.TabId, d.Panel = tabId, ""
+		if handoffId != "" {
+			d.Opened = append(d.Opened, handoffId)
+			if len(d.Opened) > molten.MorphDesignMaxOpened {
+				d.Opened = d.Opened[len(d.Opened)-molten.MorphDesignMaxOpened:]
+			}
+		}
 		return nil
 	})
 }

@@ -1,15 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// `molten morph design <mod-id>` reaches the window as a hand-off (FR-MORPH-019): the window makes or finds the tab and
-// shows it, in the interface language, and answers the hand-off it was given.
+// `molten morph design <mod-id>` reaches the window as a hand-off (FR-MORPH-019) when wavesrv cannot do it alone: the
+// window makes or finds the tab and shows it, in the interface language, and answers the hand-off it was given; or it
+// brings an open panel into view.
 
 import { describe, expect, it } from "vitest";
 import { MorphHandoff } from "./morph-design-model";
-import { MorphOpenDeps, openMorphDesignTab } from "./morph-design-open";
+import { focusMorphDesignPanel, MorphFocusDeps, MorphOpenDeps, openMorphDesignTab } from "./morph-design-open";
 
 const handoff: MorphHandoff = {
     id: "h-1",
+    kind: "tab",
     mod: "branch-box",
     name: "Branch box",
     dir: "/work/app",
@@ -61,5 +63,42 @@ describe("opening the design's tab", () => {
         };
         await expect(openMorphDesignTab(handoff, "ws-1", deps)).rejects.toThrow("placing");
         expect(shown).toEqual([]);
+    });
+});
+
+function fakeFocus(shownTab: string) {
+    const shown: string[] = [];
+    const focused: string[] = [];
+    const deps: MorphFocusDeps = {
+        shownTab: () => shownTab,
+        showTab: (tabId) => shown.push(tabId),
+        focusBlock: (blockId) => focused.push(blockId),
+    };
+    return { deps, shown, focused };
+}
+
+describe("bringing an open panel into view", () => {
+    const focus: MorphHandoff = { ...handoff, kind: "focus", tabid: "tab-agent", blockid: "block-panel" };
+
+    it("gives the keyboard to the panel when its tab is the one shown", () => {
+        const { deps, shown, focused } = fakeFocus("tab-agent");
+        focusMorphDesignPanel(focus, deps);
+        expect(focused).toEqual(["block-panel"]);
+        expect(shown).toEqual([]);
+    });
+
+    it("shows the panel's tab when another one is shown, and leaves the keyboard alone", () => {
+        const { deps, shown, focused } = fakeFocus("tab-elsewhere");
+        focusMorphDesignPanel(focus, deps);
+        expect(shown).toEqual(["tab-agent"]);
+        expect(focused).toEqual([]);
+    });
+
+    it("does nothing without the panel's tab and block", () => {
+        const { deps, shown, focused } = fakeFocus("tab-agent");
+        focusMorphDesignPanel({ ...focus, blockid: undefined }, deps);
+        focusMorphDesignPanel({ ...focus, tabid: undefined }, deps);
+        expect(shown).toEqual([]);
+        expect(focused).toEqual([]);
     });
 });

@@ -1426,7 +1426,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"pipeline setup flag <point> [--step rc/<n>] [--answer …]", "flag a point to check in the setup panel, with your proposed answer"},
 	{"pipeline setup explain <rc/n|public/n> | --clear", "highlight the step you are explaining in the setup panel"},
 	{"pipeline setup withdraw <key>", "take back one of your open proposals or flags"},
-	{"morph design <mod-id> [--name <title>]", "open the mod design view: a tab with a guiding panel beside a terminal (a second call focuses it)"},
+	{"morph design <mod-id> [--name <title>]", "open the mod design view: a guiding panel to the right of this terminal, in its tab (a second call focuses it)"},
 	{"morph design show", "the design as the panel shows it: steps, questions and the developer's answers, plan, draft"},
 	{"morph design step|ask|answer|plan|draft", "keep the design panel in step with the conversation (details: morph-design.md in molten docs)"},
 	{"bug search <words>","find MoltenTerm issues about a bug, open and fixed, with what to do"},

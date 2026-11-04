@@ -194,6 +194,7 @@ func TestMorphGuideOpensTheDesignViewOrFallsBackToTheTerminal(t *testing.T) {
 		flat := squashSpaces(content)
 		for _, want := range []string{
 			"If it lists `morph design`, run `molten morph design <id> --name \"<the mod's name>\"`",
+			"MoltenTerm opens a guiding panel to the right of this terminal, in its tab",
 			"Do it right after step 1, so steps 2 to 4 show in the panel",
 			"If `molten help` does not list `morph design`, or the command says the view did not open",
 			"skip this step and run the steps here, in this terminal, with the same words and the same order",

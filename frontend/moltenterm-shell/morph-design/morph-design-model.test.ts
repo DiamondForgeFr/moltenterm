@@ -32,6 +32,14 @@ describe("the names the window and wavesrv share", () => {
         expect(model.MorphDesignDecideCommand).toBe(goString(goSource, "MorphDesignDecideCommand"));
     });
 
+    it("agree on the kinds of hand-off", () => {
+        const kinds: model.MorphHandoffKind[] = [
+            goString(goSource, "MorphHandoffTab") as model.MorphHandoffKind,
+            goString(goSource, "MorphHandoffFocus") as model.MorphHandoffKind,
+        ];
+        expect(kinds).toEqual(["tab", "focus"]);
+    });
+
     it("agree on the panel's view and the meta of the tab", () => {
         expect(model.MoltentermMorphDesignView).toBe(goString(tabSource, "View"));
         expect(model.MorphDesignPanelMetaKey).toBe(goString(tabSource, "PanelMetaKey"));
@@ -123,15 +131,27 @@ describe("reading what wavesrv sends", () => {
             name: "Branch box",
             dir: "/work/app",
         });
-        expect(model.readMorphDesignTarget({ mod: "x", dir: "/w" })).toEqual({ mod: "x", name: undefined, dir: "/w" });
+        expect(model.readMorphDesignTarget({ mod: "x", dir: "/w" })).toEqual({
+            mod: "x",
+            name: undefined,
+            dir: "/w",
+            term: undefined,
+        });
         for (const bad of [null, undefined, "x", {}, { mod: "x" }, { dir: "/w" }, { mod: "", dir: "/w" }]) {
             expect(model.readMorphDesignTarget(bad), JSON.stringify(bad)).toBeNull();
         }
     });
 
-    it("reads a hand-off only when it can open a tab from it", () => {
+    it("reads the terminal a panel was placed beside, when there is one", () => {
+        expect(model.readMorphDesignTarget({ mod: "x", dir: "/w", term: "b-agent" }).term).toBe("b-agent");
+        expect(model.readMorphDesignTarget({ mod: "x", dir: "/w", term: "" }).term).toBeUndefined();
+        expect(model.readMorphDesignTarget({ mod: "x", dir: "/w", term: 4 }).term).toBeUndefined();
+    });
+
+    it("reads a hand-off only when it can open a tab or a panel from it", () => {
         const ok = { id: "h1", mod: "branch-box", dir: "/work", workspaceid: "ws", at: 1 };
-        expect(model.readMorphHandoff(ok)).toEqual(ok);
+        expect(model.readMorphHandoff(ok)).toEqual({ ...ok, kind: "tab" });
+        expect(model.readMorphHandoff({ ...ok, kind: "tab" })).toEqual({ ...ok, kind: "tab" });
         for (const bad of [
             null,
             {},
@@ -142,6 +162,32 @@ describe("reading what wavesrv sends", () => {
         ]) {
             expect(model.readMorphHandoff(bad), JSON.stringify(bad)).toBeNull();
         }
+    });
+
+    it("reads a focus hand-off only when it names the panel's tab and block", () => {
+        const focus = { id: "h2", kind: "focus", mod: "branch-box", dir: "/work", workspaceid: "ws", at: 1 };
+        expect(model.readMorphHandoff({ ...focus, tabid: "t1", blockid: "b1" })).toEqual({
+            ...focus,
+            tabid: "t1",
+            blockid: "b1",
+        });
+        for (const bad of [
+            focus,
+            { ...focus, tabid: "t1" },
+            { ...focus, blockid: "b1" },
+            { ...focus, tabid: "", blockid: "b1" },
+        ]) {
+            expect(model.readMorphHandoff(bad), JSON.stringify(bad)).toBeNull();
+        }
+    });
+
+    it('titles the panel "Conception · <mod>" from the name /morph gave, else the id', () => {
+        const tr = (key: string, vars?: Record<string, string>) => `${key}|${vars?.mod ?? ""}`;
+        expect(model.panelTitleOf({ mod: "branch-box", name: "Branch box", dir: "/w" }, tr)).toBe(
+            "morphDesign.tabName|Branch box"
+        );
+        expect(model.panelTitleOf({ mod: "branch-box", dir: "/w" }, tr)).toBe("morphDesign.tabName|branch-box");
+        expect(model.panelTitleOf(null, tr)).toBe("morphDesign.viewName|");
     });
 
     it("fills what wavesrv leaves out of a design", () => {
@@ -233,6 +279,31 @@ describe("folding a step the developer always skips", () => {
         expect(model.stepFolded(design({ questions: [question()] }), defaults, "questions")).toBe(false);
         expect(model.stepFolded(withStep(design(), "plan", "done", "agent"), defaults, "plan")).toBe(false);
         expect(model.stepFolded(withStep(design(), "plan", "skipped", "panel"), defaults, "plan")).toBe(false);
+    });
+});
+
+describe("which control waits for which click", () => {
+    it("makes a step's gestures wait for each other, and for no other step's", () => {
+        const busy = new Set(["skip:preview"]);
+        expect(model.stepGestureBusy(busy, "preview")).toBe(true);
+        expect(model.stepGestureBusy(busy, "plan")).toBe(false);
+        expect(model.stepGestureBusy(new Set(["terminal:plan"]), "plan")).toBe(true);
+        expect(model.stepGestureBusy(new Set(["back:plan"]), "plan")).toBe(true);
+        expect(model.stepGestureBusy(new Set(), "plan")).toBe(false);
+    });
+
+    it("makes a question's choices wait for each other, and not for another question's", () => {
+        const busy = new Set(["choose:audience:My team"]);
+        expect(model.questionBusy(busy, "audience")).toBe(true);
+        expect(model.questionBusy(busy, "refresh")).toBe(false);
+        expect(model.questionBusy(busy, "aud")).toBe(false);
+        expect(model.questionBusy(new Set(), "audience")).toBe(false);
+    });
+
+    it("makes validating and giving up wait for each other, and for nothing else", () => {
+        expect(model.decisionBusy(new Set(["validate"]))).toBe(true);
+        expect(model.decisionBusy(new Set(["giveup"]))).toBe(true);
+        expect(model.decisionBusy(new Set(["agree", "skip:validate"]))).toBe(false);
     });
 });
 

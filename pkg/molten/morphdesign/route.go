@@ -59,7 +59,11 @@ type Backend interface {
 	// Agent says whether an agent runs in the terminal, and its first name and CLI.
 	Agent(blockId string) (firstName string, agent string, running bool)
 	OpenTab(req molten.MorphDesignTabRequest) (molten.MorphDesignTabResult, error)
-	// PublishHandoff asks the window of a workspace to open a design's tab.
+	// PlacePanel adds the design's panel to the right of a terminal's block, in its tab; it returns the panel's block.
+	PlacePanel(callerBlockId string, tabId string, target PanelTarget) (string, error)
+	// BlockTab is the tab holding a block, false when the block is gone.
+	BlockTab(blockId string) (string, bool)
+	// PublishHandoff asks the window of a workspace to open a design's tab, or to focus its panel.
 	PublishHandoff(workspaceId string, h molten.MorphDesignHandoff)
 }
 
@@ -158,14 +162,24 @@ func (s *Service) resolveMod(caller localroute.Caller, given string) (string, er
 		}
 		return given, nil
 	}
+	mods := s.Store.Mods()
 	if _, tabId, err := s.B.Locate(caller.BlockId); err == nil {
 		if mod := s.B.DesignOfTab(tabId); mod != "" {
 			if _, ok := s.Store.Get(mod); ok {
 				return mod, nil
 			}
 		}
+		// The panel placed beside this terminal is in this terminal's tab: the design of the tab, when only one is.
+		inTab := []string{}
+		for _, mod := range mods {
+			if d, ok := s.Store.Get(mod); ok && d.TabId != "" && d.TabId == tabId {
+				inTab = append(inTab, mod)
+			}
+		}
+		if len(inTab) == 1 {
+			return inTab[0], nil
+		}
 	}
-	mods := s.Store.Mods()
 	for _, mod := range mods {
 		if s.Store.Driver(mod) == caller.BlockId {
 			return mod, nil
@@ -220,7 +234,8 @@ func (s *Service) handleAgent(command string, caller localroute.Caller, req molt
 	if changeErr != nil && command != molten.MorphDesignShowCommand {
 		return nil, changeErr
 	}
-	if changeErr == nil {
+	// Reading takes nothing: only a command that changes the design makes its agent the one the clicks go to.
+	if changeErr == nil && command != molten.MorphDesignShowCommand {
 		s.noteDriver(mod, caller)
 	}
 	var d molten.MorphDesign
@@ -257,9 +272,36 @@ func (s *Service) handleAgent(command string, caller localroute.Caller, req molt
 	return s.withAgent(d), nil
 }
 
-// open makes the design and asks the window of the terminal's workspace to show its tab, as `molten review open` does
-// for a pull request: opening a tab is the window's gesture. The answer holds the hand-off id, which the design's
-// Opened carries once the window made or found the tab.
+// inUse tells whether something uses the design now: an agent drives it, its panel is open, or its tab is.
+func (s *Service) inUse(d molten.MorphDesign) bool {
+	if d.Driver != "" {
+		if _, _, running := s.B.Agent(d.Driver); running {
+			return true
+		}
+	}
+	if d.Panel != "" {
+		if _, ok := s.B.BlockTab(d.Panel); ok {
+			return true
+		}
+	}
+	return d.TabId != "" && d.Panel == "" && s.B.DesignOfTab(d.TabId) == d.Mod
+}
+
+func (s *Service) designsInUse() map[string]bool {
+	inUse := map[string]bool{}
+	for _, mod := range s.Store.Mods() {
+		if d, ok := s.Store.Get(mod); ok && s.inUse(d) {
+			inUse[mod] = true
+		}
+	}
+	return inUse
+}
+
+// open makes the design and puts its panel to the right of the calling agent's terminal, in that terminal's own tab
+// (agent left, graphics right): the live agent pane never moves. A second call focuses the panel. Only when the panel
+// cannot go there does the design get a dedicated tab, which the window opens (`molten review open`'s pattern: opening
+// a tab is the window's gesture); the answer then holds the hand-off id, which the design's Opened carries once the
+// window answered, and says why. Another agent's design is never touched: the call is refused.
 func (s *Service) open(caller localroute.Caller, req molten.MorphDesignRequest) (any, error) {
 	if !molten.MorphModIdRegex.MatchString(req.Mod) {
 		return nil, fmt.Errorf("invalid mod id %q: use lowercase letters, digits, \".\", \"_\" or \"-\", starting with a letter or digit", req.Mod)
@@ -271,22 +313,59 @@ func (s *Service) open(caller localroute.Caller, req molten.MorphDesignRequest) 
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 		return nil, fmt.Errorf("the terminal's folder %q does not exist", dir)
 	}
-	workspaceId, _, err := s.B.Locate(caller.BlockId)
+	workspaceId, tabId, err := s.B.Locate(caller.BlockId)
 	if err != nil || workspaceId == "" {
 		return nil, fmt.Errorf("this terminal's window could not be found")
 	}
-	changeErr := s.mayChange(req.Mod, caller)
-	d, err := s.Store.Open(req.Mod, req.Name, dir, workspaceId)
+	if err := s.mayChange(req.Mod, caller); err != nil {
+		return nil, err
+	}
+	d, err := s.Store.Open(req.Mod, req.Name, dir, workspaceId, s.designsInUse())
 	if err != nil {
 		return nil, err
 	}
-	if changeErr == nil {
-		s.noteDriver(d.Mod, caller)
-	}
+	s.noteDriver(d.Mod, caller)
 	d, _ = s.Store.Get(d.Mod)
-	h := molten.MorphDesignHandoff{Id: uuid.NewString(), Mod: d.Mod, Name: d.Name, Dir: d.Dir, WorkspaceId: workspaceId, At: s.now().UnixMilli()}
+	if opened, ok := s.focusExisting(d, workspaceId); ok {
+		return opened, nil
+	}
+	fallback := "this terminal is in no tab"
+	if tabId != "" {
+		blockId, err := s.B.PlacePanel(caller.BlockId, tabId, PanelTarget{Mod: d.Mod, Name: d.Name, Dir: d.Dir, Term: caller.BlockId})
+		if err == nil {
+			if d, err = s.Store.SetPanel(d.Mod, blockId, tabId); err != nil {
+				return nil, err
+			}
+			return molten.MorphDesignOpened{Design: s.withAgent(d), Placement: molten.MorphPlacementPanel, Created: true}, nil
+		}
+		log.Printf("molten morph design: no room for the panel beside the terminal: %v\n", err)
+		fallback = err.Error()
+	}
+	return s.openTab(d, workspaceId, fallback), nil
+}
+
+// focusExisting handles a second call: the panel beside the agent's terminal, or the design's dedicated tab, is still
+// open, and the window brings it into view.
+func (s *Service) focusExisting(d molten.MorphDesign, workspaceId string) (molten.MorphDesignOpened, bool) {
+	if d.Panel != "" {
+		if panelTab, ok := s.B.BlockTab(d.Panel); ok {
+			s.B.PublishHandoff(workspaceId, molten.MorphDesignHandoff{
+				Id: uuid.NewString(), Kind: molten.MorphHandoffFocus, Mod: d.Mod, Name: d.Name, Dir: d.Dir, WorkspaceId: workspaceId,
+				TabId: panelTab, BlockId: d.Panel, At: s.now().UnixMilli(),
+			})
+			return molten.MorphDesignOpened{Design: s.withAgent(d), Placement: molten.MorphPlacementPanel}, true
+		}
+	}
+	if d.TabId != "" && d.Panel == "" && s.B.DesignOfTab(d.TabId) == d.Mod {
+		return s.openTab(d, workspaceId, ""), true
+	}
+	return molten.MorphDesignOpened{}, false
+}
+
+func (s *Service) openTab(d molten.MorphDesign, workspaceId string, fallback string) molten.MorphDesignOpened {
+	h := molten.MorphDesignHandoff{Id: uuid.NewString(), Kind: molten.MorphHandoffTab, Mod: d.Mod, Name: d.Name, Dir: d.Dir, WorkspaceId: workspaceId, At: s.now().UnixMilli()}
 	s.B.PublishHandoff(workspaceId, h)
-	return molten.MorphDesignOpened{Design: s.withAgent(d), HandoffId: h.Id}, nil
+	return molten.MorphDesignOpened{Design: s.withAgent(d), Placement: molten.MorphPlacementTab, Fallback: fallback, HandoffId: h.Id}
 }
 
 func (s *Service) handleWindow(ctx context.Context, command string, req molten.MorphDesignRequest) (any, error) {
@@ -307,9 +386,13 @@ func (s *Service) handleWindow(ctx context.Context, command string, req molten.M
 		if err != nil {
 			return nil, err
 		}
-		i := indexOfQuestion(d, req.Key)
-		return s.tell(ctx, d, fmt.Sprintf(`In the mod design view of "%s", the developer picked "%s" for the question "%s" (key %s). `+
-			`That is their answer: go on with the design and show the next step in the panel.`, d.Mod, req.Value, d.Questions[i].Text, req.Key)), nil
+		// Only what MoltenTerm itself knows goes in the line: the mod id, the question's key and the choice's number. The
+		// question and the label are the agent's own words and stay out of a request MoltenTerm signs; the agent reads
+		// the answer with `show`.
+		choices := d.Questions[indexOfQuestion(d, req.Key)].Choices
+		return s.tell(ctx, d, fmt.Sprintf(`In the mod design view of "%s", the developer picked choice %d of %d for the question with the key "%s". `+
+			`Read their answer with molten morph design show, go on with the design and show the next step in the panel.`,
+			d.Mod, choiceNumber(choices, req.Value), len(choices), req.Key)), nil
 	case molten.MorphDesignSkipCommand:
 		d, err := s.Store.SkipStep(req.Mod, req.Step, req.Action)
 		if err != nil {
@@ -324,6 +407,16 @@ func (s *Service) handleWindow(ctx context.Context, command string, req molten.M
 		return s.decide(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown molten morph design command %q", command)
+}
+
+// choiceNumber is the 1-based place of a label among the choices.
+func choiceNumber(choices []molten.MorphDesignChoice, label string) int {
+	for i, c := range choices {
+		if c.Label == label {
+			return i + 1
+		}
+	}
+	return 0
 }
 
 func indexOfQuestion(d molten.MorphDesign, key string) int {
@@ -453,6 +546,24 @@ func (liveBackend) Agent(blockId string) (string, string, bool) {
 
 func (liveBackend) OpenTab(req molten.MorphDesignTabRequest) (molten.MorphDesignTabResult, error) {
 	return openTab(req)
+}
+
+func (liveBackend) PlacePanel(callerBlockId string, tabId string, target PanelTarget) (string, error) {
+	return placePanel(callerBlockId, tabId, target)
+}
+
+func (liveBackend) BlockTab(blockId string) (string, bool) {
+	ctx, cancel := dbCtx()
+	defer cancel()
+	block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+	if err != nil || block == nil {
+		return "", false
+	}
+	tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
+	if err != nil || tabId == "" {
+		return "", false
+	}
+	return tabId, true
 }
 
 func (liveBackend) PublishHandoff(workspaceId string, h molten.MorphDesignHandoff) {
