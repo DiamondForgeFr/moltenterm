@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's agents grouped by project (FR-SHELL-084, #1867): when they belong to two projects or more, each project
 // opens a group. The active project's group comes first, then the groups by most recent agent activity; the agents
