@@ -132,6 +132,8 @@ wait for the story.
   Claude Code part itself.
 <!-- /only -->
 - One feature per mod.
+- The mod is the user's, under the license they choose (`mod-format.md`, "License of a mod"): do not give it
+  MoltenTerm's license or copyright header unless the user asks for one.
 - This version of the MoltenTerm API cannot run programs or read the terminal's folder: when a feature needs them (for example
   `git`), say so plainly and let the shell pass the value in (an argument or a pipe into `molten <command>`).
 - Read `molten` output with `--json`.

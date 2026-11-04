@@ -240,6 +240,23 @@ the app: they need no trust prompt and run unless turned off with `molten mod di
 `"disabled"` in `mods.json`). `molten mod list` marks them `(built-in)`; they cannot be removed or untrusted. A
 folder in `<config>/mods/` named like a built-in mod is ignored.
 
+## License of a mod
+
+A mod is its author's. MoltenTerm's own code is licensed under the AGPL-3.0, but a mod or an agent part that uses only
+the public mod interface (this page, `claude-code-parts.md`, `agent-integrations.md`, the `molten` command and its
+output) is not a work the AGPL covers: its author licenses it as they wish, open or proprietary, free or paid. This is
+the additional permission under section 7 of the AGPL in `LICENSE-EXCEPTION`, at the root of the repository
+(https://github.com/DiamondForgeFr/moltenterm/blob/main/LICENSE-EXCEPTION).
+
+- **Condition:** the mod talks to MoltenTerm only through that interface. It copies no MoltenTerm source, reaches into
+  no internals (see "The page is not part of the API"), and does not modify MoltenTerm.
+- **Examples:** the example mods next to this page (`examples/`) and the snippets of these guides may be copied into a
+  mod and used under the mod's license.
+- **Built-in mods** are part of MoltenTerm and stay under the AGPL.
+- **Name:** a mod may be called "<name> for MoltenTerm"; it does not use the MoltenTerm logo as its own, and it does not
+  claim to come from DiamondForge (`TRADEMARKS.md` at the root of the repository).
+- Put the license of the mod in a `LICENSE` file in its folder. `mod.json` has no field for it.
+
 ## Coding agents: /morph
 
 The user asks their own coding agent for a change with `/morph <request>`; the agent follows the `morph.md` guide to
