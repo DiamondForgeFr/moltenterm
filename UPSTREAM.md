@@ -34,6 +34,7 @@ every place where Moltenterm changes Wave's code.
 | `go test ./cmd/... ./pkg/...`              | Backend tests.                                                                                                     |
 | `task generate`                            | Regenerate TypeScript bindings after changing Go RPC types.                                                        |
 | `node scripts/moltenterm-check-ledger.mjs` | Check the patch ledger against the last merged Wave release.                                                       |
+| `node scripts/moltenterm-check-license.mjs` | Check the licence headers (AGPL-3.0-only for Moltenterm's files, Apache-2.0 for Wave's); `--apply` fixes them ("Licensing"). |
 
 Test instances (CI, worktree agents, scripted runs of the built app) start with `MOLTENTERM_SKIP_ONBOARDING=1` unless
 the test is about the first run: the first run is recorded as done and the first tab gets Wave's starter layout, as
@@ -114,7 +115,8 @@ both ignored nested failures and detected current-checkout failures with isolate
 
 | Job           | When                              | Steps                                                                                                                                         |
 | ------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Quick checks  | Always, drafts included           | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-icons.mjs`                                                         |
+| Quick checks  | Always, drafts included           | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-license.mjs`, `node scripts/moltenterm-check-icons.mjs`           |
+| CLA           | Pull requests, drafts included    | `.github/workflows/cla.yml` (`pull_request_target`, read-only token, no secret): `node scripts/moltenterm-check-cla.mjs <PR>`. See "Contributor agreement" below. |
 | Dependency security | Always, drafts included | Reusable secret-free `security-scan.yml`: pinned npm/govulncheck, both module graphs and declared targets, scoped policy verdict and raw evidence artifact |
 | Frontend      | Skipped on draft pull requests    | `npm ci`, `npx tsc --noEmit` (the command behind `task check:ts`), `npx eslint . --quiet`, `npx vitest run`, `npm run build:prod`             |
 | Backend       | Skipped on draft pull requests    | `node scripts/moltenterm-go-toolchain.mjs --check`, `go test ./cmd/... ./pkg/...`, `task build:backend` (Linux; wavesrv's CGO build uses Zig) |
@@ -140,6 +142,24 @@ See `security/README.md` for coverage, exit states and the exact advisory review
 release sync-backs and `rc-*` branches, which have no ticket to sync. Keep this change when a harness update rewrites
 the file, until the harness ships it. It runs from the default branch (`pull_request_target`), so it takes effect once
 it reaches `main`.
+
+### Contributor agreement
+
+`.github/workflows/cla.yml` (#1870) fails a pull request when one of its authors has not signed `CLA.md`. It needs no secret
+and no repository setting: it runs `scripts/moltenterm-check-cla.mjs` with the job's own read-only token, reads the pull
+request through the API as data, and never checks out or runs the pull request's code. Like `pr-review-sync.yml`, it runs
+from the base side (`pull_request_target`), so a pull request cannot change the rules it is judged by, and it takes
+effect once it reaches the default branch.
+
+- `.github/cla/cla.json` holds `version` (the CLA's), `exempt` (the maintainers, by GitHub login) and `signatures`
+  (`{ login, name, date, version }`). Bots (an app account, or a login ending in `[bot]`, Dependabot included) are exempt.
+- A contributor signs by adding their own entry in their first pull request ("Contributor License Agreement" in
+  `CONTRIBUTING.md`). The check reads `exempt` and the signatures already merged from the base checkout, and from the pull
+  request only the entry whose `login` is the pull request's author. Every other commit author must already have signed.
+- A new version of `CLA.md` changes `version`: every signature of another version stops counting until it is renewed.
+- **Manual step for the repository owner (not done by the pull request, a repository setting):** make the `CLA` check
+  required in the ruleset of `develop` and `main`, once it has run green on a first pull request. Until then it only
+  reports. A first-time contributor's workflow run also waits for a maintainer's approval (GitHub's default for forks).
 
 ## Releases
 

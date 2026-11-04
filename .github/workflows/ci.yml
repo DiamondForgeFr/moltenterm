@@ -45,6 +45,9 @@ jobs:
                   node-version: ${{ env.NODE_VERSION }}
             - name: Patch ledger
               run: node scripts/moltenterm-check-ledger.mjs
+            # Same deep history: it tells Wave's files (Apache-2.0) from Moltenterm's own (AGPL-3.0-only) by the base.
+            - name: Licence headers
+              run: node scripts/moltenterm-check-license.mjs
             - name: Icon names
               run: node scripts/moltenterm-check-icons.mjs
             - name: Shell scripts
