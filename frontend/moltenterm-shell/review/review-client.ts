@@ -263,6 +263,8 @@ export type ReviewMergeRecord = {
     movedfrom?: string;
     movedto?: string;
     minutes?: number;
+    // status: GitHub's HTTP status when it did not answer (code unavailable, #1871).
+    status?: number;
     // The English text of records made before #672.
     message?: string;
     updated?: boolean;

@@ -72,6 +72,8 @@ type fakeHub struct {
 	// method each PR was merged with (#957).
 	repo    string
 	methods map[int]string
+	// down: the PRs whose gh pr merge GitHub does not answer (#1871).
+	down map[int]error
 }
 
 func (h *fakeHub) repoAnswer() string {
@@ -245,6 +247,9 @@ func (h *fakeHub) run(ctx context.Context, dir string, args ...string) ([]byte, 
 	case args[0] == "pr" && args[1] == "view":
 		return h.view(number)
 	case args[0] == "pr" && args[1] == "merge":
+		if err := h.down[number]; err != nil {
+			return nil, err
+		}
 		return nil, h.merge(number, args)
 	}
 	return nil, fmt.Errorf("fake gh: unsupported %v", args)

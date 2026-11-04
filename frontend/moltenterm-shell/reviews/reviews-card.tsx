@@ -22,8 +22,8 @@ import { StateMark, type StateMarkKind } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
 import { RowAgentLine, useCardContext, useHeadStillFails } from "./reviews-agent-bar";
 import type { QueuedAsk } from "./reviews-ask-queue";
-import { BatchRowChip } from "./reviews-batch";
-import type { BatchRowMark } from "./reviews-batch-model";
+import { BatchRowChip, BatchStopLine } from "./reviews-batch";
+import type { BatchRowMark, BatchStopAction } from "./reviews-batch-model";
 import { CardAction, CardFact, CardFactTone, cardState, CardState, CardTone } from "./reviews-card-model";
 import { RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { relationClass } from "./reviews-forecast";
@@ -150,6 +150,7 @@ export function ReviewRow({
     onGroupMerge,
     queued,
     batchMark,
+    onBatchRetry,
     card: cardProp,
     filled,
 }: {
@@ -183,6 +184,8 @@ export function ReviewRow({
     queued?: QueuedAsk;
     // batchMark: its place in the merge queue's run.
     batchMark?: BatchRowMark;
+    // onBatchRetry: Try again on the PR the queue stopped (#1871), alone; the problem, if any.
+    onBatchRetry?: () => Promise<Phrase>;
 }) {
     const t = useT();
     useLocale();
@@ -323,6 +326,27 @@ export function ReviewRow({
                 }
                 return;
             }
+        }
+    };
+    const onStopAction = (action: BatchStopAction) => {
+        switch (action) {
+            case "retry":
+                if (onBatchRetry != null) {
+                    runPhrase("batch-retry", onBatchRetry);
+                }
+                return;
+            case "rebase":
+                ask("rebase", "rebase", onAskRebase);
+                return;
+            case "revalidate":
+                onValidate();
+                return;
+            case "ci":
+                fireAndForget(() => openWebLink(`${pr.url}/checks`));
+                return;
+            case "github":
+                fireAndForget(() => openWebLink(pr.url));
+                return;
         }
     };
     const group = onGroupMerge != null ? groupMergeAction(groupMerge) : null;
@@ -516,6 +540,14 @@ export function ReviewRow({
                         <BatchRowChip mark={batchMark} />
                         <LaunchCardActions dir={dir} target={launchTargetOfPr(pr)} runningOnly />
                     </div>
+                    <BatchStopLine
+                        mark={batchMark}
+                        number={pr.ticket || pr.number}
+                        base={pr.base}
+                        busy={busy === "batch-retry" || (batchMark?.stop?.action === "rebase" && busy === "rebase")}
+                        onAction={onStopAction}
+                        onOpenLink={(url) => fireAndForget(() => openWebLink(url))}
+                    />
                     {card.history ? (
                         <div className="text-11 leading-4 text-muted" data-testid="reviews-card-history">
                             {word(card.history)}
