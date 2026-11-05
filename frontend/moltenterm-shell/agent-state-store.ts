@@ -79,6 +79,15 @@ export class AgentStates {
         // What was published while the websocket was down never came (#1949): an agent started meanwhile would stay
         // a plain terminal until the window reloads.
         onEventsResubscribed(() => this.loadSnapshot(true));
+        // Every view of a workspace shows the same agents (#1950): a view coming to the front reads them again, so
+        // nothing it missed while hidden, cut off or rebuilt stays on screen.
+        if (typeof document !== "undefined") {
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") {
+                    this.loadSnapshot(true);
+                }
+            });
+        }
     }
 
     applySnapshot(snapshot: AgentStateInfo[], before: Record<string, number>): void {
