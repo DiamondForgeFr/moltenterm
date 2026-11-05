@@ -6,7 +6,7 @@ import { setWpsRpcClient, wpsReconnectHandler } from "@/app/store/wps";
 import { WshClient } from "@/app/store/wshclient";
 import { WshRouter } from "@/app/store/wshrouter";
 import { getWSServerEndpoint } from "@/util/endpoints";
-import { routeFirstReconnectHandler } from "../../moltenterm-shell/ws-resubscribe";
+import { reconnectHandler } from "../../moltenterm-shell/ws-resubscribe";
 import { addWSReconnectHandler, ElectronOverrideOpts, globalWS, initGlobalWS } from "./ws";
 
 let DefaultRouter: WshRouter;
@@ -124,10 +124,8 @@ async function initElectronWshrpc(electronClient: WshClient, eoOpts: ElectronOve
     globalWS.connectNow("connectWshrpc");
     setWpsRpcClient(electronClient);
     DefaultRouter.registerRoute(electronClient.routeId, electronClient);
-    // MOLTENTERM-PATCH (#1949): subscribe again only once wavesrv bound Electron main's route back.
-    addWSReconnectHandler(
-        routeFirstReconnectHandler(electronClient, () => DefaultRouter.reannounceRoutes(), wpsReconnectHandler)
-    );
+    // MOLTENTERM-PATCH (#1949): the stores read wavesrv again once Electron main is subscribed again.
+    addWSReconnectHandler(reconnectHandler(() => DefaultRouter.reannounceRoutes(), wpsReconnectHandler));
 }
 
 function shutdownWshrpc() {

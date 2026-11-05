@@ -374,6 +374,9 @@ func (router *WshRouter) runServer() {
 			if router.refuseRequest(msg, input.IngressLinkId) { // MOLTENTERM-PATCH (#1832): a terminal reads only its own workspace's terminals
 				continue
 			}
+			if router.bindAnnounceInOrder(msg, input.IngressLinkId) { // MOLTENTERM-PATCH (#1950): a route is bound before the link's next request
+				continue
+			}
 			ok := router.sendRoutedMessage(msgBytes, routeId, msg.Command, input.IngressLinkId)
 			if !ok {
 				router.handleNoRoute(msg, input.IngressLinkId)
