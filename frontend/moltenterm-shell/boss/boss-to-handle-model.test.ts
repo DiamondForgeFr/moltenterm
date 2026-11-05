@@ -277,7 +277,7 @@ function request(requestid: string, extra: Partial<PendingHandoff> = {}): Pendin
 function handoffNotice(requestid: string, extra: Partial<MoltentermNotification> = {}): MoltentermNotification {
     return notice(`notif-${requestid}`, "bs", {
         key: `agenthandoff:${requestid}`,
-        source: "agents",
+        source: "agents" as MoltentermNotification["source"],
         actions: [
             { id: "once", label: "Allow once", kind: "gesture", gesture: "molten:agenthandoff" },
             { id: "always", label: "Always for this pair", kind: "gesture", gesture: "molten:agenthandoff" },
