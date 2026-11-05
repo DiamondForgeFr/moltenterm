@@ -14,7 +14,6 @@ function css(file: string): string {
 }
 
 const Live: BrokkLiveProps = {
-    name: "Brokk",
     situation: { working: 0, waiting: 0, cardOpen: false },
     asked: null,
 };
@@ -54,9 +53,14 @@ describe("the animated portrait over his still (FR-BOSS-007, AC1)", () => {
         expect(live).toMatch(/--character-tint: var\(--mt-action\);/);
     });
 
-    it("turns off all the package draws but the clips, so that nothing the bubble's screen draws is doubled", () => {
+    it("asks the package for the picture alone, so that nothing the bubble's screen draws is doubled", () => {
+        const source = readFileSync(join(__dirname, "brokk-live.tsx"), "utf8");
+        expect(source).toMatch(/<TransmissionPortrait[^>]*\sbare\s/);
+        expect(source).not.toMatch(/\b(name|role|live)=\{/);
+        expect(source).not.toContain("useT");
+        // None of the package's frame is turned off by hand any more: only its own still, under which stands the app's.
+        expect(live).not.toContain(".character-screen");
         for (const part of [
-            "character-still",
             "character-tint",
             "character-scanlines",
             "character-sweep",
@@ -65,20 +69,22 @@ describe("the animated portrait over his still (FR-BOSS-007, AC1)", () => {
             "character-live",
             "character-caption",
         ]) {
-            expect(live).toContain(`.${part}`);
+            expect(live).not.toContain(`.${part}`);
         }
-        expect(live).toMatch(/:is\([^)]*\.character-caption[^)]*\) \{\s*display: none;/);
+        expect(live).toMatch(/\.mt-brokk-portrait \.character-still \{\s*display: none;/);
     });
 
-    it("lays the clips in the frame and leaves the package's frame out", () => {
-        expect(live).toMatch(/\.mt-brokk-portrait \.character-screen \{[^}]*position: absolute;[^}]*inset: 0;/);
-        expect(live).toMatch(/\.mt-brokk-portrait \.character-screen \{[^}]*box-shadow: none;/);
+    it("lays the clips in the frame, and keeps a pointer and a selection off them", () => {
+        expect(live).toMatch(/\.mt-brokk-portrait \{[^}]*position: absolute;[^}]*inset: 0;/);
+        expect(live).toMatch(
+            /\.mt-brokk-portrait \.character-video \{\s*user-select: none;\s*-webkit-user-select: none;\s*pointer-events: none;/
+        );
     });
 
     it("puts no filter on a clip, which Chromium draws with a lighter rectangle past the edge of the round", () => {
-        expect(live).toMatch(/\.mt-brokk-portrait \.character-video \{\s*filter: none;/);
-        // No other rule of the file filters anything above or around a clip.
-        expect(live.match(/filter:/g)).toHaveLength(2);
+        // A bare picture wears no tone, so no rule of the file filters a clip or anything above it.
+        expect(live).not.toMatch(/\.character-video \{[^}]*filter:/);
+        expect(live.match(/filter:/g)).toHaveLength(1);
         expect(live).toMatch(/\.mt-boss-portrait:has\(\.mt-brokk-live\) \.mt-boss-portrait-image \{\s*filter: none;/);
     });
 

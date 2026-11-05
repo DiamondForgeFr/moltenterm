@@ -2995,12 +2995,6 @@
                 "one": "{count} thing to handle",
                 "other": "{count} things to handle"
             }
-        },
-        "state": {
-            "rest": "Resting",
-            "thinking": "Thinking",
-            "listening": "Listening",
-            "speaking": "Speaking"
         }
     },
     "keepawake": {

@@ -551,7 +551,7 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
     const [busyId, setBusyId] = useState<string>(null);
     const [problem, setProblem] = useState("");
     const [tab, setTab] = useState<CardTab>(() => (badge.count > 0 ? "todo" : lastCardTab));
-    const live = useCardLive(name);
+    const live = useCardLive();
     const home = homeFolder();
     const groups = useMemo(
         () => cardGroups(data, workspace?.oid, home, now),

@@ -41,8 +41,8 @@ export function useBrokkSituation(cardOpen: boolean): BrokkSituation {
     return useMemo(() => ({ working, waiting: badge.count, cardOpen }), [working, badge.count, cardOpen]);
 }
 
-export function useBubbleLive(options: { name: string; collapsed: boolean; screenOpen: boolean }): BrokkLiveProps {
-    const { name, collapsed, screenOpen } = options;
+export function useBubbleLive(options: { collapsed: boolean; screenOpen: boolean }): BrokkLiveProps {
+    const { collapsed, screenOpen } = options;
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
     const situation = useBrokkSituation(false);
     const allowed = useMotionAllowed();
@@ -64,16 +64,16 @@ export function useBubbleLive(options: { name: string; collapsed: boolean; scree
         if (collapsed || !allowed || !(screenOpen || calling)) {
             return null;
         }
-        return { name, situation, asked, play: calling ? asked : undefined, onPlayed };
-    }, [name, collapsed, allowed, screenOpen, calling, situation, asked, onPlayed]);
+        return { situation, asked, play: calling ? asked : undefined, onPlayed };
+    }, [collapsed, allowed, screenOpen, calling, situation, asked, onPlayed]);
 }
 
-export function useCardLive(name: string): BrokkLiveProps {
+export function useCardLive(): BrokkLiveProps {
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
     const situation = useBrokkSituation(true);
     const allowed = useMotionAllowed();
     return useMemo(
-        () => (allowed ? { name, situation, asked, speaks: speaksOnOpen(situation) } : null),
-        [allowed, name, situation, asked]
+        () => (allowed ? { situation, asked, speaks: speaksOnOpen(situation) } : null),
+        [allowed, situation, asked]
     );
 }
