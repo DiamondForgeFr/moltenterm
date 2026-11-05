@@ -40,6 +40,11 @@ export function openNotice(entry: MoltentermNotification): Promise<void> {
     return MoltentermNotifications.getInstance().open(entry);
 }
 
+// Done on a "go there and do it" row (#1938): the developer did it, so the notification's situation closes.
+export function markNoticeDone(entry: MoltentermNotification): Promise<void> {
+    return MoltentermNotifications.getInstance().resolveEntries([entry.id]);
+}
+
 // A hand-off request's answer, through the route its notification's buttons answer through (FR-BOSS-005): one request,
 // two views, so answering here removes the notification too.
 export function answerHandoff(requestid: string, decision: AgentHandoffDecision): Promise<void> {

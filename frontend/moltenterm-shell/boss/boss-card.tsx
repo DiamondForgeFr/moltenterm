@@ -40,6 +40,7 @@ import {
     goToLocation,
     homeFolder,
     locateSession,
+    markNoticeDone,
     openIntegrationPr,
     openNotice,
     openPrPage,
@@ -60,9 +61,9 @@ import {
     isOutsidePress,
 } from "./boss-card-model";
 import { HandoffRowView } from "./boss-handoff-row";
+import BossPortrait from "./boss-portrait.svg";
 import { BossBubbleModel } from "./boss-store";
 import { InfoItem, ToHandleAction, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
-import BossPortrait from "./boss-portrait.svg";
 
 // How often "up 12 min" is read again while the card shows.
 const AgeTickMs = 15000;
@@ -290,20 +291,33 @@ function ToHandleRowView({
             data-testid="boss-card-todo-row"
             data-todo={item.key}
             data-tone={item.tone}
+            data-seen={item.seen ? "true" : "false"}
         >
             <span
-                className={cn("mt-[6px] inline-block h-2 w-2 shrink-0 rounded-full", ToneDotClasses[item.tone])}
+                className={cn(
+                    "mt-[6px] inline-block h-2 w-2 shrink-0 rounded-full",
+                    ToneDotClasses[item.tone],
+                    item.seen && "opacity-40"
+                )}
                 aria-hidden
             />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex min-w-0 items-baseline gap-1.5">
                     <span
-                        className="min-w-0 truncate text-12 font-medium text-primary"
+                        className={cn(
+                            "min-w-0 truncate text-12 font-medium",
+                            item.seen ? "text-secondary" : "text-primary"
+                        )}
                         data-testid="boss-card-todo-name"
                     >
                         {name}
                     </span>
                     {item.place ? <span className="min-w-0 truncate text-11 text-secondary">{item.place}</span> : null}
+                    {item.seen ? (
+                        <span className="shrink-0 text-11 text-muted" data-testid="boss-card-todo-seen">
+                            {t("boss.todo.seen")}
+                        </span>
+                    ) : null}
                     {item.since > 0 ? (
                         <span className="ml-auto shrink-0 text-11 whitespace-nowrap text-muted">
                             {formatAge(item.since, now)}
@@ -542,7 +556,7 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
     const count = cardRowCount(groups);
     const notices = useMemo(() => sortNewestFirst(activeEntries(shownNotices ?? [])), [shownNotices]);
     const counts: Record<CardTab, number> = {
-        todo: toHandle.items.length,
+        todo: toHandle.items.filter((item) => !item.seen).length,
         sessions: count,
         notifications: notices.length,
     };
@@ -646,7 +660,9 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
                 ? () => rerunPrChecks(run.dir, run.number)
                 : run.kind === "handoff"
                   ? () => answerHandoff(run.requestid, run.decision)
-                  : () => answerNotice(run.entry, run.action);
+                  : run.kind === "done"
+                    ? () => markNoticeDone(run.entry)
+                    : () => answerNotice(run.entry, run.action);
         setBusyId(busyKey);
         setProblem("");
         fireAndForget(async () => {

@@ -133,6 +133,8 @@ type Manager struct {
 	pending map[string]*pendingAnswer
 	// queues: the handoffs waiting for a receiver's idle prompt, oldest first; a receiver with a queue has one loop.
 	queues map[string][]*delivery
+	// typedWatch: the receivers whose typed notice waits for their prompt to be submitted, one watch each (#1938).
+	typedWatch map[string]bool
 	// history: the handoffs passed on since MoltenTerm started, oldest first, at most maxHistory (FR-SHELL-084).
 	history []HistoryEntry
 }
@@ -147,9 +149,10 @@ func MakeManager(env Env) *Manager {
 		queuePoll:       DefaultQueuePoll,
 		sleep:           time.Sleep,
 		pendingChanged:  func() {},
-		pairs:          map[string]string{},
+		pairs:           map[string]string{},
 		pending:         map[string]*pendingAnswer{},
 		queues:          map[string][]*delivery{},
+		typedWatch:      map[string]bool{},
 	}
 }
 
@@ -871,6 +874,7 @@ func (m *Manager) notifyTyped(d *delivery) {
 	receiver := d.to.callName()
 	m.env.Notify(molten.NotificationInput{
 		Source:      NotificationSource,
+		Key:         TypedKeyPrefix + d.to.BlockId,
 		Title:       fmt.Sprintf("Typed in %s's prompt: press Enter in its terminal to start", receiver),
 		TitleText:   uimsg.Make("handoff.typed.title", "receiver", receiver),
 		Message:     fmt.Sprintf("%s's handoff was added after what was already in the prompt. The brief is at %s.", capitalize(d.from.callName()), d.briefPath),
@@ -884,6 +888,53 @@ func (m *Manager) notifyTyped(d *delivery) {
 			Kind: "open", WorkspaceId: d.to.WorkspaceId, TabId: d.to.TabId, BlockId: d.to.BlockId,
 		}},
 	})
+	m.watchTyped(d.to.BlockId)
+}
+
+// typedSubmitted says the receiver's prompt no longer holds the typed handoff: its main session took a turn (Enter
+// pressed, so it works or waits for an answer), or its agent ended and the prompt went with it. MoltenTerm typed only
+// into an idle prompt, so a busy state seen afterwards is that turn.
+func typedSubmitted(run molten.AgentRunInfo, ok bool) bool {
+	return !ok || !run.Running || receiverBusy(run)
+}
+
+func (m *Manager) startTypedWatch(blockId string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.typedWatch[blockId] {
+		return false
+	}
+	m.typedWatch[blockId] = true
+	return true
+}
+
+func (m *Manager) endTypedWatch(blockId string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	delete(m.typedWatch, blockId)
+}
+
+// watchTyped resolves the receiver's typed notice once its prompt is submitted (#1938), so the developer is not left
+// with a task already done. One watch per receiver: later handoffs typed into the same prompt update the same notice.
+func (m *Manager) watchTyped(blockId string) {
+	if !m.startTypedWatch(blockId) {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.logf("%s typed watch panic: %v\n", logPrefix, r)
+			}
+		}()
+		defer m.endTypedWatch(blockId)
+		for {
+			if typedSubmitted(m.env.Run(blockId)) {
+				m.env.ResolveNotification(TypedKeyPrefix + blockId)
+				return
+			}
+			m.sleep(m.queuePoll)
+		}
+	}()
 }
 
 // The sender sits mid-sentence in some languages ("le passage de relais de Camille"): a nameless terminal gets its own

@@ -50,6 +50,8 @@ export type ToHandleRun =
     // Shows or hides the full brief in the row; nothing leaves the window.
     | { kind: "brief" }
     | { kind: "open"; entry: MoltentermNotification }
+    // The developer did what a "go there and do it" notification asked: its situation closes (#1938).
+    | { kind: "done"; entry: MoltentermNotification }
     | { kind: "later" };
 
 export type ToHandleAction = {
@@ -96,6 +98,9 @@ export type ToHandleItem = {
     // When it started waiting (Unix ms), 0 when unknown: the oldest waits come first within a rank.
     since: number;
     rank: number;
+    // A "go there and do it" notification the developer has read (went there, or saw it in its pane): still listed until
+    // it resolves or is marked done, drawn as seen, and no longer counted by the badge (#1938).
+    seen: boolean;
     actions: ToHandleAction[];
     // Set on the rows of the "Mise en relation" group: the card draws them apart, with what the receiver would see.
     handoff?: HandoffRow;
@@ -171,6 +176,16 @@ function laterAction(): ToHandleAction {
     return { id: "later", primary: false, labelKey: "boss.todo.later", disabled: false, run: { kind: "later" } };
 }
 
+function doneAction(entry: MoltentermNotification): ToHandleAction {
+    return { id: "done", primary: false, labelKey: "boss.todo.done", disabled: false, run: { kind: "done", entry } };
+}
+
+// A notification whose buttons only take the developer somewhere (a typed prompt waiting for Enter, #1938): nothing
+// in it answers it, so the developer goes there, does it, and says so with Done. A question its buttons answer is not.
+export function checkGoThere(entry: MoltentermNotification): boolean {
+    return answerButtons(entry).every((action) => action.kind === "open");
+}
+
 // The first action of a row is its primary one: the answer a question offers first, else the way there.
 function markPrimary(actions: ToHandleAction[]): ToHandleAction[] {
     return actions.map((action, i) => ({ ...action, primary: i === 0 }));
@@ -219,13 +234,16 @@ function agentItem(info: AgentStateInfo, input: ToHandleInput, consumed: Set<str
         place: workspaceShownName(session?.workspacename ?? "", t),
         since: sinceOf(info.since),
         rank: failed ? RankError : RankWait,
+        seen: false,
         actions: markPrimary([...(notice != null ? answerActions(notice) : []), goTo, laterAction()]),
     };
 }
 
-// The row of a notification that needs an answer and is no agent's question.
+// The row of a notification that needs an answer and is no agent's question. One that only takes the developer
+// somewhere offers Done next to Later, and counts as seen once read: going there from its button reads it.
 function noticeItem(entry: MoltentermNotification): ToHandleItem {
     const answers = answerActions(entry);
+    const goThere = checkGoThere(entry);
     const open: ToHandleAction = {
         id: "open",
         primary: false,
@@ -243,7 +261,13 @@ function noticeItem(entry: MoltentermNotification): ToHandleItem {
         place: "",
         since: sinceOf(entry.updated ?? entry.time),
         rank: entry.kind === "error" ? RankError : RankWait,
-        actions: markPrimary([...answers, ...(answers.length === 0 ? [open] : []), laterAction()]),
+        seen: goThere && !!entry.read,
+        actions: markPrimary([
+            ...answers,
+            ...(answers.length === 0 ? [open] : []),
+            ...(goThere ? [doneAction(entry)] : []),
+            laterAction(),
+        ]),
     };
 }
 
@@ -275,6 +299,7 @@ function failedCiItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
         place,
         since: prSince(pr),
         rank: RankError,
+        seen: false,
         actions: markPrimary([
             {
                 id: "failure",
@@ -306,6 +331,7 @@ function readyItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
         place,
         since: prSince(pr),
         rank: RankReady,
+        seen: false,
         actions: markPrimary([
             {
                 id: "integration",
@@ -361,6 +387,7 @@ function handoffItem(
         place: "",
         since: sinceOf(request.createdat),
         rank: RankWait,
+        seen: false,
         actions: markPrimary([
             handoffAction(request.requestid, "once", "once"),
             handoffAction(request.requestid, "always", "always"),
@@ -390,8 +417,14 @@ function handoffItem(
     };
 }
 
+// What the developer has not looked at yet comes before what they have.
 function byUrgency(a: ToHandleItem, b: ToHandleItem): number {
-    return a.rank - b.rank || (a.since || Infinity) - (b.since || Infinity) || (a.key < b.key ? -1 : 1);
+    return (
+        Number(a.seen) - Number(b.seen) ||
+        a.rank - b.rank ||
+        (a.since || Infinity) - (b.since || Infinity) ||
+        (a.key < b.key ? -1 : 1)
+    );
 }
 
 // Every row of the To handle tab, most urgent first. The info rows (agents that are done) carry no action and no count.
@@ -418,9 +451,10 @@ export function buildToHandle(input: ToHandleInput): ToHandleList {
     return { items, info, parked: all.length - items.length };
 }
 
-// The badge counts what the developer has to do, never the info rows and never the rows set aside.
+// The badge counts what the developer has to do, never the info rows, the rows set aside or the ones they already
+// acted on (seen, #1938).
 export function toHandleBadge(list: ToHandleList): Badge {
-    const items = list?.items ?? [];
+    const items = (list?.items ?? []).filter((item) => !item.seen);
     return {
         count: items.length,
         text: badgeCount(items.length),

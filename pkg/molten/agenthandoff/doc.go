@@ -63,6 +63,7 @@ const (
 	LinksGesture          = handoffwire.LinksGesture
 	AnswerGesture         = handoffwire.AnswerGesture
 	NotificationKeyPrefix = handoffwire.NotificationKeyPrefix
+	TypedKeyPrefix        = handoffwire.TypedKeyPrefix
 	NotificationSource    = handoffwire.NotificationSource
 	DecisionOnce          = handoffwire.DecisionOnce
 	DecisionAlways        = handoffwire.DecisionAlways

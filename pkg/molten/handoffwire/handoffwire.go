@@ -39,7 +39,10 @@ const (
 	AnswerGesture = "molten:agenthandoff"
 	// Notifications of one request: NotificationKeyPrefix + request id.
 	NotificationKeyPrefix = "agenthandoff:"
-	NotificationSource    = "agents"
+	// The notice of a handoff typed without Enter (#1938): TypedKeyPrefix + the receiver's block id, one per prompt,
+	// resolved once that prompt is submitted.
+	TypedKeyPrefix     = "agenthandofftyped:"
+	NotificationSource = "agents"
 
 	DecisionOnce   = "once"
 	DecisionAlways = "always"

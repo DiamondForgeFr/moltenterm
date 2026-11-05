@@ -40,6 +40,7 @@ vi.mock("./boss-card-actions", () => ({
     answerNotice: vi.fn(),
     answerHandoff: vi.fn(),
     openNotice: vi.fn(),
+    markNoticeDone: vi.fn(),
 }));
 vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
@@ -110,9 +111,7 @@ describe("the card's header (FR-BOSS-002, AC1)", () => {
         const html = render();
         expect(attr(html, "boss-card", "role")).toBe("dialog");
         expect(attr(html, "boss-card", "aria-modal")).toBe("false");
-        expect(attr(html, "boss-card", "aria-label")).toBe(
-            "Brokk&#x27;s card: to handle, sessions and notifications"
-        );
+        expect(attr(html, "boss-card", "aria-label")).toBe("Brokk&#x27;s card: to handle, sessions and notifications");
         expect(attr(html, "boss-card", "style")).toBe("right:16px;bottom:68px");
         expect(html).toMatch(/data-testid="boss-card-title"[^>]*>Brokk&#x27;s card</);
         globalStore.set(model.nameAtom, "Léa");
@@ -340,6 +339,7 @@ describe("the card's tabs (FR-BOSS-003, AC1, AC2, AC7)", () => {
                     place: "Alpha",
                     since: 0,
                     rank: 1,
+                    seen: false,
                     actions: [
                         {
                             id: "goto",
@@ -384,6 +384,44 @@ describe("the card's tabs (FR-BOSS-003, AC1, AC2, AC7)", () => {
         expect(html).toContain("For info, nothing to do");
         expect(html).toContain('data-testid="boss-card-info-row"');
         expect(html).toContain("2 set aside");
+    });
+
+    it("draws a typed prompt's row with Done, and once seen marks it and leaves it out of the tab's count (#1938)", () => {
+        const typed = (read: boolean) =>
+            ({
+                id: "t1",
+                key: "agenthandofftyped:b2",
+                source: "agents",
+                kind: "warning",
+                title: "Typed in Chloé's prompt: press Enter in its terminal to start",
+                time: Date.now() - 1000,
+                updated: Date.now() - 1000,
+                read,
+                blockid: "b2",
+                actions: [{ id: "goto", label: "Go to Chloé", kind: "open", blockid: "b2" }],
+            }) as any;
+        const list = (read: boolean) =>
+            buildToHandle({
+                states: { states: {}, versions: {} },
+                notifications: [typed(read)],
+                answers: {},
+                readied: {},
+                sessions: [],
+                parked: {},
+            });
+        globalStore.set(model.badgeAtom, { count: 1, text: "1", tone: "waiting" });
+        globalStore.set(model.toHandleAtom, list(false));
+        let html = render();
+        expect(html).toMatch(/data-act="done"[^>]*>Done</);
+        expect(html).toContain('data-seen="false"');
+        expect(html).not.toContain('data-testid="boss-card-todo-seen"');
+        expect(html).toMatch(/data-testid="boss-card-tab-count-todo"[^>]*>1</);
+        globalStore.set(model.toHandleAtom, list(true));
+        html = render();
+        expect(html).toContain('data-seen="true"');
+        expect(html).toContain('data-testid="boss-card-todo-seen"');
+        expect(html).toMatch(/data-act="done"/);
+        expect(html).not.toMatch(/data-testid="boss-card-tab-count-todo"[^>]*>1</);
     });
 });
 
