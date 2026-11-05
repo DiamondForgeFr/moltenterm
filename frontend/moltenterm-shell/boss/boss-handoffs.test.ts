@@ -48,7 +48,7 @@ function notificationOf(requestid: string): MoltentermNotification {
         key: `agenthandoff:${requestid}`,
         time: 5,
         updated: 5,
-        source: "agents",
+        source: "agents" as MoltentermNotification["source"],
         title: "A handoff",
         kind: "warning",
         read: false,
@@ -207,27 +207,26 @@ describe("the window's copy of the pending hand-off requests (FR-BOSS-005)", () 
 });
 
 describe("answering a request from the card (FR-BOSS-005)", () => {
-    it.each([
-        ["once", "once"],
-        ["always", "always"],
-        ["block", "block"],
-    ] as const)("gives %s to the route the notification answers through, and the row leaves", async (decision) => {
-        startServer([request("r1"), request("r2")]);
-        const stop = store.start();
-        await waitForIds(["r1", "r2"]);
+    it.each(["once", "always", "block"] as const)(
+        "gives %s to the route the notification answers through, and the row leaves",
+        async (decision) => {
+            startServer([request("r1"), request("r2")]);
+            const stop = store.start();
+            await waitForIds(["r1", "r2"]);
 
-        await store.answer("r1", decision);
+            await store.answer("r1", decision);
 
-        expect(server.answers).toEqual([{ requestid: "r1", decision, route: AgentHandoffRouteId }]);
-        expect(m.call).toHaveBeenCalledWith(
-            AgentHandoffAnswerCommand,
-            { requestid: "r1", decision },
-            expect.objectContaining({ route: AgentHandoffRouteId })
-        );
-        expect(globalStore.get(store.dataAtom).map((w) => w.requestid)).toEqual(["r2"]);
-        await waitForIds(["r2"]);
-        stop();
-    });
+            expect(server.answers).toEqual([{ requestid: "r1", decision, route: AgentHandoffRouteId }]);
+            expect(m.call).toHaveBeenCalledWith(
+                AgentHandoffAnswerCommand,
+                { requestid: "r1", decision },
+                expect.objectContaining({ route: AgentHandoffRouteId })
+            );
+            expect(globalStore.get(store.dataAtom).map((w) => w.requestid)).toEqual(["r2"]);
+            await waitForIds(["r2"]);
+            stop();
+        }
+    );
 
     it("takes the row and the notification away together, and the badge with them", async () => {
         startServer([request("r1"), request("r2")]);
