@@ -6,9 +6,19 @@
 // wavesrv's handoff route. Only a window may answer: wavesrv refuses an answer from a terminal.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { AgentHandoffDecision, PendingHandoff } from "./agent-handoff-types";
 import { t } from "./i18n/i18n";
 import { serverErrorText, unwireError } from "./i18n/server-text";
 import { NotificationGestureResult } from "./notifications-store";
+
+export { AgentHandoffNotificationKeyPrefix } from "./agent-handoff-types";
+export type {
+    AgentHandoffDecision,
+    PendingHandoff,
+    PendingHandoffBrief,
+    PendingHandoffFile,
+    PendingHandoffLink,
+} from "./agent-handoff-types";
 
 // must match pkg/molten/handoffwire/handoffwire.go
 export const AgentHandoffRouteId = "molten:agenthandoff";
@@ -18,18 +28,6 @@ export const AgentHandoffGesture = "molten:agenthandoff";
 // reads it, and answerAgentHandoff answers an entry as the notification's buttons do.
 export const AgentHandoffPendingCommand = "moltenagenthandoffpending";
 export const AgentHandoffPendingEvent = "molten:agenthandoffpending";
-
-export type AgentHandoffDecision = "once" | "always" | "block" | "dismiss";
-
-export type PendingHandoff = {
-    requestid: string;
-    fromblockid: string;
-    toblockid: string;
-    from: string;
-    to: string;
-    goal?: string;
-    createdat?: number;
-};
 
 export async function readPendingHandoffs(): Promise<PendingHandoff[]> {
     const result = await TabRpcClient.wshRpcCall(

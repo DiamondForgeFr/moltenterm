@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
+import { PendingHandoff } from "../agent-handoff-types";
 import { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { MoltentermNotification } from "../notifications-model";
 import { ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
@@ -245,5 +246,150 @@ describe("toHandleBadge", () => {
         const list = buildToHandle(input({ states: states(agent("b1", "waiting")), answers: answers("/w", failing) }));
         expect(toHandleBadge(list)).toMatchObject({ count: 2, tone: "error" });
         expect(toHandleBadge(buildToHandle(input()))).toMatchObject({ count: 0 });
+    });
+});
+
+function request(requestid: string, extra: Partial<PendingHandoff> = {}): PendingHandoff {
+    return {
+        requestid,
+        fromblockid: "bs",
+        toblockid: "br",
+        from: "Chloé",
+        to: "Léa",
+        goal: "Propose characters for MoltenTerm",
+        createdat: 1000,
+        fromworkspace: "DiamondForge",
+        toworkspace: "MoltenTerm",
+        brief: {
+            goal: "Propose characters for MoltenTerm,\nin the style of Geargrim",
+            context: "See the notes",
+            files: [
+                { path: "/work/df/characters.md" },
+                { path: "/work/df/geargrim/README.md", lines: "4-9", note: "the style" },
+            ],
+            links: [{ url: "https://example.test/ticket/7", title: "Ticket 7", kind: "ticket" }],
+            reply: true,
+        },
+        ...extra,
+    };
+}
+
+function handoffNotice(requestid: string, extra: Partial<MoltentermNotification> = {}): MoltentermNotification {
+    return notice(`notif-${requestid}`, "bs", {
+        key: `agenthandoff:${requestid}`,
+        source: "agents",
+        actions: [
+            { id: "once", label: "Allow once", kind: "gesture", gesture: "molten:agenthandoff" },
+            { id: "always", label: "Always for this pair", kind: "gesture", gesture: "molten:agenthandoff" },
+            { id: "block", label: "Block", kind: "gesture", gesture: "molten:agenthandoff" },
+        ],
+        ...extra,
+    });
+}
+
+describe("buildToHandle: hand-off requests (FR-BOSS-005)", () => {
+    it("lists one row per pending request, oldest first, with who asks whom and from where", () => {
+        const list = buildToHandle(
+            input({ handoffs: [request("r2", { createdat: 3000 }), request("r1", { createdat: 1000 })] })
+        );
+        expect(list.items.map((item) => item.key)).toEqual(["handoff:r1", "handoff:r2"]);
+        const row = list.items[0];
+        expect(row.tone).toBe("waiting");
+        expect(row.since).toBe(1000);
+        expect(row.handoff).toMatchObject({
+            requestid: "r1",
+            from: "Chloé",
+            to: "Léa",
+            fromPlace: "DiamondForge",
+            toPlace: "MoltenTerm",
+            goal: "Propose characters for MoltenTerm",
+        });
+    });
+
+    it("names what is attached and keeps the whole brief for Read the brief", () => {
+        const row = buildToHandle(input({ handoffs: [request("r1")] })).items[0];
+        expect(row.handoff.files).toEqual([
+            { name: "characters.md", detail: "/work/df/characters.md" },
+            { name: "README.md", detail: "/work/df/geargrim/README.md:4-9" },
+        ]);
+        expect(row.handoff.links).toEqual([{ name: "Ticket 7", detail: "https://example.test/ticket/7" }]);
+        expect(row.handoff.brief).toMatchObject({ context: "See the notes", reply: true });
+        expect(row.handoff.brief.goal).toContain("in the style of Geargrim");
+    });
+
+    it("offers Allow once first, then Always for this pair, Refuse and Read the brief", () => {
+        const row = buildToHandle(input({ handoffs: [request("r1")] })).items[0];
+        expect(row.actions.map((a) => [a.id, a.labelKey, a.primary])).toEqual([
+            ["once", "boss.todo.handoff.once", true],
+            ["always", "boss.todo.handoff.always", false],
+            ["refuse", "boss.todo.handoff.refuse", false],
+            ["brief", "boss.todo.handoff.brief", false],
+        ]);
+        expect(row.actions.slice(0, 3).map((a) => a.run)).toEqual([
+            { kind: "handoff", requestid: "r1", decision: "once" },
+            { kind: "handoff", requestid: "r1", decision: "always" },
+            { kind: "handoff", requestid: "r1", decision: "block" },
+        ]);
+        expect(row.actions[3].run).toEqual({ kind: "brief" });
+        expect(row.actions.some((a) => a.run.kind === "later")).toBe(false);
+    });
+
+    it("counts in the badge, as a wait, with the other rows", () => {
+        const list = buildToHandle(
+            input({ handoffs: [request("r1"), request("r2")], states: states(agent("b1", "waiting")) })
+        );
+        expect(toHandleBadge(list)).toMatchObject({ count: 3, tone: "waiting" });
+        expect(toHandleBadge(buildToHandle(input({ handoffs: [] })))).toMatchObject({ count: 0 });
+    });
+
+    it("stands for the request's notification: one request is one row, not two", () => {
+        const list = buildToHandle(
+            input({ handoffs: [request("r1")], notifications: [handoffNotice("r1"), handoffNotice("r2")] })
+        );
+        // r2 has no pending request in the list yet: its notification keeps its own row and buttons.
+        expect(list.items.map((item) => item.key).sort()).toEqual(["handoff:r1", "notif:notif-r2"]);
+    });
+
+    it("never takes the request's notification for its sender's question", () => {
+        const list = buildToHandle(
+            input({
+                handoffs: [request("r1")],
+                notifications: [handoffNotice("r1")],
+                states: states(agent("bs", "waiting")),
+                sessions: [session("bs", "s1")],
+            })
+        );
+        const agentRow = list.items.find((item) => item.key === "agent:bs");
+        expect(agentRow.notice).toBeNull();
+        expect(agentRow.actions.map((a) => a.id)).toEqual(["goto", "later"]);
+        expect(list.items.some((item) => item.key.startsWith("notif:"))).toBe(false);
+    });
+
+    it("keeps the row when its notification was archived or filtered out", () => {
+        const list = buildToHandle(input({ handoffs: [request("r1")], notifications: [] }));
+        expect(list.items.map((item) => item.key)).toEqual(["handoff:r1"]);
+    });
+
+    it("leaves the list once the request is answered, wherever it was answered", () => {
+        const waiting = buildToHandle(input({ handoffs: [request("r1")], notifications: [handoffNotice("r1")] }));
+        expect(waiting.items).toHaveLength(1);
+        const answered = buildToHandle(input({ handoffs: [], notifications: [handoffNotice("r1", { resolved: 5 })] }));
+        expect(answered.items).toEqual([]);
+    });
+
+    it("names an unnamed terminal with an empty name, and a workspace with its project when it has none", () => {
+        const row = buildToHandle(
+            input({
+                handoffs: [request("r1", { from: "", fromworkspace: "", fromproject: "forge", toworkspace: "" })],
+            })
+        ).items[0];
+        expect(row.handoff).toMatchObject({ from: "", fromPlace: "forge", toPlace: "" });
+    });
+
+    it("reads a request without a brief by its goal", () => {
+        const row = buildToHandle(input({ handoffs: [request("r1", { brief: undefined })] })).items[0];
+        expect(row.handoff.brief).toEqual({ goal: "Propose characters for MoltenTerm" });
+        expect(row.handoff.files).toEqual([]);
+        expect(row.handoff.links).toEqual([]);
     });
 });

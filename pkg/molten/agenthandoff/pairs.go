@@ -12,6 +12,12 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
+const (
+	// What a window reads of a pending brief before the developer answers: the receiver's brief holds the whole.
+	maxPendingContext = 8000
+	maxPendingExcerpt = 2000
+)
+
 // The terminal's connections menu (FR-CONT-022, #1050) shows a pane's handoffs: every other active agent with the
 // pair's decision, and the requests waiting for the developer. Revoke and Unblock forget a decision, so the next send
 // asks again (NFR-CONT-005); a pending request is answered there through Answer, like its notification.
@@ -73,12 +79,14 @@ func (m *Manager) pairsOf(blockId string) map[string]string {
 }
 
 func (m *Manager) pendingOf(blockId string) []PendingEntry {
-	rtn := m.pendingEntries(func(p *pendingAnswer) bool { return p.from.BlockId == blockId || p.to.BlockId == blockId })
+	rtn := m.pendingEntries(func(p *pendingAnswer) bool { return p.from.BlockId == blockId || p.to.BlockId == blockId }, false)
 	sort.Slice(rtn, func(i, j int) bool { return rtn[i].RequestId < rtn[j].RequestId })
 	return rtn
 }
 
-func (m *Manager) pendingEntries(keep func(p *pendingAnswer) bool) []PendingEntry {
+// pendingEntries lists the waiting requests; detailed adds where each end works and the brief, for the card that
+// answers them (#1891), which the connections menu's poll does not need.
+func (m *Manager) pendingEntries(keep func(p *pendingAnswer) bool, detailed bool) []PendingEntry {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	rtn := []PendingEntry{}
@@ -91,8 +99,26 @@ func (m *Manager) pendingEntries(keep func(p *pendingAnswer) bool) []PendingEntr
 		if p.from.named() {
 			from = p.from.callName()
 		}
-		rtn = append(rtn, PendingEntry{RequestId: id, FromBlockId: p.from.BlockId, ToBlockId: p.to.BlockId,
-			From: from, To: p.to.callName(), Goal: cut(cleanLine(p.brief.Goal), 160), CreatedAt: p.asked.UnixMilli()})
+		entry := PendingEntry{RequestId: id, FromBlockId: p.from.BlockId, ToBlockId: p.to.BlockId,
+			From: from, To: p.to.callName(), Goal: cut(cleanLine(p.brief.Goal), 160), CreatedAt: p.asked.UnixMilli()}
+		if detailed {
+			entry.FromWorkspace, entry.ToWorkspace = p.from.Workspace, p.to.Workspace
+			entry.FromProject, entry.ToProject = p.from.Project, p.to.Project
+			entry.Brief = pendingBriefOf(p.brief)
+		}
+		rtn = append(rtn, entry)
+	}
+	return rtn
+}
+
+func pendingBriefOf(b Brief) *PendingBrief {
+	rtn := &PendingBrief{Goal: b.Goal, Context: cut(b.Context, maxPendingContext), Reply: b.Reply}
+	for _, f := range b.Files {
+		rtn.Files = append(rtn.Files, PendingFile{Path: f.Path, Project: f.Project, Lines: f.Lines, Note: f.Note,
+			Excerpt: cut(f.Excerpt, maxPendingExcerpt)})
+	}
+	for _, l := range b.Links {
+		rtn.Links = append(rtn.Links, PendingLink{Url: l.Url, Title: l.Title, Kind: l.Kind, Note: l.Note})
 	}
 	return rtn
 }
@@ -103,7 +129,7 @@ func (m *Manager) Pending(source string) (PendingResult, error) {
 	if !isUiSource(source) {
 		return PendingResult{}, errors.New(errNotUi)
 	}
-	entries := m.pendingEntries(func(p *pendingAnswer) bool { return true })
+	entries := m.pendingEntries(func(p *pendingAnswer) bool { return true }, true)
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].CreatedAt != entries[j].CreatedAt {
 			return entries[i].CreatedAt < entries[j].CreatedAt

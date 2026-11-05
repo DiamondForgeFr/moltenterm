@@ -20,6 +20,7 @@ import { MoltentermNotifications } from "../notifications-store";
 import { SharedReadiedAtom, SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { DurableSessions } from "../sessions/sessions-store";
 import { FocusTarget, focusTargetOf, restoreFocus } from "./boss-card-model";
+import { PendingHandoffs } from "./boss-handoffs";
 import {
     BossBubbleMetaKey,
     BossCollapseOnTypeSettingKey,
@@ -143,6 +144,7 @@ export class BossBubbleModel {
                 readied: get(SharedReadiedAtom),
                 sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
                 parked: get(this.parkedAtom),
+                handoffs: get(PendingHandoffs.getInstance().dataAtom),
             })
         );
         this.badgeAtom = selectAtom(
@@ -311,28 +313,43 @@ export class BossBubbleModel {
         globalStore.set(this.typingBlockAtom, null);
     }
 
-    // The count rose: one cue, and only when a first reading is in (a window starting is not an agent waiting).
+    // The count rose: one cue, and only when a first reading is in (a window starting is not an agent waiting). The
+    // agents and the hand-off requests are counted apart, each against its own first reading: a request is the badge's
+    // too (FR-BOSS-005), and one arriving while an agent already waits is still a rise.
     private watchCount(): () => void {
         const agents = AgentStates.getInstance();
-        let last: number = null;
+        const handoffs = PendingHandoffs.getInstance();
+        let lastAgents: number = null;
+        let lastHandoffs: number = null;
         const check = () => {
-            const next = nextCue(
-                last,
+            const nextAgents = nextCue(
+                lastAgents,
                 globalStore.get(this.attentionBadgeAtom).count,
                 globalStore.get(agents.loadedAtom)
             );
-            last = next.last;
-            if (next.cue) {
+            const nextHandoffs = nextCue(
+                lastHandoffs,
+                globalStore.get(handoffs.dataAtom).length,
+                globalStore.get(handoffs.loadedAtom)
+            );
+            lastAgents = nextAgents.last;
+            lastHandoffs = nextHandoffs.last;
+            if (nextAgents.cue || nextHandoffs.cue) {
                 globalStore.set(this.cueAtom, (n) => n + 1);
             }
         };
-        const stops = [globalStore.sub(this.attentionBadgeAtom, check), globalStore.sub(agents.loadedAtom, check)];
+        const stops = [
+            globalStore.sub(this.attentionBadgeAtom, check),
+            globalStore.sub(agents.loadedAtom, check),
+            globalStore.sub(handoffs.dataAtom, check),
+            globalStore.sub(handoffs.loadedAtom, check),
+        ];
         check();
         return () => stops.forEach((stop) => stop());
     }
 
     // Listens while a bubble is on screen: the keystrokes and the focus (capture, passive: nothing is stopped), the
-    // count, and the usage readings the peek tells.
+    // count, the hand-off requests that wait (FR-BOSS-005), and the usage readings the peek tells.
     attach(dom: BossDom): () => void {
         this.dom = dom;
         const onKeyDown = (event: any) => this.noteKeyDown(event);
@@ -342,6 +359,7 @@ export class BossBubbleModel {
         dom.addEventListener("keydown", onKeyDown, { capture: true, passive: true });
         dom.addEventListener("focusin", onFocusChange, { capture: true, passive: true });
         dom.addEventListener("focusout", onFocusOut, { capture: true, passive: true });
+        const stopHandoffs = PendingHandoffs.getInstance().start();
         const stopCount = this.watchCount();
         const stopUsage = startUsageReadings();
         return () => {
@@ -349,6 +367,7 @@ export class BossBubbleModel {
             dom.removeEventListener("focusin", onFocusChange, { capture: true });
             dom.removeEventListener("focusout", onFocusOut, { capture: true });
             stopCount();
+            stopHandoffs();
             stopUsage();
             globalStore.set(this.typingBlockAtom, null);
             globalStore.set(this.peekOpenAtom, false);

@@ -34,6 +34,9 @@ type (
 	PairsResult       = handoffwire.PairsResult
 	PairEntry         = handoffwire.PairEntry
 	PendingEntry      = handoffwire.PendingEntry
+	PendingBrief      = handoffwire.PendingBrief
+	PendingFile       = handoffwire.PendingFile
+	PendingLink       = handoffwire.PendingLink
 	PendingResult     = handoffwire.PendingResult
 	ForgetRequest     = handoffwire.ForgetRequest
 	HistoryEntry      = handoffwire.HistoryEntry

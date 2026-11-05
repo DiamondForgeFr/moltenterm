@@ -6,6 +6,7 @@ package agenthandoff
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -104,6 +105,55 @@ func TestFirstSendIsPendingListedAnsweredAndLogged(t *testing.T) {
 	}
 	if strings.Contains(text, "secret parser") {
 		t.Fatalf("the log holds the brief's words:\n%s", text)
+	}
+}
+
+// #1891: the card that answers a request reads where each end works and the brief it would get, which the connections
+// menu's poll does not carry. The brief is the sender's words; no file is opened to show it.
+func TestPendingListCarriesTheBriefForTheCardOnly(t *testing.T) {
+	m, _, projA, _ := makeFixture(t)
+	m.approvalTimeout = 0
+	longContext := strings.Repeat("c", maxPendingContext+500)
+	brief := Brief{
+		Goal:    "Rewrite the secret parser\nand keep the tests green",
+		Context: longContext,
+		Files:   []FileRef{{Path: "notes.md", Lines: "4-9", Note: "the old behaviour", Excerpt: strings.Repeat("e", maxPendingExcerpt+10)}},
+		Links:   []LinkRef{{Url: "https://example.com/doc", Title: "The doc", Kind: LinkKindUrl, Note: "read first"}},
+		Reply:   true,
+	}
+	if res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: brief}); err != nil || res.Status != StatusPending {
+		t.Fatalf("send: %+v %v", res, err)
+	}
+
+	list, err := m.Pending("tab:any")
+	if err != nil || len(list.Entries) != 1 {
+		t.Fatalf("pending: %+v %v", list, err)
+	}
+	e := list.Entries[0]
+	if e.FromWorkspace != "A" || e.ToWorkspace != "B" || e.FromProject != "projecta" || e.ToProject != "projectb" {
+		t.Fatalf("where each end works: %+v", e)
+	}
+	if strings.Contains(e.Goal, "\n") || e.Brief == nil || e.Brief.Goal != "Rewrite the secret parser\nand keep the tests green" || !e.Brief.Reply {
+		t.Fatalf("goal: line %q, brief %+v", e.Goal, e.Brief)
+	}
+	if n := len([]rune(e.Brief.Context)); n != maxPendingContext {
+		t.Fatalf("the context is cut for a window to %d characters, got %d", maxPendingContext, n)
+	}
+	if len(e.Brief.Files) != 1 || e.Brief.Files[0].Path != filepath.Join(projA, "notes.md") || e.Brief.Files[0].Lines != "4-9" ||
+		e.Brief.Files[0].Note != "the old behaviour" || len([]rune(e.Brief.Files[0].Excerpt)) != maxPendingExcerpt {
+		t.Fatalf("files: %+v", e.Brief.Files)
+	}
+	if len(e.Brief.Links) != 1 || e.Brief.Links[0].Url != "https://example.com/doc" || e.Brief.Links[0].Title != "The doc" ||
+		e.Brief.Links[0].Kind != LinkKindUrl || e.Brief.Links[0].Note != "read first" {
+		t.Fatalf("links: %+v", e.Brief.Links)
+	}
+
+	pairs, err := m.Pairs(context.Background(), "tab:any", PairsRequest{BlockId: "blockA"})
+	if err != nil || len(pairs.Pending) != 1 {
+		t.Fatalf("pairs: %+v %v", pairs, err)
+	}
+	if p := pairs.Pending[0]; p.Brief != nil || p.FromWorkspace != "" || p.ToProject != "" {
+		t.Fatalf("the connections menu's poll carries the brief: %+v", p)
 	}
 }
 

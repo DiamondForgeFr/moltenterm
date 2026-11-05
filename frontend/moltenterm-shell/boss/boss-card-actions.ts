@@ -5,6 +5,7 @@
 // implementation of showing a session, opening the full view or starting a terminal.
 
 import { getApi } from "@/app/store/global";
+import { AgentHandoffDecision } from "../agent-handoff";
 import { openAppPanel } from "../app-panel";
 import { MoltentermNotification, NotificationAction } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
@@ -15,6 +16,7 @@ import { ReviewsModel } from "../reviews/reviews-store";
 import { showPane } from "../sessions/pane-focus";
 import { MoltentermSessionsView, SessionLocation } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
+import { PendingHandoffs } from "./boss-handoffs";
 
 // The To handle rows' buttons (FR-BOSS-003): the Integration panel's own door to a PR, its CI re-run, the PR page, and a
 // notification's own buttons and its opening, as the bell's panel does them.
@@ -36,6 +38,12 @@ export function answerNotice(entry: MoltentermNotification, action: Notification
 
 export function openNotice(entry: MoltentermNotification): Promise<void> {
     return MoltentermNotifications.getInstance().open(entry);
+}
+
+// A hand-off request's answer, through the route its notification's buttons answer through (FR-BOSS-005): one request,
+// two views, so answering here removes the notification too.
+export function answerHandoff(requestid: string, decision: AgentHandoffDecision): Promise<void> {
+    return PendingHandoffs.getInstance().answer(requestid, decision);
 }
 
 // Asks wavesrv where the session's pane is (it opens one beside the developer's when the session has none).

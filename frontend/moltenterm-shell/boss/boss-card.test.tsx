@@ -38,6 +38,7 @@ vi.mock("./boss-card-actions", () => ({
     rerunPrChecks: vi.fn(),
     openPrPage: vi.fn(),
     answerNotice: vi.fn(),
+    answerHandoff: vi.fn(),
     openNotice: vi.fn(),
 }));
 vi.mock("./boss-store", async () => {
@@ -55,10 +56,13 @@ vi.mock("./boss-store", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { PendingHandoff } from "../agent-handoff-types";
 import { DurableSession } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { BossCard } from "./boss-card";
+import { HandoffBriefView } from "./boss-handoff-row";
 import { BossBubbleModel } from "./boss-store";
+import { buildToHandle } from "./boss-to-handle-model";
 
 const model = BossBubbleModel.getInstance() as any;
 const sessionsAtom = DurableSessions.getInstance().dataAtom;
@@ -380,5 +384,151 @@ describe("the card's tabs (FR-BOSS-003, AC1, AC2, AC7)", () => {
         expect(html).toContain("For info, nothing to do");
         expect(html).toContain('data-testid="boss-card-info-row"');
         expect(html).toContain("2 set aside");
+    });
+});
+
+function handoff(requestid: string, extra: Partial<PendingHandoff> = {}): PendingHandoff {
+    return {
+        requestid,
+        fromblockid: "bs",
+        toblockid: "br",
+        from: "Chloé",
+        to: "Léa",
+        goal: "Propose characters for MoltenTerm",
+        createdat: Date.now() - 60 * 1000,
+        fromworkspace: "DiamondForge",
+        toworkspace: "MoltenTerm",
+        brief: {
+            goal: "Propose characters for MoltenTerm,\nin the style of <b>Geargrim</b>",
+            context: "Read the notes first.",
+            files: [
+                { path: "/work/df/characters.md" },
+                { path: "/work/df/geargrim/README.md", lines: "4-9", note: "the style" },
+            ],
+            links: [{ url: "https://example.test/ticket/7", title: "Ticket 7", kind: "ticket" }],
+            reply: true,
+        },
+        ...extra,
+    };
+}
+
+function showHandoffs(...requests: PendingHandoff[]) {
+    const list = buildToHandle({
+        states: { states: {}, versions: {} } as any,
+        notifications: [],
+        answers: {},
+        readied: {},
+        sessions: [],
+        parked: {},
+        handoffs: requests,
+    });
+    globalStore.set(model.badgeAtom, { count: list.items.length, text: String(list.items.length), tone: "waiting" });
+    globalStore.set(model.toHandleAtom, list);
+    return list;
+}
+
+describe("the hand-off rows (FR-BOSS-005)", () => {
+    it("lists a request under its group: who asks whom, from where, the goal and what is attached", () => {
+        showHandoffs(handoff("r1"));
+        const html = render();
+        expect(html).toContain('data-testid="boss-card-todo-handoffs"');
+        expect(html).toContain("Handoffs between agents");
+        expect(html).toMatch(/data-testid="boss-card-handoff-from"[^>]*>Chloé</);
+        expect(html).toMatch(/data-testid="boss-card-handoff-to"[^>]*>Léa</);
+        expect(html).toContain("DiamondForge");
+        expect(html).toContain("MoltenTerm");
+        expect(html).toMatch(/data-testid="boss-card-handoff-goal"[^>]*>“Propose characters for MoltenTerm”</);
+        expect(html).toMatch(
+            /data-testid="boss-card-handoff-attached"[^>]*>Attached: characters\.md, README\.md, Ticket 7</
+        );
+        expect(attr(html, "boss-card-todo-row", "data-handoff")).toBe("r1");
+        expect(html).toMatch(/data-testid="boss-card-tab-count-todo"[^>]*>1</);
+    });
+
+    it("says what the receiver will find, and that nothing else from the sender reaches it", () => {
+        showHandoffs(handoff("r1"));
+        expect(render()).toMatch(
+            /data-testid="boss-card-handoff-sees"[^>]*>Léa will find the brief in its terminal, with 2 files and 1 link\. Nothing else from the sender reaches it\./
+        );
+        showHandoffs(handoff("r2", { brief: { goal: "Check the build" } }));
+        expect(render()).toMatch(
+            /data-testid="boss-card-handoff-sees"[^>]*>Léa will find the brief in its terminal, with no file or link\./
+        );
+    });
+
+    it("offers Allow once as the one primary action, then Always for this pair, Refuse and Read the brief", () => {
+        showHandoffs(handoff("r1"));
+        const html = render();
+        const acts = [
+            ...html.matchAll(/data-act="([a-z]+)"[^>]*data-kind="([a-z]+)"[^>]*data-primary="(true|false)"/g),
+        ];
+        expect(acts.map((a) => [a[1], a[2], a[3]])).toEqual([
+            ["once", "handoff", "true"],
+            ["always", "handoff", "false"],
+            ["refuse", "handoff", "false"],
+            ["brief", "brief", "false"],
+        ]);
+        expect(html).toContain("Allow once");
+        expect(html).toContain("Always for this pair");
+        expect(html).toContain("Refuse");
+        expect(html).toContain("Read the brief");
+        expect(html).not.toContain("Hide the brief");
+        expect(html).not.toContain("Later");
+    });
+
+    it("keeps the brief closed until the developer reads it", () => {
+        showHandoffs(handoff("r1"));
+        const html = render();
+        expect(html).not.toContain('data-testid="boss-card-handoff-brief"');
+        expect(html).toContain('aria-expanded="false"');
+    });
+
+    it("names an unnamed terminal in words, and a request without a workspace by its project", () => {
+        showHandoffs(handoff("r1", { from: "", fromworkspace: "", fromproject: "forge" }));
+        const html = render();
+        expect(html).toMatch(/data-testid="boss-card-handoff-from"[^>]*>A terminal</);
+        expect(html).toContain("forge");
+    });
+
+    it("sets the group apart from the other rows, which keep their own heading only beside it", () => {
+        showHandoffs(handoff("r1"));
+        expect(render()).not.toContain("Everything else");
+        expect(render()).not.toContain('data-testid="boss-card-todo-list"');
+        const list = buildToHandle({
+            states: {
+                states: { b1: { blockid: "b1", workspaceid: "w1", agent: "claude", state: "waiting", version: 1 } },
+                versions: {},
+            } as any,
+            notifications: [],
+            answers: {},
+            readied: {},
+            sessions: [],
+            parked: {},
+            handoffs: [handoff("r1")],
+        });
+        globalStore.set(model.toHandleAtom, list);
+        const html = render();
+        expect(html).toContain("Everything else");
+        expect(html.indexOf('data-testid="boss-card-todo-handoffs"')).toBeLessThan(
+            html.indexOf('data-testid="boss-card-todo-list"')
+        );
+        expect(html).toMatch(/data-testid="boss-card-tab-count-todo"[^>]*>2</);
+    });
+
+    it("shows the whole brief as text when it is read: goal, context, files with their lines, links, reply", () => {
+        const item = showHandoffs(handoff("r1")).items[0];
+        const html = renderToStaticMarkup(<HandoffBriefView item={item} from="Chloé" to="Léa" />);
+        expect(html).toContain("in the style of &lt;b&gt;Geargrim&lt;/b&gt;");
+        expect(html).not.toContain("<b>Geargrim</b>");
+        expect(html).toContain("Read the notes first.");
+        expect(html).toContain("/work/df/geargrim/README.md");
+        expect(html).toContain("lines 4-9");
+        expect(html).toContain("the style");
+        expect(html).toContain("https://example.test/ticket/7");
+        expect(html).toContain("Léa is asked to reply to Chloé.");
+        const quiet = showHandoffs(handoff("r2", { brief: { goal: "Check the build" } })).items[0];
+        expect(renderToStaticMarkup(<HandoffBriefView item={quiet} from="Chloé" to="Léa" />)).toContain(
+            "No reply is expected."
+        );
     });
 });
