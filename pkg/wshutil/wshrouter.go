@@ -103,6 +103,8 @@ type WshRouter struct {
 	routeMap       map[string]baseds.LinkId  // routeid => linkid
 	linkMap        map[baseds.LinkId]*linkMeta
 
+	routeChangeLock sync.Mutex // MOLTENTERM-PATCH (#1965): finish route side effects before a replacement binds
+
 	upstreamBufLock     sync.Mutex
 	upstreamBufCond     *sync.Cond
 	upstreamBuf         []messageWrap
@@ -760,13 +762,18 @@ func (router *WshRouter) unbindRouteLocally(linkId baseds.LinkId, routeId string
 	}
 	router.lock.Lock()
 	defer router.lock.Unlock()
-	if router.routeMap[routeId] == linkId {
-		delete(router.routeMap, routeId)
+	// MOLTENTERM-PATCH (#1965): a non-owner must not trigger upstream or broker removal.
+	if router.routeMap[routeId] != linkId {
+		return fmt.Errorf("cannot unbind %q: link %d does not own the route", routeId, linkId)
 	}
+	delete(router.routeMap, routeId)
 	return nil
 }
 
 func (router *WshRouter) unbindRoute(linkId baseds.LinkId, routeId string) error {
+	// MOLTENTERM-PATCH (#1965): a reconnect must not bind before the old owner's cleanup finishes.
+	router.routeChangeLock.Lock()
+	defer router.routeChangeLock.Unlock()
 	err := router.unbindRouteLocally(linkId, routeId)
 	if err != nil {
 		return err
@@ -822,6 +829,9 @@ func (router *WshRouter) bindRoute(linkId baseds.LinkId, routeId string, isSourc
 	if err := router.checkRemoteAnnounce(linkId, routeId); err != nil { // MOLTENTERM-PATCH (#1831): a job route only for its connection
 		return err
 	}
+	// MOLTENTERM-PATCH (#1965): serialize the map update with unannounce/subscription cleanup, not router reads.
+	router.routeChangeLock.Lock()
+	defer router.routeChangeLock.Unlock()
 	err := router.bindRouteLocally(linkId, routeId, isSourceRoute)
 	if err != nil {
 		return err
