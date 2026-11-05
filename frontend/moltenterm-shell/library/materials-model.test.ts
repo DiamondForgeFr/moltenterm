@@ -8,6 +8,7 @@ import {
     filterMaterials,
     findOpenPanel,
     groupMaterials,
+    makeOpenPanelLookup,
     Material,
     materialFolderPath,
     materialForm,
@@ -15,8 +16,8 @@ import {
     materialLinkedFiles,
     materialOpenPlan,
     materialOriginKey,
-    materialsProjectName,
     materialSizeText,
+    materialsProjectName,
     materialVersion,
     newMaterialsCount,
     recoveredParts,
@@ -47,6 +48,30 @@ const Kept = {
     versions: [{ n: 1, at: Now, size: 10, files: 12 }],
     copypath: "/data/m1/v1/proposal.html",
 };
+
+it("indexes panel snapshots once and keeps the first matching panel across URL and file matches", () => {
+    let panelReads = 0;
+    const panels = Array.from({ length: 100 }, (_, i) => ({
+        blockId: String(i),
+        tabId: "tab",
+        view: "web",
+        get urls() {
+            panelReads++;
+            return [`https://example.com/${i}/#panel`];
+        },
+        file: i === 0 ? "/copy/" : undefined,
+    }));
+    const find = makeOpenPanelLookup(panels);
+    expect(panelReads).toBe(100);
+    for (let i = 0; i < 1000; i++) {
+        expect(find(mat({ link: "https://example.com/99#material" }))).toBe(panels[99]);
+    }
+    expect(panelReads).toBe(100);
+    expect(find(mat({ link: "https://example.com/99", copypath: "/copy" }))).toBe(panels[0]);
+    expect(find(mat({ original: "/copy/" }))).toBe(panels[0]);
+    expect(find(mat({ link: "https://example.com/missing" }))).toBeNull();
+    expect(find(null)).toBeNull();
+});
 
 describe("materials list (FR-MAT-002)", () => {
     it("puts pinned materials on top, then days, newest first", () => {
