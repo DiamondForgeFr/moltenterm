@@ -11,7 +11,7 @@ import {
     clipNames,
     clipsFolder,
     makeBrokkDeclaration,
-    packageState,
+    RestState,
 } from "./brokk-portrait";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
 
@@ -25,8 +25,8 @@ function css(file: string): string {
 describe("Brokk's declaration (FR-BOSS-007, AC1)", () => {
     const declaration = makeBrokkDeclaration(Manifest as BrokkManifest, "/clips", "/brokk.jpg");
 
-    it("is a plain object for the package's portrait: the still, the folder of the clips, the transitions and the gestures", () => {
-        expect(Object.keys(declaration).sort()).toEqual(["idles", "loops", "src", "transitions"]);
+    it("is a plain object for the package's portrait: the still, the folder of the clips, the name of the resting pose, the transitions and the gestures", () => {
+        expect(Object.keys(declaration).sort()).toEqual(["idles", "loops", "restState", "src", "transitions"]);
         expect(declaration.src).toBe("/brokk.jpg");
         expect(declaration.loops).toBe("/clips");
     });
@@ -37,12 +37,12 @@ describe("Brokk's declaration (FR-BOSS-007, AC1)", () => {
             "speaking>thinking",
             "thinking>listening",
             "thinking>speaking",
-            "listening>offline",
-            "speaking>offline",
-            "offline>listening",
-            "offline>speaking",
-            "thinking>offline",
-            "offline>thinking",
+            "listening>rest",
+            "speaking>rest",
+            "rest>listening",
+            "rest>speaking",
+            "thinking>rest",
+            "rest>thinking",
         ]);
         expect(declaration.transitions).not.toContain("listening>speaking");
         expect(declaration.transitions).not.toContain("speaking>listening");
@@ -62,13 +62,11 @@ describe("Brokk's declaration (FR-BOSS-007, AC1)", () => {
         });
     });
 
-    it("names the resting pose `rest` in MoltenTerm and `offline` for the package, which knows no other (version 0.1.0)", () => {
-        expect(packageState("rest")).toBe("offline");
-        expect(packageState("listening")).toBe("listening");
-        expect(packageState("thinking")).toBe("thinking");
-        expect(packageState("speaking")).toBe("speaking");
+    it("names the resting pose `rest`, as the manifest does, and not `offline`, which is the package's default", () => {
+        expect(RestState).toBe("rest");
+        expect(declaration.restState).toBe("rest");
         expect(Manifest.states).toContain("rest");
-        expect(JSON.stringify(declaration)).not.toContain("rest");
+        expect(JSON.stringify(declaration)).not.toContain("offline");
     });
 
     it("leaves out what the package cannot play rather than failing: a state or a gesture it does not know", () => {
@@ -118,15 +116,13 @@ describe("Brokk's clips", () => {
         );
     });
 
-    it("hold the resting pose's under the package's name, not the manifest's: the package would not find those", () => {
-        expect(existsSync(join(Folder, "rest.webm"))).toBe(false);
-        expect(existsSync(join(Folder, "offline.webm"))).toBe(true);
+    it("hold the resting pose's under its own name, the manifest's, and none under the package's default", () => {
+        expect(existsSync(join(Folder, "rest.webm"))).toBe(true);
         for (const state of ["listening", "thinking", "speaking"]) {
-            expect(existsSync(join(Folder, `offline-to-${state}.webm`))).toBe(true);
+            expect(existsSync(join(Folder, `rest-to-${state}.webm`))).toBe(true);
+            expect(existsSync(join(Folder, `${state}-to-rest.webm`))).toBe(true);
         }
-        for (const state of ["listening", "thinking", "speaking"]) {
-            expect(existsSync(join(Folder, `${state}-to-offline.webm`))).toBe(true);
-        }
+        expect(found.filter((name) => name.includes("offline"))).toEqual([]);
     });
 });
 

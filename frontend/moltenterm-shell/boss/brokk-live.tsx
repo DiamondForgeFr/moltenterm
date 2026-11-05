@@ -5,14 +5,14 @@
 // every surface shares (boss-portrait.tsx). It loads on its own, the first time a surface asks for it, so that the
 // package and its clips are read by nobody before. The package plays the clips (the loop of the pose, the clips between
 // two poses, the gestures); this component hands it the pose MoltenTerm's signals give (brokk-state-model.ts) and the
-// gesture the app asks. Whatever fails to load or to play leaves the still showing.
+// gesture the app asks. The package is asked for the picture alone (`bare`): the screen furniture is the bubble's own
+// (boss-screen.tsx). Whatever fails to load or to play leaves the still showing.
 
 import { TransmissionPortrait } from "@diamondforge/character";
 import "@diamondforge/character/styles.css";
 import { useEffect, useReducer } from "react";
-import { useT } from "../i18n/i18n";
 import "./brokk-live.css";
-import { BrokkPortrait, packageState } from "./brokk-portrait";
+import { BrokkPortrait } from "./brokk-portrait";
 import {
     AskedExpression,
     brokkPose,
@@ -24,7 +24,6 @@ import {
 } from "./brokk-state-model";
 
 export type BrokkLiveProps = {
-    name: string;
     situation: BrokkSituation;
     // The newest gesture the app asked. One asked before this mounted is not played: it was told to a surface that was
     // not showing.
@@ -37,8 +36,7 @@ export type BrokkLiveProps = {
     onPlayed?: () => void;
 };
 
-export function BrokkLive({ name, situation, asked, play, speaks, onPlayed }: BrokkLiveProps) {
-    const t = useT();
+export function BrokkLive({ situation, asked, play, speaks, onPlayed }: BrokkLiveProps) {
     const [face, dispatch] = useReducer(faceAfter, { asked, play, speaks }, startFace);
     const reaction = face.reaction;
 
@@ -85,12 +83,10 @@ export function BrokkLive({ name, situation, asked, play, speaks, onPlayed }: Br
         <div className="mt-brokk-live" data-pose={pose} data-testid="brokk-live" onEndedCapture={onEnded}>
             <TransmissionPortrait
                 {...BrokkPortrait}
+                bare
                 className="mt-brokk-portrait"
                 alt=""
-                name={name}
-                role={t(`boss.state.${pose}`)}
-                live={t("boss.screen.online")}
-                state={packageState(pose)}
+                state={pose}
                 expression={reaction}
             />
         </div>

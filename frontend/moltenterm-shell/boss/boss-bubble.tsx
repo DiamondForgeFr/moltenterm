@@ -155,7 +155,7 @@ function BossBubbleLayer() {
     const cardOpen = useAtomValue(model.cardOpenAtom, { store: globalStore });
     const peek = useAtomValue(model.peekAtom, { store: globalStore });
     const screenOpen = !collapsed && screenShows(screenHold, { dragging: dragRect != null, cardOpen });
-    const live = useBubbleLive({ name, collapsed, screenOpen });
+    const live = useBubbleLive({ collapsed, screenOpen });
     const layerRef = useRef<HTMLDivElement>(null);
     const bubbleRef = useRef<HTMLButtonElement>(null);
     const drag = useRef<DragState>(null);

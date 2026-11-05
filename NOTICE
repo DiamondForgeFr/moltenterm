@@ -29,6 +29,6 @@ This product bundles Font Awesome Free 6.7.2 by Fonticons, Inc. (https://fontawe
 icons under CC BY 4.0, fonts under the SIL Open Font License 1.1, code under the MIT License.
 See public/fontawesome-free/LICENSE.txt.
 
-This product bundles @diamondforge/character 0.1.0 by DiamondForge, the runtime of the DiamondForge suite's
+This product bundles @diamondforge/character 0.2.0 by DiamondForge, the runtime of the DiamondForge suite's
 animated characters. It is a private package, UNLICENSED (all rights reserved), and is not licensed under any
 of the licences above.

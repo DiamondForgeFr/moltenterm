@@ -2995,12 +2995,6 @@
                 "one": "{count} chose à traiter",
                 "other": "{count} choses à traiter"
             }
-        },
-        "state": {
-            "rest": "Au repos",
-            "thinking": "Réfléchit",
-            "listening": "À l'écoute",
-            "speaking": "Parle"
         }
     },
     "keepawake": {
