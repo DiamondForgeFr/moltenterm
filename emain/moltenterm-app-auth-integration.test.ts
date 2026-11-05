@@ -174,8 +174,41 @@ describe("Electron app caller integration", () => {
             const preferences: any = { session: env.appSession };
             app.emit("will-attach-webview", event, preferences, { partition });
             expect(event.preventDefault).not.toHaveBeenCalled();
-            expect(preferences).toEqual({ partition: partition ?? "" });
+            expect(preferences.session).toBeUndefined();
+            expect(preferences.partition).toBe(partition ?? "");
         }
+    });
+
+    it("attaches a guest without Node, isolated and sandboxed, with only the page preload (#1961)", () => {
+        const app = contents(9);
+        const attach = (preferences: any, params: any) => {
+            const event = { preventDefault: vi.fn() };
+            app.emit("will-attach-webview", event, preferences, params);
+            return event.preventDefault.mock.calls.length === 0;
+        };
+        const injected: any = {
+            nodeIntegration: true,
+            nodeIntegrationInSubFrames: true,
+            contextIsolation: false,
+            sandbox: false,
+            webSecurity: false,
+            webviewTag: true,
+            preload: "/tmp/evil.cjs",
+        };
+        expect(attach(injected, { src: "https://example.test/" })).toBe(true);
+        expect(injected).toMatchObject({
+            nodeIntegration: false,
+            nodeIntegrationInSubFrames: false,
+            contextIsolation: true,
+            sandbox: true,
+            webSecurity: true,
+            webviewTag: false,
+        });
+        expect(injected.preload).toBeUndefined();
+        const own: any = { preload: "/app/preload/preload-webview.cjs" };
+        expect(attach(own, { src: "https://example.test/" })).toBe(true);
+        expect(own.preload).toBe("/app/preload/preload-webview.cjs");
+        expect(attach({}, { src: "javascript:alert(1)" })).toBe(false);
     });
 
     it("protects native global-fetch fallback and refuses redirect credential forwarding", async () => {
