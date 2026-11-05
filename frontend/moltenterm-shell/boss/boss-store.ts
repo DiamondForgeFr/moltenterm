@@ -17,8 +17,7 @@ import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { I18nModel } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
-import { ReviewsAnswers } from "../reviews/reviews-client";
-import { ReviewsModel } from "../reviews/reviews-store";
+import { SharedReadiedAtom, SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { DurableSessions } from "../sessions/sessions-store";
 import { FocusTarget, focusTargetOf, restoreFocus } from "./boss-card-model";
 import {
@@ -140,8 +139,8 @@ export class BossBubbleModel {
             buildToHandle({
                 states: get(AgentStates.getInstance().dataAtom),
                 notifications: get(MoltentermNotifications.getInstance().shownEntriesAtom),
-                answers: get(ReviewsAnswers.getInstance().answersAtom),
-                readied: get(ReviewsModel.getInstance().readiedAtom),
+                answers: get(SharedReviewsAnswersAtom),
+                readied: get(SharedReadiedAtom),
                 sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
                 parked: get(this.parkedAtom),
             })
