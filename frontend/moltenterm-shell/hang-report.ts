@@ -8,13 +8,17 @@ import { getApi, getFocusedBlockId } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
 import { describeLastCall, HangContext } from "./hang-context";
 import {
+    busyMs,
     diagnosticsText,
     hangSeconds,
+    HiddenPeriods,
+    LongTaskEntry,
     LongTaskLimiter,
     longTaskLine,
     LongTaskLogMs,
     LongTasksKept,
     MainHangDiagnostics,
+    visibleMs,
 } from "./hang-report-model";
 import { t } from "./i18n/i18n";
 import { showToast } from "./toast-store";
@@ -36,6 +40,7 @@ type WindowReloaded = { reason: string; signal: string; at: number };
 export const WindowReloadedToastId = "window-reloaded";
 
 const limiter = new LongTaskLimiter();
+const hiddenPeriods = new HiddenPeriods();
 const recentLongTasks: string[] = [];
 let started = false;
 
@@ -63,15 +68,42 @@ function keep(line: string) {
     }
 }
 
-function onLongTask(kind: string, durationMs: number, scripts: any[]) {
-    if (durationMs < LongTaskLogMs) {
+function trackVisibility() {
+    if (typeof document === "undefined") {
         return;
     }
+    const now = () => performance.now();
+    if (document.visibilityState === "hidden") {
+        hiddenPeriods.hidden(now());
+    }
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+            hiddenPeriods.hidden(now());
+            return;
+        }
+        hiddenPeriods.shown(now());
+    });
+    // Page lifecycle: a frozen page runs nothing, and a page restored from the cache comes back after a gap.
+    document.addEventListener("freeze", () => hiddenPeriods.hidden(now()));
+    document.addEventListener("resume", () => {
+        if (document.visibilityState !== "hidden") {
+            hiddenPeriods.shown(now());
+        }
+    });
+    window.addEventListener("pagehide", () => hiddenPeriods.hidden(now()));
+    window.addEventListener("pageshow", () => hiddenPeriods.shown(now()));
+}
+
+function onLongTask(kind: string, entry: LongTaskEntry) {
+    if (busyMs(entry, hiddenPeriods) < LongTaskLogMs) {
+        return;
+    }
+    const scripts = entry.scripts ?? [];
     const now = Date.now();
     const skipped = limiter.admit(now);
     const line = longTaskLine({
         kind,
-        durationMs,
+        durationMs: visibleMs(entry, hiddenPeriods),
         scripts,
         lastRpc: describeLastCall(HangContext.rpc, now),
         lastService: describeLastCall(HangContext.service, now),
@@ -98,7 +130,7 @@ function observeLongTasks() {
     try {
         const observer = new PerformanceObserver((list) => {
             for (const entry of list.getEntries() as any[]) {
-                onLongTask(type === "longtask" ? "task" : "frame", entry.duration, entry.scripts ?? []);
+                onLongTask(type === "longtask" ? "task" : "frame", entry);
             }
         });
         observer.observe({ type, buffered: false });
@@ -168,6 +200,7 @@ export function startHangReport() {
         return;
     }
     started = true;
+    trackVisibility();
     observeLongTasks();
     api().onMoltentermWindowHang?.((hang) => showWindowHang(hang));
     api().onMoltentermWindowReloaded?.((notice) => showWindowReloaded(notice));
