@@ -590,6 +590,9 @@ func (ws *WshServer) EventReadHistoryCommand(ctx context.Context, data wshrpc.Co
 }
 
 func (ws *WshServer) SetConfigCommand(ctx context.Context, data wshrpc.MetaSettingsType) error {
+	if err := moltenCheckConfigWrite(ctx, data.MetaMapType); err != nil { // MOLTENTERM-PATCH (#1961)
+		return err
+	}
 	return wconfig.SetBaseConfigValue(data.MetaMapType)
 }
 
