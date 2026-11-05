@@ -43,6 +43,7 @@ import { startHangReport } from "./moltenterm-shell/hang-report"; // MOLTENTERM-
 import { startCarpetThumbCleanup } from "./moltenterm-shell/view360/carpet-thumbs"; // MOLTENTERM-PATCH (#1814)
 import { startMoltentermI18n, whenMoltentermI18nReady } from "./moltenterm-shell/i18n/i18n-start"; // MOLTENTERM-PATCH (#623, #1213)
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
+import { startWosResync } from "./moltenterm-shell/wos-resync"; // MOLTENTERM-PATCH (#1950)
 import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
 import { TabActivity } from "./moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
 import { installUnsavedWorkProbe } from "./moltenterm-shell/unsaved-work"; // MOLTENTERM-PATCH (#476)
@@ -210,6 +211,7 @@ async function initWave(initOpts: WaveInitOpts) {
     }
     startHangReport(); // MOLTENTERM-PATCH (#849): long tasks to the log, the "did not respond" notification
     startCarpetThumbCleanup(); // MOLTENTERM-PATCH (#1814): a closed panel's 360 thumbnail goes with it
+    startWosResync(); // MOLTENTERM-PATCH (#1950): after a reconnect, the objects updated meanwhile are read again
     registerGlobalKeys();
     registerElectronReinjectKeyHandler();
     registerControlShiftStateUpdateHandler();

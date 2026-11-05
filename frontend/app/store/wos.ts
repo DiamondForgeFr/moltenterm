@@ -181,6 +181,30 @@ function setLoadedValue<T extends WaveObj>(wov: WaveObjectValue<T>, val: T, revi
     return val;
 }
 
+// MOLTENTERM-PATCH (#1950): the updates published while a view's websocket was down never reach it, so after a
+// reconnect it reads again, in one call, the objects of these types it holds (a tab's panes, the window's meta).
+async function reloadCachedWaveObjects(otypes: readonly string[]): Promise<number> {
+    const held = [...waveObjectValueCache.entries()].filter(
+        ([oref, wov]) => otypes.includes(splitORef(oref)[0]) && globalStore.get(wov.dataAtom).value != null
+    );
+    if (held.length === 0) {
+        return 0;
+    }
+    const asked = held.map(([oref, wov]) => ({ oref, wov, revision: wov.revision, deletions: wov.deletions }));
+    const vals = await ObjectService.GetObjects(asked.map((a) => a.oref));
+    const byORef = new Map((vals ?? []).filter((v) => v != null).map((v) => [makeORef(v.otype, v.oid), v]));
+    let reloaded = 0;
+    for (const a of asked) {
+        const val = byORef.get(a.oref);
+        if (val == null) {
+            continue;
+        }
+        setLoadedValue(a.wov, val, a.revision, a.deletions);
+        reloaded++;
+    }
+    return reloaded;
+}
+
 function createWaveValueObject<T extends WaveObj>(oref: string, shouldFetch: boolean): WaveObjectValue<T> {
     const wov: WaveObjectValue<T> = { pendingPromise: null, dataAtom: null, revision: 0, deletions: 0 };
     wov.dataAtom = atom({ value: null, loading: true });
@@ -355,6 +379,7 @@ export {
     loadAndPinWaveObject,
     makeORef,
     mockObjectForPreview,
+    reloadCachedWaveObjects, // MOLTENTERM-PATCH (#1950)
     reloadWaveObject,
     setObjectValue,
     splitORef,
