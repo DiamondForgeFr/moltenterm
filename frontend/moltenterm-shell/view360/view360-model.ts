@@ -226,6 +226,13 @@ export class View360Model {
     layoutAtom: PrimitiveAtom<CarpetLayout> = atom(null) as PrimitiveAtom<CarpetLayout>;
     scrollLeftAtom: PrimitiveAtom<number> = atom(0);
     visibleColumnIdsAtom: Atom<string[]>;
+    // The end of the glide the carpet is on, from its first frame; null at rest.
+    glideTargetAtom: PrimitiveAtom<number> = atom(null) as PrimitiveAtom<number>;
+    // True while a swipe or a drag moves the carpet, until ScrollSettleMs after its last step.
+    freeScrollAtom: PrimitiveAtom<boolean> = atom(false);
+    // The columns in view where the carpet is going to rest (#1924): the end of its glide while it glides, so a click
+    // on a tab reads as one change of screen and not as every screen the glide passes through (visibleColumnIdsAtom).
+    restColumnIdsAtom: Atom<string[]>;
     fixedNodeIdAtom: Atom<string>;
     // The panels pinned to the fixed zone, from the tab's meta (or this window's last write, ahead of its round trip).
     pinsAtom: Atom<TabPins>;
@@ -269,6 +276,7 @@ export class View360Model {
 
     scrollFrame: number = null;
     settleTimer: ReturnType<typeof setTimeout> = null;
+    freeScrollTimer: ReturnType<typeof setTimeout> = null;
     smoothFrame: number = null;
     rootChildren: Map<string, CarpetRootChild> = new Map();
 
@@ -349,6 +357,10 @@ export class View360Model {
         this.activeAtom = selectAtom(this.decisionAtom, (d) => d.active);
         const visibleAtom = atom((get) => visibleCarpetColumnIds(get(this.layoutAtom), get(this.scrollLeftAtom)));
         this.visibleColumnIdsAtom = selectAtom(visibleAtom, (ids) => ids, sameIds);
+        const restAtom = atom((get) =>
+            visibleCarpetColumnIds(get(this.layoutAtom), get(this.glideTargetAtom) ?? get(this.scrollLeftAtom))
+        );
+        this.restColumnIdsAtom = selectAtom(restAtom, (ids) => ids, sameIds);
         this.fixedNodeIdAtom = atom((get) => get(this.layoutAtom)?.fixedNodeId ?? null);
         // A switch decided inside a layout pass is already drawn by that pass.
         globalStore.sub(this.activeAtom, () => {
@@ -1798,6 +1810,7 @@ export class View360Model {
             return;
         }
         this.glideTarget = target;
+        globalStore.set(this.glideTargetAtom, target);
         const start = performance.now();
         const step = (now: number) => {
             const t = Math.min(1, (now - start) / SmoothScrollMs);
@@ -1806,6 +1819,7 @@ export class View360Model {
             this.smoothFrame = t < 1 ? requestAnimationFrame(step) : null;
             if (this.smoothFrame == null) {
                 this.glideTarget = null;
+                this.scheduleScrollWrite();
             }
         };
         this.smoothFrame = requestAnimationFrame(step);
@@ -1817,6 +1831,10 @@ export class View360Model {
             this.smoothFrame = null;
         }
         this.glideTarget = null;
+        // The write that follows lets glideTargetAtom go, also when nothing else moves the carpet.
+        if (globalStore.get(this.glideTargetAtom) != null) {
+            this.scheduleScrollWrite();
+        }
     }
 
     private setScroll(scrollLeft: number) {
@@ -1826,7 +1844,26 @@ export class View360Model {
         }
         this.scrollLeft = next;
         this.markScrolling();
+        this.markFreeScroll();
         this.scheduleScrollWrite();
+    }
+
+    // A swipe or a drag passes through screens the carpet does not rest on; a glide does not (glideTargetAtom). The
+    // screen is read once the carpet stopped (#1924).
+    private markFreeScroll() {
+        if (this.glideTarget != null) {
+            return;
+        }
+        if (!globalStore.get(this.freeScrollAtom)) {
+            globalStore.set(this.freeScrollAtom, true);
+        }
+        if (this.freeScrollTimer != null) {
+            clearTimeout(this.freeScrollTimer);
+        }
+        this.freeScrollTimer = setTimeout(() => {
+            this.freeScrollTimer = null;
+            globalStore.set(this.freeScrollAtom, false);
+        }, ScrollSettleMs);
     }
 
     private markScrolling() {
@@ -1870,6 +1907,10 @@ export class View360Model {
         }
         if (globalStore.get(this.scrollLeftAtom) !== scrollLeft) {
             globalStore.set(this.scrollLeftAtom, scrollLeft);
+        }
+        // After the final scroll is written, so the rest never reads a position short of the glide's end.
+        if (this.glideTarget == null && globalStore.get(this.glideTargetAtom) != null) {
+            globalStore.set(this.glideTargetAtom, null);
         }
     }
 

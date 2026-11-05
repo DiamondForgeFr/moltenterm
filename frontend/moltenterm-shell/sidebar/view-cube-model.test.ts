@@ -1,14 +1,16 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The 360 cube of a view's icon (#1823, #1861): it turns a quarter when the whole screen changes, slides its icons when
-// the carpet moves by a panel with another one staying, stretches when the number of panels on screen changes, draws
-// one icon per panel on screen (three at most, then +N) and stays still otherwise.
+// The 360 cube of a view's icon (#1823, #1861, #1924): it turns a quarter when the whole screen changes (a prism
+// narrows into a cube first and widens after), slides its icons when the carpet moves with a panel staying on screen,
+// stretches when the number of panels on screen changes, draws one icon per panel on screen (three at most, then +N)
+// and stays still otherwise.
 
 import { describe, expect, it } from "vitest";
 import {
     cubeAngle,
     cubeMotion,
+    cubeParity,
     cubeShape,
     faceRole,
     MaxCubeCells,
@@ -127,14 +129,101 @@ describe("the whole screen changes: the cube turns (#1823)", () => {
 
     it("turns a prism whose panels all changed, toward the side the carpet moved to", () => {
         const left = nextCube(startCube(view("companion", 2)), view("term", 2), true);
-        expect(left.motion).toBe("turn");
+        expect(left.motion).toBe("prism-turn");
         expect(cubeAngle(left)).toBe(-90);
         expect(shownIds(view("term", 2))).toEqual(["term", "files"]);
         expect(frontIcons(left)).toEqual(["terminal", "file-lines"]);
         const back = nextCube(left, view("companion", 2), true);
-        expect(back.motion).toBe("turn");
+        expect(back.motion).toBe("prism-turn");
         expect(cubeAngle(back)).toBe(0);
         expect(frontIcons(back)).toEqual(["gauge", "globe"]);
+    });
+});
+
+describe("one action, one motion, whatever the carpet passes through (#1924)", () => {
+    // [from, to, motion, steps]: the panels on screen before the action and where the carpet rests.
+    const Rules: [string, string[], string[], string, number][] = [
+        ["one panel, another one", ["page"], ["term"], "turn", 0],
+        ["one panel, one far along the carpet", ["page"], ["review"], "turn", 0],
+        ["one panel, back to an earlier one", ["files"], ["companion"], "turn", 0],
+        ["a cube becomes a prism", ["page"], ["page", "term"], "stretch", 0],
+        ["a prism becomes a cube", ["page", "term"], ["page"], "stretch", 0],
+        ["a prism of two becomes three", ["page", "term"], ["page", "term", "files"], "stretch", 0],
+        ["the count changes and every panel is new", ["page"], ["files", "review"], "stretch", 0],
+        ["two panels, none stays, going on", ["companion", "page"], ["files", "review"], "prism-turn", 0],
+        ["two panels, none stays, going back", ["files", "review"], ["companion", "page"], "prism-turn", 0],
+        ["two panels, none stays, next to each other", ["companion", "page"], ["term", "files"], "prism-turn", 0],
+        ["three panels, none stays", ["companion", "page", "term"], ["files", "review", "agent"], "prism-turn", 0],
+        ["two panels, one stays, going on", ["page", "term"], ["term", "files"], "slide", 1],
+        ["two panels, one stays, going back", ["term", "files"], ["page", "term"], "slide", -1],
+        ["three panels, one stays, going on", ["companion", "page", "term"], ["term", "files", "review"], "slide", 2],
+        ["three panels, two stay, going back", ["page", "term", "files"], ["companion", "page", "term"], "slide", -1],
+        ["the same panels", ["page", "term"], ["page", "term"], "none", 0],
+    ];
+
+    it.each(Rules)("%s", (_name, from, to, motion, steps) => {
+        expect(cubeMotion(from, to)).toEqual({ motion, steps });
+    });
+
+    it("never slides one panel and never shows a prism in between: every change of a single panel is a turn", () => {
+        for (const a of Carpet) {
+            for (const b of Carpet.filter((id) => id !== a)) {
+                expect(cubeMotion([a], [b]).motion).toBe("turn");
+            }
+        }
+    });
+
+    it("follows the developer's sequence: [1,2], tab 4, tab 2", () => {
+        const first = startCube(view("companion", 2));
+        // Tab 4 on [1,2]: both panels are replaced, the carpet comes to rest on [3,4].
+        const second = nextCube(first, view("term", 2), true);
+        expect(second.motion).toBe("prism-turn");
+        expect(second.ids).toEqual(["term", "files"]);
+        expect(cubeAngle(second)).toBe(-90);
+        expect(frontIcons(second)).toEqual(["terminal", "file-lines"]);
+        // Tab 2 on [3,4]: the carpet rests on [2,3], panel 3 stays: a slide, the cube does not turn again.
+        const third = nextCube(second, view("page", 2), true);
+        expect(third.motion).toBe("slide");
+        expect(third.ids).toEqual(["page", "term"]);
+        expect(cubeAngle(third)).toBe(-90);
+        expect(third.slot).toBe(second.slot);
+        expect(third.faces[third.slot].first).toBe(1);
+        expect(frontIcons(third)).toEqual(["globe", "terminal"]);
+    });
+
+    it("turns the same way as the carpet moved, for a prism as for a cube", () => {
+        const forward = nextCube(startCube(view("page", 2)), view("review", 2), true);
+        const back = nextCube(startCube(view("review", 2)), view("page", 2), true);
+        expect(forward.motion).toBe("prism-turn");
+        expect(back.motion).toBe("prism-turn");
+        expect(cubeAngle(forward)).toBe(-90);
+        expect(cubeAngle(back)).toBe(90);
+    });
+
+    it("flips its parity with every turn, so two prism turns in a row do not share it", () => {
+        let state = startCube(view("companion", 2));
+        const parities: number[] = [cubeParity(state)];
+        for (const first of ["term", "review", "term", "companion"]) {
+            state = nextCube(state, view(first, 2), true);
+            expect(state.motion).toBe("prism-turn");
+            parities.push(cubeParity(state));
+        }
+        expect(parities).toEqual([0, 1, 0, 1, 0]);
+        expect(cubeParity(nextCube(startCube(view("companion", 2)), view("review", 2), true))).toBe(1);
+        expect(cubeParity({ ...state, turns: -1 })).toBe(1);
+    });
+
+    it("moves once for an action even if the rest of it is reported twice", () => {
+        const rested = nextCube(startCube(view("companion", 2)), view("term", 2), true);
+        expect(nextCube(rested, view("term", 2), true)).toBe(rested);
+    });
+
+    it("makes no motion at all under reduced motion, a prism included", () => {
+        const state = nextCube(startCube(view("companion", 2)), view("term", 2), false);
+        expect(state.motion).toBe("none");
+        expect(cubeAngle(state)).toBe(0);
+        expect(state.slot).toBe(0);
+        expect(frontIcons(state)).toEqual(["terminal", "file-lines"]);
     });
 });
 
