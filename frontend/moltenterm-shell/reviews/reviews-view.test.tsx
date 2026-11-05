@@ -194,7 +194,7 @@ describe("Reviews card (#1060)", () => {
         const head = /data-testid="reviews-card-number"[^>]*>([^<]*)</.exec(html)?.[1];
         expect(head).toBe("#11");
         const facts = /data-testid="reviews-card-facts"[^>]*>(.*?)<\/div>/.exec(html)?.[1] ?? "";
-        expect(facts).toMatch(/^<span class="[^"]*text-muted[^"]*"[^>]*data-testid="reviews-card-pr">PR #17</);
+        expect(facts).toMatch(/^<button[^>]*class="[^"]*text-muted[^"]*"[^>]*data-testid="reviews-card-pr">PR #17</);
         expect(html.indexOf("reviews-card-pr")).toBeGreaterThan(html.indexOf("Invoice PDF drops line items"));
         // Without a ticket the PR's number is the card's one number, never twice.
         const alone = rowHtml(pr(18));

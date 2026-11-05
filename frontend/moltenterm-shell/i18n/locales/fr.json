@@ -7331,6 +7331,8 @@
             "draftTagTitle": "Cette pull request est un brouillon sur GitHub.",
             "prChip": "PR #{number}",
             "prChipTitle": "Pull request #{number} · {branch}",
+            "openTicket": "Ouvrir le ticket #{number}",
+            "openPr": "Ouvrir la pull request #{number}",
             "groupAdd": "Ajouter à la fusion groupée",
             "groupTakeOut": "Retirer de la fusion groupée",
             "disabledTitle": "{action} : {reason}",
