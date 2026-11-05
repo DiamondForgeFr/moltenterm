@@ -60,6 +60,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `moltenterm-carpet-thumbs.ts` | `moltenterm-carpet-thumb-put`, `moltenterm-carpet-thumb-read`, `moltenterm-carpet-thumb-remove` (the 360 carpet's thumbnails: the key is checked, a JPEG of at most 1 MB is written only into the application's own `carpet-thumbs` data folder) |
 | `moltenterm-tab-activity.ts` | `moltenterm-window-activity-get` |
 | `moltenterm-screen.ts` | `moltenterm-screen-get` |
+| `moltenterm-system-idle.ts` | `moltenterm-system-idle-get` (a number of seconds, this computer's idle time; no argument) |
 | `moltenterm-tabview-host.ts` | `moltenterm-view-pending-action` |
 | `moltenterm-busy-close.ts` | `moltenterm-busy-reply` |
 | `moltenterm-site-permissions.ts` | `moltenterm-site-permission-answer` |

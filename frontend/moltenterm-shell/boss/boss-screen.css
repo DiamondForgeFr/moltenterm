@@ -181,10 +181,19 @@
     color: var(--mt-boss-ember-hi);
 }
 
-.mt-boss-caption-status {
+.mt-boss-caption-status,
+.mt-boss-caption-detail {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: var(--mt-text-11);
     line-height: 1.4;
     color: var(--mt-text-3);
+}
+
+.mt-boss-caption-detail {
+    opacity: 0.8;
 }
 
 /* The portrait breathes while the screen is open: a slow rise and settle of the bust. */

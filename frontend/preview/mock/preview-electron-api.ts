@@ -66,6 +66,7 @@ const previewElectronApi: ElectronApi = {
     setWindowButtons: (_state: { visible: boolean; zoom: number } | null) => {}, // MOLTENTERM-PATCH (#1216, #1279)
     setWindowLook: (_look: { translucent: boolean; blur: boolean }) => {}, // MOLTENTERM-PATCH (#1281)
     getWindowLookSupport: async () => ({ translucent: false, blur: false }), // MOLTENTERM-PATCH (#1281)
+    moltentermGetSystemIdleSec: async () => 0, // MOLTENTERM-PATCH (#1958)
     closeBuilderWindow: () => {},
     incrementTermCommands: (_opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => {},
     nativePaste: () => {},

@@ -41,6 +41,11 @@ export function BrokkLive({ situation, asked, play, speaks, onPlayed }: BrokkLiv
         }
     }, [asked]);
     useEffect(() => {
+        if (speaks) {
+            dispatch({ type: "speak" });
+        }
+    }, [speaks]);
+    useEffect(() => {
         if (!face.speaking) {
             return;
         }

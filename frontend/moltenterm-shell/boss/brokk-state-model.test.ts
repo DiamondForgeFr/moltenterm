@@ -22,7 +22,19 @@ const NoFace = { speaking: false, expression: null as BrokkExpression };
 
 describe("his pose from MoltenTerm's signals (FR-BOSS-007, AC2)", () => {
     it.each([
-        ["nothing works, nothing waits, the card is closed", situation(), "rest"],
+        ["nothing works, nothing waits, the card is closed: awake (#1958)", situation(), "listening"],
+        ["the developer is away and nothing goes on: asleep", situation({ away: true }), "rest"],
+        [
+            "the developer is away with the card open and nothing going on",
+            situation({ away: true, cardOpen: true }),
+            "rest",
+        ],
+        [
+            "the developer is away while an agent works: he watches it",
+            situation({ away: true, working: 1 }),
+            "thinking",
+        ],
+        ["the developer is away and something arrived: awake", situation({ away: true, waiting: 1 }), "listening"],
         ["an agent works and nothing waits", situation({ working: 1 }), "thinking"],
         ["several agents work and nothing waits", situation({ working: 5 }), "thinking"],
         ["something waits for the developer", situation({ waiting: 1 }), "listening"],
@@ -40,7 +52,28 @@ describe("his pose from MoltenTerm's signals (FR-BOSS-007, AC2)", () => {
         expect(brokkPose(situation({ cardOpen: true, waiting: 2 }), speaking)).toBe("speaking");
         expect(brokkPose(situation({ cardOpen: true }), speaking)).toBe("listening");
         expect(brokkPose(situation({ working: 1 }), speaking)).toBe("thinking");
-        expect(brokkPose(situation(), speaking)).toBe("rest");
+        expect(brokkPose(situation(), speaking)).toBe("listening");
+        expect(brokkPose(situation({ away: true }), speaking)).toBe("rest");
+    });
+
+    it("wakes when the developer comes back: the same signals without the absence listen again", () => {
+        const asleep = situation({ away: true });
+        expect(brokkPose(asleep, NoFace)).toBe("rest");
+        expect(brokkPose({ ...asleep, away: false }, NoFace)).toBe("listening");
+    });
+
+    it("keeps rest for sleep alone: the manifest carries him out of it into listening (the wake clip)", () => {
+        expect(Manifest.transitions).toContain("rest>listening");
+    });
+});
+
+describe("speaking when the card opens while his face already shows (#1958)", () => {
+    it("starts speaking on the ask, once, and lets the speech expire", () => {
+        const quiet = startFace({});
+        const speaking = faceAfter(quiet, { type: "speak" });
+        expect(speaking.speaking).toBe(true);
+        expect(faceAfter(speaking, { type: "speak" })).toBe(speaking);
+        expect(faceAfter(speaking, { type: "speech-expired" }).speaking).toBe(false);
     });
 });
 

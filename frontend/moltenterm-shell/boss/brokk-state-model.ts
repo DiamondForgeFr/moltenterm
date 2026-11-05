@@ -12,10 +12,11 @@
 // The pose never comes from what an agent writes. No `[[expression]]` marker is looked for in output, files or code:
 // the signals are the count of agents working, the count of rows To handle and whether the card is open.
 
-import type { AskedExpression, BrokkExpression, BrokkSituation } from "./brokk-ask-model";
+import type { AskedExpression, BrokkExpression, BrokkPose, BrokkSituation } from "./brokk-ask-model";
+import { restingPose } from "./brokk-ask-model";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
 
-export type BrokkPose = "rest" | "thinking" | "listening" | "speaking";
+export type { BrokkPose };
 
 export const BrokkExpressions = Object.keys(Manifest.expressionMs) as BrokkExpression[];
 
@@ -32,17 +33,7 @@ export function reactionCapMs(expression: BrokkExpression): number {
     return (Manifest.expressionMs as Record<string, number>)[expression] + TransitionAllowanceMs;
 }
 
-// Rest is a state of the foreman's world, not of the developer's typing: nothing works, nothing waits and the card is
-// closed. An open card with nothing going on listens.
-export function restingPose(situation: BrokkSituation): BrokkPose {
-    if (situation.waiting > 0) {
-        return "listening";
-    }
-    if (situation.working > 0) {
-        return "thinking";
-    }
-    return situation.cardOpen ? "listening" : "rest";
-}
+export { restingPose };
 
 export type BrokkFace = {
     // The few seconds after the card opened on items to handle.
@@ -78,7 +69,9 @@ export type FaceEvent =
     | { type: "asked"; asked: AskedExpression }
     | { type: "clip-ended"; base: string }
     | { type: "reaction-expired"; cue: number }
-    | { type: "speech-expired" };
+    | { type: "speech-expired" }
+    // The card opened on items to handle while this face already showed (the comm screen opened by the hover).
+    | { type: "speak" };
 
 export function startFace(options: { asked?: AskedExpression; play?: AskedExpression; speaks?: boolean }): FaceState {
     return {
@@ -113,6 +106,8 @@ export function faceAfter(state: FaceState, event: FaceEvent): FaceState {
             return state.reaction?.cue === event.cue ? { ...state, reaction: null } : state;
         case "speech-expired":
             return state.speaking ? { ...state, speaking: false } : state;
+        case "speak":
+            return state.speaking ? state : { ...state, speaking: true };
         default:
             return state;
     }

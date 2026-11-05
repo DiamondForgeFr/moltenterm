@@ -79,6 +79,7 @@ beforeEach(() => {
     globalStore.set(model.screenHoldAtom, NoScreenHold);
     globalStore.set(model.cardOpenAtom, false);
     globalStore.set(model.badgeAtom, { count: 0, text: "", tone: "waiting" });
+    globalStore.set(model.workingCountAtom, 0);
     globalStore.set(model.peekAtom, {
         waiting: [],
         waitingMore: 0,
@@ -302,14 +303,32 @@ describe("the Sessions card (FR-BOSS-002)", () => {
         expect(render()).toMatch(/data-testid="boss-pennant"[^>]*data-boss-anchor=""/);
     });
 
-    it("sits beside the bubble, on the side of its corner, once opened", () => {
+    it("sits beside the bubble, on the side of its corner, beyond the comm screen open with it (#1958)", () => {
         globalStore.set(model.cardOpenAtom, true);
         const html = render();
         expect(attr(html, "boss-bubble", "aria-expanded")).toBe("true");
+        expect(attr(html, "boss-bubble", "data-screen")).toBe("open");
         const style = attr(html, "boss-card", "style");
+        // 44 px of round, 156 px more of screen, and the gap of 8 px.
+        const beyond = 44 + (ScreenSizePx - 44) + 8;
         expect(style).toContain("right:max(8px, min(16px, calc(100% - 52px)))");
-        expect(style).toContain("bottom:calc(max(8px, min(16px, calc(100% - 52px))) + 52px)");
-        expect(style).toContain("max-height:calc(100% - calc(max(8px, min(16px, calc(100% - 52px))) + 52px) - 8px)");
+        expect(style).toContain(`bottom:calc(max(8px, min(16px, calc(100% - 52px))) + ${beyond}px)`);
+        expect(style).toContain(
+            `max-height:calc(100% - calc(max(8px, min(16px, calc(100% - 52px))) + ${beyond}px) - 8px)`
+        );
+    });
+
+    it("keeps the comm screen open and beside the card from every corner, never under it", () => {
+        for (const corner of Corners) {
+            globalStore.set(model.stateAtom, { ...DefaultBubbleState, place: { corner, dx: 16, dy: 16 } });
+            globalStore.set(model.cardOpenAtom, true);
+            const html = render();
+            expect(attr(html, "boss-bubble", "data-screen")).toBe("open");
+            const side = corner[0] === "t" ? "top" : "bottom";
+            expect(attr(html, "boss-card", "style")).toContain(
+                `${side}:calc(max(8px, min(16px, calc(100% - 52px))) + 208px)`
+            );
+        }
     });
 
     it("hangs under the pennant, aligned with its edge, when collapsed", () => {
@@ -452,7 +471,32 @@ describe("the comm screen (AC12)", () => {
             expect(screen).toContain(layer);
         }
         expect(screen.match(/mt-boss-corner/g)).toHaveLength(4);
+        expect(screen).not.toContain("df-domino-loader");
+    });
+
+    it("says who works while he thinks, never that nothing waits alone, and shows the domino (#1958)", () => {
+        open();
+        globalStore.set(model.workingCountAtom, 1);
+        globalStore.set(model.peekAtom, {
+            waiting: [],
+            waitingMore: 0,
+            working: [{ workspace: "Forge", names: ["Arthur"], more: 0 }],
+            workingMore: 0,
+            usage: "",
+            latest: null,
+        });
+        let screen = render().slice(render().indexOf('data-testid="boss-screen"'));
+        expect(screen).toContain("Arthur is working");
+        expect(screen).toContain("Nothing for you");
+        expect(screen).not.toContain("Nothing to handle");
         expect(screen).toContain("df-domino-loader");
+        globalStore.set(model.workingCountAtom, 3);
+        screen = render().slice(render().indexOf('data-testid="boss-screen"'));
+        expect(screen).toContain("3 agents at work");
+        globalStore.set(model.badgeAtom, { count: 2, text: "2", tone: "waiting" });
+        screen = render().slice(render().indexOf('data-testid="boss-screen"'));
+        expect(screen).toContain("2 things to handle");
+        expect(screen).toContain("3 agents at work");
     });
 
     it("says one thing in the singular, and that nothing waits when nothing does", () => {
@@ -505,14 +549,16 @@ describe("the comm screen (AC12)", () => {
         expect(sheet).not.toMatch(/transition[^;}]*\bdelay\b/);
     });
 
-    it("stays the round while the bubble is dragged and while the card is open, and Escape hides it", () => {
+    it("stays the round while the bubble is dragged, opens with the card, and Escape hides it", () => {
         open();
         globalStore.set(model.dragAtom, { left: 10, top: 10, width: 44, height: 44 });
         expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
         globalStore.set(model.dragAtom, null);
+        globalStore.set(model.screenHoldAtom, NoScreenHold);
         globalStore.set(model.cardOpenAtom, true);
-        expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("open");
         globalStore.set(model.cardOpenAtom, false);
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
         globalStore.set(model.screenHoldAtom, holdAfter(holdAfter(NoScreenHold, "pointer-enter"), "dismiss"));
         expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
     });

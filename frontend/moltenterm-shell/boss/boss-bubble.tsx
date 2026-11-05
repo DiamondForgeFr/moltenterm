@@ -45,7 +45,7 @@ import { BossScreen } from "./boss-screen";
 import { holdAfter, NoScreenHold, ScreenEvent, screenShows, ScreenSizePx } from "./boss-screen-model";
 import { BossBubbleModel } from "./boss-store";
 import { BrokkExpressionsModel } from "./brokk-expressions";
-import { useBubbleLive } from "./use-brokk-live";
+import { useBrokkSituation, useBubbleLive } from "./use-brokk-live";
 
 // Under the pointer for this long before the peek shows: passing over the bubble shows nothing.
 export const PeekDelayMs = 350;
@@ -168,7 +168,11 @@ function BossBubbleLayer() {
     const cardOpen = useAtomValue(model.cardOpenAtom, { store: globalStore });
     const peek = useAtomValue(model.peekAtom, { store: globalStore });
     const screenOpen = !collapsed && screenShows(screenHold, { dragging: dragRect != null, cardOpen });
-    const live = useBubbleLive({ collapsed, screenOpen });
+    const situation = useBrokkSituation(cardOpen, screenOpen);
+    const live = useBubbleLive({ collapsed, screenOpen, situation });
+    const worker = situation.working === 1 ? (peek.working[0]?.names[0] ?? "") : "";
+    // The open screen lies between the round and the card: the card goes beyond it, never under it (FR-BOSS-007, AC8).
+    const screenClearance = screenOpen ? ScreenSizePx - BubbleSizePx : 0;
     const layerRef = useRef<HTMLDivElement>(null);
     const bubbleRef = useRef<HTMLButtonElement>(null);
     const drag = useRef<DragState>(null);
@@ -463,7 +467,7 @@ function BossBubbleLayer() {
                     <span className="mt-boss-shape" data-testid="boss-shape" aria-hidden>
                         <span className="mt-boss-face">
                             <BossPortrait live={live} />
-                            {screenOpen ? <BossScreen name={name} count={badge.count} /> : null}
+                            {screenOpen ? <BossScreen name={name} situation={situation} worker={worker} /> : null}
                         </span>
                         {badge.count > 0 ? (
                             <span className="mt-boss-badge" data-tone={badge.tone} data-testid="boss-badge" aria-hidden>
@@ -479,7 +483,13 @@ function BossBubbleLayer() {
                 <PeekBody peek={peek} name={name} />
             </div>
             {cardOpen && dragRect == null ? (
-                <BossCard style={collapsed ? pennantCardStyle(pennantRight) : cardStyle(shownPlace)} />
+                <BossCard
+                    style={
+                        collapsed
+                            ? pennantCardStyle(pennantRight)
+                            : cardStyle(shownPlace, BubbleSizePx, BubbleMarginPx, screenClearance)
+                    }
+                />
             ) : null}
             {peekOpen && !cardOpen && dragRect == null ? (
                 <div

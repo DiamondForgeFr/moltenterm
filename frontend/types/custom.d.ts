@@ -162,6 +162,7 @@ declare global {
         setWindowButtons: (state: { visible: boolean; zoom: number; peekGap?: number } | null) => void; // moltenterm-window-buttons, MOLTENTERM-PATCH (#1216, #1279, #1293)
         setWindowLook: (look: { translucent: boolean; blur: boolean }) => void; // moltenterm-window-look, MOLTENTERM-PATCH (#1281)
         getWindowLookSupport: () => Promise<{ translucent: boolean; blur: boolean }>; // MOLTENTERM-PATCH (#1281)
+        moltentermGetSystemIdleSec: () => Promise<number>; // moltenterm-system-idle-get, MOLTENTERM-PATCH (#1958)
         closeBuilderWindow: () => void; // close-builder-window
         incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => void; // increment-term-commands
         nativePaste: () => void; // native-paste

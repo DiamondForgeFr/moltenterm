@@ -3005,7 +3005,14 @@
             "toHandle": {
                 "one": "{count} thing to handle",
                 "other": "{count} things to handle"
-            }
+            },
+            "working": "{name} is working",
+            "workingCount": {
+                "one": "{count} agent at work",
+                "other": "{count} agents at work"
+            },
+            "nothingForYou": "Nothing for you",
+            "asleep": "Asleep while you are away"
         }
     },
     "keepawake": {

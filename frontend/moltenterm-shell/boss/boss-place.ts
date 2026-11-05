@@ -137,10 +137,16 @@ export function peekStyle(
 export type CardStyle = PlaceStyle & { maxHeight: string };
 
 // The Sessions card (FR-BOSS-002) where the peek sits, beside the bubble, with the height the window leaves it between
-// the bubble and the far edge: a long list scrolls inside the card, which never grows past the window.
-export function cardStyle(place: BubblePlace, size: number = BubbleSizePx, margin: number = BubbleMarginPx): CardStyle {
+// the bubble and the far edge: a long list scrolls inside the card, which never grows past the window. The clearance is
+// the room more the comm screen takes, open beside the card (FR-BOSS-007, AC8): the card lies beyond it.
+export function cardStyle(
+    place: BubblePlace,
+    size: number = BubbleSizePx,
+    margin: number = BubbleMarginPx,
+    clearance: number = 0
+): CardStyle {
     const vertical = place.corner[0] === "t" ? "top" : "bottom";
-    const anchored = peekStyle(place, size, margin);
+    const anchored = peekStyle(place, size, margin, clearance);
     return { ...anchored, maxHeight: `calc(100% - ${anchored[vertical]} - ${margin}px)` };
 }
 
