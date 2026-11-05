@@ -344,6 +344,10 @@
     }
 }
 
+.prefers-reduced-motion .mt-sb-dot.has-ring::after {
+    animation: none;
+}
+
 /* A workspace whose agents work ripples (FR-SHELL-082, #1943, workspace-dot-ripple.ts): two thin outline circles in
    the workspace colour (a line, no fill, no shadow) start at the dot's edge, grow outward and fade to nothing, the
    second one half a cycle (1.2 s) after the first, about 2.4 s a cycle. They are the dot's pseudo-elements, drawn over
