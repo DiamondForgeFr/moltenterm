@@ -73,11 +73,17 @@ func (m *Manager) pairsOf(blockId string) map[string]string {
 }
 
 func (m *Manager) pendingOf(blockId string) []PendingEntry {
+	rtn := m.pendingEntries(func(p *pendingAnswer) bool { return p.from.BlockId == blockId || p.to.BlockId == blockId })
+	sort.Slice(rtn, func(i, j int) bool { return rtn[i].RequestId < rtn[j].RequestId })
+	return rtn
+}
+
+func (m *Manager) pendingEntries(keep func(p *pendingAnswer) bool) []PendingEntry {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	rtn := []PendingEntry{}
 	for id, p := range m.pending {
-		if p.from.BlockId != blockId && p.to.BlockId != blockId {
+		if !keep(p) {
 			continue
 		}
 		// A terminal without a name has From "": the window words it, not callName's English (#1129).
@@ -86,10 +92,25 @@ func (m *Manager) pendingOf(blockId string) []PendingEntry {
 			from = p.from.callName()
 		}
 		rtn = append(rtn, PendingEntry{RequestId: id, FromBlockId: p.from.BlockId, ToBlockId: p.to.BlockId,
-			From: from, To: p.to.callName(), Goal: cut(cleanLine(p.brief.Goal), 160)})
+			From: from, To: p.to.callName(), Goal: cut(cleanLine(p.brief.Goal), 160), CreatedAt: p.asked.UnixMilli()})
 	}
-	sort.Slice(rtn, func(i, j int) bool { return rtn[i].RequestId < rtn[j].RequestId })
 	return rtn
+}
+
+// Pending gives a window every request waiting for the developer, in every workspace, oldest first (#1926). Any
+// surface that lists them answers an entry with AnswerCommand, as the notification's buttons do.
+func (m *Manager) Pending(source string) (PendingResult, error) {
+	if !isUiSource(source) {
+		return PendingResult{}, errors.New(errNotUi)
+	}
+	entries := m.pendingEntries(func(p *pendingAnswer) bool { return true })
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].CreatedAt != entries[j].CreatedAt {
+			return entries[i].CreatedAt < entries[j].CreatedAt
+		}
+		return entries[i].RequestId < entries[j].RequestId
+	})
+	return PendingResult{Entries: entries}, nil
 }
 
 // Forget is a window's Revoke or Unblock: the pair's next send asks the developer again.

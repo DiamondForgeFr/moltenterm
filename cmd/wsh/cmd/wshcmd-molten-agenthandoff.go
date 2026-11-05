@@ -24,8 +24,8 @@ import (
 
 const (
 	moltenHandoffListTimeoutMs = 8000
-	// The send waits up to 50 seconds for the developer's answer, then types the prompt, or returns "pending" while the
-	// request stays open (#790).
+	// A send that needs the developer's answer returns "pending" at once while the request stays open (#790, #1926).
+	// The limit stays above the 50 seconds an earlier MoltenTerm waited for that answer, for a server not updated yet.
 	moltenHandoffSendTimeoutMs = 80000
 )
 

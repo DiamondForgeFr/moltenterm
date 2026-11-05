@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	// The sender waits this long for the developer's answer to the first send between two agents: under Codex's default
-	// 60-second MCP tool timeout, so the agent reads the outcome instead of a timeout. The request itself stays open
-	// after that, until the developer answers (#790).
-	DefaultApprovalTimeout = 50 * time.Second
+	// The sender does not wait for the developer's answer to the first send between two agents: its call returns
+	// pending at once, the request stays open until the developer answers, and the outcome is typed in the sender's
+	// terminal (#790, #1926). An agent blocked on the answer could not tell a slow developer from a hang.
+	DefaultApprovalTimeout = 0
 	// A queued handoff waits this long for its receiver's idle prompt.
 	DefaultQueueTimeout = time.Hour
 	DefaultQueuePoll    = time.Second
@@ -100,6 +100,7 @@ type pendingAnswer struct {
 	from     Party
 	to       Party
 	brief    Brief
+	asked    time.Time
 }
 
 type delivery struct {
@@ -123,6 +124,8 @@ type Manager struct {
 	queueTimeout    time.Duration
 	queuePoll       time.Duration
 	sleep           func(time.Duration)
+	// pendingChanged tells the windows the requests waiting for the developer changed (PendingEvent); outside the lock.
+	pendingChanged func()
 
 	lock sync.Mutex
 	// pairs: always or block, for a pair of panes, until MoltenTerm restarts (NFR-CONT-005).
@@ -143,7 +146,8 @@ func MakeManager(env Env) *Manager {
 		queueTimeout:    DefaultQueueTimeout,
 		queuePoll:       DefaultQueuePoll,
 		sleep:           time.Sleep,
-		pairs:           map[string]string{},
+		pendingChanged:  func() {},
+		pairs:          map[string]string{},
 		pending:         map[string]*pendingAnswer{},
 		queues:          map[string][]*delivery{},
 	}
@@ -405,6 +409,8 @@ func (m *Manager) send(ctx context.Context, req SendRequest, fromName *string) (
 	}
 	targetRun, _ := m.env.Run(target.blockId)
 	to := m.party(target.blockId, targetRun, true, targetLoc)
+	// The steps of a handoff are logged without the brief's words (#1926).
+	m.logf("%s from=%q to=%q requested files=%d links=%d\n", logPrefix, from.callName(), to.callName(), len(brief.Files), len(brief.Links))
 	if err := m.resolveBrowserLinks(ctx, senderId, &brief); err != nil {
 		return SendResult{}, err
 	}
@@ -420,7 +426,7 @@ func (m *Manager) send(ctx context.Context, req SendRequest, fromName *string) (
 }
 
 func pendingMessage(to Party) string {
-	return fmt.Sprintf("The developer has not answered yet: the request stays in MoltenTerm's notifications and nothing "+
+	return fmt.Sprintf("Pending: waiting for the developer's approval. MoltenTerm asked them in its notifications; nothing "+
 		"is sent to %s until they allow it. When they answer, MoltenTerm types the outcome in your terminal, starting "+
 		"with %s. Do not send it again: carry on with other work or end your turn.", to.callName(), receiptPrefix)
 }
@@ -468,13 +474,16 @@ func (m *Manager) setPairDecision(key string, decision string) {
 	m.pairs[key] = decision
 }
 
+// The deferred pendingChanged runs after the unlock: deferred calls run last in, first out.
 func (m *Manager) addPending(id string, p *pendingAnswer) {
+	defer m.pendingChanged()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.pending[id] = p
 }
 
 func (m *Manager) takePending(id string) *pendingAnswer {
+	defer m.pendingChanged()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	p := m.pending[id]
@@ -497,6 +506,7 @@ func (m *Manager) stopWaiting(id string, p *pendingAnswer) (string, bool) {
 // claimAnswer takes the request for the answer. A sender still waiting gets the decision through its channel; late
 // tells the caller to carry it out.
 func (m *Manager) claimAnswer(id string, decision string) (*pendingAnswer, bool) {
+	defer m.pendingChanged()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	p := m.pending[id]
@@ -524,9 +534,17 @@ func (m *Manager) approve(ctx context.Context, from Party, to Party, b Brief) (b
 	}
 	id := uuid.NewString()
 	notifKey := NotificationKeyPrefix + id
-	p := &pendingAnswer{pair: key, answer: make(chan string, 1), notifKey: notifKey, from: from, to: to, brief: b}
+	p := &pendingAnswer{pair: key, answer: make(chan string, 1), notifKey: notifKey, from: from, to: to, brief: b,
+		asked: m.now()}
+	if m.approvalTimeout <= 0 {
+		p.late = true
+	}
 	m.addPending(id, p)
 	m.env.Notify(approvalNotification(notifKey, id, from, to, b))
+	m.logf("%s from=%q to=%q asked the developer request=%s\n", logPrefix, from.callName(), to.callName(), id)
+	if p.late {
+		return true, nil
+	}
 	timer := time.NewTimer(m.approvalTimeout)
 	defer timer.Stop()
 	var decision string
@@ -642,8 +660,10 @@ func (m *Manager) Answer(source string, req AnswerRequest) error {
 	}
 	p, late := m.claimAnswer(req.RequestId, req.Decision)
 	if p == nil {
+		m.logf("%s answer %q for request=%s, which no longer waits\n", logPrefix, req.Decision, cleanLine(req.RequestId))
 		return uimsg.Errorf(uimsg.Make("handoff.notwaiting"), "This handoff request is no longer waiting")
 	}
+	m.logf("%s from=%q to=%q answered %q request=%s\n", logPrefix, p.from.callName(), p.to.callName(), req.Decision, req.RequestId)
 	if late {
 		go m.answerLate(p, req.Decision)
 	}
