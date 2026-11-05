@@ -144,10 +144,10 @@ describe("buildToHandle: notifications", () => {
         expect(list.items[0].actions[0].primary).toBe(true);
     });
 
-    it("offers Open as the primary action of a notification with no button", () => {
+    it("offers Open as the primary action of a notification with no button, and Done next to Later", () => {
         const warning = notice("n3", "", { blockid: undefined, source: "moltenterm" });
         const list = buildToHandle(input({ notifications: [warning] }));
-        expect(list.items[0].actions.map((a) => a.id)).toEqual(["open", "later"]);
+        expect(list.items[0].actions.map((a) => a.id)).toEqual(["open", "done", "later"]);
         expect(list.items[0].actions[0].primary).toBe(true);
     });
 
@@ -391,5 +391,74 @@ describe("buildToHandle: hand-off requests (FR-BOSS-005)", () => {
         expect(row.handoff.brief).toEqual({ goal: "Propose characters for MoltenTerm" });
         expect(row.handoff.files).toEqual([]);
         expect(row.handoff.links).toEqual([]);
+    });
+});
+
+// #1938: a handoff typed into a prompt that held text (pkg/molten/agenthandoff notifyTyped).
+function typedNotice(extra: Partial<MoltentermNotification> = {}): MoltentermNotification {
+    return notice("t1", "b2", {
+        key: "agenthandofftyped:b2",
+        source: "agents" as any,
+        title: "Typed in Chloé's prompt: press Enter in its terminal to start",
+        actions: [{ id: "goto", label: "Go to Chloé", kind: "open", workspaceid: "w1", tabid: "t", blockid: "b2" }],
+        ...extra,
+    });
+}
+
+describe("buildToHandle: a notification that only takes the developer somewhere (#1938)", () => {
+    it("is listed with its way there, Done and Later, and counted while unread", () => {
+        const list = buildToHandle(input({ notifications: [typedNotice()] }));
+        expect(list.items.map((item) => item.key)).toEqual(["notif:t1"]);
+        const row = list.items[0];
+        expect(row.seen).toBe(false);
+        expect(row.actions.map((a) => a.id)).toEqual(["answer:goto", "done", "later"]);
+        expect(row.actions[0].primary).toBe(true);
+        expect(row.actions[1]).toMatchObject({
+            labelKey: "boss.todo.done",
+            run: { kind: "done", entry: typedNotice() },
+        });
+        expect(toHandleBadge(list).count).toBe(1);
+    });
+
+    it("counts as seen once read (Go to reads it): still listed, after what is unseen, and no longer counted", () => {
+        const waiting = notice("q1", "", {
+            blockid: undefined,
+            source: "trust",
+            time: 900,
+            updated: 900,
+            actions: [{ id: "allow", label: "Allow", kind: "gesture", gesture: "allow" }],
+        });
+        const list = buildToHandle(input({ notifications: [typedNotice({ read: true }), waiting] }));
+        expect(list.items.map((item) => [item.key, item.seen])).toEqual([
+            ["notif:q1", false],
+            ["notif:t1", true],
+        ]);
+        expect(list.items[1].actions.map((a) => a.id)).toEqual(["answer:goto", "done", "later"]);
+        expect(toHandleBadge(list)).toMatchObject({ count: 1, text: "1" });
+    });
+
+    it("never stops counting a question its buttons answer, read or not, and offers it no Done", () => {
+        const question = notice("q1", "", {
+            blockid: undefined,
+            source: "trust",
+            read: true,
+            actions: [{ id: "allow", label: "Allow", kind: "gesture", gesture: "allow" }],
+        });
+        const list = buildToHandle(input({ notifications: [question] }));
+        expect(list.items[0].seen).toBe(false);
+        expect(list.items[0].actions.map((a) => a.id)).not.toContain("done");
+        expect(toHandleBadge(list).count).toBe(1);
+    });
+
+    it("leaves the list once resolved: the prompt was submitted, or the developer said Done", () => {
+        const list = buildToHandle(input({ notifications: [typedNotice({ resolved: 300, read: true })] }));
+        expect(list.items).toEqual([]);
+        expect(toHandleBadge(list).count).toBe(0);
+    });
+
+    it("shows a badge of nothing when every row left is seen", () => {
+        const list = buildToHandle(input({ notifications: [typedNotice({ read: true })] }));
+        expect(list.items).toHaveLength(1);
+        expect(toHandleBadge(list)).toMatchObject({ count: 0 });
     });
 });

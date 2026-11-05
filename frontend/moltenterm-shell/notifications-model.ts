@@ -450,6 +450,16 @@ export function resolveUpdate(entries: MoltentermNotification[], key: string, no
     );
 }
 
+// Closes the situation of these notifications, key or none: the developer says they did what it asked (#1938).
+export function resolveIdsUpdate(entries: MoltentermNotification[], ids: string[], now: number): MetaUpdate {
+    const wanted = new Set(ids);
+    return changeUpdate(
+        entries,
+        (e) => wanted.has(e.id) && e.resolved == null && e.archived == null,
+        () => ({ resolved: now, read: true })
+    );
+}
+
 export function readUpdate(entries: MoltentermNotification[], ids: string[]): MetaUpdate {
     const wanted = new Set(ids);
     return changeUpdate(

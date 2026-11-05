@@ -2936,6 +2936,8 @@
             "openIntegration": "Open in Integration",
             "seePr": "See the PR",
             "open": "Open",
+            "done": "Done",
+            "seen": "Seen",
             "later": "Later",
             "others": "Everything else",
             "handoff": {

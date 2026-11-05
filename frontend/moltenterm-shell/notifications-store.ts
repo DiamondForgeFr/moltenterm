@@ -51,6 +51,7 @@ import {
     publishUpdate,
     readAllUpdate,
     readUpdate,
+    resolveIdsUpdate,
     resolveUpdate,
     unreadCount,
 } from "./notifications-model";
@@ -184,6 +185,10 @@ export class MoltentermNotifications {
 
     resolve(key: string): void {
         this.write(resolveUpdate(this.entries(), key, Date.now()));
+    }
+
+    resolveEntries(ids: string[]): Promise<void> {
+        return this.writeNow(resolveIdsUpdate(this.entries(), ids, Date.now()));
     }
 
     markRead(ids: string[]): void {
