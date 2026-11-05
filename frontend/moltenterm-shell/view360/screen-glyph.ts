@@ -58,6 +58,22 @@ export function describeScreen(root: LayoutNode, layout: CarpetLayout, visibleCo
     };
 }
 
+// What the publisher has to say about the carpet as it is, undefined while it has nothing to say yet: the tab is not
+// measured (a tab not drawn yet is not a tab without a carpet), or a swipe or a drag still moves the carpet (#1924).
+// restIds are the columns in view where the carpet rests, not the ones it passes through.
+export function screenToPublish(
+    root: LayoutNode,
+    layout: CarpetLayout,
+    restIds: string[],
+    moving: boolean,
+    columnCount: number
+): ScreenDescription | undefined {
+    if (!(columnCount > 0) || moving) {
+        return undefined;
+    }
+    return describeScreen(root, layout, restIds);
+}
+
 export function sameScreen(a: ScreenDescription, b: ScreenDescription): boolean {
     if (a == null || b == null) {
         return a == b;

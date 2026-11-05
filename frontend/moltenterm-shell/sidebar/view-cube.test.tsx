@@ -53,6 +53,7 @@ describe("ViewCube", () => {
         expect(html).toContain('data-count="5"');
         expect(html).toContain('data-cells="1"');
         expect(html).toContain('data-motion="none"');
+        expect(html).toContain('data-parity="0"');
     });
 
     it("holds the carpet's icons in order on every face, the belt the front face slides along", () => {
@@ -176,6 +177,42 @@ describe("view-cube.css (#1823, #1861)", () => {
         expect(css).toMatch(
             /\.mt-cube\[data-motion="slide"\] \.mt-cube-belt,\s*\.mt-cube\[data-motion="stretch"\] \.mt-cube-belt \{\s*transition: transform var\(--mt-duration-cube/
         );
+    });
+
+    it("plays a prism turn as narrow, turn, widen: keyframes on the window, the body's turn started once narrowed (#1924)", () => {
+        for (const parity of ["0", "1"]) {
+            expect(css).toMatch(
+                new RegExp(`@keyframes mt-cube-prism-${parity} \\{\\s*20%,\\s*80% \\{\\s*--cube-n: 1;`)
+            );
+            expect(css).toMatch(
+                new RegExp(
+                    `\\.mt-cube\\[data-motion="prism-turn"\\]\\[data-parity="${parity}"\\] \\{\\s*animation: mt-cube-prism-${parity} calc\\(var\\(--mt-duration-cube, 300ms\\) \\+ var\\(--cube-phase\\) \\* 2\\)`
+                )
+            );
+        }
+        expect(css).not.toMatch(/@keyframes mt-cube-prism-\d \{[^}]*(?<!\d)(?:0|100)%/);
+        expect(css).toMatch(/--cube-phase: calc\(var\(--mt-duration-cube, 300ms\) \/ 3\);/);
+        expect(css).toMatch(
+            /\.mt-cube\[data-motion="prism-turn"\] \.mt-cube-body,[\s\S]*?\.mt-cube\[data-motion="prism-turn"\] \.mt-cube-cell > i \{\s*transition-delay: var\(--cube-phase\);/
+        );
+    });
+
+    it("never plays a prism turn under reduced motion, the system's or MoltenTerm's own", () => {
+        const media = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+        expect(media).toMatch(/\.mt-cube\[data-motion="prism-turn"\] \{\s*animation: none;/);
+        expect(css).toMatch(/\.prefers-reduced-motion \.mt-cube\[data-motion="prism-turn"\] \{\s*animation: none;/);
+    });
+
+    it("moves only transforms and fades, apart from the window the stretch already animated", () => {
+        const animated = [...css.matchAll(/transition(?:-property)?:\s*([^;]+);/g)].map((m) => m[1]);
+        for (const value of animated) {
+            expect(value).toMatch(/^(none|--cube-n|transform|opacity)\b/);
+        }
+        const keyframes = css.match(/@keyframes[^{]+\{[\s\S]*?\n\}/g) ?? [];
+        expect(keyframes).toHaveLength(2);
+        for (const frame of keyframes) {
+            expect(frame.match(/[\w-]+(?=:)/g).filter((p) => p !== "20%" && p !== "80%")).toEqual(["--cube-n"]);
+        }
     });
 
     it("draws the rules between the cells on the face in front only, like the icons", () => {

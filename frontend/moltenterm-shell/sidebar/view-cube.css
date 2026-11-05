@@ -1,7 +1,7 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* The 360 cube of a view's icon (FR-SHELL-081, DS-SHELL-126, #1823, #1861).
+/* The 360 cube of a view's icon (FR-SHELL-081, DS-SHELL-126, #1823, #1861, #1924).
 
    Drawn in oblique projection, not in perspective: the front face keeps its true size and sits on whole pixels, so its
    icons stay as crisp as any other glyph at 1x and 2x; the depth shows as a face above and a face on the right, shifted
@@ -136,6 +136,47 @@
     transition: transform var(--mt-duration-cube, 300ms) var(--mt-ease-cube, ease-in-out);
 }
 
+/* A prism whose panels all changed narrows into a cube, turns, then widens onto the new panels (#1924): a third of a
+   turn to narrow, the turn itself, a third to widen. The window goes to one cell and back by keyframes on --cube-n,
+   whose ends are the cube's own width (no keyframe at 0% and 100%); the turn is the body's transition, started once
+   it has narrowed, and so are the fades and the shade that go with it. The cube is already in its final state when
+   this starts: the animation and the transitions only play the way there. The animation has one name per parity of
+   the turn (data-parity): the second prism turn in a row changes it, which makes the browser play it again. */
+.mt-cube {
+    --cube-phase: calc(var(--mt-duration-cube, 300ms) / 3);
+}
+
+@keyframes mt-cube-prism-0 {
+    20%,
+    80% {
+        --cube-n: 1;
+    }
+}
+
+@keyframes mt-cube-prism-1 {
+    20%,
+    80% {
+        --cube-n: 1;
+    }
+}
+
+.mt-cube[data-motion="prism-turn"][data-parity="0"] {
+    animation: mt-cube-prism-0 calc(var(--mt-duration-cube, 300ms) + var(--cube-phase) * 2)
+        var(--mt-ease-cube, ease-in-out);
+}
+
+.mt-cube[data-motion="prism-turn"][data-parity="1"] {
+    animation: mt-cube-prism-1 calc(var(--mt-duration-cube, 300ms) + var(--cube-phase) * 2)
+        var(--mt-ease-cube, ease-in-out);
+}
+
+.mt-cube[data-motion="prism-turn"] .mt-cube-body,
+.mt-cube[data-motion="prism-turn"] .mt-cube-rules,
+.mt-cube[data-motion="prism-turn"] .mt-cube-face::after,
+.mt-cube[data-motion="prism-turn"] .mt-cube-cell > i {
+    transition-delay: var(--cube-phase);
+}
+
 .mt-cube-cell {
     display: flex;
     flex: none;
@@ -235,6 +276,10 @@
     .mt-cube[data-motion="stretch"] .mt-cube-belt {
         transition: none;
     }
+
+    .mt-cube[data-motion="prism-turn"] {
+        animation: none;
+    }
 }
 
 .prefers-reduced-motion .mt-cube,
@@ -246,4 +291,8 @@
 .prefers-reduced-motion .mt-cube[data-motion="slide"] .mt-cube-belt,
 .prefers-reduced-motion .mt-cube[data-motion="stretch"] .mt-cube-belt {
     transition: none;
+}
+
+.prefers-reduced-motion .mt-cube[data-motion="prism-turn"] {
+    animation: none;
 }

@@ -1,17 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The 360 carpet in a view's icon (FR-SHELL-081, DS-SHELL-126, #1823, #1861): a small cube whose front face is the icon
-// of the carpet panel in front, stretched into a prism of one icon per panel on screen (at most three, then +N) when
-// the carpet shows several. When the carpet moves by one panel the icons slide along the face, when the whole screen
-// changes the prism turns a quarter, when the number of panels on screen changes it stretches or narrows; at rest it
-// does not move, and under reduced motion the face just changes. The rules are in view-cube-model.ts, the look in
-// view-cube.css.
+// The 360 carpet in a view's icon (FR-SHELL-081, DS-SHELL-126, #1823, #1861, #1924): a small cube whose front face is
+// the icon of the carpet panel in front, stretched into a prism of one icon per panel on screen (at most three, then
+// +N) when the carpet shows several. One action makes one motion: when the number of panels on screen changes the cube
+// stretches or narrows, when every panel on screen changes it turns a quarter (a prism narrows into a cube first and
+// widens again after), when some stay the icons slide along the face; at rest it does not move, and under reduced
+// motion the face just changes. The rules are in view-cube-model.ts, the look in view-cube.css.
 
 import { cn, makeIconClass } from "@/util/util";
 import { useState } from "react";
 import { prefersReducedMotion } from "../molten-motion";
-import { cubeAngle, cubeShape, faceRole, nextCube, startCube } from "./view-cube-model";
+import { cubeAngle, cubeParity, cubeShape, faceRole, nextCube, startCube } from "./view-cube-model";
 import "./view-cube.css";
 import type { GlyphCube } from "./view-menu-model";
 
@@ -32,6 +32,7 @@ export function ViewCube({ cube, small }: { cube: GlyphCube; small?: boolean }) 
             data-shown={shown.ids.length}
             data-cells={cells}
             data-motion={shown.motion}
+            data-parity={cubeParity(shown)}
         >
             <span className="mt-cube-box">
                 <span className="mt-cube-shear">
