@@ -519,7 +519,9 @@ func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok
 	defer a.lock.Unlock()
 	rec := a.records[blockId]
 	if !ok {
-		if rec != nil && rec.running && rec.source == sourceProcess {
+		// A hook's agent the tree found (pid) and no longer finds exited (#1920): a shell without the integration
+		// marks no end of command, and the hooks of an agent that is gone never report again.
+		if rec != nil && rec.running && (rec.source == sourceProcess || rec.pid != 0) {
 			a.removeLocked(blockId)
 		}
 		return

@@ -47,6 +47,10 @@ MoltenTerm learns the state from four sources:
    ignored there, for this agent, until the pane is closed: the hooks alone say when it works, and once its `Stop`
    hook reported a done there, a turn end reported by Codex's notify wrapper adds nothing.
 
+An agent's state ends with its run, whatever its hooks said last: when the agent exits, when the pane's shell ends
+(`molten session end`, the Sessions view, the shell exiting) or when the pane is closed, the agent leaves every list
+and count at once.
+
 MoltenTerm never changes your agent's configuration by itself.
 
 **Started in a local MoltenTerm terminal, `claude` and `codex` need none of the settings below**: MoltenTerm's
