@@ -385,6 +385,7 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 			result := obj(rec, "toolUseResult")
 			s.SubagentResult(id, str(result, "status") == "async_launched", boolean(block, "is_error"), str(result, "resolvedModel"))
 			s.SetSubagentId(id, str(result, "agentId"))
+			a.parseResume(result, s, at)
 		case "text":
 			text := str(block, "text")
 			if a.parseNotifications(text, s) {
@@ -539,6 +540,16 @@ func (a *ClaudeAdapter) parseSubagent(id string, tool string, input map[string]a
 	}
 	background := boolean(input, "run_in_background") || str(input, "run_in_background") == "true"
 	s.StartSubagent(id, str(input, "description"), str(input, "subagent_type"), str(input, "model"), str(input, "effort"), background, at)
+}
+
+// parseResume sends back to work an agent that SendMessage resumed after it ended (#1941): the parent writes no new
+// Agent call, only this result, {resumedAgentId, revivedAgentId}. A message queued for a running agent gives neither.
+func (a *ClaudeAdapter) parseResume(result map[string]any, s *Session, at int64) {
+	agentId := str(result, "resumedAgentId")
+	if agentId == "" {
+		agentId = str(result, "revivedAgentId")
+	}
+	s.WakeSubagent(agentId, at)
 }
 
 // parseNotifications ends the background agents a record notifies about; true when the text holds nothing else (it

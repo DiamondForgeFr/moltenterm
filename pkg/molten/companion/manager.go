@@ -1253,6 +1253,9 @@ func (w *watcher) settleSubagents() {
 	if writer != nil {
 		lastWrite = func(agentId string) int64 { return writer.SubagentWritten(path, agentId) }
 	}
+	if w.adapter.Id() == molten.AgentIdClaude {
+		w.session.ReviveSubagents(now.UnixMilli(), lastWrite)
+	}
 	w.session.QuietSubagents(now.UnixMilli(), lastWrite)
 }
 

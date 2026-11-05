@@ -41,6 +41,9 @@ const (
 // A background agent that wrote nothing for this long is no longer shown as running.
 const SubagentQuietAfter = 30 * time.Minute
 
+// A finished agent that writes its own transcript this long after its end runs again (#1941).
+const SubagentReviveAfter = time.Minute
+
 var (
 	taskNotificationRegex = regexp.MustCompile(`(?s)<task-notification>.*?</task-notification>`)
 	notificationToolRegex = regexp.MustCompile(`<tool-use-id>\s*([^<\s]{1,200})\s*</tool-use-id>`)
@@ -379,6 +382,36 @@ func (s *Session) QuietSubagents(now int64, lastWrite func(agentId string) int64
 	return changed
 }
 
+// ReviveSubagents runs again the finished agents that wrote their own transcript well after their end (#1941): a
+// message Claude Code queued for an agent while it ran resumes it once it finished, and the parent's transcript tells
+// nothing of that. Codex tells it (an interacted activity), so only Claude Code's agents are revived this way. The
+// margin keeps the last records an agent writes as it ends from counting as a new run; a write older than
+// SubagentQuietAfter would only make it quiet, so it stays done. It tells whether anything changed.
+func (s *Session) ReviveSubagents(now int64, lastWrite func(agentId string) int64) bool {
+	if lastWrite == nil {
+		return false
+	}
+	changed := false
+	for _, sa := range s.subagents {
+		if sa.state != SubagentDone || sa.agentId == "" || sa.ended <= 0 {
+			continue
+		}
+		written := lastWrite(sa.agentId)
+		if written-sa.ended <= SubagentReviveAfter.Milliseconds() || now-written > SubagentQuietAfter.Milliseconds() {
+			continue
+		}
+		sa.background = true
+		sa.state = SubagentRunning
+		sa.woke = max(sa.woke, written)
+		sa.ended = 0
+		changed = true
+	}
+	if changed {
+		s.touch()
+	}
+	return changed
+}
+
 // SubagentResult reads the result of a sub-agent's call: a background agent's call returns at once (async) and the
 // agent keeps running; any other result ends it.
 func (s *Session) SubagentResult(id string, async bool, failed bool, model string) {
@@ -460,16 +493,18 @@ func (s *Session) SetSubagentPath(id string, path string) {
 	sa.path = cutString(path, 300)
 }
 
-// WakeSubagent sends an agent back to work: a follow-up its parent sent after it ended its task.
+// WakeSubagent sends an agent back to work: a follow-up its parent sent after it ended its task. A woken agent runs
+// on its own, as a background one: its parent's call no longer waits for it, a notification tells its end.
 func (s *Session) WakeSubagent(id string, at int64) {
 	sa := s.subagent(id)
 	if sa == nil {
 		return
 	}
 	sa.woke = max(sa.woke, at)
-	if sa.state == SubagentRunning {
+	if sa.state == SubagentRunning && sa.background {
 		return
 	}
+	sa.background = true
 	sa.state = SubagentRunning
 	sa.ended = 0
 	s.touch()
@@ -539,9 +574,10 @@ func taskNotifications(text string) (ends [][2]string, ok bool) {
 		if m := notificationStatus.FindStringSubmatch(block); m != nil {
 			status = m[1]
 		}
+		// Both ids count: the end of a run that SendMessage resumed names the SendMessage call, which started no
+		// agent, and the agent itself as its task (#1941).
 		if id := notificationToolRegex.FindStringSubmatch(block); id != nil {
 			ends = append(ends, [2]string{id[1], status})
-			continue
 		}
 		for _, id := range notificationTaskRegex.FindAllStringSubmatch(block, -1) {
 			ends = append(ends, [2]string{id[1], status})
