@@ -59,6 +59,15 @@ describe("pickFavicon", () => {
         expect(pickFavicon(["javascript:alert(1)"])).toBeUndefined();
         expect(pickFavicon(null)).toBeUndefined();
     });
+
+    it("never takes an icon on MoltenTerm's backend, whose requests carry the app's credentials (#1961)", () => {
+        const backend = "http://127.0.0.1:52011";
+        expect(
+            pickFavicon(["http://127.0.0.1:52011/wave/stream-file?path=%2Fetc%2Fhosts", "https://a.dev/f.ico"], backend)
+        ).toBe("https://a.dev/f.ico");
+        expect(pickFavicon(["http://127.0.0.1:52011/x.png"], backend)).toBeUndefined();
+        expect(pickFavicon(["http://127.0.0.1:3000/favicon.ico"], backend)).toBe("http://127.0.0.1:3000/favicon.ico");
+    });
 });
 
 describe("BrowserLoadModel", () => {

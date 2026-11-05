@@ -5,6 +5,7 @@
 // tab's <webview> events. In memory only: neither is worth restoring after a restart.
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { getWebServerEndpoint } from "@/util/endpoints";
 import { atom, PrimitiveAtom } from "jotai";
 
 // crashed: the page's process is gone (#1814), so the 360 carpet takes no thumbnail of it until it loads again.
@@ -46,9 +47,29 @@ export function runReload(webview: ReloadTarget, action: string): boolean {
     }
 }
 
-// The favicon to show: the first http(s) or data icon the page declares.
-export function pickFavicon(favicons: string[]): string {
-    return (favicons ?? []).find((u) => /^(https?:|data:image\/)/i.test(u ?? ""));
+function sameOrigin(url: string, other: string): boolean {
+    try {
+        return new URL(url).origin === new URL(other).origin;
+    } catch {
+        return false;
+    }
+}
+
+function backendEndpoint(): string {
+    try {
+        return getWebServerEndpoint();
+    } catch {
+        return null;
+    }
+}
+
+// The favicon to show: the first http(s) or data icon the page declares. The tab strip draws it in MoltenTerm's own
+// renderer, whose requests to the backend carry the app's credentials (#1961): an icon a page points at the backend is
+// a request forged on the app's behalf, never loaded.
+export function pickFavicon(favicons: string[], backend: string = backendEndpoint()): string {
+    return (favicons ?? []).find(
+        (u) => /^(https?:|data:image\/)/i.test(u ?? "") && (backend == null || !sameOrigin(u, backend))
+    );
 }
 
 export class BrowserLoadModel {
