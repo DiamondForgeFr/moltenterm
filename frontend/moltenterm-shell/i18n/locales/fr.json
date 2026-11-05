@@ -2898,7 +2898,15 @@
         },
         "card": {
             "title": "Fiche de {name}",
-            "ariaLabel": "Fiche de {name} : les sessions de tous les espaces de travail",
+            "ariaLabel": "Fiche de {name} : à traiter, sessions et notifications",
+            "tablist": "Sections de la fiche de {name}",
+            "tabs": {
+                "todo": "À traiter",
+                "sessions": "Sessions",
+                "notifications": "Notifications"
+            },
+            "markRead": "Marquer comme lu",
+            "archive": "Archiver",
             "waiting": {
                 "one": "{count} en attente",
                 "other": "{count} en attente"
@@ -2910,6 +2918,25 @@
             "openSessions": "Ouvrir la vue Sessions",
             "empty": "Aucune session en cours.",
             "newTerminal": "Nouveau terminal"
+        },
+        "todo": {
+            "empty": "Rien n'attend votre réponse.",
+            "parked": {
+                "one": "{count} mise de côté, elle revient à la prochaine ouverture de la fiche",
+                "other": "{count} mises de côté, elles reviennent à la prochaine ouverture de la fiche"
+            },
+            "forInfo": "Pour info, rien à faire",
+            "infoDone": "A terminé son travail.",
+            "agentWaiting": "{name} attend votre accord",
+            "agentError": "{name} s'est arrêté sur une erreur",
+            "goTo": "Aller à {name}",
+            "ciFailed": "CI en échec : {checks}",
+            "seeFailure": "Voir l'échec",
+            "rerunCi": "Relancer la CI",
+            "openIntegration": "Ouvrir dans Intégration",
+            "seePr": "Voir la PR",
+            "open": "Ouvrir",
+            "later": "Plus tard"
         },
         "peek": {
             "quiet": "Rien n'attend votre réponse.",

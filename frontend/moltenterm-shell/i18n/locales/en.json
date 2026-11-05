@@ -2898,7 +2898,15 @@
         },
         "card": {
             "title": "{name}'s card",
-            "ariaLabel": "{name}'s card: the sessions of every workspace",
+            "ariaLabel": "{name}'s card: to handle, sessions and notifications",
+            "tablist": "Sections of {name}'s card",
+            "tabs": {
+                "todo": "To handle",
+                "sessions": "Sessions",
+                "notifications": "Notifications"
+            },
+            "markRead": "Mark as read",
+            "archive": "Archive",
             "waiting": {
                 "one": "{count} waiting",
                 "other": "{count} waiting"
@@ -2910,6 +2918,25 @@
             "openSessions": "Open the Sessions view",
             "empty": "No session is running.",
             "newTerminal": "New terminal"
+        },
+        "todo": {
+            "empty": "Nothing waits for you.",
+            "parked": {
+                "one": "{count} set aside, back when you open the card again",
+                "other": "{count} set aside, back when you open the card again"
+            },
+            "forInfo": "For info, nothing to do",
+            "infoDone": "Finished its work.",
+            "agentWaiting": "{name} waits for you",
+            "agentError": "{name} stopped on an error",
+            "goTo": "Go to {name}",
+            "ciFailed": "CI failing: {checks}",
+            "seeFailure": "See the failure",
+            "rerunCi": "Rerun the CI",
+            "openIntegration": "Open in Integration",
+            "seePr": "See the PR",
+            "open": "Open",
+            "later": "Later"
         },
         "peek": {
             "quiet": "Nothing waits for you.",

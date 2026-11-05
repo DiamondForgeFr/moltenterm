@@ -21,12 +21,24 @@ vi.mock("../sessions/sessions-store", async () => {
     const dataAtom = atom(null);
     return { DurableSessions: { getInstance: () => ({ dataAtom }) } };
 });
+vi.mock("../notifications-store", async () => {
+    const { atom } = await import("jotai");
+    const shownEntriesAtom = atom([]);
+    return {
+        MoltentermNotifications: { getInstance: () => ({ shownEntriesAtom, markRead: vi.fn(), archive: vi.fn() }) },
+    };
+});
 vi.mock("./boss-card-actions", () => ({
     homeFolder: () => "/Users/me",
     locateSession: vi.fn(),
     goToLocation: vi.fn(),
     openSessionsView: vi.fn(),
     startTerminal: vi.fn(),
+    openIntegrationPr: vi.fn(),
+    rerunPrChecks: vi.fn(),
+    openPrPage: vi.fn(),
+    answerNotice: vi.fn(),
+    openNotice: vi.fn(),
 }));
 vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
@@ -34,8 +46,10 @@ vi.mock("./boss-store", async () => {
         nameAtom: atom("Ferrand"),
         collapsedAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
+        toHandleAtom: atom({ items: [], info: [], parked: 0 }),
         expand: vi.fn(),
         closeCard: vi.fn(),
+        park: vi.fn(),
     };
     return { BossBubbleModel: { getInstance: () => model } };
 });
@@ -78,6 +92,7 @@ beforeEach(() => {
     globalStore.set(model.nameAtom, "Ferrand");
     globalStore.set(model.collapsedAtom, false);
     globalStore.set(model.badgeAtom, { count: 0, text: "", tone: "waiting" });
+    globalStore.set(model.toHandleAtom, { items: [], info: [], parked: 0 });
     globalStore.set(sessionsAtom, null);
 });
 
@@ -91,7 +106,9 @@ describe("the card's header (FR-BOSS-002, AC1)", () => {
         const html = render();
         expect(attr(html, "boss-card", "role")).toBe("dialog");
         expect(attr(html, "boss-card", "aria-modal")).toBe("false");
-        expect(attr(html, "boss-card", "aria-label")).toBe("Ferrand&#x27;s card: the sessions of every workspace");
+        expect(attr(html, "boss-card", "aria-label")).toBe(
+            "Ferrand&#x27;s card: to handle, sessions and notifications"
+        );
         expect(attr(html, "boss-card", "style")).toBe("right:16px;bottom:68px");
         expect(html).toMatch(/data-testid="boss-card-title"[^>]*>Ferrand&#x27;s card</);
         globalStore.set(model.nameAtom, "Léa");
@@ -281,5 +298,87 @@ describe("the card is a layer, not a panel (AC9)", () => {
         expect(rule).toContain("position: absolute;");
         expect(rule).toContain("overflow: hidden;");
         expect(rule).not.toMatch(/\b(position:\s*(static|relative|sticky))\b/);
+    });
+});
+
+describe("the card's tabs (FR-BOSS-003, AC1, AC2, AC7)", () => {
+    it("shows the three tabs in order, each with its count, as a tablist", () => {
+        load(session("a1", { agent: "claude", firstname: "Léa" }));
+        const html = render();
+        expect(html).toContain('role="tablist"');
+        expect(html.indexOf('data-testid="boss-card-tab-todo"')).toBeLessThan(
+            html.indexOf('data-testid="boss-card-tab-sessions"')
+        );
+        expect(html.indexOf('data-testid="boss-card-tab-sessions"')).toBeLessThan(
+            html.indexOf('data-testid="boss-card-tab-notifications"')
+        );
+        expect(html).toMatch(/data-testid="boss-card-tab-count-todo"[^>]*>0</);
+        expect(html).toMatch(/data-testid="boss-card-tab-count-sessions"[^>]*>1</);
+    });
+
+    it("opens on the Sessions tab when the badge counts nothing", () => {
+        const html = render();
+        expect(attr(html, "boss-card-tab-sessions", "aria-selected")).toBe("true");
+        expect(attr(html, "boss-card-tab-todo", "aria-selected")).toBe("false");
+    });
+
+    it("opens on To handle when the badge counts something, and shows the row's actions", () => {
+        globalStore.set(model.badgeAtom, { count: 1, text: "1", tone: "waiting" });
+        globalStore.set(model.toHandleAtom, {
+            items: [
+                {
+                    key: "agent:b1",
+                    tone: "waiting",
+                    notice: null,
+                    lineFromNotice: false,
+                    name: "Léa",
+                    line: { key: "boss.todo.agentWaiting", vars: { name: "Léa" } },
+                    place: "Alpha",
+                    since: 0,
+                    rank: 1,
+                    actions: [
+                        {
+                            id: "goto",
+                            primary: true,
+                            labelKey: "boss.todo.goTo",
+                            labelVars: { name: "Léa" },
+                            disabled: false,
+                            run: { kind: "goto", sessionId: "s1" },
+                        },
+                        {
+                            id: "later",
+                            primary: false,
+                            labelKey: "boss.todo.later",
+                            disabled: false,
+                            run: { kind: "later" },
+                        },
+                    ],
+                },
+            ],
+            info: [],
+            parked: 0,
+        });
+        const html = render();
+        expect(attr(html, "boss-card-tab-todo", "aria-selected")).toBe("true");
+        expect(html).toContain('data-testid="boss-card-todo-row"');
+        expect(html).toContain("Léa waits for you");
+        expect(html).toContain("Go to Léa");
+        expect(html).toContain("Later");
+        expect(html).toMatch(/data-act="goto"[^>]*data-primary="true"/);
+    });
+
+    it("says so in one line when nothing waits, and lists the info rows apart", () => {
+        globalStore.set(model.badgeAtom, { count: 1, text: "1", tone: "waiting" });
+        globalStore.set(model.toHandleAtom, {
+            items: [],
+            info: [{ key: "done:b9", name: "Tristan", place: "Alpha", line: { key: "boss.todo.infoDone" } }],
+            parked: 2,
+        });
+        const html = render();
+        expect(html).toContain('data-testid="boss-card-todo-empty"');
+        expect(html).toContain("Nothing waits for you.");
+        expect(html).toContain("For info, nothing to do");
+        expect(html).toContain('data-testid="boss-card-info-row"');
+        expect(html).toContain("2 set aside");
     });
 });

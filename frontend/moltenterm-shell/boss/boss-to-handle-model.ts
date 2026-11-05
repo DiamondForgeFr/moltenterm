@@ -1,0 +1,325 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// The card's To handle tab (FR-BOSS-003, DS-BOSS-002): one row per thing the developer has to do, each with its own
+// actions. The rows are read from the models that already hold each fact (the agent states, the notifications, the pull
+// requests of the Integration panel), so nothing here is a second source of truth: a row leaves when the fact it shows
+// is gone. A question answered by its notification's buttons is one row with its agent, not two. Pure, so the rules are
+// tested without a window.
+
+import { agentCallName, AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { t } from "../i18n/i18n";
+import { checkNeedsAnswer } from "../notification-attention";
+import { badgeCount } from "../notification-rules";
+import { ClickActionId, MoltentermNotification, NotificationAction, visibleActions } from "../notifications-model";
+import {
+    checkNames,
+    checksOf,
+    mergeableNow,
+    ReadiedPrs,
+    ReviewPr,
+    ReviewsAnswer,
+    splitReviews,
+} from "../reviews/reviews-model";
+import { DurableSession } from "../sessions/sessions-model";
+import { workspaceShownName } from "../workspace-default-name";
+import type { Badge } from "./boss-overview";
+import { attentionAgents } from "./boss-overview";
+
+export type ToHandleTone = "error" | "waiting" | "success";
+
+// A line of text: a key with its variables (translated when shown), or text the source wrote itself.
+export type TextRef = { key?: string; vars?: Record<string, string | number>; text?: string };
+
+// What a button does: each reaches a door the app already has (the agent's pane, the Integration panel, the
+// notification's own buttons, the PR page).
+export type ToHandleRun =
+    | { kind: "goto"; sessionId: string }
+    | { kind: "integration"; dir: string; number: number }
+    | { kind: "rerun"; dir: string; number: number }
+    | { kind: "external"; url: string }
+    | { kind: "answer"; entry: MoltentermNotification; action: NotificationAction }
+    | { kind: "open"; entry: MoltentermNotification }
+    | { kind: "later" };
+
+export type ToHandleAction = {
+    id: string;
+    // The one primary action of the row, in the orange style.
+    primary: boolean;
+    // The label of every button but a notification's own, which carries its label.
+    labelKey?: string;
+    labelVars?: Record<string, string | number>;
+    disabled: boolean;
+    run: ToHandleRun;
+};
+
+export type ToHandleItem = {
+    key: string;
+    tone: ToHandleTone;
+    // The notification the row is about: its title is the row's name when name is empty, and its message is the line
+    // when lineFromNotice is set. Read when shown, so the language follows the app.
+    notice: MoltentermNotification;
+    lineFromNotice: boolean;
+    name: string;
+    line: TextRef;
+    // The workspace of an agent, the project folder of a pull request, "" when none.
+    place: string;
+    // When it started waiting (Unix ms), 0 when unknown: the oldest waits come first within a rank.
+    since: number;
+    rank: number;
+    actions: ToHandleAction[];
+};
+
+export type InfoItem = { key: string; name: string; place: string; line: TextRef };
+
+export type ToHandleList = {
+    items: ToHandleItem[];
+    info: InfoItem[];
+    // Items set aside with Later, back at the next opening of the card.
+    parked: number;
+};
+
+export type ToHandleInput = {
+    states: AgentStatesData;
+    // The notifications the developer sees (not archived, not filtered out by the preferences).
+    notifications: MoltentermNotification[];
+    answers: Record<string, ReviewsAnswer>;
+    readied: ReadiedPrs;
+    sessions: DurableSession[];
+    // The keys of the items set aside with Later.
+    parked: Record<string, boolean>;
+};
+
+// The rank of a row: errors first (a stopped agent, a failing CI), then what waits for an answer, then what is ready.
+const RankError = 0;
+const RankWait = 1;
+const RankReady = 2;
+
+export function lastSegment(path: string): string {
+    const parts = (path ?? "").split(/[/\\]+/).filter((p) => p !== "");
+    return parts[parts.length - 1] ?? "";
+}
+
+// The buttons a notification offers, its own labels and order, without the click on the notification itself.
+export function answerButtons(entry: MoltentermNotification): NotificationAction[] {
+    return visibleActions(entry).filter((a) => a.id !== ClickActionId);
+}
+
+// The newest open notification that asks the agent's block something (a question, a permission, a prompt for Enter).
+function newestNoticeOf(notifications: MoltentermNotification[], blockid: string): MoltentermNotification {
+    let newest: MoltentermNotification = null;
+    for (const entry of notifications) {
+        if (entry.blockid !== blockid || !checkNeedsAnswer(entry)) {
+            continue;
+        }
+        if (newest == null || (entry.updated ?? entry.time) > (newest.updated ?? newest.time)) {
+            newest = entry;
+        }
+    }
+    return newest;
+}
+
+function answerActions(entry: MoltentermNotification): ToHandleAction[] {
+    return answerButtons(entry).map((action) => ({
+        id: `answer:${action.id}`,
+        primary: false,
+        disabled: false,
+        run: { kind: "answer", entry, action },
+    }));
+}
+
+function laterAction(): ToHandleAction {
+    return { id: "later", primary: false, labelKey: "boss.todo.later", disabled: false, run: { kind: "later" } };
+}
+
+// The first action of a row is its primary one: the answer a question offers first, else the way there.
+function markPrimary(actions: ToHandleAction[]): ToHandleAction[] {
+    return actions.map((action, i) => ({ ...action, primary: i === 0 }));
+}
+
+function sessionOf(sessions: DurableSession[], blockid: string): DurableSession {
+    return (sessions ?? []).find((s) => s.blockid === blockid) ?? null;
+}
+
+function sinceOf(ms: number): number {
+    return ms != null && Number.isFinite(ms) && ms > 0 ? ms : 0;
+}
+
+function prSince(pr: ReviewPr): number {
+    const ms = Date.parse(pr.updatedat ?? "");
+    return Number.isFinite(ms) && ms > 0 ? ms : 0;
+}
+
+// The row of an agent that waits or stopped on an error. A question its notification asks is answered in the row, by
+// the same buttons, so the notification is consumed here and does not come again as a row of its own.
+function agentItem(info: AgentStateInfo, input: ToHandleInput, consumed: Set<string>): ToHandleItem {
+    const notice = newestNoticeOf(input.notifications, info.blockid);
+    if (notice != null) {
+        consumed.add(notice.id);
+    }
+    const session = sessionOf(input.sessions, info.blockid);
+    const name = agentCallName(info);
+    const failed = info.state === "error";
+    const goTo: ToHandleAction = {
+        id: "goto",
+        primary: false,
+        labelKey: "boss.todo.goTo",
+        labelVars: { name },
+        disabled: !session?.id,
+        run: { kind: "goto", sessionId: session?.id ?? "" },
+    };
+    return {
+        key: `agent:${info.blockid}`,
+        tone: failed ? "error" : "waiting",
+        notice,
+        lineFromNotice: notice != null,
+        name,
+        line: failed
+            ? { key: "boss.todo.agentError", vars: { name } }
+            : { key: "boss.todo.agentWaiting", vars: { name } },
+        place: workspaceShownName(session?.workspacename ?? "", t),
+        since: sinceOf(info.since),
+        rank: failed ? RankError : RankWait,
+        actions: markPrimary([...(notice != null ? answerActions(notice) : []), goTo, laterAction()]),
+    };
+}
+
+// The row of a notification that needs an answer and is no agent's question.
+function noticeItem(entry: MoltentermNotification): ToHandleItem {
+    const answers = answerActions(entry);
+    const open: ToHandleAction = {
+        id: "open",
+        primary: false,
+        labelKey: "boss.todo.open",
+        disabled: false,
+        run: { kind: "open", entry },
+    };
+    return {
+        key: `notif:${entry.id}`,
+        tone: entry.kind === "error" ? "error" : "waiting",
+        notice: entry,
+        lineFromNotice: true,
+        name: "",
+        line: {},
+        place: "",
+        since: sinceOf(entry.updated ?? entry.time),
+        rank: entry.kind === "error" ? RankError : RankWait,
+        actions: markPrimary([...answers, ...(answers.length === 0 ? [open] : []), laterAction()]),
+    };
+}
+
+// The rows of a project's pull requests the developer waits on: a failing CI, or a PR ready to merge.
+function prItems(answer: ReviewsAnswer, readied: ReadiedPrs): ToHandleItem[] {
+    const rtn: ToHandleItem[] = [];
+    const place = lastSegment(answer.dir);
+    for (const pr of splitReviews(answer, readied).ready) {
+        if (pr.ci?.state === "failure") {
+            rtn.push(failedCiItem(answer.dir, pr, place));
+            continue;
+        }
+        if (mergeableNow(pr)) {
+            rtn.push(readyItem(answer.dir, pr, place));
+        }
+    }
+    return rtn;
+}
+
+function failedCiItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
+    const checks = checkNames(checksOf(pr.ci, "failure"));
+    return {
+        key: `ci:${dir}:${pr.number}`,
+        tone: "error",
+        notice: null,
+        lineFromNotice: false,
+        name: `#${pr.number}`,
+        line: { key: "boss.todo.ciFailed", vars: { checks } },
+        place,
+        since: prSince(pr),
+        rank: RankError,
+        actions: markPrimary([
+            {
+                id: "failure",
+                primary: false,
+                labelKey: "boss.todo.seeFailure",
+                disabled: false,
+                run: { kind: "integration", dir, number: pr.number },
+            },
+            {
+                id: "rerun",
+                primary: false,
+                labelKey: "boss.todo.rerunCi",
+                disabled: false,
+                run: { kind: "rerun", dir, number: pr.number },
+            },
+            laterAction(),
+        ]),
+    };
+}
+
+function readyItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
+    return {
+        key: `ready:${dir}:${pr.number}`,
+        tone: "success",
+        notice: null,
+        lineFromNotice: false,
+        name: `#${pr.number}`,
+        line: { text: pr.title ?? "" },
+        place,
+        since: prSince(pr),
+        rank: RankReady,
+        actions: markPrimary([
+            {
+                id: "integration",
+                primary: false,
+                labelKey: "boss.todo.openIntegration",
+                disabled: false,
+                run: { kind: "integration", dir, number: pr.number },
+            },
+            {
+                id: "pr",
+                primary: false,
+                labelKey: "boss.todo.seePr",
+                disabled: !pr.url,
+                run: { kind: "external", url: pr.url ?? "" },
+            },
+            laterAction(),
+        ]),
+    };
+}
+
+function byUrgency(a: ToHandleItem, b: ToHandleItem): number {
+    return a.rank - b.rank || (a.since || Infinity) - (b.since || Infinity) || (a.key < b.key ? -1 : 1);
+}
+
+// Every row of the To handle tab, most urgent first. The info rows (agents that are done) carry no action and no count.
+export function buildToHandle(input: ToHandleInput): ToHandleList {
+    const consumed = new Set<string>();
+    const agents = attentionAgents(input.states).map((info) => agentItem(info, input, consumed));
+    const notices = (input.notifications ?? [])
+        .filter((entry) => checkNeedsAnswer(entry) && !consumed.has(entry.id))
+        .map(noticeItem);
+    const prs = Object.values(input.answers ?? {})
+        .filter((answer) => answer?.state === "ok")
+        .flatMap((answer) => prItems(answer, input.readied));
+    const all = [...agents, ...notices, ...prs];
+    const items = all.filter((item) => input.parked?.[item.key] !== true).sort(byUrgency);
+    const info: InfoItem[] = Object.values(input.states?.states ?? {})
+        .filter((state) => state?.state === "done")
+        .map((state) => ({
+            key: `done:${state.blockid}`,
+            name: agentCallName(state),
+            place: workspaceShownName(sessionOf(input.sessions, state.blockid)?.workspacename ?? "", t),
+            line: { key: "boss.todo.infoDone" },
+        }));
+    return { items, info, parked: all.length - items.length };
+}
+
+// The badge counts what the developer has to do, never the info rows and never the rows set aside.
+export function toHandleBadge(list: ToHandleList): Badge {
+    const items = list?.items ?? [];
+    return {
+        count: items.length,
+        text: badgeCount(items.length),
+        tone: items.some((item) => item.tone === "error") ? "error" : "waiting",
+    };
+}
