@@ -29,6 +29,7 @@ import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
 import { launchTargetOfBranch } from "./reviews-launch-model";
 import type { ReviewsAnswer } from "./reviews-model";
+import { NumberLink } from "./reviews-number-link";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
 import { SectionHeading } from "./reviews-section-heading";
 import { upcomingEntries, UpcomingEntry, UpcomingItem, upcomingWaitingCount } from "./reviews-sections-model";
@@ -321,7 +322,15 @@ function UpcomingRow({
             <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
-                        <span className="shrink-0 font-normal text-muted">#{branch.ticket}</span>
+                        <NumberLink
+                            kind="ticket"
+                            number={branch.ticket}
+                            url={url}
+                            className="shrink-0 font-normal text-muted"
+                            testId="reviews-upcoming-number"
+                        >
+                            #{branch.ticket}
+                        </NumberLink>
                         <span className="min-w-0 truncate" title={branch.branch}>
                             {branch.title || branch.branch}
                         </span>
@@ -537,7 +546,15 @@ function SessionLine({ item, now, url, marked }: { item: UpcomingItem; now: numb
             title={url ? t("reviewsAgents.upcoming.openTicket") : undefined}
             data-testid="reviews-upcoming-session-line"
         >
-            <b className="shrink-0 font-semibold text-muted">#{branch.ticket}</b>
+            <NumberLink
+                kind="ticket"
+                number={branch.ticket}
+                url={url}
+                className="shrink-0 font-semibold text-muted"
+                testId="reviews-upcoming-session-number"
+            >
+                #{branch.ticket}
+            </NumberLink>
             <span className="min-w-0 truncate text-secondary">{branch.title || branch.branch}</span>
             {working && agent.kind !== "background" ? (
                 <DominoLoader className="shrink-0 text-[var(--mt-state-working)]" label={stateText} />

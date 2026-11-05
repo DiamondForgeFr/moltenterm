@@ -5,8 +5,9 @@
 // sentence with its reason, one primary action and a "…" menu for the rest; the facts line carries what is true but
 // is no state; every agent of the branch has its own line below. In the merge queue (#1062) the card carries its rank
 // and its place in the order's direction, and its conflicts with the other cards; its "…" menu takes it out of the group
-// merge or puts it back (#1108). Its number is its ticket's, its PR's a chip (#1108). A click on the card, or Enter on it, opens the PR's
-// assisted review; the card's own buttons keep their clicks and keys.
+// merge or puts it back (#1108). Its number is its ticket's, its PR's a chip (#1108); both are links to their page
+// (#1921). A click on the card, or Enter on it, opens the PR's assisted review; the card's own buttons and links keep
+// their clicks and keys.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { cn, fireAndForget } from "@/util/util";
@@ -38,9 +39,11 @@ import { relationClass } from "./reviews-forecast";
 import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
 import { launchTargetOfPr } from "./reviews-launch-model";
+import { ticketLinkUrl } from "./reviews-links-model";
 import { approveCommands, runLocalCiAgain } from "./reviews-local-ci";
 import { MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import { blockersText, RebaseAsk, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
+import { NumberLink } from "./reviews-number-link";
 import { MergeOrderRank } from "./reviews-order";
 import { QueuedAskLine } from "./reviews-queue";
 import { CardRelation, groupMergeAction } from "./reviews-queue-model";
@@ -488,10 +491,28 @@ export function ReviewRow({
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
                         <MergeOrderRank rank={rank} />
                         {/* One number per card (#1108): the ticket, else the PR's; beside a ticket the PR's number is a
-                            muted fact (#1351). */}
-                        <span className="shrink-0 font-normal text-muted" data-testid="reviews-card-number">
-                            {head.ticket || `#${pr.number}`}
-                        </span>
+                            muted fact (#1351). Each opens its page (#1921). */}
+                        {head.ticket ? (
+                            <NumberLink
+                                kind="ticket"
+                                number={pr.ticket}
+                                url={ticketLinkUrl(pr.ticket, pr.ticketurl, pr.url)}
+                                className="shrink-0 font-normal text-muted"
+                                testId="reviews-card-number"
+                            >
+                                {head.ticket}
+                            </NumberLink>
+                        ) : (
+                            <NumberLink
+                                kind="pr"
+                                number={pr.number}
+                                url={pr.url}
+                                className="shrink-0 font-normal text-muted"
+                                testId="reviews-card-number"
+                            >
+                                #{pr.number}
+                            </NumberLink>
+                        )}
                         <span
                             className="min-w-0 truncate"
                             title={t("reviews.card.prChipTitle", { number: pr.number, branch: pr.branch })}
@@ -534,13 +555,16 @@ export function ReviewRow({
                         data-testid="reviews-card-facts"
                     >
                         {head.ticket ? (
-                            <span
+                            <NumberLink
+                                kind="pr"
+                                number={pr.number}
+                                url={pr.url}
                                 className="shrink-0 whitespace-nowrap text-muted tabular-nums"
                                 title={t("reviews.card.prChipTitle", { number: pr.number, branch: pr.branch })}
-                                data-testid="reviews-card-pr"
+                                testId="reviews-card-pr"
                             >
                                 {t("reviews.card.prChip", { number: pr.number })}
-                            </span>
+                            </NumberLink>
                         ) : null}
                         {facts.map((f) => (
                             <CardFactView key={f.id} fact={f} pr={pr} />

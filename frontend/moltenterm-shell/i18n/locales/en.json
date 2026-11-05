@@ -7331,6 +7331,8 @@
             "draftTagTitle": "This pull request is a draft on GitHub.",
             "prChip": "PR #{number}",
             "prChipTitle": "Pull request #{number} · {branch}",
+            "openTicket": "Open ticket #{number}",
+            "openPr": "Open pull request #{number}",
             "groupAdd": "Add to the group merge",
             "groupTakeOut": "Take out of the group merge",
             "disabledTitle": "{action}: {reason}",
