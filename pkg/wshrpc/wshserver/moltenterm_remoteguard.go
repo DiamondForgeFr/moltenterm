@@ -140,6 +140,12 @@ func moltenCheckRemoteRequest(ctx context.Context, remote metaguard.Remote, comm
 		return nil, err
 	}
 	switch command {
+	case "getvar", "getallvars", "setvar":
+		req, err := moltenDecode[wshrpc.CommandVarData](data)
+		if err != nil {
+			return nil, err
+		}
+		return data, moltenCheckRemoteVars(ctx, remote, req, command == "setvar")
 	case "createblock":
 		req, err := moltenDecode[wshrpc.CommandCreateBlockData](data)
 		if err != nil {

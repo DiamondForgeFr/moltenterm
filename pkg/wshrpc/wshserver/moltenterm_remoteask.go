@@ -24,9 +24,11 @@ import (
 // MoltenTerm location, never the home folder or wider), a Deny for everything that server asks.
 
 const (
-	moltenAskRead    = "read"
-	moltenAskWrite   = "write"
-	moltenAskConnect = "connect"
+	moltenAskRead      = "read"
+	moltenAskWrite     = "write"
+	moltenAskConnect   = "connect"
+	moltenAskReadVars  = "readvars"
+	moltenAskWriteVars = "writevars"
 )
 
 const (
@@ -41,12 +43,14 @@ const (
 
 // moltenQuestion is one question to the window.
 type moltenQuestion struct {
-	Server    string
-	Kind      string
-	Target    string
-	Folder    string
-	Sensitive bool
-	Timeout   time.Duration
+	Server      string
+	Kind        string
+	Target      string
+	Folder      string
+	Sensitive   bool
+	Timeout     time.Duration
+	TargetLabel string
+	TargetText  *uimsg.Text
 }
 
 type moltenAskState struct {
@@ -80,7 +84,7 @@ func makeMoltenAskState() *moltenAskState {
 
 // covers tells whether a granted kind covers kind: a write covers a read of the same files.
 func kindCovers(granted string, kind string) bool {
-	return granted == kind || (granted == moltenAskWrite && kind == moltenAskRead)
+	return granted == kind || (granted == moltenAskWrite && kind == moltenAskRead) || (granted == moltenAskWriteVars && kind == moltenAskReadVars)
 }
 
 func (s *moltenAskState) isDenied(conn string) bool {
@@ -149,6 +153,12 @@ var moltenRemotePrompt = moltenPromptWindow
 func moltenQuestionTexts(q moltenQuestion) (title *uimsg.Text, query *uimsg.Text, remember *uimsg.Text, englishTitle string, englishQuery string, englishRemember string) {
 	server, target, folder := q.Server, metaguard.ShownPath(q.Target), metaguard.ShownPath(q.Folder)
 	switch q.Kind {
+	case moltenAskReadVars:
+		title, englishTitle = uimsg.Make("remoteask.readVariablesTitle"), "A server wants to read variables"
+		query, englishQuery = uimsg.Make("remoteask.readVariables", "server", server, "path", q.TargetLabel).With("path", q.TargetText), fmt.Sprintf("%s wants to read %s stored by MoltenTerm. It may contain credentials.", server, q.TargetLabel)
+	case moltenAskWriteVars:
+		title, englishTitle = uimsg.Make("remoteask.writeVariablesTitle"), "A server wants to change variables"
+		query, englishQuery = uimsg.Make("remoteask.writeVariables", "server", server, "path", q.TargetLabel).With("path", q.TargetText), fmt.Sprintf("%s wants to change %s stored by MoltenTerm. Variables can affect programs started on this computer.", server, q.TargetLabel)
 	case moltenAskRead:
 		title, englishTitle = uimsg.Make("remoteask.readTitle"), "A server wants to read a file of this computer"
 		query, englishQuery = uimsg.Make("remoteask.read", "server", server, "path", target), fmt.Sprintf("%s wants to read %s on this computer.", server, target)
@@ -208,6 +218,12 @@ func moltenAskTimeoutFor(ctx context.Context) time.Duration {
 }
 
 func moltenAskVerb(kind string) string {
+	if kind == moltenAskReadVars {
+		return "read variables from"
+	}
+	if kind == moltenAskWriteVars {
+		return "change variables in"
+	}
 	if kind == moltenAskConnect {
 		return "connect this computer to"
 	}
@@ -217,12 +233,7 @@ func moltenAskVerb(kind string) string {
 // moltenAskRemote asks the window whether the server may do kind on target (a cleaned path of this computer, or a
 // connection), one question per server at a time.
 func moltenAskRemote(ctx context.Context, remote metaguard.Remote, kind string, target string) error {
-	server := remote.Conn
-	if server == "" {
-		return fmt.Errorf("refused: an SSH or WSL host whose connection is unknown cannot %s %s."+metaguard.RemoteHint, moltenAskVerb(kind), target)
-	}
-	conn := wshutil.NormConnName(server)
-	q := moltenQuestion{Server: server, Kind: kind, Target: target}
+	q := moltenQuestion{Kind: kind, Target: target}
 	if kind != moltenAskConnect {
 		q.Target = metaguard.CleanLocalPath(target)
 		q.Sensitive = metaguard.IsSensitiveLocalPath(q.Target)
@@ -230,6 +241,16 @@ func moltenAskRemote(ctx context.Context, remote metaguard.Remote, kind string, 
 	} else {
 		q.Folder = target
 	}
+	return moltenAskQuestion(ctx, remote, q)
+}
+
+func moltenAskQuestion(ctx context.Context, remote metaguard.Remote, q moltenQuestion) error {
+	server := remote.Conn
+	if server == "" {
+		return fmt.Errorf("refused: an SSH or WSL host whose connection is unknown cannot %s %s."+metaguard.RemoteHint, moltenAskVerb(q.Kind), q.Target)
+	}
+	conn := wshutil.NormConnName(server)
+	q.Server = server
 	if err := moltenAskPreCheck(conn, server, q); err != errMoltenAskNeeded {
 		return err
 	}
@@ -247,7 +268,7 @@ func moltenAskRemote(ctx context.Context, remote metaguard.Remote, kind string, 
 	allowed, remember := moltenRemotePrompt(q)
 	moltenAsk.record(conn, q, allowed, remember, time.Now())
 	if !allowed {
-		return fmt.Errorf("refused: %s was not allowed to %s %s (asked in the MoltenTerm window)."+metaguard.RemoteHint, server, moltenAskVerb(kind), metaguard.ShownPath(q.Target))
+		return fmt.Errorf("refused: %s was not allowed to %s %s (asked in the MoltenTerm window)."+metaguard.RemoteHint, server, moltenAskVerb(q.Kind), metaguard.ShownPath(q.Target))
 	}
 	return nil
 }
