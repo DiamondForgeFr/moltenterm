@@ -27,7 +27,7 @@ const InPanelFiles = [
     "reviews/reviews-store.ts",
 ];
 
-// App actions: the rail, the status bar, the sidebar, the command palette, the menus, a notification, Ferrand's card
+// App actions: the rail, the status bar, the sidebar, the command palette, the menus, a notification, the foreman's card
 // (a layer over the app, in no panel), a dialog opened from the sidebar. They never write into a pinned view.
 const AppActionFiles = new Set([
     "boss/boss-card-actions.ts",

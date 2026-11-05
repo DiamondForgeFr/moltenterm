@@ -1368,7 +1368,7 @@
         },
         "boss:name": {
           "type": "string",
-          "description": "The name of the foreman whose bubble shows what waits across every workspace: 1 to 24 characters, Ferrand when unset. The bubble's initial, its peek, its menus and its settings use it",
+          "description": "The name of the foreman whose bubble shows what waits across every workspace: 1 to 24 characters, Brokk when unset. The bubble's initial, its peek, its menus and its settings use it",
           "x-moltenterm": {
             "section": "boss",
             "group": "Bubble",
@@ -1380,7 +1380,7 @@
               "max": 24,
               "step": 1
             },
-            "default": "Ferrand",
+            "default": "Brokk",
             "order": 62
           }
         },

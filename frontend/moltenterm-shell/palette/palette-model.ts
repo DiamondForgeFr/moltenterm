@@ -35,7 +35,7 @@ export type PaletteRun =
     | { kind: "gettingstarted" }
     // The Sessions view (FR-SHELL-020).
     | { kind: "sessions" }
-    // Ferrand's Sessions card over the app (FR-BOSS-002), anchored to his bubble.
+    // The foreman's Sessions card over the app (FR-BOSS-002), anchored to his bubble.
     | { kind: "bosscard" }
     // Back to the pane the palette was opened from, to type an agent's own command there.
     | { kind: "focusorigin" }

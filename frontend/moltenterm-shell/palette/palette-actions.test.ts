@@ -32,7 +32,7 @@ describe("palette Edit workspace… (FR-SHELL-030-AC3)", () => {
     });
 });
 
-describe("palette Show Ferrand's card (FR-BOSS-002-AC1)", () => {
+describe("palette Show Brokk's card (FR-BOSS-002-AC1)", () => {
     beforeEach(() => {
         openCard.mockReset();
         refocusNode.mockReset();

@@ -2,16 +2,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
+import { flattenKeys, resolveKey, shippedDictionary } from "../i18n/i18n-core";
 import { bossInitial, bossName, bossSettingOn, DefaultBossName, MaxBossNameLength } from "./boss-name";
 
+describe("the name in the interface text (FR-BOSS-001, AC8, AC11)", () => {
+    for (const lang of ["en", "fr"]) {
+        it(`${lang}.json never carries the foreman's name as a literal, it takes {name}`, () => {
+            const dict = shippedDictionary(lang);
+            const literals = flattenKeys(dict)
+                .filter((key) => /\b(Brokk|Ferrand)\b/.test(resolveKey(dict, key)))
+                .map((key) => `${lang} ${key}: ${resolveKey(dict, key)}`);
+            expect(literals).toEqual([]);
+        });
+    }
+});
+
 describe("the foreman's name (FR-BOSS-001, AC8)", () => {
-    it("is Ferrand until the developer names him", () => {
-        expect(DefaultBossName).toBe("Ferrand");
-        expect(bossName(undefined)).toBe("Ferrand");
-        expect(bossName(null)).toBe("Ferrand");
-        expect(bossName("")).toBe("Ferrand");
-        expect(bossName("   ")).toBe("Ferrand");
-        expect(bossName(42)).toBe("Ferrand");
+    it("is Brokk until the developer names him", () => {
+        expect(DefaultBossName).toBe("Brokk");
+        expect(bossName(undefined)).toBe("Brokk");
+        expect(bossName(null)).toBe("Brokk");
+        expect(bossName("")).toBe("Brokk");
+        expect(bossName("   ")).toBe("Brokk");
+        expect(bossName(42)).toBe("Brokk");
+    });
+
+    it("keeps a name the developer set, even the former default", () => {
+        expect(bossName("Ferrand")).toBe("Ferrand");
+        expect(bossName("Geargrim")).toBe("Geargrim");
+        expect(bossInitial("Ferrand")).toBe("F");
     });
 
     it("is the name typed, on one line, trimmed", () => {
@@ -32,10 +51,10 @@ describe("the foreman's name (FR-BOSS-001, AC8)", () => {
     });
 
     it("has the first letter of the name, in capitals, as its initial", () => {
-        expect(bossInitial("Ferrand")).toBe("F");
+        expect(bossInitial("Brokk")).toBe("B");
         expect(bossInitial("léa")).toBe("L");
         expect(bossInitial("  émile")).toBe("É");
-        expect(bossInitial("")).toBe("F");
+        expect(bossInitial("")).toBe("B");
         expect(bossInitial("🔥 forge")).toBe("🔥");
     });
 

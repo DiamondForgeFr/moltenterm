@@ -43,7 +43,7 @@ vi.mock("./boss-card-actions", () => ({
 vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
     const model = {
-        nameAtom: atom("Ferrand"),
+        nameAtom: atom("Brokk"),
         collapsedAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
@@ -89,7 +89,7 @@ function render(): string {
 }
 
 beforeEach(() => {
-    globalStore.set(model.nameAtom, "Ferrand");
+    globalStore.set(model.nameAtom, "Brokk");
     globalStore.set(model.collapsedAtom, false);
     globalStore.set(model.badgeAtom, { count: 0, text: "", tone: "waiting" });
     globalStore.set(model.toHandleAtom, { items: [], info: [], parked: 0 });
@@ -107,10 +107,10 @@ describe("the card's header (FR-BOSS-002, AC1)", () => {
         expect(attr(html, "boss-card", "role")).toBe("dialog");
         expect(attr(html, "boss-card", "aria-modal")).toBe("false");
         expect(attr(html, "boss-card", "aria-label")).toBe(
-            "Ferrand&#x27;s card: to handle, sessions and notifications"
+            "Brokk&#x27;s card: to handle, sessions and notifications"
         );
         expect(attr(html, "boss-card", "style")).toBe("right:16px;bottom:68px");
-        expect(html).toMatch(/data-testid="boss-card-title"[^>]*>Ferrand&#x27;s card</);
+        expect(html).toMatch(/data-testid="boss-card-title"[^>]*>Brokk&#x27;s card</);
         globalStore.set(model.nameAtom, "Léa");
         expect(render()).toMatch(/data-testid="boss-card-title"[^>]*>Léa&#x27;s card</);
     });

@@ -10,7 +10,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wps"
 )
 
-// waitingAgents counts what Ferrand's badge counts from the published states: the blocks whose last state is waiting
+// waitingAgents counts what the foreman's badge counts from the published states: the blocks whose last state is waiting
 // or error, a cleared block counting no more.
 func waitingAgents(published []molten.AgentStateInfo) int {
 	last := map[string]molten.AgentStateInfo{}

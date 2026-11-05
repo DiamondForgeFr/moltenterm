@@ -15,7 +15,7 @@ vi.mock("./boss-store", async () => {
     const { DefaultBubbleState } = await import("./boss-place");
     const model = {
         showAtom: atom(true),
-        nameAtom: atom("Ferrand"),
+        nameAtom: atom("Brokk"),
         stateAtom: atom(DefaultBubbleState),
         collapsedAtom: atom(false),
         dragAtom: atom(null),
@@ -53,7 +53,7 @@ function render(): string {
 
 beforeEach(() => {
     globalStore.set(model.showAtom, true);
-    globalStore.set(model.nameAtom, "Ferrand");
+    globalStore.set(model.nameAtom, "Brokk");
     globalStore.set(model.stateAtom, DefaultBubbleState);
     globalStore.set(model.collapsedAtom, false);
     globalStore.set(model.dragAtom, null);
@@ -83,7 +83,7 @@ describe("the bubble (FR-BOSS-001, AC1, AC10)", () => {
         const html = render();
         expect(html).toContain('data-testid="boss-bubble"');
         expect(html).toContain('type="button"');
-        expect(attr(html, "boss-bubble", "aria-label")).toBe("Ferrand, 2 waiting");
+        expect(attr(html, "boss-bubble", "aria-label")).toBe("Brokk, 2 waiting");
         expect(html).toContain("<svg");
         expect(html).not.toContain('data-testid="boss-pennant"');
     });
@@ -176,7 +176,7 @@ describe("the pennant (AC3)", () => {
         const html = render();
         expect(html).toContain('data-testid="boss-pennant"');
         expect(html).not.toContain('data-testid="boss-bubble"');
-        expect(html).toMatch(/class="mt-boss-initial"[^>]*>F</);
+        expect(html).toMatch(/class="mt-boss-initial"[^>]*>B</);
         globalStore.set(model.nameAtom, "léa");
         expect(render()).toMatch(/class="mt-boss-initial"[^>]*>L</);
     });
@@ -184,7 +184,7 @@ describe("the pennant (AC3)", () => {
     it("is a button named like the bubble, with its badge", () => {
         globalStore.set(model.badgeAtom, { count: 4, text: "4", tone: "waiting" });
         const html = render();
-        expect(attr(html, "boss-pennant", "aria-label")).toBe("Ferrand, 4 waiting");
+        expect(attr(html, "boss-pennant", "aria-label")).toBe("Brokk, 4 waiting");
         expect(html).toMatch(/data-testid="boss-badge"[^>]*>4</);
     });
 
@@ -336,7 +336,7 @@ describe("the setting Show the bubble (AC9)", () => {
 
 describe("the portrait", () => {
     it("is an original SVG asset that carries the AGPL header", () => {
-        const svg = readFileSync(join(__dirname, "ferrand.svg"), "utf8");
+        const svg = readFileSync(join(__dirname, "boss-portrait.svg"), "utf8");
         expect(svg).toContain("SPDX-License-Identifier: AGPL-3.0-only");
         expect(svg).toContain('viewBox="0 0 96 96"');
     });

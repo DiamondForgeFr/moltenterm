@@ -1,7 +1,7 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* Ferrand's bubble and pennant (FR-BOSS-001, DS-BOSS-001): a layer over the window's content, above the panels and
+/* The foreman's bubble and pennant (FR-BOSS-001, DS-BOSS-001): a layer over the window's content, above the panels and
    under the toasts (9400), the menus and the dialogs. The layer takes no pointer; the bubble, the pennant and nothing
    else do, and neither takes a drag of the window with it (the frame's top margin moves the window). */
 
