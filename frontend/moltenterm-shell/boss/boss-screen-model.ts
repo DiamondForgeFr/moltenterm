@@ -16,6 +16,7 @@
 // A margin in space, so that the screen still closes at once and not after a delay.
 
 import { BubbleSizePx, Corner, Rect } from "./boss-place";
+import { BrokkSituation, restingPose } from "./brokk-ask-model";
 
 // The screen's side and the zone's margin past it. Must match --mt-boss-screen and --mt-boss-slop in boss-bubble.css.
 export const ScreenSizePx = 200;
@@ -50,15 +51,50 @@ export function holdAfter(hold: ScreenHold, event: ScreenEvent): ScreenHold {
 export type ScreenContext = {
     // The bubble is being dragged: it stays a round of 44 px, which the drag's maths measures.
     dragging: boolean;
-    // The Sessions card shows: the bubble stays round beside it.
+    // His card shows: the screen stays open beside it, like a video call beside what he shows (FR-BOSS-007, AC8, #1958).
     cardOpen: boolean;
 };
 
+// Open while the pointer or the focus holds it, or while his card shows, without a hover; once the card hides, the hold
+// alone decides, so the screen stays open if the pointer is on it. A drag folds it back to the round.
 export function screenShows(hold: ScreenHold, context: ScreenContext): boolean {
-    if (context.dragging || context.cardOpen || hold.dismissed) {
+    if (context.dragging) {
+        return false;
+    }
+    if (context.cardOpen) {
+        return true;
+    }
+    if (hold.dismissed) {
         return false;
     }
     return hold.pointer || hold.focus;
+}
+
+// The caption's status line says what his face shows (FR-BOSS-007, AC9, #1958), as keys: a first line, and a second one
+// when there is more to tell. `worker` is the name of the one agent at work, when exactly one works.
+export type CaptionLine = { key: string; count?: number; vars?: Record<string, string> };
+export type ScreenCaption = { status: CaptionLine; detail?: CaptionLine };
+
+function workingLine(working: number, worker: string): CaptionLine {
+    if (working === 1 && worker) {
+        return { key: "boss.screen.working", vars: { name: worker } };
+    }
+    return { key: "boss.screen.workingCount", count: working };
+}
+
+export function screenCaption(situation: BrokkSituation, worker: string): ScreenCaption {
+    const pose = restingPose(situation);
+    if (pose === "rest") {
+        return { status: { key: "boss.screen.asleep" } };
+    }
+    if (situation.waiting > 0) {
+        const status = { key: "boss.screen.toHandle", count: situation.waiting };
+        return situation.working > 0 ? { status, detail: workingLine(situation.working, worker) } : { status };
+    }
+    if (pose === "thinking") {
+        return { status: workingLine(situation.working, worker), detail: { key: "boss.screen.nothingForYou" } };
+    }
+    return { status: { key: "boss.screen.quiet" } };
 }
 
 export type Point = { x: number; y: number };

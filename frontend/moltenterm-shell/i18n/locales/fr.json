@@ -2994,7 +2994,14 @@
             "toHandle": {
                 "one": "{count} chose à traiter",
                 "other": "{count} choses à traiter"
-            }
+            },
+            "working": "{name} travaille",
+            "workingCount": {
+                "one": "{count} agent au travail",
+                "other": "{count} agents au travail"
+            },
+            "nothingForYou": "Rien pour vous",
+            "asleep": "Endormi pendant votre absence"
         }
     },
     "keepawake": {

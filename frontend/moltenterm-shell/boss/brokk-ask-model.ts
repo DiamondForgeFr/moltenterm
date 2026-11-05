@@ -3,7 +3,7 @@
 
 // How the app asks Brokk for a gesture (FR-BOSS-007, AC3): the small part that is always loaded with the bubble, so that
 // the first call gesture can be asked before anything of his animated portrait has loaded. Everything that draws him,
-// his poses, his clips and the rules of the other gestures (brokk-state-model.ts, brokk-moments.ts, brokk-live.tsx) loads
+// his clips, the gestures' poses and the rules of the other gestures (brokk-state-model.ts, brokk-moments.ts, brokk-live.tsx) loads
 // on the first opening of the screen or the first call, never with the bubble: keep this file free of them (no manifest,
 // no package, no model of an agent or a review), since every byte of it is JavaScript every tab view loads up front.
 // Pure, so the rules are tested without a window or a clock.
@@ -17,7 +17,25 @@ export type BrokkSituation = {
     // Rows To handle: what waits for the developer (the badge's count).
     waiting: number;
     cardOpen: boolean;
+    // The developer is away from this computer: no input on it for a long while (developer-away.ts).
+    away?: boolean;
 };
+
+export type BrokkPose = "rest" | "thinking" | "listening" | "speaking";
+
+// His pose before any gesture or speech (FR-BOSS-007, AC2). Here and not with his portrait, because the comm screen's
+// caption, drawn with the bubble, says what this pose shows (AC9). Nothing going on is his awake idle, the listening
+// loop with its blinks: rest, the eyes closed, is sleep, and he sleeps only while the developer is away and nothing
+// works or waits (#1958). Whatever arrives, or the developer coming back, wakes him.
+export function restingPose(situation: BrokkSituation): BrokkPose {
+    if (situation.waiting > 0) {
+        return "listening";
+    }
+    if (situation.working > 0) {
+        return "thinking";
+    }
+    return situation.away === true ? "rest" : "listening";
+}
 
 // A gesture asked: a new cue plays the same gesture again. `at` is when it was asked.
 export type AskedExpression = { expression: BrokkExpression; cue: number; at?: number };

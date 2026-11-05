@@ -9,12 +9,13 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { prefersReducedMotion } from "../molten-motion";
 import { BossBubbleModel } from "./boss-store";
 import { BrokkSituation, callPending, handledAfter, speaksOnOpen } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import type { BrokkLiveProps } from "./brokk-live";
+import { useDeveloperAway } from "./developer-away";
 
 // True while the window is on screen: a hidden window plays nothing, and its portrait draws anew when it comes back.
 export function usePageVisible(): boolean {
@@ -34,18 +35,37 @@ export function useMotionAllowed(): boolean {
     return visible && !prefersReducedMotion();
 }
 
-export function useBrokkSituation(cardOpen: boolean): BrokkSituation {
+// `watchAway`: a surface shows his face, so whether the developer is away is read (developer-away.ts).
+export function useBrokkSituation(cardOpen: boolean, watchAway: boolean): BrokkSituation {
     const model = BossBubbleModel.getInstance();
     const working = useAtomValue(model.workingCountAtom, { store: globalStore });
     const badge = useAtomValue(model.badgeAtom, { store: globalStore });
-    return useMemo(() => ({ working, waiting: badge.count, cardOpen }), [working, badge.count, cardOpen]);
+    const away = useDeveloperAway(watchAway);
+    return useMemo(() => ({ working, waiting: badge.count, cardOpen, away }), [working, badge.count, cardOpen, away]);
 }
 
-export function useBubbleLive(options: { collapsed: boolean; screenOpen: boolean }): BrokkLiveProps {
-    const { collapsed, screenOpen } = options;
+// He speaks for a few seconds when the card opens on items to handle (AC2): the count at the opening decides, not one
+// that rises while the card shows. The comm screen may already be open (the hover) when the card opens, so this is a
+// change of its props, not only a reading at its mount.
+export function useSpeaksOnOpen(situation: BrokkSituation): boolean {
+    const [speaks, setSpeaks] = useState(() => situation.cardOpen && speaksOnOpen(situation));
+    const waiting = useRef(situation.waiting);
+    waiting.current = situation.waiting;
+    useEffect(() => {
+        setSpeaks(situation.cardOpen && speaksOnOpen({ ...situation, waiting: waiting.current }));
+    }, [situation.cardOpen]);
+    return speaks;
+}
+
+export function useBubbleLive(options: {
+    collapsed: boolean;
+    screenOpen: boolean;
+    situation: BrokkSituation;
+}): BrokkLiveProps {
+    const { collapsed, screenOpen, situation } = options;
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
-    const situation = useBrokkSituation(false);
     const allowed = useMotionAllowed();
+    const speaks = useSpeaksOnOpen(situation);
     // The newest cue the round has played, or has no use for: a call asked while the bubble was folded, the window hidden
     // or the screen open (which plays it itself) is not played later.
     const [handled, setHandled] = useState(asked?.cue ?? 0);
@@ -64,14 +84,14 @@ export function useBubbleLive(options: { collapsed: boolean; screenOpen: boolean
         if (collapsed || !allowed || !(screenOpen || calling)) {
             return null;
         }
-        return { situation, asked, play: calling ? asked : undefined, onPlayed };
-    }, [collapsed, allowed, screenOpen, calling, situation, asked, onPlayed]);
+        return { situation, asked, play: calling ? asked : undefined, speaks: screenOpen && speaks, onPlayed };
+    }, [collapsed, allowed, screenOpen, calling, situation, asked, speaks, onPlayed]);
 }
 
 export function useCardLive(): BrokkLiveProps {
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
-    const situation = useBrokkSituation(true);
     const allowed = useMotionAllowed();
+    const situation = useBrokkSituation(true, allowed);
     return useMemo(
         () => (allowed ? { situation, asked, speaks: speaksOnOpen(situation) } : null),
         [allowed, situation, asked]

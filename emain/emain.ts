@@ -66,6 +66,7 @@ import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermSitePermissions, installMoltentermSitePermissionHandlers } from "./moltenterm-site-permissions"; // MOLTENTERM-PATCH (#663)
 import { initMoltentermScreen } from "./moltenterm-screen"; // MOLTENTERM-PATCH (#1083)
+import { initMoltentermSystemIdle } from "./moltenterm-system-idle"; // MOLTENTERM-PATCH (#1958)
 import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
 import { initMoltentermCarpetThumbs } from "./moltenterm-carpet-thumbs"; // MOLTENTERM-PATCH (#1814)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
@@ -430,6 +431,7 @@ async function appMain() {
     initBusyCloseReplies(); // MOLTENTERM-PATCH (#490, #806): registered application replies to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
     initMoltentermScreen(); // MOLTENTERM-PATCH (#1083): the screen each window is on, for the 360 view threshold
+    initMoltentermSystemIdle(); // MOLTENTERM-PATCH (#1958): this computer's idle time, so Brokk sleeps while you are away
     initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
     initMoltentermCarpetThumbs(); // MOLTENTERM-PATCH (#1814): the 360 carpet's thumbnails, kept on disk
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
