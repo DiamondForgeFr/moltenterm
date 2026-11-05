@@ -411,7 +411,7 @@ func (s *Store) Projects() []molten.MaterialsProject {
 		if len(d.index.Materials) == 0 {
 			continue
 		}
-		rtn = append(rtn, molten.MaterialsProject{Key: key, Folder: d.folder, Name: projectName(key, d.folder)})
+		rtn = append(rtn, molten.MaterialsProject{Key: key, Folder: d.folder, Name: projectName(key, d.folder), Count: len(d.index.Materials)})
 	}
 	sort.Slice(rtn, func(i, j int) bool { return rtn[i].Key < rtn[j].Key })
 	return rtn

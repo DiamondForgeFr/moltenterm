@@ -37,11 +37,11 @@ import {
     ActiveScope,
     CardRect,
     filterMaterials,
-    findOpenPanel,
     GridMove,
     gridNeighbor,
     groupMaterials,
     linkHost,
+    makeOpenPanelLookup,
     Material,
     materialAt,
     materialCopied,
@@ -91,7 +91,7 @@ import {
     ScopeProject,
     validScope,
 } from "./materials-model";
-import { useMaterialsAllProjects } from "./use-materials-all";
+import { useMaterialsProjects, useMaterialsScope } from "./use-materials-all";
 
 const CallTimeoutMs = 5000;
 const PreviewView = "preview";
@@ -702,6 +702,8 @@ function MaterialVisualBox({ m, large = false }: { m: Material; large?: boolean 
             <img
                 className={cn("mt-lib-card-img", large && "is-large")}
                 src={src}
+                loading={large ? "eager" : "lazy"}
+                decoding="async"
                 alt=""
                 draggable={false}
                 data-testid={large ? "library-detail-image" : "library-material-image"}
@@ -732,7 +734,15 @@ function RowThumb({ m }: { m: Material }) {
     return (
         <span className="mt-lib-mat-th" aria-hidden>
             {src && !failed ? (
-                <img className="mt-lib-card-img" src={src} alt="" draggable={false} onError={() => setFailed(true)} />
+                <img
+                    className="mt-lib-card-img"
+                    src={src}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    draggable={false}
+                    onError={() => setFailed(true)}
+                />
             ) : (
                 <i className={makeIconClass(KindIcons[m.kind] ?? "file", true)} />
             )}
@@ -1491,6 +1501,7 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     const locale = useLocale();
     const workspaceId = useAtomValue(atoms.workspaceId);
     const panels = useOpenPanels(workspaceId);
+    const findOpenPanel = useMemo(() => makeOpenPanelLookup(panels), [panels]);
     const workspaceProjectName = useWorkspaceProjectName();
     const [selected, setSelected] = useState<string>(null);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -1505,24 +1516,23 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     // The default is always the workspace's project; the choice lasts while the section stays open.
     const [scopeChoice, setScopeChoice] = useState<MaterialsScope>(ActiveScope);
     const workspace = useAtomValue(atoms.workspace);
-    const allProjects = useMaterialsAllProjects(workspaceId, workspace ? readWorkspaceProject(workspace).dir : "");
+    const projectDir = workspace ? readWorkspaceProject(workspace).dir : "";
+    const projects = useMaterialsProjects(workspaceId, projectDir);
     const activeKey = view?.project?.key ?? "";
-    const others = useMemo(
-        () => otherProjects(allProjects?.projects, allProjects?.materials, activeKey),
-        [allProjects, activeKey]
-    );
+    const others = useMemo(() => otherProjects(projects, undefined, activeKey), [projects, activeKey]);
     const scope = validScope(scopeChoice, others, activeKey);
+    const scopedView = useMaterialsScope(workspaceId, projectDir, scope);
     const scopeKey = scope.kind === "project" ? scope.key : "";
     const scoped = useMemo(
         () =>
             scope.kind === "active"
                 ? view?.materials
                 : materialsInScope(
-                      allProjects?.materials,
+                      scopedView?.materials,
                       { kind: scope.kind, key: scopeKey } as MaterialsScope,
                       activeKey
                   ),
-        [view, allProjects, scope.kind, scopeKey, activeKey]
+        [view, scopedView, scope.kind, scopeKey, activeKey]
     );
     const shown = useMemo(() => filterMaterials(scoped, query), [scoped, query]);
     const groups = useMemo(() => groupMaterials(shown, Date.now(), locale), [shown, locale]);
@@ -1551,7 +1561,7 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     const projectLabelOf = (m: Material): string =>
         m.project === MaterialsNoProject
             ? t("library.materials.noProject")
-            : materialProjectName(m, activeKey, named, allProjects?.projects) || m.project.slice(0, 6);
+            : materialProjectName(m, activeKey, named, projects) || m.project.slice(0, 6);
     const projectLabel = (m: Material): string => (scope.kind === "all" ? projectLabelOf(m) : undefined);
     const scopeEmpty = (scoped?.length ?? 0) === 0;
     const focusRow = (id: string) =>
@@ -1567,7 +1577,7 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
         },
         onOpen: (m, plan) => {
             setDeleting(null);
-            const open = findOpenPanel(panels, m) as ShownPanel;
+            const open = findOpenPanel(m) as ShownPanel;
             if (open != null && (plan == null || plan.how === materialOpenPlan(m)?.how)) {
                 fireAndForget(() => showPanel(workspaceId, open, m.link));
                 return;
@@ -1676,8 +1686,8 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
                 }}
                 activeLabel={activeLabel}
                 activeCount={view.materials?.length ?? 0}
-                allCount={allProjects?.materials?.length ?? view.materials?.length ?? 0}
-                noneCount={materialsInScope(allProjects?.materials, { kind: "none" }, activeKey).length}
+                allCount={projects?.reduce((count, p) => count + (p.count ?? 0), 0) ?? view.materials?.length ?? 0}
+                noneCount={projects?.find((p) => p.key === MaterialsNoProject)?.count ?? 0}
                 withNone={!noProject}
                 others={others}
             >
@@ -1752,7 +1762,7 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
                                             selected: m.id === current?.id,
                                             renaming: renaming === m.id && !inPanel,
                                             asked: asking?.id === m.id || deleting === m.id,
-                                            open: findOpenPanel(panels, m) as ShownPanel,
+                                            open: findOpenPanel(m) as ShownPanel,
                                             handlers,
                                             projectLabel: projectLabel(m),
                                             onSelect: () => {
@@ -1786,7 +1796,7 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
                         <MaterialDetail
                             key={current.id}
                             m={current}
-                            open={findOpenPanel(panels, current) as ShownPanel}
+                            open={findOpenPanel(current) as ShownPanel}
                             handlers={handlers}
                             projectName={projectLabelOf(current)}
                             renaming={renaming === current.id}
