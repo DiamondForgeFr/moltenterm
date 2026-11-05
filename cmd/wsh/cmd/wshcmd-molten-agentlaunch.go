@@ -90,9 +90,8 @@ func runMoltenAgentLaunch(agent string, args []string, getenv func(string) strin
 		WriteStderr("molten agent launch: no launcher for %q\n", agent)
 		return 2
 	}
-	real, ok := agentlaunch.FindRealBinary(adapter.Executable(), getenv("PATH"), getenv(agentlaunch.AgentBinDirVarName), agentlaunch.IsLauncher)
+	real, ok := findMoltenLaunchBinary(adapter, getenv)
 	if !ok {
-		WriteStderr("%s: no %s found on PATH (MoltenTerm launcher)\n", adapter.Executable(), molten.AgentDisplayName(agent))
 		return moltenAgentLaunchMissingCode
 	}
 	if reason := agentlaunch.StepAsideReason(getenv, args, adapter); reason != "" {
@@ -111,6 +110,20 @@ func runMoltenAgentLaunch(agent string, args []string, getenv func(string) strin
 		env = moltenSetEnv(env, "PWD", startDir)
 	}
 	return execAgentBinary(real, finalArgs, env)
+}
+
+// findMoltenLaunchBinary finds the agent on PATH, else in another Node version's global folder (#1922), and says on
+// stderr which one it runs, or what it searched and how to install the agent.
+func findMoltenLaunchBinary(adapter agentlaunch.LaunchAdapter, getenv func(string) string) (string, bool) {
+	search, ok := agentlaunch.FindAgentBinary(adapter.Executable(), getenv, agentlaunch.IsLauncher)
+	if !ok {
+		WriteStderr("%s", agentlaunch.NotFoundMessage(adapter, search))
+		return "", false
+	}
+	if note := agentlaunch.FallbackNote(adapter, search); note != "" {
+		WriteStderr("%s\n", note)
+	}
+	return search.Path, true
 }
 
 // moltenSetEnv sets a variable in an environment list, replacing the one it had.

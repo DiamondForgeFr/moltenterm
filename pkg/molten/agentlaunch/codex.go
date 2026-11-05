@@ -82,6 +82,9 @@ type codexAdapter struct{}
 func (codexAdapter) Id() string         { return CodexAgentId }
 func (codexAdapter) Executable() string { return codexExecutable }
 
+// InstallCommand: the npm package, global to the Node version on PATH (learn.chatgpt.com/docs/codex/cli).
+func (codexAdapter) InstallCommand() string { return "npm install -g @openai/codex" }
+
 // codexArgs is what the plan reads of the user's arguments, before "--".
 type codexArgs struct {
 	// overrides: the keys of every -c key=value.
