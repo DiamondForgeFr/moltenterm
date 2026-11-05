@@ -11,7 +11,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
@@ -19,6 +19,7 @@ import { MissionSnapshot } from "../mission/mission-model";
 import { TabActivity, whileShown } from "../tab-activity";
 import { ReviewsMerges, withLocalMerges } from "./reviews-merges";
 import { ReviewsAnswer } from "./reviews-model";
+import { SharedReviewsAnswersAtom } from "./reviews-state-atoms";
 
 // must match the names in pkg/molten/mission/reviews.go and reviews_rerun.go
 export const ReviewsCommand = "moltenmissionreviews";
@@ -47,7 +48,7 @@ const RailPollMs = 60000;
 export class ReviewsAnswers {
     private static instance: ReviewsAnswers = null;
 
-    answersAtom = atom({}) as PrimitiveAtom<Record<string, ReviewsAnswer>>;
+    answersAtom = SharedReviewsAnswersAtom;
 
     private constructor() {}
 

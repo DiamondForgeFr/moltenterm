@@ -48,7 +48,6 @@ import {
     LeadFacts,
     markReadyError,
     MoltentermReviewsView,
-    ReadiedPrs,
     RebaseAsk,
     rebaseAskKey,
     rebaseOutcome,
@@ -68,6 +67,7 @@ import {
     QueueMemory,
     queueMemory,
 } from "./reviews-queue-model";
+import { SharedReadiedAtom } from "./reviews-state-atoms";
 import { checkAgentsPlan, CheckReport, prLeft, PrTaskKind } from "./reviews-task-model";
 
 // The PR a Reviews view brings into sight and marks, asked by another surface; or, by its branch, a future PR's
@@ -83,7 +83,7 @@ export class ReviewsModel {
     // The rebases asked from the rows (#683), by rebaseAskKey.
     rebaseAsksAtom = atom({}) as PrimitiveAtom<Record<string, RebaseAsk>>;
     // The drafts marked ready from MoltenTerm (#687), by rebaseAskKey: splitReviews moves them at once.
-    readiedAtom = atom({}) as PrimitiveAtom<ReadiedPrs>;
+    readiedAtom = SharedReadiedAtom;
     // A row's Validate sheet, open with no Review tab (#707), in the Reviews panel blockId.
     validateSheetAtom = atom(null) as PrimitiveAtom<ReviewsValidateSheet>;
     stopSheet: () => void = null;
