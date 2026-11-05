@@ -1,0 +1,28 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Brokk's portrait and its framing (FR-BOSS-001, AC1, AC12). The frame fills the box it is put in: at rest it is zoomed on
+   his head, and the bubble's open screen (boss-bubble.css) lets it go back to his whole bust. The two numbers below are
+   the framing, the only place that holds them: a round of 44 px, a card header's face and the animated loops of #1904
+   all read them. The transform lives on the frame and the breathing (boss-screen.css) on the image, so the zoom
+   transition is not cut short by the animation. */
+
+.mt-boss-portrait {
+    --mt-boss-head-scale: 2.6;
+    --mt-boss-head-origin: 50% 30%;
+    position: absolute;
+    inset: 0;
+    transform: scale(var(--mt-boss-head-scale));
+    transform-origin: var(--mt-boss-head-origin);
+}
+
+.mt-boss-portrait-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(0.75) contrast(1.1) brightness(0.95);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+}

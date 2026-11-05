@@ -42,6 +42,7 @@ import {
     rectToPlace,
     sameBubbleState,
 } from "./boss-place";
+import { NoScreenHold, ScreenHold } from "./boss-screen-model";
 import { buildToHandle, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
 
@@ -88,6 +89,8 @@ export class BossBubbleModel {
     cueAtom = atom(0) as PrimitiveAtom<number>;
     // The peek shows.
     peekOpenAtom = atom(false) as PrimitiveAtom<boolean>;
+    // What holds the comm screen open (FR-BOSS-001, AC12): the pointer, the keyboard focus, an Escape that hid it.
+    screenHoldAtom = atom(NoScreenHold) as PrimitiveAtom<ScreenHold>;
     // The Sessions card shows (FR-BOSS-002).
     cardOpenAtom = atom(false) as PrimitiveAtom<boolean>;
     // The To handle rows set aside with Later, by their key: back at the card's next opening (FR-BOSS-003).

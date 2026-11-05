@@ -13,6 +13,7 @@ vi.mock("../settings/settings-open", () => ({ openSettingsSection: vi.fn() }));
 vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
     const { DefaultBubbleState } = await import("./boss-place");
+    const { NoScreenHold } = await import("./boss-screen-model");
     const model = {
         showAtom: atom(true),
         nameAtom: atom("Brokk"),
@@ -21,6 +22,7 @@ vi.mock("./boss-store", async () => {
         dragAtom: atom(null),
         cueAtom: atom(0),
         peekOpenAtom: atom(false),
+        screenHoldAtom: atom(NoScreenHold),
         cardOpenAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         peekAtom: atom({ waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: "", latest: null }),
@@ -42,13 +44,19 @@ vi.mock("./boss-card", () => ({
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { BossBubbleHost } from "./boss-bubble";
-import { DefaultBubbleState } from "./boss-place";
+import { Corners, DefaultBubbleState } from "./boss-place";
+import { holdAfter, NoScreenHold, ScreenSizePx } from "./boss-screen-model";
 import { BossBubbleModel } from "./boss-store";
 
 const model = BossBubbleModel.getInstance() as any;
 
 function render(): string {
     return renderToStaticMarkup(<BossBubbleHost />);
+}
+
+// A stylesheet without its comments, which explain the rules in words the patterns below would catch.
+function css(file: string = "boss-bubble.css"): string {
+    return readFileSync(join(__dirname, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 beforeEach(() => {
@@ -59,6 +67,7 @@ beforeEach(() => {
     globalStore.set(model.dragAtom, null);
     globalStore.set(model.cueAtom, 0);
     globalStore.set(model.peekOpenAtom, false);
+    globalStore.set(model.screenHoldAtom, NoScreenHold);
     globalStore.set(model.cardOpenAtom, false);
     globalStore.set(model.badgeAtom, { count: 0, text: "", tone: "waiting" });
     globalStore.set(model.peekAtom, {
@@ -84,7 +93,7 @@ describe("the bubble (FR-BOSS-001, AC1, AC10)", () => {
         expect(html).toContain('data-testid="boss-bubble"');
         expect(html).toContain('type="button"');
         expect(attr(html, "boss-bubble", "aria-label")).toBe("Brokk, 2 waiting");
-        expect(html).toContain("<svg");
+        expect(html).toMatch(/<img class="mt-boss-portrait-image" src="[^"]*brokk[^"]*\.jpg"/);
         expect(html).not.toContain('data-testid="boss-pennant"');
     });
 
@@ -334,10 +343,242 @@ describe("the setting Show the bubble (AC9)", () => {
     });
 });
 
-describe("the portrait", () => {
-    it("is an original SVG asset that carries the AGPL header", () => {
-        const svg = readFileSync(join(__dirname, "boss-portrait.svg"), "utf8");
-        expect(svg).toContain("SPDX-License-Identifier: AGPL-3.0-only");
-        expect(svg).toContain('viewBox="0 0 96 96"');
+describe("the portrait (AC1)", () => {
+    const jpg = join(__dirname, "portrait", "brokk", "brokk.jpg");
+
+    it("is Brokk's validated still, a JPG of at most 1024 px and under 300 KB", () => {
+        const bytes = readFileSync(jpg);
+        expect(bytes.length).toBeLessThan(300_000);
+        // The JPEG start-of-frame marker holds the pixel size: height, then width, big endian.
+        let side = 0;
+        for (let i = 2; i + 9 < bytes.length; ) {
+            if (bytes[i] !== 0xff) {
+                break;
+            }
+            const marker = bytes[i + 1];
+            if (marker >= 0xc0 && marker <= 0xc3) {
+                side = Math.max(bytes.readUInt16BE(i + 5), bytes.readUInt16BE(i + 7));
+                break;
+            }
+            i += 2 + bytes.readUInt16BE(i + 2);
+        }
+        expect(side).toBeGreaterThan(0);
+        expect(side).toBeLessThanOrEqual(1024);
+    });
+
+    it("is framed on his head in one place, which the bubble's round and the card's face both use", () => {
+        const framing = css("boss-portrait.css");
+        expect(framing).toMatch(/--mt-boss-head-scale: 2\.6;/);
+        expect(framing).toMatch(/--mt-boss-head-origin: 50% 30%;/);
+        // The numbers appear nowhere else.
+        for (const file of ["boss-bubble.css", "boss-screen.css"]) {
+            expect(css(file)).not.toMatch(/2\.6|50% 30%/);
+        }
+        expect(readFileSync(join(__dirname, "boss-card.tsx"), "utf8")).toContain('from "./boss-portrait"');
+    });
+
+    it("is a still image at rest: no video, no animation, no screen layer", () => {
+        const html = render();
+        expect(html).not.toContain("<video");
+        expect(html).not.toContain('data-testid="boss-screen"');
+        expect(css("boss-portrait.css")).not.toMatch(/animation|transition/);
+    });
+});
+
+describe("the comm screen (AC12)", () => {
+    const open = () => globalStore.set(model.screenHoldAtom, holdAfter(NoScreenHold, "pointer-enter"));
+    const shape = (html: string) =>
+        /data-testid="boss-shape"[^>]*>([\s\S]*?)<span class="mt-boss-zone"/.exec(html)?.[1] ?? "";
+
+    it("is the round at rest: 44 px, no screen, and a zone that takes no pointer", () => {
+        const html = render();
+        expect(attr(html, "boss-bubble", "data-screen")).toBe("rest");
+        expect(html).not.toContain('data-testid="boss-screen"');
+        expect(html).not.toContain("Online");
+        const sheet = css();
+        expect(sheet).toMatch(/\.mt-boss-bubble \{[^}]*--mt-boss-round: 44px;/);
+        expect(sheet).toMatch(/\.mt-boss-bubble \{[^}]*width: var\(--mt-boss-round\);/);
+        expect(sheet).toMatch(/\.mt-boss-shape,\s*\.mt-boss-zone \{[^}]*pointer-events: none;/);
+    });
+
+    it("opens on hover: the screen, its marks, his name from the setting and the status line", () => {
+        globalStore.set(model.nameAtom, "Léa");
+        globalStore.set(model.badgeAtom, { count: 2, text: "2", tone: "waiting" });
+        open();
+        const html = render();
+        expect(attr(html, "boss-bubble", "data-screen")).toBe("open");
+        const screen = html.slice(html.indexOf('data-testid="boss-screen"'));
+        expect(screen).toContain("Online");
+        expect(screen).toMatch(/mt-boss-caption-text">Léa</);
+        expect(screen).toContain("2 things to handle");
+        for (const layer of ["mt-boss-tint", "mt-boss-scan", "mt-boss-sweep", "mt-boss-vignette", "mt-boss-live"]) {
+            expect(screen).toContain(layer);
+        }
+        expect(screen.match(/mt-boss-corner/g)).toHaveLength(4);
+        expect(screen).toContain("df-domino-loader");
+    });
+
+    it("says one thing in the singular, and that nothing waits when nothing does", () => {
+        open();
+        expect(render()).toContain("Nothing to handle");
+        globalStore.set(model.badgeAtom, { count: 1, text: "1", tone: "waiting" });
+        expect(render()).toContain("1 thing to handle");
+    });
+
+    it("opens on keyboard focus as well, and stays for the focus when the pointer leaves", () => {
+        globalStore.set(model.screenHoldAtom, holdAfter(NoScreenHold, "focus"));
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("open");
+        let hold = holdAfter(holdAfter(NoScreenHold, "pointer-enter"), "focus");
+        hold = holdAfter(hold, "pointer-leave");
+        globalStore.set(model.screenHoldAtom, hold);
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("open");
+    });
+
+    it("is the round again at once when the pointer leaves, or the focus goes", () => {
+        globalStore.set(model.screenHoldAtom, holdAfter(holdAfter(NoScreenHold, "pointer-enter"), "pointer-leave"));
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
+        globalStore.set(model.screenHoldAtom, holdAfter(holdAfter(NoScreenHold, "focus"), "blur"));
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
+        // Closing has no transition and no delay in the stylesheet: only the open state declares one.
+        const sheet = css();
+        expect(sheet).toMatch(/\[data-screen="open"\] > \.mt-boss-shape \{[^}]*transition:/);
+        expect(sheet).not.toMatch(/^\.mt-boss-shape \{[^}]*transition:/m);
+        expect(sheet).not.toMatch(/^\.mt-boss-face \{[^}]*transition:/m);
+        expect(sheet).not.toMatch(/transition[^;}]*\bdelay\b/);
+    });
+
+    it("stays the round while the bubble is dragged and while the card is open, and Escape hides it", () => {
+        open();
+        globalStore.set(model.dragAtom, { left: 10, top: 10, width: 44, height: 44 });
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
+        globalStore.set(model.dragAtom, null);
+        globalStore.set(model.cardOpenAtom, true);
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
+        globalStore.set(model.cardOpenAtom, false);
+        globalStore.set(model.screenHoldAtom, holdAfter(holdAfter(NoScreenHold, "pointer-enter"), "dismiss"));
+        expect(attr(render(), "boss-bubble", "data-screen")).toBe("rest");
+    });
+
+    it("grows toward the inside of the window from every corner", () => {
+        const sheet = css();
+        const expected: Record<string, string> = { tl: "tl", tr: "tr", bl: "bl", br: "br" };
+        for (const corner of Corners) {
+            globalStore.set(model.stateAtom, { ...DefaultBubbleState, place: { corner, dx: 16, dy: 16 } });
+            expect(attr(render(), "boss-bubble", "data-corner")).toBe(expected[corner]);
+        }
+        // The shape and the zone keep the edges of the corner's side: top or bottom, left or right.
+        expect(sheet).toMatch(/\[data-corner\^="t"\] > :is\(\.mt-boss-shape, \.mt-boss-zone\) \{\s*top: 0;/);
+        expect(sheet).toMatch(/\[data-corner\^="b"\] > :is\(\.mt-boss-shape, \.mt-boss-zone\) \{\s*bottom: 0;/);
+        expect(sheet).toMatch(/\[data-corner\$="l"\] > :is\(\.mt-boss-shape, \.mt-boss-zone\) \{\s*left: 0;/);
+        expect(sheet).toMatch(/\[data-corner\$="r"\] > :is\(\.mt-boss-shape, \.mt-boss-zone\) \{\s*right: 0;/);
+    });
+
+    it("is a square of about 200 px with near-square corners, in the ember of the action", () => {
+        const sheet = css();
+        expect(sheet).toMatch(new RegExp(`--mt-boss-screen: ${ScreenSizePx}px;`));
+        expect(sheet).toMatch(/\[data-screen="open"\] > \.mt-boss-shape \{[^}]*width: var\(--mt-boss-screen\);/);
+        expect(sheet).toMatch(
+            /\[data-screen="open"\] > \.mt-boss-shape \{[^}]*border-radius: var\(--mt-radius-control\);/
+        );
+        const screen = css("boss-screen.css");
+        expect(screen).toMatch(/--mt-boss-ember: var\(--mt-action-hover\);/);
+        expect(screen).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    });
+
+    it("takes the pointer through a zone of its final size, not through the shape that grows", () => {
+        const sheet = css();
+        expect(sheet).toMatch(new RegExp(`\\.mt-boss-zone \\{[^}]*width: var\\(--mt-boss-screen\\);`));
+        expect(sheet).toMatch(/\.mt-boss-zone \{[^}]*height: var\(--mt-boss-screen\);/);
+        expect(sheet).toMatch(/\[data-screen="open"\] > \.mt-boss-zone \{\s*pointer-events: auto;/);
+        // Nothing opens or sizes anything from :hover: the open state is the data-screen attribute.
+        for (const file of ["boss-bubble.css", "boss-screen.css", "boss-portrait.css"]) {
+            const rules = css(file).replace(/\/\*[\s\S]*?\*\//g, "");
+            for (const rule of rules.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+                if (/:hover/.test(rule[1])) {
+                    expect(rule[2]).not.toMatch(/(?:^|[;\s])(?:width|height|transform|transition)\s*:/);
+                }
+            }
+        }
+        expect(css("boss-bubble.css")).not.toMatch(/\.mt-boss-(?:shape|zone)[^{]*:hover/);
+        const html = render();
+        expect(html).toMatch(
+            /<span class="mt-boss-zone" data-testid="boss-zone" aria-hidden="true"><\/span><\/button>/
+        );
+    });
+
+    it("carries the badge on the shape's top right, so that it follows the edge as the round becomes the screen", () => {
+        globalStore.set(model.badgeAtom, { count: 2, text: "2", tone: "waiting" });
+        for (const corner of Corners) {
+            globalStore.set(model.stateAtom, { ...DefaultBubbleState, place: { corner, dx: 16, dy: 16 } });
+            for (const hold of [NoScreenHold, holdAfter(NoScreenHold, "pointer-enter")]) {
+                globalStore.set(model.screenHoldAtom, hold);
+                const inside = shape(render());
+                // The badge is in the shape, after the face that clips, so the face never hides it.
+                expect(inside.indexOf('class="mt-boss-face"')).toBeGreaterThanOrEqual(0);
+                expect(inside.indexOf('data-testid="boss-badge"')).toBeGreaterThan(inside.indexOf("mt-boss-face"));
+                expect(inside.lastIndexOf('class="mt-boss-face"')).toBeLessThan(
+                    inside.indexOf('data-testid="boss-badge"')
+                );
+            }
+        }
+        const sheet = css();
+        expect(sheet).toMatch(/\.mt-boss-badge \{[^}]*position: absolute;[^}]*top: -5px;[^}]*right: -5px;/);
+        expect(sheet).toMatch(/\.mt-boss-shape,\s*\.mt-boss-zone \{[^}]*position: absolute;/);
+        expect(sheet).toMatch(/\.mt-boss-face \{[^}]*overflow: hidden;/);
+    });
+
+    it("lets the peek lie beyond the screen, not under it", () => {
+        globalStore.set(model.peekOpenAtom, true);
+        const rest = attr(render(), "boss-peek", "style");
+        expect(rest).toContain("bottom:calc(max(8px, min(16px, calc(100% - 52px))) + 52px)");
+        open();
+        const beyond = attr(render(), "boss-peek", "style");
+        expect(beyond).toContain(`+ ${ScreenSizePx + 8}px)`);
+        expect(beyond).toContain("right:max(8px, min(16px, calc(100% - 52px)))");
+    });
+
+    it("is for the eyes only: the bubble's name and description say the same to screen readers", () => {
+        open();
+        const html = render();
+        expect(attr(html, "boss-screen", "aria-hidden")).toBe("true");
+        expect(attr(html, "boss-bubble", "aria-label")).toBe("Brokk, 0 waiting");
+        expect(attr(html, "boss-bubble", "aria-describedby")).toBeTruthy();
+    });
+});
+
+describe("the comm screen under reduced motion (AC13)", () => {
+    const bubble = css();
+    const screen = css("boss-screen.css");
+    const media = (sheet: string) =>
+        /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}\n/.exec(sheet)?.[1] ?? "";
+
+    it("opens without a transition, for the system's preference and for the app's own setting", () => {
+        for (const area of [media(bubble), bubble.slice(bubble.indexOf("\n.prefers-reduced-motion .mt-boss-face"))]) {
+            expect(area).toMatch(/\[data-screen="open"\] > \.mt-boss-shape,/);
+            expect(area).toMatch(/\[data-screen="open"\] > \.mt-boss-shape > \.mt-boss-face/);
+            expect(area).toMatch(/\[data-screen="open"\] \.mt-boss-portrait/);
+            expect(area).toMatch(/transition: none;/);
+        }
+    });
+
+    it("breathes, sweeps and blinks no more, and the sweep is not left standing", () => {
+        for (const area of [media(screen), screen.slice(screen.indexOf("\n.prefers-reduced-motion "))]) {
+            expect(area).toMatch(/\.mt-boss-portrait-image/);
+            expect(area).toMatch(/\.mt-boss-sweep/);
+            expect(area).toMatch(/\.mt-boss-live > i/);
+            expect(area).toMatch(/\.mt-boss-fx/);
+            expect(area).toMatch(/animation: none;/);
+            expect(area).toMatch(/\.mt-boss-sweep \{\s*display: none;/);
+            // The state mark holds a still frame of the fall.
+            expect(area).toMatch(
+                /\.df-domino-loader > span \{\s*animation: none;\s*transform: rotate\(var\(--df-domino-still/
+            );
+        }
+    });
+
+    it("has its three loops only inside the screen's own stylesheet, and no loop on the round at rest", () => {
+        expect(screen.match(/\binfinite\b/g)).toHaveLength(3);
+        expect(css()).not.toMatch(/\binfinite\b/);
+        expect(css("boss-portrait.css")).not.toMatch(/\binfinite\b/);
     });
 });

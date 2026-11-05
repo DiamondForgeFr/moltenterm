@@ -117,13 +117,15 @@ export function placeStyle(
 }
 
 // The peek beside the bubble: on the side of the corner it sits in, past the bubble's own size and a gap, aligned with
-// the bubble's edge.
+// the bubble's edge. The clearance is the room more the open comm screen takes (FR-BOSS-001, AC12): the peek lies
+// beyond the screen, not under it.
 export function peekStyle(
     place: BubblePlace,
     size: number = BubbleSizePx,
-    margin: number = BubbleMarginPx
+    margin: number = BubbleMarginPx,
+    clearance: number = 0
 ): PlaceStyle {
-    const gap = size + PeekGapPx;
+    const gap = size + PeekGapPx + clearance;
     const vertical = place.corner[0] === "t" ? "top" : "bottom";
     const clamped = placeStyle(place, size, margin);
     return {

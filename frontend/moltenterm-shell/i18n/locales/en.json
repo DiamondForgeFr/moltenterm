@@ -2987,6 +2987,14 @@
                 "one": "and 1 more workspace",
                 "other": "and {count} more workspaces"
             }
+        },
+        "screen": {
+            "online": "Online",
+            "quiet": "Nothing to handle",
+            "toHandle": {
+                "one": "{count} thing to handle",
+                "other": "{count} things to handle"
+            }
         }
     },
     "keepawake": {
