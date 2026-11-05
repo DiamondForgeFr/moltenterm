@@ -283,41 +283,9 @@
     color: var(--mt-state-warning-fg);
 }
 
-/* The one cue (AC6) when the count rises: a short nudge of the bubble, a wave of the pennant, once. Two names for the
-   same motion, so the next rise plays it again without drawing the button anew. Reduced motion changes the badge
-   only. */
-@keyframes mt-boss-nudge-a {
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-    30% {
-        transform: translateY(-7px);
-    }
-    55% {
-        transform: translateY(0);
-    }
-    75% {
-        transform: translateY(-3px);
-    }
-}
-
-@keyframes mt-boss-nudge-b {
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-    30% {
-        transform: translateY(-7px);
-    }
-    55% {
-        transform: translateY(0);
-    }
-    75% {
-        transform: translateY(-3px);
-    }
-}
-
+/* The one cue (AC6) when the count rises: a wave of the pennant, once. Two names for the same motion, so the next rise
+   plays it again without drawing the button anew. The round has no motion of its own for it any more: it makes one
+   gesture, the call, with his animated portrait (FR-BOSS-007, brokk-live.tsx). Reduced motion changes the badge only. */
 @keyframes mt-boss-wave-a {
     0%,
     100% {
@@ -350,14 +318,6 @@
     }
 }
 
-.mt-boss-bubble.mt-boss-cue-a {
-    animation: mt-boss-nudge-a 640ms var(--mt-ease) 1;
-}
-
-.mt-boss-bubble.mt-boss-cue-b {
-    animation: mt-boss-nudge-b 640ms var(--mt-ease) 1;
-}
-
 .mt-boss-pennant.mt-boss-cue-a {
     animation: mt-boss-wave-a 800ms var(--mt-ease) 1;
 }
@@ -367,8 +327,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .mt-boss-bubble.mt-boss-cue-a,
-    .mt-boss-bubble.mt-boss-cue-b,
     .mt-boss-pennant.mt-boss-cue-a,
     .mt-boss-pennant.mt-boss-cue-b {
         animation: none;
@@ -383,8 +341,6 @@
     }
 }
 
-.prefers-reduced-motion .mt-boss-bubble.mt-boss-cue-a,
-.prefers-reduced-motion .mt-boss-bubble.mt-boss-cue-b,
 .prefers-reduced-motion .mt-boss-pennant.mt-boss-cue-a,
 .prefers-reduced-motion .mt-boss-pennant.mt-boss-cue-b {
     animation: none;

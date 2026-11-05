@@ -1,0 +1,86 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Brokk's clips over his still (FR-BOSS-007). The shared package draws a whole comm screen around its video: its own
+   frame, tint, scanlines, sweep, vignette, viewfinder corners, "live" mark and caption. The bubble's screen already
+   draws all of those (boss-screen.css), in the ember of the action colour, and the round must show none of them, so
+   everything the package draws but the clips is turned off here. The clips lie over the still of boss-portrait.tsx,
+   which stays under them: it is what shows until a clip plays, and when none can. The package's own still is hidden
+   for that reason. The package's rules sit in its `components` layer, which these unlayered rules outrank.
+
+   The clips wear no filter. The package tones its video with one (brightness, contrast, saturation), and so did the
+   still of boss-portrait.css, but Chromium draws a lighter rectangle past the edge of a round that clips a filtered
+   video (found in the test instance, on the call gesture: it shows with the filter on the video or on any element above
+   it, and not without). The still stands without it as well while the clips play, so that a clip fading in over it
+   changes nothing but the motion; its filter comes back when they are gone. The tint variables are the ones the
+   package documents; nothing it draws shows, but they keep its clips and its neighbours in the app's colours. */
+
+.mt-brokk-live {
+    position: absolute;
+    inset: 0;
+}
+
+.mt-brokk-portrait {
+    --character-accent: var(--mt-action-hover);
+    --character-tint: var(--mt-action);
+    --character-screen: transparent;
+    position: absolute;
+    inset: 0;
+    margin: 0;
+}
+
+.mt-brokk-portrait .character-screen {
+    position: absolute;
+    inset: 0;
+    aspect-ratio: auto;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+}
+
+.mt-brokk-portrait
+    :is(
+        .character-still,
+        .character-tint,
+        .character-scanlines,
+        .character-sweep,
+        .character-vignette,
+        .character-corner,
+        .character-live,
+        .character-caption
+    ) {
+    display: none;
+}
+
+.mt-brokk-portrait .character-video {
+    filter: none;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+}
+
+/* The still stops breathing and drops its filter under clips: a clip fading in over a still that moves or is toned
+   differently would show as a jump. */
+.mt-boss-portrait-image {
+    transition: filter var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-boss-portrait:has(.mt-brokk-live) .mt-boss-portrait-image {
+    filter: none;
+}
+
+.mt-boss-bubble .mt-boss-portrait:has(.mt-brokk-live) .mt-boss-portrait-image {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-boss-portrait-image,
+    .mt-brokk-portrait .character-video {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-boss-portrait-image,
+.prefers-reduced-motion .mt-brokk-portrait .character-video {
+    transition: none;
+}

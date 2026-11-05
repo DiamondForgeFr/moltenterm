@@ -1,0 +1,75 @@
+{
+  "still": "brokk.jpg",
+  "size": 480,
+  "fps": 16,
+  "states": [
+    "listening",
+    "speaking",
+    "thinking",
+    "rest"
+  ],
+  "transitions": [
+    "listening>thinking",
+    "speaking>thinking",
+    "thinking>listening",
+    "thinking>speaking",
+    "listening>rest",
+    "speaking>rest",
+    "rest>listening",
+    "rest>speaking",
+    "thinking>rest",
+    "rest>thinking"
+  ],
+  "samePose": [
+    "listening>speaking",
+    "speaking>listening"
+  ],
+  "idles": {
+    "listening": [
+      {
+        "name": "blink",
+        "weight": 4
+      },
+      {
+        "name": "nod"
+      },
+      {
+        "name": "doubtful",
+        "onDemand": true
+      },
+      {
+        "name": "frown",
+        "onDemand": true
+      },
+      {
+        "name": "smile",
+        "onDemand": true
+      },
+      {
+        "name": "call",
+        "onDemand": true
+      }
+    ],
+    "speaking": [
+      {
+        "name": "blink",
+        "weight": 2
+      },
+      {
+        "name": "nod"
+      }
+    ]
+  },
+  "expressionMs": {
+    "smile": 3375,
+    "doubtful": 4625,
+    "frown": 2625,
+    "nod": 2750,
+    "call": 2500
+  },
+  "head": {
+    "x": 0.5,
+    "y": 0.14,
+    "bubbleZoom": 2.2
+  }
+}

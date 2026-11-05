@@ -4,10 +4,11 @@
 // The foreman's bubble, the pennant and the hover peek (FR-BOSS-001, DS-BOSS-001): a round bubble of 44 px with his still
 // portrait, framed on his head, at the bottom right of the window, draggable; folded, a pennant hanging from the top
 // edge with his initial. On hover or keyboard focus the round opens into a comm screen toward the inside of the window
-// (AC12, boss-screen.ts). A badge counts the agents that wait or failed in every workspace, one cue plays when the count
-// rises, and the peek shows on hover without taking the focus. Nothing here opens anything by itself or plays a sound:
-// the click on the bubble or the pennant, and nothing else, shows the Sessions card (FR-BOSS-002), and the same click
-// hides it again.
+// (AC12, boss-screen.ts), where his animated portrait plays the loop of his pose (FR-BOSS-007). A badge counts the
+// agents that wait or failed in every workspace, one cue plays when the count rises (the pennant waves; the round makes
+// one gesture, the call, with his animated portrait), and the peek shows on hover without taking the focus. Nothing
+// here opens anything by itself or plays a sound: the click on the bubble or the pennant, and nothing else, shows the
+// Sessions card (FR-BOSS-002), and the same click hides it again.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -42,6 +43,8 @@ import { BossPortrait } from "./boss-portrait";
 import { BossScreen } from "./boss-screen";
 import { holdAfter, NoScreenHold, ScreenEvent, screenShows, ScreenSizePx } from "./boss-screen-model";
 import { BossBubbleModel } from "./boss-store";
+import { BrokkExpressionsModel } from "./brokk-expressions";
+import { useBubbleLive } from "./use-brokk-live";
 
 // Under the pointer for this long before the peek shows: passing over the bubble shows nothing.
 export const PeekDelayMs = 350;
@@ -152,6 +155,7 @@ function BossBubbleLayer() {
     const cardOpen = useAtomValue(model.cardOpenAtom, { store: globalStore });
     const peek = useAtomValue(model.peekAtom, { store: globalStore });
     const screenOpen = !collapsed && screenShows(screenHold, { dragging: dragRect != null, cardOpen });
+    const live = useBubbleLive({ name, collapsed, screenOpen });
     const layerRef = useRef<HTMLDivElement>(null);
     const bubbleRef = useRef<HTMLButtonElement>(null);
     const drag = useRef<DragState>(null);
@@ -164,6 +168,7 @@ function BossBubbleLayer() {
     const descriptionId = useId();
 
     useEffect(() => model.attach(document), [model]);
+    useEffect(() => BrokkExpressionsModel.getInstance().watch(), []);
     useEffect(() => {
         model.setRectSource(() => {
             const box = bubbleRef.current?.getBoundingClientRect();
@@ -424,7 +429,7 @@ function BossBubbleLayer() {
                     key="bubble"
                     ref={bubbleRef}
                     type="button"
-                    className={cn("mt-boss-bubble", swap, cueClass, dragRect != null && "is-dragging")}
+                    className={cn("mt-boss-bubble", swap, dragRect != null && "is-dragging")}
                     style={bubbleStyle}
                     aria-label={label}
                     aria-describedby={descriptionId}
@@ -440,12 +445,11 @@ function BossBubbleLayer() {
                     onPointerCancel={(e) => endDrag(e, false)}
                     onClick={onActivate}
                     onContextMenu={(e) => showMenu(e, bubbleMenu)}
-                    onAnimationEnd={onAnimationEnd}
                     {...bubbleHover}
                 >
                     <span className="mt-boss-shape" data-testid="boss-shape" aria-hidden>
                         <span className="mt-boss-face">
-                            <BossPortrait />
+                            <BossPortrait live={live} />
                             {screenOpen ? <BossScreen name={name} count={badge.count} /> : null}
                         </span>
                         {badge.count > 0 ? (

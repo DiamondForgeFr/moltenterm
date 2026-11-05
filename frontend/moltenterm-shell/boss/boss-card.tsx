@@ -64,6 +64,9 @@ import { HandoffRowView } from "./boss-handoff-row";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
 import { InfoItem, ToHandleAction, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
+import { expressionAfterAnswer } from "./brokk-expression-model";
+import { BrokkExpressionsModel } from "./brokk-expressions";
+import { useCardLive } from "./use-brokk-live";
 
 // How often "up 12 min" is read again while the card shows.
 const AgeTickMs = 15000;
@@ -548,6 +551,7 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
     const [busyId, setBusyId] = useState<string>(null);
     const [problem, setProblem] = useState("");
     const [tab, setTab] = useState<CardTab>(() => (badge.count > 0 ? "todo" : lastCardTab));
+    const live = useCardLive(name);
     const home = homeFolder();
     const groups = useMemo(
         () => cardGroups(data, workspace?.oid, home, now),
@@ -668,6 +672,10 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
         fireAndForget(async () => {
             try {
                 await work();
+                const expression = expressionAfterAnswer(run);
+                if (expression != null) {
+                    BrokkExpressionsModel.getInstance().ask(expression);
+                }
             } catch (e) {
                 setProblem(serverErrorText(e));
             } finally {
@@ -739,7 +747,7 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
         >
             <div className="flex shrink-0 items-center gap-2 border-b border-line-strong px-3 py-2">
                 <span className="mt-boss-card-face" aria-hidden>
-                    <BossPortrait />
+                    <BossPortrait live={live} />
                 </span>
                 <h2
                     className="min-w-0 flex-1 truncate text-13 font-semibold text-primary"
