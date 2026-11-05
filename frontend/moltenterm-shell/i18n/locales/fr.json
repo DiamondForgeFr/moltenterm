@@ -5662,6 +5662,10 @@
             "one": "{count} non lue",
             "other": "{count} non lues"
         },
+        "working": {
+            "one": "{count} agent au travail",
+            "other": "{count} agents au travail"
+        },
         "unsavedWorkspace": "Espace de travail non enregistré",
         "unsavedClickToSave": "Espace de travail non enregistré : cliquez pour l'enregistrer",
         "groupNameTooLong": "Un nom de groupe fait au plus {max} caractères.",

@@ -344,6 +344,105 @@
     }
 }
 
+/* A workspace whose agents work ripples (FR-SHELL-082, #1943, workspace-dot-ripple.ts): two thin circles in the
+   workspace colour leave the dot one after the other and fade out, about 2.4 s a cycle. They are the dot's
+   pseudo-elements, scaled from its own size to a reach inside its 24 px slot, so the dot keeps its size and place and
+   the row never moves: clicks and drags stay exact. Cost (#473, #1399): transform and opacity only, so the compositor
+   runs it, and no timer per dot. The cycle is played in 15 steps a second (36 steps in 2.4 s) and the second circle
+   waits half a cycle, 18 steps, so every change falls on a frame of the dominoes' and the heat's grid;
+   workspace-dot-ripple.ts puts the start of each ripple onto that grid. The ring and the ripple share ::after, so the
+   ring wins: the component never sets both, and :not(.has-ring) holds if it ever did. Sizes are unitless pixels, so
+   the keyframes can divide them. */
+.mt-sb-dot.is-working {
+    --mt-sb-ripple-size: 9;
+    --mt-sb-ripple-reach: 23;
+    /* The still halo's width under reduced motion: 3 px, less where it would pass the 24 px slot (the square). */
+    --mt-sb-ripple-halo: min(3px, calc((24 - var(--mt-sb-ripple-size)) / 2 * 1px));
+}
+
+.mt-sb-dot.is-working.is-on {
+    --mt-sb-ripple-size: 20;
+    --mt-sb-ripple-reach: 24;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot.is-working {
+    --mt-sb-ripple-size: 7;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot.is-working.is-on {
+    --mt-sb-ripple-size: 18;
+}
+
+.mt-sb-dot.is-working:not(.has-ring) > i {
+    position: relative;
+    z-index: 1;
+}
+
+.mt-sb-dot.is-working:not(.has-ring)::before,
+.mt-sb-dot.is-working:not(.has-ring)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    box-sizing: border-box;
+    width: calc(var(--mt-sb-ripple-size) * 1px);
+    height: calc(var(--mt-sb-ripple-size) * 1px);
+    border: 1.5px solid var(--mt-sb-dot-colour);
+    border-radius: 9999px;
+    opacity: 0;
+    pointer-events: none;
+    animation: mt-sb-ripple 2.4s steps(36) infinite;
+}
+
+.mt-sb-dot.is-working.is-on:not(.has-ring)::before,
+.mt-sb-dot.is-working.is-on:not(.has-ring)::after {
+    border-radius: var(--mt-radius-panel);
+}
+
+.mt-sb-dot.is-working:not(.has-ring)::after {
+    animation-delay: 1.2s;
+}
+
+@keyframes mt-sb-ripple {
+    from {
+        transform: scale(1);
+        opacity: 0.85;
+    }
+
+    to {
+        transform: scale(calc(var(--mt-sb-ripple-reach) / var(--mt-sb-ripple-size)));
+        opacity: 0;
+    }
+}
+
+/* Reduced motion: no ripple, a faint fixed halo in the workspace colour around the dot instead. It stands in the first
+   circle, and the second goes. The system's preference and MoltenTerm's own setting (the app root's class). */
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-dot.is-working:not(.has-ring)::before {
+        animation: none;
+        opacity: 1;
+        border-width: 0;
+        box-shadow: 0 0 0 var(--mt-sb-ripple-halo) color-mix(in srgb, var(--mt-sb-dot-colour) 28%, transparent);
+    }
+
+    .mt-sb-dot.is-working:not(.has-ring)::after {
+        content: none;
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-sb-dot.is-working:not(.has-ring)::before {
+    animation: none;
+    opacity: 1;
+    border-width: 0;
+    box-shadow: 0 0 0 var(--mt-sb-ripple-halo) color-mix(in srgb, var(--mt-sb-dot-colour) 28%, transparent);
+}
+
+.prefers-reduced-motion .mt-sb-dot.is-working:not(.has-ring)::after {
+    content: none;
+    animation: none;
+}
+
 /* The build badge rests small beside the branch and fills under the pointer. Its letter is never dimmed with an
    opacity: at 0.45 it read 2.88:1 (#1328). */
 .mt-sb-build {

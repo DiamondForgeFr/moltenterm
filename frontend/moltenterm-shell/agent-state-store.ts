@@ -20,6 +20,7 @@ import {
     applyAgentStates,
     EmptyAgentStates,
     mostUrgentAgentState,
+    workingAgentCount,
 } from "./agent-state-model";
 
 const SnapshotTimeoutMs = 5000;
@@ -34,6 +35,7 @@ export class AgentStates {
     loadedAtom = atom(false) as PrimitiveAtom<boolean>;
     blockAtoms = new Map<string, Atom<AgentStateInfo>>();
     workspaceAtoms = new Map<string, Atom<AgentStateInfo>>();
+    workspaceWorkingAtoms = new Map<string, Atom<number>>();
     started = false;
 
     private constructor() {}
@@ -106,6 +108,17 @@ export class AgentStates {
         if (rtn == null) {
             rtn = atom((get) => mostUrgentAgentState(agentStatesOfWorkspace(get(this.dataAtom), workspaceId)));
             this.workspaceAtoms.set(workspaceId, rtn);
+        }
+        return rtn;
+    }
+
+    // The number of working agents, not the most urgent state: a workspace that waits on one agent still has others at
+    // work, and the atom only changes when the count does, so the dots of idle workspaces never render again.
+    workspaceWorkingAtom(workspaceId: string): Atom<number> {
+        let rtn = this.workspaceWorkingAtoms.get(workspaceId);
+        if (rtn == null) {
+            rtn = atom((get) => workingAgentCount(agentStatesOfWorkspace(get(this.dataAtom), workspaceId)));
+            this.workspaceWorkingAtoms.set(workspaceId, rtn);
         }
         return rtn;
     }
