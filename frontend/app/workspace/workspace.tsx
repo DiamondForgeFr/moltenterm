@@ -209,7 +209,7 @@ const WorkspaceElem = memo(() => {
                 {/* MOLTENTERM-PATCH (#450): another workspace's view is loading (FR-PERF-004) */}
                 <ViewPendingOverlay />
             </div>
-            {/* MOLTENTERM-PATCH (#1883): Ferrand's bubble and pennant float over the content, above the status bar and under the toasts (FR-BOSS-001) */}
+            {/* MOLTENTERM-PATCH (#1883): the foreman's bubble and pennant float over the content, above the status bar and under the toasts (FR-BOSS-001) */}
             <BossBubbleHost />
             </div>
             </div>

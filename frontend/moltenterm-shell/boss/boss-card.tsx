@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Ferrand's Sessions card (FR-BOSS-002, DS-BOSS-002): a layer that floats over the app beside the bubble or the pennant,
+// The foreman's Sessions card (FR-BOSS-002, DS-BOSS-002): a layer that floats over the app beside the bubble or the pennant,
 // listing every running session of every workspace with the Sessions view's own data. It is not a panel, a tab or a
 // split: it moves and resizes nothing, and hiding it (the bubble again, Escape, a click outside, its close control, Go
 // to) leaves the app as it was. It is not modal either: nothing dims, the focus is not held in it, and a press outside
@@ -59,7 +59,7 @@ import {
 } from "./boss-card-model";
 import { BossBubbleModel } from "./boss-store";
 import { InfoItem, ToHandleAction, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
-import FerrandPortrait from "./ferrand.svg";
+import BossPortrait from "./boss-portrait.svg";
 
 // How often "up 12 min" is read again while the card shows.
 const AgeTickMs = 15000;
@@ -327,7 +327,7 @@ function ToHandleRowView({
                             onRun={onRun}
                         />
                     ))}
-                    {/* The reserved place of B4's "Talk ‹" and "Ask Ferrand ‹" (FR-BOSS-003): empty until B4 ships. */}
+                    {/* The reserved place of B4's "Talk ‹" and "Ask {name} ‹" (FR-BOSS-003): empty until B4 ships. */}
                     <span data-slot="talk" className="contents" aria-hidden />
                 </div>
             </div>
@@ -698,7 +698,7 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
         >
             <div className="flex shrink-0 items-center gap-2 border-b border-line-strong px-3 py-2">
                 <span className="mt-boss-card-face" aria-hidden>
-                    <FerrandPortrait />
+                    <BossPortrait />
                 </span>
                 <h2
                     className="min-w-0 flex-1 truncate text-13 font-semibold text-primary"

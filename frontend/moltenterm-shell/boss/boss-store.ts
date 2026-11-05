@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Ferrand's bubble in a window (FR-BOSS-001, DS-BOSS-001): where it sits and whether it is collapsed (the window's meta,
+// The foreman's bubble in a window (FR-BOSS-001, DS-BOSS-001): where it sits and whether it is collapsed (the window's meta,
 // so every view of the window draws the same and a relaunch keeps them), the count and the peek it tells, the one cue
 // when the count rises, and the collapse while the developer types in a terminal under it. The bubble never takes the
 // focus and opens nothing: it only listens. Its Sessions card (FR-BOSS-002) shows only when the developer asks for it

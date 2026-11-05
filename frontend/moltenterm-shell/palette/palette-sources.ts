@@ -431,7 +431,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
     return rtn;
 }
 
-// "Show Ferrand's card" (FR-BOSS-002-AC1): the Sessions of every workspace over the app, while his bubble or his pennant
+// "Show {name}'s card" (FR-BOSS-002-AC1): the Sessions of every workspace over the app, while his bubble or his pennant
 // is there to anchor it.
 export function bossCardEntries(name: string): PaletteEntry[] {
     if (!name) {

@@ -277,7 +277,7 @@ describe("sessions", () => {
     });
 });
 
-describe("Ferrand's card (FR-BOSS-002-AC1)", () => {
+describe("Brokk's card (FR-BOSS-002-AC1)", () => {
     const base = {
         presets: {},
         widgets: {},
@@ -307,7 +307,7 @@ describe("Ferrand's card (FR-BOSS-002-AC1)", () => {
     });
 
     it("opens nothing in a panel: it runs where it is, as the other actions do", () => {
-        const entry = bossCardEntries("Ferrand")[0];
+        const entry = bossCardEntries("Brokk")[0];
         expect(fillsPanel(entry.run)).toBe(false);
     });
 });

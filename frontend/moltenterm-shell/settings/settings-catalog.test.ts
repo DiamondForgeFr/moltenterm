@@ -71,7 +71,7 @@ describe("settings catalog (FR-SHELL-050)", () => {
             "Appearance",
             "Terminal",
             "Agents",
-            "Ferrand",
+            "Brokk",
             "Browser",
             "Project",
             "Notifications",
@@ -410,7 +410,7 @@ describe("Agents with the integration (FR-SHELL-040, #947)", () => {
     });
 });
 
-describe("Ferrand's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
+describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
     const boss = SettingsSections.find((s) => s.id === "boss");
     const tr = (key: string, vars?: Record<string, string | number>) => translate("en", key, vars);
     const trFr = (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars);
@@ -432,16 +432,16 @@ describe("Ferrand's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         });
     });
 
-    it("takes a name of 1 to 24 characters, Ferrand by default", () => {
+    it("takes a name of 1 to 24 characters, Brokk by default", () => {
         expect(entry("boss:name")).toMatchObject({
             control: "text",
-            defaultValue: "Ferrand",
+            defaultValue: "Brokk",
             range: { min: 1, max: 24 },
         });
     });
 
     it("is titled with the name the developer chose, in both languages", () => {
-        expect(localizeSection(boss, tr, "Ferrand").title).toBe("Ferrand");
+        expect(localizeSection(boss, tr, "Brokk").title).toBe("Brokk");
         expect(localizeSection(boss, tr, "Léa").title).toBe("Léa");
         expect(localizeSection(boss, trFr, "Léa").title).toBe("Léa");
         expect(sectionTitle("boss", tr, "Gaston")).toBe("Gaston");

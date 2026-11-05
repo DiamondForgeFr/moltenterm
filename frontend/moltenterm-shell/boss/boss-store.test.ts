@@ -544,8 +544,8 @@ describe("the settings (AC8, AC9)", () => {
         expect(globalStore.get(model.typingBlockAtom)).toBeNull();
     });
 
-    it("calls the foreman Ferrand until he is renamed", () => {
-        expect(globalStore.get(model.nameAtom)).toBe("Ferrand");
+    it("calls the foreman Brokk until he is renamed", () => {
+        expect(globalStore.get(model.nameAtom)).toBe("Brokk");
         globalStore.set(settings, { "boss:name": "  Léa " });
         expect(globalStore.get(model.nameAtom)).toBe("Léa");
         globalStore.set(settings, { "boss:name": "x".repeat(40) });

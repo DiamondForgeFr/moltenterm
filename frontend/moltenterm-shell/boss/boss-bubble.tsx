@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Ferrand's bubble, the pennant and the hover peek (FR-BOSS-001, DS-BOSS-001): a round bubble of 44 px with his still
+// The foreman's bubble, the pennant and the hover peek (FR-BOSS-001, DS-BOSS-001): a round bubble of 44 px with his still
 // portrait at the bottom right of the window, draggable; folded, a pennant hanging from the top edge with his initial.
 // A badge counts the agents that wait or failed in every workspace, one cue plays when the count rises, and the peek
 // shows on hover without taking the focus. Nothing here opens anything by itself or plays a sound: the click on the
@@ -36,7 +36,7 @@ import {
     Rect,
 } from "./boss-place";
 import { BossBubbleModel } from "./boss-store";
-import FerrandPortrait from "./ferrand.svg";
+import BossPortrait from "./boss-portrait.svg";
 
 // Under the pointer for this long before the peek shows: passing over the bubble shows nothing.
 export const PeekDelayMs = 350;
@@ -391,7 +391,7 @@ function BossBubbleLayer() {
                     {...hover}
                 >
                     <span className="mt-boss-face" aria-hidden>
-                        <FerrandPortrait />
+                        <BossPortrait />
                     </span>
                     {badge.count > 0 ? (
                         <span className="mt-boss-badge" data-tone={badge.tone} data-testid="boss-badge" aria-hidden>

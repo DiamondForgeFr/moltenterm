@@ -88,3 +88,13 @@ func TestOrderFollowsTheList(t *testing.T) {
 		}
 	}
 }
+
+func TestBossNameDefaultsToBrokk(t *testing.T) {
+	s, ok := Lookup("boss:name")
+	if !ok {
+		t.Fatalf("boss:name has no entry")
+	}
+	if s.Default != "Brokk" {
+		t.Errorf("boss:name defaults to %v, want Brokk", s.Default)
+	}
+}
