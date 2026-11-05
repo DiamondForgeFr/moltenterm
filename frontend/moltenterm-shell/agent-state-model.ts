@@ -109,6 +109,37 @@ export function applyAgentStates(data: AgentStatesData, infos: AgentStateInfo[])
     return next ?? data;
 }
 
+// Applies a snapshot read again after a reconnect (#1949): it also drops the agents it no longer lists, whose end was
+// published while the window followed no event. Only those the window held when it asked (before: their versions then)
+// and that no event changed since: an agent that started while the snapshot travelled is not in it, yet is live.
+export function reconcileAgentStates(
+    data: AgentStatesData,
+    before: Record<string, number>,
+    snapshot: AgentStateInfo[]
+): AgentStatesData {
+    let next = applyAgentStates(data, snapshot);
+    const listed = new Set((snapshot ?? []).map((info) => info?.blockid));
+    for (const [blockId, version] of Object.entries(before ?? {})) {
+        if (listed.has(blockId) || next.states[blockId] == null || next.versions[blockId] !== version) {
+            continue;
+        }
+        if (next === data) {
+            next = { states: { ...data.states }, versions: { ...data.versions } };
+        }
+        delete next.states[blockId];
+    }
+    return next;
+}
+
+// The versions of the agents a window holds, for reconcileAgentStates.
+export function heldAgentVersions(data: AgentStatesData): Record<string, number> {
+    const rtn: Record<string, number> = {};
+    for (const blockId of Object.keys(data?.states ?? {})) {
+        rtn[blockId] = data.versions[blockId] ?? 0;
+    }
+    return rtn;
+}
+
 // The state a tab or a workspace shows: the most urgent of its panes' (waiting, error, working, done); idle shows
 // nothing.
 export function mostUrgentAgentState(infos: AgentStateInfo[]): AgentStateInfo {

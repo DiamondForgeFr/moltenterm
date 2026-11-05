@@ -11,7 +11,9 @@ import {
     agentStateTitle,
     applyAgentStates,
     EmptyAgentStates,
+    heldAgentVersions,
     mostUrgentAgentState,
+    reconcileAgentStates,
 } from "./agent-state-model";
 
 function info(blockid: string, state: AgentStateInfo["state"], version: number, extra?: Partial<AgentStateInfo>) {
@@ -83,5 +85,31 @@ describe("agent states", () => {
         });
         expect(agentStateMessage(unknown)).toBe("Plain words");
         expect(agentStateMessage(info("b1", "done", 1))).toBe("");
+    });
+});
+
+// #1949: the window followed no event while its websocket was down; the snapshot it reads again brings the agent that
+// started meanwhile and drops the one that ended meanwhile.
+describe("agent states read again after a reconnect", () => {
+    it("adds the agent started while the window followed nothing and drops the one that ended", () => {
+        const held = applyAgentStates(EmptyAgentStates, [info("old", "idle", 4)]);
+        const before = heldAgentVersions(held);
+        const next = reconcileAgentStates(held, before, [info("new", "idle", 9, { firstname: "Constance" })]);
+        expect(next.states.new?.firstname).toBe("Constance");
+        expect(next.states.old).toBeUndefined();
+    });
+
+    it("keeps an agent an event brought while the snapshot travelled", () => {
+        const held = applyAgentStates(EmptyAgentStates, [info("a", "idle", 4)]);
+        const before = heldAgentVersions(held);
+        const meanwhile = applyAgentStates(held, [info("b", "working", 10), info("a", "working", 11)]);
+        const next = reconcileAgentStates(meanwhile, before, []);
+        expect(next.states.b?.state).toBe("working");
+        expect(next.states.a?.state).toBe("working");
+    });
+
+    it("returns the same object when the snapshot changes nothing", () => {
+        const held = applyAgentStates(EmptyAgentStates, [info("a", "idle", 4)]);
+        expect(reconcileAgentStates(held, heldAgentVersions(held), [info("a", "idle", 4)])).toBe(held);
     });
 });
