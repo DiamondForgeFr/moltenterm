@@ -169,9 +169,18 @@ describe("the stylesheet's ripple", () => {
     it("draws two circles from the dot's pseudo-elements, in the workspace colour, and moves nothing else", () => {
         const body = ruleBody(`${pseudo("before")},\n${pseudo("after")}`);
         expect(body).toContain("position: absolute");
-        expect(body).toContain("border: 1.5px solid var(--mt-sb-dot-colour)");
+        expect(body).toContain("border: 2.25px solid var(--mt-sb-dot-colour)");
         expect(body).toContain("pointer-events: none");
-        expect(body).not.toMatch(/\b(?:top|left|right|bottom|margin-(?:top|left|right|bottom)|padding|display):/);
+        expect(body).not.toMatch(/\b(?:right|bottom|margin[-\w]*|padding[-\w]*|display|flex[-\w]*):/);
+    });
+
+    it("centres the circles on the dot by a translate, which holds past the 24 px slot", () => {
+        const body = ruleBody(`${pseudo("before")},\n${pseudo("after")}`);
+        expect(body).toContain("top: 50%;");
+        expect(body).toContain("left: 50%;");
+        expect(body).toContain("transform: translate(-50%, -50%) scale(");
+        expect(body).not.toContain("inset:");
+        expect(body).not.toMatch(/margin[-\w]*:\s*auto/);
     });
 
     it("lets the ring win: the ripple is never drawn on a dot that has the ring", () => {
@@ -186,10 +195,23 @@ describe("the stylesheet's ripple", () => {
         }
     });
 
-    it("animates transform and opacity only, so the compositor runs it", () => {
+    it("draws outlines only: a thin line in the workspace colour, no fill, no shadow, no glow", () => {
+        const body = ruleBody(`${pseudo("before")},\n${pseudo("after")}`);
+        expect(body).toContain("border: 2.25px solid var(--mt-sb-dot-colour)");
+        expect(body).not.toMatch(/\b(?:background|box-shadow|filter|backdrop-filter|outline)[-\w]*:/);
+    });
+
+    it("draws each circle at its final size and scales it up from the dot's, on the compositor", () => {
+        const base = ruleBody(`${pseudo("before")},\n${pseudo("after")}`);
+        expect(base).toContain("width: calc(var(--mt-sb-ripple-reach) * 1px);");
+        expect(base).toContain("height: calc(var(--mt-sb-ripple-reach) * 1px);");
         const body = keyframes("mt-sb-ripple");
         const properties = [...body.matchAll(/(?:^|[{;])\s*([a-z-]+)\s*:/g)].map((m) => m[1]);
         expect(new Set(properties)).toEqual(new Set(["transform", "opacity"]));
+        expect(body).toMatch(
+            /from \{[^}]*transform: translate\(-50%, -50%\) scale\(calc\(var\(--mt-sb-ripple-size\) \/ var\(--mt-sb-ripple-reach\)\)\);[^}]*opacity: 0\.85;/
+        );
+        expect(body).toMatch(/to \{[^}]*transform: translate\(-50%, -50%\) scale\(1\);[^}]*opacity: 0;/);
     });
 
     it("plays 2.4 s in whole steps of the shared 1/15 s grid, the second circle half a cycle behind", () => {
@@ -209,7 +231,6 @@ describe("the stylesheet's ripple", () => {
         expect(ruleBody(".mt-sb-dot.is-working.is-on")).toContain("--mt-sb-ripple-size: 20;");
         expect(ruleBody(".mt-sb-dots.is-many .mt-sb-dot.is-working")).toContain("--mt-sb-ripple-size: 7;");
         expect(ruleBody(".mt-sb-dots.is-many .mt-sb-dot.is-working.is-on")).toContain("--mt-sb-ripple-size: 18;");
-        expect(ruleBody(`${pseudo("before")},\n${pseudo("after")}`)).toContain("inset: 0");
         expect(
             ruleBody(
                 `.mt-sb-dot.is-working.is-on${":not(.has-ring)"}::before,\n.mt-sb-dot.is-working.is-on${":not(.has-ring)"}::after`
@@ -217,12 +238,22 @@ describe("the stylesheet's ripple", () => {
         ).toContain("border-radius: var(--mt-radius-panel)");
     });
 
-    it("never grows past the 24 px slot of a dot, so the row and its neighbours are never reached", () => {
+    it("reaches 26 px from a dot and 32 px from the current square, beyond the 24 px slot", () => {
+        expect(ruleBody(".mt-sb-dot.is-working")).toContain("--mt-sb-ripple-reach: 26;");
+        expect(ruleBody(".mt-sb-dot.is-working.is-on")).toContain("--mt-sb-ripple-reach: 32;");
+    });
+
+    it("gives the circles the room to be seen and moves nothing: the row's padding is taken back by its margin", () => {
+        const room = /\n\.mt-sb-dots \{\s*padding-block: (\d+)px;\s*margin-block: -(\d+)px;\s*\}/.exec(css);
+        expect(room, "the row's room").not.toBeNull();
+        const padding = Number(room[1]);
+        expect(Number(room[2])).toBe(padding);
         const reaches = [...css.matchAll(/--mt-sb-ripple-reach:\s*(\d+);/g)].map((m) => Number(m[1]));
         expect(reaches.length).toBeGreaterThan(0);
         for (const reach of reaches) {
-            expect(reach).toBeLessThanOrEqual(24);
+            expect(reach, "a circle's reach").toBeLessThanOrEqual(24 + 2 * padding);
         }
+        expect(ruleBody(".mt-sb-dots.is-many")).toContain(`padding: ${padding}px 12px;`);
     });
 
     it.each([
@@ -234,22 +265,9 @@ describe("the stylesheet's ripple", () => {
     ])("stands still under %s: no ripple, a faint fixed halo", (_name, area) => {
         const text = area();
         expect(text).toMatch(
-            /is-working:not\(\.has-ring\)::before \{[^}]*animation: none;[^}]*opacity: 1;[^}]*box-shadow: 0 0 0 var\(--mt-sb-ripple-halo\) color-mix/
+            /is-working:not\(\.has-ring\)::before \{[^}]*animation: none;[^}]*transform: translate\(-50%, -50%\);[^}]*width: calc\(var\(--mt-sb-ripple-size\) \* 1px\);[^}]*opacity: 1;[^}]*box-shadow: 0 0 0 3px color-mix/
         );
         expect(text).toMatch(/is-working:not\(\.has-ring\)::after \{[^}]*content: none;/);
-    });
-
-    it("keeps the still halo inside the dot's 24 px slot, where the row would cut it", () => {
-        const halo =
-            /--mt-sb-ripple-halo: min\((\d+)px, calc\(\((\d+) - var\(--mt-sb-ripple-size\)\) \/ 2 \* 1px\)\);/.exec(
-                ruleBody(".mt-sb-dot.is-working")
-            );
-        expect(halo, "the halo's width").not.toBeNull();
-        const [, widest, slot] = halo.map(Number);
-        expect(slot).toBe(24);
-        for (const size of [9, 7, 20, 18]) {
-            expect(size + 2 * Math.min(widest, (slot - size) / 2)).toBeLessThanOrEqual(slot);
-        }
     });
 });
 
