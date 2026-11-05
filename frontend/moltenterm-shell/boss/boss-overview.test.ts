@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
-import { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { AgentStateInfo, AgentStatesData, applyAgentStates, EmptyAgentStates } from "../agent-state-model";
 import { UsageSnapshot } from "../companion/companion-gauges-model";
 import { MoltentermNotification } from "../notifications-model";
 import { DurableSession } from "../sessions/sessions-model";
@@ -107,6 +107,16 @@ describe("the agents that need the developer (FR-BOSS-001, AC5)", () => {
         expect(makeBadge(nine).text).toBe("9");
         expect(makeBadge([...nine, agent("x", "waiting")]).text).toBe("9+");
         expect(makeBadge([...nine, agent("x", "waiting")]).count).toBe(10);
+    });
+
+    it("drop an agent whose session ended, and never count it again from an older event (#1920)", () => {
+        const waiting = agent("a", "waiting", { version: 4 });
+        let data = applyAgentStates(EmptyAgentStates, [waiting, agent("b", "working", { version: 5 })]);
+        expect(makeBadge(attentionAgents(data)).count).toBe(1);
+        data = applyAgentStates(data, [{ blockid: "a", version: 6, cleared: true } as AgentStateInfo]);
+        expect(makeBadge(attentionAgents(data)).count).toBe(0);
+        data = applyAgentStates(data, [waiting]);
+        expect(makeBadge(attentionAgents(data)).count).toBe(0);
     });
 
     it("name the button with the name and the count (AC10)", () => {
