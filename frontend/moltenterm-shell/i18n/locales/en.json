@@ -5670,6 +5670,10 @@
             "one": "{count} unread",
             "other": "{count} unread"
         },
+        "working": {
+            "one": "{count} agent at work",
+            "other": "{count} agents at work"
+        },
         "unsavedWorkspace": "Unsaved workspace",
         "unsavedClickToSave": "Unsaved workspace: click to save it",
         "groupNameTooLong": "A group name is at most {max} characters.",

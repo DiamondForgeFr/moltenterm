@@ -124,6 +124,12 @@ export function mostUrgentAgentState(infos: AgentStateInfo[]): AgentStateInfo {
     return best;
 }
 
+// How many agents of the workspace work (#1943). A pane held up only by its sub-agents already reads working (#1092),
+// so the main session and the background sub-agents are counted by the one state; waiting, error and done are not work.
+export function workingAgentCount(infos: AgentStateInfo[]): number {
+    return (infos ?? []).filter((info) => info?.state === "working").length;
+}
+
 export function agentStatesOfBlocks(data: AgentStatesData, blockIds: string[]): AgentStateInfo[] {
     return (blockIds ?? []).map((id) => data.states[id]).filter((s) => s != null);
 }

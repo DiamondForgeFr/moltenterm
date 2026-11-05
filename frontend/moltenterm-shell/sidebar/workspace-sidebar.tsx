@@ -185,6 +185,7 @@ import {
 } from "./window-corner-model";
 import { WorkspaceDotPopover } from "./workspace-dot-popover";
 import { DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
+import { snapRipplesOf, workspaceDotLook } from "./workspace-dot-ripple";
 import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
@@ -1861,6 +1862,7 @@ function WorkspaceDot({
     const platform = usePlatform();
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
     const agent = useAtomValue(AgentStates.getInstance().workspaceAtom(entry.id));
+    const working = useAtomValue(AgentStates.getInstance().workspaceWorkingAtom(entry.id));
     const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(entry.id));
     const [anchor, setAnchor] = useState<HTMLButtonElement>(null);
     const choice = workspace?.color ?? entry.color;
@@ -1869,7 +1871,7 @@ function WorkspaceDot({
     const ringColour = stops[0] ?? "var(--color-secondary)";
     const letterColour = stops.length > 0 ? colourChoiceForeground(choice) : "black";
     const waiting = agent?.state === "waiting";
-    const ring = !entry.active && (unread > 0 || waiting);
+    const { ring, ripple } = workspaceDotLook({ active: entry.active, unread, waiting, working });
     const letter = (Array.from(entry.name ?? "")[0] ?? "").toUpperCase();
     const attention: string[] = [];
     if (unread > 0) {
@@ -1877,6 +1879,9 @@ function WorkspaceDot({
     }
     if (waiting) {
         attention.push(agentStateTitle(agent));
+    }
+    if (working > 0) {
+        attention.push(tc("rail.working", working));
     }
     if (coffee != null) {
         attention.push(t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) }));
@@ -1926,6 +1931,7 @@ function WorkspaceDot({
                 "mt-sb-dot relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0",
                 current && "is-on",
                 ring && "has-ring",
+                ripple && "is-working",
                 drag.offsetX != null && "z-10"
             )}
             style={
@@ -2130,6 +2136,7 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
             data-testid="sidebar-workspace-dots"
             data-many={many ? "true" : undefined}
             onPointerLeave={() => hoverRef.current.leave()}
+            onAnimationStart={snapRipplesOf}
         >
             {letter != null ? (
                 <span
