@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The foreman's bubble, the pennant and the hover peek (FR-BOSS-001, DS-BOSS-001): a round bubble of 44 px with his still
-// portrait at the bottom right of the window, draggable; folded, a pennant hanging from the top edge with his initial.
-// A badge counts the agents that wait or failed in every workspace, one cue plays when the count rises, and the peek
-// shows on hover without taking the focus. Nothing here opens anything by itself or plays a sound: the click on the
-// bubble or the pennant, and nothing else, shows the Sessions card (FR-BOSS-002), and the same click hides it again.
+// portrait, framed on his head, at the bottom right of the window, draggable; folded, a pennant hanging from the top
+// edge with his initial. On hover or keyboard focus the round opens into a comm screen toward the inside of the window
+// (AC12, boss-screen.ts). A badge counts the agents that wait or failed in every workspace, one cue plays when the count
+// rises, and the peek shows on hover without taking the focus. Nothing here opens anything by itself or plays a sound:
+// the click on the bubble or the pennant, and nothing else, shows the Sessions card (FR-BOSS-002), and the same click
+// hides it again.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -23,6 +25,7 @@ import { bossInitial } from "./boss-name";
 import { BossPeek, bubbleLabel, peekIsQuiet, workplaceNames } from "./boss-overview";
 import {
     Area,
+    BubbleMarginPx,
     BubbleSizePx,
     cardStyle,
     clampRect,
@@ -35,8 +38,10 @@ import {
     placeStyle,
     Rect,
 } from "./boss-place";
+import { BossPortrait } from "./boss-portrait";
+import { BossScreen } from "./boss-screen";
+import { holdAfter, NoScreenHold, ScreenEvent, screenShows, ScreenSizePx } from "./boss-screen-model";
 import { BossBubbleModel } from "./boss-store";
-import BossPortrait from "./boss-portrait.svg";
 
 // Under the pointer for this long before the peek shows: passing over the bubble shows nothing.
 export const PeekDelayMs = 350;
@@ -143,8 +148,10 @@ function BossBubbleLayer() {
     const badge = useAtomValue(model.badgeAtom, { store: globalStore });
     const cue = useAtomValue(model.cueAtom, { store: globalStore });
     const peekOpen = useAtomValue(model.peekOpenAtom, { store: globalStore });
+    const screenHold = useAtomValue(model.screenHoldAtom, { store: globalStore });
     const cardOpen = useAtomValue(model.cardOpenAtom, { store: globalStore });
     const peek = useAtomValue(model.peekAtom, { store: globalStore });
+    const screenOpen = !collapsed && screenShows(screenHold, { dragging: dragRect != null, cardOpen });
     const layerRef = useRef<HTMLDivElement>(null);
     const bubbleRef = useRef<HTMLButtonElement>(null);
     const drag = useRef<DragState>(null);
@@ -173,10 +180,11 @@ function BossBubbleLayer() {
     }, [collapsed]);
     useEffect(() => () => clearTimeout(peekTimer.current), []);
     // A fold or an unfold draws the other button, which the pointer has not reached: the delay still running for the
-    // one that left must not show the peek for the new one.
+    // one that left must not show the peek for the new one, nor what held the screen open for the one that went.
     useEffect(() => {
         clearTimeout(peekTimer.current);
         globalStore.set(model.peekOpenAtom, false);
+        globalStore.set(model.screenHoldAtom, NoScreenHold);
     }, [collapsed, model]);
 
     const label = bubbleLabel(name, badge.count);
@@ -199,6 +207,13 @@ function BossBubbleLayer() {
     const closePeek = () => {
         clearTimeout(peekTimer.current);
         globalStore.set(model.peekOpenAtom, false);
+    };
+    const holdScreen = (event: ScreenEvent) => {
+        const hold = globalStore.get(model.screenHoldAtom);
+        const next = holdAfter(hold, event);
+        if (next !== hold) {
+            globalStore.set(model.screenHoldAtom, next);
+        }
     };
     const openPeekSoon = (delayMs: number = PeekDelayMs) => {
         clearTimeout(peekTimer.current);
@@ -273,6 +288,7 @@ function BossBubbleLayer() {
         if (!d.moved) {
             d.moved = true;
             closePeek();
+            holdScreen("reset");
             model.closeCard();
         }
         const next: Rect = clampRect(
@@ -331,6 +347,41 @@ function BossBubbleLayer() {
         },
     };
 
+    // The bubble adds the comm screen's hold to the same events. Only the round at rest takes the pointer in; once the
+    // screen is open its zone takes it (boss-bubble.css), and the leave of the whole button, which the zone is part of,
+    // is the pointer going out of the screen. A touch is not a hover.
+    const bubbleHover = {
+        ...hover,
+        onPointerEnter: (e: React.PointerEvent) => {
+            hover.onPointerEnter();
+            if (e.pointerType !== "touch") {
+                holdScreen("pointer-enter");
+            }
+        },
+        onPointerLeave: () => {
+            hover.onPointerLeave();
+            holdScreen("pointer-leave");
+        },
+        onFocus: (e: React.FocusEvent<HTMLElement>) => {
+            hover.onFocus(e);
+            if (e.currentTarget.matches(":focus-visible")) {
+                holdScreen("focus");
+            }
+        },
+        onBlur: () => {
+            hover.onBlur();
+            holdScreen("blur");
+        },
+        onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key !== "Escape" || !(screenOpen || peekOpen)) {
+                return;
+            }
+            e.stopPropagation();
+            closePeek();
+            holdScreen("dismiss");
+        },
+    };
+
     const swap = swapAnimates ? MotionClass.arrive : "";
     const pennantRight = pennantRightPx(isMacOS());
     const shownPlace = state.place;
@@ -381,6 +432,8 @@ function BossBubbleLayer() {
                     aria-expanded={cardOpen}
                     data-testid="boss-bubble"
                     data-boss-anchor=""
+                    data-corner={shownPlace.corner}
+                    data-screen={screenOpen ? "open" : "rest"}
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
                     onPointerUp={(e) => endDrag(e, true)}
@@ -388,16 +441,20 @@ function BossBubbleLayer() {
                     onClick={onActivate}
                     onContextMenu={(e) => showMenu(e, bubbleMenu)}
                     onAnimationEnd={onAnimationEnd}
-                    {...hover}
+                    {...bubbleHover}
                 >
-                    <span className="mt-boss-face" aria-hidden>
-                        <BossPortrait />
-                    </span>
-                    {badge.count > 0 ? (
-                        <span className="mt-boss-badge" data-tone={badge.tone} data-testid="boss-badge" aria-hidden>
-                            {badge.text}
+                    <span className="mt-boss-shape" data-testid="boss-shape" aria-hidden>
+                        <span className="mt-boss-face">
+                            <BossPortrait />
+                            {screenOpen ? <BossScreen name={name} count={badge.count} /> : null}
                         </span>
-                    ) : null}
+                        {badge.count > 0 ? (
+                            <span className="mt-boss-badge" data-tone={badge.tone} data-testid="boss-badge" aria-hidden>
+                                {badge.text}
+                            </span>
+                        ) : null}
+                    </span>
+                    <span className="mt-boss-zone" data-testid="boss-zone" aria-hidden />
                 </button>
             )}
             {/* The peek as the button's description, for screen readers (AC10); the visual one below is the same text. */}
@@ -413,7 +470,14 @@ function BossBubbleLayer() {
                     data-testid="boss-peek"
                     className="mt-boss-peek rounded-4 border border-line-strong bg-surface-3 px-3 py-2.5 shadow-e2"
                     style={
-                        collapsed ? { top: PennantHeightPx + PeekGapPx, right: pennantRight } : peekStyle(shownPlace)
+                        collapsed
+                            ? { top: PennantHeightPx + PeekGapPx, right: pennantRight }
+                            : peekStyle(
+                                  shownPlace,
+                                  BubbleSizePx,
+                                  BubbleMarginPx,
+                                  screenOpen ? ScreenSizePx - BubbleSizePx : 0
+                              )
                     }
                 >
                     <PeekBody peek={peek} name={name} />

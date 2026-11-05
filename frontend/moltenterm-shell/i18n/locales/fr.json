@@ -2987,6 +2987,14 @@
                 "one": "et 1 autre espace de travail",
                 "other": "et {count} autres espaces de travail"
             }
+        },
+        "screen": {
+            "online": "En ligne",
+            "quiet": "Rien à traiter",
+            "toHandle": {
+                "one": "{count} chose à traiter",
+                "other": "{count} choses à traiter"
+            }
         }
     },
     "keepawake": {
