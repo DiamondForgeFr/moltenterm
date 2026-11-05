@@ -19,6 +19,7 @@ import {
     PeekWaitingLimit,
     PeekWorkplaceLimit,
     usageLine,
+    workingCount,
     workplaceNames,
     workspaceNamesOf,
 } from "./boss-overview";
@@ -122,6 +123,25 @@ describe("the agents that need the developer (FR-BOSS-001, AC5)", () => {
     it("name the button with the name and the count (AC10)", () => {
         expect(bubbleLabel("Brokk", 2)).toBe("Brokk, 2 waiting");
         expect(bubbleLabel("Léa", 0)).toBe("Léa, 0 waiting");
+    });
+});
+
+describe("the agents at work (FR-BOSS-007, AC2)", () => {
+    it("counts the agents that work, in every workspace, and none of the other states", () => {
+        const data = states(
+            agent("a", "working"),
+            agent("b", "working", { workspaceid: "w2" }),
+            agent("c", "waiting"),
+            agent("d", "error"),
+            agent("e", "done"),
+            agent("f", "idle")
+        );
+        expect(workingCount(data)).toBe(2);
+    });
+
+    it("counts none before the first reading", () => {
+        expect(workingCount(EmptyAgentStates)).toBe(0);
+        expect(workingCount(null)).toBe(0);
     });
 });
 

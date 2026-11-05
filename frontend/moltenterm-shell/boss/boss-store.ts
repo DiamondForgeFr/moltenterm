@@ -29,7 +29,7 @@ import {
     bossSettingOn,
     BossShowSettingKey,
 } from "./boss-name";
-import { attentionAgents, Badge, BossPeek, makeBadge, makePeek, workspaceNamesOf } from "./boss-overview";
+import { attentionAgents, Badge, BossPeek, makeBadge, makePeek, workingCount, workspaceNamesOf } from "./boss-overview";
 import {
     Area,
     bubbleMetaValue,
@@ -109,6 +109,8 @@ export class BossBubbleModel {
     badgeAtom: Atom<Badge>;
     // The agents that wait or failed: the one cue follows them, as it always did.
     attentionBadgeAtom: Atom<Badge>;
+    // The agents at work: Brokk's face thinks while some do and nothing waits (FR-BOSS-007).
+    workingCountAtom: Atom<number>;
     peekAtom: Atom<BossPeek>;
 
     private writeSeq = 0;
@@ -160,6 +162,7 @@ export class BossBubbleModel {
             (badge) => badge,
             (a, b) => a.count === b.count && a.tone === b.tone
         );
+        this.workingCountAtom = atom((get) => workingCount(get(AgentStates.getInstance().dataAtom)));
         this.peekAtom = atom((get) => {
             get(I18nModel.getInstance().localeAtom);
             const states = get(AgentStates.getInstance().dataAtom);

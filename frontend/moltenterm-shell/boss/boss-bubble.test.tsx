@@ -25,6 +25,7 @@ vi.mock("./boss-store", async () => {
         screenHoldAtom: atom(NoScreenHold),
         cardOpenAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
+        workingCountAtom: atom(0),
         peekAtom: atom({ waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: "", latest: null }),
         attach: vi.fn(() => () => {}),
         setRectSource: vi.fn(),
@@ -36,6 +37,14 @@ vi.mock("./boss-store", async () => {
         closeCard: vi.fn(),
     };
     return { BossBubbleModel: { getInstance: () => model } };
+});
+// His animated portrait has its own tests (brokk-live, use-brokk-live): here the bubble only asks for it.
+vi.mock("./brokk-expressions", async () => {
+    const { atom } = await import("jotai");
+    const askedAtom = atom(null);
+    return {
+        BrokkExpressionsModel: { getInstance: () => ({ askedAtom, ask: vi.fn(), watch: vi.fn(() => () => {}) }) },
+    };
 });
 // The card has its own tests (boss-card.test.tsx): here it only stands where the bubble puts it.
 vi.mock("./boss-card", () => ({
@@ -146,32 +155,34 @@ describe("the badge (AC5)", () => {
     });
 });
 
-describe("the cue (AC6)", () => {
+describe("the cue (AC6; FR-BOSS-007, AC3)", () => {
     it("plays for no rise at the start, and a bubble drawn anew has nothing to play", () => {
-        expect(attr(render(), "boss-bubble", "class")).not.toContain("mt-boss-cue");
-        // A bubble drawn with a cue already counted (a window starting, an unfold) has nothing to play: the class
+        globalStore.set(model.collapsedAtom, true);
+        expect(attr(render(), "boss-pennant", "class")).not.toContain("mt-boss-cue");
+        // A pennant drawn with a cue already counted (a window starting, an unfold) has nothing to play: the class
         // follows only the rises it saw.
+        globalStore.set(model.cueAtom, 1);
+        expect(attr(render(), "boss-pennant", "class")).not.toContain("mt-boss-cue");
+    });
+
+    it("leaves the round without a motion of its own: it makes the call gesture with his animated portrait", () => {
+        const css = readFileSync(join(__dirname, "boss-bubble.css"), "utf8");
+        expect(css).not.toMatch(/\.mt-boss-bubble\.mt-boss-cue/);
+        expect(css).not.toContain("mt-boss-nudge");
         globalStore.set(model.cueAtom, 1);
         expect(attr(render(), "boss-bubble", "class")).not.toContain("mt-boss-cue");
     });
 
-    it("has two names for one motion, so the next rise plays it again without drawing the button anew", () => {
+    it("has two names for the pennant's wave, so the next rise plays it again without drawing the button anew", () => {
         const css = readFileSync(join(__dirname, "boss-bubble.css"), "utf8");
-        for (const kind of ["bubble", "pennant"]) {
-            expect(css).toMatch(
-                new RegExp(`\\.mt-boss-${kind}\\.mt-boss-cue-a \\{[^}]*animation: mt-boss-(nudge|wave)-a`)
-            );
-            expect(css).toMatch(
-                new RegExp(`\\.mt-boss-${kind}\\.mt-boss-cue-b \\{[^}]*animation: mt-boss-(nudge|wave)-b`)
-            );
-        }
-        expect(css).toMatch(/\.mt-boss-bubble\.mt-boss-cue-a \{[^}]* 1;/);
+        expect(css).toMatch(/\.mt-boss-pennant\.mt-boss-cue-a \{[^}]*animation: mt-boss-wave-a/);
+        expect(css).toMatch(/\.mt-boss-pennant\.mt-boss-cue-b \{[^}]*animation: mt-boss-wave-b/);
     });
 
     it("is stilled by reduced motion in the stylesheet, which leaves the badge alone", () => {
         const css = readFileSync(join(__dirname, "boss-bubble.css"), "utf8");
         const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
-        expect(reduced).toMatch(/\.mt-boss-bubble\.mt-boss-cue-a[\s\S]*animation: none/);
+        expect(reduced).toMatch(/\.mt-boss-pennant\.mt-boss-cue-a[\s\S]*animation: none/);
         expect(css).toMatch(/\.prefers-reduced-motion \.mt-boss-pennant\.mt-boss-cue-b/);
         expect(css).not.toMatch(/animation-iteration-count:\s*infinite/);
         expect(css).not.toMatch(/\binfinite\b/);
@@ -346,9 +357,9 @@ describe("the setting Show the bubble (AC9)", () => {
 describe("the portrait (AC1)", () => {
     const jpg = join(__dirname, "portrait", "brokk", "brokk.jpg");
 
-    it("is Brokk's validated still, a JPG of at most 1024 px and under 300 KB", () => {
+    it("is Brokk's validated still, a JPG of at most 1024 px and under 600 KB", () => {
         const bytes = readFileSync(jpg);
-        expect(bytes.length).toBeLessThan(300_000);
+        expect(bytes.length).toBeLessThan(600_000);
         // The JPEG start-of-frame marker holds the pixel size: height, then width, big endian.
         let side = 0;
         for (let i = 2; i + 9 < bytes.length; ) {

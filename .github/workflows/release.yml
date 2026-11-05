@@ -158,6 +158,11 @@ jobs:
                   RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
                   RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
               run: node scripts/release-policy.mjs checksum-inputs
+            - name: Private package access
+              if: github.event_name == 'pull_request'
+              env:
+                  CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
             - name: Install fixture dependencies
               if: github.event_name == 'pull_request'
               run: npm ci --ignore-scripts --no-audit --no-fund
@@ -251,6 +256,10 @@ jobs:
                   node scripts/release-policy.mjs macos "$signing"
                   echo "mode=$signing" >> "$GITHUB_OUTPUT"
                   echo "macOS signing: $signing"
+            - name: Private package access
+              env:
+                  CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
             - run: npm ci --no-audit --no-fund
             - name: Test the macOS signing orchestration
               run: node --test scripts/macos-signing/*.node-test.mjs
@@ -392,6 +401,10 @@ jobs:
                   sudo apt-get update
                   sudo apt-get install -y --no-install-recommends libarchive-tools squashfs-tools ruby ruby-dev build-essential
                   sudo gem install --no-document fpm -v 1.18.0
+            - name: Private package access
+              env:
+                  CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
             - run: npm ci --no-audit --no-fund
             - name: Package
               env:
@@ -440,6 +453,10 @@ jobs:
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
+            - name: Private package access
+              env:
+                  CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
             - run: npm ci --ignore-scripts --no-audit --no-fund
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-rehearsal
@@ -511,6 +528,10 @@ jobs:
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
+            - name: Private package access
+              env:
+                  CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
             - run: npm ci --ignore-scripts --no-audit --no-fund
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-release

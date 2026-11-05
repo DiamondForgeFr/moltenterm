@@ -37,6 +37,11 @@ export function attentionAgents(data: AgentStatesData): AgentStateInfo[] {
         );
 }
 
+// The agents at work, in every workspace and window: what puts Brokk's face in its thinking pose (FR-BOSS-007).
+export function workingCount(data: AgentStatesData): number {
+    return Object.values(data?.states ?? {}).filter((info) => info?.state === "working").length;
+}
+
 // Red when one failed, amber otherwise; no badge for nobody.
 export type BadgeTone = "error" | "waiting";
 

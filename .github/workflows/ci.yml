@@ -76,6 +76,11 @@ jobs:
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
+            # The shared character package is a private repository (package.json): git reads it over this URL.
+            - name: Private package access
+              env:
+                  CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
             - run: npm ci --no-audit --no-fund
             # The command behind `task check:ts`, without its `npm install` step.
             - name: Type check
@@ -149,6 +154,10 @@ jobs:
             - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
               with:
                   version: 0.16.0
+            - name: Private package access
+              env:
+                  CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
             # The app runs here, so Electron's native dependencies are installed (no WAVETERM_SKIP_APP_DEPS).
             - run: npm ci --no-audit --no-fund
             - name: Build the app

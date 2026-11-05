@@ -48,12 +48,21 @@ vi.mock("./boss-store", async () => {
         nameAtom: atom("Brokk"),
         collapsedAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
+        workingCountAtom: atom(0),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
         expand: vi.fn(),
         closeCard: vi.fn(),
         park: vi.fn(),
     };
     return { BossBubbleModel: { getInstance: () => model } };
+});
+// His animated portrait has its own tests (brokk-live, use-brokk-live): here the card only asks for it.
+vi.mock("./brokk-expressions", async () => {
+    const { atom } = await import("jotai");
+    const askedAtom = atom(null);
+    return {
+        BrokkExpressionsModel: { getInstance: () => ({ askedAtom, ask: vi.fn(), watch: vi.fn(() => () => {}) }) },
+    };
 });
 
 import { globalStore } from "@/app/store/jotaiStore";

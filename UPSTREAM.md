@@ -137,6 +137,16 @@ first installs the one `packageManager` names. The release writes the three vers
 `.molten/project.json`, as `npm version` does, so a bump stays green. The local CI's job passes `--committed` to read
 HEAD: its `ci.prepare` runs `npm install`, which would heal the working tree's lock before the job looks at it.
 
+**The private character package (#1904).** `package.json` names `@diamondforge/character` by its Git URL
+(`git+ssh://git@github.com/DiamondForgeFr/diamondforge-character.git#v0.1.0`), and its repository is private. Every job
+that runs `npm ci` (the Frontend and Perf budgets jobs, and the release, rehearsal and publish jobs, and the macOS signing
+probe) first runs a "Private package access" step that rewrites that URL to HTTPS with a read-only token, held as the
+repository secret `DIAMONDFORGE_CHARACTER_TOKEN` (a fine-grained token with read-only `Contents` access to that
+repository alone). Until the secret exists those jobs fail at `npm ci`, and so does a pull request from a fork, which has
+no secret. Dependency security has no such step on purpose: it never installs (`npm audit` reads the lock only, and
+`scripts/security/policy-check.mjs` asserts the reusable scanner has no secret and no `npm ci`), and Quick checks'
+lockfile check runs offline. Locally, `npm ci` needs an SSH key that can read the repository.
+
 The Taskfile's `npm install` steps (`task dev`, `task start`, `task init`) skip npm's audit and funding notes (#1276):
 npm's raw count mixes the docs site with the app. Dependency risks are triaged by surface in the Dependency security job,
 and locally by `task security:check`, against `security/dependencies.json`.
@@ -324,6 +334,10 @@ for contributors and for Wave merges. Releases published before #1870 keep Apach
 - **A Moltenterm file** is any other file. Its header is `Copyright 2026, DiamondForge` and
   `SPDX-License-Identifier: AGPL-3.0-only`. Files in formats without comments, and third-party material
   (`public/fontawesome-free/`, fonts, the harness folders `.claude/` and `.agents/`), carry no header and are left alone.
+- **The shared character package** (`@diamondforge/character`, #1904) is DiamondForge's private code, `UNLICENSED` (all
+  rights reserved), read from its private Git repository. It is neither a Wave file nor a Moltenterm file, `NOTICE` names
+  it, and it needs no header here. A public release that bundles it awaits the owner's decision on its licence: an AGPL
+  application cannot simply ship private code. Until then the builds that bundle it are the owner's own.
 - `LICENSE` is the AGPL-3.0 text, `LICENSE-APACHE` the Apache-2.0 text for the Wave files, `LICENSE-EXCEPTION` the AGPL
   section 7 additional permission for mods and agent parts that use only the public mod interface, `NOTICE` the notices
   and `TRADEMARKS.md` the name and logo policy. Contributions go through `CLA.md` (see "Continuous integration").
@@ -753,6 +767,8 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 | `frontend/app/workspace/workspace.tsx` | `BossBubbleHost` is mounted last in the content column, a layer over the panels (z-index 800, under the toasts) that draws the bubble at the bottom right and the pennant at the top right | The foreman's bubble floats over the window's content, above the status bar and under the toast stack (FR-BOSS-001, DS-BOSS-001) | #1883, #1933 |
 | `frontend/app/app.scss` | One rule sets `scrollbar-width: none` on every element but xterm's viewport (zero specificity, through `:where()`), which also makes Chromium drop Wave's `::-webkit-scrollbar` styles there, and `.os-scrollbar` is not displayed. xterm's and Monaco's own sliders are drawn in the DOM and stay as they are | The panels show no scrollbar, at rest or on hover, and take no width for one; wheel, trackpad and keyboard scrolling are unchanged; the terminal and the code editor keep theirs (FR-SHELL-120 AC4) | #1917 |
 | `pkg/wshutil/wshrpc.go` | When `runServer` ends, the requests still waiting for their answer get the error `ErrLinkEnded` (`moltenFailPendingRpcs`, `pkg/wshutil/moltenterm_serverdone.go`, `moltenterm_serverdone_test.go`) | A request's timeout is delivered by the server loop: once the loop ended (the socket closed under it), nothing ever answered the request and its caller waited forever. The molten MCP server's link report waited that way under the link's lock, and `list_agents` and `send_to_agent` hung for 30 minutes (FR-CONT-015) | #1926 |
+| `package.json`, `package-lock.json` | `@diamondforge/character` becomes a direct dependency, from its private Git repository at the tag v0.1.0 (`git+ssh://git@github.com/DiamondForgeFr/diamondforge-character.git#v0.1.0`; JSON, no marker): the runtime of the suite's animated characters, which draws Brokk (`frontend/moltenterm-shell/boss/brokk-portrait.ts`, `brokk-live.tsx`). It is UNLICENSED (private, all rights reserved): see "Licensing" and "Continuous integration" | Brokk's animated portrait through the shared character module (FR-BOSS-007), with no copy of the module | #1904 |
+| `electron.vite.config.ts` | The renderer build runs `moltentermStableClips` (`frontend/moltenterm-shell/build/stable-clips.ts`): the clips of a character, those under a `portrait/<character>/` folder of the sources, are emitted under their own names to `assets/portrait/<character>/`, each as an asset of its own (Rollup would merge the clips that hold the same bytes into one file) | The shared character package reads a character's loops, transitions and gestures by name from one folder (FR-BOSS-007) | #1904 |
 
 ## Known upstream items
 
