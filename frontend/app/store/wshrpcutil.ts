@@ -1,10 +1,11 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { setWpsRpcClient, wpsReconnectHandler } from "@/app/store/wps";
 import { TabClient } from "@/app/store/tabrpcclient";
+import { setWpsRpcClient, wpsReconnectHandler } from "@/app/store/wps";
 import { WshRouter } from "@/app/store/wshrouter";
 import { getWSServerEndpoint } from "@/util/endpoints";
+import { routeFirstReconnectHandler } from "../../moltenterm-shell/ws-resubscribe";
 import { addWSReconnectHandler, globalWS, initGlobalWS, WSControl } from "./ws";
 import { DefaultRouter, setDefaultRouter } from "./wshrpcutil-base";
 
@@ -21,10 +22,10 @@ function initWshrpc(routeId: string): WSControl {
     TabRpcClient = new TabClient(routeId);
     setWpsRpcClient(TabRpcClient);
     DefaultRouter.registerRoute(TabRpcClient.routeId, TabRpcClient);
-    addWSReconnectHandler(() => {
-        DefaultRouter.reannounceRoutes();
-    });
-    addWSReconnectHandler(wpsReconnectHandler);
+    // MOLTENTERM-PATCH (#1949): subscribe again only once wavesrv bound the tab's route back.
+    addWSReconnectHandler(
+        routeFirstReconnectHandler(TabRpcClient, () => DefaultRouter.reannounceRoutes(), wpsReconnectHandler)
+    );
     return globalWS;
 }
 
@@ -35,5 +36,5 @@ class UpstreamWshRpcProxy implements AbstractWshClient {
     }
 }
 
-export { DefaultRouter, initWshrpc, TabRpcClient };
 export { initElectronWshrpc, sendRpcCommand, sendRpcResponse, shutdownWshrpc } from "./wshrpcutil-base";
+export { DefaultRouter, initWshrpc, TabRpcClient };

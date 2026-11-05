@@ -19,9 +19,12 @@ import {
     AgentStatesRoute,
     applyAgentStates,
     EmptyAgentStates,
+    heldAgentVersions,
     mostUrgentAgentState,
+    reconcileAgentStates,
     workingAgentCount,
 } from "./agent-state-model";
+import { onEventsResubscribed } from "./ws-resubscribe";
 
 const SnapshotTimeoutMs = 5000;
 const SnapshotRetryMs = 2000;
@@ -72,8 +75,29 @@ export class AgentStates {
             console.log("agent states: no event bus", e);
             return;
         }
+        this.loadSnapshot();
+        // What was published while the websocket was down never came (#1949): an agent started meanwhile would stay
+        // a plain terminal until the window reloads.
+        onEventsResubscribed(() => this.loadSnapshot(true));
+    }
+
+    applySnapshot(snapshot: AgentStateInfo[], before: Record<string, number>): void {
+        if (before == null) {
+            this.apply(snapshot);
+            return;
+        }
+        const current = globalStore.get(this.dataAtom);
+        const next = reconcileAgentStates(current, before, snapshot);
+        if (next !== current) {
+            globalStore.set(this.dataAtom, next);
+        }
+    }
+
+    // reconcile: the window may have missed events (a reconnect), so the agents the snapshot no longer lists go.
+    loadSnapshot(reconcile = false): void {
         let tries = 0;
         const load = () => {
+            const before = reconcile ? heldAgentVersions(globalStore.get(this.dataAtom)) : null;
             fireAndForget(async () => {
                 try {
                     const snapshot: AgentStateInfo[] = await TabRpcClient.wshRpcCall(
@@ -81,7 +105,7 @@ export class AgentStates {
                         {},
                         { route: AgentStatesRoute, timeout: SnapshotTimeoutMs }
                     );
-                    this.apply(snapshot ?? []);
+                    this.applySnapshot(snapshot ?? [], before);
                     globalStore.set(this.loadedAtom, true);
                 } catch {
                     // wavesrv still starting: the route comes up with Mission Control.
