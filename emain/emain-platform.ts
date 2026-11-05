@@ -4,6 +4,7 @@
 import { fireAndForget } from "@/util/util";
 import { app, dialog, shell } from "electron";
 import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
+import { webviewPreloadFile } from "./moltenterm-webview-attach-policy"; // MOLTENTERM-PATCH (#1961)
 import envPaths from "env-paths";
 import { existsSync, mkdirSync } from "fs";
 import os from "os";
@@ -250,7 +251,8 @@ onAppIpc("get-host-name", (event) => {
     event.returnValue = os.hostname();
 });
 onAppIpc("get-webview-preload", (event) => {
-    event.returnValue = path.join(getElectronAppBasePath(), "preload", "preload-webview.cjs");
+    // MOLTENTERM-PATCH (#1961): the same file will-attach-webview lets a guest run (emain/authkey.ts)
+    event.returnValue = webviewPreloadFile(getElectronAppBasePath());
 });
 onAppIpc("get-data-dir", (event) => {
     event.returnValue = getWaveDataDir();

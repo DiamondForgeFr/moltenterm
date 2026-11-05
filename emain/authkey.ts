@@ -21,6 +21,7 @@ import {
     stripBackendCredentials,
     TrustedAppCallers,
 } from "./moltenterm-app-auth-policy";
+import { hardenWebviewAttach, webviewPreloadFile } from "./moltenterm-webview-attach-policy"; // MOLTENTERM-PATCH (#1961)
 
 const AuthKeyHeader = "X-AuthKey";
 export const WaveAuthKeyEnv = "WAVETERM_AUTH_KEY";
@@ -70,6 +71,12 @@ export function registerTrustedAppContents(contents: Electron.WebContents): void
     contents.on("will-attach-webview", (event, preferences, params) => {
         const partition = params.partition || "";
         if (partition === AppSessionPartition || partition === `persist:${AppSessionPartition}`) {
+            event.preventDefault();
+            return;
+        }
+        // MOLTENTERM-PATCH (#1961): no Node, isolated, sandboxed, and only MoltenTerm's page preload, whatever the tag
+        // asked for; script and engine URLs never attach.
+        if (!hardenWebviewAttach(preferences as any, params, webviewPreloadFile(getElectronAppBasePath()))) {
             event.preventDefault();
             return;
         }
