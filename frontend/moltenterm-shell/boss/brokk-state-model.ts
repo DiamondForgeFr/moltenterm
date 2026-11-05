@@ -6,45 +6,18 @@
 // without a window or a clock; the portrait (brokk-live.tsx) only draws the pose this gives. The shared package knows
 // none of it: it draws the pose it is handed.
 //
+// It reads his manifest, so it belongs to the animated portrait, which loads on the first opening of the screen or the
+// first call: nothing the bubble loads up front may import it (brokk-ask-model.ts is the part that does).
+//
 // The pose never comes from what an agent writes. No `[[expression]]` marker is looked for in output, files or code:
 // the signals are the count of agents working, the count of rows To handle and whether the card is open.
 
+import type { AskedExpression, BrokkExpression, BrokkSituation } from "./brokk-ask-model";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
 
 export type BrokkPose = "rest" | "thinking" | "listening" | "speaking";
 
-// The gestures the app asks of him; the manifest holds the length of each one.
-export type BrokkExpression = "smile" | "doubtful" | "frown" | "nod" | "call";
-
 export const BrokkExpressions = Object.keys(Manifest.expressionMs) as BrokkExpression[];
-
-export type BrokkSituation = {
-    // Agents working, in every workspace.
-    working: number;
-    // Rows To handle: what waits for the developer (the badge's count).
-    waiting: number;
-    cardOpen: boolean;
-};
-
-// A gesture asked: a new cue plays the same gesture again. `at` is when it was asked.
-export type AskedExpression = { expression: BrokkExpression; cue: number; at?: number };
-
-// A failure raises the count of the badge too, so the call and the frown are asked in the same moment. The call only
-// gets the developer's eye; the gesture that tells why must not be lost behind it, whichever is asked first.
-export const CallYieldMs = 500;
-
-export function askedAfter(current: AskedExpression, expression: BrokkExpression, now: number): AskedExpression {
-    const cue = (current?.cue ?? 0) + 1;
-    if (
-        expression === "call" &&
-        current != null &&
-        current.expression !== "call" &&
-        now - (current.at ?? 0) < CallYieldMs
-    ) {
-        return current;
-    }
-    return { expression, cue, at: now };
-}
 
 // How long he speaks after the card opens on items to handle, then he listens.
 export const SpeakingMs = 4000;
@@ -92,23 +65,6 @@ export function brokkPose(situation: BrokkSituation, face: BrokkFace): BrokkPose
         return wanted;
     }
     return hasGesture(wanted, face.expression) ? wanted : "listening";
-}
-
-// The card opened: he speaks only when it opens on something to handle.
-export function speaksOnOpen(situation: BrokkSituation): boolean {
-    return situation.waiting > 0;
-}
-
-// The round at rest plays one gesture, the call, and only when it is asked while the round can show it. `handled` is the
-// newest cue the round has played or has no use for; `consumed` says the round cannot play it now: the bubble is
-// folded, the window is hidden, motion is reduced, or the open screen plays it itself. A call asked then is not played
-// later, when the round could.
-export function callPending(asked: AskedExpression, handled: number, consumed: boolean): boolean {
-    return !consumed && asked?.expression === "call" && asked.cue > handled;
-}
-
-export function handledAfter(handled: number, asked: AskedExpression, consumed: boolean): number {
-    return consumed && asked != null && asked.cue > handled ? asked.cue : handled;
 }
 
 export type FaceState = {

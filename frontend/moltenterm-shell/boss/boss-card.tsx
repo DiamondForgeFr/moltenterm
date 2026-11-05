@@ -64,7 +64,7 @@ import { HandoffRowView } from "./boss-handoff-row";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
 import { InfoItem, ToHandleAction, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
-import { expressionAfterAnswer } from "./brokk-expression-model";
+import { expressionAfterAnswer } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import { useCardLive } from "./use-brokk-live";
 

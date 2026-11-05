@@ -2,20 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
+import type { BrokkExpression, BrokkSituation } from "./brokk-ask-model";
 import {
-    askedAfter,
-    BrokkExpression,
     BrokkExpressions,
     brokkPose,
-    BrokkSituation,
-    callPending,
-    CallYieldMs,
     faceAfter,
     gestureOfClip,
-    handledAfter,
     reactionCapMs,
     restingPose,
-    speaksOnOpen,
     startFace,
 } from "./brokk-state-model";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
@@ -47,16 +41,6 @@ describe("his pose from MoltenTerm's signals (FR-BOSS-007, AC2)", () => {
         expect(brokkPose(situation({ cardOpen: true }), speaking)).toBe("listening");
         expect(brokkPose(situation({ working: 1 }), speaking)).toBe("thinking");
         expect(brokkPose(situation(), speaking)).toBe("rest");
-    });
-
-    it("speaks on opening the card when it opens on items to handle, not on an empty card", () => {
-        expect(speaksOnOpen(situation({ cardOpen: true, waiting: 1 }))).toBe(true);
-        expect(speaksOnOpen(situation({ cardOpen: true, working: 2 }))).toBe(false);
-        expect(speaksOnOpen(situation({ cardOpen: true }))).toBe(false);
-    });
-
-    it("never reads an expression from what an agent writes: the situation holds three numbers and a flag", () => {
-        expect(Object.keys(situation()).sort()).toEqual(["cardOpen", "waiting", "working"]);
     });
 });
 
@@ -91,62 +75,6 @@ describe("the pose while he makes a gesture (AC3)", () => {
             const clip = (Manifest.expressionMs as Record<string, number>)[expression];
             expect(reactionCapMs(expression)).toBeGreaterThan(clip);
         }
-    });
-});
-
-describe("the call the round makes when the count rises (AC3)", () => {
-    const call = { expression: "call" as BrokkExpression, cue: 3 };
-
-    it("plays the call just asked, once the round can show it", () => {
-        expect(callPending(call, 2, false)).toBe(true);
-        expect(callPending(call, 3, false)).toBe(false);
-        expect(callPending(null, 0, false)).toBe(false);
-    });
-
-    it("plays no other gesture at rest: the round makes the call and nothing else", () => {
-        for (const expression of ["smile", "doubtful", "frown", "nod"] as BrokkExpression[]) {
-            expect(callPending({ expression, cue: 9 }, 0, false)).toBe(false);
-        }
-    });
-
-    it("does not play a call it could not show, later: it is spent when it is asked", () => {
-        expect(callPending(call, 2, true)).toBe(false);
-        expect(handledAfter(2, call, true)).toBe(3);
-        expect(callPending(call, handledAfter(2, call, true), false)).toBe(false);
-    });
-
-    it("keeps the newest cue it has handled, and plays the next call asked", () => {
-        expect(handledAfter(5, call, true)).toBe(5);
-        expect(handledAfter(2, call, false)).toBe(2);
-        expect(handledAfter(2, null, true)).toBe(2);
-        expect(callPending({ expression: "call", cue: 6 }, 5, false)).toBe(true);
-    });
-});
-
-describe("the gesture asked (AC3)", () => {
-    it("is the first one asked, with a cue of its own each time, the same gesture twice included", () => {
-        const first = askedAfter(null, "smile", 1000);
-        expect(first).toEqual({ expression: "smile", cue: 1, at: 1000 });
-        expect(askedAfter(first, "smile", 2000)).toEqual({ expression: "smile", cue: 2, at: 2000 });
-        expect(askedAfter(first, "nod", 2000)).toEqual({ expression: "nod", cue: 2, at: 2000 });
-    });
-
-    it("lets a gesture that tells why win over the call asked in the same moment, whichever comes first", () => {
-        const frown = askedAfter(null, "frown", 1000);
-        expect(askedAfter(frown, "call", 1000 + CallYieldMs - 1)).toBe(frown);
-        const call = askedAfter(null, "call", 1000);
-        expect(askedAfter(call, "frown", 1001)).toEqual({ expression: "frown", cue: 2, at: 1001 });
-    });
-
-    it("plays the call again once the moment has passed, and a call after a call", () => {
-        const frown = askedAfter(null, "frown", 1000);
-        expect(askedAfter(frown, "call", 1000 + CallYieldMs)).toEqual({
-            expression: "call",
-            cue: 2,
-            at: 1000 + CallYieldMs,
-        });
-        const call = askedAfter(null, "call", 1000);
-        expect(askedAfter(call, "call", 1001)).toEqual({ expression: "call", cue: 2, at: 1001 });
     });
 });
 
