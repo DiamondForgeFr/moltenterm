@@ -8782,6 +8782,15 @@
     },
     "server": {
         "remoteask": {
+            "readVariablesTitle": "A server wants to read variables",
+            "readVariables": "{server} wants to read {path} stored by MoltenTerm. It may contain credentials.",
+            "writeVariablesTitle": "A server wants to change variables",
+            "writeVariables": "{server} wants to change {path} stored by MoltenTerm. Variables can affect programs started on this computer.",
+            "variablesShared": "shared variables / {file}",
+            "variablesWorkspace": "workspace {name} / {file}",
+            "variablesTab": "view {name} / {file}",
+            "variablesPanel": "panel {name} / {file}",
+            "variablesFile": "variable file {name} / {file}",
             "readTitle": "A server wants to read a file of this computer",
             "read": "{server} wants to read {path} on this computer.",
             "writeTitle": "A server wants to write a file on this computer",
