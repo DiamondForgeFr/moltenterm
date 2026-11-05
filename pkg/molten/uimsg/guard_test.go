@@ -87,6 +87,8 @@ var englishFields = map[string]string{
 	"handoffwire.SendResult.Message":        "agent-facing: the sending agent reads it (MCP send_to_agent)",
 	"handoffwire.FileRef.Note":              "agent-written brief content, typed for the receiving agent",
 	"handoffwire.LinkRef.Note":              "agent-written brief content, typed for the receiving agent",
+	"handoffwire.PendingFile.Note":          "the sender's own words, read as written in the card's brief (#1891)",
+	"handoffwire.PendingLink.Note":          "the sender's own words, read as written in the card's brief (#1891)",
 	"mission.BranchPlan.Reason":             "a code (merged-pr, open-pr...) the window words under mc.branches.reason/keep",
 	"mission.GithubSnapshot.Message":        "gh's own error output, shown inside mc.github.state.error",
 	"mission.ReviewsAnswer.Message":         "gh's own error output (the collector's GithubSnapshot.Message)",
