@@ -30,10 +30,11 @@
 }
 
 /* The button is the round of 44 px and never changes size: it is what a drag measures and what the typing check reads.
-   The two vars match BubbleSizePx and ScreenSizePx (boss-place.ts, boss-screen-model.ts). */
+   The three vars match BubbleSizePx, ScreenSizePx and ScreenSlopPx (boss-place.ts, boss-screen-model.ts). */
 .mt-boss-bubble {
     --mt-boss-round: 44px;
     --mt-boss-screen: 200px;
+    --mt-boss-slop: 8px;
     width: var(--mt-boss-round);
     height: var(--mt-boss-round);
     border-radius: 50%;
@@ -48,7 +49,9 @@
    shape takes no pointer: only the round at rest opens the screen, and once it is open the zone, which has the screen's
    final size from the first frame and never animates, keeps it open. A :hover on the shape that grows would flip as it
    grows under the pointer and shrinks away from it (the round lies inside the zone, so the pointer that opened it can
-   only leave by leaving the zone: boss-screen-model.ts). */
+   only leave by leaving the zone: boss-screen-model.ts). The zone reaches a margin past the screen on every side, so
+   that a pointer jittering on the round's outer edge, which is the screen's edge too, does not close and open it again
+   at every pixel. */
 .mt-boss-shape,
 .mt-boss-zone {
     position: absolute;
@@ -62,8 +65,9 @@
 }
 
 .mt-boss-zone {
-    width: var(--mt-boss-screen);
-    height: var(--mt-boss-screen);
+    width: calc(var(--mt-boss-screen) + 2 * var(--mt-boss-slop));
+    height: calc(var(--mt-boss-screen) + 2 * var(--mt-boss-slop));
+    margin: calc(-1 * var(--mt-boss-slop));
     border-radius: var(--mt-radius-control);
 }
 

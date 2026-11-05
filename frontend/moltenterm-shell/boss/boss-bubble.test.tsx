@@ -45,7 +45,7 @@ vi.mock("./boss-card", () => ({
 import { globalStore } from "@/app/store/jotaiStore";
 import { BossBubbleHost } from "./boss-bubble";
 import { Corners, DefaultBubbleState } from "./boss-place";
-import { holdAfter, NoScreenHold, ScreenSizePx } from "./boss-screen-model";
+import { holdAfter, NoScreenHold, ScreenSizePx, ScreenSlopPx } from "./boss-screen-model";
 import { BossBubbleModel } from "./boss-store";
 
 const model = BossBubbleModel.getInstance() as any;
@@ -487,8 +487,17 @@ describe("the comm screen (AC12)", () => {
 
     it("takes the pointer through a zone of its final size, not through the shape that grows", () => {
         const sheet = css();
-        expect(sheet).toMatch(new RegExp(`\\.mt-boss-zone \\{[^}]*width: var\\(--mt-boss-screen\\);`));
-        expect(sheet).toMatch(/\.mt-boss-zone \{[^}]*height: var\(--mt-boss-screen\);/);
+        // The screen's side plus the margin on both sides, with the negative margin that puts it back on the screen.
+        expect(sheet).toMatch(new RegExp(`--mt-boss-slop: ${ScreenSlopPx}px;`));
+        expect(sheet).toMatch(
+            /\.mt-boss-zone \{[^}]*width: calc\(var\(--mt-boss-screen\) \+ 2 \* var\(--mt-boss-slop\)\);/
+        );
+        expect(sheet).toMatch(
+            /\.mt-boss-zone \{[^}]*height: calc\(var\(--mt-boss-screen\) \+ 2 \* var\(--mt-boss-slop\)\);/
+        );
+        expect(sheet).toMatch(/\.mt-boss-zone \{[^}]*margin: calc\(-1 \* var\(--mt-boss-slop\)\);/);
+        // No animation and no transition on the zone: its size never changes under the pointer.
+        expect(sheet).not.toMatch(/^[^{}\n]*\.mt-boss-zone[^{}]*\{[^}]*(?:transition|animation)/m);
         expect(sheet).toMatch(/\[data-screen="open"\] > \.mt-boss-zone \{\s*pointer-events: auto;/);
         // Nothing opens or sizes anything from :hover: the open state is the data-screen attribute.
         for (const file of ["boss-bubble.css", "boss-screen.css", "boss-portrait.css"]) {

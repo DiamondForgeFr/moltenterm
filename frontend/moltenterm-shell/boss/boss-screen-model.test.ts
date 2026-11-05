@@ -14,6 +14,7 @@ import {
     ScreenHold,
     screenShows,
     ScreenSizePx,
+    ScreenSlopPx,
     screenZone,
 } from "./boss-screen-model";
 
@@ -74,19 +75,28 @@ describe("what holds the screen open (AC12)", () => {
 describe("the zone that holds the screen open (AC12)", () => {
     it("takes the round's two edges on the corner's side, so the screen grows toward the inside", () => {
         const grow = ScreenSizePx - BubbleSizePx;
-        expect(screenZone("tl")).toEqual({ left: 0, top: 0, width: ScreenSizePx, height: ScreenSizePx });
-        expect(screenZone("tr")).toEqual({ left: -grow, top: 0, width: ScreenSizePx, height: ScreenSizePx });
-        expect(screenZone("bl")).toEqual({ left: 0, top: -grow, width: ScreenSizePx, height: ScreenSizePx });
-        expect(screenZone("br")).toEqual({ left: -grow, top: -grow, width: ScreenSizePx, height: ScreenSizePx });
+        const screen = (corner: Corner) => screenZone(corner, BubbleSizePx, ScreenSizePx, 0);
+        expect(screen("tl")).toEqual({ left: 0, top: 0, width: ScreenSizePx, height: ScreenSizePx });
+        expect(screen("tr")).toEqual({ left: -grow, top: 0, width: ScreenSizePx, height: ScreenSizePx });
+        expect(screen("bl")).toEqual({ left: 0, top: -grow, width: ScreenSizePx, height: ScreenSizePx });
+        expect(screen("br")).toEqual({ left: -grow, top: -grow, width: ScreenSizePx, height: ScreenSizePx });
     });
 
-    it("holds the whole round, whichever the corner", () => {
+    it("reaches the margin past the screen on every side", () => {
+        const side = ScreenSizePx + 2 * ScreenSlopPx;
+        expect(screenZone("tl")).toEqual({ left: -ScreenSlopPx, top: -ScreenSlopPx, width: side, height: side });
+        const br = screenZone("br");
+        expect(br.left + br.width).toBe(BubbleSizePx + ScreenSlopPx);
+        expect(br.top + br.height).toBe(BubbleSizePx + ScreenSlopPx);
+    });
+
+    it("holds the whole round, whichever the corner, with the margin to spare on its outer edges", () => {
         for (const corner of Corners) {
             const zone = screenZone(corner);
-            expect(zone.left).toBeLessThanOrEqual(0);
-            expect(zone.top).toBeLessThanOrEqual(0);
-            expect(zone.left + zone.width).toBeGreaterThanOrEqual(BubbleSizePx);
-            expect(zone.top + zone.height).toBeGreaterThanOrEqual(BubbleSizePx);
+            expect(zone.left).toBeLessThan(0);
+            expect(zone.top).toBeLessThan(0);
+            expect(zone.left + zone.width).toBeGreaterThanOrEqual(BubbleSizePx + ScreenSlopPx);
+            expect(zone.top + zone.height).toBeGreaterThanOrEqual(BubbleSizePx + ScreenSlopPx);
         }
     });
 
@@ -140,9 +150,17 @@ function onEdge(angle: number, radius: number): Point {
     return { x: RoundCentre + radius * Math.cos(angle), y: RoundCentre + radius * Math.sin(angle) };
 }
 
-function realHit(corner: Corner): Hit {
-    return (point, open) => pointerOver(point, corner, open);
+function realHit(corner: Corner, slop: number = ScreenSlopPx): Hit {
+    return (point, open) => pointerOver(point, corner, open, slop);
 }
+
+// A hand's tremor across the rim, a pixel and a bit each side of it, from the inside first.
+function jitter(deg: number, steps: number = 400): Point[] {
+    const angle = (deg * Math.PI) / 180;
+    return Array.from({ length: steps }, (_, i) => onEdge(angle, RoundCentre + (i % 2 === 0 ? -1.2 : 1.2)));
+}
+
+const Directions = [0, 45, 90, 135, 180, 225, 270, 315];
 
 describe("a pointer on the round's edge gives no open and close loop (AC12)", () => {
     // Every few degrees round the rim, a hair inside it, on it and a hair outside it.
@@ -161,18 +179,31 @@ describe("a pointer on the round's edge gives no open and close loop (AC12)", ()
     });
 
     it.each(Corners)(
-        "opens once when the pointer jitters across the rim, and never closes while in the zone (%s)",
+        "opens once when the pointer jitters across the rim, whichever side of the round, and never closes (%s)",
         (corner) => {
-            const path: Point[] = [];
-            for (let i = 0; i < 400; i++) {
-                path.push(onEdge(0.9, RoundCentre + (i % 2 === 0 ? -0.6 : 0.6)));
+            for (const deg of Directions) {
+                const result = run(jitter(deg), realHit(corner));
+                expect(result.settled).toBe(true);
+                // One change, the opening: the outer edges of the round, which are the screen's own edges, flicker
+                // without the zone's margin (see the next test).
+                expect(result.changes).toBe(1);
+                expect(result.opens.at(-1)).toBe(true);
             }
-            const result = run(path, realHit(corner));
-            expect(result.settled).toBe(true);
-            expect(result.changes).toBe(1);
-            expect(result.opens.at(-1)).toBe(true);
         }
     );
+
+    it("flickers on the outer edges of the round when the zone has no margin, which is what the margin is for", () => {
+        // In the bottom right corner the round's right and bottom edges are the screen's: each step across them leaves
+        // the zone, closes the screen, and the next step back opens it again.
+        for (const deg of [0, 90]) {
+            const result = run(jitter(deg), realHit("br", 0));
+            expect(result.changes).toBeGreaterThan(100);
+        }
+        // The inner edges were never the problem.
+        for (const deg of [180, 270]) {
+            expect(run(jitter(deg), realHit("br", 0)).changes).toBe(1);
+        }
+    });
 
     it("opens from the round only, and closes only once the pointer has left the whole zone", () => {
         const corner: Corner = "br";
