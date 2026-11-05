@@ -5,7 +5,7 @@ import { TabClient } from "@/app/store/tabrpcclient";
 import { setWpsRpcClient, wpsReconnectHandler } from "@/app/store/wps";
 import { WshRouter } from "@/app/store/wshrouter";
 import { getWSServerEndpoint } from "@/util/endpoints";
-import { routeFirstReconnectHandler } from "../../moltenterm-shell/ws-resubscribe";
+import { reconnectHandler } from "../../moltenterm-shell/ws-resubscribe";
 import { addWSReconnectHandler, globalWS, initGlobalWS, WSControl } from "./ws";
 import { DefaultRouter, setDefaultRouter } from "./wshrpcutil-base";
 
@@ -22,10 +22,8 @@ function initWshrpc(routeId: string): WSControl {
     TabRpcClient = new TabClient(routeId);
     setWpsRpcClient(TabRpcClient);
     DefaultRouter.registerRoute(TabRpcClient.routeId, TabRpcClient);
-    // MOLTENTERM-PATCH (#1949): subscribe again only once wavesrv bound the tab's route back.
-    addWSReconnectHandler(
-        routeFirstReconnectHandler(TabRpcClient, () => DefaultRouter.reannounceRoutes(), wpsReconnectHandler)
-    );
+    // MOLTENTERM-PATCH (#1949): the stores read wavesrv again once the tab is subscribed again.
+    addWSReconnectHandler(reconnectHandler(() => DefaultRouter.reannounceRoutes(), wpsReconnectHandler));
     return globalWS;
 }
 
