@@ -368,13 +368,35 @@ describe("the portrait (AC1)", () => {
 
     it("is framed on his head in one place, which the bubble's round and the card's face both use", () => {
         const framing = css("boss-portrait.css");
-        expect(framing).toMatch(/--mt-boss-head-scale: 2\.6;/);
-        expect(framing).toMatch(/--mt-boss-head-origin: 50% 30%;/);
+        expect(framing).toMatch(/--mt-boss-head-scale: [\d.]+;/);
+        expect(framing).toMatch(/--mt-boss-head-origin: \d+% \d+%;/);
         // The numbers appear nowhere else.
         for (const file of ["boss-bubble.css", "boss-screen.css"]) {
-            expect(css(file)).not.toMatch(/2\.6|50% 30%/);
+            expect(css(file)).not.toMatch(/--mt-boss-head-/);
         }
         expect(readFileSync(join(__dirname, "boss-card.tsx"), "utf8")).toContain('from "./boss-portrait"');
+    });
+
+    it("shows the whole face: the goggles to the top of the beard, the eyes well clear of the round's edge", () => {
+        const framing = css("boss-portrait.css");
+        const scale = Number(/--mt-boss-head-scale: ([\d.]+);/.exec(framing)[1]);
+        const origin = Number(/--mt-boss-head-origin: \d+% (\d+)%;/.exec(framing)[1]);
+        // Where the features sit on brokk.jpg, in % of its height, measured on the file.
+        const Goggles = 12;
+        const Eyes = 27;
+        const TopOfBeard = 45;
+        // The window the round shows: the origin keeps its place and the scale takes everything else in.
+        const top = origin * (1 - 1 / scale);
+        const span = 100 / scale;
+        expect(scale).toBeGreaterThanOrEqual(2.2);
+        expect(scale).toBeLessThanOrEqual(2.4);
+        expect(top).toBeLessThanOrEqual(Goggles - 2);
+        expect(top + span).toBeGreaterThanOrEqual(TopOfBeard + 5);
+        // The eyes lie on the upper half of the round, where a circle is nearly as wide as the round.
+        const eyes = (Eyes - top) / span;
+        expect(eyes).toBeGreaterThan(0.25);
+        expect(eyes).toBeLessThan(0.5);
+        expect(2 * Math.sqrt(0.25 - (eyes - 0.5) ** 2)).toBeGreaterThan(0.95);
     });
 
     it("is a still image at rest: no video, no animation, no screen layer", () => {
@@ -423,6 +445,27 @@ describe("the comm screen (AC12)", () => {
         expect(render()).toContain("Nothing to handle");
         globalStore.set(model.badgeAtom, { count: 1, text: "1", tone: "waiting" });
         expect(render()).toContain("1 thing to handle");
+    });
+
+    it('keeps the name and the status line to the left, under the "Online" mark, and clear of the viewfinder corners', () => {
+        const sheet = css("boss-screen.css");
+        const rule = (selector: string) =>
+            new RegExp(`^${selector.replace(/\./g, "\\.")} \\{([^}]*)\\}`, "m").exec(sheet)?.[1] ?? "";
+        const px = (text: string, prop: string) => Number(new RegExp(`${prop}: (\\d+)px`).exec(text)?.[1]);
+        const corner = rule(".mt-boss-corner");
+        const caption = rule(".mt-boss-caption");
+        // The button centres its text by default: the caption says left itself.
+        expect(caption).toMatch(/text-align: left;/);
+        expect(caption).toMatch(/align-items: flex-start;/);
+        // A corner is its size and its offset from the edges, at the top left of the screen as at the bottom left.
+        const reach = px(corner, "width") + px(sheet.match(/\.mt-boss-corner\[data-at="bl"\] \{[^}]*\}/)![0], "left");
+        const padding = /padding: (\d+)px (\d+)px (\d+)px;/.exec(caption)!.slice(1).map(Number);
+        const [, side, bottom] = padding;
+        // The text starts and ends past the corners, and rests above the bottom ones.
+        expect(side).toBeGreaterThan(reach);
+        expect(bottom).toBeGreaterThan(reach);
+        // The name, the status and the "Online" mark share one left edge.
+        expect(px(rule(".mt-boss-live"), "left")).toBe(side);
     });
 
     it("opens on keyboard focus as well, and stays for the focus when the pointer leaves", () => {
