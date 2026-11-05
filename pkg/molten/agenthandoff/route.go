@@ -13,6 +13,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
@@ -22,7 +23,7 @@ import (
 
 const (
 	listTimeout = 10 * time.Second
-	// A send waits for the developer's answer, then types the prompt.
+	// A send does not wait for the developer's answer (#1926); typing the prompt and copying the files take this.
 	sendTimeout   = DefaultApprovalTimeout + 25*time.Second
 	answerTimeout = 5 * time.Second
 )
@@ -80,6 +81,8 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 		return nil, l.manager.Forget(caller.Source, req)
 	case HistoryCommand:
 		return l.manager.History(caller.Source)
+	case PendingCommand:
+		return l.manager.Pending(caller.Source)
 	case ListCommand:
 		var req ListRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -120,6 +123,8 @@ var startOnce sync.Once
 func Start() {
 	startOnce.Do(func() {
 		link := &routeLink{manager: MakeManager(MakeWaveEnv())}
+		// The event carries no data: a window reads the list again with PendingCommand.
+		link.manager.pendingChanged = func() { wps.Broker.Publish(wps.WaveEvent{Event: PendingEvent}) }
 		setShared(link.manager)
 		if _, err := localroute.Register(wshutil.DefaultRouter, link.route()); err != nil {
 			log.Printf("molten: agent handoff route not started: %v\n", err)

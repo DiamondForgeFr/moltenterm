@@ -8,11 +8,35 @@ vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: { wshRpcCall: Mocks.cal
 
 import {
     AgentHandoffAnswerCommand,
+    AgentHandoffPendingCommand,
     AgentHandoffRouteId,
     answerAgentHandoff,
     handoffAnswerError,
     readHandoffAnswer,
+    readPendingHandoffs,
 } from "./agent-handoff";
+
+describe("the requests waiting for the developer (#1926)", () => {
+    beforeEach(() => {
+        Mocks.call.mockReset();
+    });
+
+    it("reads every pending request from the handoff route", async () => {
+        const entry = { requestid: "r1", fromblockid: "a", toblockid: "b", from: "Chloé", to: "Arthur", createdat: 1 };
+        Mocks.call.mockResolvedValue({ entries: [entry] });
+        expect(await readPendingHandoffs()).toEqual([entry]);
+        expect(Mocks.call).toHaveBeenCalledWith(
+            AgentHandoffPendingCommand,
+            {},
+            expect.objectContaining({ route: AgentHandoffRouteId })
+        );
+    });
+
+    it("reads an empty answer as no request", async () => {
+        Mocks.call.mockResolvedValue(null);
+        expect(await readPendingHandoffs()).toEqual([]);
+    });
+});
 import { I18nModel, t } from "./i18n/i18n";
 
 function setLanguage(code: string) {

@@ -28,6 +28,10 @@ const (
 	// started; HistoryEvent tells the windows a new one was added. Windows only.
 	HistoryCommand = "moltenagenthandoffhistory"
 	HistoryEvent   = "molten:agenthandoffs"
+	// Every request waiting for the developer, in every workspace (#1926): PendingEvent tells the windows the list
+	// changed, PendingCommand reads it, AnswerCommand answers an entry, as its notification's buttons do. Windows only.
+	PendingCommand = "moltenagenthandoffpending"
+	PendingEvent   = "molten:agenthandoffpending"
 	// The link notice's action opens that menu on the agent's terminal.
 	LinksGesture = "molten:agentlinks"
 
@@ -229,6 +233,13 @@ type PendingEntry struct {
 	From        string `json:"from"`
 	To          string `json:"to"`
 	Goal        string `json:"goal,omitempty"`
+	// CreatedAt: when the request was asked, in Unix milliseconds.
+	CreatedAt int64 `json:"createdat,omitempty"`
+}
+
+// PendingResult: the requests waiting for the developer, oldest first.
+type PendingResult struct {
+	Entries []PendingEntry `json:"entries"`
 }
 
 type PairsResult struct {

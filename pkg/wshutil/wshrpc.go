@@ -390,6 +390,8 @@ func (w *WshRpc) runServer() {
 		panichandler.PanicHandler("wshrpc.runServer", recover())
 		close(w.OutputCh)
 		w.setServerDone()
+		// MOLTENTERM-PATCH (#1926): the requests still waiting get an error; nothing answered them once the loop ended.
+		w.moltenFailPendingRpcs()
 	}()
 outer:
 	for {

@@ -307,6 +307,11 @@ func (l *moltenMcpLink) once(ctx context.Context, command string, data any, rout
 	if answer.err == nil {
 		return answer.data, gen, nil, false, true
 	}
+	// The client answers a request its ended link left waiting (#1926), maybe before done is closed.
+	if strings.Contains(answer.err.Error(), wshutil.ErrLinkEnded) {
+		l.drop(conn)
+		return nil, gen, moltenMcpLostError{}, true, true
+	}
 	if !strings.Contains(answer.err.Error(), moltenMcpTimeoutText) {
 		return nil, gen, answer.err, false, true
 	}

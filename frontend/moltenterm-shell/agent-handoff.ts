@@ -14,8 +14,31 @@ import { NotificationGestureResult } from "./notifications-store";
 export const AgentHandoffRouteId = "molten:agenthandoff";
 export const AgentHandoffAnswerCommand = "moltenagenthandoffanswer";
 export const AgentHandoffGesture = "molten:agenthandoff";
+// Every request waiting for the developer, in every workspace (#1926): the event says the list changed, the command
+// reads it, and answerAgentHandoff answers an entry as the notification's buttons do.
+export const AgentHandoffPendingCommand = "moltenagenthandoffpending";
+export const AgentHandoffPendingEvent = "molten:agenthandoffpending";
 
 export type AgentHandoffDecision = "once" | "always" | "block" | "dismiss";
+
+export type PendingHandoff = {
+    requestid: string;
+    fromblockid: string;
+    toblockid: string;
+    from: string;
+    to: string;
+    goal?: string;
+    createdat?: number;
+};
+
+export async function readPendingHandoffs(): Promise<PendingHandoff[]> {
+    const result = await TabRpcClient.wshRpcCall(
+        AgentHandoffPendingCommand,
+        {},
+        { route: AgentHandoffRouteId, timeout: AnswerTimeoutMs }
+    );
+    return Array.isArray(result?.entries) ? result.entries : [];
+}
 
 export type AgentHandoffAnswer = { requestid: string; decision: AgentHandoffDecision };
 
