@@ -8,11 +8,18 @@
 // flip :hover as the shape grows under it and shrinks away from it, and the screen would shake. Only the round at rest
 // can open it; once open, a zone of the screen's final size (never animated) holds it, and the round lies inside that
 // zone, so the pointer that opened it can only leave by leaving the zone.
+//
+// The zone reaches a few pixels past the screen on every side. Without that margin the zone's outer edges are the
+// round's own edges (the screen grows from the corner it sits in), and a hand that jitters across that edge would
+// close the screen and open it again at every pixel: found by hand on the round's right and bottom edge in the bottom
+// right corner. With it, the edge of the round lies well inside the zone, and closing takes a clear step out of it.
+// A margin in space, so that the screen still closes at once and not after a delay.
 
 import { BubbleSizePx, Corner, Rect } from "./boss-place";
 
-// The screen's side. Must match --mt-boss-screen in boss-bubble.css.
+// The screen's side and the zone's margin past it. Must match --mt-boss-screen and --mt-boss-slop in boss-bubble.css.
 export const ScreenSizePx = 200;
+export const ScreenSlopPx = 8;
 
 // What holds the screen open: the pointer on the round or on the open zone, the keyboard focus (focus-visible), and
 // whether Escape hid it, until the pointer or the focus comes back.
@@ -57,13 +64,19 @@ export function screenShows(hold: ScreenHold, context: ScreenContext): boolean {
 export type Point = { x: number; y: number };
 
 // The zone the open screen takes, in the round's own coordinates (the round's top left is 0, 0): the screen grows
-// toward the inside of the window, so it keeps the round's two edges on the corner's side.
-export function screenZone(corner: Corner, round: number = BubbleSizePx, screen: number = ScreenSizePx): Rect {
+// toward the inside of the window, so it keeps the round's two edges on the corner's side. The zone is the screen and
+// its margin; a margin of 0 is the screen itself.
+export function screenZone(
+    corner: Corner,
+    round: number = BubbleSizePx,
+    screen: number = ScreenSizePx,
+    slop: number = ScreenSlopPx
+): Rect {
     return {
-        left: corner[1] === "l" ? 0 : round - screen,
-        top: corner[0] === "t" ? 0 : round - screen,
-        width: screen,
-        height: screen,
+        left: (corner[1] === "l" ? 0 : round - screen) - slop,
+        top: (corner[0] === "t" ? 0 : round - screen) - slop,
+        width: screen + 2 * slop,
+        height: screen + 2 * slop,
     };
 }
 
@@ -72,8 +85,8 @@ export function overRound(point: Point, round: number = BubbleSizePx): boolean {
     return Math.hypot(point.x - radius, point.y - radius) <= radius;
 }
 
-export function overZone(point: Point, corner: Corner): boolean {
-    const zone = screenZone(corner);
+export function overZone(point: Point, corner: Corner, slop: number = ScreenSlopPx): boolean {
+    const zone = screenZone(corner, BubbleSizePx, ScreenSizePx, slop);
     return (
         point.x >= zone.left &&
         point.x <= zone.left + zone.width &&
@@ -84,6 +97,6 @@ export function overZone(point: Point, corner: Corner): boolean {
 
 // What the browser's hit test finds under a pointer that stands still: the round while the screen is closed, the whole
 // zone once it is open (the zone takes the pointer only then).
-export function pointerOver(point: Point, corner: Corner, open: boolean): boolean {
-    return open ? overZone(point, corner) : overRound(point);
+export function pointerOver(point: Point, corner: Corner, open: boolean, slop: number = ScreenSlopPx): boolean {
+    return open ? overZone(point, corner, slop) : overRound(point);
 }
