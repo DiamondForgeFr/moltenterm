@@ -1,13 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// When the app asks Brokk for an expression (FR-BOSS-007, AC3): a smile when a hand-off is approved or a pull request
-// merges, a frown when an agent fails, a doubtful look after a long wait, a nod when the developer approves. Each rule
-// reads a fact MoltenTerm already holds; none reads what an agent wrote. Pure, so the rules run against stand-ins
-// (brokk-expressions.ts listens and asks).
+// When the app asks Brokk for an expression while his portrait is on screen (FR-BOSS-007, AC3): a smile when a pull
+// request merges, a frown when an agent fails, a doubtful look after a long wait (the smile of a hand-off approved and
+// the nod of an answer come from the card, brokk-ask-model.ts). Each rule reads a fact MoltenTerm already holds; none
+// reads what an agent wrote. Pure, so the rules run against stand-ins (brokk-moments.ts listens and asks). It loads with
+// the animated portrait, not with the bubble.
 
 import type { AgentStatesData } from "../agent-state-model";
-import type { BrokkExpression } from "./brokk-state-model";
 
 // An agent that waits for the developer this long gets a doubtful look, once.
 export const LongWaitMs = 10 * 60 * 1000;
@@ -80,20 +80,6 @@ export function stillWaiting(data: AgentStatesData, told: ReadonlySet<string>): 
     return keys;
 }
 
-// The count rose since the last reading; the first reading is no rise.
-export function rose(before: number, now: number): boolean {
-    return before != null && now > before;
-}
-
 export function mergedCount(afterMerge: Record<string, { merged?: number[] }>): number {
     return Object.values(afterMerge ?? {}).reduce((sum, after) => sum + (after?.merged?.length ?? 0), 0);
-}
-
-// What the developer's answer on a To handle row tells him: an approved hand-off is good news, an answer given to an
-// agent is an approval he nods at. A refusal or a dismissal says nothing.
-export function expressionAfterAnswer(run: { kind: string; decision?: string }): BrokkExpression {
-    if (run.kind === "handoff") {
-        return run.decision === "once" || run.decision === "always" ? "smile" : null;
-    }
-    return run.kind === "answer" ? "nod" : null;
 }

@@ -11,17 +11,11 @@
 import { TransmissionPortrait } from "@diamondforge/character";
 import "@diamondforge/character/styles.css";
 import { useEffect, useReducer } from "react";
+import type { AskedExpression, BrokkSituation } from "./brokk-ask-model";
 import "./brokk-live.css";
+import { startMoments } from "./brokk-moments";
 import { BrokkPortrait } from "./brokk-portrait";
-import {
-    AskedExpression,
-    brokkPose,
-    BrokkSituation,
-    faceAfter,
-    reactionCapMs,
-    SpeakingMs,
-    startFace,
-} from "./brokk-state-model";
+import { brokkPose, faceAfter, reactionCapMs, SpeakingMs, startFace } from "./brokk-state-model";
 
 export type BrokkLiveProps = {
     situation: BrokkSituation;
@@ -40,6 +34,7 @@ export function BrokkLive({ situation, asked, play, speaks, onPlayed }: BrokkLiv
     const [face, dispatch] = useReducer(faceAfter, { asked, play, speaks }, startFace);
     const reaction = face.reaction;
 
+    useEffect(() => startMoments(), []);
     useEffect(() => {
         if (asked != null) {
             dispatch({ type: "asked", asked });

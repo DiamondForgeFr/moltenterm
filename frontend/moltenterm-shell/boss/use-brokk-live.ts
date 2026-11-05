@@ -12,9 +12,9 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { prefersReducedMotion } from "../molten-motion";
 import { BossBubbleModel } from "./boss-store";
+import { BrokkSituation, callPending, handledAfter, speaksOnOpen } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import type { BrokkLiveProps } from "./brokk-live";
-import { BrokkSituation, callPending, handledAfter, speaksOnOpen } from "./brokk-state-model";
 
 // True while the window is on screen: a hidden window plays nothing, and its portrait draws anew when it comes back.
 export function usePageVisible(): boolean {

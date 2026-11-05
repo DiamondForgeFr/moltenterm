@@ -3,16 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
-import {
-    errorKeys,
-    expressionAfterAnswer,
-    LongWaitMs,
-    longWaits,
-    mergedCount,
-    newFailure,
-    rose,
-    stillWaiting,
-} from "./brokk-expression-model";
+import { errorKeys, LongWaitMs, longWaits, mergedCount, newFailure, stillWaiting } from "./brokk-expression-model";
 
 function agents(...infos: Partial<AgentStateInfo>[]): AgentStatesData {
     const states: Record<string, AgentStateInfo> = {};
@@ -96,34 +87,5 @@ describe("a smile when a pull request merges", () => {
         expect(mergedCount({ "/a": { merged: [1, 2] }, "/b": { merged: [3] }, "/c": {} })).toBe(3);
         expect(mergedCount({})).toBe(0);
         expect(mergedCount(null)).toBe(0);
-    });
-
-    it("tells a rise since the last reading, and none at the first", () => {
-        expect(rose(null, 3)).toBe(false);
-        expect(rose(0, 1)).toBe(true);
-        expect(rose(2, 2)).toBe(false);
-        expect(rose(3, 1)).toBe(false);
-    });
-});
-
-describe("what the developer's answer tells him", () => {
-    it("smiles at a hand-off approved, once or always", () => {
-        expect(expressionAfterAnswer({ kind: "handoff", decision: "once" })).toBe("smile");
-        expect(expressionAfterAnswer({ kind: "handoff", decision: "always" })).toBe("smile");
-    });
-
-    it("says nothing of a hand-off refused or dismissed", () => {
-        expect(expressionAfterAnswer({ kind: "handoff", decision: "block" })).toBeNull();
-        expect(expressionAfterAnswer({ kind: "handoff", decision: "dismiss" })).toBeNull();
-    });
-
-    it("nods at an answer given to an agent", () => {
-        expect(expressionAfterAnswer({ kind: "answer" })).toBe("nod");
-    });
-
-    it("says nothing of the other buttons", () => {
-        for (const kind of ["rerun", "done", "later", "goto", "integration", "external", "open", "brief"]) {
-            expect(expressionAfterAnswer({ kind })).toBeNull();
-        }
     });
 });

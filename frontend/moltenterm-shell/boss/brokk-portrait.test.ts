@@ -146,8 +146,10 @@ describe("Brokk's framing", () => {
 describe("what Brokk's face never reads (FR-BOSS-007, AC2)", () => {
     const files = [
         "brokk-portrait.ts",
+        "brokk-ask-model.ts",
         "brokk-state-model.ts",
         "brokk-expression-model.ts",
+        "brokk-moments.ts",
         "brokk-expressions.ts",
         "brokk-live.tsx",
         "use-brokk-live.ts",
