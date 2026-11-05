@@ -111,7 +111,8 @@ pass it with `--baseline`. `baselines/fdc30e40.json` kept those machine-dependen
 scenario with a run on origin/develop fdc30e40 (#1050), once the features merged since had used the raw bundle's whole
 tolerance. `baselines/96cfeb72.json` did the same on origin/develop 96cfeb72 (#1105), once they had used the up-front
 JavaScript's whole 2 % tolerance. `baselines/0215ba07.json` did it again on origin/develop 0215ba07 (#1184), for the
-same reason, and so does the current baseline, `baselines/d7cfa5e0.json`, on origin/develop d7cfa5e0 (#1866).
+same reason, `baselines/d7cfa5e0.json` did it on origin/develop d7cfa5e0 (#1866), and so does the current baseline,
+`baselines/308356c1.json`, on origin/develop 308356c1 (#1904).
 
 ## CI
 
