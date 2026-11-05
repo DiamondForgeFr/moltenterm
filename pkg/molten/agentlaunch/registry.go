@@ -84,6 +84,8 @@ type LaunchAdapter interface {
 	Id() string
 	// Executable is the program name the launcher is installed under.
 	Executable() string
+	// InstallCommand is the agent's official install command, shown when the launcher finds no agent to run.
+	InstallCommand() string
 	// PassThrough tells whether the arguments run a command that starts no session (--version, a management
 	// subcommand): the real binary then runs with nothing added.
 	PassThrough(args []string) bool
