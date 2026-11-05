@@ -7,6 +7,12 @@
 // is gone. A question answered by its notification's buttons is one row with its agent, not two. Pure, so the rules are
 // tested without a window.
 
+import {
+    AgentHandoffDecision,
+    AgentHandoffNotificationKeyPrefix,
+    PendingHandoff,
+    PendingHandoffBrief,
+} from "../agent-handoff-types";
 import { agentCallName, AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import { checkNeedsAnswer } from "../notification-attention";
@@ -39,6 +45,10 @@ export type ToHandleRun =
     | { kind: "rerun"; dir: string; number: number }
     | { kind: "external"; url: string }
     | { kind: "answer"; entry: MoltentermNotification; action: NotificationAction }
+    // A hand-off request's answer: the route the request's notification answers through (FR-BOSS-005).
+    | { kind: "handoff"; requestid: string; decision: AgentHandoffDecision }
+    // Shows or hides the full brief in the row; nothing leaves the window.
+    | { kind: "brief" }
     | { kind: "open"; entry: MoltentermNotification }
     | { kind: "later" };
 
@@ -51,6 +61,25 @@ export type ToHandleAction = {
     labelVars?: Record<string, string | number>;
     disabled: boolean;
     run: ToHandleRun;
+};
+
+// A file or a link the sender attached: what the row names and the brief lists.
+export type HandoffAttachment = { name: string; detail: string };
+
+// A request to hand work from one agent to another (FR-BOSS-005, #1891). Names and places are as wavesrv gave them,
+// translated where they are shown: "" for a terminal that has no name, a workspace that has none.
+export type HandoffRow = {
+    requestid: string;
+    from: string;
+    to: string;
+    fromPlace: string;
+    toPlace: string;
+    // One line of the goal.
+    goal: string;
+    files: HandoffAttachment[];
+    links: HandoffAttachment[];
+    // What the receiver would get, in full: "Read the brief".
+    brief: PendingHandoffBrief;
 };
 
 export type ToHandleItem = {
@@ -68,6 +97,8 @@ export type ToHandleItem = {
     since: number;
     rank: number;
     actions: ToHandleAction[];
+    // Set on the rows of the "Mise en relation" group: the card draws them apart, with what the receiver would see.
+    handoff?: HandoffRow;
 };
 
 export type InfoItem = { key: string; name: string; place: string; line: TextRef };
@@ -88,6 +119,8 @@ export type ToHandleInput = {
     sessions: DurableSession[];
     // The keys of the items set aside with Later.
     parked: Record<string, boolean>;
+    // The hand-off requests wavesrv holds for the developer (#1926), none until a first reading is in.
+    handoffs?: PendingHandoff[];
 };
 
 // The rank of a row: errors first (a stopped agent, a failing CI), then what waits for an answer, then what is ready.
@@ -105,11 +138,17 @@ export function answerButtons(entry: MoltentermNotification): NotificationAction
     return visibleActions(entry).filter((a) => a.id !== ClickActionId);
 }
 
-// The newest open notification that asks the agent's block something (a question, a permission, a prompt for Enter).
-function newestNoticeOf(notifications: MoltentermNotification[], blockid: string): MoltentermNotification {
+// The newest open notification that asks the agent's block something (a question, a permission, a prompt for Enter). A
+// notification a row already stands for is not the agent's question: a hand-off request's is keyed to the block of the
+// agent that asked.
+function newestNoticeOf(
+    notifications: MoltentermNotification[],
+    blockid: string,
+    consumed: Set<string>
+): MoltentermNotification {
     let newest: MoltentermNotification = null;
     for (const entry of notifications) {
-        if (entry.blockid !== blockid || !checkNeedsAnswer(entry)) {
+        if (entry.blockid !== blockid || consumed.has(entry.id) || !checkNeedsAnswer(entry)) {
             continue;
         }
         if (newest == null || (entry.updated ?? entry.time) > (newest.updated ?? newest.time)) {
@@ -153,7 +192,7 @@ function prSince(pr: ReviewPr): number {
 // The row of an agent that waits or stopped on an error. A question its notification asks is answered in the row, by
 // the same buttons, so the notification is consumed here and does not come again as a row of its own.
 function agentItem(info: AgentStateInfo, input: ToHandleInput, consumed: Set<string>): ToHandleItem {
-    const notice = newestNoticeOf(input.notifications, info.blockid);
+    const notice = newestNoticeOf(input.notifications, info.blockid, consumed);
     if (notice != null) {
         consumed.add(notice.id);
     }
@@ -287,6 +326,70 @@ function readyItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
     };
 }
 
+function handoffAction(requestid: string, id: string, decision: AgentHandoffDecision): ToHandleAction {
+    return {
+        id,
+        primary: false,
+        labelKey: `boss.todo.handoff.${id}`,
+        disabled: false,
+        run: { kind: "handoff", requestid, decision },
+    };
+}
+
+// The row of a request to hand work from one agent to another. It answers through the route the request's notification
+// answers through, so that notification is consumed here and does not come again as a row of its own. Refuse is the
+// notification's Block: the pair stays refused until the developer lifts it from the terminal's connections menu.
+function handoffItem(
+    request: PendingHandoff,
+    notifications: MoltentermNotification[],
+    consumed: Set<string>
+): ToHandleItem {
+    const key = AgentHandoffNotificationKeyPrefix + request.requestid;
+    for (const entry of notifications) {
+        if (entry.key === key) {
+            consumed.add(entry.id);
+        }
+    }
+    const brief: PendingHandoffBrief = request.brief ?? { goal: request.goal ?? "" };
+    return {
+        key: `handoff:${request.requestid}`,
+        tone: "waiting",
+        notice: null,
+        lineFromNotice: false,
+        name: request.from ?? "",
+        line: { text: request.goal ?? "" },
+        place: "",
+        since: sinceOf(request.createdat),
+        rank: RankWait,
+        actions: markPrimary([
+            handoffAction(request.requestid, "once", "once"),
+            handoffAction(request.requestid, "always", "always"),
+            handoffAction(request.requestid, "refuse", "block"),
+            {
+                id: "brief",
+                primary: false,
+                labelKey: "boss.todo.handoff.brief",
+                disabled: false,
+                run: { kind: "brief" },
+            },
+        ]),
+        handoff: {
+            requestid: request.requestid,
+            from: request.from ?? "",
+            to: request.to ?? "",
+            fromPlace: request.fromworkspace || request.fromproject || "",
+            toPlace: request.toworkspace || request.toproject || "",
+            goal: request.goal ?? "",
+            files: (brief.files ?? []).map((file) => ({
+                name: lastSegment(file.path) || file.path,
+                detail: file.lines ? `${file.path}:${file.lines}` : file.path,
+            })),
+            links: (brief.links ?? []).map((link) => ({ name: link.title || link.url || "", detail: link.url ?? "" })),
+            brief,
+        },
+    };
+}
+
 function byUrgency(a: ToHandleItem, b: ToHandleItem): number {
     return a.rank - b.rank || (a.since || Infinity) - (b.since || Infinity) || (a.key < b.key ? -1 : 1);
 }
@@ -294,6 +397,7 @@ function byUrgency(a: ToHandleItem, b: ToHandleItem): number {
 // Every row of the To handle tab, most urgent first. The info rows (agents that are done) carry no action and no count.
 export function buildToHandle(input: ToHandleInput): ToHandleList {
     const consumed = new Set<string>();
+    const handoffs = (input.handoffs ?? []).map((request) => handoffItem(request, input.notifications ?? [], consumed));
     const agents = attentionAgents(input.states).map((info) => agentItem(info, input, consumed));
     const notices = (input.notifications ?? [])
         .filter((entry) => checkNeedsAnswer(entry) && !consumed.has(entry.id))
@@ -301,7 +405,7 @@ export function buildToHandle(input: ToHandleInput): ToHandleList {
     const prs = Object.values(input.answers ?? {})
         .filter((answer) => answer?.state === "ok")
         .flatMap((answer) => prItems(answer, input.readied));
-    const all = [...agents, ...notices, ...prs];
+    const all = [...handoffs, ...agents, ...notices, ...prs];
     const items = all.filter((item) => input.parked?.[item.key] !== true).sort(byUrgency);
     const info: InfoItem[] = Object.values(input.states?.states ?? {})
         .filter((state) => state?.state === "done")

@@ -35,6 +35,7 @@ import { DurableSessions } from "../sessions/sessions-store";
 import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
 import {
+    answerHandoff,
     answerNotice,
     goToLocation,
     homeFolder,
@@ -46,6 +47,7 @@ import {
     rerunPrChecks,
     startTerminal,
 } from "./boss-card-actions";
+import { GhostButton, GoButton, PrimaryButton, SecondaryButton } from "./boss-card-buttons";
 import {
     AnchorAttr,
     CardGroup,
@@ -57,6 +59,7 @@ import {
     CardTestId,
     isOutsidePress,
 } from "./boss-card-model";
+import { HandoffRowView } from "./boss-handoff-row";
 import { BossBubbleModel } from "./boss-store";
 import { InfoItem, ToHandleAction, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import BossPortrait from "./boss-portrait.svg";
@@ -88,13 +91,6 @@ const NoticeDotClasses: Record<string, string> = {
 export type CardTab = "todo" | "sessions" | "notifications";
 export const CardTabs: CardTab[] = ["todo", "sessions", "notifications"];
 let lastCardTab: CardTab = "sessions";
-
-const GhostButton =
-    "molten-btn-ghost cursor-pointer rounded-6 px-2 py-0.5 text-11 whitespace-nowrap disabled:opacity-50";
-const GoButton = cn(GhostButton, "molten-tone-accent");
-const SecondaryButton =
-    "molten-btn-secondary cursor-pointer rounded-6 px-2 py-0.5 text-11 whitespace-nowrap disabled:opacity-50";
-const PrimaryButton = "molten-btn cursor-pointer rounded-6 px-2.5 py-0.5 text-11 whitespace-nowrap disabled:opacity-50";
 
 function focusIsAtHome(card: HTMLElement): boolean {
     const active = document.activeElement;
@@ -371,19 +367,41 @@ function ToHandleView({
 }) {
     const t = useT();
     const tCount = useTCount();
+    const handoffs = list.items.filter((item) => item.handoff != null);
+    const others = list.items.filter((item) => item.handoff == null);
     return (
         <div className="flex flex-col pb-1">
             {list.items.length === 0 ? (
                 <div className="px-3 py-3 text-12 text-secondary" data-testid="boss-card-todo-empty">
                     {t("boss.todo.empty")}
                 </div>
-            ) : (
-                <ul className="flex flex-col px-1" data-testid="boss-card-todo-list">
-                    {list.items.map((item) => (
-                        <ToHandleRowView key={item.key} item={item} now={now} busyId={busyId} onRun={onRun} />
-                    ))}
-                </ul>
-            )}
+            ) : null}
+            {handoffs.length > 0 ? (
+                <section aria-label={t("boss.todo.handoff.group")} data-testid="boss-card-todo-handoffs">
+                    <div className="px-3 pt-2 pb-1 text-11 tracking-wide text-muted uppercase">
+                        {t("boss.todo.handoff.group")}
+                    </div>
+                    <ul className="flex flex-col px-1" data-testid="boss-card-todo-handoff-list">
+                        {handoffs.map((item) => (
+                            <HandoffRowView key={item.key} item={item} now={now} busyId={busyId} onRun={onRun} />
+                        ))}
+                    </ul>
+                </section>
+            ) : null}
+            {others.length > 0 ? (
+                <section aria-label={handoffs.length > 0 ? t("boss.todo.others") : undefined}>
+                    {handoffs.length > 0 ? (
+                        <div className="px-3 pt-2 pb-1 text-11 tracking-wide text-muted uppercase">
+                            {t("boss.todo.others")}
+                        </div>
+                    ) : null}
+                    <ul className="flex flex-col px-1" data-testid="boss-card-todo-list">
+                        {others.map((item) => (
+                            <ToHandleRowView key={item.key} item={item} now={now} busyId={busyId} onRun={onRun} />
+                        ))}
+                    </ul>
+                </section>
+            ) : null}
             {list.parked > 0 ? (
                 <div className="px-3 pt-1 text-11 text-muted" data-testid="boss-card-todo-parked">
                     {tCount("boss.todo.parked", list.parked)}
@@ -620,8 +638,15 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
             fireAndForget(() => openNotice(run.entry));
             return;
         }
+        if (run.kind === "brief") {
+            return;
+        }
         const work =
-            run.kind === "rerun" ? () => rerunPrChecks(run.dir, run.number) : () => answerNotice(run.entry, run.action);
+            run.kind === "rerun"
+                ? () => rerunPrChecks(run.dir, run.number)
+                : run.kind === "handoff"
+                  ? () => answerHandoff(run.requestid, run.decision)
+                  : () => answerNotice(run.entry, run.action);
         setBusyId(busyKey);
         setProblem("");
         fireAndForget(async () => {

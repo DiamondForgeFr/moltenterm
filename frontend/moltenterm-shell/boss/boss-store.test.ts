@@ -3,7 +3,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ setMeta: vi.fn() }));
+const m = vi.hoisted(() => ({
+    setMeta: vi.fn(),
+    readPending: vi.fn(),
+    handlers: new Map<string, ((event: unknown) => void)[]>(),
+}));
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/global", async () => {
@@ -26,7 +30,22 @@ vi.mock("@/app/store/global", async () => {
 });
 vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: m.setMeta } }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
-vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: () => () => {} }));
+vi.mock("@/app/store/wps", () => ({
+    waveEventSubscribeSingle: (sub: { eventType: string; handler: (event: unknown) => void }) => {
+        m.handlers.set(sub.eventType, [...(m.handlers.get(sub.eventType) ?? []), sub.handler]);
+        return () => {
+            m.handlers.set(
+                sub.eventType,
+                (m.handlers.get(sub.eventType) ?? []).filter((handler) => handler !== sub.handler)
+            );
+        };
+    },
+}));
+vi.mock("../agent-handoff", () => ({
+    AgentHandoffPendingEvent: "molten:agenthandoffpending",
+    readPendingHandoffs: m.readPending,
+    answerAgentHandoff: vi.fn(),
+}));
 vi.mock("../agent-state-store", async () => {
     const { atom } = await import("jotai");
     const dataAtom = atom({ states: {}, versions: {} });
@@ -46,14 +65,17 @@ vi.mock("../sessions/sessions-store", async () => {
 
 import * as GlobalMock from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { PendingHandoff } from "../agent-handoff-types";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleMetaKey } from "./boss-name";
 import { DefaultBubbleState, DefaultPlace, Rect } from "./boss-place";
 import { BossBubbleModel, BossDom, terminalBlockOf } from "./boss-store";
 
 const { settings, windowObject, workspaces } = (GlobalMock as any).TestAtoms;
 const agents = AgentStates.getInstance();
+const handoffs = PendingHandoffs.getInstance();
 const model = BossBubbleModel.getInstance();
 
 const BubbleRect: Rect = { left: 900, top: 600, width: 44, height: 44 };
@@ -106,9 +128,23 @@ function setStates(...infos: AgentStateInfo[]) {
 // The window's meta echoed the change and the bubble stopped waiting for it; the deadline only bounds a failing run.
 const settled = () => vi.waitFor(() => expect(globalStore.get(model.pendingAtom)).toBeNull(), { timeout: 30000 });
 
+function pendingRequest(requestid: string): PendingHandoff {
+    return { requestid, fromblockid: "bs", toblockid: "br", from: "Chloé", to: "Léa", goal: "A goal", createdat: 1 };
+}
+
+// wavesrv says the list of requests changed.
+function publishPending() {
+    m.handlers.get("molten:agenthandoffpending")?.forEach((handler) => handler({}));
+}
+
 beforeEach(() => {
     m.setMeta.mockReset();
     m.setMeta.mockResolvedValue(undefined);
+    m.readPending.mockReset();
+    m.readPending.mockResolvedValue([]);
+    m.handlers.clear();
+    globalStore.set(handoffs.dataAtom, []);
+    globalStore.set(handoffs.loadedAtom, false);
     globalStore.set(settings, {});
     globalStore.set(windowObject, { meta: {} });
     globalStore.set(workspaces, {});
@@ -271,6 +307,51 @@ describe("the one cue when the count rises (AC6)", () => {
         setStates();
         expect(globalStore.get(model.cueAtom)).toBe(0);
         detach();
+    });
+
+    it("plays when a hand-off request arrives, not for the ones a starting window loads, and the badge counts it", async () => {
+        m.readPending.mockResolvedValue([pendingRequest("r1")]);
+        const detach = model.attach(fakeDom());
+        await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
+        expect(globalStore.get(model.cueAtom)).toBe(0);
+        expect(globalStore.get(model.badgeAtom)).toMatchObject({ count: 1, text: "1", tone: "waiting" });
+
+        m.readPending.mockResolvedValue([pendingRequest("r1"), pendingRequest("r2")]);
+        publishPending();
+        await vi.waitFor(() => expect(globalStore.get(handoffs.dataAtom)).toHaveLength(2), { timeout: 30000 });
+        expect(globalStore.get(model.cueAtom)).toBe(1);
+        expect(globalStore.get(model.badgeAtom).count).toBe(2);
+
+        m.readPending.mockResolvedValue([pendingRequest("r2")]);
+        publishPending();
+        await vi.waitFor(() => expect(globalStore.get(handoffs.dataAtom)).toHaveLength(1), { timeout: 30000 });
+        expect(globalStore.get(model.cueAtom)).toBe(1);
+        expect(globalStore.get(model.badgeAtom).count).toBe(1);
+        detach();
+    });
+
+    it("plays for a hand-off request even while an agent already waits", async () => {
+        globalStore.set(agents.loadedAtom, true);
+        setStates(agentInfo("a", "waiting"));
+        const detach = model.attach(fakeDom());
+        await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
+        expect(globalStore.get(model.cueAtom)).toBe(0);
+
+        m.readPending.mockResolvedValue([pendingRequest("r1")]);
+        publishPending();
+        await vi.waitFor(() => expect(globalStore.get(handoffs.dataAtom)).toHaveLength(1), { timeout: 30000 });
+        expect(globalStore.get(model.cueAtom)).toBe(1);
+        expect(globalStore.get(model.badgeAtom).count).toBe(2);
+        detach();
+    });
+
+    it("listens for the requests only while a bubble is on screen", async () => {
+        const detach = model.attach(fakeDom());
+        expect(m.handlers.get("molten:agenthandoffpending")).toHaveLength(1);
+        await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
+        detach();
+        expect(m.handlers.get("molten:agenthandoffpending")).toHaveLength(0);
+        expect(globalStore.get(handoffs.loadedAtom)).toBe(false);
     });
 
     it("counts the agents that wait or failed and no other", () => {

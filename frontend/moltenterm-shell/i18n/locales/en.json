@@ -2936,7 +2936,39 @@
             "openIntegration": "Open in Integration",
             "seePr": "See the PR",
             "open": "Open",
-            "later": "Later"
+            "later": "Later",
+            "others": "Everything else",
+            "handoff": {
+                "group": "Handoffs between agents",
+                "terminal": "A terminal",
+                "once": "Allow once",
+                "always": "Always for this pair",
+                "refuse": "Refuse",
+                "brief": "Read the brief",
+                "hideBrief": "Hide the brief",
+                "alwaysTitle": "Allow this handoff and every later one between {from} and {to}. You can take it back from the terminal's connections menu.",
+                "refuseTitle": "Refuse this handoff and block {from} from handing work to {to} until MoltenTerm restarts. You can lift it from the terminal's connections menu.",
+                "goal": "“{goal}”",
+                "attached": "Attached: {list}",
+                "files": {
+                    "one": "{count} file",
+                    "other": "{count} files"
+                },
+                "links": {
+                    "one": "{count} link",
+                    "other": "{count} links"
+                },
+                "both": "{files} and {links}",
+                "sees": "{to} will find the brief in its terminal, with {attached}. Nothing else from the sender reaches it.",
+                "seesBare": "{to} will find the brief in its terminal, with no file or link. Nothing else from the sender reaches it.",
+                "briefGoal": "Goal",
+                "briefContext": "Context",
+                "briefFiles": "Files",
+                "briefLinks": "Links",
+                "briefLines": "lines {lines}",
+                "replyYes": "{to} is asked to reply to {from}.",
+                "replyNo": "No reply is expected."
+            }
         },
         "peek": {
             "quiet": "Nothing waits for you.",

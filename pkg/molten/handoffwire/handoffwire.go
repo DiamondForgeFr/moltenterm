@@ -225,7 +225,36 @@ type PairEntry struct {
 	Decision  string `json:"decision,omitempty"`
 }
 
-// PendingEntry is a handoff request waiting for the developer, from or to the pane.
+// PendingFile and PendingLink are what the sender attached, as the developer reads it before answering (#1891): the path
+// and the sender's words, never the file's content.
+type PendingFile struct {
+	Path    string `json:"path"`
+	Project string `json:"project,omitempty"`
+	Lines   string `json:"lines,omitempty"`
+	Note    string `json:"note,omitempty"`
+	// Excerpt: what the sender pasted for the receiver, cut.
+	Excerpt string `json:"excerpt,omitempty"`
+}
+
+type PendingLink struct {
+	Url   string `json:"url,omitempty"`
+	Title string `json:"title,omitempty"`
+	Kind  string `json:"kind,omitempty"`
+	Note  string `json:"note,omitempty"`
+}
+
+// PendingBrief is the brief a pending request holds: what the receiver gets once the developer allows it. Context is
+// cut for a window; the brief written for the receiver holds all of it.
+type PendingBrief struct {
+	Goal    string        `json:"goal"`
+	Context string        `json:"context,omitempty"`
+	Files   []PendingFile `json:"files,omitempty"`
+	Links   []PendingLink `json:"links,omitempty"`
+	Reply   bool          `json:"reply,omitempty"`
+}
+
+// PendingEntry is a handoff request waiting for the developer, from or to the pane. The fields after CreatedAt come
+// with the list the cards read (PendingCommand), not with a pane's connections menu (PairsResult).
 type PendingEntry struct {
 	RequestId   string `json:"requestid"`
 	FromBlockId string `json:"fromblockid"`
@@ -235,6 +264,12 @@ type PendingEntry struct {
 	Goal        string `json:"goal,omitempty"`
 	// CreatedAt: when the request was asked, in Unix milliseconds.
 	CreatedAt int64 `json:"createdat,omitempty"`
+	// Workspace and project of each end, as the windows name them (default workspace names are stored in English).
+	FromWorkspace string        `json:"fromworkspace,omitempty"`
+	ToWorkspace   string        `json:"toworkspace,omitempty"`
+	FromProject   string        `json:"fromproject,omitempty"`
+	ToProject     string        `json:"toproject,omitempty"`
+	Brief         *PendingBrief `json:"brief,omitempty"`
 }
 
 // PendingResult: the requests waiting for the developer, oldest first.

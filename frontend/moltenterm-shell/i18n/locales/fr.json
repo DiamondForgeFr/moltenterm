@@ -2936,7 +2936,39 @@
             "openIntegration": "Ouvrir dans Intégration",
             "seePr": "Voir la PR",
             "open": "Ouvrir",
-            "later": "Plus tard"
+            "later": "Plus tard",
+            "others": "Le reste",
+            "handoff": {
+                "group": "Mise en relation",
+                "terminal": "Un terminal",
+                "once": "Autoriser une fois",
+                "always": "Toujours pour cette paire",
+                "refuse": "Refuser",
+                "brief": "Lire le brief",
+                "hideBrief": "Masquer le brief",
+                "alwaysTitle": "Autoriser cette mise en relation et toutes les suivantes entre {from} et {to}. Vous pouvez reprendre cet accord depuis le menu des connexions du terminal.",
+                "refuseTitle": "Refuser cette mise en relation et bloquer celles de {from} vers {to} jusqu'au redémarrage de MoltenTerm. Vous pouvez lever le blocage depuis le menu des connexions du terminal.",
+                "goal": "« {goal} »",
+                "attached": "Joint : {list}",
+                "files": {
+                    "one": "{count} fichier",
+                    "other": "{count} fichiers"
+                },
+                "links": {
+                    "one": "{count} lien",
+                    "other": "{count} liens"
+                },
+                "both": "{files} et {links}",
+                "sees": "{to} trouvera le brief dans son terminal, avec {attached}. Rien d'autre de l'expéditeur ne lui parvient.",
+                "seesBare": "{to} trouvera le brief dans son terminal, sans fichier ni lien. Rien d'autre de l'expéditeur ne lui parvient.",
+                "briefGoal": "Objectif",
+                "briefContext": "Contexte",
+                "briefFiles": "Fichiers",
+                "briefLinks": "Liens",
+                "briefLines": "lignes {lines}",
+                "replyYes": "{to} doit répondre à {from}.",
+                "replyNo": "Aucune réponse n'est attendue."
+            }
         },
         "peek": {
             "quiet": "Rien n'attend votre réponse.",
