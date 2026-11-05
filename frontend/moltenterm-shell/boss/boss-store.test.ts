@@ -36,7 +36,7 @@ vi.mock("../agent-state-store", async () => {
 vi.mock("../notifications-store", async () => {
     const { atom } = await import("jotai");
     const entriesAtom = atom([]);
-    return { MoltentermNotifications: { getInstance: () => ({ entriesAtom }) } };
+    return { MoltentermNotifications: { getInstance: () => ({ entriesAtom, shownEntriesAtom: entriesAtom }) } };
 });
 vi.mock("../sessions/sessions-store", async () => {
     const { atom } = await import("jotai");

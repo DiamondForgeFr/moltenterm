@@ -17,6 +17,8 @@ import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { I18nModel } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
+import { ReviewsAnswers } from "../reviews/reviews-client";
+import { ReviewsModel } from "../reviews/reviews-store";
 import { DurableSessions } from "../sessions/sessions-store";
 import { FocusTarget, focusTargetOf, restoreFocus } from "./boss-card-model";
 import {
@@ -40,6 +42,7 @@ import {
     rectToPlace,
     sameBubbleState,
 } from "./boss-place";
+import { buildToHandle, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
 
 // The slice of the document the model listens on, so the rules run against a stand-in in the tests.
@@ -87,6 +90,8 @@ export class BossBubbleModel {
     peekOpenAtom = atom(false) as PrimitiveAtom<boolean>;
     // The Sessions card shows (FR-BOSS-002).
     cardOpenAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The To handle rows set aside with Later, by their key: back at the card's next opening (FR-BOSS-003).
+    parkedAtom = atom({}) as PrimitiveAtom<Record<string, boolean>>;
 
     windowMetaAtom: Atom<Record<string, any>>;
     stateAtom: Atom<BubbleState>;
@@ -96,7 +101,11 @@ export class BossBubbleModel {
     showAtom: Atom<boolean>;
     collapseOnTypeAtom: Atom<boolean>;
     attentionAtom: Atom<AgentStateInfo[]>;
+    // The rows the To handle tab shows, and the badge that counts them.
+    toHandleAtom: Atom<ToHandleList>;
     badgeAtom: Atom<Badge>;
+    // The agents that wait or failed: the one cue follows them, as it always did.
+    attentionBadgeAtom: Atom<Badge>;
     peekAtom: Atom<BossPeek>;
 
     private writeSeq = 0;
@@ -127,7 +136,22 @@ export class BossBubbleModel {
             (list) => list,
             (a, b) => a.length === b.length && a.every((info, i) => info === b[i])
         );
+        this.toHandleAtom = atom((get) =>
+            buildToHandle({
+                states: get(AgentStates.getInstance().dataAtom),
+                notifications: get(MoltentermNotifications.getInstance().shownEntriesAtom),
+                answers: get(ReviewsAnswers.getInstance().answersAtom),
+                readied: get(ReviewsModel.getInstance().readiedAtom),
+                sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
+                parked: get(this.parkedAtom),
+            })
+        );
         this.badgeAtom = selectAtom(
+            atom((get) => toHandleBadge(get(this.toHandleAtom))),
+            (badge) => badge,
+            (a, b) => a.count === b.count && a.tone === b.tone
+        );
+        this.attentionBadgeAtom = selectAtom(
             atom((get) => makeBadge(get(this.attentionAtom))),
             (badge) => badge,
             (a, b) => a.count === b.count && a.tone === b.tone
@@ -215,7 +239,13 @@ export class BossBubbleModel {
         }
         this.cardReturn = returnTo ?? focusTargetOf(this.dom?.activeElement, this.dom);
         globalStore.set(this.peekOpenAtom, false);
+        globalStore.set(this.parkedAtom, {});
         globalStore.set(this.cardOpenAtom, true);
+    }
+
+    // Sets a To handle row aside until the card is next opened (Later, FR-BOSS-003).
+    park(key: string): void {
+        globalStore.set(this.parkedAtom, { ...globalStore.get(this.parkedAtom), [key]: true });
     }
 
     // Hides the card and leaves the app as it was: the focus goes back unless the developer put it elsewhere meanwhile
@@ -287,13 +317,17 @@ export class BossBubbleModel {
         const agents = AgentStates.getInstance();
         let last: number = null;
         const check = () => {
-            const next = nextCue(last, globalStore.get(this.badgeAtom).count, globalStore.get(agents.loadedAtom));
+            const next = nextCue(
+                last,
+                globalStore.get(this.attentionBadgeAtom).count,
+                globalStore.get(agents.loadedAtom)
+            );
             last = next.last;
             if (next.cue) {
                 globalStore.set(this.cueAtom, (n) => n + 1);
             }
         };
-        const stops = [globalStore.sub(this.badgeAtom, check), globalStore.sub(agents.loadedAtom, check)];
+        const stops = [globalStore.sub(this.attentionBadgeAtom, check), globalStore.sub(agents.loadedAtom, check)];
         check();
         return () => stops.forEach((stop) => stop());
     }
