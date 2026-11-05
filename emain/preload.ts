@@ -14,6 +14,7 @@ import {
     WindowReloadedChannel,
 } from "./moltenterm-hang-ipc";
 import { SlowSyncIpcMs } from "./moltenterm-hang-model";
+import { webBlockWebviewSelector } from "./moltenterm-webselector-policy"; // MOLTENTERM-PATCH (#1961)
 
 function sendSync(channel: string, ...args: any[]): any {
     return timedSendSync(ipcRenderer, SlowSyncIpcMs, () => performance.now(), channel, ...args);
@@ -314,7 +315,8 @@ ipcRenderer.on("moltenterm-site-permission-done", (e, requestId) => {
 });
 
 ipcRenderer.on("webcontentsid-from-blockid", (e, blockId, responseCh) => {
-    const webviewElem: WebviewTag = document.querySelector("div[data-blockid='" + blockId + "'] webview");
+    // MOLTENTERM-PATCH (#1961): a Wave web block's page only, never a browser panel tab (no site approval here)
+    const webviewElem: WebviewTag = document.querySelector(webBlockWebviewSelector(blockId));
     const wcId = webviewElem?.dataset?.webcontentsid;
     ipcRenderer.send(responseCh, wcId);
 });
