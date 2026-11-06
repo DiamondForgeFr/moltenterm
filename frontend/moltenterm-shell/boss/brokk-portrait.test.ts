@@ -271,11 +271,11 @@ describe("the package at v0.3.1 (FR-BOSS-007, AC1 and AC17; #1999, #2007)", () =
     const manifest = JSON.parse(textOf("package.json"));
 
     it("is named at v0.3.1 by the dependency, the lock, the notice and the ledger of the fork", () => {
-        expect(manifest.dependencies[PackageName]).toMatch(/diamondforge-character\.git#v0\.3\.1$/);
-        expect(lock.packages[""].dependencies[PackageName]).toMatch(/diamondforge-character\.git#v0\.3\.1$/);
+        expect(manifest.dependencies[PackageName]).toMatch(/character-studio\.git#v0\.3\.1$/);
+        expect(lock.packages[""].dependencies[PackageName]).toMatch(/character-studio\.git#v0\.3\.1$/);
         expect(lock.packages[`node_modules/${PackageName}`].version).toBe("0.3.1");
         expect(textOf("NOTICE")).toContain(`${PackageName} 0.3.1 by DiamondForge`);
-        expect(textOf("UPSTREAM.md")).toContain("diamondforge-character.git#v0.3.1");
+        expect(textOf("UPSTREAM.md")).toContain("character-studio.git#v0.3.1");
         expect(textOf("UPSTREAM.md")).not.toContain("diamondforge-character.git#v0.2.0");
     });
 
