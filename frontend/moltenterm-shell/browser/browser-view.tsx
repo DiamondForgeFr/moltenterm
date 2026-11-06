@@ -67,6 +67,8 @@ import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from ".
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
 import { bookmarksMenu } from "./bookmarks-menu";
+import { captureFavicon, faviconsAtom, noteSiteLoading, requestFavicons } from "../favicon/favicon-store";
+import { originOfAddress } from "../favicon/site";
 import {
     AgentControlAction,
     agentName,
@@ -1049,16 +1051,24 @@ export class BrowserViewModel implements ViewModel {
         const projectName = project != null ? projectLabel(project) : null;
         const data = readProjectBookmarks(ws?.meta, projectId);
         return bookmarksMenu(
-            { projectName, multi: projects.length > 1, data, pageUrl: bookmarkablePage(tab?.url) },
+            {
+                projectName,
+                multi: projects.length > 1,
+                data,
+                pageUrl: bookmarkablePage(tab?.url),
+                icons: globalStore.get(faviconsAtom),
+            },
             {
                 open: (url) => this.navigate(url),
-                bookmarkPage: () =>
+                bookmarkPage: () => {
+                    this.captureTabFavicon(tab);
                     this.askBookmark({
                         projectId,
                         projectName,
                         mode: "page",
                         initial: { url: tab.url, title: browserTabTitle(tab), description: "", folder: "" },
-                    }),
+                    });
+                },
                 editBookmark: (b) =>
                     this.askBookmark({
                         projectId,
@@ -1074,6 +1084,19 @@ export class BrowserViewModel implements ViewModel {
 
     askBookmark(request: BookmarkDialogRequest): void {
         globalStore.set(this.bookmarkDialogAtom, request);
+    }
+
+    // A bookmark added from a page that has an icon keeps that icon with its site's (#1962): Electron main reads the icon
+    // the page declared if it has not yet, through the page's own session.
+    captureTabFavicon(tab: BrowserTab): void {
+        try {
+            const webview = tab != null && !tab.engine ? this.webviews.get(tab.id) : null;
+            if (webview != null) {
+                captureFavicon(webview.getWebContentsId());
+            }
+        } catch (e) {
+            console.log("favicons: no page to read an icon from", e);
+        }
     }
 
     // The toolbar's Share with agent button opens the same entries as the tab menu (FR-BRW-011 AC1).
@@ -1623,10 +1646,12 @@ function TabWebview({
         const onBlur = () => getApi().setWebviewFocus(null);
         const onStartLoading = () => {
             model.loads.noteStart(tab.id);
+            noteSiteLoading(model.blockId, true);
             model.errors.noteStart(tab.id);
         };
         const onStopLoading = () => {
             model.loads.noteStop(tab.id);
+            noteSiteLoading(model.blockId, false);
             model.errors.noteStop(tab.id);
             model.addressHold.noteLoadStopped(model.findTab(tab.id)?.url);
         };
@@ -1729,6 +1754,7 @@ function TabWebview({
             if (model.webviews.get(tab.id) === webview) {
                 model.webviews.delete(tab.id);
                 model.loads.noteStop(tab.id);
+                noteSiteLoading(model.blockId, false);
             }
         };
     }, [model, tab.id]);
@@ -2132,12 +2158,15 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
 function BookmarksButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
     const workspace = useAtomValue(atoms.workspace);
+    const projectId = projectIdOfTab(workspace, model.tabId);
+    const data = readProjectBookmarks(workspace?.meta, projectId);
+    // The menu this button opens draws each bookmark with its site's icon (#1962): the icons it will need are asked for now.
+    const bookmarkOrigins = Array.from(new Set(data.items.map((b) => originOfAddress(b.url)))).join(" ");
+    useEffect(() => requestFavicons(bookmarkOrigins === "" ? [] : bookmarkOrigins.split(" ")), [bookmarkOrigins]);
     if (tab == null) {
         return null;
     }
-    const projectId = projectIdOfTab(workspace, model.tabId);
     const project = readProjects(workspace).find((p) => p.id === projectId);
-    const data = readProjectBookmarks(workspace?.meta, projectId);
     const saved = findBookmarkByAddress(data, bookmarkablePage(tab.url)) != null;
     const label = t("browser.bookmarks.button");
     return (

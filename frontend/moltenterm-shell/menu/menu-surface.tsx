@@ -22,6 +22,7 @@ import {
     useTypeahead,
 } from "@floating-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FaviconMark } from "../favicon/favicon-mark";
 import { useFloatingInPlace } from "../floating-in-place";
 import { t } from "../i18n/i18n";
 import { actionableMenuItem, layoutMenuItems, menuItemRole, menuLabel, shortcutLabel } from "./menu-model";
@@ -304,6 +305,8 @@ function MenuItemContent({ item, submenu }: { item: ContextMenuItem; submenu?: b
                     ) : (
                         "✓"
                     )
+                ) : item.iconImage ? (
+                    <FaviconMark url={item.iconImage} />
                 ) : item.icon ? (
                     <i className={`fa fa-${item.icon}`} />
                 ) : null}

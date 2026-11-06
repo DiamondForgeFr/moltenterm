@@ -27,6 +27,7 @@ import {
     moveProjectBookmark,
     renameProjectFolder,
 } from "../browser/bookmarks-store";
+import { AddressIcon } from "../favicon/favicon-mark";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { currentProjectId, projectLabel, readProjects, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
@@ -84,8 +85,11 @@ function BookmarkRow({
             data-testid={`bookmark-row-${bookmark.id}`}
         >
             <div className="min-w-0 flex-1 basis-56">
-                <div className="truncate text-13 text-primary" title={bookmark.title}>
-                    {bookmark.title}
+                <div className="flex min-w-0 items-center gap-2 text-13 text-primary" title={bookmark.title}>
+                    <span className="flex w-4 shrink-0 justify-center text-icon-14" data-testid="bookmark-row-icon">
+                        <AddressIcon address={bookmark.url} />
+                    </span>
+                    <span className="min-w-0 truncate">{bookmark.title}</span>
                 </div>
                 <div className="truncate font-mono text-11 text-muted" title={bookmark.url}>
                     {bookmark.url}
