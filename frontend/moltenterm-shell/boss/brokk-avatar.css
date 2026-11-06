@@ -75,9 +75,32 @@
     background: var(--mt-surface-0);
 }
 
-/* His panel is open and shows his face: the avatar is only the button that closes it, with the badge. */
+/* His panel is open and shows his face: the avatar is only the button that closes it, with the badge. It never shows a
+   second face; it says, calmly, that he is busy with the developer: a soft ring in the action colour and a small glyph
+   of a conversation, with the tooltip "Brokk vous parle". Nothing moves. */
 .mt-brokk-avatar[data-panel="open"] .mt-brokk-face {
     visibility: hidden;
+}
+
+.mt-brokk-avatar[data-panel="open"] {
+    background: color-mix(in srgb, var(--mt-action) 14%, var(--mt-surface-2));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-action) 65%, transparent);
+}
+
+.mt-brokk-talk {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--mt-text-11);
+    color: var(--mt-action);
+    pointer-events: none;
+}
+
+/* At 14 px the ring says it alone. */
+.mt-brokk-avatar.is-hanging .mt-brokk-talk {
+    display: none;
 }
 
 /* The ring around the face, the bell's: only while Brokk himself works. */

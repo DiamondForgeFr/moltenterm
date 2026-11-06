@@ -31,8 +31,8 @@ class LiveBoundary extends Component<{ children: ReactNode }, { failed: boolean 
     }
 }
 
-// framing: "head" (the default) is the avatar's round on his head, "bust" the panel's square (boss-portrait.css).
-export function BossPortrait({ live, framing = "head" }: { live?: BrokkLiveProps; framing?: "head" | "bust" }) {
+// framing: "head" (the default) is the avatar's round on his head, "banner" the panel's top, edge to edge (boss-portrait.css).
+export function BossPortrait({ live, framing = "head" }: { live?: BrokkLiveProps; framing?: "head" | "banner" }) {
     return (
         <span className="mt-boss-portrait" data-framing={framing} aria-hidden>
             <img className="mt-boss-portrait-image" src={BrokkStill} alt="" draggable={false} />

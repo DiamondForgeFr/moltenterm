@@ -160,6 +160,43 @@ describe("the panel's header (FR-BOSS-009, AC9)", () => {
         expect(html).not.toContain("mt-boss-card-face");
     });
 
+    it("integrates him like the forge scene: a banner across the panel's top, no framed square around him (#2003)", () => {
+        const html = render();
+        expect(html).toContain('data-framing="banner"');
+        expect(html).not.toContain("mt-brokk-panel-face");
+        const css = readFileSync(join(__dirname, "brokk-panel.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const banner = /\.mt-brokk-panel-portrait \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(banner).toContain("position: relative;");
+        expect(banner).toContain("overflow: hidden;");
+        expect(banner).not.toMatch(/border|padding|box-shadow|justify-content|width:/);
+        expect(css).not.toContain("mt-brokk-panel-face");
+    });
+
+    it("fades the banner's bottom into the panel's own background with a mask, as the scene fades into the sidebar", () => {
+        const css = readFileSync(join(__dirname, "brokk-panel.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const banner = /\.mt-brokk-panel-portrait \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(banner).toMatch(
+            /mask-image: linear-gradient\(to bottom, rgb\(0, 0, 0\) calc\(100% - var\(--mt-brokk-panel-fade\)\), transparent\)/
+        );
+        expect(banner).toMatch(/-webkit-mask-image/);
+        expect(banner).toContain("--mt-brokk-panel-fade: 60px;");
+        const scene = readFileSync(join(__dirname, "brokk-visit-scene.css"), "utf8");
+        expect(scene).toMatch(
+            /mask-image: linear-gradient\(to bottom, rgb\(0, 0, 0\) calc\(100% - var\(--mt-brokk-fade\)\), transparent\)/
+        );
+    });
+
+    it("keeps his reactions in the banner: the still and the clips fill a square anchored at its top, which the banner clips", () => {
+        const framing = readFileSync(join(__dirname, "boss-portrait.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const square = /\.mt-boss-portrait\[data-framing="banner"\] \{([^}]*)\}/.exec(framing)?.[1] ?? "";
+        expect(square).toContain("inset: 0 0 auto;");
+        expect(square).toContain("aspect-ratio: 1;");
+        expect(square).toContain("height: auto;");
+        const source = readFileSync(join(__dirname, "brokk-panel.tsx"), "utf8");
+        expect(source).toContain('<BossPortrait live={live} framing="banner" />');
+        expect(source).toContain("useCardLive(talkPose(typing, answering))");
+    });
+
     it("holds a menu that opens the table of when he comes, his preferences, and turning him off", () => {
         const source = readFileSync(join(__dirname, "brokk-panel.tsx"), "utf8");
         expect(attr(render(), "brokk-panel-menu", "aria-haspopup")).toBe("menu");

@@ -686,9 +686,7 @@ export function BrokkPanel({ style }: { style: React.CSSProperties }) {
             style={style}
         >
             <div className="mt-brokk-panel-portrait" data-testid="brokk-panel-portrait" aria-hidden>
-                <div className="mt-brokk-panel-face">
-                    <BossPortrait live={live} framing="bust" />
-                </div>
+                <BossPortrait live={live} framing="banner" />
             </div>
             <div className="relative flex shrink-0 items-center gap-2 border-b border-line-strong px-3 py-2">
                 <h2

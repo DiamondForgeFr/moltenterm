@@ -181,6 +181,37 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         );
     });
 
+    it("says calmly that he is busy with the developer while his panel is open: a glyph, a tooltip, the badge kept (#2003)", () => {
+        setRows(row("question:a"));
+        expect(render()).not.toContain('data-testid="brokk-talking"');
+        globalStore.set(boss.cardOpenAtom, true);
+        const html = render();
+        expect(html).toContain('data-testid="brokk-talking"');
+        expect(attr(html, "brokk-avatar", "title")).toBe("Brokk is talking to you");
+        expect(attr(html, "brokk-avatar", "aria-label")).toBe("Brokk is talking to you");
+        expect(html).toContain('data-testid="boss-badge"');
+        globalStore.set(boss.nameAtom, "Léa");
+        expect(attr(render(), "brokk-avatar", "title")).toBe("Léa is talking to you");
+    });
+
+    it("shows no tooltip of its own and no title at rest, and never a second face: the glyph is no portrait", () => {
+        expect(attr(render(), "brokk-avatar", "title")).toBeUndefined();
+        globalStore.set(boss.cardOpenAtom, true);
+        const html = render();
+        expect(html.match(/data-testid="portrait"/g)).toHaveLength(1);
+        expect(html).toContain('data-live="false"');
+    });
+
+    it("draws that sign as a soft ring in the action colour, with no motion and no glyph at 14 px", () => {
+        const sheet = css("brokk-avatar.css");
+        const open = rule(sheet, '.mt-brokk-avatar[data-panel="open"]');
+        expect(open).toMatch(/box-shadow: 0 0 0 2px color-mix\(in srgb, var\(--mt-action\)/);
+        expect(open).not.toMatch(/animation|transition/);
+        expect(rule(sheet, ".mt-brokk-talk")).toMatch(/color: var\(--mt-action\)/);
+        expect(rule(sheet, ".mt-brokk-talk")).not.toMatch(/animation/);
+        expect(rule(sheet, ".mt-brokk-avatar.is-hanging .mt-brokk-talk")).toMatch(/display: none/);
+    });
+
     it("hangs from the window's top edge, smaller, when the sidebar is not on screen", () => {
         const html = render("hanging");
         expect(html).toContain("is-hanging");

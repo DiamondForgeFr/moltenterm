@@ -2970,7 +2970,8 @@
     "boss": {
         "label": "{name}, {count} en attente",
         "avatar": {
-            "labelCue": "{name}, {count} en attente : a quelque chose à vous dire"
+            "labelCue": "{name}, {count} en attente : a quelque chose à vous dire",
+            "talking": "{name} vous parle"
         },
         "menu": {
             "openCard": "Ouvrir la fiche de {name}",
