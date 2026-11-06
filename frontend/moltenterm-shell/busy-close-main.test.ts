@@ -161,3 +161,54 @@ describe("the texts of main's dialogs", () => {
         expect(kept).toEqual([]);
     });
 });
+
+describe("quitting while a download runs (FR-MC-019 AC11, #1992)", () => {
+    it("asks on a quit when only a download runs, and says how many, with nothing else listed", async () => {
+        const deps = makeDeps({ activeDownloads: () => 2 });
+        await answerMainAsk(ask("quit", { quit: true, stopworkspaceids: ["ws-a"] }), deps);
+        expect(deps.asked).toHaveLength(1);
+        expect(deps.asked[0]).toMatchObject({ action: "quit", running: [], downloads: 2 });
+        expect(outcomeOf(deps.replies)).toBe("close");
+    });
+
+    it("keeps the answer: Cancel keeps the downloads running", async () => {
+        const deps = makeDeps({ activeDownloads: () => 1, ask: async () => false });
+        await answerMainAsk(ask("quit", { quit: true, stopworkspaceids: ["ws-a"] }), deps);
+        expect(outcomeOf(deps.replies)).toBe("cancel");
+    });
+
+    it("adds the downloads to what the terminals would lose, in one dialog", async () => {
+        const deps = makeDeps({ activeDownloads: () => 1, readWorkspace: async () => [command("c1")] });
+        await answerMainAsk(ask("quit", { quit: true, stopworkspaceids: ["ws-a"] }), deps);
+        expect(deps.asked).toHaveLength(1);
+        expect(deps.asked[0].running.map((r: RunningItem) => r.blockId)).toContain("c1");
+        expect(deps.asked[0].downloads).toBe(1);
+    });
+
+    it("asks nothing when nothing runs and nothing downloads", async () => {
+        const deps = makeDeps({ activeDownloads: () => 0 });
+        await answerMainAsk(ask("quit", { quit: true, stopworkspaceids: ["ws-a"] }), deps);
+        expect(deps.asked).toHaveLength(0);
+        expect(outcomeOf(deps.replies)).toBe("none");
+    });
+
+    it("does not count the downloads on a close that does not quit, since they go on", async () => {
+        const deps = makeDeps({ activeDownloads: () => 3 });
+        await answerMainAsk(ask("window", { quit: false, stopworkspaceids: ["ws-a"] }), deps);
+        expect(deps.asked).toHaveLength(0);
+        expect(outcomeOf(deps.replies)).toBe("none");
+    });
+
+    it("counts them on the last window's close, which quits", async () => {
+        const deps = makeDeps({ activeDownloads: () => 3 });
+        await answerMainAsk(ask("window", { quit: true, stopworkspaceids: ["ws-a"] }), deps);
+        expect(deps.asked[0]).toMatchObject({ quits: true, downloads: 3 });
+    });
+
+    it("respects the setting that turns the confirmation off", async () => {
+        const deps = makeDeps({ enabled: () => false, activeDownloads: () => 3 });
+        await answerMainAsk(ask("quit", { quit: true, stopworkspaceids: ["ws-a"] }), deps);
+        expect(deps.asked).toHaveLength(0);
+        expect(outcomeOf(deps.replies)).toBe("off");
+    });
+});

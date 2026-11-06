@@ -76,6 +76,7 @@ const GroupConcepts: Record<string, SuiteIconName> = {
     codingAgent: "agent",
     browserPanel: "web",
     openingPages: "openExternal",
+    downloads: "folder",
     ciCd: "ci",
     lineMap: "lineMap",
     keys: "keyboard",

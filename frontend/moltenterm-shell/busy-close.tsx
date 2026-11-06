@@ -21,7 +21,7 @@ import {
 } from "./busy-close-model";
 import { BusyCloseRequest, BusyCloseRequestAtom } from "./busy-close-store";
 import { DialogFrame } from "./dialog-frame";
-import { useT } from "./i18n/i18n";
+import { useT, useTCount } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { workspaceShownName } from "./workspace-default-name";
 
@@ -98,12 +98,17 @@ export function useRestoreFocus() {
 
 function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
     const t = useT();
-    const text = busyCloseText(
+    const tc = useTCount();
+    const downloads = request.downloads ?? 0;
+    const base = busyCloseText(
         request.action,
         request.tabName ?? workspaceShownName(request.name, t),
         request.quits,
         request.projects?.join(", ")
     );
+    // Only downloads run: the terminals' sentence would say something untrue (FR-MC-019 AC11, #1992).
+    const text =
+        downloads > 0 && request.running.length === 0 ? { ...base, subtitle: t("downloads.quit.subtitle") } : base;
     const cancelRef = useRef<HTMLButtonElement>(null);
     const blockAtom = request.blockId
         ? getWaveObjectAtom<Block>(makeORef("block", request.blockId))
@@ -142,6 +147,15 @@ function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
             }
         >
             <RunningList items={request.running} />
+            {downloads > 0 ? (
+                <div className="flex items-start gap-2 text-secondary" data-role="molten-downloads-line">
+                    <i
+                        className={cn(makeIconClass("download", true), "mt-0.5 w-3 shrink-0 text-11 text-accent")}
+                        aria-hidden
+                    />
+                    <span>{tc("downloads.quit.line", downloads)}</span>
+                </div>
+            ) : null}
             <RunningList items={request.kept} heading={keptHeading()} />
         </DialogFrame>
     );

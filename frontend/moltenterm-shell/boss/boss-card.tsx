@@ -14,6 +14,8 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AgentStateDotClasses } from "../agent-state-model";
+import { DownloadsModel } from "../downloads/downloads-store";
+import { DownloadsList } from "../downloads/downloads-view";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { modalIsOpen } from "../modal-open";
@@ -92,8 +94,10 @@ const NoticeDotClasses: Record<string, string> = {
 
 // The card's tabs, in the order they read (FR-BOSS-003 AC1). The card opens on To handle when it counts something, else
 // on the tab used last (AC2): this is the last one used, across openings of the card.
-export type CardTab = "todo" | "sessions" | "notifications";
+export type CardTab = "todo" | "sessions" | "notifications" | "downloads";
 export const CardTabs: CardTab[] = ["todo", "sessions", "notifications"];
+// The fourth tab (#1992, FR-BOSS-003 AC9) is compact and only there while there is a history or a download in progress.
+export const DownloadsCardTab: CardTab = "downloads";
 let lastCardTab: CardTab = "sessions";
 
 function focusIsAtHome(card: HTMLElement): boolean {
@@ -552,7 +556,13 @@ export function BossCard({ style, headerStill = false }: { style: React.CSSPrope
     const [now, setNow] = useState(Date.now());
     const [busyId, setBusyId] = useState<string>(null);
     const [problem, setProblem] = useState("");
-    const [tab, setTab] = useState<CardTab>(() => (badge.count > 0 ? "todo" : lastCardTab));
+    const downloadsModel = DownloadsModel.getInstance();
+    const downloadItems = useAtomValue(downloadsModel.itemsAtom, { store: globalStore });
+    const downloadsRunning = useAtomValue(downloadsModel.runningAtom, { store: globalStore });
+    const hasDownloads = downloadItems.length > 0;
+    const tabs: CardTab[] = hasDownloads ? [...CardTabs, DownloadsCardTab] : CardTabs;
+    const [chosenTab, setTab] = useState<CardTab>(() => (badge.count > 0 ? "todo" : lastCardTab));
+    const tab: CardTab = chosenTab === DownloadsCardTab && !hasDownloads ? "sessions" : chosenTab;
     const live = useCardLive(headerStill);
     const home = homeFolder();
     const groups = useMemo(
@@ -565,6 +575,7 @@ export function BossCard({ style, headerStill = false }: { style: React.CSSPrope
         todo: toHandle.items.filter((item) => !item.seen).length,
         sessions: count,
         notifications: notices.length,
+        downloads: downloadsRunning.length,
     };
     useEffect(() => {
         lastCardTab = tab;
@@ -690,8 +701,8 @@ export function BossCard({ style, headerStill = false }: { style: React.CSSPrope
             return;
         }
         e.preventDefault();
-        const at = CardTabs.indexOf(tab);
-        const next = CardTabs[(at + (e.key === "ArrowRight" ? 1 : CardTabs.length - 1)) % CardTabs.length];
+        const at = tabs.indexOf(tab);
+        const next = tabs[(at + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
         setTab(next);
         rootRef.current?.querySelector<HTMLElement>(`[data-tab-id="${next}"]`)?.focus();
     };
@@ -792,7 +803,7 @@ export function BossCard({ style, headerStill = false }: { style: React.CSSPrope
                 onKeyDown={onTabKeyDown}
                 data-testid="boss-card-tabs"
             >
-                {CardTabs.map((id) => (
+                {tabs.map((id) => (
                     <button
                         key={id}
                         type="button"
@@ -810,14 +821,24 @@ export function BossCard({ style, headerStill = false }: { style: React.CSSPrope
                                 : "border-transparent text-secondary hover:text-primary"
                         )}
                         onClick={() => setTab(id)}
+                        title={id === DownloadsCardTab ? t("downloads.tab") : undefined}
+                        aria-label={
+                            id === DownloadsCardTab ? tCount("downloads.card.aria", counts.downloads) : undefined
+                        }
                     >
-                        {t(`boss.card.tabs.${id}`)}
-                        <span
-                            className="rounded-4 bg-surface-2 px-1.5 text-11 leading-[16px] text-secondary"
-                            data-testid={`boss-card-tab-count-${id}`}
-                        >
-                            {counts[id]}
-                        </span>
+                        {id === DownloadsCardTab ? (
+                            <i className={makeIconClass("download", true)} aria-hidden />
+                        ) : (
+                            t(`boss.card.tabs.${id}`)
+                        )}
+                        {id !== DownloadsCardTab || counts[id] > 0 ? (
+                            <span
+                                className="rounded-4 bg-surface-2 px-1.5 text-11 leading-[16px] text-secondary"
+                                data-testid={`boss-card-tab-count-${id}`}
+                            >
+                                {counts[id]}
+                            </span>
+                        ) : null}
                     </button>
                 ))}
             </div>
@@ -830,6 +851,8 @@ export function BossCard({ style, headerStill = false }: { style: React.CSSPrope
             >
                 {tab === "todo" ? (
                     <ToHandleView list={toHandle} now={now} busyId={busyId} onRun={runTodo} />
+                ) : tab === DownloadsCardTab ? (
+                    <DownloadsList onLeave={() => model.closeCard({ restoreFocus: false })} />
                 ) : tab === "notifications" ? (
                     <NotificationsView
                         entries={notices}

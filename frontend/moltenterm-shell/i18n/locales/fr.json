@@ -722,6 +722,7 @@
             "filesAndEditor": "Fichiers et éditeur",
             "text": "Texte",
             "openingPages": "Ouverture des pages",
+            "downloads": "Téléchargements",
             "browserPanel": "Page web",
             "energy": "Énergie",
             "window": "Fenêtre",
@@ -1019,6 +1020,10 @@
                     "app": "Le navigateur de MoltenTerm",
                     "installed": "Le navigateur installé"
                 }
+            },
+            "browser:downloadask": {
+                "label": "Toujours demander où enregistrer",
+                "description": "Demande un dossier avant chaque téléchargement ; désactivé, il va directement dans votre dossier Téléchargements."
             },
             "browser:sites": {
                 "label": "Navigateur par site",
@@ -5665,7 +5670,8 @@
             "releases": "Releases",
             "updates": "Mises à jour de MoltenTerm",
             "mods": "Mods",
-            "dependencies": "Dépendances"
+            "dependencies": "Dépendances",
+            "downloads": "Téléchargements"
         },
         "delivery": {
             "notify": "Notifier",
@@ -5681,6 +5687,7 @@
             "ci": "CI",
             "release": "release",
             "deps": "dépendances",
+            "download": "téléchargement",
             "trust": "approbation"
         },
         "goToTerminal": "Aller au terminal",
@@ -11085,6 +11092,148 @@
         "bookmarkDownloads": "Téléchargements",
         "bookmarkDocuments": "Documents",
         "bookmarkRoot": "Racine"
+    },
+    "downloads": {
+        "tab": "Téléchargements",
+        "size": "{value} {unit}",
+        "units": {
+            "b": "o",
+            "kb": "Ko",
+            "mb": "Mo",
+            "gb": "Go",
+            "tb": "To"
+        },
+        "speed": "{size}/s",
+        "duration": {
+            "seconds": "{s} s",
+            "minutes": "{m} min",
+            "minutesSeconds": "{m} min {s} s",
+            "hours": "{h} h",
+            "hoursMinutes": "{h} h {m} min"
+        },
+        "stats": {
+            "ofTotal": "{received} sur {total}",
+            "received": "{received} reçus",
+            "percent": "{percent} %",
+            "paused": "en pause",
+            "left": "environ {time} restantes"
+        },
+        "state": {
+            "paused": "En pause",
+            "interrupted": "Interrompu",
+            "cancelled": "Annulé"
+        },
+        "group": {
+            "running": {
+                "one": "En cours · {count}",
+                "other": "En cours · {count}"
+            }
+        },
+        "day": {
+            "today": "Aujourd'hui",
+            "yesterday": "Hier"
+        },
+        "action": {
+            "pause": "Mettre en pause",
+            "resume": "Reprendre",
+            "cancel": "Annuler",
+            "retry": "Réessayer",
+            "redownload": "Télécharger à nouveau",
+            "open": "Ouvrir",
+            "reveal": "Afficher dans le dossier",
+            "copyLink": "Copier le lien",
+            "copied": "Lien copié",
+            "remove": "Retirer de la liste",
+            "view": "Voir"
+        },
+        "row": {
+            "progress": "Progression du téléchargement",
+            "startedBy": "Lancé par {name}",
+            "program": "Programme",
+            "missing": "Fichier déplacé ou supprimé"
+        },
+        "origin": {
+            "goTo": "Aller à la page",
+            "inView": "dans {view}",
+            "inWorkspace": "dans {workspace}",
+            "pageClosed": "Page d'origine fermée\u00a0: {name}",
+            "viewClosed": "Vue d'origine fermée\u00a0: {name}",
+            "workspaceGone": "Espace d'origine supprimé",
+            "reopen": "Rouvrir la page",
+            "reopenIn": "Rouvrir dans {workspace}",
+            "reopenTitle": "Rouvrir la page dans l'espace de travail « {workspace} »",
+            "toView": "Aller à la vue"
+        },
+        "reason": {
+            "connectionAt": "La connexion a été perdue à {percent} %",
+            "connectionAfter": "La connexion a été perdue après {size}",
+            "server": "Le site n'a pas envoyé le fichier (introuvable ou refusé)",
+            "appclosed": "MoltenTerm a été fermé pendant le téléchargement",
+            "noresume": "Ce site ne permet pas de reprendre un téléchargement là où il s'est arrêté",
+            "unknown": "Le téléchargement s'est arrêté"
+        },
+        "confirm": {
+            "aria": "Confirmer l'ouverture d'un programme",
+            "title": "Ouvrir « {name} » ?",
+            "body": "C'est un programme\u00a0: l'ouvrir peut lancer du code sur cet ordinateur. Il vient de {site}.",
+            "cancel": "Annuler",
+            "open": "Ouvrir quand même"
+        },
+        "empty": {
+            "title": "Aucun téléchargement.",
+            "body": "Les fichiers que vous téléchargez depuis les pages web de MoltenTerm apparaissent ici, avec leur progression.",
+            "noDelete": "Effacer la liste ne supprime jamais les fichiers."
+        },
+        "folder": {
+            "open": "Ouvrir le dossier Téléchargements"
+        },
+        "clear": "Effacer la liste",
+        "clearNote": "Les fichiers ne sont jamais supprimés",
+        "pill": {
+            "one": "Téléchargement en cours\u00a0: {name}",
+            "many": {
+                "one": "{count} téléchargement en cours",
+                "other": "{count} téléchargements en cours"
+            }
+        },
+        "bell": {
+            "running": {
+                "one": "{count} téléchargement en cours",
+                "other": "{count} téléchargements en cours"
+            }
+        },
+        "card": {
+            "aria": {
+                "one": "Téléchargements, {count} en cours",
+                "other": "Téléchargements, {count} en cours"
+            }
+        },
+        "notify": {
+            "doneTitle": "Téléchargement terminé\u00a0: {name}",
+            "failedTitle": "Téléchargement interrompu\u00a0: {name}",
+            "program": "C'est un programme\u00a0: l'ouvrir demande une confirmation.",
+            "startedBy": "Lancé par {name}"
+        },
+        "error": {
+            "noitem": "Ce téléchargement n'est plus dans la liste.",
+            "missing": "Le fichier a été déplacé ou supprimé.",
+            "executable": "Confirmez d'abord l'ouverture du programme.",
+            "failed": "Cela n'a pas fonctionné. Réessayez."
+        },
+        "quit": {
+            "subtitle": "Quitter interrompt les téléchargements en cours.",
+            "line": {
+                "one": "{count} téléchargement en cours sera interrompu. Il reste dans la liste, avec « Réessayer ».",
+                "other": "{count} téléchargements en cours seront interrompus. Ils restent dans la liste, avec « Réessayer »."
+            }
+        },
+        "settings": {
+            "folderTitle": "Dossier de téléchargement",
+            "folderLabel": "Enregistré dans",
+            "folderUnknown": "Le dossier Téléchargements du système",
+            "askOn": "Chaque téléchargement demande où l'enregistrer.",
+            "askOff": "Les téléchargements sont enregistrés ici sans rien demander."
+        }
     },
     "fileFilter": {
         "setByAgent": "Défini par {name}",
