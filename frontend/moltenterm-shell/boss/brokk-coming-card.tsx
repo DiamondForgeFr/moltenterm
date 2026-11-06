@@ -166,7 +166,7 @@ export function BrokkComingCard({ entries, settings }: { entries: SettingEntry[]
     const quietTo = byKey.get(VisitSettingKeys.quietTo);
     const never = byKey.get(VisitSettingKeys.never);
     return (
-        <div data-testid="brokk-coming-card">
+        <div className="px-5 py-3" data-testid="brokk-coming-card">
             <p className="pb-2 text-11 text-muted">{t("boss.coming.intro")}</p>
             <div className="grid grid-cols-[1fr_repeat(3,5.5rem)] gap-x-2 border-b border-line-strong pb-1 text-11 text-muted uppercase">
                 <span>{t("boss.coming.event")}</span>

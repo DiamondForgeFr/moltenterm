@@ -3029,7 +3029,7 @@
             "title": "{name}",
             "ariaLabel": "Panneau de {name} : à traiter, notifications, sessions, téléchargements et usage",
             "menu": "Menu de {name}",
-            "menuComing": "Quand il vient me chercher…",
+            "menuComing": "Quand {name} vient me chercher…",
             "menuSettings": "Préférences de {name}",
             "menuOff": "Désactiver {name}",
             "keepAwake": {
@@ -3048,6 +3048,7 @@
                 "noAgent": "Aucun agent de code n'est installé pour démarrer la session de {name}.",
                 "agentMissing": "L'agent de code choisi n'est pas installé : {name} ne peut pas démarrer.",
                 "gone": "Le terminal de {name} a été fermé : renvoyez votre message pour en démarrer un nouveau.",
+                "agentStopped": "L'agent de {name} ne tourne plus dans son terminal. Fermez ce terminal, puis renvoyez votre message.",
                 "failed": "Le message n'est pas parti : la session de {name} est injoignable."
             }
         },

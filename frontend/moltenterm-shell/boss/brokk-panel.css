@@ -30,7 +30,7 @@
 /* Brokk's panel (FR-BOSS-009, AC9, #2003): the card's layer, wider, with his large portrait on top. The portrait's
    framing numbers all belong to boss-portrait.css, the bust framing of the panel's square included. */
 .mt-brokk-panel {
-    width: 420px;
+    width: 440px;
 }
 
 .mt-brokk-panel-portrait {

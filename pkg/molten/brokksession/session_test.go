@@ -130,6 +130,25 @@ func TestSayToABusyAgentKeepsTheTextWithTheDeveloper(t *testing.T) {
 	}
 }
 
+func TestSayWaitsForTheAgentJustStartedToShowInItsTerminal(t *testing.T) {
+	f := &fake{agent: "claude", answers: []TypeOutcome{{NoAgent: true}, {Retry: true}, {Sent: true}}}
+	got := MakeService(f.env()).Say(context.Background(), Request{WorkspaceId: "ws-1", Text: "hello"})
+	if got.Status != StatusSent || !got.Started || len(f.typed) != 3 {
+		t.Fatalf("got %+v after %d tries, want the text sent once the agent showed", got, len(f.typed))
+	}
+}
+
+func TestSayDoesNotWaitForAnAgentThatEnded(t *testing.T) {
+	f := &fake{found: &Found{BlockId: "block-9"}, answers: []TypeOutcome{{NoAgent: true}}}
+	got := MakeService(f.env()).Say(context.Background(), Request{Text: "hello"})
+	if got.Status != StatusFailed || got.Reason != ReasonNoAgent {
+		t.Fatalf("got %+v, want a failure saying no agent runs in his terminal", got)
+	}
+	if len(f.typed) != 1 || f.sleeps != 0 || len(f.closed) != 0 {
+		t.Errorf("tried %d times, waited %d times, closed %v: want one try, no wait and his terminal left alone", len(f.typed), f.sleeps, f.closed)
+	}
+}
+
 func TestSayGivesUpOnAFreshAgentThatNeverShowsItsPrompt(t *testing.T) {
 	f := &fake{agent: "claude", answers: []TypeOutcome{{Retry: true}}}
 	got := MakeService(f.env()).Say(context.Background(), Request{WorkspaceId: "ws-1", Text: "hello"})

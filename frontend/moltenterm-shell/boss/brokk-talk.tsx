@@ -15,12 +15,19 @@ import { BossBubbleModel } from "./boss-store";
 import { BrokkSession } from "./brokk-session";
 import { canSend, keepsText, MaxMessageLength, talkNoteKey } from "./brokk-talk-model";
 
+// What the developer was writing when the panel hid: it comes back with the panel, so Escape never costs a message.
+let draft = "";
+
 export function BrokkTalk({ onTyping }: { onTyping: (typing: boolean) => void }) {
     const t = useT();
     const session = BrokkSession.getInstance();
     const name = useAtomValue(BossBubbleModel.getInstance().nameAtom, { store: globalStore });
     const state = useAtomValue(session.stateAtom, { store: globalStore });
-    const [text, setText] = useState("");
+    const [text, setTextState] = useState(draft);
+    const setText = (value: string) => {
+        draft = value;
+        setTextState(value);
+    };
     useEffect(() => onTyping(text.trim() !== ""), [text, onTyping]);
     useEffect(() => () => onTyping(false), [onTyping]);
     const noteKey = talkNoteKey(state);

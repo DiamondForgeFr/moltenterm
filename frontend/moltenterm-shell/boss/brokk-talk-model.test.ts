@@ -55,6 +55,7 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         expect(talkNoteKey(talkStateOf({ status: "noagent" }))).toBe("boss.panel.talk.noAgent");
         expect(talkNoteKey(talkStateOf({ status: "agentmissing" }))).toBe("boss.panel.talk.agentMissing");
         expect(talkNoteKey(talkStateOf({ status: "failed", reason: "gone" }))).toBe("boss.panel.talk.gone");
+        expect(talkNoteKey(talkStateOf({ status: "failed", reason: "noagent" }))).toBe("boss.panel.talk.agentStopped");
         expect(talkNoteKey(talkStateOf({ status: "failed" }))).toBe("boss.panel.talk.failed");
     });
 });

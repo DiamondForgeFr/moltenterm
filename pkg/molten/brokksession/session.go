@@ -47,6 +47,7 @@ const (
 	ReasonNotReady   = "notready"
 	ReasonInProgress = "inprogress"
 	ReasonRefused    = "refused"
+	ReasonNoAgent    = "noagent"
 
 	// A message is one line the agent reads as a prompt.
 	MaxTextLength = 4000
@@ -86,9 +87,11 @@ type Found struct {
 // TypeOutcome is what typing the message into the session did; Retry: the agent cannot take it now; Gone: its terminal
 // is closed or its shell ended.
 type TypeOutcome struct {
-	Sent    bool
-	Retry   bool
-	Gone    bool
+	Sent  bool
+	Retry bool
+	Gone  bool
+	// NoAgent: no coding agent runs in the terminal: the one just started is not up yet, or the one that ran has ended.
+	NoAgent bool
 	Message string
 }
 
@@ -242,7 +245,11 @@ func (s *Service) deliver(ctx context.Context, blockId string, text string, fres
 		if out.Gone {
 			return delivery{Status: StatusFailed, Reason: ReasonGone, Message: out.Message}
 		}
-		if !out.Retry {
+		// The agent just started shows in the terminal a moment after its command; one that was there and ended does not come back.
+		if out.NoAgent && !fresh {
+			return delivery{Status: StatusFailed, Reason: ReasonNoAgent, Message: out.Message}
+		}
+		if !out.Retry && !out.NoAgent {
 			return delivery{Status: StatusFailed, Reason: ReasonRefused, Message: out.Message}
 		}
 		if !fresh || attempt >= int(startWait/startPoll) {
