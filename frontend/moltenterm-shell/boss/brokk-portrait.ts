@@ -27,13 +27,15 @@ export const RestState = "rest";
 type Rest = typeof RestState;
 
 // The rhythm the scene wants for his blinks (brokk-scene.ts), as the package's `idleGap`: how long a gesture drawn by
-// chance waits after the last one started (FR-BOSS-007, AC17). A gesture takes the place of a whole turn of a loop, so
-// it can only start at the end of one: with the 4.5 s loops, the normal gap gives 9 s, 13.5 s and rarely 18 s.
+// chance waits after the last one started (FR-BOSS-007, AC17). A gesture takes the place of a whole turn of a loop, and
+// the package lines it up one turn ahead, so with the 4.5 s loops the first start possible is 13.5 s after the last
+// one: measured in a test instance, the normal gap gives 13.5 s every time (18 s now and then), the calm one from
+// 13.5 s to 31.5 s.
 //
-// Normal is the one the developer's brief gave (6 to 14 s). Calm is about twice as slow (12 to 30 s, a mean of 21 s
-// against 10 s): it is for when he should not draw an eye (late at night, while the developer types, after a long
-// thought), and the slowest of the three gaps the developer weighed (3 to 8, 6 to 14, 12 to 30). It stops at 30 s
-// because a face that never blinks for longer reads as a frozen screen, not as a calm one.
+// Normal is the one the developer's brief gave (6 to 14 s). Calm is the slowest of the three gaps the developer weighed
+// (3 to 8, 6 to 14, 12 to 30): it is for when he should not draw an eye (late at night, while the developer types,
+// after a long thought), and its gaps average 22 s against 13.5 s. It stops at 30 s because a face that never blinks
+// for longer reads as a frozen screen, not as a calm one.
 export const IdleGaps: Record<BlinkRhythm, TransmissionIdleGap> = {
     normal: { minMs: 6000, maxMs: 14000 },
     calm: { minMs: 12000, maxMs: 30000 },
