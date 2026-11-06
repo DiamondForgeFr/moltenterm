@@ -1432,7 +1432,7 @@
           "description": "What a security alert on a dependency (high or critical) does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 144
+            "order": 145
           }
         },
         "boss:visitblocked": {
@@ -1445,7 +1445,7 @@
           "description": "What an agent blocked waiting for you for longer than boss:blockedmin does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 145
+            "order": 146
           }
         },
         "boss:visiterror": {
@@ -1458,7 +1458,7 @@
           "description": "What an agent stopped on an error does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 146
+            "order": 147
           }
         },
         "boss:visitci": {
@@ -1471,7 +1471,7 @@
           "description": "What a failed CI on your pull request does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 147
+            "order": 148
           }
         },
         "boss:visitready": {
@@ -1484,7 +1484,7 @@
           "description": "What a pull request ready to merge does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 148
+            "order": 149
           }
         },
         "boss:visitfinished": {
@@ -1497,7 +1497,7 @@
           "description": "What an agent that finished its work does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 149
+            "order": 150
           }
         },
         "boss:visitdownload": {
@@ -1510,7 +1510,7 @@
           "description": "What a download that finished or failed does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 150
+            "order": 151
           }
         },
         "boss:visitupdate": {
@@ -1523,7 +1523,7 @@
           "description": "What an update that is available does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 151
+            "order": 152
           }
         },
         "boss:visitusage": {
@@ -1536,7 +1536,7 @@
           "description": "What a plan usage above 90 % does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 152
+            "order": 153
           }
         },
         "boss:blockedmin": {
@@ -1550,7 +1550,7 @@
           "description": "Minutes an agent may wait for you before it counts as blocked and Brokk may come (2, 5, 10 or 15). 5 when unset; after three times as long it is a grave visit",
           "x-moltenterm": {
             "hidden": true,
-            "order": 153
+            "order": 154
           }
         },
         "boss:quiet": {
@@ -1558,7 +1558,7 @@
           "description": "Quiet hours: between boss:quietfrom and boss:quietto Brokk does not come, only the badge changes. On when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 154
+            "order": 155
           }
         },
         "boss:quietfrom": {
@@ -1566,7 +1566,7 @@
           "description": "When the quiet hours begin, as HH:MM on the local clock. 22:00 when unset or invalid",
           "x-moltenterm": {
             "hidden": true,
-            "order": 155
+            "order": 156
           }
         },
         "boss:quietto": {
@@ -1574,7 +1574,7 @@
           "description": "When the quiet hours end, as HH:MM on the local clock. 08:00 when unset or invalid",
           "x-moltenterm": {
             "hidden": true,
-            "order": 156
+            "order": 157
           }
         },
         "boss:nevercome": {
@@ -1582,7 +1582,7 @@
           "description": "Brokk never comes to fetch you, whatever the events are set to: only the badge counts. Off when unset",
           "x-moltenterm": {
             "hidden": true,
-            "order": 157
+            "order": 158
           }
         },
         "moltenterm:settingsreveal": {
