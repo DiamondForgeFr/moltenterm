@@ -43,8 +43,20 @@
             },
             { "name": "typecheck", "title": "TypeScript", "lane": "frontend", "run": "task check:ts" },
             { "name": "lint", "title": "ESLint", "lane": "frontend", "run": "npx eslint . --quiet" },
-            { "name": "vitest", "title": "Frontend tests", "lane": "frontend", "run": "npx vitest run" },
-            { "name": "gotest", "title": "Backend tests", "lane": "backend", "run": "go test ./cmd/... ./pkg/..." }
+            {
+                "name": "vitest",
+                "title": "Frontend tests",
+                "lane": "frontend",
+                "run": "node scripts/moltenterm-affected.mjs --run --only vitest",
+                "description": "The frontend tests the commit's change against develop affects (scripts/moltenterm-affected.mjs); all of them on develop itself, or when the change touches shared ground."
+            },
+            {
+                "name": "gotest",
+                "title": "Backend tests",
+                "lane": "backend",
+                "run": "node scripts/moltenterm-affected.mjs --run --only go",
+                "description": "The Go packages the commit's change against develop affects, and their dependents; all of them on develop itself, or when the change touches shared ground."
+            }
         ]
     },
     "builds": [
