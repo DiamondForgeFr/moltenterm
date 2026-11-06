@@ -178,6 +178,8 @@ export class NotificationLookWatcher {
     settle: (ids: string[]) => Promise<void> | void;
     dwellMs: number;
     pending = new Map<string, ReturnType<typeof setTimeout>>();
+    // Kept for good, not only while the write is on its way: the undo of a clear brings a notification back, and the
+    // developer who asked for it back must find it, even with its source still on screen.
     sent = new Set<string>();
 
     constructor(
