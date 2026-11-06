@@ -458,15 +458,18 @@ func TestPromoteKeepsTheTrunkWhenTheConflictLosesNothing(t *testing.T) {
 	ctx := context.Background()
 	f.commitOnDevelop(t, "feat(#2): a feature")
 	cutRelease(t, f, "v1.0.0-1")
-	carryBack(t, f, "v1.0.0-1")
+	// develop moves before each sync-back: within the same second, a cherry-pick onto the release commit's own parent
+	// would be the very same commit, and the promotion a fast-forward.
 	f.commitOnDevelop(t, "feat(#3): another feature")
+	carryBack(t, f, "v1.0.0-1")
 	cutRelease(t, f, "v1.0.0-2")
+	f.commitOnDevelop(t, "feat(#4): a third feature")
 	carryBack(t, f, "v1.0.0-2")
 	gitIn(t, f.checkout, "fetch", "--quiet", "origin")
 	gitIn(t, f.checkout, "checkout", "--quiet", "-B", "develop", "origin/develop")
 	path := filepath.Join(f.checkout, "package.json")
 	writeFile(t, path, strings.Replace(readFile(t, path), `"name": "fixture"`, `"name": "fixture-renamed"`, 1))
-	gitIn(t, f.checkout, "commit", "--quiet", "-am", "chore(#4): rename the package")
+	gitIn(t, f.checkout, "commit", "--quiet", "-am", "chore(#5): rename the package")
 	gitIn(t, f.checkout, "push", "--quiet", "origin", "develop")
 	before := f.originRef(t, "main")
 
