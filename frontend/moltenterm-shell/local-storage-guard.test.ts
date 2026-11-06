@@ -19,6 +19,8 @@ const Allowed: Record<string, string> = {
     "reviews/reviews-order-store.ts": "the same move, for the Integration panel's sort and folds (#1758)",
     "boss/brokk-hub-store.ts":
         "what Brokk told and the Plus tard delay, handed from one view to the next within a run, so that a visit is not played again in each view (#2002); a restart starts them over",
+    "boss/boss-store.ts":
+        "the rows of À traiter the developer settled or ignored, handed from one view and window to the next within a run, for the episode they were made on (#2026); a restart starts them over, as the agents' states and their times do",
 };
 
 const Root = "frontend/moltenterm-shell";
