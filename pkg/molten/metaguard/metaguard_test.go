@@ -347,6 +347,40 @@ func TestCreateBlock(t *testing.T) {
 	}
 }
 
+// The developer's note on an agent is never the agent's to read (FR-SHELL-084, #2008): it lives in the workspace's meta,
+// which a terminal neither reads, writes nor follows, while its own block's meta, and its workspace's other blocks',
+// are open to it.
+func TestAgentNotesStayOutOfATerminalsReach(t *testing.T) {
+	own := waveobj.MakeORef(waveobj.OType_Workspace, ownWs)
+	notes := waveobj.MetaMapType{molten.AgentNotesMetaKey: map[string]any{routetest.TerminalBlock: "audit sécu nov6, ne pas relancer"}}
+	withLink := waveobj.MetaMapType{molten.ProjectMetaKey: "/p", molten.AgentNotesMetaKey: notes[molten.AgentNotesMetaKey]}
+	trusted := metaguard.Caller{Trusted: true}
+	if err := metaguard.CheckWrite(trusted, own, notes); err != nil {
+		t.Fatalf("the window was refused its notes: %v", err)
+	}
+	for _, u := range untrusted() {
+		mustRefuse(t, u.name+" writes the notes", metaguard.CheckWrite(u.c, own, notes))
+		mustRefuse(t, u.name+" writes the notes with the link", metaguard.CheckWrite(u.c, own, withLink))
+		if got, err := metaguard.ReadMeta(u.c, own, withLink); err == nil && got[molten.AgentNotesMetaKey] != nil {
+			t.Errorf("%s read the notes of its own workspace: %v", u.name, got)
+		}
+		if listed := metaguard.ListedWorkspaceMeta(u.c, ownWs, withLink); listed[molten.AgentNotesMetaKey] != nil {
+			t.Errorf("%s listed the notes of its own workspace: %v", u.name, listed)
+		}
+		req := wps.SubscriptionRequest{Event: wps.Event_WaveObjUpdate, Scopes: []string{"workspace:" + ownWs}}
+		if err := metaguard.CheckSubscribe(u.c, req, func(waveobj.ORef) bool { return true }); err == nil {
+			t.Errorf("%s follows the updates of its workspace, whose meta holds the notes", u.name)
+		}
+	}
+	if got, err := metaguard.ReadMeta(trusted, own, withLink); err != nil || got[molten.AgentNotesMetaKey] == nil {
+		t.Errorf("the window read %v, %v", got, err)
+	}
+	onBlock := waveobj.MetaMapType{"view": "term", molten.AgentNotesMetaKey: "on the block"}
+	if got := metaguard.ReadBlockMeta(terminal(), true, onBlock); got[molten.AgentNotesMetaKey] == nil {
+		t.Errorf("the block's meta is open to its workspace's terminals: that is why the notes are not kept there")
+	}
+}
+
 func TestReadBlockMeta(t *testing.T) {
 	meta := waveobj.MetaMapType{"view": molten.BrowserView, "url": "https://a", molten.BrowserTabsMetaKey: []any{"https://x/?token=1"}}
 	if got := metaguard.ReadBlockMeta(terminal(), true, meta); len(got) != 3 {

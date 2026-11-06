@@ -10268,7 +10268,13 @@
             "collapse": "Hide what {name} is linked to",
             "projectTitle": "Runs in {project}",
             "outsideTitle": "Runs in {folder}, outside this workspace's projects",
-            "noProject": "No project"
+            "noProject": "No project",
+            "note": {
+                "add": "Add a note…",
+                "edit": "Edit note",
+                "remove": "Remove note",
+                "field": "Note for {name}"
+            }
         },
         "view": {
             "equalize": "Equalize panel widths",

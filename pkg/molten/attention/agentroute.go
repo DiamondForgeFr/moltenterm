@@ -121,6 +121,7 @@ func handleAgentBlockClose(event *wps.WaveEvent) {
 		return
 	}
 	ForgetBlock(blockId)
+	dropAgentNotes(blockId)
 }
 
 // shellEndStatus: the slice of a terminal's job status (wshrpc.BlockJobStatusData) and of its controller status
