@@ -7,7 +7,7 @@ import {
     BrokkExpressions,
     brokkPose,
     faceAfter,
-    gestureOfClip,
+    gestureEvent,
     reactionCapMs,
     restingPose,
     startFace,
@@ -120,14 +120,10 @@ describe("the pose while he makes a gesture (AC3)", () => {
     });
 });
 
-describe("the gesture a clip plays", () => {
-    it("reads it from the clip's name, and finds none in a loop or a transition", () => {
-        expect(gestureOfClip("/assets/portrait/brokk/listening.smile")).toBe("smile");
-        expect(gestureOfClip("file:///app/assets/portrait/brokk/speaking.nod")).toBe("nod");
-        expect(gestureOfClip("/assets/portrait/brokk/listening")).toBe("");
-        expect(gestureOfClip("/assets/portrait/brokk/listening-to-thinking")).toBe("");
-        expect(gestureOfClip("")).toBe("");
-        expect(gestureOfClip(undefined)).toBe("");
+describe("what the package says of a gesture (FR-BOSS-007, AC17)", () => {
+    it("hands the pose back at the end of a gesture, and does nothing at its start", () => {
+        expect(gestureEvent("smile", "end")).toEqual({ type: "gesture-ended", name: "smile" });
+        expect(gestureEvent("smile", "start")).toBeNull();
     });
 });
 
@@ -154,12 +150,13 @@ describe("the face's clocks", () => {
         expect(faceAfter(state, { type: "asked", asked: smile }).reaction).toBe(smile);
     });
 
-    it("hands the pose back when the clip of the gesture ends, and not for another clip", () => {
+    it("hands the pose back when the gesture asked ends, and not for another gesture (a blink drawn by chance, say)", () => {
         const state = startFace({ play: call });
-        expect(faceAfter(state, { type: "clip-ended", base: "/a/portrait/brokk/listening" })).toBe(state);
-        expect(faceAfter(state, { type: "clip-ended", base: "/a/portrait/brokk/listening-to-thinking" })).toBe(state);
-        expect(faceAfter(state, { type: "clip-ended", base: "/a/portrait/brokk/listening.smile" })).toBe(state);
-        expect(faceAfter(state, { type: "clip-ended", base: "/a/portrait/brokk/listening.call" }).reaction).toBeNull();
+        expect(faceAfter(state, { type: "gesture-ended", name: "blink" })).toBe(state);
+        expect(faceAfter(state, { type: "gesture-ended", name: "smile" })).toBe(state);
+        expect(faceAfter(state, { type: "gesture-ended", name: "call" }).reaction).toBeNull();
+        const none = startFace({});
+        expect(faceAfter(none, { type: "gesture-ended", name: "call" })).toBe(none);
     });
 
     it("hands it back at the cap for the gesture asked, and not for an older one", () => {

@@ -66,7 +66,7 @@ export type FaceState = {
 
 export type FaceEvent =
     | { type: "asked"; asked: AskedExpression }
-    | { type: "clip-ended"; base: string }
+    | { type: "gesture-ended"; name: string }
     | { type: "reaction-expired"; cue: number }
     | { type: "speech-expired" }
     // The card opened on items to handle while this face already showed (the comm screen opened by the hover).
@@ -80,12 +80,10 @@ export function startFace(options: { asked?: AskedExpression; play?: AskedExpres
     };
 }
 
-// The gesture a clip plays: `<folder>/listening.smile` is a smile; a loop (`listening`) and a transition
-// (`listening-to-thinking`) are none.
-export function gestureOfClip(base: string): string {
-    const file = (base ?? "").split("/").pop() ?? "";
-    const dot = file.indexOf(".");
-    return dot < 0 ? "" : file.slice(dot + 1);
+// What the package says of a gesture (its `onGesture`, FR-BOSS-007, AC17): only the end of one hands the pose back, and
+// it says it whether the gesture played to its end, was stopped short by a change of pose or could not load.
+export function gestureEvent(name: string, phase: "start" | "end"): FaceEvent {
+    return phase === "end" ? { type: "gesture-ended", name } : null;
 }
 
 // The same state object when nothing changes, so that no one draws again for it.
@@ -96,8 +94,8 @@ export function faceAfter(state: FaceState, event: FaceEvent): FaceState {
                 return state;
             }
             return { ...state, reaction: event.asked, seenCue: event.asked.cue };
-        case "clip-ended":
-            if (state.reaction == null || gestureOfClip(event.base) !== state.reaction.expression) {
+        case "gesture-ended":
+            if (state.reaction == null || event.name !== state.reaction.expression) {
                 return state;
             }
             return { ...state, reaction: null };

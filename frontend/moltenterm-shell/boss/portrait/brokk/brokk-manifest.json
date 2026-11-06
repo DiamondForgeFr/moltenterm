@@ -28,10 +28,12 @@
     "listening": [
       {
         "name": "blink",
-        "weight": 4
+        "weight": 4,
+        "repeat": true
       },
       {
-        "name": "nod"
+        "name": "nod",
+        "onDemand": true
       },
       {
         "name": "doubtful",
@@ -53,10 +55,12 @@
     "speaking": [
       {
         "name": "blink",
-        "weight": 2
+        "weight": 2,
+        "repeat": true
       },
       {
-        "name": "nod"
+        "name": "nod",
+        "onDemand": true
       }
     ]
   },
