@@ -183,8 +183,13 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         const html = render("hanging");
         expect(html).toContain("is-hanging");
         expect(attr(html, "brokk-avatar", "data-brokk-avatar")).toBe("hanging");
-        expect(HangingSizePx).toBe(22);
-        expect(rule(css("brokk-avatar.css"), ".mt-brokk-avatar.is-hanging")).toContain("--mt-brokk-size: 22px");
+        expect(HangingSizePx).toBe(14);
+        const hanging = rule(css("brokk-avatar.css"), ".mt-brokk-avatar.is-hanging");
+        expect(hanging).toContain(`--mt-brokk-size: ${HangingSizePx}px`);
+        // From the window's edge down to the pennant's footprint: the panels' controls start 15 px below it.
+        expect(hanging).toMatch(/top: 0;/);
+        expect(HangingSizePx).toBeLessThanOrEqual(8 + 7);
+        expect(rule(css("brokk-avatar.css"), ".mt-brokk-avatar.is-hanging .mt-brokk-badge")).toMatch(/left: -\d+px/);
     });
 });
 

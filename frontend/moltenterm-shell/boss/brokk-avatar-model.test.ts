@@ -76,10 +76,10 @@ describe("where his panel stands", () => {
     });
 
     it("is under the avatar, aligned with its right edge, when it hangs from the window's edge", () => {
-        const place = cardPlace(rect(1150, 0, 22, 22), null, rect(0, 0, 1200, 800));
-        expect(place.right).toBe(`${1200 - 1172}px`);
+        const place = cardPlace(rect(1150, 0, 14, 14), null, rect(0, 0, 1200, 800));
+        expect(place.right).toBe(`${1200 - 1164}px`);
         expect(place.left).toBeUndefined();
-        expect(place.top).toBe(`${22 + PeekGapPx}px`);
+        expect(place.top).toBe(`${14 + PeekGapPx}px`);
     });
 
     it("never grows past the window", () => {

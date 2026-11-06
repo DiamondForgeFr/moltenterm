@@ -12,9 +12,10 @@ import type { BrokkSituation } from "./brokk-ask-model";
 
 export type Rect = { left: number; top: number; width: number; height: number };
 
-// In the title row, and hanging from the window's top edge (the pennant's old slot: 14 px high, so it covers nothing).
+// In the title row, and hanging from the window's top edge (the pennant's old slot: the panels start 8 px below the edge
+// and their controls 7 px lower still, so a 14 px avatar from the edge covers no control).
 export const AvatarSizePx = 26;
-export const HangingSizePx = 22;
+export const HangingSizePx = 14;
 
 export type AvatarVariant = "row" | "hanging";
 
