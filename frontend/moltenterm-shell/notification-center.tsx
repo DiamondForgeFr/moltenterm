@@ -19,6 +19,11 @@ import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
 import { AgentLinksGesture } from "./agent-links/agent-links-model";
 import { openAgentLinksGesture } from "./agent-links/agent-links-store";
 import { startAgentSeen } from "./agent-seen";
+import { DownloadRing } from "./downloads/download-pill";
+import { downloadProgressValues } from "./downloads/downloads-model";
+import { startDownloads } from "./downloads/downloads-notify";
+import { DownloadsModel } from "./downloads/downloads-store";
+import { DownloadsList } from "./downloads/downloads-view";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT, useTCount } from "./i18n/i18n";
 import { registerSetupPrGestures } from "./mission/release-setup-gestures";
@@ -53,7 +58,7 @@ import {
 } from "./notifications-model";
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
 import { showProjectTab } from "./project/project-tab";
-import { canStop, overallProgress, stopWork, useRunningWork, WorkItem } from "./running-work";
+import { canStop, stopWork, useRunningWork, WorkItem } from "./running-work";
 import { DominoLoader } from "./suite/suite";
 import { TabActivity, whileShown } from "./tab-activity";
 import { toneOf } from "./toast-model";
@@ -389,8 +394,12 @@ export function NotificationCenter() {
     const running = useAtomValue(model.runningAtom, { store: globalStore });
     const errors = useAtomValue(model.errorsAtom, { store: globalStore });
     const work = useRunningWork();
+    // The downloads of the web pages (#1992): their own tab, and their share of the bell's ring.
+    const downloads = DownloadsModel.getInstance();
+    const downloadsRunning = useAtomValue(downloads.runningAtom, { store: globalStore });
+    const downloadsRequest = useAtomValue(downloads.requestAtom, { store: globalStore });
     const [panelOpen, setPanelOpen] = useState(false);
-    const [tab, setTab] = useState<"active" | "archived">("active");
+    const [tab, setTab] = useState<"active" | "archived" | "downloads">("active");
     // The notifications the panel opened by itself for (#790): highlighted, and it closes once they are answered.
     const [selfOpenedFor, setSelfOpenedFor] = useState<string[]>([]);
     const [highlightIds, setHighlightIds] = useState<string[]>([]);
@@ -408,6 +417,7 @@ export function NotificationCenter() {
     useEffect(() => registerBuiltInGestures(), []);
     useEffect(() => startNotificationToasts(), []);
     useEffect(() => startHandoffSystemNotifications(), []);
+    useEffect(() => startDownloads(), []);
     const [anchor, setAnchor] = useState<{ top: number; right: number }>(null);
     const archived = archivedEntries(entries);
     const active = activeEntries(listed);
@@ -473,6 +483,19 @@ export function NotificationCenter() {
         setPanelOpen(true);
     }, [panelRequest]);
 
+    // The pill, or a notification's View, asks for the Downloads section: the user's own gesture, never by itself.
+    useEffect(() => {
+        if (downloadsRequest == null) {
+            return;
+        }
+        placePanel();
+        Toasts.getInstance().clearNotificationToasts();
+        setSelfOpenedFor([]);
+        setHighlightIds([]);
+        setTab("downloads");
+        setPanelOpen(true);
+    }, [downloadsRequest]);
+
     useEffect(() => {
         if (!panelOpen || selfOpenedFor.length === 0 || !checkAnswered(entries, selfOpenedFor)) {
             return;
@@ -530,8 +553,10 @@ export function NotificationCenter() {
     const list = tab === "archived" ? archived : active;
     const shown = list.slice(0, MaxRenderedRows);
     const hidden = list.length - shown.length;
-    const progress = overallProgress(work);
+    const measured = [...work.filter((w) => w.progress >= 0).map((w) => w.progress), ...downloadProgressValues(downloadsRunning)];
+    const progress = measured.length === 0 ? null : measured.reduce((sum, v) => sum + v, 0) / measured.length;
     const showWork = tab === "active" && work.length > 0;
+    const ringed = work.length > 0 || downloadsRunning.length > 0;
 
     const bellLabel = [
         count > 0
@@ -540,6 +565,7 @@ export function NotificationCenter() {
               ? tc("notif.center.bellOpen", open)
               : t("notif.center.title"),
         work.length > 0 ? t("notif.center.bellRunning", { count: work.length }) : null,
+        downloadsRunning.length > 0 ? tc("downloads.bell.running", downloadsRunning.length) : null,
     ]
         .filter(Boolean)
         .join(" · ");
@@ -567,8 +593,17 @@ export function NotificationCenter() {
                     count > 0 ? "text-primary" : "text-secondary"
                 )}
             >
-                {work.length > 0 ? <ProgressRing progress={progress} /> : null}
+                {ringed ? <ProgressRing progress={progress} /> : null}
                 <i className={cn("fa fa-bell", count > 0 ? "fa-solid" : "fa-regular")} />
+                {/* A small arrow says the ring is a download too (#1992): without it a file would read as a build. */}
+                {downloadsRunning.length > 0 ? (
+                    <span
+                        data-testid="notification-bell-download"
+                        className="pointer-events-none absolute -right-0.5 -bottom-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-surface-3 text-accent"
+                    >
+                        <i className="fa fa-solid fa-arrow-down text-[8px]" aria-hidden />
+                    </span>
+                ) : null}
                 {/* The count keeps the accent of the bell's other signals: amber for waiting agents would read as one
                     more agent state next to the tabs' amber dots. */}
                 {count > 0 ? (
@@ -611,6 +646,29 @@ export function NotificationCenter() {
                                   )}
                               >
                                   {t("notif.center.title")}
+                              </button>
+                              {/* The Downloads section (#1992): next to the notifications, with a ring and the count while
+                                  something downloads, so the tab says what it holds. */}
+                              <button
+                                  type="button"
+                                  data-testid="notification-tab-downloads"
+                                  onClick={() => setTab("downloads")}
+                                  className={cn(
+                                      "inline-flex cursor-pointer items-center gap-1.5 text-12",
+                                      tab === "downloads" ? "font-semibold text-primary" : "text-muted hover:text-secondary"
+                                  )}
+                              >
+                                  {t("downloads.tab")}
+                                  {downloadsRunning.length > 0 ? (
+                                      <>
+                                          <span className="inline-block h-3 w-3 text-secondary">
+                                              <DownloadRing progress={progress} />
+                                          </span>
+                                          <span className="rounded-full bg-accent px-1.5 text-11 leading-4 font-semibold text-[var(--mt-accent-fg)] tabular-nums">
+                                              {downloadsRunning.length}
+                                          </span>
+                                      </>
+                                  ) : null}
                               </button>
                               {archived.length > 0 ? (
                                   <button
@@ -661,7 +719,8 @@ export function NotificationCenter() {
                               </button>
                           </div>
                           <div className="overflow-y-auto">
-                              {showWork ? (
+                              {tab === "downloads" ? <DownloadsList onLeave={close} /> : null}
+                              {tab !== "downloads" && showWork ? (
                                   <div className="border-b border-border">
                                       <div className="px-3 pt-2 text-11 font-medium tracking-wide text-muted uppercase">
                                           {t("notif.center.runningHeading")}
@@ -680,12 +739,12 @@ export function NotificationCenter() {
                                       ))}
                                   </div>
                               ) : null}
-                              {shown.length === 0 && !showWork ? (
+                              {tab !== "downloads" && shown.length === 0 && !showWork ? (
                                   <div className="px-3 py-6 text-center text-secondary">
                                       {t(tab === "archived" ? "notif.center.emptyArchived" : "notif.center.empty")}
                                   </div>
                               ) : null}
-                              {shown.map((entry) => (
+                              {(tab === "downloads" ? [] : shown).map((entry) => (
                                   <RowBoundary key={entry.id}>
                                       <NotificationRow
                                           entry={entry}
@@ -718,7 +777,7 @@ export function NotificationCenter() {
                                       />
                                   </RowBoundary>
                               ))}
-                              {hidden > 0 ? (
+                              {tab !== "downloads" && hidden > 0 ? (
                                   <div className="px-3 py-2 text-center text-12 text-muted">
                                       {t("notif.center.more", { count: hidden })}
                                   </div>

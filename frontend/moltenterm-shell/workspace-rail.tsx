@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentRailDot } from "./agent-state-ui";
+import { OpenPageKeeper } from "./downloads/open-page-keeper";
 import { useT, useTCount } from "./i18n/i18n";
 import { coffeeCondition, coffeeSupported, coffeeTooltip, railCoffeeLabel } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
@@ -833,6 +834,7 @@ export function WorkspaceRailHosts({ entries }: { entries: WorkspaceRailEntry[] 
             <ProjectLinkDetector />
             <ProjectTabKeeper />
             <PaneFocusKeeper />
+            <OpenPageKeeper />
             <WorktreeCloseHost />
             <AgentChoiceHost />
             <LeadResumeHost />

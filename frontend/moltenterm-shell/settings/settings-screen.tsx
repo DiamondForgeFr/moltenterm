@@ -29,6 +29,7 @@ import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
 import { IntegrateOffKey } from "../companion/companion-integration-model";
+import { DownloadsFolderCard } from "../downloads/downloads-settings";
 import { EmptyState } from "../empty-state";
 import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
@@ -814,6 +815,7 @@ export function SettingsSectionPage({
                     {section === "spaces" ? <TopRowCard /> : null}
                     {section === "spaces" ? <NewWorkspaceViewsCard /> : null}
                     {section === "general" ? <WorkspaceSheetCard name={data.workspaceName} /> : null}
+                    {section === "browser" ? <DownloadsFolderCard /> : null}
                     {section === "browser" ? <BookmarksCard /> : null}
                     {section === "notifications" ? <NotificationSubjectsCard /> : null}
                     {section === "notifications" ? <NotificationPanelCard /> : null}

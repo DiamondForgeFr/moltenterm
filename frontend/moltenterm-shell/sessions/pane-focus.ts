@@ -6,7 +6,7 @@
 // focused by the renderer that shows it: wavesrv leaves a request in the tab's meta (molten:focusblock) and the
 // PaneFocusKeeper of that tab applies it, then clears it.
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms, getApi, getBlockComponentModel } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { activeTabIdAtom } from "@/app/store/tab-model";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
@@ -15,17 +15,26 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget, NullAtom } from "@/util/util";
 import { Atom, useAtomValue } from "jotai";
 import { useEffect } from "react";
-import { showPanel } from "../hidden-panel";
-import { FocusRequest, freshFocusRequest, paneShowStep } from "./pane-focus-model";
+import { showPanelInView } from "../view360/carpet-show";
+import { FocusRequest, focusRequestBrowserTab, freshFocusRequest, paneShowStep } from "./pane-focus-model";
 import { FocusBlockMetaKey, SessionLocation } from "./sessions-model";
 
 // The pane of a tab just shown may not be laid out yet.
 const FocusRetryMs = 150;
 const FocusMaxTries = 20;
 
-// A panel running hidden (a review session's terminal, #916) is laid out first.
+// A panel running hidden (a review session's terminal, #916) is laid out first; on the 360 carpet the carpet glides to
+// it (#1992, view360/carpet-show.ts).
 function focusBlockHere(blockId: string): boolean {
-    return showPanel(blockId);
+    return showPanelInView(blockId);
+}
+
+// A browser panel reached for one of its pages shows that page (a download's way back, #1992).
+function showBrowserPage(blockId: string, browserTabId: string): void {
+    if (!browserTabId) {
+        return;
+    }
+    (getBlockComponentModel(blockId)?.viewModel as { showTab?: (id: string) => void })?.showTab?.(browserTabId);
 }
 
 // Takes the window to a pane wavesrv located (and, for another tab, asked to focus).
@@ -65,14 +74,18 @@ function focusRequestKey(req: FocusRequest): string {
 // The pass in progress per tab: a newer request stops the older one.
 const focusPasses = new Map<string, string>();
 
-function applyFocusRequest(tabId: string, blockId: string, key: string) {
+function applyFocusRequest(tabId: string, blockId: string, key: string, browserTabId?: string) {
     focusPasses.set(tabId, key);
     let tries = 0;
     const attempt = () => {
         if (focusPasses.get(tabId) !== key) {
             return;
         }
-        if (focusBlockHere(blockId) || ++tries >= FocusMaxTries) {
+        const shown = focusBlockHere(blockId);
+        if (shown) {
+            showBrowserPage(blockId, browserTabId);
+        }
+        if (shown || ++tries >= FocusMaxTries) {
             focusPasses.delete(tabId);
             clearFocusRequest(tabId, key);
             return;
@@ -99,7 +112,7 @@ export function PaneFocusKeeper() {
             clearFocusRequest(staticTabId, requestKey);
             return;
         }
-        applyFocusRequest(staticTabId, blockId, requestKey);
+        applyFocusRequest(staticTabId, blockId, requestKey, focusRequestBrowserTab(tab?.meta));
     }, [requestKey, staticTabId]);
     return null;
 }

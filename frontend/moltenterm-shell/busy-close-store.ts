@@ -196,6 +196,9 @@ export type BusyCloseRequest = {
     name?: string;
     quits?: boolean;
     kept?: RunningItem[];
+    // The downloads a quit would interrupt (FR-MC-019 AC11, #1992): told in a line of the dialog, and enough to ask when
+    // nothing else runs.
+    downloads?: number;
     answer: (close: boolean) => void;
 };
 

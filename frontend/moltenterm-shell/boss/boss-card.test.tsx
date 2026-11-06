@@ -67,6 +67,7 @@ vi.mock("./brokk-expressions", async () => {
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { PendingHandoff } from "../agent-handoff-types";
+import { DownloadsModel } from "../downloads/downloads-store";
 import { DurableSession } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { BossCard } from "./boss-card";
@@ -577,5 +578,72 @@ describe("the hand-off rows (FR-BOSS-005)", () => {
         expect(renderToStaticMarkup(<HandoffBriefView item={quiet} from="Chloé" to="Léa" />)).toContain(
             "No reply is expected."
         );
+    });
+});
+
+describe("the Downloads tab (FR-BOSS-003 AC9, #1992)", () => {
+    const downloads = DownloadsModel.getInstance();
+
+    function downloadRecord(over: Record<string, unknown> = {}) {
+        return {
+            id: "d1",
+            url: "https://example.com/a.pdf",
+            host: "example.com",
+            name: "a.pdf",
+            path: "/dl/a.pdf",
+            mime: "application/pdf",
+            state: "completed",
+            received: 10,
+            total: 10,
+            bytesPerSecond: 0,
+            startedAt: Date.now() - 1000,
+            endedAt: Date.now(),
+            reason: "",
+            executable: false,
+            missing: false,
+            agent: "",
+            workspaceId: "wsA",
+            tabId: "t1",
+            blockId: "b1",
+            browserTabId: "bt1",
+            pageUrl: "https://example.com",
+            pageTitle: "Example",
+            ...over,
+        } as any;
+    }
+
+    beforeEach(() => {
+        globalStore.set(downloads.snapshotAtom, { items: [], folder: "", askWhere: false });
+    });
+
+    it("is not there while there is no history and nothing downloads", () => {
+        expect(render()).not.toContain('data-testid="boss-card-tab-downloads"');
+    });
+
+    it("is a compact fourth tab, a download mark with the number in progress, named in full for the tooltip and the screen reader", () => {
+        globalStore.set(downloads.snapshotAtom, {
+            items: [
+                downloadRecord({ id: "run", state: "progressing", endedAt: 0, total: 100, received: 10 }),
+                downloadRecord({ id: "done" }),
+            ],
+            folder: "/dl",
+            askWhere: false,
+        });
+        const html = render();
+        expect(html.indexOf('data-testid="boss-card-tab-notifications"')).toBeLessThan(
+            html.indexOf('data-testid="boss-card-tab-downloads"')
+        );
+        expect(attr(html, "boss-card-tab-downloads", "title")).toBe("Downloads");
+        expect(attr(html, "boss-card-tab-downloads", "aria-label")).toBe("Downloads, 1 in progress");
+        expect(html).toMatch(/data-testid="boss-card-tab-count-downloads"[^>]*>1</);
+        // Not the word itself: it would not fit the card's width.
+        expect(html).not.toMatch(/boss-card-tab-downloads"[^>]*>[^<]*Downloads</);
+    });
+
+    it("shows only the mark when nothing runs but there is a history", () => {
+        globalStore.set(downloads.snapshotAtom, { items: [downloadRecord()], folder: "/dl", askWhere: false });
+        const html = render();
+        expect(html).toContain('data-testid="boss-card-tab-downloads"');
+        expect(html).not.toContain('data-testid="boss-card-tab-count-downloads"');
     });
 });

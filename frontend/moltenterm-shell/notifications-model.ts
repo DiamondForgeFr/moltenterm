@@ -26,6 +26,8 @@ export type MoltentermNotificationSource =
     | "ci"
     | "release"
     | "deps"
+    // The downloads of the web pages (#1992, FR-MC-019 AC10): one when a download ends, one when it fails.
+    | "download"
     // A refused run waiting for the developer's approval (#1017): tied to no subject, so never silenced.
     | "trust";
 export type MoltentermNotificationKind = "info" | "success" | "warning" | "error";

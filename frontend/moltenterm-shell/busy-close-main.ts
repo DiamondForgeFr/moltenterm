@@ -13,6 +13,7 @@ import { makeORef } from "@/app/store/wos";
 import { fireAndForget } from "@/util/util";
 import { BusyCloseAction, RunningItem, splitQuitRunning } from "./busy-close-model";
 import { askBusyClose, busyCloseEnabled, ReadTimeoutMs, readWorkspaceRunning } from "./busy-close-store";
+import { DownloadsModel } from "./downloads/downloads-store";
 
 export type MainBusyAsk = {
     requestid: string;
@@ -40,7 +41,10 @@ export type MainBusyDeps = {
         kept: RunningItem[];
         name?: string;
         quits?: boolean;
+        downloads?: number;
     }) => Promise<boolean>;
+    // The downloads still running: a quit stops them too (FR-MC-019 AC11, #1992).
+    activeDownloads?: () => number;
 };
 
 async function readAll(ids: string[], deps: MainBusyDeps): Promise<RunningItem[]> {
@@ -82,7 +86,8 @@ async function decideMainAsk(request: MainBusyAsk, deps: MainBusyDeps): Promise<
         const durable = others.length > 0 ? await deps.durableOf(others.map((r) => r.blockId)) : new Set<string>();
         ({ running, kept } = splitQuitRunning(stopping, others, durable));
     }
-    if (running.length === 0) {
+    const downloads = request.quit ? (deps.activeDownloads?.() ?? 0) : 0;
+    if (running.length === 0 && downloads === 0) {
         finish("none");
         return;
     }
@@ -97,6 +102,7 @@ async function decideMainAsk(request: MainBusyAsk, deps: MainBusyDeps): Promise<
         kept,
         name: request.name,
         quits: request.kind === "window" && request.quit,
+        downloads,
     });
     finish(close ? "close" : "cancel");
 }
@@ -161,6 +167,7 @@ export function listenMainBusyAsks(dialogOpen: () => boolean): void {
         readWorkspace,
         durableOf,
         ask: (req) => askBusyClose(req),
+        activeDownloads: () => DownloadsModel.getInstance().activeCount(),
     };
     api.onMoltentermBusyAsk((request) => fireAndForget(() => answerMainAsk(request, deps)));
 }

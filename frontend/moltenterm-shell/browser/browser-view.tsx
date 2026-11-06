@@ -36,6 +36,7 @@ import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
+import { DownloadPill } from "../downloads/download-pill";
 import { HeaderCloseButton } from "../header/header-close-button";
 import { contentBoxWidth } from "../header/header-fold";
 import { Pill } from "../header/pill";
@@ -200,12 +201,26 @@ const FallbackUrl = StartPageUrl;
 // The agents' DevTools controller needs each tab's webview (emain/moltenterm-browseragent.ts, FR-BRW-008).
 type BrowserAgentElectronApi = ElectronApi &
     AgentPressApi & {
-        moltentermRegisterWebview?: (blockId: string, browserTabId: string, webContentsId: number) => void;
+        moltentermRegisterWebview?: (
+            blockId: string,
+            browserTabId: string,
+            webContentsId: number,
+            tabId?: string,
+            workspaceId?: string
+        ) => void;
     };
 
-function registerWebview(blockId: string, browserTabId: string, webContentsId: number): void {
+// The workspace and view of the panel travel with the registration: a download that starts in this page remembers
+// where it came from (#1992).
+function registerWebview(blockId: string, browserTabId: string, webContentsId: number, tabId: string): void {
     listenAgentPresses(getApi() as BrowserAgentElectronApi);
-    (getApi() as BrowserAgentElectronApi).moltentermRegisterWebview?.(blockId, browserTabId, webContentsId);
+    (getApi() as BrowserAgentElectronApi).moltentermRegisterWebview?.(
+        blockId,
+        browserTabId,
+        webContentsId,
+        tabId,
+        globalStore.get(atoms.workspace)?.oid
+    );
 }
 
 function webviewPreloadUrl(): string {
@@ -1689,7 +1704,7 @@ function TabWebview({
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
             offHeld?.();
             offHeld = onInputHeld(webview.getWebContentsId(), () => model.agents.noteHeldInput(tab.id));
-            registerWebview(model.blockId, tab.id, webview.getWebContentsId());
+            registerWebview(model.blockId, tab.id, webview.getWebContentsId(), model.tabId);
             if (document.activeElement === webview) {
                 getApi().setWebviewFocus(webview.getWebContentsId());
             }
@@ -2127,6 +2142,8 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 </div>
             )}
             {active != null ? <AgentTabMarker model={model} agentTabs={agentTabs} tabId={active.id} /> : null}
+            {/* The pill of a download that started in this panel (#1992): outside the focus-only buttons, so it shows. */}
+            <DownloadPill blockId={model.blockId} />
             <div
                 ref={model.layoutNode.dragHandleRef}
                 onContextMenu={(e) => model.showPanelMenu(e)}

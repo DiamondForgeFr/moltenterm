@@ -27,7 +27,15 @@ export function toastArrivals(entries: MoltentermNotification[], seen: Map<strin
 // How a message is said: in the center with the badge and a toast; kept already read; or not stored at all.
 export type Delivery = "notify" | "quiet" | "off";
 
-export type NotificationSubject = "agents" | "builds" | "ci" | "releases" | "updates" | "mods" | "dependencies";
+export type NotificationSubject =
+    | "agents"
+    | "builds"
+    | "ci"
+    | "releases"
+    | "updates"
+    | "mods"
+    | "dependencies"
+    | "downloads";
 
 // must match NotificationSubjects in pkg/molten/notifications.go. labelKey is a dictionary key.
 export const NotificationSubjects: {
@@ -42,6 +50,7 @@ export const NotificationSubjects: {
     { id: "updates", labelKey: "notif.subjects.updates", sources: ["moltenterm"] },
     { id: "mods", labelKey: "notif.subjects.mods", sources: ["mod"] },
     { id: "dependencies", labelKey: "notif.subjects.dependencies", sources: ["deps"] },
+    { id: "downloads", labelKey: "notif.subjects.downloads", sources: ["download"] },
 ];
 
 // Dictionary keys of the delivery choices.
@@ -60,6 +69,7 @@ const SourceLabels: Record<MoltentermNotificationSource, string> = {
     ci: "notif.source.ci",
     release: "notif.source.release",
     deps: "notif.source.deps",
+    download: "notif.source.download",
     trust: "notif.source.trust",
 };
 
