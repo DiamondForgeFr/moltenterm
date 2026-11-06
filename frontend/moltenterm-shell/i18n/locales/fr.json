@@ -1933,6 +1933,16 @@
             "title": "Tâche de l'espace de travail"
         },
         "gauges": {
+            "window": {
+                "session": "Session en cours",
+                "week": "Cette semaine",
+                "spend": "Limite de dépenses",
+                "model": "Cette semaine ({name})",
+                "extra": "{name} {window}",
+                "hour": "{count} h",
+                "day": "{count} j",
+                "min": "{count} min"
+            },
             "reason": {
                 "notsetup": "Ligne d'état non configurée",
                 "waiting": "En attente de la ligne d'état de l'agent : elle donne les limites après sa prochaine réponse",
@@ -2978,6 +2988,7 @@
             "workingTitle": "Au travail",
             "usageTitle": "Usage du forfait",
             "usage": "{agent} : {label}, {used}",
+            "usageResets": "{agent} : {label}, {used} · {resets}",
             "latestTitle": "Dernière notification",
             "more": {
                 "one": "et 1 autre",

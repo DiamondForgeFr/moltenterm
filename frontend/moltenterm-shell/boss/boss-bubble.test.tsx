@@ -26,7 +26,7 @@ vi.mock("./boss-store", async () => {
         cardOpenAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         workingCountAtom: atom(0),
-        peekAtom: atom({ waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: "", latest: null }),
+        peekAtom: atom({ waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: [], latest: null }),
         attach: vi.fn(() => () => {}),
         setRectSource: vi.fn(),
         collapse: vi.fn(),
@@ -84,7 +84,7 @@ beforeEach(() => {
         waitingMore: 0,
         working: [],
         workingMore: 0,
-        usage: "",
+        usage: [],
         latest: null,
     });
 });
@@ -125,7 +125,7 @@ describe("the bubble (FR-BOSS-001, AC1, AC10)", () => {
             waitingMore: 0,
             working: [],
             workingMore: 0,
-            usage: "",
+            usage: [],
             latest: null,
         });
         const html = render();
@@ -225,7 +225,10 @@ describe("the peek (AC7)", () => {
         waitingMore: 2,
         working: [{ workspace: "Alpha", names: ["Zoé", "Jo"], more: 0 }],
         workingMore: 0,
-        usage: "Claude Code: Week, 61 % used",
+        usage: [
+            { agent: "Claude Code", label: "This week", percent: "61 % used", resets: "", level: "normal" },
+            { agent: "Codex", label: "5-hour", percent: "3 % used", resets: "in 2 h 14 min", level: "normal" },
+        ],
         latest: { id: "n1", title: "Léa stopped", message: "A test failed." },
     };
 
@@ -245,7 +248,8 @@ describe("the peek (AC7)", () => {
         expect(card).toContain("waiting for you");
         expect(card).toContain("and 2 more");
         expect(card).toContain("Zoé, Jo");
-        expect(card).toContain("Claude Code: Week, 61 % used");
+        expect(card).toContain("Claude Code: This week, 61 % used");
+        expect(card).toContain("Codex: 5-hour, 3 % used · in 2 h 14 min");
         expect(card).toContain("Léa stopped");
         expect(card).toContain("A test failed.");
         expect(card).not.toContain("<button");

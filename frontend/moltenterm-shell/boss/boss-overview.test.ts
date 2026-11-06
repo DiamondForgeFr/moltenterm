@@ -3,7 +3,8 @@
 
 import { describe, expect, it } from "vitest";
 import { AgentStateInfo, AgentStatesData, applyAgentStates, EmptyAgentStates } from "../agent-state-model";
-import { UsageSnapshot } from "../companion/companion-gauges-model";
+import { UsageSnapshot, usageWindowLabel } from "../companion/companion-gauges-model";
+import { I18nModel } from "../i18n/i18n";
 import { MoltentermNotification } from "../notifications-model";
 import { DurableSession } from "../sessions/sessions-model";
 import {
@@ -290,40 +291,130 @@ describe("the latest notification (AC7)", () => {
     });
 });
 
-describe("the plan usage line (AC7, FR-SHELL-027)", () => {
-    function reading(agent: string, windows: { id: string; label: string; usedpercent: number }[]): UsageSnapshot {
-        return { agent, source: "test", windows, readat: Now };
+describe("the plan usage lines (AC7, FR-SHELL-027)", () => {
+    const MinMs = 60_000;
+    const HourMs = 60 * MinMs;
+
+    function reading(
+        agent: string,
+        windows: { id: string; label: string; usedpercent: number; resetsat?: number }[],
+        readat = Now
+    ): UsageSnapshot {
+        return { agent, source: "test", windows, readat };
     }
 
-    it("shows the fullest plan window of the readings that exist", () => {
-        const line = usageLine(
+    it("shows one line per provider, the fullest first, each at its fullest window", () => {
+        const lines = usageLine(
             {
                 claude: reading("claude", [
-                    { id: "5h", label: "5-hour", usedpercent: 23.5 },
-                    { id: "7d", label: "Week", usedpercent: 61 },
+                    { id: "5h", label: "Current session", usedpercent: 23.5 },
+                    { id: "7d", label: "This week", usedpercent: 61 },
                 ]),
-                codex: reading("codex", [{ id: "5h", label: "5-hour", usedpercent: 40 }]),
+                codex: reading("codex", [{ id: "5h", label: "5-hour", usedpercent: 70 }]),
             },
             new Map([["claude", "Claude Code"]]),
             Now
         );
-        expect(line).toBe("Claude Code: Week, 61 % used");
+        expect(lines.map((l) => [l.agent, l.label, l.percent])).toEqual([
+            ["codex", "5-hour", "70 % used"],
+            ["Claude Code", "This week", "61 % used"],
+        ]);
+    });
+
+    it("shows a provider once, from its latest reading, when several agents share its plan", () => {
+        const lines = usageLine(
+            {
+                a1: reading("claude", [{ id: "7d", label: "This week", usedpercent: 20 }], Now - 1000),
+                a2: reading("claude", [{ id: "7d", label: "This week", usedpercent: 70 }], Now),
+            },
+            new Map([["claude", "Claude Code"]]),
+            Now
+        );
+        expect(lines.map((l) => [l.agent, l.percent])).toEqual([["Claude Code", "70 % used"]]);
     });
 
     it("names the agent by its id when its state is not known", () => {
-        const line = usageLine(
-            { codex: reading("codex", [{ id: "w", label: "Week", usedpercent: 5 }]) },
+        const lines = usageLine(
+            { codex: reading("codex", [{ id: "w", label: "This week", usedpercent: 5 }]) },
             new Map(),
             Now
         );
-        expect(line).toBe("codex: Week, 5 % used");
+        expect(lines.map((l) => l.agent)).toEqual(["codex"]);
     });
 
     it("is no line without a reading", () => {
-        expect(usageLine({}, new Map(), Now)).toBe("");
-        expect(usageLine(null, new Map(), Now)).toBe("");
-        expect(usageLine({ claude: reading("claude", []) }, new Map(), Now)).toBe("");
-        expect(makePeek(input()).usage).toBe("");
+        expect(usageLine({}, new Map(), Now)).toEqual([]);
+        expect(usageLine(null, new Map(), Now)).toEqual([]);
+        expect(usageLine({ claude: reading("claude", []) }, new Map(), Now)).toEqual([]);
+        expect(makePeek(input()).usage).toEqual([]);
+    });
+
+    it("translates the window labels the readers send", () => {
+        const I18n = I18nModel.getInstance();
+        I18n.setLanguageSetting("fr");
+        try {
+            const labels = [
+                "Current session",
+                "This week",
+                "This week (Opus)",
+                "Spend limit",
+                "5-hour",
+                "3-day",
+                "2-hour",
+                "15-min",
+                "GPT-5 5-hour",
+            ].map((label) => usageWindowLabel(label));
+            expect(labels).toEqual([
+                "Session en cours",
+                "Cette semaine",
+                "Cette semaine (Opus)",
+                "Limite de dépenses",
+                "5 h",
+                "3 j",
+                "2 h",
+                "15 min",
+                "GPT-5 5 h",
+            ]);
+            const lines = usageLine(
+                { codex: reading("codex", [{ id: "5h", label: "5-hour", usedpercent: 3 }]) },
+                new Map([["codex", "Codex"]]),
+                Now
+            );
+            expect(lines.map((l) => [l.agent, l.label])).toEqual([["Codex", "5 h"]]);
+        } finally {
+            I18n.setLanguageSetting("en");
+        }
+    });
+
+    it("marks a provider at or above 80 % in the warning colour, and at 95 % as an error", () => {
+        const lines = usageLine(
+            {
+                claude: reading("claude", [{ id: "7d", label: "This week", usedpercent: 85 }]),
+                codex: reading("codex", [{ id: "5h", label: "5-hour", usedpercent: 96 }]),
+                gemini: reading("gemini", [{ id: "5h", label: "5-hour", usedpercent: 12 }]),
+            },
+            new Map([["claude", "Claude Code"]]),
+            Now
+        );
+        expect(lines.map((l) => [l.agent, l.level])).toEqual([
+            ["codex", "error"],
+            ["Claude Code", "warning"],
+            ["gemini", "normal"],
+        ]);
+    });
+
+    it("gives the reset of the fullest window when the reading has one", () => {
+        const lines = usageLine(
+            {
+                codex: reading("codex", [
+                    { id: "5h", label: "5-hour", usedpercent: 3, resetsat: Now + 2 * HourMs + 14 * MinMs },
+                    { id: "7d", label: "This week", usedpercent: 1 },
+                ]),
+            },
+            new Map(),
+            Now
+        );
+        expect(lines.map((l) => [l.label, l.resets])).toEqual([["5-hour", "in 2 h 14 min"]]);
     });
 
     it("rides on the peek with the agents' names from their states", () => {
@@ -333,6 +424,8 @@ describe("the plan usage line (AC7, FR-SHELL-027)", () => {
                 usage: { claude: reading("claude", [{ id: "5h", label: "5-hour", usedpercent: 80 }]) },
             })
         );
-        expect(peek.usage).toBe("Claude Code: 5-hour, 80 % used");
+        expect(peek.usage.map((l) => [l.agent, l.label, l.percent, l.level])).toEqual([
+            ["Claude Code", "5-hour", "80 % used", "warning"],
+        ]);
     });
 });
