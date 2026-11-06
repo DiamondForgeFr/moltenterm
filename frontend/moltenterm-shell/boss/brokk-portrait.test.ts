@@ -266,22 +266,22 @@ describe("the rhythm of his gestures (FR-BOSS-007, AC17)", () => {
     });
 });
 
-describe("the package at v0.3.0 (FR-BOSS-007, AC1 and AC17; #1999)", () => {
+describe("the package at v0.3.1 (FR-BOSS-007, AC1 and AC17; #1999, #2007)", () => {
     const lock = JSON.parse(textOf("package-lock.json"));
     const manifest = JSON.parse(textOf("package.json"));
 
-    it("is named at v0.3.0 by the dependency, the lock, the notice and the ledger of the fork", () => {
-        expect(manifest.dependencies[PackageName]).toMatch(/diamondforge-character\.git#v0\.3\.0$/);
-        expect(lock.packages[""].dependencies[PackageName]).toMatch(/diamondforge-character\.git#v0\.3\.0$/);
-        expect(lock.packages[`node_modules/${PackageName}`].version).toBe("0.3.0");
-        expect(textOf("NOTICE")).toContain(`${PackageName} 0.3.0 by DiamondForge`);
-        expect(textOf("UPSTREAM.md")).toContain("diamondforge-character.git#v0.3.0");
+    it("is named at v0.3.1 by the dependency, the lock, the notice and the ledger of the fork", () => {
+        expect(manifest.dependencies[PackageName]).toMatch(/diamondforge-character\.git#v0\.3\.1$/);
+        expect(lock.packages[""].dependencies[PackageName]).toMatch(/diamondforge-character\.git#v0\.3\.1$/);
+        expect(lock.packages[`node_modules/${PackageName}`].version).toBe("0.3.1");
+        expect(textOf("NOTICE")).toContain(`${PackageName} 0.3.1 by DiamondForge`);
+        expect(textOf("UPSTREAM.md")).toContain("diamondforge-character.git#v0.3.1");
         expect(textOf("UPSTREAM.md")).not.toContain("diamondforge-character.git#v0.2.0");
     });
 
     it("is the one installed, with the gap, the repeat and the end of a gesture in its types", () => {
         const installed = JSON.parse(textOf(`node_modules/${PackageName}/package.json`));
-        expect(installed.version).toBe("0.3.0");
+        expect(installed.version).toBe("0.3.1");
         const types = textOf(`node_modules/${PackageName}/dist/transmission-portrait.d.ts`);
         expect(types).toContain("idleGap?: TransmissionIdleGap");
         expect(types).toContain("onGesture?: (name: string, phase: TransmissionGesturePhase) => void");
