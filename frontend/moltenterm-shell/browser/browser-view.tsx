@@ -56,7 +56,6 @@ import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
-import { revealPanelOnCarpet } from "../view360/carpet-reveal";
 import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { CarpetHeaderButton } from "../view360/view360-places";
@@ -64,6 +63,7 @@ import { AddressHold, takeAddressFocus } from "./address-focus";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
+import { showAgentPage } from "./agent-show";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
 import { bookmarksMenu } from "./bookmarks-menu";
@@ -274,7 +274,16 @@ export class BrowserViewModel implements ViewModel {
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
         this.agents = new BrowserAgentModel(blockId);
-        this.agents.onShown = () => revealPanelOnCarpet(blockId);
+        this.agents.onShown = (shownTabIds) =>
+            showAgentPage(
+                {
+                    blockId,
+                    activeTabId: () => this.state().activeId,
+                    hasTab: (id) => this.findTab(id) != null,
+                    selectTab: (id) => this.showTab(id),
+                },
+                shownTabIds
+            );
         this.agents.start();
         this.lifecycle = new BrowserLifecycleModel(blockId);
         this.lifecycle.start((tabId, webContentsId, scroll) => this.discardTab(tabId, webContentsId, scroll));

@@ -1,8 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { BrowserAgentModel, PanelAgentState } from "./browser-agent";
+import { BrowserAgentModel, PanelAgentState, ShownNoteMs } from "./browser-agent";
 
 const Mocks = vi.hoisted(() => ({ subscribe: vi.fn(), call: vi.fn() }));
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: Mocks.subscribe }));
@@ -126,5 +127,77 @@ describe("a page the agent shows", () => {
     it("does not ask for a state of another panel", () => {
         publish({ ...shown(900), blockid: "elsewhere" });
         expect(onShown).not.toHaveBeenCalled();
+    });
+
+    // #1994: tabs_show stamps a page the agent already had; the panel hears the tabs it must show, the latest last.
+    it("asks again when the agent shows the same page again, with the tab it showed", () => {
+        publish(shown(250));
+        publish(shown(600, { action: "Showed you the page" }));
+        expect(onShown).toHaveBeenCalledTimes(2);
+        expect(onShown).toHaveBeenLastCalledWith(["agent-tab"]);
+    });
+});
+
+// #1994: the bar of the tab the agent showed says so for a while, and only for a page shown while the panel is open.
+describe("the note on a page the agent shows", () => {
+    const shown = (shownts: number, over: Partial<PanelAgentState["tabs"][number]> = {}): PanelAgentState => ({
+        blockid: "panel",
+        tabs: [{ browsertabid: "agent-tab", agentname: "Arthur", origin: "opened", state: "active", shownts, ...over }],
+    });
+    let model: BrowserAgentModel;
+    let publish: (state: PanelAgentState) => void;
+
+    beforeEach(async () => {
+        Mocks.call.mockReset().mockResolvedValue(shown(100));
+        Mocks.subscribe.mockImplementation(({ handler }) => {
+            publish = (state) => handler({ data: state });
+            return () => {};
+        });
+        model = new BrowserAgentModel("panel");
+        model.start();
+        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined());
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        model.dispose();
+        vi.useRealTimers();
+    });
+
+    const noted = () => globalStore.get(model.shownAtom);
+
+    it("raises no note for the page the panel read when it mounted", () => {
+        expect(noted()).toEqual({});
+    });
+
+    it("raises the note when the agent shows a page, and takes it down after ShownNoteMs", () => {
+        publish(shown(250));
+        expect(noted()).toEqual({ "agent-tab": true });
+        vi.advanceTimersByTime(ShownNoteMs - 1);
+        expect(noted()).toEqual({ "agent-tab": true });
+        vi.advanceTimersByTime(1);
+        expect(noted()).toEqual({});
+    });
+
+    it("starts the note again when the agent shows the page again before it ended", () => {
+        publish(shown(250));
+        vi.advanceTimersByTime(ShownNoteMs - 10);
+        publish(shown(251));
+        vi.advanceTimersByTime(ShownNoteMs - 10);
+        expect(noted()).toEqual({ "agent-tab": true });
+        vi.advanceTimersByTime(10);
+        expect(noted()).toEqual({});
+    });
+
+    it("raises no note for the agent's other actions", () => {
+        publish(shown(100, { action: "Clicked Search", actionts: 300 }));
+        publish(shown(100, { permission: { requestid: "r1", site: "example.com" } }));
+        expect(noted()).toEqual({});
+    });
+
+    it("leaves no timer running once the panel is gone", () => {
+        publish(shown(250));
+        model.dispose();
+        expect(vi.getTimerCount()).toBe(0);
     });
 });

@@ -66,6 +66,8 @@ func fixedActionText(action string) *uimsg.Text {
 		return uimsg.Make("browser.action.wait")
 	case actionOpened:
 		return uimsg.Make("browser.action.opened")
+	case actionShown:
+		return uimsg.Make("browser.action.shown")
 	case actionEngaged:
 		return uimsg.Make("browser.action.engaged")
 	case "Scrolled up":

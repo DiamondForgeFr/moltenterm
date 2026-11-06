@@ -825,6 +825,13 @@ func (m *Manager) markShown(sessionId string, tabId int64) {
 	m.publishPanel(m.stampShown(sessionId, tabId))
 }
 
+// showPage is markShown for a call whose whole purpose is to show the page (tabs_show, #1994): the stamp and the line
+// the bar reads once its note is gone go out in one state, so the panel hears of them together.
+func (m *Manager) showPage(sessionId string, tabId int64, action string) {
+	m.stampShown(sessionId, tabId)
+	m.noteAction(sessionId, tabId, action)
+}
+
 // stampShown keeps ShownTs increasing, so that two pages shown within the same millisecond still differ.
 func (m *Manager) stampShown(sessionId string, tabId int64) string {
 	m.lock.Lock()

@@ -110,6 +110,7 @@ const PagesInstructions = " To show a page to the user (\"open the doc\", \"show
 	"MoltenTerm's browser: tabs_create then navigate, or `molten open <url>` from a shell. Do not use `open`, " +
 	"`xdg-open`, `start` or the system browser, unless the user asks for their own browser (`molten open --browser " +
 	"installed <url>`). The page appears next to this terminal, in view, and the terminal keeps the keyboard focus. " +
+	"To bring a page you already have open back in front of the user, call tabs_show on its tab. " +
 	"Details: pages.md in the folder `molten docs` prints."
 
 // BookmarksInstructions: the web pages the developer bookmarked for the project, with a note on each (FR-BRW-020,

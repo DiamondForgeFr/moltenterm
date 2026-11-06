@@ -36,6 +36,7 @@ const (
 const (
 	ToolTabsContext = "tabs_context"
 	ToolTabsCreate  = "tabs_create"
+	ToolTabsShow    = "tabs_show"
 	ToolTabsClose   = "tabs_close"
 	ToolNavigate    = "navigate"
 	ToolReadPage    = "read_page"
