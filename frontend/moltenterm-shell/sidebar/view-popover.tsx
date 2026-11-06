@@ -13,9 +13,9 @@ import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { FaviconMark } from "../favicon/favicon-mark";
-import { faviconsAtom } from "../favicon/favicon-store";
+import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
 import { panelSiteOf, siteNameOf } from "../favicon/site";
-import { faviconGlyphOf } from "../favicon/site-glyph";
+import { faviconGlyphOf, pageOriginsOf } from "../favicon/site-glyph";
 import { useT } from "../i18n/i18n";
 import { SidebarGlyph } from "./sidebar-icons";
 import { screenGlyphAtom, ViewGlyph } from "./view-glyph";
@@ -102,6 +102,7 @@ function viewSitesAtom(ref: ViewRef): jotai.Atom<ViewSite[]> {
                 : (tab?.blockids ?? []).map(
                       (id) => get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", id)))?.meta as Record<string, any>
                   );
+        requestFavicons(pageOriginsOf(metas));
         const known = get(faviconsAtom);
         const sites: ViewSite[] = [];
         for (const meta of metas) {

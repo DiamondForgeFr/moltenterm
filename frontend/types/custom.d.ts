@@ -193,6 +193,8 @@ declare global {
         // MOLTENTERM-PATCH (#1962): a site's icon (an image address) drawn in the icon's place, the generic web icon when
         // it cannot be drawn
         iconImage?: string;
+        // MOLTENTERM-PATCH (#1962): the icon was measured too dark for a dark surface, so it sits on a light plate
+        iconImageDark?: boolean;
         destructive?: boolean;
         section?: string;
         label?: string;

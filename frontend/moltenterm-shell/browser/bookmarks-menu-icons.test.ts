@@ -62,6 +62,16 @@ describe("a bookmark's icon in the Bookmarks menu (#1962)", () => {
         }
     });
 
+    it("tells the menu an icon is too dark, so it sits on its light plate there too", () => {
+        const menu = bookmarksMenu(
+            input({ "https://vite.dev": { url: "data:image/png;base64,AAAA", dark: true } as any }),
+            actions()
+        );
+        const docs = menu.find((i) => i.type === "submenu" && i.label === "Docs");
+        expect(docs.submenu[0].iconImageDark).toBe(true);
+        expect(bookmark(menu, "Staging").iconImageDark).toBeFalsy();
+    });
+
     it("still opens the page on a click, and changes nothing else of the menu", () => {
         const a = actions();
         const menu = bookmarksMenu(input(icons), a);

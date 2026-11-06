@@ -8,9 +8,15 @@
 // "Update the pinned view" (#1272) only when it is next opened.
 
 import type { SiteIcon } from "../favicon/favicon-store";
-import { faviconGlyphOf, siteViewIcon } from "../favicon/site-glyph";
+import { faviconGlyphOf, siteViewIcon, viewSiteOrigins } from "../favicon/site-glyph";
 import type { SidebarTabSplit } from "./sidebar-model";
-import { configPaneIcons, configPaneMetas, viewGlyphIcons, type GlyphIcon } from "./view-menu-model";
+import {
+    configPaneIcons,
+    configPaneMetas,
+    readSiteIconChoice,
+    viewGlyphIcons,
+    type GlyphIcon,
+} from "./view-menu-model";
 import type { GlobalPin } from "./view-pins-model";
 
 // The top row's lines (FR-SHELL-080, #1651): up to four blocks a line, a 6 px gutter. A line whose blocks each get at
@@ -36,6 +42,12 @@ export function pinGlyph(pin: GlobalPin, icons?: Record<string, SiteIcon>): Glyp
     return viewGlyphIcons(pin.icon, site != null ? [site] : configPaneIcons(pin.config), (origin) =>
         faviconGlyphOf(origin, icons)
     );
+}
+
+// The origins a pin's glyph draws, for the window to ask for: the site chosen for it, else the site its page is.
+export function pinSiteOrigins(pin: GlobalPin): string[] {
+    const chosen = readSiteIconChoice(pin.icon);
+    return chosen !== "" ? [chosen] : viewSiteOrigins(configPaneMetas(pin.config));
 }
 
 export function topRowBlocks(

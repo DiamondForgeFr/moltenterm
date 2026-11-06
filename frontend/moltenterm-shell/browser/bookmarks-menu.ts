@@ -39,6 +39,7 @@ function bookmarkItem(b: Bookmark, open: (url: string) => void, icons?: Record<s
         sublabel: shownAddress(b.url),
         icon: GenericWebIcon,
         iconImage: icon?.url,
+        iconImageDark: icon?.dark,
         tooltip: b.description || b.url,
         click: () => open(b.url),
     };

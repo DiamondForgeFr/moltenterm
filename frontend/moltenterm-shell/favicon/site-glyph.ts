@@ -24,6 +24,16 @@ export function viewSiteOrigins(panelMetas: Record<string, any>[]): string[] {
     return siteOnlyOrigins((panelMetas ?? []).flatMap((meta) => panelSitesOf(meta)));
 }
 
+// Every origin the panels show a page of, one site or not, distinct and in the panels' order: what the icon menu draws
+// and offers. A kept icon is not read again when its page loads, so after a restart main tells a window only what it asks.
+export function pageOriginsOf(panelMetas: Record<string, any>[]): string[] {
+    const origins = (panelMetas ?? []).map((meta) => {
+        const panel = panelSiteOf(meta);
+        return panel.page ? panel.origin : "";
+    });
+    return Array.from(new Set(origins.filter((origin) => origin !== "")));
+}
+
 // The icon of a view that is only one site: the first of its origins whose icon is known; null when none is, and the
 // view keeps its usual icons (a web page's globe). A view that is not only one site never gets one.
 export function siteViewIcon(panelMetas: Record<string, any>[], icons: Record<string, SiteIcon>): GlyphFavicon {

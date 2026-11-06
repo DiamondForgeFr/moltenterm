@@ -12,7 +12,14 @@ import * as jotai from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { FaviconMark } from "../favicon/favicon-mark";
 import { faviconsAtom, requestFavicons, siteLoadsAtom, type SiteIcon } from "../favicon/favicon-store";
-import { faviconGlyphOf, loadingSiteIcon, panelFaviconOf, siteViewIcon, viewSiteOrigins } from "../favicon/site-glyph";
+import {
+    faviconGlyphOf,
+    loadingSiteIcon,
+    pageOriginsOf,
+    panelFaviconOf,
+    siteViewIcon,
+    viewSiteOrigins,
+} from "../favicon/site-glyph";
 import { AiIcon } from "../tab-identity";
 import { readScreen, screenGlyphIcons, ScreenMetaKey } from "../view360/screen-glyph";
 import { ViewPendingMetaKey } from "../workspace-views/workspace-views-model";
@@ -114,7 +121,7 @@ function makeGlyphAtom(
             : blockIds.map((id) => metaOf(id) as Record<string, any>);
         const origins = viewSiteOrigins(panelMetas);
         const chosenSite = readSiteIconChoice(chosen);
-        requestFavicons(chosenSite ? [chosenSite] : origins);
+        requestFavicons(chosenSite ? [chosenSite] : mode === "screen" ? pageOriginsOf(panelMetas) : origins);
         let marks: GlyphIcon[];
         if (pending) {
             marks = configPaneIcons(readPinConfig(meta[PinConfigMetaKey]));
