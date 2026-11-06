@@ -6,6 +6,7 @@
 // page (so the windows do not raise it twice) and this window publishes it, with the actions the entry itself offers.
 
 import { t } from "../i18n/i18n";
+import { registerNotificationPlace } from "../notification-settle";
 import type { MoltentermNotificationInput, NotificationAction } from "../notifications-model";
 import { MoltentermNotifications, registerNotificationGesture } from "../notifications-store";
 import { formatSize, reasonText } from "./downloads-format";
@@ -17,8 +18,15 @@ export const DownloadRevealGesture = "downloads:reveal";
 export const DownloadRetryGesture = "downloads:retry";
 export const DownloadShowGesture = "downloads:show";
 
+const DownloadKeyPrefix = "download:";
+
 export function downloadNotificationKey(id: string): string {
-    return `download:${id}`;
+    return `${DownloadKeyPrefix}${id}`;
+}
+
+// The download a notification key names, null for any other key.
+export function downloadIdOfKey(key: string): string {
+    return typeof key === "string" && key.startsWith(DownloadKeyPrefix) ? key.slice(DownloadKeyPrefix.length) : null;
 }
 
 function gesture(
@@ -117,7 +125,13 @@ export function startDownloads(): () => void {
             downloadNotification(record, outcome, outcome === "done" && model.isVisible())
         );
     });
+    // The page a download started from is where its notification comes from: bringing it on screen settles it (#2026).
+    const stopPlace = registerNotificationPlace((entry) => {
+        const id = downloadIdOfKey(entry.key);
+        return id == null ? "" : (model.find(id)?.blockId ?? "");
+    });
     return () => {
+        stopPlace();
         stopNotify();
         stopGestures();
         stopList();

@@ -469,6 +469,59 @@ describe("the panel's tabs (FR-BOSS-003 as amended, AC1, AC2, AC7; FR-BOSS-009, 
         expect(html).toMatch(/data-act="goto"[^>]*data-primary="true"/);
     });
 
+    it("offers Ignore next to Later as a calm button, and runs it as an action of its own (#2026)", () => {
+        globalStore.set(model.badgeAtom, { count: 1, text: "1", tone: "waiting" });
+        globalStore.set(model.toHandleAtom, {
+            items: [
+                {
+                    key: "agent:b1",
+                    tone: "waiting",
+                    notice: null,
+                    lineFromNotice: false,
+                    name: "Léa",
+                    line: { key: "boss.todo.agentWaiting", vars: { name: "Léa" } },
+                    place: "",
+                    since: 0,
+                    rank: 1,
+                    seen: false,
+                    actions: [
+                        {
+                            id: "later",
+                            primary: false,
+                            labelKey: "boss.todo.later",
+                            disabled: false,
+                            run: { kind: "later" },
+                        },
+                        {
+                            id: "ignore",
+                            primary: false,
+                            labelKey: "boss.todo.ignore",
+                            disabled: false,
+                            run: { kind: "ignore" },
+                        },
+                    ],
+                },
+            ],
+            info: [],
+            parked: 0,
+        });
+        const html = render();
+        expect(html).toMatch(/data-act="later"[^>]*data-kind="later"/);
+        expect(html).toMatch(/data-act="ignore"[^>]*data-kind="ignore"/);
+        expect(html).toContain(">Ignore<");
+    });
+
+    it("settles a row on its buttons, but not on Later, and not when an answer did not go through (#2026)", () => {
+        const source = readFileSync(join(__dirname, "brokk-panel.tsx"), "utf8");
+        // Later sets the row aside and nothing else: no mark, no notification touched.
+        expect(source).toMatch(/if \(run\.kind === "later"\) \{\s*model\.park\(item\.key\);\s*return;\s*\}/);
+        expect(source).toMatch(/if \(run\.kind === "ignore"\) \{\s*settleItem\(item\);\s*return;\s*\}/);
+        expect(source).toContain("goToSession(run.sessionId, busyKey, () => settleItem(item))");
+        expect(source).toMatch(/if \(run\.kind === "integration"\) \{\s*settleItem\(item\);/);
+        expect(source).toMatch(/if \(run\.kind === "external"\) \{\s*settleItem\(item\);/);
+        expect(source).toContain('if (ok !== false && (run.kind === "rerun" || run.kind === "answer"))');
+    });
+
     it("says so in one line when nothing waits, and lists the info rows apart", () => {
         globalStore.set(model.badgeAtom, { count: 1, text: "1", tone: "waiting" });
         globalStore.set(model.toHandleAtom, {

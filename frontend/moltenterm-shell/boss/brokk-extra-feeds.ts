@@ -37,14 +37,38 @@ function overItems(items: DownloadRecord[], floor: number): DownloadRecord[] {
     );
 }
 
-export function downloadEventsOf(memory: DownloadsMemory, items: DownloadRecord[]): BrokkEvent[] {
+const NoDownloads: ReadonlySet<string> = new Set();
+
+// `closed`: the downloads whose notification the developer settled or cleared (#2026): handled, so no news either.
+export function downloadEventsOf(
+    memory: DownloadsMemory,
+    items: DownloadRecord[],
+    closed: ReadonlySet<string> = NoDownloads
+): BrokkEvent[] {
     return overItems(items, memory.floor)
-        .filter((item) => !memory.known.has(item.id))
+        .filter((item) => !memory.known.has(item.id) && !closed.has(item.id))
         .map((item) => ({
             key: `download:${item.id}`,
             kind: item.state === "completed" ? ("downloadfinished" as const) : ("downloadfailed" as const),
             since: item.endedAt,
         }));
+}
+
+// must match downloadNotificationKey in downloads/downloads-notify.ts, which this file does not import (it is part of the
+// bubble's up-front JavaScript)
+const DownloadNoticePrefix = "download:";
+
+// The downloads whose notification is resolved or archived: the developer settled or cleared it.
+export function closedDownloadIds(
+    notices: { key?: string; resolved?: number; archived?: number }[]
+): ReadonlySet<string> {
+    const ids = new Set<string>();
+    for (const notice of notices ?? []) {
+        if (notice.key?.startsWith(DownloadNoticePrefix) && (notice.resolved != null || notice.archived != null)) {
+            ids.add(notice.key.slice(DownloadNoticePrefix.length));
+        }
+    }
+    return ids;
 }
 
 // The developer opened Brokk: what is over is seen.

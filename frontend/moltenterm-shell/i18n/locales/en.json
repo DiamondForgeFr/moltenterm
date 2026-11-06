@@ -3073,6 +3073,7 @@
             "done": "Done",
             "seen": "Seen",
             "later": "Later",
+            "ignore": "Ignore",
             "others": "Everything else",
             "handoff": {
                 "group": "Handoffs between agents",
@@ -5735,7 +5736,13 @@
     "notif": {
         "center": {
             "noPath": "no path to show",
-            "archiveOne": "Archive this notification",
+            "clearOne": "Clear",
+            "clearAll": "Clear all",
+            "clearAllTitle": "Moves every notification of the list to the archive. You can undo it for a few seconds.",
+            "cleared": {
+                "one": "{count} notification cleared",
+                "other": "{count} notifications cleared"
+            },
             "resolved": "Resolved",
             "silence": "Don't tell me again…",
             "running": "Running…",

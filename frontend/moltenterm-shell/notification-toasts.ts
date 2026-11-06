@@ -33,7 +33,9 @@ export function notificationToast(entry: MoltentermNotification): ToastInput {
         actions: toastActionsOf(entry).map((action) => ({
             id: action.id,
             label: notificationActionLabel(action),
-            run: () => model.runAction(entry, action),
+            run: async () => {
+                await model.runAction(entry, action);
+            },
         })),
         onOpen: hasOrigin ? () => model.open(entry) : undefined,
         onDismiss: (reason) => {
