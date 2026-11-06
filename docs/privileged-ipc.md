@@ -58,6 +58,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `moltenterm-i18n.ts` | `moltenterm-system-languages`, `moltenterm-set-language-packs`, `moltenterm-set-locale` |
 | `moltenterm-system-notify.ts` | `moltenterm-system-notify`, `moltenterm-system-notify-close` |
 | `moltenterm-carpet-thumbs.ts` | `moltenterm-carpet-thumb-put`, `moltenterm-carpet-thumb-read`, `moltenterm-carpet-thumb-remove` (the 360 carpet's thumbnails: the key is checked, a JPEG of at most 1 MB is written only into the application's own `carpet-thumbs` data folder) |
+| `moltenterm-favicons.ts` | `moltenterm-favicon-read`, `moltenterm-favicon-measured`, `moltenterm-favicon-capture` (the sites' icons: an origin is checked as a web origin; main reads a page's own declared icon only through that page's session, keeps an image format of at most 64 KB in the application's own `favicons` data folder, and `capture` accepts only a web page guest of the calling window) |
 | `moltenterm-tab-activity.ts` | `moltenterm-window-activity-get` |
 | `moltenterm-screen.ts` | `moltenterm-screen-get` |
 | `moltenterm-system-idle.ts` | `moltenterm-system-idle-get` (a number of seconds, this computer's idle time; no argument) |

@@ -190,6 +190,9 @@ declare global {
     // MOLTENTERM-PATCH (#371, #408): optional presentation metadata; the menu host renders a heading per section.
     type ContextMenuItem = {
         icon?: string;
+        // MOLTENTERM-PATCH (#1962): a site's icon (an image address) drawn in the icon's place, the generic web icon when
+        // it cannot be drawn
+        iconImage?: string;
         destructive?: boolean;
         section?: string;
         label?: string;
