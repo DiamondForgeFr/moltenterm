@@ -153,6 +153,53 @@ describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
         expect(s.card.status).toEqual(Status(s));
     });
 
+    it("something waits while agents work: a waiting human beats background work, he listens and the domino still turns", () => {
+        const s = scene({
+            situation: situation({ waiting: 1, working: 2 }),
+            facts: facts({ waiting: 1 }),
+            top: Line("Olivia waits for you"),
+            asked: { expression: "call", cue: 1, at: Day },
+        });
+        expect(s.face).toBe("listening");
+        expect(s.gesture).toBe("call");
+        expect(Status(s)).toEqual(Line("Olivia waits for you"));
+        expect(Detail(s)).toEqual({ key: "boss.screen.workingCount", count: 2 });
+        expect(s.loader).toBe(true);
+        expect(s.mood.mood).toBe("attentive");
+        // Thinking leads only when nothing waits.
+        expect(scene({ situation: situation({ waiting: 0, working: 2 }) }).face).toBe("thinking");
+        for (const working of [1, 3, 9]) {
+            for (const waiting of [1, 2, 7]) {
+                expect(scene({ situation: situation({ waiting, working }) }).face).toBe("listening");
+            }
+        }
+    });
+
+    it("a failure while agents work: he listens, concerned, and frowns once; the loop he is left in is the listening one", () => {
+        const failing = {
+            situation: situation({ waiting: 2, working: 1 }),
+            facts: facts({ failing: true, waiting: 2 }),
+            top: Line("Arthur stopped on an error"),
+            worker: "Jérôme",
+            badge: { count: 2, tone: "error" as const, text: "2" },
+        };
+        const arriving = scene({ ...failing, asked: { expression: "frown", cue: 1, at: Day } });
+        expect(arriving.face).toBe("listening");
+        expect(arriving.gesture).toBe("frown");
+        expect(arriving.mood.mood).toBe("concerned");
+        expect(Status(arriving)).toEqual(Line("Arthur stopped on an error"));
+        expect(arriving.round.tone).toBe("error");
+        expect(arriving.loader).toBe(true);
+        const settled = scene({
+            ...failing,
+            asked: { expression: "frown", cue: 1, at: Day },
+            now: Day + ExpressionMs.frown,
+        });
+        expect(settled.gesture).toBeNull();
+        expect(settled.face).toBe("listening");
+        expect(settled.mood.mood).toBe("concerned");
+    });
+
     it("a row waits long: he is impatient, and says how long", () => {
         const oldest = { key: "agent:a", name: "Olivia", since: Day - 12 * Min, agent: true };
         const s = scene({ situation: situation({ waiting: 1 }), facts: facts({ waiting: 1, oldest }), top: Line("x") });
