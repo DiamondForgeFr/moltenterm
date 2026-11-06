@@ -23,6 +23,7 @@ import clsx from "clsx";
 import { WebviewTag } from "electron";
 import { Atom, PrimitiveAtom, atom, useAtomValue, useSetAtom } from "jotai";
 import { Fragment, createRef, memo, useCallback, useEffect, useRef, useState } from "react";
+import { noteSiteLoading } from "../../../moltenterm-shell/favicon/favicon-store"; // MOLTENTERM-PATCH (#1962)
 import { guestEditMenu, guestMenuEvent } from "../../../moltenterm-shell/menu/guest-menu";
 import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu";
@@ -1029,11 +1030,13 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
             fireAndForget(() => openLink(newUrl, true));
         };
         const startLoadingHandler = () => {
+            noteSiteLoading(model.blockId, true); // MOLTENTERM-PATCH (#1962): the view keeps its site's icon while the page loads
             model.setRefreshIcon("xmark-large");
             model.setIsLoading(true);
             webview.style.backgroundColor = "transparent";
         };
         const stopLoadingHandler = () => {
+            noteSiteLoading(model.blockId, false); // MOLTENTERM-PATCH (#1962)
             model.setRefreshIcon("rotate-right");
             model.setIsLoading(false);
             setBgColor();

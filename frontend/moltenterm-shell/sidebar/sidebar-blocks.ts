@@ -7,8 +7,10 @@
 // The pins' names and glyphs come from the pins, never from a workspace's instance: an instance takes a rename or an
 // "Update the pinned view" (#1272) only when it is next opened.
 
+import type { SiteIcon } from "../favicon/favicon-store";
+import { faviconGlyphOf, siteViewIcon } from "../favicon/site-glyph";
 import type { SidebarTabSplit } from "./sidebar-model";
-import { configPaneIcons, viewGlyphIcons, type GlyphIcon } from "./view-menu-model";
+import { configPaneIcons, configPaneMetas, viewGlyphIcons, type GlyphIcon } from "./view-menu-model";
 import type { GlobalPin } from "./view-pins-model";
 
 // The top row's lines (FR-SHELL-080, #1651): up to four blocks a line, a 6 px gutter. A line whose blocks each get at
@@ -26,17 +28,26 @@ export type TopRowBlock = { pin: GlobalPin; tabId: string; name: string; glyph: 
 
 export type WorkspaceBlocks = { top: TopRowBlock[]; tiles: string[] };
 
-// A top-row block's glyph: its pin's icon, else the pin's configuration.
-export function pinGlyph(pin: GlobalPin): GlyphIcon[] {
-    return viewGlyphIcons(pin.icon, configPaneIcons(pin.config));
+// A top-row block's glyph: its pin's icon, else the icon of its site when the pin's configuration is only one site
+// (#1962: the page saved in the pin, so the row is the same in every workspace whatever a workspace's instance shows),
+// else the pin's configuration. icons: the sites' icons known to the window.
+export function pinGlyph(pin: GlobalPin, icons?: Record<string, SiteIcon>): GlyphIcon[] {
+    const site = pin.icon == null || pin.icon === "" ? siteViewIcon(configPaneMetas(pin.config), icons) : null;
+    return viewGlyphIcons(pin.icon, site != null ? [site] : configPaneIcons(pin.config), (origin) =>
+        faviconGlyphOf(origin, icons)
+    );
 }
 
-export function topRowBlocks(pins: readonly GlobalPin[], instances: Record<string, string>): TopRowBlock[] {
+export function topRowBlocks(
+    pins: readonly GlobalPin[],
+    instances: Record<string, string>,
+    icons?: Record<string, SiteIcon>
+): TopRowBlock[] {
     return (pins ?? []).map((pin) => ({
         pin,
         tabId: instances?.[pin.id] ?? "",
         name: pin.name,
-        glyph: pinGlyph(pin),
+        glyph: pinGlyph(pin, icons),
     }));
 }
 

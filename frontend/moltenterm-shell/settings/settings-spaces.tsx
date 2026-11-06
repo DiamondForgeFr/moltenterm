@@ -9,6 +9,7 @@
 import { globalStore } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { faviconsAtom } from "../favicon/favicon-store";
 import { useT } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { pinGlyph } from "../sidebar/sidebar-blocks";
@@ -68,6 +69,7 @@ export function SidebarModeRows() {
 export function TopRowCard() {
     const t = useT();
     const pins = useAtomValue(ViewPins.getInstance().globalPinsAtom, { store: globalStore });
+    const favicons = useAtomValue(faviconsAtom, { store: globalStore });
     const reorder = (from: number, to: number) => {
         const dragged = pins[from]?.id;
         const target = pins[to]?.id;
@@ -124,7 +126,7 @@ export function TopRowCard() {
                                     }
                                 }}
                             >
-                                <ViewGlyph icons={pinGlyph(pin)} />
+                                <ViewGlyph icons={pinGlyph(pin, favicons)} />
                                 <span className="max-w-full truncate">{pin.name}</span>
                             </div>
                         ))}

@@ -20,6 +20,7 @@ import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
+import { FaviconMark } from "../favicon/favicon-mark";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
 import {
@@ -34,7 +35,7 @@ import {
 import { NewViewMorphHint } from "../newview/new-view-morph-hint";
 import { formatShortcutById } from "../shortcuts/format";
 import { ViewCube } from "../sidebar/view-cube";
-import { isGlyphCube, keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
+import { isGlyphCube, isGlyphFavicon, keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
 import { keepViewKeysLabel } from "../sidebar/view-pin-actions";
 import { isProjectTab } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
@@ -388,6 +389,8 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
                     {entry.panelIcons.map((icon, i) =>
                         isGlyphCube(icon) ? (
                             <ViewCube key="cube" cube={icon} small />
+                        ) : isGlyphFavicon(icon) ? (
+                            <FaviconMark key={i} url={icon.url} dark={icon.dark} />
                         ) : (
                             <i key={i} className={makeIconClass(icon, true)} />
                         )

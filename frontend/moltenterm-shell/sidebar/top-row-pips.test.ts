@@ -93,7 +93,7 @@ describe("the sidebar's status dots (#1304)", () => {
         expect(block).toContain("aria-label={summary ? `${pin.name}, ${summary}` : pin.name}");
         expect(block).toMatch(/"sidebar\.pins\.topTitle", \{\s*name: pin\.name/);
         const row = functionSource("TopRow");
-        expect(row).toContain("topRowLines(topRowBlocks(pins, instances))");
+        expect(row).toContain("topRowLines(topRowBlocks(pins, instances, favicons))");
         expect(row).toContain("topRowLineFit(width, line.length)");
     });
 

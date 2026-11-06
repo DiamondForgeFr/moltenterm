@@ -6,15 +6,20 @@
 // back, drawn as the view's screen draws it now (its panels' icons, or the fixed ones and the 360 cube, #1823).
 // One at a time, placed where the menu was opened; Escape or a click elsewhere closes it.
 
+import { WOS } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { FaviconMark } from "../favicon/favicon-mark";
+import { faviconsAtom } from "../favicon/favicon-store";
+import { panelSiteOf, siteNameOf } from "../favicon/site";
+import { faviconGlyphOf } from "../favicon/site-glyph";
 import { useT } from "../i18n/i18n";
 import { SidebarGlyph } from "./sidebar-icons";
-import { ViewGlyph, screenGlyphAtom } from "./view-glyph";
-import { ViewIconChoices } from "./view-menu-model";
+import { screenGlyphAtom, ViewGlyph } from "./view-glyph";
+import { configPaneMetas, siteIconChoice, ViewIconChoices, type GlyphFavicon } from "./view-menu-model";
 import { ViewPins, ViewRef } from "./view-pins-store";
 
 const PopoverWidth = { rename: 240, icon: 252 };
@@ -77,9 +82,48 @@ function RenameBody({ state }: { state: ViewPopoverState }) {
     );
 }
 
+type ViewSite = { origin: string; host: string; icon: GlyphFavicon };
+
+const viewSitesAtoms = new Map<string, jotai.Atom<ViewSite[]>>();
+
+// The sites a view shows pages of whose icon is known, in the panels' order (#1962): what "Use the site's icon" offers.
+function viewSitesAtom(ref: ViewRef): jotai.Atom<ViewSite[]> {
+    const key = `${ref?.tabId ?? ""}|${ref?.pinId ?? ""}`;
+    let rtn = viewSitesAtoms.get(key);
+    if (rtn != null) {
+        return rtn;
+    }
+    rtn = jotai.atom((get) => {
+        const pin = ref?.pinId ? get(ViewPins.getInstance().globalPinsAtom).find((p) => p.id === ref.pinId) : null;
+        const tab = ref?.tabId ? get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", ref.tabId))) : null;
+        const metas =
+            pin != null
+                ? configPaneMetas(pin.config)
+                : (tab?.blockids ?? []).map(
+                      (id) => get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", id)))?.meta as Record<string, any>
+                  );
+        const known = get(faviconsAtom);
+        const sites: ViewSite[] = [];
+        for (const meta of metas) {
+            const panel = panelSiteOf(meta);
+            if (!panel.page || panel.origin === "" || sites.some((s) => s.origin === panel.origin)) {
+                continue;
+            }
+            const icon = faviconGlyphOf(panel.origin, known);
+            if (icon != null) {
+                sites.push({ origin: panel.origin, host: siteNameOf(panel.origin), icon });
+            }
+        }
+        return sites;
+    });
+    viewSitesAtoms.set(key, rtn);
+    return rtn;
+}
+
 function IconBody({ state }: { state: ViewPopoverState }) {
     const t = useT();
     const screen = useAtomValue(screenGlyphAtom(state.ref?.tabId ?? ""));
+    const sites = useAtomValue(viewSitesAtom(state.ref));
     const choose = (icon: string) => {
         closeViewPopover();
         fireAndForget(() => ViewPins.getInstance().setIcon(state.ref, icon));
@@ -87,6 +131,30 @@ function IconBody({ state }: { state: ViewPopoverState }) {
     return (
         <>
             <div className="mt-sb-pop-head">{t("sidebar.views.iconTitle", { name: state.name })}</div>
+            {sites.length > 0 ? (
+                <div className="px-1 pb-0.5" role="group" aria-label={t("sidebar.views.siteIcon")}>
+                    {sites.map((site) => (
+                        <button
+                            key={site.origin}
+                            type="button"
+                            className={cn(
+                                "flex w-full cursor-pointer items-center gap-2 rounded-6 px-2 py-1.5 text-left text-12 text-primary transition-colors duration-120 ease-mt hover:bg-white/[0.08]",
+                                state.icon === siteIconChoice(site.origin) && "bg-white/[0.14]"
+                            )}
+                            aria-pressed={state.icon === siteIconChoice(site.origin)}
+                            data-testid="sidebar-icon-site"
+                            data-origin={site.origin}
+                            onClick={() => choose(siteIconChoice(site.origin))}
+                        >
+                            <span className="flex w-4 shrink-0 justify-center text-icon-16">
+                                <FaviconMark url={site.icon.url} dark={site.icon.dark} />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate">{t("sidebar.views.siteIcon")}</span>
+                            <span className="min-w-0 max-w-[45%] truncate text-11 text-muted">{site.host}</span>
+                        </button>
+                    ))}
+                </div>
+            ) : null}
             <div className="grid grid-cols-6 gap-0.5 px-1.5 pb-1" role="group">
                 {ViewIconChoices.map((icon) => (
                     <button
