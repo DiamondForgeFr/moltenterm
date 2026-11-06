@@ -89,13 +89,15 @@
    he comes, back in 300 ms with an ease-in when he goes. Reduced motion changes their place at once. The numbers are
    boss/brokk-visit-scene-model.ts (SceneRoomPx, MotionTimings), which a test keeps equal to these. */
 .mt-brokk-room {
+    --mt-brokk-slide-up-ms: 300ms;
+    --mt-brokk-slide-down-ms: 320ms;
     margin-top: 0;
-    transition: margin-top 300ms ease-in;
+    transition: margin-top var(--mt-brokk-slide-up-ms) ease-in;
 }
 
 .mt-sb[data-brokk-visit="open"] .mt-brokk-room {
     margin-top: 84px;
-    transition: margin-top 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition: margin-top var(--mt-brokk-slide-down-ms) cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
