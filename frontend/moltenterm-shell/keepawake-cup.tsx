@@ -75,7 +75,7 @@ function CupIcon({ on, className }: { on: boolean; className: string }) {
     );
 }
 
-function PolicyChoices() {
+export function PolicyChoices() {
     const t = useT();
     const platform = usePlatform();
     const value = useSettingsKeyAtom(SleepPolicySetting);
@@ -109,7 +109,7 @@ const RowButtonClass =
 
 // One reason of the menu (#1780): what it is, what it does, and its actions: Show for a terminal, Stop where ending it
 // is MoltenTerm's to do (a terminal's bare keep-awake, a coffee).
-function HoldRow({ hold, onClose }: { hold: KeepAwakeHold; onClose: () => void }) {
+export function HoldRow({ hold, onClose }: { hold: KeepAwakeHold; onClose: () => void }) {
     const t = useT();
     const model = KeepAwakeModel.getInstance();
     const stop = () => {

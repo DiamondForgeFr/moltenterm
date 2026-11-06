@@ -18,6 +18,13 @@
     transform-origin: var(--mt-boss-head-origin);
 }
 
+/* The panel's large portrait (FR-BOSS-009, AC9): a square that shows him from the goggles to the beard, so it frames him
+   less tightly than the avatar's round. */
+.mt-boss-portrait[data-framing="bust"] {
+    --mt-boss-head-scale: 1.12;
+    --mt-boss-head-origin: 50% 32%;
+}
+
 .mt-boss-portrait-image {
     display: block;
     width: 100%;

@@ -27,15 +27,39 @@
     -webkit-app-region: no-drag;
 }
 
-.mt-boss-card-face {
-    position: relative;
+/* Brokk's panel (FR-BOSS-009, AC9, #2003): the card's layer, wider, with his large portrait on top. The portrait's
+   framing numbers all belong to boss-portrait.css, the bust framing of the panel's square included. */
+.mt-brokk-panel {
+    width: 420px;
+}
+
+.mt-brokk-panel-portrait {
     flex: none;
-    width: 24px;
-    height: 24px;
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 8px;
+    background:
+        radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--mt-action) 20%, transparent), transparent 70%),
+        var(--mt-surface-2);
+}
+
+.mt-brokk-panel-face {
+    position: relative;
+    width: 188px;
+    height: 188px;
     overflow: hidden;
-    border-radius: 50%;
-    background: var(--mt-surface-2);
+    border-radius: 6px;
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 20%, transparent);
+}
+
+/* Five tabs in 420 px: a narrow window scrolls them instead of wrapping. */
+.mt-brokk-panel-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.mt-brokk-panel-tabs::-webkit-scrollbar {
+    display: none;
 }
 
 /* The count in the header, with the badge's tones; the words say it, so the colour never tells it alone. */

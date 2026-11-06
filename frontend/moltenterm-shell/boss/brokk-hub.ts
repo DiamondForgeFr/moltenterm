@@ -43,7 +43,7 @@ export type HubDeps = {
     clearTimer: (timer: unknown) => void;
     // A menu or a dialog is open, or his panel is: he does not come then.
     overlayOpen: () => boolean;
-    // Shows his panel (the Sessions card until the panel story).
+    // Shows his panel.
     openPanel: () => void;
     readShared: () => SharedVisit;
     writeShared: (shared: SharedVisit) => void;
@@ -116,6 +116,12 @@ export class BrokkHub {
     // The rows To handle that can bring him: the whole set, whatever changed (an event that is gone is cancelled).
     syncRows(items: ToHandleItem[]): void {
         this.run({ type: "sync", source: RowsSource, events: visitEventsOfRows(items) });
+    }
+
+    // A source of events that is neither the rows nor the agents: the downloads, the update notice, the plan usage
+    // (brokk-extra-feeds.ts). The whole set the source holds, whatever changed.
+    feed(source: string, events: BrokkEvent[]): void {
+        this.run({ type: "sync", source, events });
     }
 
     // The agent states, read once the first reading is in: who finished stays a good news for the badge.

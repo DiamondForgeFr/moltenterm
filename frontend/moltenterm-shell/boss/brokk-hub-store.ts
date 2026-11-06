@@ -7,17 +7,21 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
-import { getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { ContextMenuModel } from "@/app/store/contextmenu";
+import { getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
+import { DownloadsModel } from "../downloads/downloads-store";
 import { modalIsOpen } from "../modal-open";
-import { SidebarModel } from "../sidebar/sidebar-store";
 import { sidebarDragAtom } from "../sidebar/sidebar-drag";
+import { SidebarModel } from "../sidebar/sidebar-store";
 import { TopFieldModel } from "../sidebar/top-field-store";
+import { ReleaseUpdateModel } from "../update/release-update-store";
+import { GoldUpdateModel } from "../update/update-store";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel } from "./boss-store";
+import { UsageReadingsAtom } from "./boss-usage";
 import { BrokkHub } from "./brokk-hub";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
@@ -35,8 +39,8 @@ function storage(): Storage {
 export class BrokkHubModel {
     private static instance: BrokkHubModel = null;
 
-    // The block of Brokk's own session, once he has one (his Forge workshop, FR-BOSS-004): the ring around his avatar
-    // turns while it works. Nothing sets it until that workshop ships.
+    // The block of Brokk's own session (FR-BOSS-009, AC15), once he has one: the ring around his avatar turns while it
+    // works. brokk-session.ts sets it, on the first message and when it finds the session a restart left.
     sessionBlockAtom = atom(null) as PrimitiveAtom<string>;
 
     ownWorkingAtom: Atom<boolean>;
@@ -44,15 +48,25 @@ export class BrokkHubModel {
     // The sidebar is on screen: docked, or floating over the content. With the sidebar turned off altogether (the tab bar
     // is back), or hidden, Brokk hangs from the window's top edge instead.
     sidebarOnScreenAtom: Atom<boolean>;
+    // The update on offer, a gold's build or a release's version; "" for none (FR-BOSS-009, AC11).
+    updateOfferAtom: Atom<string>;
     hub: BrokkHub;
 
     private constructor() {
         const agents = AgentStates.getInstance();
         const sidebar = SidebarModel.getInstance();
+        const gold = GoldUpdateModel.getInstance();
+        const release = ReleaseUpdateModel.getInstance();
+        this.updateOfferAtom = atom((get) => {
+            const goldOffer = get(gold.offerAtom);
+            if (goldOffer != null) {
+                return `gold:${goldOffer.buildId}`;
+            }
+            const releaseOffer = get(release.offerAtom);
+            return releaseOffer != null ? `release:${releaseOffer.version}` : "";
+        });
         this.ownWorkingAtom = atom((get) => brokkWorking(get(agents.dataAtom), get(this.sessionBlockAtom)));
-        this.settingsAtom = atom((get) =>
-            visitSettingsOf((key) => get(getSettingsKeyAtom(key as keyof SettingsType)))
-        );
+        this.settingsAtom = atom((get) => visitSettingsOf((key) => get(getSettingsKeyAtom(key as keyof SettingsType))));
         this.sidebarOnScreenAtom = atom(
             (get) => get(sidebar.enabledAtom) && (!get(sidebar.hiddenAtom) || get(sidebar.peekAtom))
         );
@@ -100,6 +114,9 @@ export class BrokkHubModel {
             searchOpenAtom: TopFieldModel.getInstance().openAtom,
             dragAtom: atom((get) => get(sidebarDragAtom) != null),
             cardOpenAtom: boss.cardOpenAtom,
+            downloadsAtom: DownloadsModel.getInstance().itemsAtom,
+            updateOfferAtom: this.updateOfferAtom,
+            usageAtom: UsageReadingsAtom,
         });
         const onStorage = (e: StorageEvent) => {
             if (e.key === VisitShareKey) {

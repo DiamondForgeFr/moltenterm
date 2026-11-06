@@ -15,14 +15,15 @@ vi.mock("./boss-store", async () => {
     const model = { nameAtom: atom("Brokk") };
     return { BossBubbleModel: { getInstance: () => model } };
 });
-vi.mock("./use-brokk-hub", () => ({ useHubSelect: (select: (view: unknown) => unknown) => select(Mocks.hub.getView()) }));
+vi.mock("./use-brokk-hub", () => ({
+    useHubSelect: (select: (view: unknown) => unknown) => select(Mocks.hub.getView()),
+}));
 vi.mock("./use-brokk-live", () => ({ useMotionAllowed: () => Mocks.motion }));
 vi.mock("../molten-motion", () => ({ prefersReducedMotion: () => Mocks.reduced }));
 
 import { t } from "../i18n/i18n";
 import { BrokkHub, HubDeps } from "./brokk-hub";
 import { Severity } from "./brokk-queue";
-import { EmptyShared } from "./brokk-visit-share";
 import type { Visit } from "./brokk-visit";
 import { BrokkVisitSceneView, LaterMenu } from "./brokk-visit-scene";
 import {
@@ -36,6 +37,7 @@ import {
     SceneRoomPx,
     sceneTimings,
 } from "./brokk-visit-scene-model";
+import { EmptyShared } from "./brokk-visit-share";
 
 const Severities: Severity[] = ["grave", "important", "neutre", "bonne"];
 const T = new Date(2026, 10, 6, 14, 0, 0).getTime();
@@ -48,12 +50,7 @@ function visit(severity: Severity): Visit {
 
 function render(severity: Severity, shown: boolean = true): string {
     return renderToStaticMarkup(
-        <BrokkVisitSceneView
-            visit={visit(severity)}
-            name="Brokk"
-            phase={shown ? "open" : "closing"}
-            rowHeight="38px"
-        />
+        <BrokkVisitSceneView visit={visit(severity)} name="Brokk" phase={shown ? "open" : "closing"} rowHeight="38px" />
     );
 }
 
@@ -283,8 +280,12 @@ describe("where the scene stands (AC6)", () => {
         const layer = rule(scene, ".mt-brokk-scene-layer");
         expect(layer).toContain(`--mt-brokk-room: ${SceneRoomPx}px`);
         expect(layer).toContain(`--mt-brokk-gap: ${SceneGapPx}px`);
-        expect(layer).toMatch(/height: calc\(var\(--mt-brokk-field-top\) \+ var\(--mt-brokk-room\) - var\(--mt-brokk-gap\)\)/);
-        expect(rule(sidebar, '.mt-sb[data-brokk-visit="open"] .mt-brokk-room')).toContain(`margin-top: ${SceneRoomPx}px`);
+        expect(layer).toMatch(
+            /height: calc\(var\(--mt-brokk-field-top\) \+ var\(--mt-brokk-room\) - var\(--mt-brokk-gap\)\)/
+        );
+        expect(rule(sidebar, '.mt-sb[data-brokk-visit="open"] .mt-brokk-room')).toContain(
+            `margin-top: ${SceneRoomPx}px`
+        );
     });
 
     it("fades its bottom over 60 px into the sidebar's own background, whatever it is: a mask, not a colour", () => {
@@ -360,7 +361,10 @@ describe("the forge has no box (AC6)", () => {
     });
 
     it("lights the glow at its centre and nothing at the edge of its box, so that the box has no outline of its own", () => {
-        for (const selector of [".mt-brokk-scene-glow", '.mt-brokk-scene[data-severity="grave"] .mt-brokk-scene-glow']) {
+        for (const selector of [
+            ".mt-brokk-scene-glow",
+            '.mt-brokk-scene[data-severity="grave"] .mt-brokk-scene-glow',
+        ]) {
             const glow = rule(scene, selector);
             expect(glow, selector).toMatch(/radial-gradient\(\s*ellipse closest-side,/);
             expect(glow, selector).toMatch(/transparent 100%\s*\)/);
@@ -374,45 +378,31 @@ describe("the forge has no box (AC6)", () => {
     });
 });
 
-describe("the cup and the bell step aside while the scene is up (AC6)", () => {
+describe("the title row holds nothing for the scene to step aside from (AC6, #2003)", () => {
     const sidebar = css("sidebar.css", join(__dirname, "..", "sidebar"));
     const source = readFileSync(join(__dirname, "..", "sidebar", "workspace-sidebar.tsx"), "utf8");
-    const windowRow = source.slice(source.indexOf("function WindowRow"), source.indexOf("// Whether the floating panel"));
-    const hushed = /<div className="mt-brokk-hush[^"]*">([\s\S]*?)<\/div>/.exec(windowRow)?.[1] ?? "";
+    const windowRow = source.slice(
+        source.indexOf("function WindowRow"),
+        source.indexOf("// Whether the floating panel")
+    );
 
-    it("fades them out and takes them away from the pointer and the keyboard while he is there", () => {
-        const hidden = rule(sidebar, '.mt-sb[data-brokk-visit="open"] .mt-brokk-hush');
-        expect(hidden).toMatch(/opacity: 0/);
-        expect(hidden).toMatch(/visibility: hidden/);
-        expect(hidden).toMatch(/pointer-events: none/);
+    it("has no bell and no cup any more: the panel holds what they offered, so there is nothing to fade out", () => {
+        expect(windowRow).not.toContain("<NotificationCenter");
+        expect(windowRow).not.toContain("<KeepAwakeStatusItem");
+        expect(windowRow).not.toContain("mt-brokk-hush");
+        expect(sidebar).not.toContain("mt-brokk-hush");
     });
 
-    it("brings them back once the scene has folded, after the time it takes", () => {
-        const back = rule(sidebar, ".mt-brokk-hush");
-        expect(back).toContain(`--mt-brokk-return-ms: ${MotionTimings.closeMs}ms`);
-        expect(back).toMatch(/opacity var\(--mt-duration-fade\) linear var\(--mt-brokk-return-ms\)/);
-        expect(back).toMatch(/visibility 0s linear var\(--mt-brokk-return-ms\)/);
-        expect(back).not.toMatch(/opacity: 0|visibility: hidden/);
-    });
-
-    it("hides the cup and the bell and nothing else of the title row", () => {
-        expect(hushed).toContain("<KeepAwakeStatusItem");
-        expect(hushed).toContain("<NotificationCenter");
+    it("keeps the window buttons, the sidebar button and the avatar in the row", () => {
         for (const kept of ["<AppMenuButton", "<ToggleButton", "<WindowButtonStandIns", "<BrokkAvatarSlot"]) {
-            expect(hushed, kept).not.toContain(kept);
             expect(windowRow, kept).toContain(kept);
         }
     });
 
-    it("leaves the sidebar button, the window buttons and the row itself without the fade", () => {
+    it("leaves the sidebar button, the window buttons and the row itself without a fade", () => {
         expect(rule(sidebar, ".mt-sb-window-row")).not.toMatch(/opacity|visibility/);
         expect(sidebar).not.toMatch(/data-brokk-visit="open"\] \.mt-sb-window-row/);
         expect(sidebar).not.toMatch(/data-brokk-visit="open"\] [^{]*(toggle|lights)/);
-    });
-
-    it("has no transition of its own under the app's reduced-motion rule: they go and come at once", () => {
-        const app = readFileSync(join(__dirname, "..", "..", "app", "app.scss"), "utf8");
-        expect(app).toMatch(/\.prefers-reduced-motion \{\s*\*\s*\{[^}]*transition-property: none !important/);
     });
 });
 
@@ -496,8 +486,12 @@ describe("the scene under reduced motion (AC6)", () => {
 
     it("changes the content's place at once", () => {
         expect(rule(sidebar, ".prefers-reduced-motion .mt-brokk-room")).toBe("");
-        expect(sidebar).toMatch(/\.prefers-reduced-motion \.mt-brokk-room,\s*\.prefers-reduced-motion \.mt-sb\[data-brokk-visit="open"\] \.mt-brokk-room \{\s*transition: none;/);
-        expect(sidebar).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.mt-brokk-room,\s*\.mt-sb\[data-brokk-visit="open"\] \.mt-brokk-room \{\s*transition: none;/);
+        expect(sidebar).toMatch(
+            /\.prefers-reduced-motion \.mt-brokk-room,\s*\.prefers-reduced-motion \.mt-sb\[data-brokk-visit="open"\] \.mt-brokk-room \{\s*transition: none;/
+        );
+        expect(sidebar).toMatch(
+            /@media \(prefers-reduced-motion: reduce\) \{\s*\.mt-brokk-room,\s*\.mt-sb\[data-brokk-visit="open"\] \.mt-brokk-room \{\s*transition: none;/
+        );
     });
 
     it("has the model say the same", () => {

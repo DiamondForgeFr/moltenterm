@@ -15,8 +15,7 @@ import { debounce } from "throttle-debounce";
 import { EqualizeButton } from "../../moltenterm-shell/equalize/equalize-button"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
-import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
-import { MoltentermNotificationCenter, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
+import { MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
 import { finishTabPanelDrag, trackTabPanelDrag } from "../../moltenterm-shell/split/drop-zones"; // MOLTENTERM-PATCH (#414)
 import { checkTabDragReleased } from "../../moltenterm-shell/tab-drag"; // MOLTENTERM-PATCH (#81)
 import { layoutTabs, moveTabId, tabDropIndex, tabOffsets } from "../../moltenterm-shell/tab-layout"; // MOLTENTERM-PATCH (#410)
@@ -758,8 +757,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
                 <EqualizeButton />
                 {/* MOLTENTERM-PATCH (#615): the tab's "360" view toggle */}
                 <View360Toggle />
-                {/* MOLTENTERM-PATCH (#45): the notification center's bell */}
-                {MoltentermNotificationCenter && <NotificationCenter />}
+                {/* MOLTENTERM-PATCH (#2003): the bell is gone; the notification center is Brokk's panel */}
                 <UpdateStatusBanner />
                 <div
                     className="h-full shrink-0 z-window-drag"

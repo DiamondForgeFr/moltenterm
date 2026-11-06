@@ -1,9 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// What the foreman's avatar tells and the card it opens (FR-BOSS-001 and FR-BOSS-009, #2002): the rows To handle, the
-// count they make, the peek the avatar's tooltip shows, the one cue when the count rises, and the Sessions card
-// (FR-BOSS-002), which shows only when the developer asks for it and goes back to where the focus was when he hides it.
+// What the foreman's avatar tells and the panel it opens (FR-BOSS-001 and FR-BOSS-009, #2002, #2003): the rows To handle,
+// the count they make, the peek the avatar's tooltip shows, the one cue when the count rises, and the panel, which shows
+// only when the developer asks for it and goes back to where the focus was when he hides it.
 // Where the avatar sits and when Brokk comes are the hub's (brokk-hub-store.ts). Nothing here takes the focus or opens
 // anything by itself: it only listens.
 
@@ -21,6 +21,7 @@ import { bossName, BossNameSettingKey, bossSettingOn, BossShowSettingKey } from 
 import { Badge, BossPeek, makePeek, workingCount, workspaceNamesOf } from "./boss-overview";
 import { buildToHandle, peekRowOf, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
+import { PanelRequest, PanelTab } from "./brokk-panel-model";
 import { arrivalsAfter, EmptyArrivals, unseenItems } from "./brokk-watch";
 
 // The slice of the document the model listens on, so the rules run against a stand-in in the tests.
@@ -42,8 +43,10 @@ export class BossBubbleModel {
 
     // Changes when the count rose, to play the one cue again.
     cueAtom = atom(0) as PrimitiveAtom<number>;
-    // The Sessions card shows (FR-BOSS-002).
+    // His panel shows (FR-BOSS-009, AC9).
     cardOpenAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The tab a surface asked the panel to show: the panel reads it when it changes (showPanel).
+    tabRequestAtom = atom(null) as PrimitiveAtom<PanelRequest>;
     // The To handle rows set aside with Later, by their key: back at the card's next opening (FR-BOSS-003).
     parkedAtom = atom({}) as PrimitiveAtom<Record<string, boolean>>;
 
@@ -105,14 +108,36 @@ export class BossBubbleModel {
     }
 
     // The developer's click (the avatar, the scene) or command (the palette) shows the card; nothing else does. The focus
-    // moves into it because he asked, and goes back to returnTo (the element that held it) when the card hides.
-    openCard(returnTo?: FocusTarget): void {
-        if (globalStore.get(this.cardOpenAtom) || !globalStore.get(this.showAtom)) {
+    // moves into it because he asked, and goes back to returnTo (the element that held it) when the card hides. With Brokk
+    // turned off only a gesture on a section (showPanel) opens it: the notifications and the downloads stay reachable.
+    openCard(returnTo?: FocusTarget, options: { force?: boolean } = {}): void {
+        if (globalStore.get(this.cardOpenAtom) || (!globalStore.get(this.showAtom) && options.force !== true)) {
             return;
         }
         this.cardReturn = returnTo ?? focusTargetOf(this.dom?.activeElement, this.dom);
         globalStore.set(this.parkedAtom, {});
+        globalStore.set(this.tabRequestAtom, null);
         globalStore.set(this.cardOpenAtom, true);
+    }
+
+    // A tab of the panel, asked by the developer's gesture (a toast's Open, the downloads pill, a notification's View):
+    // the panel opens on it, or goes to it when it is open.
+    showPanel(tab: PanelTab, highlight: string[] = []): void {
+        this.openCard(undefined, { force: true });
+        this.requestTab(tab, highlight);
+    }
+
+    // The same request from a source that has no gesture (a notification that asked for attention): it only shows in a
+    // panel the developer opened already, and never opens one.
+    showInOpenPanel(tab: PanelTab, highlight: string[] = []): void {
+        if (globalStore.get(this.cardOpenAtom)) {
+            this.requestTab(tab, highlight);
+        }
+    }
+
+    private requestTab(tab: PanelTab, highlight: string[]): void {
+        const seq = (globalStore.get(this.tabRequestAtom)?.seq ?? 0) + 1;
+        globalStore.set(this.tabRequestAtom, { tab, seq, highlight });
     }
 
     // Sets a To handle row aside until the card is next opened (Later, FR-BOSS-003).
@@ -129,6 +154,7 @@ export class BossBubbleModel {
         const target = this.cardReturn;
         const dom = this.dom;
         this.cardReturn = null;
+        globalStore.set(this.tabRequestAtom, null);
         globalStore.set(this.cardOpenAtom, false);
         if (options.restoreFocus === false || target == null || dom == null) {
             return;

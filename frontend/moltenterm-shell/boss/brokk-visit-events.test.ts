@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import Schema from "../../../schema/settings.json";
+import { BrokkTableGroup } from "./brokk-coming-card";
 import type { Severity } from "./brokk-queue";
 import {
     BlockedThresholdsMin,
@@ -225,10 +226,14 @@ describe("the settings keys exist (add-config)", () => {
         expect(properties[VisitSettingKeys.blockedMin].enum).toEqual(BlockedThresholdsMin);
     });
 
-    it("keeps the keys of the Settings screen out of its sight until the panel story", () => {
+    it("shows the keys in the Brokk section's one group, the table of Preferences (#2003)", () => {
         for (const key of keys) {
-            const meta = (properties[key] as { "x-moltenterm"?: { hidden?: boolean } })["x-moltenterm"];
-            expect(meta?.hidden, key).toBe(true);
+            const meta = (
+                properties[key] as { "x-moltenterm"?: { hidden?: boolean; section?: string; group?: string } }
+            )["x-moltenterm"];
+            expect(meta?.hidden, key).toBeFalsy();
+            expect(meta?.section, key).toBe("boss");
+            expect(meta?.group, key).toBe(BrokkTableGroup);
         }
     });
 });

@@ -36,7 +36,6 @@ import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
 import { visibleTabIds } from "../hidden-tabs";
 import { HoldToCloseGlyph } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
-import { KeepAwakeStatusItem } from "../keepawake-cup";
 import { coffeeCondition, coffeeSupported, sleepPolicyLabel, SleepPolicySetting } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { usePlatform } from "../keepawake-ui";
@@ -46,7 +45,6 @@ import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
 import { narrowWindowAtom } from "../narrow-window";
 import { currentNewViewChoices, openNewView } from "../newview/new-view";
-import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { openMoltentermView } from "../open-view";
@@ -448,8 +446,8 @@ function ToggleButton() {
     );
 }
 
-// The window's own row: the room the window buttons take, then the toggle; keep-awake, notifications and Brokk's avatar
-// on the right (FR-BOSS-009). Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
+// The window's own row: the room the window buttons take, then the toggle; Brokk's avatar on the right (FR-BOSS-009):
+// the bell and the keep-awake cup are in his panel (#2003). Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
 // floating panel (#1293) it is exactly as tall as the window buttons, which Electron main places at the panel's inner
 // margin from its top and left edges (macButtonsPosition), so the row starts where they do and its icons share their
 // centre line.
@@ -472,12 +470,6 @@ function WindowRow({ peeked, standIns }: { peeked: boolean; standIns: boolean })
             <AppMenuButton />
             <ToggleButton />
             <div className="h-full flex-1" />
-            {/* While Brokk's scene is up, the cup and the bell fade out so that they do not sit on his face; they come back
-                when he leaves (FR-BOSS-009, AC6). The window buttons and the sidebar button never do. */}
-            <div className="mt-brokk-hush flex items-center gap-1.5">
-                <KeepAwakeStatusItem variant="sidebar" />
-                <NotificationCenter />
-            </div>
             <BrokkAvatarSlot />
         </div>
     );

@@ -21,7 +21,9 @@ const Live: BrokkLiveProps = {
 describe("his portrait (FR-BOSS-001, AC1; FR-BOSS-007, AC5)", () => {
     it("is his still alone when nothing asks for it to move", () => {
         const html = renderToStaticMarkup(<BossPortrait />);
-        expect(html).toMatch(/<span class="mt-boss-portrait" aria-hidden="true"><img class="mt-boss-portrait-image"/);
+        expect(html).toMatch(
+            /<span class="mt-boss-portrait" data-framing="head" aria-hidden="true"><img class="mt-boss-portrait-image"/
+        );
         expect(html).not.toContain("<video");
         expect(html).not.toContain("brokk-live");
     });
@@ -37,7 +39,7 @@ describe("his portrait (FR-BOSS-001, AC1; FR-BOSS-007, AC5)", () => {
         expect(source).toMatch(/lazy\(\(\) => import\("\.\/brokk-live"\)/);
         expect(source).not.toMatch(/^import (?!type).* from "\.\/brokk-live"/m);
         expect(source).toMatch(/import type \{ BrokkLiveProps \} from "\.\/brokk-live"/);
-        for (const file of ["brokk-avatar.tsx", "boss-card.tsx", "use-brokk-live.ts"]) {
+        for (const file of ["brokk-avatar.tsx", "brokk-panel.tsx", "use-brokk-live.ts"]) {
             const user = readFileSync(join(__dirname, file), "utf8");
             expect(user, file).not.toMatch(/^import (?!type).* from "\.\/(brokk-live|brokk-portrait)"/m);
             expect(user, file).not.toContain("@diamondforge/character");
