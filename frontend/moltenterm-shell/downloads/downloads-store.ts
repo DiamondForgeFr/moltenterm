@@ -142,8 +142,9 @@ export class DownloadsModel {
             console.log("downloads: the action failed", e?.message ?? e);
             result = { ok: false, error: "failed" };
         }
+        // The question that comes before opening a program is asked in the entry, it is no failure.
         if (request.id != null) {
-            this.setError(request.id, result.ok ? "" : (result.error ?? "failed"));
+            this.setError(request.id, result.ok || result.error === "executable" ? "" : (result.error ?? "failed"));
         }
         return result;
     }

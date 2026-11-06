@@ -601,7 +601,7 @@ export function NotificationCenter() {
                         data-testid="notification-bell-download"
                         className="pointer-events-none absolute -right-0.5 -bottom-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-surface-3 text-accent"
                     >
-                        <i className="fa fa-solid fa-arrow-down text-[8px]" aria-hidden />
+                        <i className="fa fa-solid fa-arrow-down text-10" aria-hidden />
                     </span>
                 ) : null}
                 {/* The count keeps the accent of the bell's other signals: amber for waiting agents would read as one
@@ -641,7 +641,7 @@ export function NotificationCenter() {
                                   type="button"
                                   onClick={() => setTab("active")}
                                   className={cn(
-                                      "cursor-pointer font-semibold",
+                                      "cursor-pointer font-semibold whitespace-nowrap",
                                       tab === "active" ? "text-primary" : "text-muted hover:text-secondary"
                                   )}
                               >
@@ -654,7 +654,7 @@ export function NotificationCenter() {
                                   data-testid="notification-tab-downloads"
                                   onClick={() => setTab("downloads")}
                                   className={cn(
-                                      "inline-flex cursor-pointer items-center gap-1.5 text-12",
+                                      "inline-flex cursor-pointer items-center gap-1.5 text-12 whitespace-nowrap",
                                       tab === "downloads" ? "font-semibold text-primary" : "text-muted hover:text-secondary"
                                   )}
                               >
@@ -675,7 +675,7 @@ export function NotificationCenter() {
                                       type="button"
                                       onClick={() => setTab("archived")}
                                       className={cn(
-                                          "cursor-pointer text-12",
+                                          "cursor-pointer text-12 whitespace-nowrap",
                                           tab === "archived"
                                               ? "font-semibold text-primary"
                                               : "text-muted hover:text-secondary"
@@ -689,33 +689,36 @@ export function NotificationCenter() {
                                   <button
                                       type="button"
                                       title={t("notif.center.clearTitle")}
+                                      aria-label={t("notif.center.clear")}
                                       onClick={() => model.clearArchive()}
-                                      className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+                                      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
                                   >
-                                      {t("notif.center.clear")}
+                                      <i className="fa fa-solid fa-trash-can text-11" aria-hidden />
                                   </button>
                               ) : tab === "active" && unread > 0 ? (
                                   <button
                                       type="button"
+                                      title={t("notif.center.markAllRead")}
+                                      aria-label={t("notif.center.markAllRead")}
                                       onClick={() => model.markAllRead()}
-                                      className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+                                      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
                                   >
-                                      {t("notif.center.markAllRead")}
+                                      <i className="fa fa-solid fa-check-double text-11" aria-hidden />
                                   </button>
                               ) : null}
                               {/* The levels live in Preferences › Notifications, their one home (FR-SHELL-106). */}
                               <button
                                   type="button"
-                                  title={t("notif.center.settingsTitle")}
+                                  title={`${t("notif.center.settingsLink")}: ${t("notif.center.settingsTitle")}`}
+                                  aria-label={t("notif.center.settingsLink")}
                                   data-testid="notification-settings-link"
                                   onClick={() => {
                                       close();
                                       openNotificationSettings();
                                   }}
-                                  className="inline-flex cursor-pointer items-center gap-1 rounded-6 px-1.5 py-0.5 text-12 text-muted hover:bg-hover hover:text-primary"
+                                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-muted hover:bg-hover hover:text-primary"
                               >
-                                  {t("notif.center.settingsLink")}
-                                  <i className="fa fa-solid fa-chevron-right text-10" aria-hidden />
+                                  <i className="fa fa-solid fa-sliders text-11" aria-hidden />
                               </button>
                           </div>
                           <div className="overflow-y-auto">

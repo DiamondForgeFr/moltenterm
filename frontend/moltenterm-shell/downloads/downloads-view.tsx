@@ -327,7 +327,9 @@ export const DownloadRow = memo(function DownloadRow({
                         </span>
                     ) : null}
                 </div>
-                {running || record.state === "interrupted" ? <ProgressBar record={record} /> : null}
+                {running || (record.state === "interrupted" && percentOf(record) != null) ? (
+                    <ProgressBar record={record} />
+                ) : null}
                 {running ? (
                     <div className="mt-1 text-11 text-secondary tabular-nums" data-testid="download-stats">
                         {runningStats(record)}

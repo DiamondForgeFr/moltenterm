@@ -194,6 +194,19 @@ describe("the actions of a notification", () => {
         stop();
     });
 
+    it("records no failure for the question that comes before opening a program, and one for anything else", async () => {
+        const model = withItems([record({ name: "setup.exe", executable: true })]);
+        act.mockResolvedValueOnce({ ok: false, error: "executable" });
+        await model.act({ id: "d1", action: "open" });
+        expect(globalStore.get(model.errorsAtom)).toEqual({});
+        act.mockResolvedValueOnce({ ok: false, error: "missing" });
+        await model.act({ id: "d1", action: "open" });
+        expect(globalStore.get(model.errorsAtom)).toEqual({ d1: "missing" });
+        act.mockResolvedValueOnce({ ok: true });
+        await model.act({ id: "d1", action: "reveal" });
+        expect(globalStore.get(model.errorsAtom)).toEqual({});
+    });
+
     it("retries, and closes the failure it answers", async () => {
         withItems([record({ state: "interrupted" })]);
         const stop = startDownloads();
