@@ -53,11 +53,13 @@
         visibility 0s linear var(--mt-duration-fade);
 }
 
-/* Hanging from the window's top edge, where the pennant hung: it sits above the panels in the layer of the host. */
+/* Hanging from the window's top edge, where the pennant hung: it sits above the panels in the layer of the host, and
+   covers no control of theirs. The panels start one frame margin (8 px) below the edge and their headers' controls 7 px
+   lower still, so the avatar is 14 px high from the edge, the pennant's footprint, and its badge hangs to its left. */
 .mt-brokk-avatar.is-hanging {
-    --mt-brokk-size: 22px;
+    --mt-brokk-size: 14px;
     position: absolute;
-    top: 2px;
+    top: 0;
     pointer-events: auto;
     background: var(--mt-surface-1);
     box-shadow:
@@ -114,6 +116,23 @@
     font-variant-numeric: tabular-nums;
     box-shadow: 0 0 0 2px var(--mt-surface-1);
     pointer-events: none;
+}
+
+.mt-brokk-avatar.is-hanging .mt-brokk-badge {
+    top: 0;
+    right: auto;
+    left: -20px;
+}
+
+.mt-brokk-avatar.is-hanging .mt-brokk-ring {
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+}
+
+.mt-brokk-avatar.is-hanging .mt-brokk-halo {
+    inset: 0;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 55%, transparent);
 }
 
 /* The tone is never told by the colour alone: the count, and the tooltip's rows, name each state. */
