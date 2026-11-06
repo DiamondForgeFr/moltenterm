@@ -111,8 +111,22 @@ describe("what the bubble loads up front (the perf budget of the entry's JavaScr
         "brokk-watch.ts",
         "brokk-expressions.ts",
         "use-brokk-live.ts",
-        "boss-screen.tsx",
         "boss-portrait.tsx",
+        "brokk-visit.ts",
+        "brokk-gate.ts",
+        "brokk-visit-events.ts",
+        "brokk-visit-share.ts",
+        "brokk-visit-scene-model.ts",
+        "brokk-hub.ts",
+        "brokk-hub-feed.ts",
+        "brokk-hub-feed-store.ts",
+        "brokk-hub-store.ts",
+        "brokk-hub-host.tsx",
+        "brokk-avatar-model.ts",
+        "brokk-avatar.tsx",
+        "brokk-peek.tsx",
+        "brokk-caption.ts",
+        "use-brokk-hub.ts",
     ];
     const later = [
         "./brokk-state-model",
@@ -155,11 +169,20 @@ describe("what the bubble loads up front (the perf budget of the entry's JavaScr
         expect(source).toMatch(/lazy\(\(\) => import\("\.\/brokk-live"\)/);
     });
 
-    it("keep the bubble and the card from loading the portrait or its rules, whatever the file", () => {
-        for (const file of ["boss-bubble.tsx", "boss-card.tsx"]) {
+    it("keep the avatar, its host and the card from loading the portrait or its rules, whatever the file", () => {
+        for (const file of ["brokk-avatar.tsx", "brokk-hub-host.tsx", "boss-card.tsx"]) {
             for (const specifier of loaded(file)) {
                 expect(isLater(specifier), `${file} loads ${specifier}`).toBe(false);
             }
+        }
+    });
+
+    it("leave the visit scene, which carries his clips, to the first visit", () => {
+        const sidebar = readFileSync(join(__dirname, "..", "sidebar", "workspace-sidebar.tsx"), "utf8");
+        expect(sidebar).toMatch(/lazy\(\(\) => import\("\.\.\/boss\/brokk-visit-scene"\)/);
+        expect(sidebar).not.toMatch(/from "\.\.\/boss\/brokk-visit-scene"/);
+        for (const file of upFront) {
+            expect(loaded(file), file).not.toContain("./brokk-visit-scene");
         }
     });
 });

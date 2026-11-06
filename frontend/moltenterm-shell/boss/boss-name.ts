@@ -1,16 +1,12 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The foreman's name and the keys of his bubble (FR-BOSS-001, AC8, AC9): Brokk by default, renamed in Settings. Kept
-// free of imports, since the settings catalog titles its section with the name.
+// The foreman's name and the key that shows him (FR-BOSS-001, AC8, AC9; FR-BOSS-009): Brokk by default, renamed in
+// Settings. Kept free of imports, since the settings catalog titles its section with the name.
 
 // must match pkg/wconfig/settingsconfig.go
 export const BossNameSettingKey = "boss:name";
 export const BossShowSettingKey = "boss:show";
-export const BossCollapseOnTypeSettingKey = "boss:collapseontype";
-
-// The window's meta key of the bubble's place and manual collapse (DS-BOSS-001).
-export const BossBubbleMetaKey = "molten:bossbubble";
 
 export const DefaultBossName = "Brokk";
 export const MaxBossNameLength = 24;
@@ -23,12 +19,6 @@ export function bossName(raw: unknown): string {
         return DefaultBossName;
     }
     return Array.from(text).slice(0, MaxBossNameLength).join("").trim() || DefaultBossName;
-}
-
-// The pennant's letter: the first character of the name, upper case.
-export function bossInitial(name: string): string {
-    const first = Array.from(bossName(name))[0] ?? DefaultBossName[0];
-    return first.toLocaleUpperCase();
 }
 
 // A shown setting: on unless the developer turned it off.

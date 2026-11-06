@@ -452,7 +452,7 @@
             "gettingStarted": "onboarding, setup, welcome, tour, first run",
             "checkUpdates": "check for updates, update, upgrade, release, new version",
             "sessions": "sessions, durable, running, agents, ssh, detached, jobs, processes",
-            "bossCard": "boss, foreman, bubble, pennant, card, overview, sessions, agents, waiting",
+            "bossCard": "boss, foreman, avatar, bubble, pennant, card, overview, sessions, agents, waiting",
             "settings": "config, preferences",
             "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
             "viewPin": "pin, unpin, keep, temporary, view, tab",
@@ -547,20 +547,16 @@
             "newViews": "New views",
             "sidebar": "Sidebar",
             "theme": "Theme",
-            "bubble": "Bubble"
+            "avatar": "Avatar"
         },
         "items": {
             "boss:name": {
                 "label": "Name",
-                "description": "The name the bubble goes by, from 1 to 24 characters. Its initial, peek and menus use it."
+                "description": "The name the foreman goes by, from 1 to 24 characters. His tooltip, card and menus use it."
             },
             "boss:show": {
-                "label": "Show the bubble",
-                "description": "A bubble in every window counts the agents that wait for you. Off, neither it nor its pennant shows."
-            },
-            "boss:collapseontype": {
-                "label": "Collapse while I type under it",
-                "description": "The bubble folds into its pennant while you type in a terminal under it, then comes back."
+                "label": "Show the avatar",
+                "description": "An avatar in the title bar of every window counts what waits for you and comes to fetch you for what you decided. Off, it does not show and he never comes."
             },
             "moltenterm:theme": {
                 "label": "Theme",
@@ -1248,7 +1244,7 @@
             },
             "boss": {
                 "title": "{name}",
-                "description": "The bubble that counts what waits for you in every workspace."
+                "description": "The avatar that counts what waits for you in every workspace."
             },
             "browser": {
                 "title": "Browser",
@@ -2906,11 +2902,30 @@
     },
     "boss": {
         "label": "{name}, {count} waiting",
+        "avatar": {
+            "labelCue": "{name}, {count} waiting: has something to tell you"
+        },
         "menu": {
-            "collapse": "Collapse {name}",
-            "showBubble": "Show the bubble",
-            "resetPosition": "Reset position",
+            "openCard": "Open the card of {name}",
             "settings": "{name} settings"
+        },
+        "visit": {
+            "label": "{name} would like a word ({severity})",
+            "severity": {
+                "grave": "grave",
+                "important": "important",
+                "neutre": "neutral",
+                "bonne": "good news"
+            },
+            "later": {
+                "label": "Later",
+                "menu": "When should he come back?",
+                "5min": "5 min",
+                "15min": "15 min",
+                "1h": "1 h",
+                "tonight": "This evening",
+                "tomorrow": "Tomorrow morning"
+            }
         },
         "card": {
             "title": "{name}'s card",
@@ -3005,7 +3020,6 @@
             }
         },
         "screen": {
-            "online": "Online",
             "quiet": "Nothing to handle",
             "toHandle": {
                 "one": "{count} thing to handle",

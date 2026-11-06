@@ -30,6 +30,8 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { BrokkAvatarSlot } from "../boss/brokk-avatar";
+import { useBrokkGateProps, useBrokkVisitUp } from "../boss/use-brokk-hub";
 import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
 import { visibleTabIds } from "../hidden-tabs";
 import { HoldToCloseGlyph } from "../hold-to-close";
@@ -206,6 +208,9 @@ const DragThresholdPx = 4;
 // Loaded on demand: the project page only shows while a project is added or edited, so its code stays out of the JS
 // every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
 const ProjectPageView = lazy(() => import("./sidebar-project-page").then((m) => ({ default: m.ProjectPageView })));
+
+// Brokk's visit scene (FR-BOSS-009, #2002): his clips load with the first visit, never with the window.
+const BrokkVisitScene = lazy(() => import("../boss/brokk-visit-scene").then((m) => ({ default: m.BrokkVisitScene })));
 
 const IconButton =
     "relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
@@ -443,8 +448,8 @@ function ToggleButton() {
     );
 }
 
-// The window's own row: the room the window buttons take, then the toggle; keep-awake and notifications on the right.
-// Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
+// The window's own row: the room the window buttons take, then the toggle; keep-awake, notifications and Brokk's avatar
+// on the right (FR-BOSS-009). Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
 // floating panel (#1293) it is exactly as tall as the window buttons, which Electron main places at the panel's inner
 // margin from its top and left edges (macButtonsPosition), so the row starts where they do and its icons share their
 // centre line.
@@ -469,6 +474,7 @@ function WindowRow({ peeked, standIns }: { peeked: boolean; standIns: boolean })
             <div className="h-full flex-1" />
             <KeepAwakeStatusItem variant="sidebar" />
             <NotificationCenter />
+            <BrokkAvatarSlot />
         </div>
     );
 }
@@ -2681,6 +2687,16 @@ export function WorkspaceSidebar() {
     // A view closed in one click waits aside for its toast (#1656): the view on screen shows it and ends it.
     useEffect(() => followSetAside(activeTabId), [ws, activeTabId]);
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
+    // Brokk's visit (FR-BOSS-009, #2002): the scene stands at the top of the sidebar and the content below the window
+    // row makes room for it. The pointer and the gestures in the sidebar are what the calibration gate reads.
+    const brokkUp = useBrokkVisitUp();
+    const brokkGate = useBrokkGateProps();
+    const [brokkSeen, setBrokkSeen] = useState(false);
+    useEffect(() => {
+        if (brokkUp) {
+            setBrokkSeen(true);
+        }
+    }, [brokkUp]);
     const keepPeek = () => clearTimeout(peekTimerRef.current);
     const endPeek = () => {
         // The open top field keeps the peeked sidebar; closing it ends the peek.
@@ -2709,6 +2725,7 @@ export function WorkspaceSidebar() {
                 aria-label={t("sidebar.label", { name })}
                 data-testid="workspace-sidebar"
                 data-hidden={hidden ? "true" : undefined}
+                data-brokk-visit={brokkUp ? "open" : undefined}
                 className={cn(
                     "mt-sb flex h-full shrink-0 flex-col gap-2 select-none",
                     hidden ? "is-hidden" : "pb-[var(--mt-frame-gap)] pl-[var(--mt-frame-gap)]",
@@ -2719,10 +2736,18 @@ export function WorkspaceSidebar() {
                 onMouseEnter={keepPeek}
                 onMouseLeave={endPeek}
                 onContextMenu={onWorkspaceMenu}
+                {...brokkGate}
             >
                 <span className="mt-sb-place-strip" data-testid="sidebar-place-strip" aria-hidden />
+                {brokkSeen || brokkUp ? (
+                    <Suspense fallback={null}>
+                        <BrokkVisitScene rowHeight={hidden ? PeekWindowRowHeight : WindowRowHeight} />
+                    </Suspense>
+                ) : null}
                 <WindowRow peeked={hidden} standIns={standIns} />
-                <TopField />
+                <div className="mt-brokk-room" data-testid="sidebar-brokk-room">
+                    <TopField />
+                </div>
                 <TopRow instances={sections.everywhere ?? {}} activeTabId={activeTabId} />
                 <div ref={viewportRef} className="mt-sb-viewport relative flex min-h-0 flex-1 flex-col overflow-hidden">
                     <div

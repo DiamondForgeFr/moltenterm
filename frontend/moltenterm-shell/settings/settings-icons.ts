@@ -72,7 +72,7 @@ const GroupConcepts: Record<string, SuiteIconName> = {
     companion: "companion",
     codeReview: "review",
     agents: "agent",
-    bubble: "boss",
+    avatar: "boss",
     codingAgent: "agent",
     browserPanel: "web",
     openingPages: "openExternal",

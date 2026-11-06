@@ -231,9 +231,9 @@ type SettingsType struct {
 	MoltentermSidebarHeat *bool `json:"moltenterm:sidebarheat,omitempty" jsonschema_description:"While agents of the workspace work, a faint heat rises in the free space at the bottom of the sidebar, stronger with more working agents. On when unset; false removes it. Reduced motion removes it too"`
 
 	// MOLTENTERM-PATCH (#1883): the foreman's bubble, the pennant and the hover peek (FR-BOSS-001, frontend/moltenterm-shell/boss).
-	BossName           string `json:"boss:name,omitempty" jsonschema_description:"The name of the foreman whose bubble shows what waits across every workspace: 1 to 24 characters, Brokk when unset. The bubble's initial, its peek, its menus and its settings use it"`
-	BossShow           *bool  `json:"boss:show,omitempty" jsonschema_description:"Show the foreman's bubble, or its pennant when collapsed, in every window. On when unset; false shows neither"`
-	BossCollapseOnType *bool  `json:"boss:collapseontype,omitempty" jsonschema_description:"The bubble collapses to its pennant when a keystroke reaches a terminal whose area lies under it, and comes back when the focus leaves that terminal. On when unset; false never collapses it by itself"`
+	BossName           string `json:"boss:name,omitempty" jsonschema_description:"The name of the foreman whose avatar shows what waits across every workspace: 1 to 24 characters, Brokk when unset. His tooltip, his card, his menus and his settings use it"`
+	BossShow           *bool  `json:"boss:show,omitempty" jsonschema_description:"Show the foreman's avatar in the title bar of every window. On when unset; false shows no avatar and he never comes"`
+	BossCollapseOnType *bool  `json:"boss:collapseontype,omitempty" jsonschema_description:"Obsolete since the bubble was replaced by the title-bar avatar, which is never over a terminal: nothing reads it"`
 
 	// MOLTENTERM-PATCH (#2001): when Brokk comes to fetch the developer (FR-BOSS-009, frontend/moltenterm-shell/boss/brokk-visit-events.ts).
 	BossVisitSecurity string `json:"boss:visitsecurity,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a security alert on a dependency (high or critical) does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset"`

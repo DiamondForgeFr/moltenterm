@@ -44,9 +44,8 @@ import type { BossPeek } from "./boss-overview";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
-import type { BrokkLiveProps } from "./brokk-live";
 import type { BrokkScene } from "./brokk-scene";
-import { useBrokkScene, useBrokkSituation, useBubbleLive, useCardLive } from "./use-brokk-live";
+import { useBrokkScene, useBrokkSituation, useCardLive } from "./use-brokk-live";
 
 const bubble = BossBubbleModel.getInstance() as any;
 const expressions = BrokkExpressionsModel.getInstance() as any;
@@ -90,53 +89,18 @@ beforeEach(() => {
     globalStore.set(expressions.askedAtom, null);
 });
 
-describe("the card's header while the comm screen stands beside it (FR-BOSS-007, AC8, #1959)", () => {
-    it("shows his animated portrait when no screen stands beside the card, and the still when one does", () => {
-        expect(hook(() => useCardLive(false))).toMatchObject({ rhythm: "normal" });
-        expect(hook(() => useCardLive(true))).toBeNull();
+describe("the card's header (FR-BOSS-007, AC8, #1959; FR-BOSS-009)", () => {
+    it("shows his animated portrait while the card shows: the avatar that opened it has emptied its face", () => {
+        expect(hook(() => useCardLive())).toMatchObject({ rhythm: "normal" });
     });
 
     it("shows the still whatever happens when motion is reduced", () => {
         Mocks.reduced = true;
-        expect(hook(() => useCardLive(false))).toBeNull();
+        expect(hook(() => useCardLive())).toBeNull();
     });
 });
 
-describe("when the bubble asks for his animated portrait (FR-BOSS-007, AC3 and AC4)", () => {
-    function live(options: { collapsed?: boolean; screenOpen?: boolean; cardOpen?: boolean }): BrokkLiveProps {
-        return hook(() => {
-            const situation = useBrokkSituation(options.cardOpen === true, false);
-            return useBubbleLive({
-                collapsed: options.collapsed === true,
-                screenOpen: options.screenOpen === true,
-                situation,
-                speaks: false,
-                rhythm: "calm",
-            });
-        });
-    }
-
-    it("asks for it for an open screen, with the rhythm the scene wants and the opening to tell", () => {
-        const props = live({ screenOpen: true });
-        expect(props).toMatchObject({ opened: true, rhythm: "calm", speaks: false });
-        props.onOpened();
-        expect(Mocks.noteOpen).toHaveBeenCalledTimes(1);
-    });
-
-    it("asks for nothing at rest, when folded, or with reduced motion", () => {
-        expect(live({})).toBeNull();
-        expect(live({ screenOpen: true, collapsed: true })).toBeNull();
-        Mocks.reduced = true;
-        expect(live({ screenOpen: true })).toBeNull();
-    });
-
-    it("does not play a call that was asked before the round was drawn: it was told to a round that was not showing", () => {
-        globalStore.set(expressions.askedAtom, { expression: "call", cue: 1, at: Date.now() });
-        expect(live({})).toBeNull();
-    });
-});
-
-describe("the scene the bubble draws (FR-BOSS-007, AC10 and AC11, #1959)", () => {
+describe("the scene the tooltip reads (FR-BOSS-007, AC10 and AC11, #1959)", () => {
     function scene(
         options: { cardOpen?: boolean; pinned?: boolean; peek?: BossPeek; speaks?: boolean } = {}
     ): BrokkScene {

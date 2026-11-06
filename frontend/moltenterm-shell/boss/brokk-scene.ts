@@ -8,9 +8,9 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait (no manifest, no package).
 //
-// Surface-agnostic on purpose (#1995 may move Brokk from the bubble to the workspace sidebar): it knows nothing of where
-// a surface sits or how large it is, only what the surfaces show. The bubble, a sidebar form or a test read the same
-// scene; where and how big is each surface's own business (boss-place.ts, boss-screen-model.ts).
+// Surface-agnostic on purpose (#1995 moved Brokk from the bubble to the workspace sidebar): it knows nothing of where
+// a surface sits or how large it is, only what the surfaces show. The avatar's tooltip, the card or a test read the same
+// scene; where and how big is each surface's own business (brokk-avatar-model.ts).
 
 import type { Badge } from "./boss-overview";
 import type { AskedExpression, BrokkExpression, BrokkPose, BrokkSituation } from "./brokk-ask-model";

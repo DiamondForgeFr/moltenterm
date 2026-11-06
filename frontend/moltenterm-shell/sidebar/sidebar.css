@@ -75,9 +75,39 @@
 /* The window row spans the band from the window's top edge to the top field (#1279): the sidebar's gap under it is
    taken back, so its icons and the window buttons Electron main places (window-corner-model.ts) share one centre line.
    In the floating panel (#1293) the row is as tall as the buttons and starts at the panel's inner margin, where Electron
-   main puts them; the top field starts one inner margin below it. */
+   main puts them; the top field starts one inner margin below it. Brokk's visit scene (FR-BOSS-009, #2002) stands at the
+   top of the sidebar, behind the row: the row is above it in the stacking order, so that the window buttons and the
+   sidebar button stay on top of it and clickable, and the scene's layer takes no pointer outside the scene itself
+   (boss/brokk-visit-scene.css). */
 .mt-sb-window-row {
+    position: relative;
+    z-index: 2;
     margin-bottom: calc(var(--spacing, 0.25rem) * -2);
+}
+
+/* The search field and everything below slide down to make room for the scene: 84 px, in 320 ms with an ease-out when
+   he comes, back in 300 ms with an ease-in when he goes. Reduced motion changes their place at once. The numbers are
+   boss/brokk-visit-scene-model.ts (SceneRoomPx, MotionTimings), which a test keeps equal to these. */
+.mt-brokk-room {
+    margin-top: 0;
+    transition: margin-top 300ms ease-in;
+}
+
+.mt-sb[data-brokk-visit="open"] .mt-brokk-room {
+    margin-top: 84px;
+    transition: margin-top 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-brokk-room,
+    .mt-sb[data-brokk-visit="open"] .mt-brokk-room {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-brokk-room,
+.prefers-reduced-motion .mt-sb[data-brokk-visit="open"] .mt-brokk-room {
+    transition: none;
 }
 
 .mt-sb-window-row.is-peeked {
