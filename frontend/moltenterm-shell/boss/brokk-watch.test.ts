@@ -7,16 +7,21 @@ import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import type { BrokkExpression } from "./brokk-ask-model";
 import { EmptyMood, moodAfter, MoodEvent, MoodMemory, ReturnAfterMs } from "./brokk-mood";
+import { brokkAfter, InitialBrokk } from "./brokk-visit";
 import {
     ArrivalInput,
     ArrivalMemory,
     arrivalsAfter,
+    brokkWorking,
     EmptyArrivals,
+    finishedEvents,
     finishedNames,
     moodFactsOf,
     presenceAfter,
+    visitEventsOfRows,
     watchBrokk,
     WatchSources,
+    workingOf,
 } from "./brokk-watch";
 
 const Min = 60_000;
@@ -167,6 +172,91 @@ describe("who finished", () => {
         const now = data(agent("a", "done"), agent("b", "error"), agent("c", "done"), agent("d", "done"));
         expect(finishedNames(before, now)).toEqual(["a"]);
         expect(finishedNames(null, now)).toEqual([]);
+    });
+
+    it("gives the agents that just finished as events of good news, keyed by their block", () => {
+        const before = data(agent("a", "working"), agent("b", "working"), agent("c", "waiting"));
+        const now = data(agent("a", "done"), agent("b", "working"), agent("c", "done"));
+        expect(finishedEvents(before, now, 42)).toEqual([{ key: "finished:a", kind: "finished", since: 42 }]);
+        expect(finishedEvents(null, now, 42)).toEqual([]);
+    });
+});
+
+describe("Brokk himself works (FR-BOSS-009, AC2)", () => {
+    it("works while his own session is at work", () => {
+        expect(brokkWorking(data(agent("brokk", "working")), "brokk")).toBe(true);
+    });
+
+    it("does not work because other agents do, however many", () => {
+        const others = data(
+            agent("a", "working"),
+            agent("b", "working"),
+            agent("c", "working"),
+            agent("brokk", "idle")
+        );
+        expect(workingOf(others)).toBe(3);
+        expect(brokkWorking(others, "brokk")).toBe(false);
+    });
+
+    it("does not work when his session waits, stopped, is done or is gone", () => {
+        for (const state of ["waiting", "error", "done", "idle"] as const) {
+            expect(brokkWorking(data(agent("brokk", state)), "brokk"), state).toBe(false);
+        }
+        expect(brokkWorking(data(agent("a", "working")), "brokk")).toBe(false);
+    });
+
+    it("does not work when his session is not known, or nothing is read yet", () => {
+        const working = data(agent("a", "working"));
+        for (const own of [null, undefined, ""]) {
+            expect(brokkWorking(working, own), String(own)).toBe(false);
+        }
+        expect(brokkWorking(null, "brokk")).toBe(false);
+        expect(brokkWorking(undefined, "brokk")).toBe(false);
+    });
+});
+
+describe("the rows that can bring Brokk (FR-BOSS-009, AC3, AC11)", () => {
+    it("reads a waiting agent as blocked, a stopped agent as an error, a CI and a ready PR as themselves", () => {
+        const rows = [
+            item("agent:a", "waiting", { since: 5 }),
+            item("agent:b", "error", { since: 6 }),
+            item("ci:/p:1", "error", { since: 7 }),
+            item("ready:/p:2", "success", { since: 8 }),
+        ];
+        expect(visitEventsOfRows(rows)).toEqual([
+            { key: "agent:a", kind: "blocked", since: 5 },
+            { key: "agent:b", kind: "error", since: 6 },
+            { key: "ci:/p:1", kind: "ci", since: 7 },
+            { key: "ready:/p:2", kind: "ready", since: 8 },
+        ]);
+    });
+
+    it("leaves out the rows that are no event of the table: a question that is no agent's, a hand-off request", () => {
+        const rows = [item("notif:n1", "waiting"), item("handoff:r1", "waiting"), item("agent:x", "success")];
+        expect(visitEventsOfRows(rows)).toEqual([]);
+    });
+
+    it("leaves out the rows the developer has seen", () => {
+        expect(visitEventsOfRows([item("agent:a", "waiting", { seen: true })])).toEqual([]);
+    });
+
+    it("keeps an unknown start as zero, for the model to date", () => {
+        expect(visitEventsOfRows([item("agent:a", "waiting")])).toEqual([
+            { key: "agent:a", kind: "blocked", since: 0 },
+        ]);
+    });
+
+    it("feeds the visit model, which cancels a row that is gone", () => {
+        let model = InitialBrokk;
+        const rows = [item("agent:a", "error", { since: 1000 }), item("ci:/p:1", "error", { since: 1000 })];
+        model = brokkAfter(model, { type: "sync", source: "rows", events: visitEventsOfRows(rows) }, 2000).model;
+        expect(Object.keys(model.visits.events).sort()).toEqual(["agent:a", "ci:/p:1"]);
+        model = brokkAfter(
+            model,
+            { type: "sync", source: "rows", events: visitEventsOfRows(rows.slice(1)) },
+            3000
+        ).model;
+        expect(Object.keys(model.visits.events)).toEqual(["ci:/p:1"]);
     });
 });
 

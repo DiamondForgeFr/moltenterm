@@ -169,15 +169,62 @@ export function isNight(now: number): boolean {
     return hour >= NightFromHour || hour < NightToHour;
 }
 
-// The next moment the night begins or ends, local time: the caption's mention follows it.
-export function nextNightChange(now: number): number {
+// The next moment the local clock reads this minute of the day (0 to 1439), strictly after `now`.
+export function nextClockTime(now: number, minuteOfDay: number): number {
     const date = new Date(now);
-    const hour = isNight(now) ? NightToHour : NightFromHour;
-    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, 0, 0, 0);
+    const next = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        Math.floor(minuteOfDay / 60),
+        minuteOfDay % 60,
+        0,
+        0
+    );
     if (next.getTime() <= now) {
         next.setDate(next.getDate() + 1);
     }
     return next.getTime();
+}
+
+// The next moment the night begins or ends, local time: the caption's mention follows it.
+export function nextNightChange(now: number): number {
+    return nextClockTime(now, (isNight(now) ? NightToHour : NightFromHour) * 60);
+}
+
+// Quiet hours (FR-BOSS-009, AC4): a window of the local day, in minutes since midnight, during which only the badge
+// changes. A window that crosses midnight (22:00 to 08:00) is on at both of its ends.
+export type QuietHours = { on: boolean; from: number; to: number };
+
+export const DefaultQuietHours: QuietHours = { on: true, from: 22 * 60, to: 8 * 60 };
+
+export function minutesOfDay(now: number): number {
+    const date = new Date(now);
+    return date.getHours() * 60 + date.getMinutes();
+}
+
+// "HH:MM" as minutes since midnight; null for anything else, so that an invalid setting reads as its default.
+export function parseClock(value: unknown): number {
+    const match = typeof value === "string" ? /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value.trim()) : null;
+    return match == null ? null : Number(match[1]) * 60 + Number(match[2]);
+}
+
+export function inQuietHours(quiet: QuietHours, now: number): boolean {
+    if (!quiet.on || quiet.from === quiet.to) {
+        return false;
+    }
+    const minute = minutesOfDay(now);
+    return quiet.from < quiet.to
+        ? minute >= quiet.from && minute < quiet.to
+        : minute >= quiet.from || minute < quiet.to;
+}
+
+// The next moment the quiet hours begin or end, or null when they are off.
+export function nextQuietChange(quiet: QuietHours, now: number): number {
+    if (!quiet.on || quiet.from === quiet.to) {
+        return null;
+    }
+    return nextClockTime(now, inQuietHours(quiet, now) ? quiet.to : quiet.from);
 }
 
 export type Mood = "concerned" | "impatient" | "attentive" | "satisfied" | "neutral";

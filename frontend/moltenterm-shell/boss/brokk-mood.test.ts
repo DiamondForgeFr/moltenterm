@@ -4,18 +4,24 @@
 import { describe, expect, it } from "vitest";
 import {
     BackMs,
+    DefaultQuietHours,
     dueWaits,
     EmptyMood,
     greetingDue,
     GreetWithinMs,
     ImpatientAfterMs,
+    inQuietHours,
     isNight,
+    minutesOfDay,
     moodAfter,
     MoodEvent,
     MoodFacts,
     MoodMemory,
     moodOf,
+    nextClockTime,
     nextNightChange,
+    nextQuietChange,
+    parseClock,
     ReliefMs,
     ReplayEveryMs,
     replayOf,
@@ -271,5 +277,79 @@ describe("the memory", () => {
     it("remembers the last answer for the caption", () => {
         const memory = after([[{ type: "handled", kind: "rerun" }, Day]]);
         expect(memory.handled).toEqual({ at: Day, kind: "rerun" });
+    });
+});
+
+describe("the clock of the visits (FR-BOSS-009, AC4)", () => {
+    const Default = DefaultQuietHours;
+
+    describe("quiet hours", () => {
+        it("are from 22:00 to 08:00 by default, and on", () => {
+            expect(Default).toEqual({ on: true, from: 22 * 60, to: 8 * 60 });
+        });
+
+        // A window that crosses midnight is on at both of its ends.
+        const table: [string, number, boolean][] = [
+            ["21:59", at(21, 59), false],
+            ["22:00", at(22, 0), true],
+            ["23:59", at(23, 59), true],
+            ["00:00", new Date(2026, 10, 7, 0, 0).getTime(), true],
+            ["07:59", at(7, 59), true],
+            ["08:00", at(8, 0), false],
+            ["noon", at(12, 0), false],
+        ];
+
+        it.each(table)("at %s they are %s", (_name, now, quiet) => {
+            expect(inQuietHours(Default, now)).toBe(quiet);
+        });
+
+        it("cover a window within a day", () => {
+            const lunch = { on: true, from: 12 * 60, to: 14 * 60 };
+            expect(inQuietHours(lunch, at(11, 59))).toBe(false);
+            expect(inQuietHours(lunch, at(12, 0))).toBe(true);
+            expect(inQuietHours(lunch, at(13, 59))).toBe(true);
+            expect(inQuietHours(lunch, at(14, 0))).toBe(false);
+        });
+
+        it("are never on when turned off, or when they begin and end together", () => {
+            expect(inQuietHours({ ...Default, on: false }, at(23, 0))).toBe(false);
+            expect(inQuietHours({ on: true, from: 600, to: 600 }, at(10, 0))).toBe(false);
+            expect(nextQuietChange({ ...Default, on: false }, at(23, 0))).toBeNull();
+            expect(nextQuietChange({ on: true, from: 600, to: 600 }, at(10, 0))).toBeNull();
+        });
+
+        it("name the next moment they begin or end", () => {
+            expect(nextQuietChange(Default, at(12, 0))).toBe(at(22, 0));
+            expect(nextQuietChange(Default, at(22, 0))).toBe(new Date(2026, 10, 7, 8, 0).getTime());
+            expect(nextQuietChange(Default, at(23, 30))).toBe(new Date(2026, 10, 7, 8, 0).getTime());
+            expect(nextQuietChange(Default, at(2, 0))).toBe(at(8, 0));
+            expect(nextQuietChange(Default, at(8, 0))).toBe(at(22, 0));
+        });
+    });
+
+    describe("clock times", () => {
+        it("reads HH:MM as minutes since midnight, and anything else as nothing", () => {
+            expect(parseClock("22:00")).toBe(1320);
+            expect(parseClock("08:05")).toBe(485);
+            expect(parseClock("8:05")).toBe(485);
+            expect(parseClock(" 23:59 ")).toBe(1439);
+            expect(parseClock("00:00")).toBe(0);
+            for (const bad of ["24:00", "12:60", "1200", "12:5", "noon", "", null, undefined, 1200, {}]) {
+                expect(parseClock(bad), String(bad)).toBeNull();
+            }
+        });
+
+        it("names the next time the clock reads a minute, strictly after now", () => {
+            expect(nextClockTime(at(10, 0), 18 * 60)).toBe(at(18, 0));
+            expect(nextClockTime(at(18, 0), 18 * 60)).toBe(new Date(2026, 10, 7, 18, 0).getTime());
+            expect(nextClockTime(at(18, 1), 18 * 60)).toBe(new Date(2026, 10, 7, 18, 0).getTime());
+            expect(nextClockTime(at(0, 0), 0)).toBe(new Date(2026, 10, 7, 0, 0).getTime());
+        });
+
+        it("reads minutes of the local day", () => {
+            expect(minutesOfDay(at(0, 0))).toBe(0);
+            expect(minutesOfDay(at(13, 45))).toBe(13 * 60 + 45);
+            expect(minutesOfDay(at(23, 59))).toBe(1439);
+        });
     });
 });

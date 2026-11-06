@@ -16,6 +16,10 @@ import {
     QueueState,
     RepeatMs,
     ReplySettleMs,
+    severest,
+    Severity,
+    SeverityExpression,
+    SeverityRank,
     WaitLimitMs,
 } from "./brokk-queue";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
@@ -249,5 +253,38 @@ describe("the expression queue (FR-BOSS-007, AC13)", () => {
         expect(q.step({ type: "tick" }, 5000).play).toBeNull();
         expect(q.step({ type: "key" }, 5000).play).toBeNull();
         expect(q.wakeAt).toBeNull();
+    });
+});
+
+describe("the face of a visit (FR-BOSS-009, AC5)", () => {
+    const table: [Severity, BrokkExpression][] = [
+        ["grave", "frown"],
+        ["important", "doubtful"],
+        ["neutre", "call"],
+        ["bonne", "smile"],
+    ];
+
+    it.each(table)("a %s visit wears %s", (severity, expression) => {
+        expect(SeverityExpression[severity]).toBe(expression);
+    });
+
+    it("uses only expressions his portrait has", () => {
+        for (const expression of Object.values(SeverityExpression)) {
+            expect(Object.keys(ExpressionRank)).toContain(expression);
+        }
+    });
+
+    it("ranks the gravest first, a call above good news", () => {
+        expect(SeverityRank.grave).toBeGreaterThan(SeverityRank.important);
+        expect(SeverityRank.important).toBeGreaterThan(SeverityRank.neutre);
+        expect(SeverityRank.neutre).toBeGreaterThan(SeverityRank.bonne);
+    });
+
+    it("picks the gravest of several, and nothing from none", () => {
+        expect(severest(["bonne", "neutre", "important", "neutre"])).toBe("important");
+        expect(severest(["bonne", "neutre"])).toBe("neutre");
+        expect(severest(["bonne"])).toBe("bonne");
+        expect(severest(["bonne", "grave", "important"])).toBe("grave");
+        expect(severest([])).toBeNull();
     });
 });

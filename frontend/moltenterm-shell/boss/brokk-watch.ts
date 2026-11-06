@@ -16,6 +16,7 @@ import { agentCallName } from "../agent-state-model";
 import type { ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import type { BrokkExpression } from "./brokk-ask-model";
 import { dueWaits, MoodEvent, MoodFacts, MoodMemory, ReturnAfterMs, WaitRow } from "./brokk-mood";
+import type { BrokkEvent, BrokkEventKind } from "./brokk-visit-events";
 
 type Store = Pick<ReturnType<typeof createStore>, "get" | "sub">;
 
@@ -103,19 +104,58 @@ export function arrivalsAfter(
 }
 
 // What the agent states say changed: who finished (was at work, is done now), and how many work.
+function finishedInfos(before: AgentStatesData, now: AgentStatesData): AgentStateInfo[] {
+    return Object.values(now?.states ?? {}).filter(
+        (info) => info?.state === "done" && before?.states?.[info?.blockid]?.state === "working"
+    );
+}
+
 export function finishedNames(before: AgentStatesData, now: AgentStatesData): string[] {
-    const names: string[] = [];
-    for (const info of Object.values(now?.states ?? {})) {
-        const was: AgentStateInfo = before?.states?.[info?.blockid];
-        if (info?.state === "done" && was?.state === "working") {
-            names.push(agentCallName(info));
-        }
-    }
-    return names;
+    return finishedInfos(before, now).map((info) => agentCallName(info));
 }
 
 export function workingOf(data: AgentStatesData): number {
     return Object.values(data?.states ?? {}).filter((info) => info?.state === "working").length;
+}
+
+// Brokk himself works: his own session is at work. The other agents' work never counts, however many work, since the
+// ring around his avatar says that he works, not that the forge does (FR-BOSS-009, AC2). `ownBlockId` is the block of
+// his session; without one, he is not at work.
+export function brokkWorking(data: AgentStatesData, ownBlockId: string): boolean {
+    return ownBlockId != null && ownBlockId !== "" && data?.states?.[ownBlockId]?.state === "working";
+}
+
+// The rows To handle that can bring Brokk, as the events of his visits (FR-BOSS-009, AC3, AC11): an agent that waits
+// is blocked, an agent that stopped is in error, a failing CI and a pull request ready are what they say. The rows the
+// developer has seen are not asked again. Any other row (a question that is no agent's, a hand-off request) is not one
+// of the events of the table and stays on the badge's rows only.
+export function visitEventsOfRows(items: ToHandleItem[]): BrokkEvent[] {
+    const events: BrokkEvent[] = [];
+    for (const item of items) {
+        if (item.seen) {
+            continue;
+        }
+        const kind = visitKindOfRow(item);
+        if (kind != null) {
+            events.push({ key: item.key, kind, since: item.since });
+        }
+    }
+    return events;
+}
+
+function visitKindOfRow(item: ToHandleItem): BrokkEventKind {
+    if (isAgentRow(item)) {
+        return item.tone === "error" ? "error" : item.tone === "waiting" ? "blocked" : null;
+    }
+    if (item.key.startsWith("ci:")) {
+        return "ci";
+    }
+    return item.key.startsWith("ready:") ? "ready" : null;
+}
+
+// The agents that just finished, as events: "an agent finished" is good news.
+export function finishedEvents(before: AgentStatesData, now: AgentStatesData, at: number): BrokkEvent[] {
+    return finishedInfos(before, now).map((info) => ({ key: `finished:${info.blockid}`, kind: "finished", since: at }));
 }
 
 function failureKeys(items: ToHandleItem[]): Set<string> {
