@@ -10268,7 +10268,13 @@
             "collapse": "Masquer ce à quoi {name} est relié",
             "projectTitle": "Tourne dans {project}",
             "outsideTitle": "Tourne dans {folder}, hors des projets de cet espace de travail",
-            "noProject": "Hors projet"
+            "noProject": "Hors projet",
+            "note": {
+                "add": "Ajouter une note…",
+                "edit": "Modifier la note",
+                "remove": "Retirer la note",
+                "field": "Note pour {name}"
+            }
         },
         "view": {
             "equalize": "Égaliser la largeur des panneaux",

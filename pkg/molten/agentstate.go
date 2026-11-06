@@ -40,6 +40,12 @@ const (
 	// restart of MoltenTerm (a durable terminal) gets it back.
 	AgentFirstNameMetaKey = "molten:agentfirstname"
 
+	// The developer's short notes on the agents of a workspace (FR-SHELL-084, #2008), in the workspace's meta by
+	// agent terminal ("<block id>", "<block id>/<sub-agent id>"). On the workspace rather than the block because a
+	// terminal reads the meta of its own workspace's blocks, and never the workspace's: the note is never the agent's
+	// to read. Must match AgentNotesMetaKey in frontend/moltenterm-shell/sidebar/agent-note-model.ts
+	AgentNotesMetaKey = "molten:agentnotes"
+
 	AgentMessageMaxLength = 200
 	agentIdMaxLength      = 32
 )
