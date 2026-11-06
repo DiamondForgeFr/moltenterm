@@ -228,6 +228,14 @@ describe("the source is on screen (FR-MC-019, #2026)", () => {
             expect(settled).toEqual([["n1"]]);
         });
 
+        it("leaves alone a notification the developer brought back, as the undo of a clear does", () => {
+            start();
+            set([info("n1", "t1")], view());
+            set([info("n1", "t1", { archived: T, resolved: T })], view());
+            set([info("n1", "t1")], view());
+            expect(settled).toEqual([["n1"]]);
+        });
+
         it("settles another pane of the tab only after it stayed in view", () => {
             start();
             set([info("n2", "t2")], view());
