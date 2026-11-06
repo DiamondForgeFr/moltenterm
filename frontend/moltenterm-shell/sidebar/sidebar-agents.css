@@ -436,7 +436,7 @@
     padding: 0 6px;
     border: 1px solid color-mix(in srgb, var(--mt-veil) 28%, transparent);
     border-radius: var(--mt-radius-control);
-    background: color-mix(in srgb, #000 30%, transparent);
+    background: color-mix(in srgb, var(--mt-surface-0) 60%, transparent);
     color: var(--color-primary);
     font: inherit;
     font-size: var(--mt-text-12);
