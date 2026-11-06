@@ -43,6 +43,7 @@ func runStep(t *testing.T, r *Runs, dir string, tag string, step string) RunReco
 // #662: a repository that commits its notes file, or the folder holding it, as a link to a file of the user's
 // (~/.zshrc) never gets that file overwritten.
 func TestSaveReleaseNotesNeverWritesThroughALink(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	start := startRelease(t, r, dir, ReleaseChannelRc, "v1.0.0-1")
@@ -98,6 +99,7 @@ func TestSaveReleaseNotesNeverWritesThroughALink(t *testing.T) {
 }
 
 func TestReleaseFactsFollowTheStepsTheNotesAndTheTag(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	if facts, err := r.ReleaseFactsOf(dir); err != nil || facts.Tag != "" {
@@ -157,6 +159,7 @@ func TestReleaseFactsFollowTheStepsTheNotesAndTheTag(t *testing.T) {
 }
 
 func TestReleaseCarriedBackByACherryPick(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	gitIn(t, dir, "checkout", "-q", "-b", "main")
@@ -176,6 +179,7 @@ func TestReleaseCarriedBackByACherryPick(t *testing.T) {
 }
 
 func TestOldTagIsNotFollowed(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	gitIn(t, dir, "tag", "v0.9.0")
@@ -186,6 +190,7 @@ func TestOldTagIsNotFollowed(t *testing.T) {
 }
 
 func TestTerminalReleaseCanBeDismissed(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	gitIn(t, dir, "tag", "v2.0.0")

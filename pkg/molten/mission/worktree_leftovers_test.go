@@ -64,6 +64,7 @@ func (h *leftoverHooks) install(w *Worktrees) {
 }
 
 func TestWorktreeRemovalLeftoversAreRemoved(t *testing.T) {
+	t.Parallel()
 	_, clone, tree := makeWorktreeFixture(t)
 	w := MakeWorktrees(leftoverRunner(t, nil), noTerminals)
 	hooks := &leftoverHooks{}
@@ -98,6 +99,7 @@ func TestWorktreeRemovalLeftoversAreRemoved(t *testing.T) {
 }
 
 func TestWorktreeRemovalLeftoverStaysAsAWarning(t *testing.T) {
+	t.Parallel()
 	_, _, tree := makeWorktreeFixture(t)
 	w := MakeWorktrees(leftoverRunner(t, nil), noTerminals)
 	hooks := &leftoverHooks{remove: func(path string) error { return errors.New("directory not empty") }}
@@ -116,6 +118,7 @@ func TestWorktreeRemovalLeftoverStaysAsAWarning(t *testing.T) {
 }
 
 func TestWorktreeRemovalGitRefusesStillFails(t *testing.T) {
+	t.Parallel()
 	_, _, tree := makeWorktreeFixture(t)
 	w := MakeWorktrees(leftoverRunner(t, errors.New("fatal: boom")), noTerminals)
 	hooks := &leftoverHooks{}
@@ -133,6 +136,7 @@ func TestWorktreeRemovalGitRefusesStillFails(t *testing.T) {
 }
 
 func TestRemoveLeftoverRefuses(t *testing.T) {
+	t.Parallel()
 	base, clone, tree := makeWorktreeFixture(t)
 	w := MakeWorktrees(withoutGh, noTerminals)
 	hooks := &leftoverHooks{}

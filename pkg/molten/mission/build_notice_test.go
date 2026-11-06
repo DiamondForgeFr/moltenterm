@@ -16,6 +16,7 @@ import (
 )
 
 func TestBuildNotice(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
 	start := now.Add(-10 * time.Minute).UnixMilli()
 	rec := RunRecord{Kind: RunKindBuild, Title: "Gold", State: RunStateSuccess, StartedAt: start, FinishedAt: now.UnixMilli(),
@@ -61,6 +62,7 @@ func TestBuildNotice(t *testing.T) {
 }
 
 func TestBuildEndIsToldOnce(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("runs use /bin/sh")
 	}

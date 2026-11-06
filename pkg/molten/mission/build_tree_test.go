@@ -11,11 +11,12 @@ import (
 )
 
 func TestBuildTreeRecoversFromPrunedMetadata(t *testing.T) {
+	t.Parallel()
 	origin := makeGitFlowRepo(t)
 	dir := filepath.Join(t.TempDir(), "project")
 	gitIn(t, filepath.Dir(dir), "clone", "-q", origin, dir)
 	data := t.TempDir()
-	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	r := makeTestRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	rec := RunRecord{Id: "b1", Dir: dir, Kind: RunKindBuild, State: RunStateRunning}
 	if err := os.MkdirAll(filepath.Join(r.projectDir(dir), rec.Id), 0700); err != nil {
 		t.Fatal(err)

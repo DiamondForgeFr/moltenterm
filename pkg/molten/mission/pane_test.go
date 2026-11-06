@@ -16,6 +16,7 @@ import (
 )
 
 func TestParsePaneStatus(t *testing.T) {
+	t.Parallel()
 	out := strings.Join([]string{
 		"# branch.oid 4f2a9c0d",
 		"# branch.head feature/108-status",
@@ -37,6 +38,7 @@ func TestParsePaneStatus(t *testing.T) {
 }
 
 func TestMatchPullRequest(t *testing.T) {
+	t.Parallel()
 	raw := json.RawMessage(`[{"number":7,"title":"Other","url":"u7","headRefName":"feature/7-x"},
 		{"number":108,"title":"Status bar","url":"u108","headRefName":"feature/108-status","isDraft":true}]`)
 	pr := matchPullRequest(raw, "feature/108-status")
@@ -63,6 +65,7 @@ func makePaneRepo(t *testing.T) (string, string) {
 }
 
 func TestPaneStateFollowsTheTree(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
 	panes := MakePanes(withoutGh, nil, nil)
 	sub := filepath.Join(clone, "src")
@@ -101,6 +104,7 @@ func TestPaneStateFollowsTheTree(t *testing.T) {
 }
 
 func TestPaneOutsideARepository(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	state, err := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: dir})
 	if err != nil {
@@ -115,6 +119,7 @@ func TestPaneOutsideARepository(t *testing.T) {
 }
 
 func TestPaneProbesAtMostOnceASecond(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	var statuses atomic.Int32
 	counting := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
@@ -152,6 +157,7 @@ func TestPaneProbesAtMostOnceASecond(t *testing.T) {
 }
 
 func TestPaneReadsTheCollectorCacheOnly(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/108-status")
 	cacheDir := t.TempDir()
@@ -179,6 +185,7 @@ func TestPaneReadsTheCollectorCacheOnly(t *testing.T) {
 }
 
 func TestParseHeads(t *testing.T) {
+	t.Parallel()
 	out := strings.Join([]string{
 		"refs/remotes/origin/HEAD",
 		"refs/remotes/origin/feature/109-loader",
@@ -198,6 +205,7 @@ func TestParseHeads(t *testing.T) {
 }
 
 func TestPickDetachedBranch(t *testing.T) {
+	t.Parallel()
 	prs := parsePanePrs(json.RawMessage(`[{"number":7,"title":"Seven","url":"u7","headRefName":"feature/7-x","headRefOid":"aaa"},
 		{"number":9,"title":"Nine","url":"u9","headRefName":"feature/9-y","headRefOid":"bbb","isDraft":true}]`))
 	branch, pr := pickDetachedBranch(prs, []string{"develop", "feature/9-y"}, "bbb")
@@ -220,6 +228,7 @@ func TestPickDetachedBranch(t *testing.T) {
 
 // The reported case: a checkout detached at origin/<branch> because another worktree holds the branch.
 func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/109-loader")
 	commit(t, clone, "l.txt", "feat(#109): loader")
@@ -273,6 +282,7 @@ func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
 }
 
 func TestPaneFolderAboveARepository(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}

@@ -45,6 +45,7 @@ func (f fakeProcs) Descendants(root int32) []int32 {
 }
 
 func TestResolveLockOwner(t *testing.T) {
+	t.Parallel()
 	const tree = "/p/.claude/worktrees/agent-a44"
 	places := []AgentPlace{
 		{BlockId: "review", Agent: "claude", FirstName: "Rita", Pid: 44215, Review: true},
@@ -91,6 +92,7 @@ func TestResolveLockOwner(t *testing.T) {
 }
 
 func TestWithinFolder(t *testing.T) {
+	t.Parallel()
 	if !within("/a/b", "/a/b") || !within("/a/b/c", "/a/b") || within("/a/bc", "/a/b") || within("/a", "/a/b") || within("", "/a") {
 		t.Fatalf("within")
 	}

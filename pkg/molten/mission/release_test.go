@@ -36,7 +36,7 @@ func makeReleaseFixture(t *testing.T, pipeline string) (*Runs, string) {
 	gitIn(t, dir, "add", "-A")
 	gitIn(t, dir, "commit", "-q", "-m", "init")
 	data := t.TempDir()
-	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	r := makeTestRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = withoutGh
 	return r, dir
@@ -63,6 +63,7 @@ func startRelease(t *testing.T, r *Runs, dir string, channel string, tag string)
 }
 
 func TestReleasePreparationSteps(t *testing.T) {
+	t.Parallel()
 	steps := []molten.PipelineStep{{Id: "a", Phase: "prepare"}, {Id: "b", Phase: "cut"}, {Id: "c", Phase: "prepare"}}
 	if got := molten.ReleasePreparation(steps); len(got) != 2 || got[0].Id != "a" || got[1].Id != "c" {
 		t.Fatalf("the prepare phase: %+v", got)
@@ -76,6 +77,7 @@ func TestReleasePreparationSteps(t *testing.T) {
 }
 
 func TestStartReleaseRunsThePreparationAndRecordsTheSession(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releasePipeline)
 	res := startRelease(t, r, dir, ReleaseChannelRc, "v1.2.0-3")
 	if res.Session.Version != "1.2.0" || res.Session.Channel != ReleaseChannelRc || res.Run.Kind != RunKindRelease {
@@ -113,6 +115,7 @@ func TestStartReleaseRunsThePreparationAndRecordsTheSession(t *testing.T) {
 }
 
 func TestStartReleaseRefusals(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releasePipeline)
 	res, err := r.StartRelease(ReleaseStartRequest{Dir: dir, Channel: ReleaseChannelRc, Tag: "v1.0.0-1"})
 	if err != nil || res.Untrusted == nil || res.Session != nil {
@@ -146,6 +149,7 @@ func TestStartReleaseRefusals(t *testing.T) {
 }
 
 func TestReleaseStepPhasesAreChecked(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
 	os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(`{"schema":1,"name":"P","release":{

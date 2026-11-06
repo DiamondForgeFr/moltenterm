@@ -12,6 +12,7 @@ import (
 )
 
 func TestBuildManifestRegularAndLimits(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.json")
 	contents := `{"commit":"abc","version":"1.0.0"}`

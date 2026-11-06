@@ -16,6 +16,7 @@ import (
 )
 
 func TestSubagentBranchAgents(t *testing.T) {
+	t.Parallel()
 	trees := []treeEntry{
 		{path: "/p", branch: "develop"},
 		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},
@@ -61,6 +62,7 @@ func TestSubagentBranchAgents(t *testing.T) {
 // #1825: a read-only sub-agent (the main checkout, a panel's own worktree, or no folder) is listed on no branch, so
 // the Integration cards can match its task with their ticket or PR; a finished one and a placed one are not.
 func TestUnplacedSubagents(t *testing.T) {
+	t.Parallel()
 	trees := []treeEntry{
 		{path: "/p", branch: "develop"},
 		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},
@@ -106,6 +108,7 @@ func TestUnplacedSubagents(t *testing.T) {
 // The ticket's fixture (#1035): a parent session with two sub-agent meta files, one running and one finished, whose
 // worktrees hold two ticket branches; the two Upcoming rows carry the parent, tool, model, task and state.
 func TestUpcomingNamesSubagents(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	sf := `{"workflow":{"prTargetBranch":"develop","branchNaming":{"feature":"feature/{N}-{description}"}}}`
 	if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(sf), 0644); err != nil {

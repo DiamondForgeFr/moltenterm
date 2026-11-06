@@ -15,6 +15,7 @@ import (
 )
 
 func TestTagPrefixAndNotesFollowThePipeline(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	gitIn(t, dir, "init", "-q", "-b", "develop")
 	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
@@ -47,6 +48,7 @@ func TestTagPrefixAndNotesFollowThePipeline(t *testing.T) {
 }
 
 func TestLastPublicSkipsUpstreamTagsAndSortsBySemver(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	gitIn(t, dir, "init", "-q", "-b", "develop")
 	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
@@ -74,6 +76,7 @@ func TestLastPublicSkipsUpstreamTagsAndSortsBySemver(t *testing.T) {
 }
 
 func TestReleaseVersionFollowsTheRules(t *testing.T) {
+	t.Parallel()
 	p := &molten.Pipeline{Versions: &molten.PipelineVersions{FirstPublic: "1.0.0"}}
 	for tag, want := range map[string]string{"v1.0.0-1": "1.0.0 rc", "v1.0.0-rc.1": "1.0.0 rc", "v1.2.0": "1.2.0 public"} {
 		version, isRc, err := releaseVersion(p, tag)
@@ -93,6 +96,7 @@ func TestReleaseVersionFollowsTheRules(t *testing.T) {
 }
 
 func TestBranchIsExpandedForEachKind(t *testing.T) {
+	t.Parallel()
 	if got, _ := expandCommand("deploy {branch} {tag} {version} {other}", CommandVars{Version: "1.2.0", Tag: "v1.2.0", Branch: "develop"}); got != "deploy develop v1.2.0 1.2.0 {other}" {
 		t.Fatalf("expand: %q", got)
 	}
@@ -116,6 +120,7 @@ func TestBranchIsExpandedForEachKind(t *testing.T) {
 }
 
 func TestAdapterStepsRunThroughTheTrustRule(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, `{"schema":1,"name":"P","steps":[
 		{"id":"verify-updater","title":"Verify the updater","section":"cd","run":"echo verifying on {branch}"}]}`)
 	res, err := r.Start(RunRequest{Dir: dir, Kind: RunKindStep, Id: "verify-updater"})
@@ -138,6 +143,7 @@ func TestAdapterStepsRunThroughTheTrustRule(t *testing.T) {
 }
 
 func TestBuildDeclarationsAreValidated(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
 	os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(`{"schema":1,"name":"P","builds":[

@@ -11,6 +11,7 @@ import (
 )
 
 func TestReleaseMilestoneOf(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
 		joined := name + " " + strings.Join(args, " ")
@@ -49,6 +50,7 @@ func TestReleaseMilestoneOf(t *testing.T) {
 }
 
 func TestMentionsRelease(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		s    string
 		tag  string

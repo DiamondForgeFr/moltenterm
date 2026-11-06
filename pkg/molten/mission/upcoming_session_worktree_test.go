@@ -83,6 +83,7 @@ func sessionPlaceAnswer(t *testing.T, f subagentCardFixture, place AgentPlace) m
 }
 
 func TestUpcomingPlacesSessionInTheWorktreeItWorksIn(t *testing.T) {
+	t.Parallel()
 	f := makeSubagentCardRepo(t)
 	main := realPath(f.dir)
 	for _, c := range []struct {
@@ -121,6 +122,7 @@ func TestUpcomingPlacesSessionInTheWorktreeItWorksIn(t *testing.T) {
 // Work only moves a terminal to another worktree of the project: a folder outside them keeps its terminal's place, and
 // a terminal linked to a worktree whose session works there stays.
 func TestPlaceTreeKeepsTheTerminalsPlaceOutsideTheProject(t *testing.T) {
+	t.Parallel()
 	trees := []treeEntry{
 		{path: "/p", branch: "develop"},
 		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},

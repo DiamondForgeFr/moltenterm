@@ -45,6 +45,7 @@ func (f *fakeAsk) env(guide string) pipelineAskEnv {
 
 // No agent in the terminal: nothing is sent, the window starts one first.
 func TestPipelineAskWithoutAgent(t *testing.T) {
+	t.Parallel()
 	f := &fakeAsk{}
 	got, err := askPipelineAgent(context.Background(), f.env(""), PipelineAskRequest{BlockId: "term", Dir: "/work/app"})
 	if err != nil || got.Status != PipelineAskNoAgent || len(f.sent) != 0 {
@@ -54,6 +55,7 @@ func TestPipelineAskWithoutAgent(t *testing.T) {
 
 // A running agent is reused: the screen's context and the guide go to it.
 func TestPipelineAskReusesTheAgent(t *testing.T) {
+	t.Parallel()
 	f := &fakeAsk{running: true}
 	got, err := askPipelineAgent(context.Background(), f.env("/data/pipeline-brief/pipeline-writing-guide.md"),
 		PipelineAskRequest{BlockId: "term", Dir: "/work/app", Project: "App", Context: "Step 4: the validation request."})
@@ -71,6 +73,7 @@ func TestPipelineAskReusesTheAgent(t *testing.T) {
 
 // Without a guide in this build the request still goes, without naming one.
 func TestPipelineAskWithoutGuide(t *testing.T) {
+	t.Parallel()
 	f := &fakeAsk{running: true}
 	if _, err := askPipelineAgent(context.Background(), f.env(""), PipelineAskRequest{BlockId: "term", Dir: "/work/app"}); err != nil {
 		t.Fatal(err)
@@ -82,6 +85,7 @@ func TestPipelineAskWithoutGuide(t *testing.T) {
 
 // Wait: an agent just started is waited for, then asked.
 func TestPipelineAskWaitsForTheAgent(t *testing.T) {
+	t.Parallel()
 	f := &fakeAsk{}
 	done := make(chan PipelineAskResult, 1)
 	go func() {
@@ -98,6 +102,7 @@ func TestPipelineAskWaitsForTheAgent(t *testing.T) {
 }
 
 func TestPipelineAskGivesUpWhenNoAgentShows(t *testing.T) {
+	t.Parallel()
 	f := &fakeAsk{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -110,6 +115,7 @@ func TestPipelineAskGivesUpWhenNoAgentShows(t *testing.T) {
 }
 
 func TestPipelineAskChecks(t *testing.T) {
+	t.Parallel()
 	f := &fakeAsk{running: true}
 	bad := []PipelineAskRequest{
 		{Dir: "/work/app"},
@@ -124,6 +130,7 @@ func TestPipelineAskChecks(t *testing.T) {
 }
 
 func TestPipelineBriefDir(t *testing.T) {
+	t.Parallel()
 	if got := pipelineBriefDir("/data/cache/setup-answers"); got != "/data/cache/pipeline-brief" {
 		t.Errorf("got %q", got)
 	}

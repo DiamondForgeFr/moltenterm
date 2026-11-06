@@ -16,6 +16,7 @@ import (
 )
 
 func TestPaneFreshRequestsShareOneProbe(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	var statuses atomic.Int32
 	counting := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
@@ -43,6 +44,7 @@ func TestPaneFreshRequestsShareOneProbe(t *testing.T) {
 }
 
 func TestPaneLinkedThroughASymlink(t *testing.T) {
+	t.Parallel()
 	base, _, tree := makeWorktreeFixture(t)
 	alias := filepath.Join(base, "alias")
 	if err := os.Symlink(tree, alias); err != nil {
@@ -72,6 +74,7 @@ func makeWorktreeFixture(t *testing.T) (string, string, string) {
 }
 
 func TestPaneTellsWorktreesFromMainTrees(t *testing.T) {
+	t.Parallel()
 	_, clone, tree := makeWorktreeFixture(t)
 	panes := MakePanes(withoutGh, nil, nil)
 	main, _ := panes.Get(PaneRequest{Dir: clone})
@@ -103,6 +106,7 @@ func TestPaneTellsWorktreesFromMainTrees(t *testing.T) {
 }
 
 func TestPaneSubmoduleIsNoWorktree(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
 	lib := filepath.Join(base, "lib")
 	os.MkdirAll(lib, 0755)
@@ -116,6 +120,7 @@ func TestPaneSubmoduleIsNoWorktree(t *testing.T) {
 }
 
 func TestWorktreePlanAndCleanRemoval(t *testing.T) {
+	t.Parallel()
 	_, clone, tree := makeWorktreeFixture(t)
 	w := MakeWorktrees(withoutGh, noTerminals)
 	plan, err := w.Plan(WorktreeRequest{Dir: tree})
@@ -159,6 +164,7 @@ func TestWorktreePlanAndCleanRemoval(t *testing.T) {
 }
 
 func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
+	t.Parallel()
 	_, clone, tree := makeWorktreeFixture(t)
 	commit(t, tree, "b.txt", "feat(#5): work")
 	os.WriteFile(filepath.Join(tree, "draft.txt"), []byte("draft"), 0644)
@@ -215,6 +221,7 @@ func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
 }
 
 func TestWorktreeUnpushedOnlyStillAsks(t *testing.T) {
+	t.Parallel()
 	_, _, tree := makeWorktreeFixture(t)
 	commit(t, tree, "b.txt", "feat(#5): work")
 	w := MakeWorktrees(withoutGh, noTerminals)
@@ -229,6 +236,7 @@ func TestWorktreeUnpushedOnlyStillAsks(t *testing.T) {
 }
 
 func TestWorktreeLockedIsKept(t *testing.T) {
+	t.Parallel()
 	_, clone, tree := makeWorktreeFixture(t)
 	gitRun(t, clone, "worktree", "lock", tree)
 	w := MakeWorktrees(withoutGh, noTerminals)
@@ -242,6 +250,7 @@ func TestWorktreeLockedIsKept(t *testing.T) {
 }
 
 func TestChangePath(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"? new file.txt": "new file.txt",
 		"! .env":         ".env",
@@ -257,6 +266,7 @@ func TestChangePath(t *testing.T) {
 }
 
 func TestWorktreeSharedOrIgnoredNeedsConfirmation(t *testing.T) {
+	t.Parallel()
 	_, _, tree := makeWorktreeFixture(t)
 	shared := MakeWorktrees(withoutGh, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 		return []WorktreeTerminal{{BlockId: "b2", Linked: true}}
@@ -284,6 +294,7 @@ func TestWorktreeSharedOrIgnoredNeedsConfirmation(t *testing.T) {
 
 // A .git file pointing into a repository is not enough: git's records must name the folder back.
 func TestWorktreeCraftedGitFileIsRefused(t *testing.T) {
+	t.Parallel()
 	base, _, tree := makeWorktreeFixture(t)
 	victim := filepath.Join(base, "victim")
 	os.MkdirAll(victim, 0755)
@@ -303,6 +314,7 @@ func TestWorktreeCraftedGitFileIsRefused(t *testing.T) {
 }
 
 func TestWorktreeRefusesHome(t *testing.T) {
+	t.Parallel()
 	_, _, tree := makeWorktreeFixture(t)
 	w := MakeWorktrees(withoutGh, noTerminals)
 	w.home = filepath.Join(tree, "home-of-someone")
@@ -326,6 +338,7 @@ func TestWorktreeRefusesHome(t *testing.T) {
 // A branch merged by squash whose remote branch was deleted: its commits exist on no remote, but its content is on
 // the trunk, so they are not at risk and one confirmation (the Remove itself) is enough (#134).
 func TestWorktreeMergedWithoutRemoteBranchAsksOnce(t *testing.T) {
+	t.Parallel()
 	base, clone, tree := makeWorktreeFixture(t)
 	commit(t, tree, "b.txt", "feat(#5): work")
 	// The squash commit: the same content, another commit.
@@ -353,6 +366,7 @@ func TestWorktreeMergedWithoutRemoteBranchAsksOnce(t *testing.T) {
 
 // Work on top of a merged branch still asks twice; so do commits git could not count.
 func TestWorktreeMergedStillAsksForWorkOrUnknownCommits(t *testing.T) {
+	t.Parallel()
 	merged := true
 	if !(WorktreePlan{Unpushed: UnknownCount, Merged: &merged}).NeedsConfirmation() {
 		t.Fatal("uncountable commits on a merged branch went without the second confirmation")
@@ -371,6 +385,7 @@ func TestWorktreeMergedStillAsksForWorkOrUnknownCommits(t *testing.T) {
 
 // The terminals closed together (a whole tab) are not "other terminals" of the worktree.
 func TestWorktreeClosingTerminalsAreNotOthers(t *testing.T) {
+	t.Parallel()
 	_, _, tree := makeWorktreeFixture(t)
 	var seen []string
 	w := MakeWorktrees(withoutGh, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {

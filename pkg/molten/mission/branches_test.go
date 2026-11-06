@@ -82,7 +82,7 @@ func makeBranchesFixture(t *testing.T, gh func(dir string, args []string) ([]byt
 		"feature/7-after", "feature/8-patches")
 	gitIn(t, dir, "worktree", "add", "-q", filepath.Join(t.TempDir(), "wt"), "feature/4-worktree")
 	data := t.TempDir()
-	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	r := makeTestRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
@@ -135,6 +135,7 @@ func planOf(plan BranchesPlan) map[string]string {
 }
 
 func TestBranchesPlanReadsMergedPullRequests(t *testing.T) {
+	t.Parallel()
 	var edits []string
 	r, dir := makeBranchesFixture(t, githubFake(t, true, &edits))
 	plan, err := r.PlanBranches(dir)
@@ -170,6 +171,7 @@ func TestBranchesPlanReadsMergedPullRequests(t *testing.T) {
 }
 
 func TestBranchesPlanJudgesOnContentWithoutPullRequests(t *testing.T) {
+	t.Parallel()
 	r, dir := makeBranchesFixture(t, func(dir string, args []string) ([]byte, error) {
 		if strings.Contains(strings.Join(args, " "), "--state open") {
 			return []byte(`[{"headRefName":"feature/5-pr"}]`), nil
@@ -196,6 +198,7 @@ func TestBranchesPlanJudgesOnContentWithoutPullRequests(t *testing.T) {
 }
 
 func TestBranchesPlanKeepsAllWhenGithubIsSilent(t *testing.T) {
+	t.Parallel()
 	r, dir := makeBranchesFixture(t, func(string, []string) ([]byte, error) { return nil, errors.New("gh: offline") })
 	plan, err := r.PlanBranches(dir)
 	if err != nil {
@@ -217,6 +220,7 @@ func TestBranchesPlanKeepsAllWhenGithubIsSilent(t *testing.T) {
 }
 
 func TestBranchesPlanTrustsNoMergedPrWhenOpenPrsAreUnknown(t *testing.T) {
+	t.Parallel()
 	var edits []string
 	full := githubFake(t, true, &edits)
 	r, dir := makeBranchesFixture(t, func(dir string, args []string) ([]byte, error) {
@@ -232,6 +236,7 @@ func TestBranchesPlanTrustsNoMergedPrWhenOpenPrsAreUnknown(t *testing.T) {
 }
 
 func TestCleanBranchesChecksEachAgain(t *testing.T) {
+	t.Parallel()
 	var edits []string
 	r, dir := makeBranchesFixture(t, githubFake(t, true, &edits))
 	if _, err := r.CleanBranches(BranchesCleanRequest{Dir: dir, Names: []string{"--force"}}); err == nil {
@@ -255,6 +260,7 @@ func TestCleanBranchesChecksEachAgain(t *testing.T) {
 }
 
 func TestBranchesPlanWithoutGithubRemote(t *testing.T) {
+	t.Parallel()
 	r, dir := makeBranchesFixture(t, func(string, []string) ([]byte, error) {
 		return nil, errors.New("gh pr list: none of the git remotes configured for this repository point to a known GitHub host")
 	})
@@ -269,6 +275,7 @@ func TestBranchesPlanWithoutGithubRemote(t *testing.T) {
 }
 
 func TestBranchesAutoDeleteOfferIsMadeOnce(t *testing.T) {
+	t.Parallel()
 	var edits []string
 	r, dir := makeBranchesFixture(t, githubFake(t, false, &edits))
 	plan, _ := r.PlanBranches(dir)
@@ -290,6 +297,7 @@ func TestBranchesAutoDeleteOfferIsMadeOnce(t *testing.T) {
 }
 
 func TestBranchesAutoDeleteNotNowChangesNothing(t *testing.T) {
+	t.Parallel()
 	var edits []string
 	r, dir := makeBranchesFixture(t, githubFake(t, false, &edits))
 	if err := r.AnswerAutoDelete(BranchesAutoDeleteRequest{Dir: dir, Enable: false}); err != nil {
@@ -302,6 +310,7 @@ func TestBranchesAutoDeleteNotNowChangesNothing(t *testing.T) {
 }
 
 func TestBranchesAutoDeleteFailureIsNotAnAnswer(t *testing.T) {
+	t.Parallel()
 	r, dir := makeBranchesFixture(t, func(dir string, args []string) ([]byte, error) {
 		call := strings.Join(args, " ")
 		switch {

@@ -42,6 +42,7 @@ func squashInto(t *testing.T, dir string, branch string) {
 // (its commits stay "ahead" of develop) or merged it with a merge commit (an agent on it kept it listed); commits after
 // the merged head keep it Upcoming with the count; a PR closed without merging keeps its branch Upcoming, worded.
 func TestUpcomingMergedBranchesAreLeftovers(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	squashed := branchWithCommit(t, dir, "feature/31-squash", "s.txt")
 	squashInto(t, dir, "feature/31-squash")
@@ -125,6 +126,7 @@ func TestUpcomingMergedBranchesAreLeftovers(t *testing.T) {
 }
 
 func TestClosedPrsByBranchWithoutTheRead(t *testing.T) {
+	t.Parallel()
 	gh := &GithubSnapshot{State: GithubStateOk, Merged: json.RawMessage(`[` + closedPrJson(1, "feature/1-a", "aaaaaaa", true) + `]`), Errors: map[string]string{"merged": "boom"}}
 	if got := closedPrsByBranch(Snapshot{Github: gh}); got != nil {
 		t.Fatalf("a failed read tells nothing: %+v", got)

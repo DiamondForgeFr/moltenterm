@@ -20,6 +20,7 @@ const manualPipeline = `{"schema":1,"name":"fixture","release":{
 		{"id":"cut","title":"Cut","phase":"cut","confirm":"{tag} is public.","run":"touch cut-ran"}]}}`
 
 func TestManualStepIsRecordedDoneWithoutRunningAnything(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, manualPipeline)
 	res := startRelease(t, r, dir, ReleaseChannelRc, "v1.2.0-1")
 	waitRun(t, r, dir, res.Run.Id)
@@ -54,6 +55,7 @@ const prFlowManualPipeline = `{"schema":1,"name":"fixture","release":{
 		{"id":"tag","title":"Tag","phase":"cut","confirm":"{tag} is public once pushed.","run":"touch tag-ran"}]}}`
 
 func TestManualCutStepIsRecordedWhileTheCommandsWaitForTrust(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, prFlowManualPipeline)
 	res := startRelease(t, r, dir, ReleaseChannelPublic, "v1.1.0")
 	waitRun(t, r, dir, res.Run.Id)
@@ -90,6 +92,7 @@ func TestManualCutStepIsRecordedWhileTheCommandsWaitForTrust(t *testing.T) {
 }
 
 func TestManualStepsAreNotTrustedCommands(t *testing.T) {
+	t.Parallel()
 	p := &molten.Pipeline{Release: &molten.PipelineRelease{Rc: []molten.PipelineStep{
 		{Id: "a", PipelineCommand: molten.PipelineCommand{Run: "true"}},
 		{Id: "b", Manual: "do it"},
@@ -108,6 +111,7 @@ func TestManualStepsAreNotTrustedCommands(t *testing.T) {
 }
 
 func TestManualStepValidation(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
 	bad := `{"schema":1,"name":"P","release":{"rc":[
@@ -132,6 +136,7 @@ func TestManualStepValidation(t *testing.T) {
 }
 
 func TestPendingApprovalFromTheStepLog(t *testing.T) {
+	t.Parallel()
 	log := []byte("Started\n▶ approval: github-pages https://github.com/o/r/actions/runs/9\nwaits\n")
 	if a := pendingApproval(log); a == nil || a.Environment != "github-pages" || a.Url != "https://github.com/o/r/actions/runs/9" {
 		t.Fatalf("%+v", a)
@@ -142,6 +147,7 @@ func TestPendingApprovalFromTheStepLog(t *testing.T) {
 }
 
 func TestWaitingApprovalsOfTagRuns(t *testing.T) {
+	t.Parallel()
 	var asked []string
 	r := &Runs{git: func(_ context.Context, _ string, name string, args ...string) ([]byte, error) {
 		asked = append(asked, name+" "+strings.Join(args, " "))

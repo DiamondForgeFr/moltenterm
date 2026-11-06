@@ -83,6 +83,7 @@ func readyReviews(t *testing.T, reviews *Reviews, dir string) {
 
 // #797: Rerun failed jobs reruns each run holding a failed check, naming the repository, and tells the outcome.
 func TestReviewsRerunFailed(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, reviewsSfManifest)
 	gh := &rerunGh{}
 	collector := testCollector(t, "", gh.run, nil)

@@ -19,6 +19,7 @@ import (
 const setupPrUrl = "https://github.com/DiamondForgeFr/moltenterm/pull/1787"
 
 func TestSetupPrVerdict(t *testing.T) {
+	t.Parallel()
 	open := func(draft bool, checks string) SetupPrStatus {
 		return SetupPrStatus{State: SetupPrStatusOpen, Draft: draft, Checks: checks}
 	}
@@ -46,6 +47,7 @@ func TestSetupPrVerdict(t *testing.T) {
 }
 
 func TestSetupPrNoticeSaysWhyAndOffersMarkReady(t *testing.T) {
+	t.Parallel()
 	ready := setupPrNotice(setupPrVerdictReady, "/p", 1787, setupPrUrl, "develop")
 	if ready.Key != SetupPrNoticePrefix+setupPrUrl || ready.Source != "release" || ready.Kind != "success" ||
 		ready.TitleText.Code != "notif.setup.prReadyTitle" || ready.MessageText.Code != "notif.setup.prReady" ||
@@ -107,6 +109,7 @@ func setupPrJson(draft bool, check string) string {
 }
 
 func TestSetupPrWatchTellsOnceTheChecksAreGreen(t *testing.T) {
+	t.Parallel()
 	run, looks := ghSetupPrAnswers(setupPrJson(true, "PENDING"), "", setupPrJson(true, "SUCCESS"))
 	published := make(chan molten.NotificationInput, 4)
 	w := &SetupPrWatch{Run: run, Every: time.Millisecond, Rounds: 1000,
@@ -135,6 +138,7 @@ func TestSetupPrWatchTellsOnceTheChecksAreGreen(t *testing.T) {
 }
 
 func TestSetupPrWatchStaysQuietWhenTheDraftIsMarkedReady(t *testing.T) {
+	t.Parallel()
 	run, looks := ghSetupPrAnswers(setupPrJson(true, "PENDING"), setupPrJson(false, "PENDING"))
 	var published []molten.NotificationInput
 	var lock sync.Mutex

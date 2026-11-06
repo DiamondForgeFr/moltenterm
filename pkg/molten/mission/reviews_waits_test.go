@@ -12,6 +12,7 @@ import (
 )
 
 func TestDeclaredWaits(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		text string
 		want []int
@@ -37,6 +38,7 @@ func TestDeclaredWaits(t *testing.T) {
 // #1841: a draft held until another PR merges says so in its body, in a comment of its author (the lead), in its
 // ticket's body or through GitHub's "blocked by" relationship; only what is still open is kept.
 func TestReadReviewFactsWaits(t *testing.T) {
+	t.Parallel()
 	var queries []string
 	run := func(ctx context.Context, dir string, name string, a ...string) ([]byte, error) {
 		query := ""
@@ -102,6 +104,7 @@ func TestReadReviewFactsWaits(t *testing.T) {
 
 // The waits a query read are on the PRs of the next answers.
 func TestReviewsApplyWaits(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	reviews := MakeReviews(nil, nil, nil)
 	reviews.reports[dir] = &reviewReportsState{}

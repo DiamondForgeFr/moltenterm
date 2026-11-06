@@ -67,6 +67,7 @@ func (o *onBranchFixture) panel(t *testing.T) BranchAgent {
 }
 
 func TestPanelTimeOnBranchStartsWithTheWorktree(t *testing.T) {
+	t.Parallel()
 	o := makeOnBranchFixture(t)
 	created := o.now.Add(-3 * time.Hour).UnixMilli()
 	o.files[filepath.Join(o.f.running, ".git")] = created
@@ -86,6 +87,7 @@ func TestPanelTimeOnBranchStartsWithTheWorktree(t *testing.T) {
 }
 
 func TestPanelOnlyPassingThroughAWorktreeIsVisiting(t *testing.T) {
+	t.Parallel()
 	o := makeOnBranchFixture(t)
 	main := realPath(o.f.dir)
 	dayAgo := o.now.Add(-26 * time.Hour).UnixMilli()
@@ -117,6 +119,7 @@ func TestPanelOnlyPassingThroughAWorktreeIsVisiting(t *testing.T) {
 
 // A session MoltenTerm first sees already in a worktree counts the writes of the last minutes before.
 func TestPanelFirstSeenInAWorktreeCountsRecentWrites(t *testing.T) {
+	t.Parallel()
 	o := makeOnBranchFixture(t)
 	main := realPath(o.f.dir)
 	o.places = []AgentPlace{{BlockId: "b0", Agent: "codex", FirstName: "Léa", Started: o.now.Add(-26 * time.Hour).UnixMilli(), Cwd: main, Work: realPath(o.f.running)}}

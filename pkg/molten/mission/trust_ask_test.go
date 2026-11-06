@@ -71,6 +71,7 @@ func askRun(t *testing.T, link *localroute.Link, from routetest.From, dir string
 // shows its own sheet and is not notified. The developer's Trust closes the question and tells the refused agent; a
 // changed command asks again.
 func TestTrustAskFromTerminal(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","title":"Gold","run":"echo hi"}`)
 	rec := &trustAskRecorder{}
 	e := routetest.Make(t)
@@ -146,6 +147,7 @@ func TestTrustAskFromTerminal(t *testing.T) {
 
 // A worktree's folder never borrows the project folder's trust, even with the same commands.
 func TestTrustIsPerFolder(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"echo hi"}`)
 	info, err := r.Untrusted(dir)
 	if err != nil || info == nil {
@@ -162,6 +164,7 @@ func TestTrustIsPerFolder(t *testing.T) {
 }
 
 func TestTrustReceipt(t *testing.T) {
+	t.Parallel()
 	if got := trustReceipt("/p/App", "molten ci run"); got != "[MoltenTerm] The developer trusted the commands of App (/p/App): run `molten ci run` again." {
 		t.Errorf("receipt: %q", got)
 	}

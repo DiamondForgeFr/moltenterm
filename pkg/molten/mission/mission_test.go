@@ -98,6 +98,7 @@ func makeGitFlowRepo(t *testing.T) string {
 }
 
 func TestCollectGitFlow(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
 	if err != nil {
@@ -137,6 +138,7 @@ func TestCollectGitFlow(t *testing.T) {
 
 // Without a public release, a remote or a tag, the trunk's whole history waits for the first public release (#745).
 func TestCollectGitSincePublicBeforeFirstRelease(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -162,6 +164,7 @@ func TestCollectGitSincePublicBeforeFirstRelease(t *testing.T) {
 }
 
 func TestCollectGitReadsConfiguredBranches(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(`{"mainBranch":"main","workflow":{"workingBranch":"feature/4-thing"}}`), 0644)
 	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
@@ -179,6 +182,7 @@ func TestCollectGitReadsConfiguredBranches(t *testing.T) {
 }
 
 func TestCollectGitNotARepository(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -188,6 +192,7 @@ func TestCollectGitNotARepository(t *testing.T) {
 }
 
 func TestGitHubWebUrl(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"git@github.com:DiamondForgeFr/moltenterm.git":       "https://github.com/DiamondForgeFr/moltenterm",
 		"https://github.com/DiamondForgeFr/moltenterm.git\n": "https://github.com/DiamondForgeFr/moltenterm",
@@ -212,6 +217,7 @@ func ghFake(responses map[string]string, failures map[string]error) Runner {
 }
 
 func TestCollectGithubStates(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	missing := CollectGithub(context.Background(), ghFake(nil, map[string]error{"gh repo view": &MissingProgramError{Name: "gh"}}), dir)
 	if missing.State != GithubStateNoGh {
@@ -228,6 +234,7 @@ func TestCollectGithubStates(t *testing.T) {
 }
 
 func TestCollectGithubSections(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0755)
 	os.WriteFile(filepath.Join(dir, ".github", "workflows", "ci.yml"), []byte("on:\n  schedule:\n    - cron: '17 2 * * *'\n"), 0644)
@@ -253,6 +260,7 @@ func TestCollectGithubSections(t *testing.T) {
 // #1808: SaaSFoundryAI's GitHub answered `gh repo view` with an HTTP 503 once; the refresh replaced the good read, so
 // the open milestones v1.1.1 and v1.2.0 left the snapshot and the next station read "nothing for now".
 func TestCollectorKeepsTheLastGithubReadOverAnOutage(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	milestones := `[{"number":10,"title":"v1.1.1","due_on":"2026-11-13T00:00:00Z","open_issues":23},{"number":9,"title":"v1.2.0","due_on":"2026-11-27T00:00:00Z","open_issues":29}]`
 	good := CollectGithub(context.Background(), ghFake(map[string]string{
@@ -293,6 +301,7 @@ func TestCollectorKeepsTheLastGithubReadOverAnOutage(t *testing.T) {
 
 // Two panels asking at the same time run one collection; the result is cached and published.
 func TestCollectorRunsOneRefreshAndCaches(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	var calls atomic.Int32
 	release := make(chan struct{})
@@ -338,6 +347,7 @@ func TestCollectorRunsOneRefreshAndCaches(t *testing.T) {
 }
 
 func TestCollectorMissingFolder(t *testing.T) {
+	t.Parallel()
 	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	snap, err := c.Get(filepath.Join(t.TempDir(), "gone"), time.Minute, false)
 	if err != nil || !snap.Missing || snap.Refreshing {
@@ -349,6 +359,7 @@ func TestCollectorMissingFolder(t *testing.T) {
 }
 
 func TestStartRefreshThrottlesGithub(t *testing.T) {
+	t.Parallel()
 	c := testCollector(t, "", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
@@ -362,6 +373,7 @@ func TestStartRefreshThrottlesGithub(t *testing.T) {
 // The refresh Get starts in the background is still counted while its git runs, and testCollector's cleanup waits for
 // it to publish before the test's folders go (#1874).
 func TestTestCollectorWaitsForItsRefreshes(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	started := make(chan struct{})
 	var once sync.Once
@@ -390,6 +402,7 @@ func TestTestCollectorWaitsForItsRefreshes(t *testing.T) {
 }
 
 func TestCollectorReportsThePipeline(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	snap, _ := c.Get(dir, time.Hour, false)

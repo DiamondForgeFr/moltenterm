@@ -48,7 +48,25 @@ func runWithTestGitConfig(m *testing.M) int {
 		return 1
 	}
 	os.Setenv("GIT_CONFIG_GLOBAL", TestGitConfigPath)
+	// A fixture that starts a run finds its programs on the PATH the tests run with (ghguard's gh first), not on a
+	// login shell's: set once here, so that no fixture has to replace it, which would keep its tests from running in
+	// parallel.
+	readLoginPath = func() string { return os.Getenv("PATH") }
 	return m.Run()
+}
+
+// The tests of this package run in parallel (#2019): a test calls t.Parallel() first, unless it changes state that the
+// others read or reads state that the others disturb. Go runs the parallel tests together once every serial one is
+// over, so a serial test may change package-level state or the environment without disturbing them.
+//
+// serialTest marks such a test: one that replaces readLoginPath, appBinDir, depSyncTimeout, depSyncKillGrace, a tab
+// opener or the agent line, one that measures the process (the heap) or one that counts what a file-system watch
+// reports, which a busy machine delivers late. It sets an environment variable only so that Go refuses a t.Parallel()
+// on the same test, in either order: a restored variable another test just read, or a timeout another test waits for,
+// is a flake that appears one run in fifty.
+func serialTest(t *testing.T) {
+	t.Helper()
+	t.Setenv("MISSION_SERIAL_TEST", "1")
 }
 
 func TestGitInTestsSpawnsNoMaintenance(t *testing.T) {
@@ -80,6 +98,7 @@ func TestGitInTestsSpawnsNoMaintenance(t *testing.T) {
 // #1857: no test reaches the real gh. plainRunner refuses it and records the refusal, so the run fails even when the
 // code under test swallows the error; withoutGh is the explicit fake that answers it.
 func TestPlainRunnerRefusesGhAndRecordsIt(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	out, err := plainRunner(context.Background(), dir, "gh", "pr", "list")
 	forgotten := ghguard.Forget(dir)
@@ -92,6 +111,7 @@ func TestPlainRunnerRefusesGhAndRecordsIt(t *testing.T) {
 }
 
 func TestWithoutGhFailsGhQuietlyAndRunsTheRest(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}

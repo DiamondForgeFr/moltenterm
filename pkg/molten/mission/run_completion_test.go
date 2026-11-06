@@ -40,6 +40,7 @@ func heldCommand(gate string, code int) string {
 }
 
 func TestRunOutputCannotCompleteLiveCommand(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{RunKindStep, RunKindBuild, RunKindRelease} {
 		t.Run(kind, func(t *testing.T) {
 			r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
@@ -92,6 +93,7 @@ func TestRunOutputCannotCompleteLiveCommand(t *testing.T) {
 }
 
 func TestRunCompletionIgnoresMissingAndMalformedControl(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
 	for i, control := range []string{"", "exit=0\n", "1", "1 256\n", "1 -1\n", "1 0 extra\n"} {
 		rec := RunRecord{Id: fmt.Sprintf("invalid-%d", i), Dir: dir, State: RunStateRunning, Pid: os.Getpid()}
@@ -124,6 +126,7 @@ func TestRunCompletionIgnoresMissingAndMalformedControl(t *testing.T) {
 }
 
 func TestRunLogChunksNeverSupplyCompletion(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
 	rec := RunRecord{Id: "chunks", Dir: dir, State: RunStateRunning, Pid: os.Getpid()}
 	if err := os.MkdirAll(filepath.Dir(r.logFile(dir, rec.Id)), 0700); err != nil {
@@ -141,10 +144,12 @@ func TestRunLogChunksNeverSupplyCompletion(t *testing.T) {
 }
 
 func TestRunCancellationBeforeSupervisorStartsChild(t *testing.T) {
+	t.Parallel()
 	testRunCancellationAtStartup(t, false, false)
 }
 
 func TestRunCancellationBeforeChildExec(t *testing.T) {
+	t.Parallel()
 	testRunCancellationAtStartup(t, true, false)
 }
 
@@ -152,6 +157,7 @@ func TestRunCancellationBeforeChildExec(t *testing.T) {
 // both the cancel and the supervisor's forwarded signal, then started the command anyway (#894). The child here
 // ignores signals until its gate opens to hold that window open.
 func TestRunCancellationLostByTheChild(t *testing.T) {
+	t.Parallel()
 	testRunCancellationAtStartup(t, true, true)
 }
 
@@ -210,6 +216,7 @@ while [ ! -f "$4" ]; do sleep 0.02; done
 }
 
 func TestBuildPreparationUsesItsActualResult(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","prepare":{"run":"printf 'exit=0\\n'; exit 11"},"run":"echo should-not-run"}`)
 	rec := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
 	if rec.State != RunStateFailure || rec.Exit == nil || *rec.Exit != 11 {
@@ -222,6 +229,7 @@ func TestBuildPreparationUsesItsActualResult(t *testing.T) {
 }
 
 func TestRunTerminalHistoryRemainsUnchanged(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
 	code := 3
 	rec := RunRecord{Id: "history", Dir: dir, State: RunStateFailure, Exit: &code, FinishedAt: 42, Closed: true}
@@ -241,11 +249,12 @@ func TestRunTerminalHistoryRemainsUnchanged(t *testing.T) {
 
 // A real helper exits without waiting for its detached command. The parent then acts as the restarted app.
 func TestRunCompletionRestartHelper(t *testing.T) {
+	t.Parallel()
 	base := os.Getenv("MOLTEN_COMPLETION_HELPER")
 	if base == "" {
 		return
 	}
-	r := MakeRuns(filepath.Join(base, "runs"), nil, nil)
+	r := makeTestRuns(filepath.Join(base, "runs"), nil, nil)
 	r.git = withoutGh
 	_, err := r.launch(base, TrustedCommand{Kind: RunKindStep, Id: "fixture", Run: heldCommand(filepath.Join(base, "release"), 7)}, "", "", "")
 	if err != nil {
@@ -254,6 +263,7 @@ func TestRunCompletionRestartHelper(t *testing.T) {
 }
 
 func TestRunCompletionSurvivesApplicationRestart(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("runs use /bin/sh")
 	}
@@ -265,7 +275,7 @@ func TestRunCompletionSurvivesApplicationRestart(t *testing.T) {
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("helper: %v %s", err, out)
 			}
-			r := MakeRuns(filepath.Join(base, "runs"), nil, nil)
+			r := makeTestRuns(filepath.Join(base, "runs"), nil, nil)
 			entries, err := os.ReadDir(r.projectDir(base))
 			var runId string
 			for _, entry := range entries {

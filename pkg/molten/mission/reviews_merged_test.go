@@ -32,6 +32,7 @@ func mergedNumbers(prs []ReviewMergedPr) []int {
 
 // AC2: the window's PRs into the target only, newest first, at most 20.
 func TestBuildMergedKeepsTheWindow(t *testing.T) {
+	t.Parallel()
 	readAt := time.Date(2026, 10, 16, 18, 0, 0, 0, time.UTC)
 	rows := []string{
 		mergedPrJson(1, "develop", readAt.Add(-time.Hour), "aaaaaaa"),
@@ -67,6 +68,7 @@ func TestBuildMergedKeepsTheWindow(t *testing.T) {
 }
 
 func TestMergedPrsArgsNameTheTarget(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, reviewsSfManifest)
 	args := strings.Join(mergedPrsArgs(dir, time.Date(2026, 10, 16, 1, 0, 0, 0, time.UTC)), " ")
 	if !strings.Contains(args, "--state closed") || !strings.Contains(args, "closed:>=2026-10-08") || !strings.Contains(args, "--base develop") {
@@ -76,6 +78,7 @@ func TestMergedPrsArgsNameTheTarget(t *testing.T) {
 
 // AC1: a merge commit no tag carries ships with the next release; the release branch, then a tag, carry it.
 func TestReadShips(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	commit(t, dir, "e.txt", "fix(#5): merged an hour ago")
 	oid := gitIn(t, dir, "rev-parse", "HEAD")
@@ -101,6 +104,7 @@ func TestReadShips(t *testing.T) {
 
 // The view's ask reads where the merged PRs ship in the background and publishes it; a tag found is kept.
 func TestReviewsGetReadsShips(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
 	commit(t, dir, "e.txt", "fix(#5): merged")
@@ -158,6 +162,7 @@ func TestReviewsGetReadsShips(t *testing.T) {
 
 // A refresh's forced ask reads the ships before its fetch brings the tags: the refresh's end reads them again.
 func TestReviewsRefreshedReadsShipsAfterTheFetch(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
 	commit(t, dir, "e.txt", "fix(#5): merged")

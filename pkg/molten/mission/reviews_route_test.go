@@ -21,6 +21,7 @@ var localCommands = []string{
 // release step (the scenario: run an untrusted project, read its hash, trust it with a forged tab source, run its
 // commands), nor reads the reviews (FR-REV-014 AC4). Every decision of the user's is a window's only.
 func TestRouteCallers(t *testing.T) {
+	t.Parallel()
 	e := routetest.Make(t)
 	link, err := localroute.MakeLink(e.Router, (&routeLink{}).route())
 	if err != nil {

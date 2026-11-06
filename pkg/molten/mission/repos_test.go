@@ -19,6 +19,7 @@ func mkRepoDir(t *testing.T, dir string) {
 
 // FR-SHELL-105: the Code repository choice lists the repositories of a folder, and says when the folder is one.
 func TestFindReposListsTheFolderRepositories(t *testing.T) {
+	t.Parallel()
 	client := filepath.Join(t.TempDir(), "client")
 	mkRepoDir(t, filepath.Join(client, "app"))
 	mkRepoDir(t, filepath.Join(client, "code", "api"))
@@ -44,6 +45,7 @@ func TestFindReposListsTheFolderRepositories(t *testing.T) {
 }
 
 func TestFindReposWantsAnAbsoluteFolder(t *testing.T) {
+	t.Parallel()
 	for _, dir := range []string{"", "relative/folder"} {
 		if _, err := FindRepos(ReposRequest{Dir: dir}); err == nil {
 			t.Errorf("%q must be refused", dir)
