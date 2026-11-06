@@ -32,6 +32,7 @@ func checkCoded(t *testing.T, err error, code string, vars map[string]string, en
 }
 
 func TestPipelineRefusalsCarryCodes(t *testing.T) {
+	t.Parallel()
 	checkCoded(t, pipelineError(molten.PipelineReport{}), "mission.noPipeline", nil, "the project has no pipeline (.molten/project.json)")
 	checkCoded(t, pipelineError(molten.PipelineReport{Present: true, Errors: []string{"a", "b"}}), "mission.pipelineProblems",
 		map[string]string{"detail": "a; b"}, "the pipeline has problems: a; b")
@@ -41,6 +42,7 @@ func TestPipelineRefusalsCarryCodes(t *testing.T) {
 }
 
 func TestDepSyncRefusalsCarryCodes(t *testing.T) {
+	t.Parallel()
 	declared := []molten.PipelineDependency{{Project: "lib"}}
 	_, err := pickSyncDeclaration(declared, DepSyncRequest{Project: "other"}, nil)
 	checkCoded(t, err, "mission.depSync.noDependencyOn", map[string]string{"project": "other"}, "the project declares no dependency on other")
@@ -57,6 +59,7 @@ func TestDepSyncRefusalsCarryCodes(t *testing.T) {
 }
 
 func TestResultTextsCarryCodes(t *testing.T) {
+	t.Parallel()
 	wf := ParseWorkflow("bad.yml", "on: [push\n")
 	if wf.Error == "" || wf.ErrorText == nil || wf.ErrorText.Code != "mission.jobs.badYaml" || wf.ErrorText.Vars["detail"] == "" {
 		t.Errorf("unreadable YAML: %q %+v", wf.Error, wf.ErrorText)

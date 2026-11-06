@@ -35,6 +35,7 @@ func writeLaunchFile(t *testing.T, dir string, rel string, content string) {
 }
 
 func TestDetectLaunchRecipeNpmWorkspaces(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeLaunchFile(t, dir, "package.json", `{"name": "df", "workspaces": ["apps/*", "packages/*"], "scripts": {"dev": "turbo dev"}}`)
 	writeLaunchFile(t, dir, "package-lock.json", "{}")
@@ -60,6 +61,7 @@ func TestDetectLaunchRecipeNpmWorkspaces(t *testing.T) {
 }
 
 func TestDetectLaunchRecipeSinglePackage(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeLaunchFile(t, dir, "package.json", `{"scripts": {"dev": "next dev -p 4000", "migrate": "node migrate.js"}}`)
 	writeLaunchFile(t, dir, "pnpm-lock.yaml", "")
@@ -80,6 +82,7 @@ func TestDetectLaunchRecipeSinglePackage(t *testing.T) {
 }
 
 func TestLaunchRecipeProposalAndSave(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeLaunchFile(t, dir, ".molten/project.json", `{"schema": 1, "name": "x", "launch": {
 	  "prepare": [{"id": "migrate", "run": "./scripts/migrate.sh", "env": {"MODE": "dev x"}}],
@@ -147,6 +150,23 @@ type launchFixture struct {
 	events  []LaunchState
 }
 
+var claimedPorts = struct {
+	lock  sync.Mutex
+	taken map[int]bool
+}{taken: map[int]bool{}}
+
+// claimPort says whether the port was not handed out yet by this test process: the tests run in parallel, and two of
+// them could otherwise pick the same port before either one's server listens on it (#2019).
+func claimPort(port int) bool {
+	claimedPorts.lock.Lock()
+	defer claimedPorts.lock.Unlock()
+	if claimedPorts.taken[port] {
+		return false
+	}
+	claimedPorts.taken[port] = true
+	return true
+}
+
 // freePort picks a free port below the systems' ephemeral ranges (49152 and up, 32768 and up on Linux) (#1208): a
 // port the system hands out for 127.0.0.1:0 is released before node listens on it, and on a loaded machine another
 // connection was given it in between, so the launch's server failed with EADDRINUSE.
@@ -154,6 +174,9 @@ func freePort(t *testing.T) int {
 	t.Helper()
 	for range 1000 {
 		port := 20000 + rand.IntN(10000)
+		if !claimPort(port) {
+			continue
+		}
 		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 		if err != nil {
 			continue
@@ -179,9 +202,6 @@ func makeLaunchFixture(t *testing.T) *launchFixture {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
-	saved := readLoginPath
-	readLoginPath = func() string { return os.Getenv("PATH") }
-	t.Cleanup(func() { readLoginPath = saved })
 	tools := t.TempDir()
 	f := &launchFixture{origin: t.TempDir(), dir: t.TempDir(), logFile: filepath.Join(tools, "migrations.log"), port: freePort(t), server: filepath.Join(tools, "server.js")}
 	writeLaunchFile(t, tools, "server.js", launchServerJs)
@@ -234,7 +254,7 @@ func waitLaunch(t *testing.T, l *Launches, dir string, want string) LaunchState 
 		if time.Now().After(deadline) {
 			t.Fatalf("launch is %s, waited for %s: %+v", state.State, want, state)
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 }
 
@@ -256,7 +276,7 @@ func waitGone(t *testing.T, pid int) {
 		if time.Now().After(deadline) {
 			t.Fatalf("process %d still runs", pid)
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 }
 
@@ -270,6 +290,7 @@ func serverPid(state LaunchState) int {
 }
 
 func TestLaunchReplacesAndGoesBackToTheTrunk(t *testing.T) {
+	t.Parallel()
 	f := makeLaunchFixture(t)
 	pr := LaunchTarget{Kind: LaunchTargetPr, Number: 1, Branch: "feature/1-pr"}
 	plan, err := f.l.Plan(LaunchPlanRequest{Dir: f.dir, Target: pr})
@@ -338,6 +359,7 @@ func TestLaunchReplacesAndGoesBackToTheTrunk(t *testing.T) {
 }
 
 func TestLaunchDirtyCheckoutGuard(t *testing.T) {
+	t.Parallel()
 	f := makeLaunchFixture(t)
 	writeLaunchFile(t, f.dir, "version.txt", "local work")
 	pr := LaunchTarget{Kind: LaunchTargetPr, Number: 1, Branch: "feature/1-pr"}
@@ -367,6 +389,7 @@ func TestLaunchDirtyCheckoutGuard(t *testing.T) {
 }
 
 func TestLaunchFailedStepRetries(t *testing.T) {
+	t.Parallel()
 	f := makeLaunchFixture(t)
 	flag := filepath.Join(t.TempDir(), "db-up")
 	f.saveRecipe(t, LaunchRecipe{
@@ -400,6 +423,7 @@ func TestLaunchFailedStepRetries(t *testing.T) {
 }
 
 func TestLaunchServerThatStopsFailsTheLaunch(t *testing.T) {
+	t.Parallel()
 	f := makeLaunchFixture(t)
 	f.saveRecipe(t, LaunchRecipe{Servers: []LaunchRecipeServer{{Id: "api", Run: "echo 'EADDRINUSE'; exit 3", Port: f.port}}})
 	if _, err := f.l.Start(LaunchStartRequest{Dir: f.dir, Target: LaunchTarget{Kind: LaunchTargetTrunk}}); err != nil {
@@ -413,6 +437,7 @@ func TestLaunchServerThatStopsFailsTheLaunch(t *testing.T) {
 }
 
 func TestLaunchStopsPortHoldersOnlyWhenConfirmed(t *testing.T) {
+	t.Parallel()
 	f := makeLaunchFixture(t)
 	holder := exec.Command("sleep", "600")
 	if err := holder.Start(); err != nil {
@@ -458,6 +483,7 @@ func TestLaunchStopsPortHoldersOnlyWhenConfirmed(t *testing.T) {
 }
 
 func TestLaunchServesTheBranchWorktree(t *testing.T) {
+	t.Parallel()
 	f := makeLaunchFixture(t)
 	f.saveRecipe(t, LaunchRecipe{Where: "worktree", Servers: []LaunchRecipeServer{{Id: "web", Run: fmt.Sprintf("exec node %s %d", f.server, f.port), Port: f.port}}})
 	tree := filepath.Join(t.TempDir(), "wt")
@@ -481,6 +507,7 @@ func TestLaunchServesTheBranchWorktree(t *testing.T) {
 }
 
 func TestLaunchAfterRestartFollowsItsServers(t *testing.T) {
+	t.Parallel()
 	f := makeLaunchFixture(t)
 	if _, err := f.l.Start(LaunchStartRequest{Dir: f.dir, Target: LaunchTarget{Kind: LaunchTargetTrunk}}); err != nil {
 		t.Fatal(err)
@@ -497,6 +524,7 @@ func TestLaunchAfterRestartFollowsItsServers(t *testing.T) {
 }
 
 func TestLaunchRefusesBadTargets(t *testing.T) {
+	t.Parallel()
 	l := MakeLaunches(t.TempDir(), withoutGh, nil)
 	dir := t.TempDir()
 	for _, target := range []LaunchTarget{{Kind: "x"}, {Kind: LaunchTargetPr, Branch: "a"}, {Kind: LaunchTargetBranch, Branch: "--upload-pack=x"}, {Kind: LaunchTargetBranch}} {

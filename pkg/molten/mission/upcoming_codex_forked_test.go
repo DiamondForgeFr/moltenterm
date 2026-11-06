@@ -258,6 +258,7 @@ func checkForkedRows(t *testing.T, label string, agent string, f forkedCardFixtu
 }
 
 func TestUpcomingKeepsSubagentsOnTheirTicketsWhateverTheProcessTreeSays(t *testing.T) {
+	t.Parallel()
 	f := makeForkedCardRepo(t)
 	for _, c := range []struct {
 		agent   string

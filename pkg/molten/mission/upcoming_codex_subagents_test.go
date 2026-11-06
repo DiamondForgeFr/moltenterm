@@ -267,6 +267,7 @@ func cardFacts(a BranchAgent) string {
 }
 
 func TestUpcomingNamesCodexSubagentsLikeClaude(t *testing.T) {
+	t.Parallel()
 	f := makeSubagentCardRepo(t)
 	claudeAnswer, claude := subagentCardAgents(t, f, "claude", claudeSubagentSession(t, f))
 	codexAnswer, codex := subagentCardAgents(t, f, "codex", codexSubagentSession(t, f))
@@ -297,6 +298,7 @@ func TestUpcomingNamesCodexSubagentsLikeClaude(t *testing.T) {
 // A background worktree is attributed to a parent through its agent's own worktrees folder, whatever the agent: Claude
 // Code's .claude/worktrees names a Claude Code session; a folder no agent declares names nobody.
 func TestBackgroundAgentsParentByAgentWorktreesDir(t *testing.T) {
+	t.Parallel()
 	trees := []treeEntry{
 		{path: "/p", branch: "develop"},
 		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},

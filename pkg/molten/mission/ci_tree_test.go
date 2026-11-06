@@ -28,6 +28,7 @@ func pruneWorktreeMetadata(t *testing.T, tree string) {
 }
 
 func TestCiTreeRecoversFromPrunedMetadata(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"check","run":"test -f a.txt"}]}`)
 	if first := startCi(t, c, dir, CiRunRequest{}); first.Status != CiStateSuccess {
 		t.Fatalf("first run: %+v", first)

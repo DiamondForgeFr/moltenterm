@@ -44,6 +44,7 @@ func (r *ghRecorder) runner() Runner {
 }
 
 func TestReadGithubRunLogFailedStepsFirst(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	rec := &ghRecorder{outputs: map[string]string{
 		"gh run view 42 --log-failed": "build\tstep\tboom\n",
@@ -63,6 +64,7 @@ func TestReadGithubRunLogFailedStepsFirst(t *testing.T) {
 }
 
 func TestReadGithubRunLogFallsBackToTheWholeLog(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{outputs: map[string]string{"gh run view 7 --log": "all steps\n"}}
 	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	log, err := c.ReadGithubRunLog(GithubRunRequest{Dir: t.TempDir(), RunId: 7, Failed: true})
@@ -82,6 +84,7 @@ func TestReadGithubRunLogFallsBackToTheWholeLog(t *testing.T) {
 }
 
 func TestReadGithubRunLogKeepsTheTail(t *testing.T) {
+	t.Parallel()
 	long := strings.Repeat("early line\n", maxGithubRunLog/8) + "the failing line\n"
 	rec := &ghRecorder{outputs: map[string]string{"gh run view 9 --log": long}}
 	c := testCollector(t, t.TempDir(), rec.runner(), nil)
@@ -98,6 +101,7 @@ func TestReadGithubRunLogKeepsTheTail(t *testing.T) {
 }
 
 func TestReadGithubRunLogError(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{fails: map[string]error{"gh run view 5 --log": errors.New("gh: run 5 not found")}}
 	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	if _, err := c.ReadGithubRunLog(GithubRunRequest{Dir: t.TempDir(), RunId: 5}); err == nil {
@@ -106,6 +110,7 @@ func TestReadGithubRunLogError(t *testing.T) {
 }
 
 func TestGithubRunRequestChecks(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{}
 	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	if _, err := c.ReadGithubRunLog(GithubRunRequest{Dir: "relative", RunId: 1}); err == nil {
@@ -120,6 +125,7 @@ func TestGithubRunRequestChecks(t *testing.T) {
 }
 
 func TestRerunGithubRun(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{}
 	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	dir := t.TempDir()
@@ -135,6 +141,7 @@ func TestRerunGithubRun(t *testing.T) {
 }
 
 func TestGithubRunRouteRerunOnlyFromAWindow(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{outputs: map[string]string{"gh run view 3 --log": "ok\n"}}
 	e := routetest.Make(t)
 	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: testCollector(t, t.TempDir(), rec.runner(), nil)}).route())

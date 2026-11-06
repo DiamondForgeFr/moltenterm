@@ -10,6 +10,7 @@ import (
 )
 
 func TestPipelineTabKeyAndName(t *testing.T) {
+	t.Parallel()
 	if got := PipelineTabKey("/work/app/"); got != "/work/app" {
 		t.Errorf("key: got %q", got)
 	}
@@ -26,6 +27,7 @@ func TestPipelineTabKeyAndName(t *testing.T) {
 
 // One tab per project: the tab of another project or a plain tab is never taken for this one's.
 func TestFindPipelineTab(t *testing.T) {
+	t.Parallel()
 	ids := []string{"plain", "other", "mine", "mine-again"}
 	keys := []string{"", "/work/other", "/work/app", "/work/app"}
 	if got := FindPipelineTab(keys, ids, "/work/app"); got != "mine" {
@@ -40,6 +42,7 @@ func TestFindPipelineTab(t *testing.T) {
 }
 
 func TestPipelineTabRequestChecks(t *testing.T) {
+	t.Parallel()
 	bad := []PipelineTabRequest{
 		{Dir: "/work/app"},
 		{WorkspaceId: "ws"},
@@ -58,6 +61,7 @@ func TestPipelineTabRequestChecks(t *testing.T) {
 
 // Two openings at once reach the maker one after the other, so the second finds the first's tab.
 func TestOpenPipelineTabSerializes(t *testing.T) {
+	serialTest(t)
 	saved := pipelineTabs.open
 	defer UsePipelineTabs(saved)
 	var lock sync.Mutex

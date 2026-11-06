@@ -33,6 +33,7 @@ func makeMergeRepo(t *testing.T) string {
 }
 
 func TestCollectGitMerges(t *testing.T) {
+	t.Parallel()
 	dir := makeMergeRepo(t)
 	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
 	if err != nil {
@@ -59,6 +60,7 @@ func TestCollectGitMerges(t *testing.T) {
 }
 
 func TestCollectGitLinearHasNoMerges(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
 	if err != nil {
@@ -105,6 +107,7 @@ func tagSource(t *testing.T, snap *GitSnapshot, name string) string {
 // develop. The tag's second parent is the release commit, which develop's first parents never reach: the source is C.
 // v1.0.0, merged straight from develop, has develop's head of the time as its source.
 func TestCollectGitTagSourceThroughAnRcBranch(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -150,6 +153,7 @@ func TestCollectGitTagSourceThroughAnRcBranch(t *testing.T) {
 
 // A tag on a develop commit is its own source; in a single-branch project no source is computed.
 func TestCollectGitTagSourceOnTheTrunk(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
 	if err != nil {
@@ -170,6 +174,7 @@ func TestCollectGitTagSourceOnTheTrunk(t *testing.T) {
 }
 
 func TestParseHistoryKeepsTabsInSubjects(t *testing.T) {
+	t.Parallel()
 	commits := parseHistory([]string{"abc\t2026-10-01T10:00:00+02:00\t2026-09-30T09:00:00+02:00\tp1 p2\tMerge\tit", "short"})
 	if len(commits) != 1 || commits[0].Subject != "Merge\tit" || strings.Join(commits[0].Parents, ",") != "p1,p2" {
 		t.Fatalf("history: %+v", commits)
@@ -181,6 +186,7 @@ func TestParseHistoryKeepsTabsInSubjects(t *testing.T) {
 }
 
 func TestEarlierDateAcrossOffsets(t *testing.T) {
+	t.Parallel()
 	if !earlierDate("2026-10-01T10:00:00+02:00", "2026-10-01T09:30:00+00:00") {
 		t.Fatal("08:00 UTC is before 09:30 UTC")
 	}
@@ -192,6 +198,7 @@ func TestEarlierDateAcrossOffsets(t *testing.T) {
 // The agent tool's worktree branches (#1123): one still on the commit its worktree started from is noise and is left
 // out, even when that commit is ahead of the trunk (a release branch's); one with commits of its own stays, marked.
 func TestCollectGitLeavesOutEmptyAgentBranches(t *testing.T) {
+	t.Parallel()
 	dir := makeMergeRepo(t)
 	gitRun(t, dir, "checkout", "-q", "-b", "main")
 	commit(t, dir, "r.txt", "chore(release): v1")
@@ -231,6 +238,7 @@ func TestCollectGitLeavesOutEmptyAgentBranches(t *testing.T) {
 // worktree; worktree-agent-x and a branch holding only an rc branch's commits are not drawn, while a branch with
 // commits on neither long-lived branch still is.
 func TestCollectGitNamesTheWorktreeBranchNotTheAgentBranch(t *testing.T) {
+	t.Parallel()
 	dir := makeMergeRepo(t)
 	manifest := `{"mainBranch":"main","workflow":{"workingBranch":"develop","branchNaming":{"release":"rc-{version}"}}}`
 	if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(manifest), 0644); err != nil {

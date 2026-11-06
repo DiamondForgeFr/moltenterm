@@ -120,7 +120,7 @@ func makeOwnTreeFixture(t *testing.T) ownTreeFixture {
 		}
 		return nil, errors.New("unexpected gh " + call)
 	}
-	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	r := makeTestRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.treeCwds = func() []procCwd { return nil }
 	r.git = func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
@@ -146,6 +146,7 @@ func makeOwnTreeFixture(t *testing.T) ownTreeFixture {
 }
 
 func TestBranchesPlanOwnWorktreesRebasedAndToolBranches(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	plan, err := f.r.PlanBranches(f.dir)
 	if err != nil {
@@ -186,6 +187,7 @@ func TestBranchesPlanOwnWorktreesRebasedAndToolBranches(t *testing.T) {
 }
 
 func TestBranchesPlanWithoutForcePushHistoryKeepsTheRebasedBranch(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	git := f.r.git
 	f.r.git = func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
@@ -201,6 +203,7 @@ func TestBranchesPlanWithoutForcePushHistoryKeepsTheRebasedBranch(t *testing.T) 
 }
 
 func TestCleanBranchesRemovesOwnWorktreeOfMergedPr(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	res, err := f.r.CleanBranches(BranchesCleanRequest{Dir: f.dir, Names: []string{"feature/10-tree", "feature/11-tree",
 		"feature/12-tree", "feature/13-tree", "feature/14-rebased", "pr-assets"}})
@@ -233,6 +236,7 @@ func TestCleanBranchesRemovesOwnWorktreeOfMergedPr(t *testing.T) {
 }
 
 func TestCleanBranchesKeepsOwnWorktreeThatChangedSinceThePlan(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	git := f.r.git
 	// A file lands in the worktree after the plan read it (14 is planned after 10): the removal reads it again and refuses.
@@ -253,6 +257,7 @@ func TestCleanBranchesKeepsOwnWorktreeThatChangedSinceThePlan(t *testing.T) {
 }
 
 func TestOwnTreeIsOnlyMoltenTermsWorkFolder(t *testing.T) {
+	t.Parallel()
 	data := t.TempDir()
 	trees := DepSyncTreesDir(data)
 	for path, want := range map[string]bool{

@@ -44,6 +44,7 @@ func madeByBody(line string) string {
 }
 
 func TestBackgroundAttributionOrder(t *testing.T) {
+	t.Parallel()
 	now := time.UnixMilli(50_000_000)
 	trees := []treeEntry{
 		{path: "/p", branch: "develop"},
@@ -124,6 +125,7 @@ func TestBackgroundAttributionOrder(t *testing.T) {
 }
 
 func TestBackgroundAttributionWithoutAgentProcesses(t *testing.T) {
+	t.Parallel()
 	now := time.UnixMilli(50_000_000)
 	trees := []treeEntry{{path: "/p", branch: "develop"}, {path: "/x/a", branch: "feature/3-a"}}
 	places := []AgentPlace{{BlockId: "b", Agent: "codex", FirstName: "Adrien", Cwd: "/p"}}
@@ -141,6 +143,7 @@ func TestBackgroundAttributionWithoutAgentProcesses(t *testing.T) {
 }
 
 func TestLiveTreeAgentsIsBounded(t *testing.T) {
+	t.Parallel()
 	cands := []treeEntry{{path: "/w", branch: "feature/1-w"}}
 	parents := map[int32]int32{}
 	cwds := map[int32]string{1: "/p"}
@@ -161,6 +164,7 @@ func TestLiveTreeAgentsIsBounded(t *testing.T) {
 }
 
 func TestLastSigner(t *testing.T) {
+	t.Parallel()
 	if _, ok := LastSigner(nil, "no block"); ok {
 		t.Fatalf("no signature")
 	}
@@ -175,6 +179,7 @@ func TestLastSigner(t *testing.T) {
 
 // #1848: a sub-agent that signs with no model of its own writes "subagent" there; the line never says it as a model.
 func TestSignedAgentKeepsNoPlaceholderModel(t *testing.T) {
+	t.Parallel()
 	got := SignedAgent(BranchAgent{Kind: UpcomingAgentBackground}, agentsign.Signature{FirstName: "Arthur", Agent: "Claude Code", Model: "subagent", Effort: "high"}, nil)
 	if got.Model != "" || got.Effort != "high" {
 		t.Fatalf("no model, the effort stays: %+v", got)

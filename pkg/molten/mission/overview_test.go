@@ -23,6 +23,7 @@ func tagNamed(snap *GitSnapshot, name string) *Tag {
 // A candidate cut on another branch (a release worktree) leaves its notes in the tag only: the overview reads them
 // from git.
 func TestCollectGitReadsNotesFromTheTag(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	gitRun(t, dir, "checkout", "-q", "-b", "release-cut", "main")
 	os.MkdirAll(filepath.Join(dir, "releases"), 0755)
@@ -60,6 +61,7 @@ func waitSnapshot(t *testing.T, published chan Snapshot) Snapshot {
 
 // A run that tagged the repository invalidates the project: the new tag shows without waiting for the cache to expire.
 func TestCollectorInvalidateReadsTheNewTag(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	published := make(chan Snapshot, 4)
 	// The first refresh calls gh: a real one can stall on a loaded runner (network, auth) for up to collectTimeout,
@@ -81,6 +83,7 @@ func TestCollectorInvalidateReadsTheNewTag(t *testing.T) {
 
 // An invalidation during a refresh is not lost: that refresh may have read git before the change, so another follows.
 func TestCollectorInvalidateDuringARefresh(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	hold := make(chan struct{})
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
@@ -110,6 +113,7 @@ func TestCollectorInvalidateDuringARefresh(t *testing.T) {
 }
 
 func TestCollectorInvalidateIgnoresARelativeFolder(t *testing.T) {
+	t.Parallel()
 	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	c.Invalidate("relative/path")
 	if len(c.projects) != 0 {

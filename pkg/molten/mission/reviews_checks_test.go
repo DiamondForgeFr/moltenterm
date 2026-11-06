@@ -50,6 +50,7 @@ func checkOf(ci ReviewCi, name string) ReviewCheck {
 
 // #797: the old skipped Backend listed after the failed one hid the failure, and the row said "5 passed".
 func TestSummarizeReviewChecksLatestRunWins(t *testing.T) {
+	t.Parallel()
 	ci := foldRollup(t, pr795Rollup(pr795BackendFailed))
 	if ci.State != ReviewCheckFailure || ci.Failure != 2 || ci.Success != 4 || ci.Pending != 0 {
 		t.Fatalf("got %+v", ci)
@@ -67,6 +68,7 @@ func TestSummarizeReviewChecksLatestRunWins(t *testing.T) {
 }
 
 func TestSummarizeReviewChecksRerunIsPending(t *testing.T) {
+	t.Parallel()
 	rerun := `{"__typename":"CheckRun","completedAt":"0001-01-01T00:00:00Z","conclusion":"","detailsUrl":"https://github.com/o/r/actions/runs/38921294428/job/117099999999","name":"Backend","startedAt":"2026-10-16T15:25:52Z","status":"IN_PROGRESS","workflowName":"CI"}`
 	ci := foldRollup(t, pr795Rollup(rerun+","+pr795BackendFailed))
 	if backend := checkOf(ci, "Backend"); backend.State != ReviewCheckPending || backend.JobId != 117099999999 {
@@ -81,6 +83,7 @@ func TestSummarizeReviewChecksRerunIsPending(t *testing.T) {
 
 // #1876: the card says since when the CI is over, so a finished check carries when it finished and a running one does not.
 func TestSummarizeReviewChecksKeepsWhenAFinishedCheckEnded(t *testing.T) {
+	t.Parallel()
 	ci := foldRollup(t, `[{"name":"Backend","workflowName":"CI","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-11-04T08:00:00Z","completedAt":"2026-11-04T08:07:30Z"},
 		{"name":"Frontend","workflowName":"CI","status":"IN_PROGRESS","conclusion":"","startedAt":"2026-11-04T08:00:00Z","completedAt":"0001-01-01T00:00:00Z"},
 		{"__typename":"StatusContext","context":"local-ci","state":"SUCCESS","startedAt":"2026-11-04T08:00:00Z"}]`)
@@ -97,6 +100,7 @@ func TestSummarizeReviewChecksKeepsWhenAFinishedCheckEnded(t *testing.T) {
 
 // Two workflows may name a job alike: both are checks of their own.
 func TestSummarizeReviewChecksKeysByWorkflow(t *testing.T) {
+	t.Parallel()
 	ci := foldRollup(t, `[{"name":"build","workflowName":"CI","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-10-16T10:00:00Z"},
 		{"name":"build","workflowName":"Release","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-10-16T09:00:00Z"},
 		{"__typename":"StatusContext","context":"local-ci","state":"SUCCESS","startedAt":"2026-10-16T08:00:00Z","targetUrl":"https://example.com/x"}]`)

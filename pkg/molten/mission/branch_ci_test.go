@@ -79,6 +79,7 @@ func branchCiFixture(t *testing.T) (string, *BranchCi, *branchCiGh) {
 }
 
 func TestBranchCiLatestRunPerWorkflow(t *testing.T) {
+	t.Parallel()
 	dir, b, gh := branchCiFixture(t)
 	answer, err := b.Get(BranchCiRequest{Dir: dir})
 	if err != nil {
@@ -127,6 +128,7 @@ func TestBranchCiLatestRunPerWorkflow(t *testing.T) {
 }
 
 func TestBranchCiSameTrunkAndRelease(t *testing.T) {
+	t.Parallel()
 	dir, b, _ := branchCiFixture(t)
 	os.MkdirAll(filepath.Join(dir, ".molten"), 0o755)
 	os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(`{"schema":1,"name":"x","branches":{"trunk":"main","release":"main"}}`), 0o644)
@@ -137,6 +139,7 @@ func TestBranchCiSameTrunkAndRelease(t *testing.T) {
 }
 
 func TestAwaitedCiOf(t *testing.T) {
+	t.Parallel()
 	waiting := "▶ promote\nGitHub CI on develop abc1234:\n  ci.yml: no run on this commit, started it.\n  waiting for ci.yml…\n  waiting for ci.yml…\n"
 	awaits := awaitedCiOf([]byte(waiting))
 	if awaits == nil || awaits.Branch != "develop" || awaits.Sha != "abc1234" || len(awaits.Workflows) != 1 || awaits.Workflows[0] != "ci.yml" {
@@ -154,6 +157,7 @@ func TestAwaitedCiOf(t *testing.T) {
 }
 
 func TestBranchCiMarksTheAwaitedRun(t *testing.T) {
+	t.Parallel()
 	dir, b, _ := branchCiFixture(t)
 	awaits := &ReleaseCiAwait{Tag: "v1.0.0-4", Branch: "develop", Sha: "abc1234", Workflows: []string{"ci.yml"}}
 	branch := b.readBranch(context.Background(), dir, "o/r", BranchCiBranch{Branch: "develop", Roles: []string{BranchCiRoleTrunk}}, awaits, workflowNames(dir, awaits.Workflows))

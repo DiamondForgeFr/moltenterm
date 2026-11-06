@@ -19,6 +19,7 @@ import (
 )
 
 func TestInitGitCreatesARepository(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -39,6 +40,7 @@ func TestInitGitCreatesARepository(t *testing.T) {
 // The GitHub read made before git init failed on "not a git repository"; the one after must ask again (#1650), not
 // keep that answer for minGithubInterval.
 func TestInitGitReadsGithubAgain(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -83,6 +85,7 @@ func TestInitGitReadsGithubAgain(t *testing.T) {
 }
 
 func TestInitGitRefusesARepository(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -106,6 +109,7 @@ func TestInitGitRefusesARepository(t *testing.T) {
 }
 
 func TestInitGitRefusesAMissingOrRelativeFolder(t *testing.T) {
+	t.Parallel()
 	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	if _, err := c.InitGit(GitInitRequest{Dir: "relative/path"}); err == nil {
 		t.Fatalf("a relative path was accepted")
@@ -116,6 +120,7 @@ func TestInitGitRefusesAMissingOrRelativeFolder(t *testing.T) {
 }
 
 func TestInitGitOnlyFromAWindow(t *testing.T) {
+	t.Parallel()
 	e := routetest.Make(t)
 	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: testCollector(t, t.TempDir(), withoutGh, nil)}).route())
 	if err != nil {

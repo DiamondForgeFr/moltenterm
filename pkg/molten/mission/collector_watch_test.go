@@ -20,6 +20,7 @@ import (
 // Mission Control view, or after a change.
 
 func TestCollectorProjectsBounded(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
 	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	now := time.Now()
@@ -47,6 +48,7 @@ func TestCollectorProjectsBounded(t *testing.T) {
 }
 
 func TestCollectorEvictsGoneFoldersFirst(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
 	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	now := time.Now()
@@ -83,6 +85,7 @@ func TestCollectorEvictsGoneFoldersFirst(t *testing.T) {
 }
 
 func TestStartRefreshPassiveAndWatched(t *testing.T) {
+	t.Parallel()
 	c := testCollector(t, "", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
@@ -125,6 +128,7 @@ func TestStartRefreshPassiveAndWatched(t *testing.T) {
 // #688: the rail's Reviews counts read GitHub every railGithubInterval, and never call gh for a project without a
 // GitHub origin or once gh was missing or signed out.
 func TestStartRefreshRailReviews(t *testing.T) {
+	t.Parallel()
 	c := testCollector(t, "", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
@@ -175,6 +179,7 @@ func TestStartRefreshRailReviews(t *testing.T) {
 }
 
 func TestCollectorRereadsOnChangeOnlyForAView(t *testing.T) {
+	serialTest(t)
 	dir := makeGitFlowRepo(t)
 	var gitReads atomic.Int32
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
@@ -258,6 +263,7 @@ func TestCollectorRereadsOnChangeOnlyForAView(t *testing.T) {
 
 // AC3: repeated refreshes over many projects keep the collector's memory flat.
 func TestCollectorMemoryFlatOverRefreshes(t *testing.T) {
+	serialTest(t)
 	base := t.TempDir()
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
 		return nil, &MissingProgramError{Name: name}

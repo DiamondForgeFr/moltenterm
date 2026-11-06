@@ -6,6 +6,7 @@ package mission
 import "testing"
 
 func TestDecideProjectTab(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		facts ProjectTabFacts
@@ -43,6 +44,7 @@ func TestDecideProjectTab(t *testing.T) {
 }
 
 func TestEnsureProjectTabWithoutWcore(t *testing.T) {
+	serialTest(t)
 	saved := projectTabs.ensure
 	defer UseProjectTabs(saved)
 	UseProjectTabs(nil)

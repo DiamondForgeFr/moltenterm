@@ -41,6 +41,7 @@ type releaseDriverAnswer struct {
 }
 
 func TestReleaseDriver(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("MOLTEN_RELEASE_DRIVER") == "" {
 		t.Skip("driven by release-e2e.test.ts")
 	}

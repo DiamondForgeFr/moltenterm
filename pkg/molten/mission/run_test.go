@@ -36,6 +36,7 @@ func TestExecRunnerUsesLoginPathOnly(t *testing.T) {
 
 // A release step runs `molten release …`: the app's own bin folder comes first on the steps' PATH.
 func TestCommandPathPutsTheAppBinFirst(t *testing.T) {
+	serialTest(t)
 	bin := t.TempDir()
 	savedLogin, savedBin := readLoginPath, appBinDir
 	readLoginPath = func() string { return "/usr/bin:/bin" }
@@ -52,6 +53,7 @@ func TestCommandPathPutsTheAppBinFirst(t *testing.T) {
 
 // #1146: git's advice lines say nothing about the failure; the line before them does.
 func TestLastErrorLineSkipsGitHints(t *testing.T) {
+	t.Parallel()
 	stderr := "The following paths are ignored by one of your .gitignore files:\n.molten\nhint: Use -f if you really want to add them.\nhint: Disable this message with \"git config set advice.addIgnoredFile false\"\n"
 	if got := lastErrorLine(stderr); got != ".molten" {
 		t.Fatalf("got %q", got)

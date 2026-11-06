@@ -14,6 +14,7 @@ import (
 )
 
 func TestKeptWorktreeLink(t *testing.T) {
+	t.Parallel()
 	_, clone, tree := makeWorktreeFixture(t)
 	term := func(meta waveobj.MetaMapType) *waveobj.Block {
 		return &waveobj.Block{OID: "b1", Meta: meta}
@@ -38,6 +39,7 @@ func TestKeptWorktreeLink(t *testing.T) {
 }
 
 func TestKeptWorktreeNotice(t *testing.T) {
+	t.Parallel()
 	n := keptWorktreeNotice("/repos/app-wt-fix", "ws1", "tab1")
 	if n.Key != "worktree:kept:/repos/app-wt-fix" || n.Title != "Worktree app-wt-fix is still on disk" {
 		t.Fatalf("notice: %+v", n)
@@ -59,6 +61,7 @@ func TestKeptWorktreeNotice(t *testing.T) {
 // One worktree is one notice, whatever path its terminals were linked by (a symlink to it, a trailing slash); the
 // terminals of a closed workspace give one notice per worktree they leave (#134).
 func TestKeptWorktreesOnePerCanonicalPath(t *testing.T) {
+	t.Parallel()
 	base, _, tree := makeWorktreeFixture(t)
 	other := filepath.Join(base, "wt2")
 	gitRun(t, filepath.Join(base, "clone"), "worktree", "add", "-q", "-b", "feature/6-y", other)
@@ -89,6 +92,7 @@ func TestKeptWorktreesOnePerCanonicalPath(t *testing.T) {
 
 // Plans and removals name the worktree by its canonical path, so the windows can group rows and resolve notices.
 func TestWorktreePlanTellsTheCanonicalPath(t *testing.T) {
+	t.Parallel()
 	base, _, tree := makeWorktreeFixture(t)
 	alias := filepath.Join(base, "alias")
 	if err := os.Symlink(tree, alias); err != nil {

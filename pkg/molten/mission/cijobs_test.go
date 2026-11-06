@@ -34,6 +34,7 @@ func jobById(t *testing.T, wf CatalogueWorkflow, id string) CatalogueJob {
 }
 
 func TestParseWorkflowScheduleDispatchAndComments(t *testing.T) {
+	t.Parallel()
 	wf := readFixture(t, "nightly.yml")
 	if wf.Error != "" {
 		t.Fatalf("error: %s", wf.Error)
@@ -73,6 +74,7 @@ func TestParseWorkflowScheduleDispatchAndComments(t *testing.T) {
 }
 
 func TestParseWorkflowFiltersAndReusable(t *testing.T) {
+	t.Parallel()
 	wf := readFixture(t, "paths.yml")
 	want := []WorkflowTrigger{
 		{Event: "push", Branches: []string{"develop"}, Tags: []string{"v*"}, Paths: []string{"docs/**", "mkdocs.yml"}},
@@ -92,6 +94,7 @@ func TestParseWorkflowFiltersAndReusable(t *testing.T) {
 }
 
 func TestParseWorkflowListAndScalarOn(t *testing.T) {
+	t.Parallel()
 	wf := readFixture(t, "list.yml")
 	if !reflect.DeepEqual(wf.Triggers, []WorkflowTrigger{{Event: "push"}, {Event: "pull_request"}}) {
 		t.Errorf("list %+v", wf.Triggers)
@@ -103,6 +106,7 @@ func TestParseWorkflowListAndScalarOn(t *testing.T) {
 }
 
 func TestParseWorkflowBroken(t *testing.T) {
+	t.Parallel()
 	wf := readFixture(t, "broken.yml")
 	if !strings.HasPrefix(wf.Error, "unreadable YAML") || len(wf.Jobs) != 0 {
 		t.Errorf("broken %+v", wf)
@@ -110,6 +114,7 @@ func TestParseWorkflowBroken(t *testing.T) {
 }
 
 func TestJobCommentIgnoresTheLastStepsComment(t *testing.T) {
+	t.Parallel()
 	text := "jobs:\n  a:\n    steps:\n      - run: x\n      # about the step\n  b:\n    steps: []\n"
 	wf := ParseWorkflow("c.yml", text)
 	if b := jobById(t, wf, "b"); b.Description != "" {
@@ -126,6 +131,7 @@ func writeFile(t *testing.T, path string, text string) {
 }
 
 func TestReadCiCatalogueAndStamp(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if WorkflowsStamp(dir) != "" {
 		t.Errorf("no workflows, no stamp")
@@ -176,6 +182,7 @@ func TestReadCiCatalogueAndStamp(t *testing.T) {
 }
 
 func TestDescribeJobBuildsTheLineFromTheFiles(t *testing.T) {
+	serialTest(t)
 	dir := t.TempDir()
 	data, _ := os.ReadFile(filepath.Join("testdata", "cijobs", "nightly.yml"))
 	writeFile(t, filepath.Join(dir, ".github", "workflows", "nightly.yml"), string(data))

@@ -107,6 +107,7 @@ func cutRc(t *testing.T, r *Runs, dir string, tag string) {
 }
 
 func TestReleaseCandidateTagThatStartsNoWorkflow(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, tagWorkflowsPipeline)
 	gh := &fakeGh{}
 	r.git = gh.run
@@ -130,6 +131,7 @@ func TestReleaseCandidateTagThatStartsNoWorkflow(t *testing.T) {
 }
 
 func TestTagWorkflowThatNeverStarted(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, tagWorkflowsPipeline)
 	gh := &fakeGh{}
 	r.git = gh.run

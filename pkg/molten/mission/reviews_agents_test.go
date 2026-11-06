@@ -34,6 +34,7 @@ func agentLines(agents []agentsign.Signature) string {
 }
 
 func TestMergedPrsCarryTheirSignature(t *testing.T) {
+	t.Parallel()
 	readAt := time.Date(2026, 10, 16, 18, 0, 0, 0, time.UTC)
 	body := agentsign.WithReview(agentsign.WithAgent(agentsign.WithAgent("Resolves #7", signJerome), signValentin),
 		agentsign.Review{Name: "Anthony", Date: "2026-10-16"})
@@ -53,6 +54,7 @@ func TestMergedPrsCarryTheirSignature(t *testing.T) {
 }
 
 func TestReviewsAgentsFromBodyThenCommits(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, reviewsSfManifest)
 	answer := BuildReviews(reviewsSnapshot(dir, signedPrs(t)))
 	byNumber := map[int]ReviewPr{}

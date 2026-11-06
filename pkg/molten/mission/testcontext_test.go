@@ -19,6 +19,7 @@ import (
 )
 
 func TestLocalAppTarget(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		url  string
 		host string
@@ -45,6 +46,7 @@ func TestLocalAppTarget(t *testing.T) {
 }
 
 func TestParsePidLinesAndListeners(t *testing.T) {
+	t.Parallel()
 	if got := parsePidLines("412\n412\n\n77\nx\n"); !slices.Equal(got, []int32{412, 77}) {
 		t.Fatalf("pids: %v", got)
 	}
@@ -62,6 +64,7 @@ func TestParsePidLinesAndListeners(t *testing.T) {
 
 // The system's own answer: this test process listens on a port, and the lookup finds it.
 func TestListeningPidsFindsThisProcess(t *testing.T) {
+	t.Parallel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("cannot listen: %v", err)
@@ -81,6 +84,7 @@ func TestListeningPidsFindsThisProcess(t *testing.T) {
 
 // Launch names the processes on its ports through the same lookup as the test context (#1003).
 func TestLaunchHoldersUseTheTestContextLookup(t *testing.T) {
+	t.Parallel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("cannot listen: %v", err)
@@ -122,6 +126,7 @@ func makeFakeTestContexts(panes *Panes, collector *Collector, host *fakeTestCont
 }
 
 func TestTestContextOfAPullRequestBranch(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
 	commit(t, clone, "l.txt", "feat(#12): loader")
@@ -160,6 +165,7 @@ func TestTestContextOfAPullRequestBranch(t *testing.T) {
 
 // A worktree's project is its main checkout with symlinks resolved; the collector keeps it under the linked path.
 func TestTestContextOfAWorktreeFindsTheLinkedProjectsPrs(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
 	tree := filepath.Join(base, "wt")
 	gitRun(t, clone, "worktree", "add", "-q", "-b", "feature/12-loader", tree)
@@ -176,6 +182,7 @@ func TestTestContextOfAWorktreeFindsTheLinkedProjectsPrs(t *testing.T) {
 
 // The developer's case: the checkout serving the app is detached at a PR branch's tip (#961's resolution).
 func TestTestContextOfADetachedCheckoutAtAPrBranch(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
 	commit(t, clone, "l.txt", "feat(#12): loader")
@@ -198,6 +205,7 @@ func TestTestContextOfADetachedCheckoutAtAPrBranch(t *testing.T) {
 // A Reviews Launch of a PR whose branch is not on origin detaches at GitHub's pull/<N>/head (#1003): the chip names
 // the PR's head branch and the PR, not a bare commit.
 func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
 	origin := filepath.Join(base, "origin")
 	gitRun(t, origin, "checkout", "-q", "-b", "feature/7-fork")
@@ -230,6 +238,7 @@ func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
 }
 
 func TestTestContextFuturePr(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk,
@@ -251,6 +260,7 @@ func TestTestContextFuturePr(t *testing.T) {
 }
 
 func TestTestContextNeverGuesses(t *testing.T) {
+	t.Parallel()
 	panes := MakePanes(withoutGh, nil, nil)
 	host := &fakeTestContextHost{}
 	contexts := makeFakeTestContexts(panes, nil, host)
@@ -272,6 +282,7 @@ func TestTestContextNeverGuesses(t *testing.T) {
 }
 
 func TestTestContextReadsListenersAtMostEveryTwoSeconds(t *testing.T) {
+	t.Parallel()
 	host := &fakeTestContextHost{}
 	contexts := makeFakeTestContexts(MakePanes(withoutGh, nil, nil), nil, host)
 	clock := time.Now()
