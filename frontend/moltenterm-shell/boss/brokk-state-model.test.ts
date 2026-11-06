@@ -39,6 +39,11 @@ describe("his pose from MoltenTerm's signals (FR-BOSS-007, AC2)", () => {
         ["several agents work and nothing waits", situation({ working: 5 }), "thinking"],
         ["something waits for the developer", situation({ waiting: 1 }), "listening"],
         ["something waits while agents work", situation({ working: 3, waiting: 2 }), "listening"],
+        [
+            "a failure waits while an agent works (the badge counts it)",
+            situation({ working: 1, waiting: 1 }),
+            "listening",
+        ],
         ["the card is open with nothing going on", situation({ cardOpen: true }), "listening"],
         [
             "the card is open while an agent works: he looks up, the developer came to talk to him (#1959)",
