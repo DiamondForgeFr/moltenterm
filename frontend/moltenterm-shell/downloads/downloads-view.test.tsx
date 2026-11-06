@@ -320,6 +320,44 @@ describe("the way back to the page (#1992)", () => {
         expect(html).toContain("Reopen the page in the workspace “MoltenTerm”");
     });
 
+    it("puts the origin text on its own line and every call to action together on one line beneath it", () => {
+        const both = originHtml({
+            kind: "pageclosed",
+            workspaceName: "MoltenTerm",
+            viewName: "Recherche",
+            otherWorkspace: true,
+            cta: "reopen",
+            toView: true,
+        });
+        const text = both.indexOf('data-testid="download-origin-text"');
+        const actions = both.indexOf('data-testid="download-origin-actions"');
+        expect(text).toBeGreaterThan(-1);
+        expect(actions).toBeGreaterThan(text);
+        const group = both.slice(actions, both.indexOf("</div>", actions));
+        expect(group).toContain('data-testid="download-reopen"');
+        expect(group).toContain('data-testid="download-toview"');
+        expect(both.slice(text, actions)).not.toContain("<button");
+        const groupTag = both.slice(both.lastIndexOf("<div", actions), actions);
+        expect(groupTag).toContain("flex-nowrap");
+        expect(groupTag).not.toContain("flex-wrap ");
+
+        const single = originHtml(page);
+        expect(single.slice(single.indexOf('data-testid="download-origin-actions"'))).toContain("download-goto");
+    });
+
+    it("draws no group of actions when the row has none", () => {
+        const html = originHtml({
+            kind: "workspacegone",
+            workspaceName: "",
+            viewName: "",
+            otherWorkspace: false,
+            cta: "none",
+            toView: false,
+        });
+        expect(html).toContain('data-testid="download-origin-text"');
+        expect(html).not.toContain('data-testid="download-origin-actions"');
+    });
+
     it("offers nothing when the origin workspace was deleted, and says so", () => {
         const html = originHtml({
             kind: "workspacegone",
