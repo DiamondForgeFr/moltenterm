@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 # Builds and tests pull requests to develop and main, and pushes to them. A draft pull request runs the quick
-# checks and security scan; marking it ready runs everything, and returning it to draft cancels that run. See UPSTREAM.md,
-# "Continuous integration".
+# checks, the test selection and, when a manifest changed, the security scan; marking it ready runs the rest, and
+# returning it to draft cancels that run. A pull request runs only what its change affects (Affected tests,
+# scripts/moltenterm-affected.mjs, #2011); a push to develop or main, a run started by hand or by ci-nightly.yml, and the
+# `ci:full` label run everything. See UPSTREAM.md, "Continuous integration".
 
 name: CI
 
@@ -19,15 +21,62 @@ permissions:
     contents: read
 
 concurrency:
-    group: ci-${{ github.event.pull_request.number || github.ref }}
+    # The nightly run (a dispatch on develop) neither cancels a push's run nor is cancelled by one.
+    group: ci-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.event.pull_request.number || github.ref }}
     cancel-in-progress: true
 
 env:
     NODE_VERSION: 22
 
 jobs:
+    select:
+        # What the change affects: the jobs below run, skip or narrow their tests on its outputs alone, which is what lets
+        # the Required gate accept their skips. It needs no install: the plan reads only the changed paths.
+        name: Affected tests
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            pull-requests: read
+        outputs:
+            full: ${{ steps.plan.outputs.full }}
+            reason: ${{ steps.plan.outputs.reason }}
+            backend: ${{ steps.plan.outputs.backend }}
+            gobuild: ${{ steps.plan.outputs.gobuild }}
+            gobuildwhy: ${{ steps.plan.outputs.gobuildwhy }}
+            perf: ${{ steps.plan.outputs.perf }}
+            deps: ${{ steps.plan.outputs.deps }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  # A pull request checks out its merge commit: the first parent is the base it is compared with.
+                  fetch-depth: 2
+                  persist-credentials: false
+            - name: Plan
+              id: plan
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  EVENT: ${{ github.event_name }}
+                  REF: ${{ github.ref_name }}
+                  PR: ${{ github.event.pull_request.number }}
+                  REPO: ${{ github.repository }}
+              # The label is read now, not from the event: a re-run keeps its event, so it sees a label added since.
+              run: |
+                  args=(--plan --summary --outputs --base HEAD^1)
+                  if [ "$EVENT" != pull_request ]; then
+                      args+=(--full --full-reason "a $EVENT run on $REF")
+                  elif ! labels=$(gh api "repos/$REPO/issues/$PR/labels" --jq '.[].name'); then
+                      args+=(--full --full-reason "the pull request's labels cannot be read")
+                  elif grep -qx 'ci:full' <<< "$labels"; then
+                      args+=(--full --full-reason "the ci:full label")
+                  fi
+                  node scripts/moltenterm-affected.mjs "${args[@]}"
+
     security:
         name: Dependency security
+        needs: select
+        # Also on every full run, the nightly one included: a new advisory shows there without failing every pull request.
+        if: needs.select.outputs.deps == 'true'
         uses: ./.github/workflows/security-scan.yml
 
     quick:
@@ -59,7 +108,9 @@ jobs:
               run: node scripts/moltenterm-check-lockfile.mjs
 
     frontend:
+        # Type check, lint, the build and the other global checks always run complete; the unit tests are the selection.
         name: Frontend
+        needs: select
         if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         runs-on: ubuntu-latest
         timeout-minutes: 30
@@ -71,11 +122,18 @@ jobs:
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
+                  fetch-depth: 2
                   persist-credentials: false
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
+            # setup-node caches npm's downloads, not Electron's binary, which `npm ci` fetches again otherwise.
+            - name: Electron download cache
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: ~/.cache/electron
+                  key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
             # The shared character package is a private repository (package.json): git reads it over this URL.
             - name: Private package access
               env:
@@ -90,46 +148,95 @@ jobs:
             - name: Validation discovery regression
               run: node --test scripts/moltenterm-worktree-discovery.node-test.mjs
             - name: Unit tests
-              run: npx vitest run
+              env:
+                  FULL: ${{ needs.select.outputs.full }}
+                  REASON: ${{ needs.select.outputs.reason }}
+              run: |
+                  args=(--run --summary --only vitest --base HEAD^1)
+                  if [ "$FULL" = true ]; then args+=(--full --full-reason "$REASON"); fi
+                  node scripts/moltenterm-affected.mjs "${args[@]}"
             - name: Runtime dependency integration
               run: node scripts/security/runtime-check.mjs
             - name: Build
               run: npm run build:prod
 
     backend:
+        # Skipped when no Go file changed and no Go test reads a changed file. `task build:backend` runs when a file the
+        # build compiles or embeds changed (not `_test.go`, not testdata).
         name: Backend
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+        needs: select
+        if: (github.event_name != 'pull_request' || !github.event.pull_request.draft) && needs.select.outputs.backend == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
+                  fetch-depth: 2
                   persist-credentials: false
             - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
                   go-version-file: go.mod
-                  cache-dependency-path: go.sum
+                  # The cache below instead: setup-go's is keyed on go.sum alone, so once saved it is never refreshed.
+                  cache: false
+            - name: Restore the Go caches
+              id: gocache
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cache/go-build
+                      ~/go/pkg/mod
+                  key: go-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+                  restore-keys: |
+                      go-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+                      go-${{ runner.os }}-
             - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              if: needs.select.outputs.gobuild == 'true'
               with:
                   version: 3.x
                   repo-token: ${{ secrets.GITHUB_TOKEN }}
             # wavesrv links SQLite through CGO; on Linux the Taskfile compiles it with `zig cc`.
             - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+              if: needs.select.outputs.gobuild == 'true'
               with:
                   version: 0.16.0
             - name: Go toolchain matches go.mod
               run: node scripts/moltenterm-go-toolchain.mjs --check
+            # A full run disables Go's test cache, so a cached pass cannot hide a flaky test there.
             - name: Unit tests
-              run: go test ./cmd/... ./pkg/...
+              env:
+                  FULL: ${{ needs.select.outputs.full }}
+                  REASON: ${{ needs.select.outputs.reason }}
+              run: |
+                  args=(--run --summary --only go --base HEAD^1)
+                  if [ "$FULL" = true ]; then args+=(--full --full-reason "$REASON" -- -count=1); fi
+                  node scripts/moltenterm-affected.mjs "${args[@]}"
             - name: Build
+              if: needs.select.outputs.gobuild == 'true'
               run: task build:backend
+            - name: Build skipped
+              if: needs.select.outputs.gobuild != 'true'
+              env:
+                  WHY: ${{ needs.select.outputs.gobuildwhy }}
+              run: |
+                  echo "\`task build:backend\` skipped: $WHY." >> "$GITHUB_STEP_SUMMARY"
+            # One entry a day (the nightly run), plus a push that found none: an entry per push would evict the others.
+            - name: Save the Go caches
+              if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && steps.gocache.outputs.cache-matched-key == '')
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cache/go-build
+                      ~/go/pkg/mod
+                  key: go-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
 
     perf:
         # The machine-independent subset of the performance harness (scripts/perf/README.md, FR-PERF-006): bundle size,
         # JS evaluated by a tab view, a start-up smoke test and leaked tab views, against scripts/perf/budgets.json and
-        # the stored baseline. Times are reported, not gated: CI runners are too noisy for them.
+        # the stored baseline. Times are reported, not gated: CI runners are too noisy for them. Skipped when the change
+        # touches nothing the budgets measure: Affected tests' summary says why.
         name: Perf budgets
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+        needs: select
+        if: (github.event_name != 'pull_request' || !github.event.pull_request.draft) && needs.select.outputs.perf == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 40
         permissions:
@@ -143,10 +250,26 @@ jobs:
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
+            - name: Electron download cache
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: ~/.cache/electron
+                  key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
             - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
                   go-version-file: go.mod
-                  cache-dependency-path: go.sum
+                  cache: false
+            # Backend's caches, read only: the same `task build:backend` warms them.
+            - name: Restore the Go caches
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cache/go-build
+                      ~/go/pkg/mod
+                  key: go-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+                  restore-keys: |
+                      go-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+                      go-${{ runner.os }}-
             - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
               with:
                   version: 3.x
@@ -204,6 +327,11 @@ jobs:
         # marked ready the "Required gate" success of its draft's run on the same commit would satisfy a ruleset until
         # then. Starting with the run keeps the check pending from the first second, and a cancelled run leaves a check
         # that the next run on the same commit replaces.
+        #
+        # Each job maps to the conclusions it may end with. Backend, Perf budgets and Dependency security skip only on
+        # Affected tests' outputs (or a draft), so with Affected tests green their skip is the selection's; a job skipped
+        # because Affected tests failed fails through Affected tests' own entry. A called workflow's jobs are named
+        # "<caller> / <job>" while it runs and "<caller>" when it is skipped: the gate compares the part before " / ".
         name: Required gate
         runs-on: ubuntu-latest
         timeout-minutes: 45
@@ -216,22 +344,62 @@ jobs:
                   JOBS: repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs
                   DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
               run: |
-                  heavy=success
-                  if [ "$DRAFT" = "true" ]; then heavy=skipped; fi
-                  want="{\"Quick checks\": \"success\", \"Dependency security / Scan dependencies\": \"success\", \"Frontend\": \"$heavy\", \"Backend\": \"$heavy\", \"Perf budgets\": \"$heavy\"}"
+                  heavy='["success"]'
+                  selected='["success", "skipped"]'
+                  if [ "$DRAFT" = "true" ]; then heavy='["skipped"]'; selected='["skipped"]'; fi
+                  want="{\"Affected tests\": [\"success\"], \"Quick checks\": [\"success\"], \"Dependency security\": [\"success\", \"skipped\"], \"Frontend\": $heavy, \"Backend\": $selected, \"Perf budgets\": $selected}"
                   verdict="wait"
                   while [ "$verdict" = "wait" ]; do
                       sleep 10
                       jobs=$(gh api "$JOBS" --jq '[.jobs[] | {name, status, conclusion}]') || continue
                       verdict=$(echo "$jobs" | jq -r --argjson want "$want" '
-                          [.[] | select($want[.name] != null)] as $ours
-                          | if any($ours[]; .status == "completed" and .conclusion != $want[.name]) then "fail"
-                            elif ($ours | length) == ($want | length) and all($ours[]; .status == "completed") then "pass"
+                          [.[] | . + {key: (.name | sub(" / .*$"; ""))} | select($want[.key] != null)] as $ours
+                          | if any($ours[]; .status == "completed" and (.conclusion as $c | $want[.key] | index($c) | not)) then "fail"
+                            elif ([$ours[].key] | unique | length) == ($want | length) and all($ours[]; .status == "completed") then "pass"
                             else "wait" end')
                   done
                   echo "$jobs" | jq -r '.[] | select(.name != "Required gate") | "\(.name): \(.conclusion // .status)"'
-                  echo "Frontend, Backend and Perf budgets expected: $heavy"
+                  echo "Expected: $want"
                   if [ "$verdict" = fail ]; then
                       echo "::error::The validation did not complete"
                       exit 1
+                  fi
+
+    report:
+        # A failed full run on develop or main (a push, or the nightly dispatch) opens an issue, or adds to the one still
+        # open. It never blocks a pull request: it is how a gap in the selection, or a flaky test, surfaces within a day.
+        name: Report a failed full run
+        needs: [select, quick, security, frontend, backend, perf]
+        if: always() && github.event_name != 'pull_request' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') && contains(needs.*.result, 'failure')
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            issues: write
+        steps:
+            - name: Open or update the issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  BRANCH: ${{ github.ref_name }}
+                  EVENT: ${{ github.event_name }}
+                  SHA: ${{ github.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  NEEDS: ${{ toJSON(needs) }}
+              run: |
+                  title="CI: the full suites fail on $BRANCH"
+                  failed=$(echo "$NEEDS" | jq -r '[to_entries[] | select(.value.result == "failure") | .key] | join(", ")')
+                  {
+                      echo "The full CI run (\`$EVENT\`) failed on \`$BRANCH\` at $SHA. Failed jobs: $failed."
+                      echo
+                      echo "Run: $RUN_URL"
+                      echo
+                      echo "Pull requests run only the tests their change affects (\`scripts/moltenterm-affected.mjs\`), so this"
+                      echo "can be a test the selection missed, a flaky test, or a change merged on a selected run. It blocks no"
+                      echo "pull request. Close this issue once the full suites are green again."
+                  } > body.md
+                  number=$(gh issue list --state open --search "in:title \"$title\"" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -1)
+                  if [ -n "$number" ]; then
+                      gh issue comment "$number" --body-file body.md
+                  else
+                      gh issue create --title "$title" --body-file body.md
                   fi
