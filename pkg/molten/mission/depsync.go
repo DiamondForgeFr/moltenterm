@@ -38,7 +38,6 @@ const (
 	depSyncTreePrefix      = "deps-"
 	// A worktree add checks out the whole source: a large repository takes a while.
 	depSyncGitTimeout = 10 * time.Minute
-	depSyncCancelPoll = 500 * time.Millisecond
 	depAckFileVersion = 1
 )
 
@@ -47,6 +46,8 @@ var (
 	depSyncTimeout = 30 * time.Minute
 	// A command that ignores SIGTERM is killed this long after it.
 	depSyncKillGrace = 10 * time.Second
+	// How often a running sync is looked at for a cancel.
+	depSyncCancelPoll = 500 * time.Millisecond
 )
 
 type DepSyncRequest struct {
