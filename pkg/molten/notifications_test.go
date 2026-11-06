@@ -100,6 +100,20 @@ func TestNotificationResolveExcept(t *testing.T) {
 	if NotificationSubjects["deps"] != "dependencies" {
 		t.Fatal("the dependencies are a subject of their own")
 	}
+	if NotificationSubjects["download"] != "downloads" {
+		t.Fatal("the downloads are a subject of their own")
+	}
+}
+
+func TestNotificationDownloadsFollowTheirSubjectButAFailureIsAlwaysTold(t *testing.T) {
+	now := time.UnixMilli(5000)
+	meta := waveobj.MetaMapType{NotificationPrefsMetaKey: map[string]any{"downloads": NotificationDeliverOff}}
+	if update := NotificationPublishUpdate(meta, NotificationInput{Source: "download", Title: "Download finished", Kind: "success"}, now, "a"); update != nil {
+		t.Fatalf("a finished download is not kept once the subject is off: %v", update)
+	}
+	if update := NotificationPublishUpdate(meta, NotificationInput{Source: "download", Title: "Download interrupted", Kind: "error"}, now, "b"); update == nil {
+		t.Fatal("a failed download is always told")
+	}
 }
 
 func TestNotificationKeepDismissed(t *testing.T) {
