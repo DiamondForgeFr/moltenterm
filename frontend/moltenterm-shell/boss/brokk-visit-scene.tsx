@@ -27,6 +27,8 @@ import {
     sceneClipOf,
     sceneEscapes,
     sceneLabel,
+    ScenePhase,
+    scenePhase,
     unmountAfterMs,
 } from "./brokk-visit-scene-model";
 import BrokkStill from "./portrait/brokk/brokk.jpg";
@@ -151,12 +153,12 @@ export function LaterMenu({
 export function BrokkVisitSceneView({
     visit,
     name,
-    shown,
+    phase,
     rowHeight,
 }: {
     visit: Visit;
     name: string;
-    shown: boolean;
+    phase: ScenePhase;
     rowHeight: string;
 }) {
     const t = useT();
@@ -165,6 +167,7 @@ export function BrokkVisitSceneView({
     const menuRef = useRef<HTMLDivElement>(null);
     const [options, setOptions] = useState<LaterOption[]>(null);
     const label = sceneLabel(t, name, visit.severity);
+    const shown = phase === "open";
     const tabIndex = shown ? 0 : -1;
 
     // Where the avatar is, relative to the scene: the scene grows from it and folds back into it.
@@ -223,6 +226,7 @@ export function BrokkVisitSceneView({
                 className="mt-brokk-scene"
                 data-testid="brokk-scene"
                 data-open={shown ? "true" : "false"}
+                data-phase={phase}
                 data-severity={visit.severity}
                 data-menu={options != null ? "open" : undefined}
             >
@@ -283,5 +287,12 @@ export function BrokkVisitScene({ rowHeight }: { rowHeight: string }) {
     if (!life.mounted || last.current == null) {
         return null;
     }
-    return <BrokkVisitSceneView visit={last.current} name={name} shown={life.shown && visit != null} rowHeight={rowHeight} />;
+    return (
+        <BrokkVisitSceneView
+            visit={last.current}
+            name={name}
+            phase={scenePhase(visit != null, life.shown)}
+            rowHeight={rowHeight}
+        />
+    );
 }

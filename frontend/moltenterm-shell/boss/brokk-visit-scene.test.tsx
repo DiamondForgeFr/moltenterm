@@ -32,6 +32,7 @@ import {
     SceneFadePx,
     SceneGapPx,
     sceneLabel,
+    scenePhase,
     SceneRoomPx,
     sceneTimings,
 } from "./brokk-visit-scene-model";
@@ -47,7 +48,12 @@ function visit(severity: Severity): Visit {
 
 function render(severity: Severity, shown: boolean = true): string {
     return renderToStaticMarkup(
-        <BrokkVisitSceneView visit={visit(severity)} name="Brokk" shown={shown} rowHeight="38px" />
+        <BrokkVisitSceneView
+            visit={visit(severity)}
+            name="Brokk"
+            phase={shown ? "open" : "closing"}
+            rowHeight="38px"
+        />
     );
 }
 
@@ -345,15 +351,40 @@ describe("the scene under reduced motion (AC6)", () => {
         expect(rule(scene, ".mt-brokk-scene-layer")).toContain(`--mt-brokk-fade-ms: ${MotionTimings.fadeMs}ms`);
         const open = rule(scene, '.prefers-reduced-motion .mt-brokk-scene[data-open="true"]');
         expect(open).toMatch(/transform: none/);
-        expect(open).toMatch(/transition: opacity var\(--mt-brokk-fade-ms\) linear/);
         expect(open).not.toMatch(/transform var/);
+        expect(rule(scene, '.prefers-reduced-motion .mt-brokk-scene[data-phase="open"]')).toMatch(
+            /animation: mt-brokk-fade-in var\(--mt-brokk-fade-ms\) linear both/
+        );
+        expect(rule(scene, '.prefers-reduced-motion .mt-brokk-scene[data-phase="closing"]')).toMatch(
+            /animation: mt-brokk-fade-out var\(--mt-brokk-fade-ms\) linear both/
+        );
+    });
+
+    it("fades with an animation, since the app's reduced-motion rule leaves no transition to fade with", () => {
+        const app = readFileSync(join(__dirname, "..", "..", "app", "app.scss"), "utf8");
+        expect(app).toMatch(/\.prefers-reduced-motion \{\s*\*\s*\{[^}]*transition-property: none !important/);
+        expect(rule(scene, ".prefers-reduced-motion .mt-brokk-scene")).not.toMatch(/transition: opacity/);
+        expect(scene).toMatch(/@keyframes mt-brokk-fade-in/);
+        expect(scene).toMatch(/@keyframes mt-brokk-fade-out/);
     });
 
     it("does the same for the system's preference", () => {
-        const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(scene)?.[1] ?? "";
+        const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}\n/.exec(scene)?.[1] ?? "";
         expect(media).toMatch(
-            /\.mt-brokk-scene,\s*\.mt-brokk-scene\[data-open="true"\]\s*\{[^}]*transform: none;[^}]*transition: opacity var\(--mt-brokk-fade-ms\) linear/
+            /\.mt-brokk-scene,\s*\.mt-brokk-scene\[data-open="true"\]\s*\{[^}]*transform: none;[^}]*transition: none/
         );
+        expect(media).toMatch(/\.mt-brokk-scene\[data-phase="open"\]\s*\{[^}]*mt-brokk-fade-in/);
+        expect(media).toMatch(/\.mt-brokk-scene\[data-phase="closing"\]\s*\{[^}]*mt-brokk-fade-out/);
+    });
+
+    it("draws nothing in the frame before the scene is drawn open, so that it does not flash", () => {
+        expect(scenePhase(true, false)).toBe("pre");
+        expect(scenePhase(true, true)).toBe("open");
+        expect(scenePhase(false, true)).toBe("closing");
+        expect(scenePhase(false, false)).toBe("closing");
+        expect(rule(scene, '.prefers-reduced-motion .mt-brokk-scene[data-phase="pre"]')).toBe("");
+        expect(attr(render("important", true), "brokk-scene", "data-phase")).toBe("open");
+        expect(attr(render("important", false), "brokk-scene", "data-phase")).toBe("closing");
     });
 
     it("lets the glow stand still and draws no embers", () => {

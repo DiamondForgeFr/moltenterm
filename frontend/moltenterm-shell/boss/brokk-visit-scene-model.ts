@@ -47,6 +47,17 @@ export function unmountAfterMs(reduced: boolean): number {
     return Math.max(timings.closeMs, timings.slideDownMs) + 40;
 }
 
+// Where the scene is in its life: "pre" the frame after it is mounted, drawn at the avatar's size to grow from; "open"
+// while the visit is up; "closing" from the moment it is not until it is unmounted.
+export type ScenePhase = "pre" | "open" | "closing";
+
+export function scenePhase(visitUp: boolean, drawnOpen: boolean): ScenePhase {
+    if (!visitUp) {
+        return "closing";
+    }
+    return drawnOpen ? "open" : "pre";
+}
+
 export const SeverityLabelKeys: Record<Severity, string> = {
     grave: "boss.visit.severity.grave",
     important: "boss.visit.severity.important",
