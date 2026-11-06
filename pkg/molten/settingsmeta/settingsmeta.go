@@ -318,6 +318,22 @@ var settings = []Setting{
 	// The Settings screen's last tab and the materials seen (#1763): the screen's tabs and the materials section set them.
 	hidden("moltenterm:settingstab"),
 	hidden("moltenterm:materialsseen"),
+	// When Brokk comes to fetch the developer (#2001, FR-BOSS-009): the visit model reads these keys, and the table
+	// "Quand Brokk vient me chercher" that edits them is the panel story's (#2003), which gives them their rows.
+	hidden("boss:visitsecurity"),
+	hidden("boss:visitblocked"),
+	hidden("boss:visiterror"),
+	hidden("boss:visitci"),
+	hidden("boss:visitready"),
+	hidden("boss:visitfinished"),
+	hidden("boss:visitdownload"),
+	hidden("boss:visitupdate"),
+	hidden("boss:visitusage"),
+	hidden("boss:blockedmin"),
+	hidden("boss:quiet"),
+	hidden("boss:quietfrom"),
+	hidden("boss:quietto"),
+	hidden("boss:nevercome"),
 }
 
 func init() {
