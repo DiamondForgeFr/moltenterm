@@ -29,3 +29,23 @@ export function revealPanelOnCarpet(blockId: string): void {
     }
     getLayoutModelForStaticTab()?.moltenView360?.revealBlock(blockId);
 }
+
+// A panel the agent shows the developer (#1812, #1994) comes into view whatever the layout: a 360 carpet glides to its
+// column, and in a grid a magnified panel, which hides every other, gives way. Nothing is moved, resized or closed, and
+// the focus stays where it is: the magnification ends without focusing the panel, and the carpet only scrolls. A panel
+// of another tab, or one already in view, changes nothing.
+export function bringPanelIntoView(blockId: string): void {
+    if (!blockId) {
+        return;
+    }
+    const layoutModel = getLayoutModelForStaticTab();
+    const node = layoutModel?.getNodeByBlockId?.(blockId);
+    if (node == null) {
+        return;
+    }
+    const magnified = layoutModel.magnifiedNodeId;
+    if (magnified != null && magnified !== node.id) {
+        layoutModel.magnifyNodeToggle(magnified);
+    }
+    layoutModel.moltenView360?.revealBlock(blockId);
+}

@@ -65,7 +65,7 @@ func TestInitializeTellsEveryAgentToShowPagesInMoltenTerm(t *testing.T) {
 			c.send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"` + client + `"}}}`)
 			instructions := c.recv()["result"].(map[string]any)["instructions"].(string)
 			c.close()
-			for _, want := range []string{"tabs_create", "navigate", "molten open", "pages.md", "xdg-open", "system browser", "keyboard focus"} {
+			for _, want := range []string{"tabs_create", "navigate", "tabs_show", "molten open", "pages.md", "xdg-open", "system browser", "keyboard focus"} {
 				if !strings.Contains(instructions, want) {
 					t.Fatalf("instructions for %s (%T) lack %q: %s", client, backend, want, instructions)
 				}

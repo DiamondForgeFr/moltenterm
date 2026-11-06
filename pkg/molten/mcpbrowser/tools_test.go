@@ -108,6 +108,32 @@ func TestInputToolsSchemas(t *testing.T) {
 	}
 }
 
+// tabs_show (#1994) is one tool of the server, so Claude Code and Codex list it alike; it names a tab and nothing else.
+func TestTabsShowToolBringsAPageInFrontOfTheUser(t *testing.T) {
+	var found *ToolDef
+	for _, tool := range Tools() {
+		if tool.Name == ToolTabsShow {
+			found = &tool
+		}
+	}
+	if found == nil || !ToolNames()[ToolTabsShow] {
+		t.Fatal("tabs_show is not one of the server's tools")
+	}
+	required, _ := found.InputSchema["required"].([]string)
+	props := found.InputSchema["properties"].(map[string]any)
+	if strings.Join(required, ",") != "tabId" || len(props) != 1 || props["tabId"].(map[string]any)["type"] != "integer" {
+		t.Fatalf("tabs_show takes the id of a tab and nothing else: %v", found.InputSchema)
+	}
+	for _, want := range []string{"in front of the user", "Keyboard focus never moves", "asks no site permission", "do not repeat"} {
+		if !strings.Contains(found.Description, want) {
+			t.Fatalf("the description lacks %q: %s", want, found.Description)
+		}
+	}
+	if !strings.Contains(ServerInstructions, "tabs_show") {
+		t.Fatalf("the server instructions must name tabs_show")
+	}
+}
+
 func TestImageContentIsMcpShaped(t *testing.T) {
 	result := toMcpResult(CallResult{Content: []ContentItem{
 		{Type: ContentText, Text: "shot"},

@@ -22,3 +22,17 @@ func TestPagesGuideSendsPagesToMoltenTermsBrowser(t *testing.T) {
 		}
 	}
 }
+
+// pages.md tells an agent how to bring a page it already has back in front of the developer (#1994).
+func TestPagesGuideExplainsShowingAPageAgain(t *testing.T) {
+	data, err := fs.ReadFile(Files, "pages.md")
+	if err != nil {
+		t.Fatalf("pages.md is not embedded: %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{"`tabs_show`", "grid view", "magnif", "is showing you this page", "never moves"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("pages.md does not mention %q", want)
+		}
+	}
+}

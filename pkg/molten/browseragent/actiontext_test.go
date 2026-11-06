@@ -28,6 +28,7 @@ func TestActionText(t *testing.T) {
 		{actionZoom, "browser.action.zoom", nil},
 		{actionWait, "browser.action.wait", nil},
 		{actionOpened, "browser.action.opened", nil},
+		{actionShown, "browser.action.shown", nil},
 		{actionEngaged, "browser.action.engaged", nil},
 		{fmt.Sprintf(actionNavigate, "example.com"), "browser.action.navigate", map[string]string{"site": "example.com"}},
 		{actionLine("Clicked", button, 1, 2, true), "browser.action.clickedon", map[string]string{"on": `button "Sign in"`}},

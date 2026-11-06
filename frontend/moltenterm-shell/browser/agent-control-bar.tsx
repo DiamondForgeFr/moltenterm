@@ -4,7 +4,8 @@
 // The control bar of a tab an agent drives (FR-BRW-008, DS-BRW-011): above the page, in the engine choice's slot and
 // style, calm (no warning colour, no modal). "<Agent> is controlling this tab", the last action on one line, Take over
 // and Stop; the user's click or key in the page is held back and the line says how to take over (#971). After Take
-// over, "You took over" with "Give back to <Agent>".
+// over, "You took over" with "Give back to <Agent>". When the agent puts the page in front of the developer, the line
+// reads "<Agent> is showing you this page" for a few seconds (#1994).
 
 import { Button } from "@/app/element/button";
 import { cn } from "@/util/util";
@@ -17,7 +18,8 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
     const t = useT();
     const tabs = useAtomValue(agents.tabsAtom);
     const held = useAtomValue(agents.heldAtom);
-    const view = controlBarView(tabs[tabId], held[tabId] === true);
+    const shown = useAtomValue(agents.shownAtom);
+    const view = controlBarView(tabs[tabId], held[tabId] === true, shown[tabId] === true);
     // The site permission bar takes this slot while the agent waits for the user's answer.
     if (view == null || permissionBarView(tabs[tabId]) != null) {
         return null;
@@ -37,7 +39,11 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
             />
             <div aria-live="polite" className="flex min-w-[150px] flex-1 items-baseline gap-2 truncate">
                 <span className="truncate text-primary">{view.title}</span>
-                {view.detail ? <span className="min-w-0 truncate text-secondary">{view.detail}</span> : null}
+                {view.detail ? (
+                    <span className={cn("min-w-0 truncate", view.shown ? "text-primary" : "text-secondary")}>
+                        {view.detail}
+                    </span>
+                ) : null}
             </div>
             {view.viewport ? (
                 <span

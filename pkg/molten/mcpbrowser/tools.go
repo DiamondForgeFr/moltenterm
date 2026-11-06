@@ -76,6 +76,20 @@ func Tools() []ToolDef {
 			Annotations: &ToolAnnotations{Title: "Open a browser tab", OpenWorldHint: false},
 		},
 		{
+			Name:  ToolTabsShow,
+			Title: "Show a tab's page to the user",
+			Description: toolsPreamble + "Brings one of your tabs in front of the user, without changing its page: the browser panel " +
+				"scrolls into view if it is off-screen, and the tab's bar tells the user you are showing them this page. Use it " +
+				"when the user should look at a page you already have open (a mockup, a pull request, a preview). navigate and " +
+				"tabs_create already do this for the page they load, so call tabs_show only to bring a page back. Keyboard focus " +
+				"never moves: the user keeps typing where they were. One call shows the page once; do not repeat it. It reads " +
+				"nothing from the page and asks no site permission.",
+			InputSchema: objectSchema(map[string]any{
+				"tabId": tabIdProperty("to show"),
+			}, []string{"tabId"}),
+			Annotations: &ToolAnnotations{Title: "Show a tab's page to the user", OpenWorldHint: false},
+		},
+		{
 			Name:  ToolTabsClose,
 			Title: "Close a browser tab",
 			Description: toolsPreamble + "Closes a tab this session opened, by its id. Tabs the user shared with you and " +
@@ -340,7 +354,8 @@ func ToolNames() map[string]bool {
 // ServerInstructions are returned at initialize, for clients that show them to the model.
 const ServerInstructions = "MoltenTerm browser: open tabs in the browser panel next to this terminal, go to pages, read " +
 	"them (read_page, get_page_text, find), take screenshots and click, type and scroll (computer), fill forms (form_input), " +
-	"emulate a viewport size (resize) and chain several steps (browser_batch). The pages keep the user's sign-ins, so the " +
+	"emulate a viewport size (resize), bring a page back in front of the user (tabs_show) and chain several steps " +
+	"(browser_batch). The pages keep the user's sign-ins, so the " +
 	"first action on each site asks the user, who may allow it once, always, or block it; typing into password or payment " +
 	"fields, submitting their forms, file choosers and downloads ask every time. The user sees a bar on each tab you " +
 	"control and can stop you or take over at any time; a call then fails with \"" + ErrStopped + "\" or \"" +
