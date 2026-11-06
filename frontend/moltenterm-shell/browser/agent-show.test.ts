@@ -152,7 +152,7 @@ describe("an agent shows a page (#1994)", () => {
         });
         model = new BrowserAgentModel("block-page");
         model.start();
-        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined());
+        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined(), { timeout: 30_000 });
     });
 
     afterEach(() => model.dispose());

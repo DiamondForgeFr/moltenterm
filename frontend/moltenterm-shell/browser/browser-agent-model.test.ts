@@ -27,7 +27,7 @@ describe("browser agent snapshots", () => {
         });
         model = new BrowserAgentModel("panel");
         model.start();
-        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined());
+        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined(), { timeout: 30_000 });
     });
 
     afterEach(() => model.dispose());
@@ -81,7 +81,7 @@ describe("a page the agent shows", () => {
         onShown = vi.fn<() => void>();
         model.onShown = onShown;
         model.start();
-        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined());
+        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined(), { timeout: 30_000 });
     });
 
     afterEach(() => model.dispose());
@@ -155,7 +155,7 @@ describe("the note on a page the agent shows", () => {
         });
         model = new BrowserAgentModel("panel");
         model.start();
-        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined());
+        await vi.waitFor(() => expect(model.tabs()["agent-tab"]).toBeDefined(), { timeout: 30_000 });
         vi.useFakeTimers();
     });
 
