@@ -1422,6 +1422,169 @@
             "order": 64
           }
         },
+        "boss:visitsecurity": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What a security alert on a dependency (high or critical) does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 144
+          }
+        },
+        "boss:visitblocked": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What an agent blocked waiting for you for longer than boss:blockedmin does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 145
+          }
+        },
+        "boss:visiterror": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What an agent stopped on an error does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 146
+          }
+        },
+        "boss:visitci": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What a failed CI on your pull request does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 147
+          }
+        },
+        "boss:visitready": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What a pull request ready to merge does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 148
+          }
+        },
+        "boss:visitfinished": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What an agent that finished its work does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 149
+          }
+        },
+        "boss:visitdownload": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What a download that finished or failed does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 150
+          }
+        },
+        "boss:visitupdate": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What an update that is available does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 151
+          }
+        },
+        "boss:visitusage": {
+          "type": "string",
+          "enum": [
+            "vient",
+            "badge",
+            "rien"
+          ],
+          "description": "What a plan usage above 90 % does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 152
+          }
+        },
+        "boss:blockedmin": {
+          "type": "integer",
+          "enum": [
+            2,
+            5,
+            10,
+            15
+          ],
+          "description": "Minutes an agent may wait for you before it counts as blocked and Brokk may come (2, 5, 10 or 15). 5 when unset; after three times as long it is a grave visit",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 153
+          }
+        },
+        "boss:quiet": {
+          "type": "boolean",
+          "description": "Quiet hours: between boss:quietfrom and boss:quietto Brokk does not come, only the badge changes. On when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 154
+          }
+        },
+        "boss:quietfrom": {
+          "type": "string",
+          "description": "When the quiet hours begin, as HH:MM on the local clock. 22:00 when unset or invalid",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 155
+          }
+        },
+        "boss:quietto": {
+          "type": "string",
+          "description": "When the quiet hours end, as HH:MM on the local clock. 08:00 when unset or invalid",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 156
+          }
+        },
+        "boss:nevercome": {
+          "type": "boolean",
+          "description": "Brokk never comes to fetch you, whatever the events are set to: only the badge counts. Off when unset",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 157
+          }
+        },
         "moltenterm:settingsreveal": {
           "type": "boolean",
           "description": "A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead",
