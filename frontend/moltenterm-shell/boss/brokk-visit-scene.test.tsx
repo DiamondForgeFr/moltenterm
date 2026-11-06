@@ -281,14 +281,26 @@ describe("where the scene stands (AC6)", () => {
         expect(rule(sidebar, '.mt-sb[data-brokk-visit="open"] .mt-brokk-room')).toContain(`margin-top: ${SceneRoomPx}px`);
     });
 
-    it("fades its bottom over 60 px into the sidebar's own background, the workspace tint included", () => {
+    it("fades its bottom over 60 px into the sidebar's own background, whatever it is: a mask, not a colour", () => {
         expect(SceneFadePx).toBe(60);
-        const fade = rule(scene, ".mt-brokk-scene-fade");
-        expect(fade).toContain(`height: ${SceneFadePx}px`);
-        expect(fade).toMatch(/linear-gradient\(to bottom, transparent, var\(--mt-surface-0\)\)/);
-        const tinted = rule(scene, ".mt-sb.is-tinted .mt-brokk-scene-fade::after");
-        expect(tinted).toContain("var(--mt-place)");
-        expect(tinted).toMatch(/18%/);
+        expect(rule(scene, ".mt-brokk-scene-layer")).toContain(`--mt-brokk-fade: ${SceneFadePx}px`);
+        const art = rule(scene, ".mt-brokk-scene-art");
+        expect(art).toMatch(
+            /mask-image: linear-gradient\(to bottom, rgb\(0, 0, 0\) calc\(100% - var\(--mt-brokk-fade\)\), transparent\)/
+        );
+        expect(art).toMatch(/-webkit-mask-image/);
+        // A gradient to the sidebar's surface would leave a band on a tinted, textured or see-through sidebar.
+        expect(art).not.toMatch(/--mt-surface-0|--mt-place/);
+        expect(scene).not.toMatch(/mt-brokk-scene-fade|is-tinted/);
+    });
+
+    it("keeps the Plus tard controls out of the faded artwork, so that the fade does not dim them", () => {
+        const html = render("important");
+        const art = html.slice(html.indexOf("mt-brokk-scene-art"), html.indexOf('data-testid="brokk-scene-hit"'));
+        expect(art).toContain("mt-brokk-scene-clip");
+        expect(html.indexOf("mt-brokk-later")).toBeGreaterThan(html.indexOf("mt-brokk-scene-topfade"));
+        expect(art).not.toContain("brokk-later");
+        expect(rule(scene, ".mt-brokk-scene-art")).toMatch(/pointer-events: none/);
     });
 
     it("counts the floating sidebar's own inner margin when it floats over the content", () => {

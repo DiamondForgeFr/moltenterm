@@ -226,18 +226,19 @@ export function BrokkVisitSceneView({
                 data-severity={visit.severity}
                 data-menu={options != null ? "open" : undefined}
             >
-                <span className="mt-brokk-scene-clip" aria-hidden>
-                    <SceneFace clip={sceneClipOf(visit.severity)} />
+                <span className="mt-brokk-scene-art" aria-hidden>
+                    <span className="mt-brokk-scene-clip">
+                        <SceneFace clip={sceneClipOf(visit.severity)} />
+                    </span>
+                    <span className="mt-brokk-scene-shade" />
+                    <span className="mt-brokk-scene-glow" />
+                    <span className="mt-brokk-scene-embers">
+                        <i />
+                        <i />
+                        <i />
+                    </span>
+                    <span className="mt-brokk-scene-topfade" />
                 </span>
-                <span className="mt-brokk-scene-shade" aria-hidden />
-                <span className="mt-brokk-scene-glow" aria-hidden />
-                <span className="mt-brokk-scene-embers" aria-hidden>
-                    <i />
-                    <i />
-                    <i />
-                </span>
-                <span className="mt-brokk-scene-topfade" aria-hidden />
-                <span className="mt-brokk-scene-fade" aria-hidden />
                 <button
                     type="button"
                     className="mt-brokk-scene-hit"
