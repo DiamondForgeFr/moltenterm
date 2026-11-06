@@ -78,6 +78,11 @@ func (r *SessionReader) Poll() (SessionDigest, error) {
 	return d, nil
 }
 
+// LatestAnswer is the last answer read by Poll, for a surface that shows what the agent said (Brokk's field, #2028).
+func (r *SessionReader) LatestAnswer() (AnswerView, bool) {
+	return r.session.Answer(0)
+}
+
 func (r *SessionReader) Close() {
 	if r.follower != nil {
 		r.follower.close()

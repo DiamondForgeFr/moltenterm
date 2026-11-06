@@ -86,6 +86,29 @@ func TestHandoffLineSubmitsWithoutADraft(t *testing.T) {
 	}
 }
 
+// #2028: Brokk's session asks, without typing, whether its agent takes a line with Enter yet.
+func TestAgentTakesLineFollowsTheDraft(t *testing.T) {
+	setRunningUpdater(nil)
+	if AgentTakesLine("b1") {
+		t.Fatal("before start nothing takes a line")
+	}
+	f := claudeInputTerm()
+	f.state.Draft = true
+	u := MakeUpdater(f.env())
+	setRunningUpdater(u)
+	t.Cleanup(func() { setRunningUpdater(nil) })
+	if AgentTakesLine("b1") {
+		t.Error("an agent that may hold a draft does not take a line with Enter")
+	}
+	f.state.Draft = false
+	if !AgentTakesLine("b1") {
+		t.Error("an agent with an empty prompt takes the line")
+	}
+	if len(f.input) != 0 {
+		t.Errorf("asking typed %q", f.input)
+	}
+}
+
 func TestTypeShareLineBeforeStart(t *testing.T) {
 	setRunningUpdater(nil)
 	if out := TypeShareLine(context.Background(), "b1", "x"); out.Result != InputRefused || out.Reason != InputReasonUnavailable {

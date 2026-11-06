@@ -66,6 +66,37 @@ func TestSessionReaderClaudeDigest(t *testing.T) {
 	}
 }
 
+// Brokk's field shows the answer of his session (#2028): the reader gives the last answer it read, and a new one once the
+// agent writes it.
+func TestSessionReaderLatestAnswer(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "-work-demo", "11111111-2222-3333-4444-555555555555.jsonl")
+	copyFixture(t, "claude-session.jsonl", path)
+	r, err := OpenAdapterSessionReader(MakeClaudeAdapter([]string{root}), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if _, ok := r.LatestAnswer(); ok {
+		t.Fatal("nothing is read before the first poll")
+	}
+	r.Poll()
+	first, ok := r.LatestAnswer()
+	if !ok || first.Markdown == "" || first.At == 0 {
+		t.Fatalf("latest answer: %+v %v", first, ok)
+	}
+
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"user","message":{"role":"user","content":"How many agents run?"},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:00.000Z"}` + "\n")
+	f.WriteString(`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Two agents run now."}]},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:03.000Z"}` + "\n")
+	f.Close()
+	r.Poll()
+	next, ok := r.LatestAnswer()
+	if !ok || next.Markdown != "Two agents run now." || next.Index <= first.Index || next.At <= first.At {
+		t.Fatalf("new answer: %+v (first %+v)", next, first)
+	}
+}
+
 func TestSessionReaderCodexTurns(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "2026", "10", "04", "rollout-2026-10-04T09-00-00-0199aaaa-bbbb-7ccc-8ddd-eeeeffff0000.jsonl")
