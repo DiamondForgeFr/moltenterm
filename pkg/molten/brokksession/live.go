@@ -14,6 +14,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
@@ -30,6 +31,7 @@ const (
 	RouteId        = "molten:brokk"
 	SessionCommand = "moltenbrokksession"
 	SayCommand     = "moltenbrokksay"
+	ReplyCommand   = "moltenbrokkreply"
 
 	findTimeout = 5 * time.Second
 	// Say waits for an agent just started: the window waits a little longer than startWait.
@@ -48,9 +50,52 @@ func liveFind(ctx context.Context) (Found, bool) {
 			continue
 		}
 		tabId, _ := wstore.DBFindTabForBlockId(ctx, block.OID)
-		return Found{BlockId: block.OID, TabId: tabId}, true
+		workspaceId := ""
+		if tabId != "" {
+			workspaceId, _ = wstore.DBFindWorkspaceForTabId(ctx, tabId)
+		}
+		return Found{BlockId: block.OID, TabId: tabId, WorkspaceId: workspaceId}, true
 	}
 	return Found{}, false
+}
+
+// answerReader follows his session's transcript, as the companion links it to his terminal: one reader, kept while
+// the transcript stays the same, so each call reads only what was appended.
+type answerReader struct {
+	lock   sync.Mutex
+	agent  string
+	path   string
+	reader *companion.SessionReader
+}
+
+func (a *answerReader) latest(blockId string) (Answer, bool) {
+	agent, path, ok := companion.LinkedSession(blockId)
+	if !ok || path == "" {
+		return Answer{}, false
+	}
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.reader == nil || a.agent != agent || a.path != path {
+		if a.reader != nil {
+			a.reader.Close()
+			a.reader = nil
+		}
+		reader, err := companion.OpenSessionReader(agent, path)
+		if err != nil {
+			log.Printf("[brokksession] his transcript cannot be read: %v\n", err)
+			return Answer{}, false
+		}
+		a.reader, a.agent, a.path = reader, agent, path
+	}
+	if _, err := a.reader.Poll(); err != nil {
+		log.Printf("[brokksession] his transcript cannot be read: %v\n", err)
+		return Answer{}, false
+	}
+	view, found := a.reader.LatestAnswer()
+	if !found {
+		return Answer{}, true
+	}
+	return Answer{Index: view.Index, Rev: view.Rev, At: view.At, Markdown: view.Markdown}, true
 }
 
 func liveFolder() (string, error) {
@@ -72,7 +117,7 @@ func livePickAgent(dir string) (string, string, bool) {
 func liveType(ctx context.Context, blockId string, line string) TypeOutcome {
 	out := termupdate.TypeHandoffLine(ctx, blockId, line)
 	if out.Result == termupdate.InputSent {
-		return TypeOutcome{Sent: true, Message: out.Message}
+		return TypeOutcome{Sent: true, Unsubmitted: !out.Submitted, Message: out.Message}
 	}
 	switch out.Reason {
 	case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
@@ -111,8 +156,10 @@ func Live() *Service {
 		OpenTerminal: func(ctx context.Context, tabId string, meta waveobj.MetaMapType, line string) (string, error) {
 			return reviewsession.OpenTerminal(ctx, tabId, "", meta, line)
 		},
-		Type:  liveType,
-		Sleep: liveSleep,
+		Type:         liveType,
+		Ready:        termupdate.AgentTakesLine,
+		Sleep:        liveSleep,
+		LatestAnswer: (&answerReader{}).latest,
 	})
 }
 
@@ -147,6 +194,14 @@ func (s *Service) handle(ctx context.Context, command string, data any) (any, er
 		ctx, cancel := context.WithTimeout(ctx, sayTimeout)
 		defer cancel()
 		return s.Say(ctx, req), nil
+	case ReplyCommand:
+		var reply ReplyRequest
+		if err := utilfn.ReUnmarshal(&reply, data); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(ctx, findTimeout)
+		defer cancel()
+		return s.Reply(ctx, reply), nil
 	}
 	return nil, fmt.Errorf("unknown Brokk session command %q", command)
 }

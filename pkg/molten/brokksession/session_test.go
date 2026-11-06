@@ -32,6 +32,12 @@ type fake struct {
 	openErr   error
 	noBlock   bool
 	folder    string
+
+	// answer: what his transcript says last; unlinked: his transcript is not known.
+	answer    *Answer
+	unlinked  bool
+	read      int
+	readBlock string
 }
 
 func (f *fake) env() Env {
@@ -83,6 +89,17 @@ func (f *fake) env() Env {
 		Sleep: func(context.Context, time.Duration) bool {
 			f.sleeps++
 			return true
+		},
+		LatestAnswer: func(blockId string) (Answer, bool) {
+			f.read++
+			f.readBlock = blockId
+			if f.unlinked {
+				return Answer{}, false
+			}
+			if f.answer == nil {
+				return Answer{}, true
+			}
+			return *f.answer, true
 		},
 	}
 }
@@ -232,6 +249,90 @@ func TestOnlyOneMessageIsOnItsWayAtATime(t *testing.T) {
 	}
 	if first.Status != StatusSent {
 		t.Errorf("the first message got %+v, want it sent", first)
+	}
+}
+
+// #2028: his session answered in its hidden tab and the panel never showed it. Reply brings the answer back.
+func TestReplyBringsHisAnswerBackToThePanel(t *testing.T) {
+	f := &fake{found: &Found{BlockId: "block-9", TabId: "tab-9", WorkspaceId: "ws-9"}}
+	f.answer = &Answer{Index: 2, Rev: 3, At: 5000, Markdown: "Two agents run now."}
+	got := MakeService(f.env()).Reply(context.Background(), ReplyRequest{After: 4000})
+	if got.Status != ReplyAnswer || got.Markdown != "Two agents run now." || got.Index != 2 || got.Rev != 3 {
+		t.Fatalf("got %+v, want his answer", got)
+	}
+	if got.BlockId != "block-9" || got.TabId != "tab-9" || got.WorkspaceId != "ws-9" {
+		t.Errorf("got %+v, want where his terminal is, for the way out", got)
+	}
+	if f.read != 1 || f.readBlock != "block-9" {
+		t.Errorf("read %d times on %q, want his block read once", f.read, f.readBlock)
+	}
+}
+
+func TestReplyWaitsForAnAnswerNewerThanTheMessage(t *testing.T) {
+	f := &fake{found: &Found{BlockId: "block-9"}}
+	svc := MakeService(f.env())
+	if got := svc.Reply(context.Background(), ReplyRequest{After: 4000}); got.Status != ReplyWaiting {
+		t.Errorf("before any answer got %+v, want waiting", got)
+	}
+	f.answer = &Answer{Index: 1, At: 3000, Markdown: "an earlier answer"}
+	if got := svc.Reply(context.Background(), ReplyRequest{After: 4000}); got.Status != ReplyWaiting || got.Markdown != "" {
+		t.Errorf("with an answer older than the message got %+v, want waiting and no text", got)
+	}
+}
+
+func TestReplySaysWhenHisAnswerCannotBeRead(t *testing.T) {
+	f := &fake{found: &Found{BlockId: "block-9", TabId: "tab-9"}, unlinked: true}
+	if got := MakeService(f.env()).Reply(context.Background(), ReplyRequest{}); got.Status != ReplyUnread || got.BlockId != "block-9" {
+		t.Errorf("got %+v, want unread with his terminal, to open it", got)
+	}
+	none := &fake{}
+	if got := MakeService(none.env()).Reply(context.Background(), ReplyRequest{}); got.Status != StatusNone {
+		t.Errorf("without a session got %+v, want none", got)
+	}
+}
+
+// #2028: typed while the agent just started was still drawing its prompt, the first message was lost, and the next
+// ones were left in its prompt without Enter. A fresh agent gets its message once it takes it with Enter.
+func TestSayWaitsUntilTheFreshAgentTakesTheMessageWithEnter(t *testing.T) {
+	f := &fake{agent: "claude", answers: []TypeOutcome{{Sent: true}}}
+	env := f.env()
+	checks := 0
+	env.Ready = func(blockId string) bool {
+		checks++
+		return checks >= 3
+	}
+	got := MakeService(env).Say(context.Background(), Request{WorkspaceId: "ws-1", Text: "hello"})
+	if got.Status != StatusSent || !got.Started {
+		t.Fatalf("got %+v, want sent", got)
+	}
+	if len(f.typed) != 1 || f.sleeps != 2 {
+		t.Errorf("typed %v after %d waits, want one line typed once the agent was ready", f.typed, f.sleeps)
+	}
+}
+
+func TestSayDoesNotWaitForReadinessOnASessionThatRuns(t *testing.T) {
+	f := &fake{found: &Found{BlockId: "block-9"}, answers: []TypeOutcome{{Sent: true}}}
+	env := f.env()
+	env.Ready = func(string) bool { return false }
+	got := MakeService(env).Say(context.Background(), Request{Text: "hello"})
+	if got.Status != StatusSent || len(f.typed) != 1 || f.sleeps != 0 {
+		t.Errorf("got %+v after %d waits, want the line typed at once", got, f.sleeps)
+	}
+}
+
+func TestSayTellsALineLeftInHisPromptWithoutEnter(t *testing.T) {
+	f := &fake{found: &Found{BlockId: "block-9", TabId: "tab-9"}, answers: []TypeOutcome{{Sent: true, Unsubmitted: true}}}
+	got := MakeService(f.env()).Say(context.Background(), Request{Text: "hello"})
+	if got.Status != StatusFailed || got.Reason != ReasonNotSubmitted || got.BlockId != "block-9" {
+		t.Fatalf("got %+v, want a failure saying the message waits in his prompt, with his terminal", got)
+	}
+}
+
+func TestSayTellsWhereHisTerminalIs(t *testing.T) {
+	f := &fake{agent: "claude", answers: []TypeOutcome{{Sent: true}}}
+	got := MakeService(f.env()).Say(context.Background(), Request{WorkspaceId: "ws-1", Text: "hello"})
+	if got.WorkspaceId != "ws-1" || got.TabId != "tab-1" || got.BlockId != "block-1" {
+		t.Errorf("got %+v, want the workspace, tab and block of the session it started", got)
 	}
 }
 

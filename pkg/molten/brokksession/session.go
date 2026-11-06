@@ -48,6 +48,15 @@ const (
 	ReasonInProgress = "inprogress"
 	ReasonRefused    = "refused"
 	ReasonNoAgent    = "noagent"
+	// ReasonNotSubmitted: the message was typed in his agent's prompt without Enter (#2028).
+	ReasonNotSubmitted = "notsubmitted"
+
+	// Reply…: what Reply answered; must match frontend/moltenterm-shell/boss/brokk-talk-model.ts. ReplyAnswer: his answer
+	// to the message; ReplyWaiting: none newer than the message yet; ReplyUnread: his transcript is not known, so the
+	// answer is only in his terminal (StatusNone: no session).
+	ReplyAnswer  = "answer"
+	ReplyWaiting = "waiting"
+	ReplyUnread  = "unread"
 
 	// A message is one line the agent reads as a prompt.
 	MaxTextLength = 4000
@@ -66,10 +75,11 @@ type Request struct {
 }
 
 type Result struct {
-	Status    string `json:"status"`
-	Reason    string `json:"reason,omitempty"`
-	BlockId   string `json:"blockid,omitempty"`
-	TabId     string `json:"tabid,omitempty"`
+	Status      string `json:"status"`
+	Reason      string `json:"reason,omitempty"`
+	BlockId     string `json:"blockid,omitempty"`
+	TabId       string `json:"tabid,omitempty"`
+	WorkspaceId string `json:"workspaceid,omitempty"`
 	Agent     string `json:"agent,omitempty"`
 	AgentName string `json:"agentname,omitempty"`
 	// Started: this call started the session.
@@ -80,14 +90,42 @@ type Result struct {
 
 // Found is a session that exists.
 type Found struct {
-	BlockId string
-	TabId   string
+	BlockId     string
+	TabId       string
+	WorkspaceId string
+}
+
+// ReplyRequest asks for his answer to a message sent at After (Unix milliseconds).
+type ReplyRequest struct {
+	After int64 `json:"after,omitempty"`
+}
+
+// Reply is his latest answer, and where his terminal is: the way out when the answer cannot be read.
+type Reply struct {
+	Status      string `json:"status"`
+	BlockId     string `json:"blockid,omitempty"`
+	TabId       string `json:"tabid,omitempty"`
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Index       int    `json:"index,omitempty"`
+	Rev         int64  `json:"rev,omitempty"`
+	At          int64  `json:"at,omitempty"`
+	Markdown    string `json:"markdown,omitempty"`
+}
+
+// Answer is the last answer his transcript holds; Markdown is empty before the first one.
+type Answer struct {
+	Index    int
+	Rev      int64
+	At       int64
+	Markdown string
 }
 
 // TypeOutcome is what typing the message into the session did; Retry: the agent cannot take it now; Gone: its terminal
 // is closed or its shell ended.
 type TypeOutcome struct {
-	Sent  bool
+	Sent bool
+	// Unsubmitted: typed in the prompt without Enter, since a draft may be there.
+	Unsubmitted bool
 	Retry bool
 	Gone  bool
 	// NoAgent: no coding agent runs in the terminal: the one just started is not up yet, or the one that ran has ended.
@@ -112,8 +150,13 @@ type Env struct {
 	// OpenTerminal creates the terminal in the tab and types line at its first prompt.
 	OpenTerminal func(ctx context.Context, tabId string, meta waveobj.MetaMapType, line string) (string, error)
 	Type         func(ctx context.Context, blockId string, line string) TypeOutcome
+	// Ready tells whether the agent in the block takes a typed line with Enter now (its hooks report, no draft).
+	Ready func(blockId string) bool
 	// Sleep waits d, false when ctx ended first.
 	Sleep func(ctx context.Context, d time.Duration) bool
+	// LatestAnswer reads the last answer of the agent in the block from its transcript; false: its transcript is not
+	// known, the answer is only in the terminal.
+	LatestAnswer func(blockId string) (Answer, bool)
 }
 
 type Service struct {
@@ -154,7 +197,35 @@ func (s *Service) Session(ctx context.Context) Result {
 	if !ok {
 		return Result{Status: StatusNone}
 	}
-	return Result{Status: StatusReady, BlockId: found.BlockId, TabId: found.TabId}
+	return Result{Status: StatusReady, BlockId: found.BlockId, TabId: found.TabId, WorkspaceId: found.WorkspaceId}
+}
+
+// Reply is his answer to the message sent at req.After (#2028): his session answers in a hidden tab, and the panel shows
+// that answer. It starts nothing and never waits.
+func (s *Service) Reply(ctx context.Context, req ReplyRequest) Reply {
+	if s.env.Find == nil {
+		return Reply{Status: StatusNone}
+	}
+	found, ok := s.env.Find(ctx)
+	if !ok {
+		return Reply{Status: StatusNone}
+	}
+	rtn := Reply{Status: ReplyUnread, BlockId: found.BlockId, TabId: found.TabId, WorkspaceId: found.WorkspaceId}
+	if s.env.LatestAnswer == nil {
+		return rtn
+	}
+	answer, linked := s.env.LatestAnswer(found.BlockId)
+	if !linked {
+		return rtn
+	}
+	// An answer older than the message is the one to the message before.
+	if answer.Markdown == "" || answer.At < req.After {
+		rtn.Status = ReplyWaiting
+		return rtn
+	}
+	rtn.Status = ReplyAnswer
+	rtn.Index, rtn.Rev, rtn.At, rtn.Markdown = answer.Index, answer.Rev, answer.At, answer.Markdown
+	return rtn
 }
 
 // Say gives the message to his session, starting it first when it does not exist.
@@ -179,7 +250,7 @@ func (s *Service) Say(ctx context.Context, req Request) Result {
 		fresh = true
 	}
 	out := s.deliver(ctx, found.BlockId, text, fresh)
-	result.BlockId, result.TabId = found.BlockId, found.TabId
+	result.BlockId, result.TabId, result.WorkspaceId = found.BlockId, found.TabId, found.WorkspaceId
 	result.Started = fresh
 	result.Status, result.Reason, result.Message = out.Status, out.Reason, out.Message
 	return result
@@ -225,7 +296,7 @@ func (s *Service) start(ctx context.Context, req Request) (Found, Result, bool) 
 	}
 	// A terminal whose agent did not start still exists: the text waits for a prompt that may never come, and the
 	// developer sees the answer in the hidden tab.
-	return Found{BlockId: blockId, TabId: tabId}, Result{Agent: agent, AgentName: name}, false
+	return Found{BlockId: blockId, TabId: tabId, WorkspaceId: req.WorkspaceId}, Result{Agent: agent, AgentName: name}, false
 }
 
 type delivery struct {
@@ -238,7 +309,18 @@ type delivery struct {
 // once, and a busy agent is told to the developer, whose text stays in the field.
 func (s *Service) deliver(ctx context.Context, blockId string, text string, fresh bool) delivery {
 	for attempt := 0; ; attempt++ {
+		// A line typed while the agent just started still draws its prompt is lost, or left there without Enter
+		// (#2028): the first message waits until the agent takes it, then is typed anyway once startWait is over.
+		if fresh && s.env.Ready != nil && attempt < int(startWait/startPoll) && !s.env.Ready(blockId) {
+			if !s.env.Sleep(ctx, startPoll) {
+				return delivery{Status: StatusBusy, Reason: ReasonNotReady}
+			}
+			continue
+		}
 		out := s.env.Type(ctx, blockId, text)
+		if out.Sent && out.Unsubmitted {
+			return delivery{Status: StatusFailed, Reason: ReasonNotSubmitted, Message: out.Message}
+		}
 		if out.Sent {
 			return delivery{Status: StatusSent}
 		}
