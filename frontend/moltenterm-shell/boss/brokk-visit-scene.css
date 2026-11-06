@@ -281,12 +281,41 @@
 }
 
 /* Reduced motion (the app's setting or the system's): the scene cross-fades in 150 ms and moves nothing; the glow and
-   the embers stand still or are not drawn. */
+   the embers stand still or are not drawn. The app's own rule (.prefers-reduced-motion * sets no transition) leaves no
+   transition to fade with, so the fade is an animation, as molten-motion.css's is: in on the scene's phase "open", out on
+   its phase "closing", and nothing on "pre", the frame before it is drawn open. */
+@keyframes mt-brokk-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes mt-brokk-fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .mt-brokk-scene,
     .mt-brokk-scene[data-open="true"] {
         transform: none;
-        transition: opacity var(--mt-brokk-fade-ms) linear;
+        transition: none;
+    }
+
+    .mt-brokk-scene[data-phase="open"] {
+        animation: mt-brokk-fade-in var(--mt-brokk-fade-ms) linear both;
+    }
+
+    .mt-brokk-scene[data-phase="closing"] {
+        opacity: 1;
+        animation: mt-brokk-fade-out var(--mt-brokk-fade-ms) linear both;
     }
 
     .mt-brokk-scene-glow {
@@ -301,7 +330,16 @@
 .prefers-reduced-motion .mt-brokk-scene,
 .prefers-reduced-motion .mt-brokk-scene[data-open="true"] {
     transform: none;
-    transition: opacity var(--mt-brokk-fade-ms) linear;
+    transition: none;
+}
+
+.prefers-reduced-motion .mt-brokk-scene[data-phase="open"] {
+    animation: mt-brokk-fade-in var(--mt-brokk-fade-ms) linear both;
+}
+
+.prefers-reduced-motion .mt-brokk-scene[data-phase="closing"] {
+    opacity: 1;
+    animation: mt-brokk-fade-out var(--mt-brokk-fade-ms) linear both;
 }
 
 .prefers-reduced-motion .mt-brokk-scene-glow {
