@@ -16,7 +16,7 @@ import "./brokk-live.css";
 import { startMoments } from "./brokk-moments";
 import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
 import type { BlinkRhythm } from "./brokk-scene";
-import { brokkPose, faceAfter, reactionCapMs, SpeakingMs, startFace } from "./brokk-state-model";
+import { brokkPose, faceAfter, gestureEvent, reactionCapMs, SpeakingMs, startFace } from "./brokk-state-model";
 
 export type BrokkLiveProps = {
     situation: BrokkSituation;
@@ -34,7 +34,7 @@ export type BrokkLiveProps = {
     // mounts is not played.
     opened?: boolean;
     onOpened?: () => void;
-    // How the scene wants his blinks spaced (STEP B of #1959: the package takes none yet, brokk-portrait.ts).
+    // How the scene wants his blinks spaced: the package's `idleGap` (brokk-portrait.ts).
     rhythm?: BlinkRhythm;
 };
 
@@ -89,23 +89,16 @@ export function BrokkLive({ situation, asked, play, speaks, onPlayed, opened, on
 
     const pose = brokkPose(situation, { speaking: face.speaking, expression: reaction?.expression ?? null });
 
-    // `ended` does not bubble: React hears it in the capture phase, so the end of a gesture's clip, wherever the package
-    // lays that clip, hands the pose back.
-    const onEnded = (e: React.SyntheticEvent) => {
-        const base = (e.target as Element).getAttribute?.("data-video");
-        if (base) {
-            dispatch({ type: "clip-ended", base });
+    // The package tells when a gesture leaves the screen, played to its end or not: that hands the pose back.
+    const onGesture = (name: string, phase: "start" | "end") => {
+        const event = gestureEvent(name, phase);
+        if (event != null) {
+            dispatch(event);
         }
     };
 
     return (
-        <div
-            className="mt-brokk-live"
-            data-pose={pose}
-            data-rhythm={rhythm ?? "normal"}
-            data-testid="brokk-live"
-            onEndedCapture={onEnded}
-        >
+        <div className="mt-brokk-live" data-pose={pose} data-rhythm={rhythm ?? "normal"} data-testid="brokk-live">
             <TransmissionPortrait
                 {...BrokkPortrait}
                 {...rhythmProps(rhythm ?? "normal")}
@@ -114,6 +107,7 @@ export function BrokkLive({ situation, asked, play, speaks, onPlayed, opened, on
                 alt=""
                 state={pose}
                 expression={reaction}
+                onGesture={onGesture}
             />
         </div>
     );

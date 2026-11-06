@@ -13,6 +13,7 @@
 
 import type {
     TransmissionIdle,
+    TransmissionIdleGap,
     TransmissionPortraitProps,
     TransmissionState,
     TransmissionTransition,
@@ -23,29 +24,40 @@ import Still from "./portrait/brokk/brokk.jpg";
 
 export const RestState = "rest";
 
-// STEP B of #1959, the seam: the rhythm the scene wants for his blinks (brokk-scene.ts), as props of the package's
-// portrait. The package (0.2.0) draws a random gesture with one chance in two at each turn of the loop, the last one
-// played excluded (blink and nod alternate), and takes no rhythm: character-studio requests C1 (a gesture that may
-// repeat, the nod on demand) and C2 (idleChance, or an idleGap from min to max) are open. MoltenTerm does not work
-// around it. When the release that carries them is adopted, fill the two entries below (an irregular gap, longer for
-// "calm"), mark `nod` onDemand and `blink` repeatable in the manifest, and nothing else changes.
-// The type names no prop yet: it becomes the package's own (idleGap and the like) with the release.
-type PackageRhythmProps = Record<never, never>;
+type Rest = typeof RestState;
 
-const PackageRhythm: Record<BlinkRhythm, PackageRhythmProps> = { normal: {}, calm: {} };
+// The rhythm the scene wants for his blinks (brokk-scene.ts), as the package's `idleGap`: how long a gesture drawn by
+// chance waits after the last one started (FR-BOSS-007, AC17). A gesture takes the place of a whole turn of a loop, so
+// it can only start at the end of one: with the 4.5 s loops, the normal gap gives 9 s, 13.5 s and rarely 18 s.
+//
+// Normal is the one the developer's brief gave (6 to 14 s). Calm is about twice as slow (12 to 30 s, a mean of 21 s
+// against 10 s): it is for when he should not draw an eye (late at night, while the developer types, after a long
+// thought), and the slowest of the three gaps the developer weighed (3 to 8, 6 to 14, 12 to 30). It stops at 30 s
+// because a face that never blinks for longer reads as a frozen screen, not as a calm one.
+export const IdleGaps: Record<BlinkRhythm, TransmissionIdleGap> = {
+    normal: { minMs: 6000, maxMs: 14000 },
+    calm: { minMs: 12000, maxMs: 30000 },
+};
 
+type PackageRhythmProps = Pick<TransmissionPortraitProps<Rest>, "idleGap">;
+
+const PackageRhythm: Record<BlinkRhythm, PackageRhythmProps> = {
+    normal: { idleGap: IdleGaps.normal },
+    calm: { idleGap: IdleGaps.calm },
+};
+
+// The same object for the same rhythm: a change of rhythm is the only thing that changes the prop, and the package
+// applies it at once.
 export function rhythmProps(rhythm: BlinkRhythm): PackageRhythmProps {
     return PackageRhythm[rhythm];
 }
-
-type Rest = typeof RestState;
 
 export type BrokkManifest = {
     still: string;
     states: readonly string[];
     transitions: readonly string[];
     samePose?: readonly string[];
-    idles: Record<string, readonly { name: string; weight?: number; onDemand?: boolean }[]>;
+    idles: Record<string, readonly { name: string; weight?: number; onDemand?: boolean; repeat?: boolean }[]>;
     expressionMs: Record<string, number>;
     head: { x: number; y: number; bubbleZoom: number };
 };
@@ -86,6 +98,7 @@ export function makeBrokkDeclaration(manifest: BrokkManifest, loops: string, sti
             name: idle.name,
             ...(idle.weight != null ? { weight: idle.weight } : {}),
             ...(idle.onDemand ? { onDemand: true } : {}),
+            ...(idle.repeat ? { repeat: true } : {}),
         }));
     }
     return { src: still, loops, restState: RestState, transitions, idles };

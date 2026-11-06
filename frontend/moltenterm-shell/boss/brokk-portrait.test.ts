@@ -10,12 +10,20 @@ import {
     BrokkPortrait,
     clipNames,
     clipsFolder,
+    IdleGaps,
     makeBrokkDeclaration,
     RestState,
+    rhythmProps,
 } from "./brokk-portrait";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
 
 const Folder = join(__dirname, "portrait", "brokk");
+const Root = join(__dirname, "..", "..", "..");
+const PackageName = "@diamondforge/character";
+
+function textOf(file: string): string {
+    return readFileSync(join(Root, file), "utf8");
+}
 
 // A stylesheet without its comments, which explain the rules in words the patterns below would catch.
 function css(file: string): string {
@@ -48,17 +56,20 @@ describe("Brokk's declaration (FR-BOSS-007, AC1)", () => {
         expect(declaration.transitions).not.toContain("speaking>listening");
     });
 
-    it("declares the gestures with their weights: the random ones weigh, the ones asked wait to be asked", () => {
+    it("declares the gestures with their weights: the blink, the only one drawn by chance, weighs and may repeat; every other waits to be asked", () => {
         expect(declaration.idles).toEqual({
             listening: [
-                { name: "blink", weight: 4 },
-                { name: "nod" },
+                { name: "blink", weight: 4, repeat: true },
+                { name: "nod", onDemand: true },
                 { name: "doubtful", onDemand: true },
                 { name: "frown", onDemand: true },
                 { name: "smile", onDemand: true },
                 { name: "call", onDemand: true },
             ],
-            speaking: [{ name: "blink", weight: 2 }, { name: "nod" }],
+            speaking: [
+                { name: "blink", weight: 2, repeat: true },
+                { name: "nod", onDemand: true },
+            ],
         });
     });
 
@@ -179,5 +190,127 @@ describe("the declaration the build gives", () => {
     it("is typed as the package's props", () => {
         const declaration: BrokkDeclaration = BrokkPortrait;
         expect(declaration.src).toMatch(/brokk[^/]*\.jpg/);
+    });
+});
+
+describe("the rhythm of his gestures (FR-BOSS-007, AC17)", () => {
+    const declaration = makeBrokkDeclaration(Manifest as BrokkManifest, "/clips", "/brokk.jpg");
+
+    it("gives the package the gap the scene's rhythm asks for: 6 to 14 s normally, 12 to 30 s when calm", () => {
+        expect(rhythmProps("normal")).toEqual({ idleGap: { minMs: 6000, maxMs: 14000 } });
+        expect(rhythmProps("calm")).toEqual({ idleGap: { minMs: 12000, maxMs: 30000 } });
+    });
+
+    it("makes calm calmer: both ends of its gap are longer, and its mean is at least half as long again", () => {
+        const normal = IdleGaps.normal;
+        const calm = IdleGaps.calm;
+        expect(calm.minMs).toBeGreaterThan(normal.minMs);
+        expect(calm.maxMs).toBeGreaterThan(normal.maxMs);
+        expect(calm.minMs + calm.maxMs).toBeGreaterThanOrEqual(1.5 * (normal.minMs + normal.maxMs));
+    });
+
+    it("gives gaps the package can draw from: the shortest starts before the longest ends, and none is zero", () => {
+        for (const gap of Object.values(IdleGaps)) {
+            expect(gap.minMs).toBeGreaterThan(0);
+            expect(gap.maxMs).toBeGreaterThan(gap.minMs);
+        }
+    });
+
+    it("hands the same gap for the same rhythm, so that only a change of rhythm changes the prop", () => {
+        expect(rhythmProps("normal")).toBe(rhythmProps("normal"));
+        expect(rhythmProps("calm")).toBe(rhythmProps("calm"));
+        expect(rhythmProps("calm")).not.toBe(rhythmProps("normal"));
+    });
+
+    it("keeps the rhythm out of the declaration, which is the same for both: the gap is a prop of the moment", () => {
+        expect(Object.keys(declaration)).not.toContain("idleGap");
+    });
+
+    it("leaves the chance to the blink in every pose: it is the one gesture drawn by chance, and it may repeat", () => {
+        const poses = Object.entries(declaration.idles);
+        expect(poses.map(([pose]) => pose).sort()).toEqual(["listening", "speaking"]);
+        for (const [pose, idles] of poses) {
+            const byChance = idles.filter((idle) => !idle.onDemand);
+            expect(
+                byChance.map((idle) => idle.name),
+                pose
+            ).toEqual(["blink"]);
+            expect(byChance[0].repeat, pose).toBe(true);
+        }
+    });
+
+    it("keeps the nod for when it is asked: on demand wherever he can nod, so that none comes by chance", () => {
+        const poses = Object.entries(declaration.idles).filter(([, idles]) =>
+            idles.some((idle) => idle.name === "nod")
+        );
+        expect(poses.map(([pose]) => pose).sort()).toEqual(["listening", "speaking"]);
+        for (const [pose, idles] of poses) {
+            expect(idles.find((idle) => idle.name === "nod").onDemand, pose).toBe(true);
+        }
+    });
+
+    it("repeats only what the manifest says may repeat", () => {
+        const odd: BrokkManifest = {
+            ...(Manifest as BrokkManifest),
+            idles: {
+                listening: [
+                    { name: "blink", weight: 1, repeat: true },
+                    { name: "smile", onDemand: true },
+                ],
+            },
+        };
+        expect(makeBrokkDeclaration(odd, "/c", "/s.jpg").idles.listening).toEqual([
+            { name: "blink", weight: 1, repeat: true },
+            { name: "smile", onDemand: true },
+        ]);
+    });
+});
+
+describe("the package at v0.3.0 (FR-BOSS-007, AC1 and AC17; #1999)", () => {
+    const lock = JSON.parse(textOf("package-lock.json"));
+    const manifest = JSON.parse(textOf("package.json"));
+
+    it("is named at v0.3.0 by the dependency, the lock, the notice and the ledger of the fork", () => {
+        expect(manifest.dependencies[PackageName]).toMatch(/diamondforge-character\.git#v0\.3\.0$/);
+        expect(lock.packages[""].dependencies[PackageName]).toMatch(/diamondforge-character\.git#v0\.3\.0$/);
+        expect(lock.packages[`node_modules/${PackageName}`].version).toBe("0.3.0");
+        expect(textOf("NOTICE")).toContain(`${PackageName} 0.3.0 by DiamondForge`);
+        expect(textOf("UPSTREAM.md")).toContain("diamondforge-character.git#v0.3.0");
+        expect(textOf("UPSTREAM.md")).not.toContain("diamondforge-character.git#v0.2.0");
+    });
+
+    it("is the one installed, with the gap, the repeat and the end of a gesture in its types", () => {
+        const installed = JSON.parse(textOf(`node_modules/${PackageName}/package.json`));
+        expect(installed.version).toBe("0.3.0");
+        const types = textOf(`node_modules/${PackageName}/dist/transmission-portrait.d.ts`);
+        expect(types).toContain("idleGap?: TransmissionIdleGap");
+        expect(types).toContain("onGesture?: (name: string, phase: TransmissionGesturePhase) => void");
+        expect(types).toContain("repeat?: boolean");
+    });
+
+    it("keeps the next loop under the clip that leads to it, with the stylesheet the app takes from the package", () => {
+        const styles = textOf(`node_modules/${PackageName}/dist/styles.css`);
+        expect(styles).toMatch(/\.character-video-under \{\s*opacity: 1;\s*transition: opacity 0s linear 0\.3s;/);
+        const live = readFileSync(join(__dirname, "brokk-live.tsx"), "utf8");
+        expect(live).toContain(`import "${PackageName}/styles.css"`);
+    });
+
+    it("overrides nothing of what the loop under the clip needs: no opacity, no class of the fade, no transition but off", () => {
+        const live = css("brokk-live.css");
+        expect(live).not.toMatch(/opacity/);
+        expect(live).not.toMatch(/character-video-(on|off|under)/);
+        const rules = [...live.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selector]) =>
+            selector.includes(".character-video")
+        );
+        expect(rules.length).toBeGreaterThan(0);
+        const allowed = ["user-select: none", "-webkit-user-select: none", "pointer-events: none", "transition: none"];
+        for (const [, selector, body] of rules) {
+            for (const declaration of body
+                .split(";")
+                .map((line) => line.trim())
+                .filter(Boolean)) {
+                expect(allowed, `${selector.trim()} { ${declaration} }`).toContain(declaration);
+            }
+        }
     });
 });
