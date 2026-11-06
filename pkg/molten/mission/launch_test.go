@@ -249,6 +249,9 @@ func waitLaunch(t *testing.T, l *Launches, dir string, want string) LaunchState 
 			t.Fatal(err)
 		}
 		if state.State == want {
+			if want == LaunchStateFailed {
+				waitLaunchRunEnded(t, l, dir)
+			}
 			return state
 		}
 		if time.Now().After(deadline) {
@@ -256,6 +259,25 @@ func waitLaunch(t *testing.T, l *Launches, dir string, want string) LaunchState 
 		}
 		time.Sleep(testPoll)
 	}
+}
+
+// A run records its failure before it forgets itself, and Retry refuses while the run is still known: a test that
+// retries a failed launch waits for the end of the run first.
+func waitLaunchRunEnded(t *testing.T, l *Launches, dir string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Minute)
+	for launchRunKnown(l, dir) {
+		if time.Now().After(deadline) {
+			t.Fatal("the failed launch's run did not end")
+		}
+		time.Sleep(testPoll)
+	}
+}
+
+func launchRunKnown(l *Launches, dir string) bool {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	return l.runs[filepath.Clean(dir)] != nil
 }
 
 func served(t *testing.T, port int) string {
