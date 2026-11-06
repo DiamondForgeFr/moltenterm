@@ -49,8 +49,8 @@
     visibility: hidden;
     pointer-events: none;
     transition:
-        opacity 60ms linear,
-        visibility 0s linear 60ms;
+        opacity var(--mt-duration-fade) linear,
+        visibility 0s linear var(--mt-duration-fade);
 }
 
 /* Hanging from the window's top edge, where the pennant hung: it sits above the panels in the layer of the host. */
@@ -103,13 +103,13 @@
     top: -5px;
     right: -6px;
     box-sizing: border-box;
-    min-width: 15px;
-    height: 15px;
+    min-width: 16px;
+    height: 16px;
     padding: 0 4px;
     border-radius: 9999px;
-    font-size: 10px;
+    font-size: var(--mt-text-11);
     font-weight: var(--mt-weight-semibold);
-    line-height: 15px;
+    line-height: 16px;
     text-align: center;
     font-variant-numeric: tabular-nums;
     box-shadow: 0 0 0 2px var(--mt-surface-1);

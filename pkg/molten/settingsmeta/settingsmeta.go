@@ -207,7 +207,7 @@ var settings = []Setting{
 	// The foreman (FR-BOSS-001): the bubble that counts what waits across every workspace.
 	// Range, for a text, is its length in characters.
 	{Key: "boss:name", Section: SectionBoss, Group: "Avatar", Label: "Name", Description: "The name the foreman goes by, from 1 to 24 characters. His tooltip, card and menus use it.", Control: ControlText, Range: rng(1, 24, 1), Default: "Brokk"},
-	{Key: "boss:show", Section: SectionBoss, Group: "Avatar", Label: "Show the avatar", Description: "An avatar in the title bar of every window counts what waits for you and comes to fetch you for what you decided. Off, it does not show and he never comes.", Control: ControlToggle, Default: true},
+	{Key: "boss:show", Section: SectionBoss, Group: "Avatar", Label: "Show the avatar", Description: "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows.", Control: ControlToggle, Default: true},
 	// The avatar stays in the title row, never over a terminal: there is nothing left to fold (#2002).
 	hidden("boss:collapseontype"),
 

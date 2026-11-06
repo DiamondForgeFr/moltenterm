@@ -746,7 +746,7 @@
             },
             "boss:show": {
                 "label": "Afficher l'avatar",
-                "description": "Un avatar dans la barre de titre de chaque fenêtre compte ce qui vous attend et vient vous chercher pour ce que vous avez décidé. Désactivé, il ne s'affiche pas et il ne vient jamais."
+                "description": "Un avatar dans la barre de titre compte ce qui attend et vient vous chercher. Désactivé, il ne s'affiche jamais."
             },
             "moltenterm:theme": {
                 "label": "Thème",

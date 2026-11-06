@@ -556,7 +556,7 @@
             },
             "boss:show": {
                 "label": "Show the avatar",
-                "description": "An avatar in the title bar of every window counts what waits for you and comes to fetch you for what you decided. Off, it does not show and he never comes."
+                "description": "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows."
             },
             "moltenterm:theme": {
                 "label": "Theme",

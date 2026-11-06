@@ -17,6 +17,8 @@ const Allowed: Record<string, string> = {
     "sidebar/workspace-sidebar.tsx": "the last workspace list, drawn by a new tab view until wavesrv answers",
     "legacy-storage.ts": "reads and drops what earlier versions kept, to move it into the settings or the meta",
     "reviews/reviews-order-store.ts": "the same move, for the Integration panel's sort and folds (#1758)",
+    "boss/brokk-hub-store.ts":
+        "what Brokk told and the Plus tard delay, handed from one view to the next within a run, so that a visit is not played again in each view (#2002); a restart starts them over",
 };
 
 const Root = "frontend/moltenterm-shell";

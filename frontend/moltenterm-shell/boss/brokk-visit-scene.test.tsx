@@ -303,14 +303,24 @@ describe("how long it takes (AC6)", () => {
     it("grows from the avatar in about 360 ms with an ease-out, and folds back in about 300 ms", () => {
         expect(MotionTimings.openMs).toBe(360);
         expect(MotionTimings.closeMs).toBe(300);
-        expect(rule(scene, '.mt-brokk-scene[data-open="true"]')).toMatch(/transform 360ms cubic-bezier\(0\.2, 0\.7, 0\.2, 1\)/);
-        expect(rule(scene, ".mt-brokk-scene")).toMatch(/transform 300ms ease-in/);
+        const layer = rule(scene, ".mt-brokk-scene-layer");
+        expect(layer).toContain(`--mt-brokk-open-ms: ${MotionTimings.openMs}ms`);
+        expect(layer).toContain(`--mt-brokk-close-ms: ${MotionTimings.closeMs}ms`);
+        expect(rule(scene, '.mt-brokk-scene[data-open="true"]')).toMatch(
+            /transform var\(--mt-brokk-open-ms\) cubic-bezier\(0\.2, 0\.7, 0\.2, 1\)/
+        );
+        expect(rule(scene, ".mt-brokk-scene")).toMatch(/transform var\(--mt-brokk-close-ms\) ease-in/);
     });
 
     it("slides the content down in about 320 ms and back up in about 300 ms", () => {
         expect(MotionTimings.slideDownMs).toBe(320);
-        expect(rule(sidebar, '.mt-sb[data-brokk-visit="open"] .mt-brokk-room')).toMatch(/margin-top 320ms/);
-        expect(rule(sidebar, ".mt-brokk-room")).toMatch(/margin-top 300ms ease-in/);
+        const room = rule(sidebar, ".mt-brokk-room");
+        expect(room).toContain(`--mt-brokk-slide-down-ms: ${MotionTimings.slideDownMs}ms`);
+        expect(room).toContain(`--mt-brokk-slide-up-ms: ${MotionTimings.closeMs}ms`);
+        expect(rule(sidebar, '.mt-sb[data-brokk-visit="open"] .mt-brokk-room')).toMatch(
+            /margin-top var\(--mt-brokk-slide-down-ms\) cubic-bezier/
+        );
+        expect(room).toMatch(/margin-top var\(--mt-brokk-slide-up-ms\) ease-in/);
     });
 });
 
@@ -320,15 +330,18 @@ describe("the scene under reduced motion (AC6)", () => {
 
     it("cross-fades in 150 ms and moves nothing, for the app's setting", () => {
         expect(MotionTimings.fadeMs).toBe(150);
+        expect(rule(scene, ".mt-brokk-scene-layer")).toContain(`--mt-brokk-fade-ms: ${MotionTimings.fadeMs}ms`);
         const open = rule(scene, '.prefers-reduced-motion .mt-brokk-scene[data-open="true"]');
         expect(open).toMatch(/transform: none/);
-        expect(open).toMatch(/transition: opacity 150ms linear/);
-        expect(open).not.toMatch(/transform \d/);
+        expect(open).toMatch(/transition: opacity var\(--mt-brokk-fade-ms\) linear/);
+        expect(open).not.toMatch(/transform var/);
     });
 
     it("does the same for the system's preference", () => {
         const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(scene)?.[1] ?? "";
-        expect(media).toMatch(/\.mt-brokk-scene,\s*\.mt-brokk-scene\[data-open="true"\]\s*\{[^}]*transform: none;[^}]*transition: opacity 150ms linear/);
+        expect(media).toMatch(
+            /\.mt-brokk-scene,\s*\.mt-brokk-scene\[data-open="true"\]\s*\{[^}]*transform: none;[^}]*transition: opacity var\(--mt-brokk-fade-ms\) linear/
+        );
     });
 
     it("lets the glow stand still and draws no embers", () => {
