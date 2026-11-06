@@ -12,7 +12,6 @@ import {
     DefaultBubbleState,
     DefaultPlace,
     isTypingKey,
-    nextCue,
     peekStyle,
     pennantRightPx,
     placeStyle,
@@ -157,24 +156,6 @@ describe("overlap and the collapse while typing (AC4)", () => {
     it("never collapses by itself when the setting is off, nor over a manual collapse", () => {
         expect(collapsesWhileTyping({ ...base, enabled: false })).toBe(false);
         expect(collapsesWhileTyping({ ...base, manual: true })).toBe(false);
-    });
-});
-
-describe("the one cue when the count rises (AC6)", () => {
-    it("plays nothing for the first reading, which is a window starting", () => {
-        expect(nextCue(null, 3, true)).toEqual({ last: 3, cue: false });
-        expect(nextCue(0, 2, false)).toEqual({ last: null, cue: false });
-    });
-
-    it("plays once per rise", () => {
-        expect(nextCue(0, 1, true)).toEqual({ last: 1, cue: true });
-        expect(nextCue(1, 4, true)).toEqual({ last: 4, cue: true });
-    });
-
-    it("stays still when the count holds or falls", () => {
-        expect(nextCue(2, 2, true)).toEqual({ last: 2, cue: false });
-        expect(nextCue(3, 1, true)).toEqual({ last: 1, cue: false });
-        expect(nextCue(1, 0, true)).toEqual({ last: 0, cue: false });
     });
 });
 

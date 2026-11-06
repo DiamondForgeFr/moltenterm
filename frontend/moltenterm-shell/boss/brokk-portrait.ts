@@ -17,10 +17,26 @@ import type {
     TransmissionState,
     TransmissionTransition,
 } from "@diamondforge/character";
+import type { BlinkRhythm } from "./brokk-scene";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
 import Still from "./portrait/brokk/brokk.jpg";
 
 export const RestState = "rest";
+
+// STEP B of #1959, the seam: the rhythm the scene wants for his blinks (brokk-scene.ts), as props of the package's
+// portrait. The package (0.2.0) draws a random gesture with one chance in two at each turn of the loop, the last one
+// played excluded (blink and nod alternate), and takes no rhythm: character-studio requests C1 (a gesture that may
+// repeat, the nod on demand) and C2 (idleChance, or an idleGap from min to max) are open. MoltenTerm does not work
+// around it. When the release that carries them is adopted, fill the two entries below (an irregular gap, longer for
+// "calm"), mark `nod` onDemand and `blink` repeatable in the manifest, and nothing else changes.
+// The type names no prop yet: it becomes the package's own (idleGap and the like) with the release.
+type PackageRhythmProps = Record<never, never>;
+
+const PackageRhythm: Record<BlinkRhythm, PackageRhythmProps> = { normal: {}, calm: {} };
+
+export function rhythmProps(rhythm: BlinkRhythm): PackageRhythmProps {
+    return PackageRhythm[rhythm];
+}
 
 type Rest = typeof RestState;
 

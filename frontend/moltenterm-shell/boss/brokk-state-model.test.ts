@@ -25,9 +25,9 @@ describe("his pose from MoltenTerm's signals (FR-BOSS-007, AC2)", () => {
         ["nothing works, nothing waits, the card is closed: awake (#1958)", situation(), "listening"],
         ["the developer is away and nothing goes on: asleep", situation({ away: true }), "rest"],
         [
-            "the developer is away with the card open and nothing going on",
+            "the developer is away with the card open and nothing going on: he looks up at whoever opened it (#1959)",
             situation({ away: true, cardOpen: true }),
-            "rest",
+            "listening",
         ],
         [
             "the developer is away while an agent works: he watches it",
@@ -40,7 +40,11 @@ describe("his pose from MoltenTerm's signals (FR-BOSS-007, AC2)", () => {
         ["something waits for the developer", situation({ waiting: 1 }), "listening"],
         ["something waits while agents work", situation({ working: 3, waiting: 2 }), "listening"],
         ["the card is open with nothing going on", situation({ cardOpen: true }), "listening"],
-        ["the card is open while an agent works", situation({ cardOpen: true, working: 1 }), "thinking"],
+        [
+            "the card is open while an agent works: he looks up, the developer came to talk to him (#1959)",
+            situation({ cardOpen: true, working: 1 }),
+            "listening",
+        ],
         ["the card is open on items to handle", situation({ cardOpen: true, waiting: 4 }), "listening"],
     ])("%s: %s", (_label, s, pose) => {
         expect(restingPose(s)).toBe(pose);

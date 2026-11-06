@@ -2983,7 +2983,6 @@
             }
         },
         "peek": {
-            "quiet": "Nothing waits for you.",
             "waitingTitle": "Waiting for you",
             "workingTitle": "At work",
             "usageTitle": "Plan usage",
@@ -3012,7 +3011,37 @@
                 "other": "{count} agents at work"
             },
             "nothingForYou": "Nothing for you",
-            "asleep": "Asleep while you are away"
+            "asleep": "Asleep while you are away",
+            "speech": {
+                "one": "A thing for you: {line}",
+                "other": "{count} things for you: {line}"
+            },
+            "finished": "{name} finished",
+            "finishedAll": "Everyone finished",
+            "merged": "PR #{number} merged",
+            "cleared": "All handled",
+            "thanks": "Thank you",
+            "niceWork": "Nice work",
+            "lateNight": "It is getting late",
+            "relieved": "Sorted out",
+            "welcomeBack": "Welcome back",
+            "backNothing": "Nothing new",
+            "backFinished": {
+                "one": "{names} finished while you were away",
+                "other": "{names} finished while you were away"
+            },
+            "backArrived": {
+                "one": "{count} thing arrived while you were away",
+                "other": "{count} things arrived while you were away"
+            },
+            "waitedFor": "{name} has waited {minutes} min",
+            "waitedLine": "{line} · {minutes} min",
+            "handled": {
+                "answer": "Noted",
+                "rerun": "Rerunning the CI",
+                "handoff": "Handoff allowed",
+                "done": "Noted"
+            }
         }
     },
     "keepawake": {

@@ -16,7 +16,6 @@
 // A margin in space, so that the screen still closes at once and not after a delay.
 
 import { BubbleSizePx, Corner, Rect } from "./boss-place";
-import { BrokkSituation, restingPose } from "./brokk-ask-model";
 
 // The screen's side and the zone's margin past it. Must match --mt-boss-screen and --mt-boss-slop in boss-bubble.css.
 export const ScreenSizePx = 200;
@@ -68,33 +67,6 @@ export function screenShows(hold: ScreenHold, context: ScreenContext): boolean {
         return false;
     }
     return hold.pointer || hold.focus;
-}
-
-// The caption's status line says what his face shows (FR-BOSS-007, AC9, #1958), as keys: a first line, and a second one
-// when there is more to tell. `worker` is the name of the one agent at work, when exactly one works.
-export type CaptionLine = { key: string; count?: number; vars?: Record<string, string> };
-export type ScreenCaption = { status: CaptionLine; detail?: CaptionLine };
-
-function workingLine(working: number, worker: string): CaptionLine {
-    if (working === 1 && worker) {
-        return { key: "boss.screen.working", vars: { name: worker } };
-    }
-    return { key: "boss.screen.workingCount", count: working };
-}
-
-export function screenCaption(situation: BrokkSituation, worker: string): ScreenCaption {
-    const pose = restingPose(situation);
-    if (pose === "rest") {
-        return { status: { key: "boss.screen.asleep" } };
-    }
-    if (situation.waiting > 0) {
-        const status = { key: "boss.screen.toHandle", count: situation.waiting };
-        return situation.working > 0 ? { status, detail: workingLine(situation.working, worker) } : { status };
-    }
-    if (pose === "thinking") {
-        return { status: workingLine(situation.working, worker), detail: { key: "boss.screen.nothingForYou" } };
-    }
-    return { status: { key: "boss.screen.quiet" } };
 }
 
 export type Point = { x: number; y: number };

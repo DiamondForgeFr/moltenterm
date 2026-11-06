@@ -14,7 +14,8 @@ import { useEffect, useReducer } from "react";
 import type { AskedExpression, BrokkSituation } from "./brokk-ask-model";
 import "./brokk-live.css";
 import { startMoments } from "./brokk-moments";
-import { BrokkPortrait } from "./brokk-portrait";
+import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
+import type { BlinkRhythm } from "./brokk-scene";
 import { brokkPose, faceAfter, reactionCapMs, SpeakingMs, startFace } from "./brokk-state-model";
 
 export type BrokkLiveProps = {
@@ -28,9 +29,16 @@ export type BrokkLiveProps = {
     speaks?: boolean;
     // The gesture asked at the mount has ended.
     onPlayed?: () => void;
+    // The comm screen is open and shows this face: its mood plays once, and a developer who is back is greeted
+    // (BrokkExpressionsModel.noteOpen). It is told here, once this face is mounted, since a gesture asked before it
+    // mounts is not played.
+    opened?: boolean;
+    onOpened?: () => void;
+    // How the scene wants his blinks spaced (STEP B of #1959: the package takes none yet, brokk-portrait.ts).
+    rhythm?: BlinkRhythm;
 };
 
-export function BrokkLive({ situation, asked, play, speaks, onPlayed }: BrokkLiveProps) {
+export function BrokkLive({ situation, asked, play, speaks, onPlayed, opened, onOpened, rhythm }: BrokkLiveProps) {
     const [face, dispatch] = useReducer(faceAfter, { asked, play, speaks }, startFace);
     const reaction = face.reaction;
 
@@ -67,6 +75,17 @@ export function BrokkLive({ situation, asked, play, speaks, onPlayed }: BrokkLiv
             onPlayed?.();
         }
     }, [play, reaction]);
+    // Once when this face shows on an open screen, and again when the card opens beside it (the screen was open already).
+    useEffect(() => {
+        if (opened) {
+            onOpened?.();
+        }
+    }, [opened]);
+    useEffect(() => {
+        if (opened && situation.cardOpen) {
+            onOpened?.();
+        }
+    }, [situation.cardOpen]);
 
     const pose = brokkPose(situation, { speaking: face.speaking, expression: reaction?.expression ?? null });
 
@@ -80,9 +99,16 @@ export function BrokkLive({ situation, asked, play, speaks, onPlayed }: BrokkLiv
     };
 
     return (
-        <div className="mt-brokk-live" data-pose={pose} data-testid="brokk-live" onEndedCapture={onEnded}>
+        <div
+            className="mt-brokk-live"
+            data-pose={pose}
+            data-rhythm={rhythm ?? "normal"}
+            data-testid="brokk-live"
+            onEndedCapture={onEnded}
+        >
             <TransmissionPortrait
                 {...BrokkPortrait}
+                {...rhythmProps(rhythm ?? "normal")}
                 bare
                 className="mt-brokk-portrait"
                 alt=""

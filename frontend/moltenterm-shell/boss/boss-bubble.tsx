@@ -16,7 +16,6 @@ import { isMacOS } from "@/util/platformutil";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
-import { AgentStateDotClasses, agentStateLabel } from "../agent-state-model";
 import { GaugeLevel } from "../companion/companion-gauges-model";
 import { useT, useTCount } from "../i18n/i18n";
 import { MotionClass } from "../molten-motion";
@@ -24,7 +23,7 @@ import { openSettingsSection } from "../settings/settings-open";
 import "./boss-bubble.css";
 import { BossCard } from "./boss-card";
 import { bossInitial } from "./boss-name";
-import { BossPeek, bubbleLabel, peekIsQuiet, usageText, workplaceNames } from "./boss-overview";
+import { BossPeek, bubbleLabel, PeekWaitingRow, usageText, workplaceNames } from "./boss-overview";
 import {
     Area,
     BubbleMarginPx,
@@ -41,11 +40,12 @@ import {
     Rect,
 } from "./boss-place";
 import { BossPortrait } from "./boss-portrait";
-import { BossScreen } from "./boss-screen";
+import { BossScreen, useCaptionText } from "./boss-screen";
 import { holdAfter, NoScreenHold, ScreenEvent, screenShows, ScreenSizePx } from "./boss-screen-model";
 import { BossBubbleModel } from "./boss-store";
 import { BrokkExpressionsModel } from "./brokk-expressions";
-import { useBrokkSituation, useBubbleLive } from "./use-brokk-live";
+import type { ScreenCaption } from "./brokk-scene";
+import { useBrokkScene, useBrokkSituation, useBubbleLive, useSpeaksOnOpen } from "./use-brokk-live";
 
 // Under the pointer for this long before the peek shows: passing over the bubble shows nothing.
 export const PeekDelayMs = 350;
@@ -64,25 +64,34 @@ function Title({ children }: { children: string }) {
     return <div className="mb-1 text-11 font-semibold tracking-wide text-muted uppercase">{children}</div>;
 }
 
-function PeekBody({ peek, name }: { peek: BossPeek; name: string }) {
+const PeekToneDots: Record<PeekWaitingRow["tone"], string> = {
+    error: "bg-error",
+    waiting: "bg-accent",
+    success: "bg-success",
+};
+
+// The headline is the scene's, the sentence the comm screen's status line says too (FR-BOSS-007, AC11); the rows are the
+// ones the badge counts, hand-off requests and failing CIs included (FR-BOSS-001, AC7).
+function PeekBody({ peek, name, card }: { peek: BossPeek; name: string; card: ScreenCaption }) {
     const t = useT();
     const tCount = useTCount();
+    const text = useCaptionText();
     return (
         <div className="flex flex-col gap-2.5 text-12 text-primary">
             <div className="font-semibold">{name}</div>
-            {peekIsQuiet(peek) ? <div className="text-secondary">{t("boss.peek.quiet")}</div> : null}
+            <div className="text-secondary" data-testid="boss-peek-headline">
+                {text(card.status)}
+                {card.detail ? <span data-testid="boss-peek-headline-detail">{` ${text(card.detail)}`}</span> : null}
+            </div>
             {peek.waiting.length > 0 ? (
                 <div data-testid="boss-peek-waiting">
                     <Title>{t("boss.peek.waitingTitle")}</Title>
                     <ul className="flex flex-col gap-1">
                         {peek.waiting.map((row) => (
-                            <li key={row.id} className="flex items-center gap-2">
+                            <li key={row.id} className="flex items-center gap-2" data-tone={row.tone}>
                                 <span
                                     aria-hidden
-                                    className={cn(
-                                        "inline-block h-2 w-2 shrink-0 rounded-full",
-                                        AgentStateDotClasses[row.state]
-                                    )}
+                                    className={cn("inline-block h-2 w-2 shrink-0 rounded-full", PeekToneDots[row.tone])}
                                 />
                                 <span className="min-w-0 flex-1 truncate">
                                     <span className="font-medium">{row.name}</span>
@@ -90,7 +99,7 @@ function PeekBody({ peek, name }: { peek: BossPeek; name: string }) {
                                         <span className="text-secondary">{` · ${row.workspace}`}</span>
                                     ) : null}
                                 </span>
-                                <span className="shrink-0 text-muted">{agentStateLabel(row.state)}</span>
+                                <span className="max-w-[55%] shrink-0 truncate text-muted">{row.line}</span>
                             </li>
                         ))}
                         {peek.waitingMore > 0 ? (
@@ -169,8 +178,11 @@ function BossBubbleLayer() {
     const peek = useAtomValue(model.peekAtom, { store: globalStore });
     const screenOpen = !collapsed && screenShows(screenHold, { dragging: dragRect != null, cardOpen });
     const situation = useBrokkSituation(cardOpen, screenOpen);
-    const live = useBubbleLive({ collapsed, screenOpen, situation });
-    const worker = situation.working === 1 ? (peek.working[0]?.names[0] ?? "") : "";
+    const speaks = useSpeaksOnOpen(situation);
+    // The screen stands beside the open card unless the bubble is folded or dragged: then the card's header does not
+    // need a moving portrait of its own.
+    const scene = useBrokkScene({ pinned: cardOpen && !collapsed && dragRect == null, peek, situation, speaks });
+    const live = useBubbleLive({ collapsed, screenOpen, situation, speaks, rhythm: scene.rhythm });
     // The open screen lies between the round and the card: the card goes beyond it, never under it (FR-BOSS-007, AC8).
     const screenClearance = screenOpen ? ScreenSizePx - BubbleSizePx : 0;
     const layerRef = useRef<HTMLDivElement>(null);
@@ -185,7 +197,7 @@ function BossBubbleLayer() {
     const descriptionId = useId();
 
     useEffect(() => model.attach(document), [model]);
-    useEffect(() => BrokkExpressionsModel.getInstance().watch(), []);
+    useEffect(() => BrokkExpressionsModel.getInstance().watch(document), []);
     useEffect(() => {
         model.setRectSource(() => {
             const box = bubbleRef.current?.getBoundingClientRect();
@@ -467,11 +479,16 @@ function BossBubbleLayer() {
                     <span className="mt-boss-shape" data-testid="boss-shape" aria-hidden>
                         <span className="mt-boss-face">
                             <BossPortrait live={live} />
-                            {screenOpen ? <BossScreen name={name} situation={situation} worker={worker} /> : null}
+                            {screenOpen ? <BossScreen name={name} scene={scene} /> : null}
                         </span>
-                        {badge.count > 0 ? (
-                            <span className="mt-boss-badge" data-tone={badge.tone} data-testid="boss-badge" aria-hidden>
-                                {badge.text}
+                        {scene.round.count > 0 ? (
+                            <span
+                                className="mt-boss-badge"
+                                data-tone={scene.round.tone}
+                                data-testid="boss-badge"
+                                aria-hidden
+                            >
+                                {scene.round.text}
                             </span>
                         ) : null}
                     </span>
@@ -480,10 +497,11 @@ function BossBubbleLayer() {
             )}
             {/* The peek as the button's description, for screen readers (AC10); the visual one below is the same text. */}
             <div id={descriptionId} className="sr-only" data-testid="boss-description">
-                <PeekBody peek={peek} name={name} />
+                <PeekBody peek={peek} name={name} card={scene.card} />
             </div>
             {cardOpen && dragRect == null ? (
                 <BossCard
+                    headerStill={scene.headerStill}
                     style={
                         collapsed
                             ? pennantCardStyle(pennantRight)
@@ -507,7 +525,7 @@ function BossBubbleLayer() {
                               )
                     }
                 >
-                    <PeekBody peek={peek} name={name} />
+                    <PeekBody peek={peek} name={name} card={scene.card} />
                 </div>
             ) : null}
         </div>

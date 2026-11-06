@@ -2983,7 +2983,6 @@
             }
         },
         "peek": {
-            "quiet": "Rien n'attend votre réponse.",
             "waitingTitle": "Vous attendent",
             "workingTitle": "Au travail",
             "usageTitle": "Usage du forfait",
@@ -3012,7 +3011,37 @@
                 "other": "{count} agents au travail"
             },
             "nothingForYou": "Rien pour vous",
-            "asleep": "Endormi pendant votre absence"
+            "asleep": "Endormi pendant votre absence",
+            "speech": {
+                "one": "Une chose pour vous : {line}",
+                "other": "{count} choses pour vous : {line}"
+            },
+            "finished": "{name} a terminé",
+            "finishedAll": "Tout le monde a terminé",
+            "merged": "PR #{number} fusionnée",
+            "cleared": "Tout est traité",
+            "thanks": "Merci",
+            "niceWork": "Beau travail",
+            "lateNight": "Il se fait tard",
+            "relieved": "Réglé",
+            "welcomeBack": "Re-bonjour",
+            "backNothing": "Rien de neuf",
+            "backFinished": {
+                "one": "{names} a terminé pendant votre absence",
+                "other": "{names} ont terminé pendant votre absence"
+            },
+            "backArrived": {
+                "one": "{count} chose est arrivée pendant votre absence",
+                "other": "{count} choses sont arrivées pendant votre absence"
+            },
+            "waitedFor": "{name} attend depuis {minutes} min",
+            "waitedLine": "{line} · depuis {minutes} min",
+            "handled": {
+                "answer": "C'est noté",
+                "rerun": "Je relance la CI",
+                "handoff": "Mise en relation autorisée",
+                "done": "C'est noté"
+            }
         }
     },
     "keepawake": {

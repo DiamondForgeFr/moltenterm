@@ -68,6 +68,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { PendingHandoff } from "../agent-handoff-types";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleMetaKey } from "./boss-name";
 import { DefaultBubbleState, DefaultPlace, Rect } from "./boss-place";
@@ -284,12 +285,18 @@ describe("the collapse while typing (AC4)", () => {
     });
 });
 
-describe("the one cue when the count rises (AC6)", () => {
-    it("plays when an agent starts waiting, not for the states a starting window loads", () => {
-        const detach = model.attach(fakeDom());
-        setStates(agentInfo("a", "waiting"));
-        expect(globalStore.get(model.cueAtom)).toBe(0);
+describe("the one cue when the badge rises (AC6; FR-BOSS-007, AC3)", () => {
+    // The first readings are in: the agents (set by the test) and the hand-off requests (read when the bubble attaches).
+    async function attachedAndRead() {
         globalStore.set(agents.loadedAtom, true);
+        const detach = model.attach(fakeDom());
+        await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
+        return detach;
+    }
+
+    it("plays when an agent starts waiting, not for the states a starting window loads", async () => {
+        setStates(agentInfo("a", "waiting"));
+        const detach = await attachedAndRead();
         expect(globalStore.get(model.cueAtom)).toBe(0);
         setStates(agentInfo("a", "waiting"), agentInfo("b", "error"));
         expect(globalStore.get(model.cueAtom)).toBe(1);
@@ -298,19 +305,71 @@ describe("the one cue when the count rises (AC6)", () => {
         detach();
     });
 
-    it("stays still when the count holds or falls", () => {
-        globalStore.set(agents.loadedAtom, true);
-        setStates(agentInfo("a", "waiting"), agentInfo("b", "waiting"));
+    it("waits for every first reading before it judges: a window starting is not news", async () => {
         const detach = model.attach(fakeDom());
-        setStates(agentInfo("a", "waiting"), agentInfo("b", "error"));
+        setStates(agentInfo("a", "waiting"));
+        expect(globalStore.get(model.cueAtom)).toBe(0);
+        globalStore.set(agents.loadedAtom, true);
+        await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
+        expect(globalStore.get(model.cueAtom)).toBe(0);
+        setStates(agentInfo("a", "waiting"), agentInfo("b", "waiting"));
+        expect(globalStore.get(model.cueAtom)).toBe(1);
+        detach();
+    });
+
+    it("stays still when the count holds or falls", async () => {
+        setStates(agentInfo("a", "waiting"), agentInfo("b", "waiting"));
+        const detach = await attachedAndRead();
         setStates(agentInfo("a", "waiting"));
         setStates();
         expect(globalStore.get(model.cueAtom)).toBe(0);
         detach();
     });
 
+    it("stays still when a row comes back from Later: it was already known", async () => {
+        setStates(agentInfo("a", "waiting"), agentInfo("b", "waiting"));
+        const detach = await attachedAndRead();
+        model.park("agent:b");
+        expect(globalStore.get(model.badgeAtom).count).toBe(1);
+        globalStore.set(model.parkedAtom, {});
+        expect(globalStore.get(model.badgeAtom).count).toBe(2);
+        expect(globalStore.get(model.cueAtom)).toBe(0);
+        detach();
+    });
+
+    it("plays for a failing CI or a ready pull request, not for the project the Integration panel reads first", async () => {
+        const failing = {
+            number: 7,
+            title: "PR 7",
+            url: "https://example.test/pull/7",
+            branch: "feature/7-x",
+            base: "develop",
+            createdat: "2026-11-01T10:00:00Z",
+            updatedat: "2026-11-01T10:00:00Z",
+            draft: false,
+            merge: "clean",
+            ci: { state: "failure", success: 0, failure: 1, pending: 0, checks: [] },
+            report: { state: "present" },
+            unpublished: 0,
+        };
+        const detach = await attachedAndRead();
+        globalStore.set(SharedReviewsAnswersAtom, {
+            "/work/x": { dir: "/work/x", state: "ok", ready: [failing], drafts: [] } as any,
+        });
+        expect(globalStore.get(model.toHandleAtom).items.map((item) => item.key)).toEqual(["ci:/work/x:7"]);
+        expect(globalStore.get(model.cueAtom)).toBe(0);
+        globalStore.set(SharedReviewsAnswersAtom, {
+            "/work/x": { dir: "/work/x", state: "ok", ready: [failing, { ...failing, number: 8 }], drafts: [] } as any,
+        });
+        expect(globalStore.get(model.cueAtom)).toBe(1);
+        expect(globalStore.get(model.badgeAtom)).toMatchObject({ count: 2, tone: "error" });
+        detach();
+        globalStore.set(SharedReviewsAnswersAtom, {});
+    });
+
     it("plays when a hand-off request arrives, not for the ones a starting window loads, and the badge counts it", async () => {
         m.readPending.mockResolvedValue([pendingRequest("r1")]);
+        globalStore.set(agents.loadedAtom, true);
         const detach = model.attach(fakeDom());
         await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
         expect(globalStore.get(model.cueAtom)).toBe(0);
@@ -331,10 +390,8 @@ describe("the one cue when the count rises (AC6)", () => {
     });
 
     it("plays for a hand-off request even while an agent already waits", async () => {
-        globalStore.set(agents.loadedAtom, true);
         setStates(agentInfo("a", "waiting"));
-        const detach = model.attach(fakeDom());
-        await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
+        const detach = await attachedAndRead();
         expect(globalStore.get(model.cueAtom)).toBe(0);
 
         m.readPending.mockResolvedValue([pendingRequest("r1")]);
@@ -380,6 +437,32 @@ describe("the peek (AC7)", () => {
         setStates(agentInfo("a", "error"));
         expect(globalStore.get(model.peekAtom).waiting).toHaveLength(1);
         expect(m.setMeta).not.toHaveBeenCalled();
+    });
+
+    it("lists as many rows as the badge counts, hand-off requests included (#1959)", async () => {
+        m.readPending.mockResolvedValue([pendingRequest("r1"), pendingRequest("r2")]);
+        setStates(agentInfo("a", "waiting"), agentInfo("b", "error"));
+        const detach = model.attach(fakeDom());
+        await vi.waitFor(() => expect(globalStore.get(handoffs.dataAtom)).toHaveLength(2), { timeout: 30000 });
+        const badge = globalStore.get(model.badgeAtom);
+        const peek = globalStore.get(model.peekAtom);
+        expect(badge.count).toBe(4);
+        expect(peek.waiting.length + peek.waitingMore).toBe(badge.count);
+        // The failure comes first, as it does in the card and in the caption; three rows are listed, then "and 1 more".
+        expect(peek.waiting.map((row) => row.id)).toEqual(["agent:b", "handoff:r1", "handoff:r2"]);
+        expect(peek.waiting[0]).toMatchObject({ tone: "error" });
+        expect(peek.waitingMore).toBe(1);
+        detach();
+    });
+
+    it("lists a hand-off request when it is the only thing that waits", async () => {
+        m.readPending.mockResolvedValue([pendingRequest("r1")]);
+        const detach = model.attach(fakeDom());
+        await vi.waitFor(() => expect(globalStore.get(handoffs.dataAtom)).toHaveLength(1), { timeout: 30000 });
+        expect(globalStore.get(model.peekAtom).waiting).toEqual([
+            expect.objectContaining({ id: "handoff:r1", name: "Chloé", tone: "waiting", line: "A goal" }),
+        ]);
+        detach();
     });
 });
 

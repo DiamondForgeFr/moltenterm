@@ -5,13 +5,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-    askedAfter,
     BrokkExpression,
     BrokkSituation,
     callPending,
-    CallYieldMs,
-    expressionAfterAnswer,
     handledAfter,
+    handledKindOf,
+    restingPose,
     rose,
     speaksOnOpen,
 } from "./brokk-ask-model";
@@ -49,30 +48,10 @@ describe("the call the round makes when the count rises (FR-BOSS-007, AC3)", () 
     });
 });
 
-describe("the gesture asked", () => {
-    it("is the first one asked, with a cue of its own each time, the same gesture twice included", () => {
-        const first = askedAfter(null, "smile", 1000);
-        expect(first).toEqual({ expression: "smile", cue: 1, at: 1000 });
-        expect(askedAfter(first, "smile", 2000)).toEqual({ expression: "smile", cue: 2, at: 2000 });
-        expect(askedAfter(first, "nod", 2000)).toEqual({ expression: "nod", cue: 2, at: 2000 });
-    });
-
-    it("lets a gesture that tells why win over the call asked in the same moment, whichever comes first", () => {
-        const frown = askedAfter(null, "frown", 1000);
-        expect(askedAfter(frown, "call", 1000 + CallYieldMs - 1)).toBe(frown);
-        const call = askedAfter(null, "call", 1000);
-        expect(askedAfter(call, "frown", 1001)).toEqual({ expression: "frown", cue: 2, at: 1001 });
-    });
-
-    it("plays the call again once the moment has passed, and a call after a call", () => {
-        const frown = askedAfter(null, "frown", 1000);
-        expect(askedAfter(frown, "call", 1000 + CallYieldMs)).toEqual({
-            expression: "call",
-            cue: 2,
-            at: 1000 + CallYieldMs,
-        });
-        const call = askedAfter(null, "call", 1000);
-        expect(askedAfter(call, "call", 1001)).toEqual({ expression: "call", cue: 2, at: 1001 });
+describe("his resting pose (FR-BOSS-007, AC2 and AC15, #1959)", () => {
+    it("looks up when the card opens, even while agents work, and keeps to his work otherwise", () => {
+        expect(restingPose(situation({ working: 2 }))).toBe("thinking");
+        expect(restingPose(situation({ working: 2, cardOpen: true }))).toBe("listening");
     });
 });
 
@@ -97,24 +76,26 @@ describe("speaking when the card opens", () => {
     });
 });
 
-describe("what the developer's answer tells him", () => {
-    it("smiles at a hand-off approved, once or always", () => {
-        expect(expressionAfterAnswer({ kind: "handoff", decision: "once" })).toBe("smile");
-        expect(expressionAfterAnswer({ kind: "handoff", decision: "always" })).toBe("smile");
+describe("what the developer's answer tells him (FR-BOSS-007, AC14, #1959)", () => {
+    it("takes a hand-off allowed, once or always, for an approval: a nod, the smile is kept for success", () => {
+        expect(handledKindOf({ kind: "handoff", decision: "once" })).toBe("handoff");
+        expect(handledKindOf({ kind: "handoff", decision: "always" })).toBe("handoff");
     });
 
     it("says nothing of a hand-off refused or dismissed", () => {
-        expect(expressionAfterAnswer({ kind: "handoff", decision: "block" })).toBeNull();
-        expect(expressionAfterAnswer({ kind: "handoff", decision: "dismiss" })).toBeNull();
+        expect(handledKindOf({ kind: "handoff", decision: "block" })).toBeNull();
+        expect(handledKindOf({ kind: "handoff", decision: "dismiss" })).toBeNull();
     });
 
-    it("nods at an answer given to an agent", () => {
-        expect(expressionAfterAnswer({ kind: "answer" })).toBe("nod");
+    it("takes an answer given to an agent, a CI rerun and a Done for the developer's own action", () => {
+        expect(handledKindOf({ kind: "answer" })).toBe("answer");
+        expect(handledKindOf({ kind: "rerun" })).toBe("rerun");
+        expect(handledKindOf({ kind: "done" })).toBe("done");
     });
 
-    it("says nothing of the other buttons", () => {
-        for (const kind of ["rerun", "done", "later", "goto", "integration", "external", "open", "brief"]) {
-            expect(expressionAfterAnswer({ kind })).toBeNull();
+    it("says nothing of the buttons that only go somewhere or set aside", () => {
+        for (const kind of ["later", "goto", "integration", "external", "open", "brief"]) {
+            expect(handledKindOf({ kind })).toBeNull();
         }
     });
 });
@@ -122,10 +103,19 @@ describe("what the developer's answer tells him", () => {
 describe("what the bubble loads up front (the perf budget of the entry's JavaScript)", () => {
     // Every module the entry reaches adds to bundle.initialJsMB, which is gated to the byte almost (scripts/perf). The
     // animated portrait is the part that must load on the first opening, so the up-front files import none of it.
-    const upFront = ["brokk-ask-model.ts", "brokk-expressions.ts", "use-brokk-live.ts", "boss-portrait.tsx"];
+    const upFront = [
+        "brokk-ask-model.ts",
+        "brokk-queue.ts",
+        "brokk-mood.ts",
+        "brokk-scene.ts",
+        "brokk-watch.ts",
+        "brokk-expressions.ts",
+        "use-brokk-live.ts",
+        "boss-screen.tsx",
+        "boss-portrait.tsx",
+    ];
     const later = [
         "./brokk-state-model",
-        "./brokk-expression-model",
         "./brokk-moments",
         "./brokk-portrait",
         "./brokk-live",
