@@ -737,7 +737,8 @@
             "newViews": "Nouvelles vues",
             "sidebar": "Barre latérale",
             "theme": "Thème",
-            "avatar": "Avatar"
+            "avatar": "Avatar",
+            "whenHeComesToFetchMe": "Quand il vient me chercher"
         },
         "items": {
             "boss:name": {
@@ -747,6 +748,72 @@
             "boss:show": {
                 "label": "Afficher l'avatar",
                 "description": "Un avatar dans la barre de titre compte ce qui attend et vient vous chercher. Désactivé, il ne s'affiche jamais."
+            },
+            "boss:visitsecurity": {
+                "label": "Une alerte de sécurité sur une dépendance",
+                "description": "Une alerte haute ou critique sur une dépendance de vos projets.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:visitblocked": {
+                "label": "Un agent attend ma réponse",
+                "description": "Un agent bloqué sur vous depuis plus longtemps que le seuil ci-dessous.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:visiterror": {
+                "label": "Un agent s'est arrêté sur une erreur",
+                "description": "Un agent qui s'est arrêté sur une erreur.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:visitci": {
+                "label": "La CI a échoué sur ma pull request",
+                "description": "Les vérifications d'une de vos pull requests ont échoué.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:visitready": {
+                "label": "Une pull request est prête à fusionner",
+                "description": "Une pull request approuvée et au vert.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:visitfinished": {
+                "label": "Un agent a terminé",
+                "description": "Un agent qui a fini son travail.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:visitdownload": {
+                "label": "Un téléchargement terminé ou en échec",
+                "description": "Un fichier téléchargé depuis une page web, terminé ou interrompu.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:visitupdate": {
+                "label": "Une mise à jour est disponible",
+                "description": "Une nouvelle version de MoltenTerm.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:visitusage": {
+                "label": "Usage du forfait au-delà de 90 %",
+                "description": "L'usage du forfait d'un agent dépasse 90 %.",
+                "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
+            },
+            "boss:blockedmin": {
+                "label": "Un agent est bloqué au bout de",
+                "description": "Combien de temps un agent peut vous attendre avant d'être bloqué ; trois fois plus, c'est grave.",
+                "options": { "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+            },
+            "boss:quiet": {
+                "label": "Heures calmes",
+                "description": "Pendant ces heures, seul le badge change, même pour les événements qui viennent vous chercher."
+            },
+            "boss:quietfrom": {
+                "label": "Début des heures calmes",
+                "description": "L'heure où les heures calmes commencent, au format HH:MM."
+            },
+            "boss:quietto": {
+                "label": "Fin des heures calmes",
+                "description": "L'heure où les heures calmes se terminent, au format HH:MM."
+            },
+            "boss:nevercome": {
+                "label": "Ne jamais venir, seulement le badge",
+                "description": "Interrupteur général : aucune scène ne sort de l'avatar. Le badge continue de compter."
             },
             "moltenterm:theme": {
                 "label": "Thème",
@@ -2928,16 +2995,14 @@
             }
         },
         "card": {
-            "title": "Fiche de {name}",
-            "ariaLabel": "Fiche de {name} : à traiter, sessions et notifications",
-            "tablist": "Sections de la fiche de {name}",
+            "tablist": "Sections du panneau de {name}",
             "tabs": {
                 "todo": "À traiter",
+                "notifications": "Notifications",
                 "sessions": "Sessions",
-                "notifications": "Notifications"
+                "downloads": "Téléchargements",
+                "usage": "Usage"
             },
-            "markRead": "Marquer comme lu",
-            "archive": "Archiver",
             "waiting": {
                 "one": "{count} en attente",
                 "other": "{count} en attente"
@@ -2949,6 +3014,42 @@
             "openSessions": "Ouvrir la vue Sessions",
             "empty": "Aucune session en cours.",
             "newTerminal": "Nouveau terminal"
+        },
+        "coming": {
+            "title": "Quand {name} vient me chercher",
+            "intro": "Un choix par ligne. Vient fait sortir sa scène de l'avatar ; Badge le compte sans rien bouger ; Rien ne le compte pas.",
+            "event": "Événement",
+            "vient": "Vient",
+            "badge": "Badge",
+            "rien": "Rien",
+            "quietBetween": "Heures calmes, de et à",
+            "severity": "La gravité règle son visage et les délais de « Plus tard », jamais les mots : la scène n'a aucun texte."
+        },
+        "panel": {
+            "title": "{name}",
+            "ariaLabel": "Panneau de {name} : à traiter, notifications, sessions, téléchargements et usage",
+            "menu": "Menu de {name}",
+            "menuComing": "Quand il vient me chercher…",
+            "menuSettings": "Préférences de {name}",
+            "menuOff": "Désactiver {name}",
+            "keepAwake": {
+                "details": "Ce qui garde cet ordinateur éveillé"
+            },
+            "usage": {
+                "empty": "Aucun usage de forfait à montrer pour l'instant : il apparaît quand un agent partage sa mesure."
+            },
+            "talk": {
+                "placeholder": "Parler à {name}…",
+                "label": "Message pour {name}",
+                "send": "Envoyer",
+                "sending": "En route…",
+                "sentStarted": "{agent} a démarré dans le terminal de {name}.",
+                "busy": "L'agent de {name} est occupé : votre message reste ici, réessayez dans un instant.",
+                "noAgent": "Aucun agent de code n'est installé pour démarrer la session de {name}.",
+                "agentMissing": "L'agent de code choisi n'est pas installé : {name} ne peut pas démarrer.",
+                "gone": "Le terminal de {name} a été fermé : renvoyez votre message pour en démarrer un nouveau.",
+                "failed": "Le message n'est pas parti : la session de {name} est injoignable."
+            }
         },
         "todo": {
             "empty": "Rien n'attend votre réponse.",
@@ -5671,11 +5772,8 @@
         },
         "settings": {
             "intro": "Ce que chaque sujet peut signaler. Les erreurs sont toujours signalées.",
-            "openPanel": "Ouvrir le panneau des notifications à chaque nouvelle notification",
-            "openPanelHint": "Sinon, il ne s'ouvre de lui-même que pour ce qui attend votre réponse ; le reste s'affiche quelques secondes en bas à droite.",
             "footer": "Discret garde le message ici, déjà lu : ni badge ni toast. Désactivé ne le garde pas.",
-            "subjectsTitle": "Sujets",
-            "panelTitle": "Panneau des notifications"
+            "subjectsTitle": "Sujets"
         },
         "subjects": {
             "agents": "Agents",

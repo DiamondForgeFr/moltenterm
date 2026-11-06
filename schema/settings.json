@@ -35,14 +35,14 @@
             "label": "System context menus",
             "description": "Use the system's context menus instead of MoltenTerm's.",
             "control": "toggle",
-            "order": 85
+            "order": 99
           }
         },
         "app:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 123
+            "order": 137
           }
         },
         "app:globalhotkey": {
@@ -54,21 +54,21 @@
             "label": "Global shortcut",
             "description": "A system-wide shortcut that brings MoltenTerm to the front.",
             "control": "text",
-            "order": 78
+            "order": 92
           }
         },
         "app:dismissarchitecturewarning": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 139
+            "order": 153
           }
         },
         "app:defaultnewblock": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 86
+            "order": 100
           }
         },
         "app:showoverlayblocknums": {
@@ -81,7 +81,7 @@
             "description": "Show each panel's number while its shortcut keys are held.",
             "control": "toggle",
             "default": true,
-            "order": 84
+            "order": 98
           }
         },
         "app:ctrlvpaste": {
@@ -93,7 +93,7 @@
             "label": "Ctrl+V pastes",
             "description": "Ctrl+V pastes in terminals instead of reaching the program.",
             "control": "toggle",
-            "order": 81
+            "order": 95
           }
         },
         "app:confirmquit": {
@@ -117,7 +117,7 @@
             "label": "No Ctrl+Shift+arrow navigation",
             "description": "Ctrl+Shift+arrows reach the program instead of moving between panels.",
             "control": "toggle",
-            "order": 82
+            "order": 96
           }
         },
         "app:disablectrlshiftdisplay": {
@@ -129,7 +129,7 @@
             "label": "No panel numbers on Ctrl+Shift",
             "description": "Holding Ctrl+Shift does not show the panels' numbers.",
             "control": "toggle",
-            "order": 83
+            "order": 97
           }
         },
         "app:focusfollowscursor": {
@@ -171,7 +171,7 @@
           ],
           "x-moltenterm": {
             "hidden": true,
-            "order": 87
+            "order": 101
           }
         },
         "app:tilelauncher": {
@@ -195,14 +195,14 @@
             "label": "App builder",
             "description": "Show Apps in the Library and the builder in the File menu outside development builds.",
             "control": "toggle",
-            "order": 88
+            "order": 102
           }
         },
         "term:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 124
+            "order": 138
           }
         },
         "term:fontsize": {
@@ -260,7 +260,7 @@
             "label": "No WebGL in terminals",
             "description": "Draw terminals without WebGL, slower but safer on some GPUs.",
             "control": "toggle",
-            "order": 104
+            "order": 118
           }
         },
         "term:localshellpath": {
@@ -374,7 +374,7 @@
             "label": "Shift+Enter inserts a line",
             "description": "Shift+Enter sends a new line instead of Enter.",
             "control": "toggle",
-            "order": 80
+            "order": 94
           }
         },
         "term:macoptionismeta": {
@@ -387,7 +387,7 @@
             "description": "The Option key sends Meta to terminal programs instead of typing symbols.",
             "control": "toggle",
             "platform": "darwin",
-            "order": 79
+            "order": 93
           }
         },
         "term:cursor": {
@@ -499,7 +499,7 @@
             "label": "Split buttons in headers",
             "description": "Show split buttons in terminal headers.",
             "control": "toggle",
-            "order": 105
+            "order": 119
           }
         },
         "term:trimtrailingwhitespace": {
@@ -542,7 +542,7 @@
             "description": "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.",
             "control": "toggle",
             "default": true,
-            "order": 114
+            "order": 128
           }
         },
         "agent:integrateoff": {
@@ -568,7 +568,7 @@
               }
             ],
             "inverted": true,
-            "order": 115
+            "order": 129
           }
         },
         "review:language": {
@@ -580,7 +580,7 @@
             "label": "Review language",
             "description": "Language of the review briefing and answers (fr, French...); empty: the interface language.",
             "control": "text",
-            "order": 116
+            "order": 130
           }
         },
         "review:publishlanguage": {
@@ -592,7 +592,7 @@
             "label": "Publication language",
             "description": "Language of review comments on GitHub when the project names none; empty: from its PRs and README.",
             "control": "text",
-            "order": 117
+            "order": 131
           }
         },
         "review:reviewername": {
@@ -604,7 +604,7 @@
             "label": "Your first name",
             "description": "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name.",
             "control": "text",
-            "order": 118
+            "order": 132
           }
         },
         "review:validategreenonly": {
@@ -616,7 +616,7 @@
             "label": "Validate only once CI is green",
             "description": "Off: a PR whose checks still run can be validated; the merge queue merges it once green.",
             "control": "toggle",
-            "order": 119
+            "order": 133
           }
         },
         "app:language": {
@@ -630,7 +630,7 @@
             "control": "select",
             "optionsfrom": "languages",
             "unsetlabel": "Same as the system",
-            "order": 120
+            "order": 134
           }
         },
         "companion:usagegauges": {
@@ -667,7 +667,7 @@
             "label": "Claude Code limits (experimental)",
             "description": "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in.",
             "control": "toggle",
-            "order": 106
+            "order": 120
           }
         },
         "linemap:animation": {
@@ -680,7 +680,7 @@
             "description": "Play the load sequence and the moving trains; reduced motion turns it off.",
             "control": "toggle",
             "default": true,
-            "order": 76
+            "order": 90
           }
         },
         "cicd:runs": {
@@ -712,7 +712,7 @@
               }
             ],
             "default": "remote",
-            "order": 77
+            "order": 91
           }
         },
         "editor:minimapenabled": {
@@ -786,7 +786,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 125
+            "order": 139
           }
         },
         "web:openlinksinternally": {
@@ -798,7 +798,7 @@
             "label": "Open links in MoltenTerm",
             "description": "Links clicked in a terminal or a page open in a browser panel.",
             "control": "toggle",
-            "order": 67
+            "order": 81
           }
         },
         "web:defaulturl": {
@@ -810,7 +810,7 @@
             "label": "Home page",
             "description": "The page a new browser panel opens.",
             "control": "text",
-            "order": 69
+            "order": 83
           }
         },
         "web:defaultsearch": {
@@ -822,7 +822,7 @@
             "label": "Search engine",
             "description": "The search URL, with {query} where the words go.",
             "control": "text",
-            "order": 70
+            "order": 84
           }
         },
         "browser:installed": {
@@ -865,7 +865,7 @@
               }
             ],
             "unsetlabel": "First one found",
-            "order": 66
+            "order": 80
           }
         },
         "browser:default": {
@@ -888,7 +888,7 @@
               }
             ],
             "unsetlabel": "Ask for each site",
-            "order": 65
+            "order": 79
           }
         },
         "browser:sites": {
@@ -903,7 +903,7 @@
             "label": "Per-site browser",
             "description": "Sites that always open in MoltenTerm's browser or the installed one.",
             "control": "json",
-            "order": 68
+            "order": 82
           }
         },
         "browser:agentsites": {
@@ -918,7 +918,7 @@
             "label": "Agent site permissions",
             "description": "Sites agents may use or are blocked from in the browser panel.",
             "control": "json",
-            "order": 74
+            "order": 88
           }
         },
         "browser:downloadask": {
@@ -930,7 +930,7 @@
             "label": "Always ask where to save",
             "description": "Ask for a folder before each download; off saves it straight to your Downloads folder.",
             "control": "toggle",
-            "order": 73
+            "order": 87
           }
         },
         "browser:sitepermissions": {
@@ -948,42 +948,42 @@
             "label": "Site permissions",
             "description": "What each site may use: camera, microphone, location, notifications.",
             "control": "json",
-            "order": 75
+            "order": 89
           }
         },
         "autoupdate:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 126
+            "order": 140
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 133
+            "order": 147
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 134
+            "order": 148
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 135
+            "order": 149
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 136
+            "order": 150
           }
         },
         "markdown:fontsize": {
@@ -1070,7 +1070,7 @@
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 89
+            "order": 103
           }
         },
         "tab:confirmclose": {
@@ -1094,7 +1094,7 @@
             "label": "View background",
             "description": "The background new views get, from backgrounds.json.",
             "control": "text",
-            "order": 90
+            "order": 104
           }
         },
         "tab:holdtoclose": {
@@ -1164,7 +1164,7 @@
           "description": "Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back",
           "x-moltenterm": {
             "hidden": true,
-            "order": 140
+            "order": 154
           }
         },
         "app:newviewopen": {
@@ -1213,7 +1213,7 @@
             "description": "Workspaces being opened load at the priority of the one on screen, so a busy machine cannot starve them.",
             "control": "toggle",
             "default": true,
-            "order": 96
+            "order": 110
           }
         },
         "moltenterm:tabviewbudget": {
@@ -1226,7 +1226,7 @@
             "description": "Workspaces not on screen are hidden and only the most recent stay loaded; others reload when shown.",
             "control": "toggle",
             "default": true,
-            "order": 97
+            "order": 111
           }
         },
         "moltenterm:hiddentabviews": {
@@ -1246,7 +1246,7 @@
               "step": 1
             },
             "default": 3,
-            "order": 98
+            "order": 112
           }
         },
         "moltenterm:hiddentabviewsmb": {
@@ -1267,7 +1267,7 @@
             },
             "unit": "MB",
             "default": 1200,
-            "order": 99
+            "order": 113
           }
         },
         "moltenterm:tabviewhost": {
@@ -1280,7 +1280,7 @@
             "description": "A new tab replaces the one on screen once it has rendered, with a pending state if it is slow.",
             "control": "toggle",
             "default": true,
-            "order": 100
+            "order": 114
           }
         },
         "moltenterm:hiddenpagefreeze": {
@@ -1293,7 +1293,7 @@
             "description": "A page not on screen stops running until shown, unless an agent drives it or it plays audio.",
             "control": "toggle",
             "default": true,
-            "order": 71
+            "order": 85
           }
         },
         "moltenterm:hiddenpagediscardmin": {
@@ -1314,7 +1314,7 @@
             },
             "unit": "min",
             "default": 10,
-            "order": 72
+            "order": 86
           }
         },
         "moltenterm:releasenotify": {
@@ -1426,8 +1426,27 @@
           ],
           "description": "What a security alert on a dependency (high or critical) does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 145
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "A security alert on a dependency",
+            "description": "A high or critical alert on a dependency of your projects.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "vient",
+            "order": 65
           }
         },
         "boss:visitblocked": {
@@ -1439,8 +1458,27 @@
           ],
           "description": "What an agent blocked waiting for you for longer than boss:blockedmin does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 146
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "An agent waits for my answer",
+            "description": "An agent blocked on you for longer than the threshold below.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "vient",
+            "order": 66
           }
         },
         "boss:visiterror": {
@@ -1452,8 +1490,27 @@
           ],
           "description": "What an agent stopped on an error does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 147
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "An agent stopped on an error",
+            "description": "An agent that stopped on an error.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "badge",
+            "order": 67
           }
         },
         "boss:visitci": {
@@ -1465,8 +1522,27 @@
           ],
           "description": "What a failed CI on your pull request does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 148
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "CI failed on my pull request",
+            "description": "The checks of one of your pull requests failed.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "badge",
+            "order": 68
           }
         },
         "boss:visitready": {
@@ -1478,8 +1554,27 @@
           ],
           "description": "What a pull request ready to merge does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 149
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "A pull request is ready to merge",
+            "description": "A pull request that is approved and green.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "badge",
+            "order": 69
           }
         },
         "boss:visitfinished": {
@@ -1491,8 +1586,27 @@
           ],
           "description": "What an agent that finished its work does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 150
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "An agent finished",
+            "description": "An agent that finished its work.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "badge",
+            "order": 70
           }
         },
         "boss:visitdownload": {
@@ -1504,8 +1618,27 @@
           ],
           "description": "What a download that finished or failed does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 151
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "A download finished or failed",
+            "description": "A file downloaded from a web page, finished or interrupted.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "badge",
+            "order": 71
           }
         },
         "boss:visitupdate": {
@@ -1517,8 +1650,27 @@
           ],
           "description": "What an update that is available does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 152
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "An update is available",
+            "description": "A new version of MoltenTerm.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "badge",
+            "order": 72
           }
         },
         "boss:visitusage": {
@@ -1530,8 +1682,27 @@
           ],
           "description": "What a plan usage above 90 % does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 153
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "Plan usage above 90 %",
+            "description": "The plan usage of an agent crosses 90 %.",
+            "control": "select",
+            "options": [
+              {
+                "value": "vient",
+                "label": "Comes to fetch me"
+              },
+              {
+                "value": "badge",
+                "label": "Badge only"
+              },
+              {
+                "value": "rien",
+                "label": "Nothing"
+              }
+            ],
+            "default": "badge",
+            "order": 73
           }
         },
         "boss:blockedmin": {
@@ -1544,40 +1715,83 @@
           ],
           "description": "Minutes an agent may wait for you before it counts as blocked and Brokk may come (2, 5, 10 or 15). 5 when unset; after three times as long it is a grave visit",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 154
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "An agent counts as blocked after",
+            "description": "How long an agent may wait for you before it counts as blocked; three times as long is grave.",
+            "control": "select",
+            "options": [
+              {
+                "value": "2",
+                "label": "2 minutes"
+              },
+              {
+                "value": "5",
+                "label": "5 minutes"
+              },
+              {
+                "value": "10",
+                "label": "10 minutes"
+              },
+              {
+                "value": "15",
+                "label": "15 minutes"
+              }
+            ],
+            "unit": "min",
+            "default": 5,
+            "order": 74
           }
         },
         "boss:quiet": {
           "type": "boolean",
           "description": "Quiet hours: between boss:quietfrom and boss:quietto Brokk does not come, only the badge changes. On when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 155
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "Quiet hours",
+            "description": "During these hours only the badge changes, even for the events that come to fetch you.",
+            "control": "toggle",
+            "default": true,
+            "order": 75
           }
         },
         "boss:quietfrom": {
           "type": "string",
           "description": "When the quiet hours begin, as HH:MM on the local clock. 22:00 when unset or invalid",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 156
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "Quiet hours begin",
+            "description": "The hour the quiet hours begin, as HH:MM.",
+            "control": "text",
+            "default": "22:00",
+            "order": 76
           }
         },
         "boss:quietto": {
           "type": "string",
           "description": "When the quiet hours end, as HH:MM on the local clock. 08:00 when unset or invalid",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 157
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "Quiet hours end",
+            "description": "The hour the quiet hours end, as HH:MM.",
+            "control": "text",
+            "default": "08:00",
+            "order": 77
           }
         },
         "boss:nevercome": {
           "type": "boolean",
           "description": "Brokk never comes to fetch you, whatever the events are set to: only the badge counts. Off when unset",
           "x-moltenterm": {
-            "hidden": true,
-            "order": 158
+            "section": "boss",
+            "group": "When he comes to fetch me",
+            "label": "Never come, only the badge",
+            "description": "Master switch: no scene leaves the avatar. The badge keeps counting.",
+            "control": "toggle",
+            "order": 78
           }
         },
         "moltenterm:settingsreveal": {
@@ -1685,7 +1899,7 @@
                 "label": "Off"
               }
             ],
-            "order": 122
+            "order": 136
           }
         },
         "moltenterm:codingagent": {
@@ -1712,7 +1926,7 @@
               }
             ],
             "unsetlabel": "The first installed",
-            "order": 121
+            "order": 135
           }
         },
         "moltenterm:reviewssort": {
@@ -1724,7 +1938,7 @@
           "description": "How the Integration panel sorts its pull requests: state (by state, the default when unset) or merge (the suggested merge order, which reruns the fewest CI runs). Set by the panel's switch",
           "x-moltenterm": {
             "hidden": true,
-            "order": 141
+            "order": 155
           }
         },
         "moltenterm:reviewsfolds": {
@@ -1735,7 +1949,7 @@
           "description": "The Integration panel's sections the developer opened (true) or folded (false), by section: yours, ready, agents, blocked, waiting, notes, leftovers, upcoming, merged. A section not listed follows its default. Set by the sections' headers",
           "x-moltenterm": {
             "hidden": true,
-            "order": 142
+            "order": 156
           }
         },
         "moltenterm:settingstab": {
@@ -1743,7 +1957,7 @@
           "description": "The tab the Settings screen opens on: the one the developer chose last (overview when unset). Set by the screen's tabs",
           "x-moltenterm": {
             "hidden": true,
-            "order": 143
+            "order": 157
           }
         },
         "moltenterm:materialsseen": {
@@ -1754,28 +1968,28 @@
           "description": "When the developer last saw each project's materials, by project, in milliseconds since 1970: newer materials are counted as new in the library. Set by opening the materials section",
           "x-moltenterm": {
             "hidden": true,
-            "order": 144
+            "order": 158
           }
         },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 127
+            "order": 141
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 138
+            "order": 152
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 128
+            "order": 142
           }
         },
         "window:fullscreenonlaunch": {
@@ -1934,7 +2148,7 @@
             "description": "Show the menu bar in the window.",
             "control": "toggle",
             "platform": "linux,windows",
-            "order": 92
+            "order": 106
           }
         },
         "window:nativetitlebar": {
@@ -1947,7 +2161,7 @@
             "description": "Use the system's title bar.",
             "control": "toggle",
             "platform": "linux,windows",
-            "order": 91
+            "order": 105
           }
         },
         "window:disablehardwareacceleration": {
@@ -1959,7 +2173,7 @@
             "label": "No hardware acceleration",
             "description": "Draw without the GPU; takes effect at the next launch.",
             "control": "toggle",
-            "order": 94
+            "order": 108
           }
         },
         "window:maxtabcachesize": {
@@ -1976,7 +2190,7 @@
               "max": 50,
               "step": 1
             },
-            "order": 95
+            "order": 109
           }
         },
         "window:magnifiedblockopacity": {
@@ -2028,7 +2242,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 101
+            "order": 115
           }
         },
         "window:magnifiedblockblursecondarypx": {
@@ -2046,7 +2260,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 102
+            "order": 116
           }
         },
         "window:confirmclose": {
@@ -2082,35 +2296,35 @@
             "label": "New window size",
             "description": "The size of new windows, such as 1400x900.",
             "control": "text",
-            "order": 103
+            "order": 117
           }
         },
         "window:zoom": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 93
+            "order": 107
           }
         },
         "telemetry:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 129
+            "order": 143
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 137
+            "order": 151
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 130
+            "order": 144
           }
         },
         "conn:askbeforewshinstall": {
@@ -2153,7 +2367,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 131
+            "order": 145
           }
         },
         "debug:pprofport": {
@@ -2170,7 +2384,7 @@
               "max": 65535,
               "step": 1
             },
-            "order": 107
+            "order": 121
           }
         },
         "debug:pprofmemprofilerate": {
@@ -2187,7 +2401,7 @@
               "max": 1048576,
               "step": 1
             },
-            "order": 108
+            "order": 122
           }
         },
         "debug:webglstatus": {
@@ -2199,14 +2413,14 @@
             "label": "WebGL status",
             "description": "Show whether each terminal draws with WebGL.",
             "control": "toggle",
-            "order": 109
+            "order": 123
           }
         },
         "tsunami:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 132
+            "order": 146
           }
         },
         "tsunami:scaffoldpath": {
@@ -2218,7 +2432,7 @@
             "label": "Scaffold path",
             "description": "Where the app builder's scaffold lives.",
             "control": "path",
-            "order": 110
+            "order": 124
           }
         },
         "tsunami:sdkreplacepath": {
@@ -2230,7 +2444,7 @@
             "label": "SDK replace path",
             "description": "A local SDK used in place of the published one.",
             "control": "path",
-            "order": 111
+            "order": 125
           }
         },
         "tsunami:sdkversion": {
@@ -2242,7 +2456,7 @@
             "label": "SDK version",
             "description": "The SDK version apps build against.",
             "control": "text",
-            "order": 112
+            "order": 126
           }
         },
         "tsunami:gopath": {
@@ -2254,7 +2468,7 @@
             "label": "Go binary",
             "description": "The Go binary apps build with.",
             "control": "path",
-            "order": 113
+            "order": 127
           }
         }
       },

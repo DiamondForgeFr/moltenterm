@@ -10,7 +10,21 @@
 
 import type { Atom, createStore } from "jotai";
 import type { AgentStatesData } from "../agent-state-model";
+import type { DownloadRecord } from "../downloads/downloads-model";
 import type { ToHandleList } from "./boss-to-handle-model";
+import type { UsageReadings } from "./boss-usage";
+import {
+    acknowledgeDownloads,
+    acknowledgeUsage,
+    downloadEventsOf,
+    DownloadsSource,
+    EmptyUsageMemory,
+    makeDownloadsMemory,
+    updateEventsOf,
+    UpdateSource,
+    usageEventsAfter,
+    UsageSource,
+} from "./brokk-extra-feeds";
 import type { BrokkHub } from "./brokk-hub";
 import type { VisitSettings } from "./brokk-visit-events";
 
@@ -28,8 +42,13 @@ export type HubSources = {
     searchOpenAtom: Atom<boolean>;
     // A view, a tile or a block is being dragged in the sidebar.
     dragAtom: Atom<boolean>;
-    // His panel (the Sessions card until the panel story) is open.
+    // His panel is open.
     cardOpenAtom: Atom<boolean>;
+    // The downloads (#1992), the update on offer ("" for none: a gold's build or a release's version) and the plan usage
+    // readings (brokk-extra-feeds.ts). A window without one leaves it out.
+    downloadsAtom?: Atom<DownloadRecord[]>;
+    updateOfferAtom?: Atom<string>;
+    usageAtom?: Atom<UsageReadings>;
 };
 
 // Reads `atom` now and at every change, and calls `tell` with the new value each time it differs from the last. The
@@ -53,6 +72,43 @@ function follow<T>(
     });
 }
 
+// The downloads, the update notice and the plan usage, each raising its events while the fact holds and the developer has
+// not opened Brokk since. Returns what to call on a change, on opening, and the sources to listen to.
+function extraFeeds(hub: BrokkHub, src: HubSources) {
+    const { store } = src;
+    let downloads = makeDownloadsMemory(Date.now());
+    let seenUpdate = "";
+    let usage = EmptyUsageMemory;
+    const items = () => (src.downloadsAtom != null ? store.get(src.downloadsAtom) : []);
+    const offer = () => (src.updateOfferAtom != null ? store.get(src.updateOfferAtom) : "");
+    const readings = () => (src.usageAtom != null ? store.get(src.usageAtom) : {});
+    const feedDownloads = () => hub.feed(DownloadsSource, downloadEventsOf(downloads, items()));
+    const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate));
+    const feedUsage = () => {
+        const step = usageEventsAfter(usage, readings(), Date.now());
+        usage = step.memory;
+        hub.feed(UsageSource, step.events);
+    };
+    const feedAll = () => {
+        feedDownloads();
+        feedUpdate();
+        feedUsage();
+    };
+    const acknowledge = () => {
+        downloads = acknowledgeDownloads(downloads, items());
+        seenUpdate = offer();
+        usage = acknowledgeUsage(readings(), Date.now());
+        feedAll();
+    };
+    const stops = [
+        src.downloadsAtom != null ? store.sub(src.downloadsAtom, feedDownloads) : null,
+        src.updateOfferAtom != null ? store.sub(src.updateOfferAtom, feedUpdate) : null,
+        src.usageAtom != null ? store.sub(src.usageAtom, feedUsage) : null,
+    ].filter((stop) => stop != null);
+    feedAll();
+    return { acknowledge, stop: () => stops.forEach((stop) => stop()) };
+}
+
 export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
     const { store } = src;
     const readings = () => {
@@ -62,7 +118,9 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         hub.agents(store.get(src.agentsAtom));
         hub.syncRows(store.get(src.toHandleAtom).items);
     };
+    const extra = extraFeeds(hub, src);
     const stops = [
+        extra.stop,
         follow(store, src.settingsAtom, (settings) => hub.settings(settings)),
         follow(store, src.sidebarOnScreenAtom, (onScreen) => hub.gate({ type: "hidden", hidden: !onScreen })),
         follow(store, src.searchOpenAtom, (focused) => hub.gate({ type: "search", focused })),
@@ -75,7 +133,14 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         follow(
             store,
             src.cardOpenAtom,
-            (open) => (open ? hub.panelOpened() : hub.wake()),
+            (open) => {
+                if (!open) {
+                    hub.wake();
+                    return;
+                }
+                hub.panelOpened();
+                extra.acknowledge();
+            },
             (open) => open
         ),
         store.sub(src.agentsAtom, readings),

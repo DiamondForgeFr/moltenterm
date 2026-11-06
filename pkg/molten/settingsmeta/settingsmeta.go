@@ -40,6 +40,10 @@ const (
 	ControlJSON = "json"
 )
 
+// BrokkTableGroup is the group the screen draws as the table "Quand Brokk vient me chercher"; it must match
+// BrokkTableGroup in frontend/moltenterm-shell/boss/brokk-coming-card.tsx.
+const BrokkTableGroup = "When he comes to fetch me"
+
 // Options filled by the screen at run time (the terminal themes come from the themes config).
 const OptionsTermThemes = "termthemes"
 
@@ -124,6 +128,11 @@ func codingAgentOptions() []Option {
 	}
 	return rtn
 }
+
+// What an event does (FR-BOSS-009, AC4): Brokk comes, only the badge counts it, or nothing.
+var comingOptions = []Option{{Value: "vient", Label: "Comes to fetch me"}, {Value: "badge", Label: "Badge only"}, {Value: "rien", Label: "Nothing"}}
+
+var blockedOptions = []Option{{Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
 
 var onOff = []Option{{Value: "off", Label: "Off"}, {Value: "on", Label: "On"}, {Value: "term", Label: "Terminals only"}}
 
@@ -210,6 +219,22 @@ var settings = []Setting{
 	{Key: "boss:show", Section: SectionBoss, Group: "Avatar", Label: "Show the avatar", Description: "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows.", Control: ControlToggle, Default: true},
 	// The avatar stays in the title row, never over a terminal: there is nothing left to fold (#2002).
 	hidden("boss:collapseontype"),
+	// When Brokk comes to fetch the developer (#2001 keys, #2003 table, FR-BOSS-009 AC4): the screen draws this group as
+	// one table, "Quand Brokk vient me chercher", with a choice per event.
+	{Key: "boss:visitsecurity", Section: SectionBoss, Group: BrokkTableGroup, Label: "A security alert on a dependency", Description: "A high or critical alert on a dependency of your projects.", Control: ControlSelect, Options: comingOptions, Default: "vient"},
+	{Key: "boss:visitblocked", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent waits for my answer", Description: "An agent blocked on you for longer than the threshold below.", Control: ControlSelect, Options: comingOptions, Default: "vient"},
+	{Key: "boss:visiterror", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent stopped on an error", Description: "An agent that stopped on an error.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitci", Section: SectionBoss, Group: BrokkTableGroup, Label: "CI failed on my pull request", Description: "The checks of one of your pull requests failed.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitready", Section: SectionBoss, Group: BrokkTableGroup, Label: "A pull request is ready to merge", Description: "A pull request that is approved and green.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitfinished", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent finished", Description: "An agent that finished its work.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitdownload", Section: SectionBoss, Group: BrokkTableGroup, Label: "A download finished or failed", Description: "A file downloaded from a web page, finished or interrupted.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitupdate", Section: SectionBoss, Group: BrokkTableGroup, Label: "An update is available", Description: "A new version of MoltenTerm.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitusage", Section: SectionBoss, Group: BrokkTableGroup, Label: "Plan usage above 90 %", Description: "The plan usage of an agent crosses 90 %.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:blockedmin", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent counts as blocked after", Description: "How long an agent may wait for you before it counts as blocked; three times as long is grave.", Control: ControlSelect, Options: blockedOptions, Default: 5, Unit: "min"},
+	{Key: "boss:quiet", Section: SectionBoss, Group: BrokkTableGroup, Label: "Quiet hours", Description: "During these hours only the badge changes, even for the events that come to fetch you.", Control: ControlToggle, Default: true},
+	{Key: "boss:quietfrom", Section: SectionBoss, Group: BrokkTableGroup, Label: "Quiet hours begin", Description: "The hour the quiet hours begin, as HH:MM.", Control: ControlText, Default: "22:00"},
+	{Key: "boss:quietto", Section: SectionBoss, Group: BrokkTableGroup, Label: "Quiet hours end", Description: "The hour the quiet hours end, as HH:MM.", Control: ControlText, Default: "08:00"},
+	{Key: "boss:nevercome", Section: SectionBoss, Group: BrokkTableGroup, Label: "Never come, only the badge", Description: "Master switch: no scene leaves the avatar. The badge keeps counting.", Control: ControlToggle},
 
 	// Browser
 	{Key: "browser:default", Section: SectionBrowser, Group: "Opening pages", Label: "Open web pages in", Description: "Where links and web pages open by default.", Control: ControlSelect, UnsetLabel: "Ask for each site", Options: []Option{{Value: "app", Label: "MoltenTerm's browser"}, {Value: "installed", Label: "The installed browser"}}},
@@ -319,22 +344,6 @@ var settings = []Setting{
 	// The Settings screen's last tab and the materials seen (#1763): the screen's tabs and the materials section set them.
 	hidden("moltenterm:settingstab"),
 	hidden("moltenterm:materialsseen"),
-	// When Brokk comes to fetch the developer (#2001, FR-BOSS-009): the visit model reads these keys, and the table
-	// "Quand Brokk vient me chercher" that edits them is the panel story's (#2003), which gives them their rows.
-	hidden("boss:visitsecurity"),
-	hidden("boss:visitblocked"),
-	hidden("boss:visiterror"),
-	hidden("boss:visitci"),
-	hidden("boss:visitready"),
-	hidden("boss:visitfinished"),
-	hidden("boss:visitdownload"),
-	hidden("boss:visitupdate"),
-	hidden("boss:visitusage"),
-	hidden("boss:blockedmin"),
-	hidden("boss:quiet"),
-	hidden("boss:quietfrom"),
-	hidden("boss:quietto"),
-	hidden("boss:nevercome"),
 }
 
 func init() {

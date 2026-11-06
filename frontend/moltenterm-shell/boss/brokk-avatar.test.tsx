@@ -43,8 +43,8 @@ vi.mock("./brokk-hub-store", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
-import type { ToHandleItem } from "./boss-to-handle-model";
 import { BossBubbleModel } from "./boss-store";
+import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkAvatar, BrokkAvatarSlot } from "./brokk-avatar";
 import { AvatarSizePx, HangingSizePx } from "./brokk-avatar-model";
 import { BrokkHub, HubDeps } from "./brokk-hub";
@@ -176,7 +176,9 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         expect(attr(html, "brokk-avatar", "aria-expanded")).toBe("true");
         expect(attr(html, "brokk-avatar", "data-panel")).toBe("open");
         expect(html).toContain('data-live="false"');
-        expect(rule(css("brokk-avatar.css"), '.mt-brokk-avatar[data-panel="open"] .mt-brokk-face')).toMatch(/visibility: hidden/);
+        expect(rule(css("brokk-avatar.css"), '.mt-brokk-avatar[data-panel="open"] .mt-brokk-face')).toMatch(
+            /visibility: hidden/
+        );
     });
 
     it("hangs from the window's top edge, smaller, when the sidebar is not on screen", () => {
@@ -348,15 +350,15 @@ describe("the portrait (FR-BOSS-001, AC1)", () => {
         expect(side).toBeLessThanOrEqual(1024);
     });
 
-    it("is framed on his head in one place, which the avatar's face and the card's face both use", () => {
+    it("is framed on his head in one place, which the avatar's face and the panel's face both use", () => {
         const framing = css("boss-portrait.css");
         expect(framing).toMatch(/--mt-boss-head-scale: [\d.]+;/);
         expect(framing).toMatch(/--mt-boss-head-origin: \d+% \d+%;/);
         // The numbers appear nowhere else.
-        for (const file of ["brokk-avatar.css", "boss-card.css", "brokk-visit-scene.css", "brokk-live.css"]) {
+        for (const file of ["brokk-avatar.css", "brokk-panel.css", "brokk-visit-scene.css", "brokk-live.css"]) {
             expect(css(file)).not.toMatch(/--mt-boss-head-/);
         }
-        expect(readFileSync(join(__dirname, "boss-card.tsx"), "utf8")).toContain('from "./boss-portrait"');
+        expect(readFileSync(join(__dirname, "brokk-panel.tsx"), "utf8")).toContain('from "./boss-portrait"');
         expect(readFileSync(join(__dirname, "brokk-avatar.tsx"), "utf8")).toContain('from "./boss-portrait"');
     });
 
@@ -389,7 +391,13 @@ describe("the portrait (FR-BOSS-001, AC1)", () => {
 
 describe("what went away with the bubble (FR-BOSS-009, AC13)", () => {
     it("leaves no bubble, pennant or comm screen to mount", () => {
-        for (const file of ["boss-bubble.tsx", "boss-bubble.css", "boss-screen.tsx", "boss-screen.css", "boss-place.ts"]) {
+        for (const file of [
+            "boss-bubble.tsx",
+            "boss-bubble.css",
+            "boss-screen.tsx",
+            "boss-screen.css",
+            "boss-place.ts",
+        ]) {
             expect(() => readFileSync(join(__dirname, file)), file).toThrow();
         }
         const workspace = readFileSync(join(__dirname, "..", "..", "app", "workspace", "workspace.tsx"), "utf8");

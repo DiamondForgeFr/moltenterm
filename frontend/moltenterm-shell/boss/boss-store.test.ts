@@ -124,6 +124,7 @@ beforeEach(() => {
     globalStore.set(workspaces, {});
     globalStore.set(model.cueAtom, 0);
     globalStore.set(model.cardOpenAtom, false);
+    globalStore.set(model.tabRequestAtom, null);
     globalStore.set(agents.loadedAtom, false);
     setStates();
 });
@@ -340,6 +341,48 @@ describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
         globalStore.set(settings, { "boss:show": false });
         model.openCard();
         expect(globalStore.get(model.cardOpenAtom)).toBe(false);
+        detach();
+    });
+
+    it("opens on a section for the developer's gesture even with Brokk turned off, so the notifications and downloads stay reachable (#2003)", () => {
+        const { detach } = attached();
+        globalStore.set(settings, { "boss:show": false });
+        model.showPanel("downloads");
+        expect(globalStore.get(model.cardOpenAtom)).toBe(true);
+        expect(globalStore.get(model.tabRequestAtom)).toMatchObject({ tab: "downloads", highlight: [] });
+        detach();
+    });
+
+    it("goes to the asked tab when the panel is open already, and tells two requests for one tab apart", () => {
+        const { detach } = attached();
+        model.openCard();
+        expect(globalStore.get(model.tabRequestAtom)).toBeNull();
+        model.showPanel("notifications", ["n1"]);
+        const first = globalStore.get(model.tabRequestAtom);
+        expect(first).toMatchObject({ tab: "notifications", highlight: ["n1"] });
+        model.showPanel("notifications");
+        expect(globalStore.get(model.tabRequestAtom).seq).toBeGreaterThan(first.seq);
+        detach();
+    });
+
+    it("never opens the panel for a source that has no gesture: a notification asking for attention only shows in an open one", () => {
+        const { detach } = attached();
+        model.showInOpenPanel("notifications", ["n1"]);
+        expect(globalStore.get(model.cardOpenAtom)).toBe(false);
+        expect(globalStore.get(model.tabRequestAtom)).toBeNull();
+        model.openCard();
+        model.showInOpenPanel("notifications", ["n1"]);
+        expect(globalStore.get(model.tabRequestAtom)).toMatchObject({ tab: "notifications", highlight: ["n1"] });
+        detach();
+    });
+
+    it("forgets the asked tab when the panel hides, so that a plain opening reads the badge", () => {
+        const { detach } = attached();
+        model.showPanel("usage");
+        model.closeCard();
+        expect(globalStore.get(model.tabRequestAtom)).toBeNull();
+        model.openCard();
+        expect(globalStore.get(model.tabRequestAtom)).toBeNull();
         detach();
     });
 

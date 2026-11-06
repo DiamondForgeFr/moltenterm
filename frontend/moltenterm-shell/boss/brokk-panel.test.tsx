@@ -49,11 +49,26 @@ vi.mock("./boss-store", async () => {
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         workingCountAtom: atom(0),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
+        tabRequestAtom: atom(null),
         closeCard: vi.fn(),
         park: vi.fn(),
     };
     return { BossBubbleModel: { getInstance: () => model } };
 });
+// What the panel hosts has its own tests: here it only asks for it.
+vi.mock("../notification-center", () => ({
+    NotificationsPanelBody: () => <div data-testid="mock-notifications" />,
+}));
+vi.mock("./brokk-keepawake-line", () => ({ BrokkKeepAwakeLine: () => <div data-testid="mock-keepawake" /> }));
+vi.mock("./brokk-talk", () => ({ BrokkTalk: () => <div data-testid="mock-talk" /> }));
+vi.mock("./brokk-usage-tab", () => ({ BrokkUsageTab: () => <div data-testid="mock-usage" /> }));
+vi.mock("./brokk-hub-store", async () => {
+    const { atom } = await import("jotai");
+    const ownWorkingAtom = atom(false);
+    return { BrokkHubModel: { getInstance: () => ({ ownWorkingAtom }) } };
+});
+vi.mock("../settings/settings-open", () => ({ openSettingsKey: vi.fn(), openSettingsSection: vi.fn() }));
+vi.mock("../command-panel/bindings", () => ({ writeSettings: vi.fn() }));
 // His animated portrait has its own tests (brokk-live, use-brokk-live): here the card only asks for it.
 vi.mock("./brokk-expressions", async () => {
     const { atom } = await import("jotai");
@@ -68,10 +83,10 @@ import { PendingHandoff } from "../agent-handoff-types";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { DurableSession } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
-import { BossCard } from "./boss-card";
 import { HandoffBriefView } from "./boss-handoff-row";
 import { BossBubbleModel } from "./boss-store";
 import { buildToHandle } from "./boss-to-handle-model";
+import { BrokkPanel } from "./brokk-panel";
 
 const model = BossBubbleModel.getInstance() as any;
 const sessionsAtom = DurableSessions.getInstance().dataAtom;
@@ -98,7 +113,7 @@ function load(...sessions: DurableSession[]) {
 }
 
 function render(): string {
-    return renderToStaticMarkup(<BossCard style={{ right: "16px", bottom: "68px" }} />);
+    return renderToStaticMarkup(<BrokkPanel style={{ right: "16px", bottom: "68px" }} />);
 }
 
 beforeEach(() => {
@@ -113,16 +128,45 @@ function attr(html: string, testId: string, name: string): string {
     return new RegExp(`${name}="([^"]*)"`).exec(tag)?.[1];
 }
 
-describe("the card's header (FR-BOSS-002, AC1)", () => {
+describe("the panel's header (FR-BOSS-009, AC9)", () => {
     it("says it is the foreman's, with his name, in a non-modal dialog anchored by the style it is given", () => {
         const html = render();
         expect(attr(html, "boss-card", "role")).toBe("dialog");
         expect(attr(html, "boss-card", "aria-modal")).toBe("false");
-        expect(attr(html, "boss-card", "aria-label")).toBe("Brokk&#x27;s card: to handle, sessions and notifications");
+        expect(attr(html, "boss-card", "aria-label")).toBe(
+            "Brokk&#x27;s panel: to handle, notifications, sessions, downloads and usage"
+        );
         expect(attr(html, "boss-card", "style")).toBe("right:16px;bottom:68px");
-        expect(html).toMatch(/data-testid="boss-card-title"[^>]*>Brokk&#x27;s card</);
+        expect(html).toMatch(/data-testid="boss-card-title"[^>]*>Brokk</);
         globalStore.set(model.nameAtom, "Léa");
-        expect(render()).toMatch(/data-testid="boss-card-title"[^>]*>Léa&#x27;s card</);
+        expect(render()).toMatch(/data-testid="boss-card-title"[^>]*>Léa</);
+    });
+
+    it("puts his large portrait on top of everything, and the keep-awake line and the talk field at the foot", () => {
+        const html = render();
+        const portrait = html.indexOf('data-testid="brokk-panel-portrait"');
+        const tabs = html.indexOf('data-testid="boss-card-tabs"');
+        const keepAwake = html.indexOf('data-testid="mock-keepawake"');
+        const talk = html.indexOf('data-testid="mock-talk"');
+        expect(portrait).toBeGreaterThan(0);
+        expect(portrait).toBeLessThan(tabs);
+        expect(tabs).toBeLessThan(keepAwake);
+        expect(keepAwake).toBeLessThan(talk);
+    });
+
+    it("has one portrait: the panel's, and no small face in the header", () => {
+        const html = render();
+        expect(html.match(/class="mt-boss-portrait"/g)).toHaveLength(1);
+        expect(html).not.toContain("mt-boss-card-face");
+    });
+
+    it("holds a menu that opens the table of when he comes, his preferences, and turning him off", () => {
+        const source = readFileSync(join(__dirname, "brokk-panel.tsx"), "utf8");
+        expect(attr(render(), "brokk-panel-menu", "aria-haspopup")).toBe("menu");
+        for (const id of ["brokk-panel-menu-coming", "brokk-panel-menu-settings", "brokk-panel-menu-off"]) {
+            expect(source, id).toContain(`data-testid="${id}"`);
+        }
+        expect(source).toContain('openSettingsKey("boss", BrokkTableFirstKey)');
     });
 
     it("can take the focus once it opens, and is no part of the tab order", () => {
@@ -290,18 +334,15 @@ describe("while the first list is on its way", () => {
 });
 
 describe("the card is a layer, not a panel (AC9)", () => {
-    it("holds no native dialog, no scrim, and no form control that would keep the focus", () => {
+    it("holds no native dialog and no scrim: nothing dims and the focus is not held in it", () => {
         load(session("a1", { agent: "claude", firstname: "Léa" }));
         const html = render();
         expect(html).not.toContain("<dialog");
         expect(html).not.toContain("molten-scrim");
-        expect(html).not.toContain("<input");
-        expect(html).not.toContain("<select");
-        expect(html).not.toContain("<textarea");
     });
 
     it("is positioned absolutely over the content and takes no room", () => {
-        const css = readFileSync(join(__dirname, "boss-card.css"), "utf8");
+        const css = readFileSync(join(__dirname, "brokk-panel.css"), "utf8");
         const rule = /\.mt-boss-card \{([^}]*)\}/.exec(css)?.[1] ?? "";
         expect(rule).toContain("position: absolute;");
         expect(rule).toContain("overflow: hidden;");
@@ -309,19 +350,34 @@ describe("the card is a layer, not a panel (AC9)", () => {
     });
 });
 
-describe("the card's tabs (FR-BOSS-003, AC1, AC2, AC7)", () => {
-    it("shows the three tabs in order, each with its count, as a tablist", () => {
+describe("the panel's tabs (FR-BOSS-003 as amended, AC1, AC2, AC7; FR-BOSS-009, AC9)", () => {
+    it("shows the five tabs in order, as a tablist, each with its count where it has one", () => {
         load(session("a1", { agent: "claude", firstname: "Léa" }));
         const html = render();
         expect(html).toContain('role="tablist"');
-        expect(html.indexOf('data-testid="boss-card-tab-todo"')).toBeLessThan(
-            html.indexOf('data-testid="boss-card-tab-sessions"')
+        const order = ["todo", "notifications", "sessions", "downloads", "usage"].map((id) =>
+            html.indexOf(`data-testid="boss-card-tab-${id}"`)
         );
-        expect(html.indexOf('data-testid="boss-card-tab-sessions"')).toBeLessThan(
-            html.indexOf('data-testid="boss-card-tab-notifications"')
-        );
+        expect(order.every((at) => at > 0)).toBe(true);
+        expect([...order].sort((a, b) => a - b)).toEqual(order);
         expect(html).toMatch(/data-testid="boss-card-tab-count-todo"[^>]*>0</);
         expect(html).toMatch(/data-testid="boss-card-tab-count-sessions"[^>]*>1</);
+        expect(html).toMatch(/data-testid="boss-card-tab-count-notifications"[^>]*>0</);
+        expect(html).not.toContain('data-testid="boss-card-tab-count-usage"');
+    });
+
+    it("names the tabs in words, the Downloads and Usage ones included", () => {
+        const html = render();
+        for (const label of ["To handle", "Notifications", "Sessions", "Downloads", "Usage"]) {
+            expect(html, label).toMatch(new RegExp(`role="tab"[^>]*>${label}`));
+        }
+    });
+
+    it("draws the notification center in the Notifications tab and the usage in the Usage tab", () => {
+        const source = readFileSync(join(__dirname, "brokk-panel.tsx"), "utf8");
+        expect(source).toContain("<NotificationsPanelBody onLeave={leave} highlightIds={highlight} />");
+        expect(source).toContain("<BrokkUsageTab />");
+        expect(source).toContain("<DownloadsList onLeave={leave} />");
     });
 
     it("opens on the Sessions tab when the badge counts nothing", () => {
@@ -611,11 +667,13 @@ describe("the Downloads tab (FR-BOSS-003 AC9, #1992)", () => {
         globalStore.set(downloads.snapshotAtom, { items: [], folder: "", askWhere: false });
     });
 
-    it("is not there while there is no history and nothing downloads", () => {
-        expect(render()).not.toContain('data-testid="boss-card-tab-downloads"');
+    it("is always there, with no history and nothing downloading too, and counts nothing then", () => {
+        const html = render();
+        expect(html).toContain('data-testid="boss-card-tab-downloads"');
+        expect(html).not.toContain('data-testid="boss-card-tab-count-downloads"');
     });
 
-    it("is a compact fourth tab, a download mark with the number in progress, named in full for the tooltip and the screen reader", () => {
+    it("says the number in progress, named in full for the screen reader", () => {
         globalStore.set(downloads.snapshotAtom, {
             items: [
                 downloadRecord({ id: "run", state: "progressing", endedAt: 0, total: 100, received: 10 }),
@@ -628,14 +686,12 @@ describe("the Downloads tab (FR-BOSS-003 AC9, #1992)", () => {
         expect(html.indexOf('data-testid="boss-card-tab-notifications"')).toBeLessThan(
             html.indexOf('data-testid="boss-card-tab-downloads"')
         );
-        expect(attr(html, "boss-card-tab-downloads", "title")).toBe("Downloads");
         expect(attr(html, "boss-card-tab-downloads", "aria-label")).toBe("Downloads, 1 in progress");
         expect(html).toMatch(/data-testid="boss-card-tab-count-downloads"[^>]*>1</);
-        // Not the word itself: it would not fit the card's width.
-        expect(html).not.toMatch(/boss-card-tab-downloads"[^>]*>[^<]*Downloads</);
+        expect(html).toMatch(/boss-card-tab-downloads"[^>]*>Downloads</);
     });
 
-    it("shows only the mark when nothing runs but there is a history", () => {
+    it("shows the word alone when nothing runs but there is a history", () => {
         globalStore.set(downloads.snapshotAtom, { items: [downloadRecord()], folder: "/dl", askWhere: false });
         const html = render();
         expect(html).toContain('data-testid="boss-card-tab-downloads"');

@@ -1,13 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The notification center (FR-SHELL-002, FR-MC-010, FR-MC-019): a bell in the tab bar gathers what needs the user's
-// attention in every workspace, newest first. A notification opens where it comes from, carries up to two actions,
-// shows when its situation is resolved, and can be archived; the Archived tab keeps them until cleared. What arrives
-// shows as a toast instead of opening the panel (FR-SHELL-055), each subject says only what the user chose, and the
-// work running in every project shows on top, with a progress ring on the bell. What needs an answer opens the panel
-// on itself in the focused window (#790, notification-attention.ts). What each subject may say is set in Preferences ›
-// Notifications, which the panel links to (FR-SHELL-106, notification-settings.tsx).
+// The notification center (FR-SHELL-002, FR-MC-010, FR-MC-019): what needs the user's attention in every workspace,
+// newest first. A notification opens where it comes from, carries up to two actions, shows when its situation is
+// resolved, and can be archived; the Archived list keeps them until cleared. What arrives shows as a toast
+// (FR-SHELL-055), each subject says only what the user chose, and the work running in every project shows on top. What
+// each subject may say is set in Preferences › Notifications, which the center links to (FR-SHELL-106,
+// notification-settings.tsx).
+//
+// The bell is gone (FR-BOSS-009, AC9, #2003): the center is the Notifications tab of Brokk's panel
+// (NotificationsPanelBody), and what the bell hosted without drawing (the listeners, the toasts, the approval dialogs)
+// is NotificationHost, mounted with Brokk's host. Nothing here opens by itself: a warning, an error or a question is a
+// toast, a row of Brokk's À traiter and, when the developer set it to Vient, a visit.
 
 import { atoms, createBlock, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -19,26 +23,17 @@ import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
 import { AgentLinksGesture } from "./agent-links/agent-links-model";
 import { openAgentLinksGesture } from "./agent-links/agent-links-store";
 import { startAgentSeen } from "./agent-seen";
-import { DownloadRing } from "./downloads/download-pill";
-import { downloadProgressValues } from "./downloads/downloads-model";
+import { BossBubbleModel } from "./boss/boss-store";
 import { startDownloads } from "./downloads/downloads-notify";
 import { DownloadsModel } from "./downloads/downloads-store";
-import { DownloadsList } from "./downloads/downloads-view";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
-import { t as translateNow, useT, useTCount } from "./i18n/i18n";
-import { registerSetupPrGestures } from "./mission/release-setup-gestures";
+import { t as translateNow, useT } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
+import { registerSetupPrGestures } from "./mission/release-setup-gestures";
 import { TrustApprovalHost } from "./mission/trust-approval";
-import { checkAnswered } from "./notification-attention";
-import {
-    badgeCount,
-    MaxRenderedRows,
-    notificationSourceLabel,
-    NotificationSubject,
-    subjectOf,
-} from "./notification-rules";
+import { MaxRenderedRows, notificationSourceLabel, NotificationSubject, subjectOf } from "./notification-rules";
 import { openNotificationSettings } from "./notification-settings";
 import { startNotificationToasts } from "./notification-toasts";
 import { workspaceLabel, WorkspaceLabel } from "./notification-workspace";
@@ -64,7 +59,6 @@ import { TabActivity, whileShown } from "./tab-activity";
 import { toneOf } from "./toast-model";
 import { ToastStack } from "./toast-stack";
 import { Toasts } from "./toast-store";
-import { useWorkingBeat } from "./working-beat";
 import { pathParent } from "./workspace-project";
 import { loadWorkspaceSources } from "./workspace-rail";
 
@@ -143,6 +137,8 @@ function NotificationRow({
         <div
             ref={rowRef}
             data-highlighted={highlighted || undefined}
+            data-testid="notification-row"
+            data-notif={entry.id}
             className={cn(
                 "group flex w-full items-start gap-2 border-b border-border px-3 py-2 text-left",
                 unread && "bg-line",
@@ -168,6 +164,7 @@ function NotificationRow({
                             type="button"
                             title={t("notif.center.archiveOne")}
                             aria-label={t("notif.center.archiveOne")}
+                            data-testid="notification-archive"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onArchive();
@@ -202,6 +199,7 @@ function NotificationRow({
                     {entry.kind === "info" && subject != null && !archived ? (
                         <button
                             type="button"
+                            data-testid="notification-silence"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onSilence(subject);
@@ -219,6 +217,7 @@ function NotificationRow({
                                 key={action.id}
                                 type="button"
                                 disabled={anyRunning}
+                                data-testid="notification-action"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     onAction(action);
@@ -263,37 +262,6 @@ class RowBoundary extends Component<{ children: ReactNode }, { failed: boolean }
     }
 }
 
-// The bell's ring while work runs: the measured progress, or an arc turning on the working beat when nothing is
-// measured.
-function ProgressRing({ progress }: { progress: number }) {
-    useWorkingBeat(progress == null);
-    const radius = 13;
-    const length = 2 * Math.PI * radius;
-    const shown = progress == null ? 0.25 : Math.max(0.04, Math.min(1, progress));
-    return (
-        <svg
-            aria-hidden
-            viewBox="0 0 30 30"
-            className={cn(
-                "pointer-events-none absolute inset-0 h-full w-full -rotate-90",
-                progress == null && "mt-beat-turn"
-            )}
-        >
-            <circle cx="15" cy="15" r={radius} fill="none" stroke="currentColor" strokeOpacity={0.15} strokeWidth={2} />
-            <circle
-                cx="15"
-                cy="15"
-                r={radius}
-                fill="none"
-                stroke="var(--color-accent)"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeDasharray={`${shown * length} ${length}`}
-            />
-        </svg>
-    );
-}
-
 function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; now: number }) {
     const t = useT();
     const [confirming, setConfirming] = useState(false);
@@ -311,6 +279,7 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                 {canStop(item) && !confirming ? (
                     <button
                         type="button"
+                        data-testid="running-work-stop"
                         onClick={() => setConfirming(true)}
                         className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                     >
@@ -360,6 +329,7 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                     </button>
                     <button
                         type="button"
+                        data-testid="running-work-confirm-stop"
                         onClick={() =>
                             fireAndForget(async () => {
                                 try {
@@ -381,415 +351,227 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
     );
 }
 
-export function NotificationCenter() {
+// The center, as the Notifications tab of Brokk's panel draws it: the work that runs, the active notifications and the
+// archived ones, with the bell's actions (mark all read, clear the archive, the link to Preferences). The panel leaves
+// (onLeave) when an action takes the developer somewhere. What the developer looked at is settled when the tab is
+// left, as the bell's panel did on closing: read, and the resolved ones archived.
+export function NotificationsPanelBody({
+    onLeave,
+    highlightIds = [],
+}: {
+    onLeave: () => void;
+    highlightIds?: string[];
+}) {
     const t = useT();
-    const tc = useTCount();
     const model = MoltentermNotifications.getInstance();
     const entries = useAtomValue(model.entriesAtom, { store: globalStore });
     const listed = useAtomValue(model.shownEntriesAtom, { store: globalStore });
     const unread = useAtomValue(model.unreadCountAtom, { store: globalStore });
-    const open = useAtomValue(model.openCountAtom, { store: globalStore });
-    const count = useAtomValue(model.attentionCountAtom, { store: globalStore });
-    const panelRequest = useAtomValue(model.panelRequestAtom, { store: globalStore });
     const running = useAtomValue(model.runningAtom, { store: globalStore });
     const errors = useAtomValue(model.errorsAtom, { store: globalStore });
     const work = useRunningWork();
-    // The downloads of the web pages (#1992): their own tab, and their share of the bell's ring.
-    const downloads = DownloadsModel.getInstance();
-    const downloadsRunning = useAtomValue(downloads.runningAtom, { store: globalStore });
-    const downloadsRequest = useAtomValue(downloads.requestAtom, { store: globalStore });
-    const [panelOpen, setPanelOpen] = useState(false);
-    const [tab, setTab] = useState<"active" | "archived" | "downloads">("active");
-    // The notifications the panel opened by itself for (#790): highlighted, and it closes once they are answered.
-    const [selfOpenedFor, setSelfOpenedFor] = useState<string[]>([]);
-    const [highlightIds, setHighlightIds] = useState<string[]>([]);
-    // Bumped when the count rises, to replay the badge's arrival pulse.
-    const [pulse, setPulse] = useState(0);
-    const lastCountRef = useRef(count);
+    const currentWorkspace = useAtomValue(atoms.workspace, { store: globalStore });
+    const [tab, setTab] = useState<"active" | "archived">("active");
     const [workspaces, setWorkspaces] = useState<Map<string, Workspace>>(new Map());
     const [now, setNow] = useState(Date.now());
-    const currentWorkspace = useAtomValue(atoms.workspace);
-    const rootRef = useRef<HTMLDivElement>(null);
-    const panelRef = useRef<HTMLDivElement>(null);
-    const bellRef = useRef<HTMLButtonElement>(null);
-    useEffect(() => startNotificationAutoRead(), []);
-    useEffect(() => startAgentSeen(), []);
-    useEffect(() => registerBuiltInGestures(), []);
-    useEffect(() => startNotificationToasts(), []);
-    useEffect(() => startHandoffSystemNotifications(), []);
-    useEffect(() => startDownloads(), []);
-    const [anchor, setAnchor] = useState<{ top: number; right: number }>(null);
     const archived = archivedEntries(entries);
     const active = activeEntries(listed);
 
-    const placePanel = () => {
-        const rect = bellRef.current?.getBoundingClientRect();
-        if (rect != null) {
-            // The 380 px panel stays inside the window when the bell sits on its left, in the sidebar (#1183).
-            setAnchor({
-                top: rect.bottom + 4,
-                right: Math.max(8, Math.min(window.innerWidth - rect.right, window.innerWidth - 388)),
-            });
-        }
-    };
-
-    // A panel the user looked at is settled, as Notulia does: read, and the resolved ones archived.
-    const close = () => {
-        setPanelOpen(false);
-        setTab("active");
-        setSelfOpenedFor([]);
-        setHighlightIds([]);
-        model.settleSeen();
-    };
-    const closeRef = useRef(close);
-    closeRef.current = close;
-
-    const openForUser = () => {
-        placePanel();
-        Toasts.getInstance().clearNotificationToasts();
-        setSelfOpenedFor([]);
-        setHighlightIds([]);
-        setPanelOpen(true);
-    };
-
-    useEffect(() => {
-        if (count > lastCountRef.current) {
-            setPulse((p) => p + 1);
-        }
-        lastCountRef.current = count;
-    }, [count]);
-
-    // A toast that timed out went into the bell (#1403): the count pulses as it lands.
-    const landed = useAtomValue(Toasts.getInstance().landedAtom, { store: globalStore });
-    useEffect(() => {
-        if (landed > 0) {
-            setPulse((p) => p + 1);
-        }
-    }, [landed]);
-
-    // A notification that needs an answer opens the panel on it (notification-toasts.ts decides which, #790). A panel
-    // the user opened stays theirs: the entry is only highlighted.
-    useEffect(() => {
-        if (panelRequest == null || panelRequest.ids.length === 0) {
-            return;
-        }
-        placePanel();
-        Toasts.getInstance().clearNotificationToasts();
-        setTab("active");
-        setSelfOpenedFor((current) =>
-            panelOpen && current.length === 0 ? current : [...new Set([...current, ...panelRequest.ids])]
-        );
-        setHighlightIds(panelRequest.ids);
-        setPanelOpen(true);
-    }, [panelRequest]);
-
-    // The pill, or a notification's View, asks for the Downloads section: the user's own gesture, never by itself.
-    useEffect(() => {
-        if (downloadsRequest == null) {
-            return;
-        }
-        placePanel();
-        Toasts.getInstance().clearNotificationToasts();
-        setSelfOpenedFor([]);
-        setHighlightIds([]);
-        setTab("downloads");
-        setPanelOpen(true);
-    }, [downloadsRequest]);
-
-    useEffect(() => {
-        if (!panelOpen || selfOpenedFor.length === 0 || !checkAnswered(entries, selfOpenedFor)) {
-            return;
-        }
-        closeRef.current();
-    }, [panelOpen, selfOpenedFor, entries]);
-
+    useEffect(() => () => model.settleSeen(), [model]);
+    useEffect(() => TabActivity.getInstance().every(whileShown(AgeTickMs), () => setNow(Date.now()), "clock"), []);
     useEffect(() => {
         if (tab === "archived" && archived.length === 0) {
             setTab("active");
         }
     }, [tab, archived.length]);
-
-    const tracking = panelOpen || work.length > 0;
     useEffect(() => {
-        if (!tracking) {
-            return;
-        }
-        setNow(Date.now());
-        return TabActivity.getInstance().every(whileShown(AgeTickMs), () => setNow(Date.now()), "clock");
-    }, [tracking]);
-
-    useEffect(() => {
-        if (!panelOpen) {
-            return;
-        }
+        let live = true;
         fireAndForget(async () => {
             const sources = await loadWorkspaceSources();
             const known = new Map(sources.map((s) => [s.workspace.oid, s.workspace]));
             if (currentWorkspace != null && !known.has(currentWorkspace.oid)) {
                 known.set(currentWorkspace.oid, currentWorkspace);
             }
-            setWorkspaces(known);
+            if (live) {
+                setWorkspaces(known);
+            }
         });
-        const onPointerDown = (e: PointerEvent) => {
-            const target = e.target as Node;
-            if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) {
-                return;
-            }
-            closeRef.current();
-        };
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                closeRef.current();
-            }
-        };
-        document.addEventListener("pointerdown", onPointerDown, true);
-        document.addEventListener("keydown", onKeyDown, true);
         return () => {
-            document.removeEventListener("pointerdown", onPointerDown, true);
-            document.removeEventListener("keydown", onKeyDown, true);
+            live = false;
         };
-    }, [panelOpen]);
+    }, [currentWorkspace]);
 
     const list = tab === "archived" ? archived : active;
     const shown = list.slice(0, MaxRenderedRows);
     const hidden = list.length - shown.length;
-    const measured = [...work.filter((w) => w.progress >= 0).map((w) => w.progress), ...downloadProgressValues(downloadsRunning)];
-    const progress = measured.length === 0 ? null : measured.reduce((sum, v) => sum + v, 0) / measured.length;
     const showWork = tab === "active" && work.length > 0;
-    const ringed = work.length > 0 || downloadsRunning.length > 0;
-
-    const bellLabel = [
-        count > 0
-            ? tc("notif.center.bellUnread", count)
-            : open > 0
-              ? tc("notif.center.bellOpen", open)
-              : t("notif.center.title"),
-        work.length > 0 ? t("notif.center.bellRunning", { count: work.length }) : null,
-        downloadsRunning.length > 0 ? tc("downloads.bell.running", downloadsRunning.length) : null,
-    ]
-        .filter(Boolean)
-        .join(" · ");
     return (
-        <div
-            ref={rootRef}
-            className="molten-notification-center relative flex h-full items-center"
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-        >
-            <button
-                ref={bellRef}
-                type="button"
-                aria-label={bellLabel}
-                title={bellLabel}
-                data-testid="notification-bell"
-                onClick={() => {
-                    if (!panelOpen) {
-                        openForUser();
-                        return;
-                    }
-                    close();
-                }}
-                className={cn(
-                    "relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-6 transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary",
-                    count > 0 ? "text-primary" : "text-secondary"
-                )}
-            >
-                {ringed ? <ProgressRing progress={progress} /> : null}
-                <i className={cn("fa fa-bell", count > 0 ? "fa-solid" : "fa-regular")} />
-                {/* A small arrow says the ring is a download too (#1992): without it a file would read as a build. */}
-                {downloadsRunning.length > 0 ? (
-                    <span
-                        data-testid="notification-bell-download"
-                        className="pointer-events-none absolute -right-0.5 -bottom-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-surface-3 text-accent"
-                    >
-                        <i className="fa fa-solid fa-arrow-down text-10" aria-hidden />
-                    </span>
-                ) : null}
-                {/* The count keeps the accent of the bell's other signals: amber for waiting agents would read as one
-                    more agent state next to the tabs' amber dots. */}
-                {count > 0 ? (
-                    <span
-                        key={pulse}
-                        data-testid="notification-count"
+        <div data-testid="notification-center">
+            <div className="flex items-center gap-3 border-b border-border px-3 py-1.5">
+                <button
+                    type="button"
+                    data-testid="notification-list-active"
+                    onClick={() => setTab("active")}
+                    className={cn(
+                        "cursor-pointer text-12 whitespace-nowrap",
+                        tab === "active" ? "font-semibold text-primary" : "text-muted hover:text-secondary"
+                    )}
+                >
+                    {t("notif.center.title")}
+                </button>
+                {archived.length > 0 ? (
+                    <button
+                        type="button"
+                        data-testid="notification-list-archived"
+                        onClick={() => setTab("archived")}
                         className={cn(
-                            "molten-notification-count pointer-events-none absolute flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 text-12 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
-                            pulse > 0 && "molten-notification-count-arrive",
-                            // The wider "9+" pill sits further right so it only overlaps the bell's corner. Never
-                            // above the button's top (#1235): the Spaces frame puts the bell at the window's edge.
-                            count > 9 ? "top-0 -right-2.5" : "top-0 -right-1"
+                            "cursor-pointer text-12 whitespace-nowrap",
+                            tab === "archived" ? "font-semibold text-primary" : "text-muted hover:text-secondary"
                         )}
                     >
-                        {badgeCount(count)}
-                    </span>
-                ) : open > 0 ? (
-                    <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-accent" />
+                        {t("notif.center.archived")}
+                    </button>
                 ) : null}
-            </button>
+                <span className="flex-1" />
+                {tab === "archived" ? (
+                    <button
+                        type="button"
+                        title={t("notif.center.clearTitle")}
+                        aria-label={t("notif.center.clear")}
+                        data-testid="notification-clear-archive"
+                        onClick={() => model.clearArchive()}
+                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+                    >
+                        <i className="fa fa-solid fa-trash-can text-11" aria-hidden />
+                    </button>
+                ) : unread > 0 ? (
+                    <button
+                        type="button"
+                        title={t("notif.center.markAllRead")}
+                        aria-label={t("notif.center.markAllRead")}
+                        data-testid="notification-mark-all-read"
+                        onClick={() => model.markAllRead()}
+                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+                    >
+                        <i className="fa fa-solid fa-check-double text-11" aria-hidden />
+                    </button>
+                ) : null}
+                {/* The levels live in Preferences › Notifications, their one home (FR-SHELL-106). */}
+                <button
+                    type="button"
+                    title={`${t("notif.center.settingsLink")}: ${t("notif.center.settingsTitle")}`}
+                    aria-label={t("notif.center.settingsLink")}
+                    data-testid="notification-settings-link"
+                    onClick={() => {
+                        onLeave();
+                        openNotificationSettings();
+                    }}
+                    className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-muted hover:bg-hover hover:text-primary"
+                >
+                    <i className="fa fa-solid fa-sliders text-11" aria-hidden />
+                </button>
+            </div>
+            {showWork ? (
+                <div className="border-b border-border">
+                    <div className="px-3 pt-2 text-11 font-medium tracking-wide text-muted uppercase">
+                        {t("notif.center.runningHeading")}
+                    </div>
+                    {work.map((item) => (
+                        <WorkRow
+                            key={`${item.kind}:${item.id}`}
+                            item={item}
+                            label={workspaceLabel(item.workspaceid, workspaces, currentWorkspace?.oid)}
+                            now={now}
+                        />
+                    ))}
+                </div>
+            ) : null}
+            {shown.length === 0 && !showWork ? (
+                <div className="px-3 py-6 text-center text-secondary" data-testid="notification-empty">
+                    {t(tab === "archived" ? "notif.center.emptyArchived" : "notif.center.empty")}
+                </div>
+            ) : null}
+            {shown.map((entry) => (
+                <RowBoundary key={entry.id}>
+                    <NotificationRow
+                        entry={entry}
+                        label={workspaceLabel(entry.workspaceid, workspaces, currentWorkspace?.oid, entry.tabid)}
+                        now={now}
+                        archived={tab === "archived"}
+                        highlighted={highlightIds.includes(entry.id)}
+                        running={running}
+                        error={errors[entry.id]}
+                        onOpen={() => {
+                            onLeave();
+                            fireAndForget(() => model.open(entry));
+                        }}
+                        onAction={(action) => {
+                            if (action.kind === "open") {
+                                onLeave();
+                            }
+                            fireAndForget(() => model.runAction(entry, action));
+                        }}
+                        onArchive={() => model.archive([entry.id])}
+                        onSilence={(subject) => {
+                            onLeave();
+                            openNotificationSettings(subject);
+                        }}
+                    />
+                </RowBoundary>
+            ))}
+            {hidden > 0 ? (
+                <div className="px-3 py-2 text-center text-12 text-muted">
+                    {t("notif.center.more", { count: hidden })}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+// Where a toast flies when it times out: Brokk's avatar, where its notification waits (the bell's place before #2003).
+const AvatarRef = {
+    get current(): HTMLElement {
+        return document.querySelector<HTMLElement>("[data-brokk-avatar]");
+    },
+} as React.RefObject<HTMLElement>;
+
+// What the bell hosted without drawing: the listeners that raise toasts and settle notifications, the dialogs that wait
+// on an answer (dependency sync, trust), the toast stack, and the requests of the surfaces that want a section of
+// Brokk's panel (a toast's Open, the downloads pill, a notification's View). A request only brings the panel on the
+// developer's gesture; the one a notification makes for itself brings nothing unless the panel is open already.
+export function NotificationHost() {
+    const boss = BossBubbleModel.getInstance();
+    const model = MoltentermNotifications.getInstance();
+    const downloads = DownloadsModel.getInstance();
+    const panelRequest = useAtomValue(model.panelRequestAtom, { store: globalStore });
+    const downloadsRequest = useAtomValue(downloads.requestAtom, { store: globalStore });
+    useEffect(() => startNotificationAutoRead(), []);
+    useEffect(() => startAgentSeen(), []);
+    useEffect(() => registerBuiltInGestures(), []);
+    useEffect(() => startNotificationToasts(), []);
+    useEffect(() => startHandoffSystemNotifications(), []);
+    useEffect(() => startDownloads(), []);
+    useEffect(() => {
+        if (panelRequest != null && panelRequest.ids.length > 0) {
+            boss.showInOpenPanel("notifications", panelRequest.ids);
+        }
+    }, [panelRequest, boss]);
+    useEffect(() => {
+        if (downloadsRequest == null) {
+            return;
+        }
+        Toasts.getInstance().clearNotificationToasts();
+        boss.showPanel("downloads");
+    }, [downloadsRequest, boss]);
+    return (
+        <>
             <DepSyncHost />
             <TrustApprovalHost />
-            {createPortal(<ToastStack onOpenCenter={openForUser} bellRef={bellRef} />, document.body)}
-            {/* Portaled to the body: inside the tab bar the panel would sit under the blocks' stacking context. */}
-            {panelOpen && anchor
-                ? createPortal(
-                      <div
-                          ref={panelRef}
-                          style={{ top: anchor.top, right: anchor.right }}
-                          data-testid="notification-panel"
-                          className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded-4 border border-border bg-surface-3 text-13 leading-5 text-primary shadow-command"
-                      >
-                          <div className="flex items-center gap-3 border-b border-border px-3 py-2">
-                              <button
-                                  type="button"
-                                  onClick={() => setTab("active")}
-                                  className={cn(
-                                      "cursor-pointer font-semibold whitespace-nowrap",
-                                      tab === "active" ? "text-primary" : "text-muted hover:text-secondary"
-                                  )}
-                              >
-                                  {t("notif.center.title")}
-                              </button>
-                              {/* The Downloads section (#1992): next to the notifications, with a ring and the count while
-                                  something downloads, so the tab says what it holds. */}
-                              <button
-                                  type="button"
-                                  data-testid="notification-tab-downloads"
-                                  onClick={() => setTab("downloads")}
-                                  className={cn(
-                                      "inline-flex cursor-pointer items-center gap-1.5 text-12 whitespace-nowrap",
-                                      tab === "downloads" ? "font-semibold text-primary" : "text-muted hover:text-secondary"
-                                  )}
-                              >
-                                  {t("downloads.tab")}
-                                  {downloadsRunning.length > 0 ? (
-                                      <>
-                                          <span className="inline-block h-3 w-3 text-secondary">
-                                              <DownloadRing progress={progress} />
-                                          </span>
-                                          <span className="rounded-full bg-accent px-1.5 text-11 leading-4 font-semibold text-[var(--mt-accent-fg)] tabular-nums">
-                                              {downloadsRunning.length}
-                                          </span>
-                                      </>
-                                  ) : null}
-                              </button>
-                              {archived.length > 0 ? (
-                                  <button
-                                      type="button"
-                                      onClick={() => setTab("archived")}
-                                      className={cn(
-                                          "cursor-pointer text-12 whitespace-nowrap",
-                                          tab === "archived"
-                                              ? "font-semibold text-primary"
-                                              : "text-muted hover:text-secondary"
-                                      )}
-                                  >
-                                      {t("notif.center.archived")}
-                                  </button>
-                              ) : null}
-                              <span className="flex-1" />
-                              {tab === "archived" ? (
-                                  <button
-                                      type="button"
-                                      title={t("notif.center.clearTitle")}
-                                      aria-label={t("notif.center.clear")}
-                                      onClick={() => model.clearArchive()}
-                                      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
-                                  >
-                                      <i className="fa fa-solid fa-trash-can text-11" aria-hidden />
-                                  </button>
-                              ) : tab === "active" && unread > 0 ? (
-                                  <button
-                                      type="button"
-                                      title={t("notif.center.markAllRead")}
-                                      aria-label={t("notif.center.markAllRead")}
-                                      onClick={() => model.markAllRead()}
-                                      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
-                                  >
-                                      <i className="fa fa-solid fa-check-double text-11" aria-hidden />
-                                  </button>
-                              ) : null}
-                              {/* The levels live in Preferences › Notifications, their one home (FR-SHELL-106). */}
-                              <button
-                                  type="button"
-                                  title={`${t("notif.center.settingsLink")}: ${t("notif.center.settingsTitle")}`}
-                                  aria-label={t("notif.center.settingsLink")}
-                                  data-testid="notification-settings-link"
-                                  onClick={() => {
-                                      close();
-                                      openNotificationSettings();
-                                  }}
-                                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-muted hover:bg-hover hover:text-primary"
-                              >
-                                  <i className="fa fa-solid fa-sliders text-11" aria-hidden />
-                              </button>
-                          </div>
-                          <div className="overflow-y-auto">
-                              {tab === "downloads" ? <DownloadsList onLeave={close} /> : null}
-                              {tab !== "downloads" && showWork ? (
-                                  <div className="border-b border-border">
-                                      <div className="px-3 pt-2 text-11 font-medium tracking-wide text-muted uppercase">
-                                          {t("notif.center.runningHeading")}
-                                      </div>
-                                      {work.map((item) => (
-                                          <WorkRow
-                                              key={`${item.kind}:${item.id}`}
-                                              item={item}
-                                              label={workspaceLabel(
-                                                  item.workspaceid,
-                                                  workspaces,
-                                                  currentWorkspace?.oid
-                                              )}
-                                              now={now}
-                                          />
-                                      ))}
-                                  </div>
-                              ) : null}
-                              {tab !== "downloads" && shown.length === 0 && !showWork ? (
-                                  <div className="px-3 py-6 text-center text-secondary">
-                                      {t(tab === "archived" ? "notif.center.emptyArchived" : "notif.center.empty")}
-                                  </div>
-                              ) : null}
-                              {(tab === "downloads" ? [] : shown).map((entry) => (
-                                  <RowBoundary key={entry.id}>
-                                      <NotificationRow
-                                          entry={entry}
-                                          label={workspaceLabel(
-                                              entry.workspaceid,
-                                              workspaces,
-                                              currentWorkspace?.oid,
-                                              entry.tabid
-                                          )}
-                                          now={now}
-                                          archived={tab === "archived"}
-                                          highlighted={highlightIds.includes(entry.id)}
-                                          running={running}
-                                          error={errors[entry.id]}
-                                          onOpen={() => {
-                                              setPanelOpen(false);
-                                              fireAndForget(() => model.open(entry));
-                                          }}
-                                          onAction={(action) => {
-                                              if (action.kind === "open") {
-                                                  setPanelOpen(false);
-                                              }
-                                              fireAndForget(() => model.runAction(entry, action));
-                                          }}
-                                          onArchive={() => model.archive([entry.id])}
-                                          onSilence={(subject) => {
-                                              close();
-                                              openNotificationSettings(subject);
-                                          }}
-                                      />
-                                  </RowBoundary>
-                              ))}
-                              {tab !== "downloads" && hidden > 0 ? (
-                                  <div className="px-3 py-2 text-center text-12 text-muted">
-                                      {t("notif.center.more", { count: hidden })}
-                                  </div>
-                              ) : null}
-                          </div>
-                      </div>,
-                      document.body
-                  )
-                : null}
-        </div>
+            {/* On the body: the stack's z-index must compete with the dialogs, not with Brokk's layer. */}
+            {createPortal(
+                <ToastStack onOpenCenter={() => boss.showPanel("notifications")} bellRef={AvatarRef} />,
+                document.body
+            )}
+        </>
     );
 }

@@ -43,12 +43,19 @@ export function useMotionAllowed(): boolean {
 }
 
 // `watchAway`: a surface shows his face, so whether the developer is away is read (developer-away.ts).
-export function useBrokkSituation(cardOpen: boolean, watchAway: boolean): BrokkSituation {
+export function useBrokkSituation(
+    cardOpen: boolean,
+    watchAway: boolean,
+    talk?: BrokkSituation["talk"]
+): BrokkSituation {
     const model = BossBubbleModel.getInstance();
     const working = useAtomValue(model.workingCountAtom, { store: globalStore });
     const badge = useAtomValue(model.badgeAtom, { store: globalStore });
     const away = useDeveloperAway(watchAway);
-    return useMemo(() => ({ working, waiting: badge.count, cardOpen, away }), [working, badge.count, cardOpen, away]);
+    return useMemo(
+        () => ({ working, waiting: badge.count, cardOpen, away, talk }),
+        [working, badge.count, cardOpen, away, talk]
+    );
 }
 
 // The longest a timer is set for: setTimeout overflows beyond it.
@@ -112,12 +119,12 @@ export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
     return scene;
 }
 
-// The card's header plays while the card shows: the avatar that opened it has emptied its face, so there is one
-// animated Brokk at a time (FR-BOSS-007, AC8).
-export function useCardLive(): BrokkLiveProps {
+// The panel's portrait plays while the panel shows: the avatar that opened it has emptied its face, so there is one
+// animated Brokk at a time (FR-BOSS-007, AC8). `talk`: what the field is doing (brokk-talk-model.ts talkPose).
+export function useCardLive(talk?: BrokkSituation["talk"]): BrokkLiveProps {
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
     const allowed = useMotionAllowed();
-    const situation = useBrokkSituation(true, allowed);
+    const situation = useBrokkSituation(true, allowed, talk);
     return useMemo(
         () => (allowed ? { situation, asked, speaks: speaksOnOpen(situation), rhythm: "normal" } : null),
         [allowed, situation, asked]

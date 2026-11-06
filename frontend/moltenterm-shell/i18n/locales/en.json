@@ -547,7 +547,8 @@
             "newViews": "New views",
             "sidebar": "Sidebar",
             "theme": "Theme",
-            "avatar": "Avatar"
+            "avatar": "Avatar",
+            "whenHeComesToFetchMe": "When he comes to fetch me"
         },
         "items": {
             "boss:name": {
@@ -557,6 +558,72 @@
             "boss:show": {
                 "label": "Show the avatar",
                 "description": "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows."
+            },
+            "boss:visitsecurity": {
+                "label": "A security alert on a dependency",
+                "description": "A high or critical alert on a dependency of your projects.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitblocked": {
+                "label": "An agent waits for my answer",
+                "description": "An agent blocked on you for longer than the threshold below.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visiterror": {
+                "label": "An agent stopped on an error",
+                "description": "An agent that stopped on an error.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitci": {
+                "label": "CI failed on my pull request",
+                "description": "The checks of one of your pull requests failed.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitready": {
+                "label": "A pull request is ready to merge",
+                "description": "A pull request that is approved and green.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitfinished": {
+                "label": "An agent finished",
+                "description": "An agent that finished its work.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitdownload": {
+                "label": "A download finished or failed",
+                "description": "A file downloaded from a web page, finished or interrupted.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitupdate": {
+                "label": "An update is available",
+                "description": "A new version of MoltenTerm.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitusage": {
+                "label": "Plan usage above 90 %",
+                "description": "The plan usage of an agent crosses 90 %.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:blockedmin": {
+                "label": "An agent counts as blocked after",
+                "description": "How long an agent may wait for you before it counts as blocked; three times as long is grave.",
+                "options": { "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+            },
+            "boss:quiet": {
+                "label": "Quiet hours",
+                "description": "During these hours only the badge changes, even for the events that come to fetch you."
+            },
+            "boss:quietfrom": {
+                "label": "Quiet hours begin",
+                "description": "The hour the quiet hours begin, as HH:MM."
+            },
+            "boss:quietto": {
+                "label": "Quiet hours end",
+                "description": "The hour the quiet hours end, as HH:MM."
+            },
+            "boss:nevercome": {
+                "label": "Never come, only the badge",
+                "description": "Master switch: no scene leaves the avatar. The badge keeps counting."
             },
             "moltenterm:theme": {
                 "label": "Theme",
@@ -2928,16 +2995,14 @@
             }
         },
         "card": {
-            "title": "{name}'s card",
-            "ariaLabel": "{name}'s card: to handle, sessions and notifications",
-            "tablist": "Sections of {name}'s card",
+            "tablist": "Sections of {name}'s panel",
             "tabs": {
                 "todo": "To handle",
+                "notifications": "Notifications",
                 "sessions": "Sessions",
-                "notifications": "Notifications"
+                "downloads": "Downloads",
+                "usage": "Usage"
             },
-            "markRead": "Mark as read",
-            "archive": "Archive",
             "waiting": {
                 "one": "{count} waiting",
                 "other": "{count} waiting"
@@ -2949,6 +3014,42 @@
             "openSessions": "Open the Sessions view",
             "empty": "No session is running.",
             "newTerminal": "New terminal"
+        },
+        "coming": {
+            "title": "When {name} comes to fetch me",
+            "intro": "One choice per line. Comes brings his scene out of the avatar; Badge counts it without moving anything; Nothing does not count it.",
+            "event": "Event",
+            "vient": "Comes",
+            "badge": "Badge",
+            "rien": "Nothing",
+            "quietBetween": "Quiet hours, from and to",
+            "severity": "Severity sets his face and the delays of Later, never the words: the scene has no text."
+        },
+        "panel": {
+            "title": "{name}",
+            "ariaLabel": "{name}'s panel: to handle, notifications, sessions, downloads and usage",
+            "menu": "{name}'s menu",
+            "menuComing": "When he comes to fetch me…",
+            "menuSettings": "{name}'s preferences",
+            "menuOff": "Turn {name} off",
+            "keepAwake": {
+                "details": "What keeps this computer awake"
+            },
+            "usage": {
+                "empty": "No plan usage to show yet: it appears when an agent shares its reading."
+            },
+            "talk": {
+                "placeholder": "Talk to {name}…",
+                "label": "Message to {name}",
+                "send": "Send",
+                "sending": "On its way…",
+                "sentStarted": "{agent} started in {name}'s own terminal.",
+                "busy": "{name}'s agent is busy: your message stays here, try again in a moment.",
+                "noAgent": "No coding agent is installed to start {name}'s session.",
+                "agentMissing": "The coding agent you chose is not installed: {name} cannot start.",
+                "gone": "{name}'s terminal was closed: send your message again to start a new one.",
+                "failed": "The message did not go: {name}'s session could not be reached."
+            }
         },
         "todo": {
             "empty": "Nothing waits for you.",
@@ -5671,11 +5772,8 @@
         },
         "settings": {
             "intro": "What each subject may tell. Errors are always told.",
-            "openPanel": "Open the notification panel for every new notification",
-            "openPanelHint": "Otherwise it opens by itself only for what needs your answer; the rest shows for a few seconds at the bottom right.",
             "footer": "Quiet keeps the message here, already read: no badge and no toast. Off does not keep it.",
-            "subjectsTitle": "Subjects",
-            "panelTitle": "Notification panel"
+            "subjectsTitle": "Subjects"
         },
         "subjects": {
             "agents": "Agents",

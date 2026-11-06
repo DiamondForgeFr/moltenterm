@@ -53,7 +53,10 @@ export function peekPosition(
 ): { top: number; left: number; width: number } {
     const fit = Math.max(0, Math.min(width, viewport.width - 2 * ViewMarginPx));
     const right = anchor.left + anchor.width;
-    const left = Math.min(Math.max(right - fit, ViewMarginPx), Math.max(viewport.width - fit - ViewMarginPx, ViewMarginPx));
+    const left = Math.min(
+        Math.max(right - fit, ViewMarginPx),
+        Math.max(viewport.width - fit - ViewMarginPx, ViewMarginPx)
+    );
     return { top: anchor.top + anchor.height + PeekGapPx, left, width: fit };
 }
 
@@ -61,13 +64,18 @@ export type CardPlace = { top: string; left?: string; right?: string; maxHeight:
 
 // Where his panel stands, in the coordinates of the layer it is drawn in: beside the sidebar, from under the avatar,
 // when the sidebar is on screen; under the avatar, aligned with its right edge, when it hangs from the window's edge.
+// With Brokk turned off there is no avatar (the panel opens for a section, #2003): it stands below the title row.
+export const NoAvatarTopPx = 40;
+
 export function cardPlace(avatar: Rect, sidebar: Rect, layer: Rect): CardPlace {
-    const top = Math.max(avatar.top + avatar.height - layer.top + PeekGapPx, ViewMarginPx);
+    const top =
+        avatar == null ? NoAvatarTopPx : Math.max(avatar.top + avatar.height - layer.top + PeekGapPx, ViewMarginPx);
     const maxHeight = `calc(100% - ${top}px - ${ViewMarginPx}px)`;
     if (sidebar != null) {
         const left = Math.max(sidebar.left + sidebar.width - layer.left + PeekGapPx, ViewMarginPx);
         return { top: `${top}px`, left: `${left}px`, maxHeight };
     }
-    const right = Math.max(layer.left + layer.width - (avatar.left + avatar.width), ViewMarginPx);
+    const right =
+        avatar == null ? ViewMarginPx : Math.max(layer.left + layer.width - (avatar.left + avatar.width), ViewMarginPx);
     return { top: `${top}px`, right: `${right}px`, maxHeight };
 }

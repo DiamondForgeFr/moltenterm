@@ -23,6 +23,7 @@ import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
+import { BrokkComingCard, BrokkTableKey } from "../boss/brokk-coming-card";
 import { useBossName } from "../boss/use-boss-name";
 import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
@@ -37,7 +38,7 @@ import { SleepPolicySetting } from "../keepawake-model";
 import { KeepAwakeDetails } from "../keepawake-ui";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
-import { NotificationPanelCard, NotificationSubjectsCard } from "../notification-settings";
+import { NotificationSubjectsCard } from "../notification-settings";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
@@ -767,6 +768,7 @@ export function SettingsSectionPage({
     actions,
 }: SettingsSectionPageProps) {
     const t = useT();
+    const bossName = useBossName();
     const currentSection = data.sections.find((s) => s.id === section);
     const groups = groupEntries(sectionEntries(data.catalog, section));
     const flowBlocks = sectionFlowBlocks(section, groups.length);
@@ -788,24 +790,32 @@ export function SettingsSectionPage({
                     {groups.map((g) => (
                         <PageCard
                             key={g.group}
-                            title={g.group}
+                            title={
+                                g.entries.some((e) => e.key === BrokkTableKey)
+                                    ? t("boss.coming.title", { name: bossName })
+                                    : g.group
+                            }
                             icon={suiteIcon(settingsGroupIcon(data.groupSlugByKey.get(g.entries[0].key)))}
                             glow={highlight != null && g.entries.some((e) => e.key === highlight)}
                             scope="app"
                         >
                             {g.entries.some((e) => e.key === SidebarTintKey) ? <SidebarModeRows /> : null}
-                            {g.entries.map((entry) => (
-                                <SettingRow
-                                    key={entry.key}
-                                    entry={entry}
-                                    rowId={rowId(entry.key)}
-                                    value={data.settings?.[entry.key]}
-                                    overriddenIn={data.overriddenIn.get(entry.key)}
-                                    themes={data.themes}
-                                    highlighted={highlight === entry.key}
-                                    onOpenJson={openSettingsJson}
-                                />
-                            ))}
+                            {g.entries.some((e) => e.key === BrokkTableKey) ? (
+                                <BrokkComingCard entries={g.entries} settings={data.settings} />
+                            ) : (
+                                g.entries.map((entry) => (
+                                    <SettingRow
+                                        key={entry.key}
+                                        entry={entry}
+                                        rowId={rowId(entry.key)}
+                                        value={data.settings?.[entry.key]}
+                                        overriddenIn={data.overriddenIn.get(entry.key)}
+                                        themes={data.themes}
+                                        highlighted={highlight === entry.key}
+                                        onOpenJson={openSettingsJson}
+                                    />
+                                ))
+                            )}
                             {g.entries.some((e) => e.key === IntegrateOffKey) ? <IntegrationRuns /> : null}
                             {g.entries.some((e) => e.key === SleepPolicySetting) ? <KeepAwakeDetails /> : null}
                             {g.entries.some((e) => e.key === View360SettingKey) ? <View360Screens /> : null}
@@ -818,7 +828,6 @@ export function SettingsSectionPage({
                     {section === "browser" ? <DownloadsFolderCard /> : null}
                     {section === "browser" ? <BookmarksCard /> : null}
                     {section === "notifications" ? <NotificationSubjectsCard /> : null}
-                    {section === "notifications" ? <NotificationPanelCard /> : null}
                     {section === "mods" ? <ModsSection /> : null}
                     {section === "learned" ? <LearnedCards /> : null}
                     {section === "about" ? <AboutBuildCard /> : null}

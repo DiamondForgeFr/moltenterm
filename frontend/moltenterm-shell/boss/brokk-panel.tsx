@@ -1,20 +1,24 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The foreman's Sessions card (FR-BOSS-002, DS-BOSS-002): a layer that floats over the app beside the sidebar, opened by
-// his avatar or by the scene that comes to fetch the developer (FR-BOSS-009), listing every running session of every
-// workspace with the Sessions view's own data. It is not a panel, a tab or a
-// split: it moves and resizes nothing, and hiding it (the avatar again, Escape, a click outside, its close control, Go
-// to) leaves the app as it was. It is not modal either: nothing dims, the focus is not held in it, and a press outside
-// goes to what it was aimed at.
+// Brokk's panel (FR-BOSS-009, AC9 and AC10, #2003): a layer that floats over the app beside the sidebar, opened by his
+// avatar or by the scene that comes to fetch the developer. It replaces the bubble, the card, the bell and the cup. On
+// top his large animated portrait, the only animated Brokk on screen while the panel shows; then the tabs To handle,
+// Notifications, Sessions, Downloads and Usage, the keep-awake line, and a field to talk to him, backed by his own
+// terminal session. It is not a panel, a tab or a split: it moves and resizes nothing, and hiding it (the avatar again,
+// Escape, a click outside, its close control, Go to) leaves the app as it was. It is not modal either: nothing dims, the
+// focus is not held in it, and a press outside goes to what it was aimed at.
+//
+// The test ids of the lists keep the prefix boss-card-: the lists are the card's, moved here whole (FR-BOSS-003).
 
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentStateDotClasses } from "../agent-state-model";
+import { writeSettings } from "../command-panel/bindings";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { DownloadsList } from "../downloads/downloads-view";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
@@ -22,19 +26,17 @@ import { serverErrorText } from "../i18n/server-text";
 import { modalIsOpen } from "../modal-open";
 import { MoltenWave } from "../molten-button";
 import { MotionClass } from "../molten-motion";
+import { NotificationsPanelBody } from "../notification-center";
 import {
     activeEntries,
-    checkClickable,
-    checkUnread,
     formatAge,
-    MoltentermNotification,
     notificationActionLabel,
     notificationMessage,
     notificationTitle,
-    sortNewestFirst,
 } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { DurableSessions } from "../sessions/sessions-store";
+import { openSettingsKey, openSettingsSection } from "../settings/settings-open";
 import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
 import {
@@ -63,17 +65,30 @@ import {
     CardTestId,
     isOutsidePress,
 } from "./boss-card-model";
-import "./boss-card.css";
 import { HandoffRowView } from "./boss-handoff-row";
+import { BossShowSettingKey } from "./boss-name";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
 import { InfoItem, ToHandleAction, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import { handledKindOf } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
+import { BrokkHubModel } from "./brokk-hub-store";
+import { BrokkKeepAwakeLine } from "./brokk-keepawake-line";
+import { neighbourTab, openingTab, PanelTab, PanelTabs } from "./brokk-panel-model";
+import "./brokk-panel.css";
+import { BrokkTalk } from "./brokk-talk";
+import { talkPose } from "./brokk-talk-model";
+import { BrokkUsageTab } from "./brokk-usage-tab";
 import { useCardLive } from "./use-brokk-live";
 
-// How often "up 12 min" is read again while the card shows.
+// How often "up 12 min" is read again while the panel shows.
 const AgeTickMs = 15000;
+
+// The first row of the table "Quand Brokk vient me chercher" in Preferences: the key the menu brings into view.
+const BrokkTableFirstKey = "boss:visitsecurity";
+
+const PanelMenuItem =
+    "flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-12 text-primary hover:bg-hover";
 
 const ConnDotClasses: Record<string, string> = {
     connected: "bg-success",
@@ -94,13 +109,9 @@ const NoticeDotClasses: Record<string, string> = {
     info: "bg-secondary",
 };
 
-// The card's tabs, in the order they read (FR-BOSS-003 AC1). The card opens on To handle when it counts something, else
-// on the tab used last (AC2): this is the last one used, across openings of the card.
-export type CardTab = "todo" | "sessions" | "notifications" | "downloads";
-export const CardTabs: CardTab[] = ["todo", "sessions", "notifications"];
-// The fourth tab (#1992, FR-BOSS-003 AC9) is compact and only there while there is a history or a download in progress.
-export const DownloadsCardTab: CardTab = "downloads";
-let lastCardTab: CardTab = "sessions";
+// The panel opens on To handle when it counts something, else on the tab used last (FR-BOSS-003 AC2): this is the last
+// one used, across openings of the panel.
+let lastCardTab: PanelTab = "sessions";
 
 function focusIsAtHome(card: HTMLElement): boolean {
     const active = document.activeElement;
@@ -446,143 +457,64 @@ function ToHandleView({
     );
 }
 
-// The bell's notifications, read and archived here as there (FR-MC-019, AC5). Nothing opens by itself.
-function NotificationsView({
-    entries,
-    now,
-    onOpen,
-    onRead,
-    onArchive,
-}: {
-    entries: MoltentermNotification[];
-    now: number;
-    onOpen: (entry: MoltentermNotification) => void;
-    onRead: (entry: MoltentermNotification) => void;
-    onArchive: (entry: MoltentermNotification) => void;
-}) {
-    const t = useT();
-    if (entries.length === 0) {
-        return (
-            <div className="px-3 py-3 text-12 text-secondary" data-testid="boss-card-notif-empty">
-                {t("notif.center.empty")}
-            </div>
-        );
-    }
-    return (
-        <ul className="flex flex-col px-1 pb-1" data-testid="boss-card-notif-list">
-            {entries.map((entry) => {
-                const unread = checkUnread(entry);
-                return (
-                    <li
-                        key={entry.id}
-                        className="flex items-start gap-2 rounded-4 px-3 py-2 hover:bg-hover"
-                        data-testid="boss-card-notif-row"
-                        data-notif={entry.id}
-                    >
-                        <span
-                            className={cn(
-                                "mt-[6px] inline-block h-2 w-2 shrink-0 rounded-full",
-                                NoticeDotClasses[entry.kind] ?? NoticeDotClasses.info
-                            )}
-                            aria-hidden
-                        />
-                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <div className="flex min-w-0 items-baseline gap-1.5">
-                                <span
-                                    className={cn(
-                                        "min-w-0 truncate text-12",
-                                        unread ? "font-semibold text-primary" : "text-secondary"
-                                    )}
-                                >
-                                    {notificationTitle(entry)}
-                                </span>
-                                <span className="ml-auto shrink-0 text-11 whitespace-nowrap text-muted">
-                                    {formatAge(entry.updated ?? entry.time, now)}
-                                </span>
-                            </div>
-                            <div className="text-11 break-words text-secondary">{notificationMessage(entry)}</div>
-                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                {checkClickable(entry) ? (
-                                    <button
-                                        type="button"
-                                        className={SecondaryButton}
-                                        data-testid="boss-card-notif-open"
-                                        onClick={() => onOpen(entry)}
-                                    >
-                                        {t("boss.todo.open")}
-                                    </button>
-                                ) : null}
-                                {unread ? (
-                                    <button
-                                        type="button"
-                                        className={GhostButton}
-                                        data-testid="boss-card-notif-read"
-                                        onClick={() => onRead(entry)}
-                                    >
-                                        {t("boss.card.markRead")}
-                                    </button>
-                                ) : null}
-                                <button
-                                    type="button"
-                                    className={GhostButton}
-                                    aria-label={t("notif.center.archiveOne")}
-                                    data-testid="boss-card-notif-archive"
-                                    onClick={() => onArchive(entry)}
-                                >
-                                    {t("boss.card.archive")}
-                                </button>
-                            </div>
-                        </div>
-                    </li>
-                );
-            })}
-        </ul>
-    );
-}
-
-// His animated portrait plays on the card's header while it shows, and the avatar that opened it empties its face:
-// never two Brokks on screen.
-export function BossCard({ style }: { style: React.CSSProperties }) {
+// His animated portrait plays on the panel's top while it shows, and the avatar that opened it empties its face: never
+// two Brokks on screen.
+export function BrokkPanel({ style }: { style: React.CSSProperties }) {
     const t = useT();
     const tCount = useTCount();
     const locale = useLocale();
     const model = BossBubbleModel.getInstance();
+    const hubModel = BrokkHubModel.getInstance();
     const name = useAtomValue(model.nameAtom, { store: globalStore });
     const badge = useAtomValue(model.badgeAtom, { store: globalStore });
     const data = useAtomValue(DurableSessions.getInstance().dataAtom, { store: globalStore });
     const workspace = useAtomValue(atoms.workspace, { store: globalStore });
     const toHandle = useAtomValue(model.toHandleAtom, { store: globalStore });
     const shownNotices = useAtomValue(MoltentermNotifications.getInstance().shownEntriesAtom, { store: globalStore });
+    const request = useAtomValue(model.tabRequestAtom, { store: globalStore });
+    const answering = useAtomValue(hubModel.ownWorkingAtom, { store: globalStore });
     const rootRef = useRef<HTMLDivElement>(null);
     const [now, setNow] = useState(Date.now());
     const [busyId, setBusyId] = useState<string>(null);
     const [problem, setProblem] = useState("");
+    const [typing, setTyping] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [highlight, setHighlight] = useState<string[]>(() => request?.highlight ?? []);
     const downloadsModel = DownloadsModel.getInstance();
-    const downloadItems = useAtomValue(downloadsModel.itemsAtom, { store: globalStore });
     const downloadsRunning = useAtomValue(downloadsModel.runningAtom, { store: globalStore });
-    const hasDownloads = downloadItems.length > 0;
-    const tabs: CardTab[] = hasDownloads ? [...CardTabs, DownloadsCardTab] : CardTabs;
-    const [chosenTab, setTab] = useState<CardTab>(() => (badge.count > 0 ? "todo" : lastCardTab));
-    const tab: CardTab = chosenTab === DownloadsCardTab && !hasDownloads ? "sessions" : chosenTab;
-    const live = useCardLive();
+    const tabs = PanelTabs;
+    // The request that opened the panel (showPanel) names its first tab; a plain opening reads the badge.
+    const [tab, setTab] = useState<PanelTab>(() => request?.tab ?? openingTab(badge.count, lastCardTab));
+    const live = useCardLive(talkPose(typing, answering));
     const home = homeFolder();
     const groups = useMemo(
         () => cardGroups(data, workspace?.oid, home, now),
         [data, workspace?.oid, home, now, locale]
     );
     const count = cardRowCount(groups);
-    const notices = useMemo(() => sortNewestFirst(activeEntries(shownNotices ?? [])), [shownNotices]);
-    const counts: Record<CardTab, number> = {
+    const noticeCount = useMemo(() => activeEntries(shownNotices ?? []).length, [shownNotices]);
+    const counts: Record<PanelTab, number> = {
         todo: toHandle.items.filter((item) => !item.seen).length,
         sessions: count,
-        notifications: notices.length,
+        notifications: noticeCount,
         downloads: downloadsRunning.length,
+        usage: 0,
     };
     useEffect(() => {
         lastCardTab = tab;
     }, [tab]);
+    // A surface asks for a tab while the panel is open (a toast's Open, the downloads pill, a notification).
+    const seenRequest = useRef(request?.seq ?? 0);
+    useEffect(() => {
+        if (request == null || request.seq === seenRequest.current) {
+            return;
+        }
+        seenRequest.current = request.seq;
+        setTab(request.tab);
+        setHighlight(request.highlight);
+    }, [request]);
 
-    // The developer asked for the card, so the focus comes into it.
+    // The developer asked for the panel, so the focus comes into it.
     useEffect(() => {
         rootRef.current?.focus({ preventScroll: true });
     }, []);
@@ -698,24 +630,18 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
         });
     };
     const onTabKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") {
+        const next = neighbourTab(tab, e.key);
+        if (next == null) {
             return;
         }
         e.preventDefault();
-        const at = tabs.indexOf(tab);
-        const next = tabs[(at + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
         setTab(next);
         rootRef.current?.querySelector<HTMLElement>(`[data-tab-id="${next}"]`)?.focus();
     };
-    const noticeOpen = (entry: MoltentermNotification) => {
+    const leave = useCallback(() => model.closeCard({ restoreFocus: false }), [model]);
+    const turnOff = () => {
         model.closeCard({ restoreFocus: false });
-        fireAndForget(() => openNotice(entry));
-    };
-    const noticeRead = (entry: MoltentermNotification) => {
-        MoltentermNotifications.getInstance().markRead([entry.id]);
-    };
-    const noticeArchive = (entry: MoltentermNotification) => {
-        MoltentermNotifications.getInstance().archive([entry.id]);
+        fireAndForget(() => writeSettings({ [BossShowSettingKey]: false }));
     };
     const openFullView = () => {
         model.closeCard({ restoreFocus: false });
@@ -749,33 +675,45 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
             ref={rootRef}
             role="dialog"
             aria-modal="false"
-            aria-label={t("boss.card.ariaLabel", { name })}
+            aria-label={t("boss.panel.ariaLabel", { name })}
             tabIndex={-1}
             data-boss-card=""
             data-testid={CardTestId}
             className={cn(
-                "mt-boss-card rounded-4 border border-line-strong bg-surface-3 shadow-e2",
+                "mt-boss-card mt-brokk-panel rounded-4 border border-line-strong bg-surface-3 shadow-e2",
                 MotionClass.arrive
             )}
             style={style}
         >
-            <div className="flex shrink-0 items-center gap-2 border-b border-line-strong px-3 py-2">
-                <span className="mt-boss-card-face" aria-hidden>
-                    <BossPortrait live={live} />
-                </span>
+            <div className="mt-brokk-panel-portrait" data-testid="brokk-panel-portrait" aria-hidden>
+                <div className="mt-brokk-panel-face">
+                    <BossPortrait live={live} framing="bust" />
+                </div>
+            </div>
+            <div className="relative flex shrink-0 items-center gap-2 border-b border-line-strong px-3 py-2">
                 <h2
                     className="min-w-0 flex-1 truncate text-13 font-semibold text-primary"
                     data-testid="boss-card-title"
                 >
-                    {t("boss.card.title", { name })}
+                    {t("boss.panel.title", { name })}
                 </h2>
-                {/* The reserved place of B4's "Talk ‹" (FR-BOSS-003): empty until B4 ships. */}
-                <span data-slot="talk" className="contents" aria-hidden />
                 {badge.count > 0 ? (
                     <span className="mt-boss-card-count" data-tone={badge.tone} data-testid="boss-card-count">
                         {tCount("boss.card.waiting", badge.count)}
                     </span>
                 ) : null}
+                <button
+                    type="button"
+                    className="molten-btn-ghost flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-12"
+                    aria-label={t("boss.panel.menu", { name })}
+                    title={t("boss.panel.menu", { name })}
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    data-testid="brokk-panel-menu"
+                    onClick={() => setMenuOpen(!menuOpen)}
+                >
+                    <i className={makeIconClass("ellipsis", true)} aria-hidden />
+                </button>
                 <button
                     type="button"
                     className="molten-btn-ghost flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-12"
@@ -786,9 +724,57 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
                 >
                     <i className={makeIconClass("xmark", true)} aria-hidden />
                 </button>
+                {menuOpen ? (
+                    <div
+                        role="menu"
+                        aria-label={t("boss.panel.menu", { name })}
+                        data-testid="brokk-panel-menu-list"
+                        className="absolute top-full right-2 z-10 mt-1 flex min-w-[220px] flex-col rounded-4 border border-line-strong bg-surface-3 py-1 shadow-e2"
+                    >
+                        <button
+                            type="button"
+                            role="menuitem"
+                            className={PanelMenuItem}
+                            data-testid="brokk-panel-menu-coming"
+                            onClick={() => {
+                                setMenuOpen(false);
+                                leave();
+                                fireAndForget(() => openSettingsKey("boss", BrokkTableFirstKey));
+                            }}
+                        >
+                            {t("boss.panel.menuComing")}
+                        </button>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            className={PanelMenuItem}
+                            data-testid="brokk-panel-menu-settings"
+                            onClick={() => {
+                                setMenuOpen(false);
+                                leave();
+                                fireAndForget(() => openSettingsSection("boss"));
+                            }}
+                        >
+                            {t("boss.panel.menuSettings", { name })}
+                        </button>
+                        <div className="my-1 border-t border-line-strong" role="separator" />
+                        <button
+                            type="button"
+                            role="menuitem"
+                            className={PanelMenuItem}
+                            data-testid="brokk-panel-menu-off"
+                            onClick={() => {
+                                setMenuOpen(false);
+                                turnOff();
+                            }}
+                        >
+                            {t("boss.panel.menuOff", { name })}
+                        </button>
+                    </div>
+                ) : null}
             </div>
             <div
-                className="flex shrink-0 items-end gap-1 border-b border-line-strong px-2"
+                className="mt-brokk-panel-tabs flex shrink-0 items-end gap-0.5 border-b border-line-strong px-1.5"
                 role="tablist"
                 aria-label={t("boss.card.tablist", { name })}
                 onKeyDown={onTabKeyDown}
@@ -806,25 +792,22 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
                         data-tab-id={id}
                         data-testid={`boss-card-tab-${id}`}
                         className={cn(
-                            "-mb-px flex cursor-pointer items-center gap-1.5 border-b-2 px-2 py-1.5 text-12 whitespace-nowrap",
+                            "-mb-px flex cursor-pointer items-center gap-1 border-b-2 px-1.5 py-1.5 text-12 whitespace-nowrap",
                             tab === id
                                 ? "border-accent font-medium text-primary"
                                 : "border-transparent text-secondary hover:text-primary"
                         )}
                         onClick={() => setTab(id)}
-                        title={id === DownloadsCardTab ? t("downloads.tab") : undefined}
                         aria-label={
-                            id === DownloadsCardTab ? tCount("downloads.card.aria", counts.downloads) : undefined
+                            id === "downloads" && counts.downloads > 0
+                                ? tCount("downloads.card.aria", counts.downloads)
+                                : undefined
                         }
                     >
-                        {id === DownloadsCardTab ? (
-                            <i className={makeIconClass("download", true)} aria-hidden />
-                        ) : (
-                            t(`boss.card.tabs.${id}`)
-                        )}
-                        {id !== DownloadsCardTab || counts[id] > 0 ? (
+                        {t(`boss.card.tabs.${id}`)}
+                        {id !== "usage" && (id !== "downloads" || counts[id] > 0) ? (
                             <span
-                                className="rounded-4 bg-surface-2 px-1.5 text-11 leading-[16px] text-secondary"
+                                className="rounded-4 bg-surface-2 px-1 text-11 leading-[16px] text-secondary"
                                 data-testid={`boss-card-tab-count-${id}`}
                             >
                                 {counts[id]}
@@ -842,16 +825,12 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
             >
                 {tab === "todo" ? (
                     <ToHandleView list={toHandle} now={now} busyId={busyId} onRun={runTodo} />
-                ) : tab === DownloadsCardTab ? (
-                    <DownloadsList onLeave={() => model.closeCard({ restoreFocus: false })} />
+                ) : tab === "downloads" ? (
+                    <DownloadsList onLeave={leave} />
                 ) : tab === "notifications" ? (
-                    <NotificationsView
-                        entries={notices}
-                        now={now}
-                        onOpen={noticeOpen}
-                        onRead={noticeRead}
-                        onArchive={noticeArchive}
-                    />
+                    <NotificationsPanelBody onLeave={leave} highlightIds={highlight} />
+                ) : tab === "usage" ? (
+                    <BrokkUsageTab />
                 ) : (
                     <>
                         {data == null ? (
@@ -880,6 +859,17 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
                                 <CardGroupView key={group.id} group={group} busyId={busyId} onGo={goTo} />
                             ))
                         )}
+                        <div className="flex items-center justify-end px-3 py-2">
+                            <button
+                                type="button"
+                                className="molten-btn-secondary inline-flex cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12 whitespace-nowrap"
+                                data-testid="boss-card-open-sessions"
+                                onClick={openFullView}
+                            >
+                                <i className={cn(makeIconClass("layer-group", true), "text-11")} aria-hidden />
+                                {t("boss.card.openSessions")}
+                            </button>
+                        </div>
                     </>
                 )}
             </div>
@@ -888,17 +878,8 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
                     {problem}
                 </div>
             ) : null}
-            <div className="flex shrink-0 items-center justify-end border-t border-line-strong px-3 py-2">
-                <button
-                    type="button"
-                    className="molten-btn-secondary inline-flex cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12 whitespace-nowrap"
-                    data-testid="boss-card-open-sessions"
-                    onClick={openFullView}
-                >
-                    <i className={cn(makeIconClass("layer-group", true), "text-11")} aria-hidden />
-                    {t("boss.card.openSessions")}
-                </button>
-            </div>
+            <BrokkKeepAwakeLine onLeave={leave} />
+            <BrokkTalk onTyping={setTyping} />
         </div>
     );
 }

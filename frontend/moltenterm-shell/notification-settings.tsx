@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Preferences › Notifications (FR-SHELL-106): what each subject may tell, and whether the notification panel opens
-// for every message. Its one home: the bell's « Settings › » and a row's "Don't tell me again…" open this section,
-// the second one with its subject lit, instead of a second editor behind the bell (FR-MC-019 rules unchanged).
+// Preferences › Notifications (FR-SHELL-106): what each subject may tell. Its one home: the settings link of the
+// Notifications tab of Brokk's panel and a row's "Don't tell me again…" open this section, the second one with its
+// subject lit, instead of a second editor behind the panel (FR-MC-019 rules unchanged). Whether he comes for an event is
+// the table of Preferences › Brokk (FR-BOSS-009, AC4).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
@@ -105,34 +106,6 @@ export function NotificationSubjectsCard() {
                     </div>
                 ))}
                 <div className="px-5 pb-3 text-11 text-muted">{t("notif.settings.footer")}</div>
-            </div>
-        </PageCard>
-    );
-}
-
-// Its own block: PageFlow gives each child its cell and gap, which a fragment would not get.
-export function NotificationPanelCard() {
-    const t = useT();
-    const model = MoltentermNotifications.getInstance();
-    const panelPolicy = useAtomValue(model.panelPolicyAtom, { store: globalStore });
-    return (
-        <PageCard title={t("notif.settings.panelTitle")} icon={suiteIcon("display")} scope="app">
-            <div className={PageRowClass}>
-                <div className="min-w-0 flex-1">
-                    <div className="text-12 font-medium text-primary">{t("notif.settings.openPanel")}</div>
-                    <div className="text-12 text-muted">{t("notif.settings.openPanelHint")}</div>
-                </div>
-                <button
-                    type="button"
-                    role="switch"
-                    aria-checked={panelPolicy === "all"}
-                    aria-label={t("notif.settings.openPanel")}
-                    data-testid="notification-panel-policy"
-                    onClick={() => model.setPanelPolicy(panelPolicy === "all" ? "answers" : "all")}
-                    className="inline-flex h-row shrink-0 cursor-pointer items-center rounded-4 px-1"
-                >
-                    <span className={cn("molten-cmdpanel-switch", panelPolicy === "all" && "is-on")} aria-hidden />
-                </button>
             </div>
         </PageCard>
     );

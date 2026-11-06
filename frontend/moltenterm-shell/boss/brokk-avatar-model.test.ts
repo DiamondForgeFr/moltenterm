@@ -8,9 +8,10 @@ import {
     avatarVariant,
     cardPlace,
     hangingRightPx,
+    NoAvatarTopPx,
     PeekGapPx,
-    PeekWidthPx,
     peekPosition,
+    PeekWidthPx,
     Rect,
     ViewMarginPx,
 } from "./brokk-avatar-model";
@@ -80,6 +81,19 @@ describe("where his panel stands", () => {
         expect(place.right).toBe(`${1200 - 1164}px`);
         expect(place.left).toBeUndefined();
         expect(place.top).toBe(`${14 + PeekGapPx}px`);
+    });
+
+    it("is below the title row, at the window's top right, with Brokk turned off and no avatar to hang from (#2003)", () => {
+        const place = cardPlace(null, null, rect(0, 0, 1200, 800));
+        expect(place.top).toBe(`${NoAvatarTopPx}px`);
+        expect(place.right).toBe(`${ViewMarginPx}px`);
+        expect(place.left).toBeUndefined();
+    });
+
+    it("is still beside the sidebar with no avatar, so that the notifications stay near the sidebar", () => {
+        const place = cardPlace(null, rect(8, 0, 264, 800), rect(0, 0, 1200, 800));
+        expect(place.top).toBe(`${NoAvatarTopPx}px`);
+        expect(place.left).toBe(`${8 + 264 + PeekGapPx}px`);
     });
 
     it("never grows past the window", () => {

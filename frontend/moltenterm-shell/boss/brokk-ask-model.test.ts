@@ -170,7 +170,7 @@ describe("what the bubble loads up front (the perf budget of the entry's JavaScr
     });
 
     it("keep the avatar, its host and the card from loading the portrait or its rules, whatever the file", () => {
-        for (const file of ["brokk-avatar.tsx", "brokk-hub-host.tsx", "boss-card.tsx"]) {
+        for (const file of ["brokk-avatar.tsx", "brokk-hub-host.tsx", "brokk-panel.tsx"]) {
             for (const specifier of loaded(file)) {
                 expect(isLater(specifier), `${file} loads ${specifier}`).toBe(false);
             }

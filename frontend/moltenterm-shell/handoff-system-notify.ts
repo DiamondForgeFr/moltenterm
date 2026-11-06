@@ -8,6 +8,7 @@
 
 import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { BossBubbleModel } from "./boss/boss-store";
 import { MoltentermNotification, notificationMessage, notificationTitle } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 
@@ -82,7 +83,7 @@ export function startHandoffSystemNotifications(
         if (!isOpenHandoffQuestion(entry)) {
             return;
         }
-        model.requestPanel([entry.id]);
+        BossBubbleModel.getInstance().showPanel("notifications", [entry.id]);
     };
 
     update();
