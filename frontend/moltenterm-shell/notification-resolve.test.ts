@@ -109,7 +109,9 @@ beforeEach(() => {
     app.gesture = vi.fn(async () => ({ ok: true }));
     app.setMeta = vi.fn(async (_client: unknown, request: { meta: Record<string, any> }) => applyMeta(request.meta));
     registerNotificationGesture("test:allow", (args) => app.gesture(args));
-    model.errorsAtom && globalStore.set(model.errorsAtom, {});
+    if (model.errorsAtom) {
+        globalStore.set(model.errorsAtom, {});
+    }
 });
 
 describe("a notification is settled when the developer acts on it (FR-BOSS-009, AC16; FR-MC-019, #2026)", () => {
