@@ -359,6 +359,15 @@ describe("the forge has no box (AC6)", () => {
         expect(rule(scene, ".mt-brokk-scene-art")).toMatch(/mask-image: linear-gradient\(to bottom,/);
     });
 
+    it("lights the glow at its centre and nothing at the edge of its box, so that the box has no outline of its own", () => {
+        for (const selector of [".mt-brokk-scene-glow", '.mt-brokk-scene[data-severity="grave"] .mt-brokk-scene-glow']) {
+            const glow = rule(scene, selector);
+            expect(glow, selector).toMatch(/radial-gradient\(\s*ellipse closest-side,/);
+            expect(glow, selector).toMatch(/transparent 100%\s*\)/);
+        }
+        expect(rule(scene, ".mt-brokk-scene-glow")).not.toMatch(/border-radius/);
+    });
+
     it("has no outline, border or shadow on the clip that would draw its box again", () => {
         expect(clip).not.toMatch(/border|outline|box-shadow/);
         expect(rule(scene, ".mt-brokk-scene-video")).not.toMatch(/border|outline|box-shadow/);
