@@ -234,7 +234,7 @@ export function initIpcHandlers() {
                 { blockid: blockId, browsertabid: browserTabId, host },
                 { route: "molten:browseragent", timeout: 130000 }
             );
-            return answer?.allow === true;
+            return { allow: answer?.allow === true, agentname: answer?.agentname };
         } catch (e) {
             console.log("molten browser agent: download answer failed", e);
             return false;

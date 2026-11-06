@@ -62,6 +62,7 @@ import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PA
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { initMoltentermHangWatch } from "./moltenterm-hang-watch"; // MOLTENTERM-PATCH (#849)
 import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
+import { initMoltentermDownloads } from "./moltenterm-downloads"; // MOLTENTERM-PATCH (#1992)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermSitePermissions, installMoltentermSitePermissionHandlers } from "./moltenterm-site-permissions"; // MOLTENTERM-PATCH (#663)
@@ -453,6 +454,7 @@ async function appMain() {
     initMoltentermI18n(fullConfig); // MOLTENTERM-PATCH (#623): menus and dialogs follow app:language, live
     initMoltentermTheme(fullConfig); // MOLTENTERM-PATCH (#1341): nativeTheme.themeSource follows moltenterm:theme, live
     initMoltentermSitePermissions(fullConfig); // MOLTENTERM-PATCH (#663): the remembered site permissions, live
+    initMoltentermDownloads(fullConfig); // MOLTENTERM-PATCH (#1992): the downloads of the web pages, their history and their notifications
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];
