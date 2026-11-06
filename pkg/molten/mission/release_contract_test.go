@@ -6,6 +6,7 @@ package mission
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +28,8 @@ const notGithubAnswer = "gh run list: failed to determine base repo: none of the
 // cuts a candidate and then a public release dates the candidate a minute back instead of waiting a second between
 // the two (#2019).
 func stepCommitTime(at time.Time) []string {
-	stamp := at.Format(time.RFC3339)
+	// git's raw format, which no time zone or locale changes the meaning of.
+	stamp := fmt.Sprintf("%d +0000", at.Unix())
 	return []string{"GIT_AUTHOR_DATE=" + stamp, "GIT_COMMITTER_DATE=" + stamp}
 }
 
