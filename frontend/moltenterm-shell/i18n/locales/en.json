@@ -1933,6 +1933,16 @@
             "title": "Workspace task"
         },
         "gauges": {
+            "window": {
+                "session": "Current session",
+                "week": "This week",
+                "spend": "Spend limit",
+                "model": "This week ({name})",
+                "extra": "{name} {window}",
+                "hour": "{count}-hour",
+                "day": "{count}-day",
+                "min": "{count}-min"
+            },
             "reason": {
                 "notsetup": "Status line not set up",
                 "waiting": "Waiting for the agent's status line: it gives the limits after its next response",
@@ -2978,6 +2988,7 @@
             "workingTitle": "At work",
             "usageTitle": "Plan usage",
             "usage": "{agent}: {label}, {used}",
+            "usageResets": "{agent}: {label}, {used} · {resets}",
             "latestTitle": "Latest notification",
             "more": {
                 "one": "and 1 more",

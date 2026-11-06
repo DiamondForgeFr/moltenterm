@@ -7,7 +7,7 @@
 // the peek change with those and nothing is polled. Pure, so the rules are tested without a window.
 
 import { agentCallName, AgentStateInfo, AgentStatesData } from "../agent-state-model";
-import { gaugeRows, UsageSnapshot } from "../companion/companion-gauges-model";
+import { GaugeLevel, GaugeRow, gaugeRows, UsageSnapshot } from "../companion/companion-gauges-model";
 import { t, tCount } from "../i18n/i18n";
 import { badgeCount } from "../notification-rules";
 import { MoltentermNotification, notificationMessage, notificationTitle } from "../notifications-model";
@@ -59,12 +59,21 @@ export type PeekWaitingRow = { id: string; name: string; workspace: string; stat
 export type PeekWorkplace = { workspace: string; names: string[]; more: number };
 export type PeekNotification = { id: string; title: string; message: string };
 
+// One provider's plan usage in the peek: its fullest window, with the reset when the reading gives one.
+export type PeekUsageLine = {
+    agent: string;
+    label: string;
+    percent: string;
+    resets: string;
+    level: GaugeLevel;
+};
+
 export type BossPeek = {
     waiting: PeekWaitingRow[];
     waitingMore: number;
     working: PeekWorkplace[];
     workingMore: number;
-    usage: string;
+    usage: PeekUsageLine[];
     latest: PeekNotification;
 };
 
@@ -145,20 +154,52 @@ export function latestNotification(list: MoltentermNotification[]): PeekNotifica
     return { id: latest.id, title: notificationTitle(latest), message: notificationMessage(latest) };
 }
 
-// The fullest plan window of any agent that gave a reading: "Claude Code: 5-hour, 23.5 % used".
-export function usageLine(usage: Record<string, UsageSnapshot>, agentNames: Map<string, string>, now: number): string {
-    let best: { agent: string; label: string; percent: string; bar: number } = null;
+// One line per provider that gave a reading, its fullest window, the fullest provider first (FR-SHELL-027). Several
+// agents of one provider share its plan, so the provider takes its latest reading.
+export function usageLine(
+    usage: Record<string, UsageSnapshot>,
+    agentNames: Map<string, string>,
+    now: number
+): PeekUsageLine[] {
+    const latest = new Map<string, UsageSnapshot>();
     for (const [agent, snapshot] of Object.entries(usage ?? {})) {
-        for (const row of gaugeRows(snapshot, now)) {
-            if (best == null || row.bar > best.bar) {
-                best = { agent: agentNames.get(agent) || agent, label: row.label, percent: row.percent, bar: row.bar };
-            }
+        if (snapshot == null) {
+            continue;
+        }
+        const provider = snapshot.agent || agent;
+        const held = latest.get(provider);
+        if (held == null || (snapshot.readat ?? 0) > (held.readat ?? 0)) {
+            latest.set(provider, snapshot);
         }
     }
-    if (best == null) {
-        return "";
+    const ranked: { bar: number; line: PeekUsageLine }[] = [];
+    for (const [provider, snapshot] of latest) {
+        let best: GaugeRow = null;
+        for (const row of gaugeRows(snapshot, now)) {
+            if (best == null || row.bar > best.bar) {
+                best = row;
+            }
+        }
+        if (best == null) {
+            continue;
+        }
+        ranked.push({
+            bar: best.bar,
+            line: {
+                agent: agentNames.get(provider) || provider,
+                label: best.label,
+                percent: best.percent,
+                resets: best.resetsShort,
+                level: best.level,
+            },
+        });
     }
-    return t("boss.peek.usage", { agent: best.agent, label: best.label, used: best.percent });
+    return ranked.sort((a, b) => b.bar - a.bar).map((entry) => entry.line);
+}
+
+export function usageText(line: PeekUsageLine): string {
+    const values = { agent: line.agent, label: line.label, used: line.percent, resets: line.resets };
+    return line.resets ? t("boss.peek.usageResets", values) : t("boss.peek.usage", values);
 }
 
 export function makePeek(input: PeekInput): BossPeek {

@@ -169,13 +169,43 @@ function resetWords(resetsAt: number, now: number, short: boolean): string {
     return at(`${weekdayName(d)} ${d.getDate()} ${monthName(d)}, ${clockTime(d)}`);
 }
 
+const WindowLabelKeys: Record<string, string> = {
+    "Current session": "companion.gauges.window.session",
+    "This week": "companion.gauges.window.week",
+    "Spend limit": "companion.gauges.window.spend",
+};
+
+// The readers name a window in English ("This week", "This week (Opus)", "5-hour", "GPT-5 5-hour"): the words they
+// send are mapped to keys here, so every surface shows the translation (FR-I18N-001). A label that matches none is
+// shown as the reader gave it.
+export function usageWindowLabel(label: string): string {
+    const text = (label || "").trim();
+    const fixed = WindowLabelKeys[text];
+    if (fixed != null) {
+        return t(fixed);
+    }
+    const model = /^This week \((.+)\)$/.exec(text);
+    if (model != null) {
+        return t("companion.gauges.window.model", { name: model[1] });
+    }
+    const duration = /^(\d+)-(hour|day|min)$/.exec(text);
+    if (duration != null) {
+        return t(`companion.gauges.window.${duration[2]}`, { count: duration[1] });
+    }
+    const extra = /^(.+) (5-hour|This week|\d+-(?:hour|day|min))$/.exec(text);
+    if (extra != null) {
+        return t("companion.gauges.window.extra", { name: extra[1], window: usageWindowLabel(extra[2]) });
+    }
+    return text;
+}
+
 // A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it.
 export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
     return (snapshot?.windows ?? [])
         .filter((w) => w != null && Number.isFinite(w.usedpercent) && !(w.resetsat > 0 && w.resetsat <= now))
         .map((w) => ({
             id: w.id,
-            label: w.label || w.id,
+            label: usageWindowLabel(w.label) || w.id,
             percent: gaugePercent(w.usedpercent),
             percentShort: `${Math.round(w.usedpercent * 10) / 10} %`,
             bar: Math.min(100, Math.max(0, w.usedpercent)),
@@ -230,7 +260,10 @@ export function experimentalExplanation(): string {
 // The confirmation of FR-SHELL-028-AC1, naming where the token is read.
 export function experimentalStatement(store: string, source: string): string {
     const where = store || t("companion.gauges.tokenWhereDefault");
-    return t("companion.gauges.experimentalStatement", { where, source: source || t("companion.gauges.sourceDefault") });
+    return t("companion.gauges.experimentalStatement", {
+        where,
+        source: source || t("companion.gauges.sourceDefault"),
+    });
 }
 
 // The experimental source's row: offered while the gauges are on, its reason when it gives nothing.

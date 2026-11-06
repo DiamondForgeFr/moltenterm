@@ -17,13 +17,14 @@ import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
 import { AgentStateDotClasses, agentStateLabel } from "../agent-state-model";
+import { GaugeLevel } from "../companion/companion-gauges-model";
 import { useT, useTCount } from "../i18n/i18n";
 import { MotionClass } from "../molten-motion";
 import { openSettingsSection } from "../settings/settings-open";
 import "./boss-bubble.css";
 import { BossCard } from "./boss-card";
 import { bossInitial } from "./boss-name";
-import { BossPeek, bubbleLabel, peekIsQuiet, workplaceNames } from "./boss-overview";
+import { BossPeek, bubbleLabel, peekIsQuiet, usageText, workplaceNames } from "./boss-overview";
 import {
     Area,
     BubbleMarginPx,
@@ -52,6 +53,12 @@ export const PeekDelayMs = 350;
 const DragThresholdPx = 4;
 // The longest cue (the pennant's wave, 800 ms) and a margin.
 const CueMaxMs = 1000;
+
+const UsageTextColours: Record<GaugeLevel, string> = {
+    normal: "text-secondary",
+    warning: "text-warning",
+    error: "text-danger",
+};
 
 function Title({ children }: { children: string }) {
     return <div className="mb-1 text-11 font-semibold tracking-wide text-muted uppercase">{children}</div>;
@@ -110,10 +117,16 @@ function PeekBody({ peek, name }: { peek: BossPeek; name: string }) {
                     </ul>
                 </div>
             ) : null}
-            {peek.usage ? (
+            {peek.usage.length > 0 ? (
                 <div data-testid="boss-peek-usage">
                     <Title>{t("boss.peek.usageTitle")}</Title>
-                    <div className="text-secondary">{peek.usage}</div>
+                    <ul className="flex flex-col gap-1">
+                        {peek.usage.map((line) => (
+                            <li key={line.agent} className={UsageTextColours[line.level]}>
+                                {usageText(line)}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             ) : null}
             {peek.latest ? (
