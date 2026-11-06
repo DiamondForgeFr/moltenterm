@@ -85,6 +85,26 @@
     margin-bottom: calc(var(--spacing, 0.25rem) * -2);
 }
 
+/* The cup and the bell, which would sit on Brokk's face: they fade out while his scene is up, are no longer reachable
+   then (the card his scene opens has what they offer), and come back once the scene has folded, after the 300 ms it
+   takes. The window buttons and the sidebar button are not in this group. Under the app's reduced-motion rule there is
+   no transition: they go and come at once. */
+.mt-brokk-hush {
+    --mt-brokk-return-ms: 300ms;
+    transition:
+        opacity var(--mt-duration-fade) linear var(--mt-brokk-return-ms),
+        visibility 0s linear var(--mt-brokk-return-ms);
+}
+
+.mt-sb[data-brokk-visit="open"] .mt-brokk-hush {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity var(--mt-duration-fade) linear,
+        visibility 0s linear var(--mt-duration-fade);
+}
+
 /* The search field and everything below slide down to make room for the scene: 84 px, in 320 ms with an ease-out when
    he comes, back in 300 ms with an ease-in when he goes. Reduced motion changes their place at once. The numbers are
    boss/brokk-visit-scene-model.ts (SceneRoomPx, MotionTimings), which a test keeps equal to these. */

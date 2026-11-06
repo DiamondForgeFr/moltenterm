@@ -314,6 +314,99 @@ describe("where the scene stands (AC6)", () => {
     });
 });
 
+describe("the forge has no box (AC6)", () => {
+    const scene = css("brokk-visit-scene.css");
+    const clip = rule(scene, ".mt-brokk-scene-clip");
+
+    // The stops of each mask declaration (the prefixed one and the standard one) as [alpha, position in %], the first being
+    // the transparent start and the last the opaque end.
+    function masks(declarations: string): [number, number][][] {
+        return [...declarations.matchAll(/mask-image: linear-gradient\(([\s\S]*?)\);/g)].map((gradient) =>
+            [...gradient[1].matchAll(/(transparent|rgb\(0, 0, 0\)|rgba\(0, 0, 0, ([\d.]+)\)) (\d+%?)/g)].map((m) => [
+                m[1] === "transparent" ? 0 : m[2] == null ? 1 : Number(m[2]),
+                parseFloat(m[3]),
+            ])
+        );
+    }
+
+    it("melts the clip's left edge into the scene's dark, so that no vertical line shows between them", () => {
+        expect(clip).toMatch(/-webkit-mask-image: linear-gradient\(\s*to right,/);
+        expect(clip).toMatch(/[^-]mask-image: linear-gradient\(\s*to right,/);
+        const both = masks(clip);
+        expect(both).toHaveLength(2);
+        for (const list of both) {
+            expect(list[0]).toEqual([0, 0]);
+            expect(list[list.length - 1][0]).toBe(1);
+        }
+        expect(both[0]).toEqual(both[1]);
+    });
+
+    it("does it over about 40 % of the clip's width, as a gradient that eases and never as a step", () => {
+        for (const list of masks(clip)) {
+            const opaqueAt = list[list.length - 1][1];
+            expect(opaqueAt).toBeGreaterThanOrEqual(35);
+            expect(opaqueAt).toBeLessThanOrEqual(45);
+            for (let i = 1; i < list.length; i++) {
+                expect(list[i][0], `stop ${i}`).toBeGreaterThanOrEqual(list[i - 1][0]);
+                expect(list[i][1], `stop ${i}`).toBeGreaterThan(list[i - 1][1]);
+                expect(list[i][0] - list[i - 1][0], `step ${i}`).toBeLessThanOrEqual(0.3);
+            }
+        }
+    });
+
+    it("leaves the right side of the clip as it is, and the artwork's bottom to its own mask", () => {
+        expect(clip).not.toMatch(/to left|to bottom/);
+        expect(rule(scene, ".mt-brokk-scene-art")).toMatch(/mask-image: linear-gradient\(to bottom,/);
+    });
+
+    it("has no outline, border or shadow on the clip that would draw its box again", () => {
+        expect(clip).not.toMatch(/border|outline|box-shadow/);
+        expect(rule(scene, ".mt-brokk-scene-video")).not.toMatch(/border|outline|box-shadow/);
+    });
+});
+
+describe("the cup and the bell step aside while the scene is up (AC6)", () => {
+    const sidebar = css("sidebar.css", join(__dirname, "..", "sidebar"));
+    const source = readFileSync(join(__dirname, "..", "sidebar", "workspace-sidebar.tsx"), "utf8");
+    const windowRow = source.slice(source.indexOf("function WindowRow"), source.indexOf("// Whether the floating panel"));
+    const hushed = /<div className="mt-brokk-hush[^"]*">([\s\S]*?)<\/div>/.exec(windowRow)?.[1] ?? "";
+
+    it("fades them out and takes them away from the pointer and the keyboard while he is there", () => {
+        const hidden = rule(sidebar, '.mt-sb[data-brokk-visit="open"] .mt-brokk-hush');
+        expect(hidden).toMatch(/opacity: 0/);
+        expect(hidden).toMatch(/visibility: hidden/);
+        expect(hidden).toMatch(/pointer-events: none/);
+    });
+
+    it("brings them back once the scene has folded, after the time it takes", () => {
+        const back = rule(sidebar, ".mt-brokk-hush");
+        expect(back).toContain(`--mt-brokk-return-ms: ${MotionTimings.closeMs}ms`);
+        expect(back).toMatch(/opacity var\(--mt-duration-fade\) linear var\(--mt-brokk-return-ms\)/);
+        expect(back).toMatch(/visibility 0s linear var\(--mt-brokk-return-ms\)/);
+        expect(back).not.toMatch(/opacity: 0|visibility: hidden/);
+    });
+
+    it("hides the cup and the bell and nothing else of the title row", () => {
+        expect(hushed).toContain("<KeepAwakeStatusItem");
+        expect(hushed).toContain("<NotificationCenter");
+        for (const kept of ["<AppMenuButton", "<ToggleButton", "<WindowButtonStandIns", "<BrokkAvatarSlot"]) {
+            expect(hushed, kept).not.toContain(kept);
+            expect(windowRow, kept).toContain(kept);
+        }
+    });
+
+    it("leaves the sidebar button, the window buttons and the row itself without the fade", () => {
+        expect(rule(sidebar, ".mt-sb-window-row")).not.toMatch(/opacity|visibility/);
+        expect(sidebar).not.toMatch(/data-brokk-visit="open"\] \.mt-sb-window-row/);
+        expect(sidebar).not.toMatch(/data-brokk-visit="open"\] [^{]*(toggle|lights)/);
+    });
+
+    it("has no transition of its own under the app's reduced-motion rule: they go and come at once", () => {
+        const app = readFileSync(join(__dirname, "..", "..", "app", "app.scss"), "utf8");
+        expect(app).toMatch(/\.prefers-reduced-motion \{\s*\*\s*\{[^}]*transition-property: none !important/);
+    });
+});
+
 describe("how long it takes (AC6)", () => {
     const scene = css("brokk-visit-scene.css");
     const sidebar = css("sidebar.css", join(__dirname, "..", "sidebar"));
