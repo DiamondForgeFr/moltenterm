@@ -13,6 +13,30 @@ import type { AskedExpression, BrokkExpression } from "./brokk-ask-model";
 // Most important first: a frown is never given up for a call.
 export const ExpressionRank: Record<BrokkExpression, number> = { frown: 0, doubtful: 1, smile: 2, nod: 3, call: 4 };
 
+// How grave an event is for the developer (FR-BOSS-009, AC3). The gravest event waiting for a visit sets the face he
+// comes with. It is not the order above: a gesture queue ranks a smile before a call, but in a visit a call (something
+// asks for the developer) outranks a smile (good news waits).
+export type Severity = "grave" | "important" | "neutre" | "bonne";
+
+export const SeverityRank: Record<Severity, number> = { grave: 3, important: 2, neutre: 1, bonne: 0 };
+
+export const SeverityExpression: Record<Severity, BrokkExpression> = {
+    grave: "frown",
+    important: "doubtful",
+    neutre: "call",
+    bonne: "smile",
+};
+
+export function severest(severities: Severity[]): Severity {
+    let rtn: Severity = null;
+    for (const severity of severities) {
+        if (rtn == null || SeverityRank[severity] > SeverityRank[rtn]) {
+            rtn = severity;
+        }
+    }
+    return rtn;
+}
+
 // At least this long between the start of two expressions.
 export const MinGapMs = 8000;
 // What is asked less than this long after an expression of the same or a higher importance started is folded into it:
