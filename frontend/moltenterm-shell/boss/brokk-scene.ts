@@ -31,17 +31,20 @@ import {
     SatisfiedMentionMs,
     SatisfiedMs,
 } from "./brokk-mood";
-import { ExpressionMs, KeyQuietMs } from "./brokk-queue";
+import { ExpressionMs } from "./brokk-queue";
 
 // After this long at work he thinks quietly.
 export const LongThoughtMs = 5 * 60 * 1000;
+// His blinks stay calm this long after the last keystroke. Longer than KeyQuietMs, so the rhythm does not flip at
+// every pause in a sentence, short enough that he is lively again once the developer reads or waits.
+export const TypingCalmMs = 20_000;
 
 // A line of the caption or of the hover card: a key with its variables (translated where it is shown, so that the
 // language follows the app), or text the source wrote itself.
 export type CaptionLine = { key?: string; count?: number; vars?: Record<string, string | number>; text?: string };
 export type ScreenCaption = { status: CaptionLine; detail?: CaptionLine };
 
-// How the package should space his blinks (step B of #1959: the package cannot take it yet, MoltenTerm only says it).
+// How the package spaces his blinks.
 export type BlinkRhythm = "normal" | "calm";
 
 export type SceneInput = {
@@ -213,6 +216,7 @@ function changesAt(input: SceneInput, view: MoodView): number {
     add(memory.reliefAt, ReliefMs);
     add(memory.satisfiedAt, SatisfiedMentionMs);
     add(memory.satisfiedAt, SatisfiedMs);
+    add(input.lastKeyAt, TypingCalmMs);
     if (input.asked != null) {
         add(input.asked.at, ExpressionMs[input.asked.expression]);
     }
@@ -242,7 +246,7 @@ export function brokkScene(input: SceneInput): BrokkScene {
     const rest = restingPose(situation);
     const speaking = input.speaking && situation.waiting > 0 && rest === "listening";
     const gesture = input.motion ? gestureOf(input.asked, now) : null;
-    const typing = input.lastKeyAt != null && now - input.lastKeyAt < KeyQuietMs;
+    const typing = input.lastKeyAt != null && now - input.lastKeyAt < TypingCalmMs;
     const longThought = input.workingSince > 0 && situation.working > 0 && now - input.workingSince >= LongThoughtMs;
     return {
         face: speaking ? "speaking" : rest,
