@@ -228,6 +228,17 @@ contextBridge.exposeInMainWorld("api", {
     moltentermCarpetThumbPut: (req: any) => ipcRenderer.invoke("moltenterm-carpet-thumb-put", req),
     moltentermCarpetThumbRead: (items: any[]) => ipcRenderer.invoke("moltenterm-carpet-thumb-read", items),
     moltentermCarpetThumbRemove: (keys: string[]) => ipcRenderer.invoke("moltenterm-carpet-thumb-remove", keys),
+    // MOLTENTERM-PATCH (#1962): the sites' icons kept per origin on disk (emain/moltenterm-favicons.ts)
+    moltentermFaviconRead: (origins: string[]) => ipcRenderer.invoke("moltenterm-favicon-read", origins),
+    moltentermFaviconMeasured: (origin: string, dark: boolean) =>
+        ipcRenderer.invoke("moltenterm-favicon-measured", origin, dark),
+    moltentermFaviconCapture: (webContentsId: number) =>
+        ipcRenderer.invoke("moltenterm-favicon-capture", webContentsId),
+    onMoltentermFaviconChanged: (callback: (change: any) => void) => {
+        const listener = (_event, change) => callback(change);
+        ipcRenderer.on("moltenterm-favicon-changed", listener);
+        return () => ipcRenderer.removeListener("moltenterm-favicon-changed", listener);
+    },
     // MOLTENTERM-PATCH (#849): the window did not answer for a while, and what Electron main recorded about it
     // (emain/moltenterm-hang-watch.ts)
     onMoltentermWindowHang: (callback: (hang: any) => void) => {

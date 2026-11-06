@@ -69,6 +69,7 @@ import { initMoltentermScreen } from "./moltenterm-screen"; // MOLTENTERM-PATCH 
 import { initMoltentermSystemIdle } from "./moltenterm-system-idle"; // MOLTENTERM-PATCH (#1958)
 import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
 import { initMoltentermCarpetThumbs } from "./moltenterm-carpet-thumbs"; // MOLTENTERM-PATCH (#1814)
+import { initMoltentermFavicons } from "./moltenterm-favicons"; // MOLTENTERM-PATCH (#1962)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
 import { initMoltentermTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
 import { initMoltentermTheme, initMoltentermThemeDefault } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
@@ -434,6 +435,7 @@ async function appMain() {
     initMoltentermSystemIdle(); // MOLTENTERM-PATCH (#1958): this computer's idle time, so Brokk sleeps while you are away
     initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
     initMoltentermCarpetThumbs(); // MOLTENTERM-PATCH (#1814): the 360 carpet's thumbnails, kept on disk
+    initMoltentermFavicons(); // MOLTENTERM-PATCH (#1962): the sites' icons, kept on disk per origin
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
     installMoltentermSitePermissionHandlers(); // MOLTENTERM-PATCH (#663): what pages may use, before any page loads
     initMoltentermHangWatch(); // MOLTENTERM-PATCH (#849): windows that stop answering, gone processes, slow sendSync

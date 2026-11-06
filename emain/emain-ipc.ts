@@ -43,6 +43,7 @@ import { initMoltentermWindowButtons } from "./moltenterm-window-buttons"; // MO
 import { liveWebContentsFromId } from "./moltenterm-webcontents-id"; // MOLTENTERM-PATCH (#928)
 import { initMoltentermWindowLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
 import { sendKeyNotice } from "./moltenterm-key-notice"; // MOLTENTERM-PATCH (#1242)
+import { clearFaviconCache } from "./moltenterm-favicons"; // MOLTENTERM-PATCH (#1962)
 
 let webviewFocusId: number = null;
 let webviewKeys: string[] = [];
@@ -433,6 +434,7 @@ export function initIpcHandlers() {
             const wc = electron.webContents.fromId(webContentsId);
             if (wc && wc.session) {
                 await wc.session.clearStorageData();
+                await clearFaviconCache(); // MOLTENTERM-PATCH (#1962): the sites' icons go with the cookies and storage
                 console.log("Cleared cookies and storage for webContentsId:", webContentsId);
             }
         } catch (e) {
