@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeWorkFolderLines(t *testing.T, path string, lines ...string) {
@@ -49,6 +50,7 @@ func TestAdaptersReadWhereASessionWorks(t *testing.T) {
 	meta := fmt.Sprintf(`{"type":"session_meta","payload":{"id":"s1","cwd":%q,"source":"cli"}}`, main)
 	turn := fmt.Sprintf(`{"type":"turn_context","payload":{"cwd":%q,"model":"gpt-5.5"}}`, main)
 	codex := MakeCodexAdapter([]string{base})
+	now := time.Now()
 	for _, c := range []struct {
 		name  string
 		lines []string
@@ -58,6 +60,9 @@ func TestAdaptersReadWhereASessionWorks(t *testing.T) {
 		{"workdir in a worktree", []string{meta, turn, codexExecLine(main), codexExecLine(tree)}, tree},
 		{"exec event in a worktree", []string{meta, turn, codexExecBeginLine(tree)}, tree},
 		{"back in its checkout", []string{meta, turn, codexExecLine(tree), codexExecBeginLine(main)}, main},
+		// codex-cli 0.166 records every command, code mode's included, as a finished item with a file:// cwd (#1967).
+		{"finished command in a worktree", []string{meta, turn, codexCommandExecution(now, "e1", fileURL(main), "ok"), codexCommandExecution(now, "e2", fileURL(tree), "ok")}, tree},
+		{"finished commands, back in its checkout", []string{meta, turn, codexCommandExecution(now, "e1", fileURL(tree), "ok"), codexCommandExecution(now, "e2", fileURL(main), "ok")}, main},
 		{"relative workdir", []string{meta, turn, codexExecLine("src")}, filepath.Join(main, "src")},
 		{"outside any repository", []string{meta, turn, codexExecLine(tree), codexExecLine(outside)}, main},
 		{"header only", []string{meta}, main},

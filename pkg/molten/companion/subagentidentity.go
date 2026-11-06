@@ -17,15 +17,17 @@ import (
 // Who a pane's sub-agents are, read from disk (#1035): the one identity the Reviews view's agent lines, the Now card
 // and the companion share. Claude Code: the agent-<id>.meta.json files of the parent session's subagents/ folder
 // (agentType, worktreePath, description, finished) and the end of each agent's transcript for its model. Codex: the
-// rollouts whose session_meta names the parent thread (#986), their latest turn's folder, model and end. The pane's
+// rollouts whose session_meta names the parent thread (#986), their latest turn's folder, model and end, read from the
+// whole rollout (#1967: a sub-agent's turn context lies far from the end of its file). The pane's
 // SubagentStart/Stop hook reports (#988) fill in: a stop ends the agent, and a stop's transcript path gives the
 // parent session when the pane has no linked one. Read only and bounded: small meta files, the last part of each
-// transcript, cached by size and time; nothing of a transcript leaves the computer.
+// Claude Code transcript, a Codex rollout by the bytes appended since the last read; nothing of a transcript leaves
+// the computer.
 
 const (
-	// The end of a sub-agent's transcript read for its model and folder.
+	// The end of a Claude Code sub-agent's transcript read for its model and folder.
 	subagentIdentityTail = 64 * 1024
-	// The sub-agents whose transcript is read per session, the most recently written first.
+	// The sub-agents whose transcript is read per session, the most recent first.
 	maxIdentitySubagents = 24
 	maxIdentityTailCache = 512
 )
@@ -207,7 +209,7 @@ func (a *ClaudeAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 	return rtn
 }
 
-// ListSubagents lists the agents the session started, found by their rollouts' parent thread.
+// ListSubagents lists the agents the session started, found by their rollouts' parent thread, the newest first.
 func (a *CodexAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 	parent := SessionIdFromPath(molten.AgentIdCodex, sessionPath)
 	if parent == "" {
@@ -217,9 +219,11 @@ func (a *CodexAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 	if head, ok := a.head(sessionPath); ok {
 		since = head.started
 	}
+	found := a.FindSubagents(sessionPath, []string{parent}, since)
 	var rtn []SubagentIdentity
-	for _, f := range a.FindSubagents(sessionPath, []string{parent}, since) {
-		if f.Nested || len(rtn) >= maxIdentitySubagents {
+	for i := len(found) - 1; i >= 0 && len(rtn) < maxIdentitySubagents; i-- {
+		f := found[i]
+		if f.Nested {
 			continue
 		}
 		id := SubagentIdentity{AgentId: f.AgentId, Description: cutString(f.Name, MaxSubagentText), Kind: cutString(f.Kind, 100), Started: f.Started}
@@ -232,26 +236,16 @@ func (a *CodexAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 			continue
 		}
 		id.LastWrite = info.ModTime().UnixMilli()
-		agentId := f.AgentId
-		facts, _ := cachedTail(path, info, func() (tailFacts, bool) {
-			tail, err := readFileTail(path, subagentIdentityTail)
-			if err != nil {
-				return tailFacts{}, false
-			}
-			var facts tailFacts
-			if settings, ok := codexLastTurnSettings(tail, agentId); ok {
-				facts.model, facts.effort = settings.Model, settings.Effort
-			}
-			cwd, ended, folders := codexLastTurn(tail)
+		if turn, ok := a.scanRollout(path, f.AgentId); ok {
+			cwd := turn.cwd
 			if cwd == "" {
 				if head, ok := a.head(path); ok {
 					cwd = head.cwd
 				}
 			}
-			facts.cwd, facts.ended = codexWorkFolder(cwd, folders), ended
-			return facts, true
-		})
-		id.Model, id.Effort, id.Finished, id.Worktree = facts.model, facts.effort, facts.ended, facts.cwd
+			id.Model, id.Effort, id.Finished = turn.settings.Model, turn.settings.Effort, turn.ended
+			id.Worktree = codexWorkFolder(cwd, turn.folders)
+		}
 		rtn = append(rtn, id)
 	}
 	return rtn
