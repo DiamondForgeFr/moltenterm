@@ -14,9 +14,18 @@ import type { AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { GateEvent, gateHold } from "./brokk-gate";
 import { finishedSetAfter } from "./brokk-hub-feed";
-import { brokkAfter, BrokkInput, BrokkModel, BrokkStep, BrokkView, InitialBrokk, SnoozeChoiceId } from "./brokk-visit";
+import {
+    brokkAfter,
+    BrokkInput,
+    BrokkModel,
+    BrokkStep,
+    BrokkView,
+    InitialBrokk,
+    SnoozeChoiceId,
+    VisitState,
+} from "./brokk-visit";
 import type { BrokkEvent, VisitSettings } from "./brokk-visit-events";
-import { adoptInto, mergeShared, publishOf, SharedVisit } from "./brokk-visit-share";
+import { adoptInto, forgetIn, mergeShared, publishOf, SharedVisit } from "./brokk-visit-share";
 import { visitEventsOfRows } from "./brokk-watch";
 
 export const RowsSource = "rows";
@@ -61,6 +70,14 @@ function sameView(a: BrokkView, b: BrokkView): boolean {
         a.mayArrive === b.mayArrive &&
         a.badge === b.badge &&
         a.laterUntil === b.laterUntil
+    );
+}
+
+// The events that were there and are not any more, or are another kind of event under the same key (an agent that waited
+// and now failed): what was told of them does not hold for what comes next.
+function endedKeys(before: VisitState, after: VisitState): string[] {
+    return Object.keys(before.events).filter(
+        (key) => after.events[key] == null || after.events[key].event.kind !== before.events[key].event.kind
     );
 }
 
@@ -164,11 +181,14 @@ export class BrokkHub {
             model = brokkAfter(model, { type: "gate", event: { type: "overlay", open: overlay } }, now).model;
         }
         let step = brokkAfter(model, input, now);
-        const adopted = adoptInto(step.model.visits, this.shared, now);
+        // What was told of an event that ended is forgotten for every view: the same agent waiting again is a new event.
+        const ended = endedKeys(this.model.visits, step.model.visits);
+        const shared = ended.length > 0 ? forgetIn(this.shared, ended, now) : this.shared;
+        const adopted = adoptInto(step.model.visits, shared, now);
         if (adopted !== step.model.visits) {
             step = brokkAfter({ ...step.model, visits: adopted }, { type: "tick" }, now);
         }
-        const published = publishOf(this.shared, step.model.visits, now);
+        const published = publishOf(shared, step.model.visits, now);
         if (published !== this.shared) {
             this.shared = published;
             this.deps.writeShared(published);
