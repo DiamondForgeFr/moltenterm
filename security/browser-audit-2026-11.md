@@ -371,61 +371,62 @@ messaging; Andvari's `docs/SPEC.md`). Integration points MoltenTerm would need:
 
 ## Proposed tickets
 
-Each proposal is now a ticket. T1 to T5: #1975 to #1979. T6: #1980. T7 to T14: #1982 to #1989. T15 to T17: the Andvari
-exploration #1963. T18: #1990. T19: #1991.
+Each proposal is now a ticket, named after its title below. In 1.0.0: T1 to T5, T8 and T19. In 1.1.0: T6, T7, T9 to T14
+and T18. T15 to T17 belong to the Andvari exploration
+([#1963](https://github.com/DiamondForgeFr/moltenterm/issues/1963)).
 
-- **T1. Flip Electron fuses in packaged builds** (High). Packaged builds keep Electron's default fuses, so a same-user
+- **T1. Flip Electron fuses in packaged builds** ([#1975](https://github.com/DiamondForgeFr/moltenterm/issues/1975), High). Packaged builds keep Electron's default fuses, so a same-user
   process can run code under MoltenTerm's signature and reach what it is granted, the browser's cookie encryption key
   included. Set `electronFuses` in `electron-builder.config.cjs`: run-as-node, `NODE_OPTIONS` and CLI inspect arguments
   off, embedded asar integrity and asar-only loading on, and the file protocol's extra privileges off once the app page
   does not need them. Move the perf and accessibility scripts that drive the built app with `--inspect` to a dev build
   or the remote debugging port, and qualify a packaged build on macOS and Linux.
-- **T2. Put Wave web blocks behind the agents' site approval** (High). Wave's `wsh web get` reads a Wave web block's page
+- **T2. Put Wave web blocks behind the agents' site approval** ([#1976](https://github.com/DiamondForgeFr/moltenterm/issues/1976), High). Wave's `wsh web get` reads a Wave web block's page
   in its main world with no site approval, and Wave web blocks share the panel's signed-in session. Check the site
   approval of FR-BRW-009 in Electron main before a webselector call (or limit it to blocks on approved sites), return
   the result inside the untrusted envelope, and refuse it for a remote caller.
-- **T3. Content-Security-Policy for the app page** (Medium). The app renderer holds privileged IPC and backend
+- **T3. Content-Security-Policy for the app page** ([#1977](https://github.com/DiamondForgeFr/moltenterm/issues/1977), Medium). The app renderer holds privileged IPC and backend
   credentials with no CSP. Define a strict policy (self-only scripts, no objects, limited frames and connections),
   ship it report-only, fix what it reports (Monaco and Mermaid workers, inline styles), then enforce it.
-- **T4. Confirm local and data pages opened from a terminal** (Medium). Pages queued in block meta (`wsh web open`,
+- **T4. Confirm local and data pages opened from a terminal** ([#1978](https://github.com/DiamondForgeFr/moltenterm/issues/1978), Medium). Pages queued in block meta (`wsh web open`,
   `BROWSER`, agents) can load `file:` and `data:` in the shared session. Ask in the tab before such a page loads, naming
   the file; keep http(s) as today. Pair with T1's file protocol fuse.
-- **T5. Client certificate picker in the tab** (Medium). Electron gives a site the first matching client certificate
+- **T5. Client certificate picker in the tab** ([#1979](https://github.com/DiamondForgeFr/moltenterm/issues/1979), Medium). Electron gives a site the first matching client certificate
   without asking. Handle `select-client-certificate` for guests: ask in the tab with the site and the list, none
   preselected, remembered per site.
-- **T6. Connection security indicator** (Medium). The address bar hides the scheme and shows no lock. Add a "Not secure"
+- **T6. Connection security indicator** ([#1980](https://github.com/DiamondForgeFr/moltenterm/issues/1980), Medium). The address bar hides the scheme and shows no lock. Add a "Not secure"
   chip for http outside localhost and for mixed content, a site information popover (connection, certificate, granted
   permissions), and a warning when a password field appears on an http page.
-- **T7. Phishing and malware protection** (Medium). Phase 1: lookalike-domain warning against bookmarks, history and a
+- **T7. Phishing and malware protection** ([#1982](https://github.com/DiamondForgeFr/moltenterm/issues/1982), Medium). Phase 1: lookalike-domain warning against bookmarks, history and a
   top-sites list. Phase 2: Web Risk Update API lists kept by wavesrv, checked on main-frame navigations and downloads,
   with an interstitial the user can pass, a setting, and a visible state when the lists are stale. Downloads get the
   quarantine attribute and an executable-type warning.
-- **T8. Electron patch policy and staleness check** (Medium). Adopt the patch deadlines of this report, add the scheduled
+- **T8. Electron patch policy and staleness check** ([#1983](https://github.com/DiamondForgeFr/moltenterm/issues/1983), Medium). Adopt the patch deadlines of this report, add the scheduled
   and release-time staleness check, and bump Electron to the newest 45.2 patch after reviewing its notes.
-- **T9. Confirm an agent's click inside a sensitive frame** (Medium). A click in a frame is never confirmed, while typing
+- **T9. Confirm an agent's click inside a sensitive frame** ([#1984](https://github.com/DiamondForgeFr/moltenterm/issues/1984), Medium). A click in a frame is never confirmed, while typing
   there is. Ask for a left click on a frame target on pages with a sensitive form or a payment or sign-in frame, without
   asking on every frame.
-- **T10. Downloads from tabs an agent opened** (Medium). A tab or popup opened from a controlled tab inherits its control
+- **T10. Downloads from tabs an agent opened** ([#1985](https://github.com/DiamondForgeFr/moltenterm/issues/1985), Medium). A tab or popup opened from a controlled tab inherits its control
   for downloads, so their downloads ask on the opener's bar.
-- **T11. Optional session isolation** (Medium, product decision). A setting for a workspace or a Space to use its own
+- **T11. Optional session isolation** ([#1986](https://github.com/DiamondForgeFr/moltenterm/issues/1986), Medium, product decision). A setting for a workspace or a Space to use its own
   persistent partition, and an option for agent tabs to run in a separate, signed-out partition.
-- **T12. Popups: user activation, rate limit, placement and titles** (Low). Require user activation for `window.open`, cap
+- **T12. Popups: user activation, rate limit, placement and titles** ([#1987](https://github.com/DiamondForgeFr/moltenterm/issues/1987), Low). Require user activation for `window.open`, cap
   new tabs per page, clamp popup bounds to the work area, and title a blank popup with its opener's host.
-- **T13. Origin-keyed permissions and refused engine schemes** (Low). Key site permissions by origin with a migration;
+- **T13. Origin-keyed permissions and refused engine schemes** ([#1988](https://github.com/DiamondForgeFr/moltenterm/issues/1988), Low). Key site permissions by origin with a migration;
   refuse `chrome:`, `devtools:` and `chrome-devtools:` in the address bar and in navigations of an existing tab; confirm
   a typed `data:` page.
-- **T14. Agent tools: masking parity and check-then-act** (Low). One sensitive-field classification for reading and input;
+- **T14. Agent tools: masking parity and check-then-act** ([#1989](https://github.com/DiamondForgeFr/moltenterm/issues/1989), Low). One sensitive-field classification for reading and input;
   compare the history entry after reads; check the expected host in `Molten.setField` and `Molten.inspect`.
-- **T15. Andvari in the browser panel (spike)** (Medium). Decide how Andvari's autofill reaches the panel (its extension in
+- **T15. Andvari in the browser panel (spike)** ([#1963](https://github.com/DiamondForgeFr/moltenterm/issues/1963), Medium). Decide how Andvari's autofill reaches the panel (its extension in
   Electron, a shim for missing MV3 APIs, or a native bridge), with the constraints of the Andvari section.
-- **T16. Andvari secrets provider for agents** (Medium). Resolve secret references at agent or command launch through an
+- **T16. Andvari secrets provider for agents** ([#1963](https://github.com/DiamondForgeFr/moltenterm/issues/1963), Medium). Resolve secret references at agent or command launch through an
   authenticated local channel to Andvari, approved per secret and project, released by a YubiKey touch, injected into
   the environment only, time-limited and audited.
-- **T17. YubiKey-bound panel sessions** (Low, later). Apply Andvari's key tether to the panel's own sessions from
+- **T17. YubiKey-bound panel sessions** ([#1963](https://github.com/DiamondForgeFr/moltenterm/issues/1963), Low, later). Apply Andvari's key tether to the panel's own sessions from
   `andvari-host` presence events: block background requests, wipe on use, refuse agent control while the key is absent,
   fail closed.
-- **T18. HTTP authentication prompt** (Low). An in-tab prompt for basic and digest authentication naming origin and realm.
-- **T19. Consent stores and permission handler hardening** (Low). Keep site decisions in a store only wavesrv writes (or
+- **T18. HTTP authentication prompt** ([#1990](https://github.com/DiamondForgeFr/moltenterm/issues/1990), Low). An in-tab prompt for basic and digest authentication naming origin and realm.
+- **T19. Consent stores and permission handler hardening** ([#1991](https://github.com/DiamondForgeFr/moltenterm/issues/1991), Low). Keep site decisions in a store only wavesrv writes (or
   signed), so editing the settings file does not grant a site; grant the permission handlers' "app renderer" verdict only
   to contents in the private app session.
 
