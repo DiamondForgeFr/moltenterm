@@ -239,6 +239,11 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("moltenterm-favicon-changed", listener);
         return () => ipcRenderer.removeListener("moltenterm-favicon-changed", listener);
     },
+    onMoltentermFaviconsCleared: (callback: () => void) => {
+        const listener = () => callback();
+        ipcRenderer.on("moltenterm-favicons-cleared", listener);
+        return () => ipcRenderer.removeListener("moltenterm-favicons-cleared", listener);
+    },
     // MOLTENTERM-PATCH (#849): the window did not answer for a while, and what Electron main recorded about it
     // (emain/moltenterm-hang-watch.ts)
     onMoltentermWindowHang: (callback: (hang: any) => void) => {

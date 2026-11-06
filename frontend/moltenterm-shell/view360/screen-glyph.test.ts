@@ -110,6 +110,16 @@ describe("screenGlyphIcons (#1823)", () => {
         { id: "page", icon: "globe" },
     ];
 
+    it("gives a web page panel its site's icon where siteOf knows one, the view's own icon staying the panel's (#1962)", () => {
+        const site = { favicon: true as const, origin: "https://a.test", url: "data:image/png;base64,AAAA" };
+        const siteOf = (id: string) => (id === "page" || id === "agent" ? site : null);
+        const icons = screenGlyphIcons(screen, live, iconOf, siteOf);
+        expect(icons[0]).toBe(site);
+        const cube = cubeOf(icons);
+        expect(cube.icon).toBe("globe");
+        expect(cube.panels).toEqual([Carpet[0], { ...Carpet[1], site }]);
+    });
+
     it("draws the agent's icon, then a cube whose front face is the page", () => {
         const icons = screenGlyphIcons(screen, live, iconOf);
         expect(icons).toHaveLength(2);

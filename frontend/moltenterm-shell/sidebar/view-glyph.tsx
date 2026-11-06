@@ -37,6 +37,10 @@ const glyphAtoms = new Map<string, jotai.Atom<GlyphIcon[]>>();
 const screenGlyphAtoms = new Map<string, jotai.Atom<GlyphIcon[]>>();
 const NoGlyphAtom = jotai.atom<GlyphIcon[]>([]);
 
+function sameSite(a: GlyphFavicon, b: GlyphFavicon): boolean {
+    return a?.origin === b?.origin && a?.url === b?.url && a?.dark === b?.dark;
+}
+
 function sameIcon(a: GlyphIcon, b: GlyphIcon): boolean {
     if (isGlyphCube(a) && isGlyphCube(b)) {
         return (
@@ -46,11 +50,13 @@ function sameIcon(a: GlyphIcon, b: GlyphIcon): boolean {
             a.count === b.count &&
             a.shown === b.shown &&
             a.panels.length === b.panels.length &&
-            a.panels.every((p, i) => p.id === b.panels[i].id && p.icon === b.panels[i].icon)
+            a.panels.every(
+                (p, i) => p.id === b.panels[i].id && p.icon === b.panels[i].icon && sameSite(p.site, b.panels[i].site)
+            )
         );
     }
     if (isGlyphFavicon(a) && isGlyphFavicon(b)) {
-        return a.origin === b.origin && a.url === b.url && a.dark === b.dark;
+        return sameSite(a, b);
     }
     return a === b;
 }
@@ -113,14 +119,11 @@ function makeGlyphAtom(
         if (pending) {
             marks = configPaneIcons(readPinConfig(meta[PinConfigMetaKey]));
         } else if (mode === "screen") {
-            // A page panel's icon is its site's where the site's icon is known; the carpet's cube keeps its panels' icons.
-            const screen = screenGlyphIcons(readScreen(meta[ScreenMetaKey]), blockIds, iconOf);
-            marks =
-                screen ??
-                blockIds.map((id) => {
-                    const own = data?.states?.[id]?.agent == null ? panelFaviconOf(metaOf(id), known) : null;
-                    return own ?? iconOf(id);
-                });
+            // A page panel's icon is its site's where the site's icon is known, on the carpet's cube too.
+            const siteOf = (id: string) =>
+                data?.states?.[id]?.agent == null ? panelFaviconOf(metaOf(id), known) : null;
+            const screen = screenGlyphIcons(readScreen(meta[ScreenMetaKey]), blockIds, iconOf, siteOf);
+            marks = screen ?? blockIds.map((id) => siteOf(id) ?? iconOf(id));
         } else {
             marks = screenGlyphIcons(readScreen(meta[ScreenMetaKey]), blockIds, iconOf) ?? blockIds.map(iconOf);
         }

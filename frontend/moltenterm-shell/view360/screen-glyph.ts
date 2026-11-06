@@ -10,7 +10,7 @@
 
 import { findNode } from "@/layout/lib/layoutNode";
 import type { LayoutNode } from "@/layout/lib/types";
-import { MaxGlyphIcons, type GlyphCube, type GlyphIcon } from "../sidebar/view-menu-model";
+import { MaxGlyphIcons, type GlyphCube, type GlyphFavicon, type GlyphIcon } from "../sidebar/view-menu-model";
 import type { CarpetLayout } from "./carpet-model";
 
 export const ScreenMetaKey = "molten:view360screen";
@@ -103,11 +103,13 @@ export function readScreen(raw: unknown): ScreenDescription {
 
 // The marks of a tab drawn in 360 view: the fixed zone's panels (all but one place for the cube, at most
 // MaxGlyphIcons marks in all), then the carpet's cube. Panels that closed since the description was written leave it;
-// null when no carpet panel is left, and the view's icon goes back to its panels. iconOf gives a panel's icon.
+// null when no carpet panel is left, and the view's icon goes back to its panels. iconOf gives a panel's icon; siteOf,
+// when given, the site's icon a web page panel shows instead (the icon menu's preview, #1962).
 export function screenGlyphIcons(
     screen: ScreenDescription,
     liveBlockIds: readonly string[],
-    iconOf: (blockId: string) => string
+    iconOf: (blockId: string) => string,
+    siteOf?: (blockId: string) => GlyphFavicon
 ): GlyphIcon[] {
     if (screen == null) {
         return null;
@@ -126,8 +128,11 @@ export function screenGlyphIcons(
         index,
         count: carpet.length,
         shown: Math.min(Math.max(1, screen.shown ?? 1), carpet.length - index),
-        panels: carpet.map((id) => ({ id, icon: iconOf(id) })),
+        panels: carpet.map((id) => {
+            const site = siteOf?.(id);
+            return site != null ? { id, icon: iconOf(id), site } : { id, icon: iconOf(id) };
+        }),
     };
-    const fixed = screen.fixed.filter((id) => live.has(id)).map(iconOf);
+    const fixed = screen.fixed.filter((id) => live.has(id)).map((id): GlyphIcon => siteOf?.(id) ?? iconOf(id));
     return [...fixed.filter((icon) => !!icon).slice(0, MaxGlyphIcons - 1), cube];
 }

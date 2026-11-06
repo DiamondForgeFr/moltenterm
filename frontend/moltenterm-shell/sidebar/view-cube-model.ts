@@ -76,7 +76,9 @@ function sameFace(a: CubeFace, b: CubeFace): boolean {
     return (
         a.first === b.first &&
         a.panels.length === b.panels.length &&
-        a.panels.every((p, i) => p.id === b.panels[i].id && p.icon === b.panels[i].icon)
+        a.panels.every(
+            (p, i) => p.id === b.panels[i].id && p.icon === b.panels[i].icon && p.site?.url === b.panels[i].site?.url
+        )
     );
 }
 

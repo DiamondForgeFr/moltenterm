@@ -8,6 +8,7 @@ import {
     faviconAnswer,
     FaviconMaxRead,
     iconDataUrl,
+    isDefaultIconAddress,
     isInlineIcon,
     originOfPage,
     parseFaviconOrigins,
@@ -59,6 +60,14 @@ describe("pickIconAddress", () => {
         expect(pickIconAddress([])).toBeNull();
         expect(pickIconAddress([4, {}, "data:text/html;base64,AAAA", "file:///x.png"])).toBeNull();
         expect(pickIconAddress(["https://a.test/" + "x".repeat(3000)])).toBeNull();
+    });
+});
+
+describe("isDefaultIconAddress", () => {
+    it("is the address Chromium names for a page without an icon link, on the page's own origin only", () => {
+        expect(isDefaultIconAddress("https://a.test/favicon.ico", "https://a.test")).toBe(true);
+        expect(isDefaultIconAddress("https://a.test/img/favicon.ico", "https://a.test")).toBe(false);
+        expect(isDefaultIconAddress("https://b.test/favicon.ico", "https://a.test")).toBe(false);
     });
 });
 

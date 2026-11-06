@@ -39,6 +39,21 @@ describe("the icon a view takes from its site", () => {
         expect(siteViewIcon([], icons)).toBeNull();
     });
 
+    it("looks at every tab of a panel, not only the one in front", () => {
+        const panel = (urls: string[]) => ({
+            view: "molten-browser",
+            "molten:browser:tabs": urls.map((url, i) => ({ id: `t${i}`, url })),
+            "molten:browser:active": "t0",
+        });
+        expect(siteViewIcon([panel([`${Notion}/a`, "https://linear.app/b"])], icons)).toBeNull();
+        expect(viewSiteOrigins([panel([`${Notion}/a`, `${Notion}/b`])])).toEqual([Notion]);
+        expect(viewSiteOrigins([panel([`${Notion}/a`, "https://www.notion.so/b"])])).toEqual([
+            Notion,
+            "https://www.notion.so",
+        ]);
+        expect(siteViewIcon([panel([`${Notion}/a`, "molten://start"])], icons).origin).toBe(Notion);
+    });
+
     it("lists the origins a view is only one site of", () => {
         expect(viewSiteOrigins([page(`${Notion}/a`), page(`${Notion}/b`)])).toEqual([Notion]);
         expect(viewSiteOrigins([page(`${Notion}/a`), { view: "term" }])).toEqual([]);

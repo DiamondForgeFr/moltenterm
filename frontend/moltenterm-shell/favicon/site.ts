@@ -158,12 +158,29 @@ export type PanelSite =
     // A web page: its origin is "" when the address is not a web address (the start page, a page not loaded yet).
     { page: true; origin: string; domain: string } | { page: false };
 
+function pageSiteOf(address: string): PanelSite {
+    const origin = originOfAddress(address);
+    return { page: true, origin, domain: origin === "" ? "" : registrableDomain(new URL(origin).hostname) };
+}
+
 export function panelSiteOf(meta: Record<string, any>): PanelSite {
     if (!isPageView(meta?.view)) {
         return { page: false };
     }
-    const origin = originOfAddress(pageUrlOfMeta(meta));
-    return { page: true, origin, domain: origin === "" ? "" : registrableDomain(new URL(origin).hostname) };
+    return pageSiteOf(pageUrlOfMeta(meta));
+}
+
+// Every page a panel holds, the shown one first: a panel with tabs of two sites is not one site, whichever tab is in
+// front. A tab behind it with no web address yet (a start page) shows no site, so it changes nothing.
+export function panelSitesOf(meta: Record<string, any>): PanelSite[] {
+    const site = panelSiteOf(meta);
+    const tabs = meta?.[BrowserTabsMetaKey];
+    if (!site.page || !Array.isArray(tabs)) {
+        return [site];
+    }
+    const shown = shownTab(meta);
+    const others = tabs.filter((tab) => tab != null && tab !== shown && originOfAddress(tab.url) !== "");
+    return [site, ...others.map((tab) => pageSiteOf(tab.url))];
 }
 
 // The origins a view shows when it is only one site: every panel is a web page on a web address and they all share a
