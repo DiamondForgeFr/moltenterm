@@ -41,7 +41,8 @@ export function readViewIcon(value: any): string {
 }
 
 // A carpet panel as the cube draws it: its block and its icon.
-export type GlyphCubePanel = { id: string; icon: string };
+// site: the site's icon a web page panel shows in place of its icon, in the icon menu's preview only (#1962).
+export type GlyphCubePanel = { id: string; icon: string; site?: GlyphFavicon };
 
 // The 360 carpet as a view's icon draws it (FR-SHELL-081, #1823, #1861): one mark for the whole carpet, a cube whose
 // front face is the icon of the carpet panel in front, or a prism of the icons of the panels on screen. id and icon:

@@ -120,6 +120,26 @@ describe("the window's sites' icons", () => {
         expect(Object.keys(globalStore.get(faviconsAtom))).toEqual([Linear]);
     });
 
+    it("forgets every icon when main clears them, and asks again for what it shows next", async () => {
+        let cleared: () => void = null;
+        const read = vi.fn(async () => ({}));
+        installApi({
+            moltentermFaviconRead: read,
+            moltentermFaviconMeasured: async () => true,
+            onMoltentermFaviconsCleared: (cb: () => void) => {
+                cleared = cb;
+                return () => {};
+            },
+        });
+        startFaviconCache();
+        noteFaviconChanged({ origin: Notion, url: "data:image/png;base64,AAAA", dark: false });
+        cleared();
+        expect(globalStore.get(faviconsAtom)).toEqual({});
+        requestFavicons([Notion]);
+        await settle();
+        expect(read).toHaveBeenCalledWith([Notion]);
+    });
+
     it("replaces an icon whose image changed and leaves one that did not", () => {
         installApi({ moltentermFaviconMeasured: async () => true });
         noteFaviconChanged({ origin: Notion, url: "data:image/png;base64,AAAA", dark: false });

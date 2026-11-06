@@ -7,7 +7,7 @@
 
 import type { GlyphFavicon } from "../sidebar/view-menu-model";
 import type { SiteIcon } from "./favicon-store";
-import { panelSiteOf, siteOnlyOrigins } from "./site";
+import { panelSiteOf, panelSitesOf, siteOnlyOrigins } from "./site";
 
 export function faviconGlyphOf(origin: string, icons: Record<string, SiteIcon>): GlyphFavicon {
     const icon = origin ? icons?.[origin] : null;
@@ -21,7 +21,7 @@ export function faviconGlyphOf(origin: string, icons: Record<string, SiteIcon>):
 
 // The origins a set of panels is only one site of, [] for a view that is anything else.
 export function viewSiteOrigins(panelMetas: Record<string, any>[]): string[] {
-    return siteOnlyOrigins((panelMetas ?? []).map((meta) => panelSiteOf(meta)));
+    return siteOnlyOrigins((panelMetas ?? []).flatMap((meta) => panelSitesOf(meta)));
 }
 
 // The icon of a view that is only one site: the first of its origins whose icon is known; null when none is, and the

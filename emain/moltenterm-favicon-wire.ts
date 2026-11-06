@@ -13,6 +13,8 @@ export const FaviconMeasuredChannel = "moltenterm-favicon-measured";
 export const FaviconCaptureChannel = "moltenterm-favicon-capture";
 // Electron main to the application's windows: an icon was kept for an origin.
 export const FaviconChangedChannel = "moltenterm-favicon-changed";
+// Electron main to the application's windows: every kept icon is gone.
+export const FaviconsClearedChannel = "moltenterm-favicons-cleared";
 
 export const FaviconMaxRead = 100;
 const MaxAddressChars = 2048;
@@ -56,6 +58,12 @@ export function pickIconAddress(favicons: unknown): string {
         }
     }
     return null;
+}
+
+// The address Chromium names for a page with no icon link of its own, so the event alone does not tell a page that
+// declares it from one that declares nothing.
+export function isDefaultIconAddress(address: string, origin: string): boolean {
+    return address === `${origin}/favicon.ico`;
 }
 
 export function isInlineIcon(address: string): boolean {

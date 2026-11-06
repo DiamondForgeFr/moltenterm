@@ -23,6 +23,7 @@ type FaviconElectronApi = {
     onMoltentermFaviconChanged?: (
         callback: (change: { origin: string; url: string; dark?: boolean }) => void
     ) => () => void;
+    onMoltentermFaviconsCleared?: (callback: () => void) => () => void;
 };
 
 function faviconApi(): FaviconElectronApi {
@@ -114,6 +115,13 @@ export function noteFaviconChanged(change: { origin: string; url: string; dark?:
     keep(change.origin, change.dark == null ? { url: change.url } : { url: change.url, dark: change.dark });
 }
 
+// Main cleared what it keeps: this window forgets what it drew too, and asks again for what it shows next.
+export function noteFaviconsCleared(): void {
+    asked.clear();
+    pending = new Set();
+    globalStore.set(faviconsAtom, {});
+}
+
 export function noteSiteLoading(blockId: string, loading: boolean): void {
     const all = globalStore.get(siteLoadsAtom);
     if (!!all[blockId] === loading) {
@@ -147,6 +155,7 @@ export function startFaviconCache(): void {
     }
     started = true;
     faviconApi().onMoltentermFaviconChanged?.(noteFaviconChanged);
+    faviconApi().onMoltentermFaviconsCleared?.(noteFaviconsCleared);
 }
 
 export function useSiteIcons(): Record<string, SiteIcon> {

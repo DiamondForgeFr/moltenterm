@@ -19,7 +19,9 @@ import {
     FaviconChangedChannel,
     FaviconMeasuredChannel,
     FaviconReadChannel,
+    FaviconsClearedChannel,
     iconDataUrl,
+    isDefaultIconAddress,
     isInlineIcon,
     originOfPage,
     parseFaviconOrigins,
@@ -31,6 +33,9 @@ import { handleAppIpc } from "./moltenterm-privileged-ipc";
 
 const FaviconFolder = "favicons";
 const FetchTimeoutMs = 8000;
+// An isolated world: the page's own scripts neither see this check nor change what it answers.
+const FaviconWorldId = 1302;
+const DeclaresIconScript = `document.querySelector('link[rel~="icon" i]') != null`;
 
 let store: FaviconStore = null;
 const declared = new WeakMap<electron.WebContents, string[]>();
@@ -92,13 +97,21 @@ async function iconBytes(wc: electron.WebContents, address: string): Promise<Buf
     return fetchIcon(wc.session, address);
 }
 
-function tellWindows(origin: string, url: string, dark: boolean | undefined) {
+async function pageDeclaresIcon(wc: electron.WebContents): Promise<boolean> {
+    return (await wc.executeJavaScriptInIsolatedWorld(FaviconWorldId, [{ code: DeclaresIconScript }])) === true;
+}
+
+function sendToWindows(channel: string, ...args: unknown[]) {
     for (const contents of electron.webContents.getAllWebContents()) {
         if (contents.isDestroyed() || contents.getType() === "webview" || contents.getURL().startsWith("devtools:")) {
             continue;
         }
-        contents.send(FaviconChangedChannel, dark == null ? { origin, url } : { origin, url, dark });
+        contents.send(channel, ...args);
     }
+}
+
+function tellWindows(origin: string, url: string, dark: boolean | undefined) {
+    sendToWindows(FaviconChangedChannel, dark == null ? { origin, url } : { origin, url, dark });
 }
 
 // Keeps the icon the page declared. force: the caller asks for it again whatever was kept (a bookmark added from the
@@ -115,6 +128,9 @@ async function captureIcon(wc: electron.WebContents, force: boolean): Promise<bo
     reading.add(origin);
     try {
         if (!force && (await faviconStore().isFresh(origin, address))) {
+            return false;
+        }
+        if (isDefaultIconAddress(address, origin) && !(await pageDeclaresIcon(wc))) {
             return false;
         }
         const data = await iconBytes(wc, address);
@@ -140,10 +156,12 @@ export function watchGuestFavicons(wc: electron.WebContents) {
     });
 }
 
-// A web panel's "clear cookies and storage": the sites' icons go with the rest.
+// A web panel's "clear cookies and storage": the sites' icons go with the rest, from the disk and from every window.
 export async function clearFaviconCache(): Promise<number> {
     try {
-        return await faviconStore().clear();
+        const count = await faviconStore().clear();
+        sendToWindows(FaviconsClearedChannel);
+        return count;
     } catch (e) {
         logFailure("clear", e);
         return 0;

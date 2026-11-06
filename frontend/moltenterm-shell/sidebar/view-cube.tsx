@@ -10,6 +10,7 @@
 
 import { cn, makeIconClass } from "@/util/util";
 import { useState } from "react";
+import { FaviconMark } from "../favicon/favicon-mark";
 import { prefersReducedMotion } from "../molten-motion";
 import { cubeAngle, cubeParity, cubeShape, faceRole, nextCube, startCube } from "./view-cube-model";
 import "./view-cube.css";
@@ -52,9 +53,15 @@ export function ViewCube({ cube, small }: { cube: GlyphCube; small?: boolean }) 
                                 >
                                     {face.panels.map((panel) => (
                                         <span key={panel.id} className="mt-cube-cell" data-panel={panel.id}>
-                                            <i
-                                                className={makeIconClass(panel.icon, false, { defaultIcon: "square" })}
-                                            />
+                                            {panel.site != null ? (
+                                                <FaviconMark url={panel.site.url} dark={panel.site.dark} />
+                                            ) : (
+                                                <i
+                                                    className={makeIconClass(panel.icon, false, {
+                                                        defaultIcon: "square",
+                                                    })}
+                                                />
+                                            )}
                                         </span>
                                     ))}
                                 </span>
