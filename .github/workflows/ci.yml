@@ -138,7 +138,7 @@ jobs:
             - name: Private package access
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
-              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
             - run: npm ci --no-audit --no-fund
             # The command behind `task check:ts`, without its `npm install` step.
             - name: Type check
@@ -280,7 +280,7 @@ jobs:
             - name: Private package access
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
-              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
             # The app runs here, so Electron's native dependencies are installed (no WAVETERM_SKIP_APP_DEPS).
             - run: npm ci --no-audit --no-fund
             - name: Build the app

@@ -162,7 +162,7 @@ jobs:
               if: github.event_name == 'pull_request'
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
-              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
             - name: Install fixture dependencies
               if: github.event_name == 'pull_request'
               run: npm ci --ignore-scripts --no-audit --no-fund
@@ -259,7 +259,7 @@ jobs:
             - name: Private package access
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
-              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
             - run: npm ci --no-audit --no-fund
             - name: Test the macOS signing orchestration
               run: node --test scripts/macos-signing/*.node-test.mjs
@@ -404,7 +404,7 @@ jobs:
             - name: Private package access
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
-              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
             - run: npm ci --no-audit --no-fund
             - name: Package
               env:
@@ -456,7 +456,7 @@ jobs:
             - name: Private package access
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
-              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
             - run: npm ci --ignore-scripts --no-audit --no-fund
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-rehearsal
@@ -531,7 +531,7 @@ jobs:
             - name: Private package access
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
-              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/diamondforge-character.git".insteadOf "ssh://git@github.com/DiamondForgeFr/diamondforge-character.git"
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
             - run: npm ci --ignore-scripts --no-audit --no-fund
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-release
