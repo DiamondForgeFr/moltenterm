@@ -178,15 +178,8 @@ func (e *Env) releasesNotCarriedBack(ctx context.Context, p *Project) []string {
 		}
 		// Each commit on its own, as Mission Control reads a release back on the trunk: once a promotion merged the
 		// trunk, its cherry-pick is reachable from both branches and a branch-wide comparison no longer sees it.
-		cherry, err := e.gitLines(ctx, p.Root, "cherry", trunk, sha, sha+"^")
-		if err != nil {
-			continue
-		}
-		for _, c := range cherry {
-			if strings.HasPrefix(c, "+") {
-				pending = append(pending, name)
-				break
-			}
+		if missing, err := e.lacksEquivalent(ctx, p.Root, trunk, sha); err == nil && missing {
+			pending = append(pending, name)
 		}
 	}
 	return pending

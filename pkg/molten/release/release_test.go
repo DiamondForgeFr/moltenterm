@@ -443,6 +443,71 @@ func TestPromoteRefusesWhatTheTrunkLacks(t *testing.T) {
 	}
 }
 
+func carryBack(t *testing.T, f *fixture, tag string) {
+	t.Helper()
+	mustRun(t, f, "sync-back "+tag, f.env().SyncBack(context.Background(), tag))
+	gitIn(t, f.checkout, "fetch", "--quiet", "origin")
+	gitIn(t, f.checkout, "push", "--quiet", "origin", "origin/chore/sync-back-"+tag+":refs/heads/develop")
+}
+
+// Two carried-back releases, then a change next to the version line: the merge base stays behind the last release
+// commit, so git conflicts on package.json although main holds nothing develop lacks (v1.0.0-9). The first release
+// commit is reachable from both branches' merge: only a commit-by-commit comparison still finds its equivalent.
+func TestPromoteKeepsTheTrunkWhenTheConflictLosesNothing(t *testing.T) {
+	f := makeFixture(t)
+	ctx := context.Background()
+	f.commitOnDevelop(t, "feat(#2): a feature")
+	cutRelease(t, f, "v1.0.0-1")
+	carryBack(t, f, "v1.0.0-1")
+	f.commitOnDevelop(t, "feat(#3): another feature")
+	cutRelease(t, f, "v1.0.0-2")
+	carryBack(t, f, "v1.0.0-2")
+	gitIn(t, f.checkout, "fetch", "--quiet", "origin")
+	gitIn(t, f.checkout, "checkout", "--quiet", "-B", "develop", "origin/develop")
+	path := filepath.Join(f.checkout, "package.json")
+	writeFile(t, path, strings.Replace(readFile(t, path), `"name": "fixture"`, `"name": "fixture-renamed"`, 1))
+	gitIn(t, f.checkout, "commit", "--quiet", "-am", "chore(#4): rename the package")
+	gitIn(t, f.checkout, "push", "--quiet", "origin", "develop")
+	before := f.originRef(t, "main")
+
+	e := f.env()
+	mustRun(t, f, "promote", e.Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}}))
+
+	if main, develop := f.originRef(t, "main^{tree}"), f.originRef(t, "develop^{tree}"); main != develop {
+		t.Fatalf("main's tree is not develop's:\n%s", gitIn(t, f.origin, "diff", "--stat", "develop", "main"))
+	}
+	if parents := gitIn(t, f.origin, "log", "-1", "--format=%P", "main"); parents != before+" "+f.originRef(t, "develop") {
+		t.Fatalf("the merge's parents are %s, want main then develop", parents)
+	}
+	if subject := gitIn(t, f.origin, "log", "-1", "--format=%s", "main"); subject != "Merge branch 'develop' into main" {
+		t.Fatalf("the merge says %q", subject)
+	}
+	f.out.Reset()
+	mustRun(t, f, "promote again", e.Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}}))
+	if !strings.Contains(f.out.String(), "nothing to promote") {
+		t.Fatalf("a second promotion should do nothing:\n%s", f.out.String())
+	}
+}
+
+func TestPromoteRefusesAConflictThatLosesACommit(t *testing.T) {
+	f := makeFixture(t)
+	gitIn(t, f.checkout, "checkout", "--quiet", "-B", "hotfix", "origin/main")
+	path := filepath.Join(f.checkout, "app.txt")
+	writeFile(t, path, "changed on main\n")
+	gitIn(t, f.checkout, "commit", "--quiet", "-am", "fix(#5): only on main")
+	gitIn(t, f.checkout, "push", "--quiet", "origin", "HEAD:main")
+	gitIn(t, f.checkout, "checkout", "--quiet", "develop")
+	writeFile(t, path, "changed on develop\n")
+	gitIn(t, f.checkout, "commit", "--quiet", "-am", "fix(#6): only on develop")
+	gitIn(t, f.checkout, "push", "--quiet", "origin", "develop")
+	before := f.originRef(t, "main")
+
+	mustFail(t, f, "promote", f.env().Promote(context.Background(), PromoteOptions{Workflows: []string{"ci.yml"}}), "fix(#5): only on main")
+	if f.originRef(t, "main") != before {
+		t.Fatalf("main moved although the promotion was refused")
+	}
+}
+
 // A second candidate cut before the first one's sync-back is merged would conflict when carried back.
 func TestPrepareWaitsForTheLastReleaseToBeCarriedBack(t *testing.T) {
 	f := makeFixture(t)
