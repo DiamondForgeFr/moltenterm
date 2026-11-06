@@ -50,7 +50,13 @@ var (
 	// A notification about agents that ended with a previous run names them by their agent ids, several at once.
 	notificationTaskRegex = regexp.MustCompile(`<task-id>\s*([^<\s]{1,200})\s*</task-id>`)
 	notificationStatus    = regexp.MustCompile(`<status>\s*([a-z_]{1,40})\s*</status>`)
+	// Claude Code says "completed" when an agent's turn ends while a monitor or a command of its own still runs: the
+	// agent is alive and resumes on its own, and only this text tells it apart from its end (#2014).
+	notificationWaiting = regexp.MustCompile(`waiting on its own background work|background work of its own still running`)
 )
+
+// notificationWaitingStatus: the status taskNotifications gives an agent that waits on its own background work.
+const notificationWaitingStatus = "waiting"
 
 type topic struct {
 	text   string
@@ -318,7 +324,8 @@ func (s *Session) StartSubagent(id string, description string, kind string, mode
 	}
 	sa := s.subagent(id)
 	if sa == nil {
-		sa = &subagent{id: cutString(id, 200)}
+		// Running before the trim, so that the trim never takes the new agent for an ended one (#2014).
+		sa = &subagent{id: cutString(id, 200), state: SubagentRunning}
 		s.subagents = append(s.subagents, sa)
 		s.trimSubagents()
 	}
@@ -435,10 +442,15 @@ func (s *Session) SubagentResult(id string, async bool, failed bool, model strin
 	s.touch()
 }
 
-// EndSubagent ends a background agent with the status its notification gives.
+// EndSubagent ends a background agent with the status its notification gives; one that waits on its own background
+// work runs on. A repeated end moves its time to the last one, from which ReviveSubagents counts its later writes.
 func (s *Session) EndSubagent(id string, status string) {
 	sa := s.subagent(id)
 	if sa == nil {
+		return
+	}
+	if status == notificationWaitingStatus {
+		s.WakeSubagent(sa.id, s.recordAt)
 		return
 	}
 	state := SubagentDone
@@ -448,11 +460,11 @@ func (s *Session) EndSubagent(id string, status string) {
 	case "killed", "stopped", "cancelled", "canceled":
 		state = SubagentStopped
 	}
-	if sa.state == state {
+	if sa.state == state && sa.ended >= s.recordAt {
 		return
 	}
 	sa.state = state
-	sa.ended = s.recordAt
+	sa.ended = max(sa.ended, s.recordAt)
 	s.touch()
 }
 
@@ -535,18 +547,27 @@ func (s *Session) AddFoundSubagent(f FoundSubagent) {
 	s.touch()
 }
 
-// The oldest ended sub-agents go first; running ones are kept.
+// The oldest ended sub-agents go first, then the oldest quiet ones; running ones are kept, even past MaxSubagents.
 func (s *Session) trimSubagents() {
 	for len(s.subagents) > MaxSubagents {
-		drop := 0
-		for i, sa := range s.subagents {
-			if sa.state != SubagentRunning {
-				drop = i
-				break
-			}
+		drop := s.oldestSubagent(func(sa *subagent) bool { return sa.state != SubagentRunning && sa.state != SubagentQuiet })
+		if drop < 0 {
+			drop = s.oldestSubagent(func(sa *subagent) bool { return sa.state == SubagentQuiet })
+		}
+		if drop < 0 {
+			return
 		}
 		s.subagents = append(s.subagents[:drop:drop], s.subagents[drop+1:]...)
 	}
+}
+
+func (s *Session) oldestSubagent(match func(sa *subagent) bool) int {
+	for i, sa := range s.subagents {
+		if match(sa) {
+			return i
+		}
+	}
+	return -1
 }
 
 func (s *Session) Subagents() []SubagentInfo {
@@ -573,6 +594,9 @@ func taskNotifications(text string) (ends [][2]string, ok bool) {
 		status := ""
 		if m := notificationStatus.FindStringSubmatch(block); m != nil {
 			status = m[1]
+		}
+		if status == "completed" && notificationWaiting.MatchString(block) {
+			status = notificationWaitingStatus
 		}
 		// Both ids count: the end of a run that SendMessage resumed names the SendMessage call, which started no
 		// agent, and the agent itself as its task (#1941).
