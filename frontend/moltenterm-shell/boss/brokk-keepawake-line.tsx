@@ -88,14 +88,14 @@ export function BrokkKeepAwakeLine({ onLeave }: { onLeave: () => void }) {
                     aria-label={t("keepawake.coffeeFor", { name })}
                     data-testid="brokk-keepawake-switch"
                     className={cn(
-                        "relative h-4 w-7 shrink-0 cursor-pointer rounded-full border transition-colors",
+                        "relative h-4 w-7 shrink-0 cursor-pointer rounded-full border transition-colors duration-120 ease-mt",
                         on ? "border-accent bg-accent/80" : "border-border bg-surface-2"
                     )}
                     onClick={toggle}
                 >
                     <span
                         className={cn(
-                            "absolute top-[1px] h-3 w-3 rounded-full bg-primary transition-[left]",
+                            "absolute top-[1px] h-3 w-3 rounded-full bg-primary transition-[left] duration-120 ease-mt",
                             on ? "left-[13px]" : "left-[1px]"
                         )}
                     />

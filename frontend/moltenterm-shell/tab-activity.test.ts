@@ -193,7 +193,7 @@ describe("gated values (sysinfo chart, AC3)", () => {
 describe("working animations stand still when the view is not active (AC4)", () => {
     const read = (rel: string) => readFileSync(path.join(__dirname, rel), "utf8");
 
-    it("covers the tab dot, the header segment, the heat glow, the rail dot and the bell", () => {
+    it("covers the tab dot, the header segment, the heat glow, the rail dot and the ring of Brokk's avatar", () => {
         // #473: they all move on the working beat, whose every rule needs data-mt-motion="live".
         const beatRules = [read("moltenterm-shell.css"), read("header/header.css")]
             .join("\n")
@@ -207,6 +207,6 @@ describe("working animations stand still when the view is not active (AC4)", () 
         expect(shell).toContain(':root[data-mt-motion="still"] .block.block-frame-default[data-mt-agent-state]::after');
         expect(read("agent-state-ui.tsx")).toContain('working && "mt-beat-turn"');
         expect(read("tab-identity-ui.tsx")).toContain('working && "mt-beat-turn"');
-        expect(read("notification-center.tsx")).toContain('progress == null && "mt-beat-turn"');
+        expect(read("boss/brokk-avatar.tsx")).toContain('className="mt-brokk-ring mt-beat-turn"');
     });
 });

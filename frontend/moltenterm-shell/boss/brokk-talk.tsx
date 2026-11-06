@@ -11,6 +11,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { BossBubbleModel } from "./boss-store";
 import { BrokkSession } from "./brokk-session";
 import { canSend, keepsText, MaxMessageLength, talkNoteKey } from "./brokk-talk-model";
@@ -85,6 +86,7 @@ export function BrokkTalk({ onTyping }: { onTyping: (typing: boolean) => void })
                         state.phase === "sending" || state.phase === "sent" ? "text-muted" : "text-secondary"
                     )}
                 >
+                    {state.phase === "sending" ? <DominoLoader className="mr-1.5" /> : null}
                     {t(noteKey, { name, agent: state.agentName })}
                 </div>
             ) : null}
