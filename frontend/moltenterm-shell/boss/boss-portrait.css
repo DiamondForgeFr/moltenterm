@@ -1,14 +1,13 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* Brokk's portrait and its framing (FR-BOSS-001, AC1, AC12). The frame fills the box it is put in: at rest it is zoomed on
-   his head, and the bubble's open screen (boss-bubble.css) lets it go back to his whole bust. The two numbers below are
-   the framing, the only place that holds them: a round of 44 px, a card header's face and the animated loops of #1904
+/* Brokk's portrait and its framing (FR-BOSS-001, AC1; FR-BOSS-009). The frame fills the box it is put in, zoomed on his
+   head. The two numbers below are
+   the framing, the only place that holds them: the title-bar avatar, a card header's face and the animated loops of #1904
    all read them. On brokk.jpg the goggles sit at about 12 % of the height, the eyes at 27 %, the moustache at 40 % and
    the top of the beard just under it: the round shows the whole face, from the goggles to the top of the beard, eyes
    and brows clear of its edge (the window is about 8 % to 53 % of the height, a circle losing a little at its top and
-   bottom). The transform lives on the frame and the breathing (boss-screen.css) on the image, so the zoom transition
-   is not cut short by the animation. */
+   bottom). */
 
 .mt-boss-portrait {
     --mt-boss-head-scale: 2.2;

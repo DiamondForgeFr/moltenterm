@@ -415,21 +415,13 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
     const tr = (key: string, vars?: Record<string, string | number>) => translate("en", key, vars);
     const trFr = (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars);
 
-    it("holds the name, Show the bubble and Collapse while I type under it, in that order", () => {
-        expect(sectionEntries(catalog(), "boss").map((e) => e.key)).toEqual([
-            "boss:name",
-            "boss:show",
-            "boss:collapseontype",
-        ]);
+    it("holds the name and Show the avatar, in that order, and no longer the bubble's collapse (FR-BOSS-009, AC13)", () => {
+        expect(sectionEntries(catalog(), "boss").map((e) => e.key)).toEqual(["boss:name", "boss:show"]);
+        expect(entry("boss:collapseontype")).toBeUndefined();
     });
 
-    it("shows the bubble and collapses on typing by default, as toggles", () => {
-        expect(entry("boss:show")).toMatchObject({ control: "toggle", defaultValue: true, label: "Show the bubble" });
-        expect(entry("boss:collapseontype")).toMatchObject({
-            control: "toggle",
-            defaultValue: true,
-            label: "Collapse while I type under it",
-        });
+    it("shows the avatar by default, as a toggle", () => {
+        expect(entry("boss:show")).toMatchObject({ control: "toggle", defaultValue: true, label: "Show the avatar" });
     });
 
     it("takes a name of 1 to 24 characters, Brokk by default", () => {
@@ -446,7 +438,7 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         expect(localizeSection(boss, trFr, "Léa").title).toBe("Léa");
         expect(sectionTitle("boss", tr, "Gaston")).toBe("Gaston");
         expect(localizeSection(boss, tr, "Léa").description).toBe(
-            "The bubble that counts what waits for you in every workspace."
+            "The avatar that counts what waits for you in every workspace."
         );
     });
 
@@ -455,9 +447,9 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         expect(localizeSection(agents, tr, "Léa").title).toBe("Agents");
     });
 
-    it("speaks French for its three settings", () => {
+    it("speaks French for its two settings", () => {
         const localized = localizeCatalog(sectionEntries(catalog(), "boss"), trFr);
-        expect(localized.map((e) => e.label)).toEqual(["Nom", "Afficher la bulle", "Replier quand je tape dessous"]);
-        expect(localized.every((e) => e.group === "Bulle")).toBe(true);
+        expect(localized.map((e) => e.label)).toEqual(["Nom", "Afficher l'avatar"]);
+        expect(localized.every((e) => e.group === "Avatar")).toBe(true);
     });
 });

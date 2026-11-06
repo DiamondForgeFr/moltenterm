@@ -75,7 +75,7 @@ export const SettingsSections: SettingsSection[] = [
         id: "boss",
         title: DefaultBossName,
         icon: "flag",
-        description: "The bubble that counts what waits for you in every workspace.",
+        description: "The avatar that counts what waits for you in every workspace.",
     },
     {
         id: "browser",

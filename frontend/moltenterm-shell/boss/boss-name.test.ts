@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { flattenKeys, resolveKey, shippedDictionary } from "../i18n/i18n-core";
-import { bossInitial, bossName, bossSettingOn, DefaultBossName, MaxBossNameLength } from "./boss-name";
+import { bossName, bossSettingOn, DefaultBossName, MaxBossNameLength } from "./boss-name";
 
 describe("the name in the interface text (FR-BOSS-001, AC8, AC11)", () => {
     for (const lang of ["en", "fr"]) {
@@ -30,7 +30,6 @@ describe("the foreman's name (FR-BOSS-001, AC8)", () => {
     it("keeps a name the developer set, even the former default", () => {
         expect(bossName("Ferrand")).toBe("Ferrand");
         expect(bossName("Geargrim")).toBe("Geargrim");
-        expect(bossInitial("Ferrand")).toBe("F");
     });
 
     it("is the name typed, on one line, trimmed", () => {
@@ -50,15 +49,7 @@ describe("the foreman's name (FR-BOSS-001, AC8)", () => {
         expect(bossName(" ".repeat(10) + "x".repeat(40))).toBe("x".repeat(MaxBossNameLength));
     });
 
-    it("has the first letter of the name, in capitals, as its initial", () => {
-        expect(bossInitial("Brokk")).toBe("B");
-        expect(bossInitial("léa")).toBe("L");
-        expect(bossInitial("  émile")).toBe("É");
-        expect(bossInitial("")).toBe("B");
-        expect(bossInitial("🔥 forge")).toBe("🔥");
-    });
-
-    it("shows the bubble and collapses on typing unless the developer turned them off", () => {
+    it("shows him unless the developer turned him off", () => {
         expect(bossSettingOn(undefined)).toBe(true);
         expect(bossSettingOn(null)).toBe(true);
         expect(bossSettingOn(true)).toBe(true);

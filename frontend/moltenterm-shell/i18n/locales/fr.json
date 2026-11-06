@@ -452,7 +452,7 @@
             "gettingStarted": "prise en main, configuration, bienvenue, visite, premier lancement",
             "checkUpdates": "mise à jour, mettre à jour, rechercher, version, nouvelle version, publication",
             "sessions": "sessions, durables, en cours, agents, ssh, détachées, tâches, processus",
-            "bossCard": "chef, contremaître, bulle, fanion, fiche, carte, vue d'ensemble, sessions, agents, en attente",
+            "bossCard": "chef, contremaître, avatar, bulle, fanion, fiche, carte, vue d'ensemble, sessions, agents, en attente",
             "settings": "configuration, préférences, paramètres, options",
             "shortcuts": "touches, raccourcis, aide, aide-mémoire",
             "viewPin": "épingler, désépingler, garder, temporaire, vue, onglet",
@@ -649,7 +649,7 @@
             },
             "boss": {
                 "title": "{name}",
-                "description": "La bulle qui compte ce qui vous attend dans tous les espaces de travail."
+                "description": "L'avatar qui compte ce qui vous attend dans tous les espaces de travail."
             },
             "browser": {
                 "title": "Navigateur",
@@ -737,20 +737,16 @@
             "newViews": "Nouvelles vues",
             "sidebar": "Barre latérale",
             "theme": "Thème",
-            "bubble": "Bulle"
+            "avatar": "Avatar"
         },
         "items": {
             "boss:name": {
                 "label": "Nom",
-                "description": "Le nom de la bulle, de 1 à 24 caractères. Son initiale, son aperçu et ses menus le reprennent."
+                "description": "Le nom du contremaître, de 1 à 24 caractères. Son info-bulle, sa fiche et ses menus le reprennent."
             },
             "boss:show": {
-                "label": "Afficher la bulle",
-                "description": "Une bulle dans chaque fenêtre compte les agents qui vous attendent. Désactivée, ni elle ni son fanion ne s'affichent."
-            },
-            "boss:collapseontype": {
-                "label": "Replier quand je tape dessous",
-                "description": "La bulle se replie en fanion quand vous tapez dans un terminal dessous, puis revient."
+                "label": "Afficher l'avatar",
+                "description": "Un avatar dans la barre de titre de chaque fenêtre compte ce qui vous attend et vient vous chercher pour ce que vous avez décidé. Désactivé, il ne s'affiche pas et il ne vient jamais."
             },
             "moltenterm:theme": {
                 "label": "Thème",
@@ -2906,11 +2902,30 @@
     },
     "boss": {
         "label": "{name}, {count} en attente",
+        "avatar": {
+            "labelCue": "{name}, {count} en attente : a quelque chose à vous dire"
+        },
         "menu": {
-            "collapse": "Replier {name}",
-            "showBubble": "Afficher la bulle",
-            "resetPosition": "Réinitialiser la position",
+            "openCard": "Ouvrir la fiche de {name}",
             "settings": "Réglages de {name}"
+        },
+        "visit": {
+            "label": "{name} voudrait vous parler ({severity})",
+            "severity": {
+                "grave": "grave",
+                "important": "important",
+                "neutre": "neutre",
+                "bonne": "bonne nouvelle"
+            },
+            "later": {
+                "label": "Plus tard",
+                "menu": "Quand doit-il revenir ?",
+                "5min": "5 min",
+                "15min": "15 min",
+                "1h": "1 h",
+                "tonight": "Ce soir",
+                "tomorrow": "Demain matin"
+            }
         },
         "card": {
             "title": "Fiche de {name}",
@@ -3005,7 +3020,6 @@
             }
         },
         "screen": {
-            "online": "En ligne",
             "quiet": "Rien à traiter",
             "toHandle": {
                 "one": "{count} chose à traiter",

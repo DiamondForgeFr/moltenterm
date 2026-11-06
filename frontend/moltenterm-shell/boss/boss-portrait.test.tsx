@@ -32,12 +32,12 @@ describe("his portrait (FR-BOSS-001, AC1; FR-BOSS-007, AC5)", () => {
         expect(html).not.toContain("<video");
     });
 
-    it("loads the animated portrait on its own, not with the bubble", () => {
+    it("loads the animated portrait on its own, not with the avatar", () => {
         const source = readFileSync(join(__dirname, "boss-portrait.tsx"), "utf8");
         expect(source).toMatch(/lazy\(\(\) => import\("\.\/brokk-live"\)/);
         expect(source).not.toMatch(/^import (?!type).* from "\.\/brokk-live"/m);
         expect(source).toMatch(/import type \{ BrokkLiveProps \} from "\.\/brokk-live"/);
-        for (const file of ["boss-bubble.tsx", "boss-card.tsx", "use-brokk-live.ts"]) {
+        for (const file of ["brokk-avatar.tsx", "boss-card.tsx", "use-brokk-live.ts"]) {
             const user = readFileSync(join(__dirname, file), "utf8");
             expect(user, file).not.toMatch(/^import (?!type).* from "\.\/(brokk-live|brokk-portrait)"/m);
             expect(user, file).not.toContain("@diamondforge/character");
@@ -93,16 +93,13 @@ describe("the animated portrait over his still (FR-BOSS-007, AC1)", () => {
         expect(still).toMatch(
             /\.mt-boss-portrait-image \{[^}]*filter: saturate\(0\.75\) contrast\(1\.1\) brightness\(0\.95\);/
         );
-        // The still at rest has no motion of its own (boss-bubble.test.tsx): the fade comes with the clips' stylesheet.
+        // The still at rest has no motion of its own (brokk-avatar.test.tsx): the fade comes with the clips' stylesheet.
         expect(still).not.toMatch(/animation|transition/);
         expect(live).toMatch(/\.mt-boss-portrait-image \{\s*transition: filter var\(--mt-duration-base\)/);
         expect(live).toMatch(/\.prefers-reduced-motion \.mt-boss-portrait-image,[\s\S]*\{\s*transition: none;/);
     });
 
-    it("stills the still's breathing under the clips, and the clips' fade under reduced motion", () => {
-        expect(live).toMatch(
-            /\.mt-boss-bubble \.mt-boss-portrait:has\(\.mt-brokk-live\) \.mt-boss-portrait-image \{\s*animation: none;/
-        );
+    it("stills the clips' fade under reduced motion", () => {
         expect(live).toMatch(
             /@media \(prefers-reduced-motion: reduce\) \{\s*\.mt-boss-portrait-image,\s*\.mt-brokk-portrait \.character-video \{\s*transition: none;/
         );
@@ -111,10 +108,8 @@ describe("the animated portrait over his still (FR-BOSS-007, AC1)", () => {
         );
     });
 
-    it("keeps the screen of the bubble as it is: its corners, scanlines, Online mark and caption are not in this file", () => {
-        const screen = css("boss-screen.css");
+    it("draws the picture alone: no corner, scanline, Online mark or caption of a screen is in this file", () => {
         for (const part of [".mt-boss-corner", ".mt-boss-scan", ".mt-boss-live", ".mt-boss-caption"]) {
-            expect(screen).toContain(part);
             expect(live).not.toContain(part);
         }
     });

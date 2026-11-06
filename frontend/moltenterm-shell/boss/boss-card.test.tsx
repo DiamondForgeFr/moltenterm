@@ -46,11 +46,9 @@ vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
     const model = {
         nameAtom: atom("Brokk"),
-        collapsedAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         workingCountAtom: atom(0),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
-        expand: vi.fn(),
         closeCard: vi.fn(),
         park: vi.fn(),
     };
@@ -105,7 +103,6 @@ function render(): string {
 
 beforeEach(() => {
     globalStore.set(model.nameAtom, "Brokk");
-    globalStore.set(model.collapsedAtom, false);
     globalStore.set(model.badgeAtom, { count: 0, text: "", tone: "waiting" });
     globalStore.set(model.toHandleAtom, { items: [], info: [], parked: 0 });
     globalStore.set(sessionsAtom, null);
@@ -151,10 +148,8 @@ describe("the card's header (FR-BOSS-002, AC1)", () => {
         expect(attr(html, "boss-card-close", "type")).toBe("button");
     });
 
-    it("offers Show the bubble only while the foreman is folded into his pennant (AC6)", () => {
-        expect(render()).not.toContain('data-testid="boss-card-show-bubble"');
-        globalStore.set(model.collapsedAtom, true);
-        expect(render()).toMatch(/data-testid="boss-card-show-bubble"[^>]*>Show the bubble</);
+    it("has no button to bring a bubble back: there is none to fold (FR-BOSS-009, AC13)", () => {
+        expect(render()).not.toContain("boss-card-show-bubble");
     });
 });
 
@@ -306,7 +301,7 @@ describe("the card is a layer, not a panel (AC9)", () => {
     });
 
     it("is positioned absolutely over the content and takes no room", () => {
-        const css = readFileSync(join(__dirname, "boss-bubble.css"), "utf8");
+        const css = readFileSync(join(__dirname, "boss-card.css"), "utf8");
         const rule = /\.mt-boss-card \{([^}]*)\}/.exec(css)?.[1] ?? "";
         expect(rule).toContain("position: absolute;");
         expect(rule).toContain("overflow: hidden;");

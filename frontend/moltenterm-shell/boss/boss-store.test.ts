@@ -70,35 +70,12 @@ import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { PendingHandoffs } from "./boss-handoffs";
-import { BossBubbleMetaKey } from "./boss-name";
-import { DefaultBubbleState, DefaultPlace, Rect } from "./boss-place";
-import { BossBubbleModel, BossDom, terminalBlockOf } from "./boss-store";
+import { BossBubbleModel, BossDom } from "./boss-store";
 
-const { settings, windowObject, workspaces } = (GlobalMock as any).TestAtoms;
+const { settings, workspaces } = (GlobalMock as any).TestAtoms;
 const agents = AgentStates.getInstance();
 const handoffs = PendingHandoffs.getInstance();
 const model = BossBubbleModel.getInstance();
-
-const BubbleRect: Rect = { left: 900, top: 600, width: 44, height: 44 };
-const UnderRect: Rect = { left: 500, top: 300, width: 500, height: 400 };
-const AwayRect: Rect = { left: 0, top: 0, width: 400, height: 300 };
-
-function block(blockId: string, rect: Rect) {
-    return {
-        getAttribute: (name: string) => (name === "data-blockid" ? blockId : null),
-        getBoundingClientRect: () => rect,
-    };
-}
-
-function terminalInput(blockId: string, rect: Rect) {
-    const frame = block(blockId, rect);
-    return { classList: { contains: (c: string) => c === "xterm-helper-textarea" }, closest: () => frame, frame };
-}
-
-function focusedIn(blockId: string) {
-    const frame = block(blockId, UnderRect);
-    return { closest: () => frame };
-}
 
 function fakeDom() {
     const listeners = new Map<string, Set<(e: any) => void>>();
@@ -126,9 +103,6 @@ function setStates(...infos: AgentStateInfo[]) {
     });
 }
 
-// The window's meta echoed the change and the bubble stopped waiting for it; the deadline only bounds a failing run.
-const settled = () => vi.waitFor(() => expect(globalStore.get(model.pendingAtom)).toBeNull(), { timeout: 30000 });
-
 function pendingRequest(requestid: string): PendingHandoff {
     return { requestid, fromblockid: "bs", toblockid: "br", from: "Chloé", to: "Léa", goal: "A goal", createdat: 1 };
 }
@@ -147,146 +121,19 @@ beforeEach(() => {
     globalStore.set(handoffs.dataAtom, []);
     globalStore.set(handoffs.loadedAtom, false);
     globalStore.set(settings, {});
-    globalStore.set(windowObject, { meta: {} });
     globalStore.set(workspaces, {});
-    globalStore.set(model.pendingAtom, null);
-    globalStore.set(model.typingBlockAtom, null);
     globalStore.set(model.cueAtom, 0);
-    globalStore.set(model.peekOpenAtom, false);
     globalStore.set(model.cardOpenAtom, false);
     globalStore.set(agents.loadedAtom, false);
     setStates();
-    model.setRectSource(() => BubbleRect);
 });
 
 afterEach(() => {
     vi.useRealTimers();
 });
 
-describe("the terminal a keystroke reaches (FR-BOSS-001, AC4)", () => {
-    it("is the block frame of the terminal's input", () => {
-        const input = terminalInput("blk-1", UnderRect);
-        expect(terminalBlockOf(input)).toEqual({ blockId: "blk-1", rect: UnderRect });
-    });
-
-    it("is none for any other target", () => {
-        expect(terminalBlockOf(null)).toBeNull();
-        expect(terminalBlockOf({ classList: { contains: () => false } })).toBeNull();
-        expect(terminalBlockOf({ classList: { contains: () => true }, closest: () => null })).toBeNull();
-        expect(
-            terminalBlockOf({ classList: { contains: () => true }, closest: () => block("", UnderRect) })
-        ).toBeNull();
-    });
-});
-
-describe("the collapse while typing (AC4)", () => {
-    it("folds the bubble into the pennant at the first keystroke into a terminal under it", () => {
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        expect(globalStore.get(model.typingBlockAtom)).toBe("blk-1");
-        expect(globalStore.get(model.collapsedAtom)).toBe(true);
-        expect(m.setMeta).not.toHaveBeenCalled();
-    });
-
-    it("leaves the bubble when the terminal lies elsewhere", () => {
-        model.noteKeyDown({ target: terminalInput("blk-1", AwayRect), key: "a" });
-        expect(globalStore.get(model.collapsedAtom)).toBe(false);
-    });
-
-    it("leaves the bubble for a key that reaches no terminal, a modifier, or a shortcut", () => {
-        model.noteKeyDown({ target: { classList: { contains: () => false } }, key: "a" });
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "Shift" });
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "k", metaKey: true });
-        expect(globalStore.get(model.collapsedAtom)).toBe(false);
-    });
-
-    it("never collapses by itself when Settings turned it off", () => {
-        globalStore.set(settings, { "boss:collapseontype": false });
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        expect(globalStore.get(model.collapsedAtom)).toBe(false);
-    });
-
-    it("changes nothing over a manual collapse", () => {
-        globalStore.set(windowObject, {
-            meta: { [BossBubbleMetaKey]: { corner: "br", dx: 16, dy: 16, collapsed: true } },
-        });
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
-        expect(globalStore.get(model.collapsedAtom)).toBe(true);
-    });
-
-    it("measures nothing and stops nothing: the keystroke goes where it was going", () => {
-        const stop = vi.fn();
-        const event = {
-            target: terminalInput("blk-1", UnderRect),
-            key: "a",
-            preventDefault: stop,
-            stopPropagation: stop,
-        };
-        model.noteKeyDown(event);
-        expect(stop).not.toHaveBeenCalled();
-    });
-
-    it("closes the peek it folds", () => {
-        globalStore.set(model.peekOpenAtom, true);
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        expect(globalStore.get(model.peekOpenAtom)).toBe(false);
-    });
-
-    it("comes back when the focus leaves that terminal, not before", () => {
-        const dom = fakeDom();
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        dom.activeElement = focusedIn("blk-1");
-        model.noteFocusLeft(dom);
-        expect(globalStore.get(model.typingBlockAtom)).toBe("blk-1");
-        dom.activeElement = focusedIn("blk-2");
-        model.noteFocusLeft(dom);
-        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
-        expect(globalStore.get(model.collapsedAtom)).toBe(false);
-    });
-
-    it("stays folded while the window itself lost the system's focus", () => {
-        const dom = fakeDom();
-        dom.hasFocus = () => false;
-        dom.activeElement = null;
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        model.noteFocusLeft(dom);
-        expect(globalStore.get(model.typingBlockAtom)).toBe("blk-1");
-    });
-
-    it("comes back when the terminal is gone and the focus fell to the page", () => {
-        const dom = fakeDom();
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        dom.activeElement = { closest: () => null };
-        model.noteFocusLeft(dom);
-        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
-    });
-
-    it("listens in the capture phase without stopping anything, and stops listening when detached", () => {
-        vi.useFakeTimers();
-        const dom = fakeDom();
-        const addSpy = vi.spyOn(dom, "addEventListener");
-        const detach = model.attach(dom);
-        expect(addSpy.mock.calls.map((c) => c[0]).sort()).toEqual(["focusin", "focusout", "keydown"]);
-        for (const call of addSpy.mock.calls) {
-            expect(call[2]).toMatchObject({ capture: true, passive: true });
-        }
-
-        dom.dispatch("keydown", { target: terminalInput("blk-1", UnderRect), key: "x" });
-        expect(globalStore.get(model.collapsedAtom)).toBe(true);
-        dom.activeElement = focusedIn("blk-2");
-        dom.dispatch("focusout", {});
-        expect(globalStore.get(model.collapsedAtom)).toBe(true);
-        vi.advanceTimersByTime(0);
-        expect(globalStore.get(model.collapsedAtom)).toBe(false);
-
-        detach();
-        expect(dom.listenerCount()).toBe(0);
-        expect(globalStore.get(model.peekOpenAtom)).toBe(false);
-    });
-});
-
 describe("the one cue when the badge rises (AC6; FR-BOSS-007, AC3)", () => {
-    // The first readings are in: the agents (set by the test) and the hand-off requests (read when the bubble attaches).
+    // The first readings are in: the agents (set by the test) and the hand-off requests (read when the host attaches).
     async function attachedAndRead() {
         globalStore.set(agents.loadedAtom, true);
         const detach = model.attach(fakeDom());
@@ -402,7 +249,7 @@ describe("the one cue when the badge rises (AC6; FR-BOSS-007, AC3)", () => {
         detach();
     });
 
-    it("listens for the requests only while a bubble is on screen", async () => {
+    it("listens for the requests only while the host is on screen", async () => {
         const detach = model.attach(fakeDom());
         expect(m.handlers.get("molten:agenthandoffpending")).toHaveLength(1);
         await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
@@ -466,76 +313,6 @@ describe("the peek (AC7)", () => {
     });
 });
 
-describe("the bubble in the window's meta (AC2, AC3)", () => {
-    function echoMeta() {
-        m.setMeta.mockImplementation(async (_client, data: { meta: Record<string, unknown> }) => {
-            const held = globalStore.get(windowObject) as { meta: Record<string, unknown> };
-            globalStore.set(windowObject, { meta: { ...held.meta, ...data.meta } });
-        });
-    }
-
-    it("starts at the bottom right, expanded", () => {
-        expect(globalStore.get(model.stateAtom)).toEqual(DefaultBubbleState);
-    });
-
-    it("keeps a manual collapse, and shows it at once", async () => {
-        echoMeta();
-        model.collapse();
-        expect(globalStore.get(model.collapsedAtom)).toBe(true);
-        await settled();
-        expect(m.setMeta).toHaveBeenCalledOnce();
-        expect(m.setMeta.mock.calls[0][1]).toEqual({
-            oref: "window:w1",
-            meta: { [BossBubbleMetaKey]: { corner: "br", dx: 16, dy: 16, collapsed: true } },
-        });
-        expect(globalStore.get(model.collapsedAtom)).toBe(true);
-    });
-
-    it("brings the bubble back from the pennant, whoever folded it", async () => {
-        echoMeta();
-        model.collapse();
-        await settled();
-        globalStore.set(model.typingBlockAtom, "blk-1");
-        model.expand();
-        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
-        expect(globalStore.get(model.collapsedAtom)).toBe(false);
-        await settled();
-        expect(globalStore.get(model.collapsedAtom)).toBe(false);
-    });
-
-    it("keeps the place it was dropped at, as an offset from the nearest corner", async () => {
-        echoMeta();
-        model.drop({ left: 30, top: 40, width: 44, height: 44 }, { width: 1000, height: 700 });
-        await settled();
-        expect(globalStore.get(model.stateAtom).place).toEqual({ corner: "tl", dx: 30, dy: 40 });
-    });
-
-    it("resets its position and keeps its collapse", async () => {
-        echoMeta();
-        model.drop({ left: 30, top: 40, width: 44, height: 44 }, { width: 1000, height: 700 });
-        await settled();
-        model.collapse();
-        await settled();
-        model.resetPosition();
-        await settled();
-        expect(globalStore.get(model.stateAtom)).toEqual({ place: DefaultPlace, collapsed: true });
-    });
-
-    it("writes nothing for a change that changes nothing", () => {
-        model.resetPosition();
-        model.expand();
-        expect(m.setMeta).not.toHaveBeenCalled();
-    });
-
-    it("shows the last of two quick changes", async () => {
-        echoMeta();
-        model.collapse();
-        model.expand();
-        await settled();
-        expect(globalStore.get(model.collapsedAtom)).toBe(false);
-    });
-});
-
 describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
     // An element that can hold the focus, as the page's are for the model.
     function focusable() {
@@ -558,15 +335,7 @@ describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
         detach();
     });
 
-    it("takes the peek's place: the peek goes when the card shows", () => {
-        const { detach } = attached();
-        globalStore.set(model.peekOpenAtom, true);
-        model.openCard();
-        expect(globalStore.get(model.peekOpenAtom)).toBe(false);
-        detach();
-    });
-
-    it("does not show for a bubble that Settings hides: there is nothing to anchor it to", () => {
+    it("does not show for an avatar that Settings hides: there is nothing to anchor it to", () => {
         const { detach } = attached();
         globalStore.set(settings, { "boss:show": false });
         model.openCard();
@@ -655,29 +424,7 @@ describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
         detach();
     });
 
-    it("keeps the bubble folded under it: typing elsewhere does not fold it, the focus leaving does not bring it back", () => {
-        const { dom, detach } = attached();
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        expect(globalStore.get(model.collapsedAtom)).toBe(true);
-        model.openCard();
-        dom.activeElement = focusedIn("blk-2");
-        model.noteFocusLeft(dom);
-        expect(globalStore.get(model.typingBlockAtom)).toBe("blk-1");
-        model.closeCard({ restoreFocus: false });
-        model.noteFocusLeft(dom);
-        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
-        detach();
-    });
-
-    it("does not fold the bubble for a keystroke while the card shows", () => {
-        const { detach } = attached();
-        model.openCard();
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
-        detach();
-    });
-
-    it("hides with the bubble when the window stops drawing it", () => {
+    it("hides with the host when the window stops drawing it", () => {
         const { detach } = attached();
         model.openCard();
         detach();
@@ -694,18 +441,10 @@ describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
 });
 
 describe("the settings (AC8, AC9)", () => {
-    it("shows the bubble and collapses on typing unless turned off", () => {
+    it("shows the avatar unless turned off", () => {
         expect(globalStore.get(model.showAtom)).toBe(true);
-        expect(globalStore.get(model.collapseOnTypeAtom)).toBe(true);
-        globalStore.set(settings, { "boss:show": false, "boss:collapseontype": false });
-        expect(globalStore.get(model.showAtom)).toBe(false);
-        expect(globalStore.get(model.collapseOnTypeAtom)).toBe(false);
-    });
-
-    it("listens to no keystroke for a bubble that Settings hides", () => {
         globalStore.set(settings, { "boss:show": false });
-        model.noteKeyDown({ target: terminalInput("blk-1", UnderRect), key: "a" });
-        expect(globalStore.get(model.typingBlockAtom)).toBeNull();
+        expect(globalStore.get(model.showAtom)).toBe(false);
     });
 
     it("calls the foreman Brokk until he is renamed", () => {

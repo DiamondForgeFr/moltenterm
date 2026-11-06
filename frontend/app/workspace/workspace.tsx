@@ -23,7 +23,7 @@ import {
     PanelResizeHandle,
 } from "react-resizable-panels";
 // MOLTENTERM-PATCH (#44, #55, #110)
-import { BossBubbleHost } from "../../moltenterm-shell/boss/boss-bubble"; // MOLTENTERM-PATCH (#1883)
+import { BrokkHubHost } from "../../moltenterm-shell/boss/brokk-hub-host"; // MOLTENTERM-PATCH (#1883, #2002)
 import { useViewPour } from "../../moltenterm-shell/panel-motion/view-pour"; // MOLTENTERM-PATCH (#1349)
 import { MoltentermStatusBar, MoltentermToolRail, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags";
 import { SidebarModel } from "../../moltenterm-shell/sidebar/sidebar-store"; // MOLTENTERM-PATCH (#1183)
@@ -209,8 +209,8 @@ const WorkspaceElem = memo(() => {
                 {/* MOLTENTERM-PATCH (#450): another workspace's view is loading (FR-PERF-004) */}
                 <ViewPendingOverlay />
             </div>
-            {/* MOLTENTERM-PATCH (#1883): the foreman's bubble and pennant float over the content, above the status bar and under the toasts (FR-BOSS-001) */}
-            <BossBubbleHost />
+            {/* MOLTENTERM-PATCH (#1883, #2002): the layer of the foreman's host (his card, and his avatar when the sidebar is off screen) floats over the content, above the status bar and under the toasts (FR-BOSS-009) */}
+            <BrokkHubHost />
             </div>
             </div>
             {/* MOLTENTERM-PATCH (#55, #1183): the status bar under the content, unless the sidebar holds its items */}

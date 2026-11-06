@@ -1,0 +1,150 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Brokk's avatar (FR-BOSS-009, AC1, AC2, AC14): 26 px in the sidebar's title row, 22 px when it hangs from the window's
+   top edge. The portrait fills a round face and is framed on his head by boss-portrait.css, the one place that holds
+   the framing. The ring, the badge and the halo lie around the face, so they are never clipped by it. Nothing here
+   loops: the ring turns on the working beat (moltenterm-shell.css, mt-beat-turn) and the halo dims on it, so that a
+   view with an avatar draws a frame a second at most, and both stand still without the beat (reduced motion). */
+
+.mt-brokk-avatar {
+    --mt-brokk-size: 26px;
+    position: relative;
+    flex: none;
+    box-sizing: border-box;
+    width: var(--mt-brokk-size);
+    height: var(--mt-brokk-size);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-app-region: no-drag;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-state-warning) 50%, transparent);
+    transition:
+        opacity var(--mt-duration-fade) linear var(--mt-duration-fade),
+        visibility 0s linear 0s,
+        box-shadow var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-brokk-avatar:hover {
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--mt-state-warning) 50%, transparent),
+        0 0 0 3px color-mix(in srgb, var(--mt-action) 45%, transparent);
+}
+
+.mt-brokk-avatar:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+/* The scene stands in his place: the avatar is gone from sight, from the pointer and from the keyboard, and comes back
+   once the scene has folded into it. */
+.mt-brokk-avatar[data-scene="up"] {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity 60ms linear,
+        visibility 0s linear 60ms;
+}
+
+/* Hanging from the window's top edge, where the pennant hung: it sits above the panels in the layer of the host. */
+.mt-brokk-avatar.is-hanging {
+    --mt-brokk-size: 22px;
+    position: absolute;
+    top: 2px;
+    pointer-events: auto;
+    background: var(--mt-surface-1);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--mt-state-warning) 50%, transparent),
+        0 2px 6px rgb(0 0 0 / 0.35);
+}
+
+.mt-brokk-face {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--mt-surface-0);
+}
+
+/* His panel is open and shows his face: the avatar is only the button that closes it, with the badge. */
+.mt-brokk-avatar[data-panel="open"] .mt-brokk-face {
+    visibility: hidden;
+}
+
+/* The ring around the face, the bell's: only while Brokk himself works. */
+.mt-brokk-ring {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    rotate: -90deg;
+    color: var(--mt-text-2);
+    pointer-events: none;
+}
+
+/* The soft cue: he has something to tell you, and the gate holds him back. A halo in the waiting colour around the face. */
+.mt-brokk-halo {
+    position: absolute;
+    inset: -1px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mt-state-waiting) 55%, transparent);
+    pointer-events: none;
+}
+
+.mt-brokk-badge {
+    position: absolute;
+    top: -5px;
+    right: -6px;
+    box-sizing: border-box;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: var(--mt-weight-semibold);
+    line-height: 15px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px var(--mt-surface-1);
+    pointer-events: none;
+}
+
+/* The tone is never told by the colour alone: the count, and the tooltip's rows, name each state. */
+.mt-brokk-badge[data-tone="error"] {
+    background: var(--mt-state-blocked);
+    color: var(--mt-state-blocked-fg);
+}
+
+.mt-brokk-badge[data-tone="waiting"] {
+    background: var(--mt-state-warning);
+    color: var(--mt-state-warning-fg);
+}
+
+/* The tooltip is read only and never takes the pointer, so it leaves with the pointer and the focus stays in the
+   terminal. It stands on the page (a portal), above the panels and under the toasts (9400). */
+.mt-brokk-tooltip {
+    position: fixed;
+    z-index: 900;
+    box-sizing: border-box;
+    max-width: calc(100vw - 16px);
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-brokk-avatar,
+    .mt-brokk-avatar[data-scene="up"] {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-brokk-avatar,
+.prefers-reduced-motion .mt-brokk-avatar[data-scene="up"] {
+    transition: none;
+}

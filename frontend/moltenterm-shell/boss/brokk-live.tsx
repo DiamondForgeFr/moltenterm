@@ -5,8 +5,8 @@
 // every surface shares (boss-portrait.tsx). It loads on its own, the first time a surface asks for it, so that the
 // package and its clips are read by nobody before. The package plays the clips (the loop of the pose, the clips between
 // two poses, the gestures); this component hands it the pose MoltenTerm's signals give (brokk-state-model.ts) and the
-// gesture the app asks. The package is asked for the picture alone (`bare`): the screen furniture is the bubble's own
-// (boss-screen.tsx). Whatever fails to load or to play leaves the still showing.
+// gesture the app asks. The package is asked for the picture alone (`bare`): the furniture around it is the surface's own.
+// Whatever fails to load or to play leaves the still showing.
 
 import { TransmissionPortrait } from "@diamondforge/character";
 import "@diamondforge/character/styles.css";

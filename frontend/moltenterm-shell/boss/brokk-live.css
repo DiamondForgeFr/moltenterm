@@ -2,8 +2,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Brokk's clips over his still (FR-BOSS-007). The package is asked for the picture alone (`bare`): its own frame, tint,
-   scanlines, viewfinder and caption are not drawn, and the bubble's screen draws its own (boss-screen.css), in the
-   ember of the action colour. The package's picture is a box that fills the frame it is put in, and its clips lie over
+   scanlines, viewfinder and caption are not drawn, and the tint is the ember of the action colour. The package's picture is a box that fills the frame it is put in, and its clips lie over
    the still of boss-portrait.tsx, which stays under them: it is what shows until a clip plays, and when none can. The
    package's own still is hidden for that reason. The package's rules sit in its `components` layer, which these
    unlayered rules outrank.
@@ -36,18 +35,14 @@
     pointer-events: none;
 }
 
-/* The still stops breathing and drops its filter under clips: a clip fading in over a still that moves or is toned
-   differently would show as a jump. */
+/* The still drops its filter under clips: a clip fading in over a still that is toned differently would show as a
+   jump. */
 .mt-boss-portrait-image {
     transition: filter var(--mt-duration-base) var(--mt-ease);
 }
 
 .mt-boss-portrait:has(.mt-brokk-live) .mt-boss-portrait-image {
     filter: none;
-}
-
-.mt-boss-bubble .mt-boss-portrait:has(.mt-brokk-live) .mt-boss-portrait-image {
-    animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The foreman's Sessions card (FR-BOSS-002, DS-BOSS-002): a layer that floats over the app beside the bubble or the pennant,
-// listing every running session of every workspace with the Sessions view's own data. It is not a panel, a tab or a
-// split: it moves and resizes nothing, and hiding it (the bubble again, Escape, a click outside, its close control, Go
+// The foreman's Sessions card (FR-BOSS-002, DS-BOSS-002): a layer that floats over the app beside the sidebar, opened by
+// his avatar or by the scene that comes to fetch the developer (FR-BOSS-009), listing every running session of every
+// workspace with the Sessions view's own data. It is not a panel, a tab or a
+// split: it moves and resizes nothing, and hiding it (the avatar again, Escape, a click outside, its close control, Go
 // to) leaves the app as it was. It is not modal either: nothing dims, the focus is not held in it, and a press outside
 // goes to what it was aimed at.
 
@@ -62,6 +63,7 @@ import {
     CardTestId,
     isOutsidePress,
 } from "./boss-card-model";
+import "./boss-card.css";
 import { HandoffRowView } from "./boss-handoff-row";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
@@ -538,15 +540,14 @@ function NotificationsView({
     );
 }
 
-// `headerStill`: the comm screen stands beside the card (the scene says so), so the header shows his still, not a second
-// animated portrait.
-export function BossCard({ style, headerStill = false }: { style: React.CSSProperties; headerStill?: boolean }) {
+// His animated portrait plays on the card's header while it shows, and the avatar that opened it empties its face:
+// never two Brokks on screen.
+export function BossCard({ style }: { style: React.CSSProperties }) {
     const t = useT();
     const tCount = useTCount();
     const locale = useLocale();
     const model = BossBubbleModel.getInstance();
     const name = useAtomValue(model.nameAtom, { store: globalStore });
-    const collapsed = useAtomValue(model.collapsedAtom, { store: globalStore });
     const badge = useAtomValue(model.badgeAtom, { store: globalStore });
     const data = useAtomValue(DurableSessions.getInstance().dataAtom, { store: globalStore });
     const workspace = useAtomValue(atoms.workspace, { store: globalStore });
@@ -563,7 +564,7 @@ export function BossCard({ style, headerStill = false }: { style: React.CSSPrope
     const tabs: CardTab[] = hasDownloads ? [...CardTabs, DownloadsCardTab] : CardTabs;
     const [chosenTab, setTab] = useState<CardTab>(() => (badge.count > 0 ? "todo" : lastCardTab));
     const tab: CardTab = chosenTab === DownloadsCardTab && !hasDownloads ? "sessions" : chosenTab;
-    const live = useCardLive(headerStill);
+    const live = useCardLive();
     const home = homeFolder();
     const groups = useMemo(
         () => cardGroups(data, workspace?.oid, home, now),
@@ -774,16 +775,6 @@ export function BossCard({ style, headerStill = false }: { style: React.CSSPrope
                     <span className="mt-boss-card-count" data-tone={badge.tone} data-testid="boss-card-count">
                         {tCount("boss.card.waiting", badge.count)}
                     </span>
-                ) : null}
-                {collapsed ? (
-                    <button
-                        type="button"
-                        className={GhostButton}
-                        data-testid="boss-card-show-bubble"
-                        onClick={() => model.expand()}
-                    >
-                        {t("boss.menu.showBubble")}
-                    </button>
                 ) : null}
                 <button
                     type="button"
