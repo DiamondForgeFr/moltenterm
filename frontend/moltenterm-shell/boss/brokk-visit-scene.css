@@ -131,14 +131,20 @@
 }
 
 /* The forge's glow behind him, a little hotter when it is grave, never red. */
+/* The glow is lit at its centre and nothing at the edge of its own box (closest-side): a gradient still lit where its
+   box ends would draw that box's outline on the scene. */
 .mt-brokk-scene-glow {
     position: absolute;
     right: 52px;
     top: -34px;
     width: 150px;
     height: 112px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255, 170, 60, 0.5), rgba(255, 100, 20, 0.2) 42%, transparent 68%);
+    background: radial-gradient(
+        ellipse closest-side,
+        rgba(255, 170, 60, 0.5),
+        rgba(255, 100, 20, 0.2) 58%,
+        transparent 100%
+    );
     opacity: 0.7;
     pointer-events: none;
     animation: mt-brokk-flick var(--mt-duration-loop) ease-in-out infinite;
@@ -146,7 +152,12 @@
 
 .mt-brokk-scene[data-severity="grave"] .mt-brokk-scene-glow {
     opacity: 1;
-    background: radial-gradient(circle, rgba(255, 200, 90, 0.7), rgba(255, 110, 20, 0.3) 45%, transparent 70%);
+    background: radial-gradient(
+        ellipse closest-side,
+        rgba(255, 200, 90, 0.7),
+        rgba(255, 110, 20, 0.3) 60%,
+        transparent 100%
+    );
 }
 
 @keyframes mt-brokk-flick {
