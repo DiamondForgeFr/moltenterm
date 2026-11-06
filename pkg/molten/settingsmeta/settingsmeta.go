@@ -219,6 +219,7 @@ var settings = []Setting{
 	{Key: "web:defaultsearch", Section: SectionBrowser, Group: "Browser panel", Label: "Search engine", Description: "The search URL, with {query} where the words go.", Control: ControlText},
 	{Key: "moltenterm:hiddenpagefreeze", Section: SectionBrowser, Group: "Browser panel", Label: "Pause hidden pages", Description: "A page not on screen stops running until shown, unless an agent drives it or it plays audio.", Control: ControlToggle, Default: true},
 	{Key: "moltenterm:hiddenpagediscardmin", Section: SectionBrowser, Group: "Browser panel", Label: "Unload hidden pages after", Description: "A page not on screen this long is unloaded, then reloads when shown; 0 keeps pages loaded.", Control: ControlNumber, Range: rng(0, 1440, 1), Unit: "min", Default: 10},
+	{Key: "browser:downloadask", Section: SectionBrowser, Group: "Downloads", Label: "Always ask where to save", Description: "Ask for a folder before each download; off saves it straight to your Downloads folder.", Control: ControlToggle},
 	{Key: "browser:agentsites", Section: SectionBrowser, Group: "Agents", Label: "Agent site permissions", Description: "Sites agents may use or are blocked from in the browser panel.", Control: ControlJSON},
 	{Key: "browser:sitepermissions", Section: SectionBrowser, Group: "Browser panel", Label: "Site permissions", Description: "What each site may use: camera, microphone, location, notifications.", Control: ControlJSON},
 

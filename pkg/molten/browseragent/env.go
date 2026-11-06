@@ -176,8 +176,11 @@ type DownloadRequest struct {
 	Host         string `json:"host"`
 }
 
+// DownloadAnswer carries the agent's name with an Allow, so the download shows in the Downloads section with the agent
+// that started it (FR-MC-019 AC7, #1992). A denial names no one: nothing is received.
 type DownloadAnswer struct {
-	Allow bool `json:"allow"`
+	Allow     bool   `json:"allow"`
+	AgentName string `json:"agentname,omitempty"`
 }
 
 // Env is what the sessions need from wavesrv, the windows and emain; tests replace it.

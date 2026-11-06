@@ -240,6 +240,8 @@ var NotificationSubjects = map[string]string{
 	"moltenterm": "updates",
 	"mod":        "mods",
 	"deps":       "dependencies",
+	// The downloads of the web pages, raised by the windows (FR-MC-019 AC10, #1992).
+	"download": "downloads",
 }
 
 // NotificationDelivery is how a message is said, from the user's choice for its subject: an error is always told,

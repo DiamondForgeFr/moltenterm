@@ -162,6 +162,8 @@ type SettingsType struct {
 	BrowserSites     map[string]string `json:"browser:sites,omitempty" jsonschema_description:"Per-site engine, host (subdomains included) to app, installed or a browser id"`
 	// MOLTENTERM-PATCH (#301): site permissions of the agents in the browser panel (FR-BRW-009, pkg/molten/browseragent).
 	BrowserAgentSites map[string]string `json:"browser:agentsites,omitempty" jsonschema_description:"Sites agents may use in the browser panel: a site (registrable domain, or host:port for localhost and IP addresses) to allow or block; set from the panel's permission bar, Block wins"`
+	// MOLTENTERM-PATCH (#1992): where the downloads of web pages are saved (FR-MC-019 AC12).
+	BrowserDownloadAsk bool `json:"browser:downloadask,omitempty" jsonschema_description:"Ask where to save each download of a web page; off (the default) saves it straight to the system Downloads folder with no dialog"`
 	// MOLTENTERM-PATCH (#663): what pages of the browser panel may use (camera, microphone, location, notifications).
 	BrowserSitePermissions map[string]map[string]string `json:"browser:sitepermissions,omitempty" jsonschema_description:"What each site in the browser panel may use: a host (with its port) to a map of camera, microphone, location or notifications to allow or block; set from the panel's permission bar"`
 
