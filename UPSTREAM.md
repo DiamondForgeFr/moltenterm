@@ -138,6 +138,38 @@ ready cannot satisfy the ruleset with its draft's result while the full run is s
 Dependency security skip on nothing but Affected tests' outputs (or a draft), so the gate accepts their skip while it
 requires Affected tests itself; `scripts/security/policy-check.mjs` checks both the expression and those conditions. Run
 the same commands locally before pushing: the ledger check reads the working tree, so it also sees uncommitted changes.
+"Affected tests" below says what a pull request runs.
+
+`node scripts/moltenterm-check-lockfile.mjs` refuses a `package-lock.json` that `npm install` would rewrite (#1877),
+which `npm ci` lets through for most fields. It asks npm on a throwaway copy of the manifests and the lock: offline, with
+an empty cache and no `node_modules`, so the job stays quick. npm's version can change what it writes, so Quick checks
+first installs the one `packageManager` names. The release writes the three version fields of `versions.files` in
+`.molten/project.json`, as `npm version` does, so a bump stays green. The local CI's job passes `--committed` to read
+HEAD: its `ci.prepare` runs `npm install`, which would heal the working tree's lock before the job looks at it.
+
+**The private character package (#1904).** `package.json` names `@diamondforge/character` by its Git URL
+(`git+ssh://git@github.com/DiamondForgeFr/diamondforge-character.git#v0.3.1`), and its repository is private. Every job
+that runs `npm ci` (the Frontend and Perf budgets jobs, and the release, rehearsal and publish jobs, and the macOS signing
+probe) first runs a "Private package access" step that rewrites that URL to HTTPS with a read-only token, held as the
+repository secret `DIAMONDFORGE_CHARACTER_TOKEN` (a fine-grained token with read-only `Contents` access to that
+repository alone). Until the secret exists those jobs fail at `npm ci`, and so does a pull request from a fork, which has
+no secret. Dependency security has no such step on purpose: it never installs (`npm audit` reads the lock only, and
+`scripts/security/policy-check.mjs` asserts the reusable scanner has no secret and no `npm ci`), and Quick checks'
+lockfile check runs offline. Locally, `npm ci` needs an SSH key that can read the repository.
+
+The Taskfile's `npm install` steps (`task dev`, `task start`, `task init`) skip npm's audit and funding notes (#1276):
+npm's raw count mixes the docs site with the app. Dependency risks are triaged by surface in the Dependency security job,
+and locally by `task security:check`, against `security/dependencies.json`.
+
+The same dependency security workflow gates release packaging and publication; release runners also scan their native
+CGO-enabled Go source before packaging. `dependency-security.yml` adds a weekly/manual scan without release credentials.
+See `security/README.md` for coverage, exit states and the exact advisory review/expiry policy (#810).
+
+`.github/workflows/pr-review-sync.yml` comes from the SaaSFoundryAI harness, with one local change (#709): its
+`sync-review` job runs only for ticket branches (`feature/{N}-…`, `fix/{N}-…`) and is skipped for the others, such as
+release sync-backs and `rc-*` branches, which have no ticket to sync. Keep this change when a harness update rewrites
+the file, until the harness ships it. It runs from the default branch (`pull_request_target`), so it takes effect once
+it reaches `main`.
 
 ### Affected tests (#2011)
 
@@ -190,37 +222,6 @@ found none). Frontend and Perf budgets also cache Electron's download, which set
 "Development Commands"). The local CI's `vitest` and `gotest` jobs run it too, with `--only`. It keeps a verdict per git
 tree: a branch whose tree lands on develop unchanged keeps its selected verdict, so the gold's verify does not run it
 again. The full run on that push to develop covers it.
-
-`node scripts/moltenterm-check-lockfile.mjs` refuses a `package-lock.json` that `npm install` would rewrite (#1877),
-which `npm ci` lets through for most fields. It asks npm on a throwaway copy of the manifests and the lock: offline, with
-an empty cache and no `node_modules`, so the job stays quick. npm's version can change what it writes, so Quick checks
-first installs the one `packageManager` names. The release writes the three version fields of `versions.files` in
-`.molten/project.json`, as `npm version` does, so a bump stays green. The local CI's job passes `--committed` to read
-HEAD: its `ci.prepare` runs `npm install`, which would heal the working tree's lock before the job looks at it.
-
-**The private character package (#1904).** `package.json` names `@diamondforge/character` by its Git URL
-(`git+ssh://git@github.com/DiamondForgeFr/diamondforge-character.git#v0.3.1`), and its repository is private. Every job
-that runs `npm ci` (the Frontend and Perf budgets jobs, and the release, rehearsal and publish jobs, and the macOS signing
-probe) first runs a "Private package access" step that rewrites that URL to HTTPS with a read-only token, held as the
-repository secret `DIAMONDFORGE_CHARACTER_TOKEN` (a fine-grained token with read-only `Contents` access to that
-repository alone). Until the secret exists those jobs fail at `npm ci`, and so does a pull request from a fork, which has
-no secret. Dependency security has no such step on purpose: it never installs (`npm audit` reads the lock only, and
-`scripts/security/policy-check.mjs` asserts the reusable scanner has no secret and no `npm ci`), and Quick checks'
-lockfile check runs offline. Locally, `npm ci` needs an SSH key that can read the repository.
-
-The Taskfile's `npm install` steps (`task dev`, `task start`, `task init`) skip npm's audit and funding notes (#1276):
-npm's raw count mixes the docs site with the app. Dependency risks are triaged by surface in the Dependency security job,
-and locally by `task security:check`, against `security/dependencies.json`.
-
-The same dependency security workflow gates release packaging and publication; release runners also scan their native
-CGO-enabled Go source before packaging. `dependency-security.yml` adds a weekly/manual scan without release credentials.
-See `security/README.md` for coverage, exit states and the exact advisory review/expiry policy (#810).
-
-`.github/workflows/pr-review-sync.yml` comes from the SaaSFoundryAI harness, with one local change (#709): its
-`sync-review` job runs only for ticket branches (`feature/{N}-…`, `fix/{N}-…`) and is skipped for the others, such as
-release sync-backs and `rc-*` branches, which have no ticket to sync. Keep this change when a harness update rewrites
-the file, until the harness ships it. It runs from the default branch (`pull_request_target`), so it takes effect once
-it reaches `main`.
 
 ### Contributor agreement
 
