@@ -80,7 +80,10 @@ Moltenterm is a soft fork of Wave Terminal, so the toolchain and commands are Wa
 - `task dev`: run the app through the Vite dev server. The renderer hot-reloads; Electron main needs a restart; re-run the task to rebuild wavesrv. Dev mode uses the `waveterm-dev` configuration and data directories.
 - `task start` runs the app without the dev server; `task package` builds a distributable into `make/`.
 - **Validation:** `task check:ts` (TypeScript, frontend and Electron), `npx vitest run` (frontend unit tests), `go test ./cmd/... ./pkg/...` (backend), `node scripts/moltenterm-check-ledger.mjs` (every changed Wave file is ledgered and marked), `node scripts/moltenterm-check-lockfile.mjs` (`npm install` would leave `package-lock.json` as it is). Run `task generate` after changing Go RPC types. Never call `go build` directly; use the Task targets.
-- **CI:** `.github/workflows/ci.yml` runs these checks, ESLint and the builds on pull requests; drafts get only the quick checks (see `UPSTREAM.md`, "Continuous integration").
+- **Tests while you work:** run `node scripts/moltenterm-affected.mjs --run`, not the full suites, after each change and each rebase. It runs only the Go and frontend tests your change affects against `origin/develop`, and `--print` lists them first.
+  - When it falls back, it prints `Everything runs` and the reason (shared ground, a changed locale text…) and runs the full suites. Then run it once, at the end, rather than after every change.
+  - The CI run on the ready pull request is the final check.
+- **CI:** `.github/workflows/ci.yml` runs these checks, ESLint and the builds on pull requests, and only the affected tests. Drafts get only the quick checks. The full suites run on every push to `develop` and every night (see `UPSTREAM.md`, "Continuous integration").
 
 ## Load-proof tests
 

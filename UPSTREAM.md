@@ -32,6 +32,7 @@ every place where Moltenterm changes Wave's code.
 | `task check:ts`                            | Type-check the frontend and Electron code.                                                                         |
 | `npx vitest run`                           | Frontend unit tests.                                                                                               |
 | `go test ./cmd/... ./pkg/...`              | Backend tests.                                                                                                     |
+| `node scripts/moltenterm-affected.mjs --run` | Only the frontend and backend tests the change affects, or everything when it cannot tell ("Continuous integration", "Affected tests"). |
 | `task generate`                            | Regenerate TypeScript bindings after changing Go RPC types.                                                        |
 | `node scripts/moltenterm-check-ledger.mjs` | Check the patch ledger against the last merged Wave release.                                                       |
 | `node scripts/moltenterm-check-license.mjs` | Check the licence headers (AGPL-3.0-only for Moltenterm's files, Apache-2.0 for Wave's); `--apply` fixes them ("Licensing"). |
@@ -114,23 +115,81 @@ retaining framework defaults and the rest of the harness and workspace scope. A 
 directory still validates its own files. Run `node --test scripts/moltenterm-worktree-discovery.node-test.mjs` to verify
 both ignored nested failures and detected current-checkout failures with isolated disposable fixtures.
 
-`.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to them.
+`.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to them. A pull request
+runs only the tests its change affects (see "Affected tests" below). A push to `develop` or `main`, a run started by hand
+and the nightly run run everything.
 
 | Job           | When                              | Steps                                                                                                                                         |
 | ------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Affected tests | Always, drafts included          | `node scripts/moltenterm-affected.mjs --plan`: the job decisions below, in its summary and outputs (no install, the changed paths only) |
 | Quick checks  | Always, drafts included           | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-license.mjs`, `node scripts/moltenterm-check-icons.mjs`, `node scripts/moltenterm-check-lockfile.mjs` |
 | CLA           | Pull requests, drafts included    | `.github/workflows/cla.yml` (`pull_request_target`, read-only token, no secret): `node scripts/moltenterm-check-cla.mjs <PR>`. See "Contributor agreement" below. |
-| Dependency security | Always, drafts included | Reusable secret-free `security-scan.yml`: pinned npm/govulncheck, both module graphs and declared targets, scoped policy verdict and raw evidence artifact |
-| Frontend      | Skipped on draft pull requests    | `npm ci`, `npx tsc --noEmit` (the command behind `task check:ts`), `npx eslint . --quiet`, `npx vitest run`, `npm run build:prod`             |
-| Backend       | Skipped on draft pull requests    | `node scripts/moltenterm-go-toolchain.mjs --check`, `go test ./cmd/... ./pkg/...`, `task build:backend` (Linux; wavesrv's CGO build uses Zig) |
-| Perf budgets  | Skipped on draft pull requests    | Builds the app and runs `node scripts/perf/perf.mjs run --profile ci --gate ci` under Xvfb (bundle, JS evaluated, start-up, leaked views); posts the report on the pull request (`scripts/perf/README.md`) |
-| Required gate | Always, from the start of the run | Requires Quick checks and Dependency security success, plus Frontend, Backend and Perf budgets success (skipped only on a draft) |
+| Dependency security | When a manifest, a lock file or the scanner changes, drafts included; every full run | Reusable secret-free `security-scan.yml`: pinned npm/govulncheck, both module graphs and declared targets, scoped policy verdict and raw evidence artifact |
+| Frontend      | Skipped on draft pull requests    | `npm ci`, `npx tsc --noEmit` (the command behind `task check:ts`), `npx eslint . --quiet`, the affected vitest files, `npm run build:prod`             |
+| Backend       | Skipped on draft pull requests, and when no Go test is affected | `node scripts/moltenterm-go-toolchain.mjs --check`, the affected Go packages (`-count=1` on a full run), `task build:backend` when a built Go file changed (Linux; wavesrv's CGO build uses Zig) |
+| Perf budgets  | Skipped on draft pull requests, and when the change touches nothing the budgets measure | Builds the app and runs `node scripts/perf/perf.mjs run --profile ci --gate ci` under Xvfb (bundle, JS evaluated, start-up, leaked views); posts the report on the pull request (`scripts/perf/README.md`) |
+| Required gate | Always, from the start of the run | Requires Affected tests, Quick checks and Frontend success (Frontend skipped only on a draft); Backend, Perf budgets and Dependency security success or skipped |
+| Report a failed full run | A full run on `develop` or `main` with a failed job | Opens the issue "CI: the full suites fail on <branch>", or comments on the one still open |
 
-Marking a draft pull request ready for review starts the full run, and returning it to draft cancels that run.
+Marking a draft pull request ready for review starts the heavy jobs, and returning it to draft cancels that run.
 "Required gate" is the one check a branch ruleset should require. It starts with every run and polls the other jobs
 instead of waiting for them through `needs`, so its check is pending from the first second: a pull request just marked
-ready cannot satisfy the ruleset with its draft's result while the full run is still going. Run the same commands
-locally before pushing: the ledger check reads the working tree, so it also sees uncommitted changes.
+ready cannot satisfy the ruleset with its draft's result while the full run is still going. Backend, Perf budgets and
+Dependency security skip on nothing but Affected tests' outputs (or a draft), so the gate accepts their skip while it
+requires Affected tests itself; `scripts/security/policy-check.mjs` checks both the expression and those conditions. Run
+the same commands locally before pushing: the ledger check reads the working tree, so it also sees uncommitted changes.
+
+### Affected tests (#2011)
+
+`scripts/moltenterm-affected.mjs` decides what a change runs, for CI, the local CI and agents alike. It reads the diff
+against the merge base with `origin/develop` (`workflow.prTargetBranch`): commits, staged and unstaged edits, untracked
+files. CI compares a pull request's merge commit with its first parent (`--base HEAD^1`).
+
+| Command | What it does |
+| --- | --- |
+| `node scripts/moltenterm-affected.mjs --print` | Lists the Go packages and vitest files to run, each with why, and the CI job decisions |
+| `node scripts/moltenterm-affected.mjs --run` | Runs them (`--only go` or `--only vitest` for one suite; arguments after `--` go to it) |
+| `node scripts/moltenterm-affected.mjs --plan` | The CI job decisions only, without Go or `node_modules` |
+| `--base <ref>`, `--head <ref>`, `--full` | Another base; a commit instead of the working tree; everything |
+
+- **Go:** the packages that hold a changed file, and every package whose test binary depends on one of them
+  (`go list -deps -test`). A changed file that is not Go source selects the packages that embed it (go list's
+  `EmbedFiles`), and the nearest package above it for its tests. A change to `_test.go` or `testdata/` files only
+  selects its own package.
+- **Go tests that read files outside their package** are listed in the script's `GoReaders` with what they read (the
+  locales, `.molten/project.json`, `UPSTREAM.md`, frontend goldens…), and run when that changes. A test of that kind the
+  script finds (`GoReaderPattern`) but the list lacks runs on every change: add it to `GoReaders` with the paths it reads.
+- **Frontend:** vitest's own graph (`related`), plus the importers of a file imported with a query (`?raw`), where the
+  graph stops. Test files that import `fs` or `child_process` run on every change: no graph sees what they read.
+- **Locales:** a change that only adds keys runs the i18n tests and the tests that read the dictionaries. A text
+  changed or removed runs everything.
+- **Everything runs** on shared ground (the script's `SharedGround`): the Go and npm manifests, the vite, vitest and
+  TypeScript configuration, the Taskfile, the CI workflows, the generated RPC files and `pkg/wshrpc`'s types, the vitest
+  setup file, and the script itself. Everything also runs on more than 100 changed files, on no change at all (the base
+  itself is checked, like the gold's local CI on develop), and on any error on the way. Never less.
+- **Perf budgets** build and measure when the change touches `frontend/`, `emain/`, `index.html`, `public/`,
+  `scripts/perf/`, `cmd/server/` or `db/` (test files excluded). **Dependency security** runs when a manifest or lock
+  file it reads, `security/` or `scripts/security/` changes.
+
+**What runs everything.** A push to `develop` or `main` runs everything, and Go's test cache is off (`-count=1`) so a
+cached pass cannot hide a flaky test. So does a run started by hand. `ci-nightly.yml` dispatches `ci.yml` on `develop`
+every night (02:17 UTC), so a gap in the selection, a flaky test or a new advisory shows within a day. It dispatches
+rather than running on a schedule itself, which would check out `main` and put the results on its commit. A schedule
+fires only from the default branch, so the nightly run starts once `ci-nightly.yml` is on `main`. A failed full run on
+`develop` or `main` opens the issue "CI: the full suites fail on <branch>", or comments on it while it is open. It never
+blocks a pull request.
+
+**The `ci:full` label** forces everything on a pull request. Affected tests reads it when the run starts, not from the
+event, so after adding it, push or re-run the jobs.
+
+**Caches.** setup-go's own cache is keyed on `go.sum` alone, so once saved it is never refreshed. Backend and Perf
+budgets restore a Go build and module cache instead, which the nightly run saves (one entry a day, plus a push that
+found none). Frontend and Perf budgets also cache Electron's download, which setup-node's npm cache does not cover.
+
+**Agents and the local CI.** Agents run `node scripts/moltenterm-affected.mjs --run` while they work (AGENTS.md,
+"Development Commands"). The local CI's `vitest` and `gotest` jobs run it too, with `--only`. It keeps a verdict per git
+tree: a branch whose tree lands on develop unchanged keeps its selected verdict, so the gold's verify does not run it
+again. The full run on that push to develop covers it.
 
 `node scripts/moltenterm-check-lockfile.mjs` refuses a `package-lock.json` that `npm install` would rewrite (#1877),
 which `npm ci` lets through for most fields. It asks npm on a throwaway copy of the manifests and the lock: offline, with
