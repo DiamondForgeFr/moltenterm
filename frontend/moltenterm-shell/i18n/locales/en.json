@@ -10257,6 +10257,7 @@
             "iconTitle": "Icon of “{name}”",
             "iconChoice": "Icon {icon}",
             "panelIcons": "What the view shows",
+            "siteIcon": "Use the site's icon",
             "copyName": "{name} (copy)",
             "duplicated": "“{name}” created: the same configuration",
             "reordered": "Order changed",

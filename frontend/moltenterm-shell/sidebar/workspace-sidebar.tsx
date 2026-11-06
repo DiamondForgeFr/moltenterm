@@ -30,6 +30,8 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
+import { viewSiteOrigins } from "../favicon/site-glyph";
 import { visibleTabIds } from "../hidden-tabs";
 import { HoldToCloseGlyph } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
@@ -167,7 +169,14 @@ import { TopField } from "./top-field";
 import { TopFieldModel } from "./top-field-store";
 import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
-import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
+import {
+    configPaneMetas,
+    dropAction,
+    DropZone,
+    readViewIcon,
+    ViewIconMetaKey,
+    zoneCaptionShown,
+} from "./view-menu-model";
 import { GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
 import { announceClosedViews, ClosedKindCleared, ClosedKindView, PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
@@ -849,7 +858,10 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
             ? t("sidebar.pins.tileTitle", { name: identity.name, workspace })
             : identity.name;
     const working = isAgentWorking(identity.agent);
-    const titled = baseTitle != null && summary ? `${baseTitle}\n${summary}` : baseTitle;
+    const titled =
+        baseTitle != null && (summary || identity.pages)
+            ? [baseTitle, identity.pages, summary].filter(Boolean).join("\n")
+            : baseTitle;
     const title = withWorkingTitle(titled, identity.agent);
     // The glyph is decoration: the tile is named for what it is, whatever its icons.
     const label = renaming
@@ -1441,6 +1453,10 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
     const { target, over } = useZone("top");
     const width = useRowWidth(ref, pins.length > 0 || !!target);
     useGlide(ref, pins.map((p) => p.id).join(" "));
+    // A block of one page wears its site's icon, the page the pin saved (#1962): the icons of those sites are asked for.
+    const favicons = useAtomValue(faviconsAtom);
+    const pinOrigins = pins.flatMap((pin) => viewSiteOrigins(configPaneMetas(pin.config))).join(" ");
+    useEffect(() => requestFavicons(pinOrigins === "" ? [] : pinOrigins.split(" ")), [pinOrigins]);
     if (pins.length === 0 && !target) {
         return null;
     }
@@ -1460,7 +1476,7 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
             data-cap={t("sidebar.views.captionEverywhere")}
             {...zoneProps("top")}
         >
-            {topRowLines(topRowBlocks(pins, instances)).map((line) => {
+            {topRowLines(topRowBlocks(pins, instances, favicons)).map((line) => {
                 const fit = topRowLineFit(width, line.length);
                 const isActive = (block: TopRowBlockFacts) => !!block.tabId && block.tabId === activeTabId;
                 const hasActive = line.some(isActive);

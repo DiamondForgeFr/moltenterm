@@ -56,7 +56,7 @@ describe("tab identity (FR-SHELL-056, DS-SHELL-098)", () => {
     it("names a new view after its main panel's kind and place (#1669)", () => {
         expect(panelViewName({ view: "term", "cmd:cwd": "/src/roman" })).toBe("Terminal · roman");
         expect(panelViewName({ view: "preview", file: "/src/roman" })).toBe("Files · roman");
-        expect(panelViewName({ view: "molten-browser", url: "https://github.com/x" })).toBe("Web page · github.com");
+        expect(panelViewName({ view: "molten-browser", url: "https://github.com/x" })).toBe("github.com");
         expect(panelViewName({ view: "term", "cmd:cwd": "/Users/me" }, "/Users/me")).toBe("Terminal · ~");
         expect(panelViewName({ view: "term" })).toBe("Terminal");
         expect(panelViewName({ view: "preview" })).toBe("Files");

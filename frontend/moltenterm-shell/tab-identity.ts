@@ -9,6 +9,7 @@ import { MoltentermOnboardingView } from "../moltenterm-onboarding/onboarding-st
 import { AiIcon, terminalIcon } from "./ai-icon";
 import { MoltentermBrowserView } from "./browser/browser-model";
 import { MoltentermCompanionView } from "./companion/companion-model";
+import { isPageView, pageUrlOfMeta } from "./favicon/site";
 import { t } from "./i18n/i18n";
 import { MoltentermLineMapView } from "./mission/line-map-model";
 import { MoltentermPipelineView, PipelineTabIcon } from "./mission/pipeline-tab-model";
@@ -68,6 +69,9 @@ export type PanelMeta = {
     view?: string;
     file?: string;
     url?: string;
+    // The web page panel's tabs and its shown tab: the page it shows now (#1962).
+    "molten:browser:tabs"?: unknown;
+    "molten:browser:active"?: string;
     connection?: string;
     "cmd:cwd"?: string;
     "display:icon"?: string;
@@ -126,14 +130,15 @@ export function panelTitle(meta: PanelMeta, homeDir = ""): string {
     if (view === "preview") {
         return pathBaseName(meta.file ?? "") || viewTitle;
     }
-    if (view === "web" || view === MoltentermBrowserView) {
-        return hostOf(meta.url ?? "") || viewTitle;
+    if (isPageView(view)) {
+        return hostOf(pageUrlOfMeta(meta)) || viewTitle;
     }
     return viewTitle;
 }
 
 // A view still under Wave's generic name is named after its main panel's kind and place (#1669): "Files · roman" and
-// "Terminal · roman" tell apart two views of the same folder, which the place alone did not.
+// "Terminal · roman" tell apart two views of the same folder, which the place alone did not. A web page is named after
+// its site alone (#1962): the site's icon already says it is a page, and the name follows the page the panel shows.
 export function panelViewName(meta: PanelMeta, homeDir = ""): string {
     if (meta == null) {
         return "";
@@ -141,6 +146,9 @@ export function panelViewName(meta: PanelMeta, homeDir = ""): string {
     const facts = Views[meta.view ?? ""];
     const kind = facts ? t(facts.title) : "";
     const place = panelTitle(meta, homeDir);
+    if (isPageView(meta.view ?? "") && place) {
+        return place;
+    }
     if (!kind || !place || place === kind) {
         return place || kind;
     }
