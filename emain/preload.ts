@@ -148,8 +148,13 @@ contextBridge.exposeInMainWorld("api", {
         return () => ipcRenderer.removeListener("moltenterm-release-install-event", listener);
     },
     // MOLTENTERM-PATCH (#300): a browser panel tab's webview, for the agents' DevTools controller (emain/moltenterm-browseragent.ts)
-    moltentermRegisterWebview: (blockId: string, browserTabId: string, webContentsId: number) =>
-        ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId),
+    moltentermRegisterWebview: (
+        blockId: string,
+        browserTabId: string,
+        webContentsId: number,
+        tabId?: string,
+        workspaceId?: string
+    ) => ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId, tabId, workspaceId),
     // MOLTENTERM-PATCH (#971): an agent's click is about to reach a webview, which must not take the window's focus
     onMoltentermAgentPress: (callback: (webContentsId: number, pressing: boolean) => void) => {
         const listener = (_event, webContentsId: number, pressing: boolean) => callback(webContentsId, pressing);
@@ -244,6 +249,21 @@ contextBridge.exposeInMainWorld("api", {
         const listener = () => callback();
         ipcRenderer.on("moltenterm-favicons-cleared", listener);
         return () => ipcRenderer.removeListener("moltenterm-favicons-cleared", listener);
+    },
+    // MOLTENTERM-PATCH (#1992): the downloads of the web pages, tracked by Electron main (emain/moltenterm-downloads.ts)
+    moltentermDownloadsList: () => ipcRenderer.invoke("moltenterm-downloads-list"),
+    moltentermDownloadsAct: (request: any) => ipcRenderer.invoke("moltenterm-downloads-act", request),
+    moltentermDownloadsClear: () => ipcRenderer.invoke("moltenterm-downloads-clear"),
+    moltentermDownloadsCheck: () => ipcRenderer.invoke("moltenterm-downloads-check"),
+    onMoltentermDownloadsChanged: (callback: (snapshot: any) => void) => {
+        const listener = (_event, snapshot) => callback(snapshot);
+        ipcRenderer.on("moltenterm-downloads-changed", listener);
+        return () => ipcRenderer.removeListener("moltenterm-downloads-changed", listener);
+    },
+    onMoltentermDownloadsNotify: (callback: (notice: any) => void) => {
+        const listener = (_event, notice) => callback(notice);
+        ipcRenderer.on("moltenterm-downloads-notify", listener);
+        return () => ipcRenderer.removeListener("moltenterm-downloads-notify", listener);
     },
     // MOLTENTERM-PATCH (#849): the window did not answer for a while, and what Electron main recorded about it
     // (emain/moltenterm-hang-watch.ts)

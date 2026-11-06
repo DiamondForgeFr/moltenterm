@@ -9,6 +9,7 @@
 // tabs until the user answers, and clears the emulated viewport when control ends.
 
 import { nativeImage, type WebContents } from "electron";
+import { markHeld, noteAgentDownload } from "./moltenterm-download-hold";
 import { onAppIpc, onGuestIpc } from "./moltenterm-privileged-ipc";
 import { liveWebContentsFromId } from "./moltenterm-webcontents-id";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -78,10 +79,19 @@ const RegistrationPollMs = 50;
 
 export type CdpCallData = { blockid: string; browsertabid: string; method: string; params?: any; token: string };
 export type ControlData = { blockid: string; browsertabid: string; controlled: boolean; token: string };
-// Asks wavesrv whether a download a controlled tab started may go on; resolves to the user's answer.
-export type DownloadAsk = (blockId: string, browserTabId: string, host: string) => Promise<boolean>;
+// Asks wavesrv whether a download a controlled tab started may go on; resolves to the user's answer, with the agent's
+// name when it is an Allow (the Downloads section shows who started the file, #1992).
+export type DownloadAnswer = boolean | { allow: boolean; agentname?: string };
+export type DownloadAsk = (blockId: string, browserTabId: string, host: string) => Promise<DownloadAnswer>;
 
-type Registration = { blockId: string; browserTabId: string; webContentsId: number };
+// tabId and workspaceId say where the panel lives, for the downloads that start in its page (#1992).
+type Registration = {
+    blockId: string;
+    browserTabId: string;
+    webContentsId: number;
+    tabId: string;
+    workspaceId: string;
+};
 
 const registry = new Map<string, Registration>();
 const controlled = new Set<string>();
@@ -251,18 +261,23 @@ function hookDownloads(wc: WebContents): void {
             return;
         }
         event.preventDefault();
+        markHeld(item);
         if (pendingDownloads.has(source.id)) {
             return;
         }
         pendingDownloads.add(source.id);
         const sourceId = source.id;
         askDownload(reg.blockId, reg.browserTabId, downloadHost(url)).then(
-            (allow) => {
+            (answer) => {
                 pendingDownloads.delete(sourceId);
+                const allow = typeof answer === "object" ? answer?.allow === true : answer === true;
                 if (!allow || source.isDestroyed()) {
                     return;
                 }
                 allowedDownloads.set(source.id, { url, until: Date.now() + DownloadAllowanceMs });
+                if (typeof answer === "object") {
+                    noteAgentDownload(source.id, url, answer.agentname);
+                }
                 source.downloadURL(url);
             },
             (e) => {
@@ -282,6 +297,14 @@ function registrationOf(wcId: number): Registration {
     return null;
 }
 
+// Where a panel tab's page lives, for the downloads module: null for a page no panel registered (a Wave web block).
+export function webviewOwner(wcId: number): { blockId: string; browserTabId: string; tabId: string; workspaceId: string } {
+    const reg = registrationOf(wcId);
+    return reg == null
+        ? null
+        : { blockId: reg.blockId, browserTabId: reg.browserTabId, tabId: reg.tabId, workspaceId: reg.workspaceId };
+}
+
 function applyControl(key: string): void {
     const reg = registry.get(key);
     const wc = reg ? liveContents(reg.webContentsId) : null;
@@ -298,7 +321,18 @@ function applyControl(key: string): void {
     stopWatching(wc);
 }
 
-function register(event: Electron.IpcMainEvent, blockId: unknown, browserTabId: unknown, webContentsId: unknown): void {
+function placeId(id: unknown): string {
+    return typeof id === "string" && id.length <= 200 ? id : "";
+}
+
+function register(
+    event: Electron.IpcMainEvent,
+    blockId: unknown,
+    browserTabId: unknown,
+    webContentsId: unknown,
+    tabId?: unknown,
+    workspaceId?: unknown
+): void {
     if (!validRegistration(blockId, browserTabId, webContentsId)) {
         return;
     }
@@ -324,6 +358,8 @@ function register(event: Electron.IpcMainEvent, blockId: unknown, browserTabId: 
         blockId: blockId as string,
         browserTabId: browserTabId as string,
         webContentsId: wc.id,
+        tabId: placeId(tabId),
+        workspaceId: placeId(workspaceId),
     };
     registry.set(key, reg);
     wc.once("destroyed", () => {
