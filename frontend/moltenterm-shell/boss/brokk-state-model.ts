@@ -13,15 +13,14 @@
 // the signals are the count of agents working, the count of rows To handle and whether the card is open.
 
 import type { AskedExpression, BrokkExpression, BrokkPose, BrokkSituation } from "./brokk-ask-model";
-import { restingPose } from "./brokk-ask-model";
+import { restingPose, SpeakingMs } from "./brokk-ask-model";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
 
 export type { BrokkPose };
 
 export const BrokkExpressions = Object.keys(Manifest.expressionMs) as BrokkExpression[];
 
-// How long he speaks after the card opens on items to handle, then he listens.
-export const SpeakingMs = 4000;
+export { SpeakingMs };
 
 // What a clip that carries him into the listening pose may add before the gesture starts (the longest is 4 s), and a
 // margin.

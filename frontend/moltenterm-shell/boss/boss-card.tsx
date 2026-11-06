@@ -64,7 +64,7 @@ import { HandoffRowView } from "./boss-handoff-row";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
 import { InfoItem, ToHandleAction, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
-import { expressionAfterAnswer } from "./brokk-ask-model";
+import { handledKindOf } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import { useCardLive } from "./use-brokk-live";
 
@@ -534,7 +534,9 @@ function NotificationsView({
     );
 }
 
-export function BossCard({ style }: { style: React.CSSProperties }) {
+// `headerStill`: the comm screen stands beside the card (the scene says so), so the header shows his still, not a second
+// animated portrait.
+export function BossCard({ style, headerStill = false }: { style: React.CSSProperties; headerStill?: boolean }) {
     const t = useT();
     const tCount = useTCount();
     const locale = useLocale();
@@ -551,7 +553,7 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
     const [busyId, setBusyId] = useState<string>(null);
     const [problem, setProblem] = useState("");
     const [tab, setTab] = useState<CardTab>(() => (badge.count > 0 ? "todo" : lastCardTab));
-    const live = useCardLive();
+    const live = useCardLive(headerStill);
     const home = homeFolder();
     const groups = useMemo(
         () => cardGroups(data, workspace?.oid, home, now),
@@ -672,9 +674,9 @@ export function BossCard({ style }: { style: React.CSSProperties }) {
         fireAndForget(async () => {
             try {
                 await work();
-                const expression = expressionAfterAnswer(run);
-                if (expression != null) {
-                    BrokkExpressionsModel.getInstance().ask(expression);
+                const handled = handledKindOf(run);
+                if (handled != null) {
+                    BrokkExpressionsModel.getInstance().noteHandled(handled);
                 }
             } catch (e) {
                 setProblem(serverErrorText(e));

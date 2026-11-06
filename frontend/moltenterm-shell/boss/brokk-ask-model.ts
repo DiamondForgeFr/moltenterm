@@ -3,10 +3,12 @@
 
 // How the app asks Brokk for a gesture (FR-BOSS-007, AC3): the small part that is always loaded with the bubble, so that
 // the first call gesture can be asked before anything of his animated portrait has loaded. Everything that draws him,
-// his clips, the gestures' poses and the rules of the other gestures (brokk-state-model.ts, brokk-moments.ts, brokk-live.tsx) loads
-// on the first opening of the screen or the first call, never with the bubble: keep this file free of them (no manifest,
-// no package, no model of an agent or a review), since every byte of it is JavaScript every tab view loads up front.
-// Pure, so the rules are tested without a window or a clock.
+// his clips, the gestures' poses and the merges' listening (brokk-state-model.ts, brokk-moments.ts, brokk-live.tsx)
+// loads on the first opening of the screen or the first call, never with the bubble: keep this file free of them (no
+// manifest, no package, no model of an agent or a review), since every byte of it is JavaScript every tab view loads up
+// front. Pure, so the rules are tested without a window or a clock.
+
+import type { HandledKind } from "./brokk-mood";
 
 // The gestures the app asks of him; the manifest holds the length of each one.
 export type BrokkExpression = "smile" | "doubtful" | "frown" | "nod" | "call";
@@ -26,9 +28,10 @@ export type BrokkPose = "rest" | "thinking" | "listening" | "speaking";
 // His pose before any gesture or speech (FR-BOSS-007, AC2). Here and not with his portrait, because the comm screen's
 // caption, drawn with the bubble, says what this pose shows (AC9). Nothing going on is his awake idle, the listening
 // loop with its blinks: rest, the eyes closed, is sleep, and he sleeps only while the developer is away and nothing
-// works or waits (#1958). Whatever arrives, or the developer coming back, wakes him.
+// works or waits (#1958). Whatever arrives, or the developer coming back, wakes him. With the card open he looks up,
+// even while agents work: the developer came to talk to him (#1959).
 export function restingPose(situation: BrokkSituation): BrokkPose {
-    if (situation.waiting > 0) {
+    if (situation.waiting > 0 || situation.cardOpen) {
         return "listening";
     }
     if (situation.working > 0) {
@@ -37,30 +40,16 @@ export function restingPose(situation: BrokkSituation): BrokkPose {
     return situation.away === true ? "rest" : "listening";
 }
 
-// A gesture asked: a new cue plays the same gesture again. `at` is when it was asked.
+// A gesture the queue started (brokk-queue.ts): a new cue plays the same gesture again. `at` is when it started.
 export type AskedExpression = { expression: BrokkExpression; cue: number; at?: number };
-
-// A failure raises the count of the badge too, so the call and the frown are asked in the same moment. The call only
-// gets the developer's eye; the gesture that tells why must not be lost behind it, whichever is asked first.
-export const CallYieldMs = 500;
-
-export function askedAfter(current: AskedExpression, expression: BrokkExpression, now: number): AskedExpression {
-    const cue = (current?.cue ?? 0) + 1;
-    if (
-        expression === "call" &&
-        current != null &&
-        current.expression !== "call" &&
-        now - (current.at ?? 0) < CallYieldMs
-    ) {
-        return current;
-    }
-    return { expression, cue, at: now };
-}
 
 // The count rose since the last reading; the first reading is no rise.
 export function rose(before: number, now: number): boolean {
     return before != null && now > before;
 }
+
+// How long he speaks after the card opens on items to handle, then he listens; the caption says his sentence meanwhile.
+export const SpeakingMs = 4000;
 
 // The card opened: he speaks only when it opens on something to handle.
 export function speaksOnOpen(situation: BrokkSituation): boolean {
@@ -79,11 +68,21 @@ export function handledAfter(handled: number, asked: AskedExpression, consumed: 
     return consumed && asked != null && asked.cue > handled ? asked.cue : handled;
 }
 
-// What the developer's answer on a To handle row tells him: an approved hand-off is good news, an answer given to an
-// agent is an approval he nods at. A refusal or a dismissal says nothing.
-export function expressionAfterAnswer(run: { kind: string; decision?: string }): BrokkExpression {
-    if (run.kind === "handoff") {
-        return run.decision === "once" || run.decision === "always" ? "smile" : null;
+export type AnswerRun = { kind: string; decision?: string };
+
+// What the developer's action on a To handle row is, for the caption that says "Noted" and the nod that answers it (an
+// approval is a nod; the smile is kept for success, #1959): an answer given to an agent, a hand-off allowed (once or
+// always), a CI rerun, a "go there and do it" marked done. A refusal, a dismissal, Later and the doors that only go
+// somewhere say nothing.
+export function handledKindOf(run: AnswerRun): HandledKind {
+    switch (run.kind) {
+        case "answer":
+        case "rerun":
+        case "done":
+            return run.kind as HandledKind;
+        case "handoff":
+            return run.decision === "once" || run.decision === "always" ? "handoff" : null;
+        default:
+            return null;
     }
-    return run.kind === "answer" ? "nod" : null;
 }

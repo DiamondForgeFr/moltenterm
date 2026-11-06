@@ -13,7 +13,6 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
-import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { I18nModel } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
@@ -29,22 +28,22 @@ import {
     bossSettingOn,
     BossShowSettingKey,
 } from "./boss-name";
-import { attentionAgents, Badge, BossPeek, makeBadge, makePeek, workingCount, workspaceNamesOf } from "./boss-overview";
+import { Badge, BossPeek, makePeek, workingCount, workspaceNamesOf } from "./boss-overview";
 import {
     Area,
     bubbleMetaValue,
     BubbleState,
     collapsesWhileTyping,
     DefaultPlace,
-    nextCue,
     readBubbleState,
     Rect,
     rectToPlace,
     sameBubbleState,
 } from "./boss-place";
 import { NoScreenHold, ScreenHold } from "./boss-screen-model";
-import { buildToHandle, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
+import { buildToHandle, peekRowOf, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
+import { arrivalsAfter, EmptyArrivals, unseenItems } from "./brokk-watch";
 
 // The slice of the document the model listens on, so the rules run against a stand-in in the tests.
 export type BossDom = {
@@ -103,12 +102,9 @@ export class BossBubbleModel {
     nameAtom: Atom<string>;
     showAtom: Atom<boolean>;
     collapseOnTypeAtom: Atom<boolean>;
-    attentionAtom: Atom<AgentStateInfo[]>;
-    // The rows the To handle tab shows, and the badge that counts them.
+    // The rows the To handle tab shows, and the badge that counts them: the one cue follows the badge, whatever the row.
     toHandleAtom: Atom<ToHandleList>;
     badgeAtom: Atom<Badge>;
-    // The agents that wait or failed: the one cue follows them, as it always did.
-    attentionBadgeAtom: Atom<Badge>;
     // The agents at work: Brokk's face thinks while some do and nothing waits (FR-BOSS-007).
     workingCountAtom: Atom<number>;
     peekAtom: Atom<BossPeek>;
@@ -135,12 +131,6 @@ export class BossBubbleModel {
         this.collapseOnTypeAtom = atom((get) =>
             bossSettingOn(get(getSettingsKeyAtom(BossCollapseOnTypeSettingKey as keyof SettingsType)))
         );
-        // The list changes when an agent enters or leaves waiting or error, not on every state event.
-        this.attentionAtom = selectAtom(
-            atom((get) => attentionAgents(get(AgentStates.getInstance().dataAtom))),
-            (list) => list,
-            (a, b) => a.length === b.length && a.every((info, i) => info === b[i])
-        );
         this.toHandleAtom = atom((get) =>
             buildToHandle({
                 states: get(AgentStates.getInstance().dataAtom),
@@ -157,17 +147,13 @@ export class BossBubbleModel {
             (badge) => badge,
             (a, b) => a.count === b.count && a.tone === b.tone
         );
-        this.attentionBadgeAtom = selectAtom(
-            atom((get) => makeBadge(get(this.attentionAtom))),
-            (badge) => badge,
-            (a, b) => a.count === b.count && a.tone === b.tone
-        );
         this.workingCountAtom = atom((get) => workingCount(get(AgentStates.getInstance().dataAtom)));
         this.peekAtom = atom((get) => {
             get(I18nModel.getInstance().localeAtom);
             const states = get(AgentStates.getInstance().dataAtom);
             return makePeek({
                 states,
+                toHandle: unseenItems(get(this.toHandleAtom)).map(peekRowOf),
                 workspaceNames: workspaceNamesOf(states, (id) =>
                     get(WOS.getWaveObjectAtom<Workspace>(WOS.makeORef("workspace", id)))
                 ),
@@ -319,35 +305,30 @@ export class BossBubbleModel {
         globalStore.set(this.typingBlockAtom, null);
     }
 
-    // The count rose: one cue, and only when a first reading is in (a window starting is not an agent waiting). The
-    // agents and the hand-off requests are counted apart, each against its own first reading: a request is the badge's
-    // too (FR-BOSS-005), and one arriving while an agent already waits is still a rise.
+    // The badge rose: one cue, whatever the row that arrived (an agent, a failing CI, a ready pull request, a question,
+    // a hand-off request: FR-BOSS-007, AC3), and only once the first readings are in (a window starting is not news; so
+    // is a project's pull requests read for the first time). A row that comes back from Later is no arrival either
+    // (brokk-watch.ts arrivalsAfter).
     private watchCount(): () => void {
         const agents = AgentStates.getInstance();
         const handoffs = PendingHandoffs.getInstance();
-        let lastAgents: number = null;
-        let lastHandoffs: number = null;
+        let memory = EmptyArrivals;
         const check = () => {
-            const nextAgents = nextCue(
-                lastAgents,
-                globalStore.get(this.attentionBadgeAtom).count,
-                globalStore.get(agents.loadedAtom)
-            );
-            const nextHandoffs = nextCue(
-                lastHandoffs,
-                globalStore.get(handoffs.dataAtom).length,
-                globalStore.get(handoffs.loadedAtom)
-            );
-            lastAgents = nextAgents.last;
-            lastHandoffs = nextHandoffs.last;
-            if (nextAgents.cue || nextHandoffs.cue) {
+            const list = globalStore.get(this.toHandleAtom);
+            const step = arrivalsAfter(memory, {
+                ready: globalStore.get(agents.loadedAtom) && globalStore.get(handoffs.loadedAtom),
+                keys: [...list.items.map((item) => item.key), ...(list.parkedKeys ?? [])],
+                unseenKeys: unseenItems(list).map((item) => item.key),
+                reviewDirs: Object.keys(globalStore.get(SharedReviewsAnswersAtom) ?? {}),
+            });
+            memory = step.memory;
+            if (step.arrived.length > 0) {
                 globalStore.set(this.cueAtom, (n) => n + 1);
             }
         };
         const stops = [
-            globalStore.sub(this.attentionBadgeAtom, check),
+            globalStore.sub(this.toHandleAtom, check),
             globalStore.sub(agents.loadedAtom, check),
-            globalStore.sub(handoffs.dataAtom, check),
             globalStore.sub(handoffs.loadedAtom, check),
         ];
         check();

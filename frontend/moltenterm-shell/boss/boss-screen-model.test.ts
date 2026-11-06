@@ -10,7 +10,6 @@ import {
     overZone,
     Point,
     pointerOver,
-    screenCaption,
     ScreenEvent,
     ScreenHold,
     screenShows,
@@ -241,43 +240,5 @@ describe("a pointer on the round's edge gives no open and close loop (AC12)", ()
             open ? point.x >= BubbleSizePx && point.y >= BubbleSizePx && overZone(point, "tl") : overRound(point);
         const result = run([onEdge(Math.PI / 4, RoundCentre - 0.5)], away);
         expect(result.settled).toBe(false);
-    });
-});
-
-describe("the caption says what his face shows (FR-BOSS-007, AC9, #1958)", () => {
-    const at = (working: number, waiting: number, away = false) => ({ working, waiting, cardOpen: false, away });
-
-    it("says who works first, then that nothing is for you, while he thinks", () => {
-        expect(screenCaption(at(1, 0), "Arthur")).toEqual({
-            status: { key: "boss.screen.working", vars: { name: "Arthur" } },
-            detail: { key: "boss.screen.nothingForYou" },
-        });
-        expect(screenCaption(at(3, 0), "")).toEqual({
-            status: { key: "boss.screen.workingCount", count: 3 },
-            detail: { key: "boss.screen.nothingForYou" },
-        });
-        expect(screenCaption(at(1, 0), "").status).toEqual({ key: "boss.screen.workingCount", count: 1 });
-    });
-
-    it("never says nothing to handle while an agent works", () => {
-        for (const working of [1, 2, 7]) {
-            const caption = screenCaption(at(working, 0), "Arthur");
-            expect(caption.status.key).not.toBe("boss.screen.quiet");
-            expect(caption.detail?.key).not.toBe("boss.screen.quiet");
-        }
-    });
-
-    it("counts what waits first while he listens, then who works", () => {
-        expect(screenCaption(at(0, 2), "")).toEqual({ status: { key: "boss.screen.toHandle", count: 2 } });
-        expect(screenCaption(at(2, 1), "")).toEqual({
-            status: { key: "boss.screen.toHandle", count: 1 },
-            detail: { key: "boss.screen.workingCount", count: 2 },
-        });
-    });
-
-    it("says nothing to handle only when nothing goes on, and that he sleeps while you are away", () => {
-        expect(screenCaption(at(0, 0), "")).toEqual({ status: { key: "boss.screen.quiet" } });
-        expect(screenCaption(at(0, 0, true), "")).toEqual({ status: { key: "boss.screen.asleep" } });
-        expect(screenCaption(at(1, 0, true), "Arthur").status.key).toBe("boss.screen.working");
     });
 });

@@ -26,6 +26,7 @@ vi.mock("./boss-store", async () => {
         cardOpenAtom: atom(false),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         workingCountAtom: atom(0),
+        toHandleAtom: atom({ items: [], info: [], parked: 0 }),
         peekAtom: atom({ waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: [], latest: null }),
         attach: vi.fn(() => () => {}),
         setRectSource: vi.fn(),
@@ -41,10 +42,22 @@ vi.mock("./boss-store", async () => {
 // His animated portrait has its own tests (brokk-live, use-brokk-live): here the bubble only asks for it.
 vi.mock("./brokk-expressions", async () => {
     const { atom } = await import("jotai");
-    const askedAtom = atom(null);
-    return {
-        BrokkExpressionsModel: { getInstance: () => ({ askedAtom, ask: vi.fn(), watch: vi.fn(() => () => {}) }) },
+    const { EmptyMood } = await import("./brokk-mood");
+    const model = {
+        askedAtom: atom(null),
+        moodAtom: atom(EmptyMood),
+        lastKeyAtAtom: atom(null),
+        ask: vi.fn(),
+        noteOpen: vi.fn(),
+        watch: vi.fn(() => () => {}),
     };
+    return { BrokkExpressionsModel: { getInstance: () => model } };
+});
+// The agents the scene reads the longest thought from.
+vi.mock("../agent-state-store", async () => {
+    const { atom } = await import("jotai");
+    const dataAtom = atom({ states: {}, versions: {} });
+    return { AgentStates: { getInstance: () => ({ dataAtom }) } };
 });
 // The card has its own tests (boss-card.test.tsx): here it only stands where the bubble puts it.
 vi.mock("./boss-card", () => ({
@@ -122,7 +135,7 @@ describe("the bubble (FR-BOSS-001, AC1, AC10)", () => {
     it("describes itself with the peek's text, for screen readers", () => {
         globalStore.set(model.badgeAtom, { count: 1, text: "1", tone: "error" });
         globalStore.set(model.peekAtom, {
-            waiting: [{ id: "b1", name: "Léa", workspace: "Alpha", state: "error" }],
+            waiting: [{ id: "agent:b1", name: "Léa", workspace: "Alpha", tone: "error", line: "error" }],
             waitingMore: 0,
             working: [],
             workingMore: 0,
@@ -220,8 +233,10 @@ describe("the pennant (AC3)", () => {
 describe("the peek (AC7)", () => {
     const peek = {
         waiting: [
-            { id: "b1", name: "Léa", workspace: "Alpha", state: "error" },
-            { id: "b2", name: "Max", workspace: "Beta", state: "waiting" },
+            { id: "agent:b1", name: "Léa", workspace: "Alpha", tone: "error", line: "error" },
+            { id: "agent:b2", name: "Max", workspace: "Beta", tone: "waiting", line: "waiting for you" },
+            { id: "ci:/p:12", name: "#12", workspace: "p", tone: "error", line: "CI failing: build" },
+            { id: "handoff:r1", name: "Chloé", workspace: "", tone: "waiting", line: "Fix the login" },
         ],
         waitingMore: 2,
         working: [{ workspace: "Alpha", names: ["Zoé", "Jo"], more: 0 }],
@@ -247,6 +262,9 @@ describe("the peek (AC7)", () => {
         expect(card).toContain("Alpha");
         expect(card).toContain("error");
         expect(card).toContain("waiting for you");
+        expect(card).toContain("CI failing: build");
+        expect(card).toContain("Chloé");
+        expect(card).toContain("Fix the login");
         expect(card).toContain("and 2 more");
         expect(card).toContain("Zoé, Jo");
         expect(card).toContain("Claude Code: This week, 61 % used");
@@ -266,9 +284,23 @@ describe("the peek (AC7)", () => {
         expect(css).toMatch(/\.mt-boss-peek \{[^}]*pointer-events: none;/);
     });
 
-    it("says that nothing waits when nobody does", () => {
+    it("starts with the scene's headline, the same sentence as the screen's status line (#1959)", () => {
         globalStore.set(model.peekOpenAtom, true);
-        expect(render()).toContain("Nothing waits for you.");
+        const card = render().slice(render().indexOf('data-testid="boss-peek"'));
+        expect(card).toMatch(/data-testid="boss-peek-headline"[^>]*>Nothing to handle</);
+        globalStore.set(model.badgeAtom, { count: 2, text: "2", tone: "waiting" });
+        const html = render();
+        expect(html.slice(html.indexOf('data-testid="boss-peek"'))).toMatch(
+            /data-testid="boss-peek-headline"[^>]*>2 things to handle</
+        );
+        globalStore.set(model.peekOpenAtom, false);
+        globalStore.set(model.cardOpenAtom, false);
+        const screenHtml = (() => {
+            globalStore.set(model.screenHoldAtom, holdAfter(NoScreenHold, "pointer-enter"));
+            const shown = render();
+            return shown.slice(shown.indexOf('data-testid="boss-screen-status"'));
+        })();
+        expect(screenHtml).toMatch(/data-testid="boss-screen-status"[^>]*>2 things to handle</);
     });
 
     it("hangs under the pennant when collapsed", () => {
@@ -482,7 +514,7 @@ describe("the comm screen (AC12)", () => {
             waitingMore: 0,
             working: [{ workspace: "Forge", names: ["Arthur"], more: 0 }],
             workingMore: 0,
-            usage: "",
+            usage: [],
             latest: null,
         });
         let screen = render().slice(render().indexOf('data-testid="boss-screen"'));

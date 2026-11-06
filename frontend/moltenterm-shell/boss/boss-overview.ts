@@ -55,7 +55,14 @@ export function makeBadge(list: AgentStateInfo[]): Badge {
     return { count: list.length, text: badgeCount(list.length), tone: badgeTone(list) };
 }
 
-export type PeekWaitingRow = { id: string; name: string; workspace: string; state: AttentionState };
+// A row the badge counts, listed in the hover card: its name, its place, its tone (red for a failure) and what it says.
+export type PeekWaitingRow = {
+    id: string;
+    name: string;
+    workspace: string;
+    tone: "error" | "waiting" | "success";
+    line: string;
+};
 export type PeekWorkplace = { workspace: string; names: string[]; more: number };
 export type PeekNotification = { id: string; title: string; message: string };
 
@@ -79,6 +86,8 @@ export type BossPeek = {
 
 export type PeekInput = {
     states: AgentStatesData;
+    // The rows the badge counts (To handle, FR-BOSS-003), hand-off requests included: the hover card lists the same.
+    toHandle: PeekWaitingRow[];
     sessions: DurableSession[];
     // The names of the workspaces of the agents listed, by workspace id (the workspace objects of this window), when known.
     workspaceNames?: Record<string, string>;
@@ -204,13 +213,13 @@ export function usageText(line: PeekUsageLine): string {
 
 export function makePeek(input: PeekInput): BossPeek {
     const workspaces = workspacesOf(input.sessions, input.workspaceNames);
-    const waiting = attentionAgents(input.states);
-    const rows: PeekWaitingRow[] = waiting.slice(0, PeekWaitingLimit).map((info) => ({
-        id: info.blockid,
-        name: agentCallName(info),
-        workspace: workspaceOfAgent(info, workspaces),
-        state: info.state as AttentionState,
-    }));
+    const waiting = input.toHandle ?? [];
+    const agentPrefix = "agent:";
+    // An agent's place is the workspace it works in, known from the workspace objects when no durable session names it.
+    const rows = waiting.slice(0, PeekWaitingLimit).map((row) => {
+        const info = row.id.startsWith(agentPrefix) ? input.states?.states?.[row.id.slice(agentPrefix.length)] : null;
+        return row.workspace || info == null ? row : { ...row, workspace: workspaceOfAgent(info, workspaces) };
+    });
 
     const working = Object.values(input.states?.states ?? {})
         .filter((info) => info?.state === "working")
@@ -252,10 +261,6 @@ export function makePeek(input: PeekInput): BossPeek {
         usage: usageLine(input.usage, agentNames, input.now),
         latest: latestNotification(input.notifications),
     };
-}
-
-export function peekIsQuiet(peek: BossPeek): boolean {
-    return peek.waiting.length === 0 && peek.working.length === 0;
 }
 
 // "Léa, Jérôme and 2 more".

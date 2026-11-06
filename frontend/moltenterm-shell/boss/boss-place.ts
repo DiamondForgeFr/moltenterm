@@ -201,12 +201,3 @@ export function collapsesWhileTyping(input: TypingInput): boolean {
     }
     return isTypingKey(input.key) && rectsOverlap(input.bubble, input.terminal);
 }
-
-// "Once the count rises": last is the count seen at the previous check, null before the first reading is in; the cue
-// plays on a rise only, never for the reading that first arrives.
-export function nextCue(last: number | null, count: number, ready: boolean): { last: number | null; cue: boolean } {
-    if (!ready) {
-        return { last: null, cue: false };
-    }
-    return { last: count, cue: last != null && count > last };
-}

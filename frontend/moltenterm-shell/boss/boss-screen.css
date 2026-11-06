@@ -192,6 +192,16 @@
     color: var(--mt-text-3);
 }
 
+/* The status is a sentence (a row's own words, what he says): it may take two lines before it is cut. */
+.mt-boss-caption-status {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 .mt-boss-caption-detail {
     opacity: 0.8;
 }

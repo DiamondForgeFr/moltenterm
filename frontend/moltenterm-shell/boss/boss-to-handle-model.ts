@@ -13,11 +13,18 @@ import {
     PendingHandoff,
     PendingHandoffBrief,
 } from "../agent-handoff-types";
-import { agentCallName, AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { agentCallName, AgentStateInfo, agentStateLabel, AgentStatesData } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import { checkNeedsAnswer } from "../notification-attention";
 import { badgeCount } from "../notification-rules";
-import { ClickActionId, MoltentermNotification, NotificationAction, visibleActions } from "../notifications-model";
+import {
+    ClickActionId,
+    MoltentermNotification,
+    NotificationAction,
+    notificationMessage,
+    notificationTitle,
+    visibleActions,
+} from "../notifications-model";
 import {
     checkNames,
     checksOf,
@@ -29,7 +36,7 @@ import {
 } from "../reviews/reviews-model";
 import { DurableSession } from "../sessions/sessions-model";
 import { workspaceShownName } from "../workspace-default-name";
-import type { Badge } from "./boss-overview";
+import type { Badge, PeekWaitingRow } from "./boss-overview";
 import { attentionAgents } from "./boss-overview";
 
 export type ToHandleTone = "error" | "waiting" | "success";
@@ -113,6 +120,8 @@ export type ToHandleList = {
     info: InfoItem[];
     // Items set aside with Later, back at the next opening of the card.
     parked: number;
+    // Their keys: a row that comes back from Later is not news.
+    parkedKeys?: string[];
 };
 
 export type ToHandleInput = {
@@ -448,7 +457,51 @@ export function buildToHandle(input: ToHandleInput): ToHandleList {
             place: workspaceShownName(sessionOf(input.sessions, state.blockid)?.workspacename ?? "", t),
             line: { key: "boss.todo.infoDone" },
         }));
-    return { items, info, parked: all.length - items.length };
+    return {
+        items,
+        info,
+        parked: all.length - items.length,
+        parkedKeys: all.filter((item) => input.parked?.[item.key] === true).map((item) => item.key),
+    };
+}
+
+// What a row is called and what it says, in the user's language: the card, the comm screen and the hover card all read
+// the row through these.
+export function toHandleName(item: ToHandleItem): string {
+    return item.name !== "" ? item.name : item.notice != null ? notificationTitle(item.notice) : "";
+}
+
+export function toHandleLineText(item: ToHandleItem): string {
+    if (item.lineFromNotice && item.notice != null) {
+        return notificationMessage(item.notice);
+    }
+    return item.line.key != null ? t(item.line.key, item.line.vars) : (item.line.text ?? "");
+}
+
+// The row's own sentence, as the comm screen's caption and the hover card say it (FR-BOSS-007, AC11): an agent that
+// waits or stopped is a sentence by itself, any other row is its line with the name it is about.
+export function toHandleHeadline(item: ToHandleItem): string {
+    const name = toHandleName(item);
+    const line = toHandleLineText(item);
+    if (item.key.startsWith("agent:") && !item.lineFromNotice) {
+        return line;
+    }
+    if (item.key.startsWith("ci:") || item.key.startsWith("ready:")) {
+        return name ? `${line} (${name})` : line;
+    }
+    return name && line ? `${name}: ${line}` : name || line;
+}
+
+// The hover card's row for a row To handle: what the badge counts, listed (FR-BOSS-001, AC7).
+export function peekRowOf(item: ToHandleItem): PeekWaitingRow {
+    const agent = item.key.startsWith("agent:");
+    return {
+        id: item.key,
+        name: toHandleName(item),
+        workspace: item.place,
+        tone: item.tone,
+        line: agent ? agentStateLabel(item.tone === "error" ? "error" : "waiting") : toHandleLineText(item),
+    };
 }
 
 // The badge counts what the developer has to do, never the info rows, the rows set aside or the ones they already

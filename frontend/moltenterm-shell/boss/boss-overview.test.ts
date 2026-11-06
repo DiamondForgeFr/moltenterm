@@ -15,9 +15,9 @@ import {
     makeBadge,
     makePeek,
     PeekInput,
-    peekIsQuiet,
     PeekNamesLimit,
     PeekWaitingLimit,
+    PeekWaitingRow,
     PeekWorkplaceLimit,
     usageLine,
     workingCount,
@@ -66,7 +66,7 @@ function note(id: string, extra: Partial<MoltentermNotification> = {}): Moltente
 }
 
 function input(partial: Partial<PeekInput> = {}): PeekInput {
-    return { states: states(), sessions: [], notifications: [], usage: {}, now: Now, ...partial };
+    return { states: states(), toHandle: [], sessions: [], notifications: [], usage: {}, now: Now, ...partial };
 }
 
 describe("the agents that need the developer (FR-BOSS-001, AC5)", () => {
@@ -147,26 +147,32 @@ describe("the agents at work (FR-BOSS-007, AC2)", () => {
 });
 
 describe("the peek (AC7)", () => {
-    it("lists what waits with the agent's first name, its workspace and its state", () => {
-        const peek = makePeek(
-            input({
-                states: states(
-                    agent("a", "waiting", { firstname: "Léa", workspaceid: "w1" }),
-                    agent("b", "error", { firstname: "", agentname: "Codex", workspaceid: "w2" })
-                ),
-                sessions: [session("a", "w1", "Alpha"), session("b", "w2", "Beta", 1)],
-            })
-        );
-        expect(peek.waiting).toEqual([
-            { id: "b", name: "Codex", workspace: "Beta", state: "error" },
-            { id: "a", name: "Léa", workspace: "Alpha", state: "waiting" },
-        ]);
+    function row(id: string, extra: Partial<PeekWaitingRow> = {}): PeekWaitingRow {
+        return { id, name: id, workspace: "", tone: "waiting", line: "", ...extra };
+    }
+
+    it("lists the rows the badge counts, whatever they are: an agent, a failing CI, a hand-off request (#1959)", () => {
+        const rows: PeekWaitingRow[] = [
+            row("agent:b", { name: "Codex", workspace: "Beta", tone: "error", line: "error" }),
+            row("ci:/p:12", { name: "#12", workspace: "p", tone: "error", line: "CI failing: build" }),
+            row("handoff:r1", { name: "Chloé", line: "Fix the login" }),
+        ];
+        const peek = makePeek(input({ toHandle: rows }));
+        expect(peek.waiting).toEqual(rows);
         expect(peek.waitingMore).toBe(0);
     });
 
+    it("lists as many rows as the badge counts: what the badge says, the hover card says (#1959)", () => {
+        for (const count of [0, 1, 3, 5, 12]) {
+            const rows = Array.from({ length: count }, (_, i) => row(`handoff:r${i}`));
+            const peek = makePeek(input({ toHandle: rows }));
+            expect(peek.waiting.length + peek.waitingMore).toBe(count);
+        }
+    });
+
     it("shows up to three rows, then says how many more", () => {
-        const many = Array.from({ length: PeekWaitingLimit + 4 }, (_, i) => agent(`m${i}`, "waiting", { since: i }));
-        const peek = makePeek(input({ states: states(...many) }));
+        const many = Array.from({ length: PeekWaitingLimit + 4 }, (_, i) => row(`agent:m${i}`));
+        const peek = makePeek(input({ toHandle: many }));
         expect(peek.waiting).toHaveLength(PeekWaitingLimit);
         expect(peek.waitingMore).toBe(4);
     });
@@ -179,14 +185,26 @@ describe("the peek (AC7)", () => {
                     agent("other", "waiting", { workspaceid: "w2", since: 200 }),
                     agent("unknown", "waiting", { workspaceid: "w9", since: 300 })
                 ),
+                toHandle: [row("agent:direct"), row("agent:other"), row("agent:unknown")],
                 sessions: [session("direct", "w1", "Alpha"), session("elsewhere", "w2", "Beta")],
             })
         );
         expect(Object.fromEntries(peek.waiting.map((r) => [r.id, r.workspace]))).toEqual({
-            direct: "Alpha",
-            other: "Beta",
-            unknown: "",
+            "agent:direct": "Alpha",
+            "agent:other": "Beta",
+            "agent:unknown": "",
         });
+    });
+
+    it("keeps the place a row already has", () => {
+        const peek = makePeek(
+            input({
+                states: states(agent("a", "waiting", { workspaceid: "w1" })),
+                toHandle: [row("agent:a", { workspace: "Its own" })],
+                sessions: [session("a", "w1", "Alpha")],
+            })
+        );
+        expect(peek.waiting[0].workspace).toBe("Its own");
     });
 
     it("prefers the workspace objects' names, and reads only the workspaces of the agents it lists", () => {
@@ -208,6 +226,7 @@ describe("the peek (AC7)", () => {
         const peek = makePeek(
             input({
                 states: states(agent("a", "waiting", { workspaceid: "w1" })),
+                toHandle: [row("agent:a")],
                 workspaceNames: { w1: "From the object" },
                 sessions: [session("a", "w1", "From the session")],
             })
@@ -219,6 +238,7 @@ describe("the peek (AC7)", () => {
         const peek = makePeek(
             input({
                 states: states(agent("a", "waiting")),
+                toHandle: [row("agent:a")],
                 sessions: [session("a", "w1", "Starter workspace")],
             })
         );
@@ -257,12 +277,6 @@ describe("the peek (AC7)", () => {
         const crowded = peek.working.find((p) => p.names.length === PeekNamesLimit);
         expect(crowded.more).toBe(2);
         expect(workplaceNames(crowded)).toBe("N0, N1, N2 and 2 more");
-    });
-
-    it("is quiet when nobody waits or works", () => {
-        expect(peekIsQuiet(makePeek(input()))).toBe(true);
-        expect(peekIsQuiet(makePeek(input({ states: states(agent("a", "done"), agent("b", "idle")) })))).toBe(true);
-        expect(peekIsQuiet(makePeek(input({ states: states(agent("a", "working")) })))).toBe(false);
     });
 });
 
