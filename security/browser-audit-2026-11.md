@@ -371,7 +371,8 @@ messaging; Andvari's `docs/SPEC.md`). Integration points MoltenTerm would need:
 
 ## Proposed tickets
 
-Not created: the developer creates them.
+Each proposal is now a ticket. T1 to T5: #1975 to #1979. T6: #1980. T7 to T14: #1982 to #1989. T15 to T17: the Andvari
+exploration #1963. T18: #1990. T19: #1991.
 
 - **T1. Flip Electron fuses in packaged builds** (High). Packaged builds keep Electron's default fuses, so a same-user
   process can run code under MoltenTerm's signature and reach what it is granted, the browser's cookie encryption key
