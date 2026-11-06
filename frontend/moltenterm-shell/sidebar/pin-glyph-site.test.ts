@@ -5,7 +5,7 @@
 // workspace whatever a workspace's own instance shows (#1962, #1270).
 
 import { describe, expect, it } from "vitest";
-import { pinGlyph, topRowBlocks } from "./sidebar-blocks";
+import { pinGlyph, pinSiteOrigins, topRowBlocks } from "./sidebar-blocks";
 import {
     isGlyphFavicon,
     readSiteIconChoice,
@@ -72,6 +72,21 @@ describe("a top-row block of one page (#1962)", () => {
         expect(pinGlyph(pin("p-own", [page(`${Linear}/a`)], { icon: "rocket" }), icons)).toEqual(["rocket"]);
         const chosen = pinGlyph(pin("p-site", [{ view: "term" }], { icon: siteIconChoice(Notion) }), icons);
         expect((chosen[0] as GlyphFavicon).origin).toBe(Notion);
+    });
+});
+
+describe("the origins a window asks for a top-row block (#1962)", () => {
+    it("is the site chosen for the pin, whatever page it saved: a kept icon reaches a window only when asked for", () => {
+        expect(pinSiteOrigins(pin("p-chosen", [{ view: "term" }], { icon: siteIconChoice(Notion) }))).toEqual([Notion]);
+        expect(pinSiteOrigins(pin("p-moved", [page(`${Linear}/a`)], { icon: siteIconChoice(Notion) }))).toEqual([
+            Notion,
+        ]);
+    });
+
+    it("is the site of the saved page otherwise, and nothing for a pin that is not one site", () => {
+        expect(pinSiteOrigins(pin("p-lin", [page(`${Linear}/a`)]))).toEqual([Linear]);
+        expect(pinSiteOrigins(pin("p-mixed", [page(`${Linear}/a`), { view: "term" }]))).toEqual([]);
+        expect(pinSiteOrigins(pin("p-name", [page(`${Linear}/a`)], { icon: "rocket" }))).toEqual([Linear]);
     });
 });
 

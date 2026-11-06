@@ -9,10 +9,11 @@
 import { globalStore } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { faviconsAtom } from "../favicon/favicon-store";
+import { useEffect } from "react";
+import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
 import { useT } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
-import { pinGlyph } from "../sidebar/sidebar-blocks";
+import { pinGlyph, pinSiteOrigins } from "../sidebar/sidebar-blocks";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { ViewGlyph } from "../sidebar/view-glyph";
 import { ViewPins } from "../sidebar/view-pins-store";
@@ -70,6 +71,8 @@ export function TopRowCard() {
     const t = useT();
     const pins = useAtomValue(ViewPins.getInstance().globalPinsAtom, { store: globalStore });
     const favicons = useAtomValue(faviconsAtom, { store: globalStore });
+    const pinOrigins = pins.flatMap(pinSiteOrigins).join(" ");
+    useEffect(() => requestFavicons(pinOrigins === "" ? [] : pinOrigins.split(" ")), [pinOrigins]);
     const reorder = (from: number, to: number) => {
         const dragged = pins[from]?.id;
         const target = pins[to]?.id;

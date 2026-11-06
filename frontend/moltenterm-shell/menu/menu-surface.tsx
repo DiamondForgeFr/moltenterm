@@ -306,7 +306,7 @@ function MenuItemContent({ item, submenu }: { item: ContextMenuItem; submenu?: b
                         "✓"
                     )
                 ) : item.iconImage ? (
-                    <FaviconMark url={item.iconImage} />
+                    <FaviconMark url={item.iconImage} dark={item.iconImageDark} />
                 ) : item.icon ? (
                     <i className={`fa fa-${item.icon}`} />
                 ) : null}

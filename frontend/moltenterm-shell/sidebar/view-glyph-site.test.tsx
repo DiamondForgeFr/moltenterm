@@ -226,6 +226,26 @@ describe("the icon menu offers the site's icon (#1962)", () => {
         );
     }
 
+    it("asks main for every page's icon of a mixed view: after a restart nothing else brings a kept icon back", async () => {
+        const read = vi.fn(async () => ({}));
+        (globalThis as any).window = { api: { moltentermFaviconRead: read } };
+        try {
+            known({});
+            seedTab("t-ask", {
+                "b-a1": page(`${Notion}/a`),
+                "b-a2": { view: "term", controller: "shell" },
+                "b-a3": page(`${Linear}/b`),
+            });
+            globalStore.get(viewGlyphAtom("t-ask"));
+            await Promise.resolve();
+            expect(read).not.toHaveBeenCalled();
+            menuHtml("t-ask", null);
+            await vi.waitFor(() => expect(read).toHaveBeenCalledWith([Notion, Linear]));
+        } finally {
+            delete (globalThis as any).window;
+        }
+    });
+
     it("offers one choice per site the view shows pages of whose icon is known, with the site's name", () => {
         known({ [Notion]: NotionIcon, [Linear]: LinearIcon });
         seedTab("t-menu", {
