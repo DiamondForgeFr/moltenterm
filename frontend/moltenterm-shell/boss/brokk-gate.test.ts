@@ -95,6 +95,15 @@ describe("when Brokk may arrive (FR-BOSS-009, AC8)", () => {
         expect(gateHold(EmptyGate, true, T)).toBe("quiet");
     });
 
+    it("may not while the sidebar is not on screen, and may once it shows (FR-BOSS-009, AC14)", () => {
+        const hidden = after([[{ type: "hidden", hidden: true }, T]]);
+        expect(mayArriveNow(hidden, false, T + 600_000)).toBe(false);
+        expect(gateHold(hidden, false, T + 600_000)).toBe("hidden");
+        const shown = gateAfter(hidden, { type: "hidden", hidden: false }, T + 600_000);
+        expect(mayArriveNow(shown, false, T + 600_000)).toBe(true);
+        expect(gateAfter(hidden, { type: "hidden", hidden: true }, T)).toBe(hidden);
+    });
+
     it("holds for the first reason found, but for all of them together", () => {
         const gate = after([
             [{ type: "enter" }, T],
@@ -167,6 +176,7 @@ describe("when the gate opens by itself", () => {
             { type: "search", focused: true },
             { type: "overlay", open: true },
             { type: "dragstart" },
+            { type: "hidden", hidden: true },
         ] as GateEvent[]) {
             expect(gateOpensAt(after([[event, T]]), T), event.type).toBeNull();
         }

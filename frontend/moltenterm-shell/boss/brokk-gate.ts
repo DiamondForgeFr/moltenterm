@@ -24,6 +24,9 @@ export type GateState = {
     searchFocused: boolean;
     // A menu or a dialog is open anywhere in the window.
     overlayOpen: boolean;
+    // The sidebar is not on screen (hidden, or floating away): the scene has nowhere to stand, and nothing opens it by
+    // itself, so the visit waits for it (FR-BOSS-009, AC14).
+    hidden: boolean;
 };
 
 export const EmptyGate: GateState = {
@@ -33,6 +36,7 @@ export const EmptyGate: GateState = {
     dragging: false,
     searchFocused: false,
     overlayOpen: false,
+    hidden: false,
 };
 
 // The surface tells what happens in the sidebar: `act` is a click, a scroll or a keystroke there.
@@ -43,7 +47,8 @@ export type GateEvent =
     | { type: "dragstart" }
     | { type: "dragend" }
     | { type: "search"; focused: boolean }
-    | { type: "overlay"; open: boolean };
+    | { type: "overlay"; open: boolean }
+    | { type: "hidden"; hidden: boolean };
 
 export function gateAfter(gate: GateState, event: GateEvent, now: number): GateState {
     switch (event.type) {
@@ -63,17 +68,22 @@ export function gateAfter(gate: GateState, event: GateEvent, now: number): GateS
                 : { ...gate, searchFocused: event.focused, actedAt: event.focused ? gate.actedAt : now };
         case "overlay":
             return gate.overlayOpen === event.open ? gate : { ...gate, overlayOpen: event.open };
+        case "hidden":
+            return gate.hidden === event.hidden ? gate : { ...gate, hidden: event.hidden };
         default:
             return gate;
     }
 }
 
-export type GateHold = "quiet" | "pointer" | "search" | "overlay" | "drag" | "action" | "leaving";
+export type GateHold = "quiet" | "hidden" | "pointer" | "search" | "overlay" | "drag" | "action" | "leaving";
 
 // Why he may not arrive now, or null when he may. The first reason found in this order.
 export function gateHold(gate: GateState, quiet: boolean, now: number): GateHold {
     if (quiet) {
         return "quiet";
+    }
+    if (gate.hidden) {
+        return "hidden";
     }
     if (gate.pointerIn) {
         return "pointer";
@@ -101,9 +111,9 @@ export function mayArriveNow(gate: GateState, quiet: boolean, now: number): bool
 }
 
 // When the gate opens by itself, as time passes: null when it is held by something only an event can end (the pointer,
-// the focus, an open menu, a drag), or is open.
+// the focus, an open menu, a drag, the hidden sidebar), or is open.
 export function gateOpensAt(gate: GateState, now: number): number {
-    if (gate.pointerIn || gate.searchFocused || gate.overlayOpen || gate.dragging) {
+    if (gate.hidden || gate.pointerIn || gate.searchFocused || gate.overlayOpen || gate.dragging) {
         return null;
     }
     const at = Math.max(
