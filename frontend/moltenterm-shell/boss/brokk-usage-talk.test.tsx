@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: vi.fn(() => () => {}) }));
+vi.mock("../suite/suite", () => ({ DominoLoader: () => <span data-testid="mock-domino" /> }));
 vi.mock("../tab-activity", () => ({
     TabActivity: { getInstance: () => ({ every: () => () => {} }) },
     whileShown: () => ({}),
@@ -106,6 +107,15 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         expect(render()).toContain("No coding agent is installed to start Brokk");
         globalStore.set(stateAtom, { phase: "sent", reason: "", agentName: "Claude Code", started: true });
         expect(render()).toContain("Claude Code started in Brokk&#x27;s own terminal.");
+    });
+
+    it("waits with the domino while the message is on its way, and with no other spinner", () => {
+        const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
+        globalStore.set(stateAtom, { phase: "sending", reason: "", agentName: "", started: false });
+        const html = render();
+        expect(html).toMatch(/data-testid="brokk-talk-note" data-phase="sending"[^>]*><span data-testid="mock-domino"/);
+        expect(html).toContain("On its way…");
+        expect(html).not.toContain("fa-spin");
     });
 
     it("gives its messages to his session, and keeps the text unless the agent has it", () => {

@@ -36,6 +36,8 @@ export const SpinnerAllowed: Record<string, string> = {
 // file → why it shows a busy label without drawing the loader itself.
 export const BusyLabelAllowed: Record<string, string> = {
     // Models and texts: the label is drawn by a component that shows the loader next to it.
+    "frontend/moltenterm-shell/boss/brokk-talk-model.ts":
+        "the sending note: brokk-talk draws the domino next to it while the message is on its way",
     "frontend/moltenterm-shell/companion/companion-model.ts":
         "statusMessage: companion-view's EmptyState draws the card dominoes while the session loads",
     "frontend/moltenterm-shell/mission/dep-sync-model.ts": "the syncing note: group-strip shows RunningDot while it syncs",
