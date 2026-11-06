@@ -47,6 +47,8 @@ export type HubSources = {
     // The downloads (#1992), the update on offer ("" for none: a gold's build or a release's version) and the plan usage
     // readings (brokk-extra-feeds.ts). A window without one leaves it out.
     downloadsAtom?: Atom<DownloadRecord[]>;
+    // The downloads whose notification was settled or cleared: their event is handled (FR-BOSS-009, AC16).
+    closedDownloadsAtom?: Atom<ReadonlySet<string>>;
     updateOfferAtom?: Atom<string>;
     usageAtom?: Atom<UsageReadings>;
 };
@@ -82,7 +84,8 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const items = () => (src.downloadsAtom != null ? store.get(src.downloadsAtom) : []);
     const offer = () => (src.updateOfferAtom != null ? store.get(src.updateOfferAtom) : "");
     const readings = () => (src.usageAtom != null ? store.get(src.usageAtom) : {});
-    const feedDownloads = () => hub.feed(DownloadsSource, downloadEventsOf(downloads, items()));
+    const closed = () => (src.closedDownloadsAtom != null ? store.get(src.closedDownloadsAtom) : undefined);
+    const feedDownloads = () => hub.feed(DownloadsSource, downloadEventsOf(downloads, items(), closed()));
     const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate));
     const feedUsage = () => {
         const step = usageEventsAfter(usage, readings(), Date.now());
@@ -102,6 +105,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     };
     const stops = [
         src.downloadsAtom != null ? store.sub(src.downloadsAtom, feedDownloads) : null,
+        src.closedDownloadsAtom != null ? store.sub(src.closedDownloadsAtom, feedDownloads) : null,
         src.updateOfferAtom != null ? store.sub(src.updateOfferAtom, feedUpdate) : null,
         src.usageAtom != null ? store.sub(src.usageAtom, feedUsage) : null,
     ].filter((stop) => stop != null);

@@ -28,7 +28,7 @@ vi.mock("./notifications-store", async () => {
         settleSeen: vi.fn(),
         markAllRead: vi.fn(),
         clearArchive: vi.fn(),
-        archive: vi.fn(),
+        clear: vi.fn(() => async () => {}),
         open: vi.fn(),
         runAction: vi.fn(),
     };
@@ -55,6 +55,8 @@ vi.mock("./agent-handoff", () => ({ AgentHandoffGesture: "x", answerAgentHandoff
 vi.mock("./agent-links/agent-links-model", () => ({ AgentLinksGesture: "y" }));
 vi.mock("./agent-links/agent-links-store", () => ({ openAgentLinksGesture: vi.fn() }));
 vi.mock("./agent-seen", () => ({ startAgentSeen: vi.fn() }));
+vi.mock("./notification-settle-start", () => ({ startNotificationSettling: vi.fn() }));
+vi.mock("./sidebar/sidebar-undo", () => ({ showUndoToast: vi.fn() }));
 vi.mock("./boss/boss-store", () => ({ BossBubbleModel: { getInstance: () => ({ showPanel: vi.fn() }) } }));
 vi.mock("./downloads/downloads-notify", () => ({ startDownloads: vi.fn() }));
 vi.mock("./downloads/downloads-store", () => ({ DownloadsModel: { getInstance: () => ({}) } }));
@@ -105,7 +107,7 @@ describe("the notification center, in the Notifications tab (FR-BOSS-009, AC10; 
         expect(html).toContain("Nothing needs your attention.");
     });
 
-    it("lists the notifications, newest as they come, each with its archive and silence actions", () => {
+    it("lists the notifications, newest as they come, each with its × and silence actions", () => {
         globalStore.set(model.entriesAtom, [
             entry("n1", { source: "ci" }),
             entry("n2", { kind: "warning", source: "build" }),
@@ -113,9 +115,30 @@ describe("the notification center, in the Notifications tab (FR-BOSS-009, AC10; 
         const html = render();
         expect(html.match(/data-testid="notification-row"/g)).toHaveLength(2);
         expect(html).toContain('data-notif="n1"');
-        expect(html.match(/data-testid="notification-archive"/g)).toHaveLength(2);
+        expect(html.match(/data-testid="notification-clear"/g)).toHaveLength(2);
+        expect(html).toContain('aria-label="Clear"');
         // An info notification of a subject can be silenced: "Don't tell me again…".
         expect(html).toContain('data-testid="notification-silence"');
+    });
+
+    it("makes each active row focusable, for Delete and Backspace (#2026)", () => {
+        globalStore.set(model.entriesAtom, [entry("n1")]);
+        expect([...render().matchAll(/<div [^>]*data-notif="n1"[^>]*>/g)][0][0]).toContain('tabindex="0"');
+    });
+
+    it("offers Clear all while the list has something, and not on an empty one (#2026)", () => {
+        expect(render()).not.toContain('data-testid="notification-clear-all"');
+        globalStore.set(model.entriesAtom, [entry("n1")]);
+        const html = render();
+        expect(html).toContain('data-testid="notification-clear-all"');
+        expect(html).toContain(">Clear all<");
+    });
+
+    it("clears the whole active list with an undo toast, never a confirmation (#2026)", () => {
+        const source = readFileSync(join(__dirname, "notification-center.tsx"), "utf8");
+        expect(source).toContain("const undo = model.clear(ids);");
+        expect(source).toContain('showUndoToast(translateCount("notif.center.cleared", ids.length), undo)');
+        expect(source).not.toContain("window.confirm");
     });
 
     it("carries a notification's own actions as buttons", () => {

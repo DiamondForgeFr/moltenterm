@@ -10,8 +10,10 @@ import {
     archiveResolvedUpdate,
     archiveUpdate,
     clearArchiveUpdate,
+    clearedMarks,
     ClosedRetentionMs,
     formatAge,
+    handledUpdate,
     makeNotificationId,
     MaxClosedPerKey,
     MaxNotifications,
@@ -29,10 +31,13 @@ import {
     readAllUpdate,
     readUpdate,
     resolveUpdate,
+    rowKeyAction,
+    undoClearUpdate,
     unreadByWorkspace,
     unreadCount,
     visibleActions,
 } from "./notifications-model";
+import { goneNotificationToasts, Toast } from "./toast-model";
 
 function entry(id: string, time: number, extra: Partial<MoltentermNotification> = {}): MoltentermNotification {
     return { id, time, updated: time, title: `t${id}`, source: "agent", kind: "info", read: false, ...extra };
@@ -184,6 +189,61 @@ describe("situations (FR-MC-010)", () => {
         expect(clearArchiveUpdate(list)).toEqual({ "molten:notif:b": null });
         expect(activeEntries(list).map((e) => e.id)).toEqual(["a", "c"]);
         expect(archivedEntries(list).map((e) => e.id)).toEqual(["b"]);
+    });
+
+    it("settles a notification: resolved, filed and read at once, whatever its key, and only once (#2026)", () => {
+        const list = [
+            entry("a", 1, { key: "k" }),
+            entry("b", 2),
+            entry("c", 3, { resolved: 4 }),
+            entry("d", 4, { archived: 5, resolved: 5 }),
+        ];
+        const update = handledUpdate(list, ["a", "b", "c", "d", "gone"], 9);
+        expect(Object.keys(update).sort()).toEqual(["molten:notif:a", "molten:notif:b", "molten:notif:c"]);
+        expect(update["molten:notif:a"]).toMatchObject({ resolved: 9, archived: 9, read: true });
+        expect(update["molten:notif:c"]).toMatchObject({ resolved: 4, archived: 9, read: true });
+        const settled = { ...list[0], ...update["molten:notif:a"], id: "a" } as MoltentermNotification;
+        expect(activeEntries([settled])).toEqual([]);
+        expect(unreadCount([settled])).toBe(0);
+    });
+
+    it("takes a toast away once its notification is settled", () => {
+        const stack = [{ id: "notif:a", notificationId: "a" }] as Toast[];
+        const list = [entry("a", 1)];
+        expect(goneNotificationToasts(stack, list)).toEqual([]);
+        const settled = { ...list[0], ...handledUpdate(list, ["a"], 9)["molten:notif:a"] } as MoltentermNotification;
+        expect(goneNotificationToasts(stack, [settled])).toEqual(["notif:a"]);
+    });
+
+    it("gives back a cleared notification as it was, and only while it stays as it was cleared (#2026)", () => {
+        const list = [entry("a", 1), entry("b", 2, { read: true }), entry("c", 3, { resolved: 4, read: true })];
+        const marks = clearedMarks(list, ["a", "b", "c", "gone"]);
+        expect(marks).toEqual([
+            { id: "a", read: false, resolved: undefined },
+            { id: "b", read: true, resolved: undefined },
+            { id: "c", read: true, resolved: 4 },
+        ]);
+        const cleared = list.map((e) => ({ ...e, ...archiveUpdate(list, ["a", "b", "c"], 9)["molten:notif:" + e.id] }));
+        const undo = undoClearUpdate(cleared as MoltentermNotification[], marks, 9);
+        expect(undo["molten:notif:a"]).not.toHaveProperty("archived");
+        expect(undo["molten:notif:a"]).toMatchObject({ read: false });
+        expect(undo["molten:notif:c"]).toMatchObject({ read: true, resolved: 4 });
+        expect(undoClearUpdate(cleared as MoltentermNotification[], marks, 8)).toEqual({});
+        const changed = cleared.map((e) => (e.id === "b" ? { ...e, archived: 12 } : e)) as MoltentermNotification[];
+        expect(Object.keys(undoClearUpdate(changed, marks, 9)).sort()).toEqual(["molten:notif:a", "molten:notif:c"]);
+    });
+
+    it("answers a key on the focused row: Delete and Backspace clear, Enter and Space open, nothing from a button inside", () => {
+        const row = { onRow: true, archived: false, hasOrigin: true };
+        expect(rowKeyAction("Delete", row)).toBe("clear");
+        expect(rowKeyAction("Backspace", row)).toBe("clear");
+        expect(rowKeyAction("Enter", row)).toBe("open");
+        expect(rowKeyAction(" ", row)).toBe("open");
+        expect(rowKeyAction("Enter", { ...row, hasOrigin: false })).toBeNull();
+        expect(rowKeyAction("Delete", { ...row, hasOrigin: false })).toBe("clear");
+        expect(rowKeyAction("Delete", { ...row, onRow: false })).toBeNull();
+        expect(rowKeyAction("Delete", { ...row, archived: true })).toBeNull();
+        expect(rowKeyAction("a", row)).toBeNull();
     });
 
     it("counts unread and still-open situations for the bell", () => {

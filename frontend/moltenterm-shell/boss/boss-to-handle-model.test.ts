@@ -7,6 +7,7 @@ import { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { MoltentermNotification } from "../notifications-model";
 import { ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
 import { DurableSession } from "../sessions/sessions-model";
+import { markRowHandled } from "./boss-handled";
 import { buildToHandle, toHandleBadge, ToHandleInput } from "./boss-to-handle-model";
 
 function agent(blockid: string, state: AgentStateInfo["state"], extra: Partial<AgentStateInfo> = {}): AgentStateInfo {
@@ -125,7 +126,7 @@ describe("buildToHandle: agents", () => {
         expect(list.items.map((item) => item.key)).toEqual(["agent:b1"]);
         const row = list.items[0];
         expect(row.lineFromNotice).toBe(true);
-        expect(row.actions.map((a) => a.id)).toEqual(["answer:yes", "answer:no", "goto", "later"]);
+        expect(row.actions.map((a) => a.id)).toEqual(["answer:yes", "answer:no", "goto", "later", "ignore"]);
         expect(row.actions[0].primary).toBe(true);
         expect(row.actions[0].run).toEqual({ kind: "answer", entry: question, action: question.actions[0] });
     });
@@ -147,7 +148,7 @@ describe("buildToHandle: notifications", () => {
     it("offers Open as the primary action of a notification with no button, and Done next to Later", () => {
         const warning = notice("n3", "", { blockid: undefined, source: "moltenterm" });
         const list = buildToHandle(input({ notifications: [warning] }));
-        expect(list.items[0].actions.map((a) => a.id)).toEqual(["open", "done", "later"]);
+        expect(list.items[0].actions.map((a) => a.id)).toEqual(["open", "done", "later", "ignore"]);
         expect(list.items[0].actions[0].primary).toBe(true);
     });
 
@@ -179,6 +180,7 @@ describe("buildToHandle: pull requests", () => {
             "boss.todo.seeFailure",
             "boss.todo.rerunCi",
             "boss.todo.later",
+            "boss.todo.ignore",
         ]);
         expect(row.actions[0].run).toEqual({ kind: "integration", dir: "/work/moltenterm", number: 1925 });
         expect(row.actions[1].run).toEqual({ kind: "rerun", dir: "/work/moltenterm", number: 1925 });
@@ -332,6 +334,7 @@ describe("buildToHandle: hand-off requests (FR-BOSS-005)", () => {
         ]);
         expect(row.actions[3].run).toEqual({ kind: "brief" });
         expect(row.actions.some((a) => a.run.kind === "later")).toBe(false);
+        expect(row.actions.some((a) => a.run.kind === "ignore")).toBe(false);
     });
 
     it("counts in the badge, as a wait, with the other rows", () => {
@@ -361,7 +364,7 @@ describe("buildToHandle: hand-off requests (FR-BOSS-005)", () => {
         );
         const agentRow = list.items.find((item) => item.key === "agent:bs");
         expect(agentRow.notice).toBeNull();
-        expect(agentRow.actions.map((a) => a.id)).toEqual(["goto", "later"]);
+        expect(agentRow.actions.map((a) => a.id)).toEqual(["goto", "later", "ignore"]);
         expect(list.items.some((item) => item.key.startsWith("notif:"))).toBe(false);
     });
 
@@ -411,7 +414,7 @@ describe("buildToHandle: a notification that only takes the developer somewhere 
         expect(list.items.map((item) => item.key)).toEqual(["notif:t1"]);
         const row = list.items[0];
         expect(row.seen).toBe(false);
-        expect(row.actions.map((a) => a.id)).toEqual(["answer:goto", "done", "later"]);
+        expect(row.actions.map((a) => a.id)).toEqual(["answer:goto", "done", "later", "ignore"]);
         expect(row.actions[0].primary).toBe(true);
         expect(row.actions[1]).toMatchObject({
             labelKey: "boss.todo.done",
@@ -433,7 +436,7 @@ describe("buildToHandle: a notification that only takes the developer somewhere 
             ["notif:q1", false],
             ["notif:t1", true],
         ]);
-        expect(list.items[1].actions.map((a) => a.id)).toEqual(["answer:goto", "done", "later"]);
+        expect(list.items[1].actions.map((a) => a.id)).toEqual(["answer:goto", "done", "later", "ignore"]);
         expect(toHandleBadge(list)).toMatchObject({ count: 1, text: "1" });
     });
 
@@ -460,5 +463,74 @@ describe("buildToHandle: a notification that only takes the developer somewhere 
         const list = buildToHandle(input({ notifications: [typedNotice({ read: true })] }));
         expect(list.items).toHaveLength(1);
         expect(toHandleBadge(list)).toMatchObject({ count: 0 });
+    });
+});
+
+describe("buildToHandle: the rows settled or ignored (FR-BOSS-009, AC16, #2026)", () => {
+    const waiting = () => states(agent("b1", "waiting", { since: 300 }), agent("b2", "waiting", { since: 400 }));
+    const base = () => input({ states: waiting(), sessions: [session("b1", "s1"), session("b2", "s2")] });
+
+    it("leaves out a row marked for the episode it is in, and counts the others", () => {
+        const handled = markRowHandled({}, { key: "agent:b1", since: 300, tone: "waiting" }, 1);
+        const list = buildToHandle({ ...base(), handled });
+        expect(list.items.map((item) => item.key)).toEqual(["agent:b2"]);
+        expect(toHandleBadge(list).count).toBe(1);
+        expect(list.parked).toBe(0);
+    });
+
+    it("brings the row back when the fact is new: the agent waits again, or stopped on an error", () => {
+        const handled = markRowHandled({}, { key: "agent:b1", since: 300, tone: "waiting" }, 1);
+        const again = buildToHandle({
+            ...base(),
+            states: states(agent("b1", "waiting", { since: 900 }), agent("b2", "waiting")),
+            handled,
+        });
+        expect(again.items.map((item) => item.key)).toContain("agent:b1");
+        const failed = buildToHandle({
+            ...base(),
+            states: states(agent("b1", "error", { since: 300 }), agent("b2", "waiting")),
+            handled,
+        });
+        expect(failed.items.map((item) => item.key)).toContain("agent:b1");
+    });
+
+    it("leaves out a failing CI and a PR ready that were marked, until the pull request changes", () => {
+        const failing = pr(7, { ci: { state: "failure", success: 0, failure: 1, pending: 0, checks: [] } as any });
+        const answer = answers("/work/p", failing);
+        const handled = markRowHandled(
+            {},
+            { key: "ci:/work/p:7", since: Date.parse(failing.updatedat), tone: "error" },
+            1
+        );
+        expect(buildToHandle({ ...base(), states: states(), answers: answer, handled }).items).toEqual([]);
+        const pushed = pr(7, { ...failing, updatedat: "2026-11-02T10:00:00Z" });
+        const again = buildToHandle({ ...base(), states: states(), answers: answers("/work/p", pushed), handled });
+        expect(again.items.map((item) => item.key)).toEqual(["ci:/work/p:7"]);
+    });
+
+    it("hides the question of an agent row marked with it, instead of showing it as a row of its own", () => {
+        const question = notice("n1", "b1", {
+            actions: [
+                { id: "yes", label: "Yes", kind: "gesture", gesture: "answer" },
+                { id: "no", label: "No", kind: "gesture", gesture: "answer" },
+            ],
+        });
+        const handled = markRowHandled({}, { key: "agent:b1", since: 300, tone: "waiting" }, 1);
+        const list = buildToHandle({ ...base(), notifications: [question], handled });
+        expect(list.items.map((item) => item.key)).toEqual(["agent:b2"]);
+    });
+
+    it("lets Later set a row aside and leaves its mark alone: it is still counted as set aside", () => {
+        const list = buildToHandle({ ...base(), parked: { "agent:b1": true } });
+        expect(list.items.map((item) => item.key)).toEqual(["agent:b2"]);
+        expect(list.parked).toBe(1);
+        expect(list.parkedKeys).toEqual(["agent:b1"]);
+    });
+
+    it("offers Ignore on every row but a hand-off request, next to Later", () => {
+        const list = buildToHandle({ ...base(), notifications: [typedNotice()] });
+        for (const item of list.items) {
+            expect(item.actions.map((a) => a.run.kind).slice(-2)).toEqual(["later", "ignore"]);
+        }
     });
 });

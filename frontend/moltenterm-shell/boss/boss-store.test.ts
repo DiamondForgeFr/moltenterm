@@ -483,6 +483,78 @@ describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
     });
 });
 
+describe("the rows settled or ignored (FR-BOSS-009, AC16, #2026)", () => {
+    const store = new Map<string, string>();
+    const fakeStorage = {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+    };
+    const waiting = { key: "agent:a", since: 7, tone: "waiting" };
+
+    beforeEach(() => {
+        store.clear();
+        vi.stubGlobal("localStorage", fakeStorage);
+        globalStore.set(model.handledAtom, {});
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("takes a settled row out of the list and the badge, and shares the mark with the other views", () => {
+        setStates(agentInfo("a", "waiting"), agentInfo("b", "waiting"));
+        globalStore.set(agents.dataAtom, {
+            states: { a: { ...agentInfo("a", "waiting"), since: 7 }, b: { ...agentInfo("b", "waiting"), since: 9 } },
+            versions: {},
+        });
+        expect(globalStore.get(model.badgeAtom).count).toBe(2);
+        model.settleRow(waiting);
+        expect(globalStore.get(model.toHandleAtom).items.map((item) => item.key)).toEqual(["agent:b"]);
+        expect(globalStore.get(model.badgeAtom).count).toBe(1);
+        expect(JSON.parse(store.get("moltenterm:brokk-handled"))["agent:a"].episode).toBe("7:waiting");
+    });
+
+    it("brings the row back when the agent waits again", () => {
+        globalStore.set(agents.dataAtom, { states: { a: { ...agentInfo("a", "waiting"), since: 7 } }, versions: {} });
+        model.settleRow(waiting);
+        expect(globalStore.get(model.badgeAtom).count).toBe(0);
+        globalStore.set(agents.dataAtom, { states: { a: { ...agentInfo("a", "waiting"), since: 20 } }, versions: {} });
+        expect(globalStore.get(model.badgeAtom).count).toBe(1);
+    });
+
+    it("takes the marks another window wrote, and keeps them when it writes its own", () => {
+        globalStore.set(agents.dataAtom, {
+            states: { a: { ...agentInfo("a", "waiting"), since: 7 }, b: { ...agentInfo("b", "error"), since: 9 } },
+            versions: {},
+        });
+        const elsewhere = { "agent:b": { episode: "9:error", at: Date.now() } };
+        store.set("moltenterm:brokk-handled", JSON.stringify(elsewhere));
+        model.handledChanged(JSON.stringify(elsewhere));
+        expect(globalStore.get(model.toHandleAtom).items.map((item) => item.key)).toEqual(["agent:a"]);
+
+        const written = { ...elsewhere, "ci:/p:1": { episode: "1:error", at: Date.now() } };
+        store.set("moltenterm:brokk-handled", JSON.stringify(written));
+        model.settleRow(waiting);
+        expect(Object.keys(JSON.parse(store.get("moltenterm:brokk-handled"))).sort()).toEqual([
+            "agent:a",
+            "agent:b",
+            "ci:/p:1",
+        ]);
+    });
+
+    it("reads the marks when the host attaches, and listens to the other views while it is on screen", () => {
+        store.set("moltenterm:brokk-handled", JSON.stringify({ "agent:a": { episode: "7:waiting", at: Date.now() } }));
+        const added: string[] = [];
+        const removed: string[] = [];
+        vi.stubGlobal("addEventListener", (type: string) => added.push(type));
+        vi.stubGlobal("removeEventListener", (type: string) => removed.push(type));
+        const detach = model.attach(fakeDom());
+        expect(Object.keys(globalStore.get(model.handledAtom))).toEqual(["agent:a"]);
+        expect(added).toContain("storage");
+        detach();
+        expect(removed).toContain("storage");
+    });
+});
+
 describe("the settings (AC8, AC9)", () => {
     it("shows the avatar unless turned off", () => {
         expect(globalStore.get(model.showAtom)).toBe(true);

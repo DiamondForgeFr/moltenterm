@@ -38,7 +38,10 @@ import {
     archiveUpdate,
     checkUnread,
     clearArchiveUpdate,
+    ClearedMark,
+    clearedMarks,
     clickAction,
+    handledUpdate,
     makeNotificationId,
     MetaUpdate,
     MoltentermNotification,
@@ -51,8 +54,8 @@ import {
     publishUpdate,
     readAllUpdate,
     readUpdate,
-    resolveIdsUpdate,
     resolveUpdate,
+    undoClearUpdate,
     unreadCount,
 } from "./notifications-model";
 import { openMoltentermView } from "./open-view";
@@ -187,8 +190,9 @@ export class MoltentermNotifications {
         this.write(resolveUpdate(this.entries(), key, Date.now()));
     }
 
-    resolveEntries(ids: string[]): Promise<void> {
-        return this.writeNow(resolveIdsUpdate(this.entries(), ids, Date.now()));
+    // The developer acted on these or went to where they come from: they are resolved and filed (#2026).
+    handle(ids: string[]): Promise<void> {
+        return this.writeNow(handledUpdate(this.entries(), ids, Date.now()));
     }
 
     markRead(ids: string[]): void {
@@ -201,6 +205,20 @@ export class MoltentermNotifications {
 
     archive(ids: string[]): void {
         this.write(archiveUpdate(this.entries(), ids, Date.now()));
+    }
+
+    // Files these notifications by hand (the ×, Clear all, Delete); the undo gives back exactly what was cleared.
+    clear(ids: string[]): () => Promise<void> {
+        const entries = this.entries();
+        const marks: ClearedMark[] = clearedMarks(entries, ids);
+        const at = Date.now();
+        const written = this.writeNow(archiveUpdate(entries, ids, at)).catch((e) =>
+            console.log("clear:", e?.message ?? e)
+        );
+        return async () => {
+            await written;
+            await this.writeNow(undoClearUpdate(this.entries(), marks, at));
+        };
     }
 
     // When the panel closes after the user saw it.
@@ -247,8 +265,9 @@ export class MoltentermNotifications {
             await this.runAction(entry, onClick);
             return;
         }
-        // Switching workspace replaces this view: the read mark must reach wavesrv first.
-        await this.writeNow(readUpdate(this.entries(), [entry.id]));
+        // Going to where it comes from settles it (#2026). Switching workspace replaces this view: the mark must reach
+        // wavesrv first.
+        await this.handle([entry.id]);
         if (checkProjectSource(entry) && (await showProjectTabSafely(entry.workspaceid))) {
             return;
         }
@@ -275,31 +294,35 @@ export class MoltentermNotifications {
         globalStore.set(this.errorsAtom, current);
     }
 
-    // Runs one of a notification's actions; a second click while it runs does nothing.
-    async runAction(entry: MoltentermNotification, action: NotificationAction): Promise<void> {
+    // Runs one of a notification's actions; a second click while it runs does nothing. True when the action went
+    // through: the notification is then settled (#2026). A failed action leaves it listed, with the reason.
+    async runAction(entry: MoltentermNotification, action: NotificationAction): Promise<boolean> {
         const runKey = `${entry.id}:${action.id}`;
         if (globalStore.get(this.runningAtom)[runKey]) {
-            return;
+            return false;
         }
         this.setError(entry.id, null);
-        if (checkUnread(entry)) {
-            await this.writeNow(readUpdate(this.entries(), [entry.id]));
-        }
         if (action.kind === "open") {
+            // An action that only takes the developer somewhere settles the notification before it goes: the view may
+            // be replaced by the workspace it switches to.
+            await this.handle([entry.id]);
             if (action.view) {
                 if (checkProjectRoute(entry.source, action.view) && (await showProjectTabSafely(entry.workspaceid))) {
-                    return;
+                    return true;
                 }
                 await openMoltentermView(action.view);
-                return;
+                return true;
             }
             await this.goTo(action);
-            return;
+            return true;
+        }
+        if (checkUnread(entry)) {
+            await this.writeNow(readUpdate(this.entries(), [entry.id]));
         }
         const gesture = gestures.get(action.gesture);
         if (gesture == null) {
             this.setError(entry.id, t("notif.action.unavailable"));
-            return;
+            return false;
         }
         this.setRunning(runKey, true);
         try {
@@ -311,13 +334,19 @@ export class MoltentermNotifications {
                         error: result?.error ? serverErrorText(result.error) : t("notif.action.unknownError"),
                     })
                 );
-                return;
+                return false;
             }
-            if (result.resolve && entry.key) {
-                this.resolve(entry.key);
-            }
+            // One write: the situation's other open notifications are resolved, this one is resolved and filed.
+            const now = Date.now();
+            const entries = this.entries();
+            await this.writeNow({
+                ...(result.resolve && entry.key ? resolveUpdate(entries, entry.key, now) : {}),
+                ...handledUpdate(entries, [entry.id], now),
+            });
+            return true;
         } catch (e) {
             this.setError(entry.id, t("notif.action.failed", { error: serverErrorText(e) }));
+            return false;
         } finally {
             this.setRunning(runKey, false);
         }

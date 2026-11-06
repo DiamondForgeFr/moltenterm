@@ -32,7 +32,8 @@ export function openPrPage(url: string): Promise<boolean> {
     return openWebLink(url);
 }
 
-export function answerNotice(entry: MoltentermNotification, action: NotificationAction): Promise<void> {
+// False when the action did not go through (the notification then shows why, and stays).
+export function answerNotice(entry: MoltentermNotification, action: NotificationAction): Promise<boolean> {
     return MoltentermNotifications.getInstance().runAction(entry, action);
 }
 
@@ -42,7 +43,7 @@ export function openNotice(entry: MoltentermNotification): Promise<void> {
 
 // Done on a "go there and do it" row (#1938): the developer did it, so the notification's situation closes.
 export function markNoticeDone(entry: MoltentermNotification): Promise<void> {
-    return MoltentermNotifications.getInstance().resolveEntries([entry.id]);
+    return MoltentermNotifications.getInstance().handle([entry.id]);
 }
 
 // A hand-off request's answer, through the route its notification's buttons answer through (FR-BOSS-005): one request,

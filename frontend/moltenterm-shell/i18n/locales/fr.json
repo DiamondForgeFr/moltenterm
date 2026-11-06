@@ -3073,6 +3073,7 @@
             "done": "C'est fait",
             "seen": "Vu",
             "later": "Plus tard",
+            "ignore": "Ignorer",
             "others": "Le reste",
             "handoff": {
                 "group": "Mise en relation",
@@ -5735,7 +5736,13 @@
     "notif": {
         "center": {
             "noPath": "aucun chemin à afficher",
-            "archiveOne": "Archiver cette notification",
+            "clearOne": "Effacer",
+            "clearAll": "Tout effacer",
+            "clearAllTitle": "Déplace toutes les notifications de la liste vers les archives. Vous pouvez annuler pendant quelques secondes.",
+            "cleared": {
+                "one": "{count} notification effacée",
+                "other": "{count} notifications effacées"
+            },
             "resolved": "Résolue",
             "silence": "Ne plus me le dire…",
             "running": "En cours…",

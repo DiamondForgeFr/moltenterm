@@ -36,6 +36,7 @@ import {
 } from "../reviews/reviews-model";
 import { DurableSession } from "../sessions/sessions-model";
 import { workspaceShownName } from "../workspace-default-name";
+import { checkRowHandled, HandledRows } from "./boss-handled";
 import type { Badge, PeekWaitingRow } from "./boss-overview";
 import { attentionAgents } from "./boss-overview";
 
@@ -59,6 +60,8 @@ export type ToHandleRun =
     | { kind: "open"; entry: MoltentermNotification }
     // The developer did what a "go there and do it" notification asked: its situation closes (#1938).
     | { kind: "done"; entry: MoltentermNotification }
+    // The developer handled it outside MoltenTerm: the row leaves for as long as the fact is the same (#2026).
+    | { kind: "ignore" }
     | { kind: "later" };
 
 export type ToHandleAction = {
@@ -133,6 +136,8 @@ export type ToHandleInput = {
     sessions: DurableSession[];
     // The keys of the items set aside with Later.
     parked: Record<string, boolean>;
+    // The rows the developer settled or ignored, for the episode they were in (#2026).
+    handled?: HandledRows;
     // The hand-off requests wavesrv holds for the developer (#1926), none until a first reading is in.
     handoffs?: PendingHandoff[];
 };
@@ -183,6 +188,10 @@ function answerActions(entry: MoltentermNotification): ToHandleAction[] {
 
 function laterAction(): ToHandleAction {
     return { id: "later", primary: false, labelKey: "boss.todo.later", disabled: false, run: { kind: "later" } };
+}
+
+function ignoreAction(): ToHandleAction {
+    return { id: "ignore", primary: false, labelKey: "boss.todo.ignore", disabled: false, run: { kind: "ignore" } };
 }
 
 function doneAction(entry: MoltentermNotification): ToHandleAction {
@@ -244,7 +253,7 @@ function agentItem(info: AgentStateInfo, input: ToHandleInput, consumed: Set<str
         since: sinceOf(info.since),
         rank: failed ? RankError : RankWait,
         seen: false,
-        actions: markPrimary([...(notice != null ? answerActions(notice) : []), goTo, laterAction()]),
+        actions: markPrimary([...(notice != null ? answerActions(notice) : []), goTo, laterAction(), ignoreAction()]),
     };
 }
 
@@ -276,6 +285,7 @@ function noticeItem(entry: MoltentermNotification): ToHandleItem {
             ...(answers.length === 0 ? [open] : []),
             ...(goThere ? [doneAction(entry)] : []),
             laterAction(),
+            ignoreAction(),
         ]),
     };
 }
@@ -325,6 +335,7 @@ function failedCiItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
                 run: { kind: "rerun", dir, number: pr.number },
             },
             laterAction(),
+            ignoreAction(),
         ]),
     };
 }
@@ -357,6 +368,7 @@ function readyItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
                 run: { kind: "external", url: pr.url ?? "" },
             },
             laterAction(),
+            ignoreAction(),
         ]),
     };
 }
@@ -447,7 +459,7 @@ export function buildToHandle(input: ToHandleInput): ToHandleList {
     const prs = Object.values(input.answers ?? {})
         .filter((answer) => answer?.state === "ok")
         .flatMap((answer) => prItems(answer, input.readied));
-    const all = [...handoffs, ...agents, ...notices, ...prs];
+    const all = [...handoffs, ...agents, ...notices, ...prs].filter((item) => !checkRowHandled(input.handled, item));
     const items = all.filter((item) => input.parked?.[item.key] !== true).sort(byUrgency);
     const info: InfoItem[] = Object.values(input.states?.states ?? {})
         .filter((state) => state?.state === "done")

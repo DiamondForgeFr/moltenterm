@@ -92,25 +92,38 @@ describe("To handle's Go to and Done on a typed prompt's notification (#1938)", 
         expect(toHandleBadge(list).count).toBe(1);
     });
 
-    it("reads it on Go to: the row is seen and the badge stops counting it", async () => {
+    it("settles it on Go to (#2026): the row leaves and the badge stops counting it", async () => {
         const goTo = entry().actions[0];
         await MoltentermNotifications.getInstance().runAction(entry(), goTo);
         expect(app.setMeta).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
                 oref: "client:client",
-                meta: { [NotificationKeyPrefix + "t1"]: expect.objectContaining({ read: true }) },
+                meta: {
+                    [NotificationKeyPrefix + "t1"]: expect.objectContaining({
+                        read: true,
+                        resolved: expect.any(Number),
+                        archived: expect.any(Number),
+                    }),
+                },
             })
         );
         const list = toHandle(merged());
+        expect(list.items).toEqual([]);
+        expect(toHandleBadge(list).count).toBe(0);
+    });
+
+    it("keeps a notification read by another door listed and seen until it is done", () => {
+        const list = toHandle([{ ...entry(), read: true }]);
         expect(list.items.map((item) => [item.key, item.seen])).toEqual([["notif:t1", true]]);
         expect(toHandleBadge(list).count).toBe(0);
     });
 
-    it("resolves it on Done: the row leaves", async () => {
-        await MoltentermNotifications.getInstance().resolveEntries([entry().id]);
+    it("settles it on Done: the row leaves", async () => {
+        await MoltentermNotifications.getInstance().handle([entry().id]);
         const written = app.setMeta.mock.calls[0][1].meta[NotificationKeyPrefix + "t1"];
         expect(written.resolved).toEqual(expect.any(Number));
+        expect(written.archived).toEqual(expect.any(Number));
         expect(written.read).toBe(true);
         expect(toHandle(merged()).items).toEqual([]);
     });

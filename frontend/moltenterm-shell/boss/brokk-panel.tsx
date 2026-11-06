@@ -266,7 +266,8 @@ function ToHandleButton({
         action.run.kind === "answer"
             ? notificationActionLabel(action.run.action)
             : t(action.labelKey, action.labelVars);
-    const style = action.run.kind === "later" ? GhostButton : action.primary ? PrimaryButton : SecondaryButton;
+    const calm = action.run.kind === "later" || action.run.kind === "ignore";
+    const style = calm ? GhostButton : action.primary ? PrimaryButton : SecondaryButton;
     return (
         <button
             type="button"
@@ -549,7 +550,17 @@ export function BrokkPanel({ style }: { style: React.CSSProperties }) {
         };
     }, [model]);
 
-    const goToSession = (sessionId: string, busyKey: string) => {
+    // The row was acted on or ignored (FR-BOSS-009, AC16): it leaves, and so does the notification it stands for. A row
+    // that is a notification is settled by the notification itself.
+    const settleItem = (item: ToHandleItem, settleNotice = true) => {
+        if (!item.key.startsWith("notif:")) {
+            model.settleRow(item);
+        }
+        if (settleNotice && item.notice != null) {
+            fireAndForget(() => markNoticeDone(item.notice));
+        }
+    };
+    const goToSession = (sessionId: string, busyKey: string, settle?: () => void) => {
         if (busyId != null) {
             return;
         }
@@ -558,6 +569,7 @@ export function BrokkPanel({ style }: { style: React.CSSProperties }) {
         fireAndForget(async () => {
             try {
                 const loc = await locateSession(sessionId);
+                settle?.();
                 model.closeCard({ restoreFocus: false });
                 goToLocation(loc);
             } catch (e) {
@@ -581,19 +593,25 @@ export function BrokkPanel({ style }: { style: React.CSSProperties }) {
             model.park(item.key);
             return;
         }
+        if (run.kind === "ignore") {
+            settleItem(item);
+            return;
+        }
         if (run.kind === "goto") {
             if (action.disabled) {
                 return;
             }
-            goToSession(run.sessionId, busyKey);
+            goToSession(run.sessionId, busyKey, () => settleItem(item));
             return;
         }
         if (run.kind === "integration") {
+            settleItem(item);
             model.closeCard({ restoreFocus: false });
             fireAndForget(() => openIntegrationPr(run.dir, run.number));
             return;
         }
         if (run.kind === "external") {
+            settleItem(item);
             fireAndForget(() => openPrPage(run.url));
             return;
         }
@@ -605,7 +623,7 @@ export function BrokkPanel({ style }: { style: React.CSSProperties }) {
         if (run.kind === "brief") {
             return;
         }
-        const work =
+        const work: () => Promise<unknown> =
             run.kind === "rerun"
                 ? () => rerunPrChecks(run.dir, run.number)
                 : run.kind === "handoff"
@@ -617,7 +635,10 @@ export function BrokkPanel({ style }: { style: React.CSSProperties }) {
         setProblem("");
         fireAndForget(async () => {
             try {
-                await work();
+                const ok = await work();
+                if (ok !== false && (run.kind === "rerun" || run.kind === "answer")) {
+                    settleItem(item, run.kind === "rerun");
+                }
                 const handled = handledKindOf(run);
                 if (handled != null) {
                     BrokkExpressionsModel.getInstance().noteHandled(handled);

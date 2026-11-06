@@ -17,8 +17,8 @@ import {
     AgentSeenDwellMs,
     AgentSeenView,
     AgentStateInfo,
-    AgentStateSeenCommand,
     AgentStatesData,
+    AgentStateSeenCommand,
     AgentStatesRoute,
     doneAgentsInView,
 } from "./agent-state-model";
@@ -127,21 +127,27 @@ export function unreadDoneNotifications(entries: MoltentermNotification[], block
         .map((e) => e.id);
 }
 
-function makeViewSourceAtom(): Atom<AgentSeenSource> {
+// What this tab view shows: active when it is the tab on screen in the focused window, with its blocks and the focused
+// one. Shared with the notifications that settle when their source is looked at (notification-settle-start.ts).
+export function makeSeenViewAtom(): Atom<AgentSeenView> {
     const activity = TabActivity.getInstance();
-    const store = AgentStates.getInstance();
     return atom((get) => {
-        const data = get(store.dataAtom);
         const tabId = get(atoms.staticTabId);
         const active = get(activity.stateAtom) === "active";
         if (!active || tabId == null) {
-            return { data, view: { active: false, blockIds: [], focusedBlockId: null } };
+            return { active: false, blockIds: [], focusedBlockId: null };
         }
         const tab = get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)));
         const layout = getLayoutModelForStaticTab();
         const focusedBlockId = layout?.focusedNode == null ? null : (get(layout.focusedNode)?.data?.blockId ?? null);
-        return { data, view: { active, blockIds: tab?.blockids ?? [], focusedBlockId } };
+        return { active, blockIds: tab?.blockids ?? [], focusedBlockId };
     });
+}
+
+function makeViewSourceAtom(): Atom<AgentSeenSource> {
+    const store = AgentStates.getInstance();
+    const viewAtom = makeSeenViewAtom();
+    return atom((get) => ({ data: get(store.dataAtom), view: get(viewAtom) }));
 }
 
 async function sendSeen(info: AgentStateInfo): Promise<void> {

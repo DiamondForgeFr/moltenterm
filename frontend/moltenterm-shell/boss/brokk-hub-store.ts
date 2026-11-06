@@ -14,6 +14,7 @@ import { atom, Atom, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { modalIsOpen } from "../modal-open";
+import { MoltentermNotifications } from "../notifications-store";
 import { sidebarDragAtom } from "../sidebar/sidebar-drag";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { TopFieldModel } from "../sidebar/top-field-store";
@@ -22,6 +23,7 @@ import { GoldUpdateModel } from "../update/update-store";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel } from "./boss-store";
 import { UsageReadingsAtom } from "./boss-usage";
+import { closedDownloadIds } from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
@@ -50,6 +52,8 @@ export class BrokkHubModel {
     sidebarOnScreenAtom: Atom<boolean>;
     // The update on offer, a gold's build or a release's version; "" for none (FR-BOSS-009, AC11).
     updateOfferAtom: Atom<string>;
+    // The downloads whose notification the developer settled or cleared (FR-BOSS-009, AC16), the same set while it holds.
+    closedDownloadsAtom: Atom<ReadonlySet<string>>;
     hub: BrokkHub;
 
     private constructor() {
@@ -64,6 +68,15 @@ export class BrokkHubModel {
             }
             const releaseOffer = get(release.offerAtom);
             return releaseOffer != null ? `release:${releaseOffer.version}` : "";
+        });
+        let closedDownloads: ReadonlySet<string> = new Set();
+        this.closedDownloadsAtom = atom((get) => {
+            const next = closedDownloadIds(get(MoltentermNotifications.getInstance().entriesAtom));
+            if (next.size === closedDownloads.size && [...next].every((id) => closedDownloads.has(id))) {
+                return closedDownloads;
+            }
+            closedDownloads = next;
+            return next;
         });
         this.ownWorkingAtom = atom((get) => brokkWorking(get(agents.dataAtom), get(this.sessionBlockAtom)));
         this.settingsAtom = atom((get) => visitSettingsOf((key) => get(getSettingsKeyAtom(key as keyof SettingsType))));
@@ -115,6 +128,7 @@ export class BrokkHubModel {
             dragAtom: atom((get) => get(sidebarDragAtom) != null),
             cardOpenAtom: boss.cardOpenAtom,
             downloadsAtom: DownloadsModel.getInstance().itemsAtom,
+            closedDownloadsAtom: this.closedDownloadsAtom,
             updateOfferAtom: this.updateOfferAtom,
             usageAtom: UsageReadingsAtom,
         });

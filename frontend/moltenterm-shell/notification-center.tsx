@@ -3,7 +3,9 @@
 
 // The notification center (FR-SHELL-002, FR-MC-010, FR-MC-019): what needs the user's attention in every workspace,
 // newest first. A notification opens where it comes from, carries up to two actions, shows when its situation is
-// resolved, and can be archived; the Archived list keeps them until cleared. What arrives shows as a toast
+// resolved, and is settled by acting on it or going to its source (notification-settle.ts, #2026): it then moves to the
+// Archived list, as it does when cleared by hand (the ×, Clear all with its undo); the Archived list keeps them until
+// cleared for good. What arrives shows as a toast
 // (FR-SHELL-055), each subject says only what the user chose, and the work running in every project shows on top. What
 // each subject may say is set in Preferences › Notifications, which the center links to (FR-SHELL-106,
 // notification-settings.tsx).
@@ -27,7 +29,7 @@ import { BossBubbleModel } from "./boss/boss-store";
 import { startDownloads } from "./downloads/downloads-notify";
 import { DownloadsModel } from "./downloads/downloads-store";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
-import { t as translateNow, useT } from "./i18n/i18n";
+import { tCount as translateCount, t as translateNow, useT } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
@@ -35,6 +37,7 @@ import { registerSetupPrGestures } from "./mission/release-setup-gestures";
 import { TrustApprovalHost } from "./mission/trust-approval";
 import { MaxRenderedRows, notificationSourceLabel, NotificationSubject, subjectOf } from "./notification-rules";
 import { openNotificationSettings } from "./notification-settings";
+import { startNotificationSettling } from "./notification-settle-start";
 import { startNotificationToasts } from "./notification-toasts";
 import { workspaceLabel, WorkspaceLabel } from "./notification-workspace";
 import { WorkspaceChip } from "./notification-workspace-chip";
@@ -50,10 +53,12 @@ import {
     notificationActionLabel,
     notificationMessage,
     notificationTitle,
+    rowKeyAction,
 } from "./notifications-model";
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
 import { showProjectTab } from "./project/project-tab";
 import { canStop, stopWork, useRunningWork, WorkItem } from "./running-work";
+import { showUndoToast } from "./sidebar/sidebar-undo";
 import { DominoLoader } from "./suite/suite";
 import { TabActivity, whileShown } from "./tab-activity";
 import { toneOf } from "./toast-model";
@@ -104,7 +109,7 @@ function NotificationRow({
     error,
     onOpen,
     onAction,
-    onArchive,
+    onClear,
     onSilence,
 }: {
     entry: MoltentermNotification;
@@ -116,7 +121,7 @@ function NotificationRow({
     error: string;
     onOpen: () => void;
     onAction: (action: NotificationAction) => void;
-    onArchive: () => void;
+    onClear: () => void;
     onSilence: (subject: NotificationSubject) => void;
 }) {
     const unread = checkUnread(entry);
@@ -133,6 +138,29 @@ function NotificationRow({
             rowRef.current?.scrollIntoView({ block: "nearest" });
         }
     }, [highlighted]);
+    // Delete or Backspace on the row itself clears it, and the focus moves to a neighbour so the keyboard stays in the list.
+    const clearAndKeepFocus = () => {
+        const row = rowRef.current;
+        const neighbour = row?.nextElementSibling ?? row?.previousElementSibling;
+        if (neighbour instanceof HTMLElement && neighbour.dataset.testid === "notification-row") {
+            neighbour.focus();
+        }
+        onClear();
+    };
+    const onRowKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        const action = e.nativeEvent.isComposing
+            ? null
+            : rowKeyAction(e.key, { onRow: e.target === e.currentTarget, archived, hasOrigin });
+        if (action == null) {
+            return;
+        }
+        e.preventDefault();
+        if (action === "clear") {
+            clearAndKeepFocus();
+            return;
+        }
+        onOpen();
+    };
     return (
         <div
             ref={rowRef}
@@ -147,7 +175,9 @@ function NotificationRow({
                 hasOrigin && "cursor-pointer hover:bg-hover"
             )}
             onClick={hasOrigin ? onOpen : undefined}
+            onKeyDown={onRowKeyDown}
             role={hasOrigin ? "button" : undefined}
+            tabIndex={archived ? undefined : 0}
         >
             <i
                 aria-label={tone.label}
@@ -162,16 +192,16 @@ function NotificationRow({
                     {!archived ? (
                         <button
                             type="button"
-                            title={t("notif.center.archiveOne")}
-                            aria-label={t("notif.center.archiveOne")}
-                            data-testid="notification-archive"
+                            title={t("notif.center.clearOne")}
+                            aria-label={t("notif.center.clearOne")}
+                            data-testid="notification-clear"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onArchive();
+                                onClear();
                             }}
                             className="ml-auto shrink-0 cursor-pointer rounded-6 px-1 text-muted opacity-0 group-hover:opacity-100 hover:bg-hover hover:text-primary focus-visible:opacity-100"
                         >
-                            <i className="fa fa-solid fa-box-archive text-11" />
+                            <i className="fa fa-solid fa-xmark text-11" />
                         </button>
                     ) : null}
                 </div>
@@ -401,6 +431,15 @@ export function NotificationsPanelBody({
         };
     }, [currentWorkspace]);
 
+    // Clears the whole active list; the undo toast gives back exactly what was cleared (FR-MC-019, #2026).
+    const clearAll = () => {
+        const ids = active.map((e) => e.id);
+        if (ids.length === 0) {
+            return;
+        }
+        const undo = model.clear(ids);
+        showUndoToast(translateCount("notif.center.cleared", ids.length), undo);
+    };
     const list = tab === "archived" ? archived : active;
     const shown = list.slice(0, MaxRenderedRows);
     const hidden = list.length - shown.length;
@@ -444,18 +483,33 @@ export function NotificationsPanelBody({
                     >
                         <i className="fa fa-solid fa-trash-can text-11" aria-hidden />
                     </button>
-                ) : unread > 0 ? (
-                    <button
-                        type="button"
-                        title={t("notif.center.markAllRead")}
-                        aria-label={t("notif.center.markAllRead")}
-                        data-testid="notification-mark-all-read"
-                        onClick={() => model.markAllRead()}
-                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
-                    >
-                        <i className="fa fa-solid fa-check-double text-11" aria-hidden />
-                    </button>
-                ) : null}
+                ) : (
+                    <>
+                        {unread > 0 ? (
+                            <button
+                                type="button"
+                                title={t("notif.center.markAllRead")}
+                                aria-label={t("notif.center.markAllRead")}
+                                data-testid="notification-mark-all-read"
+                                onClick={() => model.markAllRead()}
+                                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+                            >
+                                <i className="fa fa-solid fa-check-double text-11" aria-hidden />
+                            </button>
+                        ) : null}
+                        {active.length > 0 ? (
+                            <button
+                                type="button"
+                                title={t("notif.center.clearAllTitle")}
+                                data-testid="notification-clear-all"
+                                onClick={clearAll}
+                                className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 whitespace-nowrap text-secondary hover:bg-hover hover:text-primary"
+                            >
+                                {t("notif.center.clearAll")}
+                            </button>
+                        ) : null}
+                    </>
+                )}
                 {/* The levels live in Preferences › Notifications, their one home (FR-SHELL-106). */}
                 <button
                     type="button"
@@ -511,7 +565,7 @@ export function NotificationsPanelBody({
                             }
                             fireAndForget(() => model.runAction(entry, action));
                         }}
-                        onArchive={() => model.archive([entry.id])}
+                        onClear={() => model.clear([entry.id])}
                         onSilence={(subject) => {
                             onLeave();
                             openNotificationSettings(subject);
@@ -547,6 +601,7 @@ export function NotificationHost() {
     const downloadsRequest = useAtomValue(downloads.requestAtom, { store: globalStore });
     useEffect(() => startNotificationAutoRead(), []);
     useEffect(() => startAgentSeen(), []);
+    useEffect(() => startNotificationSettling(), []);
     useEffect(() => registerBuiltInGestures(), []);
     useEffect(() => startNotificationToasts(), []);
     useEffect(() => startHandoffSystemNotifications(), []);
