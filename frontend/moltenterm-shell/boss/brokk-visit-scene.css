@@ -77,6 +77,9 @@
     mask-image: linear-gradient(to bottom, rgb(0, 0, 0) calc(100% - var(--mt-brokk-fade)), transparent);
 }
 
+/* The clip is a square picture with an edge of its own: left as it is, that edge shows as a straight line between the
+   dark of the scene and the forge. Its left side melts into the scene's dark over 42 % of its width, in steps that ease
+   the gradient, so that the forge has no box (the bottom of the artwork melts into the sidebar the same way). */
 .mt-brokk-scene-clip {
     position: absolute;
     right: -41px;
@@ -84,6 +87,24 @@
     width: 200px;
     height: 200px;
     overflow: hidden;
+    -webkit-mask-image: linear-gradient(
+        to right,
+        transparent 0,
+        rgba(0, 0, 0, 0.12) 8%,
+        rgba(0, 0, 0, 0.35) 16%,
+        rgba(0, 0, 0, 0.62) 26%,
+        rgba(0, 0, 0, 0.88) 35%,
+        rgb(0, 0, 0) 42%
+    );
+    mask-image: linear-gradient(
+        to right,
+        transparent 0,
+        rgba(0, 0, 0, 0.12) 8%,
+        rgba(0, 0, 0, 0.35) 16%,
+        rgba(0, 0, 0, 0.62) 26%,
+        rgba(0, 0, 0, 0.88) 35%,
+        rgb(0, 0, 0) 42%
+    );
 }
 
 .mt-brokk-scene-video {

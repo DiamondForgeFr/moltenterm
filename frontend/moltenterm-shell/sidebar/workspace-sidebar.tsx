@@ -472,8 +472,12 @@ function WindowRow({ peeked, standIns }: { peeked: boolean; standIns: boolean })
             <AppMenuButton />
             <ToggleButton />
             <div className="h-full flex-1" />
-            <KeepAwakeStatusItem variant="sidebar" />
-            <NotificationCenter />
+            {/* While Brokk's scene is up, the cup and the bell fade out so that they do not sit on his face; they come back
+                when he leaves (FR-BOSS-009, AC6). The window buttons and the sidebar button never do. */}
+            <div className="mt-brokk-hush flex items-center gap-1.5">
+                <KeepAwakeStatusItem variant="sidebar" />
+                <NotificationCenter />
+            </div>
             <BrokkAvatarSlot />
         </div>
     );
