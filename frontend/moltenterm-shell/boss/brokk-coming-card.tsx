@@ -71,8 +71,8 @@ function ComingRow({ entry, value }: { entry: SettingEntry; value: Coming }) {
             data-setting={entry.key}
         >
             <div className="min-w-0">
-                <div className="truncate text-12 text-primary">{entry.label}</div>
-                <div className="truncate text-11 text-muted">{entry.description}</div>
+                <div className="text-12 text-primary">{entry.label}</div>
+                <div className="text-11 text-muted">{entry.description}</div>
             </div>
             {ComingColumns.map((choice) => {
                 const label = entry.options?.find((o) => o.value === choice)?.label ?? t(`boss.coming.${choice}`);
