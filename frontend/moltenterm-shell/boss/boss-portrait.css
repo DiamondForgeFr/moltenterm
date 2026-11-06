@@ -18,11 +18,16 @@
     transform-origin: var(--mt-boss-head-origin);
 }
 
-/* The panel's large portrait (FR-BOSS-009, AC9): a square that shows him from the goggles to the beard, so it frames him
-   less tightly than the avatar's round. */
-.mt-boss-portrait[data-framing="bust"] {
-    --mt-boss-head-scale: 1.12;
-    --mt-boss-head-origin: 50% 32%;
+/* The panel's portrait (FR-BOSS-009, AC9): a banner across the panel's top, edge to edge, showing him from the goggles to the
+   beard with the forge behind him. The picture is a square as wide as the banner, anchored at its top, and the banner clips
+   it: his head stays in the banner whatever its height, for the still and for every clip alike. It frames him less
+   tightly than the avatar's round. */
+.mt-boss-portrait[data-framing="banner"] {
+    --mt-boss-head-scale: 1;
+    --mt-boss-head-origin: 50% 0%;
+    inset: 0 0 auto;
+    height: auto;
+    aspect-ratio: 1;
 }
 
 .mt-boss-portrait-image {

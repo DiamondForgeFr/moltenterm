@@ -5,23 +5,24 @@
 // title row, or hanging from the window's top edge when the sidebar is not on screen. It carries the badge of what
 // waits, an animated ring while Brokk himself works (never because other agents do), and a soft halo while a visit waits
 // for the gate. Hovering it shows a tooltip, nothing else; a click opens his panel. It never opens anything by itself,
-// takes no focus and plays no sound. While the scene stands in his place it is hidden.
+// takes no focus and plays no sound. While the scene stands in his place it is hidden; while his panel is open it never
+// shows a second face, and says calmly that he is busy with the developer (a soft ring and a small glyph, #2003).
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
-import { cn } from "@/util/util";
+import { cn, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { openSettingsSection } from "../settings/settings-open";
 import { useWorkingBeat } from "../working-beat";
-import "./brokk-avatar.css";
-import { AvatarVariant, PeekDelayMs, Rect } from "./brokk-avatar-model";
-import { BrokkHubModel } from "./brokk-hub-store";
-import { BrokkTooltip } from "./brokk-peek";
 import { bubbleLabel } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
+import { AvatarVariant, PeekDelayMs, Rect } from "./brokk-avatar-model";
+import "./brokk-avatar.css";
+import { BrokkHubModel } from "./brokk-hub-store";
+import { BrokkTooltip } from "./brokk-peek";
 import { useAvatarBadge, useAvatarLive, useHubSelect } from "./use-brokk-hub";
 
 // The ring is the bell's (notification-center.tsx): a faint track and an arc that takes a quarter turn on each beat of
@@ -91,7 +92,13 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
         }
     }, [cardOpen, sceneUp]);
 
-    const label = cue ? t("boss.avatar.labelCue", { name, count: badge.count }) : bubbleLabel(name, badge.count);
+    // His face lives in the panel while it is open: the avatar says so, calmly, and never shows a second face.
+    const talking = t("boss.avatar.talking", { name });
+    const label = cardOpen
+        ? talking
+        : cue
+          ? t("boss.avatar.labelCue", { name, count: badge.count })
+          : bubbleLabel(name, badge.count);
     const onActivate = () => {
         closePeek();
         if (cardOpen) {
@@ -128,6 +135,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             data-scene={sceneUp ? "up" : undefined}
             data-panel={cardOpen ? "open" : undefined}
             aria-label={label}
+            title={cardOpen ? talking : undefined}
             aria-haspopup="dialog"
             aria-expanded={cardOpen}
             aria-describedby={peek != null ? tooltipId : undefined}
@@ -149,6 +157,13 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             <span className="mt-brokk-face" aria-hidden>
                 <BossPortrait live={live} />
             </span>
+            {cardOpen ? (
+                <i
+                    className={cn(makeIconClass("comment-dots", true), "mt-brokk-talk")}
+                    data-testid="brokk-talking"
+                    aria-hidden
+                />
+            ) : null}
             {ownWorking ? <AvatarRing /> : null}
             {cue ? <AvatarHalo /> : null}
             {badge.count > 0 ? (

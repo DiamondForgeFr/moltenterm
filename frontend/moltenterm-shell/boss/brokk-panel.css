@@ -27,32 +27,29 @@
     -webkit-app-region: no-drag;
 }
 
-/* Brokk's panel (FR-BOSS-009, AC9, #2003): the card's layer, wider, with his large portrait on top. The portrait's
-   framing numbers all belong to boss-portrait.css, the bust framing of the panel's square included. */
+/* Brokk's panel (FR-BOSS-009, AC9, #2003): the card's layer, wider, with his large portrait across its top. The portrait's
+   framing numbers all belong to boss-portrait.css, the banner framing of the panel included. */
 .mt-brokk-panel {
     width: 440px;
 }
 
+/* He is integrated like the forge scene (brokk-visit-scene.css): edge to edge, with no frame, no border and no rounded
+   picture, the forge behind him in its own dark, the same in every theme. The bottom fades to nothing with a mask, so
+   that what shows through is the panel's own background; the header sits under the fade. The picture and his clips
+   stand under the mask, never the controls. */
 .mt-brokk-panel-portrait {
-    flex: none;
-    display: flex;
-    justify-content: center;
-    padding: 10px 0 8px;
-    background:
-        radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--mt-action) 20%, transparent), transparent 70%),
-        var(--mt-surface-2);
-}
-
-.mt-brokk-panel-face {
+    --mt-brokk-panel-fade: 60px;
     position: relative;
-    width: 188px;
-    height: 188px;
+    flex: none;
+    height: clamp(160px, 28vh, 250px);
     overflow: hidden;
-    border-radius: var(--mt-radius-panel);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 20%, transparent);
+    background: rgb(26, 21, 16);
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to bottom, rgb(0, 0, 0) calc(100% - var(--mt-brokk-panel-fade)), transparent);
+    mask-image: linear-gradient(to bottom, rgb(0, 0, 0) calc(100% - var(--mt-brokk-panel-fade)), transparent);
 }
 
-/* Five tabs in 420 px: a narrow window scrolls them instead of wrapping. */
+/* Five tabs in 440 px: a narrow window scrolls them instead of wrapping. */
 .mt-brokk-panel-tabs {
     overflow-x: auto;
     scrollbar-width: none;

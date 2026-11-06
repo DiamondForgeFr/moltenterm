@@ -2970,7 +2970,8 @@
     "boss": {
         "label": "{name}, {count} waiting",
         "avatar": {
-            "labelCue": "{name}, {count} waiting: has something to tell you"
+            "labelCue": "{name}, {count} waiting: has something to tell you",
+            "talking": "{name} is talking to you"
         },
         "menu": {
             "openCard": "Open the card of {name}",
