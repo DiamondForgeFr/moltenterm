@@ -174,11 +174,18 @@ describe("the stylesheet's ripple", () => {
         expect(body).not.toMatch(/\b(?:right|bottom|margin[-\w]*|padding[-\w]*|display|flex[-\w]*):/);
     });
 
-    it("centres the circles on the dot by a translate, which holds past the 24 px slot", () => {
+    it("lays the circles out on the dot's own corner and centres them by a translate, which holds past the 24 px slot", () => {
         const body = ruleBody(`${pseudo("before")},\n${pseudo("after")}`);
-        expect(body).toContain("top: 50%;");
-        expect(body).toContain("left: 50%;");
-        expect(body).toContain("transform: translate(-50%, -50%) scale(");
+        expect(body).toContain("top: calc(50% - var(--mt-sb-ripple-size) * 0.5px);");
+        expect(body).toContain("left: calc(50% - var(--mt-sb-ripple-size) * 0.5px);");
+        expect(body).toContain(
+            "--mt-sb-ripple-shift: calc((var(--mt-sb-ripple-size) - var(--mt-sb-ripple-reach)) * 0.5px);"
+        );
+        expect(body).toMatch(
+            /transform: translate\(var\(--mt-sb-ripple-shift\), var\(--mt-sb-ripple-shift\)\)\s+scale\(/
+        );
+        // #1993: a percentage translate centres the circle on the slot's exact centre, not on the dot as it is painted.
+        expect(body).not.toMatch(/transform:[^;]*%/);
         expect(body).not.toContain("inset:");
         expect(body).not.toMatch(/margin[-\w]*:\s*auto/);
     });
@@ -208,10 +215,13 @@ describe("the stylesheet's ripple", () => {
         const body = keyframes("mt-sb-ripple");
         const properties = [...body.matchAll(/(?:^|[{;])\s*([a-z-]+)\s*:/g)].map((m) => m[1]);
         expect(new Set(properties)).toEqual(new Set(["transform", "opacity"]));
+        const shift = String.raw`translate\(var\(--mt-sb-ripple-shift\), var\(--mt-sb-ripple-shift\)\)\s+`;
         expect(body).toMatch(
-            /from \{[^}]*transform: translate\(-50%, -50%\) scale\(calc\(var\(--mt-sb-ripple-size\) \/ var\(--mt-sb-ripple-reach\)\)\);[^}]*opacity: 0\.85;/
+            new RegExp(
+                String.raw`from \{[^}]*transform: ${shift}scale\(calc\(var\(--mt-sb-ripple-size\) / var\(--mt-sb-ripple-reach\)\)\);[^}]*opacity: 0\.85;`
+            )
         );
-        expect(body).toMatch(/to \{[^}]*transform: translate\(-50%, -50%\) scale\(1\);[^}]*opacity: 0;/);
+        expect(body).toMatch(new RegExp(String.raw`to \{[^}]*transform: ${shift}scale\(1\);[^}]*opacity: 0;`));
     });
 
     it("plays 2.4 s in whole steps of the shared 1/15 s grid, the second circle half a cycle behind", () => {
@@ -265,7 +275,7 @@ describe("the stylesheet's ripple", () => {
     ])("stands still under %s: no ripple, a faint fixed halo", (_name, area) => {
         const text = area();
         expect(text).toMatch(
-            /is-working:not\(\.has-ring\)::before \{[^}]*animation: none;[^}]*transform: translate\(-50%, -50%\);[^}]*width: calc\(var\(--mt-sb-ripple-size\) \* 1px\);[^}]*opacity: 1;[^}]*box-shadow: 0 0 0 3px color-mix/
+            /is-working:not\(\.has-ring\)::before \{[^}]*animation: none;[^}]*transform: none;[^}]*width: calc\(var\(--mt-sb-ripple-size\) \* 1px\);[^}]*opacity: 1;[^}]*box-shadow: 0 0 0 3px color-mix/
         );
         expect(text).toMatch(/is-working:not\(\.has-ring\)::after \{[^}]*content: none;/);
     });

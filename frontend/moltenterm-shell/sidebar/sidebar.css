@@ -398,11 +398,20 @@
 .mt-sb-dot.is-working:not(.has-ring)::after {
     content: "";
     position: absolute;
-    /* Centred by a translate, not by auto margins (past the slot's 24 px they would drop to 0 and the circle would hang
-       off the top left corner). The keyframes carry the same translate. */
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(calc(var(--mt-sb-ripple-size) / var(--mt-sb-ripple-reach)));
+    /* Laid out on the dot's own top left corner, then moved out by a translate to centre the larger circle (#1993).
+       The dot's box is rounded to whole device pixels when it is painted; the circle, a compositor layer, has only its
+       layout origin rounded, and the translate in its transform is not rounded at all. Laid out on the slot's centre
+       and centred by translate(-50%, -50%), the circle sat on the exact centre while the 9 px dot, half a pixel off
+       it in its 24 px slot, was rounded to one side or the other as the row moved by a fraction of a pixel (a resize,
+       a centred row that grew, the many-dot row's scroll): at 1x the gap between the dot and its circle went from
+       one pixel on one side to two on the other, and back. Laid out on the dot's corner, the circle's origin is
+       rounded exactly as the dot's, and the translate, (dot - reach) / 2, is the same in both. Never centred by auto
+       margins, which drop to 0 past the slot's 24 px and hang the circle off the top left corner. */
+    --mt-sb-ripple-shift: calc((var(--mt-sb-ripple-size) - var(--mt-sb-ripple-reach)) * 0.5px);
+    top: calc(50% - var(--mt-sb-ripple-size) * 0.5px);
+    left: calc(50% - var(--mt-sb-ripple-size) * 0.5px);
+    transform: translate(var(--mt-sb-ripple-shift), var(--mt-sb-ripple-shift))
+        scale(calc(var(--mt-sb-ripple-size) / var(--mt-sb-ripple-reach)));
     box-sizing: border-box;
     width: calc(var(--mt-sb-ripple-reach) * 1px);
     height: calc(var(--mt-sb-ripple-reach) * 1px);
@@ -424,12 +433,13 @@
 
 @keyframes mt-sb-ripple {
     from {
-        transform: translate(-50%, -50%) scale(calc(var(--mt-sb-ripple-size) / var(--mt-sb-ripple-reach)));
+        transform: translate(var(--mt-sb-ripple-shift), var(--mt-sb-ripple-shift))
+            scale(calc(var(--mt-sb-ripple-size) / var(--mt-sb-ripple-reach)));
         opacity: 0.85;
     }
 
     to {
-        transform: translate(-50%, -50%) scale(1);
+        transform: translate(var(--mt-sb-ripple-shift), var(--mt-sb-ripple-shift)) scale(1);
         opacity: 0;
     }
 }
@@ -441,7 +451,7 @@
 @media (prefers-reduced-motion: reduce) {
     .mt-sb-dot.is-working:not(.has-ring)::before {
         animation: none;
-        transform: translate(-50%, -50%);
+        transform: none;
         width: calc(var(--mt-sb-ripple-size) * 1px);
         height: calc(var(--mt-sb-ripple-size) * 1px);
         opacity: 1;
@@ -457,7 +467,7 @@
 
 .prefers-reduced-motion .mt-sb-dot.is-working:not(.has-ring)::before {
     animation: none;
-    transform: translate(-50%, -50%);
+    transform: none;
     width: calc(var(--mt-sb-ripple-size) * 1px);
     height: calc(var(--mt-sb-ripple-size) * 1px);
     opacity: 1;
