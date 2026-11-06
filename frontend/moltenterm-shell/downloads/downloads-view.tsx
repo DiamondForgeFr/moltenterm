@@ -118,50 +118,64 @@ function OriginLine({
     const reopenLabel = origin?.otherWorkspace
         ? t("downloads.origin.reopenIn", { workspace: origin.workspaceName })
         : t("downloads.origin.reopen");
+    const hasActions = origin?.cta === "goto" || origin?.cta === "reopen" || origin?.toView === true;
     return (
         <div
-            className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-11 text-muted"
+            className="mt-0.5 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-1 gap-y-0.5 text-11 text-muted"
             data-testid="download-origin"
             data-origin={origin?.kind ?? "unknown"}
         >
-            <span className="inline-flex min-w-0 items-center gap-1">
-                <i className={cn(makeIconClass("globe", true), "text-10")} aria-hidden />
-                <span className="min-w-0 truncate" title={record.pageUrl || record.url}>
-                    {text}
-                </span>
+            <i className={cn(makeIconClass("globe", true), "text-10")} aria-hidden />
+            <span className="min-w-0 break-words" data-testid="download-origin-text" title={record.pageUrl || record.url}>
+                {text}
             </span>
-            {origin?.cta === "goto" ? (
-                <button
-                    type="button"
-                    className={OtherActionClass}
-                    data-testid="download-goto"
-                    onClick={() => onFollow("page")}
+            {hasActions ? (
+                // One line under the text, never split: the grid column starts at the text, and the buttons' padding is
+                // pulled back so their labels line up with it. A long workspace name shortens inside its button.
+                <div
+                    className="col-start-2 -ml-2 flex min-w-0 flex-nowrap items-center gap-1"
+                    data-testid="download-origin-actions"
                 >
-                    <i className={cn(makeIconClass("arrow-up-right-from-square", true), "mr-1 text-10")} aria-hidden />
-                    {t("downloads.origin.goTo")}
-                </button>
-            ) : null}
-            {origin?.cta === "reopen" ? (
-                <button
-                    type="button"
-                    className={OtherActionClass}
-                    data-testid="download-reopen"
-                    title={t("downloads.origin.reopenTitle", { workspace: origin.workspaceName })}
-                    onClick={() => onFollow("reopen")}
-                >
-                    <i className={cn(makeIconClass("rotate-right", true), "mr-1 text-10")} aria-hidden />
-                    {reopenLabel}
-                </button>
-            ) : null}
-            {origin?.toView ? (
-                <button
-                    type="button"
-                    className={OtherActionClass}
-                    data-testid="download-toview"
-                    onClick={() => onFollow("view")}
-                >
-                    {t("downloads.origin.toView")}
-                </button>
+                    {origin?.cta === "goto" ? (
+                        <button
+                            type="button"
+                            className={cn(OtherActionClass, "inline-flex shrink-0 items-center whitespace-nowrap")}
+                            data-testid="download-goto"
+                            onClick={() => onFollow("page")}
+                        >
+                            <i
+                                className={cn(makeIconClass("arrow-up-right-from-square", true), "mr-1 text-10")}
+                                aria-hidden
+                            />
+                            {t("downloads.origin.goTo")}
+                        </button>
+                    ) : null}
+                    {origin?.cta === "reopen" ? (
+                        <button
+                            type="button"
+                            className={cn(OtherActionClass, "inline-flex min-w-0 items-center whitespace-nowrap")}
+                            data-testid="download-reopen"
+                            title={t("downloads.origin.reopenTitle", { workspace: origin.workspaceName })}
+                            onClick={() => onFollow("reopen")}
+                        >
+                            <i
+                                className={cn(makeIconClass("rotate-right", true), "mr-1 shrink-0 text-10")}
+                                aria-hidden
+                            />
+                            <span className="min-w-0 truncate">{reopenLabel}</span>
+                        </button>
+                    ) : null}
+                    {origin?.toView ? (
+                        <button
+                            type="button"
+                            className={cn(OtherActionClass, "shrink-0 whitespace-nowrap")}
+                            data-testid="download-toview"
+                            onClick={() => onFollow("view")}
+                        >
+                            {t("downloads.origin.toView")}
+                        </button>
+                    ) : null}
+                </div>
             ) : null}
         </div>
     );
