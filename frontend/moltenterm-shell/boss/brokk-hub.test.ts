@@ -406,6 +406,49 @@ describe("what the views of this computer share (#2002)", () => {
         expect(third.hub.getView().visit).toBeNull();
     });
 
+    it("brings him again when the same agent waits again, after the developer answered it", () => {
+        const shared = { stored: EmptyShared };
+        const { hub, advance } = fixture(shared);
+        hub.syncRows([BlockedRow()]);
+        hub.open();
+        expect(hub.getView().visit).toBeNull();
+        // The developer answered the agent: the wait ends. The same agent, the same key, waits again later.
+        hub.syncRows([]);
+        advance(Min);
+        hub.syncRows([{ ...BlockedRow(), since: T + Min - 6 * Min }]);
+        expect(hub.getView().visit).not.toBeNull();
+    });
+
+    it("brings him again in a second view too, whichever view saw the wait end first", () => {
+        const shared = { stored: EmptyShared };
+        const first = fixture(shared);
+        const second = fixture(shared);
+        first.hub.syncRows([BlockedRow()]);
+        second.hub.syncRows([BlockedRow()]);
+        first.hub.open();
+        second.hub.sharedChanged(readShared(sharedText(shared.stored), T));
+        expect(second.hub.getView().visit).toBeNull();
+        first.hub.syncRows([]);
+        second.hub.sharedChanged(readShared(sharedText(shared.stored), T));
+        second.hub.syncRows([]);
+        const again = [{ ...BlockedRow(), since: T - 6 * Min }];
+        second.hub.syncRows(again);
+        first.hub.syncRows(again);
+        expect(second.hub.getView().visit).not.toBeNull();
+        expect(first.hub.getView().visit).not.toBeNull();
+    });
+
+    it("tells an agent again that changed from waiting to failing: it is another event", () => {
+        const shared = { stored: EmptyShared };
+        const { hub } = fixture(shared);
+        hub.settings(settings({ error: "vient" }));
+        hub.syncRows([BlockedRow()]);
+        hub.open();
+        expect(hub.getView().visit).toBeNull();
+        hub.syncRows([row("agent:a", "error", T)]);
+        expect(hub.getView().visit?.expression).toBe("doubtful");
+    });
+
     it("writes nothing when nothing changed for the other views", () => {
         const { hub, state } = fixture();
         hub.syncRows([BlockedRow()]);

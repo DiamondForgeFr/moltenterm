@@ -16,7 +16,12 @@ export const VisitShareKey = "moltenterm:brokk-visit";
 // A told mark outlives the event by a day at most: the shared record must not grow for ever.
 export const ToldKeepMs = 24 * 60 * 60 * 1000;
 
+// A mark says at which gravity an event was told, and when. The last word wins, by its time: an event that ended leaves a
+// mark of rank -1 (a tombstone), so that the same agent waiting again later, under the same key, is a new event that is
+// told again, and a view that still has the old mark in memory does not bring it back.
 export type SharedTold = { rank: number; at: number };
+
+export const ForgottenRank = -1;
 
 export type SharedVisit = {
     // No new visit before this moment, 0 when none.
@@ -57,7 +62,7 @@ export function readShared(raw: unknown, now: number): SharedVisit {
     if (value.told != null && typeof value.told === "object") {
         for (const [key, mark] of Object.entries(value.told as Record<string, any>)) {
             const rank = (mark as any)?.rank;
-            if (typeof rank === "number" && Number.isInteger(rank) && rank >= 0 && rank <= 3) {
+            if (typeof rank === "number" && Number.isInteger(rank) && rank >= ForgottenRank && rank <= 3) {
                 told[key] = { rank, at: finite((mark as any)?.at) };
             }
         }
@@ -77,15 +82,16 @@ export function sameShared(a: SharedVisit, b: SharedVisit): boolean {
     return (
         a.laterUntil === b.laterUntil &&
         keys.length === Object.keys(b.told).length &&
-        keys.every((key) => b.told[key]?.rank === a.told[key].rank)
+        keys.every((key) => b.told[key]?.rank === a.told[key].rank && b.told[key]?.at === a.told[key].at)
     );
 }
 
-// Two shared records in one: the later delay, the graver mark per event.
+// Two shared records in one: the later delay, and per event the later mark (the graver one at the same moment).
 export function mergeShared(a: SharedVisit, b: SharedVisit, now: number): SharedVisit {
     const told = { ...a.told };
     for (const [key, mark] of Object.entries(b.told)) {
-        if ((told[key]?.rank ?? -1) < mark.rank) {
+        const known = told[key];
+        if (known == null || mark.at > known.at || (mark.at === known.at && mark.rank > known.rank)) {
             told[key] = mark;
         }
     }
@@ -94,16 +100,30 @@ export function mergeShared(a: SharedVisit, b: SharedVisit, now: number): Shared
     return sameShared(next, a) ? a : next;
 }
 
-// What this view knows added to what is shared: the later of the two delays, the graver of the two marks per event.
-// A delay that is over is not kept.
+// What this view knows added to what is shared: the later of the two delays, and the marks of the events it holds that are
+// graver than what is shared says of them. A delay that is over is not kept.
 export function publishOf(shared: SharedVisit, visits: VisitState, now: number): SharedVisit {
     const told: Record<string, SharedTold> = {};
     for (const [key, rank] of Object.entries(visits.told)) {
-        if (visits.events[key] != null) {
+        if (visits.events[key] != null && (shared.told[key]?.rank ?? ForgottenRank) < rank) {
             told[key] = { rank, at: now };
         }
     }
     return mergeShared(shared, { laterUntil: visits.laterUntil, told }, now);
+}
+
+// Events that ended: what was told of them is forgotten, for every view, so that the same key raised again is new. The
+// very same record when nothing was told of them.
+export function forgetIn(shared: SharedVisit, keys: string[], now: number): SharedVisit {
+    const told = { ...shared.told };
+    let changed = false;
+    for (const key of keys) {
+        if ((told[key]?.rank ?? ForgottenRank) > ForgottenRank) {
+            told[key] = { rank: ForgottenRank, at: now };
+            changed = true;
+        }
+    }
+    return changed ? { ...shared, told } : shared;
 }
 
 // What this view takes from what is shared: a delay started elsewhere (the scene that is up folds), and the marks of the
