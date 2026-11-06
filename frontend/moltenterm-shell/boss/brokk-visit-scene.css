@@ -116,6 +116,19 @@
     pointer-events: none;
 }
 
+/* His living portrait (#2025) fills the clip's box as the held frame does, so the crop and the fades stay the same. */
+.mt-brokk-scene-portrait {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.mt-brokk-scene-portrait .character-video {
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+}
+
 /* The face on the right, the left in the forge's dark, with no text to carry. */
 .mt-brokk-scene-shade {
     position: absolute;

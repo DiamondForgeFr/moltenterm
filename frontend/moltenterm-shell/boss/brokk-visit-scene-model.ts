@@ -87,6 +87,78 @@ export function sceneClipOf(severity: Severity): string {
     return SceneClipNames[SeverityExpression[severity]];
 }
 
+// The gesture of the severity, which his living portrait plays in the listening pose.
+export function sceneGestureOf(severity: Severity): BrokkExpression {
+    return SeverityExpression[severity];
+}
+
+// The pose he waits in: the package's listening loop, whose free idles are his blinks (the faces are on demand only).
+export const ScenePose = "listening";
+
+// While he waits, the face of the severity comes back now and then so that it keeps saying why he came (#2025): after
+// a wait drawn anew each time between these two, counted from the end of the last one. Played over and over, it read
+// as a machine, not as someone waiting.
+export const SceneRecurGap = { minMs: 20_000, maxMs: 40_000 };
+
+export function sceneRecurDelayMs(random: number): number {
+    const share = Math.min(Math.max(random, 0), 1);
+    return Math.round(SceneRecurGap.minMs + share * (SceneRecurGap.maxMs - SceneRecurGap.minMs));
+}
+
+export type SceneClock = {
+    setTimer: (run: () => void, ms: number) => unknown;
+    clearTimer: (timer: unknown) => void;
+    random: () => number;
+};
+
+export type SceneGestures = {
+    // The package says the gesture has left the screen: the next one waits a fresh gap from now.
+    ended: () => void;
+    stop: () => void;
+};
+
+// Plays the gesture once at once (his arrival), then again after each wait. `cue` receives a new number for each play,
+// the package's way to play the same gesture again. Should the package never say the gesture ended (a clip that cannot
+// play says nothing), the next one still comes, `capMs` (the longest the gesture can last) plus a wait after it was
+// asked, so that two never follow each other without a wait between.
+export function startSceneGestures(clock: SceneClock, capMs: number, cue: (n: number) => void): SceneGestures {
+    let played = 0;
+    let timer: unknown = null;
+    let stopped = false;
+    const clear = () => {
+        if (timer != null) {
+            clock.clearTimer(timer);
+        }
+        timer = null;
+    };
+    const arm = (ms: number) => {
+        clear();
+        timer = clock.setTimer(play, ms);
+    };
+    function play() {
+        timer = null;
+        if (stopped) {
+            return;
+        }
+        played++;
+        cue(played);
+        arm(capMs + sceneRecurDelayMs(clock.random()));
+    }
+    play();
+    return {
+        ended: () => {
+            if (stopped) {
+                return;
+            }
+            arm(sceneRecurDelayMs(clock.random()));
+        },
+        stop: () => {
+            stopped = true;
+            clear();
+        },
+    };
+}
+
 export const LaterLabelKeys: Record<SnoozeChoiceId, string> = {
     "5min": "boss.visit.later.5min",
     "15min": "boss.visit.later.15min",

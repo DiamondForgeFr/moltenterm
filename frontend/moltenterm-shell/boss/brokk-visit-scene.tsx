@@ -13,22 +13,33 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
+import { TransmissionPortrait } from "@diamondforge/character";
+import "@diamondforge/character/styles.css";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { prefersReducedMotion } from "../molten-motion";
 import "./brokk-visit-scene.css";
+import type { BrokkExpression } from "./brokk-ask-model";
 import { BrokkHubModel } from "./brokk-hub-store";
+import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
+import type { Severity } from "./brokk-queue";
+import { reactionCapMs } from "./brokk-state-model";
 import type { Visit } from "./brokk-visit";
 import {
     LaterOption,
     laterOptions,
     sceneActions,
     sceneClipOf,
+    SceneClock,
     sceneEscapes,
+    SceneGestures,
+    sceneGestureOf,
     sceneLabel,
     ScenePhase,
     scenePhase,
+    ScenePose,
+    startSceneGestures,
     unmountAfterMs,
 } from "./brokk-visit-scene-model";
 import BrokkStill from "./portrait/brokk/brokk.jpg";
@@ -71,18 +82,52 @@ export function useSceneLife(open: boolean, unmountAfter: number): { mounted: bo
     return { mounted, shown };
 }
 
-// His face is a loop of the clip of the severity. Without motion (the app's setting, the system's, or a window nobody
-// sees) it is one still frame of that clip: the package ships no still per expression, so the clip is held at its middle.
-function SceneFace({ clip }: { clip: string }) {
-    const motion = useMotionAllowed();
+const BrowserClock: SceneClock = {
+    setTimer: (run, ms) => setTimeout(run, ms),
+    clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
+    random: () => Math.random(),
+};
+
+// His living face (#2025): the package's portrait that drives him elsewhere, waiting in the listening pose with its
+// blinks at the rhythm of brokk-portrait.ts. The face of the severity plays once as he arrives, then now and then while
+// he waits (startSceneGestures): a clip of it played in a loop read as a machine.
+export function SceneLive({ expression, clock = BrowserClock }: { expression: BrokkExpression; clock?: SceneClock }) {
+    const [cue, setCue] = useState(0);
+    const gestures = useRef<SceneGestures>(null);
+    useEffect(() => {
+        const started = startSceneGestures(clock, reactionCapMs(expression), setCue);
+        gestures.current = started;
+        return () => {
+            started.stop();
+            gestures.current = null;
+        };
+    }, [expression, clock]);
+    const onGesture = (name: string, phase: "start" | "end") => {
+        if (name === expression && phase === "end") {
+            gestures.current?.ended();
+        }
+    };
+    return (
+        <TransmissionPortrait
+            {...BrokkPortrait}
+            {...rhythmProps("normal")}
+            bare
+            className="mt-brokk-scene-portrait"
+            alt=""
+            state={ScenePose}
+            expression={cue > 0 ? { expression, cue } : null}
+            onGesture={onGesture}
+        />
+    );
+}
+
+// Without motion (the app's setting, the system's, or a window nobody sees) his face is one still frame of the clip of
+// the severity: the package ships no still per expression, so the clip is held at its middle.
+function SceneStill({ clip }: { clip: string }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     useEffect(() => {
         const video = videoRef.current;
         if (video == null) {
-            return;
-        }
-        if (motion) {
-            void video.play()?.catch(() => {});
             return;
         }
         video.pause();
@@ -97,7 +142,7 @@ function SceneFace({ clip }: { clip: string }) {
         }
         video.addEventListener("loadedmetadata", hold, { once: true });
         return () => video.removeEventListener("loadedmetadata", hold);
-    }, [motion, clip]);
+    }, [clip]);
     return (
         <video
             key={clip}
@@ -106,13 +151,19 @@ function SceneFace({ clip }: { clip: string }) {
             src={clipUrl(clip)}
             poster={BrokkStill}
             muted
-            loop
             playsInline
             preload="auto"
-            autoPlay={motion}
             data-testid="brokk-scene-video"
         />
     );
+}
+
+function SceneFace({ severity }: { severity: Severity }) {
+    const motion = useMotionAllowed();
+    if (!motion) {
+        return <SceneStill clip={sceneClipOf(severity)} />;
+    }
+    return <SceneLive expression={sceneGestureOf(severity)} />;
 }
 
 // Plus tard (AC7): the delays of the severity, the first being what Escape takes.
@@ -232,7 +283,7 @@ export function BrokkVisitSceneView({
             >
                 <span className="mt-brokk-scene-art" aria-hidden>
                     <span className="mt-brokk-scene-clip">
-                        <SceneFace clip={sceneClipOf(visit.severity)} />
+                        <SceneFace severity={visit.severity} />
                     </span>
                     <span className="mt-brokk-scene-shade" />
                     <span className="mt-brokk-scene-glow" />

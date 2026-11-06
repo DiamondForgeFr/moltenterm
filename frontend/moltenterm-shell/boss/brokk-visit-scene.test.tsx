@@ -20,11 +20,20 @@ vi.mock("./use-brokk-hub", () => ({
 }));
 vi.mock("./use-brokk-live", () => ({ useMotionAllowed: () => Mocks.motion }));
 vi.mock("../molten-motion", () => ({ prefersReducedMotion: () => Mocks.reduced }));
+const Package = vi.hoisted(() => ({ props: null as Record<string, any> }));
+vi.mock("@diamondforge/character", () => ({
+    TransmissionPortrait: (props: Record<string, any>) => {
+        Package.props = props;
+        return null;
+    },
+}));
+vi.mock("@diamondforge/character/styles.css", () => ({}));
 
 import { t } from "../i18n/i18n";
 import { BrokkHub, HubDeps } from "./brokk-hub";
 import { Severity } from "./brokk-queue";
 import type { Visit } from "./brokk-visit";
+import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
 import { BrokkVisitSceneView, LaterMenu } from "./brokk-visit-scene";
 import {
     laterOptions,
@@ -32,6 +41,7 @@ import {
     sceneActions,
     SceneFadePx,
     SceneGapPx,
+    sceneGestureOf,
     sceneLabel,
     scenePhase,
     SceneRoomPx,
@@ -116,21 +126,47 @@ describe("the forge scene (FR-BOSS-009, AC6)", () => {
         expect(sceneLabel(t, "Brokk", "grave")).toContain(t("boss.visit.severity.grave"));
     });
 
-    it("makes the face of the severity with the clip of that face", () => {
+    it("holds one still frame of the clip of the severity under reduced motion, never a loop (#2025)", () => {
+        Mocks.motion = false;
         expect(attr(render("grave"), "brokk-scene-video", "src")).toContain("listening.frown");
         expect(attr(render("important"), "brokk-scene-video", "src")).toContain("listening.doubtful");
         expect(attr(render("neutre"), "brokk-scene-video", "src")).toContain("listening.call");
         expect(attr(render("bonne"), "brokk-scene-video", "src")).toContain("listening.smile");
+        const html = render("important");
+        expect(html).not.toMatch(/autoPlay=""|autoplay=""/i);
+        expect(html).not.toMatch(/loop=""/);
+        expect(html).toMatch(/muted=""/);
+        Package.props = null;
+        render("important");
+        expect(Package.props).toBeNull();
     });
 
-    it("plays his clip in a loop only when motion is allowed, and holds one still frame of it otherwise", () => {
-        const html = render("important");
-        expect(html).toContain("<video");
-        expect(html).toMatch(/autoPlay=""|autoplay=""/i);
-        expect(html).toMatch(/loop=""/);
-        expect(html).toMatch(/muted=""/);
-        Mocks.motion = false;
-        expect(render("important")).not.toMatch(/autoPlay=""|autoplay=""/i);
+    it("is his living portrait when motion is allowed, waiting in the listening pose, never a looping clip (#2025)", () => {
+        for (const severity of Severities) {
+            Package.props = null;
+            const html = render(severity);
+            expect(html, severity).not.toContain("<video");
+            expect(Package.props, severity).not.toBeNull();
+            expect(Package.props.state, severity).toBe("listening");
+            expect(Package.props.bare, severity).toBe(true);
+            expect(Package.props.loops, severity).toBe(BrokkPortrait.loops);
+            expect(Package.props.idles, severity).toBe(BrokkPortrait.idles);
+            expect(Package.props.idleGap, severity).toEqual(rhythmProps("normal").idleGap);
+            expect(Package.props.className, severity).toContain("mt-brokk-scene-portrait");
+        }
+    });
+
+    it("draws only blinks by chance while he waits: the nod and the faces are on demand", () => {
+        const free = BrokkPortrait.idles.listening.filter((idle) => !idle.onDemand).map((idle) => idle.name);
+        expect(free).toEqual(["blink"]);
+        expect(BrokkPortrait.idles.listening.find((idle) => idle.name === "blink").repeat).toBe(true);
+    });
+
+    it("asks the gesture of the severity: raised brows, frown, call or smile", () => {
+        expect(sceneGestureOf("important")).toBe("doubtful");
+        expect(sceneGestureOf("grave")).toBe("frown");
+        expect(sceneGestureOf("neutre")).toBe("call");
+        expect(sceneGestureOf("bonne")).toBe("smile");
     });
 
     it("is one button over the whole scene, named, that the keyboard reaches only once it is shown", () => {

@@ -12,11 +12,49 @@ import {
     SceneClipNames,
     sceneClipOf,
     sceneEscapes,
+    SceneClock,
     sceneLabel,
+    ScenePose,
+    sceneRecurDelayMs,
+    SceneRecurGap,
     SeverityLabelKeys,
     sceneTimings,
+    startSceneGestures,
     unmountAfterMs,
 } from "./brokk-visit-scene-model";
+
+// A clock that only moves when the test moves it: the timers run in order of their due time.
+function fakeClock(randoms: number[] = [0.5]) {
+    let now = 0;
+    let next = 0;
+    let draw = 0;
+    const timers = new Map<number, { at: number; run: () => void }>();
+    const clock: SceneClock = {
+        setTimer: (run, ms) => {
+            const id = ++next;
+            timers.set(id, { at: now + ms, run });
+            return id;
+        },
+        clearTimer: (id) => {
+            timers.delete(id as number);
+        },
+        random: () => randoms[draw++ % randoms.length],
+    };
+    const advance = (ms: number) => {
+        const end = now + ms;
+        for (;;) {
+            const due = [...timers.entries()].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+            if (due == null) {
+                break;
+            }
+            timers.delete(due[0]);
+            now = due[1].at;
+            due[1].run();
+        }
+        now = end;
+    };
+    return { clock, advance, now: () => now, pending: () => timers.size };
+}
 
 const Severities: Severity[] = ["grave", "important", "neutre", "bonne"];
 // 14:00 on the local clock: this evening (18:00) is 4 h away.
@@ -123,5 +161,80 @@ describe("how long each movement lasts (AC6)", () => {
         expect(unmountAfterMs(false)).toBeGreaterThan(MotionTimings.closeMs);
         expect(unmountAfterMs(false)).toBeGreaterThan(MotionTimings.slideDownMs);
         expect(unmountAfterMs(true)).toBeGreaterThan(MotionTimings.fadeMs);
+    });
+});
+
+describe("he waits naturally, and his face says why now and then (#2025)", () => {
+    const CapMs = 10_000;
+    const GestureMs = 4_625;
+
+    it("plays the face of the severity once as he arrives, then waits in the listening pose", () => {
+        const { clock, advance } = fakeClock();
+        const cues: number[] = [];
+        const gestures = startSceneGestures(clock, CapMs, (n) => cues.push(n));
+        expect(cues).toEqual([1]);
+        expect(ScenePose).toBe("listening");
+        advance(GestureMs);
+        gestures.ended();
+        advance(SceneRecurGap.minMs - 1);
+        expect(cues).toEqual([1]);
+        gestures.stop();
+    });
+
+    it("comes back inside 20 to 40 s after the last one ended, never twice in a row", () => {
+        const randoms = [0, 1, 0.37, 0.82, 0.5];
+        const { clock, advance, now } = fakeClock(randoms);
+        const at: number[] = [];
+        const gestures = startSceneGestures(clock, CapMs, () => at.push(now()));
+        const waits: number[] = [];
+        for (let i = 0; i < 8; i++) {
+            const played = at.length;
+            advance(GestureMs);
+            const endedAt = now();
+            gestures.ended();
+            for (let step = 0; at.length === played && step < 100; step++) {
+                advance(1_000);
+            }
+            expect(at.length, `round ${i}`).toBe(played + 1);
+            waits.push(at[at.length - 1] - endedAt);
+        }
+        for (const wait of waits) {
+            expect(wait).toBeGreaterThanOrEqual(SceneRecurGap.minMs);
+            expect(wait).toBeLessThanOrEqual(SceneRecurGap.maxMs + 1_000);
+        }
+        // Jitter: the waits are not all the same.
+        expect(new Set(waits).size).toBeGreaterThan(1);
+        gestures.stop();
+    });
+
+    it("draws each wait between the bounds, whatever chance says", () => {
+        expect(SceneRecurGap).toEqual({ minMs: 20_000, maxMs: 40_000 });
+        expect(sceneRecurDelayMs(0)).toBe(20_000);
+        expect(sceneRecurDelayMs(1)).toBe(40_000);
+        expect(sceneRecurDelayMs(0.5)).toBe(30_000);
+        expect(sceneRecurDelayMs(-1)).toBe(20_000);
+        expect(sceneRecurDelayMs(2)).toBe(40_000);
+    });
+
+    it("still comes back when the package never says the face ended, after its longest length and a wait", () => {
+        const { clock, advance } = fakeClock([0]);
+        const cues: number[] = [];
+        const gestures = startSceneGestures(clock, CapMs, (n) => cues.push(n));
+        advance(CapMs + SceneRecurGap.minMs - 1);
+        expect(cues).toEqual([1]);
+        advance(1);
+        expect(cues).toEqual([1, 2]);
+        gestures.stop();
+    });
+
+    it("stops with the visit: nothing plays once it has gone", () => {
+        const { clock, advance, pending } = fakeClock();
+        const cues: number[] = [];
+        const gestures = startSceneGestures(clock, CapMs, (n) => cues.push(n));
+        gestures.stop();
+        expect(pending()).toBe(0);
+        gestures.ended();
+        advance(10 * SceneRecurGap.maxMs);
+        expect(cues).toEqual([1]);
     });
 });
