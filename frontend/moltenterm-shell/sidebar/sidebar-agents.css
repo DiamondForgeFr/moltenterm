@@ -114,9 +114,10 @@
     background: var(--mt-state-error);
 }
 
+/* A content basis, not 0: the text claims its own width, so the note (which shrinks first) cannot take it (#2008). */
 .mt-sb-agent-tx {
     display: flex;
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     flex-direction: column;
     line-height: 1.25;
@@ -384,7 +385,7 @@
 
 .mt-sb-note {
     display: inline-flex;
-    flex: 0 1000 auto;
+    flex: 0 100000 auto;
     align-items: center;
     gap: 3px;
     min-width: 12px;
@@ -411,7 +412,7 @@
     white-space: nowrap;
 }
 
-@container mtrow (max-width: 200px) {
+@container mtrow (max-width: 240px) {
     .mt-sb-note {
         flex: none;
         max-width: none;

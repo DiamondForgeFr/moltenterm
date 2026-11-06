@@ -103,9 +103,16 @@ describe("the field's keys", () => {
     });
 });
 
-describe("the narrow row", () => {
+describe("the room on a row", () => {
+    const css = fs.readFileSync(path.resolve(__dirname, "sidebar-agents.css"), "utf8");
+
     it("is the width the stylesheet's container query switches the note to its glyph at", () => {
-        const css = fs.readFileSync(path.resolve(__dirname, "sidebar-agents.css"), "utf8");
         expect(css).toContain(`@container mtrow (max-width: ${NarrowRowPx}px)`);
+    });
+
+    it("goes to the name and the status first: they claim their content width, the note shrinks far faster", () => {
+        // A zero basis on the text (flex: 1) let the note take its full width and left the status truncated.
+        expect(css).toMatch(/\.mt-sb-agent-tx\s*{[^}]*\bflex:\s*1 1 auto;/);
+        expect(css).toMatch(/\.mt-sb-note\s*{[^}]*\bflex:\s*0 100000 auto;/);
     });
 });

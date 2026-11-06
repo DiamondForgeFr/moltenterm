@@ -74,4 +74,4 @@ export function noteKeyAction(e: { key: string; isComposing?: boolean }): NoteKe
 
 // A row narrower than this shows the note's glyph alone (the text stays in the hover); must match the container query
 // in sidebar-agents.css
-export const NarrowRowPx = 200;
+export const NarrowRowPx = 240;
