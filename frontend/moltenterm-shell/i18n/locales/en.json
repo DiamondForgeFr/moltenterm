@@ -3029,7 +3029,7 @@
             "title": "{name}",
             "ariaLabel": "{name}'s panel: to handle, notifications, sessions, downloads and usage",
             "menu": "{name}'s menu",
-            "menuComing": "When he comes to fetch me…",
+            "menuComing": "When {name} comes to fetch me…",
             "menuSettings": "{name}'s preferences",
             "menuOff": "Turn {name} off",
             "keepAwake": {
@@ -3048,6 +3048,7 @@
                 "noAgent": "No coding agent is installed to start {name}'s session.",
                 "agentMissing": "The coding agent you chose is not installed: {name} cannot start.",
                 "gone": "{name}'s terminal was closed: send your message again to start a new one.",
+                "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
                 "failed": "The message did not go: {name}'s session could not be reached."
             }
         },

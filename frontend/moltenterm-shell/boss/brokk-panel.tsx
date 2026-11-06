@@ -742,7 +742,7 @@ export function BrokkPanel({ style }: { style: React.CSSProperties }) {
                                 fireAndForget(() => openSettingsKey("boss", BrokkTableFirstKey));
                             }}
                         >
-                            {t("boss.panel.menuComing")}
+                            {t("boss.panel.menuComing", { name })}
                         </button>
                         <button
                             type="button"

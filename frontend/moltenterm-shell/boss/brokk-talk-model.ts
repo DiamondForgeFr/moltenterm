@@ -72,7 +72,10 @@ export function talkNoteKey(state: TalkState): string {
         case "agentmissing":
             return "boss.panel.talk.agentMissing";
         case "failed":
-            return state.reason === "gone" ? "boss.panel.talk.gone" : "boss.panel.talk.failed";
+            if (state.reason === "gone") {
+                return "boss.panel.talk.gone";
+            }
+            return state.reason === "noagent" ? "boss.panel.talk.agentStopped" : "boss.panel.talk.failed";
         default:
             return null;
     }

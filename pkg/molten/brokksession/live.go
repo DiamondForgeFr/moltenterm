@@ -18,8 +18,8 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
@@ -79,6 +79,8 @@ func liveType(ctx context.Context, blockId string, line string) TypeOutcome {
 		return TypeOutcome{Retry: true, Message: out.Message}
 	case termupdate.InputReasonTerminalGone:
 		return TypeOutcome{Gone: true, Message: out.Message}
+	case termupdate.InputReasonNoAgent:
+		return TypeOutcome{NoAgent: true, Message: out.Message}
 	}
 	return TypeOutcome{Message: out.Message}
 }
