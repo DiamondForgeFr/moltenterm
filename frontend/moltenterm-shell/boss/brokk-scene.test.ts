@@ -17,7 +17,7 @@ import {
     SatisfiedMentionMs,
 } from "./brokk-mood";
 import { ExpressionMs, KeyQuietMs } from "./brokk-queue";
-import { brokkScene, BrokkScene, CaptionLine, LongThoughtMs, SceneInput } from "./brokk-scene";
+import { brokkScene, BrokkScene, CaptionLine, LongThoughtMs, SceneInput, TypingCalmMs } from "./brokk-scene";
 
 const Min = 60_000;
 // Ten in the morning, local time: not the night.
@@ -331,9 +331,23 @@ describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
         });
         expect(typing.round.count).toBe(1);
         expect(typing.rhythm).toBe("calm");
-        const paused = scene({ situation: situation({ working: 2 }), lastKeyAt: Day - KeyQuietMs });
+        const paused = scene({ situation: situation({ working: 2 }), lastKeyAt: Day - TypingCalmMs });
         expect(paused.rhythm).toBe("normal");
         expect(paused.face).toBe("thinking");
+    });
+
+    it("you stop typing: the calm ends after a short while, and the scene asks to be drawn again then (#2010)", () => {
+        const lastKeyAt = Day - 1000;
+        const typing = scene({ lastKeyAt });
+        expect(typing.rhythm).toBe("calm");
+        expect(typing.until).toBe(lastKeyAt + TypingCalmMs);
+        const between = scene({ lastKeyAt, now: lastKeyAt + KeyQuietMs });
+        expect(between.rhythm).toBe("calm");
+        const after = scene({ lastKeyAt, now: typing.until });
+        expect(after.rhythm).toBe("normal");
+        expect(after.until).toBeGreaterThan(typing.until);
+        const atNight = scene({ lastKeyAt: Night - 1000, now: Night - 1000 + TypingCalmMs });
+        expect(atNight.rhythm).toBe("calm");
     });
 
     it("you are away and nothing goes on: he sleeps; with work or a row, he stays awake", () => {
