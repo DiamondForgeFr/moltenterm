@@ -61,6 +61,8 @@ MOLTENTERM_BACKGROUND=1 MOLTENTERM_DATA_HOME=/tmp/mtNNN/d MOLTENTERM_CONFIG_HOME
 
 The perf harness (`scripts/perf/`) launches every instance this way unless `run --foreground`.
 
+A test instance that downloads files sets `MOLTENTERM_DOWNLOADS_DIR=/tmp/mtNNN/dl` (#1992): the downloads of its web pages are saved there and never in the developer's own Downloads folder.
+
 ## Local builds and their signature
 
 `scripts/moltenterm-build-gold.sh` builds the gold (Mission Control's Gold build in `.molten/project.json`) and delivers

@@ -174,6 +174,14 @@ describe("the Downloads section (FR-MC-019 AC7, AC8)", () => {
         expect(html).toContain("Interrupted");
     });
 
+    it("draws no bar for an interruption with nothing received: there is nothing to measure", () => {
+        const none = show([
+            record({ id: "n", state: "interrupted", reason: "server", received: 0, total: 0, endedAt: Now }),
+        ]);
+        expect(none).not.toContain('role="progressbar"');
+        expect(none).toContain("The site did not send the file");
+    });
+
     it("shows a cancelled download with Retry", () => {
         const html = show([record({ id: "c", state: "cancelled", received: 10, total: 100 })]);
         expect(html).toContain('data-testid="download-retry"');
