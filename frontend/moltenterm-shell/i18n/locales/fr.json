@@ -1799,6 +1799,8 @@
         "stateLine": "{name} : {state}",
         "modelTitle": "Modèle : {model}",
         "modelClick": "Cliquez pour changer de modèle",
+        "modelUnavailable": "{model} n'est pas disponible avec ce compte : choisissez un autre modèle",
+        "modelUnavailableClick": "Cliquez pour choisir un autre modèle",
         "effortTitle": "Effort : {effort}",
         "effortClick": "Cliquez pour changer le niveau d'effort",
         "viaProvider": "{agent} via {provider}",

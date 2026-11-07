@@ -87,6 +87,8 @@ export type MoltenHeaderState = {
     // The agent's model and effort ("Opus" and "high", #549), each its own click target (#573), "" when not reported.
     model: string;
     modelTitle: string;
+    // #2076: the account cannot use model; the model is the way out.
+    modelUnavailable: boolean;
     effort: string;
     effortTitle: string;
     pill: HeaderPillSpec;
@@ -190,6 +192,7 @@ export function useMoltenHeader(input: MoltenHeaderInput): MoltenHeaderState {
         context,
         model: agentModelPart(agent),
         modelTitle: agentModelTitle(agent),
+        modelUnavailable: !!agent?.modelunavailable,
         effort: agentEffortPart(agent),
         effortTitle: agentEffortTitle(agent),
         pill,
@@ -300,6 +303,7 @@ export function MoltenHeaderLead({
                             blockId={blockId}
                             model={state.model}
                             modelTitle={state.modelTitle}
+                            modelUnavailable={state.modelUnavailable}
                             effort={state.effort}
                             effortTitle={state.effortTitle}
                         />

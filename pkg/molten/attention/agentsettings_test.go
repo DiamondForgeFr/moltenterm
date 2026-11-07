@@ -61,6 +61,26 @@ func TestAgentSettingsFollowTheRun(t *testing.T) {
 	}
 }
 
+// #2076: a turn Codex refused for its model is published with the state, for the header's way out.
+func TestAgentSettingsPublishAnUnavailableModel(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("codex"))
+	h.states.setSettings("b1", "codex", molten.AgentSettings{Model: "gpt-6-astra", Effort: "high"})
+	if h.info("b1").ModelUnavailable {
+		t.Fatalf("a model that runs is available")
+	}
+	if !h.states.setSettings("b1", "codex", molten.AgentSettings{Model: "gpt-6-astra", Effort: "high", ModelUnavailable: true}) {
+		t.Fatalf("the refusal is a change")
+	}
+	if info := h.info("b1"); !info.ModelUnavailable || info.Model != "gpt-6-astra" {
+		t.Fatalf("published: %+v", info)
+	}
+	h.states.setSettings("b1", "codex", molten.AgentSettings{Model: "gpt-6-luna", Effort: "medium"})
+	if h.info("b1").ModelUnavailable {
+		t.Fatalf("another model clears it")
+	}
+}
+
 func TestAgentSettingsResetWhenAHookNamesAnotherAgent(t *testing.T) {
 	h := makeAgentHarness()
 	h.out("b1", cmdMark("claude"))

@@ -357,6 +357,9 @@ type AgentStateInfo struct {
 	Model     string `json:"model,omitempty"`
 	ModelName string `json:"modelname,omitempty"`
 	Effort    string `json:"effort,omitempty"`
+	// ModelUnavailable: the agent refused its latest turn because Model is not available to the signed-in account
+	// (#2076); the header's model is then the way out, the Model choice.
+	ModelUnavailable bool `json:"modelunavailable,omitempty"`
 	// Provider, ProviderName: the host the run talks to when it is not Anthropic's and how MoltenTerm names it
 	// (FR-AGC-008: "GLM", else the host), "" for Anthropic. Anthropic's plan gauges, models and effort levels do not
 	// apply to such a run. NativeProvider names the agent's own provider then ("Anthropic"), for the windows to say
@@ -416,6 +419,9 @@ type AgentSettings struct {
 	ModelName string
 	Effort    string
 	Provider  string
+	// ModelUnavailable: the agent refused its latest turn because the model is not available to the signed-in
+	// account (#2076, Codex's model_not_found), and no turn or model change came since.
+	ModelUnavailable bool
 }
 
 // AgentRunInfo is what the agent companion (DS-SHELL-019) needs of a block's agent: which one, and since when it runs.

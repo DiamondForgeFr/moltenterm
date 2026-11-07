@@ -81,19 +81,21 @@ func (codexAdapter) Briefing() BriefingChannel {
 }
 
 // Models: the agent's default, then the models Codex lists (visibility "list") with their context windows. The user's
-// configured model is marked, and added when the cache does not list it.
+// configured model is marked. Codex fetches the cache for the signed-in account, so a configured model it leaves out
+// is one that sign-in cannot use (#2076: gpt-6-astra with a ChatGPT sign-in) and is not offered; it is added only
+// while no list is known.
 func (codexAdapter) Models(env ModelEnv) []ModelChoice {
 	home := molten.CodexHome(env)
 	configured := readCodexConfiguredModel(filepath.Join(home, codexConfigFile))
 	rtn := []ModelChoice{{Id: "", Label: "Your default model"}}
-	seen := false
-	for _, m := range readCodexModelsCache(filepath.Join(home, codexModelsFile)) {
+	listed := readCodexModelsCache(filepath.Join(home, codexModelsFile))
+	for _, m := range listed {
 		if m.Id == configured {
-			m.Configured, seen = true, true
+			m.Configured = true
 		}
 		rtn = append(rtn, m)
 	}
-	if configured != "" && !seen {
+	if configured != "" && len(listed) == 0 {
 		rtn = append(rtn, ModelChoice{Id: configured, Label: configured, Configured: true})
 	}
 	return rtn

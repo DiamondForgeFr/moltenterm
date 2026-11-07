@@ -1799,6 +1799,8 @@
         "stateLine": "{name}: {state}",
         "modelTitle": "Model: {model}",
         "modelClick": "Click to change the model",
+        "modelUnavailable": "{model} is not available with this sign-in: choose another model",
+        "modelUnavailableClick": "Click to choose another model",
         "effortTitle": "Effort: {effort}",
         "effortClick": "Click to change the effort level",
         "viaProvider": "{agent} via {provider}",

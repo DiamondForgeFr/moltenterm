@@ -663,6 +663,11 @@ func (m *Manager) readSettings(blockId string, agent string, adapter Adapter, pa
 			panichandler.PanicHandler("molten:companion:settings", recover())
 		}()
 		if settings, ok := reader.ReadSettings(path); ok {
+			if m.runOf != nil {
+				if now, ok := m.runOf(blockId); ok {
+					settings = mergeFollowedSettings(now.Settings, settings)
+				}
+			}
 			m.setSettings(blockId, agent, settings)
 		}
 	}()
