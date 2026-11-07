@@ -12,6 +12,7 @@ import (
 // A repository with only main is set up on main (#1106); the declared branches and MoltenTerm's defaults, when the
 // repository has them, stay.
 func TestSetupBranchesFollowTheRepository(t *testing.T) {
+	t.Parallel()
 	only := surveyRepository(t, map[string]string{"README.md": "# App\n"})
 	gitIn(t, only, "branch", "-m", "develop", "main")
 	if b := SetupBranches(only); b.Trunk != "main" || b.Release != "main" || b.TrunkFrom != BranchFromRepository {

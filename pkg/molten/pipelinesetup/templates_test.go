@@ -34,6 +34,7 @@ func savedTemplate(t *testing.T, s *Setup, dir string, keepManual bool, keepPubl
 }
 
 func TestSaveATemplateKeepsTheFlowNotTheProject(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, nil)
 	s := templateSetup(t)
 	before := workingCopy(t, dir)
@@ -74,6 +75,7 @@ func TestSaveATemplateKeepsTheFlowNotTheProject(t *testing.T) {
 }
 
 func TestSaveATemplateRefuses(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, nil)
 	s := templateSetup(t)
 	o := describedOptions(t, s, dir, nil)
@@ -107,6 +109,7 @@ func TestSaveATemplateRefuses(t *testing.T) {
 }
 
 func TestATemplateIsOfferedAndAdaptedOnAnotherProject(t *testing.T) {
+	t.Parallel()
 	source := npmCliRepository(t, nil)
 	s := templateSetup(t)
 	tpl := savedTemplate(t, s, source, true, true)
@@ -159,6 +162,7 @@ func TestATemplateIsOfferedAndAdaptedOnAnotherProject(t *testing.T) {
 }
 
 func TestTemplateOptionsOnASingleBranchProject(t *testing.T) {
+	t.Parallel()
 	here := Facts{OnGithub: false, TagPrefix: "v"}
 	here.Branches.Trunk, here.Branches.Release = "main", "main"
 	tpl := PipelineTemplate{Flow: TemplateFlow{BranchModel: BranchModelPromote, Release: "master", Merge: MergeCommit, RcFormat: RcFormatNumeric,
@@ -180,6 +184,7 @@ func TestTemplateOptionsOnASingleBranchProject(t *testing.T) {
 }
 
 func TestAnswersKeepTheTemplate(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, nil)
 	s := templateSetup(t)
 	s.AnswersDir = t.TempDir()

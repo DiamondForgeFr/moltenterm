@@ -5,7 +5,6 @@ package release
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -27,12 +26,6 @@ func makeSyncedBackRepo(t *testing.T) string {
 // makeSyncedBackBase is makeSyncedBackRepo up to the sync-back, with nothing new on develop yet; change commits a file.
 func makeSyncedBackBase(t *testing.T) (string, func(file string, subject string, body ...string) string) {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Release test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "release@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Release test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "release@example.invalid")
 	dir := t.TempDir()
 	gitIn(t, dir, "init", "--quiet", "-b", "develop")
 	gitIn(t, dir, "remote", "add", "origin", "https://example.invalid/acme/app.git")
@@ -79,6 +72,7 @@ func makeSyncedBackBase(t *testing.T) (string, func(file string, subject string,
 // #1731: v1.0.1's commits came back to develop under other hashes, one with a breaking change; since then only a fix
 // and docs landed. The plan proposes the patch the new commits justify, not the major or minor of the shipped ones.
 func TestPlanLeavesOutTheReleaseSyncedBack(t *testing.T) {
+	t.Parallel()
 	dir, change := makeSyncedBackBase(t)
 	change("thirty.txt", "fix(#30): the board loses its title", "The title is kept on save.")
 	change("thirtytwo.txt", "docs(#32): the sharing guide")
@@ -123,6 +117,7 @@ func TestPlanLeavesOutTheReleaseSyncedBack(t *testing.T) {
 }
 
 func TestChangelogItemsLeaveOutTheReleaseSyncedBack(t *testing.T) {
+	t.Parallel()
 	dir := makeSyncedBackRepo(t)
 	if out := gitIn(t, dir, "log", "--no-merges", "--format=%s", "v1.0.1..HEAD"); !strings.Contains(out, "#10") {
 		t.Fatalf("the fixture must hold v1.0.1's work again under other hashes: %q", out)
@@ -180,6 +175,7 @@ const changelogWithEarlierSection = `# Changelog
 `
 
 func TestUncoveredLeavesOutTicketsAnEarlierSectionCites(t *testing.T) {
+	t.Parallel()
 	items := CoverageItems([]string{"fix(#30): the board loses its title", "feat(#31): share a board", "feat(#12): import a board", "feat(#11): export the board", "fix: typo in the help"}, "")
 	section, _ := ChangelogSection(changelogWithEarlierSection, "1.1.0", "")
 	earlier := ChangelogEarlier(changelogWithEarlierSection, "1.1.0", "")

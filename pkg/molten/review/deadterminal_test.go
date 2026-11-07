@@ -22,6 +22,7 @@ func goneOutcome() RestartTypeOutcome {
 }
 
 func TestAnalyzeAndResolveOffersAnAgentWhenTheTerminalIsGone(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.agentOnBranch()
 	f.typeOuts = map[string]RestartTypeOutcome{"agent-term": goneOutcome()}
@@ -45,6 +46,7 @@ func TestAnalyzeAndResolveOffersAnAgentWhenTheTerminalIsGone(t *testing.T) {
 }
 
 func TestRestartReachesTheNextAgentWhenOneTerminalIsGone(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	tree := f.agentTreeOnBranch()
@@ -59,6 +61,7 @@ func TestRestartReachesTheNextAgentWhenOneTerminalIsGone(t *testing.T) {
 }
 
 func TestAskRebaseOffersAnAgentWhenTheTerminalIsGone(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.agentOnBranch()
 	f.typeOuts = map[string]RestartTypeOutcome{"agent-term": goneOutcome()}
@@ -70,6 +73,7 @@ func TestAskRebaseOffersAnAgentWhenTheTerminalIsGone(t *testing.T) {
 
 // A refusal that is not a gone terminal keeps its words for the window.
 func TestRefusedPromptCarriesItsText(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.agentOnBranch()
 	f.typeOuts = map[string]RestartTypeOutcome{"agent-term": {Message: "The terminal did not take the input: x",

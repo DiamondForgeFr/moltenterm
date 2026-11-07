@@ -13,6 +13,7 @@ import (
 // The candidate format (#1155): the setup writes versions.rcformat for X.Y.Z-rc.N only, keeps a declared one, reads
 // the workflows an rc.N tag starts, and documents the form.
 func TestSetupCarriesTheCandidateFormat(t *testing.T) {
+	t.Parallel()
 	if rc, public := sampleTags("v", ""); rc != "v1.2.3-1" || public != "v1.2.3" {
 		t.Fatalf("numeric: %s %s", rc, public)
 	}
@@ -54,6 +55,7 @@ func TestSetupCarriesTheCandidateFormat(t *testing.T) {
 }
 
 func TestAnRcDotTagStartsTheCandidateWorkflows(t *testing.T) {
+	t.Parallel()
 	wf := Workflow{File: "rc.yml", Push: true, Tags: []string{"v*-rc.*"}}
 	f := Facts{TagPrefix: "v", Workflows: []Workflow{wf}}
 	if files, _ := tagWorkflows(f, ChannelRc, "v"); len(files) != 0 {

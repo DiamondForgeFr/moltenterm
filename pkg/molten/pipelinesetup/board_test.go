@@ -67,6 +67,7 @@ func snapshot(t *testing.T, dir string) map[string]string {
 }
 
 func TestBoardRefusesWhenNoSetupIsOpen(t *testing.T) {
+	t.Parallel()
 	b, dir, _, _ := boardFixture(t)
 	if _, err := b.Propose(dir, "Olivia", json.RawMessage(boardAddStep), "why"); refusalCode(t, err) != "notopen" {
 		t.Fatalf("propose on a closed setup: %v", err)
@@ -83,6 +84,7 @@ func TestBoardRefusesWhenNoSetupIsOpen(t *testing.T) {
 }
 
 func TestBoardProposalsAreCheckedLikeTheAgentsChanges(t *testing.T) {
+	t.Parallel()
 	b, dir, text, published := boardFixture(t)
 	before := snapshot(t, dir)
 	openBoard(t, b, dir, text)
@@ -143,6 +145,7 @@ func TestBoardProposalsAreCheckedLikeTheAgentsChanges(t *testing.T) {
 }
 
 func TestBoardFlagExplainAndWithdraw(t *testing.T) {
+	t.Parallel()
 	b, dir, text, _ := boardFixture(t)
 	openBoard(t, b, dir, text)
 	flag, err := b.Flag(dir, "Olivia", "public/tag", "Faut-il une approbation ?", "Oui, sur npm.")
@@ -180,6 +183,7 @@ func TestBoardFlagExplainAndWithdraw(t *testing.T) {
 }
 
 func TestBoardAcceptedChangesJoinTheDraft(t *testing.T) {
+	t.Parallel()
 	b, dir, text, _ := boardFixture(t)
 	openBoard(t, b, dir, text)
 	add, err := b.Propose(dir, "Olivia", json.RawMessage(boardAddStep), "la documentation")
@@ -232,6 +236,7 @@ func TestBoardAcceptedChangesJoinTheDraft(t *testing.T) {
 }
 
 func TestBoardApplySkipsWhatNoLongerApplies(t *testing.T) {
+	t.Parallel()
 	b, dir, text, _ := boardFixture(t)
 	openBoard(t, b, dir, text)
 	item, err := b.Propose(dir, "Olivia", json.RawMessage(`{"op": "remove", "channel": "rc", "id": "sync-back"}`), "pas de retour")
@@ -252,6 +257,7 @@ func TestBoardApplySkipsWhatNoLongerApplies(t *testing.T) {
 }
 
 func TestBoardCloseDropsEverything(t *testing.T) {
+	t.Parallel()
 	b, dir, text, published := boardFixture(t)
 	openBoard(t, b, dir, text)
 	if _, err := b.Propose(dir, "Olivia", json.RawMessage(boardAddStep), "la documentation"); err != nil {
@@ -274,6 +280,7 @@ func TestBoardCloseDropsEverything(t *testing.T) {
 }
 
 func TestBoardChangeCarriesTheAgentsWordsAndCopiesToTheOtherChannel(t *testing.T) {
+	t.Parallel()
 	b, dir, text, _ := boardFixture(t)
 	before := snapshot(t, dir)
 	openBoard(t, b, dir, text)

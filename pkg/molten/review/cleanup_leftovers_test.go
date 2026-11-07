@@ -22,6 +22,7 @@ func (f *cleanupFixture) branchExists(branch string) bool {
 }
 
 func TestCleanupAgentTreeRemovedBeforeTheMerge(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.git(f.dir, "worktree", "remove", f.agent)
 
@@ -38,6 +39,7 @@ func TestCleanupAgentTreeRemovedBeforeTheMerge(t *testing.T) {
 }
 
 func TestCleanupAgentTreeFolderDeletedByHand(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	// git still lists the worktree; only its folder went.
 	if err := os.RemoveAll(f.agent); err != nil {
@@ -56,6 +58,7 @@ func TestCleanupAgentTreeFolderDeletedByHand(t *testing.T) {
 }
 
 func TestCleanupAgentTreeLeftoversAreRemoved(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.afterRemove = f.recreateDsStore
 	// The first try at the leftovers meets a file written while it deletes; the second one ends the job.
@@ -86,6 +89,7 @@ func TestCleanupAgentTreeLeftoversAreRemoved(t *testing.T) {
 }
 
 func TestCleanupAgentTreeLeftoverStaysAsAWarning(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.afterRemove = f.recreateDsStore
 	f.removeAll = func(path string) error {
@@ -139,6 +143,7 @@ func TestCleanupAgentTreeLeftoverStaysAsAWarning(t *testing.T) {
 }
 
 func TestCleanupAgentTreeGitRefusesStillFails(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.refuseRemove = errors.New("git worktree remove: fatal: boom")
 
@@ -157,6 +162,7 @@ func TestCleanupAgentTreeGitRefusesStillFails(t *testing.T) {
 }
 
 func TestCleanupReviewTreeLeftovers(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	review := reviewsession.ReviewTreeDir(f.dataDir, f.dir, 7)
 	f.git(f.dir, "worktree", "add", "--quiet", "--detach", review, f.headOid)

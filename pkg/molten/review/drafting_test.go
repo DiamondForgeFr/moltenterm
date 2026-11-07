@@ -21,6 +21,7 @@ func events(c Comment) string {
 
 // FR-REV-009 AC1: a draft is staged, unstaged, dropped and restored; each step is in its history (AC5).
 func TestCommentActions(t *testing.T) {
+	t.Parallel()
 	s := MakeStore(t.TempDir())
 	k := PrKey{Repo: "o/r", Number: 4}
 	head := strings.Repeat("b", 40)
@@ -79,6 +80,7 @@ func TestCommentActions(t *testing.T) {
 }
 
 func TestHistoryKeepsTheOriginal(t *testing.T) {
+	t.Parallel()
 	c := Comment{State: CommentStateDraft}
 	addEvent(&c, 1, EventCreated, AuthorDeveloper, "original")
 	for i := 0; i < maxHistory+20; i++ {
@@ -91,6 +93,7 @@ func TestHistoryKeepsTheOriginal(t *testing.T) {
 
 // A fast agent's reply is kept before the developer's message that asked for it: the discussion stays in time order.
 func TestDiscussionOrder(t *testing.T) {
+	t.Parallel()
 	c := Comment{}
 	addMessage(&c, CommentMessage{Id: "reply", At: 20, By: MessageByAgent})
 	addMessage(&c, CommentMessage{Id: "asked", At: 10, By: MessageByDeveloper})
@@ -102,6 +105,7 @@ func TestDiscussionOrder(t *testing.T) {
 
 // FR-REV-009 AC3: the agent's proposal is a proposal until the developer accepts it; then it is a staged comment.
 func TestProposals(t *testing.T) {
+	t.Parallel()
 	svc := MakeService(t.TempDir(), execGit, nil)
 	k := PrKey{Repo: "o/r", Number: 5}
 	head := strings.Repeat("c", 40)
@@ -150,6 +154,7 @@ func TestProposals(t *testing.T) {
 // FR-REV-009 AC2: Discuss reaches the session with the comment and its lines; the reply is kept under the comment and
 // its rewrite is used or ignored.
 func TestDiscussAndReply(t *testing.T) {
+	t.Parallel()
 	svc := MakeService(t.TempDir(), execGit, nil)
 	k := PrKey{Repo: "o/r", Number: 6}
 	head := strings.Repeat("d", 40)

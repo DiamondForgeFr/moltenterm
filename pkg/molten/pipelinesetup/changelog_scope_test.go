@@ -10,6 +10,7 @@ import (
 
 // The drafted changelog step says what its section covers (#1142), so the agent writing it gets the scope too.
 func TestChangelogStepSaysItsScope(t *testing.T) {
+	t.Parallel()
 	public := changelogStep("docs/changelog.md", "changelog-en", "In the release worktree", ChannelPublic)
 	if !strings.Contains(public.Manual, "since the last public release, release candidates included") {
 		t.Fatalf("public: %q", public.Manual)

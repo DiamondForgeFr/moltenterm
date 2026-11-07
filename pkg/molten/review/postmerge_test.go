@@ -35,6 +35,7 @@ func (f *cleanupFixture) cleanupRuns() int {
 }
 
 func TestValidateRunsTheCleanupOnce(t *testing.T) {
+	serialTest(t, "installs the process-wide post-merge hook")
 	f := makeCleanupFixture(t, false)
 	merged := cleanPr()
 	merged.State = "MERGED"
@@ -79,6 +80,7 @@ func TestValidateRunsTheCleanupOnce(t *testing.T) {
 }
 
 func TestRefusedMergeRunsNoCleanup(t *testing.T) {
+	serialTest(t, "installs the process-wide post-merge hook")
 	f := makeCleanupFixture(t, false)
 	pushed := cleanPr()
 	pushed.Head = oidB

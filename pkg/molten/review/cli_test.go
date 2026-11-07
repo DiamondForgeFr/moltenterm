@@ -42,6 +42,7 @@ func handoffReq(action string) HandoffRequest {
 }
 
 func TestHandoffReachesTheTerminalsWorkspace(t *testing.T) {
+	t.Parallel()
 	f := &handoffFake{}
 	for _, action := range []string{HandoffOpen, HandoffPublish, HandoffMerge, HandoffRestart} {
 		res, err := RunHandoff(context.Background(), f.env(), handoffReq(action))
@@ -55,6 +56,7 @@ func TestHandoffReachesTheTerminalsWorkspace(t *testing.T) {
 }
 
 func TestHandoffRefusals(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		fake handoffFake
@@ -88,6 +90,7 @@ func TestHandoffRefusals(t *testing.T) {
 }
 
 func TestHandoffRouteAnswersTerminalsOnly(t *testing.T) {
+	t.Parallel()
 	service := MakeService(t.TempDir(), nil, nil)
 	f := &handoffFake{}
 	service.handoff = f.env()
@@ -108,6 +111,7 @@ func TestHandoffRouteAnswersTerminalsOnly(t *testing.T) {
 }
 
 func TestMergePlanShownToTerminalsWithoutItsId(t *testing.T) {
+	t.Parallel()
 	gh := &fakeGh{views: []fakePr{cleanPr()}}
 	service := MakeService(t.TempDir(), nil, nil)
 	service.merger.gh = gh.run

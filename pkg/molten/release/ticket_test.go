@@ -45,6 +45,7 @@ func issuesJson(t *testing.T, from int, count int, title string) string {
 }
 
 func TestReleaseTicketIsFoundInTheMilestone(t *testing.T) {
+	serialTest(t, "sets MOLTEN_RELEASE_TICKET, which the release reads from the process environment")
 	f, e, p := ticketFixture(t)
 	f.gh.issues = `[{"number":41,"title":"A bug"},{"number":1078,"title":"Release v1.0.0"},{"number":7,"title":"Release v1.0.0","pull_request":{"url":"x"}}]`
 	if n, err := e.releaseTicket(context.Background(), p, "1.0.0"); err != nil || n != 1078 {
@@ -69,6 +70,7 @@ func TestReleaseTicketIsFoundInTheMilestone(t *testing.T) {
 
 // 825 issues were in milestone 1.0.0 when v1.0.0-7 stopped: the lookup read the first hundred.
 func TestReleaseTicketIsFoundBeyondTheFirstHundredIssues(t *testing.T) {
+	t.Parallel()
 	f, e, p := ticketFixture(t)
 	f.gh.issuePages = map[int]string{
 		1: issuesJson(t, 1000, 100, "A story"),
@@ -93,6 +95,7 @@ func TestReleaseTicketIsFoundBeyondTheFirstHundredIssues(t *testing.T) {
 }
 
 func TestReleaseTicketIsCreatedWhenTheMilestoneHoldsNone(t *testing.T) {
+	t.Parallel()
 	f, e, p := ticketFixture(t)
 	f.gh.issuePages = map[int]string{1: `[{"number":41,"title":"A bug"}]`}
 	n, err := e.releaseTicket(context.Background(), p, "1.0.0")
@@ -125,6 +128,7 @@ func TestReleaseTicketIsCreatedWhenTheMilestoneHoldsNone(t *testing.T) {
 
 // A milestone holds hundreds of issues: only the release's own title is the release's ticket.
 func TestReleaseTicketIsNeverAnotherTitle(t *testing.T) {
+	t.Parallel()
 	f, e, p := ticketFixture(t)
 	f.gh.issuePages = map[int]string{1: `[
 		{"number":10,"title":"Release v1.0.0-7"},
@@ -161,6 +165,7 @@ func TestReleaseTicketIsNeverAnotherTitle(t *testing.T) {
 }
 
 func TestReleaseTicketIsNotCreatedWhereThereIsNowhereToCreateIt(t *testing.T) {
+	t.Parallel()
 	f, e, p := ticketFixture(t)
 	f.github = false
 	_, err := e.releaseTicket(context.Background(), p, "1.0.0")
@@ -177,6 +182,7 @@ func TestReleaseTicketIsNotCreatedWhereThereIsNowhereToCreateIt(t *testing.T) {
 
 // Not finding the ticket because GitHub did not answer is no reason to make a second one.
 func TestReleaseTicketIsNeverCreatedWhenTheLookupFails(t *testing.T) {
+	t.Parallel()
 	f, e, p := ticketFixture(t)
 	f.gh.issuesFail = fmt.Errorf("gh: HTTP 502")
 	_, err := e.releaseTicket(context.Background(), p, "1.0.0")
@@ -200,21 +206,22 @@ func TestReleaseTicketIsNeverCreatedWhenTheLookupFails(t *testing.T) {
 const ticketToolManifest = `{"workflow":{"tool":"github-projects","projectUrl":"https://github.com/orgs/Example/projects/1","commitFormat":{"pattern":"<type>(#<ticket>): <description>","requireTicket":true}},"tools":{"srs":{"backend":"notion"}}}`
 
 // What the project's ticket CLI is given, one line, and the address it prints.
-const fakeTicketTool = "#!/usr/bin/env bash\necho \"$@\" > \"$TICKET_TOOL_LOG\"\necho 'Issue URL: https://github.com/Example/app/issues/1802'\nexit %d\n"
+const fakeTicketTool = "#!/usr/bin/env bash\necho \"$@\" > '%s'\necho 'Issue URL: https://github.com/Example/app/issues/1802'\nexit %d\n"
 
 func ticketToolFixture(t *testing.T, exit int) (*fixture, *Env, *Project, string) {
 	t.Helper()
 	f := makeFixture(t)
 	rel := ".claude/skills/sf-tool-github-projects/github-projects-cli.sh"
+	// The log's path is written into the script: an environment variable would keep every test of this fixture from
+	// running in parallel.
+	log := filepath.Join(f.base, "ticket-tool.log")
 	writeFile(t, filepath.Join(f.checkout, ".saasfoundry.json"), ticketToolManifest)
-	writeFile(t, filepath.Join(f.checkout, rel), fmt.Sprintf(fakeTicketTool, exit))
+	writeFile(t, filepath.Join(f.checkout, rel), fmt.Sprintf(fakeTicketTool, log, exit))
 	gitIn(t, f.checkout, "add", "-A")
 	gitIn(t, f.checkout, "commit", "--quiet", "-m", "chore(#2): the ticket tool")
 	gitIn(t, f.checkout, "push", "--quiet", "origin", "develop")
 	// The working copy's tool is not the reviewed one: never run.
 	writeFile(t, filepath.Join(f.checkout, rel), "#!/usr/bin/env bash\necho 'Issue URL: https://github.com/Example/app/issues/99'\n")
-	log := filepath.Join(f.base, "ticket-tool.log")
-	t.Setenv("TICKET_TOOL_LOG", log)
 	f.gh.milestones = `[{"number":12,"title":"1.0.0","html_url":"https://m/12","open_issues":0}]`
 	f.gh.issues = `[]`
 	e := f.env()
@@ -224,6 +231,7 @@ func ticketToolFixture(t *testing.T, exit int) (*fixture, *Env, *Project, string
 }
 
 func TestReleaseTicketGoesThroughTheProjectsTicketTool(t *testing.T) {
+	t.Parallel()
 	f, e, p, log := ticketToolFixture(t, 0)
 	mustRun(t, f, "fetch", e.fetch(context.Background(), p.Root))
 	n, err := e.releaseTicket(context.Background(), p, "1.0.0")
@@ -246,6 +254,7 @@ func TestReleaseTicketGoesThroughTheProjectsTicketTool(t *testing.T) {
 // The tool made the issue and failed on a later step: the ticket is the one to use, and it must be in its milestone, or
 // the next run would look for it there and make another.
 func TestReleaseTicketKeepsWhatTheTicketToolStartedAndPutsItInItsMilestone(t *testing.T) {
+	t.Parallel()
 	f, e, p, _ := ticketToolFixture(t, 1)
 	mustRun(t, f, "fetch", e.fetch(context.Background(), p.Root))
 	n, err := e.releaseTicket(context.Background(), p, "1.0.0")
@@ -263,6 +272,7 @@ func TestReleaseTicketKeepsWhatTheTicketToolStartedAndPutsItInItsMilestone(t *te
 
 // The working copy still holds a tool (#99 if it ran), but the trunk and the release branch do not: a plain issue.
 func TestReleaseTicketFallsBackToAnIssueWithoutTheToolOnTheTrunk(t *testing.T) {
+	t.Parallel()
 	f, e, p, _ := ticketToolFixture(t, 0)
 	gitIn(t, f.checkout, "rm", "--quiet", "-f", "--cached", ".claude/skills/sf-tool-github-projects/github-projects-cli.sh")
 	gitIn(t, f.checkout, "commit", "--quiet", "-m", "chore(#3): drop the tool")

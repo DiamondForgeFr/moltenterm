@@ -158,6 +158,7 @@ func workingCopy(t *testing.T, dir string) string {
 }
 
 func TestWriteOpensAPullRequestAndLeavesTheCheckoutAlone(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	forge := &fakeForge{}
 	s := prSetup(t, forge, protectedRules(t))
@@ -225,6 +226,7 @@ func TestWriteOpensAPullRequestAndLeavesTheCheckoutAlone(t *testing.T) {
 // An agent's whole-file answer is refused (#1099); a text sent to Write can only change the keys the setup sets up
 // (#1091, FR-MC-036 AC2).
 func TestTheAgentsTextOnlyChangesTheOwnedKeys(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	forge := &fakeForge{}
 	s := prSetup(t, forge, protectedRules(t))
@@ -264,6 +266,7 @@ func TestTheAgentsTextOnlyChangesTheOwnedKeys(t *testing.T) {
 
 // An uncommitted edit is flagged, never built on unless included; a base that moved stops the job.
 func TestUncommittedEditsAndAMovedBase(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	forge := &fakeForge{issueNum: "9"}
 	s := prSetup(t, forge, protectedRules(t))
@@ -344,6 +347,7 @@ func TestUncommittedEditsAndAMovedBase(t *testing.T) {
 
 // Outside GitHub, the same commit as a patch: nothing pushed, no ticket needed.
 func TestPatchModeGivesTheCommitWithoutPushing(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	forge := &fakeForge{}
 	s := prSetup(t, forge, protectedRules(t))
@@ -371,6 +375,7 @@ func TestPatchModeGivesTheCommitWithoutPushing(t *testing.T) {
 // expanded by json.Indent), merged onto the committed v3 block (develop f191383e). Only versions and release may
 // change; ci, icon, name and schema stay byte for byte, even when the agent's text also edits ci.
 func TestTheRefinedText1407OnlyChangesTheOwnedKeys(t *testing.T) {
+	t.Parallel()
 	committed, err := os.ReadFile(filepath.Join("testdata", "saasfoundry-committed-f191383e.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -425,6 +430,7 @@ func TestTheRefinedText1407OnlyChangesTheOwnedKeys(t *testing.T) {
 }
 
 func TestMergeOwnedKeepsEverythingElse(t *testing.T) {
+	t.Parallel()
 	current := []byte("{\n  \"schema\": 1,\n  \"name\": \"X\",\n  \"ci\": { \"jobs\": [ {\"name\":\"a\",\"run\":\"true\"} ] },\n  \"versions\": { \"tagprefix\": \"v\" }\n}\n")
 	proposed := []byte(`{"schema":1,"name":"Y","icon":"x.svg","versions":{"tagprefix":"app-v"},"release":{"rc":[]}}`)
 	out, dropped, err := MergeOwned(current, proposed, "X")
