@@ -31,9 +31,18 @@ jobs:
             - name: Install pinned audit client
               run: npm install --global --ignore-scripts --no-audit --no-fund npm@10.9.2
             - name: Test policy and workflow contracts
-              run: node --test scripts/security/policy-check.mjs
+              run: node --test scripts/security/policy-check.mjs scripts/security/electron-staleness-check.mjs
             - name: Scan and evaluate
               run: node scripts/security/scan.mjs --out security-report
+            # The Electron update policy (security/ELECTRON.md, #1983): a release, or its rehearsal, stops on a stale
+            # engine unless security/dependencies.json holds a reviewed exception. Pull requests and the scheduled scans
+            # never stop on it (electron-staleness.yml raises the issue). A tag push is always a release; a rehearsal is
+            # recognised by the caller's workflow_ref, so a tag is still enforced if that ever reads differently.
+            - name: Electron engine staleness (release only)
+              if: ${{ !cancelled() && (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && contains(github.workflow_ref, '.github/workflows/release.yml@'))) }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: node scripts/security/electron-staleness.mjs --enforce
             - name: Summary
               if: always()
               run: |
