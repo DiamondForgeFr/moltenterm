@@ -67,19 +67,20 @@ describe("app page policy", () => {
         expect(directivesOf(policy()).get("frame-src")).toEqual([Web]);
     });
 
-    it("opens no directive to a wildcard, and only images to a whole scheme", () => {
+    it("opens no directive to a wildcard, and no directive to a web scheme (#2045)", () => {
         for (const [name, values] of directivesOf(policy())) {
             for (const value of values) {
                 expect(value, name).not.toBe("*");
-                if (name === "img-src") continue;
                 for (const scheme of ["http:", "https:", "ws:", "wss:", "data:", "blob:", "file:"]) {
                     if (name === "font-src" && scheme === "data:") continue;
                     if (name === "script-src" && scheme === "blob:") continue;
+                    if (name === "img-src" && (scheme === "data:" || scheme === "blob:")) continue;
                     expect(value, name).not.toBe(scheme);
                 }
             }
         }
-        expect(directivesOf(policy()).get("img-src")).toEqual(["'self'", "data:", "blob:", "http:", "https:"]);
+        expect(directivesOf(policy()).get("img-src")).toEqual(["'self'", "data:", "blob:", Web]);
+        expect(directivesOf(policy({ devOrigin: DevOrigin })).get("img-src")).toEqual(["'self'", "data:", "blob:", Web]);
         expect(directivesOf(policy()).get("font-src")).toEqual(["'self'", "data:"]);
     });
 

@@ -7,9 +7,14 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { atom, PrimitiveAtom } from "jotai";
+import { originOfAddress } from "../favicon/site";
 
 // crashed: the page's process is gone (#1814), so the 360 carpet takes no thumbnail of it until it loads again.
-export type TabLoad = { loading?: boolean; favicon?: string; crashed?: boolean };
+// favicon: the icon the page declared, never drawn as it is when it is a web address (tabFaviconSrc); site: the origin
+// of the page that declared it, under which Electron main keeps the icon it read.
+export type TabLoad = { loading?: boolean; favicon?: string; site?: string; crashed?: boolean };
+
+const InlineImage = /^data:image\//i;
 
 export const ReloadStop = "stop";
 export const ReloadNormal = "reload";
@@ -72,6 +77,22 @@ export function pickFavicon(favicons: string[], backend: string = backendEndpoin
     );
 }
 
+// What a tab strip may draw for a tab (#2045, FR-BRW-014): the app page loads no image from a web address (its
+// Content-Security-Policy, emain/moltenterm-app-csp.ts), so a declared web icon is drawn from the copy Electron main
+// kept for the page's site (a data: URL, favicon-store.ts), and an inline icon as it is. null: the generic web icon,
+// until main has kept one.
+export function tabFaviconSrc(load: TabLoad, icons: Record<string, { url: string }>): string {
+    const declared = load?.favicon;
+    if (declared == null) {
+        return null;
+    }
+    if (InlineImage.test(declared)) {
+        return declared;
+    }
+    const kept = load.site ? icons?.[load.site]?.url : null;
+    return typeof kept === "string" && InlineImage.test(kept) ? kept : null;
+}
+
 export class BrowserLoadModel {
     loadsAtom = atom({}) as PrimitiveAtom<Record<string, TabLoad>>;
 
@@ -108,12 +129,15 @@ export class BrowserLoadModel {
         this.update(tabId, { loading: false });
     }
 
-    noteFavicons(tabId: string, favicons: string[]): void {
+    // Returns the site whose kept icon the tab now draws, for the caller to ask Electron main for it.
+    noteFavicons(tabId: string, favicons: string[], pageUrl?: string): string {
         const favicon = pickFavicon(favicons);
         if (favicon == null) {
-            return;
+            return null;
         }
-        this.update(tabId, { favicon });
+        const site = originOfAddress(pageUrl) || undefined;
+        this.update(tabId, { favicon, site });
+        return site ?? null;
     }
 
     forget(tabId: string): void {
