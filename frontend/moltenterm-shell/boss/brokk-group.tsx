@@ -45,6 +45,7 @@ import {
     ArrivalStepMs,
     groupGeometry,
     GroupPlace,
+    holdsHover,
     HoverIntent,
     InitialPanels,
     neighbourPanel,
@@ -469,6 +470,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
 
     return (
         <>
+            {holdsHover(panels) ? <div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" /> : null}
             {frame.thread != null ? (
                 <div
                     className={cn("mt-brokk-thread", shown && "is-in")}

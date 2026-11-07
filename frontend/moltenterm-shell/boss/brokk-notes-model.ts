@@ -126,17 +126,25 @@ export function buildNotes(input: NotesInput): NoteRow[] {
                 entry,
             };
         });
-    const finished: NoteRow[] = (input.toHandle?.info ?? []).map((info) => ({
-        key: `finished:${info.key}`,
-        source: "finished",
-        priority: "done",
-        since: 0,
-        workspaceid: info.workspaceid ?? "",
-        dir: "",
-        unread: false,
-        consultable: false,
-        finished: info,
-    }));
+    // An agent that finished is told once: by its notification when it raised one, else by the row of the agent states.
+    const toldBy = new Set(
+        activeEntries(input.entries ?? [])
+            .filter((entry) => entry.titlecode === "agentdone" && entry.blockid)
+            .map((entry) => entry.blockid)
+    );
+    const finished: NoteRow[] = (input.toHandle?.info ?? [])
+        .filter((info) => !toldBy.has(info.key.replace(/^done:/, "")))
+        .map((info) => ({
+            key: `finished:${info.key}`,
+            source: "finished",
+            priority: "done",
+            since: 0,
+            workspaceid: info.workspaceid ?? "",
+            dir: "",
+            unread: false,
+            consultable: false,
+            finished: info,
+        }));
     return [...todo, ...entries, ...finished].sort(bySeverity);
 }
 

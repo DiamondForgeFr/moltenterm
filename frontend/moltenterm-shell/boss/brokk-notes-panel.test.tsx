@@ -215,6 +215,14 @@ describe("the Notifications panel is the notification centre, with À traiter in
         expect(html).toContain('data-testid="boss-card-todo-ignore"');
     });
 
+    it("draws a row the developer has already seen as seen, and dimmed", () => {
+        const html = render(rowsOf({ items: [todo("notif:n1", { seen: true })] }));
+        expect(html).toContain('data-seen="true"');
+        expect(html).toContain('data-testid="boss-card-todo-seen"');
+        expect(html).toContain(">Seen<");
+        expect(render(rowsOf({ items: [todo("notif:n2")] }))).not.toContain('data-testid="boss-card-todo-seen"');
+    });
+
     it("keeps the count of the rows set aside with Later, and the agents that finished as Fait rows", () => {
         const html = render(
             rowsOf({

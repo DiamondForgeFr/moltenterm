@@ -30,6 +30,14 @@
     box-sizing: border-box;
 }
 
+/* Under the group while a preview shows: it catches the pointer over what the window does not hear (web page tiles). */
+.mt-brokk-catch {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+}
+
 /* The ember thread from the face to the square: it stays while the group is open. */
 .mt-brokk-thread {
     position: absolute;
@@ -634,6 +642,18 @@
 
 .mt-brokk-pri[data-priority="done"] {
     color: var(--mt-state-ready);
+}
+
+/* Where a notification comes from, after its workspace: "agent", "build". */
+.mt-brokk-src {
+    color: var(--mt-text-3);
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+
+.mt-brokk-src::before {
+    content: "·";
+    margin-right: 8px;
 }
 
 .mt-brokk-unread {

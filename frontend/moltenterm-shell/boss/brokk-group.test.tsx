@@ -264,6 +264,24 @@ describe("the group (FR-BOSS-009, AC17)", () => {
     });
 });
 
+describe("the sheet that catches the pointer during a preview", () => {
+    it("is not there at rest: the page tiles below keep the pointer", () => {
+        expect(render()).not.toContain("brokk-hover-catch");
+    });
+
+    it("is drawn from the hover state alone, under the group, catching the pointer over the whole window", () => {
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toMatch(
+            /\{holdsHover\(panels\) \? <div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" \/> : null\}\s*\{frame\.thread != null/
+        );
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const rule = /\.mt-brokk-catch \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(rule).toMatch(/position: absolute/);
+        expect(rule).toMatch(/inset: 0/);
+        expect(rule).toMatch(/pointer-events: auto/);
+    });
+});
+
 describe("the square: his living portrait, with the screen effect (AC17)", () => {
     it("shows his name at the bottom left, in capitals, and the scanlines and the vignette over the picture", () => {
         const html = render();
