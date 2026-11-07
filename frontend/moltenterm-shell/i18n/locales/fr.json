@@ -1104,6 +1104,10 @@
                 "label": "Permissions des agents par site",
                 "description": "Les sites que les agents peuvent utiliser ou qui leur sont interdits dans le panneau Page web."
             },
+            "browser:localpages": {
+                "label": "Fichiers ouverts sans demander",
+                "description": "Les fichiers de cet ordinateur qu'un terminal ou un agent peut ouvrir dans le panneau Page web sans poser la question."
+            },
             "markdown:fontsize": {
                 "label": "Taille du texte Markdown",
                 "description": "La taille du texte courant du Markdown affiché."
@@ -2558,6 +2562,20 @@
             "otherBrowsers": "Autres navigateurs",
             "remember": "Retenir pour {site}",
             "dismissTitle": "Garder MoltenTerm pour cette page, et redemander la prochaine fois"
+        },
+        "local": {
+            "fileTitle": "Ouvrir un fichier de cet ordinateur ?",
+            "fileHint": "Un programme demande d'afficher ce fichier. Une page de cet ordinateur peut exécuter des scripts : ouvrez-la seulement si vous l'attendiez.",
+            "dataTitle": "Ouvrir une page intégrée ?",
+            "dataHint": "Un programme demande d'afficher une page dont le contenu est écrit dans l'adresse. Elle peut exécuter des scripts : ouvrez-la seulement si vous l'attendiez.",
+            "dataKind": "{type}, {length} caractères",
+            "dataStart": "Commence par",
+            "open": "Ouvrir la page",
+            "always": "Toujours ouvrir ce fichier",
+            "alwaysTitle": "Retenir ce fichier : il s'ouvre sans demander, dans tout panneau",
+            "decline": "Ne pas ouvrir",
+            "declineTitle": "Fermer ce panneau sans charger la page",
+            "notSaved": "Le choix n'a pas pu être enregistré : {error}"
         },
         "share": {
             "noAgent": "Aucun agent ne tourne dans cette vue",

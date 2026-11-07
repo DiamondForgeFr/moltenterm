@@ -30,6 +30,7 @@ func TestMoltenConsentConfigCallers(t *testing.T) {
 		{wconfig.ConfigKey_BrowserSitePermissions: map[string]any{"bank.example": map[string]any{"camera": "allow"}}},
 		{wconfig.ConfigKey_BrowserClientCertificates: map[string]any{"bank.example": "sha256/abc"}},
 		{"term:fontsize": 12, wconfig.ConfigKey_BrowserAgentSites: nil},
+		{wconfig.ConfigKey_BrowserLocalPages: map[string]any{"/tmp/report/index.html": "allow"}},
 	}
 	for _, from := range []routetest.From{e.Window(), e.Electron()} {
 		for _, meta := range consent {

@@ -419,7 +419,11 @@ describe("the address row (#1229)", () => {
         const { first, selected } = firstRow(typed);
         expect(first.label).toBe(label);
         expect(selected.id).toBe(first.id);
-        expect(first.run).toEqual({ kind: "widget", blockdef: { meta: { view: "molten-browser", url } } });
+        const run = first.run as { kind: string; blockdef: { meta: Record<string, any> } };
+        expect(run.kind).toBe("widget");
+        expect(run.blockdef.meta).toMatchObject({ view: "molten-browser", url });
+        // A typed address is the user's own: a local page it names opens without the question a terminal's gets (#1978).
+        expect(run.blockdef.meta["molten:browser:tabs"]).toEqual([{ id: expect.any(String), url, allowed: true }]);
     });
 
     it("leaves a plain word to the usual filter", () => {

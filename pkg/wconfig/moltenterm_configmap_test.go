@@ -30,6 +30,14 @@ func TestConvertConfigMap(t *testing.T) {
 	if _, ok := convertConfigMap(map[string]any{"x.com": map[string]any{"camera": 3}}, ctype); ok {
 		t.Fatalf("a number where a decision is expected is refused")
 	}
+	// #1978: the files the user let a terminal open in the browser panel are a flat map of path to allow.
+	pages := getConfigKeyType("browser:localpages")
+	if got, ok := convertConfigMap(map[string]any{"/tmp/report/index.html": "allow"}, pages); !ok || got.(map[string]string)["/tmp/report/index.html"] != "allow" {
+		t.Fatalf("local pages %v %v", got, ok)
+	}
+	if _, ok := convertConfigMap(map[string]any{"/tmp/report/index.html": true}, pages); ok {
+		t.Fatalf("a boolean where a decision is expected is refused")
+	}
 	sites := getConfigKeyType("browser:agentsites")
 	if got, ok := convertConfigMap(map[string]any{"example.com": "allow"}, sites); !ok || got.(map[string]string)["example.com"] != "allow" {
 		t.Fatalf("flat map %v %v", got, ok)

@@ -8,7 +8,7 @@
 import { agentRow, agentRowByCommand, type FeatureMatrix } from "../agent-info/agent-features-model";
 import { agentWorks, pickerSummary } from "../agent-info/agent-works-model";
 import { AiIcon } from "../ai-icon";
-import { addressUrl, browserBlockDef, looksLikeAddress } from "../browser/browser-model";
+import { addressUrl, looksLikeAddress, typedBlockDef } from "../browser/browser-model";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
 import { getLocale, t } from "../i18n/i18n";
 import { FallbackLanguage, languageText } from "../i18n/i18n-core";
@@ -86,7 +86,7 @@ export function addressEntry(query: string): PaletteEntry {
         group: "panels",
         label: t("palette.openAddress", { address: text }),
         icon: "globe",
-        run: { kind: "widget", blockdef: browserBlockDef(url) },
+        run: { kind: "widget", blockdef: typedBlockDef(url) },
     };
 }
 

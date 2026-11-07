@@ -25,7 +25,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { createPortal } from "react-dom";
 import { agentLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
-import { browserBlockDef } from "../browser/browser-model";
+import { typedBlockDef } from "../browser/browser-model";
 import { blockIdOfORef, focusWhenPlaced } from "../browser/focus-placed";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { visibleTabIds } from "../hidden-tabs";
@@ -218,10 +218,10 @@ async function openInNewView(url: string): Promise<void> {
     if (firstId) {
         await RpcApi.SetMetaCommand(TabRpcClient, {
             oref: WOS.makeORef("block", firstId),
-            meta: { ...browserBlockDef(url).meta, controller: null, "cmd:cwd": null } as MetaType,
+            meta: { ...typedBlockDef(url).meta, controller: null, "cmd:cwd": null } as MetaType,
         });
     } else {
-        await RpcApi.CreateBlockCommand(TabRpcClient, { tabid: tabId, blockdef: browserBlockDef(url), focused: true });
+        await RpcApi.CreateBlockCommand(TabRpcClient, { tabid: tabId, blockdef: typedBlockDef(url), focused: true });
     }
     getApi().setActiveTab(tabId);
 }
@@ -245,13 +245,13 @@ function navigateFocusedPage(url: string, focus: FocusFactsValue): boolean {
 // the panel that had the focus (agent left, graphics right), else wherever the view puts a new panel.
 async function openInNewPanel(url: string, focus: FocusFactsValue): Promise<void> {
     if (focus.blockId && focus.isLauncher) {
-        await replaceBlock(focus.blockId, browserBlockDef(url), true);
+        await replaceBlock(focus.blockId, typedBlockDef(url), true);
         return;
     }
     if (focus.blockId) {
         const oref = await RpcApi.CreateBlockCommand(TabRpcClient, {
             tabid: focus.tabId,
-            blockdef: browserBlockDef(url),
+            blockdef: typedBlockDef(url),
             targetblockid: focus.blockId,
             targetaction: "splitright",
             focused: true,
@@ -259,7 +259,7 @@ async function openInNewPanel(url: string, focus: FocusFactsValue): Promise<void
         focusWhenPlaced(blockIdOfORef(oref));
         return;
     }
-    await createBlock(browserBlockDef(url));
+    await createBlock(typedBlockDef(url));
 }
 
 // A view is only created on the developer's explicit choice (Shift+Enter): a page that cannot be driven any more falls

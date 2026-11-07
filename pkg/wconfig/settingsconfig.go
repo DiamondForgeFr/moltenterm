@@ -168,6 +168,8 @@ type SettingsType struct {
 	BrowserSitePermissions map[string]map[string]string `json:"browser:sitepermissions,omitempty" jsonschema_description:"What each site in the browser panel may use: a host (with its port) to a map of camera, microphone, location or notifications to allow or block; set from the panel's permission bar"`
 	// MOLTENTERM-PATCH (#1979): the client certificate the user picked for a site (FR-BRW-016).
 	BrowserClientCertificates map[string]string `json:"browser:clientcertificates,omitempty" jsonschema_description:"The client certificate each site in the browser panel gets: a host (with its port) to the fingerprint of the certificate the user picked, or none to go without one; set from the panel's certificate bar"`
+	// MOLTENTERM-PATCH (#1978): files a terminal may open in the browser panel without asking (FR-BRW-014).
+	BrowserLocalPages map[string]string `json:"browser:localpages,omitempty" jsonschema_description:"Files from this computer that terminals and agents may open in the browser panel without asking: an absolute path to allow; set from the panel's question, never by a terminal"`
 
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`
