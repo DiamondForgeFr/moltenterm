@@ -34,4 +34,9 @@ func TestConvertConfigMap(t *testing.T) {
 	if got, ok := convertConfigMap(map[string]any{"example.com": "allow"}, sites); !ok || got.(map[string]string)["example.com"] != "allow" {
 		t.Fatalf("flat map %v %v", got, ok)
 	}
+	// #1979: the certificate picked per site is a flat map of fingerprints too.
+	certs := getConfigKeyType("browser:clientcertificates")
+	if got, ok := convertConfigMap(map[string]any{"example.com": "sha256/abc"}, certs); !ok || got.(map[string]string)["example.com"] != "sha256/abc" {
+		t.Fatalf("certificate map %v %v", got, ok)
+	}
 }

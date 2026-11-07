@@ -186,6 +186,7 @@ import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
+import { ClientCertificateBar, ClientCertificateModel, isCertificateAsk } from "./client-certificate-bar";
 import { isSiteAsk, SitePermissionBar, SitePermissionModel } from "./site-permission-bar";
 import { TestContextChip } from "./test-context";
 
@@ -261,6 +262,8 @@ export class BrowserViewModel implements ViewModel {
     // Sign-in refusals per tab (FR-BRW-003).
     signIn = new BrowserSignInModel();
     sitePermissions = new SitePermissionModel();
+    // The client certificate a site asks for, per tab (#1979).
+    clientCertificates = new ClientCertificateModel();
     // Load state and favicon per tab (#210).
     loads = new BrowserLoadModel();
     // The page that failed to load per tab, drawn as MoltenTerm's error page (FR-SHELL-051).
@@ -471,6 +474,7 @@ export class BrowserViewModel implements ViewModel {
         this.lifecycle.forget(id);
         this.signIn.forget(id);
         this.sitePermissions.forgetTab(id);
+        this.clientCertificates.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -974,6 +978,7 @@ export class BrowserViewModel implements ViewModel {
         this.lifecycle.forget(id);
         this.signIn.forget(id);
         this.sitePermissions.forgetTab(id);
+        this.clientCertificates.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -1630,6 +1635,13 @@ function TabWebview({
             model.sitePermissions.add(tab.id, e.detail);
         };
         const onSitePermissionDone = (e: any) => model.sitePermissions.remove(e.detail?.requestid);
+        // A site asks for a client certificate (emain/moltenterm-client-certificates.ts, #1979).
+        const onClientCertificate = (e: any) => {
+            if (!isCertificateAsk(e.detail)) return;
+            e.preventDefault();
+            model.clientCertificates.add(tab.id, e.detail);
+        };
+        const onClientCertificateDone = (e: any) => model.clientCertificates.remove(e.detail?.requestid);
         const onTitle = (e: any) => model.setState(updateTab(model.state(), tab.id, { title: e.title }));
         // emain turns window.open and target=_blank into this event (emain/preload.ts dispatches it to this webview).
         const onNewWindow = (e: any) => {
@@ -1737,6 +1749,8 @@ function TabWebview({
         webview.addEventListener("moltenterm-signin-refused", onSignInRefused);
         webview.addEventListener("moltenterm-site-permission", onSitePermission);
         window.addEventListener("moltenterm-site-permission-done", onSitePermissionDone);
+        webview.addEventListener("moltenterm-client-certificate", onClientCertificate);
+        window.addEventListener("moltenterm-client-certificate-done", onClientCertificateDone);
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
@@ -1771,6 +1785,8 @@ function TabWebview({
             webview.removeEventListener("moltenterm-signin-refused", onSignInRefused);
             webview.removeEventListener("moltenterm-site-permission", onSitePermission);
             window.removeEventListener("moltenterm-site-permission-done", onSitePermissionDone);
+            webview.removeEventListener("moltenterm-client-certificate", onClientCertificate);
+            window.removeEventListener("moltenterm-client-certificate-done", onClientCertificateDone);
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
             webview.removeEventListener("dom-ready", onDomReady);
@@ -2529,6 +2545,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 onDismiss={() => model.dismissChoice(state.activeId)}
             />
             <SitePermissionBar permissions={model.sitePermissions} tabId={state.activeId} />
+            <ClientCertificateBar certificates={model.clientCertificates} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
             <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">

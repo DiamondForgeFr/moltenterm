@@ -99,6 +99,7 @@ const (
 	ConfigKey_BrowserAgentSites              = "browser:agentsites"
 	ConfigKey_BrowserDownloadAsk             = "browser:downloadask"
 	ConfigKey_BrowserSitePermissions         = "browser:sitepermissions"
+	ConfigKey_BrowserClientCertificates      = "browser:clientcertificates"
 
 	ConfigKey_AutoUpdateClear                = "autoupdate:*"
 	ConfigKey_AutoUpdateEnabled              = "autoupdate:enabled"

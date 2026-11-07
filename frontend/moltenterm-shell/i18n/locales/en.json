@@ -898,6 +898,10 @@
                 "label": "Site permissions",
                 "description": "What each site may use: camera, microphone, location, notifications."
             },
+            "browser:clientcertificates": {
+                "label": "Client certificates",
+                "description": "The certificate each site gets to identify you, or none. You are asked the first time."
+            },
             "browser:agentsites": {
                 "label": "Agent site permissions",
                 "description": "Sites agents may use or are blocked from in the Web page panel."
@@ -1473,6 +1477,11 @@
                 "microphone": "Microphone",
                 "location": "Location",
                 "notifications": "Notifications"
+            },
+            "certificate": {
+                "picked": "Certificate chosen",
+                "none": "No certificate",
+                "forget": "Forget the certificate choice for {site}"
             }
         }
     },
@@ -2502,6 +2511,17 @@
             },
             "allow": "Allow",
             "block": "Block"
+        },
+        "clientCertificate": {
+            "aria": "Client certificate request",
+            "title": "{site} asks for a certificate to identify you",
+            "detail": "Pick the one to use, or continue without. Your choice is remembered for this site.",
+            "listAria": "Certificates offered to {site}",
+            "unnamed": "Unnamed certificate",
+            "issuedBy": "Issued by {issuer}",
+            "expires": "Expires {date}",
+            "use": "Use this certificate",
+            "without": "Continue without a certificate"
         },
         "engine": {
             "yourBrowser": "your browser",

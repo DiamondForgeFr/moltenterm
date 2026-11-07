@@ -5,10 +5,11 @@ import { describe, expect, it } from "vitest";
 import { isSiteListKey, siteKinds, siteRows, withoutSite, withSiteKind, withSiteValue } from "./settings-sites";
 
 describe("per-site settings as lists (FR-SHELL-106)", () => {
-    it("edits the three per-site maps of Browser as lists", () => {
+    it("edits the per-site maps of Browser as lists", () => {
         expect(isSiteListKey("browser:sites")).toBe(true);
         expect(isSiteListKey("browser:agentsites")).toBe(true);
         expect(isSiteListKey("browser:sitepermissions")).toBe(true);
+        expect(isSiteListKey("browser:clientcertificates")).toBe(true);
         expect(isSiteListKey("browser:default")).toBe(false);
     });
 

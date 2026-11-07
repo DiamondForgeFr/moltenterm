@@ -12,7 +12,10 @@ export const AgentSitesKey = "browser:agentsites";
 // must match SitePermissionsKey in browser/site-permission.ts
 export const SitePermissionsListKey = "browser:sitepermissions";
 
-export const SiteListKeys = [SiteEnginesKey, AgentSitesKey, SitePermissionsListKey];
+// must match ClientCertificatesKey in browser/client-certificate.ts
+export const ClientCertificatesListKey = "browser:clientcertificates";
+
+export const SiteListKeys = [SiteEnginesKey, AgentSitesKey, SitePermissionsListKey, ClientCertificatesListKey];
 
 export const SiteDecisions = [DecisionAllow, DecisionBlock];
 

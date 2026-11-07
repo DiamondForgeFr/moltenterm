@@ -16,10 +16,13 @@ import (
 // moltenConsentConfigKeys are the settings that record what the user allowed a site or an agent to do in the browser
 // panel (#1961, FR-BRW-009, FR-BRW-014). Wave's setconfig writes any key for any caller, so an agent told by a page to
 // run `wsh setconfig 'browser:agentsites={"bank.example":"allow"}'` would give itself a site the user never approved.
-// Only the MoltenTerm window and Electron main, where the user answers, write them.
+// browser:clientcertificates is the same kind of answer (#1979, FR-BRW-016): the certificate that identifies the user to
+// a site, which an agent must never choose. Only the MoltenTerm window and Electron main, where the user answers, write
+// them.
 var moltenConsentConfigKeys = map[string]bool{
-	wconfig.ConfigKey_BrowserAgentSites:      true,
-	wconfig.ConfigKey_BrowserSitePermissions: true,
+	wconfig.ConfigKey_BrowserAgentSites:         true,
+	wconfig.ConfigKey_BrowserSitePermissions:    true,
+	wconfig.ConfigKey_BrowserClientCertificates: true,
 }
 
 func moltenCheckConfigWrite(ctx context.Context, meta waveobj.MetaMapType) error {
