@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { atom } from "jotai";
+import { atom, createStore } from "jotai";
 import dictionary from "../../frontend/moltenterm-shell/i18n/locales/en.json";
 
 export const FallbackLanguage = "en";
@@ -49,3 +49,48 @@ const host = {
 };
 export const MoltenHost = { getInstance: () => host };
 export const refusePinnedClose = () => false;
+export const pinnedClosePlanOf = () => null;
+export const showSurvivor = () => {};
+export const globalStore = createStore();
+export const atoms = {
+    workspace: atom<any>(null),
+    workspaceId: atom(""),
+    staticTabId: atom(""),
+    activeTabId: atom(""),
+};
+export const WOS = {
+    makeORef: (_type: string, id: string) => id,
+    getWaveObjectAtom: () => objectAtom,
+    getObjectValue: () => null,
+    reloadWaveObject: async () => null,
+};
+export const getBlockComponentModel = () => null;
+export const getSettingsKeyAtom = () => atom(null);
+export const getConnStatusAtom = () => atom(null);
+export const getOrefMetaKeyAtom = () => atom(null);
+export const getFocusedBlockId = () => "";
+export const getPrefixedSettings = () => ({});
+export const newLayoutNode = () => ({});
+export const LayoutTreeActionType = {};
+export const createBlock = async () => "";
+export const createBlockSplitHorizontally = async () => {};
+export const deepCompareReturnPrev = (_prev: unknown, next: unknown) => next;
+export const isBlank = (value: string) => !value?.trim?.();
+export const isLocalConnName = () => false;
+export const isWslConnName = () => false;
+export const sortByDisplayOrder = <T,>(items: T[]) => items;
+export const base64ToString = () => "";
+export const base64ToArrayBuffer = () => new ArrayBuffer(0);
+export const boundNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+export const atomWithThrottle = <T,>(initial: T) => atom(initial);
+export const BlockService = { GetControllerStatus: async () => null };
+export const lazy = () => () => null;
+export const tCount = (_key: string, count: number) => String(count);
+export const useTCount = () => (_key: string, count: number) => String(count);
+export class I18nModel {
+    static instance: I18nModel | null = null;
+    static getInstance(): I18nModel {
+        if (!I18nModel.instance) I18nModel.instance = new I18nModel();
+        return I18nModel.instance;
+    }
+}

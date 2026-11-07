@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { atom } from "jotai";
+import { atom, createStore } from "jotai";
 import dictionary from "../../frontend/moltenterm-shell/i18n/locales/en.json";
 
 // The failure each fixture case makes the mocked side effects raise.
@@ -37,7 +37,50 @@ export const openBesidePanel = async () => "fixture";
 const objectAtom = atom({ oid: "fixture", meta: {}, tabids: [], blockids: [] });
 export const getWaveObjectAtom = () => objectAtom;
 export const makeORef = (_type: string, id: string) => id;
-export const atoms = { workspace: atom({ oid: "fixture", name: "Fixture", meta: {} }) };
+export const atoms = {
+    workspace: atom<any>({ oid: "fixture", name: "Fixture", meta: {} }),
+    workspaceId: atom(""),
+    staticTabId: atom(""),
+    activeTabId: atom(""),
+};
+export const globalStore = createStore();
+export const NullAtom = atom(null);
+export const WOS = {
+    makeORef: (_type: string, id: string) => id,
+    getWaveObjectAtom: () => objectAtom,
+    getObjectValue: () => null,
+    reloadWaveObject: async () => null,
+    setObjectValue: () => {},
+};
+export const getBlockComponentModel = () => null;
+export const getSettingsKeyAtom = () => atom(null);
+export const getConnStatusAtom = () => atom(null);
+export const getOrefMetaKeyAtom = () => atom(null);
+export const getFocusedBlockId = () => "";
+export const getPrefixedSettings = () => ({});
+export const newLayoutNode = () => ({});
+export const LayoutTreeActionType = {};
+export const createBlock = async () => "";
+export const createBlockSplitHorizontally = async () => {};
+export const deepCompareReturnPrev = (_prev: unknown, next: unknown) => next;
+export const isBlank = (value: string) => !value?.trim?.();
+export const isLocalConnName = () => false;
+export const isWslConnName = () => false;
+export const sortByDisplayOrder = <T,>(items: T[]) => items;
+export const base64ToString = () => "";
+export const base64ToArrayBuffer = () => new ArrayBuffer(0);
+export const boundNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+export const atomWithThrottle = <T,>(initial: T) => atom(initial);
+export const BlockService = { GetControllerStatus: async () => null };
+export const ObjectService = { GetObjects: async () => [] };
+export const lazy = () => () => null;
+export const tCount = (_key: string, count: number) => String(count);
+export const useTCount = () => (_key: string, count: number) => String(count);
+export const useLocale = () => "en";
+export const translate = (_language: string, key: string) => t(key);
+export const serverText = (_text: unknown, fallback: string) => fallback;
+export const makeIconClass = (name: string) => name;
+export const formatShortcutById = (id: string) => id;
 export const replaceBlock = async () => {};
 export const WorkspaceService = { UpdateWorkspace: async () => {} };
 const clientAtom = atom({ meta: {} });
