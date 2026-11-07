@@ -115,6 +115,33 @@ describe("the forge scene (FR-BOSS-009, AC6)", () => {
         }
     });
 
+    it("says its one line, the words of its accessible name, only where the collapsed sidebar may stay half open for him (AC29, #2070)", () => {
+        const line = (severity: Severity) =>
+            renderToStaticMarkup(
+                <BrokkVisitSceneView
+                    visit={visit(severity)}
+                    name="Brokk"
+                    phase="open"
+                    rowHeight="38px"
+                    line
+                />
+            );
+        for (const severity of Severities) {
+            const html = line(severity);
+            const words = new RegExp(`data-testid="brokk-scene-line"[^>]*>([^<]*)<`).exec(html)?.[1];
+            expect(words, severity).toBe(sceneLabel(t, "Brokk", severity));
+            expect(html, severity).toMatch(/class="mt-brokk-scene-line"[^>]*aria-hidden="true"/);
+            expect(render(severity), severity).not.toContain("brokk-scene-line");
+        }
+    });
+
+    it("draws that line only in the half open sidebar, never in an unfolded or docked one", () => {
+        const sheet = css("brokk-visit-scene.css");
+        expect(rule(sheet, ".mt-brokk-scene-line")).toMatch(/opacity: 0/);
+        expect(rule(sheet, ".mt-brokk-scene-line")).toMatch(/pointer-events: none/);
+        expect(rule(sheet, '.mt-sb[data-edge="ajar"] .mt-brokk-scene-line')).toMatch(/opacity: 1/);
+    });
+
     it("is named for the severity, and says the same as a tooltip", () => {
         for (const severity of Severities) {
             const html = render(severity);

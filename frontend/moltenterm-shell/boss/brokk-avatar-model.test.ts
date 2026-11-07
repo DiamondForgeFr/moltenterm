@@ -17,9 +17,10 @@ import {
 const rect = (left: number, top: number, width = 26, height = 26): Rect => ({ left, top, width, height });
 
 describe("where the avatar stands (FR-BOSS-009, AC1, AC14)", () => {
-    it("is in the sidebar's row when the sidebar is on screen, and hangs from the window's edge when it is not", () => {
-        expect(avatarVariant(true)).toBe("row");
-        expect(avatarVariant(false)).toBe("hanging");
+    it("is in the sidebar's row when the sidebar is on screen, on the strip of a collapsed one, and hangs from the window's edge only with no sidebar", () => {
+        expect(avatarVariant("screen")).toBe("row");
+        expect(avatarVariant("edge")).toBe("edge");
+        expect(avatarVariant("none")).toBe("hanging");
     });
 
     it("hangs clear of the window controls the other platforms draw at the top right", () => {

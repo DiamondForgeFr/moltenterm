@@ -10,13 +10,13 @@ import { useAtomValue } from "jotai";
 import { useMemo, useSyncExternalStore } from "react";
 import { avatarSituation } from "./brokk-avatar-model";
 import type { BrokkLiveProps } from "./brokk-live";
-import type { BrokkView } from "./brokk-visit";
+import type { HubView } from "./brokk-hub";
 import { BrokkHubModel } from "./brokk-hub-store";
-import { AvatarBadge, avatarBadgeOf } from "./brokk-hub-feed";
+import { AvatarBadge, avatarBadgeOf, unmappedRowKeys } from "./brokk-hub-feed";
 import { BossBubbleModel } from "./boss-store";
 import { useMotionAllowed } from "./use-brokk-live";
 
-export function useHubSelect<T>(select: (view: BrokkView) => T): T {
+export function useHubSelect<T>(select: (view: HubView) => T): T {
     const hub = BrokkHubModel.getInstance().hub;
     return useSyncExternalStore(
         hub.subscribe,
@@ -31,6 +31,13 @@ export function useAvatarBadge(): AvatarBadge {
     const settings = useAtomValue(BrokkHubModel.getInstance().settingsAtom, { store: globalStore });
     const events = useHubSelect((view) => view.badge);
     return useMemo(() => avatarBadgeOf(list.items, events, settings), [list, events, settings]);
+}
+
+// What the badge counts, by key: the collapsed sidebar tells a new notification from one it already told (#2070).
+export function useAvatarKeys(): string[] {
+    const list = useAtomValue(BossBubbleModel.getInstance().toHandleAtom, { store: globalStore });
+    const events = useHubSelect((view) => view.badgeKeys);
+    return useMemo(() => [...events, ...unmappedRowKeys(list.items)], [list, events]);
 }
 
 // The scene is up: the content below the title row makes room for it.

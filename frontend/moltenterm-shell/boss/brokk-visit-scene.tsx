@@ -7,7 +7,8 @@
 // carries the severity, its accessible name and its tooltip say the rest. A click anywhere on it, Enter or Space folds
 // him back into the avatar and opens his panel in the same gesture; Plus tard, at the bottom left, asks when to come
 // back, and Escape takes the default delay. The content below the title row slides down to make room, which the sidebar
-// does itself (workspace-sidebar.tsx, sidebar.css).
+// does itself (workspace-sidebar.tsx, sidebar.css). In a collapsed sidebar that stays half open for him (AC29, #2070) the
+// scene is the banner it shows, and says its one line: the very words of its accessible name, drawn only there.
 //
 // Loaded on the first visit, never with the window: the clips are Brokk's portrait and stay out of the up-front JavaScript.
 
@@ -207,11 +208,14 @@ export function BrokkVisitSceneView({
     name,
     phase,
     rowHeight,
+    line = false,
 }: {
     visit: Visit;
     name: string;
     phase: ScenePhase;
     rowHeight: string;
+    // The sidebar is collapsed with Brokk on: it may stay half open, and the scene then says its one line.
+    line?: boolean;
 }) {
     const t = useT();
     const hub = BrokkHubModel.getInstance().hub;
@@ -304,6 +308,11 @@ export function BrokkVisitSceneView({
                     tabIndex={tabIndex}
                     onClick={actions.fold}
                 />
+                {line ? (
+                    <span className="mt-brokk-scene-line" data-testid="brokk-scene-line" aria-hidden>
+                        {label}
+                    </span>
+                ) : null}
                 <button
                     type="button"
                     className="mt-brokk-later"
@@ -328,7 +337,7 @@ export function BrokkVisitSceneView({
 }
 
 // The scene at the top of the sidebar: nothing while no visit is up, and the visit's last face while it folds back.
-export function BrokkVisitScene({ rowHeight }: { rowHeight: string }) {
+export function BrokkVisitScene({ rowHeight, line = false }: { rowHeight: string; line?: boolean }) {
     const name = useAtomValue(BossBubbleModel.getInstance().nameAtom, { store: globalStore });
     const visit = useHubSelect((view) => view.visit);
     const last = useRef<Visit>(visit);
@@ -345,6 +354,7 @@ export function BrokkVisitScene({ rowHeight }: { rowHeight: string }) {
             name={name}
             phase={scenePhase(visit != null, life.shown)}
             rowHeight={rowHeight}
+            line={line}
         />
     );
 }

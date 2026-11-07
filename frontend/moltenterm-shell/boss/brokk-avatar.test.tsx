@@ -37,7 +37,7 @@ vi.mock("./brokk-hub-store", async () => {
     const model = {
         ownWorkingAtom: atom(false),
         settingsAtom: atom(DefaultVisitSettings),
-        sidebarOnScreenAtom: atom(true),
+        sidebarPlaceAtom: atom("screen"),
         get hub() {
             return Mocks.hub;
         },
@@ -50,10 +50,12 @@ import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkAvatar, BrokkAvatarSlot } from "./brokk-avatar";
 import { AvatarSizePx, HangingSizePx } from "./brokk-avatar-model";
+import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkHub, HubDeps } from "./brokk-hub";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { DefaultVisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
+import { useBrokkEdge } from "./use-brokk-edge";
 import { useAvatarLive } from "./use-brokk-hub";
 
 const boss = BossBubbleModel.getInstance() as any;
@@ -95,7 +97,7 @@ function makeHub(): BrokkHub {
 // A row that waits on the developer for longer than the threshold: it brings a visit.
 const BlockedRow = () => row("agent:a", "waiting", { since: T - 6 * Min });
 
-function render(variant: "row" | "hanging" = "row"): string {
+function render(variant: "row" | "edge" | "hanging" = "row"): string {
     return renderToStaticMarkup(<BrokkAvatar variant={variant} />);
 }
 
@@ -141,7 +143,8 @@ beforeEach(() => {
     globalStore.set(boss.talkingAtom, false);
     globalStore.set(boss.keepAwakeAtom, false);
     globalStore.set(hubModel.ownWorkingAtom, false);
-    globalStore.set(hubModel.sidebarOnScreenAtom, true);
+    globalStore.set(hubModel.sidebarPlaceAtom, "screen");
+    BrokkEdgeModel.getInstance().reset();
     setRows();
 });
 
@@ -352,14 +355,87 @@ describe("the avatar of the sidebar's row (AC1, AC14)", () => {
         expect(html).toContain('data-brokk-avatar="row"');
     });
 
-    it("is not there while the sidebar is off screen: the one that hangs from the window's edge stands in", () => {
-        globalStore.set(hubModel.sidebarOnScreenAtom, false);
+    it("is not there with no sidebar: the one that hangs from the window's edge stands in", () => {
+        globalStore.set(hubModel.sidebarPlaceAtom, "none");
         expect(renderToStaticMarkup(<BrokkAvatarSlot />)).toBe("");
+    });
+
+    it("stays on the strip of a collapsed sidebar instead of hanging from the window's top right (#2070, AC27)", () => {
+        globalStore.set(hubModel.sidebarPlaceAtom, "edge");
+        const html = renderToStaticMarkup(<BrokkAvatarSlot />);
+        expect(html).toContain('data-brokk-avatar="edge"');
+        expect(html).toContain("is-edge");
+        expect(html).not.toContain("is-hanging");
     });
 
     it("is not there when Settings turned Brokk off", () => {
         globalStore.set(boss.showAtom, false);
         expect(renderToStaticMarkup(<BrokkAvatarSlot />)).toBe("");
+    });
+});
+
+describe("on the strip of the collapsed sidebar (FR-BOSS-009, AC27, AC28, #2070)", () => {
+    it("is the same avatar with its badge, smaller, and not the one that hangs from the window's top right", () => {
+        setRows(row("question:a"), row("question:b"));
+        const html = render("edge");
+        expect(attr(html, "brokk-avatar", "data-brokk-avatar")).toBe("edge");
+        expect(attr(html, "brokk-avatar", "class")).toContain("is-edge");
+        expect(attr(html, "brokk-avatar", "class")).not.toContain("is-hanging");
+        expect(attr(html, "brokk-avatar", "aria-label")).toBe("Brokk, 2 waiting");
+        expect(html).toContain('data-testid="boss-badge"');
+    });
+
+    it("keeps its click: it opens his group, as in the title row", () => {
+        expect(attr(render("edge"), "brokk-avatar", "aria-haspopup")).toBe("dialog");
+    });
+
+    it("outlines the face for a notification the developer has not seen, with reduced motion only", () => {
+        const edge = BrokkEdgeModel.getInstance();
+        edge.tell([], false, true);
+        edge.tell([], false, true);
+        edge.tell(["agent:a"], false, true);
+        Mocks.motion = false;
+        expect(attr(render("edge"), "brokk-avatar", "data-news")).toBe("true");
+        Mocks.motion = true;
+        expect(attr(render("edge"), "brokk-avatar", "data-news")).toBeUndefined();
+    });
+
+    it("outlines nothing once the developer has looked, and nothing off the strip", () => {
+        const edge = BrokkEdgeModel.getInstance();
+        edge.tell([], false, true);
+        edge.tell([], false, true);
+        edge.tell(["agent:a"], false, true);
+        Mocks.motion = false;
+        expect(attr(render("row"), "brokk-avatar", "data-news")).toBeUndefined();
+        expect(attr(render("hanging"), "brokk-avatar", "data-news")).toBeUndefined();
+        edge.tell(["agent:a"], true, true);
+        expect(attr(render("edge"), "brokk-avatar", "data-news")).toBeUndefined();
+    });
+});
+
+describe("how the sidebar stands for him (#2070, AC27, AC29)", () => {
+    const shape = () => hook(() => useBrokkEdge({ current: null })).shape;
+
+    it("rests on its strip when it is collapsed and nothing waits", () => {
+        globalStore.set(hubModel.sidebarPlaceAtom, "edge");
+        expect(shape()).toBe("rest");
+    });
+
+    it("stays half open while something important is due, and rests again once it is handled", () => {
+        globalStore.set(hubModel.sidebarPlaceAtom, "edge");
+        Mocks.hub.gate({ type: "hidden", hidden: true });
+        Mocks.hub.gate({ type: "edge", edge: true });
+        setRows(BlockedRow());
+        expect(shape()).toBe("ajar");
+        setRows();
+        expect(shape()).toBe("rest");
+    });
+
+    it("has no shape when the sidebar is on screen or absent", () => {
+        globalStore.set(hubModel.sidebarPlaceAtom, "screen");
+        expect(shape()).toBeNull();
+        globalStore.set(hubModel.sidebarPlaceAtom, "none");
+        expect(shape()).toBeNull();
     });
 });
 

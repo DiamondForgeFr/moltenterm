@@ -24,6 +24,7 @@ import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel } from "./boss-store";
 import { UsageReadingsAtom } from "./boss-usage";
 import { closedDownloadIds } from "./brokk-extra-feeds";
+import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
 import { BrokkHub } from "./brokk-hub";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
@@ -47,9 +48,12 @@ export class BrokkHubModel {
 
     ownWorkingAtom: Atom<boolean>;
     settingsAtom: Atom<VisitSettings>;
-    // The sidebar is on screen: docked, or floating over the content. With the sidebar turned off altogether (the tab bar
-    // is back), or hidden, Brokk hangs from the window's top edge instead.
+    // Where the sidebar stands for Brokk (#2070): on screen (docked, or floating over the content), collapsed at the
+    // window's edge with his face on it, or nowhere. With the sidebar turned off altogether (the tab bar is back), Brokk
+    // hangs from the window's top edge instead.
+    sidebarPlaceAtom: Atom<SidebarPlace>;
     sidebarOnScreenAtom: Atom<boolean>;
+    sidebarEdgeAtom: Atom<boolean>;
     // The update on offer, a gold's build or a release's version; "" for none (FR-BOSS-009, AC11).
     updateOfferAtom: Atom<string>;
     // The downloads whose notification the developer settled or cleared (FR-BOSS-009, AC16), the same set while it holds.
@@ -81,9 +85,16 @@ export class BrokkHubModel {
         // His session is in no list of agents (FR-BOSS-009, AC26): its state is kept apart, and only his face shows it.
         this.ownWorkingAtom = atom((get) => brokkWorking(get(agents.ownDataAtom), get(this.sessionBlockAtom)));
         this.settingsAtom = atom((get) => visitSettingsOf((key) => get(getSettingsKeyAtom(key as keyof SettingsType))));
-        this.sidebarOnScreenAtom = atom(
-            (get) => get(sidebar.enabledAtom) && (!get(sidebar.hiddenAtom) || get(sidebar.peekAtom))
+        this.sidebarPlaceAtom = atom((get) =>
+            sidebarPlaceOf(
+                get(sidebar.enabledAtom),
+                get(sidebar.hiddenAtom),
+                get(sidebar.peekAtom),
+                get(BossBubbleModel.getInstance().showAtom)
+            )
         );
+        this.sidebarOnScreenAtom = atom((get) => get(this.sidebarPlaceAtom) === "screen");
+        this.sidebarEdgeAtom = atom((get) => get(this.sidebarPlaceAtom) === "edge");
         this.hub = new BrokkHub({
             now: () => Date.now(),
             setTimer: (run, ms) => setTimeout(run, ms),
@@ -125,6 +136,7 @@ export class BrokkHubModel {
             toHandleAtom: boss.toHandleAtom,
             settingsAtom: this.settingsAtom,
             sidebarOnScreenAtom: this.sidebarOnScreenAtom,
+            sidebarEdgeAtom: this.sidebarEdgeAtom,
             searchOpenAtom: TopFieldModel.getInstance().openAtom,
             dragAtom: atom((get) => get(sidebarDragAtom) != null),
             cardOpenAtom: boss.cardOpenAtom,

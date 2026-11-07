@@ -3,8 +3,8 @@
 
 // Brokk's host in a window (FR-BOSS-009, #2002, #2003, #2032): the layer over the content that holds what is not the
 // sidebar's. It starts what listens (the hub's feeds, the hand-off requests that wait, the usage readings, his expressions),
-// hangs the avatar from the window's top edge when the sidebar is not on screen, and draws his floating group where it
-// opens. The avatar of the sidebar's row and the visit scene are the sidebar's own (workspace-sidebar.tsx); the bubble at the
+// hangs the avatar from the window's top edge when there is no sidebar (a collapsed one keeps him on its strip, #2070),
+// and draws his floating group where it opens. The avatar of the sidebar's row and the visit scene are the sidebar's own (workspace-sidebar.tsx); the bubble at the
 // bottom right, the pennant, the hover comm screen, the bell and the cup are gone.
 //
 // With Brokk turned off (Settings) there is no avatar and no visit, but the group can still be opened by a gesture on one
@@ -21,6 +21,7 @@ import { NotificationHost } from "../notification-center";
 import { BossBubbleModel } from "./boss-store";
 import { BrokkAvatar } from "./brokk-avatar";
 import { hangingRightPx, Rect as ScreenRect } from "./brokk-avatar-model";
+import type { SidebarPlace } from "./brokk-edge-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import { BrokkGroup, GroupFrame } from "./brokk-group";
 import { groupGeometry, groupPlace } from "./brokk-group-model";
@@ -39,7 +40,11 @@ function rectOf(element: Element): ScreenRect {
 
 // Where the group stands and where it arrives from, in the layer's coordinates: 8 px right of the sidebar and 8 px from
 // the top of the window area; from the title-bar face that opened it. It follows the window's size while it is open.
-function useGroupFrame(layerRef: React.RefObject<HTMLDivElement>, open: boolean, onScreen: boolean): GroupFrame {
+function useGroupFrame(
+    layerRef: React.RefObject<HTMLDivElement>,
+    open: boolean,
+    sidebarAt: SidebarPlace
+): GroupFrame {
     const [frame, setFrame] = useState<GroupFrame>(null);
     useLayoutEffect(() => {
         const layer = layerRef.current;
@@ -49,9 +54,16 @@ function useGroupFrame(layerRef: React.RefObject<HTMLDivElement>, open: boolean,
         const measure = () => {
             const box = rectOf(layer);
             const avatar = document.querySelector("[data-brokk-avatar]");
-            const sidebar = onScreen ? document.querySelector("[data-testid='workspace-sidebar']") : null;
+            const sidebar = sidebarAt === "screen" ? document.querySelector("[data-testid='workspace-sidebar']") : null;
             const g = groupGeometry();
-            const sidebarBox = sidebar == null ? null : rectOf(sidebar);
+            // The strip of a collapsed sidebar is the content's own margin: the layer starts at its right edge (#2070),
+            // so the group stands 8 px into it, and the thread runs back to the face in the strip.
+            const sidebarBox =
+                sidebarAt === "edge"
+                    ? { left: box.left, top: box.top, width: 0, height: box.height }
+                    : sidebar == null
+                      ? null
+                      : rectOf(sidebar);
             const place = groupPlace(
                 sidebarBox == null
                     ? null
@@ -84,7 +96,7 @@ function useGroupFrame(layerRef: React.RefObject<HTMLDivElement>, open: boolean,
         measure();
         window.addEventListener("resize", measure);
         return () => window.removeEventListener("resize", measure);
-    }, [layerRef, open, onScreen]);
+    }, [layerRef, open, sidebarAt]);
     return frame;
 }
 
@@ -115,9 +127,9 @@ function BrokkHostLayer({ show }: { show: boolean }) {
     const boss = BossBubbleModel.getInstance();
     const hubModel = BrokkHubModel.getInstance();
     const cardOpen = useAtomValue(boss.cardOpenAtom, { store: globalStore });
-    const onScreen = useAtomValue(hubModel.sidebarOnScreenAtom, { store: globalStore });
+    const place = useAtomValue(hubModel.sidebarPlaceAtom, { store: globalStore });
     const layerRef = useRef<HTMLDivElement>(null);
-    const frame = useGroupFrame(layerRef, cardOpen, onScreen);
+    const frame = useGroupFrame(layerRef, cardOpen, place);
     const life = useGroupLife(cardOpen);
 
     useEffect(() => boss.attach(document), [boss]);
@@ -132,7 +144,9 @@ function BrokkHostLayer({ show }: { show: boolean }) {
 
     return (
         <div ref={layerRef} className="mt-boss-layer" data-testid="boss-layer">
-            {show && !onScreen ? <BrokkAvatar variant="hanging" style={{ right: hangingRightPx(isMacOS()) }} /> : null}
+            {show && place === "none" ? (
+                <BrokkAvatar variant="hanging" style={{ right: hangingRightPx(isMacOS()) }} />
+            ) : null}
             {life.mounted && frame != null ? <BrokkGroup frame={frame} shown={life.shown && cardOpen} /> : null}
         </div>
     );

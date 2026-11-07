@@ -38,7 +38,14 @@ export function finishedSetAfter(
 // The rows the avatar's badge counts that are no event of the table (a question that is no agent's, a hand-off
 // request): they feed no visit, and still count, as they did on the bubble (FR-BOSS-001, AC5).
 export function unmappedRowCount(items: ToHandleItem[]): number {
-    return items.filter((item) => !item.seen && visitEventsOfRows([item]).length === 0).length;
+    return unmappedRowKeys(items).length;
+}
+
+// Which of them: the keys the collapsed sidebar tells new notifications by (#2070).
+export function unmappedRowKeys(items: ToHandleItem[]): string[] {
+    return items
+        .filter((item) => !item.seen && visitEventsOfRows([item]).length === 0)
+        .map((item) => `row:${item.key}`);
 }
 
 export type AvatarBadge = Badge;
