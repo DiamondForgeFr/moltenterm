@@ -26,11 +26,12 @@ keep it, and the steps of a bump.
    A newer release of the pinned major is a finding once it has waited more than 7 days: the high deadline, because the
    release notes only say "backported fixes from upstream Chromium" and never rate them.
 
-4. **Every bump is requalified on a packaged build** with `node scripts/moltenterm-qualify-packaged.mjs <MoltenTerm.app |
-executable>` (#1975). It starts the app the way a user does, in a test instance of its own, and checks the fuses, that
-   `--inspect`, `NODE_OPTIONS` and `ELECTRON_RUN_AS_NODE` reach nothing, and that a changed `app.asar` is refused. The
-   pull request of the bump says which platforms ran it and the result. A new Electron can reset a fuse or a default:
-   the release also reads the fuses back from every packaged app (`scripts/moltenterm-check-fuses.mjs`).
+4. **Every bump is requalified on a packaged build** with `node scripts/moltenterm-qualify-packaged.mjs <packaged app>`
+   (#1975; the app is a `.app` or the executable). It starts the app the way a user does, in a test instance of its own,
+   and checks the fuses, that `--inspect`, `NODE_OPTIONS` and `ELECTRON_RUN_AS_NODE` reach nothing, and that a changed
+   `app.asar` is refused. The pull request of the bump says which platforms ran it and the result. A new Electron can
+   reset a fuse or a default: the release also reads the fuses back from every packaged app
+   (`scripts/moltenterm-check-fuses.mjs`).
 
 ## What checks it
 

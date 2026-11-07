@@ -9,6 +9,7 @@
         "source": "https://releases.electronjs.org/schedule",
         "releaseSource": "https://releases.electronjs.org/"
     },
+    "electronExceptions": [],
     "scanners": {
         "npm": "10.9.2",
         "govulncheck": "v1.9.0"
