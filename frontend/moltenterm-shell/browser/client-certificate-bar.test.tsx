@@ -9,12 +9,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const Api = vi.hoisted(() => ({ moltentermClientCertificateAnswer: vi.fn() }));
 vi.mock("@/app/store/global", () => ({ getApi: () => Api }));
 
-import {
-    CertificateAsk,
-    ClientCertificateBar,
-    ClientCertificateModel,
-    isCertificateAsk,
-} from "./client-certificate-bar";
+import { ClientCertificateBar } from "./client-certificate-bar";
+import { CertificateAsk, ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
 
 const Ask: CertificateAsk = {
     requestid: "r1",

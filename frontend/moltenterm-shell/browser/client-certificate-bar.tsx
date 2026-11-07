@@ -9,89 +9,15 @@
 // it. The question is a surface of the window, outside the page: nothing a page or an agent drives can reach it.
 
 import { Button } from "@/app/element/button";
-import { getApi } from "@/app/store/global";
-import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
-import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import { useRef, useState } from "react";
 import { getLocale, useT } from "../i18n/i18n";
 import { suiteIcon } from "../suite/suite-icons";
 import { answerTooSoon } from "./browser-agent";
 import { CertificateNone, CertificateUse, OfferedCertificate } from "./client-certificate";
+import { CertificateAsk, ClientCertificateModel } from "./client-certificate-store";
 import { DecisionDismiss } from "./site-permission";
-
-export type CertificateAsk = { requestid: string; site: string; certificates: OfferedCertificate[] };
-
-type ClientCertificateApi = {
-    moltentermClientCertificateAnswer?: (requestId: string, decision: string, fingerprint?: string) => void;
-};
-
-function isOffered(value: any): value is OfferedCertificate {
-    return (
-        value != null &&
-        typeof value.fingerprint === "string" &&
-        typeof value.name === "string" &&
-        typeof value.issuer === "string" &&
-        typeof value.expires === "number"
-    );
-}
-
-export function isCertificateAsk(value: any): value is CertificateAsk {
-    return (
-        value != null &&
-        typeof value.requestid === "string" &&
-        typeof value.site === "string" &&
-        Array.isArray(value.certificates) &&
-        value.certificates.every(isOffered)
-    );
-}
-
-// The questions of one panel, per browser tab, oldest first; in memory only.
-export class ClientCertificateModel {
-    asksAtom = atom({}) as PrimitiveAtom<Record<string, CertificateAsk[]>>;
-
-    add(tabId: string, ask: CertificateAsk): void {
-        const all = globalStore.get(this.asksAtom);
-        const list = all[tabId] ?? [];
-        if (list.some((a) => a.requestid === ask.requestid)) {
-            return;
-        }
-        globalStore.set(this.asksAtom, { ...all, [tabId]: [...list, ask] });
-    }
-
-    // The question is gone: answered here, or settled by main (the timeout, the page closed or moved on).
-    remove(requestId: string): void {
-        const all = globalStore.get(this.asksAtom);
-        let changed = false;
-        const next: Record<string, CertificateAsk[]> = {};
-        for (const [tabId, list] of Object.entries(all)) {
-            const kept = list.filter((a) => a.requestid !== requestId);
-            changed = changed || kept.length !== list.length;
-            if (kept.length > 0) {
-                next[tabId] = kept;
-            }
-        }
-        if (changed) {
-            globalStore.set(this.asksAtom, next);
-        }
-    }
-
-    current(tabId: string): CertificateAsk {
-        return globalStore.get(this.asksAtom)[tabId]?.[0] ?? null;
-    }
-
-    answer(requestId: string, decision: string, fingerprint?: string): void {
-        this.remove(requestId);
-        (getApi() as ClientCertificateApi).moltentermClientCertificateAnswer?.(requestId, decision, fingerprint);
-    }
-
-    // A closed tab goes without a certificate this time.
-    forgetTab(tabId: string): void {
-        for (const ask of globalStore.get(this.asksAtom)[tabId] ?? []) {
-            this.answer(ask.requestid, DecisionDismiss);
-        }
-    }
-}
 
 function expiryText(t: ReturnType<typeof useT>, expires: number): string {
     if (!(expires > 0)) {
