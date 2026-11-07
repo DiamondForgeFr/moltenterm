@@ -3015,7 +3015,15 @@
         "label": "{name}, {count} en attente",
         "avatar": {
             "labelCue": "{name}, {count} en attente : a quelque chose à vous dire",
-            "close": "Fermer {name}"
+            "close": "Fermer {name}",
+            "downloadKnown": {
+                "one": "{count} téléchargement en cours, {percent} %",
+                "other": "{count} téléchargements en cours, {percent} %"
+            },
+            "downloadUnknown": {
+                "one": "{count} téléchargement en cours",
+                "other": "{count} téléchargements en cours"
+            }
         },
         "group": {
             "ariaLabel": "{name} : notifications, agents, sessions, téléchargements et garder éveillé",
@@ -3199,6 +3207,7 @@
             "usage": "{agent} : {label}, {used}",
             "usageResets": "{agent} : {label}, {used} · {resets}",
             "latestTitle": "Dernière notification",
+            "downloadsTitle": "Téléchargements",
             "more": {
                 "one": "et 1 autre",
                 "other": "et {count} autres"

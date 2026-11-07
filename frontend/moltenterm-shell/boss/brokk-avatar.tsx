@@ -15,6 +15,8 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
+import { downloadRingOf } from "../downloads/downloads-model";
+import { DownloadsModel } from "../downloads/downloads-store";
 import { useT } from "../i18n/i18n";
 import { useWorkingBeat } from "../working-beat";
 import { bubbleLabel } from "./boss-overview";
@@ -22,6 +24,7 @@ import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
 import { AvatarVariant, avatarVariant, PeekDelayMs, Rect } from "./brokk-avatar-model";
 import "./brokk-avatar.css";
+import { AvatarDownloadRing, useDownloadWords } from "./brokk-download-ring";
 import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { brokkMenuItems } from "./brokk-menu";
@@ -73,6 +76,9 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const sceneUp = useHubSelect((view) => view.visit != null);
     const live = useAvatarLive(ownWorking, sceneUp || cardOpen);
     const unseen = useAtomValue(BrokkEdgeModel.getInstance().unseenAtom, { store: globalStore });
+    const running = useAtomValue(DownloadsModel.getInstance().runningAtom, { store: globalStore });
+    const downloadRing = downloadRingOf(running);
+    const downloadWords = useDownloadWords(running);
     const motion = useMotionAllowed();
     const buttonRef = useRef<HTMLButtonElement>(null);
     const peekTimer = useRef<ReturnType<typeof setTimeout>>(null);
@@ -101,11 +107,12 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     }, [cardOpen, sceneUp]);
 
     // His animated face lives in the group's square while it is open: the avatar keeps a still frame, and its click closes.
-    const label = cardOpen
+    const base = cardOpen
         ? t("boss.avatar.close", { name })
         : cue
           ? t("boss.avatar.labelCue", { name, count: badge.count })
           : bubbleLabel(name, badge.count);
+    const label = downloadWords != null ? `${base}. ${downloadWords}` : base;
     const onActivate = () => {
         closePeek();
         if (cardOpen) {
@@ -180,6 +187,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
                 </span>
             ) : null}
             {ownWorking ? <AvatarRing /> : null}
+            {downloadRing != null ? <AvatarDownloadRing ring={downloadRing} /> : null}
             {cue ? <AvatarHalo /> : null}
             {badge.count > 0 ? (
                 <span className="mt-brokk-badge" data-tone={badge.tone} data-testid="boss-badge" aria-hidden>

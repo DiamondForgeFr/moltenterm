@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
     clearedRecords,
+    downloadRingOf,
     DownloadRecord,
     extensionOf,
     groupDownloads,
@@ -19,6 +20,7 @@ import {
     pruneRecords,
     restoreRecords,
     rowActions,
+    runningDownloads,
     safeFileName,
     secondsLeft,
     uniqueFileName,
@@ -190,6 +192,16 @@ describe("what a row says", () => {
         const paused = record({ id: "d", state: "paused", received: 99, total: 100 });
         expect(overallDownloadProgress([a, b, unknown, paused])).toBeCloseTo(0.5);
         expect(overallDownloadProgress([unknown, paused])).toBeNull();
+    });
+
+    it("gives Brokk's face the rail's ring: the overall progress of what runs, -1 while none knows its size, none when nothing runs (#2083)", () => {
+        const a = record({ id: "a", state: "progressing", received: 50, total: 100 });
+        const b = record({ id: "b", state: "progressing", received: 100, total: 200 });
+        const unknown = record({ id: "c", state: "progressing", received: 10, total: 0 });
+        expect(downloadRingOf(runningDownloads([a, b]))).toBeCloseTo(0.5);
+        expect(downloadRingOf(runningDownloads([unknown]))).toBe(-1);
+        expect(downloadRingOf(runningDownloads([record({ state: "completed" })]))).toBeNull();
+        expect(downloadRingOf(runningDownloads([record({ state: "interrupted", received: 5, total: 10 })]))).toBeNull();
     });
 
     it("says why an interruption happened from what arrived", () => {

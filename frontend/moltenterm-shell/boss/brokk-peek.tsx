@@ -11,10 +11,12 @@ import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
 import { GaugeLevel } from "../companion/companion-gauges-model";
+import { DownloadsModel } from "../downloads/downloads-store";
 import { useT, useTCount } from "../i18n/i18n";
 import { Rect, peekPosition } from "./brokk-avatar-model";
 import { BossPeek, PeekWaitingRow, usageText, workplaceNames } from "./boss-overview";
 import { useCaptionText } from "./brokk-caption";
+import { useDownloadWords } from "./brokk-download-ring";
 import type { ScreenCaption } from "./brokk-scene";
 import { BossBubbleModel } from "./boss-store";
 import { useBrokkScene, useBrokkSituation } from "./use-brokk-live";
@@ -37,7 +39,17 @@ const PeekToneDots: Record<PeekWaitingRow["tone"], string> = {
 
 // The headline is the scene's, the sentence the card's header says too (FR-BOSS-007, AC11); the rows are the ones the
 // badge counts, hand-off requests and failing CIs included (FR-BOSS-001, AC7).
-export function PeekBody({ peek, name, card }: { peek: BossPeek; name: string; card: ScreenCaption }) {
+export function PeekBody({
+    peek,
+    name,
+    card,
+    downloads,
+}: {
+    peek: BossPeek;
+    name: string;
+    card: ScreenCaption;
+    downloads?: string | null;
+}) {
     const t = useT();
     const tCount = useTCount();
     const text = useCaptionText();
@@ -48,6 +60,12 @@ export function PeekBody({ peek, name, card }: { peek: BossPeek; name: string; c
                 {text(card.status)}
                 {card.detail ? <span data-testid="boss-peek-headline-detail">{` ${text(card.detail)}`}</span> : null}
             </div>
+            {downloads ? (
+                <div data-testid="boss-peek-downloads">
+                    <Title>{t("boss.peek.downloadsTitle")}</Title>
+                    <div>{downloads}</div>
+                </div>
+            ) : null}
             {peek.waiting.length > 0 ? (
                 <div data-testid="boss-peek-waiting">
                     <Title>{t("boss.peek.waitingTitle")}</Title>
@@ -124,6 +142,8 @@ export function BrokkTooltip({ id, anchor }: { id: string; anchor: Rect }) {
     const model = BossBubbleModel.getInstance();
     const name = useAtomValue(model.nameAtom, { store: globalStore });
     const peek = useAtomValue(model.peekAtom, { store: globalStore });
+    const running = useAtomValue(DownloadsModel.getInstance().runningAtom, { store: globalStore });
+    const downloads = useDownloadWords(running);
     const situation = useBrokkSituation(false, false);
     const scene = useBrokkScene({ pinned: false, peek, situation, speaks: false });
     const place = peekPosition(anchor, { width: window.innerWidth, height: window.innerHeight });
@@ -135,7 +155,7 @@ export function BrokkTooltip({ id, anchor }: { id: string; anchor: Rect }) {
             className="mt-brokk-tooltip rounded-4 border border-line-strong bg-surface-3 px-3 py-2.5 shadow-e2"
             style={{ top: place.top, left: place.left, width: place.width }}
         >
-            <PeekBody peek={peek} name={name} card={scene.card} />
+            <PeekBody peek={peek} name={name} card={scene.card} downloads={downloads} />
         </div>,
         document.body
     );
