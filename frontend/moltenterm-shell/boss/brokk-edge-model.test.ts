@@ -246,13 +246,13 @@ describe("the strip, in the model and in the style sheets (AC27, AC29)", () => {
     const sidebar = css("../sidebar/sidebar.css");
     const avatar = css("brokk-avatar.css");
 
-    it("is 22 px at rest, 190 px half open, and the face is 20 px: the sheets say the same numbers", () => {
+    it("is 30 px at rest, 190 px half open, and the face is 20 px: the sheets say the same numbers", () => {
         expect(sidebar).toMatch(
             new RegExp(
                 `\\.mt-sb-frame\\s*\\{[^}]*--mt-edge-px: ${EdgePx}px;[^}]*--mt-ajar-px: ${AjarPx}px;[^}]*--mt-edge-face: ${EdgeFacePx}px;`
             )
         );
-        expect([EdgePx, AjarPx, EdgeFacePx]).toEqual([22, 190, 20]);
+        expect([EdgePx, AjarPx, EdgeFacePx]).toEqual([30, 190, 20]);
     });
 
     it("moves the sidebar out of the window by all but its strip, and by all but its half", () => {
@@ -280,9 +280,9 @@ describe("the strip, in the model and in the style sheets (AC27, AC29)", () => {
         const face = rule(avatar, ".mt-brokk-avatar.is-edge");
         expect(face).toContain("--mt-brokk-size: var(--mt-edge-face, 20px)");
         expect(face).toContain(
-            "translateX(calc(var(--mt-peek-inset, 12px) - (var(--mt-edge-px, 22px) - var(--mt-edge-face, 20px)) / 2))"
+            "translateX(calc(var(--mt-peek-inset, 12px) - (var(--mt-edge-px, 30px) - var(--mt-edge-face, 20px)) / 2))"
         );
-        expect(edgeFaceShiftPx(12)).toBe(11);
+        expect(edgeFaceShiftPx(12)).toBe(7);
     });
 
     it("lets the face grow back and slide to its place while the sidebar unfolds", () => {

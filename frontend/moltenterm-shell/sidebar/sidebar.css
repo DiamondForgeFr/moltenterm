@@ -227,14 +227,15 @@
     width: 14px;
 }
 
-/* Collapsed with Brokk on (FR-BOSS-009, AC27 to AC30, #2070): the sidebar does not leave the window, 22 px of it stay at
-   the left edge and hold his face, which is in its title row, at its right end. A new notification makes it bounce
+/* Collapsed with Brokk on (FR-BOSS-009, AC27 to AC30, #2070): the sidebar does not leave the window, 30 px of it stay at
+   the left edge and hold his face, which is in its title row, at its right end (30 px, not 22: the download ring around
+   the 20 px face needs 29.6 px, #2083). A new notification makes it bounce
    (use-brokk-edge.ts), something important keeps it half open, and the pointer over it unfolds the rest as the left edge
    does. The numbers are boss/brokk-edge-model.ts's (EdgePx, AjarPx, EdgeFacePx), which a test keeps equal to these. The
    content takes the strip's room (the aside's data-gutter), so that no panel is covered and none moves when the
    sidebar unfolds. */
 .mt-sb-frame {
-    --mt-edge-px: 22px;
+    --mt-edge-px: 30px;
     --mt-ajar-px: 190px;
     --mt-edge-face: 20px;
 }
