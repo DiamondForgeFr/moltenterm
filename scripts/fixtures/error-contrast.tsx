@@ -14,8 +14,6 @@ document.body.append(mount);
 const root = createRoot(mount);
 const session = { id: "fixture", shortid: "fixture", connection: "", connstate: "connected" as const,
     workspaceorder: 0, shown: false, canshow: false, canend: true, command: "fixture command" };
-// #1264: the Sessions closed badge is 4.43:1 on this one combination; remove this exception with its fix.
-const KnownFailure = { surface: "bg-surface-2", recipe: "text-danger bg-error/15", accent: "#ffffff" };
 const noop = () => {};
 async function render(kind: string) {
     await act(async () => root.render(kind === "worktree"
@@ -62,7 +60,7 @@ async function render(kind: string) {
             for (const accent of choices) {
                 document.documentElement.style.setProperty("--mt-accent", accent);
                 const result = measure(text);
-                if (result.ratio < 4.5 && !(KnownFailure.recipe === recipe && KnownFailure.accent === accent && KnownFailure.surface === surface)) {
+                if (result.ratio < 4.5) {
                     throw new Error(`${surface} ${recipe} ${accent}: ${JSON.stringify(result)}`);
                 }
                 rows.push({ kind: "migrated recipe", surface, recipe, accent, ...result });
