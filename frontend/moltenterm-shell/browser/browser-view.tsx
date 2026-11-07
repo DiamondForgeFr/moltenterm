@@ -186,8 +186,9 @@ import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
-import { ClientCertificateBar, ClientCertificateModel, isCertificateAsk } from "./client-certificate-bar";
-import { isSiteAsk, SitePermissionBar, SitePermissionModel } from "./site-permission-bar";
+import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
+import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
+import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
 import { TestContextChip } from "./test-context";
 
 export { MoltentermBrowserView };
@@ -2544,8 +2545,8 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 }
                 onDismiss={() => model.dismissChoice(state.activeId)}
             />
-            <SitePermissionBar permissions={model.sitePermissions} tabId={state.activeId} />
-            <ClientCertificateBar certificates={model.clientCertificates} tabId={state.activeId} />
+            <SitePermissionHost permissions={model.sitePermissions} tabId={state.activeId} />
+            <ClientCertificateHost certificates={model.clientCertificates} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
             <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
