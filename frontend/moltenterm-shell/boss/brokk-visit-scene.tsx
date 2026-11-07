@@ -27,6 +27,7 @@ import type { Severity } from "./brokk-queue";
 import { reactionCapMs } from "./brokk-state-model";
 import type { Visit } from "./brokk-visit";
 import {
+    exampleSceneActions,
     LaterOption,
     laterOptions,
     sceneActions,
@@ -217,7 +218,7 @@ export function BrokkVisitSceneView({
     const layerRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const [options, setOptions] = useState<LaterOption[]>(null);
-    const label = sceneLabel(t, name, visit.severity);
+    const label = sceneLabel(t, name, visit.severity, visit.example === true);
     const shown = phase === "open";
     const tabIndex = shown ? 0 : -1;
 
@@ -255,7 +256,7 @@ export function BrokkVisitSceneView({
             );
         }
     };
-    const actions = sceneActions(hub);
+    const actions = visit.example === true ? exampleSceneActions(() => hub.closeExample()) : sceneActions(hub);
     const onKeyDown = (e: React.KeyboardEvent) => {
         if (!sceneEscapes(e.key, e.nativeEvent.isComposing)) {
             return;

@@ -20,8 +20,10 @@ import {
     BrokkModel,
     BrokkStep,
     BrokkView,
+    ExampleVisit,
     InitialBrokk,
     SnoozeChoiceId,
+    Visit,
     VisitState,
 } from "./brokk-visit";
 import type { BrokkEvent, VisitSettings } from "./brokk-visit-events";
@@ -83,7 +85,10 @@ function endedKeys(before: VisitState, after: VisitState): string[] {
 
 export class BrokkHub {
     private model: BrokkModel = InitialBrokk;
+    // What the model answers, and what the surfaces read: the same, unless the example visit of the settings is up.
+    private answer: BrokkView;
     private view: BrokkView;
+    private example: Visit = null;
     private shared: SharedVisit;
     private finished: BrokkEvent[] = [];
     private agentsBefore: AgentStatesData = null;
@@ -96,11 +101,23 @@ export class BrokkHub {
     constructor(deps: HubDeps) {
         this.deps = deps;
         this.shared = deps.readShared();
-        this.view = brokkAfter(InitialBrokk, { type: "tick" }, deps.now()).view;
+        this.answer = brokkAfter(InitialBrokk, { type: "tick" }, deps.now()).view;
+        this.view = this.answer;
         this.run({ type: "tick" });
     }
 
     getView = (): BrokkView => this.view;
+
+    // "Show a visit" in the settings (FR-BOSS-009, AC31 and AC32, #2079): the example scene comes up whatever the quiet
+    // hours, the switch and the pointer say. Nothing else moves: no event, no mark, no delay, no panel.
+    showExample(): void {
+        this.setExample(ExampleVisit);
+    }
+
+    // The scene folds: the example goes, and the visit the model holds (if any) is what the surfaces read again.
+    closeExample(): void {
+        this.setExample(null);
+    }
 
     getModel = (): BrokkModel => this.model;
 
@@ -202,16 +219,32 @@ export class BrokkHub {
         this.commit(step, now);
     }
 
+    private setExample(visit: Visit): void {
+        if (this.stopped) {
+            return;
+        }
+        this.example = visit;
+        if (this.publish(this.answer)) {
+            this.listeners.forEach((listener) => listener());
+        }
+    }
+
+    // The view the surfaces read: the model's answer, with the example's visit in place of its visit while it is up.
+    // Returns whether it changed; the scene that is up stays the very same object while its visit says the same, so that
+    // it is not drawn again for the badge rising.
+    private publish(answer: BrokkView): boolean {
+        const next = this.example == null ? answer : { ...answer, visit: this.example };
+        if (sameView(this.view, next)) {
+            return false;
+        }
+        this.view = sameVisit(this.view.visit, next.visit) ? { ...next, visit: this.view.visit } : next;
+        return true;
+    }
+
     private commit(step: BrokkStep, now: number): void {
         this.model = step.model;
-        const changed = !sameView(this.view, step.view);
-        if (changed) {
-            // The scene that is up is the very same object while its visit says the same, so that it is not drawn again
-            // for the badge rising.
-            this.view = sameVisit(this.view.visit, step.view.visit)
-                ? { ...step.view, visit: this.view.visit }
-                : step.view;
-        }
+        this.answer = step.view;
+        const changed = this.publish(step.view);
         this.deps.clearTimer(this.wakeTimer);
         // The model asks for a moment strictly after now, and every rule it applies there holds at that very moment.
         this.wakeTimer =

@@ -102,7 +102,23 @@ export type BrokkModel = { settings: VisitSettings; gate: GateState; visits: Vis
 export const InitialBrokk: BrokkModel = { settings: DefaultVisitSettings, gate: EmptyGate, visits: EmptyVisits };
 
 // What the visit says: his face, how grave it is, and the events it covers, the gravest first.
-export type Visit = { severity: Severity; expression: BrokkExpression; keys: string[]; count: number };
+export type Visit = {
+    severity: Severity;
+    expression: BrokkExpression;
+    keys: string[];
+    count: number;
+    example?: boolean;
+};
+
+// The visit of the settings' "Show a visit" (FR-BOSS-009, AC31 and AC32, #2079): the scene as a real one plays it, for an
+// example event. It is never raised, counted, told or recorded, and the hub shows it on its own, past quiet hours.
+export const ExampleVisit: Visit = {
+    severity: "important",
+    expression: SeverityExpression.important,
+    keys: [],
+    count: 1,
+    example: true,
+};
 
 function byGravity(settings: VisitSettings, now: number) {
     return (a: StoredEvent, b: StoredEvent): number =>

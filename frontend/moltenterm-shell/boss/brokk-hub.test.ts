@@ -483,3 +483,56 @@ describe("the view is stable", () => {
         expect(timers()).toBe(0);
     });
 });
+
+describe("Show a visit: the example of the settings (FR-BOSS-009, AC31 and AC32, #2079)", () => {
+    // 14:00 is inside these quiet hours, and the master switch is on: nothing real would come now.
+    const HeldBack = () => settings({}, { quiet: { on: true, from: 13 * 60, to: 15 * 60 }, never: true });
+
+    it("comes up whatever the quiet hours and the master switch say", () => {
+        const { hub } = fixture();
+        hub.settings(HeldBack());
+        hub.showExample();
+        expect(hub.getView().visit).toMatchObject({ example: true, severity: "important", expression: "doubtful" });
+        hub.closeExample();
+        expect(hub.getView().visit).toBeNull();
+    });
+
+    it("changes no notification and records no visit: no mark, no delay, no panel, no write, the badge as it was", () => {
+        const { hub, state } = fixture();
+        hub.syncRows([BlockedRow()]);
+        const badge = hub.getView().badge;
+        const writes = state.writes;
+        hub.showExample();
+        hub.closeExample();
+        expect(hub.getView().badge).toBe(badge);
+        expect(state.writes).toBe(writes);
+        expect(state.panels).toBe(0);
+        expect(hub.getModel().visits.told).toEqual({});
+        expect(hub.getModel().visits.laterUntil).toBe(0);
+        expect(hub.getModel().visits.events["agent:a"]).toBeDefined();
+    });
+
+    it("leaves the state as before: a real visit that was up is up again once the example folds", () => {
+        const { hub } = fixture();
+        hub.syncRows([BlockedRow()]);
+        const real = hub.getView().visit;
+        expect(real).not.toBeNull();
+        hub.showExample();
+        expect(hub.getView().visit?.example).toBe(true);
+        expect(hub.getModel().visits.shown).toBe(true);
+        hub.closeExample();
+        expect(hub.getView().visit).toEqual(real);
+    });
+
+    it("tells the listeners once when it comes up and once when it folds, and nothing for a second close", () => {
+        const { hub } = fixture();
+        let heard = 0;
+        hub.subscribe(() => heard++);
+        hub.showExample();
+        hub.showExample();
+        expect(heard).toBe(1);
+        hub.closeExample();
+        hub.closeExample();
+        expect(heard).toBe(2);
+    });
+});

@@ -149,4 +149,14 @@ describe("what its controls write (FR-BOSS-009, AC4: the keys of #2001)", () => 
             expect(source, call).toContain(call);
         }
     });
+
+    it("offers Show a visit beside the table, as a calm button that plays the example (AC31)", () => {
+        const html = render();
+        expect(html).toContain('data-testid="brokk-coming-example"');
+        expect(html).toContain(translate("boss.coming.example.button"));
+        expect(html).toContain(translate("boss.coming.example.hint"));
+        expect(html.indexOf('data-testid="brokk-coming-example"')).toBeGreaterThan(
+            html.indexOf('data-testid="brokk-coming-severity"')
+        );
+    });
 });

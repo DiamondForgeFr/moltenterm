@@ -3063,6 +3063,7 @@
         },
         "visit": {
             "label": "{name} would like a word ({severity})",
+            "example": "Example: {name} would like a word ({severity}). An agent has been waiting for you for 6 min.",
             "severity": {
                 "grave": "grave",
                 "important": "important",
@@ -3095,7 +3096,11 @@
             "badge": "Badge",
             "rien": "Nothing",
             "quietBetween": "Quiet hours, from and to",
-            "severity": "Severity sets his face and the delays of Later, never the words: the scene has no text."
+            "severity": "Severity sets his face and the delays of Later, never the words: the scene has no text.",
+            "example": {
+                "button": "Show a visit",
+                "hint": "Example: an agent has been waiting for you for 6 min. Nothing is recorded or counted, and quiet hours do not hold it back."
+            }
         },
         "panel": {
             "menu": "{name}'s menu",
