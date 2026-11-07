@@ -906,6 +906,10 @@
                 "label": "Agent site permissions",
                 "description": "Sites agents may use or are blocked from in the Web page panel."
             },
+            "browser:localpages": {
+                "label": "Files opened without asking",
+                "description": "Files from this computer that a terminal or an agent may open in the Web page panel without a question."
+            },
             "markdown:fontsize": {
                 "label": "Markdown text size",
                 "description": "The body text size of rendered Markdown."
@@ -2558,6 +2562,20 @@
             "otherBrowsers": "Other browsers",
             "remember": "Remember for {site}",
             "dismissTitle": "Keep MoltenTerm for this page, and ask again next time"
+        },
+        "local": {
+            "fileTitle": "Open a file from this computer?",
+            "fileHint": "A program asked to show this file. A page from this computer can run scripts: open it only if you expect it.",
+            "dataTitle": "Open an inline page?",
+            "dataHint": "A program asked to show a page whose content is written in its address. It can run scripts: open it only if you expect it.",
+            "dataKind": "{type}, {length} characters",
+            "dataStart": "Starts with",
+            "open": "Open page",
+            "always": "Always open this file",
+            "alwaysTitle": "Remember this file: it opens without asking, in any panel",
+            "decline": "Don't open",
+            "declineTitle": "Close this panel without loading the page",
+            "notSaved": "The choice could not be saved: {error}"
         },
         "share": {
             "noAgent": "No agent is running in this view",

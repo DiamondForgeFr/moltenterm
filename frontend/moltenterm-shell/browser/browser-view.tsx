@@ -185,6 +185,15 @@ import "./browser.css";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
 import { choiceEngineId, EngineChoice } from "./link-choice";
+import {
+    allowedWhenNavigated,
+    canRememberLocalPage,
+    isLocalPage,
+    localPageOf,
+    LocalPagesKey,
+    withRememberedLocalPage,
+} from "./local-page";
+import { GatedPage } from "./local-page-ask";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
@@ -355,12 +364,14 @@ export class BrowserViewModel implements ViewModel {
     // empty page nobody drives.
     openBeside(url: string, opts?: BesideOpts & { focus?: boolean }): void {
         const shown = this.findTab(this.state().activeId);
+        // A local page never replaces a shown page: it opens in a panel of its own, which asks (FR-BRW-014, #1978).
         if (
             shown != null &&
             !shown.engine &&
             isBlankPage(shown.url) &&
             !this.isAgentDriven(shown.id) &&
-            this.state().tabs.length === 1
+            this.state().tabs.length === 1 &&
+            !isLocalPage(url)
         ) {
             this.navigate(url);
             if (opts?.ask) {
@@ -378,7 +389,8 @@ export class BrowserViewModel implements ViewModel {
         fireAndForget(() => this.createBeside(besideBlockDef({ url }, opts), this.blockId, opts?.focus !== false));
     }
 
-    // The shown page goes to url (the top field's Enter, FR-SHELL-083); a handed-off entry reopens there.
+    // The shown page goes to url (the top field's Enter, FR-SHELL-083); a handed-off entry reopens there. An address
+    // is typed or clicked by the user: a local page it names is allowed, and replaces a question the tab was holding.
     navigate(url: string): void {
         const active = this.findTab(this.state().activeId);
         if (active == null || !url) {
@@ -393,7 +405,54 @@ export class BrowserViewModel implements ViewModel {
             .catch(() => {
                 // A failure arrives as did-fail-load and shows the error page.
             });
-        this.setState(updateTab(this.state(), active.id, { url, title: undefined }));
+        this.setState(
+            updateTab(this.state(), active.id, {
+                url,
+                title: undefined,
+                ...(isLocalPage(url) ? { allowed: true } : {}),
+            })
+        );
+    }
+
+    // "Open" of the question a local or inline page asks (FR-BRW-014, #1978): the tab shows it and keeps the answer
+    // with its saved state.
+    allowLocalPage(id: string): void {
+        if (this.findTab(id) == null) {
+            return;
+        }
+        this.setState(updateTab(this.state(), id, { allowed: true }));
+        this.persistNow();
+        this.focusPanel();
+    }
+
+    // "Always open this file": the file is remembered in browser:localpages, written by this window alone (a terminal's
+    // setconfig of it is refused), and opens now.
+    rememberLocalPage(id: string): void {
+        const page = localPageOf(this.findTab(id)?.url);
+        if (!canRememberLocalPage(page)) {
+            return;
+        }
+        const next = withRememberedLocalPage(globalStore.get(getSettingsKeyAtom(LocalPagesKey)), page);
+        this.allowLocalPage(id);
+        fireAndForget(async () => {
+            try {
+                await RpcApi.SetConfigCommand(TabRpcClient, { [LocalPagesKey]: next } as SettingsType);
+            } catch (e) {
+                this.showNotice(t("browser.local.notSaved", { error: errorText(e) }));
+            }
+        });
+    }
+
+    // "Don't open": the page never loaded; the panel opened for it closes.
+    declineLocalPage(id: string): void {
+        if (this.findTab(id) == null) {
+            return;
+        }
+        if (this.state().tabs.length <= 1) {
+            uxCloseBlock(this.blockId);
+            return;
+        }
+        this.closeTab(id);
     }
 
     shownUrl(): string {
@@ -886,7 +945,7 @@ export class BrowserViewModel implements ViewModel {
     // A launch that replaced the version this tab shows (#1005): the tab loads the new one, is shown and focused.
     // A tab that never mounted its page loads tab.url when shown, so the state carries the URL too.
     showUrlInTab(id: string, url: string): void {
-        if (this.findTab(id) == null) {
+        if (this.findTab(id) == null || isLocalPage(url)) {
             return;
         }
         const webview = this.webviews.get(id);
@@ -1003,7 +1062,11 @@ export class BrowserViewModel implements ViewModel {
             return;
         }
         fireAndForget(() =>
-            this.createBeside(besideBlockDef({ id: makeTabId(), url: tab.url, engine: tab.engine }), this.blockId, true)
+            this.createBeside(
+                besideBlockDef({ id: makeTabId(), url: tab.url, engine: tab.engine, allowed: tab.allowed }),
+                this.blockId,
+                true
+            )
         );
     }
 
@@ -1617,7 +1680,9 @@ function TabWebview({
             if (e.isMainFrame === false || /^chrome-error:/i.test(e.url ?? "")) {
                 return;
             }
-            model.setState(updateTab(model.state(), tab.id, { url: e.url }));
+            model.setState(
+                updateTab(model.state(), tab.id, { url: e.url, ...allowedWhenNavigated(model.findTab(tab.id), e.url) })
+            );
             model.signIn.noteNavigation(tab.id, e.url);
             // In-page navigations (anchors, history.pushState on load) do not count as moving on.
             if (e.type === "did-navigate") {
@@ -1701,7 +1766,13 @@ function TabWebview({
             model.errors.noteFailure(tab.id, { url, code: e.errorCode, description: e.errorDescription });
             if (url && !/^chrome-error:/i.test(url)) {
                 // The previous page's title would name the tab otherwise: the host stands in for it.
-                model.setState(updateTab(model.state(), tab.id, { url, title: undefined }));
+                model.setState(
+                    updateTab(model.state(), tab.id, {
+                        url,
+                        title: undefined,
+                        ...allowedWhenNavigated(model.findTab(tab.id), url),
+                    })
+                );
             }
         };
         const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
@@ -2478,6 +2549,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const installedSetting = useAtomValue(getSettingsKeyAtom("browser:installed"));
     const defaultSetting = useAtomValue(getSettingsKeyAtom("browser:default"));
     const sitesSetting = useAtomValue(getSettingsKeyAtom("browser:sites"));
+    const localPages = useAtomValue(getSettingsKeyAtom(LocalPagesKey));
     const engineList = useAtomValue(model.engines.listAtom);
     const activity = useAtomValue(TabActivity.getInstance().stateAtom);
     const discarded = useAtomValue(model.lifecycle.discardedAtom);
@@ -2556,14 +2628,21 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                             <HandoffPage key={tab.id} model={model} tab={tab} />
                         ) : null
                     ) : discarded[tab.id] != null ? null : (
-                        <TabWebview
+                        <GatedPage
                             key={tab.id}
                             model={model}
                             tab={tab}
                             active={tab.id === state.activeId}
-                            shown={viewShown && tab.id === state.activeId}
-                            offCarpet={offCarpet}
-                        />
+                            remembered={localPages}
+                        >
+                            <TabWebview
+                                model={model}
+                                tab={tab}
+                                active={tab.id === state.activeId}
+                                shown={viewShown && tab.id === state.activeId}
+                                offCarpet={offCarpet}
+                            />
+                        </GatedPage>
                     )
                 )}
                 {discarded[state.activeId] != null || restoring[state.activeId] != null ? (

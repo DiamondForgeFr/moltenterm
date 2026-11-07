@@ -249,6 +249,7 @@ var settings = []Setting{
 	{Key: "browser:agentsites", Section: SectionBrowser, Group: "Agents", Label: "Agent site permissions", Description: "Sites agents may use or are blocked from in the browser panel.", Control: ControlJSON},
 	{Key: "browser:sitepermissions", Section: SectionBrowser, Group: "Browser panel", Label: "Site permissions", Description: "What each site may use: camera, microphone, location, notifications.", Control: ControlJSON},
 	{Key: "browser:clientcertificates", Section: SectionBrowser, Group: "Browser panel", Label: "Client certificates", Description: "The certificate each site gets to identify you, or none.", Control: ControlJSON},
+	{Key: "browser:localpages", Section: SectionBrowser, Group: "Browser panel", Label: "Files opened without asking", Description: "Files from this computer that a terminal or an agent may open in the browser panel without a question.", Control: ControlJSON},
 
 	// Mission Control
 	{Key: "linemap:animation", Section: SectionMission, Group: "Line map", Label: "Animate the line map", Description: "Play the load sequence and the moving trains; reduced motion turns it off.", Control: ControlToggle, Default: true},

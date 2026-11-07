@@ -1463,6 +1463,7 @@ declare global {
         "browser:downloadask"?: boolean;
         "browser:sitepermissions"?: {[key: string]: {[key: string]: string}};
         "browser:clientcertificates"?: {[key: string]: string};
+        "browser:localpages"?: {[key: string]: string};
         "autoupdate:*"?: boolean;
         "autoupdate:enabled"?: boolean;
         "autoupdate:intervalms"?: number;
