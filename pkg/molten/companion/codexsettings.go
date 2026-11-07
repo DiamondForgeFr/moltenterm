@@ -24,11 +24,14 @@ const (
 	// they were.
 	codexSettingsTail = 2 * 1024 * 1024
 	codexSettingMax   = 80
+	// codexModelNotFound: Codex's codex_error_info when the account cannot use the turn's model (#2076).
+	codexModelNotFound = "model_not_found"
 )
 
 var (
 	codexTurnContextMarker    = []byte(`"turn_context"`)
 	codexThreadSettingsMarker = []byte(`"thread_settings_applied"`)
+	codexModelNotFoundMarker  = []byte(`"` + codexModelNotFound + `"`)
 )
 
 // ReadSettings reads the model and effort the rollout's latest records give.
@@ -84,17 +87,65 @@ func (a *CodexAdapter) ReadSettingsFrom(path string, offset int64) (settings mol
 }
 
 // codexLastTurnSettings reads the latest settings record of a rollout's lines: the last turn_context, or a later
-// thread_settings_applied of the rollout's own thread (threadId, when known).
+// thread_settings_applied of the rollout's own thread (threadId, when known). A turn end after it that Codex refused
+// for the model (model_not_found, #2076) marks the model unavailable; lines that hold only that refusal give the
+// mark alone, without a model (mergeFollowedSettings keeps the model already known).
 func codexLastTurnSettings(tail []byte, threadId string) (molten.AgentSettings, bool) {
+	refused := false
 	for end := len(tail); end > 0; {
 		start := bytes.LastIndexByte(tail[:end], '\n') + 1
 		line := tail[start:end]
 		end = start - 1
 		if settings, ok := codexSettingsLine(line, threadId); ok {
+			settings.ModelUnavailable = refused
 			return settings, true
 		}
+		if !refused && codexModelRefusedLine(line) {
+			refused = true
+		}
+	}
+	if refused {
+		return molten.AgentSettings{ModelUnavailable: true}, true
 	}
 	return molten.AgentSettings{}, false
+}
+
+// codexModelRefusedLine tells whether a line is a turn end Codex refused because the model is not available to the
+// account: {"type":"event_msg","payload":{"type":"task_complete","error":{"codex_error_info":"model_not_found"}}}
+// (codex-cli 0.166.0, "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.").
+func codexModelRefusedLine(line []byte) bool {
+	if !bytes.Contains(line, codexModelNotFoundMarker) {
+		return false
+	}
+	var rec struct {
+		Type    string `json:"type"`
+		Payload struct {
+			Type  string `json:"type"`
+			Error struct {
+				Info any `json:"codex_error_info"`
+			} `json:"error"`
+		} `json:"payload"`
+	}
+	if json.Unmarshal(line, &rec) != nil || rec.Type != "event_msg" {
+		return false
+	}
+	switch rec.Payload.Type {
+	case "task_complete", "turn_complete", "turn_aborted":
+	default:
+		return false
+	}
+	info, _ := rec.Payload.Error.Info.(string)
+	return info == codexModelNotFound
+}
+
+// mergeFollowedSettings applies what a follower read since its previous look to the settings it knew: a refusal alone
+// keeps the known model and effort.
+func mergeFollowedSettings(known molten.AgentSettings, read molten.AgentSettings) molten.AgentSettings {
+	if read.Model == "" && read.Effort == "" && read.ModelUnavailable {
+		known.ModelUnavailable = true
+		return known
+	}
+	return read
 }
 
 func codexSettingsLine(line []byte, threadId string) (molten.AgentSettings, bool) {

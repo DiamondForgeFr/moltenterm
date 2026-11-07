@@ -282,7 +282,7 @@ func (m *Manager) followSettings(run molten.AgentRunInfo, follower SettingsFollo
 	m.lock.Lock()
 	t.offset = next
 	if found {
-		t.settings = settings
+		t.settings = mergeFollowedSettings(t.settings, settings)
 	}
 	current := t.settings
 	m.lock.Unlock()

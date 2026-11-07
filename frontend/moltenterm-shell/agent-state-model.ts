@@ -42,6 +42,8 @@ export type AgentStateInfo = {
     model?: string;
     modelname?: string;
     effort?: string;
+    // #2076: the agent refused its latest turn because the signed-in account cannot use model.
+    modelunavailable?: boolean;
     // FR-AGC-008: the host the run talks to when it is not its agent's own provider, its name ("GLM", else the host)
     // and the agent's own provider ("Anthropic"), whose plan gauges, models and effort levels do not apply then.
     provider?: string;
@@ -310,6 +312,11 @@ export function agentStateTitle(info: AgentStateInfo): string {
 // What the state says beside its name: MoltenTerm's words in the interface language when it holds the state (#896),
 // else the agent's own message.
 export function agentStateMessage(info: AgentStateInfo): string {
+    // A refused model stops every turn until another one is chosen (#2076): it outranks the agent's own message.
+    const unavailable = agentModelUnavailableLine(info);
+    if (unavailable) {
+        return unavailable;
+    }
     if (info?.messagetext != null) {
         return serverText(info.messagetext, info.message);
     }
@@ -340,10 +347,22 @@ export function agentEffortPart(info: AgentStateInfo): string {
     return (info?.effort ?? "").trim();
 }
 
+// The one calm line of a model the signed-in account cannot use (#2076), "" otherwise.
+export function agentModelUnavailableLine(info: AgentStateInfo): string {
+    const model = agentModelPart(info);
+    if (!info?.modelunavailable || !model) {
+        return "";
+    }
+    return t("agent.modelUnavailable", { model });
+}
+
 export function agentModelTitle(info: AgentStateInfo): string {
     const label = agentModelPart(info);
     if (!label) {
         return "";
+    }
+    if (info.modelunavailable) {
+        return [agentModelUnavailableLine(info), t("agent.modelUnavailableClick")].join("\n");
     }
     const model =
         info.model && info.modelname && info.model !== info.modelname ? `${info.modelname} (${info.model})` : label;
