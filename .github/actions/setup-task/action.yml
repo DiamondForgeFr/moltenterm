@@ -1,0 +1,35 @@
+# Copyright 2026, DiamondForge
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Task for a CI job, in place of arduino/setup-task (#1956): a short outage of GitHub's release downloads no longer fails
+# the job. The release and each archive's SHA-256 are pinned in pins.txt. The archive is kept in the Actions cache, and
+# downloaded only when the cache has no copy, with attempts spread over about six minutes (install.sh). Whichever way it
+# comes, an archive that does not match its pin never runs, so the cache cannot hand a job another Task.
+
+name: Set up Task
+description: Installs the pinned Task release, checked against its pinned SHA-256, from the Actions cache or GitHub.
+
+runs:
+    using: composite
+    steps:
+        - name: Pick Task's archive
+          id: plan
+          shell: bash
+          run: bash "$GITHUB_ACTION_PATH/install.sh" plan >> "$GITHUB_OUTPUT"
+        - name: Restore Task from the cache
+          id: cache
+          uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+          with:
+              path: ~/.cache/moltenterm-task
+              key: task-${{ steps.plan.outputs.version }}-${{ steps.plan.outputs.archive }}-${{ steps.plan.outputs.sha256 }}
+        - name: Install Task
+          shell: bash
+          run: bash "$GITHUB_ACTION_PATH/install.sh" install "$HOME/.cache/moltenterm-task" "$RUNNER_TEMP/moltenterm-task"
+        # For the next runs only: this job already has its Task.
+        - name: Keep Task in the cache
+          if: steps.cache.outputs.cache-hit != 'true'
+          continue-on-error: true
+          uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+          with:
+              path: ~/.cache/moltenterm-task
+              key: task-${{ steps.plan.outputs.version }}-${{ steps.plan.outputs.archive }}-${{ steps.plan.outputs.sha256 }}
