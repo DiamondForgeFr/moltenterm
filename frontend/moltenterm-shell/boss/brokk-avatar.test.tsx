@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/contextmenu", () => ({ ContextMenuModel: { getInstance: () => ({ showContextMenu: vi.fn() }) } }));
@@ -12,6 +12,11 @@ vi.mock("../settings/settings-open", () => ({ openSettingsSection: vi.fn() }));
 vi.mock("./brokk-menu", () => ({ brokkMenuItems: () => [] }));
 vi.mock("../working-beat", () => ({ useWorkingBeat: vi.fn() }));
 vi.mock("./brokk-peek", () => ({ BrokkTooltip: () => null }));
+vi.mock("../downloads/downloads-store", async () => {
+    const { atom } = await import("jotai");
+    const model = { runningAtom: atom<unknown[]>([]) };
+    return { DownloadsModel: { getInstance: () => model } };
+});
 vi.mock("./boss-portrait", () => ({
     BossPortrait: ({ live }: { live?: unknown }) => <span data-testid="portrait" data-live={live ? "true" : "false"} />,
 }));
@@ -52,6 +57,7 @@ import { BrokkAvatar, BrokkAvatarSlot } from "./brokk-avatar";
 import { AvatarSizePx, HangingSizePx } from "./brokk-avatar-model";
 import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkHub, HubDeps } from "./brokk-hub";
+import { DownloadsModel } from "../downloads/downloads-store";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { DefaultVisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
@@ -451,6 +457,66 @@ describe("the tooltip (AC1)", () => {
     it("shows nothing until the pointer has stayed: the bubble's old delay", () => {
         expect(render()).not.toContain('role="tooltip"');
         expect(attr(render(), "brokk-avatar", "aria-describedby")).toBeUndefined();
+    });
+});
+
+describe("the download ring on his face (FR-BOSS-009, AC34 to AC36, #2083)", () => {
+    const Length = 2 * Math.PI * 14.25;
+    const runningAtom = (DownloadsModel.getInstance() as any).runningAtom;
+    const running = (...items: { received: number; total: number; state?: string }[]) =>
+        globalStore.set(
+            runningAtom,
+            items.map((item, i) => ({ id: `d${i}`, state: item.state ?? "progressing", ...item }))
+        );
+    const dash = (html: string) => parseFloat(/stroke-dasharray="([\d.]+)/.exec(html)?.[1] ?? "NaN");
+
+    afterEach(() => running());
+
+    it("shows no ring while no download runs", () => {
+        expect(render()).not.toContain('data-testid="brokk-download-ring"');
+    });
+
+    it("shows a thin ring in the rail's ember at the overall progress of the running download, and names it", () => {
+        running({ received: 13, total: 100 });
+        const html = render();
+        expect(html).toContain('data-testid="brokk-download-ring"');
+        expect(dash(html)).toBeCloseTo(0.13 * Length, 3);
+        expect(attr(html, "brokk-download-ring", "class")).toBe("mt-brokk-download");
+        expect(attr(html, "brokk-avatar", "aria-label")).toContain("1 download running, 13 %");
+    });
+
+    it("shows the mean of the running downloads, with a count in its name", () => {
+        running({ received: 25, total: 100 }, { received: 75, total: 100 });
+        const html = render();
+        expect(dash(html)).toBeCloseTo(0.5 * Length, 3);
+        expect(attr(html, "brokk-avatar", "aria-label")).toContain("2 downloads running, 50 %");
+    });
+
+    it("is a quarter arc, with no percentage, while no running download knows its size", () => {
+        running({ received: 10, total: 0 });
+        const html = render();
+        expect(dash(html)).toBeCloseTo(0.25 * Length, 3);
+        const label = attr(html, "brokk-avatar", "aria-label");
+        expect(label).toContain("1 download running");
+        expect(label).not.toContain("%");
+    });
+
+    it("keeps the cup and the badge where they are, beside the ring", () => {
+        globalStore.set(boss.keepAwakeAtom, true);
+        setRows(row("question:a"));
+        running({ received: 13, total: 100 });
+        const html = render();
+        expect(html).toContain('data-testid="brokk-download-ring"');
+        expect(html).toContain('data-testid="brokk-cup"');
+        expect(html).toMatch(/data-testid="boss-badge"[^>]*>1</);
+    });
+
+    it("never turns: its rule has no animation and no transition, and it carries no working beat", () => {
+        running({ received: 13, total: 100 });
+        const html = render();
+        expect(attr(html, "brokk-download-ring", "class")).not.toContain("mt-beat-turn");
+        const sheet = rule(css("brokk-avatar.css"), ".mt-brokk-download");
+        expect(sheet).not.toMatch(/animation|transition/);
     });
 });
 

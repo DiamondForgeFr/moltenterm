@@ -182,6 +182,17 @@
     pointer-events: none;
 }
 
+/* The download ring (FR-BOSS-009, AC34, #2083): a thin arc of the rail's ember just outside the face, at the overall
+   progress of the running downloads. It is drawn in the 30-unit box that the avatar's size scales, and it never turns. */
+.mt-brokk-download {
+    position: absolute;
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+    rotate: -90deg;
+    pointer-events: none;
+}
+
 /* The soft cue: he has something to tell you, and the gate holds him back. A halo in the waiting colour around the face. */
 .mt-brokk-halo {
     position: absolute;

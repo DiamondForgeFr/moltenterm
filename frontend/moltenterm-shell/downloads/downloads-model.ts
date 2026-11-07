@@ -267,6 +267,15 @@ export function runningDownloads(items: DownloadRecord[]): DownloadRecord[] {
     return items.filter(isActive);
 }
 
+// The ring of Brokk's face (FR-BOSS-009, AC34, #2083) and of the rail: the overall progress of the running downloads,
+// -1 while none of them knows its size, null while none runs. A failed or finished download is not running, so it shows none.
+export function downloadRingOf(running: DownloadRecord[]): number {
+    if (running.length === 0) {
+        return null;
+    }
+    return overallDownloadProgress(running) ?? -1;
+}
+
 // What stopped a download, from what was received. A cancel by the user is not an interruption.
 export function interruptionReason(received: number, wasResumed: boolean): DownloadReason {
     if (wasResumed) {

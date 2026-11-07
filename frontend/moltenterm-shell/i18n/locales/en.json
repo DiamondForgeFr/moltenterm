@@ -3015,7 +3015,15 @@
         "label": "{name}, {count} waiting",
         "avatar": {
             "labelCue": "{name}, {count} waiting: has something to tell you",
-            "close": "Close {name}"
+            "close": "Close {name}",
+            "downloadKnown": {
+                "one": "{count} download running, {percent} %",
+                "other": "{count} downloads running, {percent} %"
+            },
+            "downloadUnknown": {
+                "one": "{count} download running",
+                "other": "{count} downloads running"
+            }
         },
         "group": {
             "ariaLabel": "{name}: notifications, agents, sessions, downloads and keep-awake",
@@ -3199,6 +3207,7 @@
             "usage": "{agent}: {label}, {used}",
             "usageResets": "{agent}: {label}, {used} · {resets}",
             "latestTitle": "Latest notification",
+            "downloadsTitle": "Downloads",
             "more": {
                 "one": "and 1 more",
                 "other": "and {count} more"
