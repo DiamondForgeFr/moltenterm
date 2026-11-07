@@ -7,7 +7,10 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     applyRemoteDebuggingPolicy,
+    BasicPasswordStore,
     decideRemoteDebugging,
+    MockKeychainSwitch,
+    PasswordStoreSwitch,
     ReasonDefaultProfile,
     ReasonDevBuild,
     ReasonMarkedProfile,
@@ -16,6 +19,7 @@ import {
     ReasonUnmarkedProfile,
     RemoteDebuggingInput,
     TestProfileMarkName,
+    throwawayKeySwitch,
 } from "./moltenterm-remote-debugging";
 
 function input(over: Partial<RemoteDebuggingInput> = {}): RemoteDebuggingInput {
@@ -83,27 +87,114 @@ describe("applyRemoteDebuggingPolicy", () => {
         fs.rmSync(root, { recursive: true, force: true });
     });
 
-    function commandLine(switches: string[]) {
+    function commandLine(switches: string[], values: Record<string, string> = {}) {
         const present = new Set(switches);
+        const value = new Map(Object.entries(values));
+        for (const name of value.keys()) {
+            present.add(name);
+        }
         return {
             present,
+            value,
             hasSwitch: (name: string) => present.has(name),
             removeSwitch: (name: string) => {
                 present.delete(name);
+                value.delete(name);
+            },
+            appendSwitch: (name: string, v?: string) => {
+                present.add(name);
+                if (v != null) {
+                    value.set(name, v);
+                }
             },
         };
     }
 
-    function apply(cl: ReturnType<typeof commandLine>, profileDir: string, defaultProfileDir: string, packaged = true) {
+    function apply(
+        cl: ReturnType<typeof commandLine>,
+        profileDir: string,
+        defaultProfileDir: string,
+        packaged = true,
+        platform = "linux"
+    ) {
         return applyRemoteDebuggingPolicy({
             commandLine: cl,
             packaged,
             profileDir,
             defaultProfileDir,
-            platform: "linux",
+            platform,
             log: (l) => lines.push(l),
         });
     }
+
+    function isolated(cl: ReturnType<typeof commandLine>, platform: string): boolean {
+        if (platform === "darwin") {
+            return cl.present.has(MockKeychainSwitch);
+        }
+        return cl.value.get(PasswordStoreSwitch) === BasicPasswordStore;
+    }
+
+    for (const platform of ["darwin", "linux"]) {
+        describe(`cookie key on ${platform} (#2066)`, () => {
+            const defaultProfile = () => path.join(root, "default", "electron");
+
+            it("never asks the system for the real key when the port opens on a new test profile", () => {
+                const cl = commandLine(["remote-debugging-port"]);
+                expect(apply(cl, path.join(root, "test", "electron"), defaultProfile(), true, platform).honour).toBe(
+                    true
+                );
+                expect(isolated(cl, platform)).toBe(true);
+                expect(lines.join("\n")).toContain("with a throwaway cookie key");
+            });
+
+            it("keeps the throwaway key on a marked profile, with or without the port", () => {
+                const profile = path.join(root, "test", "electron");
+                apply(commandLine(["remote-debugging-port"]), profile, defaultProfile(), true, platform);
+                const withPort = commandLine(["remote-debugging-port"]);
+                expect(apply(withPort, profile, defaultProfile(), true, platform).reason).toBe(ReasonMarkedProfile);
+                expect(isolated(withPort, platform)).toBe(true);
+                const without = commandLine([]);
+                expect(apply(without, profile, defaultProfile(), true, platform).reason).toBe(ReasonNotRequested);
+                expect(isolated(without, platform)).toBe(true);
+            });
+
+            it("leaves the real key on the user's own and unmarked profiles, and in a dev build", () => {
+                const own = defaultProfile();
+                fs.mkdirSync(own, { recursive: true });
+                fs.writeFileSync(path.join(own, TestProfileMarkName), "");
+                const ownPort = commandLine(["remote-debugging-port"]);
+                apply(ownPort, own, own, true, platform);
+                expect(isolated(ownPort, platform)).toBe(false);
+                const ownPlain = commandLine([]);
+                apply(ownPlain, own, own, true, platform);
+                expect(isolated(ownPlain, platform)).toBe(false);
+
+                const other = path.join(root, "gold", "electron");
+                fs.mkdirSync(other, { recursive: true });
+                const otherPort = commandLine(["remote-debugging-port"]);
+                apply(otherPort, other, own, true, platform);
+                expect(isolated(otherPort, platform)).toBe(false);
+
+                const dev = commandLine(["remote-debugging-port"]);
+                apply(dev, path.join(root, "dev", "electron"), own, false, platform);
+                expect(isolated(dev, platform)).toBe(false);
+            });
+        });
+    }
+
+    it("replaces a password store the caller asked for on a test profile", () => {
+        const cl = commandLine(["remote-debugging-port"], { [PasswordStoreSwitch]: "gnome-libsecret" });
+        apply(cl, path.join(root, "test", "electron"), path.join(root, "default", "electron"), true, "linux");
+        expect(cl.value.get(PasswordStoreSwitch)).toBe(BasicPasswordStore);
+    });
+
+    it("names the system key where no throwaway key exists", () => {
+        const cl = commandLine(["remote-debugging-port"]);
+        apply(cl, path.join(root, "test", "electron"), path.join(root, "default", "electron"), true, "win32");
+        expect(throwawayKeySwitch("win32")).toBeNull();
+        expect(cl.present.has("remote-debugging-port")).toBe(true);
+        expect(lines.join("\n")).toContain("no throwaway key on this platform");
+    });
 
     it("removes both switches on the default profile and logs why", () => {
         const profile = path.join(root, "default", "electron");

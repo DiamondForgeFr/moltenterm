@@ -10,7 +10,8 @@
 //   - that port opens only on a test profile: not on the build's default profile, nor on an unmarked one (#2057);
 //   - `--inspect`, `NODE_OPTIONS` and SIGUSR1 reach nothing, and `ELECTRON_RUN_AS_NODE=1` starts the app, not a script;
 //   - a changed app.asar is refused (macOS and Windows; Linux has no asar integrity);
-//   - the cookie database holds no value in clear, and a cookie an earlier version wrote in clear survives (#2058).
+//   - the cookie database holds no value in clear, and a cookie an earlier version wrote in clear survives (#2058);
+//   - a test profile uses a throwaway cookie key: a cookie copied in from another profile is unreadable (#2066).
 // A build with Electron's default fuses fails the same checks, which is how this script is proven.
 //
 // Usage: node scripts/moltenterm-qualify-packaged.mjs <MoltenTerm.app | executable> [--tmp dir] [--keep] [--no-tamper]
@@ -18,6 +19,7 @@
 /* global console, process, setTimeout, fetch, Buffer */
 
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -198,6 +200,7 @@ async function run(target, { tmp, keep, tamper }) {
     // The cookie probe reads the cookies through the debugging port, which the policy check closes by removing the
     // test profile's mark: it runs first.
     await cookieProbe(inst, note);
+    await copiedCookieProbe(inst, note);
     await debuggingPolicy(inst, note);
 
     if (tamper) {
@@ -405,6 +408,177 @@ async function cookieProbe(inst, note) {
           ? "the session was not marked as migrated"
           : "the cookie written in clear is still sent and is now stored encrypted"
   );
+}
+
+// The throwaway cookie key a test profile gets (#2066): Chromium's mock keychain on macOS, its basic store on Linux. Both
+// derive an AES-128-CBC key with PBKDF2-SHA1 over "saltysalt" and prefix the value with "v10".
+const ThrowawayPassword = {
+  darwin: { password: "mock_password", iterations: 1003 },
+  linux: { password: "peanuts", iterations: 1 },
+};
+
+function cookieKey(password, iterations) {
+  return crypto.pbkdf2Sync(password, "saltysalt", iterations, 16, "sha1");
+}
+
+// From cookie database version 24 the clear text starts with the SHA-256 of the cookie's host.
+function encryptCookie(key, host, value, hostPrefix) {
+  const clear = Buffer.concat([
+    hostPrefix ? crypto.createHash("sha256").update(host).digest() : Buffer.alloc(0),
+    Buffer.from(value),
+  ]);
+  const cipher = crypto.createCipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
+  return Buffer.concat([Buffer.from("v10"), cipher.update(clear), cipher.final()]);
+}
+
+function decryptCookie(key, encrypted, hostPrefix) {
+  const bytes = Buffer.from(encrypted);
+  if (bytes.subarray(0, 3).toString() !== "v10") {
+    return null;
+  }
+  try {
+    const decipher = crypto.createDecipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
+    const clear = Buffer.concat([decipher.update(bytes.subarray(3)), decipher.final()]);
+    return clear.subarray(hostPrefix ? 32 : 0).toString();
+  } catch {
+    return null;
+  }
+}
+
+// #2066: a profile that opens the debugging port can never decrypt the user's real cookies. A same-user program could
+// otherwise let the app mark a new folder, copy the real Cookies files into it and read them over the port. The app
+// gives a test profile a throwaway cookie key, so it never asks the system for its real one. This check never uses the
+// developer's keychain: the start that leaves the harness's own keychain switch out comes only after the app said it
+// forces the throwaway key, and a cookie of a normal profile is stood in for by one encrypted with a key of its own
+// (the system's real key is not something a test may read).
+async function copiedCookieProbe(inst, note) {
+  const label = "copied cookies";
+  const scheme = ThrowawayPassword[process.platform];
+  if (scheme == null) {
+    note(label, true, `not checked on ${process.platform}: no throwaway cookie key there`);
+    return;
+  }
+  await inst.launch({ inspect: false });
+  if (!(await started(inst, null, note))) {
+    note(label, false, "the app did not start");
+    await inst.stop();
+    return;
+  }
+  const forced = inst
+    .log()
+    .some((l) => l.s.includes("remote debugging: allowed") && l.s.includes("throwaway cookie key"));
+  await inst.stop();
+  if (!forced) {
+    note(
+      label,
+      false,
+      "the port opens on the test profile with the system's cookie key (no throwaway key in the main log)"
+    );
+    return;
+  }
+
+  const db = path.join(inst.dataDir, "electron", "Cookies");
+  const host = "signin.qualify.test";
+  const own = { name: "mtqualifyown", value: `own-${process.pid}-${Date.now()}` };
+  await inst.launch({ inspect: false, keyringSwitch: false });
+  if (!(await started(inst, null, note))) {
+    note(label, false, "the app did not start without the harness's keychain switch");
+    await inst.stop();
+    return;
+  }
+  const set = await browserCdp(inst, (client) =>
+    client.send("Storage.setCookies", {
+      cookies: [{ ...own, domain: host, path: "/", httpOnly: true, secure: true, expires: Date.now() / 1000 + 86400 }],
+    })
+  );
+  await inst.stop();
+  if (set?.error) {
+    note(label, false, `Storage.setCookies: ${set.error.message}`);
+    return;
+  }
+
+  const throwaway = cookieKey(scheme.password, scheme.iterations);
+  const standInSystemKey = cookieKey(crypto.randomBytes(16).toString("base64"), scheme.iterations);
+  const copied = { name: "mtqualifycopied", value: `copied-${process.pid}-${Date.now()}` };
+  const control = { name: "mtqualifycontrol", value: `control-${process.pid}-${Date.now()}` };
+  const ownClear = await withCookieDb(db, (sqlite, hostPrefix) => {
+    const row = sqlite.prepare("SELECT encrypted_value FROM cookies WHERE name = ?").get(own.name);
+    const clear = row ? decryptCookie(throwaway, row.encrypted_value, hostPrefix) : null;
+    insertCookieLike(sqlite, own.name, control.name, encryptCookie(throwaway, host, control.value, hostPrefix));
+    return clear;
+  });
+  if (ownClear !== own.value) {
+    note(label, false, "a cookie the test profile stored is not encrypted with the throwaway key");
+    return;
+  }
+
+  // The control row, written here with the throwaway key, shows that a row built this way is read: the copied one below
+  // differs only by its key.
+  const kept = await cookiesAfterRestart(inst, note);
+  if (kept == null) {
+    note(label, false, "the app did not start again on the test profile, or its port did not answer");
+    return;
+  }
+  if (kept[own.name] !== own.value || kept[control.name] !== control.value) {
+    note(label, false, "the test profile lost its own cookies after a restart");
+    return;
+  }
+
+  await withCookieDb(db, (sqlite, hostPrefix) =>
+    insertCookieLike(sqlite, own.name, copied.name, encryptCookie(standInSystemKey, host, copied.value, hostPrefix))
+  );
+  const after = await cookiesAfterRestart(inst, note);
+  if (after == null) {
+    note(label, false, "the app did not start on the profile with a copied cookie, or its port did not answer");
+    return;
+  }
+  const copiedRead = Object.values(after).includes(copied.value);
+  note(
+    label,
+    !copiedRead,
+    copiedRead
+      ? "a cookie copied from a profile with another key is readable over the port"
+      : `the test profile uses a throwaway cookie key: its own cookies survive a restart, a copied one is unreadable over the port (${Object.keys(after).length} cookie(s) left)`
+  );
+}
+
+async function withCookieDb(db, fn) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const sqlite = new DatabaseSync(db);
+  try {
+    const version = Number(sqlite.prepare("SELECT value FROM meta WHERE key = 'version'").get()?.value ?? 0);
+    return fn(sqlite, version >= 24);
+  } finally {
+    sqlite.close();
+  }
+}
+
+// A copy of the row named `from`, under the name `name` and with the encrypted value `encrypted`.
+function insertCookieLike(sqlite, from, name, encrypted) {
+  const columns = sqlite
+    .prepare("PRAGMA table_info(cookies)")
+    .all()
+    .map((c) => c.name);
+  const pick = columns.map((c) => (c === "name" || c === "encrypted_value" ? "?" : c));
+  sqlite
+    .prepare(`INSERT INTO cookies (${columns.join(", ")}) SELECT ${pick.join(", ")} FROM cookies WHERE name = ?`)
+    .run(...columns.flatMap((c) => (c === "name" ? [name] : c === "encrypted_value" ? [encrypted] : [])), from);
+}
+
+// The cookies the default session reads over the port after a start without the harness's keychain switch, by name, or
+// null when the app does not start or the port does not answer.
+async function cookiesAfterRestart(inst, note) {
+  await inst.launch({ inspect: false, keyringSwitch: false });
+  if (!(await started(inst, null, note))) {
+    await inst.stop();
+    return null;
+  }
+  const got = await browserCdp(inst, (client) => client.send("Storage.getCookies"));
+  await inst.stop();
+  if (got?.result?.cookies == null) {
+    return null;
+  }
+  return Object.fromEntries(got.result.cookies.map((c) => [c.name, c.value]));
 }
 
 // Runs `fn` with a CDP client on the browser target, the default session's cookie store.
