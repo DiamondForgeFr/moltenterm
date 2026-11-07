@@ -54,7 +54,13 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkAvatar, BrokkAvatarSlot } from "./brokk-avatar";
-import { AvatarSizePx, HangingSizePx } from "./brokk-avatar-model";
+import {
+    AvatarSizePx,
+    downloadRingRadiusUnits,
+    HangingSizePx,
+    RingUnits,
+    workingRingBoxPx,
+} from "./brokk-avatar-model";
 import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkHub, HubDeps } from "./brokk-hub";
 import { DownloadsModel } from "../downloads/downloads-store";
@@ -461,7 +467,7 @@ describe("the tooltip (AC1)", () => {
 });
 
 describe("the download ring on his face (FR-BOSS-009, AC34 to AC36, #2083)", () => {
-    const Length = 2 * Math.PI * 14.25;
+    const Length = 2 * Math.PI * downloadRingRadiusUnits("row");
     const runningAtom = (DownloadsModel.getInstance() as any).runningAtom;
     const running = (...items: { received: number; total: number; state?: string }[]) =>
         globalStore.set(
@@ -469,6 +475,15 @@ describe("the download ring on his face (FR-BOSS-009, AC34 to AC36, #2083)", () 
             items.map((item, i) => ({ id: `d${i}`, state: item.state ?? "progressing", ...item }))
         );
     const dash = (html: string) => parseFloat(/stroke-dasharray="([\d.]+)/.exec(html)?.[1] ?? "NaN");
+    // The first circle of a ring's svg: its radius and stroke, in the ring's own units.
+    const ringCircle = (html: string, testId: string) => {
+        const svg = new RegExp(`<svg[^>]*data-testid="${testId}"[^>]*>([\\s\\S]*?)</svg>`).exec(html)?.[1] ?? "";
+        const circle = /<circle[^>]*>/.exec(svg)?.[0] ?? "";
+        return {
+            r: parseFloat(/ r="([\d.]+)"/.exec(circle)?.[1] ?? "NaN"),
+            stroke: parseFloat(/stroke-width="([\d.]+)"/.exec(circle)?.[1] ?? "NaN"),
+        };
+    };
 
     afterEach(() => running());
 
@@ -509,6 +524,21 @@ describe("the download ring on his face (FR-BOSS-009, AC34 to AC36, #2083)", () 
         expect(html).toContain('data-testid="brokk-download-ring"');
         expect(html).toContain('data-testid="brokk-cup"');
         expect(html).toMatch(/data-testid="boss-badge"[^>]*>1</);
+    });
+
+    it("draws both rings when he works and a download runs: the download is concentric with the working ring, 2 px outside it and as thick, in every variant", () => {
+        globalStore.set(hubModel.ownWorkingAtom, true);
+        running({ received: 13, total: 100 });
+        for (const variant of ["row", "edge", "hanging"] as const) {
+            const html = render(variant);
+            expect(html).toContain('data-testid="brokk-ring"');
+            expect(html).toContain('data-testid="brokk-download-ring"');
+            const working = ringCircle(html, "brokk-ring");
+            const download = ringCircle(html, "brokk-download-ring");
+            const pxPerUnit = workingRingBoxPx(variant) / RingUnits;
+            expect(download.stroke).toBe(working.stroke);
+            expect(download.r - download.stroke / 2 - (working.r + working.stroke / 2)).toBeCloseTo(2 / pxPerUnit, 6);
+        }
     });
 
     it("never turns: its rule has no animation and no transition, and it carries no working beat", () => {

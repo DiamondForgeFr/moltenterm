@@ -9,10 +9,8 @@
 import type { DownloadRecord } from "../downloads/downloads-model";
 import { downloadRingOf } from "../downloads/downloads-model";
 import { useTCount } from "../i18n/i18n";
+import { AvatarVariant, downloadRingRadiusUnits, RingStrokeUnits, RingUnits } from "./brokk-avatar-model";
 
-// The arc's radius in the 30-unit box of the ring: just outside the face's edge, which the box's own size places.
-const RingRadius = 14.25;
-const RingLength = 2 * Math.PI * RingRadius;
 // A quarter arc stands for a download whose size is not known, as the rail's ring does.
 const IndeterminateArc = 0.25;
 
@@ -30,20 +28,28 @@ export function useDownloadWords(running: DownloadRecord[]): string | null {
     return tCount("boss.avatar.downloadKnown", running.length, { percent: Math.round(ring * 100) });
 }
 
-// A thin arc around the face, at the overall progress; a quarter arc while the size of the running downloads is unknown.
-export function AvatarDownloadRing({ ring }: { ring: number }) {
+// A thin arc around the working ring, concentric with it and 2 px outside it, at the overall progress; a quarter arc while
+// the size of the running downloads is unknown. Its box is the working ring's, and it overflows that box to draw there.
+export function AvatarDownloadRing({ ring, variant }: { ring: number; variant: AvatarVariant }) {
+    const radius = downloadRingRadiusUnits(variant);
+    const length = 2 * Math.PI * radius;
     const shown = ring >= 0 ? ring : IndeterminateArc;
     return (
-        <svg aria-hidden viewBox="0 0 30 30" className="mt-brokk-download" data-testid="brokk-download-ring">
+        <svg
+            aria-hidden
+            viewBox={`0 0 ${RingUnits} ${RingUnits}`}
+            className="mt-brokk-download"
+            data-testid="brokk-download-ring"
+        >
             <circle
-                cx="15"
-                cy="15"
-                r={RingRadius}
+                cx={RingUnits / 2}
+                cy={RingUnits / 2}
+                r={radius}
                 fill="none"
                 stroke="var(--mt-state-running)"
-                strokeWidth={1.5}
+                strokeWidth={RingStrokeUnits}
                 strokeLinecap="round"
-                strokeDasharray={`${shown * RingLength} ${RingLength}`}
+                strokeDasharray={`${shown * length} ${length}`}
             />
         </svg>
     );

@@ -182,15 +182,24 @@
     pointer-events: none;
 }
 
-/* The download ring (FR-BOSS-009, AC34, #2083): a thin arc of the rail's ember just outside the face, at the overall
-   progress of the running downloads. It is drawn in the 30-unit box that the avatar's size scales, and it never turns. */
+/* The download ring (FR-BOSS-009, AC34, #2083): a thin arc of the rail's ember, concentric with the working ring and 2 px
+   outside it, at the overall progress of the running downloads. Its box is the working ring's (the same inset per
+   variant, so the same scale), and it overflows that box, which is where its arc is drawn. It never turns. */
 .mt-brokk-download {
     position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    overflow: visible;
+    rotate: -90deg;
+    pointer-events: none;
+}
+
+.mt-brokk-avatar.is-edge .mt-brokk-download,
+.mt-brokk-avatar.is-hanging .mt-brokk-download {
     inset: -2px;
     width: calc(100% + 4px);
     height: calc(100% + 4px);
-    rotate: -90deg;
-    pointer-events: none;
 }
 
 /* The soft cue: he has something to tell you, and the gate holds him back. A halo in the waiting colour around the face. */
