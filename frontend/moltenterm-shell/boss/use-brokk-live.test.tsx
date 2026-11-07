@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 
@@ -81,12 +81,18 @@ function hook<T>(use: () => T): T {
 }
 
 beforeEach(() => {
+    // Local noon in any time zone: at night the scene speaks of the late hour instead (#2035).
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 5, 15, 12) });
     Mocks.reduced = false;
     Mocks.noteOpen.mockReset();
     globalStore.set(bubble.workingCountAtom, 0);
     globalStore.set(bubble.badgeAtom, { count: 0, text: "", tone: "waiting" });
     globalStore.set(bubble.toHandleAtom, { items: [], info: [], parked: 0 });
     globalStore.set(expressions.askedAtom, null);
+});
+
+afterEach(() => {
+    vi.useRealTimers();
 });
 
 describe("the card's header (FR-BOSS-007, AC8, #1959; FR-BOSS-009)", () => {
