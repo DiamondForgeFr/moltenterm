@@ -90,6 +90,10 @@ describe("the fuses a packaged build carries (#1975)", () => {
     });
   });
 
+  it("encrypt the cookie store on disk (#2058)", () => {
+    expect(ElectronFuses.enableCookieEncryption).toBe(true);
+  });
+
   it("keep the file protocol privileges while an app page is loaded with loadFile()", () => {
     const loadsFromFile = ["emain-tabview.ts", "emain-builder.ts"].some((file) =>
       /\.loadFile\(/.test(fs.readFileSync(path.join(root, "emain", file), "utf8"))
@@ -129,6 +133,7 @@ describe("reading the fuse wire", () => {
 describe("the drift from the expected fuses", () => {
   const hardened = {
     runAsNode: false,
+    enableCookieEncryption: true,
     enableNodeOptionsEnvironmentVariable: false,
     enableNodeCliInspectArguments: false,
     enableEmbeddedAsarIntegrityValidation: true,
@@ -141,8 +146,9 @@ describe("the drift from the expected fuses", () => {
 
   it("names every fuse of a build left at Electron's defaults", () => {
     const drift = fuseDrift(readFuseWires(binaryWith({})));
-    expect(drift).toHaveLength(5);
+    expect(drift).toHaveLength(6);
     expect(drift.join("\n")).toMatch(/runAsNode is on, expected off/);
+    expect(drift.join("\n")).toMatch(/enableCookieEncryption is off, expected on/);
     expect(drift.join("\n")).toMatch(/enableNodeOptionsEnvironmentVariable is on, expected off/);
     expect(drift.join("\n")).toMatch(/enableNodeCliInspectArguments is on, expected off/);
     expect(drift.join("\n")).toMatch(/enableEmbeddedAsarIntegrityValidation is off, expected on/);
@@ -153,6 +159,11 @@ describe("the drift from the expected fuses", () => {
     const drift = fuseDrift(readFuseWires(binaryWith({ ...hardened, runAsNode: true })));
     expect(drift).toHaveLength(1);
     expect(drift[0]).toMatch(/runAsNode is on/);
+  });
+
+  it("catches a build that stores cookies in clear", () => {
+    const drift = fuseDrift(readFuseWires(binaryWith({ ...hardened, enableCookieEncryption: false })));
+    expect(drift).toEqual([expect.stringMatching(/enableCookieEncryption is off, expected on/)]);
   });
 
   it("checks every slice of a universal binary", () => {
@@ -200,6 +211,7 @@ describe("a packaged app on disk", () => {
         good,
         binaryWith({
           runAsNode: false,
+          enableCookieEncryption: true,
           enableNodeOptionsEnvironmentVariable: false,
           enableNodeCliInspectArguments: false,
           enableEmbeddedAsarIntegrityValidation: true,
@@ -208,7 +220,7 @@ describe("a packaged app on disk", () => {
       );
       fs.writeFileSync(bad, binaryWith({}));
       expect(checkPackagedApp(good).problems).toEqual([]);
-      expect(checkPackagedApp(bad).problems).toHaveLength(5);
+      expect(checkPackagedApp(bad).problems).toHaveLength(6);
       expect(checkPackagedApp(path.join(dir, "missing")).problems[0]).toMatch(/does not exist/);
 
       const script = path.join(root, "scripts", "moltenterm-check-fuses.mjs");

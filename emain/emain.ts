@@ -64,6 +64,7 @@ import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-pol
 import { initMoltentermHangWatch } from "./moltenterm-hang-watch"; // MOLTENTERM-PATCH (#849)
 import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermDownloads } from "./moltenterm-downloads"; // MOLTENTERM-PATCH (#1992)
+import { planMoltentermCookieEncryption, startMoltentermCookieEncryption } from "./moltenterm-cookie-encryption"; // MOLTENTERM-PATCH (#2058)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermSitePermissions, installMoltentermSitePermissionHandlers } from "./moltenterm-site-permissions"; // MOLTENTERM-PATCH (#663)
@@ -429,6 +430,7 @@ async function appMain() {
         fireAndForget(createNewWaveWindow);
     });
     exportSystemLanguageToEnv(); // MOLTENTERM-PATCH (#623): review:language's default in wavesrv follows the interface language
+    await planMoltentermCookieEncryption(); // MOLTENTERM-PATCH (#2058): the clear cookies, read before Chromium locks the database
     try {
         await runWaveSrv(handleWSEvent);
     } catch (e) {
@@ -437,6 +439,7 @@ async function appMain() {
     const ready = await getWaveSrvReady();
     console.log("wavesrv ready signal received", ready, Date.now() - startTs, "ms");
     await electronApp.whenReady();
+    await startMoltentermCookieEncryption(); // MOLTENTERM-PATCH (#2058): stored encrypted again, before any page loads
     getTrustedAppSession();
     initIpcHandlers();
     initBusyCloseReplies(); // MOLTENTERM-PATCH (#490, #806): registered application replies to FR-SHELL-062's asks

@@ -23,6 +23,11 @@ const ElectronFuses = {
     // A same-user process could otherwise run its own script under MoltenTerm's signature
     // (`ELECTRON_RUN_AS_NODE=1 MoltenTerm -e ...`), with the privacy grants and keychain access of the app.
     runAsNode: false,
+    // Cookie values are written encrypted with the key the system keychain keeps for the app ("MoltenTerm Safe Storage"),
+    // so a program that reads the profile folder gets no signed-in session (#2058). A one-way switch: Chromium still
+    // reads the rows an earlier version wrote in clear, and emain/moltenterm-cookie-encryption.ts rewrites them once.
+    // Turned off again, the encrypted cookies could not be read and every sign-in would be lost.
+    enableCookieEncryption: true,
     // NODE_OPTIONS (`--require`, `--inspect`...) and NODE_EXTRA_CA_CERTS are read by the main process otherwise.
     enableNodeOptionsEnvironmentVariable: false,
     // `--inspect`, `--inspect-brk`... and SIGUSR1 would open the main process to any local program otherwise.
