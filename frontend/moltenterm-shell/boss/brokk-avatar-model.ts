@@ -3,8 +3,7 @@
 
 // Where Brokk's avatar stands and what opens beside it (FR-BOSS-009, AC1, AC14, #2002): the avatar sits in the sidebar's
 // title row, or hangs from the window's top edge when the sidebar is not on screen; his hover tooltip stands under it
-// and his panel (the Sessions card until the panel story) beside the sidebar. Pure, so the rules are tested without a
-// window.
+// (his floating group stands beside the sidebar: brokk-group-model.ts). Pure, so the rules are tested without a window.
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
@@ -58,24 +57,4 @@ export function peekPosition(
         Math.max(viewport.width - fit - ViewMarginPx, ViewMarginPx)
     );
     return { top: anchor.top + anchor.height + PeekGapPx, left, width: fit };
-}
-
-export type CardPlace = { top: string; left?: string; right?: string; maxHeight: string };
-
-// Where his panel stands, in the coordinates of the layer it is drawn in: beside the sidebar, from under the avatar,
-// when the sidebar is on screen; under the avatar, aligned with its right edge, when it hangs from the window's edge.
-// With Brokk turned off there is no avatar (the panel opens for a section, #2003): it stands below the title row.
-export const NoAvatarTopPx = 40;
-
-export function cardPlace(avatar: Rect, sidebar: Rect, layer: Rect): CardPlace {
-    const top =
-        avatar == null ? NoAvatarTopPx : Math.max(avatar.top + avatar.height - layer.top + PeekGapPx, ViewMarginPx);
-    const maxHeight = `calc(100% - ${top}px - ${ViewMarginPx}px)`;
-    if (sidebar != null) {
-        const left = Math.max(sidebar.left + sidebar.width - layer.left + PeekGapPx, ViewMarginPx);
-        return { top: `${top}px`, left: `${left}px`, maxHeight };
-    }
-    const right =
-        avatar == null ? ViewMarginPx : Math.max(layer.left + layer.width - (avatar.left + avatar.width), ViewMarginPx);
-    return { top: `${top}px`, right: `${right}px`, maxHeight };
 }

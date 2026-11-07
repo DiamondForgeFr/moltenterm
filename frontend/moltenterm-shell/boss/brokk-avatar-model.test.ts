@@ -6,9 +6,7 @@ import { restingPose } from "./brokk-ask-model";
 import {
     avatarSituation,
     avatarVariant,
-    cardPlace,
     hangingRightPx,
-    NoAvatarTopPx,
     PeekGapPx,
     peekPosition,
     PeekWidthPx,
@@ -60,45 +58,5 @@ describe("where the tooltip stands", () => {
         const place = peekPosition(rect(100, 5), { width: 200, height: 600 });
         expect(place.width).toBe(200 - 2 * ViewMarginPx);
         expect(place.left).toBe(ViewMarginPx);
-    });
-});
-
-describe("where his panel stands", () => {
-    it("is beside a docked sidebar, from under the avatar, where the content begins", () => {
-        const place = cardPlace(rect(230, 5), rect(8, 0, 264, 800), rect(272, 0, 928, 800));
-        expect(place.top).toBe(`${5 + 26 + PeekGapPx}px`);
-        expect(place.left).toBe(`${PeekGapPx}px`);
-        expect(place.right).toBeUndefined();
-    });
-
-    it("is beside a sidebar that floats over the content, past its right edge", () => {
-        const place = cardPlace(rect(230, 12), rect(8, 8, 264, 780), rect(0, 0, 1200, 800));
-        expect(place.left).toBe(`${8 + 264 + PeekGapPx}px`);
-    });
-
-    it("is under the avatar, aligned with its right edge, when it hangs from the window's edge", () => {
-        const place = cardPlace(rect(1150, 0, 14, 14), null, rect(0, 0, 1200, 800));
-        expect(place.right).toBe(`${1200 - 1164}px`);
-        expect(place.left).toBeUndefined();
-        expect(place.top).toBe(`${14 + PeekGapPx}px`);
-    });
-
-    it("is below the title row, at the window's top right, with Brokk turned off and no avatar to hang from (#2003)", () => {
-        const place = cardPlace(null, null, rect(0, 0, 1200, 800));
-        expect(place.top).toBe(`${NoAvatarTopPx}px`);
-        expect(place.right).toBe(`${ViewMarginPx}px`);
-        expect(place.left).toBeUndefined();
-    });
-
-    it("is still beside the sidebar with no avatar, so that the notifications stay near the sidebar", () => {
-        const place = cardPlace(null, rect(8, 0, 264, 800), rect(0, 0, 1200, 800));
-        expect(place.top).toBe(`${NoAvatarTopPx}px`);
-        expect(place.left).toBe(`${8 + 264 + PeekGapPx}px`);
-    });
-
-    it("never grows past the window", () => {
-        expect(cardPlace(rect(230, 5), rect(8, 0, 264, 800), rect(272, 0, 928, 800)).maxHeight).toBe(
-            `calc(100% - ${5 + 26 + PeekGapPx}px - ${ViewMarginPx}px)`
-        );
     });
 });

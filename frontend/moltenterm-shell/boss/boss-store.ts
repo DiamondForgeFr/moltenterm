@@ -12,6 +12,8 @@ import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import { AgentStates } from "../agent-state-store";
 import { I18nModel } from "../i18n/i18n";
+import { keepAwakeActive } from "../keepawake-model";
+import { KeepAwakeModel } from "../keepawake-store";
 import { MoltentermNotifications } from "../notifications-store";
 import { SharedReadiedAtom, SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { DurableSessions } from "../sessions/sessions-store";
@@ -32,7 +34,7 @@ import { bossName, BossNameSettingKey, bossSettingOn, BossShowSettingKey } from 
 import { Badge, BossPeek, makePeek, workingCount, workspaceNamesOf } from "./boss-overview";
 import { buildToHandle, peekRowOf, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
-import { PanelRequest, PanelTab } from "./brokk-panel-model";
+import { PanelId, PanelRequest } from "./brokk-group-model";
 import { arrivalsAfter, EmptyArrivals, unseenItems } from "./brokk-watch";
 
 // The slice of the document the model listens on, so the rules run against a stand-in in the tests.
@@ -68,6 +70,11 @@ export class BossBubbleModel {
     tabRequestAtom = atom(null) as PrimitiveAtom<PanelRequest>;
     // The To handle rows set aside with Later, by their key: back at the card's next opening (FR-BOSS-003).
     parkedAtom = atom({}) as PrimitiveAtom<Record<string, boolean>>;
+    // The developer writes to him or his session answers (the field of the group): the title-bar face shows the sign of
+    // a conversation then, and not merely because the group is open (FR-BOSS-009, AC17, #2032).
+    talkingAtom = atom(false) as PrimitiveAtom<boolean>;
+    // Something keeps this computer awake: the cup shows as a small mark on the title-bar face while the group is closed.
+    keepAwakeAtom: Atom<boolean>;
     // The rows settled or ignored, for the episode they were in, shared by the views and windows of this computer
     // (FR-BOSS-009, AC16).
     handledAtom = atom(EmptyHandled) as PrimitiveAtom<HandledRows>;
@@ -106,6 +113,7 @@ export class BossBubbleModel {
             (a, b) => a.count === b.count && a.tone === b.tone
         );
         this.workingCountAtom = atom((get) => workingCount(get(AgentStates.getInstance().dataAtom)));
+        this.keepAwakeAtom = atom((get) => keepAwakeActive(get(KeepAwakeModel.getInstance().stateAtom)));
         this.peekAtom = atom((get) => {
             get(I18nModel.getInstance().localeAtom);
             const states = get(AgentStates.getInstance().dataAtom);
@@ -145,20 +153,20 @@ export class BossBubbleModel {
 
     // A tab of the panel, asked by the developer's gesture (a toast's Open, the downloads pill, a notification's View):
     // the panel opens on it, or goes to it when it is open.
-    showPanel(tab: PanelTab, highlight: string[] = []): void {
+    showPanel(tab: PanelId, highlight: string[] = []): void {
         this.openCard(undefined, { force: true });
         this.requestTab(tab, highlight);
     }
 
     // The same request from a source that has no gesture (a notification that asked for attention): it only shows in a
     // panel the developer opened already, and never opens one.
-    showInOpenPanel(tab: PanelTab, highlight: string[] = []): void {
+    showInOpenPanel(tab: PanelId, highlight: string[] = []): void {
         if (globalStore.get(this.cardOpenAtom)) {
             this.requestTab(tab, highlight);
         }
     }
 
-    private requestTab(tab: PanelTab, highlight: string[]): void {
+    private requestTab(tab: PanelId, highlight: string[]): void {
         const seq = (globalStore.get(this.tabRequestAtom)?.seq ?? 0) + 1;
         globalStore.set(this.tabRequestAtom, { tab, seq, highlight });
     }

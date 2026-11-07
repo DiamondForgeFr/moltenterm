@@ -11,6 +11,7 @@ import { agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import {
     agentCell,
+    canReconnect,
     connChip,
     displayFolder,
     DurableSession,
@@ -18,6 +19,7 @@ import {
     formatAge,
     groupSessions,
     HiddenGroupId,
+    modelText,
     reasonTitle,
     rowName,
     SessionConnState,
@@ -34,6 +36,15 @@ export type CardRow = {
     depth: number;
     name: string;
     kind: "agent" | "command" | "shell";
+    // The agent that runs ("Claude Code"), "" for a session with none.
+    agentName: string;
+    // The model and effort of the agent, "" when unknown.
+    model: string;
+    // The ticket the session works on, 0 when it names none.
+    ticket: number;
+    // The connection of an SSH session is lost and can be made again.
+    canReconnect: boolean;
+    workspaceId: string;
     // The agent's state, "" for a session that runs no agent.
     state: string;
     stateText: string;
@@ -95,6 +106,11 @@ export function cardRow(s: DurableSession, depth: number, home: string, nowMs: n
         depth,
         name,
         kind: cell.kind,
+        agentName: cell.kind === "agent" ? cell.label : "",
+        model: cell.kind === "agent" ? modelText(s) : "",
+        ticket: s.context?.ticket ?? 0,
+        canReconnect: canReconnect(s),
+        workspaceId: s.workspaceid ?? "",
         state: cell.kind === "agent" ? s.agentstate || "idle" : "",
         stateText: cell.kind === "agent" ? agentStateLabel(s.agentstate || "idle") : cell.label,
         // A shell named after its folder says its project once.

@@ -3,10 +3,11 @@
 
 // Brokk at rest (FR-BOSS-009, AC1, AC2, AC14, #2002): a small round animated avatar at the right end of the sidebar's
 // title row, or hanging from the window's top edge when the sidebar is not on screen. It carries the badge of what
-// waits, an animated ring while Brokk himself works (never because other agents do), and a soft halo while a visit waits
-// for the gate. Hovering it shows a tooltip, nothing else; a click opens his panel. It never opens anything by itself,
-// takes no focus and plays no sound. While the scene stands in his place it is hidden; while his panel is open it never
-// shows a second face, and says calmly that he is busy with the developer (a soft ring and a small glyph, #2003).
+// waits, an animated ring while Brokk himself works (never because other agents do), a small cup while keep-awake holds
+// this computer awake and he is closed, and a soft halo while a visit waits for the gate. Hovering it shows a tooltip,
+// nothing else; a click opens his floating group. It never opens anything by itself, takes no focus and plays no sound.
+// While the scene stands in his place it is hidden; while his group is open it keeps its place and its badge, takes a
+// soft ring in the action colour and shows a still frame, so the only animated Brokk is the group's square (#2032).
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -14,7 +15,6 @@ import { cn, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { openSettingsSection } from "../settings/settings-open";
 import { useWorkingBeat } from "../working-beat";
 import { bubbleLabel } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
@@ -22,6 +22,7 @@ import { BossBubbleModel } from "./boss-store";
 import { AvatarVariant, PeekDelayMs, Rect } from "./brokk-avatar-model";
 import "./brokk-avatar.css";
 import { BrokkHubModel } from "./brokk-hub-store";
+import { brokkMenuItems } from "./brokk-menu";
 import { BrokkTooltip } from "./brokk-peek";
 import { useAvatarBadge, useAvatarLive, useHubSelect } from "./use-brokk-hub";
 
@@ -61,6 +62,8 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const hubModel = BrokkHubModel.getInstance();
     const name = useAtomValue(boss.nameAtom, { store: globalStore });
     const cardOpen = useAtomValue(boss.cardOpenAtom, { store: globalStore });
+    const talking = useAtomValue(boss.talkingAtom, { store: globalStore });
+    const keepAwake = useAtomValue(boss.keepAwakeAtom, { store: globalStore });
     const ownWorking = useAtomValue(hubModel.ownWorkingAtom, { store: globalStore });
     const badge = useAvatarBadge();
     const cue = useHubSelect((view) => view.cue);
@@ -92,10 +95,9 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
         }
     }, [cardOpen, sceneUp]);
 
-    // His face lives in the panel while it is open: the avatar says so, calmly, and never shows a second face.
-    const talking = t("boss.avatar.talking", { name });
+    // His animated face lives in the group's square while it is open: the avatar keeps a still frame, and its click closes.
     const label = cardOpen
-        ? talking
+        ? t("boss.avatar.close", { name })
         : cue
           ? t("boss.avatar.labelCue", { name, count: badge.count })
           : bubbleLabel(name, badge.count);
@@ -112,11 +114,10 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
         e.stopPropagation();
         closePeek();
         ContextMenuModel.getInstance().showContextMenu(
-            [
-                { label: t("boss.menu.openCard", { name }), click: () => hubModel.hub.open() },
-                { type: "separator" },
-                { label: t("boss.menu.settings", { name }), click: () => void openSettingsSection("boss") },
-            ],
+            brokkMenuItems(name, () => boss.closeCard({ restoreFocus: false }), {
+                label: t("boss.menu.openCard", { name }),
+                click: () => hubModel.hub.open(),
+            }),
             e
         );
     };
@@ -135,7 +136,6 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             data-scene={sceneUp ? "up" : undefined}
             data-panel={cardOpen ? "open" : undefined}
             aria-label={label}
-            title={cardOpen ? talking : undefined}
             aria-haspopup="dialog"
             aria-expanded={cardOpen}
             aria-describedby={peek != null ? tooltipId : undefined}
@@ -157,12 +157,17 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             <span className="mt-brokk-face" aria-hidden>
                 <BossPortrait live={live} />
             </span>
-            {cardOpen ? (
+            {cardOpen && talking ? (
                 <i
                     className={cn(makeIconClass("comment-dots", true), "mt-brokk-talk")}
                     data-testid="brokk-talking"
                     aria-hidden
                 />
+            ) : null}
+            {keepAwake && !cardOpen ? (
+                <span className="mt-brokk-cup" data-testid="brokk-cup" aria-hidden>
+                    <i className={makeIconClass("mug-hot", true)} />
+                </span>
             ) : null}
             {ownWorking ? <AvatarRing /> : null}
             {cue ? <AvatarHalo /> : null}

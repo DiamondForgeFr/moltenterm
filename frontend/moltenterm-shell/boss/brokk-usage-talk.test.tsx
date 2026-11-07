@@ -90,7 +90,7 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
     it("is named for him, with a Send that waits for a message", () => {
         const html = render();
         expect(html).toContain('data-testid="brokk-talk-input"');
-        expect(html).toContain('placeholder="Talk to Brokk…"');
+        expect(html).toContain('placeholder="Write to Brokk…"');
         expect(html).toContain('aria-label="Message to Brokk"');
         expect(html).toMatch(/data-testid="brokk-talk-send"[^>]*>Send/);
         expect(html).toMatch(/<button type="submit" disabled=""/);

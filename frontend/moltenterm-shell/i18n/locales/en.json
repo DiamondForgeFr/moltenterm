@@ -3009,11 +3009,51 @@
         "label": "{name}, {count} waiting",
         "avatar": {
             "labelCue": "{name}, {count} waiting: has something to tell you",
-            "talking": "{name} is talking to you"
+            "close": "Close {name}"
+        },
+        "group": {
+            "ariaLabel": "{name}: notifications, agents, sessions, downloads and keep-awake",
+            "close": "Close {name}",
+            "closePanel": "Close the panel",
+            "panels": {
+                "notifications": "Notifications",
+                "agents": "Agents",
+                "sessions": "Sessions",
+                "downloads": "Downloads",
+                "keepawake": "Keep awake",
+                "usage": "Usage"
+            },
+            "rail": {
+                "label": "Panels of {name}",
+                "count": "{name}, {count} waiting",
+                "blocked": "{name}, an agent is blocked",
+                "running": "{name}, {percent} % downloaded",
+                "runningUnknown": "{name}, a download is running",
+                "news": "{name}, a download has news",
+                "awake": "{name}, on"
+            },
+            "priority": {
+                "urgent": "Urgent",
+                "answer": "To answer",
+                "info": "Info",
+                "done": "Done"
+            },
+            "usage": {
+                "open": "Show the usage of each plan in detail",
+                "resets": "Resets {day}",
+                "percent": "{percent} %"
+            },
+            "agentsEmpty": "No agent is running.",
+            "sessionsEmpty": "No terminal or SSH session is running.",
+            "keepAwake": {
+                "unsupported": "Keeping this computer awake is not available here.",
+                "reason": "Reason",
+                "noReason": "Nothing keeps this computer awake.",
+                "until": "Until the work ends."
+            }
         },
         "menu": {
-            "openCard": "Open the card of {name}",
-            "settings": "{name} settings"
+            "openCard": "Open the card of {name}"
         },
         "visit": {
             "label": "{name} would like a word ({severity})",
@@ -3034,24 +3074,11 @@
             }
         },
         "card": {
-            "tablist": "Sections of {name}'s panel",
-            "tabs": {
-                "todo": "To handle",
-                "notifications": "Notifications",
-                "sessions": "Sessions",
-                "downloads": "Downloads",
-                "usage": "Usage"
-            },
-            "waiting": {
-                "one": "{count} waiting",
-                "other": "{count} waiting"
-            },
             "goTo": "Go to",
             "goToName": "Go to {name}",
             "showIt": "Show it",
             "showItName": "Show {name} in a pane",
             "openSessions": "Open the Sessions view",
-            "empty": "No session is running.",
             "newTerminal": "New terminal"
         },
         "coming": {
@@ -3065,20 +3092,15 @@
             "severity": "Severity sets his face and the delays of Later, never the words: the scene has no text."
         },
         "panel": {
-            "title": "{name}",
-            "ariaLabel": "{name}'s panel: to handle, notifications, sessions, downloads and usage",
             "menu": "{name}'s menu",
             "menuComing": "When {name} comes to fetch me…",
             "menuSettings": "{name}'s preferences",
             "menuOff": "Turn {name} off",
-            "keepAwake": {
-                "details": "What keeps this computer awake"
-            },
             "usage": {
                 "empty": "No plan usage to show yet: it appears when an agent shares its reading."
             },
             "talk": {
-                "placeholder": "Talk to {name}…",
+                "placeholder": "Write to {name}…",
                 "label": "Message to {name}",
                 "send": "Send",
                 "sending": "On its way…",
@@ -3100,12 +3122,10 @@
             }
         },
         "todo": {
-            "empty": "Nothing waits for you.",
             "parked": {
                 "one": "{count} set aside, back when you open the card again",
                 "other": "{count} set aside, back when you open the card again"
             },
-            "forInfo": "For info, nothing to do",
             "infoDone": "Finished its work.",
             "agentWaiting": "{name} waits for you",
             "agentError": "{name} stopped on an error",
@@ -3120,9 +3140,7 @@
             "seen": "Seen",
             "later": "Later",
             "ignore": "Ignore",
-            "others": "Everything else",
             "handoff": {
-                "group": "Handoffs between agents",
                 "terminal": "A terminal",
                 "once": "Allow once",
                 "always": "Always for this pair",
