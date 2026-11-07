@@ -35,6 +35,9 @@ const (
 	procReadArgs = 2 * time.Second
 	// A block's command that is not running looks again on its output at most this often.
 	procProbeEvery = 5 * time.Second
+	// After Enter in a shell without the shell integration, a shell still at its prompt is looked at again for this
+	// long: it may start the command a little later, and an agent that prints nothing would never be found (#2048).
+	procEnteredFor = 10 * time.Second
 )
 
 // ShellProcess is the local process of a terminal: its shell, or a block's own command.
@@ -75,6 +78,8 @@ type shellWatch struct {
 	probed time.Time
 	// gen changes with every command start and end: a pass that saw an older one does not apply what it saw.
 	gen int64
+	// enteredUntil: after Enter, a shell found at its prompt is looked at again until then (zero: not after Enter).
+	enteredUntil time.Time
 }
 
 type procWatcher struct {
@@ -83,6 +88,8 @@ type procWatcher struct {
 	wake   chan struct{}
 	// off: the process table cannot be read here; the watcher stays idle.
 	off bool
+	// enteredFor: procEnteredFor (tests change it).
+	enteredFor time.Duration
 
 	now       func() time.Time
 	readTable func() (*proctree.Table, error)
@@ -93,12 +100,13 @@ type procWatcher struct {
 
 func makeProcWatcher(agents *agentStates) *procWatcher {
 	return &procWatcher{
-		shells:    map[string]*shellWatch{},
-		wake:      make(chan struct{}, 1),
-		now:       time.Now,
-		readTable: proctree.Read,
-		readArgs:  readProcessArgs,
-		agents:    agents,
+		shells:     map[string]*shellWatch{},
+		wake:       make(chan struct{}, 1),
+		enteredFor: procEnteredFor,
+		now:        time.Now,
+		readTable:  proctree.Read,
+		readArgs:   readProcessArgs,
+		agents:     agents,
 	}
 }
 
@@ -153,6 +161,7 @@ func (w *procWatcher) shellMark(blockId string, kind string, applyMark func()) {
 		now := w.now()
 		sw.integrated = true
 		sw.relocate = true
+		sw.enteredUntil = time.Time{}
 		sw.gen++
 		sw.running, sw.since, sw.marked = true, now, true
 		sw.next = now.Add(procFirstDelay)
@@ -164,6 +173,7 @@ func (w *procWatcher) shellMark(blockId string, kind string, applyMark func()) {
 		}
 		sw.integrated = true
 		sw.gen++
+		sw.enteredUntil = time.Time{}
 		sw.running, sw.next, sw.found, sw.marked = false, time.Time{}, false, false
 		sw.agent = molten.AgentProcess{}
 	}
@@ -200,13 +210,16 @@ func (w *procWatcher) entered(blockId string) {
 	if sw == nil || sw.integrated || sw.shell.Command || !sw.next.IsZero() {
 		return
 	}
-	w.probeLocked(blockId, w.now())
+	now := w.now()
+	w.probeLocked(blockId, now)
+	sw.enteredUntil = now.Add(w.enteredFor)
 }
 
 // probeLocked plans one look at a terminal's process, which follows it while a command or an agent runs.
 func (w *procWatcher) probeLocked(blockId string, now time.Time) {
 	sw := w.getLocked(blockId)
 	sw.probed = now
+	sw.enteredUntil = time.Time{}
 	sw.relocate = true
 	sw.gen++
 	sw.running, sw.since, sw.marked = true, now, false
@@ -382,10 +395,14 @@ func (w *procWatcher) apply(d procDue, read bool, alive bool, running bool, agen
 	sw.relocate = false
 	sw.found = found
 	sw.agent = molten.AgentProcess{}
+	now := w.now()
+	if found || running {
+		// The command Enter started is there: it is followed as any other, and its end stops the looks.
+		sw.enteredUntil = time.Time{}
+	}
 	if found {
 		sw.agent = agent
 	}
-	now := w.now()
 	switch {
 	case !alive:
 		// No local process (a remote terminal, a shell gone): nothing to follow until the next command.
@@ -394,6 +411,10 @@ func (w *procWatcher) apply(d procDue, read bool, alive bool, running bool, agen
 	case !sw.running:
 		// The command ended while this pass ran.
 		sw.next = time.Time{}
+	case !running && !found && !sw.marked && now.Before(sw.enteredUntil):
+		// Enter was sent but the shell has not started the command yet (a loaded machine): look again, so an agent
+		// that prints nothing is found too (#2048). The looks stop when the window ends.
+		sw.next = now.Add(procFastPeriod)
 	case !running && !found && !sw.marked:
 		// At its prompt: nothing runs (a terminal looked at at startup or on its first output). A command the shell
 		// integration announced is followed until its end, even when its process is not there yet.
