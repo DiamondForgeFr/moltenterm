@@ -139,8 +139,8 @@ import { MoltentermNotifications } from "../notifications-store";
 import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
-import { BrokkGroup, GroupFrame } from "./brokk-group";
-import { groupGeometry } from "./brokk-group-model";
+import { BrokkGroup, BrokkScrim, GroupFrame } from "./brokk-group";
+import { ArrivalSteps, groupGeometry } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 
 const boss = BossBubbleModel.getInstance() as any;
@@ -288,6 +288,25 @@ describe("the group (FR-BOSS-009, AC17)", () => {
         expect(render(Frame, false)).not.toContain("is-in");
     });
 
+    it("gives each part the step of the motion order, and the panel none: it shows with the square (#2082)", () => {
+        globalStore.set(downloads.itemsAtom, [download("d1", "completed", Date.now())]);
+        const html = render(Frame, false);
+        expect(attr(html, "brokk-panel", "data-panel")).toBe("downloads");
+        const steps: Record<string, number> = {
+            "brokk-square": ArrivalSteps.square,
+            "brokk-rail": ArrivalSteps.rail,
+            "brokk-block": ArrivalSteps.block,
+            "brokk-fieldbox": ArrivalSteps.field,
+        };
+        for (const [id, step] of Object.entries(steps)) {
+            expect(attr(html, id, "style"), id).toContain(`--i:${step}`);
+        }
+        expect(ArrivalSteps.panel).toBe(0);
+        expect(attr(html, "brokk-panel", "style")).not.toContain("--i");
+        // Drawn with the group from its first frame, so its motion is the group's class, not a mount of its own.
+        expect(html).toMatch(/class="mt-brokk-group"[\s\S]*data-testid="brokk-panel"/);
+    });
+
     it("arrives with no offset when there is no face on screen", () => {
         expect(attr(render({ ...Frame, origin: null }), "brokk-square", "style")).not.toContain("--dx");
     });
@@ -427,6 +446,10 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
             expect(scope).toMatch(/transition: opacity var\(--mt-duration-fade\) linear !important/);
             expect(scope).toMatch(/\.mt-brokk-scan \{\s*animation: none;/);
             expect(scope).toMatch(/\.mt-brokk-gpanel/);
+            // The panel and its link fade with the group, the same short fade (#2082).
+            expect(scope).toMatch(
+                /\.mt-brokk-gpanel,\s*(\.prefers-reduced-motion )?\.mt-brokk-plink \{\s*animation: none !important;\s*transform: none !important;\s*transition: opacity var\(--mt-duration-fade\) linear !important;/
+            );
         }
     });
 });
@@ -793,5 +816,41 @@ describe("what Brokk sees when the group closes (AC19)", () => {
     it("keeps the sign of a conversation on the face while he is spoken to", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain("globalStore.set(boss.talkingAtom, pose != null);");
+    });
+});
+
+describe("the scrim over the work area (AC39, #2082)", () => {
+    const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+    it("shows only while the group is open, and fades out while it leaves", () => {
+        expect(attr(render(Frame, true), "brokk-scrim", "class")).toBe("mt-brokk-scrim is-in");
+        expect(attr(render(Frame, false), "brokk-scrim", "class")).toBe("mt-brokk-scrim");
+        const rest = /\n\.mt-brokk-scrim \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(rest).toMatch(/inset: 0;/);
+        expect(rest).toMatch(/opacity: 0;/);
+        expect(rest).toMatch(/pointer-events: none;/);
+        expect(rest).toMatch(/transition: opacity var\(--mt-duration-show\) linear;/);
+        expect(rest).toMatch(/background: color-mix\(in srgb, var\(--mt-scrim\) 45%, transparent\);/);
+        expect(css).not.toMatch(/\.mt-brokk-scrim[^{]*\{[^}]*(backdrop-filter|filter: blur)/);
+        const shown = /\n\.mt-brokk-scrim\.is-in \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(shown).toMatch(/opacity: 1;/);
+        expect(shown).toMatch(/pointer-events: auto;/);
+    });
+
+    it("closes the group on a click", () => {
+        const onClose = vi.fn();
+        const el = BrokkScrim({ shown: true, onClose });
+        el.props.onClick();
+        expect(onClose).toHaveBeenCalledTimes(1);
+        // The group's own outside-press listener closes on a press on it too: the scrim is not part of the group.
+        expect(render(Frame, true)).toMatch(/data-testid="brokk-scrim"[^>]*>[\s\S]*data-testid="boss-card"/);
+    });
+
+    it("takes the short fade under reduced motion, in both ways the app tells it", () => {
+        const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+        expect(media).toMatch(/\.mt-brokk-scrim \{\s*transition: opacity var\(--mt-duration-fade\) linear;/);
+        expect(css).toMatch(
+            /\.prefers-reduced-motion \.mt-brokk-scrim \{\s*transition: opacity var\(--mt-duration-fade\) linear;/
+        );
     });
 });

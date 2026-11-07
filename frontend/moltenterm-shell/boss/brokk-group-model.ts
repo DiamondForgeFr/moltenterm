@@ -115,14 +115,24 @@ export type GroupPlace = {
 };
 
 // 8 px to the right of the sidebar and 8 px from the top of the window area; with no sidebar on screen, 8 px from the
-// window's left edge.
-export function groupPlace(sidebar: Rect, layer: { width: number; height: number }, g: GroupGeometry): GroupPlace {
-    const left = sidebar != null ? sidebar.x + sidebar.w + EdgePx : EdgePx;
+// window's left edge. `inset` is the frame's margin around the window area inside the layer (--mt-frame-gap, 0 when
+// there is no frame): the panels start that far into the layer, and a group placed at the layer's 8 px would sit on
+// their corner, glued to the sidebar and the top (#2082). The gap is taken from whichever is further right, the
+// sidebar's real edge (open, or the strip of a collapsed one) or the window area's.
+export function groupPlace(
+    sidebar: Rect,
+    layer: { width: number; height: number },
+    g: GroupGeometry,
+    inset: number = 0
+): GroupPlace {
+    const edge = Math.max(sidebar != null ? sidebar.x + sidebar.w : 0, inset);
+    const left = edge + EdgePx;
+    const top = inset + EdgePx;
     return {
         left,
-        top: EdgePx,
-        panelRoom: layer.width - left - g.panelLeft - EdgePx,
-        heightRoom: layer.height - 2 * EdgePx,
+        top,
+        panelRoom: layer.width - left - g.panelLeft - inset - EdgePx,
+        heightRoom: layer.height - top - inset - EdgePx,
     };
 }
 
@@ -133,6 +143,51 @@ export function arrivalOffset(origin: { x: number; y: number }, rect: Rect): { d
 
 // The rail and the block follow the square by 50 ms steps; the field comes first, it is the least to look at.
 export const ArrivalStepMs = 50;
+
+// The parts that move together (FR-BOSS-009: everything arrives together, from the title-bar face, #2082).
+export type MotionPart = "square" | "rail" | "block" | "field" | "panel";
+export const GroupParts: MotionPart[] = ["square", "rail", "block", "field"];
+
+// The approved mockup's motion (exploration #2027). Each part's step of ArrivalStepMs on the way in (the --i of
+// brokk-group.css): the rail and the block follow the square by one step; the panel shows with the square, never
+// before it. On the way out nothing waits: everything goes back at once.
+export const ArrivalSteps: Record<MotionPart, number> = { square: 0, rail: 1, block: 1, field: 0, panel: 0 };
+
+// The durations of tokens.css, in ms: drop (the square's transform), snap (the rail's, the block's and the field's),
+// show (their opacity), settle (the panel's slide), base (the panel's and its link's opacity) and fade (the only motion
+// under reduced motion).
+export type MotionDurations = { drop: number; snap: number; show: number; settle: number; base: number; fade: number };
+export const GroupDurations: MotionDurations = { drop: 520, snap: 420, show: 200, settle: 260, base: 180, fade: 120 };
+
+function transformMs(part: MotionPart, d: MotionDurations): number {
+    if (part === "square") {
+        return d.drop;
+    }
+    return part === "panel" ? d.settle : d.snap;
+}
+
+function opacityMs(part: MotionPart, d: MotionDurations): number {
+    return part === "panel" ? d.base : d.show;
+}
+
+// When a part starts to show (or to leave) and when it is fully in place (or gone, its opacity at 0), in ms from the
+// moment the group is asked to open (or to close). Under reduced motion every part takes the same short fade, with no
+// step.
+export function partMotion(
+    part: MotionPart,
+    way: "open" | "close",
+    reduced: boolean,
+    d: MotionDurations = GroupDurations
+): { start: number; end: number } {
+    if (reduced) {
+        return { start: 0, end: d.fade };
+    }
+    if (way === "open") {
+        const start = ArrivalSteps[part] * ArrivalStepMs;
+        return { start, end: start + Math.max(transformMs(part, d), opacityMs(part, d)) };
+    }
+    return { start: 0, end: opacityMs(part, d) };
+}
 
 export function inRect(r: Rect, x: number, y: number): boolean {
     return r != null && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;

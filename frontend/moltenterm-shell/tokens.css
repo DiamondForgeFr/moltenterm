@@ -209,6 +209,14 @@
     /* The 360 cube of a view's icon turns a quarter when the whole screen changes, and slides or stretches with the
        carpet (#1823, #1861); instant under reduced motion, where the face just changes. */
     --mt-duration-cube: 300ms;
+    /* Brokk's floating group (FR-BOSS-009, #2082), the approved mockup's motion: his square drops from the title-bar
+       face in --mt-duration-drop, what stands around it snaps into place in --mt-duration-snap, they show in
+       --mt-duration-show, and the panel settles beside the rail in --mt-duration-settle. Under reduced motion they
+       are 0 and the group only fades (--mt-duration-fade). */
+    --mt-duration-drop: 520ms;
+    --mt-duration-snap: 420ms;
+    --mt-duration-show: 200ms;
+    --mt-duration-settle: 260ms;
     --mt-ease: cubic-bezier(0.2, 0, 0, 1);
     --mt-ease-cool: cubic-bezier(0.3, 0, 0.1, 1);
     --mt-ease-cube: cubic-bezier(0.45, 0, 0.2, 1);
@@ -428,6 +436,10 @@
         --mt-duration-flow: 0ms;
         --mt-duration-cool: 0ms;
         --mt-duration-cube: 0ms;
+        --mt-duration-drop: 0ms;
+        --mt-duration-snap: 0ms;
+        --mt-duration-show: 0ms;
+        --mt-duration-settle: 0ms;
     }
 }
 
@@ -439,6 +451,10 @@
     --mt-duration-flow: 0ms;
     --mt-duration-cool: 0ms;
     --mt-duration-cube: 0ms;
+    --mt-duration-drop: 0ms;
+    --mt-duration-snap: 0ms;
+    --mt-duration-show: 0ms;
+    --mt-duration-settle: 0ms;
 }
 
 /* A workspace's glyph in its own colour, pulled towards the main text colour so it reads at 4.5:1 on every surface

@@ -38,6 +38,24 @@
     -webkit-app-region: no-drag;
 }
 
+/* The light scrim over the work area while the group is open (FR-BOSS-009, AC39, #2082): about 25 % black (the app's
+   scrim at 45 %), no blur. It fades with the square's opacity, and takes the pointer only while the group is in, so a
+   press on it closes the group and nothing is held while it leaves. */
+.mt-brokk-scrim {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--mt-scrim) 45%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mt-duration-show) linear;
+}
+
+.mt-brokk-scrim.is-in {
+    opacity: 1;
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+}
+
 /* The ember thread from the face to the square: it stays while the group is open. */
 .mt-brokk-thread {
     position: absolute;
@@ -52,7 +70,8 @@
     opacity: 1;
 }
 
-/* What arrives from the face: it starts small, at the face, and springs into place. */
+/* What arrives from the face: it starts small, at the face, and snaps into place, by its step (--i) on the way in; it
+   goes back to the face at once on the way out (the approved mockup's motion, #2082). */
 .mt-brokk-sq,
 .mt-brokk-rail,
 .mt-brokk-block,
@@ -63,8 +82,8 @@
     pointer-events: none;
     transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(0.4);
     transition:
-        transform var(--mt-duration-flow) cubic-bezier(0.3, 1.12, 0.4, 1) calc(var(--i, 0) * 50ms),
-        opacity var(--mt-duration-fast) linear calc(var(--i, 0) * 50ms);
+        transform var(--mt-duration-snap) cubic-bezier(0.3, 1.12, 0.4, 1),
+        opacity var(--mt-duration-show) linear;
 }
 
 .mt-brokk-group.is-in > .mt-brokk-sq,
@@ -74,6 +93,13 @@
     opacity: 1;
     pointer-events: auto;
     transform: none;
+}
+
+.mt-brokk-group.is-in > .mt-brokk-rail,
+.mt-brokk-group.is-in > .mt-brokk-block {
+    transition:
+        transform var(--mt-duration-snap) cubic-bezier(0.3, 1.12, 0.4, 1) calc(var(--i, 0) * 50ms),
+        opacity var(--mt-duration-show) linear calc(var(--i, 0) * 50ms);
 }
 
 /* The square: his upper body under the screen effect. */
@@ -87,8 +113,8 @@
         0 0 0 1px color-mix(in srgb, var(--mt-state-running) 45%, transparent),
         0 0 40px color-mix(in srgb, var(--mt-action) 20%, transparent);
     transition:
-        transform var(--mt-duration-flow) cubic-bezier(0.2, 1.15, 0.4, 1),
-        opacity var(--mt-duration-fast) linear;
+        transform var(--mt-duration-drop) cubic-bezier(0.2, 1.15, 0.4, 1),
+        opacity var(--mt-duration-show) linear;
 }
 
 .mt-brokk-sq-pic {
@@ -428,8 +454,8 @@
 .mt-brokk-fieldbox {
     overflow: visible;
     transition:
-        transform var(--mt-duration-flow) cubic-bezier(0.3, 1.12, 0.4, 1) calc(var(--i, 0) * 50ms),
-        opacity var(--mt-duration-fast) linear calc(var(--i, 0) * 50ms),
+        transform var(--mt-duration-snap) cubic-bezier(0.3, 1.12, 0.4, 1),
+        opacity var(--mt-duration-show) linear,
         width var(--mt-duration-slow) cubic-bezier(0.3, 1.12, 0.4, 1),
         height var(--mt-duration-slow) cubic-bezier(0.3, 1.12, 0.4, 1);
 }
@@ -599,8 +625,9 @@
     position: absolute;
     height: 2px;
     background: var(--mt-action);
+    opacity: 0;
     pointer-events: none;
-    animation: mt-brokk-panel-in var(--mt-duration-base) linear both;
+    transition: opacity var(--mt-duration-base) linear;
 }
 
 .mt-brokk-gpanel {
@@ -613,14 +640,38 @@
     border: 1px solid color-mix(in srgb, var(--mt-action) 60%, transparent);
     border-radius: var(--mt-radius-panel);
     box-shadow: var(--mt-shadow-command);
-    transition: height var(--mt-duration-slow) cubic-bezier(0.3, 1.12, 0.4, 1);
-    animation: mt-brokk-panel-in var(--mt-duration-base) cubic-bezier(0.3, 1.12, 0.4, 1) both;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-8px);
+    /* It moves with the group, never on its own (#2082): it shows when the group comes in, with the square, and goes
+       when the group leaves, at the same time as the rest and quicker than the square. */
+    transition:
+        transform var(--mt-duration-settle) cubic-bezier(0.3, 1.12, 0.4, 1),
+        opacity var(--mt-duration-base) linear,
+        height var(--mt-duration-settle) cubic-bezier(0.3, 1.12, 0.4, 1);
 }
 
-@keyframes mt-brokk-panel-in {
-    from {
+.mt-brokk-group.is-in > .mt-brokk-gpanel {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+}
+
+.mt-brokk-group.is-in > .mt-brokk-plink {
+    opacity: 1;
+}
+
+/* A panel that opens while the group is already in (a click, a hover, a request) has no style to pass from: it starts
+   from this one, so it takes the same transition. Not a keyframe animation: a finished one on the panel keeps Chromium
+   from starting the leaving transition, and the panel would vanish at once when the group closes. */
+@starting-style {
+    .mt-brokk-group.is-in > .mt-brokk-gpanel {
         opacity: 0;
         transform: translateX(-8px);
+    }
+
+    .mt-brokk-group.is-in > .mt-brokk-plink {
+        opacity: 0;
     }
 }
 
@@ -856,11 +907,13 @@
 
     .mt-brokk-gpanel,
     .mt-brokk-plink {
-        animation: none;
-        transition: none;
+        animation: none !important;
+        transform: none !important;
+        transition: opacity var(--mt-duration-fade) linear !important;
     }
 
-    .mt-brokk-thread {
+    .mt-brokk-thread,
+    .mt-brokk-scrim {
         transition: opacity var(--mt-duration-fade) linear;
     }
 }
@@ -879,10 +932,12 @@
 
 .prefers-reduced-motion .mt-brokk-gpanel,
 .prefers-reduced-motion .mt-brokk-plink {
-    animation: none;
-    transition: none;
+    animation: none !important;
+    transform: none !important;
+    transition: opacity var(--mt-duration-fade) linear !important;
 }
 
-.prefers-reduced-motion .mt-brokk-thread {
+.prefers-reduced-motion .mt-brokk-thread,
+.prefers-reduced-motion .mt-brokk-scrim {
     transition: opacity var(--mt-duration-fade) linear;
 }
