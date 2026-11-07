@@ -108,7 +108,7 @@ fixes between MoltenTerm releases.
   `emain/moltenterm-webselector-gate.test.ts`. Still open there: a live question on the Wave web block itself, which
   has no permission bar, so the user allows the site once in the browser panel.
 
-#### H3. Electron fuses are left at their defaults (fixed in #1975, T1; file protocol and cookie fuses remain)
+#### H3. Electron fuses are left at their defaults (fixed in #1975, T1, and #2058 for cookies; the file protocol fuse remains)
 
 - **Evidence.** `electron-builder.config.cjs` sets no `electronFuses` and nothing else flips them (`@electron/fuses` is
   only a transitive build dependency). Defaults keep `RunAsNode`, `EnableNodeOptionsEnvironmentVariable`,
@@ -140,6 +140,18 @@ fixes between MoltenTerm releases.
   so the scenario above was wrong about a "cookie encryption key": today a same-user process reads the cookie database
   directly, with no need to run code under MoltenTerm's signature. The fuses close the run-code-as-MoltenTerm path; the
   cookie store needs its own ticket.
+- **Residual closed (#2058): cookies are encrypted on disk.** Packaged builds turn `enableCookieEncryption` on: Chromium
+  writes each cookie value encrypted with the app's keychain key ("MoltenTerm Safe Storage", the one `safeStorage`
+  already uses), so a program that reads the profile folder gets no session. Chromium still reads the rows an earlier
+  version wrote in clear but leaves them in clear until their site sets them again, so the first start of the new
+  version rewrites them once per persistent session (`emain/moltenterm-cookie-encryption.ts`,
+  `emain/moltenterm-cookie-migration.ts`): the clear rows are read before Chromium locks the database, and the same
+  cookies are set again through the session, which stores them encrypted. No sign-in is lost (checked on a profile
+  written by a packaged build of the previous version, signed in to a local site). What stays: a partitioned cookie
+  (a site embedded in another) is left in clear until its site sets it again, since Electron's cookie API cannot set its
+  partition; a user who denies the keychain request keeps the clear rows (retried at the next start), and Chromium
+  cannot store new cookies without the key. Qualified by `scripts/moltenterm-qualify-packaged.mjs` (a cookie the app
+  stores has no clear value or bytes on disk; a clear row of an earlier version is still sent, then stored encrypted).
 - **Residual: `--remote-debugging-port` is not a fuse.** A packaged build still opens a Chromium debugging port when it is
   started with that switch (it is how tests drive it), and a program that starts the app that way drives its pages
   under its signature. Closing that means the app ignores the switch outside test instances (`MOLTENTERM_BACKGROUND`
