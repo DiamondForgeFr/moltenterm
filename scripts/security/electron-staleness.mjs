@@ -523,7 +523,7 @@ export function syncIssue(report, markdown, { run = defaultRun, repo } = {}) {
 
 const FetchAttempts = 3;
 
-async function fetchJson(url, headers, retryDelayMs) {
+async function fetchPage(url, headers, retryDelayMs) {
     let last;
     for (let attempt = 1; attempt <= FetchAttempts; attempt++) {
         try {
@@ -531,7 +531,7 @@ async function fetchJson(url, headers, retryDelayMs) {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
-            return await response.json();
+            return { body: await response.json(), link: response.headers?.get("link") ?? "" };
         } catch (error) {
             last = error;
             if (attempt < FetchAttempts) {
@@ -542,17 +542,37 @@ async function fetchJson(url, headers, retryDelayMs) {
     return fail(`Could not read ${url}: ${last?.message}`);
 }
 
+const fetchJson = async (url, headers, retryDelayMs) => (await fetchPage(url, headers, retryDelayMs)).body;
+
+// GitHub answers this list with a cursor in the Link header, naming the repository by its id
+// (https://api.github.com/repositories/9384267/security-advisories?per_page=100&after=...); a page number is ignored
+// and would repeat the first page. The token follows the link only to GitHub's own advisory endpoint.
+function isAdvisoriesLink(link) {
+    try {
+        const url = new URL(link);
+        return url.origin === "https://api.github.com" && url.pathname.endsWith("/security-advisories");
+    } catch {
+        return false;
+    }
+}
+
 async function readAdvisories(headers, retryDelayMs) {
     const all = [];
+    let url = `${AdvisoriesUrl}?per_page=100`;
     for (let page = 1; page <= 20; page++) {
-        const items = await fetchJson(`${AdvisoriesUrl}?per_page=100&page=${page}`, headers, retryDelayMs);
-        if (!Array.isArray(items)) {
+        const { body, link } = await fetchPage(url, headers, retryDelayMs);
+        if (!Array.isArray(body)) {
             fail("The advisory list is not a list");
         }
-        all.push(...items);
-        if (items.length < 100) {
+        all.push(...body);
+        const next = /<([^>]+)>;\s*rel="next"/.exec(link)?.[1];
+        if (!next) {
             return all;
         }
+        if (!isAdvisoriesLink(next)) {
+            fail(`The advisory list continues at an unexpected address: ${next}`);
+        }
+        url = next;
     }
     return fail("The advisory list is longer than 20 pages");
 }
