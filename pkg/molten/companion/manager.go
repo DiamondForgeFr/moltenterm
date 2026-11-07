@@ -249,9 +249,13 @@ type Manager struct {
 	openFiles      func(pid int32) []string
 	procTable      func() (*proctree.Table, error)
 	settings       func() *wconfig.SettingsType
-	now            func() time.Time
-	tick           time.Duration
-	idleTick       time.Duration
+	// The global Codex reading (globalusage.go): its folder and its read, replaced in tests.
+	codexHomeDir    func() string
+	readCodexGlobal func(ctx context.Context, home string) (usage.UsageSnapshot, error)
+	globalPublished string
+	now             func() time.Time
+	tick            time.Duration
+	idleTick        time.Duration
 }
 
 func MakeManager() *Manager {

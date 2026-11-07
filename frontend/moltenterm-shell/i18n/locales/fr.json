@@ -3044,6 +3044,8 @@
             },
             "usage": {
                 "open": "Voir le détail de l'usage de chaque forfait",
+                "asOf": "Relevé {ago}",
+                "unreadable": "aucun relevé",
                 "resets": "Réinitialisation : {day}",
                 "percent": "{percent} %"
             },

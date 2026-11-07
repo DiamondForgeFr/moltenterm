@@ -8,7 +8,7 @@
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
 import { GaugeRow, gaugeRows, UsageSnapshot, UsageWindow } from "../companion/companion-gauges-model";
-import type { UsageReadings } from "./boss-usage";
+import type { UsageReadings, UsageUnreadable } from "./boss-usage";
 
 export const WeekWindowId = "week";
 // A window known only by its length: seven days.
@@ -55,6 +55,9 @@ export function usageProviders(readings: UsageReadings, now: number): UsageProvi
     return providers.sort((a, b) => b.fullest - a.fullest);
 }
 
+// A reading older than this shows its age beside its percent (#2074).
+export const UsageOldMs = 60 * 60 * 1000;
+
 export type WeeklyUsage = {
     provider: string;
     // Rounded, as shown.
@@ -62,6 +65,12 @@ export type WeeklyUsage = {
     grave: boolean;
     // When the week window resets (Unix ms), 0 when the reader does not say.
     resetsAt: number;
+    // When the reading was taken (Unix ms), 0 when unknown.
+    readAt: number;
+    // The reading is older than UsageOldMs: its age shows.
+    old: boolean;
+    // Set when the provider's global reading cannot be read at all: the cell says so in one calm line.
+    unreadable?: string;
 };
 
 function isWeek(window: UsageWindow): boolean {
@@ -69,8 +78,8 @@ function isWeek(window: UsageWindow): boolean {
 }
 
 // The weekly window of each provider, the fullest first. A provider with no weekly reading, or whose week is past its
-// reset, has no entry.
-export function weeklyUsage(readings: UsageReadings, now: number): WeeklyUsage[] {
+// reset, has no entry, unless its global reading says it cannot be read: it then comes last, without a percent.
+export function weeklyUsage(readings: UsageReadings, now: number, unreadable?: UsageUnreadable): WeeklyUsage[] {
     const out: WeeklyUsage[] = [];
     for (const [provider, snapshot] of latestByProvider(readings)) {
         const week = (snapshot.windows ?? []).find(
@@ -80,9 +89,33 @@ export function weeklyUsage(readings: UsageReadings, now: number): WeeklyUsage[]
             continue;
         }
         const percent = Math.round(Math.min(100, Math.max(0, week.usedpercent)));
-        out.push({ provider, percent, grave: percent > GravePercent, resetsAt: week.resetsat ?? 0 });
+        const readAt = snapshot.readat ?? 0;
+        out.push({
+            provider,
+            percent,
+            grave: percent > GravePercent,
+            resetsAt: week.resetsat ?? 0,
+            readAt,
+            old: readAt > 0 && now - readAt > UsageOldMs,
+        });
     }
-    return out.sort((a, b) => b.percent - a.percent || (a.provider < b.provider ? -1 : 1));
+    out.sort((a, b) => b.percent - a.percent || (a.provider < b.provider ? -1 : 1));
+    const shown = new Set(out.map((u) => u.provider));
+    for (const provider of Object.keys(unreadable ?? {}).sort()) {
+        if (shown.has(provider)) {
+            continue;
+        }
+        out.push({
+            provider,
+            percent: 0,
+            grave: false,
+            resetsAt: 0,
+            readAt: 0,
+            old: false,
+            unreadable: unreadable[provider],
+        });
+    }
+    return out;
 }
 
 // The weekday the week resets on, in the language given ("lundi"); "" when the reader does not say.

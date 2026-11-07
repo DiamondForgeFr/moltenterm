@@ -111,6 +111,35 @@ describe("the weekly usage under the square (FR-BOSS-009, AC17 and AC20)", () =>
         expect(rows[0].percent).toBe(15);
     });
 
+    // #2074: a Pro Lite reading has one weekly window and no secondary; a day-old one still shows, with its age.
+    it("shows an old reading of a running week, marked old", () => {
+        const rows = weeklyUsage(
+            {
+                codex: reading(
+                    "codex",
+                    [{ id: "week", usedpercent: 9, resetsat: Now + 4 * Day }],
+                    Now - Day,
+                    "prolite"
+                ),
+            },
+            Now
+        );
+        expect(rows.map((r) => [r.provider, r.percent, r.old, r.readAt])).toEqual([["codex", 9, true, Now - Day]]);
+        const fresh = weeklyUsage({ codex: reading("codex", [{ id: "week", usedpercent: 9 }], Now - 60000) }, Now);
+        expect(fresh[0].old).toBe(false);
+    });
+
+    it("lists an unreadable provider last, without a percent, unless it has a running week", () => {
+        const rows = weeklyUsage({ claude: reading("claude", [{ id: "week", usedpercent: 20 }]) }, Now, {
+            codex: "expired",
+            claude: "failed",
+        });
+        expect(rows.map((r) => [r.provider, r.unreadable ?? ""])).toEqual([
+            ["claude", ""],
+            ["codex", "expired"],
+        ]);
+    });
+
     it("names the weekday of the reset in the language given", () => {
         const monday = new Date(2026, 10, 9, 8, 0, 0).getTime();
         expect(resetDay(monday, "fr")).toBe("lundi");

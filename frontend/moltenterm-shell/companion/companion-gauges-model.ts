@@ -43,6 +43,8 @@ export type UsageReason =
 export type UsageExperimental = { source: string; name: string; on: boolean; store: string; reason?: UsageReason };
 export type CompanionUsageInfo = {
     blockid: string;
+    // The reading of the whole app, without a block (#2074).
+    global?: boolean;
     agent: string;
     pageurl: string;
     pagename: string;
