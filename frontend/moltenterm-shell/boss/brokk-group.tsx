@@ -21,6 +21,8 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStates } from "../agent-state-store";
+import { usageReasonText } from "../companion/companion-gauges-model";
+import { relativeTime } from "../companion/companion-model";
 import { agentName } from "../companion/companion-task-model";
 import { isActive, overallDownloadProgress, runningDownloads } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
@@ -35,7 +37,7 @@ import { AnchorAttr, cardKeyAction, CardKeyInput, CardTestId, isOutsidePress } f
 import { attentionAgents } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
-import { UsageReadingsAtom } from "./boss-usage";
+import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkItem, sayLine } from "./brokk-exchange-model";
 import {
     activePanel,
@@ -164,6 +166,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom, { store: globalStore });
     const downloadItems = useAtomValue(downloads.itemsAtom, { store: globalStore });
     const readings = useAtomValue(UsageReadingsAtom, { store: globalStore });
+    const unreadable = useAtomValue(UsageUnreadableAtom, { store: globalStore });
     const keepState = useAtomValue(KeepAwakeModel.getInstance().stateAtom, { store: globalStore });
     const currentWorkspace = useAtomValue(atoms.workspace, { store: globalStore });
     const rootRef = useRef<HTMLDivElement>(null);
@@ -215,7 +218,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         downloadRunning: running.length > 0,
         keepAwake,
     });
-    const weekly = useMemo(() => weeklyUsage(readings, now), [readings, now]);
+    const weekly = useMemo(() => weeklyUsage(readings, now, unreadable), [readings, now, unreadable]);
 
     // What his face does with the conversation: it listens while the developer writes, thinks while his session works on
     // a message, speaks while his answer comes in (AC25).
@@ -627,7 +630,29 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                             </span>
                         ) : (
                             weekly.map((u) => {
+                                if (u.unreadable) {
+                                    return (
+                                        <span
+                                            key={u.provider}
+                                            className="mt-brokk-pv"
+                                            data-testid="brokk-usage-cell"
+                                            data-provider={u.provider}
+                                            data-unreadable="true"
+                                            title={usageReasonText(u.unreadable, u.provider)}
+                                        >
+                                            <span className="truncate">{agentName(u.provider)}</span>
+                                            <span className="mt-brokk-pv-note" data-testid="brokk-usage-unreadable">
+                                                {t("boss.group.usage.unreadable")}
+                                            </span>
+                                        </span>
+                                    );
+                                }
                                 const day = resetDay(u.resetsAt, locale);
+                                const age = u.old ? relativeTime(u.readAt, now) : "";
+                                const titles = [
+                                    day ? t("boss.group.usage.resets", { day }) : "",
+                                    age ? t("boss.group.usage.asOf", { ago: age }) : "",
+                                ].filter(Boolean);
                                 return (
                                     <span
                                         key={u.provider}
@@ -635,9 +660,17 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                                         data-hi={u.grave ? "true" : undefined}
                                         data-testid="brokk-usage-cell"
                                         data-provider={u.provider}
-                                        title={day ? t("boss.group.usage.resets", { day }) : undefined}
+                                        title={titles.length > 0 ? titles.join(" · ") : undefined}
                                     >
-                                        <span className="truncate">{agentName(u.provider)}</span>
+                                        <span className="truncate">
+                                            {agentName(u.provider)}
+                                            {age ? (
+                                                <span className="mt-brokk-pv-note" data-testid="brokk-usage-age">
+                                                    {" · "}
+                                                    {age}
+                                                </span>
+                                            ) : null}
+                                        </span>
                                         <b data-testid="brokk-usage-percent">
                                             {t("boss.group.usage.percent", { percent: u.percent })}
                                         </b>

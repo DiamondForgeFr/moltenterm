@@ -408,6 +408,12 @@
 }
 
 /* Above 90 %: the grave colour, on the number and on the bar. */
+/* An old reading's age, or the calm line of one that cannot be read (#2074). */
+.mt-brokk-pv-note {
+    color: var(--mt-text-3);
+    white-space: nowrap;
+}
+
 .mt-brokk-pv[data-hi="true"] b {
     color: var(--mt-state-blocked-text);
 }

@@ -64,7 +64,7 @@ vi.mock("./brokk-hub-store", async () => {
 });
 vi.mock("./boss-usage", async () => {
     const { atom } = await import("jotai");
-    return { UsageReadingsAtom: atom({} as any) };
+    return { UsageReadingsAtom: atom({} as any), UsageUnreadableAtom: atom({} as any) };
 });
 // His animated portrait and its models have their own tests (use-brokk-live): here the group only asks for them.
 const Calls = vi.hoisted(() => ({ live: [] as unknown[], caption: [] as unknown[] }));
@@ -135,7 +135,7 @@ import { KeepAwakeModel } from "../keepawake-store";
 import { MoltentermNotifications } from "../notifications-store";
 import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
-import { UsageReadingsAtom } from "./boss-usage";
+import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkGroup, GroupFrame } from "./brokk-group";
 import { groupGeometry } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
@@ -688,6 +688,23 @@ describe("the block under the square (AC17 and AC20)", () => {
             })()
         )?.[0];
         expect(cell).toMatch(/title="Resets [A-Za-z]+"/);
+    });
+
+    // #2074: a day-old reading of a running week still shows, with its age; one that cannot be read says so calmly.
+    it("marks an old reading with its age, and says when a provider cannot be read", () => {
+        globalStore.set(UsageReadingsAtom, { codex: { ...reading("codex", 9), readat: Date.now() - 26 * 60 * Min } });
+        let html = render();
+        expect(html).toContain('data-testid="brokk-usage-age"');
+        expect(html).toMatch(/data-testid="brokk-usage-percent">9 %</);
+        globalStore.set(UsageReadingsAtom, { codex: reading("codex", 9) });
+        expect(render()).not.toContain('data-testid="brokk-usage-age"');
+        globalStore.set(UsageReadingsAtom, {});
+        globalStore.set(UsageUnreadableAtom, { codex: "expired" });
+        html = render();
+        expect(html).not.toContain('data-testid="brokk-usage-empty"');
+        expect(html).toMatch(/data-testid="brokk-usage-unreadable">no reading</);
+        expect(html).not.toContain('data-testid="brokk-usage-bar"');
+        globalStore.set(UsageUnreadableAtom, {});
     });
 
     it("says in one line when no provider shares a reading, and the click on the block opens the detail", () => {

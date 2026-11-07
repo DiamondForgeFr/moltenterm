@@ -3045,7 +3045,9 @@
             "usage": {
                 "open": "Show the usage of each plan in detail",
                 "resets": "Resets {day}",
-                "percent": "{percent} %"
+                "percent": "{percent} %",
+                "asOf": "Read {ago}",
+                "unreadable": "no reading"
             },
             "agentsEmpty": "No agent is running.",
             "sessionsEmpty": "No terminal or SSH session is running.",
