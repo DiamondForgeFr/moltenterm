@@ -150,7 +150,7 @@ and the nightly run run everything.
 | Job           | When                              | Steps                                                                                                                                         |
 | ------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Affected tests | Always, drafts included          | `node scripts/moltenterm-affected.mjs --plan`: the job decisions below, in its summary and outputs (no install, the changed paths only) |
-| Quick checks  | Always, drafts included           | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-license.mjs`, `node scripts/moltenterm-check-icons.mjs`, `node scripts/moltenterm-check-lockfile.mjs` |
+| Quick checks  | Always, drafts included           | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-license.mjs`, `node scripts/moltenterm-check-icons.mjs`, `node --test scripts/moltenterm-setup-task.node-test.mjs`, `node scripts/moltenterm-check-lockfile.mjs` |
 | CLA           | Pull requests, drafts included    | `.github/workflows/cla.yml` (`pull_request_target`, read-only token, no secret): `node scripts/moltenterm-check-cla.mjs <PR>`. See "Contributor agreement" below. |
 | Dependency security | When a manifest, a lock file or the scanner changes, drafts included; every full run | Reusable secret-free `security-scan.yml`: pinned npm/govulncheck, both module graphs and declared targets, scoped policy verdict and raw evidence artifact |
 | Frontend      | Skipped on draft pull requests    | `npm ci`, `npx tsc --noEmit` (the command behind `task check:ts`), `npx eslint . --quiet`, the affected vitest files, `npm run build:prod`             |
@@ -184,6 +184,17 @@ repository alone). Until the secret exists those jobs fail at `npm ci`, and so d
 no secret. Dependency security has no such step on purpose: it never installs (`npm audit` reads the lock only, and
 `scripts/security/policy-check.mjs` asserts the reusable scanner has no secret and no `npm ci`), and Quick checks'
 lockfile check runs offline. Locally, `npm ci` needs an SSH key that can read the repository.
+
+**Task in CI (#1956).** Every job that runs Task (Backend, Perf budgets, the release builds and the macOS signing
+probe) installs it with the local action `.github/actions/setup-task`, not `arduino/setup-task`, whose three attempts
+in 33 s gave up on an HTTP 500 from GitHub's release downloads and failed a Backend job before any test ran. The action
+installs the exact release named in its `pins.txt`, and only an archive whose SHA-256 matches the pin there runs. The
+archive is kept in the Actions cache, so most runs download nothing; without a cached copy it is downloaded with attempts
+spread over about six minutes. A release reads that cache too: a cached copy that does not match its pin is discarded and
+downloaded again. Backend installs Task and Zig after its unit tests, so an outage longer than that fails only the build.
+To move to another Task release, change the version in `pins.txt` and paste the four lines of that release's
+`task_checksums.txt`, checked against the digest GitHub shows for each asset. Quick checks runs the installer's tests
+against a local server (`node --test scripts/moltenterm-setup-task.node-test.mjs`).
 
 The Taskfile's `npm install` steps (`task dev`, `task start`, `task init`) skip npm's audit and funding notes (#1276):
 npm's raw count mixes the docs site with the app. Dependency risks are triaged by surface in the Dependency security job,

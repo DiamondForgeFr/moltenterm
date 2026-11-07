@@ -1,0 +1,11 @@
+# Copyright 2026, DiamondForge
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# The Task release CI installs (install.sh, #1956), and the SHA-256 of each archive it may run. To move to another
+# release, change the version and paste the four lines of that release's task_checksums.txt below; check them against
+# the digest GitHub shows for each asset (`gh api repos/go-task/task/releases/tags/<version>`).
+version v3.54.0
+680859dbb4d881a9c72d4d9a8f510825450849af8567deacd7302c01124416fb  task_linux_amd64.tar.gz
+d7189d439d4a6058e39e1b2acd7c8b27acd4856691b408f23b242e4294e1df5b  task_linux_arm64.tar.gz
+0543b0844a725814c0412d3f4bed12873ce9ed0da207b15775f63a97d734aac0  task_darwin_amd64.tar.gz
+12a69fcf37bb8d5bc9150c44f9a936775b73e59ff044c2c245232f198c135637  task_darwin_arm64.tar.gz
