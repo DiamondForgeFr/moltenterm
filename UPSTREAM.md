@@ -76,11 +76,15 @@ off when a custom protocol serves the page. What follows for the people who run 
   (Electron already refuses most of `NODE_OPTIONS`, `--require` included, in a packaged app; the fuse stops it reading
   the variable at all); `--remote-debugging-port` is a
   Chromium switch, not a fuse, so a test instance of a packaged app is still driven through CDP on that port (the page
-  targets only, there is no main-process inspector).
+  targets only, there is no main-process inspector). Since #2057 a packaged app honours it only on a test profile: a
+  data folder that is not the build's default one and is new at the first such start (the app marks its
+  `electron/moltenterm-test-profile`). Start a test instance with a fresh `MOLTENTERM_DATA_HOME` under `/tmp`; on the
+  user's own profile, or on an existing unmarked one, the port stays closed and the main log says
+  `remote debugging: ignored`.
 - `node scripts/moltenterm-check-fuses.mjs <app>` reads the fuses back from a packaged app; the release workflow runs it
   on every macOS app and Linux build. `node scripts/moltenterm-qualify-packaged.mjs <app>` starts the app in a test
-  instance (the perf harness's isolated root, mock keychain) and checks that it comes up, answers on the debugging port,
-  ignores the three switches and SIGUSR1, and refuses an `app.asar` with a changed byte.
+  instance (the perf harness's isolated root, mock keychain) and checks that it comes up, answers on the debugging port
+  on its test profile and not on the default or an unmarked one, ignores the three switches and SIGUSR1, and refuses an `app.asar` with a changed byte.
 - The app builder (and tsunami apps) ran its Tailwind step with the app's own binary and `ELECTRON_RUN_AS_NODE=1`. A
   packaged app gives wavesrv no such binary and the build uses the `node` of the PATH (`wavebase.GetNodeRunnerPath`).
 - Electron stores cookies in clear unless the separate `enableCookieEncryption` fuse is on. It is not flipped here: it is
@@ -871,6 +875,7 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 | `emain/emain.ts`, `emain/preload.ts`, `pkg/wconfig/settingsconfig.go` (and the generated `pkg/wconfig/metaconsts.go`, `frontend/types/gotypes.d.ts`, `schema/settings.json`) | A site that asks for a client certificate gets none on its own: `emain/moltenterm-client-certificates.ts` handles `select-client-certificate`, which `emain.ts` installs and feeds with the full config, and asks in the panel tab (`preload.ts` forwards the question to the tab's webview and exposes `moltentermClientCertificateAnswer`). The pick is remembered per site in the setting `browser:clientcertificates` (host to a certificate fingerprint, or `none`), which `SetConfigCommand` refuses from a terminal like the other consent keys (`moltenterm_configguard.go`). Files already patched | Electron presented the first certificate of the system store to any site without asking, which tells the site who the user is; an agent never chooses a certificate (FR-BRW-016 AC7-AC9) | #1979 |
 | `pkg/wconfig/settingsconfig.go` (and the generated `pkg/wconfig/metaconsts.go`, `frontend/types/gotypes.d.ts`, `schema/settings.json`) | `browser:localpages` records the files the user let a terminal or an agent open in the browser panel without a question (`frontend/moltenterm-shell/browser/local-page.ts`); `moltenterm_configguard.go` refuses it from a terminal like the other consent settings. Files already patched | A `file:` or `data:` page a terminal or an agent opens in the panel asks in the tab before it loads (FR-BRW-014) | #1978 |
 | `frontend/app/element/markdown.tsx`, `frontend/app/element/markdown-util.ts`, `frontend/app/element/streamdown.tsx` | A remote image (`http:` or `https:`) in a markdown file or an AI answer is not requested: it renders as a link with its description and its site (`frontend/moltenterm-shell/remote-image.tsx`) that opens the address in the browser panel, and the remote candidates of a `srcset` are dropped (`withoutRemoteCandidates`). `markdown.tsx` and `streamdown.tsx` already patched | The app page's Content-Security-Policy no longer allows images from any web address (`img-src` without `http:` / `https:`), so an injection cannot leak through an image request (FR-BRW-014) | #2045 |
+| `emain/emain-platform.ts`, `emain/emain.ts` | Right after `userData` is set, `applyRemoteDebuggingPolicy` (`emain/moltenterm-remote-debugging.ts`) removes `--remote-debugging-port` and `--remote-debugging-pipe` in a packaged app unless its Chromium profile is a test profile (not the build's default profile, and new at that start or marked by one); `getDefaultWaveDataDir` gives the default data folder without the override. `emain.ts` writes the policy's line to the main log once it exists. Files already patched | Any same-user program could start the app with the switch and drive the user's signed-in pages over CDP (FR-BRW-014, residual of #1975) | #2057 |
 
 ## Known upstream items
 

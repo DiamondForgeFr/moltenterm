@@ -7,6 +7,7 @@
 // keychain prompt), never the developer's data and never an installed app. It checks that:
 //   - the fuses of the binary are the ones build/moltenterm/electron-fuses.cjs asks for (scripts/moltenterm-check-fuses.mjs);
 //   - the app starts and shows its page, with the remote debugging port tests use (a Chromium switch, not a fuse);
+//   - that port opens only on a test profile: not on the build's default profile, nor on an unmarked one (#2057);
 //   - `--inspect`, `NODE_OPTIONS` and SIGUSR1 reach nothing, and `ELECTRON_RUN_AS_NODE=1` starts the app, not a script;
 //   - a changed app.asar is refused (macOS and Windows; Linux has no asar integrity).
 // A build with Electron's default fuses fails the same checks, which is how this script is proven.
@@ -25,6 +26,8 @@ import { connect, evaluate, listTargets } from "./perf/lib/cdp.mjs";
 import { installCleanupHandlers, Instance } from "./perf/lib/instance.mjs";
 
 const StartTimeoutMs = 90000;
+// The mark of a test profile (emain/moltenterm-remote-debugging.ts).
+const TestProfileMarkName = "moltenterm-test-profile";
 // The inspector a signal starts opens within a poll or two; this only bounds the wait when it never does.
 const SettleMs = 8000;
 
@@ -191,6 +194,8 @@ async function run(target, { tmp, keep, tamper }) {
     );
     await inst.stop();
 
+    await debuggingPolicy(inst, note);
+
     if (tamper) {
       await tamperProbe(target, inst, note);
     }
@@ -249,6 +254,65 @@ async function remoteDebugging(inst, note) {
   } catch (e) {
     note("remote debugging", false, e.message);
   }
+}
+
+// #2057: the debugging switches open a port only on a test profile. The first start, on the instance's new data
+// folder, marked its profile and answered on the port (the "remote debugging" check). Here the same folder is seen as
+// the build's default one, through a home of the instance's own whose default data folders link to it: the app runs on
+// its default profile without the user's ever being opened. Then the mark goes, as on a profile some other start made.
+async function debuggingPolicy(inst, note) {
+  const profile = path.join(inst.dataDir, "electron");
+  const mark = path.join(profile, TestProfileMarkName);
+  const marked = fs.existsSync(mark);
+  note(
+    "test profile",
+    marked,
+    marked ? "the first start marked its new profile" : `no ${TestProfileMarkName} in ${profile}`
+  );
+  if (process.platform !== "darwin" && process.platform !== "linux") {
+    note("debugging on the default profile", true, `not checked on ${process.platform}`);
+    return;
+  }
+  const home = path.join(inst.root, "home");
+  const dataBase =
+    process.platform === "darwin"
+      ? path.join(home, "Library", "Application Support")
+      : path.join(home, ".local", "share");
+  fs.mkdirSync(dataBase, { recursive: true });
+  for (const name of ["moltenterm", "moltenterm-gold"]) {
+    fs.symlinkSync(inst.dataDir, path.join(dataBase, name));
+  }
+  await debuggingRefused(
+    inst,
+    note,
+    "debugging on the default profile",
+    { HOME: home, XDG_DATA_HOME: "" },
+    "default-profile"
+  );
+  if (marked) {
+    fs.rmSync(mark);
+  }
+  await debuggingRefused(inst, note, "debugging on an unmarked profile", {}, "unmarked-profile");
+}
+
+async function debuggingRefused(inst, note, label, extraEnv, reason) {
+  await inst.launch({ inspect: false, extraEnv });
+  if (await started(inst, null, note)) {
+    const open = await portListens(inst.port);
+    const said = inst.log().some((l) => l.s.includes(`remote debugging: ignored (${reason})`));
+    note(
+      label,
+      !open && said,
+      open
+        ? `the debugging port ${inst.port} answers`
+        : said
+          ? `no port, and the main log says why (${reason})`
+          : `no port, but the main log has no "remote debugging: ignored (${reason})"`
+    );
+  } else {
+    note(label, false, "the app did not start");
+  }
+  await inst.stop();
 }
 
 async function sigusr1(inst, note) {

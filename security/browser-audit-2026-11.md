@@ -144,6 +144,16 @@ fixes between MoltenTerm releases.
   started with that switch (it is how tests drive it), and a program that starts the app that way drives its pages
   under its signature. Closing that means the app ignores the switch outside test instances (`MOLTENTERM_BACKGROUND`
   is not proof, any program can set it); not decided here, and not tested against a running instance's profile.
+- **Residual closed (#2057): the debugging switches only on a test profile.** A packaged app removes
+  `--remote-debugging-port` and `--remote-debugging-pipe` before Chromium reads them unless its Chromium profile
+  (`<data>/electron`) is a test profile: not the build's default profile (compared through links), and either new at
+  that start, which marks it (`moltenterm-test-profile`), or marked before. Pointing the data folder at another existing
+  profile (a release at the gold's data) is refused too. The main log says `remote debugging: ignored (<reason>)`. Test
+  instances and the qualify script start on a new data folder under `/tmp` and keep the port; dev builds are unchanged
+  (`emain/moltenterm-remote-debugging.ts`). `scripts/moltenterm-qualify-packaged.mjs` checks that the port stays closed
+  on the default profile and on an unmarked one. What stays: a same-user program can copy a profile and write the mark;
+  it then drives only what it could read from the copied files, and once cookies are encrypted (#2058) the copy must
+  not decrypt them with the user's key.
 
 ### Medium
 
