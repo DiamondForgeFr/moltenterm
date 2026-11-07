@@ -81,22 +81,25 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-action) 65%, transparent);
 }
 
-/* The cup: keep-awake holds this computer awake and the group is closed. */
+/* The cup: keep-awake holds this computer awake and the group is closed. It is drawn at the smallest text size of the
+   scale and scaled down to a 14 px mark, from its corner. */
 .mt-brokk-cup {
     position: absolute;
     right: -4px;
     bottom: -4px;
     display: flex;
-    width: 14px;
-    height: 14px;
+    width: 22px;
+    height: 22px;
     align-items: center;
     justify-content: center;
     border: 1px solid var(--mt-action);
     border-radius: 50%;
     background: var(--mt-surface-0);
     color: var(--mt-action);
-    font-size: 7px;
+    font-size: var(--mt-text-11);
     pointer-events: none;
+    transform: scale(0.64);
+    transform-origin: bottom right;
 }
 
 .mt-brokk-avatar.is-hanging .mt-brokk-cup {
@@ -109,15 +112,17 @@
     left: -3px;
     bottom: -3px;
     display: flex;
-    width: 12px;
-    height: 12px;
+    width: 19px;
+    height: 19px;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
     background: var(--mt-surface-0);
-    font-size: 7px;
+    font-size: var(--mt-text-11);
     color: var(--mt-action);
     pointer-events: none;
+    transform: scale(0.64);
+    transform-origin: bottom left;
 }
 
 /* At 14 px the ring says it alone. */

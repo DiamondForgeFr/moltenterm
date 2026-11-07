@@ -346,7 +346,7 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
             expect(scope).toMatch(/\.mt-brokk-block/);
             expect(scope).toMatch(/\.mt-brokk-fieldbox/);
             expect(scope).toMatch(/transform: none !important/);
-            expect(scope).toMatch(/transition: opacity 150ms linear !important/);
+            expect(scope).toMatch(/transition: opacity var\(--mt-duration-fade\) linear !important/);
             expect(scope).toMatch(/\.mt-brokk-scan \{\s*animation: none;/);
             expect(scope).toMatch(/\.mt-brokk-gpanel/);
         }
