@@ -7,8 +7,9 @@
 // carries the severity, its accessible name and its tooltip say the rest. A click anywhere on it, Enter or Space folds
 // him back into the avatar and opens his panel in the same gesture; Plus tard, at the bottom left, asks when to come
 // back, and Escape takes the default delay. The content below the title row slides down to make room, which the sidebar
-// does itself (workspace-sidebar.tsx, sidebar.css). In a collapsed sidebar that stays half open for him (AC29, #2070) the
-// scene is the banner it shows, and says its one line: the very words of its accessible name, drawn only there.
+// does itself (workspace-sidebar.tsx, sidebar.css). In a collapsed sidebar, half open for him or unfolded (AC29, AC30,
+// #2070), the scene is the banner it shows, and says its one line: the sentence of the event that brought him, the very
+// words of his rows (brokk-visit-line.ts). Its accessible name stays the label below.
 //
 // Loaded on the first visit, never with the window: the clips are Brokk's portrait and stay out of the up-front JavaScript.
 
@@ -17,16 +18,19 @@ import { cn } from "@/util/util";
 import { TransmissionPortrait } from "@diamondforge/character";
 import "@diamondforge/character/styles.css";
 import { useAtomValue } from "jotai";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { prefersReducedMotion } from "../molten-motion";
+import { TabActivity, whileShown } from "../tab-activity";
 import "./brokk-visit-scene.css";
 import type { BrokkExpression } from "./brokk-ask-model";
+import { useCaptionText } from "./brokk-caption";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
 import type { Severity } from "./brokk-queue";
 import { reactionCapMs } from "./brokk-state-model";
 import type { Visit } from "./brokk-visit";
+import { visitLineOf } from "./brokk-visit-line";
 import {
     exampleSceneActions,
     LaterOption,
@@ -82,6 +86,17 @@ export function useSceneLife(open: boolean, unmountAfter: number): { mounted: bo
         return () => clearTimeout(timer);
     }, [open, unmountAfter]);
     return { mounted, shown };
+}
+
+// The line counts minutes of a wait: it is drawn again each minute while the visit is up.
+function useMinuteTick(active: boolean): void {
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (!active) {
+            return;
+        }
+        return TabActivity.getInstance().every(whileShown(60 * 1000), () => setTick((n) => n + 1), "visit-line");
+    }, [active]);
 }
 
 const BrowserClock: SceneClock = {
@@ -208,16 +223,18 @@ export function BrokkVisitSceneView({
     name,
     phase,
     rowHeight,
-    line = false,
+    line,
 }: {
     visit: Visit;
     name: string;
     phase: ScenePhase;
     rowHeight: string;
-    // The sidebar is collapsed with Brokk on: it may stay half open, and the scene then says its one line.
-    line?: boolean;
+    // The sidebar is collapsed with Brokk on, half open for him or unfolded: the scene says its one line, the sentence
+    // of the event. Without it the scene has no text but Plus tard.
+    line?: string;
 }) {
     const t = useT();
+    const lineId = useId();
     const hub = BrokkHubModel.getInstance().hub;
     const layerRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -304,13 +321,14 @@ export function BrokkVisitSceneView({
                     className="mt-brokk-scene-hit"
                     data-testid="brokk-scene-hit"
                     aria-label={label}
+                    aria-describedby={line ? lineId : undefined}
                     title={label}
                     tabIndex={tabIndex}
                     onClick={actions.fold}
                 />
                 {line ? (
-                    <span className="mt-brokk-scene-line" data-testid="brokk-scene-line" aria-hidden>
-                        {label}
+                    <span id={lineId} className="mt-brokk-scene-line" data-testid="brokk-scene-line">
+                        {line}
                     </span>
                 ) : null}
                 <button
@@ -339,10 +357,15 @@ export function BrokkVisitSceneView({
 // The scene at the top of the sidebar: nothing while no visit is up, and the visit's last face while it folds back.
 export function BrokkVisitScene({ rowHeight, line = false }: { rowHeight: string; line?: boolean }) {
     const name = useAtomValue(BossBubbleModel.getInstance().nameAtom, { store: globalStore });
+    const list = useAtomValue(BossBubbleModel.getInstance().toHandleAtom, { store: globalStore });
     const visit = useHubSelect((view) => view.visit);
+    const text = useCaptionText();
+    useMinuteTick(line && visit != null);
     const last = useRef<Visit>(visit);
+    const words = useRef("");
     if (visit != null) {
         last.current = visit;
+        words.current = line ? text(visitLineOf(visit, list.items, list.info, Date.now())) : "";
     }
     const life = useSceneLife(visit != null, unmountAfterMs(prefersReducedMotion()));
     if (!life.mounted || last.current == null) {
@@ -354,7 +377,7 @@ export function BrokkVisitScene({ rowHeight, line = false }: { rowHeight: string
             name={name}
             phase={scenePhase(visit != null, life.shown)}
             rowHeight={rowHeight}
-            line={line}
+            line={line && words.current !== "" ? words.current : undefined}
         />
     );
 }

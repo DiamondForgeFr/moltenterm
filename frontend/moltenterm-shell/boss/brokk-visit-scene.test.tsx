@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 
@@ -12,7 +12,7 @@ const Mocks = vi.hoisted(() => ({ hub: null as any, motion: true, reduced: false
 vi.mock("./brokk-hub-store", () => ({ BrokkHubModel: { getInstance: () => ({ hub: Mocks.hub }) } }));
 vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
-    const model = { nameAtom: atom("Brokk") };
+    const model = { nameAtom: atom("Brokk"), toHandleAtom: atom({ items: [], info: [], parked: 0 }) };
     return { BossBubbleModel: { getInstance: () => model } };
 });
 vi.mock("./use-brokk-hub", () => ({
@@ -29,12 +29,15 @@ vi.mock("@diamondforge/character", () => ({
 }));
 vi.mock("@diamondforge/character/styles.css", () => ({}));
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { t } from "../i18n/i18n";
+import { BossBubbleModel } from "./boss-store";
+import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkHub, HubDeps } from "./brokk-hub";
 import { Severity } from "./brokk-queue";
 import type { Visit } from "./brokk-visit";
 import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
-import { BrokkVisitSceneView, LaterMenu } from "./brokk-visit-scene";
+import { BrokkVisitScene, BrokkVisitSceneView, LaterMenu } from "./brokk-visit-scene";
 import {
     laterOptions,
     MotionTimings,
@@ -104,6 +107,50 @@ beforeEach(() => {
     Mocks.hub = hubFixture().hub;
 });
 
+describe("the scene says the sentence of the event in a collapsed sidebar (FR-BOSS-009, AC29, AC30, #2070)", () => {
+    const boss = BossBubbleModel.getInstance() as any;
+    const waiting = (since: number): ToHandleItem => ({
+        key: "agent:a",
+        tone: "waiting",
+        notice: null,
+        lineFromNotice: false,
+        name: "Léa",
+        line: { text: "" },
+        place: "",
+        since,
+        rank: 1,
+        seen: false,
+        actions: [],
+    });
+    const scene = (line: boolean) => renderToStaticMarkup(<BrokkVisitScene rowHeight="38px" line={line} />);
+
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(T);
+        const rows = [waiting(T - 6 * Min)];
+        globalStore.set(boss.toHandleAtom, { items: rows, info: [], parked: 0 });
+        Mocks.hub.syncRows(rows);
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("tells what he wants, in the words of his rows, and not the generic label of the scene", () => {
+        expect(Mocks.hub.getView().visit).not.toBeNull();
+        const html = scene(true);
+        expect(html).toContain(t("boss.screen.waitedFor", { name: "Léa", minutes: 6 }));
+        expect(html).toContain("Léa");
+        const words = new RegExp(`data-testid="brokk-scene-line"[^>]*>([^<]*)<`).exec(html)?.[1];
+        expect(words).not.toMatch(/\(important\)|\(grave\)/);
+        expect(attr(html, "brokk-scene-hit", "aria-label")).toBe(sceneLabel(t, "Brokk", "important"));
+    });
+
+    it("says nothing of it in a docked sidebar, whose scene has no text but Plus tard", () => {
+        expect(scene(false)).not.toContain("brokk-scene-line");
+    });
+});
+
 describe("the forge scene (FR-BOSS-009, AC6)", () => {
     it("has no text of its own but Plus tard: his face is all it says", () => {
         for (const severity of Severities) {
@@ -115,7 +162,7 @@ describe("the forge scene (FR-BOSS-009, AC6)", () => {
         }
     });
 
-    it("says its one line, the words of its accessible name, only where the collapsed sidebar may stay half open for him (AC29, #2070)", () => {
+    it("says the sentence of the event it is given where the sidebar is collapsed, half open for him or unfolded (AC29, AC30, #2070)", () => {
         const line = (severity: Severity) =>
             renderToStaticMarkup(
                 <BrokkVisitSceneView
@@ -123,23 +170,42 @@ describe("the forge scene (FR-BOSS-009, AC6)", () => {
                     name="Brokk"
                     phase="open"
                     rowHeight="38px"
-                    line
+                    line="Léa attend depuis 6 min"
                 />
             );
         for (const severity of Severities) {
             const html = line(severity);
             const words = new RegExp(`data-testid="brokk-scene-line"[^>]*>([^<]*)<`).exec(html)?.[1];
-            expect(words, severity).toBe(sceneLabel(t, "Brokk", severity));
-            expect(html, severity).toMatch(/class="mt-brokk-scene-line"[^>]*aria-hidden="true"/);
+            expect(words, severity).toBe("Léa attend depuis 6 min");
+            expect(words, severity).not.toBe(sceneLabel(t, "Brokk", severity));
             expect(render(severity), severity).not.toContain("brokk-scene-line");
         }
     });
 
-    it("draws that line only in the half open sidebar, never in an unfolded or docked one", () => {
+    it("keeps its accessible name for screen readers and describes it with the line", () => {
+        const html = renderToStaticMarkup(
+            <BrokkVisitSceneView
+                visit={visit("important")}
+                name="Brokk"
+                phase="open"
+                rowHeight="38px"
+                line="Léa attend depuis 6 min"
+            />
+        );
+        expect(attr(html, "brokk-scene-hit", "aria-label")).toBe(sceneLabel(t, "Brokk", "important"));
+        const described = attr(html, "brokk-scene-hit", "aria-describedby");
+        expect(described).toBeTruthy();
+        expect(attr(html, "brokk-scene-line", "id")).toBe(described);
+        expect(attr(render("important"), "brokk-scene-hit", "aria-describedby")).toBeUndefined();
+    });
+
+    it("draws that line in the same place half open and unfolded, in two lines at most, taking no pointer", () => {
         const sheet = css("brokk-visit-scene.css");
-        expect(rule(sheet, ".mt-brokk-scene-line")).toMatch(/opacity: 0/);
-        expect(rule(sheet, ".mt-brokk-scene-line")).toMatch(/pointer-events: none/);
-        expect(rule(sheet, '.mt-sb[data-edge="ajar"] .mt-brokk-scene-line')).toMatch(/opacity: 1/);
+        const line = rule(sheet, ".mt-brokk-scene-line");
+        expect(line).toMatch(/pointer-events: none/);
+        expect(line).toMatch(/-webkit-line-clamp: 2/);
+        expect(line).not.toMatch(/opacity/);
+        expect(sheet).not.toMatch(/data-edge="ajar"\] \.mt-brokk-scene-line/);
     });
 
     it("is named for the severity, and says the same as a tooltip", () => {

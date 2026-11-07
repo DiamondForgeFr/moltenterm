@@ -265,9 +265,10 @@
     outline-offset: -2px;
 }
 
-/* His one line, for a collapsed sidebar that stays half open for him (FR-BOSS-009, AC29, #2070): the words of the scene's
-   accessible name, on the forge's dark, at the right where the part of the sidebar that shows ends. Drawn only there; an
-   unfolded or docked sidebar's scene has no text (AC6). It takes no pointer. */
+/* His one line, for the scene of a collapsed sidebar, half open for him or unfolded (FR-BOSS-009, AC29, AC30, #2070): the
+   sentence of the event that brought him, on the forge's dark, at the right where the part of the sidebar that shows
+   when it is half open ends, and in the same place once it is unfolded. A docked sidebar's scene has no text (AC6).
+   Two lines at most. It takes no pointer: the click goes to the scene. */
 .mt-brokk-scene-line {
     position: absolute;
     left: auto;
@@ -275,18 +276,17 @@
     bottom: 22px;
     z-index: 2;
     max-width: calc(var(--mt-ajar-px, 190px) - 24px);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
     color: rgb(244, 233, 220);
     font-size: var(--mt-text-12);
     line-height: 1.35;
     text-align: right;
     text-shadow: 0 1px 2px rgba(10, 8, 7, 0.9);
-    opacity: 0;
     pointer-events: none;
-    transition: opacity var(--mt-duration-base) var(--mt-ease);
-}
-
-.mt-sb[data-edge="ajar"] .mt-brokk-scene-line {
-    opacity: 1;
 }
 
 /* A discreet Plus tard at the bottom left. */
