@@ -23,6 +23,20 @@ func TestPagesGuideSendsPagesToMoltenTermsBrowser(t *testing.T) {
 	}
 }
 
+// pages.md tells an agent that a local or inline page waits for the developer's answer (#1978).
+func TestPagesGuideSaysLocalPagesAsk(t *testing.T) {
+	data, err := fs.ReadFile(Files, "pages.md")
+	if err != nil {
+		t.Fatalf("pages.md is not embedded: %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{"`file:` or `data:` page", "confirms it in the", "http://localhost", "if they decline"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("pages.md does not mention %q", want)
+		}
+	}
+}
+
 // pages.md tells an agent how to bring a page it already has back in front of the developer (#1994).
 func TestPagesGuideExplainsShowingAPageAgain(t *testing.T) {
 	data, err := fs.ReadFile(Files, "pages.md")
