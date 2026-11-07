@@ -84,7 +84,7 @@ fixes between MoltenTerm releases.
   writes, or signing them, is part of T19 below. This is defence in depth: an agent with a shell already holds the
   user's file access.
 
-#### H2. `wsh web get` reads any page around the per-site approval (fixed for the panel; Wave web blocks remain)
+#### H2. `wsh web get` reads any page around the per-site approval (fixed for the panel; fixed for Wave web blocks by T2, #1976)
 
 - **Evidence.** Electron main's `handle_webselector` (`emain/emain-wsh.ts:24-38`) runs `querySelector(...).outerHTML` in
   the page's main world (`emain/emain-web.ts:74-97`). Its webview lookup matched any webview under the block
@@ -98,9 +98,15 @@ fixes between MoltenTerm releases.
 - **Fix shipped.** The lookup takes a Wave web block's webview only, never a browser panel tab
   (`emain/moltenterm-webselector-policy.ts`, used by `emain/preload.ts`; test
   `emain/moltenterm-webselector-policy.test.ts`).
-- **Residual (T2).** Wave web blocks share the panel's default session, cookies included (F M10). An agent can open a
-  Wave web block on any site and read it with `wsh web get`. Gate webselector on the same site approval as the
-  browser tools, or limit it to blocks the agent opened on approved sites.
+- **Residual (T2), fixed in #1976.** Wave web blocks share the panel's default session, cookies included (F M10). An
+  agent could open a Wave web block on any site and read it with `wsh web get`. Electron main now asks wavesrv for the
+  stored decision of the page's current address (`moltenbrowseragentwebread`, `pkg/molten/browseragent/webread.go`):
+  only a stored Always reads, a Block or no decision refuses with a fixed sentence (Allow once is a session's and never
+  applies to a terminal), a page that moved to another host while it was read gives no result, every item comes back
+  inside the untrusted page content envelope, and an SSH or WSL host is refused by the router before Electron main
+  (`remoteElectronCommands`, test `TestRemoteHostRouteAllowlist`). Gate: `emain/moltenterm-webselector-gate.ts`, test
+  `emain/moltenterm-webselector-gate.test.ts`. Still open there: a live question on the Wave web block itself, which
+  has no permission bar, so the user allows the site once in the browser panel.
 
 #### H3. Electron fuses are left at their defaults (proposed, T1)
 
