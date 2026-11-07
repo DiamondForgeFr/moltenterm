@@ -148,6 +148,20 @@ function RailMarkView({ mark }: { mark: RailMark }) {
     );
 }
 
+// The light scrim over the work area while the group is open (FR-BOSS-009, AC39, #2082). It fills the host's layer, which
+// is the work area right of the sidebar, so the sidebar stays undimmed. A press on it is a press outside (the group's own
+// listener closes it); the click closes it too, for a press that listener did not see.
+export function BrokkScrim({ shown, onClose }: { shown: boolean; onClose: () => void }) {
+    return (
+        <div
+            className={cn("mt-brokk-scrim", shown && "is-in")}
+            aria-hidden
+            data-testid="brokk-scrim"
+            onClick={onClose}
+        />
+    );
+}
+
 export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean }) {
     const t = useT();
     const locale = useLocale();
@@ -496,6 +510,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
 
     return (
         <>
+            <BrokkScrim shown={shown} onClose={() => boss.closeCard()} />
             {holdsHover(panels) ? <div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" /> : null}
             {frame.thread != null ? (
                 <div

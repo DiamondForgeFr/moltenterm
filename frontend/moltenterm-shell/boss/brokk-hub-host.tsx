@@ -38,6 +38,13 @@ function rectOf(element: Element): ScreenRect {
     return { left: box.left, top: box.top, width: box.width, height: box.height };
 }
 
+// The frame's margin around the window area (the Spaces frame's --mt-frame-gap, inherited by the layer), 0 without a
+// frame: the panels start that far into the layer (#2082).
+export function frameInset(layer: Element): number {
+    const gap = parseFloat(getComputedStyle(layer).getPropertyValue("--mt-frame-gap"));
+    return Number.isFinite(gap) && gap > 0 ? gap : 0;
+}
+
 // Where the group stands and where it arrives from, in the layer's coordinates: 8 px right of the sidebar and 8 px from
 // the top of the window area; from the title-bar face that opened it. It follows the window's size while it is open.
 function useGroupFrame(
@@ -74,7 +81,8 @@ function useGroupFrame(
                           h: sidebarBox.height,
                       },
                 { width: box.width, height: box.height },
-                g
+                g,
+                frameInset(layer)
             );
             const face = avatar == null ? null : rectOf(avatar);
             const origin =
