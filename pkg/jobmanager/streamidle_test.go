@@ -85,6 +85,10 @@ func TestStallCheckWakesAfterIdle(t *testing.T) {
 		t.Fatalf("first write: %d packets", n)
 	}
 	sm.RecvAck(wshrpc.CommandStreamAckData{Id: "s", Seq: 1, RWnd: CwndSize})
+	// The loop is still in the period it began before the ACK; one more check finds the stream idle and puts it to
+	// sleep. This wait only brings the loop to that state: a loop that has not got there yet makes the test weaker,
+	// never wrong.
+	time.Sleep(2 * StallCheckEvery)
 	// Idle past the stall timeout: nothing is resent.
 	clock.advance(StallTimeout + 2*StallCheckEvery)
 	if done, busy := sm.checkStall(); done || busy {
@@ -99,7 +103,7 @@ func TestStallCheckWakesAfterIdle(t *testing.T) {
 	}
 	// Bytes sent after a long idle period are not taken for stalled since the last ACK. The clock stands still, so a
 	// resend in these check periods can only come from the loop checking before the bytes were sent.
-	time.Sleep(3 * StallCheckEvery)
+	time.Sleep(2 * StallCheckEvery)
 	if n := len(dataPackets(tw)); n != 2 {
 		t.Fatalf("the write after the idle period: %d packets, want 2 (no early resend)", n)
 	}
