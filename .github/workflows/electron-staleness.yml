@@ -1,0 +1,53 @@
+# Copyright 2026, DiamondForge
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# The daily half of the Electron update policy (security/ELECTRON.md, #1983): compares the pinned Electron with the
+# release feed and the security advisories, and opens, updates or closes the one `security` issue. It never bumps.
+# The release stops on the same findings through security-scan.yml. A pull request that changes this check only runs
+# it and prints the report: it opens nothing, and a new upstream patch never stops a pull request.
+#
+# Started by hand after a Chrome or Electron announcement of a critical or exploited fix, with max-age-days 3.
+
+name: Electron engine staleness
+
+on:
+    schedule:
+        - cron: "17 5 * * *"
+    workflow_dispatch:
+        inputs:
+            max-age-days:
+                description: "Days a newer Electron release may wait before it is a finding (7; 3 for a critical or exploited fix)"
+                type: string
+                default: "7"
+    pull_request:
+        paths:
+            - .github/workflows/electron-staleness.yml
+            - scripts/security/electron-staleness.mjs
+            - security/dependencies.json
+
+permissions:
+    contents: read
+    issues: write
+
+concurrency:
+    group: electron-staleness
+    cancel-in-progress: false
+
+jobs:
+    staleness:
+        name: Electron engine
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 22
+            - name: Check the pinned Electron
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  MAX_AGE_DAYS: ${{ inputs.max-age-days || '7' }}
+                  ISSUE: ${{ github.event_name != 'pull_request' && '--issue' || '' }}
+              run: node scripts/security/electron-staleness.mjs --max-age-days "$MAX_AGE_DAYS" $ISSUE

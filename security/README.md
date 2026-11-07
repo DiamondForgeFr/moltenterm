@@ -99,8 +99,10 @@ macOS 13 or later, the minimum selected for v1.0.0. The shared scanner checks `e
 `dependencies.json` against the exact manifest and lock pin and rejects invalid, future or overdue reviews before
 either full or native scans. Its review deadline is UTC midnight at the start of the recorded day. Update the
 review after checking the official release list and support schedule; the current tentative Electron 45 end of
-support is April 27, 2027, and the next review is due December 1, 2026. This offline check cannot detect an upstream
-schedule change or a new patch: recheck the official sources when preparing a release. Do not change historical
+support is April 27, 2027, and the next review is due December 7, 2026. This offline check cannot detect an upstream
+schedule change or a new patch. The online check (`scripts/security/electron-staleness.mjs`) reads Electron's release
+feed and advisories every day, opening one `security` issue, and stops a release or its rehearsal on a stale engine;
+the patch deadlines, the exceptions and the bump procedure are in [ELECTRON.md](ELECTRON.md) (#1983). Do not change historical
 performance baselines to make their runtime version look current. Both `go.mod` pins, CI and build checks must agree.
 
 Security scans run without signing/release/production credentials, use pinned tools/actions and never repair the
