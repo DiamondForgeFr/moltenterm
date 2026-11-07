@@ -8,10 +8,14 @@ support a patched version, and repeat renderer, trust and resource-limit tests o
 Its Commander 15 CLI dependency requires Node >=22.12.0; the renderer does not use that CLI. CI uses Node 22.
 Existing Streamdown sanitization strips KaTeX formatting and MathML, including before this change (#1610).
 
-Electron is pinned to 45.2.0 (#1590), with the developer-approved macOS 13+ minimum. Electron 42 is out of support;
-the earlier #810 choice of 42.11.15 and macOS 12 support is historical. Historic performance baselines keep their
-recorded versions. Electron 45 is tentatively supported until April 27, 2027; the pinned lifecycle review expires
-at the start of December 1, 2026 UTC. Check the live upstream release list and schedule before every release.
+Electron is pinned to 45.2.3 (#1983; 45.2.0 from #1590), with the developer-approved macOS 13+ minimum. Electron 42 is
+out of support; the earlier #810 choice of 42.11.15 and macOS 12 support is historical. Historic performance baselines
+keep their recorded versions. Electron 45 is tentatively supported until April 27, 2027; the pinned lifecycle review
+expires at the start of December 7, 2026 UTC. The 45.2.1 to 45.2.3 notes carry Chromium 156.0.8078.75 to .80 and
+upstream Chromium, ANGLE, Dawn, FFmpeg, PDFium, Skia and V8 backports, Node.js 24.22.2, and two fixes (a Wayland crash
+with a hidden parent window, `removeInsertedCSS()` and user-origin stylesheets); no API changes. The patch deadlines,
+the daily and release-time staleness check and the bump procedure are in [ELECTRON.md](ELECTRON.md); a bump is
+requalified on a packaged build before it ships.
 See [Electron releases](https://releases.electronjs.org/), its
 [support policy](https://www.electronjs.org/docs/latest/tutorial/electron-timelines) and
 [macOS 12 removal in Electron 44](https://www.electronjs.org/docs/latest/breaking-changes#removed-macos-12-support).
