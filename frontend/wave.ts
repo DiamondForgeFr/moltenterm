@@ -39,6 +39,7 @@ import "./moltenterm-shell/moltenterm-shell.css"; // MOLTENTERM-PATCH (#48)
 import "./moltenterm-shell/molten-button.css"; // MOLTENTERM-PATCH (#145): molten call-to-action buttons, after the shell
 import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
 import { startAppTheme } from "./moltenterm-shell/app-theme"; // MOLTENTERM-PATCH (#1341)
+import { installCanvasFontTrim } from "./moltenterm-shell/canvas-font"; // MOLTENTERM-PATCH (#2065)
 import { startHangReport } from "./moltenterm-shell/hang-report"; // MOLTENTERM-PATCH (#849)
 import { startFaviconCache } from "./moltenterm-shell/favicon/favicon-store"; // MOLTENTERM-PATCH (#1962)
 import { startCarpetThumbCleanup } from "./moltenterm-shell/view360/carpet-thumbs"; // MOLTENTERM-PATCH (#1814)
@@ -80,6 +81,7 @@ async function initBare() {
     getApi().onWaveInit(initWaveWrap);
     getApi().onBuilderInit(initBuilderWrap);
     setKeyUtilPlatform(platform);
+    installCanvasFontTrim(); // MOLTENTERM-PATCH (#2065): before any terminal draws its glyph atlas
     loadFonts();
     updateZoomFactor(getApi().getZoomFactor());
     getApi().onZoomFactorChange((zoomFactor) => {
