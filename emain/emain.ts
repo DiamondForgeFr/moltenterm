@@ -36,6 +36,7 @@ import {
     getWaveConfigDir,
     getWaveDataDir,
     isDev,
+    remoteDebuggingLogLine, // MOLTENTERM-PATCH (#2057)
     unameArch,
     unamePlatform,
 } from "./emain-platform";
@@ -104,6 +105,10 @@ console.log(
 );
 if (isDev) {
     console.log("waveterm-app WAVETERM_DEV set");
+}
+// MOLTENTERM-PATCH (#2057): the debugging policy ran before the log existed; its line goes to the main log too.
+if (remoteDebuggingLogLine) {
+    console.log(remoteDebuggingLogLine);
 }
 
 function handleWSEvent(evtMsg: WSEventType) {
