@@ -24,7 +24,7 @@ import {
   readFuseWires,
   Sentinel,
 } from "./moltenterm-check-fuses.mjs";
-import { asarOf, executableOf, tamperPackageJson } from "./moltenterm-qualify-packaged.mjs";
+import { asarOf, executableOf, tamperPackageJson, tamperWanted } from "./moltenterm-qualify-packaged.mjs";
 import { connectMain } from "./perf/lib/cdp.mjs";
 import { freePort, Instance } from "./perf/lib/instance.mjs";
 
@@ -336,4 +336,24 @@ describe("the perf harness and a packaged app", () => {
     },
     GenerousMs
   );
+
+  it(
+    "leaves the keychain switch out only when a probe asks (#2066)",
+    async () => {
+      const keyring = (args) => args.some((a) => a === "--use-mock-keychain" || a.startsWith("--password-store"));
+      expect(keyring((await launched({ inspect: false })).args)).toBe(true);
+      expect(keyring((await launched({ inspect: false, keyringSwitch: false })).args)).toBe(false);
+    },
+    GenerousMs
+  );
+});
+
+describe("tamperWanted", () => {
+  it("runs the asar probe on macOS only when asked or in CI, where its crash dialog shows on no one's screen", () => {
+    expect(tamperWanted([], "darwin", {})).toBe(false);
+    expect(tamperWanted(["--tamper"], "darwin", {})).toBe(true);
+    expect(tamperWanted([], "darwin", { CI: "true" })).toBe(true);
+    expect(tamperWanted([], "linux", {})).toBe(true);
+    expect(tamperWanted(["--no-tamper"], "linux", { CI: "true" })).toBe(false);
+  });
 });

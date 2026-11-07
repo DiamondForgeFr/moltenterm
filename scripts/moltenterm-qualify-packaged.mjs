@@ -14,7 +14,7 @@
 //   - a test profile uses a throwaway cookie key: a cookie copied in from another profile is unreadable (#2066).
 // A build with Electron's default fuses fails the same checks, which is how this script is proven.
 //
-// Usage: node scripts/moltenterm-qualify-packaged.mjs <MoltenTerm.app | executable> [--tmp dir] [--keep] [--no-tamper]
+// Usage: node scripts/moltenterm-qualify-packaged.mjs <MoltenTerm.app | executable> [--tmp dir] [--keep] [--tamper | --no-tamper]
 
 /* global console, process, setTimeout, fetch, Buffer */
 
@@ -205,6 +205,8 @@ async function run(target, { tmp, keep, tamper }) {
 
     if (tamper) {
       await tamperProbe(target, inst, note);
+    } else {
+      console.log("skip asar integrity: not asked (--tamper runs it; on macOS the refused app shows a crash dialog)");
     }
   } finally {
     await inst.dispose({ keep });
@@ -663,11 +665,23 @@ async function tamperProbe(target, inst, note) {
   }
 }
 
+// Electron refuses a changed app.asar with a CHECK (SIGTRAP), and macOS shows its "quit unexpectedly" dialog for it on
+// the developer's screen. So on macOS the probe runs only when asked (--tamper) or in CI; elsewhere unless --no-tamper.
+export function tamperWanted(argv, platform, env) {
+  if (argv.includes("--no-tamper")) {
+    return false;
+  }
+  if (argv.includes("--tamper")) {
+    return true;
+  }
+  return platform !== "darwin" || !!env.CI;
+}
+
 async function main(argv) {
   const target = argv.find((a) => !a.startsWith("--"));
   if (!target || !fs.existsSync(target)) {
     console.error(
-      "usage: node scripts/moltenterm-qualify-packaged.mjs <MoltenTerm.app | executable> [--tmp dir] [--keep] [--no-tamper]"
+      "usage: node scripts/moltenterm-qualify-packaged.mjs <MoltenTerm.app | executable> [--tmp dir] [--keep] [--tamper | --no-tamper]"
     );
     return 2;
   }
@@ -676,7 +690,7 @@ async function main(argv) {
   const results = await run(path.resolve(target), {
     tmp: tmpAt === -1 ? "/tmp" : argv[tmpAt + 1],
     keep: argv.includes("--keep"),
-    tamper: !argv.includes("--no-tamper"),
+    tamper: tamperWanted(argv, process.platform, process.env),
   });
   const failed = results.filter((r) => !r.ok);
   console.log(
