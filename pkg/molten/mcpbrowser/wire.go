@@ -24,6 +24,8 @@ const (
 	SiteCommand   = "moltenbrowseragentsite"
 	// emain asks whether a download an agent's tab started may go on (FR-BRW-010).
 	DownloadCommand = "moltenbrowseragentdownload"
+	// emain asks whether `wsh web get` may read the page of a Wave web block (FR-BRW-009, #1976).
+	WebReadCommand = "moltenbrowseragentwebread"
 	// The panel lists the agents it can share a tab with, shares one, and types the Share and tell line (FR-BRW-011).
 	ListCommand      = "moltenbrowseragentlist"
 	ShareCommand     = "moltenbrowseragentshare"
@@ -89,6 +91,7 @@ const (
 
 	ErrSiteBlocked       = "The user blocked agents on this site"
 	ErrSiteNotAllowed    = "The user did not allow this site"
+	ErrWebReadNotAllowed = "The user has not allowed agents on this site yet: open the page in the browser panel (wsh web open), where the browser tools ask the user"
 	ErrPermissionTimeout = "No answer from the user about this site (2 minutes)"
 	ErrSchemeRefused     = "Only http and https pages can be opened"
 	ErrUrlRequired       = "url must be a web address, \"back\" or \"forward\""
