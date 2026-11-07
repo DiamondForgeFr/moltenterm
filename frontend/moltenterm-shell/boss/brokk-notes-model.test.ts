@@ -259,6 +259,11 @@ describe("what the list tells the rail", () => {
         expect(noteFacts([])).toEqual({ count: 0, urgentOrAnswer: false, unread: false });
     });
 
+    it("calls a pull request ready to merge unread: Fait, and still news (#2085)", () => {
+        const rows = notes(list([item("ready:/p:2080", { tone: "success" })]), []);
+        expect(noteFacts(rows)).toEqual({ count: 0, urgentOrAnswer: false, unread: true });
+    });
+
     it("does not call a read Info notification unread", () => {
         const rows = notes(list([]), [entry("a", { read: true })]);
         expect(noteFacts(rows)).toEqual({ count: 1, urgentOrAnswer: false, unread: false });

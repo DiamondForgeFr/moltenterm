@@ -60,6 +60,8 @@ import {
     PanelId,
     PanelState,
     panelWidth,
+    priorityFactsOf,
+    RailInput,
     RailMark,
     railMarks,
     RailPanels,
@@ -81,6 +83,7 @@ import { talkPose, talkWaits } from "./brokk-talk-model";
 import { resetDay, weeklyUsage } from "./brokk-usage-model";
 import { useBrokkActions } from "./use-brokk-actions";
 import { useGroupCaption } from "./use-brokk-caption";
+import { useAvatarKeys } from "./use-brokk-hub";
 import { useCardLive } from "./use-brokk-live";
 
 // How often "up 12 min" and the ages are read again while the group shows.
@@ -165,6 +168,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const unseenId = useAtomValue(session.unseenIdAtom, { store: globalStore });
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom, { store: globalStore });
     const downloadItems = useAtomValue(downloads.itemsAtom, { store: globalStore });
+    const badgeKeys = useAvatarKeys();
     const readings = useAtomValue(UsageReadingsAtom, { store: globalStore });
     const unreadable = useAtomValue(UsageUnreadableAtom, { store: globalStore });
     const keepState = useAtomValue(KeepAwakeModel.getInstance().stateAtom, { store: globalStore });
@@ -198,26 +202,20 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         (r) => !isActive(r) && (r.state === "completed" || r.state === "interrupted") && r.endedAt > lookedAt
     );
     const keepAwake = keepAwakeActive(keepState);
-    // The panel the priority chose is read once, when the group opens: nothing changes under the developer's eyes after.
-    const [auto] = useState<PanelId>(() =>
-        openingPanel({
-            urgentOrAnswer: facts.urgentOrAnswer,
-            agentBlocked,
-            downloadReported,
-            unread: facts.unread,
-            downloadRunning: running.length > 0,
-        })
-    );
-    const active: ShownPanel = activePanel(panels, auto, conversation);
-    const marks = railMarks({
-        noteCount: facts.count,
+    const railInput: RailInput = {
+        badgeKeys,
         urgentOrAnswer: facts.urgentOrAnswer,
+        unread: facts.unread,
         agentBlocked,
         downloadReported,
         downloadProgress: overallDownloadProgress(running),
         downloadRunning: running.length > 0,
         keepAwake,
-    });
+    };
+    // The panel the priority chose is read once, when the group opens: nothing changes under the developer's eyes after.
+    const [auto] = useState<PanelId>(() => openingPanel(priorityFactsOf(railInput)));
+    const active: ShownPanel = activePanel(panels, auto, conversation);
+    const marks = railMarks(railInput);
     const weekly = useMemo(() => weeklyUsage(readings, now, unreadable), [readings, now, unreadable]);
 
     // What his face does with the conversation: it listens while the developer writes, thinks while his session works on
@@ -447,7 +445,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                 ? t("boss.group.rail.running", { name: label, percent: Math.round(mark.ring * 100) })
                 : t("boss.group.rail.runningUnknown", { name: label });
         }
-        if (id === "downloads" && mark.dot) {
+        if (id === "downloads" && (mark.dot || mark.count > 0)) {
             return t("boss.group.rail.news", { name: label });
         }
         if (id === "keepawake" && mark.ember) {

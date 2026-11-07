@@ -114,6 +114,9 @@ vi.mock("./brokk-session", async () => {
     };
     return { BrokkSession: { getInstance: () => session } };
 });
+// What the face's badge counts, by key: the hub's own tests cover how it is made (brokk-hub-feed, brokk-visit).
+const Badge = vi.hoisted(() => ({ keys: [] as string[] }));
+vi.mock("./use-brokk-hub", () => ({ useAvatarKeys: () => Badge.keys }));
 vi.mock("./brokk-menu", () => ({ brokkMenuItems: () => [] }));
 vi.mock("./use-brokk-actions", () => ({
     useBrokkActions: () => ({ busyId: null, problem: "", goToSession: vi.fn(), runTodo: vi.fn(), reconnect: vi.fn() }),
@@ -212,6 +215,7 @@ function quiet() {
     globalStore.set(session.exchangeAtom, []);
     globalStore.set(session.unseenIdAtom, null);
     globalStore.set(session.speakingAtom, false);
+    Badge.keys = [];
 }
 
 beforeEach(() => {
@@ -438,15 +442,41 @@ describe("the rail (AC17)", () => {
         expect(attr(html, "brokk-rail-agents", "aria-controls")).toBe("brokk-panel");
     });
 
-    it("counts the notifications on its icon, red when anything is grave or waits for an answer", () => {
-        globalStore.set(notifications.shownEntriesAtom, [entry("n1"), entry("n2")]);
+    it("counts on Notifications what the face's badge counts, red when anything is grave or waits for an answer", () => {
+        globalStore.set(boss.toHandleAtom, { items: [row("ready:/p:2", { tone: "success" })], info: [], parked: 0 });
+        Badge.keys = ["ready:/p:2"];
         const calm = render();
-        expect(calm).toMatch(/data-testid="brokk-rail-count"[^>]*>2</);
+        expect(calm).toMatch(/data-testid="brokk-rail-count"[^>]*>1</);
         expect(calm).not.toContain('data-grave="true"');
-        globalStore.set(boss.toHandleAtom, { items: [row("agent:a")], info: [], parked: 0 });
+        globalStore.set(boss.toHandleAtom, {
+            items: [row("ready:/p:2", { tone: "success" }), row("agent:a"), row("handoff:x")],
+            info: [],
+            parked: 0,
+        });
+        Badge.keys = ["agent:a", "ready:/p:2", "row:handoff:x"];
         const html = render();
         expect(html).toMatch(/data-grave="true"[^>]*data-testid="brokk-rail-count"[^>]*>3</);
         expect(attr(html, "brokk-rail-notifications", "aria-label")).toBe("Notifications, 3 waiting");
+    });
+
+    it("shows unread notifications the badge does not count as a dot, not a number", () => {
+        globalStore.set(notifications.shownEntriesAtom, [entry("n1"), entry("n2")]);
+        const html = render();
+        expect(html).not.toContain('data-testid="brokk-rail-count"');
+        expect(html).toContain('data-testid="brokk-rail-dot"');
+    });
+
+    it("counts a finished download of the badge on Téléchargements, and the counts add up to the badge (#2085)", () => {
+        globalStore.set(boss.toHandleAtom, { items: [row("ready:/p:2", { tone: "success" })], info: [], parked: 0 });
+        globalStore.set(downloads.itemsAtom, [
+            download("d1", "completed", Date.now()),
+            download("d2", "progressing", 0, { received: 10, total: 100 }),
+        ]);
+        Badge.keys = ["download:d1", "ready:/p:2"];
+        const html = render();
+        const counts = [...html.matchAll(/data-testid="brokk-rail-count"[^>]*>(\d+)</g)].map((m) => Number(m[1]));
+        expect(counts.reduce((a, b) => a + b, 0)).toBe(Badge.keys.length);
+        expect(attr(html, "brokk-rail-downloads", "aria-label")).toBe("Downloads, 10 % downloaded");
     });
 
     it("puts a dot on Agents while an agent is blocked", () => {
@@ -523,9 +553,25 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
         expect(render()).not.toContain('data-testid="brokk-panel"');
     });
 
-    it("5. opens Téléchargements for a download that runs, when that is all", () => {
+    it("4. opens Notifications for a pull request ready to merge while a download runs, as in the gold (#2085)", () => {
+        globalStore.set(boss.toHandleAtom, {
+            items: [row("ready:/p:2080", { tone: "success", name: "#2080", line: { text: "[#2070] Collapsed…" } })],
+            info: [],
+            parked: 0,
+        });
+        globalStore.set(downloads.itemsAtom, [download("d1", "progressing", 0, { received: 40, total: 100 })]);
+        Badge.keys = ["ready:/p:2080"];
+        const html = render();
+        expect(panel(html)).toBe("notifications");
+        expect(html).toMatch(/data-testid="brokk-rail-count"[^>]*>1</);
+        expect(attr(html, "brokk-rail-notifications", "aria-label")).toBe("Notifications, 1 waiting");
+    });
+
+    it("5. opens Téléchargements for a download that runs, when that is all, and the badge counts nothing", () => {
         globalStore.set(downloads.itemsAtom, [download("d1", "progressing", 0)]);
-        expect(panel(render())).toBe("downloads");
+        const html = render();
+        expect(panel(html)).toBe("downloads");
+        expect(html).not.toContain('data-testid="brokk-rail-count"');
     });
 
     it("shows one panel at a time, joined to its icon by the ember link, with the icon active", () => {
