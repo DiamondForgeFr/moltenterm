@@ -13,6 +13,7 @@ import {
     NoteRow,
     primaryAllowed,
     priorityOf,
+    sourceBesideWorkspace,
     todoSeverity,
 } from "./brokk-notes-model";
 import { DefaultVisitSettings } from "./brokk-visit-events";
@@ -227,6 +228,24 @@ describe("the workspace on each row", () => {
         expect(byKey["todo:ci:/proj:5"]).toMatchObject({ workspaceid: "", dir: "/proj" });
         expect(byKey["finished:done:b"].workspaceid).toBe("wsB");
         expect(byKey["entry:n"].workspaceid).toBe("wsC");
+    });
+});
+
+describe("the source beside the workspace", () => {
+    it("is left out when it says the workspace's name again, whatever the case or the spaces", () => {
+        expect(sourceBesideWorkspace("MoltenTerm", "MoltenTerm")).toBe("");
+        expect(sourceBesideWorkspace("moltenterm", " MoltenTerm ")).toBe("");
+    });
+
+    it("stays when it says something else, or when there is no workspace name", () => {
+        expect(sourceBesideWorkspace("MoltenTerm", "CI")).toBe("CI");
+        expect(sourceBesideWorkspace("Alpha", "MoltenTerm")).toBe("MoltenTerm");
+        expect(sourceBesideWorkspace("", "MoltenTerm")).toBe("MoltenTerm");
+        expect(sourceBesideWorkspace(undefined, "build")).toBe("build");
+    });
+
+    it("has nothing to show for no source", () => {
+        expect(sourceBesideWorkspace("Alpha", "")).toBe("");
     });
 });
 

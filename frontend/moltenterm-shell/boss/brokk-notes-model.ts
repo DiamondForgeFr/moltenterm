@@ -148,6 +148,13 @@ export function buildNotes(input: NotesInput): NoteRow[] {
     return [...todo, ...entries, ...finished].sort(bySeverity);
 }
 
+// A source that says the workspace's name again (the app's own update in the MoltenTerm workspace reads "MoltenTerm ·
+// MoltenTerm") adds nothing: the row shows the name once, as the workspace. Returns what to show after the workspace.
+export function sourceBesideWorkspace(workspaceName: string, source: string): string {
+    const same = (a: string, b: string) => a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+    return source === "" || same(workspaceName ?? "", source) ? "" : source;
+}
+
 // The orange button is for what asks the developer to act: Urgent and À répondre, and only one per row.
 export function primaryAllowed(priority: NotePriority): boolean {
     return priority === "urgent" || priority === "answer";

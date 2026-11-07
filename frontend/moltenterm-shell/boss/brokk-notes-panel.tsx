@@ -39,7 +39,7 @@ import { toneOf } from "../toast-model";
 import { GhostButton, PrimaryButton, SecondaryButton } from "./boss-card-buttons";
 import { HandoffRowView } from "./boss-handoff-row";
 import { ToHandleAction, toHandleHeadline, toHandleName } from "./boss-to-handle-model";
-import { isPrimaryAction, NoteRow } from "./brokk-notes-model";
+import { isPrimaryAction, NoteRow, sourceBesideWorkspace } from "./brokk-notes-model";
 import { EmptyLine, HeaderIconButton, PanelFrame, PanelProblem } from "./brokk-panel-frame";
 import { goToWorkspace, labelOfRow, WorkspaceTag } from "./brokk-workspace-tag";
 import { BrokkActions } from "./use-brokk-actions";
@@ -356,6 +356,7 @@ function NoteRowView({
               ? { "data-todo": row.item.key, "data-tone": row.item.tone, "data-seen": row.item.seen ? "true" : "false" }
               : { "data-info": row.finished.key };
     const handoff = row.item?.handoff != null;
+    const source = entry != null ? sourceBesideWorkspace(label?.name ?? "", notificationSourceLabel(entry.source)) : "";
     return (
         <li
             ref={rowRef}
@@ -377,9 +378,9 @@ function NoteRowView({
             <div className="mt-brokk-rh">
                 <PriorityMark priority={row.priority} />
                 <WorkspaceTag label={label} onGo={() => goToWorkspace(label)} />
-                {entry != null ? (
+                {source !== "" ? (
                     <span className="mt-brokk-src" data-testid="notification-source">
-                        {notificationSourceLabel(entry.source)}
+                        {source}
                     </span>
                 ) : null}
                 {row.unread && row.source === "entry" ? <span className="mt-brokk-unread" aria-hidden /> : null}

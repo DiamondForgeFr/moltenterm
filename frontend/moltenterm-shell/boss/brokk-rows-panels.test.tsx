@@ -143,6 +143,36 @@ describe("the Agents panel (FR-BOSS-009, AC19)", () => {
         expect(html).toContain('aria-label="Go to Zoé"');
     });
 
+    const rowOf = (html: string, id: string) => {
+        const start = html.indexOf(`data-session="${id}"`);
+        return html.slice(start, html.indexOf("</li>", start));
+    };
+
+    it("shows the suite's dominoes, not a bare arc, for an agent that works, in the slot of the other state dots", () => {
+        Everything();
+        const html = agents();
+        const working = rowOf(html, "jo");
+        expect(working).toMatch(/data-testid="brokk-agent-mark"[^>]*><span class="df-domino-loader mt-brokk-dom"/);
+        expect(working.match(/<span><\/span>/g)).toHaveLength(8);
+        expect(working).not.toContain("border-2");
+        expect(working).not.toContain("rounded-full");
+        const waiting = rowOf(html, "zoe");
+        expect(waiting).toMatch(
+            /data-testid="brokk-agent-mark"[^>]*><span class="inline-block h-2 w-2 [^"]*rounded-full/
+        );
+        expect(waiting).not.toContain("df-domino-loader");
+    });
+
+    it("keeps the dominoes in the 16 by 8 px slot at half size, so that the state words line up", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const slot = /\.mt-brokk-sd \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(slot).toMatch(/width: 16px/);
+        expect(slot).toMatch(/height: 8px/);
+        const dom = /\.mt-brokk-dom \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(dom).toMatch(/zoom: 0\.5/);
+        expect(dom).toMatch(/color: var\(--mt-state-running\)/);
+    });
+
     it("counts the agents next to its title and names the workspace of each group", () => {
         Everything();
         const html = agents();

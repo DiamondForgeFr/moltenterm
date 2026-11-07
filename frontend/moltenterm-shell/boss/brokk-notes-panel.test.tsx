@@ -411,3 +411,46 @@ describe("Info notifications leave once consulted (FR-BOSS-009, AC19)", () => {
         expect(group).toContain("notifications.settleSeen()");
     });
 });
+
+describe("the source of a notification, shown once (FR-BOSS-009, AC19)", () => {
+    const withWorkspaces = () =>
+        renderToStaticMarkup(
+            <NotificationsPanel
+                rows={rowsOf()}
+                parked={0}
+                now={Now}
+                workspaces={
+                    new Map<string, Workspace>([
+                        ["wsM", { oid: "wsM", name: "MoltenTerm", color: "#ff7c0d", meta: {} } as any],
+                        ["wsA", { oid: "wsA", name: "Alpha", color: "#4cc38a", meta: {} } as any],
+                    ])
+                }
+                highlightIds={[]}
+                actions={Actions}
+                onLeave={() => {}}
+                onClose={() => {}}
+                onListed={() => {}}
+            />
+        );
+
+    it("does not say MoltenTerm twice on the app's own update in the MoltenTerm workspace", () => {
+        globalStore.set(model.entriesAtom, [
+            entry("u1", { source: "moltenterm", workspaceid: "wsM", title: "Update" }),
+        ]);
+        const html = withWorkspaces();
+        expect(html).not.toContain('data-testid="notification-source"');
+        expect(html.match(/>MoltenTerm</g)).toHaveLength(1);
+        expect(html).toContain('data-testid="workspace-name">MoltenTerm<');
+    });
+
+    it("keeps the source when it is not the workspace's name", () => {
+        globalStore.set(model.entriesAtom, [
+            entry("c1", { source: "ci", workspaceid: "wsA" }),
+            entry("u2", { source: "moltenterm", workspaceid: "wsA" }),
+        ]);
+        const html = withWorkspaces();
+        expect(tags(html, "notification-source")).toHaveLength(2);
+        expect(html).toMatch(/data-testid="notification-source">CI</);
+        expect(html).toMatch(/data-testid="notification-source">MoltenTerm</);
+    });
+});

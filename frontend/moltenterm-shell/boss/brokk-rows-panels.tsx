@@ -135,13 +135,18 @@ function AgentRowView({ row, actions }: { row: CardRow; actions: BrokkActions })
             data-state={row.state}
         >
             <div className="mt-brokk-rh">
-                <span
-                    className={cn(
-                        "inline-block h-2 w-2 shrink-0 rounded-full",
-                        AgentStateDotClasses[row.state] ?? AgentStateDotClasses.idle
+                <span className="mt-brokk-sd" data-testid="brokk-agent-mark" aria-hidden>
+                    {row.state === "working" ? (
+                        <DominoLoader className="mt-brokk-dom" />
+                    ) : (
+                        <span
+                            className={cn(
+                                "inline-block h-2 w-2 shrink-0 rounded-full",
+                                AgentStateDotClasses[row.state] ?? AgentStateDotClasses.idle
+                            )}
+                        />
                     )}
-                    aria-hidden
-                />
+                </span>
                 <span className="mt-brokk-state" data-state={row.state} data-testid="boss-card-state">
                     {row.stateText}
                 </span>

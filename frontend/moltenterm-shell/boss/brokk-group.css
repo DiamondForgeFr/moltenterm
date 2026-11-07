@@ -687,6 +687,23 @@
     border-radius: 50%;
 }
 
+/* The state mark of an agent row: a dot, or the suite's dominoes while it works (the app's one working sign). Both stand
+   in the same 16 by 8 px slot, so the state words line up from one row to the next; the dominoes are the inline loader
+   (32 by 14 px) at half size, about as high as the dot. */
+.mt-brokk-sd {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 8px;
+}
+
+.mt-brokk-dom {
+    zoom: 0.5;
+    color: var(--mt-state-running);
+}
+
 .mt-brokk-gh {
     display: flex;
     align-items: center;
