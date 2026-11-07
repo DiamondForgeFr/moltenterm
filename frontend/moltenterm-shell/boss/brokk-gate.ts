@@ -24,9 +24,13 @@ export type GateState = {
     searchFocused: boolean;
     // A menu or a dialog is open anywhere in the window.
     overlayOpen: boolean;
-    // The sidebar is not on screen (hidden, or floating away): the scene has nowhere to stand, and nothing opens it by
-    // itself, so the visit waits for it (FR-BOSS-009, AC14).
+    // The sidebar is not on screen (hidden, or floating away): the scene has nowhere to stand but its strip when it is
+    // collapsed with Brokk on (`edge`), and nothing opens it by itself, so the visit waits for a sidebar to show
+    // (FR-BOSS-009, AC14).
     hidden: boolean;
+    // The sidebar is collapsed at the window's edge with Brokk's face on it (#2070, AC27 to AC30): the visit stands in
+    // that strip, half open, and nothing of the sidebar is under the pointer, so the pointer rules do not hold him.
+    edge: boolean;
 };
 
 export const EmptyGate: GateState = {
@@ -37,6 +41,7 @@ export const EmptyGate: GateState = {
     searchFocused: false,
     overlayOpen: false,
     hidden: false,
+    edge: false,
 };
 
 // The surface tells what happens in the sidebar: `act` is a click, a scroll or a keystroke there.
@@ -48,7 +53,8 @@ export type GateEvent =
     | { type: "dragend" }
     | { type: "search"; focused: boolean }
     | { type: "overlay"; open: boolean }
-    | { type: "hidden"; hidden: boolean };
+    | { type: "hidden"; hidden: boolean }
+    | { type: "edge"; edge: boolean };
 
 export function gateAfter(gate: GateState, event: GateEvent, now: number): GateState {
     switch (event.type) {
@@ -70,6 +76,8 @@ export function gateAfter(gate: GateState, event: GateEvent, now: number): GateS
             return gate.overlayOpen === event.open ? gate : { ...gate, overlayOpen: event.open };
         case "hidden":
             return gate.hidden === event.hidden ? gate : { ...gate, hidden: event.hidden };
+        case "edge":
+            return gate.edge === event.edge ? gate : { ...gate, edge: event.edge };
         default:
             return gate;
     }
@@ -81,6 +89,9 @@ export type GateHold = "quiet" | "hidden" | "pointer" | "search" | "overlay" | "
 export function gateHold(gate: GateState, quiet: boolean, now: number): GateHold {
     if (quiet) {
         return "quiet";
+    }
+    if (gate.edge) {
+        return gate.overlayOpen ? "overlay" : null;
     }
     if (gate.hidden) {
         return "hidden";
@@ -113,7 +124,7 @@ export function mayArriveNow(gate: GateState, quiet: boolean, now: number): bool
 // When the gate opens by itself, as time passes: null when it is held by something only an event can end (the pointer,
 // the focus, an open menu, a drag, the hidden sidebar), or is open.
 export function gateOpensAt(gate: GateState, now: number): number {
-    if (gate.hidden || gate.pointerIn || gate.searchFocused || gate.overlayOpen || gate.dragging) {
+    if (gate.edge || gate.hidden || gate.pointerIn || gate.searchFocused || gate.overlayOpen || gate.dragging) {
         return null;
     }
     const at = Math.max(

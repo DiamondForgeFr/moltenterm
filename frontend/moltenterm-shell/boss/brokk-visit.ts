@@ -152,9 +152,17 @@ export function visitOf(events: StoredEvent[], settings: VisitSettings, now: num
     };
 }
 
-// What the badge counts: every event not set to Rien, told or not.
+// What the badge counts: every event not set to Rien, told or not. Its keys are how the collapsed sidebar tells a new
+// notification from one it already told (brokk-edge-model.ts).
+export function badgeKeys(visits: VisitState, settings: VisitSettings): string[] {
+    return Object.values(visits.events)
+        .filter(({ event }) => comingOf(event.kind, settings) !== "rien")
+        .map(({ event }) => event.key)
+        .sort();
+}
+
 export function badgeCount(visits: VisitState, settings: VisitSettings): number {
-    return Object.values(visits.events).filter(({ event }) => comingOf(event.kind, settings) !== "rien").length;
+    return badgeKeys(visits, settings).length;
 }
 
 export type BrokkInput =
@@ -270,8 +278,9 @@ export type BrokkView = {
     cue: boolean;
     // He may start a visit now, whether or not something waits.
     mayArrive: boolean;
-    // How many events the badge counts.
+    // How many events the badge counts, and which.
     badge: number;
+    badgeKeys: string[];
     laterUntil: number;
 };
 
@@ -286,6 +295,7 @@ function viewOf(model: BrokkModel, now: number): BrokkView {
     const { visits, settings } = model;
     const waiting = tellable(visits, settings, now);
     const quiet = quietNow(model, now);
+    const keys = badgeKeys(visits, settings);
     return {
         visit: visits.shown ? visitOf(waiting, settings, now) : null,
         cue:
@@ -296,7 +306,8 @@ function viewOf(model: BrokkModel, now: number): BrokkView {
             !quiet &&
             gateHold(model.gate, false, now) != null,
         mayArrive: mayArriveNow(model.gate, quiet, now),
-        badge: badgeCount(visits, settings),
+        badge: keys.length,
+        badgeKeys: keys,
         laterUntil: visits.laterUntil,
     };
 }

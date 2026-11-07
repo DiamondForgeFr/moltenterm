@@ -1,8 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Brokk at rest (FR-BOSS-009, AC1, AC2, AC14, #2002): a small round animated avatar at the right end of the sidebar's
-// title row, or hanging from the window's top edge when the sidebar is not on screen. It carries the badge of what
+// Brokk at rest (FR-BOSS-009, AC1, AC2, AC14, AC27, #2002, #2070): a small round animated avatar at the right end of the
+// sidebar's title row, which stays on the strip of the collapsed sidebar at the window's edge (smaller, there), or hangs
+// from the window's top edge when there is no sidebar. It carries the badge of what
 // waits, an animated ring while Brokk himself works (never because other agents do), a small cup while keep-awake holds
 // this computer awake and he is closed, and a soft halo while a visit waits for the gate. Hovering it shows a tooltip,
 // nothing else; a click opens his floating group. It never opens anything by itself, takes no focus and plays no sound.
@@ -19,12 +20,14 @@ import { useWorkingBeat } from "../working-beat";
 import { bubbleLabel } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
-import { AvatarVariant, PeekDelayMs, Rect } from "./brokk-avatar-model";
+import { AvatarVariant, avatarVariant, PeekDelayMs, Rect } from "./brokk-avatar-model";
 import "./brokk-avatar.css";
+import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { brokkMenuItems } from "./brokk-menu";
 import { BrokkTooltip } from "./brokk-peek";
 import { useAvatarBadge, useAvatarLive, useHubSelect } from "./use-brokk-hub";
+import { useMotionAllowed } from "./use-brokk-live";
 
 // The ring is the bell's (notification-center.tsx): a faint track and an arc that takes a quarter turn on each beat of
 // the working beat, and stands still when the beat does (reduced motion, a window nobody looks at).
@@ -69,6 +72,8 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const cue = useHubSelect((view) => view.cue);
     const sceneUp = useHubSelect((view) => view.visit != null);
     const live = useAvatarLive(ownWorking, sceneUp || cardOpen);
+    const unseen = useAtomValue(BrokkEdgeModel.getInstance().unseenAtom, { store: globalStore });
+    const motion = useMotionAllowed();
     const buttonRef = useRef<HTMLButtonElement>(null);
     const peekTimer = useRef<ReturnType<typeof setTimeout>>(null);
     const [peek, setPeek] = useState<Rect>(null);
@@ -126,7 +131,11 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
         <button
             ref={buttonRef}
             type="button"
-            className={cn("mt-brokk-avatar", variant === "hanging" && "is-hanging")}
+            className={cn(
+                "mt-brokk-avatar",
+                variant === "hanging" && "is-hanging",
+                variant === "edge" && "is-edge"
+            )}
             style={style}
             data-testid="brokk-avatar"
             data-boss-anchor=""
@@ -135,6 +144,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             data-cue={cue ? "true" : undefined}
             data-scene={sceneUp ? "up" : undefined}
             data-panel={cardOpen ? "open" : undefined}
+            data-news={variant === "edge" && unseen && !motion ? "true" : undefined}
             aria-label={label}
             aria-haspopup="dialog"
             aria-expanded={cardOpen}
@@ -181,11 +191,11 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     );
 }
 
-// The avatar of the sidebar's title row: there while the sidebar is on screen and Brokk is not turned off. Hidden, the
-// sidebar waits off the window's edge with its row still in the page; the avatar that hangs from the window's edge
-// stands in then, so there is never more than one (FR-BOSS-009, AC14).
+// The avatar of the sidebar's title row, while Brokk is not turned off: the row's own when the sidebar is on screen, and
+// the strip of the collapsed sidebar, which keeps its row at the window's edge (FR-BOSS-009, AC27, #2070). With no
+// sidebar the avatar that hangs from the window's edge stands in, so there is never more than one (AC14).
 export function BrokkAvatarSlot() {
     const show = useAtomValue(BossBubbleModel.getInstance().showAtom, { store: globalStore });
-    const onScreen = useAtomValue(BrokkHubModel.getInstance().sidebarOnScreenAtom, { store: globalStore });
-    return show && onScreen ? <BrokkAvatar variant="row" /> : null;
+    const place = useAtomValue(BrokkHubModel.getInstance().sidebarPlaceAtom, { store: globalStore });
+    return show && place !== "none" ? <BrokkAvatar variant={avatarVariant(place)} /> : null;
 }

@@ -1,13 +1,15 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Where Brokk's avatar stands and what opens beside it (FR-BOSS-009, AC1, AC14, #2002): the avatar sits in the sidebar's
-// title row, or hangs from the window's top edge when the sidebar is not on screen; his hover tooltip stands under it
+// Where Brokk's avatar stands and what opens beside it (FR-BOSS-009, AC1, AC14, AC27, #2002, #2070): the avatar sits in
+// the sidebar's title row, which stays at the window's edge when the sidebar is collapsed, or hangs from the window's
+// top edge when there is no sidebar; his hover tooltip stands under it
 // (his floating group stands beside the sidebar: brokk-group-model.ts). Pure, so the rules are tested without a window.
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
 import type { BrokkSituation } from "./brokk-ask-model";
+import type { SidebarPlace } from "./brokk-edge-model";
 
 export type Rect = { left: number; top: number; width: number; height: number };
 
@@ -16,11 +18,15 @@ export type Rect = { left: number; top: number; width: number; height: number };
 export const AvatarSizePx = 26;
 export const HangingSizePx = 14;
 
-export type AvatarVariant = "row" | "hanging";
+export type AvatarVariant = "row" | "edge" | "hanging";
 
-// Never two Brokks on screen: the row of the sidebar when the sidebar is there, the window's edge when it is not.
-export function avatarVariant(sidebarOnScreen: boolean): AvatarVariant {
-    return sidebarOnScreen ? "row" : "hanging";
+// Never two Brokks on screen: the row of the sidebar when the sidebar is there, the strip that stays of it when it is
+// collapsed (#2070), the window's top edge when there is no sidebar.
+export function avatarVariant(place: SidebarPlace): AvatarVariant {
+    if (place === "screen") {
+        return "row";
+    }
+    return place === "edge" ? "edge" : "hanging";
 }
 
 // Its distance from the window's right edge: off the corner on macOS, where nothing else sits there, and clear of the

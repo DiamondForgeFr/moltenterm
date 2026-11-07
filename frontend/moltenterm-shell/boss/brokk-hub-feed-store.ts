@@ -38,6 +38,9 @@ export type HubSources = {
     settingsAtom: Atom<VisitSettings>;
     // The sidebar is on screen: docked, or floating over the content. Hidden, there is no scene to stand on.
     sidebarOnScreenAtom: Atom<boolean>;
+    // The sidebar is collapsed at the window's edge with his face on it (#2070): the visit stands there, half open, and
+    // the pointer rules do not hold it. A window without one leaves it out.
+    sidebarEdgeAtom?: Atom<boolean>;
     // The top field (the search field) is open: it holds the focus.
     searchOpenAtom: Atom<boolean>;
     // A view, a tile or a block is being dragged in the sidebar.
@@ -121,12 +124,16 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         }
         hub.agents(store.get(src.agentsAtom));
         hub.syncRows(store.get(src.toHandleAtom).items);
+        hub.markReady();
     };
     const extra = extraFeeds(hub, src);
     const stops = [
         extra.stop,
         follow(store, src.settingsAtom, (settings) => hub.settings(settings)),
         follow(store, src.sidebarOnScreenAtom, (onScreen) => hub.gate({ type: "hidden", hidden: !onScreen })),
+        src.sidebarEdgeAtom != null
+            ? follow(store, src.sidebarEdgeAtom, (edge) => hub.gate({ type: "edge", edge }))
+            : () => {},
         follow(store, src.searchOpenAtom, (focused) => hub.gate({ type: "search", focused })),
         follow(
             store,

@@ -64,14 +64,20 @@ function sameVisit(a: BrokkView["visit"], b: BrokkView["visit"]): boolean {
     );
 }
 
+// What the surfaces read: the model's answer, and whether the feeds have been read once. What was there when they were
+// first read is no news (#2070, AC28).
+export type HubView = BrokkView & { ready: boolean };
+
 // The same answer in other words: the view is kept as it was, so that no one draws again for it.
-function sameView(a: BrokkView, b: BrokkView): boolean {
+function sameView(a: HubView, b: HubView): boolean {
     return (
         sameVisit(a.visit, b.visit) &&
         a.cue === b.cue &&
         a.mayArrive === b.mayArrive &&
         a.badge === b.badge &&
-        a.laterUntil === b.laterUntil
+        a.badgeKeys.join("\n") === b.badgeKeys.join("\n") &&
+        a.laterUntil === b.laterUntil &&
+        a.ready === b.ready
     );
 }
 
@@ -87,7 +93,8 @@ export class BrokkHub {
     private model: BrokkModel = InitialBrokk;
     // What the model answers, and what the surfaces read: the same, unless the example visit of the settings is up.
     private answer: BrokkView;
-    private view: BrokkView;
+    private view: HubView;
+    private ready = false;
     private example: Visit = null;
     private shared: SharedVisit;
     private finished: BrokkEvent[] = [];
@@ -102,11 +109,21 @@ export class BrokkHub {
         this.deps = deps;
         this.shared = deps.readShared();
         this.answer = brokkAfter(InitialBrokk, { type: "tick" }, deps.now()).view;
-        this.view = this.answer;
+        this.view = { ...this.answer, ready: false };
         this.run({ type: "tick" });
     }
 
-    getView = (): BrokkView => this.view;
+    getView = (): HubView => this.view;
+
+    // The sources have been read once: what they hold from now on is news.
+    markReady(): void {
+        if (this.ready || this.stopped) {
+            return;
+        }
+        this.ready = true;
+        this.view = { ...this.view, ready: true };
+        this.listeners.forEach((listener) => listener());
+    }
 
     // "Show a visit" in the settings (FR-BOSS-009, AC31 and AC32, #2079): the example scene comes up whatever the quiet
     // hours, the switch and the pointer say. Nothing else moves: no event, no mark, no delay, no panel.
@@ -233,7 +250,8 @@ export class BrokkHub {
     // Returns whether it changed; the scene that is up stays the very same object while its visit says the same, so that
     // it is not drawn again for the badge rising.
     private publish(answer: BrokkView): boolean {
-        const next = this.example == null ? answer : { ...answer, visit: this.example };
+        const base: HubView = { ...answer, ready: this.ready };
+        const next: HubView = this.example == null ? base : { ...base, visit: this.example };
         if (sameView(this.view, next)) {
             return false;
         }

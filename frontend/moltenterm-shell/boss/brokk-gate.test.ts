@@ -104,6 +104,41 @@ describe("when Brokk may arrive (FR-BOSS-009, AC8)", () => {
         expect(gateAfter(hidden, { type: "hidden", hidden: true }, T)).toBe(hidden);
     });
 
+    it("may at the collapsed sidebar's edge whatever the pointer, the search field, a drag or a click say: nothing is under the pointer (AC29, #2070)", () => {
+        const gate = after([
+            [{ type: "hidden", hidden: true }, T],
+            [{ type: "edge", edge: true }, T],
+            [{ type: "enter" }, T],
+            [{ type: "search", focused: true }, T],
+            [{ type: "dragstart" }, T],
+            [{ type: "act" }, T],
+        ]);
+        expect(gateHold(gate, false, T)).toBeNull();
+        expect(mayArriveNow(gate, false, T)).toBe(true);
+        expect(gateOpensAt(gate, T)).toBeNull();
+        expect(gateAfter(gate, { type: "edge", edge: true }, T)).toBe(gate);
+    });
+
+    it("still holds at the edge for quiet hours and for an open menu, dialog or group", () => {
+        const edge = after([
+            [{ type: "hidden", hidden: true }, T],
+            [{ type: "edge", edge: true }, T],
+        ]);
+        expect(gateHold(edge, true, T)).toBe("quiet");
+        expect(gateHold(gateAfter(edge, { type: "overlay", open: true }, T), false, T)).toBe("overlay");
+    });
+
+    it("holds as before once the sidebar is not at the edge: the same events hold it again", () => {
+        const gone = after([
+            [{ type: "hidden", hidden: true }, T],
+            [{ type: "edge", edge: true }, T],
+            [{ type: "enter" }, T],
+            [{ type: "edge", edge: false }, T],
+        ]);
+        expect(gateHold(gone, false, T + 600_000)).toBe("hidden");
+        expect(gateHold(after([[{ type: "enter" }, T]]), false, T)).toBe("pointer");
+    });
+
     it("holds for the first reason found, but for all of them together", () => {
         const gate = after([
             [{ type: "enter" }, T],

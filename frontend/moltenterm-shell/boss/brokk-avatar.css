@@ -1,8 +1,8 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* Brokk's avatar (FR-BOSS-009, AC1, AC2, AC14): 26 px in the sidebar's title row, 22 px when it hangs from the window's
-   top edge. The portrait fills a round face and is framed on his head by boss-portrait.css, the one place that holds
+/* Brokk's avatar (FR-BOSS-009, AC1, AC2, AC14, AC27): 26 px in the sidebar's title row, 20 px on the strip of the
+   collapsed sidebar, 14 px when it hangs from the window's top edge. The portrait fills a round face and is framed on his head by boss-portrait.css, the one place that holds
    the framing. The ring, the badge and the halo lie around the face, so they are never clipped by it. Nothing here
    loops: the ring turns on the working beat (moltenterm-shell.css, mt-beat-turn) and the halo dims on it, so that a
    view with an avatar draws a frame a second at most, and both stand still without the beat (reduced motion). */
@@ -28,7 +28,48 @@
     transition:
         opacity var(--mt-duration-fade) linear var(--mt-duration-fade),
         visibility 0s linear 0s,
-        box-shadow var(--mt-duration-fast) var(--mt-ease);
+        box-shadow var(--mt-duration-fast) var(--mt-ease),
+        width var(--mt-duration-base) var(--mt-ease),
+        height var(--mt-duration-base) var(--mt-ease),
+        transform var(--mt-duration-base) var(--mt-ease);
+}
+
+/* On the strip of the collapsed sidebar (FR-BOSS-009, AC27, #2070): smaller, so that it fits the 22 px, and moved from
+   its place at the right end of the title row to the middle of the strip. It grows back and slides to its place as the
+   sidebar unfolds, so the face rides with the sidebar and is never twice on screen. Its badge hangs over the content's
+   margin, which the strip's room leaves free. */
+.mt-brokk-avatar.is-edge {
+    --mt-brokk-size: var(--mt-edge-face, 20px);
+    transform: translateX(calc(var(--mt-peek-inset, 12px) - (var(--mt-edge-px, 22px) - var(--mt-edge-face, 20px)) / 2));
+}
+
+.mt-brokk-avatar.is-edge .mt-brokk-ring {
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+}
+
+.mt-brokk-avatar.is-edge .mt-brokk-halo {
+    inset: 0;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 55%, transparent);
+}
+
+.mt-brokk-avatar.is-edge .mt-brokk-cup,
+.mt-brokk-avatar.is-edge .mt-brokk-talk {
+    display: none;
+}
+
+/* Under the face, inside the strip: at the top right it would hide a third of a 20 px face and lie over the first panel. */
+.mt-brokk-avatar.is-edge .mt-brokk-badge {
+    top: calc(100% + 3px);
+    right: 50%;
+    transform: translateX(50%);
+}
+
+/* A new notification, with reduced motion: no bounce, the badge and an outline in the action colour say it until the
+   developer looks (FR-BOSS-009, AC28). */
+.mt-brokk-avatar[data-news="true"] {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-action) 85%, transparent);
 }
 
 .mt-brokk-avatar:hover {
@@ -166,6 +207,10 @@
     font-variant-numeric: tabular-nums;
     box-shadow: 0 0 0 2px var(--mt-surface-1);
     pointer-events: none;
+    transition:
+        top var(--mt-duration-base) var(--mt-ease),
+        right var(--mt-duration-base) var(--mt-ease),
+        transform var(--mt-duration-base) var(--mt-ease);
 }
 
 .mt-brokk-avatar.is-hanging .mt-brokk-badge {
