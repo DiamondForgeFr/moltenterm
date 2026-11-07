@@ -7,6 +7,17 @@
 import { useT, useTCount } from "../i18n/i18n";
 import type { CaptionLine } from "./brokk-scene";
 
+// The lines of one caption read as one line (the one under his square, FR-BOSS-009, AC17): when there are two or more,
+// each is a sentence, so "Everyone finished" and "Nothing for you" read "Everyone finished. Nothing for you." and not
+// "Everyone finished Nothing for you". A caption of one line is left as it is.
+export function captionSentences(lines: string[]): string {
+    const parts = lines.map((line) => (line ?? "").trim()).filter((line) => line !== "");
+    if (parts.length < 2) {
+        return parts[0] ?? "";
+    }
+    return parts.map((part) => (/[.!?…]$/.test(part) ? part : `${part}.`)).join(" ");
+}
+
 export function useCaptionText(): (line: CaptionLine) => string {
     const t = useT();
     const tCount = useTCount();

@@ -370,6 +370,8 @@ type AgentStateInfo struct {
 	Background bool `json:"background,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
+	// Own: the block is Brokk's own session (OwnSessionMetaKey): the windows keep it out of every list of agents.
+	Own bool `json:"own,omitempty"`
 	// Settled (#1876): the agent stopped for a decision, MoltenTerm held that stop (State would be waiting), and
 	// someone decided it: State is idle and this says who and why.
 	Settled *AgentSettled `json:"settled,omitempty"`

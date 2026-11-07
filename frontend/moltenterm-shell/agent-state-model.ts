@@ -52,6 +52,8 @@ export type AgentStateInfo = {
     subagents?: number;
     background?: boolean;
     cleared?: boolean;
+    // The block is Brokk's own session (FR-BOSS-009, AC26): no list of agents shows it, his face alone shows it works.
+    own?: boolean;
     // #1876: the agent stopped for a decision and someone settled it; state is idle then.
     settled?: AgentSettled;
 };
@@ -107,6 +109,31 @@ export function applyAgentStates(data: AgentStatesData, infos: AgentStateInfo[])
         }
     }
     return next ?? data;
+}
+
+// Brokk's own session is kept apart (FR-BOSS-009, AC26, #2033): every list of agents reads `data`, which never holds it,
+// and his ring reads `own`. A state that says it is his goes to `own`, and takes the block out of `data` when an event
+// that came before its location put it there; the end of his session, which does not say it, goes to both.
+export function splitOwnStates(
+    infos: AgentStateInfo[],
+    data: AgentStatesData,
+    own: AgentStatesData
+): { shared: AgentStateInfo[]; own: AgentStateInfo[] } {
+    const rtn = { shared: [] as AgentStateInfo[], own: [] as AgentStateInfo[] };
+    for (const info of infos ?? []) {
+        if (info?.own) {
+            rtn.own.push(info);
+            if (data.states[info.blockid] != null) {
+                rtn.shared.push({ blockid: info.blockid, version: info.version, cleared: true });
+            }
+        } else if (info?.cleared && own.versions[info.blockid] != null) {
+            rtn.own.push(info);
+            rtn.shared.push(info);
+        } else {
+            rtn.shared.push(info);
+        }
+    }
+    return rtn;
 }
 
 // Applies a snapshot read again after a reconnect (#1949): it also drops the agents it no longer lists, whose end was

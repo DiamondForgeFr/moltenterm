@@ -22,6 +22,7 @@ import {
     heldAgentVersions,
     mostUrgentAgentState,
     reconcileAgentStates,
+    splitOwnStates,
     workingAgentCount,
 } from "./agent-state-model";
 import { onEventsResubscribed } from "./ws-resubscribe";
@@ -33,7 +34,10 @@ const SnapshotMaxTries = 10;
 export class AgentStates {
     private static instance: AgentStates = null;
 
+    // The agents of the workspaces: every list (the sidebar's, the panels', the rail's marks, the counts) reads it.
     dataAtom = atom(EmptyAgentStates) as PrimitiveAtom<AgentStatesData>;
+    // Brokk's own session alone (FR-BOSS-009, AC26): it is in no list, and the ring on his face reads it here.
+    ownDataAtom = atom(EmptyAgentStates) as PrimitiveAtom<AgentStatesData>;
     // True once the first snapshot is in: what arrives before it is a window starting, not an agent changing state.
     loadedAtom = atom(false) as PrimitiveAtom<boolean>;
     blockAtoms = new Map<string, Atom<AgentStateInfo>>();
@@ -53,9 +57,15 @@ export class AgentStates {
 
     apply(infos: AgentStateInfo[]): void {
         const current = globalStore.get(this.dataAtom);
-        const next = applyAgentStates(current, infos);
+        const own = globalStore.get(this.ownDataAtom);
+        const split = splitOwnStates(infos, current, own);
+        const next = applyAgentStates(current, split.shared);
         if (next !== current) {
             globalStore.set(this.dataAtom, next);
+        }
+        const nextOwn = applyAgentStates(own, split.own);
+        if (nextOwn !== own) {
+            globalStore.set(this.ownDataAtom, nextOwn);
         }
     }
 
@@ -90,15 +100,25 @@ export class AgentStates {
         }
     }
 
-    applySnapshot(snapshot: AgentStateInfo[], before: Record<string, number>): void {
+    applySnapshot(
+        snapshot: AgentStateInfo[],
+        before: Record<string, number>,
+        beforeOwn: Record<string, number> = null
+    ): void {
         if (before == null) {
             this.apply(snapshot);
             return;
         }
         const current = globalStore.get(this.dataAtom);
-        const next = reconcileAgentStates(current, before, snapshot);
+        const own = globalStore.get(this.ownDataAtom);
+        const split = splitOwnStates(snapshot, current, own);
+        const next = reconcileAgentStates(current, before, split.shared);
         if (next !== current) {
             globalStore.set(this.dataAtom, next);
+        }
+        const nextOwn = reconcileAgentStates(own, beforeOwn, split.own);
+        if (nextOwn !== own) {
+            globalStore.set(this.ownDataAtom, nextOwn);
         }
     }
 
@@ -107,6 +127,7 @@ export class AgentStates {
         let tries = 0;
         const load = () => {
             const before = reconcile ? heldAgentVersions(globalStore.get(this.dataAtom)) : null;
+            const beforeOwn = reconcile ? heldAgentVersions(globalStore.get(this.ownDataAtom)) : null;
             fireAndForget(async () => {
                 try {
                     const snapshot: AgentStateInfo[] = await TabRpcClient.wshRpcCall(
@@ -114,7 +135,7 @@ export class AgentStates {
                         {},
                         { route: AgentStatesRoute, timeout: SnapshotTimeoutMs }
                     );
-                    this.applySnapshot(snapshot ?? [], before);
+                    this.applySnapshot(snapshot ?? [], before, beforeOwn);
                     globalStore.set(this.loadedAtom, true);
                 } catch {
                     // wavesrv still starting: the route comes up with Mission Control.
@@ -130,7 +151,12 @@ export class AgentStates {
     blockAtom(blockId: string): Atom<AgentStateInfo> {
         let rtn = this.blockAtoms.get(blockId);
         if (rtn == null) {
-            rtn = atom((get) => (blockId == null ? null : (get(this.dataAtom).states[blockId] ?? null)));
+            // His own session has no place in a list, but its terminal is a terminal like any other when it is opened.
+            rtn = atom((get) =>
+                blockId == null
+                    ? null
+                    : (get(this.dataAtom).states[blockId] ?? get(this.ownDataAtom).states[blockId] ?? null)
+            );
             this.blockAtoms.set(blockId, rtn);
         }
         return rtn;

@@ -10,7 +10,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
 import { BossBubbleModel } from "./boss-store";
 import { BrokkSituation, speaksOnOpen } from "./brokk-ask-model";
-import { useCaptionText } from "./brokk-caption";
+import { captionSentences, useCaptionText } from "./brokk-caption";
 import { useBrokkScene, useBrokkSituation, useMotionAllowed } from "./use-brokk-live";
 
 // `talk`: what the field is doing (brokk-talk-model.ts talkPose), the same the portrait is given.
@@ -21,5 +21,5 @@ export function useGroupCaption(talk?: BrokkSituation["talk"]): string {
     const scene = useBrokkScene({ pinned: false, peek, situation, speaks: speaksOnOpen(situation) });
     const text = useCaptionText();
     const { status, detail } = scene.caption;
-    return [text(status), detail != null ? text(detail) : ""].filter((part) => part !== "").join(" ");
+    return captionSentences([text(status), detail != null ? text(detail) : ""]);
 }

@@ -249,6 +249,14 @@ describe("the group's square is driven by the same pose and mood models (FR-BOSS
         expect(hook(() => useGroupCaption())).toContain("2");
     });
 
+    // #2033: the status and its detail ("2 agents at work", "Nothing for you") were joined by a space alone.
+    it("reads the two lines of his caption as two sentences, not as one run of words", () => {
+        globalStore.set(bubble.workingCountAtom, 2);
+        const caption = hook(() => useGroupCaption());
+        expect(caption).toBe("2 agents at work. Nothing for you.");
+        expect(caption).not.toMatch(/work Nothing/);
+    });
+
     it("is wired to the portrait through the same hooks the panel used, with no video or package of its own", () => {
         const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(group).toContain("useCardLive(pose)");
