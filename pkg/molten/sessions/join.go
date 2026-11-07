@@ -284,6 +284,11 @@ func Join(s *Snapshot) molten.DurableSessionsData {
 		if !IsLive(job) {
 			continue
 		}
+		// Brokk's own session is no session of the developer's (FR-BOSS-009, AC26): the Sessions view, the Agents and
+		// Sessions panels and the counts never list it.
+		if p := paneOf(s, job); p.block != nil && molten.IsOwnSession(p.block.Meta) {
+			continue
+		}
 		ds := joinOne(s, job)
 		if ds.Agent != "" {
 			rtn.RunningAgents++

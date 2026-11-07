@@ -117,6 +117,27 @@ func TestJoinShownLocalWithAgent(t *testing.T) {
 	}
 }
 
+// FR-BOSS-009, AC26 (#2033): Brokk's own session is no session of the developer's, so the Sessions view, the Agents and
+// Sessions panels and the count of running agents never list it.
+func TestJoinLeavesBrokksOwnSessionOut(t *testing.T) {
+	w := makeWorld()
+	w.workspace("ws1", "Work", "#f00", "tab1", "tab-brokk")
+	mine := localJob("job-mine", 1000)
+	w.pane(mine, "b1", "tab1", waveobj.MetaMapType{})
+	w.s.Agents["b1"] = molten.AgentStateInfo{BlockId: "b1", Agent: "claude", AgentName: "Claude Code", State: "working"}
+	brokk := localJob("job-brokk", 2000)
+	w.pane(brokk, "b-brokk", "tab-brokk", waveobj.MetaMapType{molten.OwnSessionMetaKey: true})
+	w.s.Agents["b-brokk"] = molten.AgentStateInfo{BlockId: "b-brokk", Agent: "claude", AgentName: "Claude Code", State: "working", Own: true}
+
+	data := Join(w.s)
+	if len(data.Sessions) != 1 || data.Sessions[0].Id != "job-mine" {
+		t.Fatalf("sessions %+v, want the developer's only", data.Sessions)
+	}
+	if data.RunningAgents != 1 {
+		t.Errorf("running agents %d, want his session left out of the count", data.RunningAgents)
+	}
+}
+
 // After a restart the shell integration has not spoken yet: the shell is named, not "at prompt".
 func TestJoinShownBeforeShellIntegration(t *testing.T) {
 	w := makeWorld()

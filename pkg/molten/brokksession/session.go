@@ -16,12 +16,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
 const (
 	// BlockMetaKey marks the terminal of Brokk's session; must match frontend/moltenterm-shell/boss/brokk-session.ts.
-	BlockMetaKey = "molten:brokk"
+	BlockMetaKey = molten.OwnSessionMetaKey
 	// FolderName is his own folder, under MoltenTerm's data folder.
 	FolderName = "brokk"
 	// DefaultTabName names the hidden tab when the window sent none.

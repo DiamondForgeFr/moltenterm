@@ -97,6 +97,19 @@ func moltenRevealTab(ws *waveobj.Workspace, tabId string) {
 	molten.RevealTab(ws, tabId)
 }
 
+// moltenHideLeftOwnTab hides Brokk's tab again once the developer leaves it (FR-BOSS-009, AC26, #2033): he may have been
+// shown it on purpose, and it never stays among the views.
+func moltenHideLeftOwnTab(ctx context.Context, ws *waveobj.Workspace, left string, next string) {
+	if left == "" || left == next {
+		return
+	}
+	tab, _ := wstore.DBGet[*waveobj.Tab](ctx, left)
+	if tab == nil {
+		return
+	}
+	molten.HideLeftOwnTab(ws, left, tab.Meta, next)
+}
+
 // moltenRememberActiveTab keeps the active tab in the workspace's history before next replaces it (#1345).
 func moltenRememberActiveTab(ws *waveobj.Workspace, next string) {
 	molten.RememberActiveTab(ws, next)

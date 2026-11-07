@@ -78,7 +78,8 @@ export class BrokkHubModel {
             closedDownloads = next;
             return next;
         });
-        this.ownWorkingAtom = atom((get) => brokkWorking(get(agents.dataAtom), get(this.sessionBlockAtom)));
+        // His session is in no list of agents (FR-BOSS-009, AC26): its state is kept apart, and only his face shows it.
+        this.ownWorkingAtom = atom((get) => brokkWorking(get(agents.ownDataAtom), get(this.sessionBlockAtom)));
         this.settingsAtom = atom((get) => visitSettingsOf((key) => get(getSettingsKeyAtom(key as keyof SettingsType))));
         this.sidebarOnScreenAtom = atom(
             (get) => get(sidebar.enabledAtom) && (!get(sidebar.hiddenAtom) || get(sidebar.peekAtom))
