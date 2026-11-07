@@ -130,7 +130,15 @@ func TestAgentProcessCommand(t *testing.T) {
 	}
 }
 
+// resetAgentTreeCache empties the package-level cache: an earlier run (-count above 1) would leave its reads in it.
+func resetAgentTreeCache() {
+	defaultAgentTreeCache.lock.Lock()
+	defer defaultAgentTreeCache.lock.Unlock()
+	defaultAgentTreeCache.entries = map[string]string{}
+}
+
 func TestFindAgentProcess(t *testing.T) {
+	resetAgentTreeCache()
 	reads := map[int32]int{}
 	exes := map[int32][]string{
 		20: {"/Users/me/.local/share/claude/versions/2.1.283"},

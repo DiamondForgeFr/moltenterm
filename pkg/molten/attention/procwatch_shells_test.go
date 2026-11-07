@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -156,11 +157,42 @@ func TestProcWatchFindsAgentStartedAfterTheFirstLook(t *testing.T) {
 	codex := filepath.Join(t.TempDir(), "bin", "codex")
 	copyBinary(t, codex)
 	s, h := startShellAtPrompt(t, "/bin/sh", "-i")
+	// Without the looks after Enter (#2048), only the agent's output can find it.
+	h.pw.enteredFor = 0
 	if err := s.cmd.Process.Signal(syscall.SIGSTOP); err != nil {
 		t.Fatal(err)
 	}
 	s.enter(t, h, codex)
 	waitShell(t, h, s, "the first look's end", func() bool { return h.next("b1").IsZero() })
+	if err := s.cmd.Process.Signal(syscall.SIGCONT); err != nil {
+		t.Fatal(err)
+	}
+	followAgent(t, h, s)
+}
+
+// The same late start with an agent that prints nothing (#2048): the looks Enter asked for go on while the shell is
+// at its prompt, and find it. The window covers any delay here: the test checks the looks, not their duration.
+func TestProcWatchFindsSilentAgentStartedAfterTheFirstLook(t *testing.T) {
+	codex := filepath.Join(t.TempDir(), "bin", "codex")
+	copyBinary(t, codex)
+	s, h := startShellAtPrompt(t, "/bin/sh", "-i")
+	h.pw.enteredFor = shellTestDeadline
+	var looks atomic.Int32
+	h.pw.readTable = func() (*proctree.Table, error) {
+		looks.Add(1)
+		return proctree.Read()
+	}
+	if err := s.cmd.Process.Signal(syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.file.Write([]byte(fakeAgentEnv + "=" + fakeAgentSilent + " '" + codex + "'\r")); err != nil {
+		t.Fatal(err)
+	}
+	h.states.input("b1", []byte("\r"))
+	waitShell(t, h, s, "the first look", func() bool { return looks.Load() > 0 })
+	if _, ok := h.states.runOf("b1"); ok {
+		t.Fatal("the held-back shell runs no agent yet")
+	}
 	if err := s.cmd.Process.Signal(syscall.SIGCONT); err != nil {
 		t.Fatal(err)
 	}
