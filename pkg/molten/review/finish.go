@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 )
 
@@ -113,15 +114,27 @@ func (r *Restarter) AskFinish(ctx context.Context, req FinishRequest) (RestartRe
 		checks = append(checks, name)
 	}
 	req.FailedChecks = checks
+	rreq := req.restartRequest()
+	gate := r.gate(ctx, rreq)
+	if verdict, owner := decideOwner(gate.rows); verdict == OwnerWorking {
+		return busyResult(rreq, *owner), nil
+	}
 	lead := req.Lead.cleaned()
+	// A sleeping sub-agent's lead owns the work even when the window named none (#1955).
+	sub := gate.asleepOf(mission.UpcomingAgentSubagent)
+	if sub != nil && !sub.canResume() {
+		sub = nil
+	}
+	if lead == nil && sub != nil {
+		lead = (&LeadRef{FirstName: sub.agent.ParentFirstName, Agent: sub.agent.Agent, BlockId: sub.agent.ParentBlockId}).cleaned()
+	}
 	if lead != nil && !req.Start {
-		if result, handled := r.leadFirst(ctx, req, lead); handled {
+		if result, handled := r.leadFirst(ctx, req, lead, sub); handled {
 			return result, nil
 		}
 	}
-	rreq := req.restartRequest()
 	origin := r.origin(rreq, AgentOriginFinish)
-	result := r.askOnBranch(ctx, rreq, origin, func(tree string, result *RestartResult) (string, bool) {
+	result := r.askOnBranchWith(ctx, rreq, origin, gate, func(tree string, result *RestartResult) (string, bool) {
 		path, err := r.writeFinishBrief(req, tree)
 		if err != nil {
 			result.Status, result.Reason, result.Message = RestartFailed, RestartReasonBrief, fmt.Sprintf("the brief could not be written: %v", err)

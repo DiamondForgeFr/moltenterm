@@ -44,6 +44,7 @@ export function restartOutcome(result: ReviewRestartResult, error?: string): str
         state: agentStateLabel(result.agentstate ?? "working"),
         message: serverText(result.messagetext, result.message ?? ""),
         chosen: result.chosenname ?? "",
+        name: result.firstname || result.agentname || result.agent || "",
     };
     // #845: an agent already on the branch took the round, not the one the developer chose.
     const notChosen =
@@ -54,7 +55,12 @@ export function restartOutcome(result: ReviewRestartResult, error?: string): str
         case "started":
             return t(result.hidden ? "review.restart.outcome.startedHidden" : "review.restart.outcome.started", vars);
         case "sent":
+            if (result.subagent) {
+                return t("review.restart.outcome.subagentSent", vars);
+            }
             return t("review.restart.outcome.sent", vars) + notChosen;
+        case "queued":
+            return t("review.restart.outcome.subagentQueued", vars);
         case "typed":
             return t("review.restart.outcome.typed", vars) + notChosen;
         case "noagent":
@@ -67,6 +73,12 @@ export function restartOutcome(result: ReviewRestartResult, error?: string): str
             return t("review.restart.outcome.inflight");
         case "agentbusy":
             return t("review.restart.outcome.agentbusy", vars);
+        case "subagentbusy":
+            return t("review.restart.outcome.subagentbusy", vars);
+        case "backgroundbusy":
+            return t("review.restart.outcome.backgroundbusy", vars);
+        case "treeinuse":
+            return t("review.restart.outcome.treeinuse", vars);
         case "notready":
             return t("review.restart.outcome.notready", vars);
         case "maincheckout":
@@ -137,6 +149,7 @@ export function restartResultTone(result: ReviewRestartResult): "ok" | "warn" | 
     switch (result?.status) {
         case "started":
         case "sent":
+        case "queued":
             return "ok";
         case "typed":
         case "busy":

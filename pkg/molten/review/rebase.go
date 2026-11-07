@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
@@ -124,10 +125,20 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 // Start, to a new one in the branch's worktree; without Start and with no agent there, it answers the offer. line
 // writes the brief for a tree and returns the prompt.
 func (r *Restarter) askOnBranch(ctx context.Context, rreq RestartRequest, origin AgentOrigin, line func(tree string, result *RestartResult) (string, bool)) RestartResult {
+	return r.askOnBranchWith(ctx, rreq, origin, r.gate(ctx, rreq), line)
+}
+
+// askOnBranchWith is askOnBranch with the index's answer already read (#1955): someone working on the PR is left alone,
+// a sleeping sub-agent is continued by its lead, and no agent starts in a worktree where the index shows another.
+func (r *Restarter) askOnBranchWith(ctx context.Context, rreq RestartRequest, origin AgentOrigin, gate ownerGate, line func(tree string, result *RestartResult) (string, bool)) RestartResult {
 	if !r.claim(rreq.PrKey) {
 		return RestartResult{Status: RestartBusy, Reason: RestartReasonInFlight, Message: "An agent is already being reached for this PR."}
 	}
 	defer r.release(rreq.PrKey)
+	verdict, owner := decideOwner(gate.rows)
+	if verdict == OwnerWorking {
+		return busyResult(rreq, *owner)
+	}
 	linked, main, err := r.branchTrees(ctx, rreq.Dir, rreq.HeadRef)
 	if err != nil {
 		return RestartResult{Status: RestartFailed, Reason: RestartReasonWorktree, Branch: rreq.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}
@@ -147,12 +158,39 @@ func (r *Restarter) askOnBranch(ctx context.Context, rreq RestartRequest, origin
 			return result
 		}
 	}
+	if verdict == OwnerAsleep {
+		if panel := gate.asleepOf(mission.UpcomingAgentPanel); panel != nil {
+			result := RestartResult{Branch: rreq.HeadRef, Worktree: panel.agent.Worktree}
+			prompt, ok := line(panel.agent.Worktree, &result)
+			if !ok {
+				return result
+			}
+			if r.wakePanel(ctx, gate, prompt, &result) {
+				r.noteReused(ctx, rreq, &result)
+				return result
+			}
+		}
+		if sub := gate.asleepOf(mission.UpcomingAgentSubagent); sub != nil && sub.canResume() {
+			result := RestartResult{Branch: rreq.HeadRef, Worktree: sub.agent.Worktree}
+			prompt, ok := line(sub.agent.Worktree, &result)
+			if !ok {
+				return result
+			}
+			if handed, ok := r.resumeSubagent(ctx, rreq, *sub, prompt); ok {
+				handed.Branch = rreq.HeadRef
+				return handed
+			}
+		}
+	}
 	if !rreq.Start {
 		return r.offer(ctx, rreq, "")
 	}
 	tree, created, err := r.agentTree(ctx, rreq)
 	if err != nil {
 		return RestartResult{Status: RestartFailed, Reason: restartTreeReason(err), Branch: rreq.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}
+	}
+	if held := r.treeHeld(ctx, gate, tree); held != nil {
+		return treeInUseResult(rreq, tree, *held)
 	}
 	result := RestartResult{Branch: rreq.HeadRef, Worktree: tree, WorktreeCreated: created}
 	prompt, ok := line(tree, &result)

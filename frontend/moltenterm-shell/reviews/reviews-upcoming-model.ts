@@ -81,6 +81,8 @@ export type BranchAgent = {
     effort?: string;
     description?: string;
     state?: SubagentState;
+    // #1955: a sub-agent's id in its CLI, which its lead continues it by.
+    agentid?: string;
     // #1603: a background agent named by its work's signature; agentname is its CLI as signed, blockid the signer's
     // session while a panel still runs it.
     signed?: boolean;

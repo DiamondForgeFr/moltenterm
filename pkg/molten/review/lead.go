@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -115,7 +116,7 @@ func (r *Restarter) leadQuery(req FinishRequest, lead *LeadRef) agenthandoff.Lea
 
 // leadFirst hands the request to the running lead, or resumes the gone one on the developer's choice; false when the
 // request goes the usual way (no lead, or one that runs nowhere and was not asked to be resumed).
-func (r *Restarter) leadFirst(ctx context.Context, req FinishRequest, lead *LeadRef) (RestartResult, bool) {
+func (r *Restarter) leadFirst(ctx context.Context, req FinishRequest, lead *LeadRef, sub *ownerRow) (RestartResult, bool) {
 	if r.env.FindLead == nil || r.env.SendLead == nil {
 		return RestartResult{}, false
 	}
@@ -124,7 +125,7 @@ func (r *Restarter) leadFirst(ctx context.Context, req FinishRequest, lead *Lead
 	}
 	defer r.release(req.PrKey)
 	if found, ok := r.env.FindLead(ctx, r.leadQuery(req, lead)); ok {
-		return r.sendToLead(ctx, req, found), true
+		return r.sendToLead(ctx, req, found, sub), true
 	}
 	if req.ResumeLead {
 		return r.resumeLead(ctx, req, lead), true
@@ -149,10 +150,24 @@ func (r *Restarter) leadGone(ctx context.Context, req FinishRequest, lead *LeadR
 
 // sendToLead gives the running lead MoltenTerm's brief: typed now, typed without Enter when the developer may have an
 // unsent message there, or queued until its prompt is idle.
-func (r *Restarter) sendToLead(ctx context.Context, req FinishRequest, found agenthandoff.LeadFound) RestartResult {
-	result := RestartResult{Lead: true, Branch: req.HeadRef, BlockId: found.BlockId, TabId: found.TabId, Agent: found.Agent,
+// sub (#1955): the sleeping sub-agent of this lead that worked on the PR, which the brief asks it to continue.
+func (r *Restarter) sendToLead(ctx context.Context, req FinishRequest, found agenthandoff.LeadFound, sub *ownerRow) RestartResult {
+	var continued *mission.BranchAgent
+	if sub != nil && sub.agent.ParentBlockId == found.BlockId {
+		continued = &sub.agent
+	}
+	goal, text, closing := renderLeadBriefFor(req, found.FirstName, restartTicket(req.restartRequest()), continued)
+	result := r.deliverToLead(ctx, found, req.HeadRef, goal, text, closing)
+	if continued != nil {
+		result.Subagent, result.Worktree = true, continued.Worktree
+	}
+	return result
+}
+
+// deliverToLead gives the running lead MoltenTerm's own brief through the handoffs.
+func (r *Restarter) deliverToLead(ctx context.Context, found agenthandoff.LeadFound, branch string, goal string, text string, closing string) RestartResult {
+	result := RestartResult{Lead: true, Branch: branch, BlockId: found.BlockId, TabId: found.TabId, Agent: found.Agent,
 		AgentName: found.AgentName, FirstName: found.FirstName}
-	goal, text, closing := renderLeadBrief(req, found.FirstName, restartTicket(req.restartRequest()))
 	sent, err := r.env.SendLead(ctx, agenthandoff.AppRequest{ToBlockId: found.BlockId, Goal: goal, Context: text, Closing: closing})
 	if err != nil {
 		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonNotTyped, err.Error()
@@ -254,7 +269,7 @@ func (r *Restarter) sendWhenUp(req FinishRequest, blockId string) {
 		log.Printf("%s the resumed lead in %s is not a local agent: the brief for PR #%d was not sent\n", logPrefix, blockId, req.Number)
 		return
 	}
-	if res := r.sendToLead(ctx, req, found); res.Status == RestartFailed {
+	if res := r.sendToLead(ctx, req, found, nil); res.Status == RestartFailed {
 		log.Printf("%s the brief for PR #%d was not sent to the resumed lead %s: %s\n", logPrefix, req.Number, found.FirstName, res.Message)
 	}
 }
@@ -271,6 +286,12 @@ func leadLeft(req FinishRequest) []string {
 // renderLeadBrief writes the goal (typed in the lead's prompt), the context and the closing of the brief. The goal holds
 // only MoltenTerm's own words and facts it checked (numbers, branch names); the PR's title is quoted as data below.
 func renderLeadBrief(req FinishRequest, leadName string, ticket int) (string, string, string) {
+	return renderLeadBriefFor(req, leadName, ticket, nil)
+}
+
+// renderLeadBriefFor is renderLeadBrief for a lead whose sleeping sub-agent worked on the PR (#1955): the brief asks the
+// lead to continue that sub-agent rather than start another.
+func renderLeadBriefFor(req FinishRequest, leadName string, ticket int, sub *mission.BranchAgent) (string, string, string) {
 	left := strings.Join(leadLeft(req), ", ")
 	if left == "" {
 		left = "nothing MoltenTerm can see"
@@ -281,6 +302,9 @@ func renderLeadBrief(req FinishRequest, leadName string, ticket int) (string, st
 	}
 	goal := fmt.Sprintf("Resume %s: finish it. Left: %s. Delegate this to a subagent or background agent and keep your own turn short "+
 		"(acknowledge, delegate, report back when done); do it yourself only if trivial (one known file, a few lines). Never merge.", on, left)
+	if sub != nil {
+		goal += " Continue your sub-agent that worked on it rather than starting another one."
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "The developer clicked Resume with %s in MoltenTerm's Integration panel: you are the lead agent that owns this work "+
@@ -290,6 +314,9 @@ func renderLeadBrief(req FinishRequest, leadName string, ticket int) (string, st
 	b.WriteString("1. Stay available to the developer. Hand the work below to a subagent or a background agent of your own CLI " +
 		"(Claude Code: a subagent; Codex: a subagent), in the branch's own worktree (`git worktree list` shows it; make one when there is none), " +
 		"never in the project's main folder.\n")
+	if sub != nil {
+		b.WriteString("   " + subagentStep(*sub) + "\n")
+	}
 	b.WriteString("2. Keep your own turn short: acknowledge, delegate, and report back to the developer in this terminal when the work is done. " +
 		"Do the work yourself only when it is trivial: one known file, a few lines.\n")
 	b.WriteString("3. Whoever does the work follows the project's own instructions and permissions, and never merges the pull request: the developer validates it in MoltenTerm.\n\n")

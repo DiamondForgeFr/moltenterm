@@ -109,6 +109,8 @@ type BranchAgent struct {
 	Effort      string `json:"effort,omitempty"`
 	Description string `json:"description,omitempty"`
 	State       string `json:"state,omitempty"`
+	// AgentId (#1955): a sub-agent's id in its CLI, the one its lead resumes it by.
+	AgentId string `json:"agentid,omitempty"`
 	// Signed (#1603): a background agent named by its work's signature (FirstName, AgentName: the CLI's name as
 	// signed, Agent when the catalog knows it); BlockId is then the signer's session when it is still open.
 	Signed    bool   `json:"signed,omitempty"`
@@ -363,6 +365,9 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, atWork(answer.Agents), places, ticketRes, backgroundFacts{
 		procs: procs, targetRef: targetRef, prBodies: openPrBodies(snap),
 	})...)
+	if len(trees) > 0 {
+		answer.Agents = tieAgentsToPrs(g, answer.Agents, snap, trees[0].path)
+	}
 	refs := parseBranchRefs(g.lines("for-each-ref", "--format=%(refname)%00%(committerdate:unix)", "refs/heads", "refs/remotes/origin"))
 	heads, known := openPrHeads(snap)
 	if !known {
@@ -655,7 +660,7 @@ func SubagentBranchAgents(trees []treeEntry, panels []BranchAgent, subs []PaneSu
 		rtn = append(rtn, BranchAgent{
 			Branch: tree.branch, Worktree: tree.path, Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started,
 			ActiveAt: s.LastWrite, ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
-			Effort: s.Effort, Description: s.Description, State: s.State,
+			Effort: s.Effort, Description: s.Description, State: s.State, AgentId: s.AgentId,
 		})
 	}
 	return rtn
@@ -692,7 +697,7 @@ func UnplacedSubagents(trees []treeEntry, panels []BranchAgent, subs []PaneSubag
 		rtn = append(rtn, BranchAgent{
 			Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started, ActiveAt: s.LastWrite,
 			ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model, Effort: s.Effort,
-			Description: s.Description, State: s.State,
+			Description: s.Description, State: s.State, AgentId: s.AgentId,
 		})
 	}
 	return rtn
