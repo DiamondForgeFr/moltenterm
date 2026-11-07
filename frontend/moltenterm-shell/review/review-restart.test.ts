@@ -96,6 +96,25 @@ describe("Restart work (FR-REV-011)", () => {
         expect(restartOutcome(null)).toBe("");
     });
 
+    it("says who works on the round's PR, or who continues the work (#1955)", () => {
+        const busy = { status: "busy" as const, branch: "feature/9-x", firstname: "Arthur", worktree: "/w/work-9" };
+        expect(restartOutcome({ ...busy, reason: "subagentbusy", subagent: true })).toBe(
+            "A sub-agent of Arthur is already working on feature/9-x: restart the work once it is done."
+        );
+        expect(restartOutcome({ ...busy, reason: "backgroundbusy" })).toContain(
+            "probably already working on feature/9-x"
+        );
+        expect(restartOutcome({ ...busy, firstname: "Rita", reason: "treeinuse" })).toBe(
+            "An agent (Rita) already works in work-9: no second agent was started there."
+        );
+        const lead = { lead: true, subagent: true, firstname: "Arthur" };
+        expect(restartOutcome({ ...lead, status: "sent" })).toBe(
+            "Handed to Arthur, which continues its sub-agent that already worked on this."
+        );
+        expect(restartOutcome({ ...lead, status: "queued" })).toContain("Arthur is busy");
+        expect(restartResultTone({ status: "queued" })).toBe("ok");
+    });
+
     it("names the worktree by its folder and tones the outcome", () => {
         expect(folderName("/code/app/.claude/worktrees/feature-9-x")).toBe("feature-9-x");
         expect(folderName("/code/app/")).toBe("app");

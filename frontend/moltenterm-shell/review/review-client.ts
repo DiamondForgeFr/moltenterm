@@ -170,6 +170,8 @@ export type ReviewRestartResult = {
     lead?: boolean;
     leadfolder?: string;
     leadguessed?: boolean;
+    // #1955: the result is about a sub-agent of the agent firstname and blockid name.
+    subagent?: boolean;
 };
 
 // How a new agent works (#758): out of sight, or in a tab the window shows; must match agentstart.go.

@@ -298,6 +298,9 @@ export type RebaseResult = {
     lead?: boolean;
     leadfolder?: string;
     leadguessed?: boolean;
+    // #1955: the result is about a sub-agent of the agent firstname and blockid name: it works on the PR (reason
+    // subagentbusy), or its lead was asked to continue it (lead is then set too).
+    subagent?: boolean;
 };
 
 // The lead agent that owns a PR (#1779, FR-REV-022 AC19): named by the PR's signature, else by the sub-agent registry's
@@ -401,12 +404,22 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
             }
             return { kind: "asked", name, text: phrase(keys.asked, vars), note: what === "investigate" };
         case "queued":
-            return { kind: "asked", name, text: phrase("reviews.lead.queued", vars), note: true };
+            return {
+                kind: "asked",
+                name,
+                text: phrase(result.subagent ? "reviews.lead.subagentQueued" : "reviews.lead.queued", vars),
+                note: true,
+            };
         case "leadgone":
             return { kind: "leadgone", name, text: phrase("reviews.lead.gone", vars), result };
         case "sent": {
             if (result.lead) {
-                return { kind: "asked", name, text: phrase("reviews.lead.sent", vars), note: true };
+                return {
+                    kind: "asked",
+                    name,
+                    text: phrase(result.subagent ? "reviews.lead.subagentSent" : "reviews.lead.sent", vars),
+                    note: true,
+                };
             }
             const other = notChosen(result, name);
             return {
@@ -444,6 +457,21 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
                                 : phrase("reviews.rebase.working", vars),
                         busy: result.blockid ? { blockId: result.blockid, name } : undefined,
                     };
+                case "subagentbusy":
+                case "backgroundbusy":
+                    return {
+                        kind: "info",
+                        text: phrase(
+                            result.reason === "subagentbusy"
+                                ? "reviews.rebase.subagentWorking"
+                                : "reviews.rebase.backgroundWorking",
+                            vars
+                        ),
+                        busy: result.blockid ? { blockId: result.blockid, name } : undefined,
+                    };
+                case "treeinuse":
+                    // Not queued: the agent in the worktree is not working, so waiting for it to stop would never end.
+                    return { kind: "info", text: phrase("reviews.rebase.treeInUse", vars) };
                 case "inflight":
                     return { kind: "info", text: phrase("reviews.rebase.inflight") };
             }

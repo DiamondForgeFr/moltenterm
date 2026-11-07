@@ -50,7 +50,8 @@
                 "parentfirstname": "Léa",
                 "model": "claude-opus-5-5",
                 "description": "fix 1964 vars",
-                "state": "running"
+                "state": "running",
+                "agentid": "a04d"
             },
             {
                 "branch": "fix/1965-route-unannounce-ownership",
@@ -62,7 +63,8 @@
                 "parentfirstname": "Léa",
                 "model": "claude-opus-5-5",
                 "description": "fix 1965 routes",
-                "state": "running"
+                "state": "running",
+                "agentid": "a14d"
             },
             {
                 "branch": "fix/1966-materials-library-performance",
@@ -74,7 +76,8 @@
                 "parentfirstname": "Léa",
                 "model": "claude-opus-5-5",
                 "description": "fix 1966 materials",
-                "state": "running"
+                "state": "running",
+                "agentid": "a24d"
             }
         ],
         "at": 1793000000000
@@ -132,7 +135,8 @@
                 "model": "gpt-6.1-sol",
                 "effort": "medium",
                 "description": "fix 1964 vars",
-                "state": "running"
+                "state": "running",
+                "agentid": "01a1ae11-0000-7000-8000-000000000001"
             },
             {
                 "branch": "fix/1965-route-unannounce-ownership",
@@ -146,7 +150,8 @@
                 "model": "gpt-6.1-sol",
                 "effort": "medium",
                 "description": "fix 1965 routes",
-                "state": "running"
+                "state": "running",
+                "agentid": "01a1ae11-0000-7000-8000-000000000002"
             },
             {
                 "branch": "fix/1966-materials-library-performance",
@@ -160,7 +165,8 @@
                 "model": "gpt-6.1-sol",
                 "effort": "medium",
                 "description": "fix 1966 materials",
-                "state": "running"
+                "state": "running",
+                "agentid": "01a1ae11-0000-7000-8000-000000000003"
             }
         ],
         "at": 1793000000000

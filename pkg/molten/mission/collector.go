@@ -738,6 +738,7 @@ func Start() {
 	reviews = MakeReviews(collector, ExecRunner, publishReviews)
 	reviews.notify = attention.PublishNotification
 	reviews.ci = ci
+	useLiveReviews(reviews)
 	worktrees := MakeWorktrees(ExecRunner, nil)
 	runs.UseWorktrees(worktrees, dataDir)
 	// Launching a PR's or a branch's version from Reviews (FR-REV-031).
