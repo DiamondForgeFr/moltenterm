@@ -107,6 +107,7 @@ export class Instance {
   startMs = null;
   launches = 0;
   repoRoot;
+  executable = null;
 
   constructor(repoRoot, root) {
     this.repoRoot = repoRoot;
@@ -116,7 +117,8 @@ export class Instance {
     this.logFile = path.join(this.dataDir, "waveapp.log");
   }
 
-  static create(repoRoot, tmpBase = "/tmp") {
+  // `executable` runs a packaged app (#1975) instead of the dev build: scripts/moltenterm-qualify-packaged.mjs.
+  static create(repoRoot, tmpBase = "/tmp", { executable = null } = {}) {
     fs.mkdirSync(tmpBase, { recursive: true });
     const root = fs.realpathSync(fs.mkdtempSync(path.join(tmpBase, "mtperf-")));
     fs.writeFileSync(
@@ -124,6 +126,7 @@ export class Instance {
       JSON.stringify({ root, harnessPid: process.pid, created: Date.now() })
     );
     const inst = new Instance(repoRoot, root);
+    inst.executable = executable;
     fs.mkdirSync(inst.dataDir);
     fs.mkdirSync(inst.configDir);
     Live.add(inst);
@@ -145,21 +148,35 @@ export class Instance {
   }
 
   electronBinary() {
-    return createRequire(path.join(this.repoRoot, "package.json"))("electron");
+    return this.executable ?? createRequire(path.join(this.repoRoot, "package.json"))("electron");
   }
 
-  async launch() {
+  // The harness drives the dev build: node_modules/electron keeps Electron's default fuses, so its main process answers
+  // `--inspect`. A packaged app has that fuse off (#1975) and is launched with `executable`: it takes no app argument,
+  // and `extraArgs` / `extraEnv` add what a probe needs. `remoteDebugging: false` leaves the page port out.
+  async launch({ inspect = true, remoteDebugging = true, extraArgs = [], extraEnv = {} } = {}) {
     assertOwnedRoot(this.root);
     if (this.child) {
       throw new Error("instance already running");
     }
     this.port = await freePort();
     this.inspectPort = await freePort();
-    const args = [".", `--remote-debugging-port=${this.port}`, `--inspect=${this.inspectPort}`];
+    const args = this.executable ? [] : ["."];
+    if (remoteDebugging) {
+      args.push(`--remote-debugging-port=${this.port}`);
+    }
+    if (inspect) {
+      args.push(`--inspect=${this.inspectPort}`);
+    }
     if (process.platform === "linux") {
       // CI runners have no setuid sandbox helper.
       args.push("--no-sandbox");
     }
+    if (this.executable) {
+      // No keychain or key ring prompt from a test instance.
+      args.push(process.platform === "darwin" ? "--use-mock-keychain" : "--password-store=basic");
+    }
+    args.push(...extraArgs);
     const env = {
       ...process.env,
       MOLTENTERM_DATA_HOME: this.dataDir,
@@ -176,12 +193,17 @@ export class Instance {
     }
     delete env.ELECTRON_RUN_AS_NODE;
     delete env.ELECTRON_RENDERER_URL;
+    Object.assign(env, extraEnv);
     // Resolved before the clock starts: on a fresh install (CI) the first call downloads the Electron binary, which is
     // not part of the start-up (#1665).
     const binary = this.electronBinary();
     const out = fs.openSync(path.join(this.root, `electron-${++this.launches}.out`), "a");
     this.startMs = Date.now();
-    const child = spawn(binary, args, { cwd: this.repoRoot, env, stdio: ["ignore", out, out] });
+    const child = spawn(binary, args, {
+      cwd: this.executable ? this.root : this.repoRoot,
+      env,
+      stdio: ["ignore", out, out],
+    });
     fs.closeSync(out);
     this.child = child;
     this.pid = child.pid;

@@ -26,6 +26,7 @@ import {
     WaveAppPathVarName,
     WaveAppResourcesPathVarName,
 } from "./emain-util";
+import { electronBinaryToRunAsNode } from "./moltenterm-node-runner"; // MOLTENTERM-PATCH (#1975)
 import { updater } from "./updater";
 
 let isWaveSrvDead = false;
@@ -68,7 +69,7 @@ export function runWaveSrv(handleWSEvent: (evtMsg: WSEventType) => void): Promis
     }
     envCopy[WaveAppPathVarName] = getElectronAppUnpackedBasePath();
     envCopy[WaveAppResourcesPathVarName] = getElectronAppResourcesPath();
-    envCopy[WaveAppElectronExecPath] = getElectronExecPath();
+    envCopy[WaveAppElectronExecPath] = electronBinaryToRunAsNode(getElectronExecPath(), electron.app.isPackaged); // MOLTENTERM-PATCH (#1975)
     envCopy[WaveAuthKeyEnv] = AuthKey;
     envCopy[CallerSecretEnv] = CallerSecret;
     envCopy[AppOriginEnv] = AppOrigin;

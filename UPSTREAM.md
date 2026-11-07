@@ -62,6 +62,30 @@ MOLTENTERM_BACKGROUND=1 MOLTENTERM_DATA_HOME=/tmp/mtNNN/d MOLTENTERM_CONFIG_HOME
 
 The perf harness (`scripts/perf/`) launches every instance this way unless `run --foreground`.
 
+**Packaged builds and Electron fuses (#1975, FR-BRW-014).** A packaged app has Electron's fuses flipped by
+electron-builder right before it signs (`electronFuses` in `electron-builder.config.cjs`, the set and its reasons in
+`build/moltenterm/electron-fuses.cjs`): `runAsNode`, `enableNodeOptionsEnvironmentVariable` and
+`enableNodeCliInspectArguments` off, `enableEmbeddedAsarIntegrityValidation` and `onlyLoadAppFromAsar` on.
+`grantFileProtocolExtraPrivileges` stays on while the app page is loaded by `loadFile()` (a `file:` URL inside
+`app.asar`): with it off, a packaged app never loads that page (`ERR_FILE_NOT_FOUND`, checked on an arm64 build). It goes
+off when a custom protocol serves the page. What follows for the people who run the app:
+
+- The dev build (`task dev`, `task start`, `node_modules/electron` with `.`) keeps Electron's default fuses. The perf
+  harness and the accessibility scripts drive it through `--inspect` and `--remote-debugging-port`, and keep working.
+  A packaged app ignores `--inspect`, SIGUSR1, `NODE_OPTIONS`, `NODE_EXTRA_CA_CERTS` and `ELECTRON_RUN_AS_NODE`
+  (Electron already refuses most of `NODE_OPTIONS`, `--require` included, in a packaged app; the fuse stops it reading
+  the variable at all); `--remote-debugging-port` is a
+  Chromium switch, not a fuse, so a test instance of a packaged app is still driven through CDP on that port (the page
+  targets only, there is no main-process inspector).
+- `node scripts/moltenterm-check-fuses.mjs <app>` reads the fuses back from a packaged app; the release workflow runs it
+  on every macOS app and Linux build. `node scripts/moltenterm-qualify-packaged.mjs <app>` starts the app in a test
+  instance (the perf harness's isolated root, mock keychain) and checks that it comes up, answers on the debugging port,
+  ignores the three switches and SIGUSR1, and refuses an `app.asar` with a changed byte.
+- The app builder (and tsunami apps) ran its Tailwind step with the app's own binary and `ELECTRON_RUN_AS_NODE=1`. A
+  packaged app gives wavesrv no such binary and the build uses the `node` of the PATH (`wavebase.GetNodeRunnerPath`).
+- Electron stores cookies in clear unless the separate `enableCookieEncryption` fuse is on. It is not flipped here: it is
+  a one-way migration of the cookie store and a keychain item per signing identity.
+
 A test instance that downloads files sets `MOLTENTERM_DOWNLOADS_DIR=/tmp/mtNNN/dl` (#1992): the downloads of its web pages are saved there and never in the developer's own Downloads folder.
 
 ## Local builds and their signature
@@ -843,6 +867,7 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 | `emain/emain.ts`, `emain/emain-ipc.ts`, `emain/preload.ts`, `pkg/wconfig/settingsconfig.go` (and the generated `pkg/wconfig/metaconsts.go`, `frontend/types/gotypes.d.ts`, `schema/settings.json`) | The downloads of the web pages are tracked by `emain/moltenterm-downloads.ts` (`moltenterm-download-manager.ts`, `-store.ts`, `-mark.ts`, `-hold.ts`): `emain.ts` starts it with the full config, `preload.ts` exposes `moltentermDownloads*` and `onMoltentermDownloads*` and lets the panel's webview registration carry its view and workspace, `emain-ipc.ts` passes the agent's name from the Allow answer on to the downloads module, and `settingsconfig.go` has the `browser:downloadask` setting. Files already patched | A download from a web page shows its progress, history and notifications, is saved without a native dialog unless asked, and leads back to its page (FR-MC-019 AC7-AC13, FR-BRW-010, FR-BOSS-003 AC9) | #1992 |
 | `emain/authkey.ts`, `emain/emain-builder.ts` | The private app session sets a Content-Security-Policy on the responses of the app's own files (`configureAppCsp`, `emain/moltenterm-app-csp.ts`: `default-src 'none'`, own scripts only, no object, no framing, connections to the live backend endpoints only; `MOLTENTERM_CSP=report-only` reports instead of blocking, and under the dev server it only reports unless `MOLTENTERM_CSP=enforce`). `registerTrustedAppContents` logs each distinct violation once from `console-message`; the builder window registers itself with the policy (`registerBuilderContents`) to reach the app it builds. Both files already patched | The app page holds the privileged preload and the backend credentials: a script injected into it must not run or reach out (FR-BRW-014, browser audit M2) | #1977 |
 | `emain/emain-wsh.ts` | `handle_webselector` (`wsh web get`) reads a Wave web block's page through `readWebBlockPage` (`emain/moltenterm-webselector-gate.ts`): it asks wavesrv (`moltenbrowseragentwebread`, `pkg/molten/browseragent/webread.go`) whether the page's site has a stored Always for agents, refuses with a fixed sentence otherwise, drops the result when the page moved to another host while it was read, and returns each item inside the untrusted page content envelope. File already patched | A Wave web block shares the panel's signed-in session, so an agent read it around the site permission of the browser tools (FR-BRW-009, browser audit `security/browser-audit-2026-11.md` H2) | #1976 |
+| `electron-builder.config.cjs`, `emain/emain-wavesrv.ts`, `pkg/blockcontroller/tsunamicontroller.go`, `pkg/buildercontroller/buildercontroller.go` | The config sets `electronFuses` from `build/moltenterm/electron-fuses.cjs`: a packaged app has run-as-node, `NODE_OPTIONS` and the CLI inspector off, loads only `app.asar` and checks its hash; the file protocol's privileges stay on while the app page is loaded by `loadFile()`. `emain-wavesrv.ts` hands wavesrv no Electron binary in a packaged app (`electronBinaryToRunAsNode`, `emain/moltenterm-node-runner.ts`), and the two app-build controllers take their Node.js from `wavebase.GetNodeRunnerPath()` (`pkg/wavebase/moltenterm_noderunner.go`: the Electron binary in a dev run, `node` on the PATH otherwise, an error saying so without it). `scripts/moltenterm-check-fuses.mjs` reads the fuses back from a packaged app (the release workflow runs it), `scripts/moltenterm-qualify-packaged.mjs` starts one in a test instance. Files already patched | A same-user program could run its own code under MoltenTerm's signature (`ELECTRON_RUN_AS_NODE`, `--inspect`, `NODE_OPTIONS`) with the app's privacy grants (FR-BRW-014, browser audit H3); the app builder ran its Tailwind step with `ELECTRON_RUN_AS_NODE`, which a hardened binary ignores | #1975 |
 
 ## Known upstream items
 
