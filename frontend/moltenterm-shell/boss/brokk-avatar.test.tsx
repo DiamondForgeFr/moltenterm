@@ -54,10 +54,12 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkAvatar, BrokkAvatarSlot } from "./brokk-avatar";
+import { EdgeFacePx, EdgePx } from "./brokk-edge-model";
 import {
     AvatarSizePx,
     downloadRingRadiusUnits,
     HangingSizePx,
+    RingStrokeUnits,
     RingUnits,
     workingRingBoxPx,
 } from "./brokk-avatar-model";
@@ -539,6 +541,14 @@ describe("the download ring on his face (FR-BOSS-009, AC34 to AC36, #2083)", () 
             expect(download.stroke).toBe(working.stroke);
             expect(download.r - download.stroke / 2 - (working.r + working.stroke / 2)).toBeCloseTo(2 / pxPerUnit, 6);
         }
+    });
+
+    it("fits both rings inside the collapsed strip, the face centred in it, with no clipping at the window's edge (#2083)", () => {
+        const outer = (radiusUnits: number) => ((radiusUnits + RingStrokeUnits / 2) * workingRingBoxPx("edge")) / RingUnits;
+        const half = EdgePx / 2;
+        expect(outer(downloadRingRadiusUnits("edge"))).toBeLessThanOrEqual(half);
+        expect(outer(13)).toBeLessThanOrEqual(half);
+        expect(EdgeFacePx).toBeLessThan(EdgePx);
     });
 
     it("never turns: its rule has no animation and no transition, and it carries no working beat", () => {

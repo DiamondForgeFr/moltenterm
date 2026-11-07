@@ -9,7 +9,8 @@
 
 // What the collapsed sidebar leaves of itself at the window's left edge, and how much of it shows while it is half
 // open. sidebar.css holds the same numbers (--mt-edge-px, --mt-ajar-px): a test keeps the two equal.
-export const EdgePx = 22;
+// 30 px, not 22: the concentric download ring (#2083) reaches 14.8 px from the face's centre, and the face is centred.
+export const EdgePx = 30;
 export const AjarPx = 190;
 // The face in the strip, smaller than the 26 px of the title row so that it fits, with the badge and the ring around it.
 export const EdgeFacePx = 20;
