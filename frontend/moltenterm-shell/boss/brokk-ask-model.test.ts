@@ -127,6 +127,10 @@ describe("what the bubble loads up front (the perf budget of the entry's JavaScr
         "brokk-peek.tsx",
         "brokk-caption.ts",
         "use-brokk-hub.ts",
+        "brokk-group-model.ts",
+        "brokk-notes-model.ts",
+        "brokk-rows-model.ts",
+        "brokk-usage-model.ts",
     ];
     const later = [
         "./brokk-state-model",
@@ -170,7 +174,7 @@ describe("what the bubble loads up front (the perf budget of the entry's JavaScr
     });
 
     it("keep the avatar, its host and the card from loading the portrait or its rules, whatever the file", () => {
-        for (const file of ["brokk-avatar.tsx", "brokk-hub-host.tsx", "brokk-panel.tsx"]) {
+        for (const file of ["brokk-avatar.tsx", "brokk-hub-host.tsx", "brokk-group.tsx"]) {
             for (const specifier of loaded(file)) {
                 expect(isLater(specifier), `${file} loads ${specifier}`).toBe(false);
             }

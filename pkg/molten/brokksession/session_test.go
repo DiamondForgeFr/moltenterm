@@ -38,6 +38,9 @@ type fake struct {
 	unlinked  bool
 	read      int
 	readBlock string
+	// byTurn: the answers of the turns held, by index; readIndexes: the index each read asked for.
+	byTurn      map[int]Answer
+	readIndexes []int
 }
 
 func (f *fake) env() Env {
@@ -90,11 +93,15 @@ func (f *fake) env() Env {
 			f.sleeps++
 			return true
 		},
-		LatestAnswer: func(blockId string) (Answer, bool) {
+		ReadAnswer: func(blockId string, index int) (Answer, bool) {
 			f.read++
 			f.readBlock = blockId
+			f.readIndexes = append(f.readIndexes, index)
 			if f.unlinked {
 				return Answer{}, false
+			}
+			if index > 0 {
+				return f.byTurn[index], true
 			}
 			if f.answer == nil {
 				return Answer{}, true
@@ -277,6 +284,29 @@ func TestReplyWaitsForAnAnswerNewerThanTheMessage(t *testing.T) {
 	f.answer = &Answer{Index: 1, At: 3000, Markdown: "an earlier answer"}
 	if got := svc.Reply(context.Background(), ReplyRequest{After: 4000}); got.Status != ReplyWaiting || got.Markdown != "" {
 		t.Errorf("with an answer older than the message got %+v, want waiting and no text", got)
+	}
+}
+
+// #2033: a second message starts a newer turn, and the first answer is read by its turn, whatever came after it.
+func TestReplyReadsTheAnswerOfATurnWhateverCameAfterIt(t *testing.T) {
+	f := &fake{found: &Found{BlockId: "block-9"}}
+	f.answer = &Answer{Index: 4, At: 9000, Markdown: "the answer to the second message"}
+	f.byTurn = map[int]Answer{3: {Index: 3, Rev: 2, At: 5000, Markdown: "the answer to the first message"}}
+	svc := MakeService(f.env())
+
+	// The latest answer is the second one's, and after the first message it would pass for the first one's.
+	if got := svc.Reply(context.Background(), ReplyRequest{After: 4000}); got.Markdown != "the answer to the second message" {
+		t.Fatalf("got %+v, want the latest answer when no turn is asked for", got)
+	}
+	got := svc.Reply(context.Background(), ReplyRequest{After: 8000, Index: 3})
+	if got.Status != ReplyAnswer || got.Markdown != "the answer to the first message" || got.Index != 3 {
+		t.Fatalf("got %+v, want the first answer, though it is older than the second message", got)
+	}
+	if f.readIndexes[len(f.readIndexes)-1] != 3 {
+		t.Errorf("read indexes %v, want the turn asked for", f.readIndexes)
+	}
+	if got := svc.Reply(context.Background(), ReplyRequest{Index: 1}); got.Status != ReplyWaiting || got.Markdown != "" {
+		t.Errorf("got %+v, want waiting for a turn his transcript no longer holds", got)
 	}
 }
 

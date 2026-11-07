@@ -169,16 +169,39 @@ describe("his answer comes back to the panel (#2028)", () => {
 describe("his face with the field (FR-BOSS-009, AC9; FR-BOSS-007)", () => {
     const open = { working: 0, waiting: 0, cardOpen: true };
 
-    it("answers with a pose for what the field is doing", () => {
-        expect(talkPose(false, false)).toBeNull();
-        expect(talkPose(true, false)).toBe("typing");
-        expect(talkPose(true, true)).toBe("answering");
-        expect(talkPose(false, true)).toBe("answering");
+    const quiet = { typing: false, awaiting: false, working: false, speaking: false };
+
+    it("answers with a pose for what the conversation is doing (AC25)", () => {
+        expect(talkPose(quiet)).toBeNull();
+        expect(talkPose({ ...quiet, typing: true })).toBe("typing");
+        expect(talkPose({ ...quiet, awaiting: true })).toBe("thinking");
+        expect(talkPose({ ...quiet, working: true })).toBe("thinking");
+        expect(talkPose({ ...quiet, speaking: true })).toBe("answering");
+    });
+
+    it("thinks from the moment his agent takes a message, and speaks over thinking once his words come in", () => {
+        expect(talkPose({ ...quiet, typing: true, awaiting: true })).toBe("thinking");
+        expect(talkPose({ ...quiet, awaiting: true, working: true, speaking: true })).toBe("answering");
+    });
+
+    it("listens again once the answer is complete and he has finished speaking", () => {
+        expect(talkPose({ ...quiet, typing: true })).toBe("typing");
+        expect(talkPose(quiet)).toBeNull();
     });
 
     it("listens while the developer writes", () => {
         expect(restingPose({ ...open, cardOpen: false, talk: "typing" })).toBe("listening");
         expect(brokkPose({ ...open, talk: "typing" }, { speaking: false, expression: null })).toBe("listening");
+    });
+
+    it("thinks while his session works on a message, whatever else works or waits", () => {
+        expect(brokkPose({ ...open, talk: "thinking" }, { speaking: false, expression: null })).toBe("thinking");
+        expect(
+            brokkPose(
+                { working: 2, waiting: 3, cardOpen: true, talk: "thinking" },
+                { speaking: false, expression: null }
+            )
+        ).toBe("thinking");
     });
 
     it("speaks while his own session answers, even with nothing waiting", () => {

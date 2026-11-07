@@ -1,6 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,6 +26,7 @@ vi.mock("./boss-store", async () => {
         workingCountAtom: atom(0),
         badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
+        peekAtom: atom({ waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: [], latest: null }),
     };
     return { BossBubbleModel: { getInstance: () => model } };
 });
@@ -45,6 +48,7 @@ import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import type { BrokkScene } from "./brokk-scene";
+import { useGroupCaption } from "./use-brokk-caption";
 import { useBrokkScene, useBrokkSituation, useCardLive } from "./use-brokk-live";
 
 const bubble = BossBubbleModel.getInstance() as any;
@@ -79,6 +83,10 @@ function hook<T>(use: () => T): T {
     renderToStaticMarkup(<Probe />);
     return value;
 }
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 beforeEach(() => {
     // Local noon in any time zone: at night the scene speaks of the late hour instead (#2035).
@@ -146,7 +154,11 @@ describe("the scene the tooltip reads (FR-BOSS-007, AC10 and AC11, #1959)", () =
         expect(scene().caption.status).toEqual({ text: "Olivia waits for you" });
     });
 
+    // At night he is tired and says so instead of the plan reading: the clock is fixed to the afternoon so the test does
+    // not depend on the hour it runs at.
     it("names the one agent at work, and shows the plan reading from the warning level, with no gesture", () => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date(2026, 10, 7, 14, 0, 0));
         globalStore.set(bubble.workingCountAtom, 1);
         const peek: BossPeek = {
             ...NoPeek,
@@ -182,5 +194,79 @@ describe("the scene the tooltip reads (FR-BOSS-007, AC10 and AC11, #1959)", () =
         expect(scene().gesture).toBe("smile");
         Mocks.reduced = true;
         expect(scene().gesture).toBeNull();
+    });
+});
+
+// His square in the floating group is his living portrait, driven by the models of the #2003 panel and of the visit, not by
+// a plain video of its own (FR-BOSS-009, AC17, #2032).
+describe("the group's square is driven by the same pose and mood models (FR-BOSS-007; FR-BOSS-009, AC17)", () => {
+    it("plays the panel's portrait: the card's situation, the expression queue and the blink rhythm", () => {
+        const asked = { expression: "frown", cue: 3, at: Date.now() };
+        globalStore.set(expressions.askedAtom, asked);
+        const live = hook(() => useCardLive());
+        expect(live).toMatchObject({ rhythm: "normal", asked });
+        expect(live.situation).toMatchObject({ cardOpen: true });
+    });
+
+    it("listens while the developer writes and thinks while his own session answers", () => {
+        expect(hook(() => useCardLive("typing")).situation.talk).toBe("typing");
+        expect(hook(() => useCardLive("answering")).situation.talk).toBe("answering");
+        expect(hook(() => useCardLive()).situation.talk).toBeUndefined();
+    });
+
+    it("lets what waits show in his pose, as in the panel: the situation counts the badge", () => {
+        globalStore.set(bubble.badgeAtom, { count: 2, text: "2", tone: "error" });
+        globalStore.set(bubble.workingCountAtom, 1);
+        expect(hook(() => useCardLive()).situation).toMatchObject({ waiting: 2, working: 1, cardOpen: true });
+    });
+
+    it("shows the still under reduced motion, whatever happens", () => {
+        Mocks.reduced = true;
+        globalStore.set(expressions.askedAtom, { expression: "smile", cue: 1, at: Date.now() });
+        expect(hook(() => useCardLive("typing"))).toBeNull();
+    });
+
+    it("says under the square the caption of the same scene, so that the words match the face", () => {
+        globalStore.set(bubble.badgeAtom, { count: 1, text: "1", tone: "waiting" });
+        globalStore.set(bubble.toHandleAtom, { items: [row("agent:a")], info: [], parked: 0 });
+        // On opening he says the row, and his pose is speaking: the words and the face come from the same scene.
+        const caption = hook(() => useGroupCaption());
+        expect(caption).toBe("A thing for you: Olivia waits for you");
+        const scene = hook(() => {
+            const situation = useBrokkSituation(true, false);
+            return useBrokkScene({ pinned: false, peek: NoPeek, situation, speaks: true });
+        });
+        expect(scene.face).toBe("speaking");
+        expect(scene.caption.status).toMatchObject({
+            key: "boss.screen.speech",
+            vars: { line: "Olivia waits for you" },
+        });
+    });
+
+    it("says the calm words when nothing goes on, and what works when something does", () => {
+        expect(hook(() => useGroupCaption())).toMatch(/\S/);
+        globalStore.set(bubble.workingCountAtom, 2);
+        expect(hook(() => useGroupCaption())).toContain("2");
+    });
+
+    it("is wired to the portrait through the same hooks the panel used, with no video or package of its own", () => {
+        const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(group).toContain("useCardLive(pose)");
+        expect(group).toContain("useGroupCaption(pose)");
+        expect(group).toContain('<BossPortrait live={live} framing="banner" />');
+        expect(group).not.toContain("TransmissionPortrait");
+        expect(group).not.toContain("<video");
+        const caption = readFileSync(join(__dirname, "use-brokk-caption.ts"), "utf8");
+        expect(caption).toContain("useBrokkScene(");
+        expect(caption).toContain("useBrokkSituation(");
+        // The avatar's tooltip reads the same scene.
+        expect(readFileSync(join(__dirname, "brokk-peek.tsx"), "utf8")).toContain("useBrokkScene(");
+    });
+
+    it("keeps the expressions model watching, and lets his nod answer what the developer handles in the panels", () => {
+        const host = readFileSync(join(__dirname, "brokk-hub-host.tsx"), "utf8");
+        expect(host).toContain("BrokkExpressionsModel.getInstance().watch(document)");
+        const actions = readFileSync(join(__dirname, "use-brokk-actions.ts"), "utf8");
+        expect(actions).toContain("BrokkExpressionsModel.getInstance().noteHandled(handled)");
     });
 });

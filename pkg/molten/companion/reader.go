@@ -83,6 +83,12 @@ func (r *SessionReader) LatestAnswer() (AnswerView, bool) {
 	return r.session.Answer(0)
 }
 
+// AnswerAt is the answer of one turn read by Poll (Brokk's window reads a first answer to its end once a second message
+// started a newer turn, #2033); false when the turn is not held any more.
+func (r *SessionReader) AnswerAt(index int) (AnswerView, bool) {
+	return r.session.Answer(index)
+}
+
 func (r *SessionReader) Close() {
 	if r.follower != nil {
 		r.follower.close()

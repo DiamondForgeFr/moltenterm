@@ -22,9 +22,10 @@ vi.mock("./brokk-hub-store", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { SpeakingHoldMs } from "./brokk-exchange-model";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkSession, ReplyCommand, SayCommand, SessionCommand, SessionRouteId } from "./brokk-session";
-import { TalkState } from "./brokk-talk-model";
+import { FollowEveryMs, TalkState } from "./brokk-talk-model";
 
 const hub = BrokkHubModel.getInstance() as any;
 let calls: { command: string; data: any; timeout: number }[] = [];
@@ -147,7 +148,11 @@ describe("the talk field goes to Brokk's session (FR-BOSS-009, AC15)", () => {
 // #2028: his session answered in its hidden tab, and nothing came back to the panel.
 describe("his answer comes back under the field (#2028)", () => {
     it("reads his answer to this message until his agent is done, and shows it", async () => {
-        replies = [{ status: "waiting" }, { status: "answer", markdown: "Two agents" }, { status: "answer", markdown: "Two agents run now." }];
+        replies = [
+            { status: "waiting" },
+            { status: "answer", markdown: "Two agents" },
+            { status: "answer", markdown: "Two agents run now." },
+        ];
         working = [true, true, false];
         const session = BrokkSession.getInstance();
         const before = Date.now();
@@ -169,19 +174,225 @@ describe("his answer comes back under the field (#2028)", () => {
         expect(state.phase).toBe("unread");
         expect(state.where).toEqual({ workspaceid: "ws-9", tabid: "tab-9", blockid: "block-9" });
     });
+});
 
-    it("stops following the answer once the developer sends another message", async () => {
+// #2033: the exchange. The follow loop and the hold of his speech wait on gates the test releases one by one.
+describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
+    let waits: { ms: number; release: () => void }[];
+    let sayAnswers: any[];
+    let read: (data: any) => any;
+    let sayCalls: number;
+
+    async function flush() {
+        for (let i = 0; i < 20; i++) {
+            await Promise.resolve();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+    }
+
+    function release(ms: number) {
+        const i = waits.findIndex((w) => w.ms === ms);
+        expect(i, `a wait of ${ms} ms is pending`).toBeGreaterThanOrEqual(0);
+        waits.splice(i, 1)[0].release();
+    }
+
+    // One reading of the answer being followed. The loops of earlier messages are stopped: they wake and end.
+    async function reading() {
+        await flush();
+        for (const wait of waits.filter((w) => w.ms === FollowEveryMs)) {
+            waits.splice(waits.indexOf(wait), 1);
+            wait.release();
+        }
+        await flush();
+    }
+
+    const answer = (index: number, markdown: string, at = 10 + index) => ({ status: "answer", index, markdown, at });
+    const exchange = () => globalStore.get(BrokkSession.getInstance().exchangeAtom);
+    const shape = () => exchange().map((i) => `${i.role}:${i.text}`);
+
+    beforeEach(() => {
+        waits = [];
+        sayCalls = 0;
+        sayAnswers = [said];
+        read = () => ({ status: "waiting" });
         const session = BrokkSession.getInstance();
-        let release: () => void;
-        const held = new Promise<void>((resolve) => (release = resolve));
-        session.useWait(() => held);
+        session.useCall(async (command, data, timeout) => {
+            calls.push({ command, data, timeout });
+            if (command === SessionCommand) {
+                return found;
+            }
+            if (command === SayCommand) {
+                return sayAnswers[Math.min(sayCalls++, sayAnswers.length - 1)];
+            }
+            return read(data);
+        });
+        session.useWait((ms) => new Promise<void>((resolve) => waits.push({ ms, release: resolve })));
+    });
+
+    it("shows the message once his agent has it, and his answer after it, read by its turn", async () => {
+        const session = BrokkSession.getInstance();
+        read = () => answer(3, "Two agents run now.");
+        globalStore.set(hub.ownWorkingAtom, false);
+        await session.say("how many agents run?");
+        expect(shape()).toEqual(["you:how many agents run?"]);
+        await reading();
+        expect(shape()).toEqual(["you:how many agents run?", "brokk:Two agents run now."]);
+        await reading();
+        expect(globalStore.get(session.stateAtom).phase).toBe("answered");
+        expect(exchange()[1]).toMatchObject({ role: "brokk", turn: 3, final: true });
+        // Once its turn is known the answer is read by it, whatever turn comes after.
+        const reads = calls.filter((c) => c.command === ReplyCommand);
+        expect(reads[0].data.index).toBe(0);
+        expect(reads[reads.length - 1].data.index).toBe(3);
+    });
+
+    it("keeps a message his agent could not take out of the exchange, and its text with the developer", async () => {
+        const session = BrokkSession.getInstance();
+        sayAnswers = [{ status: "busy", reason: "notready" }];
+        await session.say("are you there?");
+        expect(exchange()).toEqual([]);
+        expect(globalStore.get(session.stateAtom)).toMatchObject({ phase: "busy" });
+    });
+
+    it("keeps each answer apart over several messages, in order", async () => {
+        const session = BrokkSession.getInstance();
+        globalStore.set(hub.ownWorkingAtom, false);
+        read = () => answer(3, "Two.");
+        await session.say("how many agents run?");
+        await reading();
+        await reading();
+        read = () => answer(4, "One, Olivia.");
+        await session.say("and who is blocked?");
+        await reading();
+        await reading();
+        expect(shape()).toEqual([
+            "you:how many agents run?",
+            "brokk:Two.",
+            "you:and who is blocked?",
+            "brokk:One, Olivia.",
+        ]);
+        expect(exchange().map((i) => i.role === "brokk" && i.turn)).toEqual([false, 3, false, 4]);
+    });
+
+    it("does not lose the first answer when his agent cannot take a second message yet", async () => {
+        const session = BrokkSession.getInstance();
+        globalStore.set(hub.ownWorkingAtom, true);
+        read = () => answer(3, "Two agents");
         await session.say("first");
-        replies = [{ status: "answer", markdown: "to the second" }];
-        working = [false];
-        session.useWait(async () => {});
+        await reading();
+        expect(shape()).toEqual(["you:first", "brokk:Two agents"]);
+
+        sayAnswers = [said, { status: "busy", reason: "notready" }];
         await session.say("second");
-        release();
-        const state = await settled(session, ["answered"]);
-        expect(state.reply).toBe("to the second");
+        expect(globalStore.get(session.stateAtom).phase).toBe("busy");
+        expect(shape()).toEqual(["you:first", "brokk:Two agents"]);
+
+        // The first answer keeps coming in, and the note of the refused message stays until the developer writes.
+        read = () => answer(3, "Two agents run now.");
+        globalStore.set(hub.ownWorkingAtom, false);
+        await reading();
+        await reading();
+        expect(shape()).toEqual(["you:first", "brokk:Two agents run now."]);
+        expect(exchange()[1]).toMatchObject({ final: true });
+        expect(globalStore.get(session.stateAtom).phase).toBe("busy");
+
+        // Writing again clears the note and leaves the answers alone.
+        session.clearNote();
+        expect(globalStore.get(session.stateAtom).phase).toBe("idle");
+        expect(shape()).toEqual(["you:first", "brokk:Two agents run now."]);
+    });
+
+    it("reads the first answer to its end, by its turn, when a second message is taken while it comes in", async () => {
+        const session = BrokkSession.getInstance();
+        globalStore.set(hub.ownWorkingAtom, true);
+        read = () => answer(3, "Two agents");
+        await session.say("first");
+        await reading();
+
+        // His agent took the second message: the first answer was finished meanwhile, and the newer turn has begun.
+        read = (data) => (data.index === 3 ? answer(3, "Two agents run now.") : { status: "waiting" });
+        await session.say("second");
+        expect(shape()).toEqual(["you:first", "brokk:Two agents run now.", "you:second"]);
+        expect(exchange()[1]).toMatchObject({ role: "brokk", turn: 3, final: true });
+        const settling = calls.filter((c) => c.command === ReplyCommand).pop();
+        expect(settling.data.index).toBe(3);
+
+        read = (data) => (data.index === 3 ? answer(3, "Two agents run now.") : answer(4, "One blocked."));
+        globalStore.set(hub.ownWorkingAtom, false);
+        await reading();
+        await reading();
+        expect(shape()).toEqual(["you:first", "brokk:Two agents run now.", "you:second", "brokk:One blocked."]);
+    });
+
+    it("tells the first answer is over even when the second message came before any text of it", async () => {
+        const session = BrokkSession.getInstance();
+        await session.say("first");
+        await session.say("second");
+        expect(shape()).toEqual(["you:first", "you:second"]);
+    });
+
+    it("speaks while his answer comes in and a moment after it last changed", async () => {
+        const session = BrokkSession.getInstance();
+        globalStore.set(hub.ownWorkingAtom, true);
+        read = () => answer(3, "Two");
+        await session.say("hello");
+        expect(globalStore.get(session.speakingAtom)).toBe(false);
+        await reading();
+        expect(globalStore.get(session.speakingAtom)).toBe(true);
+
+        // It changes again: the first hold ending does not end the speech.
+        read = () => answer(3, "Two agents");
+        await reading();
+        expect(waits.filter((w) => w.ms === SpeakingHoldMs)).toHaveLength(2);
+        release(SpeakingHoldMs);
+        await flush();
+        expect(globalStore.get(session.speakingAtom)).toBe(true);
+        release(SpeakingHoldMs);
+        await flush();
+        expect(globalStore.get(session.speakingAtom)).toBe(false);
+    });
+
+    it("does not speak again for an answer that did not change", async () => {
+        const session = BrokkSession.getInstance();
+        globalStore.set(hub.ownWorkingAtom, true);
+        read = () => answer(3, "Two");
+        await session.say("hello");
+        await reading();
+        await reading();
+        expect(waits.filter((w) => w.ms === SpeakingHoldMs)).toHaveLength(1);
+    });
+
+    it("keeps what he said while the window was folded as his line until the developer looks", async () => {
+        const session = BrokkSession.getInstance();
+        globalStore.set(hub.ownWorkingAtom, true);
+        read = () => answer(3, "Two agents run now.");
+        session.setWindowOpen(true);
+        await session.say("hello");
+        await reading();
+        expect(globalStore.get(session.unseenIdAtom)).toBeNull();
+
+        session.setWindowOpen(false);
+        read = () => answer(3, "Two agents run now. Olivia waits.");
+        await reading();
+        const unseen = globalStore.get(session.unseenIdAtom);
+        expect(unseen).not.toBeNull();
+        expect(exchange().find((i) => i.role === "brokk" && i.id === unseen)).toMatchObject({
+            text: "Two agents run now. Olivia waits.",
+        });
+
+        session.setWindowOpen(true);
+        expect(globalStore.get(session.unseenIdAtom)).toBeNull();
+    });
+
+    it("keeps the exchange when the window folds and opens again", async () => {
+        const session = BrokkSession.getInstance();
+        read = () => answer(3, "Two.");
+        globalStore.set(hub.ownWorkingAtom, false);
+        await session.say("hello");
+        await reading();
+        session.setWindowOpen(true);
+        session.setWindowOpen(false);
+        session.setWindowOpen(true);
+        expect(shape()).toEqual(["you:hello", "brokk:Two."]);
     });
 });

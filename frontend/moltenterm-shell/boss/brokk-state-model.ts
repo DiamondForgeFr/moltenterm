@@ -50,9 +50,11 @@ function hasGesture(pose: BrokkPose, expression: BrokkExpression): boolean {
 // speaking one when he speaks and that pose has it too (the nod). Whatever pose he was in comes back when it ends.
 export function brokkPose(situation: BrokkSituation, face: BrokkFace): BrokkPose {
     const base = restingPose(situation);
-    // He speaks for the few seconds after the card opens on items, and for as long as his own session answers.
+    // He speaks for the few seconds after the card opens on items, and for as long as his own session answers; he
+    // thinks while it works on a message of the developer (#2033).
     const speaks = base === "listening" && (situation.talk === "answering" || (face.speaking && situation.waiting > 0));
-    const wanted = speaks ? "speaking" : base;
+    const thinks = base === "listening" && situation.talk === "thinking";
+    const wanted = speaks ? "speaking" : thinks ? "thinking" : base;
     if (face.expression == null) {
         return wanted;
     }

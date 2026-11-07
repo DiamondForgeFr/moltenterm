@@ -24,18 +24,22 @@ vi.mock("../settings/settings-open", () => ({ openSettingsSection: vi.fn() }));
 vi.mock("./brokk-session", async () => {
     const { atom } = await import("jotai");
     const stateAtom = atom({ phase: "idle", reason: "", agentName: "", started: false, reply: "", where: null });
-    return { BrokkSession: { getInstance: () => ({ stateAtom, say: vi.fn(), clearNote: vi.fn() }) } };
+    const exchangeAtom = atom([] as any[]);
+    const session = { stateAtom, exchangeAtom, say: vi.fn(), clearNote: vi.fn(), setWindowOpen: vi.fn() };
+    return { BrokkSession: { getInstance: () => session } };
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { UsageReadingsAtom } from "./boss-usage";
 import { BrokkSession } from "./brokk-session";
-import { BrokkTalk } from "./brokk-talk";
+import { BrokkTalk, keepDraft } from "./brokk-talk";
 import { BrokkUsageTab } from "./brokk-usage-tab";
 
 const Now = Date.now();
 
 beforeEach(() => {
+    keepDraft("");
+    globalStore.set((BrokkSession.getInstance() as any).exchangeAtom, []);
     globalStore.set(UsageReadingsAtom, {});
     globalStore.set((BrokkSession.getInstance() as any).stateAtom, {
         phase: "idle",
@@ -90,7 +94,7 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
     it("is named for him, with a Send that waits for a message", () => {
         const html = render();
         expect(html).toContain('data-testid="brokk-talk-input"');
-        expect(html).toContain('placeholder="Talk to Brokk…"');
+        expect(html).toContain('placeholder="Write to Brokk…"');
         expect(html).toContain('aria-label="Message to Brokk"');
         expect(html).toMatch(/data-testid="brokk-talk-send"[^>]*>Send/);
         expect(html).toMatch(/<button type="submit" disabled=""/);
@@ -109,26 +113,139 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
     it("says what came of the last message under the field, in his words", () => {
         const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
         globalStore.set(stateAtom, { ...Idle, phase: "busy", reason: "notready" });
-        expect(render()).toMatch(/data-testid="brokk-talk-note" data-phase="busy"[^>]*><span>Brokk&#x27;s agent is busy/);
+        expect(render()).toMatch(
+            /data-testid="brokk-talk-note" data-phase="busy"[^>]*><span>Brokk&#x27;s agent is busy/
+        );
         globalStore.set(stateAtom, { ...Idle, phase: "noagent" });
         expect(render()).toContain("No coding agent is installed to start Brokk");
     });
 
-    // #2028: the developer sent a message and saw nothing; his answer was only in a hidden tab.
-    it("shows his answer under the field", () => {
-        const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
-        globalStore.set(stateAtom, { ...Idle, phase: "answered", reply: "Two agents run now.", where: Where });
+    // #2028: the developer sent a message and saw nothing; his answer was only in a hidden tab. #2033: it is in the window.
+    it("keeps his answer out of the folded field: the line under the square carries it", () => {
+        const session = BrokkSession.getInstance() as any;
+        globalStore.set(session.stateAtom, { ...Idle, phase: "answered", reply: "Two agents run now.", where: Where });
+        globalStore.set(session.exchangeAtom, [
+            { id: "m1", role: "you", text: "how many agents run?", at: 1 },
+            { id: "m1", role: "brokk", text: "Two agents run now.", actions: [], at: 2, turn: 3, final: true },
+        ]);
         const html = render();
-        expect(html).toMatch(/data-testid="brokk-talk-reply" data-phase="answered" aria-label="Brokk&#x27;s answer"[^>]*>Two agents run now\.</);
+        expect(html).not.toContain("Two agents run now.");
+        expect(html).not.toContain('data-testid="brokk-convo"');
         expect(html).not.toContain('data-testid="brokk-talk-note"');
+    });
+
+    it("tells the window is open in the field, once text is left in it", () => {
+        expect(render()).toContain('data-open="false"');
+        keepDraft("and the blocked ones?");
+        const html = render();
+        expect(html).toContain('data-open="true"');
+        expect(html).toContain('value="and the blocked ones?"');
+    });
+
+    it("opens as a log of the exchange named for him, with a hint while it is empty", () => {
+        keepDraft("hello");
+        const html = render();
+        expect(html).toMatch(/data-testid="brokk-convo"[^>]*>/);
+        expect(html).toContain('role="log"');
+        expect(html).toContain('aria-label="Conversation with Brokk"');
+        expect(html).toContain("Tell Brokk what you need.");
+        expect(html.indexOf('data-testid="brokk-convo"')).toBeLessThan(html.indexOf('data-testid="brokk-talk-input"'));
+    });
+
+    it("shows the developer's messages and his answers in order, the field below them", () => {
+        const session = BrokkSession.getInstance() as any;
+        keepDraft("and?");
+        globalStore.set(session.exchangeAtom, [
+            { id: "m1", role: "you", text: "how many agents run?", at: 1 },
+            { id: "m1", role: "brokk", text: "Two agents run now.", actions: [], at: 2, turn: 3, final: true },
+            { id: "m2", role: "you", text: "who is blocked?", at: 3 },
+            { id: "m2", role: "brokk", text: "Olivia.", actions: [], at: 4, turn: 4, final: true },
+        ]);
+        const html = render();
+        const order = [...html.matchAll(/data-testid="brokk-msg-text">([^<]*)</g)].map((m) => m[1]);
+        expect(order).toEqual(["how many agents run?", "Two agents run now.", "who is blocked?", "Olivia."]);
+        expect([...html.matchAll(/data-role="(you|brokk)"/g)].map((m) => m[1])).toEqual([
+            "you",
+            "brokk",
+            "you",
+            "brokk",
+        ]);
+        expect(html).not.toContain("Tell Brokk what you need.");
+        expect(html.lastIndexOf("brokk-msg-text")).toBeLessThan(html.indexOf('data-testid="brokk-talk-input"'));
+    });
+
+    it("offers the replies of his last answer as buttons, and none once the developer answered", () => {
+        const session = BrokkSession.getInstance() as any;
+        keepDraft("hm");
+        const answer = {
+            id: "m1",
+            role: "brokk",
+            text: "Open the PR #2024?",
+            actions: [
+                { label: "Yes", authorise: false },
+                { label: "No", authorise: false },
+            ],
+            at: 2,
+            turn: 3,
+            final: true,
+        };
+        globalStore.set(session.exchangeAtom, [{ id: "m1", role: "you", text: "any news?", at: 1 }, answer]);
+        const html = render();
+        expect(html.match(/data-testid="brokk-act"/g)).toHaveLength(2);
+        expect(html).toMatch(/data-testid="brokk-act"[^>]*>Yes</);
+        expect(html).toContain('aria-label="Replies Brokk offers"');
+        globalStore.set(session.exchangeAtom, [
+            { id: "m1", role: "you", text: "any news?", at: 1 },
+            answer,
+            { id: "m2", role: "you", text: "Yes", at: 3 },
+        ]);
+        expect(render()).not.toContain('data-testid="brokk-act"');
+    });
+
+    it("says he thinks inside the window, and not once his words are there", () => {
+        const session = BrokkSession.getInstance() as any;
+        keepDraft("hm");
+        globalStore.set(session.stateAtom, { ...Idle, phase: "answering", where: Where });
+        globalStore.set(session.exchangeAtom, [{ id: "m1", role: "you", text: "any news?", at: 1 }]);
+        const html = render();
+        expect(html).toMatch(
+            /data-phase="answering"[^>]*><span><span data-testid="mock-domino"[^>]*><\/span>Brokk is thinking…/
+        );
+        expect(html.indexOf("brokk-talk-note")).toBeGreaterThan(html.indexOf('data-testid="brokk-convo"'));
+        expect(html.indexOf("brokk-talk-note")).toBeLessThan(html.indexOf('data-testid="brokk-talk-input"'));
+
+        globalStore.set(session.exchangeAtom, [
+            { id: "m1", role: "you", text: "any news?", at: 1 },
+            { id: "m1", role: "brokk", text: "Two", actions: [], at: 2, turn: 3, final: false },
+        ]);
+        expect(render()).not.toContain('data-testid="brokk-talk-note"');
+    });
+
+    it("says a failure inside the window, with its way out, and under the field when it is folded", () => {
+        const session = BrokkSession.getInstance() as any;
+        globalStore.set(session.stateAtom, { ...Idle, phase: "busy", reason: "notready" });
+        const folded = render();
+        expect(folded).toContain("mt-brokk-field-extra");
+        expect(folded).toMatch(/data-testid="brokk-talk-wayout" data-way="retry"[^>]*>Try again</);
+        keepDraft("are you there?");
+        const open = render();
+        expect(open).not.toContain("mt-brokk-field-extra");
+        expect(open.indexOf('data-testid="brokk-talk-wayout"')).toBeGreaterThan(
+            open.indexOf('data-testid="brokk-convo"')
+        );
+        expect(open).toMatch(/data-testid="brokk-talk-wayout" data-way="retry"[^>]*>Try again</);
     });
 
     it("says he settles in, then that he thinks, with the domino", () => {
         const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
         globalStore.set(stateAtom, { ...Idle, phase: "starting" });
-        expect(render()).toMatch(/data-phase="starting"[^>]*><span><span data-testid="mock-domino"[^>]*><\/span>Brokk is settling in…/);
+        expect(render()).toMatch(
+            /data-phase="starting"[^>]*><span><span data-testid="mock-domino"[^>]*><\/span>Brokk is settling in…/
+        );
         globalStore.set(stateAtom, { ...Idle, phase: "answering", where: Where });
-        expect(render()).toMatch(/data-phase="answering"[^>]*><span><span data-testid="mock-domino"[^>]*><\/span>Brokk is thinking…/);
+        expect(render()).toMatch(
+            /data-phase="answering"[^>]*><span><span data-testid="mock-domino"[^>]*><\/span>Brokk is thinking…/
+        );
     });
 
     it("gives every failure a way out", () => {
@@ -156,7 +273,9 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
         globalStore.set(stateAtom, { ...Idle, phase: "sending" });
         const html = render();
-        expect(html).toMatch(/data-testid="brokk-talk-note" data-phase="sending"[^>]*><span><span data-testid="mock-domino"/);
+        expect(html).toMatch(
+            /data-testid="brokk-talk-note" data-phase="sending"[^>]*><span><span data-testid="mock-domino"/
+        );
         expect(html).toContain("On its way…");
         expect(html).not.toContain("fa-spin");
         expect(html).not.toContain('data-testid="brokk-talk-wayout"');

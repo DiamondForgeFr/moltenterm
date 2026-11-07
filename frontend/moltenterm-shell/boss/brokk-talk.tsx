@@ -1,57 +1,125 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The field at the foot of Brokk's panel (FR-BOSS-009, AC9 and AC15, #2003): the developer writes to him, and the message
-// goes to his own terminal session (brokk-session.ts). He listens while the developer writes (onTyping) and speaks while
-// his session answers. His answer comes back under the field (#2028). A message the agent could not take stays in the
-// field, with a line saying why and a way out: choose an agent, try again, or open his terminal.
+// The field under Brokk's group and the conversation window it opens (FR-BOSS-009, AC15, AC17, AC22 to AC24, #2003,
+// #2028, #2032, #2033): the developer writes to him, and the message goes to his own terminal session (brokk-session.ts).
+// While the field has the focus, or text is left in it, the frame grows in place into a window that shows the exchange:
+// the developer's messages and his answers, one answer per message, the replies an answer offers as buttons (an
+// authorisation asks once more), and the notes about a message his agent could not take, each with a way out: choose an
+// agent, try again, or open his terminal. He listens while the developer writes (onTyping). Folded, the field is one
+// row as wide as the group, and what it says hangs under it, so the group's geometry never moves. While the window is
+// open no panel shows beside the group (onFocusChange, AC18).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { showPane } from "../sessions/pane-focus";
 import { openSettingsSection } from "../settings/settings-open";
 import { DominoLoader } from "../suite/suite";
 import { BossBubbleModel } from "./boss-store";
+import { ExchangeView } from "./brokk-exchange";
+import { afterCancel, afterClick, afterConfirm, conversationOpen, InlineAction } from "./brokk-exchange-model";
 import { BrokkSession } from "./brokk-session";
 import {
     canSend,
     keepsText,
     MaxMessageLength,
     onItsWay,
-    TalkState,
     talkNoteKey,
+    TalkState,
     talkWaits,
     TalkWayOut,
     talkWayOut,
     talkWayOutKey,
 } from "./brokk-talk-model";
 
-// What the developer was writing when the panel hid: it comes back with the panel, so Escape never costs a message.
+// What the developer was writing when the group hid: it comes back with the group, so Escape never costs a message.
 let draft = "";
+
+// The text kept for the next time the field shows; the window stays open for as long as the field holds text (AC22).
+export function keepDraft(value: string): void {
+    draft = value;
+}
 
 // A failure's note goes once the developer writes again; his answer stays until the next message.
 function clearsOnTyping(state: TalkState): boolean {
     return state.phase !== "idle" && !onItsWay(state) && keepsText(state);
 }
 
-export function BrokkTalk({ onTyping }: { onTyping: (typing: boolean) => void }) {
+export function BrokkTalk({
+    onTyping,
+    onFocusChange,
+    onContentHeight,
+}: {
+    onTyping: (typing: boolean) => void;
+    // The window opens or folds (AC22): the group shows no panel while it is open.
+    onFocusChange?: (open: boolean) => void;
+    // What the exchange needs, so that the window can grow with it.
+    onContentHeight?: (height: number) => void;
+}) {
     const t = useT();
     const session = BrokkSession.getInstance();
     const name = useAtomValue(BossBubbleModel.getInstance().nameAtom, { store: globalStore });
     const state = useAtomValue(session.stateAtom, { store: globalStore });
+    const items = useAtomValue(session.exchangeAtom, { store: globalStore });
     const [text, setTextState] = useState(draft);
+    const [focused, setFocused] = useState(false);
+    const [confirming, setConfirming] = useState<InlineAction>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const innerRef = useRef<HTMLDivElement>(null);
     const setText = (value: string) => {
-        draft = value;
+        keepDraft(value);
         setTextState(value);
     };
+    const open = conversationOpen(focused, text);
     useEffect(() => onTyping(text.trim() !== ""), [text, onTyping]);
     useEffect(() => () => onTyping(false), [onTyping]);
+    useEffect(() => {
+        session.setWindowOpen(open);
+        onFocusChange?.(open);
+    }, [open, session, onFocusChange]);
+    useEffect(
+        () => () => {
+            session.setWindowOpen(false);
+            onFocusChange?.(false);
+        },
+        [session, onFocusChange]
+    );
+    const last = items[items.length - 1];
+    // A question that was asked about a reply is dropped once the exchange moves on.
+    useEffect(() => setConfirming(null), [last?.id, last?.role]);
+
     const noteKey = talkNoteKey(state);
     const wayOut = talkWayOut(state);
+    // His words are coming in: the domino of "thinking" has done its work.
+    const answerShows = last?.role === "brokk" && last.text !== "";
+    const showNote = noteKey != null && !(state.phase === "answering" && answerShows);
+
+    useLayoutEffect(() => {
+        const inner = innerRef.current;
+        if (!open || inner == null) {
+            return;
+        }
+        const report = () => onContentHeight?.(inner.offsetHeight);
+        report();
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(report);
+        observer.observe(inner);
+        return () => observer.disconnect();
+    }, [open, onContentHeight]);
+    useEffect(() => {
+        const scroll = scrollRef.current;
+        if (open && scroll != null) {
+            scroll.scrollTop = scroll.scrollHeight;
+        }
+    }, [open, items, state.phase, confirming]);
+
     const send = async () => {
         if (!canSend(text, state)) {
             return;
@@ -60,6 +128,36 @@ export function BrokkTalk({ onTyping }: { onTyping: (typing: boolean) => void })
         if (!keepsText(result)) {
             setText("");
         }
+    };
+    // A reply he offered goes as the developer's next message. When his agent could not take it, it waits in the field,
+    // where the way out of the note (Réessayer) sends it again.
+    const sendReply = async (reply: string) => {
+        if (onItsWay(state)) {
+            return;
+        }
+        inputRef.current?.focus();
+        const result = await session.say(reply);
+        if (keepsText(result) && draft.trim() === "") {
+            setText(reply);
+        }
+    };
+    const pick = (action: InlineAction) => {
+        const outcome = afterClick(action);
+        setConfirming(outcome.confirming);
+        if (outcome.send != null) {
+            void sendReply(outcome.send);
+        }
+    };
+    const confirm = () => {
+        const outcome = afterConfirm(confirming);
+        setConfirming(outcome.confirming);
+        if (outcome.send != null) {
+            void sendReply(outcome.send);
+        }
+    };
+    const cancel = () => {
+        setConfirming(afterCancel().confirming);
+        inputRef.current?.focus();
     };
     const takeWayOut = (way: TalkWayOut) => {
         if (way === "chooseAgent") {
@@ -72,34 +170,88 @@ export function BrokkTalk({ onTyping }: { onTyping: (typing: boolean) => void })
         }
         void send();
     };
+
+    const note = showNote ? (
+        <div
+            role="status"
+            data-testid="brokk-talk-note"
+            data-phase={state.phase}
+            className={cn(
+                "flex flex-wrap items-center gap-x-2 text-11",
+                talkWaits(state) ? "text-muted" : "text-secondary"
+            )}
+        >
+            <span>
+                {talkWaits(state) ? <DominoLoader className="mr-1.5" /> : null}
+                {t(noteKey, { name, agent: state.agentName })}
+            </span>
+            {wayOut != null ? (
+                <button
+                    type="button"
+                    data-testid="brokk-talk-wayout"
+                    data-way={wayOut}
+                    onClick={() => takeWayOut(wayOut)}
+                    className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-11 text-primary hover:bg-hover"
+                >
+                    {t(talkWayOutKey(wayOut), { name })}
+                </button>
+            ) : null}
+        </div>
+    ) : null;
+
     return (
         <form
-            className="flex flex-col gap-1 border-t border-line-strong px-3 py-2"
+            className="mt-brokk-field"
             data-testid="brokk-talk"
+            data-open={open ? "true" : "false"}
             onSubmit={(e) => {
                 e.preventDefault();
                 void send();
             }}
+            onFocus={() => setFocused(true)}
+            // The focus moving from the input to a button is still the conversation.
+            onBlur={(e) => setFocused(e.currentTarget.contains(e.relatedTarget as Node))}
         >
-            {state.reply !== "" ? (
+            {open ? (
                 <div
-                    data-testid="brokk-talk-reply"
-                    data-phase={state.phase}
-                    aria-label={t("boss.panel.talk.replyLabel", { name })}
-                    className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-4 bg-surface-2 px-2 py-1.5 text-12 text-primary"
+                    ref={scrollRef}
+                    className="mt-brokk-convo"
+                    // A click in the exchange (to select a word) keeps the focus in the conversation.
+                    tabIndex={-1}
+                    role="log"
+                    aria-live="polite"
+                    aria-label={t("boss.panel.talk.window", { name })}
+                    data-testid="brokk-convo"
                 >
-                    {state.reply}
+                    <div ref={innerRef} className="mt-brokk-convo-inner">
+                        {items.length === 0 && note == null ? (
+                            <p className="mt-brokk-empty" data-testid="brokk-convo-empty">
+                                {t("boss.panel.talk.empty", { name })}
+                            </p>
+                        ) : null}
+                        <ExchangeView
+                            items={items}
+                            name={name}
+                            confirming={confirming}
+                            busy={onItsWay(state)}
+                            onPick={pick}
+                            onConfirm={confirm}
+                            onCancel={cancel}
+                        />
+                        {note}
+                    </div>
                 </div>
             ) : null}
-            <div className="flex items-center gap-2">
+            <div className="mt-brokk-field-row">
                 <input
+                    ref={inputRef}
                     type="text"
                     value={text}
                     maxLength={MaxMessageLength}
                     placeholder={t("boss.panel.talk.placeholder", { name })}
                     aria-label={t("boss.panel.talk.label", { name })}
                     data-testid="brokk-talk-input"
-                    className="min-w-0 flex-1 rounded-4 border border-border bg-surface-2 px-2 py-1 text-12 text-primary placeholder:text-muted"
+                    className="mt-brokk-field-input"
                     onChange={(e) => {
                         setText(e.target.value);
                         if (clearsOnTyping(state)) {
@@ -111,39 +263,13 @@ export function BrokkTalk({ onTyping }: { onTyping: (typing: boolean) => void })
                     type="submit"
                     disabled={!canSend(text, state)}
                     data-testid="brokk-talk-send"
-                    className="molten-btn inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-3 py-1 text-12 font-medium"
+                    className="molten-btn inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-0.5 text-11 font-medium"
                 >
                     {t("boss.panel.talk.send")}
                     <MoltenWave />
                 </button>
             </div>
-            {noteKey != null ? (
-                <div
-                    role="status"
-                    data-testid="brokk-talk-note"
-                    data-phase={state.phase}
-                    className={cn(
-                        "flex flex-wrap items-center gap-x-2 text-11",
-                        talkWaits(state) ? "text-muted" : "text-secondary"
-                    )}
-                >
-                    <span>
-                        {talkWaits(state) ? <DominoLoader className="mr-1.5" /> : null}
-                        {t(noteKey, { name, agent: state.agentName })}
-                    </span>
-                    {wayOut != null ? (
-                        <button
-                            type="button"
-                            data-testid="brokk-talk-wayout"
-                            data-way={wayOut}
-                            onClick={() => takeWayOut(wayOut)}
-                            className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-11 text-primary hover:bg-hover"
-                        >
-                            {t(talkWayOutKey(wayOut), { name })}
-                        </button>
-                    ) : null}
-                </div>
-            ) : null}
+            {!open && note != null ? <div className="mt-brokk-field-extra">{note}</div> : null}
         </form>
     );
 }
