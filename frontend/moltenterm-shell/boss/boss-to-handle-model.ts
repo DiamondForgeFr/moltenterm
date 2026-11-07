@@ -105,6 +105,11 @@ export type ToHandleItem = {
     line: TextRef;
     // The workspace of an agent, the project folder of a pull request, "" when none.
     place: string;
+    // The workspace the row belongs to, when the source knows it ("" for a pull request, which names a project folder
+    // instead: the group finds its workspace from dir).
+    workspaceid?: string;
+    // The project folder of a pull request's row.
+    dir?: string;
     // When it started waiting (Unix ms), 0 when unknown: the oldest waits come first within a rank.
     since: number;
     rank: number;
@@ -116,7 +121,7 @@ export type ToHandleItem = {
     handoff?: HandoffRow;
 };
 
-export type InfoItem = { key: string; name: string; place: string; line: TextRef };
+export type InfoItem = { key: string; name: string; place: string; workspaceid?: string; line: TextRef };
 
 export type ToHandleList = {
     items: ToHandleItem[];
@@ -250,6 +255,7 @@ function agentItem(info: AgentStateInfo, input: ToHandleInput, consumed: Set<str
             ? { key: "boss.todo.agentError", vars: { name } }
             : { key: "boss.todo.agentWaiting", vars: { name } },
         place: workspaceShownName(session?.workspacename ?? "", t),
+        workspaceid: session?.workspaceid ?? "",
         since: sinceOf(info.since),
         rank: failed ? RankError : RankWait,
         seen: false,
@@ -277,6 +283,7 @@ function noticeItem(entry: MoltentermNotification): ToHandleItem {
         name: "",
         line: {},
         place: "",
+        workspaceid: entry.workspaceid ?? "",
         since: sinceOf(entry.updated ?? entry.time),
         rank: entry.kind === "error" ? RankError : RankWait,
         seen: goThere && !!entry.read,
@@ -316,6 +323,7 @@ function failedCiItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
         name: `#${pr.number}`,
         line: { key: "boss.todo.ciFailed", vars: { checks } },
         place,
+        dir,
         since: prSince(pr),
         rank: RankError,
         seen: false,
@@ -349,6 +357,7 @@ function readyItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
         name: `#${pr.number}`,
         line: { text: pr.title ?? "" },
         place,
+        dir,
         since: prSince(pr),
         rank: RankReady,
         seen: false,
@@ -467,6 +476,7 @@ export function buildToHandle(input: ToHandleInput): ToHandleList {
             key: `done:${state.blockid}`,
             name: agentCallName(state),
             place: workspaceShownName(sessionOf(input.sessions, state.blockid)?.workspacename ?? "", t),
+            workspaceid: sessionOf(input.sessions, state.blockid)?.workspaceid ?? "",
             line: { key: "boss.todo.infoDone" },
         }));
     return {

@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/contextmenu", () => ({ ContextMenuModel: { getInstance: () => ({ showContextMenu: vi.fn() }) } }));
 vi.mock("../settings/settings-open", () => ({ openSettingsSection: vi.fn() }));
+vi.mock("./brokk-menu", () => ({ brokkMenuItems: () => [] }));
 vi.mock("../working-beat", () => ({ useWorkingBeat: vi.fn() }));
 vi.mock("./brokk-peek", () => ({ BrokkTooltip: () => null }));
 vi.mock("./boss-portrait", () => ({
@@ -23,6 +24,8 @@ vi.mock("./boss-store", async () => {
         nameAtom: atom("Brokk"),
         showAtom: atom(true),
         cardOpenAtom: atom(false),
+        talkingAtom: atom(false),
+        keepAwakeAtom: atom(false),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
         closeCard: vi.fn(),
     };
@@ -135,6 +138,8 @@ beforeEach(() => {
     globalStore.set(boss.nameAtom, "Brokk");
     globalStore.set(boss.showAtom, true);
     globalStore.set(boss.cardOpenAtom, false);
+    globalStore.set(boss.talkingAtom, false);
+    globalStore.set(boss.keepAwakeAtom, false);
     globalStore.set(hubModel.ownWorkingAtom, false);
     globalStore.set(hubModel.sidebarOnScreenAtom, true);
     setRows();
@@ -170,39 +175,54 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         expect(globalStore.get(boss.cardOpenAtom)).toBe(false);
     });
 
-    it("says its card is open, and empties its face while the card shows his", () => {
+    it("says its group is open and keeps its face, as a still frame while the square plays the animated one (#2032)", () => {
         globalStore.set(boss.cardOpenAtom, true);
         const html = render();
         expect(attr(html, "brokk-avatar", "aria-expanded")).toBe("true");
         expect(attr(html, "brokk-avatar", "data-panel")).toBe("open");
         expect(html).toContain('data-live="false"');
-        expect(rule(css("brokk-avatar.css"), '.mt-brokk-avatar[data-panel="open"] .mt-brokk-face')).toMatch(
-            /visibility: hidden/
-        );
-    });
-
-    it("says calmly that he is busy with the developer while his panel is open: a glyph, a tooltip, the badge kept (#2003)", () => {
-        setRows(row("question:a"));
-        expect(render()).not.toContain('data-testid="brokk-talking"');
-        globalStore.set(boss.cardOpenAtom, true);
-        const html = render();
-        expect(html).toContain('data-testid="brokk-talking"');
-        expect(attr(html, "brokk-avatar", "title")).toBe("Brokk is talking to you");
-        expect(attr(html, "brokk-avatar", "aria-label")).toBe("Brokk is talking to you");
-        expect(html).toContain('data-testid="boss-badge"');
-        globalStore.set(boss.nameAtom, "Léa");
-        expect(attr(render(), "brokk-avatar", "title")).toBe("Léa is talking to you");
-    });
-
-    it("shows no tooltip of its own and no title at rest, and never a second face: the glyph is no portrait", () => {
-        expect(attr(render(), "brokk-avatar", "title")).toBeUndefined();
-        globalStore.set(boss.cardOpenAtom, true);
-        const html = render();
         expect(html.match(/data-testid="portrait"/g)).toHaveLength(1);
-        expect(html).toContain('data-live="false"');
+        // The face stays: the title-bar face is still the face of Brokk while his group shows.
+        expect(rule(css("brokk-avatar.css"), '.mt-brokk-avatar[data-panel="open"] .mt-brokk-face')).toBe("");
     });
 
-    it("draws that sign as a soft ring in the action colour, with no motion and no glyph at 14 px", () => {
+    it("names its click for what it does while the group is open: it closes it", () => {
+        globalStore.set(boss.cardOpenAtom, true);
+        expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Close Brokk");
+        globalStore.set(boss.nameAtom, "Léa");
+        expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Close Léa");
+        expect(attr(render(), "brokk-avatar", "title")).toBeUndefined();
+    });
+
+    it("keeps its badge while the group is open", () => {
+        setRows(row("question:a"));
+        globalStore.set(boss.cardOpenAtom, true);
+        expect(render()).toContain('data-testid="boss-badge"');
+    });
+
+    it("shows the sign of a conversation only while the developer writes to him or his session answers, not merely while the group is open", () => {
+        globalStore.set(boss.cardOpenAtom, true);
+        expect(render()).not.toContain('data-testid="brokk-talking"');
+        globalStore.set(boss.talkingAtom, true);
+        expect(render()).toContain('data-testid="brokk-talking"');
+        globalStore.set(boss.cardOpenAtom, false);
+        expect(render()).not.toContain('data-testid="brokk-talking"');
+    });
+
+    it("shows the cup while keep-awake holds this computer awake and he is closed (#2032)", () => {
+        expect(render()).not.toContain('data-testid="brokk-cup"');
+        globalStore.set(boss.keepAwakeAtom, true);
+        expect(render()).toContain('data-testid="brokk-cup"');
+        globalStore.set(boss.cardOpenAtom, true);
+        expect(render()).not.toContain('data-testid="brokk-cup"');
+        expect(rule(css("brokk-avatar.css"), ".mt-brokk-avatar.is-hanging .mt-brokk-cup")).toMatch(/display: none/);
+    });
+
+    it("shows no tooltip of its own and no title at rest", () => {
+        expect(attr(render(), "brokk-avatar", "title")).toBeUndefined();
+    });
+
+    it("draws the open sign as a soft ring in the action colour, with no motion, and the conversation sign with none either", () => {
         const sheet = css("brokk-avatar.css");
         const open = rule(sheet, '.mt-brokk-avatar[data-panel="open"]');
         expect(open).toMatch(/box-shadow: 0 0 0 2px color-mix\(in srgb, var\(--mt-action\)/);
@@ -386,10 +406,10 @@ describe("the portrait (FR-BOSS-001, AC1)", () => {
         expect(framing).toMatch(/--mt-boss-head-scale: [\d.]+;/);
         expect(framing).toMatch(/--mt-boss-head-origin: \d+% \d+%;/);
         // The numbers appear nowhere else.
-        for (const file of ["brokk-avatar.css", "brokk-panel.css", "brokk-visit-scene.css", "brokk-live.css"]) {
+        for (const file of ["brokk-avatar.css", "brokk-group.css", "brokk-visit-scene.css", "brokk-live.css"]) {
             expect(css(file)).not.toMatch(/--mt-boss-head-/);
         }
-        expect(readFileSync(join(__dirname, "brokk-panel.tsx"), "utf8")).toContain('from "./boss-portrait"');
+        expect(readFileSync(join(__dirname, "brokk-group.tsx"), "utf8")).toContain('from "./boss-portrait"');
         expect(readFileSync(join(__dirname, "brokk-avatar.tsx"), "utf8")).toContain('from "./boss-portrait"');
     });
 

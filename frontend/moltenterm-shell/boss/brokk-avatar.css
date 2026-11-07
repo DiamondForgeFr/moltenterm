@@ -75,25 +75,47 @@
     background: var(--mt-surface-0);
 }
 
-/* His panel is open and shows his face: the avatar is only the button that closes it, with the badge. It never shows a
-   second face; it says, calmly, that he is busy with the developer: a soft ring in the action colour and a small glyph
-   of a conversation, with the tooltip "Brokk vous parle". Nothing moves. */
-.mt-brokk-avatar[data-panel="open"] .mt-brokk-face {
-    visibility: hidden;
-}
-
+/* His group is open (#2032): the avatar keeps its place, its face (a still frame: the animated Brokk is the group's
+   square) and its badge, and takes a soft ring in the action colour. Its click closes the group. Nothing moves. */
 .mt-brokk-avatar[data-panel="open"] {
-    background: color-mix(in srgb, var(--mt-action) 14%, var(--mt-surface-2));
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-action) 65%, transparent);
 }
 
-.mt-brokk-talk {
+/* The cup: keep-awake holds this computer awake and the group is closed. */
+.mt-brokk-cup {
     position: absolute;
-    inset: 0;
+    right: -4px;
+    bottom: -4px;
     display: flex;
+    width: 14px;
+    height: 14px;
     align-items: center;
     justify-content: center;
-    font-size: var(--mt-text-11);
+    border: 1px solid var(--mt-action);
+    border-radius: 50%;
+    background: var(--mt-surface-0);
+    color: var(--mt-action);
+    font-size: 7px;
+    pointer-events: none;
+}
+
+.mt-brokk-avatar.is-hanging .mt-brokk-cup {
+    display: none;
+}
+
+/* The sign of a conversation: the developer writes to him or his session answers. */
+.mt-brokk-talk {
+    position: absolute;
+    left: -3px;
+    bottom: -3px;
+    display: flex;
+    width: 12px;
+    height: 12px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--mt-surface-0);
+    font-size: 7px;
     color: var(--mt-action);
     pointer-events: none;
 }

@@ -376,9 +376,9 @@ describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
         detach();
     });
 
-    it("forgets the asked tab when the panel hides, so that a plain opening reads the badge", () => {
+    it("forgets the asked panel when the group hides, so that a plain opening chooses by priority", () => {
         const { detach } = attached();
-        model.showPanel("usage");
+        model.showPanel("keepawake");
         model.closeCard();
         expect(globalStore.get(model.tabRequestAtom)).toBeNull();
         model.openCard();

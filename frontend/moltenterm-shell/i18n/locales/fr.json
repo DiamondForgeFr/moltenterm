@@ -3013,7 +3013,49 @@
         "label": "{name}, {count} en attente",
         "avatar": {
             "labelCue": "{name}, {count} en attente : a quelque chose à vous dire",
-            "talking": "{name} vous parle"
+            "talking": "{name} vous parle",
+            "close": "Fermer {name}"
+        },
+        "group": {
+            "ariaLabel": "{name} : notifications, agents, sessions, téléchargements et garder éveillé",
+            "close": "Fermer {name}",
+            "closePanel": "Fermer le panneau",
+            "panels": {
+                "notifications": "Notifications",
+                "agents": "Agents",
+                "sessions": "Sessions",
+                "downloads": "Téléchargements",
+                "keepawake": "Garder éveillé",
+                "usage": "Usage"
+            },
+            "rail": {
+                "label": "Panneaux de {name}",
+                "count": "{name}, {count} en attente",
+                "blocked": "{name}, un agent est bloqué",
+                "running": "{name}, {percent} % téléchargé",
+                "runningUnknown": "{name}, un téléchargement est en cours",
+                "news": "{name}, un téléchargement a du nouveau",
+                "awake": "{name}, activé"
+            },
+            "priority": {
+                "urgent": "Urgent",
+                "answer": "À répondre",
+                "info": "Info",
+                "done": "Fait"
+            },
+            "usage": {
+                "open": "Voir le détail de l'usage de chaque forfait",
+                "resets": "Réinitialisation : {day}",
+                "percent": "{percent} %"
+            },
+            "agentsEmpty": "Aucun agent en cours.",
+            "sessionsEmpty": "Aucun terminal ni session SSH en cours.",
+            "keepAwake": {
+                "unsupported": "Garder cet ordinateur éveillé n'est pas possible ici.",
+                "reason": "Raison",
+                "noReason": "Rien ne garde cet ordinateur éveillé.",
+                "until": "Jusqu'à la fin du travail."
+            }
         },
         "menu": {
             "openCard": "Ouvrir la fiche de {name}",
