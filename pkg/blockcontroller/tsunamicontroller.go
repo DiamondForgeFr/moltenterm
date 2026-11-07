@@ -166,9 +166,10 @@ func (c *TsunamiController) Start(ctx context.Context, blockMeta waveobj.MetaMap
 	}
 
 	if !upToDate || force {
-		nodePath := wavebase.GetWaveAppElectronExecPath()
-		if nodePath == "" {
-			return fmt.Errorf("electron executable path not set")
+		// MOLTENTERM-PATCH (#1975): a packaged app has its runAsNode fuse off, so Node.js comes from the PATH there.
+		nodePath, err := wavebase.GetNodeRunnerPath()
+		if err != nil {
+			return err
 		}
 
 		opts := build.BuildOpts{

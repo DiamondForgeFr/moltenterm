@@ -55,6 +55,8 @@ on:
             - scripts/release-*.mjs
             - scripts/macos-signing/**
             - electron-builder.config.cjs
+            - build/moltenterm/electron-fuses.cjs
+            - scripts/moltenterm-check-fuses.mjs
 
 permissions:
     contents: read
@@ -313,6 +315,7 @@ jobs:
               run: |
                   for app in make/mac*/*.app; do
                       codesign --verify --deep --strict "$app"
+                      node scripts/moltenterm-check-fuses.mjs "$app"
                       if [ "$SIGNING" = developer-id ]; then
                           spctl --assess --type execute "$app"
                           xcrun stapler validate "$app"
@@ -417,6 +420,12 @@ jobs:
               run: >-
                   task package -- --linux AppImage deb "--$ARCH"
                   -c.publish.provider=github "-c.publish.owner=$OWNER" "-c.publish.repo=$REPO"
+            # The fuses are read from the unpacked app the AppImage and the deb were made from (#1975).
+            - name: Check the fuses
+              run: |
+                  for app in make/linux*-unpacked/moltenterm; do
+                      node scripts/moltenterm-check-fuses.mjs "$app"
+                  done
             - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
                   name: ${{ needs.meta.outputs.mode == 'rehearsal' && format('{0}-rehearsal-linux-{1}-{2}', github.event.repository.name, matrix.arch, github.sha) || format('release-linux-{0}', matrix.arch) }}

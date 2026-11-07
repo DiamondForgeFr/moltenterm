@@ -108,7 +108,7 @@ fixes between MoltenTerm releases.
   `emain/moltenterm-webselector-gate.test.ts`. Still open there: a live question on the Wave web block itself, which
   has no permission bar, so the user allows the site once in the browser panel.
 
-#### H3. Electron fuses are left at their defaults (proposed, T1)
+#### H3. Electron fuses are left at their defaults (fixed in #1975, T1; file protocol and cookie fuses remain)
 
 - **Evidence.** `electron-builder.config.cjs` sets no `electronFuses` and nothing else flips them (`@electron/fuses` is
   only a transitive build dependency). Defaults keep `RunAsNode`, `EnableNodeOptionsEnvironmentVariable`,
@@ -123,6 +123,27 @@ fixes between MoltenTerm releases.
   `grantFileProtocolExtraPrivileges` off once the app page no longer needs it). The perf and accessibility scripts drive
   the built app with `--inspect` (`scripts/perf/lib/instance.mjs:158`): they need a dev-only build or the
   `--remote-debugging-port` path. Not shipped here: it changes packaging and needs a packaged-build qualification.
+- **Fix shipped (#1975).** `electronFuses` in `electron-builder.config.cjs`, from `build/moltenterm/electron-fuses.cjs`:
+  `runAsNode`, `enableNodeOptionsEnvironmentVariable` and `enableNodeCliInspectArguments` off,
+  `enableEmbeddedAsarIntegrityValidation` and `onlyLoadAppFromAsar` on. Qualified on an arm64 macOS packaged build
+  (`scripts/moltenterm-qualify-packaged.mjs`): it starts and answers on the remote debugging port, ignores `--inspect`,
+  SIGUSR1, `NODE_OPTIONS`, `NODE_EXTRA_CA_CERTS` and `ELECTRON_RUN_AS_NODE`, and exits when a byte of `app.asar` changes;
+  the same app with Electron's default fuses fails each of those checks. The perf and accessibility scripts already drive
+  the dev build in `node_modules/electron`, whose fuses stay at the defaults, so they needed no move.
+  `scripts/moltenterm-check-fuses.mjs` reads the fuses back from every packaged app of a release. The app builder used the
+  app's own binary as Node.js for its Tailwind step; a packaged app now uses `node` from the PATH.
+- **Residual: `grantFileProtocolExtraPrivileges` stays on.** The app page is loaded with `loadFile()`, and with the fuse
+  off a packaged app never loads it (`ERR_FILE_NOT_FOUND` for `app.asar/dist/frontend/index.html`). It goes off with a
+  custom protocol for the app page (pair with T3 and T4); M3's `file:` pages keep the extra privileges until then.
+- **Residual: cookies are not encrypted.** Electron stores a session's cookies in clear unless the separate
+  `enableCookieEncryption` fuse is on (it is a one-way migration, and its key is a keychain item per signing identity),
+  so the scenario above was wrong about a "cookie encryption key": today a same-user process reads the cookie database
+  directly, with no need to run code under MoltenTerm's signature. The fuses close the run-code-as-MoltenTerm path; the
+  cookie store needs its own ticket.
+- **Residual: `--remote-debugging-port` is not a fuse.** A packaged build still opens a Chromium debugging port when it is
+  started with that switch (it is how tests drive it), and a program that starts the app that way drives its pages
+  under its signature. Closing that means the app ignores the switch outside test instances (`MOLTENTERM_BACKGROUND`
+  is not proof, any program can set it); not decided here, and not tested against a running instance's profile.
 
 ### Medium
 

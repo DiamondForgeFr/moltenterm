@@ -236,6 +236,12 @@ on the ticket of the release.
       re-read; prices, free tiers, plans, models and region limits updated; checked date set. Then
       `MOLTENTERM_RC_DATE=<the candidate's date, YYYY-MM-DD> go test -run '^TestAgentProfilesFreshForRelease$' ./pkg/molten/onboarding/`
       lists every entry checked more than 30 days before the candidate. Tick this item only when it lists nothing.
+- [ ] Electron fuses (#1975): the run's "Check the signatures" (macOS) and "Check the fuses" (Linux) steps are green, so
+      every packaged app has run-as-node, `NODE_OPTIONS` and `--inspect` off and checks its `app.asar`. On a downloaded
+      app: `node scripts/moltenterm-check-fuses.mjs /Applications/MoltenTerm.app`, and
+      `node scripts/moltenterm-qualify-packaged.mjs /Applications/MoltenTerm.app` to start it in a test instance (own
+      folders under /tmp, never the installed app's data). An Electron upgrade or a change to
+      `build/moltenterm/electron-fuses.cjs` is qualified this way before it ships.
 - [ ] `sha256sum --ignore-missing -c SHA256SUMS.txt` (`shasum -a 256 -c` on macOS) passes on the downloaded files.
 - [ ] Once the release key exists: `SHA256SUMS.txt.asc` and a `.asc` per AppImage and deb are there, and
       `gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt` says "Good signature" and names the fingerprint of "The release

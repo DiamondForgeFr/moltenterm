@@ -44,6 +44,11 @@ up), free ports for `--remote-debugging-port` and the main process `--inspect`, 
 `MOLTENTERM_SKIP_ONBOARDING=1`. The root holds a marker file naming it; the harness refuses to launch on or delete a
 directory without its marker, so it never touches the user's data, the dev instance (`moltenterm-dev`) or a gold.
 
+The harness drives the dev build (`node_modules/electron` running the checkout), whose fuses are Electron's defaults.
+A packaged app has `--inspect` off (#1975): `connectMain` says so when the inspector does not answer, and a packaged
+build is qualified with `scripts/moltenterm-qualify-packaged.mjs` (see `UPSTREAM.md`, "Packaged builds and Electron
+fuses"), which reuses this harness's isolated root.
+
 It stops only what it started: the Electron pid it spawned (only while that child has not exited, so a reused pid is
 never hit), the process tree captured under it (a pid is killed only while it still runs the same command), and the
 processes that run a binary from its root or carry its data directory in their environment (the detached `wsh` job

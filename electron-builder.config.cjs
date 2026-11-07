@@ -2,6 +2,7 @@ const { Arch } = require("electron-builder");
 const pkg = require("./package.json");
 const fs = require("fs");
 const path = require("path");
+const { ElectronFuses } = require("./build/moltenterm/electron-fuses.cjs"); // MOLTENTERM-PATCH (#1975)
 
 const windowsShouldSign = !!process.env.SM_CODE_SIGNING_CERT_SHA1_HASH;
 // MOLTENTERM-PATCH (#507): set only by scripts/macos-signing/package.mjs, inside its ephemeral signing session. Without
@@ -21,6 +22,9 @@ const config = {
     npmRebuild: false,
     nodeGypRebuild: false,
     electronCompile: false,
+    // MOLTENTERM-PATCH (#1975): the fuses of every packaged build, flipped right before signing; the set and its reasons
+    // are in build/moltenterm/electron-fuses.cjs, and scripts/moltenterm-check-fuses.mjs reads them back.
+    electronFuses: ElectronFuses,
     files: [
         {
             from: "./dist",
