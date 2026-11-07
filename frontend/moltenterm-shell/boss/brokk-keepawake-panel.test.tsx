@@ -34,7 +34,7 @@ vi.mock("../keepawake-store", async () => {
 import { globalStore } from "@/app/store/jotaiStore";
 import { EmptyKeepAwakeState, KeepAwakeState } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
-import { BrokkKeepAwakeLine } from "./brokk-keepawake-line";
+import { BrokkKeepAwakePanel } from "./brokk-keepawake-panel";
 
 const model = KeepAwakeModel.getInstance() as any;
 
@@ -43,7 +43,7 @@ function setState(partial: Partial<KeepAwakeState>) {
 }
 
 function render(): string {
-    return renderToStaticMarkup(<BrokkKeepAwakeLine onLeave={() => {}} />);
+    return renderToStaticMarkup(<BrokkKeepAwakePanel onLeave={() => {}} onClose={() => {}} />);
 }
 
 beforeEach(() => {
@@ -51,33 +51,45 @@ beforeEach(() => {
     setState({});
 });
 
-describe("the keep-awake line replaces the cup (FR-BOSS-009, AC9, AC10)", () => {
-    it("is a switch named for the workspace, off while coffee mode is off, with the cup's idle words", () => {
+describe("the Garder éveillé panel opens the keep-awake line out (FR-BOSS-009, AC10 and AC19)", () => {
+    it("has a switch named for the workspace, off while coffee mode is off, with the cup's idle words", () => {
         const html = render();
         expect(html).toMatch(/role="switch" aria-checked="false" aria-label="Keep awake while “Alpha” works"/);
         expect(html).toContain("Not keeping this computer awake");
     });
 
     it("is on while coffee mode is on for the workspace the window shows", () => {
-        setState({
-            coffees: [{ workspaceid: "ws1", since: 1, reason: "work", untilidle: true } as any],
-        });
+        setState({ coffees: [{ workspaceid: "ws1", since: 1, reason: "work", untilidle: true } as any] });
         expect(render()).toMatch(/role="switch" aria-checked="true"/);
     });
 
-    it("offers the details of the cup's menu: what holds the computer awake, the sleep policy and the link to Preferences", () => {
+    it("says the reason: nothing keeps the computer awake, or what does, with the cup's Show and Stop", () => {
         const html = render();
-        expect(html).toContain('data-testid="brokk-keepawake-details"');
-        expect(html).toContain('aria-expanded="false"');
-        const source = readFileSync(join(__dirname, "brokk-keepawake-line.tsx"), "utf8");
-        for (const part of ["<HoldRow", "<PolicyChoices />", 'openSettingsKey("general", SleepPolicySetting)']) {
-            expect(source, part).toContain(part);
-        }
+        expect(html).toContain('data-testid="brokk-keepawake-reason"');
+        expect(html).toContain("Nothing keeps this computer awake.");
+        const source = readFileSync(join(__dirname, "brokk-keepawake-panel.tsx"), "utf8");
+        expect(source).toContain("<HoldRow");
+    });
+
+    it("says it lasts until the work ends", () => {
+        expect(render()).toContain("Until the work ends.");
+    });
+
+    it("offers the sleep policy and the link to Preferences, without a chevron to open first", () => {
+        const html = render();
+        expect(html).toContain('data-testid="mock-policy"');
+        expect(html).toContain('data-testid="brokk-keepawake-more"');
+        expect(html).not.toContain('data-testid="brokk-keepawake-details"');
+        const source = readFileSync(join(__dirname, "brokk-keepawake-panel.tsx"), "utf8");
+        expect(source).toContain('openSettingsKey("general", SleepPolicySetting)');
         expect(source).toContain("model.setCoffee(workspace.oid, !on)");
     });
 
-    it("says nothing where coffee mode does not exist", () => {
+    it("keeps a panel where coffee mode does not exist, and says so without naming the system", () => {
         Hoisted.platform = "win32";
-        expect(render()).toBe("");
+        const html = render();
+        expect(html).toContain('data-testid="brokk-keepawake-unsupported"');
+        expect(html).toContain("Keeping this computer awake is not available here.");
+        expect(html).not.toContain('role="switch"');
     });
 });

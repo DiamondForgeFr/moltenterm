@@ -1,0 +1,724 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Brokk's floating group (FR-BOSS-009, AC17 to AC21, #2032): the square, the rail, the block, the field and the one panel.
+   They stand in the host's layer (boss-layer, above the panels and under the toasts), take the pointer, and take no
+   space from the layout. The numbers are the approved mockup's (exploration #2027); the geometry itself is
+   brokk-group-model.ts's. Everything arrives together from the title-bar face (--dx, --dy: from each element's middle to
+   the face; --i: its step of 50 ms) and leaves the same way. */
+
+/* Brokk's layer (FR-BOSS-009, #2002): a layer over the window's content, above the panels and under the toasts (9400),
+   the menus and the dialogs. The layer takes no pointer; what hangs in it (the avatar when the sidebar is off screen)
+   and the group do. Neither takes a drag of the window with it (the frame's top margin moves the window). */
+.mt-boss-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 800;
+    pointer-events: none;
+}
+
+.mt-brokk-group {
+    position: absolute;
+    box-sizing: border-box;
+    pointer-events: none;
+    outline: none;
+    -webkit-app-region: no-drag;
+}
+
+.mt-brokk-group > * {
+    pointer-events: auto;
+    box-sizing: border-box;
+}
+
+/* The ember thread from the face to the square: it stays while the group is open. */
+.mt-brokk-thread {
+    position: absolute;
+    height: 2px;
+    background: color-mix(in srgb, var(--mt-action) 80%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mt-duration-base) linear;
+}
+
+.mt-brokk-thread.is-in {
+    opacity: 1;
+}
+
+/* What arrives from the face: it starts small, at the face, and springs into place. */
+.mt-brokk-sq,
+.mt-brokk-rail,
+.mt-brokk-block,
+.mt-brokk-fieldbox {
+    position: absolute;
+    left: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(0.4);
+    transition:
+        transform 420ms cubic-bezier(0.3, 1.12, 0.4, 1) calc(var(--i, 0) * 50ms),
+        opacity 200ms linear calc(var(--i, 0) * 50ms);
+}
+
+.mt-brokk-group.is-in > .mt-brokk-sq,
+.mt-brokk-group.is-in > .mt-brokk-rail,
+.mt-brokk-group.is-in > .mt-brokk-block,
+.mt-brokk-group.is-in > .mt-brokk-fieldbox {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+}
+
+/* The square: his upper body under the screen effect. */
+.mt-brokk-sq {
+    top: 0;
+    overflow: hidden;
+    border-radius: 6px;
+    background: #0a0807;
+    transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(0.12);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--mt-state-running) 45%, transparent),
+        0 0 40px color-mix(in srgb, var(--mt-action) 20%, transparent);
+    transition:
+        transform 520ms cubic-bezier(0.2, 1.15, 0.4, 1),
+        opacity 200ms linear;
+}
+
+.mt-brokk-sq-pic {
+    position: absolute;
+    inset: 0;
+    background: rgb(26, 21, 16);
+    pointer-events: none;
+}
+
+.mt-brokk-sq-hit {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.mt-brokk-sq-hit:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: -4px;
+}
+
+/* Moving scanlines: a layer taller than the square slides by exactly 14 periods of the pattern, so the loop has no seam,
+   and only its transform changes (no repaint). */
+.mt-brokk-scan {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -42px;
+    bottom: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.26) 0 1px,
+        rgba(255, 190, 120, 0.05) 1px 2px,
+        transparent 2px 3px
+    );
+    animation: mt-brokk-scan 7s linear infinite;
+}
+
+@keyframes mt-brokk-scan {
+    to {
+        transform: translateY(42px);
+    }
+}
+
+/* The vignette and the warm inner glow. */
+.mt-brokk-vig {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    border-radius: 6px;
+    background:
+        radial-gradient(120% 95% at 50% 42%, transparent 55%, rgba(10, 8, 7, 0.82) 100%),
+        linear-gradient(to bottom, transparent 72%, rgba(10, 8, 7, 0.7));
+    box-shadow:
+        inset 0 0 26px rgba(255, 140, 40, 0.22),
+        inset 0 0 2px rgba(255, 200, 140, 0.45);
+}
+
+.mt-brokk-name {
+    position: absolute;
+    left: 10px;
+    bottom: 9px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 700 11px/14px var(--font-mono, ui-monospace, Menlo, monospace);
+    letter-spacing: 0.14em;
+    color: #f2ede6;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+}
+
+.mt-brokk-name i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mt-action);
+    box-shadow: 0 0 6px var(--mt-action);
+}
+
+/* The menu button shows when the square is looked at, and stays reachable by the keyboard. */
+.mt-brokk-sq-menu {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 3;
+    display: flex;
+    width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(10, 8, 7, 0.55);
+    color: #f2ede6;
+    font-size: var(--mt-text-12);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--mt-duration-fast) linear;
+}
+
+.mt-brokk-sq:hover .mt-brokk-sq-menu,
+.mt-brokk-sq-menu:focus-visible {
+    opacity: 1;
+}
+
+.mt-brokk-sq-menu:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+}
+
+/* The rail: one rounded rail against the square, as tall as it is. */
+.mt-brokk-rail {
+    background: var(--mt-surface-1);
+    border: 1px solid var(--mt-line-1);
+    border-radius: 999px;
+    box-shadow: var(--mt-shadow-e2);
+}
+
+.mt-brokk-icon {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--mt-line-1);
+    border-radius: 50%;
+    background: var(--mt-surface-2);
+    color: var(--mt-text-2);
+    font-size: 17px;
+    cursor: pointer;
+    transition:
+        border-color var(--mt-duration-fast),
+        color var(--mt-duration-fast),
+        background-color var(--mt-duration-fast);
+}
+
+.mt-brokk-icon:hover {
+    border-color: color-mix(in srgb, var(--mt-action) 50%, transparent);
+    color: var(--mt-text-1);
+}
+
+.mt-brokk-icon[data-active="true"] {
+    border-color: var(--mt-action);
+    color: var(--mt-action-text);
+    background: var(--mt-action-wash);
+}
+
+.mt-brokk-icon:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+.mt-brokk-cnt {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: 999px;
+    background: var(--mt-action);
+    color: var(--mt-action-fg);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.mt-brokk-cnt[data-grave="true"] {
+    background: var(--mt-state-blocked);
+    color: var(--mt-state-blocked-fg);
+}
+
+.mt-brokk-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mt-state-waiting);
+}
+
+.mt-brokk-dot[data-ember="true"] {
+    background: var(--mt-action);
+}
+
+/* A running download: a ring around the icon. */
+.mt-brokk-ring-progress {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+    pointer-events: none;
+}
+
+.mt-brokk-ring-progress circle {
+    fill: none;
+    stroke: var(--mt-state-running);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+}
+
+/* The block under the square: one line from him, then the weekly usage. */
+.mt-brokk-block {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 10px 12px;
+    background: var(--mt-surface-1);
+    border: 1px solid var(--mt-line-1);
+    border-radius: 6px;
+    box-shadow: var(--mt-shadow-e2);
+    font-size: 11.5px;
+    color: var(--mt-text-2);
+}
+
+.mt-brokk-say {
+    display: grid;
+    align-items: center;
+    min-height: 34px;
+    padding-left: 9px;
+    border-left: 2px solid var(--mt-action);
+    color: var(--mt-text-1);
+    font-size: 12.5px;
+    line-height: 17px;
+}
+
+.mt-brokk-say > span {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.mt-brokk-usage {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 18px;
+    max-height: 56px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-brokk-usage:hover .mt-brokk-pv b {
+    color: var(--mt-action-text);
+}
+
+.mt-brokk-usage:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+.mt-brokk-usage[aria-pressed="true"] {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-action) 60%, transparent);
+}
+
+.mt-brokk-usage-empty {
+    grid-column: 1 / -1;
+    color: var(--mt-text-3);
+}
+
+.mt-brokk-pv {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 5px 10px;
+    align-items: baseline;
+    min-width: 0;
+}
+
+.mt-brokk-pv b {
+    color: var(--mt-text-1);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.mt-brokk-bar {
+    order: 3;
+    grid-column: 1 / -1;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--mt-line-2);
+}
+
+.mt-brokk-bar i {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--mt-state-running);
+}
+
+/* Above 90 %: the grave colour, on the number and on the bar. */
+.mt-brokk-pv[data-hi="true"] b {
+    color: var(--mt-state-blocked-text);
+}
+
+.mt-brokk-pv[data-hi="true"] .mt-brokk-bar i {
+    background: var(--mt-state-blocked);
+}
+
+/* The field: one row, one frame; what it says hangs under it. */
+.mt-brokk-fieldbox {
+    overflow: visible;
+}
+
+.mt-brokk-field {
+    position: relative;
+    height: 100%;
+    background: var(--mt-surface-term);
+    border: 1px solid var(--mt-line-2);
+    border-radius: 6px;
+    cursor: text;
+}
+
+.mt-brokk-field:focus-within {
+    border-color: color-mix(in srgb, var(--mt-action) 60%, transparent);
+}
+
+.mt-brokk-field-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    height: 100%;
+    padding: 0 4px;
+}
+
+.mt-brokk-field-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: var(--mt-text-1);
+    font: inherit;
+    font-size: var(--mt-text-12);
+    outline: none;
+}
+
+.mt-brokk-field-input::placeholder {
+    color: var(--mt-text-3);
+}
+
+.mt-brokk-field-extra {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 1;
+}
+
+/* The panel: beside the rail, joined to its icon by a short ember link. */
+.mt-brokk-plink {
+    position: absolute;
+    height: 2px;
+    background: var(--mt-action);
+    pointer-events: none;
+    animation: mt-brokk-panel-in var(--mt-duration-base) linear both;
+}
+
+.mt-brokk-gpanel {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    padding: 0 12px 12px;
+    overflow: hidden;
+    background: var(--mt-surface-1);
+    border: 1px solid color-mix(in srgb, var(--mt-action) 60%, transparent);
+    border-radius: 6px;
+    box-shadow: var(--mt-shadow-command);
+    transition: height 260ms cubic-bezier(0.3, 1.12, 0.4, 1);
+    animation: mt-brokk-panel-in var(--mt-duration-base) cubic-bezier(0.3, 1.12, 0.4, 1) both;
+}
+
+@keyframes mt-brokk-panel-in {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+}
+
+.mt-brokk-gp-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    margin: 0 -12px 6px;
+    padding: 0 8px 0 12px;
+    border-bottom: 1px solid var(--mt-line-1);
+}
+
+.mt-brokk-gp-title {
+    margin: 0;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-13);
+    font-weight: 600;
+}
+
+.mt-brokk-gp-count {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-variant-numeric: tabular-nums;
+}
+
+.mt-brokk-gp-scroll {
+    flex: 1;
+    min-height: 0;
+    margin: 0 -4px;
+    padding: 0 4px;
+    overflow: auto;
+}
+
+/* The rows of every panel: a marker line, a title, a detail line, then the actions. */
+.mt-brokk-row {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--mt-line-1);
+    list-style: none;
+    outline: none;
+}
+
+.mt-brokk-row:last-child {
+    border-bottom: 0;
+}
+
+.mt-brokk-row:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--mt-focus-ring);
+}
+
+.mt-brokk-rh {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mt-brokk-when {
+    margin-left: auto;
+    color: var(--mt-text-3);
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+
+.mt-brokk-rt {
+    margin-top: 3px;
+    color: var(--mt-text-1);
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 17px;
+    overflow-wrap: anywhere;
+}
+
+.mt-brokk-rs {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 15px;
+}
+
+.mt-brokk-ra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 7px;
+}
+
+.mt-brokk-ra-end {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+}
+
+.mt-brokk-state {
+    font-size: 10.5px;
+    font-weight: 600;
+}
+
+.mt-brokk-state[data-state="working"] {
+    color: var(--mt-state-running);
+}
+
+.mt-brokk-state[data-state="waiting"] {
+    color: var(--mt-state-waiting);
+}
+
+.mt-brokk-state[data-state="error"] {
+    color: var(--mt-state-blocked-text);
+}
+
+.mt-brokk-state[data-state="done"] {
+    color: var(--mt-state-ready);
+}
+
+/* The priority marker: a dot and the word, so the colour never tells it alone. */
+.mt-brokk-pri {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.mt-brokk-pri i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.mt-brokk-pri[data-priority="urgent"] {
+    color: var(--mt-state-blocked-text);
+}
+
+.mt-brokk-pri[data-priority="answer"] {
+    color: var(--mt-state-running);
+}
+
+.mt-brokk-pri[data-priority="info"] {
+    color: var(--mt-text-3);
+}
+
+.mt-brokk-pri[data-priority="done"] {
+    color: var(--mt-state-ready);
+}
+
+.mt-brokk-unread {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mt-action);
+}
+
+/* The workspace of a row: a coloured dot and its name. */
+.mt-brokk-ws {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--mt-text-2);
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+
+.mt-brokk-ws-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.mt-brokk-gh {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0 2px;
+    color: var(--mt-text-3);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* Reduced motion (the system's or MoltenTerm's own setting): short fades only, no slide, no stretch, no scanlines. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-brokk-sq,
+    .mt-brokk-rail,
+    .mt-brokk-block,
+    .mt-brokk-fieldbox {
+        transform: none !important;
+        transition: opacity 150ms linear !important;
+    }
+
+    .mt-brokk-scan {
+        animation: none;
+    }
+
+    .mt-brokk-gpanel,
+    .mt-brokk-plink {
+        animation: none;
+        transition: none;
+    }
+
+    .mt-brokk-thread {
+        transition: opacity 150ms linear;
+    }
+}
+
+.prefers-reduced-motion .mt-brokk-sq,
+.prefers-reduced-motion .mt-brokk-rail,
+.prefers-reduced-motion .mt-brokk-block,
+.prefers-reduced-motion .mt-brokk-fieldbox {
+    transform: none !important;
+    transition: opacity 150ms linear !important;
+}
+
+.prefers-reduced-motion .mt-brokk-scan {
+    animation: none;
+}
+
+.prefers-reduced-motion .mt-brokk-gpanel,
+.prefers-reduced-motion .mt-brokk-plink {
+    animation: none;
+    transition: none;
+}
+
+.prefers-reduced-motion .mt-brokk-thread {
+    transition: opacity 150ms linear;
+}

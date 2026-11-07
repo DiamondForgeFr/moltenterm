@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The Usage tab of Brokk's panel (FR-BOSS-009, AC9, FR-BOSS-006, #2003): the plan usage of every provider that shares a
-// reading (the companion's gauges, FR-SHELL-027), the fullest first. It asks for nothing: a provider with no reading has
-// no line, and no reading at all is one line saying so.
+// The usage detail of Brokk's group (FR-BOSS-009, AC20, FR-BOSS-006, #2003, #2032): the plan usage of every provider that
+// shares a reading (the companion's gauges, FR-SHELL-027), every window with its percent, its bar and its reset time, the
+// fullest first. It opens from a click on the weekly block under the square. It asks for nothing: a provider with no
+// reading has no line, and no reading at all is one line saying so.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
@@ -13,7 +14,7 @@ import { agentName } from "../companion/companion-task-model";
 import { useT } from "../i18n/i18n";
 import { TabActivity, whileShown } from "../tab-activity";
 import { UsageReadingsAtom } from "./boss-usage";
-import { usageProviders } from "./brokk-panel-model";
+import { usageProviders } from "./brokk-usage-model";
 
 // How often the reset times are read again while the tab shows.
 const UsageTickMs = 30000;

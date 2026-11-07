@@ -39,7 +39,7 @@ describe("his portrait (FR-BOSS-001, AC1; FR-BOSS-007, AC5)", () => {
         expect(source).toMatch(/lazy\(\(\) => import\("\.\/brokk-live"\)/);
         expect(source).not.toMatch(/^import (?!type).* from "\.\/brokk-live"/m);
         expect(source).toMatch(/import type \{ BrokkLiveProps \} from "\.\/brokk-live"/);
-        for (const file of ["brokk-avatar.tsx", "brokk-panel.tsx", "use-brokk-live.ts"]) {
+        for (const file of ["brokk-avatar.tsx", "brokk-group.tsx", "use-brokk-live.ts"]) {
             const user = readFileSync(join(__dirname, file), "utf8");
             expect(user, file).not.toMatch(/^import (?!type).* from "\.\/(brokk-live|brokk-portrait)"/m);
             expect(user, file).not.toContain("@diamondforge/character");

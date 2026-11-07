@@ -3009,7 +3009,49 @@
         "label": "{name}, {count} waiting",
         "avatar": {
             "labelCue": "{name}, {count} waiting: has something to tell you",
-            "talking": "{name} is talking to you"
+            "talking": "{name} is talking to you",
+            "close": "Close {name}"
+        },
+        "group": {
+            "ariaLabel": "{name}: notifications, agents, sessions, downloads and keep-awake",
+            "close": "Close {name}",
+            "closePanel": "Close the panel",
+            "panels": {
+                "notifications": "Notifications",
+                "agents": "Agents",
+                "sessions": "Sessions",
+                "downloads": "Downloads",
+                "keepawake": "Keep awake",
+                "usage": "Usage"
+            },
+            "rail": {
+                "label": "Panels of {name}",
+                "count": "{name}, {count} waiting",
+                "blocked": "{name}, an agent is blocked",
+                "running": "{name}, {percent} % downloaded",
+                "runningUnknown": "{name}, a download is running",
+                "news": "{name}, a download has news",
+                "awake": "{name}, on"
+            },
+            "priority": {
+                "urgent": "Urgent",
+                "answer": "To answer",
+                "info": "Info",
+                "done": "Done"
+            },
+            "usage": {
+                "open": "Show the usage of each plan in detail",
+                "resets": "Resets {day}",
+                "percent": "{percent} %"
+            },
+            "agentsEmpty": "No agent is running.",
+            "sessionsEmpty": "No terminal or SSH session is running.",
+            "keepAwake": {
+                "unsupported": "Keeping this computer awake is not available here.",
+                "reason": "Reason",
+                "noReason": "Nothing keeps this computer awake.",
+                "until": "Until the work ends."
+            }
         },
         "menu": {
             "openCard": "Open the card of {name}",
