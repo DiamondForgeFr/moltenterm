@@ -97,6 +97,7 @@ func TestNamesWork(t *testing.T) {
 // The agents tied to the PR: those on its branch, and a sub-agent in no worktree whose task names it; not a visitor, a
 // review session, a finished unplaced sub-agent or another branch's agent.
 func TestGateTiesTheAgentsToThePr(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.review["review-term"] = true
 	f.runs["panel"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Rita"}
@@ -127,6 +128,7 @@ func TestGateTiesTheAgentsToThePr(t *testing.T) {
 }
 
 func TestGateWithoutTheIndexKnowsNobody(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	if g := f.r.gate(context.Background(), f.request()); len(g.rows) != 0 {
 		t.Fatalf("no index, no row: %+v", g.rows)
@@ -140,6 +142,7 @@ func TestGateWithoutTheIndexKnowsNobody(t *testing.T) {
 // The incident: a sub-agent of Arthur works in the PR's worktree. Every launcher leaves it alone, says who works, and
 // starts nothing, however the developer asked (with the confirmation to start included).
 func TestEveryLauncherLeavesAWorkingSubagent(t *testing.T) {
+	t.Parallel()
 	for _, start := range []bool{false, true} {
 		for name, ask := range map[string]func(f *restartFixture) RestartResult{
 			"rebase": func(f *restartFixture) RestartResult { return f.askRebase(start) },
@@ -186,6 +189,7 @@ func (f *restartFixture) arthurRunsIn(runs map[string]molten.AgentRunInfo) {
 // A background agent, probably active, is left alone too; so is a panel placed by the index that the worktree's
 // terminals do not list, working or waiting.
 func TestLaunchersLeaveABackgroundAgentAndAnIndexedPanel(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.index(mission.BranchAgent{Branch: "feature/9-fix-x", Worktree: realOf(tree), Kind: mission.UpcomingAgentBackground, Agent: molten.AgentIdClaude,
@@ -208,6 +212,7 @@ func TestLaunchersLeaveABackgroundAgentAndAnIndexedPanel(t *testing.T) {
 // Asleep: the sub-agent finished, its lead runs. The task goes to the lead, with a brief that names the sub-agent;
 // no new agent, nothing typed anywhere else.
 func TestEveryLauncherHandsASleepingSubagentToItsLead(t *testing.T) {
+	t.Parallel()
 	for name, ask := range map[string]func(f *leadFixture) RestartResult{
 		"rebase": func(f *leadFixture) RestartResult { return f.askRebase(false) },
 		"finish": func(f *leadFixture) RestartResult { return f.askFinish(f.finishRequest(false)) },
@@ -261,6 +266,7 @@ func TestEveryLauncherHandsASleepingSubagentToItsLead(t *testing.T) {
 
 // A busy lead gets it queued, as handoffs already are; the answer says so.
 func TestASleepingSubagentsBusyLeadGetsItQueued(t *testing.T) {
+	t.Parallel()
 	f := makeLeadFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.arthurRuns()
@@ -276,6 +282,7 @@ func TestASleepingSubagentsBusyLeadGetsItQueued(t *testing.T) {
 
 // Check the agents / Resume without a lead named by the window: the sub-agent's lead is the one asked.
 func TestFinishDerivesTheLeadFromTheSleepingSubagent(t *testing.T) {
+	t.Parallel()
 	f := makeLeadFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.arthurRuns()
@@ -299,6 +306,7 @@ func TestFinishDerivesTheLeadFromTheSleepingSubagent(t *testing.T) {
 
 // A lead named by the window that is not the sub-agent's parent is not told about a sub-agent that is not its own.
 func TestAnotherLeadIsNotToldAboutASubagentThatIsNotItsOwn(t *testing.T) {
+	t.Parallel()
 	f := makeLeadFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.running["bob-block"] = agenthandoff.LeadFound{BlockId: "bob-block", FirstName: "Bob", Agent: molten.AgentIdClaude, AgentName: "Claude Code", TabId: "t", WorkspaceId: "ws-1"}
@@ -319,6 +327,7 @@ func TestAnotherLeadIsNotToldAboutASubagentThatIsNotItsOwn(t *testing.T) {
 // Gone: the sub-agent finished and its lead no longer runs; nobody owns the work. The usual offer, then a new agent on
 // the developer's confirmation, as before.
 func TestAGoneOwnerLeavesTheUsualOfferAndStart(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.index(subagentOn(tree, companion.SubagentDone))
@@ -335,6 +344,7 @@ func TestAGoneOwnerLeavesTheUsualOfferAndStart(t *testing.T) {
 
 // Nobody ever worked on it: the same.
 func TestNobodyLeavesTheUsualOfferAndStart(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.agentTreeOnBranch()
 	f.index()
@@ -348,6 +358,7 @@ func TestNobodyLeavesTheUsualOfferAndStart(t *testing.T) {
 
 // An idle panel the index names, that the worktree's terminals do not list, is woken with the task.
 func TestAnIdlePanelOfTheIndexIsWoken(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.runs["indexed"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, FirstName: "Rita"}
@@ -360,6 +371,7 @@ func TestAnIdlePanelOfTheIndexIsWoken(t *testing.T) {
 
 // The worktree guard: whatever the verdict, no agent starts in a worktree where the index shows one.
 func TestNoAgentStartsInAWorktreeHeldByOne(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.runs["indexed"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Rita"}
@@ -382,6 +394,7 @@ func TestNoAgentStartsInAWorktreeHeldByOne(t *testing.T) {
 // The guard reaches Restart work and the finish launcher alike, and a sleeping sub-agent whose lead cannot be asked
 // holds its worktree.
 func TestTheGuardHoldsForRestartAndFinish(t *testing.T) {
+	t.Parallel()
 	f := makeLeadFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.arthurRunsIn(f.runs)
@@ -400,6 +413,7 @@ func TestTheGuardHoldsForRestartAndFinish(t *testing.T) {
 
 // A review session's terminal and a visitor never hold a worktree.
 func TestAReviewSessionDoesNotHoldTheWorktree(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.review["review-term"] = true
