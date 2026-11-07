@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { InfoItem, ToHandleItem } from "./boss-to-handle-model";
-import type { Visit } from "./brokk-visit";
+import { ExampleVisit, type Visit } from "./brokk-visit";
 import { visitLineOf } from "./brokk-visit-line";
 
 const T = new Date(2026, 10, 7, 14, 0, 0).getTime();
@@ -85,6 +85,12 @@ describe("what the visit says of the event that brought him (FR-BOSS-009, AC29, 
             key: "boss.screen.finished",
             vars: { name: "Léa" },
         });
+    });
+
+    it("says the example's own sentence for the visit of the settings' Show a visit, which has no row", () => {
+        expect(visitLineOf(ExampleVisit, [], [], T)).toEqual({ key: "boss.visit.exampleLine" });
+        const waiting = row("agent:a", "waiting", { name: "Léa", since: T - 6 * Min });
+        expect(visitLineOf(ExampleVisit, [waiting], [], T)).toEqual({ key: "boss.visit.exampleLine" });
     });
 
     it("says how many things wait when no event of the visit has words of its own (a download, an update, a reading)", () => {
