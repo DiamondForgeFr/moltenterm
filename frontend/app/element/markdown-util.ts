@@ -176,7 +176,9 @@ export const resolveSrcSet = async (srcSet: string, resolveOpts: MarkdownResolve
     if (!srcSet) return null;
 
     // Parse the srcset
-    const candidates = parseSrcSet(srcSet);
+    // MOLTENTERM-PATCH (#2045): a remote candidate is never requested (the app page's CSP refuses web images).
+    const candidates = parseSrcSet(srcSet).filter((candidate) => !RemoteAddress.test(candidate.url ?? ""));
+    if (candidates.length === 0) return null;
 
     // Resolve each URL in the array of candidates
     const resolvedCandidates = await Promise.all(
@@ -200,3 +202,21 @@ export const resolveSrcSet = async (srcSet: string, resolveOpts: MarkdownResolve
         })
         .join(", ");
 };
+
+// MOLTENTERM-PATCH (#2045): the srcset of an inline image, without the candidates the app page may not load.
+const RemoteAddress = /^\s*https?:/i;
+
+export function withoutRemoteCandidates(srcSet: string): string {
+    if (!srcSet) return srcSet;
+    const kept = parseSrcSet(srcSet).filter((candidate) => !RemoteAddress.test(candidate.url ?? ""));
+    if (kept.length === 0) return undefined;
+    return kept
+        .map((candidate) => {
+            let part = candidate.url;
+            if (candidate.w) part += ` ${candidate.w}w`;
+            if (candidate.h) part += ` ${candidate.h}h`;
+            if (candidate.d) part += ` ${candidate.d}x`;
+            return part;
+        })
+        .join(", ");
+}

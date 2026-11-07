@@ -3,6 +3,7 @@
 
 import { CopyButton } from "@/app/element/copybutton";
 import { IconButton } from "@/app/element/iconbutton";
+import { isRemoteImage, RemoteImageLink } from "../../moltenterm-shell/remote-image"; // MOLTENTERM-PATCH (#2045)
 import { cn, useAtomValueSafe } from "@/util/util";
 import type { Atom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -298,6 +299,13 @@ export const WaveStreamdown = ({
                 <strong {...props} className="font-semibold text-secondary" />
             ),
             em: (props: React.HTMLAttributes<HTMLElement>) => <em {...props} className="italic text-secondary" />,
+            // MOLTENTERM-PATCH (#2045): a remote image is never requested (the app page's CSP refuses it); it is a link.
+            img: ({ node: _node, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { node?: unknown }) =>
+                isRemoteImage(props.src) ? (
+                    <RemoteImageLink src={props.src as string} alt={props.alt} />
+                ) : (
+                    <img {...props} />
+                ),
         }),
         [onClickExecute, codeBlockMaxWidthAtom]
     );
