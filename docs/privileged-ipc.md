@@ -66,6 +66,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `moltenterm-tabview-host.ts` | `moltenterm-view-pending-action` |
 | `moltenterm-busy-close.ts` | `moltenterm-busy-reply` |
 | `moltenterm-site-permissions.ts` | `moltenterm-site-permission-answer` |
+| `moltenterm-client-certificates.ts` | `moltenterm-client-certificate-answer` (only the window that holds the asking tab answers; main accepts a certificate only if it was in the list offered for that request, and no other answer than use, none or dismiss) |
 | `moltenterm-webview-lifecycle.ts` | `moltenterm-webview-shown` |
 | `moltenterm-browseragent.ts` | `moltenterm-webview-registered` |
 | `moltenterm-contextmenu.ts` | `moltenterm-contextmenu-revoke`, `moltenterm-contextmenu-guest`, `moltenterm-contextmenu-capture`, `moltenterm-contextmenu-role`, `moltenterm-contextmenu-save-image` |

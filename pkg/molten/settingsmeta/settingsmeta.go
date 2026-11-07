@@ -248,6 +248,7 @@ var settings = []Setting{
 	{Key: "browser:downloadask", Section: SectionBrowser, Group: "Downloads", Label: "Always ask where to save", Description: "Ask for a folder before each download; off saves it straight to your Downloads folder.", Control: ControlToggle},
 	{Key: "browser:agentsites", Section: SectionBrowser, Group: "Agents", Label: "Agent site permissions", Description: "Sites agents may use or are blocked from in the browser panel.", Control: ControlJSON},
 	{Key: "browser:sitepermissions", Section: SectionBrowser, Group: "Browser panel", Label: "Site permissions", Description: "What each site may use: camera, microphone, location, notifications.", Control: ControlJSON},
+	{Key: "browser:clientcertificates", Section: SectionBrowser, Group: "Browser panel", Label: "Client certificates", Description: "The certificate each site gets to identify you, or none.", Control: ControlJSON},
 
 	// Mission Control
 	{Key: "linemap:animation", Section: SectionMission, Group: "Line map", Label: "Animate the line map", Description: "Play the load sequence and the moving trains; reduced motion turns it off.", Control: ControlToggle, Default: true},

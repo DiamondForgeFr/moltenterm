@@ -188,7 +188,7 @@ fixes between MoltenTerm releases.
   so confirm instead of blocking: a `file:` or `data:` page queued by a terminal asks in the tab, naming the file, and
   the `GrantFileProtocolExtraPrivileges` fuse goes off (H3).
 
-#### M4. A site asking for a client certificate silently gets the first one (proposed, T5)
+#### M4. A site asking for a client certificate silently gets the first one (fixed, T5, #1979)
 
 - **Evidence.** No `select-client-certificate` handler in `emain/`. Electron's default selects the first matching
   certificate of the store without asking.
@@ -196,6 +196,16 @@ fixes between MoltenTerm releases.
   is signed in to with it, without the user knowing.
 - **Fix proposal.** Handle `select-client-certificate` for guests: ask in the tab with the site and the certificate list
   (none selected by default), remember per site like other permissions. MoltenTerm's own renderers keep no certificate.
+- **Fix shipped (#1979, FR-BRW-016 AC7-AC9).** `emain/moltenterm-client-certificates.ts` handles `select-client-certificate`
+  and prevents Electron's default in the same tick. The question is a bar of the tab
+  (`frontend/moltenterm-shell/browser/client-certificate-bar.tsx`), answered only by the window that holds the tab
+  (`moltenterm-client-certificate-answer`, a certificate only if it was offered for that request). The pick or the choice to
+  go without is remembered in `browser:clientcertificates`, which a terminal cannot set
+  (`pkg/wshrpc/wshserver/moltenterm_configguard.go`); a remembered certificate the system no longer offers is asked again,
+  and Settings › Browser forgets a choice. A Wave web block uses only a remembered choice; MoltenTerm's own renderers and
+  requests from no page get none. Tests: `emain/moltenterm-client-certificates.test.ts`,
+  `frontend/moltenterm-shell/browser/client-certificate.test.ts`, `client-certificate-bar.test.tsx`,
+  `moltenterm_configguard_test.go`.
 
 #### M5. No connection security indicator; the address bar hides http (proposed, T6)
 

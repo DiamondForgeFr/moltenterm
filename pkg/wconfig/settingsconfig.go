@@ -166,6 +166,8 @@ type SettingsType struct {
 	BrowserDownloadAsk bool `json:"browser:downloadask,omitempty" jsonschema_description:"Ask where to save each download of a web page; off (the default) saves it straight to the system Downloads folder with no dialog"`
 	// MOLTENTERM-PATCH (#663): what pages of the browser panel may use (camera, microphone, location, notifications).
 	BrowserSitePermissions map[string]map[string]string `json:"browser:sitepermissions,omitempty" jsonschema_description:"What each site in the browser panel may use: a host (with its port) to a map of camera, microphone, location or notifications to allow or block; set from the panel's permission bar"`
+	// MOLTENTERM-PATCH (#1979): the client certificate the user picked for a site (FR-BRW-016).
+	BrowserClientCertificates map[string]string `json:"browser:clientcertificates,omitempty" jsonschema_description:"The client certificate each site in the browser panel gets: a host (with its port) to the fingerprint of the certificate the user picked, or none to go without one; set from the panel's certificate bar"`
 
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`

@@ -1462,6 +1462,7 @@ declare global {
         "browser:agentsites"?: {[key: string]: string};
         "browser:downloadask"?: boolean;
         "browser:sitepermissions"?: {[key: string]: {[key: string]: string}};
+        "browser:clientcertificates"?: {[key: string]: string};
         "autoupdate:*"?: boolean;
         "autoupdate:enabled"?: boolean;
         "autoupdate:intervalms"?: number;

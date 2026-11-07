@@ -66,6 +66,10 @@ import { initMoltentermDownloads } from "./moltenterm-downloads"; // MOLTENTERM-
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermSitePermissions, installMoltentermSitePermissionHandlers } from "./moltenterm-site-permissions"; // MOLTENTERM-PATCH (#663)
+import {
+    initMoltentermClientCertificates,
+    installMoltentermClientCertificateHandler,
+} from "./moltenterm-client-certificates"; // MOLTENTERM-PATCH (#1979)
 import { initMoltentermScreen } from "./moltenterm-screen"; // MOLTENTERM-PATCH (#1083)
 import { initMoltentermSystemIdle } from "./moltenterm-system-idle"; // MOLTENTERM-PATCH (#1958)
 import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
@@ -439,6 +443,7 @@ async function appMain() {
     initMoltentermFavicons(); // MOLTENTERM-PATCH (#1962): the sites' icons, kept on disk per origin
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
     installMoltentermSitePermissionHandlers(); // MOLTENTERM-PATCH (#663): what pages may use, before any page loads
+    installMoltentermClientCertificateHandler(); // MOLTENTERM-PATCH (#1979): no page gets a client certificate the user did not pick
     initMoltentermHangWatch(); // MOLTENTERM-PATCH (#849): windows that stop answering, gone processes, slow sendSync
 
     await sleep(10); // wait a bit for wavesrv to be ready
@@ -454,6 +459,7 @@ async function appMain() {
     initMoltentermI18n(fullConfig); // MOLTENTERM-PATCH (#623): menus and dialogs follow app:language, live
     initMoltentermTheme(fullConfig); // MOLTENTERM-PATCH (#1341): nativeTheme.themeSource follows moltenterm:theme, live
     initMoltentermSitePermissions(fullConfig); // MOLTENTERM-PATCH (#663): the remembered site permissions, live
+    initMoltentermClientCertificates(fullConfig); // MOLTENTERM-PATCH (#1979): the remembered certificate per site, live
     initMoltentermDownloads(fullConfig); // MOLTENTERM-PATCH (#1992): the downloads of the web pages, their history and their notifications
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {

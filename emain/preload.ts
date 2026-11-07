@@ -170,6 +170,9 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#663): the user's answer to a page's permission question (emain/moltenterm-site-permissions.ts)
     moltentermSitePermissionAnswer: (requestId: string, decision: string) =>
         ipcRenderer.send("moltenterm-site-permission-answer", requestId, decision),
+    // MOLTENTERM-PATCH (#1979): the user's pick of a client certificate for a site (emain/moltenterm-client-certificates.ts)
+    moltentermClientCertificateAnswer: (requestId: string, decision: string, fingerprint?: string) =>
+        ipcRenderer.send("moltenterm-client-certificate-answer", requestId, decision, fingerprint),
     // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
     onMoltentermGettingStarted: (callback: () => void) =>
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
@@ -332,6 +335,25 @@ ipcRenderer.on("moltenterm-site-permission-ask", (e, requestId, webContentsId, s
 });
 ipcRenderer.on("moltenterm-site-permission-done", (e, requestId) => {
     window.dispatchEvent(new CustomEvent("moltenterm-site-permission-done", { detail: { requestid: requestId } }));
+});
+
+// MOLTENTERM-PATCH (#1979): a site asks for a client certificate (emain/moltenterm-client-certificates.ts). Same path as
+// the permission question: the panel tab's webview shows it, a webview no panel handles goes without a certificate.
+ipcRenderer.on("moltenterm-client-certificate-ask", (e, requestId, webContentsId, site, certificates) => {
+    const source = webviewByContentsId(webContentsId);
+    const event = new CustomEvent("moltenterm-client-certificate", {
+        detail: { requestid: requestId, site, certificates },
+        cancelable: true,
+    });
+    const handled = source != null && !source.dispatchEvent(event);
+    if (!handled) {
+        ipcRenderer.send("moltenterm-client-certificate-answer", requestId, "dismiss");
+    }
+});
+ipcRenderer.on("moltenterm-client-certificate-done", (e, requestId) => {
+    window.dispatchEvent(
+        new CustomEvent("moltenterm-client-certificate-done", { detail: { requestid: requestId } })
+    );
 });
 
 ipcRenderer.on("webcontentsid-from-blockid", (e, blockId, responseCh) => {

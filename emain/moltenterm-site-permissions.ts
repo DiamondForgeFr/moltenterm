@@ -78,7 +78,7 @@ export function isAppRenderer(wc: electron.WebContents): boolean {
 }
 
 // The panel tab's webview a page belongs to: itself for a tab, its opener's tab for a popup.
-function panelGuestOf(wc: electron.WebContents): electron.WebContents {
+export function panelGuestOf(wc: electron.WebContents): electron.WebContents {
     if (wc.getType() === "webview") {
         return wc;
     }

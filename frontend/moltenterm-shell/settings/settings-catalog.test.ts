@@ -93,7 +93,12 @@ describe("settings catalog (FR-SHELL-050)", () => {
         expect(sectionEntries(catalog(), "general").map((e) => e.key)).not.toContain("app:newviewopen");
         expect(sectionEntries(catalog(), "appearance").map((e) => e.key)).not.toContain("moltenterm:sidebartint");
         const browser = sectionEntries(catalog(), "browser").map((e) => e.key);
-        for (const key of ["browser:sites", "browser:agentsites", "browser:sitepermissions"]) {
+        for (const key of [
+            "browser:sites",
+            "browser:agentsites",
+            "browser:sitepermissions",
+            "browser:clientcertificates",
+        ]) {
             expect(browser).toContain(key);
         }
     });

@@ -28,6 +28,7 @@ func TestMoltenConsentConfigCallers(t *testing.T) {
 	consent := []waveobj.MetaMapType{
 		{wconfig.ConfigKey_BrowserAgentSites: map[string]any{"bank.example": "allow"}},
 		{wconfig.ConfigKey_BrowserSitePermissions: map[string]any{"bank.example": map[string]any{"camera": "allow"}}},
+		{wconfig.ConfigKey_BrowserClientCertificates: map[string]any{"bank.example": "sha256/abc"}},
 		{"term:fontsize": 12, wconfig.ConfigKey_BrowserAgentSites: nil},
 	}
 	for _, from := range []routetest.From{e.Window(), e.Electron()} {
