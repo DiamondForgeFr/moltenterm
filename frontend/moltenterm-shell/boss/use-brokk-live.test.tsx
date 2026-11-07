@@ -251,8 +251,8 @@ describe("the group's square is driven by the same pose and mood models (FR-BOSS
 
     it("is wired to the portrait through the same hooks the panel used, with no video or package of its own", () => {
         const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(group).toContain("useCardLive(talkPose(typing, answering))");
-        expect(group).toContain("useGroupCaption(talkPose(typing, answering))");
+        expect(group).toContain("useCardLive(pose)");
+        expect(group).toContain("useGroupCaption(pose)");
         expect(group).toContain('<BossPortrait live={live} framing="banner" />');
         expect(group).not.toContain("TransmissionPortrait");
         expect(group).not.toContain("<video");

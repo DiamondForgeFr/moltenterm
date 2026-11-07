@@ -3118,7 +3118,14 @@
                 "gone": "Le terminal de {name} a été fermé : renvoyez votre message pour en démarrer un nouveau.",
                 "notSubmitted": "Votre message attend dans le terminal de {name} : ouvrez-le et appuyez sur Entrée.",
                 "agentStopped": "L'agent de {name} ne tourne plus dans son terminal. Fermez ce terminal, puis renvoyez votre message.",
-                "failed": "Le message n'est pas parti : la session de {name} est injoignable."
+                "failed": "Le message n'est pas parti : la session de {name} est injoignable.",
+                "window": "Conversation avec {name}",
+                "empty": "Dites à {name} ce dont vous avez besoin.",
+                "you": "Vous",
+                "actionsLabel": "Réponses proposées par {name}",
+                "confirmAsk": "Envoyer « {text} » ?",
+                "confirm": "Confirmer",
+                "cancel": "Annuler"
             }
         },
         "todo": {

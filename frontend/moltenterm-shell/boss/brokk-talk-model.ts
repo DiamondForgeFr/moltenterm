@@ -139,7 +139,10 @@ export function followStep(
         return { state: answering, follow: next, done: false };
     }
     // A reply that cannot be read is in his terminal once his agent worked on the message and stopped.
-    if (reply.status === "unread" && ((next.worked && idle >= IdleReadingsForUnread) || idle >= IdleReadingsForNoReply)) {
+    if (
+        reply.status === "unread" &&
+        ((next.worked && idle >= IdleReadingsForUnread) || idle >= IdleReadingsForNoReply)
+    ) {
         return { state: { ...state, phase: "unread", where }, follow: next, done: true };
     }
     if (idle >= IdleReadingsForNoReply) {
@@ -241,10 +244,26 @@ export function talkWayOutKey(way: TalkWayOut): string {
     }
 }
 
-// What his face does with the field: he listens while the developer writes, and speaks while his own session answers.
-export function talkPose(typing: boolean, answering: boolean): "typing" | "answering" {
-    if (answering) {
+export type TalkPoseInput = {
+    // The developer has text in the field.
+    typing: boolean;
+    // A message is on its way, or his agent has it and his answer is not complete.
+    awaiting: boolean;
+    // His own session works (the ring turns).
+    working: boolean;
+    // His answer is coming in, or came a moment ago (brokk-exchange-model.ts SpeakingHoldMs).
+    speaking: boolean;
+};
+
+// What his face does with the conversation (FR-BOSS-009, AC25): he speaks while his answer comes in, thinks from the
+// moment his agent takes a message (or whenever his own session works) until the answer is there, and listens while the
+// developer writes. Otherwise the field says nothing to his face.
+export function talkPose(input: TalkPoseInput): "typing" | "thinking" | "answering" {
+    if (input.speaking) {
         return "answering";
     }
-    return typing ? "typing" : null;
+    if (input.awaiting || input.working) {
+        return "thinking";
+    }
+    return input.typing ? "typing" : null;
 }

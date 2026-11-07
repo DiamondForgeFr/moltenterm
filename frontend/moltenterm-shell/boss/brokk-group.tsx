@@ -36,6 +36,7 @@ import { attentionAgents } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
 import { UsageReadingsAtom } from "./boss-usage";
+import { BrokkItem, sayLine } from "./brokk-exchange-model";
 import {
     activePanel,
     afterClick,
@@ -43,6 +44,9 @@ import {
     afterRequest,
     arrivalOffset,
     ArrivalStepMs,
+    ConversationChromePx,
+    conversationHeight,
+    conversationWidth,
     groupGeometry,
     GroupPlace,
     holdsHover,
@@ -69,8 +73,9 @@ import { buildNotes, consultedIds, noteFacts, NoteRow } from "./brokk-notes-mode
 import { NotificationsPanel } from "./brokk-notes-panel";
 import { PanelContentAttr, PanelHeadAttr } from "./brokk-panel-frame";
 import { AgentsPanel, DownloadsPanel, SessionsPanel, UsagePanel } from "./brokk-rows-panels";
+import { BrokkSession } from "./brokk-session";
 import { BrokkTalk } from "./brokk-talk";
-import { talkPose } from "./brokk-talk-model";
+import { talkPose, talkWaits } from "./brokk-talk-model";
 import { resetDay, weeklyUsage } from "./brokk-usage-model";
 import { useBrokkActions } from "./use-brokk-actions";
 import { useGroupCaption } from "./use-brokk-caption";
@@ -151,6 +156,11 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const entries = useAtomValue(notifications.shownEntriesAtom, { store: globalStore });
     const settings = useAtomValue(hubModel.settingsAtom, { store: globalStore });
     const answering = useAtomValue(hubModel.ownWorkingAtom, { store: globalStore });
+    const session = BrokkSession.getInstance();
+    const talk = useAtomValue(session.stateAtom, { store: globalStore });
+    const speaking = useAtomValue(session.speakingAtom, { store: globalStore });
+    const exchange = useAtomValue(session.exchangeAtom, { store: globalStore });
+    const unseenId = useAtomValue(session.unseenIdAtom, { store: globalStore });
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom, { store: globalStore });
     const downloadItems = useAtomValue(downloads.itemsAtom, { store: globalStore });
     const readings = useAtomValue(UsageReadingsAtom, { store: globalStore });
@@ -160,8 +170,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const panelRef = useRef<HTMLDivElement>(null);
     const [now, setNow] = useState(Date.now());
     const [typing, setTyping] = useState(false);
-    // The conversation is open while the field has the focus: no panel shows then (the windows never overlap, AC18).
+    // The conversation window is open while the field has the focus or holds text: no panel shows then (the windows never
+    // overlap, AC18). `exchangeHeight` is what the exchange in it needs.
     const [conversation, setConversation] = useState(false);
+    const [exchangeHeight, setExchangeHeight] = useState(0);
     const [panels, setPanels] = useState<PanelState>(() =>
         request != null ? afterRequest(request.tab) : InitialPanels
     );
@@ -205,12 +217,18 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     });
     const weekly = useMemo(() => weeklyUsage(readings, now), [readings, now]);
 
-    const live = useCardLive(talkPose(typing, answering));
-    const caption = useGroupCaption(talkPose(typing, answering));
+    // What his face does with the conversation: it listens while the developer writes, thinks while his session works on
+    // a message, speaks while his answer comes in (AC25).
+    const pose = talkPose({ typing, awaiting: talkWaits(talk), working: answering, speaking });
+    const live = useCardLive(pose);
+    const caption = useGroupCaption(pose);
+    // His line under the square is his own when his session has something the developer has not seen (AC25).
+    const unseen = exchange.find((item) => item.role === "brokk" && item.id === unseenId) as BrokkItem;
+    const line = sayLine(unseen, caption);
     // The sign of a conversation on the title-bar face: the developer writes to him or his session answers.
     useEffect(() => {
-        globalStore.set(boss.talkingAtom, typing || answering);
-    }, [boss, typing, answering]);
+        globalStore.set(boss.talkingAtom, pose != null);
+    }, [boss, pose]);
     useEffect(() => () => globalStore.set(boss.talkingAtom, false), [boss]);
 
     const leave = useCallback(() => boss.closeCard({ restoreFocus: false }), [boss]);
@@ -223,7 +241,14 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         notesShownRef.current = true;
         ids.forEach((id) => listedRef.current.add(id));
     }, []);
-    const onFocusChange = useCallback((focused: boolean) => setConversation(focused), []);
+    const onFocusChange = useCallback((open: boolean) => setConversation(open), []);
+    // The window is as wide as the group and the panel area together, as tall as the exchange needs.
+    const fieldSize = conversation
+        ? {
+              w: conversationWidth(g, frame.place.panelRoom),
+              h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - g.field.y),
+          }
+        : { w: g.field.w, h: g.field.h };
 
     // A surface asks for a panel while the group is open (a toast's Open, the downloads pill, a notification).
     const seenRequest = useRef(request?.seq ?? 0);
@@ -580,8 +605,12 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                         ...delay(1),
                     }}
                 >
-                    <div className="mt-brokk-say" data-testid="brokk-say">
-                        <span>{caption}</span>
+                    <div
+                        className="mt-brokk-say"
+                        data-testid="brokk-say"
+                        data-source={unseen != null && line !== caption ? "session" : "activity"}
+                    >
+                        <span>{line}</span>
                     </div>
                     <button
                         type="button"
@@ -623,10 +652,17 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                 </div>
                 <div
                     className="mt-brokk-fieldbox"
-                    style={{ top: g.field.y, width: g.field.w, height: g.field.h, ...offsetOf(g.field), ...delay(0) }}
+                    style={{
+                        top: g.field.y,
+                        width: fieldSize.w,
+                        height: fieldSize.h,
+                        ...offsetOf(g.field),
+                        ...delay(0),
+                    }}
                     data-testid="brokk-fieldbox"
+                    data-open={conversation ? "true" : "false"}
                 >
-                    <BrokkTalk onTyping={setTyping} onFocusChange={onFocusChange} />
+                    <BrokkTalk onTyping={setTyping} onFocusChange={onFocusChange} onContentHeight={setExchangeHeight} />
                 </div>
                 {active != null ? (
                     <>

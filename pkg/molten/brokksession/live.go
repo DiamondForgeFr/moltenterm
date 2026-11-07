@@ -68,7 +68,7 @@ type answerReader struct {
 	reader *companion.SessionReader
 }
 
-func (a *answerReader) latest(blockId string) (Answer, bool) {
+func (a *answerReader) read(blockId string, index int) (Answer, bool) {
 	agent, path, ok := companion.LinkedSession(blockId)
 	if !ok || path == "" {
 		return Answer{}, false
@@ -91,7 +91,7 @@ func (a *answerReader) latest(blockId string) (Answer, bool) {
 		log.Printf("[brokksession] his transcript cannot be read: %v\n", err)
 		return Answer{}, false
 	}
-	view, found := a.reader.LatestAnswer()
+	view, found := a.reader.AnswerAt(index)
 	if !found {
 		return Answer{}, true
 	}
@@ -102,6 +102,9 @@ func liveFolder() (string, error) {
 	dir := filepath.Join(wavebase.GetWaveDataDir(), FolderName)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
+	}
+	if err := WriteBrief(dir); err != nil {
+		log.Printf("[brokksession] his brief could not be written: %v\n", err)
 	}
 	return dir, nil
 }
@@ -156,10 +159,10 @@ func Live() *Service {
 		OpenTerminal: func(ctx context.Context, tabId string, meta waveobj.MetaMapType, line string) (string, error) {
 			return reviewsession.OpenTerminal(ctx, tabId, "", meta, line)
 		},
-		Type:         liveType,
-		Ready:        termupdate.AgentTakesLine,
-		Sleep:        liveSleep,
-		LatestAnswer: (&answerReader{}).latest,
+		Type:       liveType,
+		Ready:      termupdate.AgentTakesLine,
+		Sleep:      liveSleep,
+		ReadAnswer: (&answerReader{}).read,
 	})
 }
 
