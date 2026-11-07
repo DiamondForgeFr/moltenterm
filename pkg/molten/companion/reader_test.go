@@ -97,6 +97,42 @@ func TestSessionReaderLatestAnswer(t *testing.T) {
 	}
 }
 
+// Brokk's window keeps each answer apart (#2033): the first one stays readable by its turn once a second message started
+// a newer one.
+func TestSessionReaderAnswerAtReadsATurnWhateverCameAfterIt(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "-work-demo", "11111111-2222-3333-4444-555555555555.jsonl")
+	copyFixture(t, "claude-session.jsonl", path)
+	r, err := OpenAdapterSessionReader(MakeClaudeAdapter([]string{root}), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	r.Poll()
+	first, ok := r.AnswerAt(0)
+	if !ok {
+		t.Fatal("the fixture holds an answer")
+	}
+
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"user","message":{"role":"user","content":"How many agents run?"},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:00.000Z"}` + "\n")
+	f.WriteString(`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Two agents run now."}]},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:03.000Z"}` + "\n")
+	f.Close()
+	r.Poll()
+
+	latest, _ := r.AnswerAt(0)
+	if latest.Markdown != "Two agents run now." {
+		t.Fatalf("latest answer: %+v", latest)
+	}
+	earlier, ok := r.AnswerAt(first.Index)
+	if !ok || earlier.Markdown != first.Markdown || earlier.Latest {
+		t.Fatalf("answer of turn %d: %+v %v, want the first answer, no longer the latest", first.Index, earlier, ok)
+	}
+	if _, ok := r.AnswerAt(first.Index + 100); ok {
+		t.Fatal("a turn that does not exist has no answer")
+	}
+}
+
 func TestSessionReaderCodexTurns(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "2026", "10", "04", "rollout-2026-10-04T09-00-00-0199aaaa-bbbb-7ccc-8ddd-eeeeffff0000.jsonl")

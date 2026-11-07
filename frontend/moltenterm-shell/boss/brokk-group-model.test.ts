@@ -9,6 +9,11 @@ import {
     afterRequest,
     arrivalOffset,
     BlockHeightPx,
+    ConversationChromePx,
+    conversationHeight,
+    ConversationMaxPx,
+    ConversationMinPx,
+    conversationWidth,
     groupGeometry,
     groupPlace,
     holdsHover,
@@ -186,6 +191,45 @@ describe("which panel shows", () => {
         const pinned = afterClick(InitialPanels, "sessions", null);
         expect(activePanel(pinned, "notifications", true)).toBeNull();
         expect(activePanel(pinned, "notifications", false)).toBe("sessions");
+    });
+});
+
+// FR-BOSS-009, AC22 (#2033): the conversation window grows from the field in place.
+describe("the conversation window", () => {
+    const g = groupGeometry();
+
+    it("is as wide as the group and the panel area together, so it reaches the right edge where a panel stands", () => {
+        expect(conversationWidth(g, 600)).toBe(g.panelLeft + 420);
+        expect(conversationWidth(g, 600)).toBeGreaterThan(g.field.w);
+    });
+
+    it("is narrower only when the window is, as the panel is", () => {
+        expect(conversationWidth(g, 330)).toBe(g.panelLeft + 330);
+        expect(conversationWidth(g, 100)).toBe(g.panelLeft + 280);
+    });
+
+    it("is about 240 px tall when the exchange is short, and grows with it", () => {
+        expect(conversationHeight(0, 800)).toBe(ConversationMinPx);
+        expect(conversationHeight(120, 800)).toBe(ConversationMinPx);
+        expect(conversationHeight(300, 800)).toBe(300);
+    });
+
+    it("stops growing at the most, then the exchange scrolls inside", () => {
+        expect(conversationHeight(2000, 2000)).toBe(ConversationMaxPx);
+    });
+
+    it("stops at the window's room when that is smaller", () => {
+        expect(conversationHeight(2000, 330)).toBe(330);
+        expect(conversationHeight(100, 200)).toBe(200);
+    });
+
+    it("never goes under the field itself", () => {
+        expect(conversationHeight(100, 10)).toBe(36);
+    });
+
+    it("starts at the field's top, under the block, in the group's own coordinates", () => {
+        expect(g.field.y).toBe(g.block.y + g.block.h + 8);
+        expect(ConversationChromePx).toBe(10 + 4 + 36 + 1 + 2);
     });
 });
 

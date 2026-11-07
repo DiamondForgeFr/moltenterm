@@ -84,6 +84,27 @@ export function panelWidth(room: number): number {
     return Math.min(PanelWidthPx, Math.max(room, MinPanelWidthPx));
 }
 
+// The conversation window (FR-BOSS-009, AC22, #2033) grows from the field's top. It is this tall when the exchange is
+// short and grows with it up to the most, or the window's room, then scrolls inside.
+export const ConversationMinPx = 240;
+export const ConversationMaxPx = 460;
+// What the window adds to the exchange's own height: its padding (10 above, 4 below), the field's row (36 and its
+// 1 px rule) and the frame's 2 px border (brokk-group.css).
+export const ConversationChromePx = 53;
+
+// As wide as the group and the panel area together: it reaches the right edge where a panel stands, and covers nothing
+// since the panel folds away while it is open.
+export function conversationWidth(g: GroupGeometry, panelRoom: number): number {
+    return g.panelLeft + panelWidth(panelRoom);
+}
+
+// `contentHeight`: what the exchange needs, the field's row included. `room`: the window's height from the top of the
+// field down.
+export function conversationHeight(contentHeight: number, room: number): number {
+    const most = Math.max(FieldHeightPx, Math.min(ConversationMaxPx, room));
+    return Math.min(most, Math.max(ConversationMinPx, contentHeight));
+}
+
 export type GroupPlace = {
     // In the host layer's coordinates.
     left: number;

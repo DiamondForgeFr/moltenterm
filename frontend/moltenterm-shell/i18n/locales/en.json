@@ -3122,7 +3122,14 @@
                 "gone": "{name}'s terminal was closed: send your message again to start a new one.",
                 "notSubmitted": "Your message waits in {name}'s terminal: open it and press Enter.",
                 "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
-                "failed": "The message did not go: {name}'s session could not be reached."
+                "failed": "The message did not go: {name}'s session could not be reached.",
+                "window": "Conversation with {name}",
+                "empty": "Tell {name} what you need.",
+                "you": "You",
+                "actionsLabel": "Replies {name} offers",
+                "confirmAsk": "Send “{text}”?",
+                "confirm": "Confirm",
+                "cancel": "Cancel"
             }
         },
         "todo": {

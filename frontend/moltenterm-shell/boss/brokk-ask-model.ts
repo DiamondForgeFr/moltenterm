@@ -21,9 +21,9 @@ export type BrokkSituation = {
     cardOpen: boolean;
     // The developer is away from this computer: no input on it for a long while (developer-away.ts).
     away?: boolean;
-    // The panel's field (FR-BOSS-009, AC9): he listens while the developer writes to him, and speaks while his own
-    // session answers.
-    talk?: "typing" | "answering";
+    // The conversation (FR-BOSS-009, AC9 and AC25): he listens while the developer writes to him, thinks while his own
+    // session works on a message, and speaks while its answer comes in.
+    talk?: "typing" | "thinking" | "answering";
 };
 
 export type BrokkPose = "rest" | "thinking" | "listening" | "speaking";

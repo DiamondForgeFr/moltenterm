@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/global", async () => {
@@ -86,14 +86,34 @@ vi.mock("./boss-portrait", () => ({
     ),
 }));
 vi.mock("./brokk-talk", () => ({
-    BrokkTalk: ({ onFocusChange, onTyping }: { onFocusChange?: unknown; onTyping?: unknown }) => (
+    BrokkTalk: ({
+        onFocusChange,
+        onTyping,
+        onContentHeight,
+    }: {
+        onFocusChange?: unknown;
+        onTyping?: unknown;
+        onContentHeight?: unknown;
+    }) => (
         <form
             data-testid="mock-talk"
             data-focus-wired={String(typeof onFocusChange)}
             data-typing-wired={String(typeof onTyping)}
+            data-height-wired={String(typeof onContentHeight)}
         />
     ),
 }));
+// His session's exchange has its own tests (brokk-session): here the group reads what it says and does.
+vi.mock("./brokk-session", async () => {
+    const { atom } = await import("jotai");
+    const session = {
+        stateAtom: atom({ phase: "idle", reason: "", agentName: "", started: false, reply: "", where: null } as any),
+        exchangeAtom: atom([] as any[]),
+        speakingAtom: atom(false),
+        unseenIdAtom: atom(null as string),
+    };
+    return { BrokkSession: { getInstance: () => session } };
+});
 vi.mock("./brokk-menu", () => ({ brokkMenuItems: () => [] }));
 vi.mock("./use-brokk-actions", () => ({
     useBrokkActions: () => ({ busyId: null, problem: "", goToSession: vi.fn(), runTodo: vi.fn(), reconnect: vi.fn() }),
@@ -118,6 +138,7 @@ import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom } from "./boss-usage";
 import { BrokkGroup, GroupFrame } from "./brokk-group";
 import { groupGeometry } from "./brokk-group-model";
+import { BrokkSession } from "./brokk-session";
 
 const boss = BossBubbleModel.getInstance() as any;
 const notifications = MoltentermNotifications.getInstance() as any;
@@ -187,6 +208,10 @@ function quiet() {
     globalStore.set(agents.dataAtom, { states: {}, versions: {} });
     globalStore.set(keep.stateAtom, EmptyKeepAwakeState);
     globalStore.set(UsageReadingsAtom, {});
+    const session = BrokkSession.getInstance() as any;
+    globalStore.set(session.exchangeAtom, []);
+    globalStore.set(session.unseenIdAtom, null);
+    globalStore.set(session.speakingAtom, false);
 }
 
 beforeEach(() => {
@@ -313,19 +338,68 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
         expect(Calls.live).toEqual([null]);
         expect(Calls.caption).toEqual([null]);
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("useCardLive(talkPose(typing, answering))");
-        expect(source).toContain("useGroupCaption(talkPose(typing, answering))");
+        expect(source).toContain(
+            "const pose = talkPose({ typing, awaiting: talkWaits(talk), working: answering, speaking });"
+        );
+        expect(source).toContain("useCardLive(pose)");
+        expect(source).toContain("useGroupCaption(pose)");
         expect(source).toContain('<BossPortrait live={live} framing="banner" />');
     });
 
-    it("answers while his own session works", async () => {
-        const { BrokkHubModel } = await import("./brokk-hub-store");
-        const hub = BrokkHubModel.getInstance() as any;
-        globalStore.set(hub.ownWorkingAtom, true);
-        render();
-        expect(Calls.live).toEqual(["answering"]);
-        expect(Calls.caption).toEqual(["answering"]);
-        globalStore.set(hub.ownWorkingAtom, false);
+    // FR-BOSS-009, AC25: listens while he is written to, thinks while his session works, speaks while his answer comes in.
+    describe("his face with the conversation (AC25)", () => {
+        const session = BrokkSession.getInstance() as any;
+
+        afterEach(async () => {
+            const { BrokkHubModel } = await import("./brokk-hub-store");
+            globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, false);
+            globalStore.set(session.speakingAtom, false);
+            globalStore.set(session.stateAtom, {
+                phase: "idle",
+                reason: "",
+                agentName: "",
+                started: false,
+                reply: "",
+                where: null,
+            });
+        });
+
+        it("thinks while his own session works", async () => {
+            const { BrokkHubModel } = await import("./brokk-hub-store");
+            globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, true);
+            render();
+            expect(Calls.live).toEqual(["thinking"]);
+            expect(Calls.caption).toEqual(["thinking"]);
+        });
+
+        it("thinks from the moment his agent has a message, before his session shows work", () => {
+            globalStore.set(session.stateAtom, {
+                phase: "answering",
+                reason: "",
+                agentName: "",
+                started: false,
+                reply: "",
+                where: null,
+            });
+            render();
+            expect(Calls.live).toEqual(["thinking"]);
+        });
+
+        it("speaks while his answer comes in, over thinking", async () => {
+            const { BrokkHubModel } = await import("./brokk-hub-store");
+            globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, true);
+            globalStore.set(session.speakingAtom, true);
+            render();
+            expect(Calls.live).toEqual(["answering"]);
+            expect(Calls.caption).toEqual(["answering"]);
+        });
+    });
+
+    it("keeps the portrait his living one: the live props reach the portrait whatever the pose, never an image of its own", () => {
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).not.toContain("<img");
+        expect(source).not.toContain("<video");
+        expect(source).toContain("<BossPortrait live={live}");
     });
 
     it("closes on a click, and opens its menu from a ⋯ and from a right click", () => {
@@ -490,22 +564,40 @@ describe("the windows never overlap (AC18)", () => {
     it("gives no panel while the conversation is open, and brings it back when it folds, through the one rule", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain("const active: ShownPanel = activePanel(panels, auto, conversation);");
-        expect(source).toContain(
-            "const onFocusChange = useCallback((focused: boolean) => setConversation(focused), []);"
-        );
-        expect(source).toContain("<BrokkTalk onTyping={setTyping} onFocusChange={onFocusChange} />");
+        expect(source).toContain("const onFocusChange = useCallback((open: boolean) => setConversation(open), []);");
+        expect(source).toContain("onFocusChange={onFocusChange}");
     });
 
-    it("wires the field to the conversation", () => {
+    it("wires the field to the conversation: its opening, its typing and the height of its exchange", () => {
         const html = render();
         expect(attr(html, "mock-talk", "data-focus-wired")).toBe("function");
         expect(attr(html, "mock-talk", "data-typing-wired")).toBe("function");
+        expect(attr(html, "mock-talk", "data-height-wired")).toBe("function");
     });
 
-    it("folds the conversation with the focus leaving the field and its button, not with the focus moving between them", () => {
+    it("opens with the focus and stays open with text in the field, and folds only when it is empty and unfocused", () => {
         const talk = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
-        expect(talk).toContain("onFocus={() => onFocusChange?.(true)}");
-        expect(talk).toContain("onBlur={(e) => onFocusChange?.(e.currentTarget.contains(e.relatedTarget as Node))}");
+        expect(talk).toContain("const open = conversationOpen(focused, text);");
+        expect(talk).toContain("onFocus={() => setFocused(true)}");
+        // The focus moving from the field to a button of the window is still the conversation.
+        expect(talk).toContain("onBlur={(e) => setFocused(e.currentTarget.contains(e.relatedTarget as Node))}");
+        expect(talk).toContain("onFocusChange?.(open);");
+    });
+
+    it("keeps the field in its place when the window is folded, the size of the group", () => {
+        const html = render();
+        expect(attr(html, "brokk-fieldbox", "style")).toContain(`width:${g.field.w}px;height:${g.field.h}px`);
+        expect(attr(html, "brokk-fieldbox", "data-open")).toBe("false");
+    });
+
+    it("sizes the window from the group's geometry: as wide as the group and the panel area, as tall as its exchange", () => {
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toContain("w: conversationWidth(g, frame.place.panelRoom),");
+        expect(source).toContain(
+            "h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - g.field.y),"
+        );
+        expect(source).toContain("width: fieldSize.w,");
+        expect(source).toContain("height: fieldSize.h,");
     });
 });
 
@@ -520,6 +612,39 @@ describe("the block under the square (AC17 and AC20)", () => {
     it("says one line, the caption of his scene", () => {
         expect(attr(render(), "brokk-say", "class")).toBe("mt-brokk-say");
         expect(render()).toMatch(/data-testid="brokk-say"[^>]*><span>He says something<\/span>/);
+        expect(attr(render(), "brokk-say", "data-source")).toBe("activity");
+    });
+
+    // FR-BOSS-009, AC25: his line comes from his session when he has something the developer has not seen.
+    describe("the line from his session", () => {
+        const session = BrokkSession.getInstance() as any;
+        const answer = (text: string) => ({ id: "m1", role: "brokk", text, actions: [], at: 2, turn: 3, final: true });
+
+        it("is the lead of his answer that came while the window was folded", () => {
+            globalStore.set(session.exchangeAtom, [
+                { id: "m1", role: "you", text: "any news?", at: 1 },
+                answer("Olivia waits to delete 2 branches.\n\nShall I open the PR?"),
+            ]);
+            globalStore.set(session.unseenIdAtom, "m1");
+            const html = render();
+            expect(html).toMatch(/data-testid="brokk-say"[^>]*><span>Olivia waits to delete 2 branches\.<\/span>/);
+            expect(attr(html, "brokk-say", "data-source")).toBe("session");
+        });
+
+        it("goes back to the activity summary once the developer has seen it", () => {
+            globalStore.set(session.exchangeAtom, [
+                { id: "m1", role: "you", text: "any news?", at: 1 },
+                answer("Olivia waits."),
+            ]);
+            globalStore.set(session.unseenIdAtom, null);
+            expect(render()).toMatch(/data-testid="brokk-say"[^>]*><span>He says something<\/span>/);
+        });
+
+        it("is not taken from the developer's own message with the same id", () => {
+            globalStore.set(session.exchangeAtom, [{ id: "m1", role: "you", text: "any news?", at: 1 }]);
+            globalStore.set(session.unseenIdAtom, "m1");
+            expect(render()).toMatch(/data-testid="brokk-say"[^>]*><span>He says something<\/span>/);
+        });
     });
 
     it("tells the weekly usage per provider in percent, with a bar each, the fullest first", () => {
@@ -604,6 +729,6 @@ describe("what Brokk sees when the group closes (AC19)", () => {
 
     it("keeps the sign of a conversation on the face while he is spoken to", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("globalStore.set(boss.talkingAtom, typing || answering);");
+        expect(source).toContain("globalStore.set(boss.talkingAtom, pose != null);");
     });
 });

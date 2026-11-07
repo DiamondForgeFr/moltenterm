@@ -95,9 +95,12 @@ type Found struct {
 	WorkspaceId string
 }
 
-// ReplyRequest asks for his answer to a message sent at After (Unix milliseconds).
+// ReplyRequest asks for his answer to a message sent at After (Unix milliseconds). With an Index it asks for the answer
+// of that turn instead, whatever came after it (#2033): the window reads a first answer to its end once a second message
+// has started a newer turn.
 type ReplyRequest struct {
 	After int64 `json:"after,omitempty"`
+	Index int   `json:"index,omitempty"`
 }
 
 // Reply is his latest answer, and where his terminal is: the way out when the answer cannot be read.
@@ -154,9 +157,10 @@ type Env struct {
 	Ready func(blockId string) bool
 	// Sleep waits d, false when ctx ended first.
 	Sleep func(ctx context.Context, d time.Duration) bool
-	// LatestAnswer reads the last answer of the agent in the block from its transcript; false: its transcript is not
-	// known, the answer is only in the terminal.
-	LatestAnswer func(blockId string) (Answer, bool)
+	// ReadAnswer reads an answer of the agent in the block from its transcript: the last one for index 0, else the
+	// answer of that turn (empty when it is not there); false: its transcript is not known, the answer is only in the
+	// terminal.
+	ReadAnswer func(blockId string, index int) (Answer, bool)
 }
 
 type Service struct {
@@ -200,8 +204,8 @@ func (s *Service) Session(ctx context.Context) Result {
 	return Result{Status: StatusReady, BlockId: found.BlockId, TabId: found.TabId, WorkspaceId: found.WorkspaceId}
 }
 
-// Reply is his answer to the message sent at req.After (#2028): his session answers in a hidden tab, and the panel shows
-// that answer. It starts nothing and never waits.
+// Reply is his answer to the message sent at req.After, or the answer of the turn req.Index (#2028, #2033): his session
+// answers in a hidden tab, and the window shows that answer. It starts nothing and never waits.
 func (s *Service) Reply(ctx context.Context, req ReplyRequest) Reply {
 	if s.env.Find == nil {
 		return Reply{Status: StatusNone}
@@ -211,15 +215,16 @@ func (s *Service) Reply(ctx context.Context, req ReplyRequest) Reply {
 		return Reply{Status: StatusNone}
 	}
 	rtn := Reply{Status: ReplyUnread, BlockId: found.BlockId, TabId: found.TabId, WorkspaceId: found.WorkspaceId}
-	if s.env.LatestAnswer == nil {
+	if s.env.ReadAnswer == nil {
 		return rtn
 	}
-	answer, linked := s.env.LatestAnswer(found.BlockId)
+	answer, linked := s.env.ReadAnswer(found.BlockId, req.Index)
 	if !linked {
 		return rtn
 	}
-	// An answer older than the message is the one to the message before.
-	if answer.Markdown == "" || answer.At < req.After {
+	// An answer older than the message is the one to the message before; a turn asked for by its index is the answer
+	// to its own message, whenever it was written.
+	if answer.Markdown == "" || (req.Index <= 0 && answer.At < req.After) {
 		rtn.Status = ReplyWaiting
 		return rtn
 	}

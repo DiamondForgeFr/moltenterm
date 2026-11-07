@@ -1,13 +1,15 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The window's side of Brokk's own terminal session (FR-BOSS-009, AC15, #2003): the field at the foot of his panel gives
-// its messages to wavesrv (pkg/molten/brokksession), which starts the session on the first one and types the next ones
-// into it. The block of that session is kept on the hub's model, so that the ring around his avatar turns while its agent
-// works. Nothing starts without a message the developer sends.
+// The window's side of Brokk's own terminal session (FR-BOSS-009, AC15 and AC23, #2003, #2033): the conversation window
+// gives its messages to wavesrv (pkg/molten/brokksession), which starts the session on the first one and types the next
+// ones into it. The block of that session is kept on the hub's model, so that the ring around his avatar turns while its
+// agent works. Nothing starts without a message the developer sends.
 //
-// His session works in a hidden tab: once his agent has a message, its answer is read back from his transcript and
-// shown under the field (#2028), and an answer that cannot be read points to his terminal.
+// His session works in a hidden tab: once his agent has a message, its answer is read back from his transcript (#2028)
+// and kept in the exchange, one answer per message. A message sent while he is still answering never loses the first
+// answer: when his agent cannot take it, the first answer keeps coming in; when it takes it, the first answer is read to
+// its end, by its turn, before the second is followed. An answer that cannot be read points to his terminal.
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
@@ -16,6 +18,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
 import { BossBubbleModel } from "./boss-store";
+import { ExchangeItem, SpeakingHoldMs, withAnswer, withMessage } from "./brokk-exchange-model";
 import { BrokkHubModel } from "./brokk-hub-store";
 import {
     FollowEveryMs,
@@ -51,16 +54,42 @@ const LiveCall: Call = (command, data, timeout) =>
 
 const LiveWait: Wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// A message whose answer is followed.
+type Tracked = {
+    // The message's id in the exchange, which its answer carries too.
+    id: string;
+    sentAt: number;
+    // The turn of his transcript the answer was read from; 0 until the first reading.
+    turn: number;
+    // The answer as read last.
+    markdown: string;
+    // Its following ended, or was taken over by a settling read.
+    stopped: boolean;
+};
+
 export class BrokkSession {
     private static instance: BrokkSession = null;
 
-    // The last answer to a message, for the line under the field, and his reply.
+    // The status of the last message, for the notes of the window.
     stateAtom = atom(IdleTalk) as PrimitiveAtom<TalkState>;
+    // The developer's messages and his answers, oldest first, for as long as MoltenTerm runs.
+    exchangeAtom = atom([]) as PrimitiveAtom<ExchangeItem[]>;
+    // His answer is coming in, or came a moment ago: his face speaks (FR-BOSS-009, AC25).
+    speakingAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The answer that changed while the window was folded: his line under the square (AC25). Null when seen.
+    unseenIdAtom = atom(null) as PrimitiveAtom<string>;
 
     private call: Call = LiveCall;
     private wait: Wait = LiveWait;
-    // A new message, or the note cleared, ends the following of the previous answer.
-    private followGen = 0;
+    // A new message ends the wait of a message that did not leave yet.
+    private sendGen = 0;
+    private counter = 0;
+    private tracked: Tracked = null;
+    // The message whose answer writes the status: after a failure nothing does, so its note stays until the developer
+    // writes again.
+    private stateOwner: string = null;
+    private windowOpen = false;
+    private speakGen = 0;
 
     static getInstance(): BrokkSession {
         if (BrokkSession.instance == null) {
@@ -106,14 +135,24 @@ export class BrokkSession {
         }
     }
 
+    // The conversation window opens or folds: what he said while it was folded is his line under the square until the
+    // developer looks.
+    setWindowOpen(open: boolean): void {
+        this.windowOpen = open;
+        if (open) {
+            globalStore.set(this.unseenIdAtom, null);
+        }
+    }
+
     // Gives the message to his session, starting it when it does not exist, then follows his answer. Resolves with
     // what came of the message.
     async say(text: string): Promise<TalkState> {
         const model = BossBubbleModel.getInstance();
-        const gen = ++this.followGen;
+        const gen = ++this.sendGen;
+        this.stateOwner = null;
         globalStore.set(this.stateAtom, SendingTalk);
         const existing = await this.lookup();
-        if (gen !== this.followGen) {
+        if (gen !== this.sendGen) {
             return globalStore.get(this.stateAtom);
         }
         if (existing?.status === "none") {
@@ -137,33 +176,112 @@ export class BrokkSession {
             console.log("brokk session: the message did not go", e);
             state = talkStateOf(null);
         }
-        if (gen !== this.followGen) {
+        if (gen !== this.sendGen) {
             return state;
         }
-        globalStore.set(this.stateAtom, state);
-        if (state.phase === "answering") {
-            void this.follow(gen, sentAt, state);
+        if (state.phase !== "answering") {
+            // The first answer, if one is still coming, keeps coming: nothing was taken.
+            globalStore.set(this.stateAtom, state);
+            return state;
         }
+        await this.takeOver(text, sentAt, state, gen);
         return state;
     }
 
+    // His agent has the message: the answer before it is read to its end, the message joins the exchange, and its answer
+    // is followed.
+    private async takeOver(text: string, sentAt: number, state: TalkState, gen: number): Promise<void> {
+        const prior = this.tracked;
+        if (prior != null && !prior.stopped) {
+            prior.stopped = true;
+            await this.readToItsEnd(prior);
+        }
+        if (gen !== this.sendGen) {
+            return;
+        }
+        const tracked: Tracked = { id: `m${++this.counter}`, sentAt, turn: 0, markdown: "", stopped: false };
+        globalStore.set(this.exchangeAtom, (items) => withMessage(items, tracked.id, text, Date.now()));
+        this.tracked = tracked;
+        this.stateOwner = tracked.id;
+        globalStore.set(this.stateAtom, state);
+        void this.follow(tracked, state);
+    }
+
+    // The answer of an earlier message, read once more by its turn: a newer turn does not change it.
+    private async readToItsEnd(tracked: Tracked): Promise<void> {
+        let reply: ReplyResult = null;
+        try {
+            reply = await this.call(ReplyCommand, { after: tracked.sentAt, index: tracked.turn }, FindTimeoutMs);
+        } catch (e) {
+            console.log("brokk session: his earlier answer could not be read", e);
+        }
+        if (reply?.status === "answer") {
+            this.keepAnswer(tracked, reply, true);
+            return;
+        }
+        this.finish(tracked);
+    }
+
+    private keepAnswer(tracked: Tracked, reply: ReplyResult, final: boolean): void {
+        const markdown = reply.markdown ?? "";
+        const changed = markdown !== tracked.markdown;
+        tracked.markdown = markdown;
+        tracked.turn = reply.index ?? tracked.turn;
+        globalStore.set(this.exchangeAtom, (items) =>
+            withAnswer(items, tracked.id, { markdown, turn: tracked.turn, at: reply.at ?? Date.now(), final })
+        );
+        if (!changed) {
+            return;
+        }
+        this.speaks();
+        if (!this.windowOpen) {
+            globalStore.set(this.unseenIdAtom, tracked.id);
+        }
+    }
+
+    // His agent is done with the message: what was read of its answer will not change.
+    private finish(tracked: Tracked): void {
+        if (tracked.markdown === "") {
+            return;
+        }
+        globalStore.set(this.exchangeAtom, (items) =>
+            withAnswer(items, tracked.id, {
+                markdown: tracked.markdown,
+                turn: tracked.turn,
+                at: Date.now(),
+                final: true,
+            })
+        );
+    }
+
+    // He speaks while his answer comes in and for a short while after it last changed.
+    private speaks(): void {
+        const gen = ++this.speakGen;
+        globalStore.set(this.speakingAtom, true);
+        void this.wait(SpeakingHoldMs).then(() => {
+            if (gen === this.speakGen) {
+                globalStore.set(this.speakingAtom, false);
+            }
+        });
+    }
+
     // Reads his answer until his agent is done with the message, or gives up and points to his terminal.
-    private async follow(gen: number, sentAt: number, state: TalkState): Promise<void> {
+    private async follow(tracked: Tracked, state: TalkState): Promise<void> {
         const hub = BrokkHubModel.getInstance();
         let follow = StartFollow;
         const until = Date.now() + MaxFollowMs;
-        while (gen === this.followGen) {
+        while (!tracked.stopped) {
             await this.wait(FollowEveryMs);
-            if (gen !== this.followGen) {
+            if (tracked.stopped) {
                 return;
             }
             let reply: ReplyResult = null;
             try {
-                reply = await this.call(ReplyCommand, { after: sentAt }, FindTimeoutMs);
+                reply = await this.call(ReplyCommand, { after: tracked.sentAt, index: tracked.turn }, FindTimeoutMs);
             } catch (e) {
                 console.log("brokk session: his answer could not be read", e);
             }
-            if (gen !== this.followGen) {
+            if (tracked.stopped) {
                 return;
             }
             const working = globalStore.get(hub.ownWorkingAtom) === true;
@@ -174,16 +292,25 @@ export class BrokkSession {
                 state = { ...state, phase: "noreply" };
                 step.done = true;
             }
-            globalStore.set(this.stateAtom, state);
+            if (reply?.status === "answer") {
+                this.keepAnswer(tracked, reply, step.done);
+            } else if (step.done) {
+                this.finish(tracked);
+            }
+            if (this.stateOwner === tracked.id) {
+                globalStore.set(this.stateAtom, state);
+            }
             if (step.done) {
+                tracked.stopped = true;
                 return;
             }
         }
     }
 
-    // The developer writes again: the note of the last message goes, his answer with it.
+    // The developer writes again: the note of a failed message goes. An answer that is still coming is not touched.
     clearNote(): void {
-        this.followGen++;
-        globalStore.set(this.stateAtom, IdleTalk);
+        if (this.stateOwner == null) {
+            globalStore.set(this.stateAtom, IdleTalk);
+        }
     }
 }
