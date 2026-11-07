@@ -138,6 +138,20 @@ describe("the sort of the Notifications list", () => {
         expect(rows.map((r) => r.entry.id)).toEqual(["i"]);
     });
 
+    it("tells an agent that finished once: by its notification when it raised one, else by its row", () => {
+        const info = [
+            { key: "done:b1", name: "Olivia", place: "Alpha", workspaceid: "wsA", line: { key: "boss.todo.infoDone" } },
+            { key: "done:b2", name: "Jo", place: "Alpha", workspaceid: "wsA", line: { key: "boss.todo.infoDone" } },
+        ];
+        const told = entry("told", { kind: "success", titlecode: "agentdone", blockid: "b1", source: "agent" });
+        const rows = notes(list([], info), [told]);
+        expect(rows.map((r) => r.key).sort()).toEqual(["entry:told", "finished:done:b2"]);
+        expect(rows.filter((r) => r.source === "finished").map((r) => r.finished.name)).toEqual(["Jo"]);
+        // A notification of that agent that tells something else does not hide its row.
+        const other = entry("other", { blockid: "b1", source: "agent", title: "Question" });
+        expect(notes(list([], info), [other]).filter((r) => r.source === "finished")).toHaveLength(2);
+    });
+
     it("leaves out the archived ones", () => {
         const rows = notes(list([]), [entry("a", { archived: Now }), entry("b")]);
         expect(rows.map((r) => r.entry.id)).toEqual(["b"]);

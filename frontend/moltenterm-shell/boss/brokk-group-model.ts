@@ -250,6 +250,13 @@ export function activePanel(state: PanelState, auto: PanelId, conversation: bool
     return state.hover ?? state.pinned ?? auto;
 }
 
+// A web page tile is a guest view of its own: the window hears nothing from the pointer once it is over one, so a preview
+// that the pointer left for a page would never fold. While a preview shows, a transparent sheet under the group catches
+// the pointer everywhere, and the zone rule above folds it.
+export function holdsHover(state: PanelState): boolean {
+    return state.hover != null;
+}
+
 // A click on an icon pins its panel; a click on the one that shows closes it.
 export function afterClick(state: PanelState, id: ShownPanel, active: ShownPanel): PanelState {
     if (state.pinned === id || active === id) {

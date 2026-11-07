@@ -112,6 +112,11 @@ function TodoRowBody({ row, actions }: { row: NoteRow; actions: BrokkActions }) 
                 data-line={toHandleName(item)}
             >
                 {toHandleHeadline(item)}
+                {item.seen ? (
+                    <span className="ml-1.5 text-11 font-normal text-muted" data-testid="boss-card-todo-seen">
+                        {t("boss.todo.seen")}
+                    </span>
+                ) : null}
             </div>
             <div className="mt-brokk-ra">
                 {buttons.map((action, i) => {
@@ -155,6 +160,31 @@ function TodoRowBody({ row, actions }: { row: NoteRow; actions: BrokkActions }) 
     );
 }
 
+// The × of a notification: it moves it to the archive.
+function ClearButton({ onClear }: { onClear: () => void }) {
+    const t = useT();
+    return (
+        <button
+            type="button"
+            title={t("notif.center.clearOne")}
+            aria-label={t("notif.center.clearOne")}
+            data-testid="notification-clear"
+            onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+            }}
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-11 text-muted hover:bg-hover hover:text-primary"
+        >
+            <i className="fa fa-solid fa-xmark" aria-hidden />
+        </button>
+    );
+}
+
+// A notification with no button of its own has its × on the first line, so that the row is not taller for it.
+export function clearsInline(entry: MoltentermNotification, archived: boolean): boolean {
+    return !archived && displayActions(entry).length === 0;
+}
+
 function EntryRowBody({
     row,
     archived,
@@ -177,6 +207,8 @@ function EntryRowBody({
     const actions = displayActions(entry);
     const anyRunning = actions.some((a) => running[`${entry.id}:${a.id}`]);
     const subject = subjectOf(entry.source);
+    const silenceable = !archived && entry.kind === "info" && subject != null;
+    const clearInline = clearsInline(entry, archived);
     const tone = toneOf(entry.kind);
     const resolved = entry.resolved != null;
     return (
@@ -204,8 +236,7 @@ function EntryRowBody({
                     <InlineCodeText text={notificationMessage(entry)} />
                 </div>
             ) : null}
-            <div className="mt-brokk-rs">{notificationSourceLabel(entry.source)}</div>
-            {actions.length > 0 || !archived ? (
+            {actions.length > 0 || silenceable || (!archived && !clearInline) ? (
                 <div className="mt-brokk-ra">
                     {actions.map((action, i) => (
                         <RowButton
@@ -224,7 +255,7 @@ function EntryRowBody({
                     ))}
                     {!archived ? (
                         <span className="mt-brokk-ra-end">
-                            {entry.kind === "info" && subject != null ? (
+                            {silenceable ? (
                                 <button
                                     type="button"
                                     data-testid="notification-silence"
@@ -240,19 +271,7 @@ function EntryRowBody({
                                     {t("notif.center.silence")}
                                 </button>
                             ) : null}
-                            <button
-                                type="button"
-                                title={t("notif.center.clearOne")}
-                                aria-label={t("notif.center.clearOne")}
-                                data-testid="notification-clear"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onClear();
-                                }}
-                                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-11 text-muted hover:bg-hover hover:text-primary"
-                            >
-                                <i className="fa fa-solid fa-xmark" aria-hidden />
-                            </button>
+                            {clearInline ? null : <ClearButton onClear={onClear} />}
                         </span>
                     ) : null}
                 </div>
@@ -358,8 +377,14 @@ function NoteRowView({
             <div className="mt-brokk-rh">
                 <PriorityMark priority={row.priority} />
                 <WorkspaceTag label={label} onGo={() => goToWorkspace(label)} />
+                {entry != null ? (
+                    <span className="mt-brokk-src" data-testid="notification-source">
+                        {notificationSourceLabel(entry.source)}
+                    </span>
+                ) : null}
                 {row.unread && row.source === "entry" ? <span className="mt-brokk-unread" aria-hidden /> : null}
                 {row.since > 0 ? <span className="mt-brokk-when">{formatAge(row.since, now)}</span> : null}
+                {entry != null && clearsInline(entry, archived) ? <ClearButton onClear={onClear} /> : null}
             </div>
             {handoff ? (
                 <ul className="mt-1 flex flex-col">

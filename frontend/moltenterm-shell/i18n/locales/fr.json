@@ -3013,7 +3013,6 @@
         "label": "{name}, {count} en attente",
         "avatar": {
             "labelCue": "{name}, {count} en attente : a quelque chose à vous dire",
-            "talking": "{name} vous parle",
             "close": "Fermer {name}"
         },
         "group": {
@@ -3058,8 +3057,7 @@
             }
         },
         "menu": {
-            "openCard": "Ouvrir la fiche de {name}",
-            "settings": "Réglages de {name}"
+            "openCard": "Ouvrir la fiche de {name}"
         },
         "visit": {
             "label": "{name} voudrait vous parler ({severity})",
@@ -3080,24 +3078,11 @@
             }
         },
         "card": {
-            "tablist": "Sections du panneau de {name}",
-            "tabs": {
-                "todo": "À traiter",
-                "notifications": "Notifications",
-                "sessions": "Sessions",
-                "downloads": "Téléchargements",
-                "usage": "Usage"
-            },
-            "waiting": {
-                "one": "{count} en attente",
-                "other": "{count} en attente"
-            },
             "goTo": "Aller à",
             "goToName": "Aller à {name}",
             "showIt": "L'afficher",
             "showItName": "Afficher {name} dans un panneau",
             "openSessions": "Ouvrir la vue Sessions",
-            "empty": "Aucune session en cours.",
             "newTerminal": "Nouveau terminal"
         },
         "coming": {
@@ -3111,20 +3096,15 @@
             "severity": "La gravité règle son visage et les délais de « Plus tard », jamais les mots : la scène n'a aucun texte."
         },
         "panel": {
-            "title": "{name}",
-            "ariaLabel": "Panneau de {name} : à traiter, notifications, sessions, téléchargements et usage",
             "menu": "Menu de {name}",
             "menuComing": "Quand {name} vient me chercher…",
             "menuSettings": "Préférences de {name}",
             "menuOff": "Désactiver {name}",
-            "keepAwake": {
-                "details": "Ce qui garde cet ordinateur éveillé"
-            },
             "usage": {
                 "empty": "Aucun usage de forfait à montrer pour l'instant : il apparaît quand un agent partage sa mesure."
             },
             "talk": {
-                "placeholder": "Parler à {name}…",
+                "placeholder": "Écrire à {name}…",
                 "label": "Message pour {name}",
                 "send": "Envoyer",
                 "sending": "En route…",
@@ -3146,12 +3126,10 @@
             }
         },
         "todo": {
-            "empty": "Rien n'attend votre réponse.",
             "parked": {
                 "one": "{count} mise de côté, elle revient à la prochaine ouverture de la fiche",
                 "other": "{count} mises de côté, elles reviennent à la prochaine ouverture de la fiche"
             },
-            "forInfo": "Pour info, rien à faire",
             "infoDone": "A terminé son travail.",
             "agentWaiting": "{name} attend votre accord",
             "agentError": "{name} s'est arrêté sur une erreur",
@@ -3166,9 +3144,7 @@
             "seen": "Vu",
             "later": "Plus tard",
             "ignore": "Ignorer",
-            "others": "Le reste",
             "handoff": {
-                "group": "Mise en relation",
                 "terminal": "Un terminal",
                 "once": "Autoriser une fois",
                 "always": "Toujours pour cette paire",

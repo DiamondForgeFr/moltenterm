@@ -11,6 +11,7 @@ import {
     BlockHeightPx,
     groupGeometry,
     groupPlace,
+    holdsHover,
     HoverCloseMs,
     HoverDeps,
     HoverIntent,
@@ -315,6 +316,15 @@ describe("the hover that previews a panel", () => {
         h.intent.move(s.x, s.y);
         h.advance(HoverOpenMs);
         expect(h.events).toEqual(["agents", "sessions"]);
+    });
+
+    it("holds the pointer under the group only while a preview shows, so that a page tile cannot keep it open", () => {
+        expect(holdsHover(InitialPanels)).toBe(false);
+        expect(holdsHover(afterClick(InitialPanels, "agents", "notifications"))).toBe(false);
+        const previewing = afterHover(InitialPanels, "downloads");
+        expect(holdsHover(previewing)).toBe(true);
+        expect(holdsHover(afterHover(previewing, null))).toBe(false);
+        expect(holdsHover(afterRequest("sessions"))).toBe(false);
     });
 
     it("forgets everything when the group closes", () => {
