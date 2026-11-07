@@ -187,7 +187,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
                 </span>
             ) : null}
             {ownWorking ? <AvatarRing /> : null}
-            {downloadRing != null ? <AvatarDownloadRing ring={downloadRing} /> : null}
+            {downloadRing != null ? <AvatarDownloadRing ring={downloadRing} variant={variant} /> : null}
             {cue ? <AvatarHalo /> : null}
             {badge.count > 0 ? (
                 <span className="mt-brokk-badge" data-tone={badge.tone} data-testid="boss-badge" aria-hidden>

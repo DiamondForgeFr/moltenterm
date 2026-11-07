@@ -29,6 +29,31 @@ export function avatarVariant(place: SidebarPlace): AvatarVariant {
     return place === "edge" ? "edge" : "hanging";
 }
 
+// The rings around the face (AC2, AC34, #2083) are drawn in a 30-unit box that the avatar's size scales: the working ring
+// is an arc at radius 13 with a 2-unit stroke, its box 4 px (row) or 2 px (edge, hanging) outside the face. The strip's
+// face is 20 px (sidebar.css, --mt-edge-face).
+export const RingUnits = 30;
+export const RingStrokeUnits = 2;
+export const EdgeFacePx = 20;
+
+// The working ring's box in px: its inset from the face (CSS: brokk-avatar.css) is 4 px in the row, 2 px elsewhere.
+export function workingRingBoxPx(variant: AvatarVariant): number {
+    if (variant === "row") {
+        return AvatarSizePx + 8;
+    }
+    if (variant === "edge") {
+        return EdgeFacePx + 4;
+    }
+    return HangingSizePx + 4;
+}
+
+// The download ring is concentric with the working ring, outside it, with the same stroke: its centre-line lies 2 px
+// beyond the working ring's outer edge, so the two never sit on each other, whatever the variant (#2083, AC34).
+export function downloadRingRadiusUnits(variant: AvatarVariant): number {
+    const pxPerUnit = workingRingBoxPx(variant) / RingUnits;
+    return RingUnits / 2 + 2 / pxPerUnit;
+}
+
 // Its distance from the window's right edge: off the corner on macOS, where nothing else sits there, and clear of the
 // window controls the other platforms draw over the page at the top right.
 export function hangingRightPx(controlsOnTheLeft: boolean): number {
