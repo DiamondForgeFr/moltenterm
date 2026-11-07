@@ -23,6 +23,7 @@ func notCreated(t *testing.T, f *fixture) {
 }
 
 func TestReadyCreatesTheMissingTicketAndWritesNothingElse(t *testing.T) {
+	t.Parallel()
 	f, e, _ := ticketFixture(t)
 	f.gh.issues = `[]`
 	mainBefore, developBefore := f.originRef(t, "main"), f.originRef(t, "develop")
@@ -48,6 +49,7 @@ func TestReadyCreatesTheMissingTicketAndWritesNothingElse(t *testing.T) {
 }
 
 func TestReadyReportsEveryProblemInOneListBeforeAnythingIsWritten(t *testing.T) {
+	t.Parallel()
 	f, e, _ := ticketFixture(t)
 	f.github = false
 	err := e.Ready(context.Background(), "v1.0.0-2", false)
@@ -67,6 +69,7 @@ func TestReadyReportsEveryProblemInOneListBeforeAnythingIsWritten(t *testing.T) 
 }
 
 func TestPrepareStopsBeforeItWritesWhenTheReleaseIsNotReady(t *testing.T) {
+	t.Parallel()
 	f, e, _ := ticketFixture(t)
 	f.gh.issues = `[]`
 	f.gh.createFails = fmt.Errorf("gh: Resource not accessible by integration")
@@ -81,6 +84,7 @@ func TestPrepareStopsBeforeItWritesWhenTheReleaseIsNotReady(t *testing.T) {
 
 // The stop of v1.0.0-7: the commit format named a ticket and the milestone held none, found at "Commit, tag and push".
 func TestTheCutCreatesTheMissingReleaseTicketBeforeItWrites(t *testing.T) {
+	t.Parallel()
 	f, e, _ := ticketFixture(t)
 	f.gh.issues = `[]`
 	ctx := context.Background()
@@ -101,6 +105,7 @@ func TestTheCutCreatesTheMissingReleaseTicketBeforeItWrites(t *testing.T) {
 }
 
 func TestFinalizeNamesEveryProblemAtOnce(t *testing.T) {
+	t.Parallel()
 	f, e, _ := ticketFixture(t)
 	f.gh.issues = `[{"number":1801,"title":"Release v1.0.0"}]`
 	ctx := context.Background()
@@ -130,6 +135,7 @@ func TestFinalizeNamesEveryProblemAtOnce(t *testing.T) {
 
 // A warning reports, a milestone never blocks (FR-REL-002).
 func TestReadyBlocksOnlyOnWhatGithubOrTheSystemRefuse(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	f := makeFixture(t)
 	mustRun(t, f, "a milestone with open issues", f.env().Ready(ctx, "v1.0.0-1", false))
@@ -168,6 +174,7 @@ func TestReadyBlocksOnlyOnWhatGithubOrTheSystemRefuse(t *testing.T) {
 }
 
 func TestReadyChecksTheTrunkOfAPullRequestFlow(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	mustRun(t, f, "ready --pr", f.env().Ready(context.Background(), "v1.0.0-1", true))
 	if !strings.Contains(f.out.String(), "ok       rc-1.0.0 will be made from develop") {

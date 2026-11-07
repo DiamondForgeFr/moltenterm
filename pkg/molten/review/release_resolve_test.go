@@ -36,6 +36,7 @@ func (f *restartFixture) releaseGh(calls *[]string) {
 
 // #945: Analyze and resolve starts the agent out of sight, in a new copy of the trunk, with the release rules.
 func TestAskReleaseResolveStartsTheAgentOutOfSight(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	var calls []string
 	f.releaseGh(&calls)
@@ -98,6 +99,7 @@ func TestAskReleaseResolveStartsTheAgentOutOfSight(t *testing.T) {
 
 // #945: Investigate together shows the tab, with the failing logs beside the agent.
 func TestAskReleaseResolveTogetherOpensTheLogsBesideTheAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	var calls []string
 	f.releaseGh(&calls)
@@ -120,6 +122,7 @@ func TestAskReleaseResolveTogetherOpensTheLogsBesideTheAgent(t *testing.T) {
 }
 
 func TestAskReleaseResolveChecksTheRequest(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	for name, change := range map[string]func(*ReleaseResolveRequest){
 		"phase":     func(r *ReleaseResolveRequest) { r.Phase = "deploy" },
@@ -147,6 +150,7 @@ func TestAskReleaseResolveChecksTheRequest(t *testing.T) {
 }
 
 func TestAskReleaseResolveWithoutAnAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.installed = map[string]bool{}
 	res, err := f.r.AskReleaseResolve(context.Background(), f.releaseRequest(AgentModeBackground))
@@ -160,6 +164,7 @@ func TestAskReleaseResolveWithoutAnAgent(t *testing.T) {
 
 // #945: once the agent stops, its outcome line reaches the developer; its copy goes with its terminal when clean.
 func TestReleaseFollowReportsTheOutcomeAndCleansUp(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	var calls []string
 	f.releaseGh(&calls)
@@ -209,6 +214,7 @@ func TestReleaseFollowReportsTheOutcomeAndCleansUp(t *testing.T) {
 }
 
 func TestReleaseFollowKeepsACopyWithWork(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	var calls []string
 	f.releaseGh(&calls)

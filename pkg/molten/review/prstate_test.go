@@ -21,6 +21,7 @@ func prStateGh(answer string, calls *[][]string) GhRunner {
 }
 
 func TestPrState(t *testing.T) {
+	t.Parallel()
 	oid := strings.Repeat("d", 40)
 	cases := []struct {
 		name   string
@@ -77,6 +78,7 @@ func TestPrState(t *testing.T) {
 }
 
 func TestPrStateNeedsThePr(t *testing.T) {
+	t.Parallel()
 	var calls [][]string
 	m := MakeMerger(MakeStore(t.TempDir()), prStateGh(`{}`, &calls), nil)
 	if _, err := m.PrState(context.Background(), PrStateRequest{Repo: testRepo}); err == nil {

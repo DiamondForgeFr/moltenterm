@@ -15,6 +15,7 @@ import (
 const gh502 = "gh pr merge 7 --rebase --match-head-commit aaaaaaa: non-200 OK status code: 502 Bad Gateway body: \"\""
 
 func TestGhTransient(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		text      string
 		status    int
@@ -104,6 +105,7 @@ func runMerge(t *testing.T, gh *fakeGh) (MergeRecord, *fakeSleeps) {
 }
 
 func TestMergeRetriesA502ThenMerges(t *testing.T) {
+	t.Parallel()
 	gh := &fakeGh{views: []fakePr{cleanPr()}}
 	mergeErrors(gh, errors.New(gh502), nil)
 	record, sleeps := runMerge(t, gh)
@@ -119,6 +121,7 @@ func TestMergeRetriesA502ThenMerges(t *testing.T) {
 }
 
 func TestMergeStopsAfterTheTriesWhenGithubStaysDown(t *testing.T) {
+	t.Parallel()
 	gh := &fakeGh{views: []fakePr{cleanPr()}}
 	mergeErrors(gh, errors.New(gh502))
 	record, sleeps := runMerge(t, gh)
@@ -134,6 +137,7 @@ func TestMergeStopsAfterTheTriesWhenGithubStaysDown(t *testing.T) {
 }
 
 func TestMergeA4xxIsNotRetried(t *testing.T) {
+	t.Parallel()
 	for _, text := range []string{"HTTP 409: Conflict (mergePullRequest)", "GraphQL: Pull Request is not mergeable (mergePullRequest)"} {
 		gh := &fakeGh{views: []fakePr{cleanPr()}}
 		mergeErrors(gh, errors.New(text))
@@ -149,6 +153,7 @@ func TestMergeA4xxIsNotRetried(t *testing.T) {
 
 // A 502 that came back although GitHub merged: the PR reads merged, so the merge is not sent again.
 func TestMergeA502AfterGithubMergedIsNotSentAgain(t *testing.T) {
+	t.Parallel()
 	gh := &fakeGh{views: []fakePr{cleanPr()}}
 	tries := 0
 	gh.onCall = func(g *fakeGh, args []string) {
@@ -172,6 +177,7 @@ func TestMergeA502AfterGithubMergedIsNotSentAgain(t *testing.T) {
 // The queue: a PR GitHub does not merge (502 on every try) stops as GitHub not answering while the next one merges;
 // tried again alone once GitHub is back, it merges.
 func TestQueueStopsOnAnOutageAndMergesWhenTriedAgain(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	sleeps := &fakeSleeps{}
 	f.merger.sleep = sleeps.sleep
@@ -213,6 +219,7 @@ func TestQueueStopsOnAnOutageAndMergesWhenTriedAgain(t *testing.T) {
 }
 
 func TestBatchStopOnGithubNotAnswering(t *testing.T) {
+	t.Parallel()
 	stop := unavailableStop(batchStop{reason: BatchReasonMergeFailed, code: MergeCodeUnavailable, status: 502, detail: gh502})
 	if stop.reason != BatchReasonUnavailable || stop.status != 502 {
 		t.Fatalf("merge record unavailable: %+v", stop)

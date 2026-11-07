@@ -17,12 +17,6 @@ import (
 
 func npmCliRepository(t *testing.T, extra map[string]string) string {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Setup test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "setup@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Setup test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "setup@example.invalid")
 	base := t.TempDir()
 	dir := filepath.Join(base, "invoice-cli")
 	origin := filepath.Join(base, "github-origin.git")
@@ -67,6 +61,7 @@ func describedOptions(t *testing.T, s *Setup, dir string, edit func(o *Options))
 }
 
 func TestDescribedPipelineProposesThePublishWorkflow(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, nil)
 	s := describeSetup(t, &fakeForge{})
 	ctx := context.Background()
@@ -113,6 +108,7 @@ func TestDescribedPipelineProposesThePublishWorkflow(t *testing.T) {
 }
 
 func TestDescriptionAnswers(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, nil)
 	s := describeSetup(t, &fakeForge{})
 	ctx := context.Background()
@@ -160,6 +156,7 @@ func TestDescriptionAnswers(t *testing.T) {
 }
 
 func TestATargetAlreadyPublishedProposesNoFile(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, map[string]string{".github/workflows/release.yml": "name: Release\non:\n  push:\n    tags: ['v*']\njobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm publish\n"})
 	s := describeSetup(t, &fakeForge{})
 	o := describedOptions(t, s, dir, func(o *Options) { o.Publish = []string{TargetNpm} })
@@ -173,6 +170,7 @@ func TestATargetAlreadyPublishedProposesNoFile(t *testing.T) {
 }
 
 func TestWriteAddsTheProposedWorkflowToThePullRequest(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, nil)
 	forge := &fakeForge{}
 	s := describeSetup(t, forge)
@@ -200,6 +198,7 @@ func TestWriteAddsTheProposedWorkflowToThePullRequest(t *testing.T) {
 }
 
 func TestWriteRefusesOtherProposedFiles(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, map[string]string{".github/workflows/ci.yml": "name: CI\non: [push]\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n"})
 	s := describeSetup(t, &fakeForge{})
 	o := describedOptions(t, s, dir, nil)
@@ -248,6 +247,7 @@ const modelPipeline = `{
 `
 
 func TestAnotherProjectAsAModel(t *testing.T) {
+	t.Parallel()
 	dir := npmCliRepository(t, nil)
 	model := npmCliRepository(t, map[string]string{
 		".github/workflows/publish.yml": "name: Publish\non:\n  push:\n    tags: ['r*']\njobs:\n  npm:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm publish\n",

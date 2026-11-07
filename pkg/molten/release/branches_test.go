@@ -25,6 +25,7 @@ func makeMasterFixture(t *testing.T) *fixture {
 }
 
 func TestPromoteUsesTheHarnessReleaseBranch(t *testing.T) {
+	t.Parallel()
 	f := makeMasterFixture(t)
 	ctx := context.Background()
 	mustFail(t, f, "promote without master", f.env().Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}, DryRun: true}),

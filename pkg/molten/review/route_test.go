@@ -35,6 +35,7 @@ func callAs(l *routeLink, source string, command string, data any) (any, error) 
 // #662: a remote host, a forged window source included, neither reads nor changes a review; a local terminal reads
 // and asks for a handoff, and only a window changes anything.
 func TestRouteCallers(t *testing.T) {
+	t.Parallel()
 	e := routetest.Make(t)
 	link, err := localroute.MakeLink(e.Router, (&routeLink{service: &Service{}}).route())
 	if err != nil {

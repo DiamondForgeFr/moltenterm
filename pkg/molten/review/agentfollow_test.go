@@ -16,6 +16,7 @@ import (
 
 // #758: without Start, Restart work offers to start an agent instead of starting one, and names the agent it would be.
 func TestRestartOffersBeforeStartingAnAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	req := f.request()
@@ -31,6 +32,7 @@ func TestRestartOffersBeforeStartingAnAgent(t *testing.T) {
 
 // #758 AC1: out of sight, the agent gets a hidden tab of its own in the developer's workspace, never the Review tab.
 func TestRestartStartsOutOfSight(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	res := f.restart()
@@ -48,6 +50,7 @@ func TestRestartStartsOutOfSight(t *testing.T) {
 
 // #758 AC2: with the developer, the tab is shown (the window activates it); a rebase's origin names the merge.
 func TestAskRebaseTogetherOpensItsOwnTab(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	req := f.rebaseRequest(true)
 	req.MergedPr = 8
@@ -93,6 +96,7 @@ func (f *restartFixture) commitIn(tree string, name string) {
 
 // AC4: pushed and clean, the terminal closes, the worktree goes, and a notification opens the review.
 func TestFollowCleansUpOncePushedAndClean(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	if !f.r.followStep(context.Background(), follow, st) || len(f.closed) != 0 {
 		t.Fatalf("a working agent is left alone")
@@ -132,6 +136,7 @@ func TestFollowCleansUpOncePushedAndClean(t *testing.T) {
 
 // AC4: with work left, nothing is removed and the notification names it in plain words.
 func TestFollowNamesTheWorkLeft(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	f.r.followStep(context.Background(), follow, st)
 	f.commitIn(follow.tree, "c.txt")
@@ -165,6 +170,7 @@ func TestFollowNamesTheWorkLeft(t *testing.T) {
 
 // AC3: an agent waiting for an answer is told by its own notification; the follow opens nothing and adds nothing.
 func TestFollowLeavesAWaitingAgentToItsNotification(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	f.r.followStep(context.Background(), follow, st)
 	f.setAgent(molten.AgentStateWaiting, 10)
@@ -175,6 +181,7 @@ func TestFollowLeavesAWaitingAgentToItsNotification(t *testing.T) {
 
 // An agent that stopped without pushing, or whose session ended, needs the developer.
 func TestFollowTellsAStopBeforeThePush(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	f.setAgent(molten.AgentStateIdle, 1)
 	f.r.followStep(context.Background(), follow, st)
@@ -199,6 +206,7 @@ func TestFollowTellsAStopBeforeThePush(t *testing.T) {
 
 // A turn short enough to start and end between two reads still counts once the agent says done.
 func TestFollowSeesAShortTurn(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	f.commitIn(follow.tree, "c.txt")
 	f.git(follow.tree, "push", "--quiet", "origin", "feature/9-fix-x")
@@ -212,6 +220,7 @@ func TestFollowSeesAShortTurn(t *testing.T) {
 
 // With the developer (together), a stop is theirs to see: no notification.
 func TestFollowTogetherDoesNotNotifyAStop(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	follow.origin.Mode = AgentModeTogether
 	f.r.followStep(context.Background(), follow, st)
@@ -224,6 +233,7 @@ func TestFollowTogetherDoesNotNotifyAStop(t *testing.T) {
 
 // The developer closed the terminal: the follow ends and what it needed is resolved.
 func TestFollowEndsWithItsTerminal(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	f.gone["new-block"] = true
 	if f.r.followStep(context.Background(), follow, st) || len(f.closed) != 0 || len(f.resolved) != 1 {
@@ -233,6 +243,7 @@ func TestFollowEndsWithItsTerminal(t *testing.T) {
 
 // A worktree MoltenTerm did not make stays, even once the agent finished cleanly.
 func TestFollowKeepsAWorktreeItDidNotMake(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	follow.created = false
 	f.r.followStep(context.Background(), follow, st)
@@ -247,6 +258,7 @@ func TestFollowKeepsAWorktreeItDidNotMake(t *testing.T) {
 
 // A rebase stopped halfway is never clean, whatever the agent's state.
 func TestFollowSeesARebaseStoppedHalfway(t *testing.T) {
+	t.Parallel()
 	f, follow, st := followFixture(t)
 	gitDir := f.git(follow.tree, "rev-parse", "--git-path", "rebase-merge")
 	if !filepath.IsAbs(gitDir) {

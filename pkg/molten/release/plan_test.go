@@ -27,6 +27,7 @@ func makeReleasedFixture(t *testing.T) *fixture {
 }
 
 func TestPlanProposesTheFinishedMilestone(t *testing.T) {
+	t.Parallel()
 	f := makeReleasedFixture(t)
 	f.gh.milestones = board416
 	reports, err := f.env().Plan(context.Background(), []string{"rc", "public"}, "")
@@ -50,6 +51,7 @@ func TestPlanProposesTheFinishedMilestone(t *testing.T) {
 }
 
 func TestPlanWithoutAFinishedMilestoneKeepsTheCommits(t *testing.T) {
+	t.Parallel()
 	f := makeReleasedFixture(t)
 	f.gh.milestones = `[{"number": 8, "title": "v1.1.0", "html_url": "https://m/8", "open_issues": 15}]`
 	reports, err := f.env().Plan(context.Background(), []string{"public"}, "")
@@ -81,6 +83,7 @@ func TestPlanWithoutAFinishedMilestoneKeepsTheCommits(t *testing.T) {
 }
 
 func TestFinishedMilestonePicksTheNextDeclaredRelease(t *testing.T) {
+	t.Parallel()
 	f := makeReleasedFixture(t)
 	f.gh.milestones = `[
         {"number": 9, "title": "v1.2.0", "html_url": "https://m/9", "open_issues": 0},

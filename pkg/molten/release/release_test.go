@@ -226,15 +226,6 @@ func readFile(t *testing.T, path string) string {
 
 func makeFixture(t *testing.T) *fixture {
 	t.Helper()
-	// Nothing of the developer's git configuration (signing, hooks, aliases) may change what the chain does.
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Release test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "release@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Release test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "release@example.invalid")
-	t.Setenv(NotesAgentEnv, "")
-	t.Setenv(NotesAiEnv, "")
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -323,6 +314,7 @@ func cutRelease(t *testing.T, f *fixture, tag string) {
 }
 
 func TestReleaseChainEndToEnd(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	e := f.env()
@@ -430,6 +422,7 @@ func TestReleaseChainEndToEnd(t *testing.T) {
 }
 
 func TestPromoteRefusesWhatTheTrunkLacks(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	f.commitOnDevelop(t, "feat(#2): a feature")
@@ -454,6 +447,7 @@ func carryBack(t *testing.T, f *fixture, tag string) {
 // commit, so git conflicts on package.json although main holds nothing develop lacks (v1.0.0-9). The first release
 // commit is reachable from both branches' merge: only a commit-by-commit comparison still finds its equivalent.
 func TestPromoteKeepsTheTrunkWhenTheConflictLosesNothing(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	f.commitOnDevelop(t, "feat(#2): a feature")
@@ -493,6 +487,7 @@ func TestPromoteKeepsTheTrunkWhenTheConflictLosesNothing(t *testing.T) {
 }
 
 func TestPromoteRefusesAConflictThatLosesACommit(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	gitIn(t, f.checkout, "checkout", "--quiet", "-B", "hotfix", "origin/main")
 	path := filepath.Join(f.checkout, "app.txt")
@@ -513,6 +508,7 @@ func TestPromoteRefusesAConflictThatLosesACommit(t *testing.T) {
 
 // A second candidate cut before the first one's sync-back is merged would conflict when carried back.
 func TestPrepareWaitsForTheLastReleaseToBeCarriedBack(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	f.commitOnDevelop(t, "feat(#2): a feature")
@@ -532,6 +528,7 @@ func TestPrepareWaitsForTheLastReleaseToBeCarriedBack(t *testing.T) {
 }
 
 func TestCloseMilestoneLeavesALineMilestoneOpen(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	f.out.Reset()
 	mustRun(t, f, "close-milestone of 1.0.1", f.env().CloseMilestone(context.Background(), "v1.0.1"))
@@ -541,6 +538,7 @@ func TestCloseMilestoneLeavesALineMilestoneOpen(t *testing.T) {
 }
 
 func TestPromoteRequiresGreenCi(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	f.commitOnDevelop(t, "feat(#2): a feature")
@@ -565,6 +563,7 @@ func TestPromoteRequiresGreenCi(t *testing.T) {
 }
 
 func TestPromoteDryRunAndOffGithub(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	f.commitOnDevelop(t, "feat(#2): a feature")
@@ -587,6 +586,7 @@ func TestPromoteDryRunAndOffGithub(t *testing.T) {
 }
 
 func TestPrepareRefusesWrongNumbers(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	e := f.env()
@@ -616,6 +616,7 @@ func TestPrepareRefusesWrongNumbers(t *testing.T) {
 }
 
 func TestFinalizeChecksThePreparedTree(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	e := f.env()
@@ -659,6 +660,7 @@ func (f *fixture) tagOnOrigin(t *testing.T, tag string) bool {
 }
 
 func TestFinalizeRetriesAfterARefusedPush(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	e := f.env()
@@ -688,6 +690,7 @@ func TestFinalizeRetriesAfterARefusedPush(t *testing.T) {
 }
 
 func TestSyncBackReusesAnOpenPullRequest(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	f.commitOnDevelop(t, "feat(#2): a feature")
@@ -710,6 +713,7 @@ func fakeClock(e *Env) {
 }
 
 func TestCloseMilestoneWithoutRelease(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	f.gh.noRelease = true
 	e := f.env()
@@ -720,6 +724,7 @@ func TestCloseMilestoneWithoutRelease(t *testing.T) {
 // close-milestone waits for the tag's runs, an environment approval included, and closes nothing when one fails
 // (#1046).
 func TestCloseMilestoneWaitsForThePublication(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	f.gh.noRelease = true
 	states := []string{`"waiting",""`, `"in_progress",""`, `"completed","success"`}
@@ -745,6 +750,7 @@ func TestCloseMilestoneWaitsForThePublication(t *testing.T) {
 }
 
 func TestPlanReportsTheMilestone(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	f.commitOnDevelop(t, "feat(#2): a feature")
 	reports, err := f.env().Plan(context.Background(), []string{"rc", "public"}, "")
@@ -763,6 +769,7 @@ func TestPlanReportsTheMilestone(t *testing.T) {
 }
 
 func TestReleaseWorktreeIsBesideTheMainCheckout(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	other := filepath.Join(f.base, "elsewhere", "task")
@@ -777,6 +784,7 @@ func TestReleaseWorktreeIsBesideTheMainCheckout(t *testing.T) {
 }
 
 func TestLockRefusesASecondStep(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	e := f.env()

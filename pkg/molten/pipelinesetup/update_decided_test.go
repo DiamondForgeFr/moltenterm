@@ -67,12 +67,6 @@ func testdataText(t *testing.T, name string) string {
 // moltenTermRepository: develop and main, main unprotected, the pipeline as it was before #1786 on both.
 func moltenTermRepository(t *testing.T) string {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Setup test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "setup@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Setup test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "setup@example.invalid")
 	base := t.TempDir()
 	dir := filepath.Join(base, "moltenterm")
 	origin := filepath.Join(base, "github-origin.git")
@@ -134,6 +128,7 @@ func reasonCodes(reasons []UpdateReason) string {
 }
 
 func TestUpdateRemembersTheStepsTheAgentKept(t *testing.T) {
+	t.Parallel()
 	dir := moltenTermRepository(t)
 	s := MakeSetup(moltenTermForge(t), nil)
 	s.TreesDir = t.TempDir()
@@ -180,6 +175,7 @@ func moltenTermRecord1786() Record {
 }
 
 func TestCheckOnMoltenTermsSetupAfter1786(t *testing.T) {
+	t.Parallel()
 	dir := moltenTermRepository(t)
 	commitPipeline(t, dir, testdataText(t, "moltenterm-1786.json"))
 	rec := moltenTermRecord1786()

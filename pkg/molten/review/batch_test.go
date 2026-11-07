@@ -668,6 +668,7 @@ func itemOf(run BatchRun, number int) BatchItem {
 }
 
 func TestBatchMergesCleanPrsWithoutARebase(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	f.start(1, 2, 4)
 	run := f.waitEnd()
@@ -687,6 +688,7 @@ func TestBatchMergesCleanPrsWithoutARebase(t *testing.T) {
 }
 
 func TestBatchRebasesAConflictingPrAndMergesItOnceItsChecksPass(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	f.start(2, 3)
 	run := f.waitEnd()
@@ -724,6 +726,7 @@ func TestBatchRebasesAConflictingPrAndMergesItOnceItsChecksPass(t *testing.T) {
 
 // #887 AC1: sync-review ran on #3's first head only; its rebased head never shows it, and #3 still merges.
 func TestBatchDoesNotWaitForACheckThePushNeverReruns(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[3].syncReview = true })
 	f.start(2, 3)
 	run := f.waitEnd()
@@ -738,6 +741,7 @@ func TestBatchDoesNotWaitForACheckThePushNeverReruns(t *testing.T) {
 // #887 AC2: the gate job of #3's CI workflow is created on the rebased head after its other job passed; the batch waits
 // for it, though the settle time after the rebase is long over.
 func TestBatchWaitsForAJobOfAWorkflowRunningOnTheNewHead(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) {
 		prs[3].lateGate = true
 		prs[3].syncReview = true
@@ -755,6 +759,7 @@ func TestBatchWaitsForAJobOfAWorkflowRunningOnTheNewHead(t *testing.T) {
 // #887: right after the rebase GitHub shows no check on the new head yet; within the settle time every check of the old
 // head is expected, so #3 is not merged before its CI ran.
 func TestBatchExpectsTheOldChecksWhileThePushSettles(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[3].slowStart = true })
 	f.runner.env.ChecksSettle = time.Hour
 	f.start(2, 3)
@@ -768,6 +773,7 @@ func TestBatchExpectsTheOldChecksWhileThePushSettles(t *testing.T) {
 }
 
 func TestMissingChecks(t *testing.T) {
+	t.Parallel()
 	ci := mission.ReviewCheck{Name: "Backend", Workflow: "CI", State: mission.ReviewCheckSuccess}
 	gate := mission.ReviewCheck{Name: "Required gate", Workflow: "CI", State: mission.ReviewCheckSuccess}
 	sync := mission.ReviewCheck{Name: "sync-review", Workflow: "PR review sync", State: mission.ReviewCheckSuccess}
@@ -793,6 +799,7 @@ func TestMissingChecks(t *testing.T) {
 // TC-REV-019, FR-REV-026 AC4: #3's checks fail after its rebase; it is set aside with its notification and #1 after it
 // is merged all the same. Nothing red is merged.
 func TestQueueFailingCheckStopsOnlyThatPr(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[3].failAfterPush = true })
 	f.start(2, 3, 1)
 	run := f.waitFor("#1 merged after #3 failed", func(run BatchRun) bool { return itemOf(run, 1).State == BatchItemMerged })
@@ -831,6 +838,7 @@ func TestQueueFailingCheckStopsOnlyThatPr(t *testing.T) {
 // A failed PR whose checks are rerun green on the same head (a flaky job rerun by the agent, #896) merges without a new
 // validation.
 func TestQueueFailedPrComesBackWhenItsChecksPassAgain(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[4].failing = true })
 	f.start(4)
 	f.waitFor("#4 failed", func(run BatchRun) bool { return itemOf(run, 4).State == BatchItemFailed })
@@ -846,6 +854,7 @@ func TestQueueFailedPrComesBackWhenItsChecksPassAgain(t *testing.T) {
 
 // FR-REV-026 AC1, AC3: Validate on a PR whose checks run queues it; it merges once they pass, with no time limit.
 func TestQueueValidateWhileCiRunsMergesOnceGreen(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	plan, err := f.merger.Plan(context.Background(), MergePlanRequest{PrKey: PrKey{Repo: testRepo, Number: 1}, Dir: f.dir})
 	if err != nil {
@@ -873,6 +882,7 @@ func TestQueueValidateWhileCiRunsMergesOnceGreen(t *testing.T) {
 
 // Developer decision 2026-10-17 (AC10): with review:validategreenonly on, Validate stays blocked while checks run.
 func TestQueueGreenOnlySettingKeepsValidateBlocked(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	f.merger.greenOnly = func() bool { return true }
 	plan, err := f.merger.Plan(context.Background(), MergePlanRequest{PrKey: PrKey{Repo: testRepo, Number: 1}, Dir: f.dir})
@@ -898,6 +908,7 @@ func TestQueueGreenOnlySettingKeepsValidateBlocked(t *testing.T) {
 // FR-REV-026 AC2: two PRs validated in the reverse of the suggested order merge in the suggested order; the first one
 // validated only waited for its checks and gives its turn back.
 func TestQueueMergesInTheSuggestedOrder(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) {
 		prs[4].pendingForever = true
 		prs[1].pendingForever = true
@@ -925,6 +936,7 @@ func TestQueueMergesInTheSuggestedOrder(t *testing.T) {
 
 // FR-REV-026 AC5: a push the queue did not make voids the validation: the PR leaves the queue, never merged.
 func TestQueuePushBySomeoneElseVoidsTheValidation(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	if _, err := f.validate(1); err != nil {
 		t.Fatal(err)
@@ -944,6 +956,7 @@ func TestQueuePushBySomeoneElseVoidsTheValidation(t *testing.T) {
 
 // FR-REV-026 AC7: Cancel validation withdraws a PR before its merge; the others go on.
 func TestQueueCancelValidationBeforeTheMerge(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	f.start(1, 4)
 	f.waitFor("#1 waiting for its checks", func(run BatchRun) bool { return itemOf(run, 1).State == BatchItemWaitingChecks })
@@ -964,6 +977,7 @@ func TestQueueCancelValidationBeforeTheMerge(t *testing.T) {
 
 // TC-REV-020: Cancel while the first PR waits for its checks ends the queue; nothing is merged.
 func TestBatchCancelWhileWaitingForChecks(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	f.start(1, 4)
 	run := f.waitFor("#1 waiting for its checks", func(run BatchRun) bool {
@@ -989,6 +1003,7 @@ func TestBatchCancelWhileWaitingForChecks(t *testing.T) {
 
 // An ambiguous conflict takes its PR out of the queue for the developer; the PR after it is still rebased and merged.
 func TestBatchStopsOnAnAmbiguousConflict(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	f.agent.ambiguous[5] = true
 	f.start(2, 5, 3)
@@ -1012,6 +1027,7 @@ func TestBatchStopsOnAnAmbiguousConflict(t *testing.T) {
 
 // An agent that does not start stops its PR; its empty terminal goes, and validating it again starts a new one.
 func TestQueueAgentStartFails(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	f.agent.failStarts = 1
 	f.start(2, 3)
@@ -1033,6 +1049,7 @@ func TestQueueAgentStartFails(t *testing.T) {
 }
 
 func TestBatchSkipsAPrMergedElsewhere(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].state = "MERGED" })
 	f.start(1, 4)
 	run := f.waitEnd()
@@ -1045,6 +1062,7 @@ func TestBatchSkipsAPrMergedElsewhere(t *testing.T) {
 }
 
 func TestQueueAddChecks(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	if _, err := f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", WorkspaceId: "ws"}); err == nil {
 		t.Fatalf("an empty batch should be refused")
@@ -1068,6 +1086,7 @@ func TestQueueAddChecks(t *testing.T) {
 
 // FR-REV-026 AC2: a queue kept as running when wavesrv stopped resumes when it starts again, and says so.
 func TestQueueResumesAfterARestart(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	f.start(1)
 	done := f.waitEnd()
@@ -1100,6 +1119,7 @@ func TestQueueResumesAfterARestart(t *testing.T) {
 }
 
 func TestReorderKeepsStartedPrsInPlace(t *testing.T) {
+	t.Parallel()
 	items := []BatchItem{
 		{BatchPr: BatchPr{Number: 1}, State: BatchItemMerged},
 		{BatchPr: BatchPr{Number: 2}, State: BatchItemWaitingChecks},
@@ -1118,6 +1138,7 @@ func TestReorderKeepsStartedPrsInPlace(t *testing.T) {
 }
 
 func TestQueueableWaitsOnlyForTheCi(t *testing.T) {
+	t.Parallel()
 	pending := MergeCheck{Id: CheckIdCi, State: CheckPending}
 	cases := []struct {
 		checks []MergeCheck
@@ -1139,6 +1160,7 @@ func TestQueueableWaitsOnlyForTheCi(t *testing.T) {
 }
 
 func TestBatchReasonsAreWorded(t *testing.T) {
+	t.Parallel()
 	for _, reason := range []string{BatchReasonFailing, BatchReasonAmbiguous, BatchReasonConflict, BatchReasonAgentExited,
 		BatchReasonAgentTimeout, BatchReasonNoAgent, BatchReasonAgentStart, BatchReasonBlocked, BatchReasonWarnings,
 		BatchReasonCiTimeout, BatchReasonUnknown, BatchReasonMergeFailed, BatchReasonRead, BatchReasonHeadMoved,
