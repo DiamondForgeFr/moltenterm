@@ -639,7 +639,14 @@ test("the network reads are retried, paged and authenticated, and a read that ke
                     },
                 ],
             });
-        const respond = (body) => ({ ok: true, status: 200, json: async () => body });
+        const respond = (body, link = "") => ({
+            ok: true,
+            status: 200,
+            json: async () => body,
+            headers: { get: (name) => (name === "link" ? link : null) },
+        });
+        const advisoriesUrl = "https://api.github.com/repos/electron/electron/security-advisories?per_page=100";
+        const cursor = "https://api.github.com/repositories/9384267/security-advisories?per_page=100&after=Y3Vyc29y";
         globalThis.fetch = async (url, init) => {
             seen.push({ url, authorization: init.headers.Authorization });
             calls++;
@@ -649,11 +656,12 @@ test("the network reads are retried, paged and authenticated, and a read that ke
             if (url.startsWith("https://releases.electronjs.org/")) {
                 return respond(feedJson());
             }
-            return respond(
-                url.endsWith("page=1")
-                    ? Array.from({ length: 100 }, (_, index) => other(index))
-                    : [advisoryJson({ severity: "critical" })]
-            );
+            return url === cursor
+                ? respond([advisoryJson({ severity: "critical" })])
+                : respond(
+                      Array.from({ length: 100 }, (_, index) => other(index)),
+                      `<${cursor}>; rel="next", <${advisoriesUrl}&before=Zmlyc3Q>; rel="prev"`
+                  );
         };
         const lines = [];
         assert.equal(
@@ -668,11 +676,8 @@ test("the network reads are retried, paged and authenticated, and a read that ke
         );
         assert.deepEqual(
             urls.slice(2),
-            [
-                "https://api.github.com/repos/electron/electron/security-advisories?per_page=100&page=1",
-                "https://api.github.com/repos/electron/electron/security-advisories?per_page=100&page=2",
-            ],
-            "a full page asks for the next"
+            [advisoriesUrl, cursor],
+            "the list is followed by its next link, not a page number"
         );
         assert.deepEqual(
             seen.map((entry) => entry.authorization),
@@ -693,6 +698,18 @@ test("the network reads are retried, paged and authenticated, and a read that ke
                 : { ok: false, status: 403, json: async () => ({}) };
         assert.equal(await main(args, {}, quiet), 2, "advisories that cannot be read are not 'no advisory'");
         assert.match(messages.join("\n"), /security-advisories.*HTTP 403/);
+
+        messages.length = 0;
+        const asked = [];
+        globalThis.fetch = async (url) => {
+            asked.push(url);
+            return url.startsWith("https://releases.electronjs.org/")
+                ? respond(feedJson())
+                : respond([], '<https://evil.example/collect?per_page=100>; rel="next"');
+        };
+        assert.equal(await main(args, { GH_TOKEN: "token-from-env" }, quiet), 2, "a link to another host is refused");
+        assert.match(messages.join("\n"), /unexpected address: https:\/\/evil\.example/);
+        assert.ok(!asked.some((url) => url.includes("evil.example")), "the token never goes there");
     } finally {
         globalThis.fetch = realFetch;
         console.error = realError;
