@@ -13,6 +13,7 @@ import (
 // #1756: a sub-agent signs with its own model (or "subagent" when unknown) under its lead's first name and CLI, so the
 // owner the signature names (#1779) is still the lead.
 func TestSubagentSignatureStillNamesTheLead(t *testing.T) {
+	t.Parallel()
 	for _, sig := range []agentsign.Signature{
 		{FirstName: "Arthur", Agent: "Claude Code", Model: "Sonnet 5.5", Effort: "xhigh"},
 		{FirstName: "Arthur", Agent: "Claude Code", Model: "subagent"},

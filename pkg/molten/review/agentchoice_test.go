@@ -25,6 +25,7 @@ func (f *restartFixture) choose(global string, project string) {
 // #845 AC1: pickAgent honours the project's choice, then the global default, then the order (with the review
 // session's agent when nothing was chosen).
 func TestPickAgentHonoursTheChoice(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	req := f.request()
 	cases := []struct {
@@ -53,6 +54,7 @@ func TestPickAgentHonoursTheChoice(t *testing.T) {
 // #845 AC1: a chosen agent that is not installed is reported, never replaced: the offer says so and lists the
 // installed agents, and a start starts nothing.
 func TestMissingChosenAgentIsReported(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	f.installed[molten.AgentIdCodex] = false
@@ -85,6 +87,7 @@ func (f *restartFixture) batchStopsOnTheMissingAgent(t *testing.T) {
 
 // #845 AC3 (Go side): the dialog's pick for one run starts that agent, whatever the project chose.
 func TestRunPickStartsThatAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.choose("", molten.AgentIdCodex)
 	req := f.investigateRequest(true)
@@ -110,6 +113,7 @@ func TestRunPickStartsThatAgent(t *testing.T) {
 
 // #845: an agent already on the branch keeps the work; the result names the chosen one when it differs.
 func TestReusedAgentNamesTheChosenOne(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.choose(molten.AgentIdCodex, "")
 	tree := f.agentTreeOnBranch()

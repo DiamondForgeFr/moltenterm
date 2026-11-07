@@ -32,6 +32,7 @@ func mergeCall(t *testing.T, gh *fakeGh) string {
 
 // AC1: a repository that allows one method gets only that one, and the merge uses it.
 func TestMergeUsesTheOnlyAllowedMethod(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	for _, method := range allMergeMethods {
 		t.Run(method, func(t *testing.T) {
@@ -62,6 +63,7 @@ func TestMergeUsesTheOnlyAllowedMethod(t *testing.T) {
 
 // AC2: the last method used for the repository is the next default; a method the plan does not offer is refused.
 func TestMergeRemembersTheLastMethod(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	gh := &fakeGh{views: []fakePr{cleanPr()}, repo: allAllowed}
 	m, dir, _ := testMerger(t, gh)
@@ -108,6 +110,7 @@ func TestMergeRemembersTheLastMethod(t *testing.T) {
 
 // AC2: a branch behind its base is rebased for a rebase merge and takes a merge of the base otherwise.
 func TestMergeUpdateFollowsTheMethod(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	for method, want := range map[string]string{
 		MergeMethodRebase: "pr update-branch 7 --rebase --repo " + testRepo,
@@ -143,6 +146,7 @@ func TestMergeUpdateFollowsTheMethod(t *testing.T) {
 }
 
 func TestChooseMethods(t *testing.T) {
+	t.Parallel()
 	all := repoMethods{methods: allMergeMethods}
 	cases := []struct {
 		name    string
@@ -177,6 +181,7 @@ func TestChooseMethods(t *testing.T) {
 
 // What GitHub said is kept for the session; a failed read is not, and a refused merge drops it.
 func TestMergeMethodsAreCached(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	gh := &fakeGh{views: []fakePr{cleanPr()}, repoErr: errors.New("HTTP 404")}
 	m, dir, _ := testMerger(t, gh)
@@ -217,6 +222,7 @@ func TestMergeMethodsAreCached(t *testing.T) {
 
 // A merge queue sets the method and brings the branch up to date itself; Validate waits until it merged.
 func TestMergeQueue(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	behind := cleanPr()
 	behind.MergeState = "BEHIND"
@@ -259,6 +265,7 @@ func TestMergeQueue(t *testing.T) {
 
 // A PR that leaves the queue closed, or with new commits, ends the wait.
 func TestMergeQueueEnds(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	closed := cleanPr()
 	closed.State = "CLOSED"

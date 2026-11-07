@@ -14,6 +14,7 @@ import (
 )
 
 func TestDraftNotes(t *testing.T) {
+	t.Parallel()
 	notes := DraftNotes(NotesFacts{Subjects: []string{
 		"feat(#12): show the milestone in the release menu",
 		"fix(#13): a crash when the folder is gone (#13)",
@@ -45,6 +46,7 @@ func TestDraftNotes(t *testing.T) {
 }
 
 func TestGithubRepoPinsEveryGhCall(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"https://github.com/DiamondForgeFr/moltenterm.git": "DiamondForgeFr/moltenterm",
 		"https://github.com/acme/app":                      "acme/app",
@@ -74,6 +76,7 @@ func TestGithubRepoPinsEveryGhCall(t *testing.T) {
 }
 
 func TestCiVerdict(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		runs []CiRun
 		want string
@@ -93,6 +96,7 @@ func TestCiVerdict(t *testing.T) {
 }
 
 func TestPickMilestone(t *testing.T) {
+	t.Parallel()
 	list := []githubMilestone{{Number: 1, Title: "Later"}, {Number: 2, Title: "v1"}, {Number: 3, Title: "Milestone v1.2.0"}}
 	if m := pickMilestone(list, "1.2.0"); m == nil || m.Number != 3 {
 		t.Fatalf("exact title: %+v", m)
@@ -111,6 +115,7 @@ func TestPickMilestone(t *testing.T) {
 // MoltenTerm's own pipeline declares its releases with the generic commands, a phase on every step and a confirm on
 // the cut, so that Mission Control runs them as the release contract says.
 func TestMoltentermReleaseSteps(t *testing.T) {
+	t.Parallel()
 	_, file, _, _ := runtime.Caller(0)
 	root := filepath.Join(filepath.Dir(file), "..", "..", "..")
 	report := molten.ValidatePipeline(root)

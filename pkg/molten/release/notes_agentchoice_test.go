@@ -16,6 +16,7 @@ import (
 // #845: without versions.notesagent, the notes are written by the project's coding agent in its non-interactive form;
 // a chosen agent that is not installed is said, and the notes come from the commit subjects.
 func TestNotesAgentFollowsTheProjectsCodingAgent(t *testing.T) {
+	serialTest(t, "sets the variables of the notes agent and of the chosen coding agent in the process environment")
 	ctx := context.Background()
 	for _, k := range []string{NotesAiEnv, NotesAgentEnv, agentchoice.EnvVar, agentchoice.MissingEnvVar} {
 		t.Setenv(k, "")

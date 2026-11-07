@@ -101,6 +101,10 @@ type stallRun struct {
 	linkDelay  time.Duration
 	dropRate   float64
 	deadline   time.Duration
+	// clockScale makes the manager's clock run that many times faster than the real one, so that the stall timeout
+	// elapses in a fraction of the time; 0 keeps the real clock. A resend that comes early is harmless: the reader
+	// keeps only the bytes that overlap nothing it holds.
+	clockScale int
 }
 
 // runStallScenario streams totalBytes from a fake PTY (continuous frames) through a StreamManager and a stream
@@ -118,6 +122,10 @@ func runStallScenario(cfg stallRun) error {
 	reader, meta := readerBroker.CreateStreamReader("reader", "writer", CwndSize)
 	sm := MakeStreamManager()
 	defer sm.Close()
+	if cfg.clockScale > 1 {
+		start := time.Now()
+		useClock(sm, func() time.Time { return start.Add(time.Duration(cfg.clockScale) * time.Since(start)) })
+	}
 	if err := writerBroker.AttachStreamWriter(meta, sm); err != nil {
 		return err
 	}
@@ -197,7 +205,10 @@ func smState(sm *StreamManager) string {
 	return fmt.Sprintf("sentNotAcked=%d rwnd=%d bufsize=%d maxAckedSeq=%d maxAckedRwnd=%d", sm.sentNotAcked, sm.rwndSize, sm.buf.Size(), sm.maxAckedSeq, sm.maxAckedRwnd)
 }
 
+// The runs are independent streams (#2022): they run side by side, each with its own managers, brokers and links. A
+// deadline only bounds a failing run, so it is generous for a machine that runs them all at once.
 func TestStreamNeverStallsWhileConsumerAway(t *testing.T) {
+	t.Parallel()
 	runs := 40
 	if testing.Short() {
 		runs = 5
@@ -211,17 +222,24 @@ func TestStreamNeverStallsWhileConsumerAway(t *testing.T) {
 			hideEvery:  3 + i%7,
 			hideFor:    time.Duration(5+i%40) * time.Millisecond,
 			linkDelay:  time.Duration(i%4) * time.Millisecond,
-			deadline:   20 * time.Second,
+			deadline:   time.Minute,
 		}
-		if err := runStallScenario(cfg); err != nil {
-			t.Fatalf("run %d (seed %d, reorder %v): %v", i, cfg.seed, cfg.reorder, err)
-		}
+		t.Run(fmt.Sprintf("run %d", i), func(t *testing.T) {
+			t.Parallel()
+			if err := runStallScenario(cfg); err != nil {
+				t.Fatalf("run %d (seed %d, reorder %v): %v", i, cfg.seed, cfg.reorder, err)
+			}
+		})
 	}
 }
 
 // MOLTENTERM-PATCH (#308): a dropped packet or ACK used to wedge the stream for good (the consumer never saw
 // another byte, the program blocked on its PTY write). The stream now resends after StallTimeout.
+//
+// The manager's clock runs ten times faster than the real one (#2022): the 3 s of the stall timeout are 300 ms, and a
+// stalled run is resent at the loop's next check instead of seconds later.
 func TestStreamRecoversFromDroppedMessages(t *testing.T) {
+	t.Parallel()
 	runs := 4
 	if testing.Short() {
 		runs = 1
@@ -237,9 +255,13 @@ func TestStreamRecoversFromDroppedMessages(t *testing.T) {
 			linkDelay:  time.Millisecond,
 			dropRate:   0.02,
 			deadline:   60 * time.Second,
+			clockScale: 10,
 		}
-		if err := runStallScenario(cfg); err != nil {
-			t.Fatalf("run %d (seed %d, reorder %v): %v", i, cfg.seed, cfg.reorder, err)
-		}
+		t.Run(fmt.Sprintf("run %d", i), func(t *testing.T) {
+			t.Parallel()
+			if err := runStallScenario(cfg); err != nil {
+				t.Fatalf("run %d (seed %d, reorder %v): %v", i, cfg.seed, cfg.reorder, err)
+			}
+		})
 	}
 }

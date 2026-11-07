@@ -41,6 +41,7 @@ func checkInvestigatePrompt(t *testing.T, line string, briefPath string) {
 
 // #797 AC2: Investigate reaches the agent on the branch with the failed checks' brief.
 func TestAskInvestigateReachesTheAgentOnTheBranch(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
@@ -77,6 +78,7 @@ func TestAskInvestigateReachesTheAgentOnTheBranch(t *testing.T) {
 
 // #896: a new outcome line is written for each run; the last run's must not end the next one.
 func TestInvestigateBriefDropsTheLastOutcome(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
@@ -162,6 +164,7 @@ func investigateFollow(t *testing.T) (*restartFixture, agentFollow, *followState
 
 // #896 AC4: agent stopped and PR red → not green, then needs you; PR green on the pushed head → green.
 func TestInvestigationIsGreenOnlyWhenTheChecksPass(t *testing.T) {
+	t.Parallel()
 	f, follow, st, ci := investigateFollow(t)
 	f.r.followAgent(follow, "")
 	if ci.lastHold() != "new-block working agentHold.fixing" {
@@ -231,6 +234,7 @@ func TestInvestigationIsGreenOnlyWhenTheChecksPass(t *testing.T) {
 
 // #896 AC4: the agent asks (a waiting hook, or an outcome line starting with "needs you:") → needs you.
 func TestInvestigationThatAsksNeedsYou(t *testing.T) {
+	t.Parallel()
 	f, follow, st, ci := investigateFollow(t)
 	f.r.followAgent(follow, "")
 	f.setAgent(molten.AgentStateWaiting, 10)
@@ -251,6 +255,7 @@ func TestInvestigationThatAsksNeedsYou(t *testing.T) {
 
 // #1876: once the lead or the developer settled the stop, its notification goes and the same reason raises none again.
 func TestASettledStopRaisesNoNotification(t *testing.T) {
+	t.Parallel()
 	f, follow, st, ci := investigateFollow(t)
 	settled := false
 	f.r.env.StopSettled = func(blockId string) bool { return settled && blockId == "new-block" }
@@ -290,6 +295,7 @@ func TestASettledStopRaisesNoNotification(t *testing.T) {
 
 // #896: work left in the copy, a push GitHub has not picked up, no required check, a PR merged meanwhile.
 func TestInvestigationReadsTheTreeAndThePr(t *testing.T) {
+	t.Parallel()
 	f, follow, st, ci := investigateFollow(t)
 	f.write(follow.tree, "half.txt", "x\n")
 	f.setAgent(molten.AgentStateDone, 10)
@@ -320,6 +326,7 @@ func TestInvestigationReadsTheTreeAndThePr(t *testing.T) {
 }
 
 func TestFoldChecks(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		checks []ghCheckBucket
 		want   string
@@ -344,6 +351,7 @@ func TestFoldChecks(t *testing.T) {
 
 // #797 AC2: no agent on the branch, the window offers; confirmed, an agent starts with the brief, marked investigate.
 func TestAskInvestigateOffersThenStarts(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	res, err := f.r.AskInvestigate(context.Background(), f.investigateRequest(false))
 	if err != nil || res.Status != RebaseOffer || len(f.opened) != 0 || len(f.typed) != 0 {
@@ -367,6 +375,7 @@ func TestAskInvestigateOffersThenStarts(t *testing.T) {
 
 // A job's name comes from the PR's workflow files: it reaches the prompt on one short line.
 func TestAskInvestigateCleansTheChecks(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
@@ -386,6 +395,7 @@ func TestAskInvestigateCleansTheChecks(t *testing.T) {
 }
 
 func TestAskInvestigateNeedsTheChecks(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	req := f.investigateRequest(false)
 	req.Checks = nil
@@ -409,6 +419,7 @@ func TestAskInvestigateNeedsTheChecks(t *testing.T) {
 
 // #1108: the agent's line names the number its Reviews card shows: the ticket, from the request or the branch, else the PR.
 func TestHoldNumberIsTheCardNumber(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		req  RestartRequest
 		want string

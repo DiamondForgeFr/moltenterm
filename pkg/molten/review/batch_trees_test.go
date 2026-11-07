@@ -94,6 +94,7 @@ func (f *treeFixture) workKept(tree string, heads []string) string {
 // The gold's case: the agent pushed the PR's rebased head, GitHub squash-merged it and deleted the branch, and a
 // fetch --prune dropped it from refs/remotes. The head the queue pushed is safe; an unknown one is not.
 func TestBatchTreeOfASquashMergedPrIsNotUnpushed(t *testing.T) {
+	t.Parallel()
 	f := newTreeFixture(t)
 	tree := f.addTree(batchTreeName)
 	head := f.commitIn(tree, "g", "agent's rebase\n")
@@ -115,6 +116,7 @@ func TestBatchTreeOfASquashMergedPrIsNotUnpushed(t *testing.T) {
 
 // A commit whose content reached the base another way (a squash merge) loses nothing.
 func TestBatchTreeWhoseContentIsOnTheBaseGoes(t *testing.T) {
+	t.Parallel()
 	f := newTreeFixture(t)
 	tree := f.addTree(batchTreeName)
 	f.commitIn(tree, "g", "same content\n")
@@ -131,6 +133,7 @@ func TestBatchTreeWhoseContentIsOnTheBaseGoes(t *testing.T) {
 }
 
 func TestBatchTreeWithWorkStays(t *testing.T) {
+	t.Parallel()
 	f := newTreeFixture(t)
 	dirty := f.addTree(batchTreeName)
 	if err := os.WriteFile(filepath.Join(dirty, "notes.txt"), []byte("mine\n"), 0644); err != nil {
@@ -159,6 +162,7 @@ func TestBatchTreeWithWorkStays(t *testing.T) {
 // A leftover batch-merge goes before the next tree is made, which takes batch-merge again; the ones holding work or
 // in use stay, each with why; trees that are not the queue's and the current run's tree are never touched.
 func TestBatchSweepRemovesOnlyEarlierTreesWithNothingToLose(t *testing.T) {
+	t.Parallel()
 	f := newTreeFixture(t)
 	f.addTree(batchTreeName)
 	dirty := f.addTree(batchTreeName + "-2")
@@ -216,6 +220,7 @@ func TestBatchSweepRemovesOnlyEarlierTreesWithNothingToLose(t *testing.T) {
 
 // The heads of the project's earlier queues, kept in MoltenTerm's data folder, make their trees safe too.
 func TestBatchSweepKnowsTheEarlierQueuesHeads(t *testing.T) {
+	t.Parallel()
 	f := newTreeFixture(t)
 	tree := f.addTree(batchTreeName)
 	head := f.commitIn(tree, "g", "pushed then merged\n")
@@ -234,6 +239,7 @@ func TestBatchSweepKnowsTheEarlierQueuesHeads(t *testing.T) {
 
 // A terminal of MoltenTerm open in an earlier tree keeps it.
 func TestBatchSweepKeepsATreeWithATerminal(t *testing.T) {
+	t.Parallel()
 	f := newTreeFixture(t)
 	tree := f.addTree(batchTreeName)
 	f.runner.env.Agents.env.Terminals = func(ctx context.Context, path string) []mission.WorktreeTerminal {
@@ -253,6 +259,7 @@ func TestBatchSweepKeepsATreeWithATerminal(t *testing.T) {
 // End to end: a clean batch-merge left by an earlier run goes, the run's agent takes batch-merge, and after the run no
 // queue tree is left.
 func TestBatchRunReusesBatchMergeAndLeavesNoTree(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	parent := reviewsession.ReviewTreesDir(f.data, f.dir)
 	if err := os.MkdirAll(parent, 0700); err != nil {

@@ -165,6 +165,7 @@ func impactNumbers(row forecast.Row) []int {
 }
 
 func TestForecasterAnswersAtOnceThenPublishes(t *testing.T) {
+	t.Parallel()
 	_, req := forecastProject(t)
 	f, events := testForecaster(t, UpToDateNotRequired)
 	first, err := f.Get(req)
@@ -199,6 +200,7 @@ func TestForecasterAnswersAtOnceThenPublishes(t *testing.T) {
 }
 
 func TestForecasterSaysStaleWhileItRecomputes(t *testing.T) {
+	t.Parallel()
 	dir, req := forecastProject(t)
 	f, events := testForecaster(t, UpToDateUnknown)
 	if _, err := f.Get(req); err != nil {
@@ -225,6 +227,7 @@ func TestForecasterSaysStaleWhileItRecomputes(t *testing.T) {
 }
 
 func TestForecasterRefusesBadRequests(t *testing.T) {
+	t.Parallel()
 	f, _ := testForecaster(t, UpToDateUnknown)
 	oid := strings.Repeat("a", 40)
 	for i, req := range []ForecastRequest{
@@ -240,6 +243,7 @@ func TestForecasterRefusesBadRequests(t *testing.T) {
 }
 
 func TestForecasterTooManyPrs(t *testing.T) {
+	t.Parallel()
 	_, req := forecastProject(t)
 	for n := 10; len(req.Prs) <= MaxForecastPrs; n++ {
 		req.Prs = append(req.Prs, forecast.Pr{Number: n, Branch: fmt.Sprintf("b%d", n), HeadOid: req.BaseOid})
@@ -255,6 +259,7 @@ func TestForecasterTooManyPrs(t *testing.T) {
 }
 
 func TestForecasterNotAGitProject(t *testing.T) {
+	t.Parallel()
 	f, events := testForecaster(t, UpToDateUnknown)
 	oid := strings.Repeat("a", 40)
 	if _, err := f.Get(ForecastRequest{Dir: t.TempDir(), Repo: "o/n", Base: "main", BaseOid: oid}); err != nil {
@@ -281,6 +286,7 @@ func rulesGh(answers map[string]string, fails map[string]string) GhRunner {
 }
 
 func TestForecastRulesUpToDate(t *testing.T) {
+	t.Parallel()
 	const repo = "o/n"
 	rules := "repos/o/n/rules/branches/develop"
 	checks := "repos/o/n/branches/develop/protection/required_status_checks"

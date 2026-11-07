@@ -97,6 +97,7 @@ var leftoverAskReq = LeftoverAskRequest{Dir: "/p", Repo: "o/r", Number: 1141, Wo
 // The request is MoltenTerm's fixed text: the worktree, its branch and the PR, the check, the removal commands, and
 // "say why" otherwise; MoltenTerm itself never runs them.
 func TestLeftoverRequestText(t *testing.T) {
+	t.Parallel()
 	tree := mission.LinkedTree{Path: leftoverTree, Branch: "fix/1130-card"}
 	owner := mission.LeftoverOwner{Pid: 44215}
 	goal, ctx := leftoverRequestText(leftoverAskReq, tree, owner)
@@ -121,6 +122,7 @@ func TestLeftoverRequestText(t *testing.T) {
 // A live owner in a MoltenTerm terminal gets one request; the follow reads its turn: asked while it works, needs you
 // when its turn ends with the worktree there, done once the worktree is gone.
 func TestLeftoverAskFollowsTheOwner(t *testing.T) {
+	t.Parallel()
 	f := makeLeftoverAskFixture(t)
 	ask, err := f.asks.Ask(context.Background(), leftoverAskReq)
 	if err != nil || ask.State != LeftoverAskAsked || ask.Owner.FirstName != "Valentin" || ask.Branch != "fix/1130-card" {
@@ -167,6 +169,7 @@ func TestLeftoverAskFollowsTheOwner(t *testing.T) {
 
 // A question (the owner waits for an answer) or a "needs you:" outcome line needs the developer, with the reason.
 func TestLeftoverAskNeedsYou(t *testing.T) {
+	t.Parallel()
 	f := makeLeftoverAskFixture(t)
 	f.outcome = "needs you: #1130 a encore un test en cours"
 	if _, err := f.asks.Ask(context.Background(), leftoverAskReq); err != nil {
@@ -184,6 +187,7 @@ func TestLeftoverAskNeedsYou(t *testing.T) {
 
 // A request queued behind the owner's work: its turn is not the request's until the queue typed it at an idle prompt.
 func TestLeftoverAskQueuedBehindWork(t *testing.T) {
+	t.Parallel()
 	f := makeLeftoverAskFixture(t)
 	f.setRun(molten.AgentStateWorking)
 	f.asks.env.Send = func(ctx context.Context, req agenthandoff.AppRequest) (agenthandoff.AppSent, error) {
@@ -201,6 +205,7 @@ func TestLeftoverAskQueuedBehindWork(t *testing.T) {
 // No forced unlock: a process no terminal runs is not asked, and nothing is sent or kept; a lock that is no longer
 // live sends nothing either, and the usual cleanup applies.
 func TestLeftoverAskUnreachableAndFree(t *testing.T) {
+	t.Parallel()
 	f := makeLeftoverAskFixture(t)
 	f.owner = mission.LeftoverOwner{Via: mission.OwnerViaProcess, Pid: 7000, Process: "node", Folder: "/x"}
 	ask, err := f.asks.Ask(context.Background(), leftoverAskReq)
@@ -216,6 +221,7 @@ func TestLeftoverAskUnreachableAndFree(t *testing.T) {
 
 // The owner's session ended: the lock ended with it, the request is dropped.
 func TestLeftoverAskOwnerEnded(t *testing.T) {
+	t.Parallel()
 	f := makeLeftoverAskFixture(t)
 	if _, err := f.asks.Ask(context.Background(), leftoverAskReq); err != nil {
 		t.Fatal(err)

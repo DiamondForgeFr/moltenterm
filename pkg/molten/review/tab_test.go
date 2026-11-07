@@ -12,6 +12,7 @@ import (
 // The agent goes on the left, the review on the right (#1165): the AI panel is split before the review block, at
 // the size it had on the right.
 func TestAiPaneLayoutActionPutsTheAgentFirst(t *testing.T) {
+	t.Parallel()
 	action := aiPaneLayoutAction("ai", "review")
 	if action.ActionType != wcore.LayoutActionDataType_SplitHorizontal {
 		t.Errorf("action type: %q", action.ActionType)

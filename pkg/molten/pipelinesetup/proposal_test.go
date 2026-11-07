@@ -69,6 +69,7 @@ const mixedAnswer = "I read the repository. Here are my changes:\n```json\n" + `
 ]}` + "\n```\nTell me if you want more."
 
 func TestStepChangesAreCheckedOneByOne(t *testing.T) {
+	t.Parallel()
 	s, dir, draft, argv := proposalSetup(t, mixedAnswer)
 	before, _ := os.ReadFile(filepath.Join(dir, molten.ProjectPipelineFile))
 	answer, err := s.Refine(context.Background(), RefineRequest{Dir: dir, Text: draft.Proposed})
@@ -132,6 +133,7 @@ func TestStepChangesAreCheckedOneByOne(t *testing.T) {
 
 // A change sent back by the window is checked again: a forged one is refused.
 func TestApplyChecksTheChangesAgain(t *testing.T) {
+	t.Parallel()
 	s, dir, draft, _ := proposalSetup(t, `{"changes": []}`)
 	forged := []StepChange{{Key: "1", Op: ChangeOpVersions, Versions: json.RawMessage(`{"notesagent": ["sh"]}`)}}
 	if _, err := s.Apply(ApplyRequest{Dir: dir, Text: draft.Proposed, Changes: forged, Chosen: []string{"1"}}); err == nil {
@@ -146,6 +148,7 @@ func TestApplyChecksTheChangesAgain(t *testing.T) {
 // The #1091 rewrite (the whole file the refinement wrote at 14:07) is refused, nothing of it taken, from the project's
 // agent and pasted alike.
 func TestAWholeFileIsRefused(t *testing.T) {
+	t.Parallel()
 	rewritten, err := os.ReadFile(filepath.Join("testdata", "saasfoundry-refined-1407.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -172,6 +175,7 @@ func TestAWholeFileIsRefused(t *testing.T) {
 // Any agentic CLI: an agent without a read-only adapter is never started; its developer copies the request and pastes
 // the answer, which goes through the same contract.
 func TestTheGenericPathRunsNoAgent(t *testing.T) {
+	t.Parallel()
 	s, dir, draft, _ := proposalSetup(t, "")
 	s.Agent = func(context.Context, string, []string, string) ([]byte, error) {
 		t.Fatal("no agent runs")
@@ -198,6 +202,7 @@ func TestTheGenericPathRunsNoAgent(t *testing.T) {
 }
 
 func TestParseChanges(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		text  string
 		count int
@@ -220,6 +225,7 @@ func TestParseChanges(t *testing.T) {
 
 // An added step without a place goes after the last step of its phase, before the later phases.
 func TestPlaceOfAnAddedStep(t *testing.T) {
+	t.Parallel()
 	steps := []molten.PipelineStep{{Id: "a", Phase: "prepare"}, {Id: "b", Phase: "cut"}, {Id: "c"}, {Id: "d", Phase: "back"}}
 	for phase, want := range map[string]int{"prepare": 1, "cut": 3, "build": 3, "back": 4, "": 4} {
 		if got := placeOf(steps, molten.PipelineStep{Id: "n", Phase: phase}); got != want {

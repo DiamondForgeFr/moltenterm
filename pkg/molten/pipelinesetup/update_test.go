@@ -98,6 +98,7 @@ func jsonOf(t *testing.T, v any) string {
 }
 
 func TestCheckOffersTheUpdateToAPre1046PipelineOnAProtectedBranch(t *testing.T) {
+	t.Parallel()
 	dir := pre1046Repository(t, nil)
 	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
 	ctx := context.Background()
@@ -162,6 +163,7 @@ func TestCheckOffersTheUpdateToAPre1046PipelineOnAProtectedBranch(t *testing.T) 
 
 // The developer's own step and a step whose command they changed are kept unless they choose otherwise.
 func TestUpdateKeepsTheDevelopersSteps(t *testing.T) {
+	t.Parallel()
 	dir := pre1046Repository(t, func(text string) string {
 		text = strings.Replace(text, `"run": "molten release close-milestone {tag}"
             },`, `"run": "molten release close-milestone {tag}"
@@ -242,6 +244,7 @@ func TestUpdateKeepsTheDevelopersSteps(t *testing.T) {
 }
 
 func TestUpdateRefusesAChangedFileOrList(t *testing.T) {
+	t.Parallel()
 	dir := pre1046Repository(t, nil)
 	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
 	ctx := context.Background()
@@ -272,6 +275,7 @@ func TestUpdateRefusesAChangedFileOrList(t *testing.T) {
 
 // An unprotected release branch keeps the promotion: a pre-#1046 pipeline only gets the version labels.
 func TestCheckUnprotectedPre1046PipelineOffersTheLabelsOnly(t *testing.T) {
+	t.Parallel()
 	dir := pre1046Repository(t, nil)
 	s := MakeSetup(githubAs(t, "[]", nil), nil)
 	check, err := s.Check(context.Background(), CheckRequest{Dir: dir})
@@ -287,6 +291,7 @@ func TestCheckUnprotectedPre1046PipelineOffersTheLabelsOnly(t *testing.T) {
 }
 
 func TestCheckWithoutReleaseIsMissing(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	check, err := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil).Check(context.Background(), CheckRequest{Dir: dir})
 	if err != nil {
@@ -299,6 +304,7 @@ func TestCheckWithoutReleaseIsMissing(t *testing.T) {
 
 // A fresh setup records the steps written as the template drafted them; one the developer changed in between is not.
 func TestWriteRecordsTheGeneratedSteps(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
 	draft, err := s.Draft(context.Background(), DraftRequest{Dir: dir})

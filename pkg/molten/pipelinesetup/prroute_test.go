@@ -93,6 +93,7 @@ func prArgs(t *testing.T, forge *fakeForge) string {
 }
 
 func TestWorkflowHasHumanTesting(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if WorkflowHasHumanTesting(dir) {
 		t.Fatal("no manifest, no Human Testing")
@@ -108,6 +109,7 @@ func TestWorkflowHasHumanTesting(t *testing.T) {
 }
 
 func TestAHumanTestingTicketGetsADraftThatIsFollowed(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	commitProject(t, dir, map[string]string{".saasfoundry.json": humanTestingManifest})
 	forge := &fakeForge{}
@@ -127,6 +129,7 @@ func TestAHumanTestingTicketGetsADraftThatIsFollowed(t *testing.T) {
 }
 
 func TestAnInternalTicketSkipsHumanTesting(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	commitProject(t, dir, map[string]string{".saasfoundry.json": humanTestingManifest})
 	forge := &fakeForge{labels: `{"labels":[{"name":"complexity: low"},{"name":"Nature:Internal"}]}`}
@@ -141,6 +144,7 @@ func TestAnInternalTicketSkipsHumanTesting(t *testing.T) {
 }
 
 func TestTheTicketGoesThroughTheProjectsTicketTool(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	commitProject(t, dir, map[string]string{
 		".saasfoundry.json": humanTestingManifest,
@@ -173,6 +177,7 @@ func TestTheTicketGoesThroughTheProjectsTicketTool(t *testing.T) {
 }
 
 func TestATicketToolThatMakesNothingFallsBackToAnIssue(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	commitProject(t, dir, map[string]string{
 		".saasfoundry.json": strings.Replace(humanTestingManifest, `"version": "1.0.4",`, `"version": "1.0.4", "tools": { "srs": { "backend": "notion" } },`, 1),
@@ -198,6 +203,7 @@ func TestATicketToolThatMakesNothingFallsBackToAnIssue(t *testing.T) {
 }
 
 func TestPrReadyRunsGhOnTheAddress(t *testing.T) {
+	t.Parallel()
 	var got [][]string
 	s := &Setup{Run: func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
 		got = append(got, append([]string{dir, name}, args...))

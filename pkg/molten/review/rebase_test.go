@@ -54,6 +54,7 @@ func checkRebasePrompt(t *testing.T, line string, briefPath string) {
 
 // AC2: the agent working on the branch gets the rebase, by its first name, through the guarded typing path.
 func TestAskRebaseReachesTheAgentOnTheBranch(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "review-term"}, {BlockId: "agent-term"}}
@@ -85,6 +86,7 @@ func TestAskRebaseReachesTheAgentOnTheBranch(t *testing.T) {
 
 // An agent working on the PR's branch in the main checkout is reached there too.
 func TestAskRebaseReachesTheAgentInTheMainCheckout(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.git(f.dir, "fetch", "--quiet", "origin")
 	f.git(f.dir, "checkout", "--quiet", "--track", "-b", "feature/9-fix-x", "origin/feature/9-fix-x")
@@ -98,6 +100,7 @@ func TestAskRebaseReachesTheAgentInTheMainCheckout(t *testing.T) {
 
 // A busy agent is not interrupted: the window says it works.
 func TestAskRebaseLeavesABusyAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
@@ -110,6 +113,7 @@ func TestAskRebaseLeavesABusyAgent(t *testing.T) {
 
 // AC2: no agent on the branch, the window offers to start one; nothing starts before the developer's confirmation.
 func TestAskRebaseOffersToStartAnAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.agentTreeOnBranch()
 	res := f.askRebase(false)
@@ -120,6 +124,7 @@ func TestAskRebaseOffersToStartAnAgent(t *testing.T) {
 
 // AC2: confirmed, the Restart work flow makes the worktree and starts the agent with the rebase brief.
 func TestAskRebaseStartsAnAgentWhenConfirmed(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	res := f.askRebase(true)
 	if res.Status != RestartStarted || !res.WorktreeCreated || res.BlockId != "new-block" || res.Agent != molten.AgentIdClaude {
@@ -135,6 +140,7 @@ func TestAskRebaseStartsAnAgentWhenConfirmed(t *testing.T) {
 }
 
 func TestAskRebaseNeedsTheBranchesAndATabToStart(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	for _, req := range []RebaseRequest{
 		{PrKey: f.k, Dir: f.dir, HeadRef: "feature/9-fix-x"},
@@ -151,6 +157,7 @@ func TestAskRebaseNeedsTheBranchesAndATabToStart(t *testing.T) {
 }
 
 func TestAskRebaseIsAWindowsOnly(t *testing.T) {
+	t.Parallel()
 	l := &routeLink{service: &Service{}}
 	if _, err := callAs(l, "proc:block-1", RebaseCommand, map[string]any{}); err == nil {
 		t.Errorf("a terminal must not ask for a rebase")

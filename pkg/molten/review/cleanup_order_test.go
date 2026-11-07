@@ -37,6 +37,7 @@ var cleanupOrderRequests = map[string]CleanupRequest{
 }
 
 func TestCleanupDeletesOriginBranchLast(t *testing.T) {
+	t.Parallel()
 	for name, req := range cleanupOrderRequests {
 		t.Run(name, func(t *testing.T) {
 			f := makeCleanupFixture(t, true)
@@ -61,6 +62,7 @@ func TestCleanupDeletesOriginBranchLast(t *testing.T) {
 }
 
 func TestCleanupKeepsOriginBranchWhenTheWorktreeRemovalFails(t *testing.T) {
+	t.Parallel()
 	for name, req := range cleanupOrderRequests {
 		t.Run(name, func(t *testing.T) {
 			f := makeCleanupFixture(t, true)
@@ -103,6 +105,7 @@ func TestCleanupKeepsOriginBranchWhenTheWorktreeRemovalFails(t *testing.T) {
 
 // A worktree kept for its work keeps origin's branch: the risk the developer confirms counts its commits as pushed.
 func TestCleanupKeepsOriginBranchWithAKeptWorktree(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.keepRemoteBranch()
 	f.write(f.agent, "b.txt", "unsaved edit\n")
@@ -130,6 +133,7 @@ func TestCleanupKeepsOriginBranchWithAKeptWorktree(t *testing.T) {
 
 // A local branch that stays (here, checked out in the main folder) keeps origin's branch too.
 func TestCleanupKeepsOriginBranchWithTheLocalBranch(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.keepRemoteBranch()
 	f.git(f.dir, "worktree", "remove", "--force", f.agent)
@@ -149,6 +153,7 @@ func TestCleanupKeepsOriginBranchWithTheLocalBranch(t *testing.T) {
 }
 
 func TestMergeLeavesTheRemoteBranchToTheCleanup(t *testing.T) {
+	t.Parallel()
 	for _, method := range []string{MergeMethodMerge, MergeMethodSquash, MergeMethodRebase} {
 		args := strings.Join(mergeArgs("7", method, oidA), " ")
 		if strings.Contains(args, "delete-branch") || args != "pr merge 7 --"+method+" --match-head-commit "+oidA {

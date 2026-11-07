@@ -12,6 +12,7 @@ import (
 )
 
 func TestAuditPublicNotes(t *testing.T) {
+	t.Parallel()
 	clean := "## What this version brings\n\nThe status bar opens the version history.\n\n- Colours like #4f46e5 and [a heading](#usage) are fine.\n- The CI panel shows each pull request's checks.\n"
 	if problems := AuditPublicNotes(clean, "DiamondForgeFr/moltenterm"); len(problems) > 0 {
 		t.Fatalf("clean notes refused: %v", problems)
@@ -38,6 +39,7 @@ func TestAuditPublicNotes(t *testing.T) {
 }
 
 func TestExecAgentGivesThePromptOnStdin(t *testing.T) {
+	t.Parallel()
 	out, err := ExecAgent(context.Background(), t.TempDir(), []string{"cat"}, "the prompt")
 	if err != nil || string(out) != "the prompt" {
 		t.Fatalf("cat answered %q, %v", out, err)
@@ -51,6 +53,7 @@ func TestExecAgentGivesThePromptOnStdin(t *testing.T) {
 }
 
 func TestPublicNotesFrontMatter(t *testing.T) {
+	t.Parallel()
 	notes := ParsePublicNotes("---\ndraft: true\nchannel: rc\n---\n\n## New\n\n- A thing\n")
 	if !notes.IsDraft() || notes.Get("channel") != "rc" || notes.Body != "## New\n\n- A thing\n" {
 		t.Fatalf("parsed %+v", notes)
@@ -73,6 +76,7 @@ func TestPublicNotesFrontMatter(t *testing.T) {
 }
 
 func TestInternalRecord(t *testing.T) {
+	t.Parallel()
 	subjects := []string{
 		"feat(#12,#13): the history window",
 		"fix(#12): the history scrolls (#12)",
@@ -109,6 +113,7 @@ func TestInternalRecord(t *testing.T) {
 }
 
 func TestPrepareWritesTheAgentsNotesAndTheRecord(t *testing.T) {
+	serialTest(t, "sets MOLTEN_RELEASE_NOTES_AI, which the notes read from the process environment")
 	f := makeFixture(t)
 	ctx := context.Background()
 	writeFile(t, filepath.Join(f.checkout, ".molten", "project.json"), strings.Replace(fixtureProject, `"firstpublic": "1.0.0",`, `"firstpublic": "1.0.0", "notesagent": ["my-agent", "-p"],`, 1))
@@ -166,6 +171,7 @@ func TestPrepareWritesTheAgentsNotesAndTheRecord(t *testing.T) {
 }
 
 func TestFinalizeRefusesDraftAndAuditedNotes(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	e := f.env()
@@ -184,6 +190,7 @@ func TestFinalizeRefusesDraftAndAuditedNotes(t *testing.T) {
 }
 
 func TestPrepareKeepsHandWrittenNotes(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	e := f.env()

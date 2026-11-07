@@ -12,6 +12,7 @@ import (
 )
 
 func TestChangelogHeadingFollowsTheFile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{
 		"keep.md":    "# Changelog\n\n## [Unreleased]\n\n## [1.2.0] - 2026-10-01\n- x\n",
@@ -28,6 +29,7 @@ func TestChangelogHeadingFollowsTheFile(t *testing.T) {
 }
 
 func TestFormatCommandByPackageManager(t *testing.T) {
+	t.Parallel()
 	for lock, want := range map[string]string{"": "npm run format --", "pnpm-lock.yaml": "pnpm run format", "yarn.lock": "yarn run format", "bun.lock": "bun run format"} {
 		dir := t.TempDir()
 		files := map[string]string{"package.json": `{"scripts": {"format": "prettier --write ."}}`}
@@ -56,6 +58,7 @@ func checkOfStep(steps []molten.PipelineStep, id string) *molten.PipelineStepChe
 }
 
 func TestDraftProposesChecksAndFormat(t *testing.T) {
+	t.Parallel()
 	dir := saasFoundryFixture(t)
 	writeFiles(t, dir, map[string]string{
 		"package.json":         `{ "name": "saasfoundryai", "version": "1.0.4", "scripts": { "format": "prettier --write ." } }`,
@@ -105,6 +108,7 @@ func TestDraftProposesChecksAndFormat(t *testing.T) {
 }
 
 func TestDeclaredFormatterIsKept(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{"package.json": `{"scripts": {"format": "prettier --write ."}}`})
 	current := &molten.Pipeline{Versions: &molten.PipelineVersions{Format: "npx prettier --write"}}
@@ -116,6 +120,7 @@ func TestDeclaredFormatterIsKept(t *testing.T) {
 }
 
 func TestLabelsStepChecksItsFirstLabel(t *testing.T) {
+	t.Parallel()
 	f := Facts{Labels: []VersionLabel{{Path: "AGENTS.md", Line: 3, Text: "- Current version: 1.0.4", Version: "1.0.4"}}}
 	o := Options{Labels: []LabelChoice{{Path: "AGENTS.md", Line: 3}}}
 	r := &molten.PipelineRelease{Public: []molten.PipelineStep{{Id: "bump-labels", Title: "Bump", Phase: "cut", Manual: "In the release worktree, write {version}."}}}
