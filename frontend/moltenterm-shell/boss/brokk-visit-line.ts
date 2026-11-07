@@ -30,6 +30,10 @@ const FinishedPrefix = "finished:";
 // The line of the gravest event of the visit that has words of its own, or how many things wait when none has (a
 // download, an update or a plan reading, which are no row).
 export function visitLineOf(visit: Visit, items: ToHandleItem[], info: InfoItem[], now: number): CaptionLine {
+    // The example of the settings' "Show a visit" (#2079) stands for an agent that waited 6 min and has no row.
+    if (visit.example === true) {
+        return { key: "boss.visit.exampleLine" };
+    }
     for (const key of visit.keys) {
         const item = items.find((entry) => entry.key === key);
         if (item != null) {

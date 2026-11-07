@@ -3066,6 +3066,7 @@
         "visit": {
             "label": "{name} would like a word ({severity})",
             "example": "Example: {name} would like a word ({severity}). An agent has been waiting for you for 6 min.",
+            "exampleLine": "An agent has waited 6 min",
             "severity": {
                 "grave": "grave",
                 "important": "important",

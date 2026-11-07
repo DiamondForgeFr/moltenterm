@@ -228,6 +228,63 @@ describe("the visit keeps working as it does, open or collapsed (FR-BOSS-009, AC
     });
 });
 
+describe("the example visit of the settings shows in a collapsed sidebar too (FR-BOSS-009, AC31 to AC33, #2079, #2070)", () => {
+    it("keeps the sidebar half open on the example, which counts for nothing", () => {
+        const { hub } = fixture();
+        collapse(hub);
+        hub.showExample();
+        expect(hub.getView().visit?.example).toBe(true);
+        expect(shapeOf(hub)).toBe("ajar");
+        expect(hub.getView().badge).toBe(0);
+        expect(hub.getView().badgeKeys).toEqual([]);
+    });
+
+    it("comes through quiet hours and the master switch, as it does in an open sidebar", () => {
+        const night = new Date(2026, 10, 6, 22, 30, 0).getTime();
+        const { hub } = fixture(night);
+        collapse(hub);
+        hub.settings({ ...DefaultVisitSettings, never: true } as VisitSettings);
+        hub.showExample();
+        expect(shapeOf(hub)).toBe("ajar");
+    });
+
+    it("is the banner of the sidebar that unfolds, and closes back to the strip when its action closes it", () => {
+        const { hub, state } = fixture();
+        collapse(hub);
+        hub.showExample();
+        const example = hub.getView().visit;
+        hub.gate({ type: "hidden", hidden: false });
+        hub.gate({ type: "edge", edge: false });
+        hub.gate({ type: "enter" });
+        expect(hub.getView().visit).toBe(example);
+        collapse(hub);
+        hub.closeExample();
+        expect(hub.getView().visit).toBeNull();
+        expect(shapeOf(hub)).toBe("rest");
+        expect(state.panels).toBe(0);
+    });
+
+    it("gives the visit the model holds back once it is closed, half open for it", () => {
+        const { hub } = fixture();
+        collapse(hub);
+        hub.syncRows([BlockedRow()]);
+        hub.showExample();
+        expect(hub.getView().visit?.example).toBe(true);
+        hub.closeExample();
+        expect(hub.getView().visit?.severity).toBe("important");
+        expect(shapeOf(hub)).toBe("ajar");
+    });
+
+    it("is not news for the bounce: nothing is raised, so nothing is told by moving", () => {
+        const { hub } = fixture();
+        hub.markReady();
+        collapse(hub);
+        const keys = hub.getView().badgeKeys;
+        hub.showExample();
+        expect(hub.getView().badgeKeys).toEqual(keys);
+    });
+});
+
 function window_(over: { loaded?: boolean; edge?: boolean } = {}) {
     const store = createStore();
     const sources = {
