@@ -111,7 +111,8 @@ func TestOtherObjectWrites(t *testing.T) {
 		meta waveobj.MetaMapType
 	}{
 		{"own block, molten worktree", ownBlock, waveobj.MetaMapType{molten.WorktreeMetaKey: "/w"}},
-		{"own block, any molten key", ownBlock, waveobj.MetaMapType{molten.AgentFirstNameMetaKey: "Ada", "term:mode": "vdom"}},
+		{"own block, wave keys", ownBlock, waveobj.MetaMapType{"term:mode": "vdom", "view": molten.BrowserView}},
+		{"own block, browser and file requests", ownBlock, waveobj.MetaMapType{molten.BrowserOpenKeyPrefix + "01": "https://example.com", molten.BrowserCloseKeyPrefix + "02": "t1", "molten:filefilter": "*.go"}},
 		{"browser panel page", otherBlock, molten.BrowserOpenRequestMeta("01", "https://example.com")},
 		{"browser panel close", otherBlock, molten.BrowserCloseRequestMeta("01", "t1")},
 		{"file panel", otherBlock, waveobj.MetaMapType{"file": "/p/a", "molten:fileorigin": "agent", "molten:filefilter": "*.go"}},
@@ -135,6 +136,14 @@ func TestOtherObjectWrites(t *testing.T) {
 		{"client state", client, waveobj.MetaMapType{"molten:workspaceorder": []any{}}},
 		{"another block's browser tabs", otherBlock, waveobj.MetaMapType{molten.BrowserTabsMetaKey: []any{}}},
 		{"another block's worktree", otherBlock, waveobj.MetaMapType{molten.WorktreeMetaKey: "/w"}},
+		{"own block posing as Brokk's session", ownBlock, waveobj.MetaMapType{molten.OwnSessionMetaKey: true}},
+		{"own block clearing Brokk's marker", ownBlock, waveobj.MetaMapType{molten.OwnSessionMetaKey: nil}},
+		{"own block renamed as another agent", ownBlock, waveobj.MetaMapType{molten.AgentFirstNameMetaKey: "Ada", "term:mode": "vdom"}},
+		{"own block turned into a browser panel with allowed local tabs", ownBlock, waveobj.MetaMapType{
+			"view":                    molten.BrowserView,
+			molten.BrowserTabsMetaKey: []any{map[string]any{"id": "t1", "url": "file:///tmp/x.html", "allowed": true}},
+		}},
+		{"own block, a key MoltenTerm adds later", ownBlock, waveobj.MetaMapType{"molten:somethingnew": true}},
 	}
 	for _, r := range refused {
 		mustRefuse(t, r.name, metaguard.CheckWrite(terminal(), r.oref, r.meta))
@@ -337,7 +346,7 @@ func TestCreateBlock(t *testing.T) {
 		}
 	}
 	mustRefuse(t, "a panel in another workspace's tab", metaguard.CheckCreateBlock(terminal(), false, waveobj.MetaMapType{"view": "term"}))
-	for _, meta := range []waveobj.MetaMapType{{molten.BrowserTabsMetaKey: []any{}}, {"view": "term", molten.AgentFirstNameMetaKey: "Ada"}, {"molten:pin": true}} {
+	for _, meta := range []waveobj.MetaMapType{{molten.BrowserTabsMetaKey: []any{}}, {"view": "term", molten.AgentFirstNameMetaKey: "Ada"}, {"molten:pin": true}, {"view": "term", molten.OwnSessionMetaKey: true}} {
 		for _, u := range untrusted() {
 			mustRefuse(t, u.name+" creates with molten keys", metaguard.CheckCreateBlock(u.c, true, meta))
 		}

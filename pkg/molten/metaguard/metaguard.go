@@ -93,6 +93,9 @@ func CheckWrite(c Caller, oref waveobj.ORef, meta waveobj.MetaMapType) error {
 		return checkWorkspaceWrite(c, oref, meta)
 	case waveobj.OType_Block:
 		if c.Local && c.BlockId != "" && c.BlockId == oref.OID {
+			if refused := refusedOwnBlockKeys(meta); len(refused) > 0 {
+				return fmt.Errorf("refused: a terminal cannot set MoltenTerm's %s on its own block (%s); only wavesrv and the MoltenTerm window set them", sortedKeys(refused), oref)
+			}
 			return nil
 		}
 		if refused := refusedBlockKeys(meta); len(refused) > 0 {
@@ -121,6 +124,21 @@ func refusedBlockKeys(meta waveobj.MetaMapType) []string {
 			continue
 		}
 		refused = append(refused, key)
+	}
+	return refused
+}
+
+// refusedOwnBlockKeys are the molten:* keys a terminal may not write on its own block (#2067): all but the ones of
+// refusedBlockKeys and `molten worktree`'s link. The others name or trust the block: Brokk's session marker
+// (molten:brokk, which hands the terminal what the developer types to Brokk), an agent's first name, a browser
+// panel's saved tabs (their allowed flag skips the local-page question once the block turns into a browser panel).
+// An allow-list, so a key MoltenTerm adds later is the window's until a terminal is given it on purpose.
+func refusedOwnBlockKeys(meta waveobj.MetaMapType) []string {
+	var refused []string
+	for _, key := range refusedBlockKeys(meta) {
+		if key != molten.WorktreeMetaKey {
+			refused = append(refused, key)
+		}
 	}
 	return refused
 }

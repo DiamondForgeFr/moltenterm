@@ -325,6 +325,9 @@ func (ws *WshServer) CreateBlockCommand(ctx context.Context, data wshrpc.Command
 
 func (ws *WshServer) CreateSubBlockCommand(ctx context.Context, data wshrpc.CommandCreateSubBlockData) (*waveobj.ORef, error) {
 	parentBlockId := data.ParentBlockId
+	if err := moltenCheckCreateSubBlock(ctx, parentBlockId, data.BlockDef); err != nil { // MOLTENTERM-PATCH (#2067): a terminal's sub-blocks keep the rules of its blocks
+		return nil, err
+	}
 	blockData, err := wcore.CreateSubBlock(ctx, parentBlockId, data.BlockDef)
 	if err != nil {
 		return nil, fmt.Errorf("error creating block: %w", err)
