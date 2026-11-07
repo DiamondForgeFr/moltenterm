@@ -6192,6 +6192,9 @@
             "onItsWay": "La version publique {tag} est en route.",
             "nothing": "Rien à publier pour l'instant.",
             "planned": "Prévue — jalon {milestone}, {open}, rien encore sur {trunk}",
+            "milestoneFirst": "Le jalon {milestone} arrive en premier ; les changements sur {trunk} y entrent.",
+            "biggerBump": "{reason} sur {trunk} : {tag} serait une version {level}.",
+            "biggerBumpPlain": "Les changements sur {trunk} demandent une version {level} : {tag} en serait une.",
             "open": {
                 "one": "{count} ouvert",
                 "other": "{count} ouverts"

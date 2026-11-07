@@ -6192,6 +6192,9 @@
             "onItsWay": "The public release {tag} is on its way.",
             "nothing": "Nothing to release yet.",
             "planned": "Planned — milestone {milestone}, {open}, nothing on {trunk} yet",
+            "milestoneFirst": "Milestone {milestone} is due first; the changes on {trunk} fit in it.",
+            "biggerBump": "{reason} on {trunk}: {tag} would be a {level} version.",
+            "biggerBumpPlain": "The changes on {trunk} call for a {level} version: {tag} would be one.",
             "open": {
                 "one": "{count} open",
                 "other": "{count} open"
