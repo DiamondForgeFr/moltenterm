@@ -47,11 +47,7 @@ export function frameInset(layer: Element): number {
 
 // Where the group stands and where it arrives from, in the layer's coordinates: 8 px right of the sidebar and 8 px from
 // the top of the window area; from the title-bar face that opened it. It follows the window's size while it is open.
-function useGroupFrame(
-    layerRef: React.RefObject<HTMLDivElement>,
-    open: boolean,
-    sidebarAt: SidebarPlace
-): GroupFrame {
+function useGroupFrame(layerRef: React.RefObject<HTMLDivElement>, open: boolean, sidebarAt: SidebarPlace): GroupFrame {
     const [frame, setFrame] = useState<GroupFrame>(null);
     useLayoutEffect(() => {
         const layer = layerRef.current;
@@ -61,16 +57,20 @@ function useGroupFrame(
         const measure = () => {
             const box = rectOf(layer);
             const avatar = document.querySelector("[data-brokk-avatar]");
-            const sidebar = sidebarAt === "screen" ? document.querySelector("[data-testid='workspace-sidebar']") : null;
+            const sidebar =
+                sidebarAt === "screen" || sidebarAt === "edge"
+                    ? document.querySelector("[data-testid='workspace-sidebar']")
+                    : null;
             const g = groupGeometry();
-            // The strip of a collapsed sidebar is the content's own margin: the layer starts at its right edge (#2070),
-            // so the group stands 8 px into it, and the thread runs back to the face in the strip.
+            // The strip of a collapsed sidebar (#2070) is the sidebar itself, slid out of the window but its strip: its
+            // measured box (transform included) gives its real right edge, whatever the strip's width (#2082), and the
+            // thread runs back to the face in the strip. The layer starts at that edge too (the content's margin).
             const sidebarBox =
-                sidebarAt === "edge"
-                    ? { left: box.left, top: box.top, width: 0, height: box.height }
-                    : sidebar == null
-                      ? null
-                      : rectOf(sidebar);
+                sidebar != null
+                    ? rectOf(sidebar)
+                    : sidebarAt === "edge"
+                      ? { left: box.left, top: box.top, width: 0, height: box.height }
+                      : null;
             const place = groupPlace(
                 sidebarBox == null
                     ? null
