@@ -334,6 +334,10 @@
             "preview": "Aperçu",
             "edit": "Modifier"
         },
+        "markdown": {
+            "remoteImage": "Image de {site}",
+            "remoteImageTitle": "Les images du web ne sont pas chargées ici. Cliquer pour ouvrir {address}"
+        },
         "search": {
             "placeholder": "Rechercher",
             "results": "Résultats de la recherche",

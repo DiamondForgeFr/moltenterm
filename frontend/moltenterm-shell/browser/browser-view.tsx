@@ -130,6 +130,7 @@ import {
     ReloadNormal,
     ReloadStop,
     runReload,
+    tabFaviconSrc,
     TabLoad,
 } from "./browser-loading";
 import {
@@ -1775,7 +1776,10 @@ function TabWebview({
                 );
             }
         };
-        const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
+        const onFavicon = (e: any) => {
+            const site = model.loads.noteFavicons(tab.id, e.favicons, webview.getURL());
+            if (site != null) requestFavicons([site]);
+        };
         // The 360 carpet keeps the page's previous thumbnail while its process is gone (#1814).
         const onProcessGone = (e: any) => {
             if ((e.details?.reason ?? e.reason) !== "clean-exit") {
@@ -1953,6 +1957,8 @@ function SharedTabBadge({ model, agentTab, tabId }: { model: BrowserViewModel; a
 function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
     const t = useT();
     const [broken, setBroken] = useState<string>(null);
+    const icons = useAtomValue(faviconsAtom);
+    const favicon = tabFaviconSrc(load, icons);
     if (load?.loading) {
         return (
             <span
@@ -1972,15 +1978,15 @@ function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
             />
         );
     }
-    if (load?.favicon == null || broken === load.favicon) {
+    if (favicon == null || broken === favicon) {
         return <i className="fa fa-solid fa-globe molten-browser-tab-icon" />;
     }
     return (
         <img
-            src={load.favicon}
+            src={favicon}
             alt=""
             draggable={false}
-            onError={() => setBroken(load.favicon)}
+            onError={() => setBroken(favicon)}
             className="molten-browser-tab-icon object-contain"
         />
     );
@@ -2490,10 +2496,11 @@ function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
 function ReloadingPlaceholder({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
     const loads = useAtomValue(model.loads.loadsAtom);
+    const icons = useAtomValue(faviconsAtom);
     if (tab == null || tab.engine) {
         return null;
     }
-    const favicon = loads[tab.id]?.favicon;
+    const favicon = tabFaviconSrc(loads[tab.id], icons);
     return (
         <div
             role="status"

@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// What the carpet's tab strip reads of a web page panel (FR-SHELL-125): its favicon once loaded, the agent that opened
+// What the carpet's tab strip reads of a web page panel (FR-SHELL-125): its favicon once loaded (the copy Electron main
+// kept, never the page's own address: #2045), the agent that opened
 // it, and its page actions for the tab menu. Read from the panel's own view model (browser-view.tsx), which keeps them
 // in memory, so this file stays free of the browser's React code.
 
@@ -9,14 +10,16 @@ import { getBlockComponentModel } from "@/app/store/global";
 import { atom, Atom } from "jotai";
 import type { BrowserState, BrowserTab } from "../browser/browser-model";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { tabFaviconSrc, type TabLoad } from "../browser/browser-loading";
 import type { BrowserTabActions } from "../browser/browser-tab-menu";
+import { faviconsAtom } from "../favicon/favicon-store";
 import { pageOpener, pageShareOf, type PageAgentTab, type PageShare } from "./carpet-tabs-model";
 
 // The part of BrowserViewModel the strip uses.
 export type CarpetPageModel = BrowserTabActions & {
     viewType: string;
     stateAtom: Atom<BrowserState>;
-    loads: { loadsAtom: Atom<Record<string, { favicon?: string }>> };
+    loads: { loadsAtom: Atom<Record<string, TabLoad>> };
     agents: { tabsAtom: Atom<Record<string, PageAgentTab>> };
     shareItems?: (tab: BrowserTab) => Promise<ContextMenuItem[]>;
 };
@@ -72,7 +75,7 @@ export function makeCarpetPagesAtom(blockIds: string[]): Atom<Record<string, Car
             const agentTabs = model.agents?.tabsAtom == null ? {} : get(model.agents.tabsAtom);
             const active = activePageTab(state);
             next[blockId] = {
-                favicon: active?.engine ? null : (loads?.[active?.id]?.favicon ?? null),
+                favicon: active?.engine ? null : tabFaviconSrc(loads?.[active?.id], get(faviconsAtom)),
                 agentName: pageOpener(active?.id, agentTabs),
                 share: pageShareOf(
                     (state?.tabs ?? []).map((tab) => tab.id),
