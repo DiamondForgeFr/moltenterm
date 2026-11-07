@@ -35,6 +35,10 @@ molten browsers                             # the browsers found on this compute
 Programs that read the `BROWSER` variable (`gh pr view --web`, `npm`, `python -m webbrowser`) already open their pages
 in MoltenTerm in a local MoltenTerm terminal: it is set to MoltenTerm's own handler.
 
+A `file:` or `data:` page (`molten open file:///…`, `wsh web open`) does not load until the developer confirms it in the
+panel, which names the file: the page can run scripts next to their files. Ask for one only when the developer wants
+that file, serve a build over `http://localhost` otherwise, and do not queue it again if they decline (the panel closes).
+
 ## What the developer sees
 
 - The page opens as a panel to the right of your terminal, which keeps the keyboard focus. Nothing opens in another tab

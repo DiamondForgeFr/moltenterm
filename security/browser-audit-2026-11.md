@@ -187,6 +187,14 @@ fixes between MoltenTerm releases.
 - **Fix proposal.** Opening a local file from a terminal is a real use (coverage and test reports through `BROWSER`),
   so confirm instead of blocking: a `file:` or `data:` page queued by a terminal asks in the tab, naming the file, and
   the `GrantFileProtocolExtraPrivileges` fuse goes off (H3).
+- **Fix shipped (#1978).** A tab holding a `file:` or `data:` page that the user did not type, allow or remember does not
+  mount its webview: the page area asks (Open, Always open this file, Don't open), naming the file, with no native
+  dialog and no focus taken. The allowance is saved with the tab (`allowed`, in the panel's saved tabs, which a terminal
+  cannot write), and "Always open this file" is `browser:localpages`, refused to a terminal's `setconfig` like the other
+  consent settings. Tests: `frontend/moltenterm-shell/browser/local-page.test.ts`, `local-page-ask.test.tsx`,
+  `pkg/wshrpc/wshserver/moltenterm_configguard_test.go`. The fuse stays with T1. Correction to the evidence: `BROWSER`
+  hands a file or `data:` argument to the system opener (FR-BRW-007), so it never reaches the panel; the paths in are
+  `wsh web open`, `molten open`, a block created with a `url`, and the queued meta.
 
 #### M4. A site asking for a client certificate silently gets the first one (fixed, T5, #1979)
 
@@ -475,5 +483,7 @@ and T18. T15 to T17 belong to the Andvari exploration
 | H1      | `SetConfigCommand` refuses the consent keys from terminals (`pkg/wshrpc/wshserver/moltenterm_configguard.go`)                               | `pkg/wshrpc/wshserver/moltenterm_configguard_test.go`                                             |
 | H2      | webselector lookup skips browser panel tabs (`emain/moltenterm-webselector-policy.ts`, `emain/preload.ts`)                                  | `emain/moltenterm-webselector-policy.test.ts`                                                     |
 | L1      | `pickFavicon` skips the backend origin (`frontend/moltenterm-shell/browser/browser-loading.ts`)                                             | `frontend/moltenterm-shell/browser/browser-loading.test.ts`                                       |
+
+M3 was fixed afterwards by #1978 (see the finding).
 
 FR-BRW-014 was amended in the SRS before these changes.
