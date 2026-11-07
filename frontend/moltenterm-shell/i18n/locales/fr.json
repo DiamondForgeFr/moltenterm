@@ -3065,6 +3065,7 @@
         },
         "visit": {
             "label": "{name} voudrait vous parler ({severity})",
+            "example": "Exemple : {name} voudrait vous parler ({severity}). Un agent vous attend depuis 6 min.",
             "severity": {
                 "grave": "grave",
                 "important": "important",
@@ -3097,6 +3098,10 @@
             "badge": "Badge",
             "rien": "Rien",
             "quietBetween": "Heures calmes, de et à",
+            "example": {
+                "button": "Voir une visite",
+                "hint": "Exemple : un agent vous attend depuis 6 min. Rien n'est noté ni compté, et les heures calmes ne le retiennent pas."
+            },
             "severity": "La gravité règle son visage et les délais de « Plus tard », jamais les mots : la scène n'a aucun texte."
         },
         "panel": {

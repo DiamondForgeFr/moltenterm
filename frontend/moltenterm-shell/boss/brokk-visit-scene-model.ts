@@ -65,13 +65,15 @@ export const SeverityLabelKeys: Record<Severity, string> = {
     bonne: "boss.visit.severity.bonne",
 };
 
-// His accessible name, which is also the tooltip: the scene has no text, so this is all it says.
+// His accessible name, which is also the tooltip: the scene has no text, so this is all it says. The example says so.
 export function sceneLabel(
     t: (key: string, vars?: Record<string, any>) => string,
     name: string,
-    severity: Severity
+    severity: Severity,
+    example: boolean = false
 ): string {
-    return t("boss.visit.label", { name, severity: t(SeverityLabelKeys[severity]) });
+    const key = example ? "boss.visit.example" : "boss.visit.label";
+    return t(key, { name, severity: t(SeverityLabelKeys[severity]) });
 }
 
 // The clips of the package's listening pose he makes each face with.
@@ -205,4 +207,10 @@ export function sceneActions(hub: SceneHub): SceneActions {
         choose: (id) => hub.later(id),
         escape: () => hub.later("escape"),
     };
+}
+
+// The example of "Show a visit" (FR-BOSS-009, AC32, #2079): every action only closes it. It opens no panel, sets no delay
+// and records nothing, so the developer can try the scene as often as they like.
+export function exampleSceneActions(close: () => void): SceneActions {
+    return { fold: close, choose: close, escape: close };
 }

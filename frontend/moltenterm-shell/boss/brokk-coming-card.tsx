@@ -12,6 +12,7 @@ import { useState } from "react";
 import { writeSettings } from "../command-panel/bindings";
 import { useT } from "../i18n/i18n";
 import type { SettingEntry } from "../settings/settings-catalog";
+import { BrokkHubModel } from "./brokk-hub-store";
 import { parseClock } from "./brokk-mood";
 import {
     BlockedThresholdsMin,
@@ -58,6 +59,11 @@ function write(values: Record<string, unknown>): void {
     if (values != null) {
         fireAndForget(() => writeSettings(values));
     }
+}
+
+// FR-BOSS-009, AC31: the example scene, which ignores the settings above on purpose; nothing is recorded (AC32).
+function showExample(): void {
+    BrokkHubModel.getInstance().hub.showExample();
 }
 
 function ComingRow({ entry, value }: { entry: SettingEntry; value: Coming }) {
@@ -221,6 +227,17 @@ export function BrokkComingCard({ entries, settings }: { entries: SettingEntry[]
             <p className="pt-2 text-11 text-muted" data-testid="brokk-coming-severity">
                 {t("boss.coming.severity")}
             </p>
+            <div className="flex items-center gap-3 pt-2" data-testid="brokk-coming-example-row">
+                <p className="min-w-0 flex-1 text-11 text-muted">{t("boss.coming.example.hint")}</p>
+                <button
+                    type="button"
+                    data-testid="brokk-coming-example"
+                    onClick={showExample}
+                    className="inline-flex h-row shrink-0 cursor-pointer items-center rounded-4 border border-line-strong px-3 text-12 text-primary hover:bg-hover"
+                >
+                    {t("boss.coming.example.button")}
+                </button>
+            </div>
         </div>
     );
 }

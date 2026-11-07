@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Severity } from "./brokk-queue";
 import {
+    exampleSceneActions,
     LaterLabelKeys,
     laterOptions,
     MotionTimings,
@@ -236,5 +237,25 @@ describe("he waits naturally, and his face says why now and then (#2025)", () =>
         gestures.ended();
         advance(10 * SceneRecurGap.maxMs);
         expect(cues).toEqual([1]);
+    });
+});
+
+describe("the example of Show a visit (FR-BOSS-009, AC31 and AC32, #2079)", () => {
+    const say = (key: string, vars: Record<string, any> = {}) => `${key}|${JSON.stringify(vars)}`;
+
+    it("names itself an example, and says so in its accessible name", () => {
+        expect(sceneLabel(say, "Brokk", "important", true)).toBe(
+            `boss.visit.example|${JSON.stringify({ name: "Brokk", severity: say(SeverityLabelKeys.important) })}`
+        );
+        expect(sceneLabel(say, "Brokk", "important")).toContain("boss.visit.label");
+    });
+
+    it("has every action only close it: no panel, no delay", () => {
+        let closed = 0;
+        const actions = exampleSceneActions(() => closed++);
+        actions.fold();
+        actions.choose("15min");
+        actions.escape();
+        expect(closed).toBe(3);
     });
 });
