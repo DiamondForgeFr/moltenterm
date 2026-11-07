@@ -11,6 +11,7 @@ import { getTrustedAppSession, registerTrustedAppContents } from "./authkey";
 import { getElectronAppBasePath, isDevVite, unamePlatform } from "./emain-platform";
 import { calculateWindowBounds, MinWindowHeight, MinWindowWidth } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import { registerBuilderContents } from "./moltenterm-app-csp"; // MOLTENTERM-PATCH (#1977)
 
 export type BuilderWindowType = BrowserWindow & {
     builderId: string;
@@ -73,6 +74,7 @@ export async function createBuilderWindow(appId: string): Promise<BuilderWindowT
     });
 
     registerTrustedAppContents(builderWindow.webContents);
+    registerBuilderContents(builderWindow.webContents); // MOLTENTERM-PATCH (#1977)
     if (isDevVite) {
         await builderWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}/index.html`);
     } else {
