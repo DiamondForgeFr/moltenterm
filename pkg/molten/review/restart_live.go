@@ -74,6 +74,9 @@ func (s *Service) AskReleaseResolve(ctx context.Context, req ReleaseResolveReque
 func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 	env := baseLiveRestartEnv(git)
 	liveLeadEnv(&env)
+	env.BranchAgents = func(ctx context.Context, dir string) ([]mission.BranchAgent, bool) {
+		return mission.LiveBranchAgents(dir)
+	}
 	return env
 }
 

@@ -43,7 +43,8 @@
                 "parentfirstname": "Adrien",
                 "model": "claude-opus-5-5",
                 "description": "#1029 release notes",
-                "state": "done"
+                "state": "done",
+                "agentid": "b56e"
             },
             {
                 "branch": "fix/1462-codex-sessions",
@@ -55,7 +56,8 @@
                 "parentfirstname": "Adrien",
                 "model": "claude-opus-5-5",
                 "description": "#1462 codex sessions",
-                "state": "running"
+                "state": "running",
+                "agentid": "a34d"
             }
         ],
         "at": 1793000000000
@@ -106,7 +108,8 @@
                 "model": "gpt-5.5",
                 "effort": "high",
                 "description": "ticket 1029 release notes",
-                "state": "done"
+                "state": "done",
+                "agentid": "01a1a463-0000-7000-8000-000000000003"
             },
             {
                 "branch": "fix/1462-codex-sessions",
@@ -120,7 +123,8 @@
                 "model": "gpt-5.5",
                 "effort": "high",
                 "description": "ticket 1462 codex sessions",
-                "state": "running"
+                "state": "running",
+                "agentid": "01a1a463-0000-7000-8000-000000000002"
             }
         ],
         "at": 1793000000000

@@ -510,7 +510,11 @@ export class ReviewsModel {
                 ...(mode != null ? agentStartOf("finish", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);
-            showLead(result);
+            // Only the developer's own Resume shows the lead: Check the agents may reach a lead per PR (#1955), and
+            // nothing opens unasked.
+            if (lead != null) {
+                showLead(result);
+            }
             outcome = rebaseOutcome(result, null, "finish");
         } catch (e) {
             outcome = rebaseOutcome(null, errorPhrase(e), "finish");
