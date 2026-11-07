@@ -6,12 +6,23 @@
 // `--remote-debugging-port` and drive the user's signed-in pages. A packaged app honours the switches only on a test
 // profile: not the build's default profile, and either new at this start (it is then marked) or marked before. A path
 // rule alone is not enough: the data folder can point at another build's real profile (a release at the gold's data).
+//
+// #2066: the mark alone is not enough either. A same-user program can let the app mark a new folder, copy the user's
+// real Cookies files into it and start again with the port: Chromium would decrypt them with the app's own keychain key,
+// which a signed app gets without a prompt. So a packaged app never asks the system for its real key on a test profile:
+// the cookie key of that run is a throwaway one (Chromium's mock keychain on macOS, the basic store on Linux). Copied
+// cookies stay unreadable, and the cookies a test instance creates itself keep working across its starts. A path or
+// content check on the Cookies file would be weaker: it can be raced between the check and Chromium opening the file.
+// Windows has no such switch; its key is protected by DPAPI for the user, which a same-user program can already call.
 
 import fs from "fs";
 import path from "path";
 
 export const RemoteDebuggingSwitches = ["remote-debugging-port", "remote-debugging-pipe"];
 export const TestProfileMarkName = "moltenterm-test-profile";
+export const MockKeychainSwitch = "use-mock-keychain";
+export const PasswordStoreSwitch = "password-store";
+export const BasicPasswordStore = "basic";
 
 export const ReasonNotRequested = "not-requested";
 export const ReasonDevBuild = "dev-build";
@@ -39,7 +50,48 @@ export type RemoteDebuggingDecision = {
 type CommandLineLike = {
     hasSwitch(name: string): boolean;
     removeSwitch(name: string): void;
+    appendSwitch(name: string, value?: string): void;
 };
+
+// The switches that keep a run off the system's real cookie key, or null where none exists.
+export function throwawayKeySwitch(platform: string): { name: string; value?: string } {
+    if (platform === "darwin") {
+        return { name: MockKeychainSwitch };
+    }
+    if (platform === "linux") {
+        return { name: PasswordStoreSwitch, value: BasicPasswordStore };
+    }
+    return null;
+}
+
+// A packaged app uses a throwaway cookie key on every run of a test profile, whether or not it opens the port, so a test
+// profile's own cookies are read back with the key that wrote them.
+export function usesThrowawayKey(opts: {
+    packaged: boolean;
+    decision: RemoteDebuggingDecision;
+    profileMarked: boolean;
+    isDefaultProfile: boolean;
+}): boolean {
+    if (!opts.packaged || opts.isDefaultProfile) {
+        return false;
+    }
+    return opts.decision.honour || opts.profileMarked;
+}
+
+// The caller's own --password-store is replaced: on a test profile the key never comes from the system.
+function forceThrowawayKey(commandLine: CommandLineLike, platform: string): boolean {
+    const sw = throwawayKeySwitch(platform);
+    if (sw == null) {
+        return false;
+    }
+    commandLine.removeSwitch(sw.name);
+    if (sw.value == null) {
+        commandLine.appendSwitch(sw.name);
+    } else {
+        commandLine.appendSwitch(sw.name, sw.value);
+    }
+    return true;
+}
 
 export function decideRemoteDebugging(input: RemoteDebuggingInput): RemoteDebuggingDecision {
     if (!input.requested) {
@@ -100,16 +152,30 @@ export function applyRemoteDebuggingPolicy(opts: {
 }): RemoteDebuggingDecision {
     const log = opts.log ?? ((line: string) => console.log(line));
     const platform = opts.platform ?? process.platform;
+    const caseInsensitive = platform === "darwin" || platform === "win32";
+    const profileMarked = profileHasMark(opts.profileDir);
     const decision = decideRemoteDebugging({
         requested: RemoteDebuggingSwitches.some((s) => opts.commandLine.hasSwitch(s)),
         packaged: opts.packaged,
         profileDir: opts.profileDir,
         defaultProfileDir: opts.defaultProfileDir,
         profileExists: fs.existsSync(opts.profileDir),
-        profileMarked: profileHasMark(opts.profileDir),
-        caseInsensitive: platform === "darwin" || platform === "win32",
+        profileMarked,
+        caseInsensitive,
     });
-    if (decision.reason === ReasonNotRequested || decision.reason === ReasonDevBuild) {
+    if (decision.reason === ReasonDevBuild) {
+        return decision;
+    }
+    if (decision.reason === ReasonNotRequested) {
+        const isolate = usesThrowawayKey({
+            packaged: opts.packaged,
+            decision,
+            profileMarked,
+            isDefaultProfile: sameDir(opts.profileDir, opts.defaultProfileDir, caseInsensitive),
+        });
+        if (isolate && forceThrowawayKey(opts.commandLine, platform)) {
+            log(`remote debugging: off; the test profile ${opts.profileDir} uses a throwaway cookie key`);
+        }
         return decision;
     }
     if (!decision.honour) {
@@ -134,6 +200,9 @@ export function applyRemoteDebuggingPolicy(opts: {
             return { honour: false, markProfile: false, reason: decision.reason };
         }
     }
-    log(`remote debugging: allowed (${decision.reason}) on the test profile ${opts.profileDir}`);
+    const key = forceThrowawayKey(opts.commandLine, platform)
+        ? "with a throwaway cookie key"
+        : "with the system's cookie key (no throwaway key on this platform)";
+    log(`remote debugging: allowed (${decision.reason}) on the test profile ${opts.profileDir}, ${key}`);
     return decision;
 }

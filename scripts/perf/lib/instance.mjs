@@ -154,7 +154,9 @@ export class Instance {
   // The harness drives the dev build: node_modules/electron keeps Electron's default fuses, so its main process answers
   // `--inspect`. A packaged app has that fuse off (#1975) and is launched with `executable`: it takes no app argument,
   // and `extraArgs` / `extraEnv` add what a probe needs. `remoteDebugging: false` leaves the page port out.
-  async launch({ inspect = true, remoteDebugging = true, extraArgs = [], extraEnv = {} } = {}) {
+  // `keyringSwitch: false` leaves out the switch below, for a probe of the key the app picks itself on a test profile
+  // (#2066); only after it has checked that the app picks a throwaway one.
+  async launch({ inspect = true, remoteDebugging = true, keyringSwitch = true, extraArgs = [], extraEnv = {} } = {}) {
     assertOwnedRoot(this.root);
     if (this.child) {
       throw new Error("instance already running");
@@ -172,7 +174,7 @@ export class Instance {
       // CI runners have no setuid sandbox helper.
       args.push("--no-sandbox");
     }
-    if (this.executable) {
+    if (this.executable && keyringSwitch) {
       // No keychain or key ring prompt from a test instance.
       args.push(process.platform === "darwin" ? "--use-mock-keychain" : "--password-store=basic");
     }
