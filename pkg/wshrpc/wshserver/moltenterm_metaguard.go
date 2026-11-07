@@ -125,7 +125,21 @@ func moltenCheckCreateBlock(ctx context.Context, tabId string, blockDef *waveobj
 	return metaguard.CheckCreateBlock(caller, moltenInWorkspace(ctx, caller, waveobj.MakeORef(waveobj.OType_Tab, tabId)), meta)
 }
 
-// moltenCheckTabOrder: a terminal reorders its own workspace's tabs, never adds or drops one.
+// moltenCheckCreateSubBlock keeps a terminal's sub-blocks to the rules of its blocks (#2067): a sub-block is a block the
+// window lists and searches like any other, so one made with molten:brokk would pass for Brokk's session.
+func moltenCheckCreateSubBlock(ctx context.Context, parentBlockId string, blockDef *waveobj.BlockDef) error {
+	caller := moltenMetaCaller(ctx, true)
+	if caller.Trusted {
+		return nil
+	}
+	var meta waveobj.MetaMapType
+	if blockDef != nil {
+		meta = blockDef.Meta
+	}
+	return metaguard.CheckCreateBlock(caller, moltenInWorkspace(ctx, caller, waveobj.MakeORef(waveobj.OType_Block, parentBlockId)), meta)
+}
+
+// moltenCheckTabOrder:a terminal reorders its own workspace's tabs, never adds or drops one.
 func moltenCheckTabOrder(ctx context.Context, workspaceId string, tabIds []string) error {
 	oref := waveobj.MakeORef(waveobj.OType_Workspace, workspaceId)
 	if err := moltenCheckOwnWorkspace(ctx, oref, "reorder tabs"); err != nil {
