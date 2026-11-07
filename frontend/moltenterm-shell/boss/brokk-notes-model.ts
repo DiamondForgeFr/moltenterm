@@ -184,6 +184,8 @@ export function noteFacts(rows: NoteRow[]): NoteFacts {
     return {
         count: counted.length,
         urgentOrAnswer: rows.some((row) => primaryAllowed(row.priority) && row.unread),
-        unread: rows.some((row) => row.priority !== "done" && row.unread),
+        // A Fait row that is news (a pull request ready to merge) is unread too: the group opens on it before a running
+        // download (#2085).
+        unread: rows.some((row) => row.unread),
     };
 }

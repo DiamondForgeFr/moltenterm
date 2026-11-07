@@ -8,6 +8,7 @@ import {
     afterHover,
     afterRequest,
     arrivalOffset,
+    badgeShares,
     BlockHeightPx,
     ConversationChromePx,
     conversationHeight,
@@ -29,6 +30,9 @@ import {
     PanelId,
     panelWidth,
     PriorityFacts,
+    priorityFactsOf,
+    railCountTotal,
+    RailInput,
     railMarks,
     RailPanels,
     Rect,
@@ -383,23 +387,99 @@ describe("the hover that previews a panel", () => {
     });
 });
 
+const NoFacts: RailInput = {
+    badgeKeys: [],
+    urgentOrAnswer: false,
+    unread: false,
+    agentBlocked: false,
+    downloadReported: false,
+    downloadProgress: null as number,
+    downloadRunning: false,
+    keepAwake: false,
+};
+
+// The developer's gold, 2026-11-07 (#2085): a pull request ready to merge (PR #2080, "[#2070] Collapsed sidebar keeps
+// Brokk at its edge…") made the badge's "1", and a download was running.
+const ReadyPrKey = "ready:/Users/dev/moltenterm:2080";
+
+describe("the priority read from the badge and the panel's facts (#2085)", () => {
+    const opens = (input: Partial<RailInput>) => openingPanel(priorityFactsOf({ ...NoFacts, ...input }));
+
+    it("1. opens Notifications when anything is grave or waits for an answer, whatever else there is", () => {
+        expect(
+            opens({
+                urgentOrAnswer: true,
+                agentBlocked: true,
+                downloadReported: true,
+                badgeKeys: ["download:d1", "agent:b"],
+                downloadRunning: true,
+            })
+        ).toBe("notifications");
+    });
+
+    it("2. opens Agents when an agent is blocked and nothing waits for an answer", () => {
+        expect(opens({ agentBlocked: true, badgeKeys: ["download:d1"], downloadRunning: true })).toBe("agents");
+    });
+
+    it("3. opens Téléchargements when a download finished or failed, before an unread notification", () => {
+        expect(opens({ downloadReported: true, unread: true, downloadRunning: true })).toBe("downloads");
+        expect(opens({ badgeKeys: ["download:d1", ReadyPrKey], downloadRunning: true })).toBe("downloads");
+    });
+
+    it("4. opens Notifications for an unread item of the badge while a download runs", () => {
+        expect(opens({ badgeKeys: [ReadyPrKey], downloadRunning: true, downloadProgress: 0.4 })).toBe("notifications");
+        expect(opens({ unread: true, downloadRunning: true })).toBe("notifications");
+    });
+
+    it("5. opens Téléchargements for a running download only when there is nothing else", () => {
+        expect(opens({ downloadRunning: true, downloadProgress: 0.4 })).toBe("downloads");
+        expect(opens({})).toBeNull();
+    });
+});
+
+describe("the badge and the rail agree (#2085)", () => {
+    it("puts every item of the badge on its own icon: the face's badge is the sum of the rail's counts", () => {
+        const keys = [ReadyPrKey, "agent:b", "finished:c", "row:handoff:x", "update:1.0.1", "download:d1"];
+        const marks = railMarks({ ...NoFacts, badgeKeys: keys, downloadRunning: true, downloadProgress: 0.5 });
+        expect(marks.notifications.count).toBe(5);
+        expect(marks.downloads.count).toBe(1);
+        expect(railCountTotal(marks)).toBe(keys.length);
+    });
+
+    it("counts the ready pull request of the gold under Notifications", () => {
+        const marks = railMarks({ ...NoFacts, badgeKeys: [ReadyPrKey], downloadRunning: true, downloadProgress: 0.4 });
+        expect(marks.notifications.count).toBe(1);
+        expect(railCountTotal(marks)).toBe(1);
+    });
+
+    it("counts nothing for a running download alone: it is the ring, not the badge", () => {
+        const marks = railMarks({ ...NoFacts, downloadRunning: true, downloadProgress: 0.4 });
+        expect(railCountTotal(marks)).toBe(0);
+        expect(marks.downloads.ring).toBe(0.4);
+        expect(badgeShares([])).toEqual({ notifications: 0, downloads: 0 });
+    });
+
+    it("shows a dot, not a count, for unread news the badge does not count", () => {
+        const marks = railMarks({ ...NoFacts, unread: true });
+        expect(marks.notifications).toMatchObject({ count: 0, dot: true });
+        expect(railMarks({ ...NoFacts, unread: true, badgeKeys: ["agent:a"] }).notifications.dot).toBe(false);
+    });
+});
+
 describe("the marks of the closed icons", () => {
-    const base = {
-        noteCount: 0,
-        urgentOrAnswer: false,
-        agentBlocked: false,
-        downloadReported: false,
-        downloadProgress: null as number,
-        downloadRunning: false,
-        keepAwake: false,
-    };
+    const base = NoFacts;
 
     it("counts the notifications, red when anything is grave or waits for an answer", () => {
-        expect(railMarks({ ...base, noteCount: 3, urgentOrAnswer: true }).notifications).toMatchObject({
+        expect(
+            railMarks({ ...base, badgeKeys: ["agent:a", "ci:/p:1", "row:q"], urgentOrAnswer: true }).notifications
+        ).toMatchObject({
             count: 3,
             grave: true,
         });
-        expect(railMarks({ ...base, noteCount: 2 }).notifications).toMatchObject({ count: 2, grave: false });
+        expect(railMarks({ ...base, badgeKeys: ["agent:a", "ready:/p:2"] }).notifications).toMatchObject({
+            count: 2,
+            grave: false,
+        });
     });
 
     it("puts a dot on Agents when one is blocked", () => {

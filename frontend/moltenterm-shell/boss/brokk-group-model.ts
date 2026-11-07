@@ -356,9 +356,14 @@ export type RailMark = {
     ember: boolean;
 };
 
+// What the group reads when it opens and while it stays open: the rail's marks and the priority come from the same facts.
 export type RailInput = {
-    noteCount: number;
+    // What the face's badge counts, by key (useAvatarKeys): the rail shares them out between its icons, so that the
+    // badge is always the sum of the rail's counts (#2085).
+    badgeKeys: string[];
     urgentOrAnswer: boolean;
+    // A row of the Notifications panel is unread, whatever its priority (a ready pull request is Fait and still news).
+    unread: boolean;
     agentBlocked: boolean;
     downloadReported: boolean;
     // The mean progress of the running downloads, null when none runs, and whether one does.
@@ -367,19 +372,55 @@ export type RailInput = {
     keepAwake: boolean;
 };
 
+// must match the key downloadEventsOf gives in brokk-extra-feeds.ts
+const DownloadBadgePrefix = "download:";
+
+// Where each item of the badge is told: a download that finished or failed in Téléchargements, everything else (the rows
+// To handle, the agents that finished, the update, the plan usage) in Notifications. A running download is no item of
+// the badge: it shows as the ring.
+export function badgeShares(keys: string[]): { notifications: number; downloads: number } {
+    const downloads = (keys ?? []).filter((key) => key.startsWith(DownloadBadgePrefix)).length;
+    return { notifications: (keys ?? []).length - downloads, downloads };
+}
+
+// The facts of the opening priority: an item of the badge is news for its own icon even when the panel's own facts
+// missed it.
+export function priorityFactsOf(input: RailInput): PriorityFacts {
+    const shares = badgeShares(input.badgeKeys);
+    return {
+        urgentOrAnswer: input.urgentOrAnswer,
+        agentBlocked: input.agentBlocked,
+        downloadReported: input.downloadReported || shares.downloads > 0,
+        unread: input.unread || shares.notifications > 0,
+        downloadRunning: input.downloadRunning,
+    };
+}
+
 const NoMark: RailMark = { count: 0, grave: false, dot: false, ring: null, ember: false };
 
-// What each closed icon shows (FR-BOSS-009, AC17): a count, a dot, a progress ring, the cup's ember.
+// What each closed icon shows (FR-BOSS-009, AC17): a count, a dot, a progress ring, the cup's ember. The counts are the
+// badge's items, shared out; what is news without being one of them is a dot.
 export function railMarks(input: RailInput): Record<PanelId, RailMark> {
+    const shares = badgeShares(input.badgeKeys);
     return {
-        notifications: { ...NoMark, count: input.noteCount, grave: input.urgentOrAnswer },
+        notifications: {
+            ...NoMark,
+            count: shares.notifications,
+            grave: input.urgentOrAnswer,
+            dot: shares.notifications === 0 && input.unread,
+        },
         agents: { ...NoMark, dot: input.agentBlocked },
         sessions: NoMark,
         downloads: {
             ...NoMark,
-            dot: input.downloadReported && !input.downloadRunning,
+            count: shares.downloads,
+            dot: shares.downloads === 0 && input.downloadReported && !input.downloadRunning,
             ring: input.downloadRunning ? (input.downloadProgress ?? -1) : null,
         },
         keepawake: { ...NoMark, ember: input.keepAwake },
     };
+}
+
+export function railCountTotal(marks: Record<PanelId, RailMark>): number {
+    return RailPanels.reduce((sum, id) => sum + marks[id].count, 0);
 }
