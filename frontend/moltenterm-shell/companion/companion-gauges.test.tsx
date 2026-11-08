@@ -1,8 +1,12 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { I18nModel } from "../i18n/i18n";
+import { paceColour, paceRatio } from "../usage-week/usage-week-model";
 import { PlanUsageBody } from "./companion-gauges";
 import {
     CompanionUsageInfo,
@@ -17,6 +21,7 @@ import {
     usageReasonText,
     usageStale,
     UsageStaleMs,
+    usageWindowShortLabel,
 } from "./companion-gauges-model";
 
 vi.mock("@/app/store/wos", () => ({ makeORef: (t: string, id: string) => `${t}:${id}` }));
@@ -58,6 +63,35 @@ const noop = { onShow: () => {}, onHide: () => {}, onRefresh: () => {} };
 function markup(info: CompanionUsageInfo, at = now): string {
     return renderToStaticMarkup(<PlanUsageBody view={gaugesView(info, at)} {...noop} />);
 }
+
+const RowStart = '<span class="mt-uw-row"';
+const rowTag = (html: string, window: string): string =>
+    [...html.matchAll(/<span class="mt-uw-row"[^>]*>/g)]
+        .map((m) => m[0])
+        .find((tag) => tag.includes(`data-window="${window}"`)) ?? "";
+const rowHtml = (html: string, window: string): string => {
+    const start = html.indexOf(rowTag(html, window));
+    const next = html.indexOf(RowStart, start + 1);
+    return html.slice(start, next < 0 ? html.length : next);
+};
+const windowsOf = (html: string): string[] =>
+    [...html.matchAll(/<span class="mt-uw-row"[^>]*data-window="([^"]*)"/g)].map((m) => m[1]);
+const labelsOf = (html: string): string[] =>
+    [...html.matchAll(/data-testid="usage-week-label">([^<]*)</g)].map((m) => m[1]);
+const percentsOf = (html: string): string[] =>
+    [...html.matchAll(/data-testid="usage-week-percent">([^<]*)</g)].map((m) => m[1]);
+const noteOf = (html: string, window: string): string =>
+    /data-testid="usage-week-note">([^<]*)</.exec(rowHtml(html, window))?.[1] ?? "";
+const initialsOf = (html: string): string =>
+    [...html.matchAll(/data-testid="usage-week-day"[^>]*>([^<]*)</g)].map((m) => m[1]).join("");
+// The seven day blocks of a row, Monday first: their fill and whether the reset ring stands on them.
+const blocksOf = (html: string, window: string): { fill: number; reset: boolean }[] =>
+    [...rowHtml(html, window).matchAll(/<span class="mt-uw-cell([^"]*)"[^>]*><i style="width:([0-9.]+)%"/g)].map(
+        (m) => ({
+            fill: Number(m[2]),
+            reset: m[1].includes("is-reset"),
+        })
+    );
 
 describe("plan usage reads", () => {
     it("may fetch only for a window that shows, so a hidden or minimised one pauses the automatic reads", () => {
@@ -171,35 +205,34 @@ describe("plan usage section", () => {
         expect(markup({ ...enabled, hasgauges: false })).toBe("");
     });
 
-    it("shows each window with its label, percent, bar and reset, marked experimental with its source", () => {
+    it("shows each window as a week-grid row with its label, percent and reset, marked experimental with its source", () => {
         const html = markup(enabled);
         expect(html).toContain("Experimental");
         expect(html).toContain("From the Claude Code status line");
         expect(html).toContain("Updated 3 min ago");
-        expect(html).toContain(">Current session<");
-        expect(html).toContain(">23.5 % used<");
-        expect(html).toContain("Resets in 2 h 14 min");
-        expect(html).toContain(">This week<");
-        expect(html).toContain("Resets Fri 10:00");
-        expect(html).toContain('role="meter"');
-        expect(html).toContain('aria-valuenow="24"');
-        expect(html).toContain("width:23.5%");
-        expect(html).toMatch(/bg-\[var\(--mt-state-running\)\][^"]*" style="width:82%/);
+        expect(labelsOf(html)).toEqual(["Session", "Week"]);
+        expect(html).toContain('aria-label="Current session, 24 %, resets Tuesday"');
+        expect(html).toContain('title="Current session: 23.5 % used\nResets in 2 h 14 min"');
+        expect(noteOf(html, "session")).toBe("Resets in 2 h 14 min");
+        expect(html).toContain('aria-label="This week, 82 %, resets Friday"');
+        expect(noteOf(html, "week")).toBe("Resets Fri 10:00");
+        expect(percentsOf(html)).toEqual(["24 %", "82 %"]);
         expect(html).toContain('aria-label="Refresh plan usage"');
         expect(html).toContain(">Hide</button>");
     });
 
-    it("is one line per limit in its compact form, the details a click away (#555)", () => {
+    it("is one week-grid row per limit in its compact form, the details a click away (#555)", () => {
         const onDetails = vi.fn();
         const html = renderToStaticMarkup(
             <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={onDetails} />
         );
         expect(html).toContain('data-compact="true"');
-        expect(html.match(/data-testid="companion-gauge"/g)).toHaveLength(2);
-        expect(html).toContain(">23.5 %<");
-        expect(html).toContain(">in 2 h 14 min<");
-        expect(html).toContain(">Fri 10:00<");
-        expect(html).toContain("From the Claude Code status line · Updated 3 min ago");
+        expect(windowsOf(html)).toEqual(["session", "week"]);
+        expect(percentsOf(html)).toEqual(["24 %", "82 %"]);
+        expect(html).toContain(
+            'title="This week: 82 % used\nResets Fri 10:00\nFrom the Claude Code status line · Updated 3 min ago"'
+        );
+        expect(html).not.toContain('data-testid="usage-week-note"');
         expect(html).toContain('aria-label="Plan usage details"');
         expect(html).not.toContain("Experimental");
         expect(html).not.toContain(">Hide</button>");
@@ -225,7 +258,7 @@ describe("plan usage section", () => {
         const html = renderToStaticMarkup(
             <PlanUsageBody view={gaugesView(many, now)} {...noop} compact onDetails={() => {}} />
         );
-        expect(html.match(/data-testid="companion-gauge"/g)).toHaveLength(2);
+        expect(windowsOf(html)).toEqual(["session", "week"]);
         expect(html).not.toContain("Opus this week");
         expect(html).toContain(">+2<");
     });
@@ -299,11 +332,11 @@ describe("Codex plan usage", () => {
         const html = markup(codex);
         expect(html).toContain("From the Codex session log");
         expect(html).toContain("Updated 3 min ago");
-        expect(html).toContain(">5-hour<");
-        expect(html).toContain(">12.5 % used<");
-        expect(html).toContain("Resets in 3 h");
-        expect(html).toContain(">This week<");
-        expect(html).toMatch(/bg-\[var\(--mt-state-error\)\][^"]*" style="width:96%/);
+        expect(labelsOf(html)).toEqual(["5-hour", "Week"]);
+        expect(html).toContain('title="5-hour: 12.5 % used\nResets in 3 h"');
+        expect(noteOf(html, "session")).toBe("Resets in 3 h");
+        expect(percentsOf(html)).toEqual(["13 %", "96 %"]);
+        expect(rowTag(html, "week")).toContain('data-pace="red"');
         expect(html).toContain("Credits: 17.5 left");
     });
 
@@ -342,5 +375,147 @@ describe("Codex plan usage", () => {
         expect(html).not.toContain("fa-rotate-right");
         expect(markup(codex)).toContain("fa-rotate-right");
         expect(markup(codex)).not.toContain("df-domino-loader");
+    });
+});
+
+// The companion draws the gauges as Brokk's usage week grid (FR-SHELL-027, FR-BOSS-009 AC48 to AC51, #2102).
+describe("the companion's usage week grid (#2102)", () => {
+    const withModel: CompanionUsageInfo = {
+        ...enabled,
+        snapshot: {
+            ...enabled.snapshot,
+            windows: [
+                enabled.snapshot.windows[1],
+                {
+                    id: "model:opus",
+                    label: "This week (Opus)",
+                    usedpercent: 70,
+                    resetsat: now + 5 * 24 * Hour,
+                    windowmins: 10080,
+                },
+            ],
+        },
+    };
+
+    it("is the shared component: one row per window, labelled by its window in place of a logo", () => {
+        const html = markup(enabled);
+        expect(html).toContain('data-testid="usage-week"');
+        expect(html).toContain('data-labelled="true"');
+        expect(windowsOf(html)).toEqual(["session", "week"]);
+        expect(labelsOf(html)).toEqual(["Session", "Week"]);
+        expect(html).not.toContain('data-testid="usage-week-logo"');
+        expect(html).not.toContain('role="meter"');
+        const source = readFileSync(join(__dirname, "companion-gauges.tsx"), "utf8");
+        expect(source).toContain('from "../usage-week/usage-week"');
+        expect(source).not.toContain('role="meter"');
+    });
+
+    it("draws the weekly and the per-model weekly window of the agent, the model's name in its label", () => {
+        const html = markup(withModel);
+        expect(windowsOf(html)).toEqual(["week", "model:opus"]);
+        expect(labelsOf(html)).toEqual(["Week", "Week (Opus)"]);
+        expect(rowTag(html, "model:opus")).toContain('aria-label="This week (Opus), 70 %, resets Sunday"');
+    });
+
+    // The reset day's block is 0 %: the fill starts on it and runs forward, past Sunday to Monday. Tuesday 6 October.
+    it("starts each window's fill on the weekday it last reset, wrapping round the week", () => {
+        const html = markup(withModel);
+        // The week resets on Friday 9 October at 10:00: it last reset on Friday 2 October.
+        expect(blocksOf(html, "week")).toEqual([
+            { fill: 100, reset: false },
+            { fill: 100, reset: false },
+            { fill: 74, reset: false },
+            { fill: 0, reset: false },
+            { fill: 100, reset: true },
+            { fill: 100, reset: false },
+            { fill: 100, reset: false },
+        ]);
+        // Opus resets on Sunday 11 October: it last reset on Sunday 4 October, 70 % being 4.9 blocks from there.
+        expect(blocksOf(html, "model:opus")).toEqual([
+            { fill: 100, reset: false },
+            { fill: 100, reset: false },
+            { fill: 100, reset: false },
+            { fill: 90, reset: false },
+            { fill: 0, reset: false },
+            { fill: 0, reset: false },
+            { fill: 100, reset: true },
+        ]);
+        // The 5-hour session last reset this morning, on Tuesday.
+        expect(blocksOf(markup(enabled), "session").map((b) => b.reset)).toEqual([
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+        ]);
+    });
+
+    it("follows Brokk's pace colours, a per-model week being paced against a week", () => {
+        const html = markup(withModel);
+        const colour = (window: string) => /--mt-uw-pace:([^"]*)"/.exec(rowTag(html, window))?.[1];
+        // 82 % when 4 days of 7 allow 57 %.
+        expect(colour("week")).toBe(paceColour(paceRatio(82, now + 3 * 24 * Hour, 10080, now)));
+        expect(colour("week")).toBe("color-mix(in srgb, var(--color-error) 63%, var(--color-warning))");
+        expect(rowTag(html, "week")).toContain('data-pace="above"');
+        // 70 % when 2 days of 7 allow 28.5 %.
+        expect(colour("model:opus")).toBe("var(--color-error)");
+        expect(rowTag(html, "model:opus")).toContain('data-pace="red"');
+        // 23.5 % of a session that is 2 h 46 min old of 5 h.
+        const session = markup(enabled);
+        expect(/--mt-uw-pace:([^"]*)"/.exec(rowTag(session, "session"))?.[1]).toBe("var(--color-success)");
+        expect(rowTag(session, "session")).toContain('data-pace="ok"');
+    });
+
+    it("writes the initials Monday first in the interface language, today's emphasised, and follows a switch", () => {
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            const html = markup(enabled);
+            expect(initialsOf(html)).toBe("LMMJVSD");
+            expect(labelsOf(html)).toEqual(["Session", "Semaine"]);
+            expect(rowTag(html, "week")).toMatch(/aria-label="Cette semaine, 82\s%, remise à zéro vendredi"/);
+            i18n.setLanguageSetting("en");
+            expect(initialsOf(markup(enabled))).toBe("MTWTFSS");
+        } finally {
+            i18n.setLanguageSetting("");
+        }
+        const days = [...markup(enabled).matchAll(/<span class="mt-uw-day"[^>]*>/g)].map((m) => m[0]);
+        expect(days.map((d) => d.includes('data-today="true"'))).toEqual([
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+        ]);
+    });
+
+    it("tells the reset in the row's tooltip, and under the row in the details form only", () => {
+        const compact = renderToStaticMarkup(
+            <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={() => {}} />
+        );
+        expect(compact).not.toContain('data-testid="usage-week-note"');
+        expect(rowTag(compact, "week")).toContain("Resets Fri 10:00");
+        expect(noteOf(markup(enabled), "week")).toBe("Resets Fri 10:00");
+    });
+
+    it("names a window in a short form for a narrow column, and keeps the whole name for the row", () => {
+        expect(usageWindowShortLabel("Current session")).toBe("Session");
+        expect(usageWindowShortLabel("This week")).toBe("Week");
+        expect(usageWindowShortLabel("This week (Opus)")).toBe("Week (Opus)");
+        expect(usageWindowShortLabel("Spend limit")).toBe("Spend");
+        expect(usageWindowShortLabel("5-hour")).toBe("5-hour");
+        expect(usageWindowShortLabel("GPT-5 This week")).toBe("GPT-5 Week");
+        expect(usageWindowShortLabel("Something else")).toBe("Something else");
+        const rows = gaugeRows(withModel.snapshot, now);
+        expect(rows.map((r) => [r.label, r.shortLabel])).toEqual([
+            ["This week", "Week"],
+            ["This week (Opus)", "Week (Opus)"],
+        ]);
+        expect(rows[1].line.start).toBe(6);
+        expect(rows[1].line.windowMins).toBe(10080);
     });
 });

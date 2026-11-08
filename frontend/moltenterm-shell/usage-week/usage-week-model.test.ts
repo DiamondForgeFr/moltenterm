@@ -13,9 +13,11 @@ import {
     paceRatio,
     PaceRedAt,
     startIndex,
+    usageWeekLine,
     usageWeekLines,
     weekdayIndex,
     WeekDayKeys,
+    windowLength,
 } from "./usage-week-model";
 
 const Now = new Date(2026, 10, 6, 10, 0, 0).getTime();
@@ -119,6 +121,26 @@ describe("the week lines of a list of windows", () => {
         expect(lines[1].start).toBe(2);
         expect(lines[1].pace).toBeCloseTo(40 / ((2 / 7) * 100), 5);
         expect(usageWeekLines(undefined, Now)).toEqual([]);
+    });
+
+    // The companion draws the per-model weekly window too (#2102): its line is paced against its own week, though it is
+    // never a provider's main window.
+    it("paces a per-model weekly window against a week, with the length the reader gave or a week without it", () => {
+        const given = usageWeekLines(windows, Now)[2];
+        // It resets on Wednesday 11 November, 5 days from Friday 6: it last reset on Wednesday 4 November.
+        expect(given.windowMins).toBe(10080);
+        expect(given.start).toBe(2);
+        expect(given.pace).toBeCloseTo(70 / ((2 / 7) * 100), 5);
+        const bare = usageWeekLine(
+            { id: "model:opus", label: "This week (Opus)", usedpercent: 70, resetsat: Now + 5 * Day },
+            Now
+        );
+        expect(bare.windowMins).toBe(10080);
+        expect(bare.pace).toBeCloseTo(given.pace, 5);
+        expect(windowLength({ id: "model:opus", label: "x", usedpercent: 1 })).toBe(10080);
+        expect(windowLength({ id: "spend", label: "Spend limit", usedpercent: 1 })).toBe(0);
+        expect(windowLength({ id: "session", label: "x", usedpercent: 1 })).toBe(300);
+        expect(windowLength({ id: "other", label: "x", usedpercent: 1, windowmins: 43200 })).toBe(43200);
     });
 
     it("picks the main window: the longest running one, never per-model or spend", () => {

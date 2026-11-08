@@ -1,12 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The week grid of a plan usage (FR-BOSS-009, AC48 to AC51, #2100), for any surface (Brokk's group, #2102): the initials
-// of the calendar week once on top, Monday to Sunday, today's emphasised, then one row per line with the agent's logo
-// (its name as tooltip), seven day blocks and the percent. The reset day's block is the start (0 %): the fill runs from
-// it forward round the week, and it carries an accent ring and a slow sheen. Today's column stands out on every row. The
-// fill and the percent take the colour of the pace, from on pace (success) to running out before the reset (error). It
-// shows no other detail on hover; each row has an accessible name.
+// The week grid of a plan usage (FR-BOSS-009, AC48 to AC51, #2100), for any surface (Brokk's group, the companion's
+// gauges, #2102): the initials of the calendar week once on top, Monday to Sunday, today's emphasised, then one row per
+// line with the agent's logo (its name as tooltip) or, on a surface that shows one agent, the label of the row's window
+// in its place, seven day blocks and the percent. The reset day's block is the start (0 %): the fill runs from it
+// forward round the week, and it carries an accent ring and a slow sheen. Today's column stands out on every row. The
+// fill and the percent take the colour of the pace, from on pace (success) to running out before the reset (error). A
+// row shows no other detail on hover unless its surface gives it a tooltip; each row has an accessible name.
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
@@ -41,6 +42,15 @@ export type UsageWeekRow = {
     // When the reading was taken (Unix ms), and whether it is old enough for its age to be told.
     readAt?: number;
     old?: boolean;
+    // The row's window (its id), on a surface that shows one agent: each row is one of its windows.
+    window?: string;
+    // The window in a short form: it takes the logo's place. Cut with an ellipsis when the space runs out; `name` is the
+    // whole of it.
+    label?: string;
+    // The row's tooltip, for a surface that has more to say about a window than the grid.
+    title?: string;
+    // A line under the row, across the grid.
+    note?: string;
 };
 
 // How long the pointer rests on a logo before its name shows.
@@ -94,6 +104,18 @@ function AgentLogo({ agent, name, named }: { agent: string; name: string; named:
     );
 }
 
+// What starts a row: the label of its window when the row has one, else the agent's logo.
+function RowLead({ row, named }: { row: UsageWeekRow; named: boolean }) {
+    if (row.label == null) {
+        return <AgentLogo agent={row.agent} name={row.name} named={named} />;
+    }
+    return (
+        <span className="mt-uw-label" data-testid="usage-week-label">
+            {row.label}
+        </span>
+    );
+}
+
 export function UsageWeekGrid({
     rows,
     now,
@@ -108,8 +130,9 @@ export function UsageWeekGrid({
     const t = useT();
     const locale = useLocale();
     const today = weekdayIndex(now);
+    const labelled = rows.some((row) => row.label != null);
     return (
-        <span className="mt-uw" id={id} data-testid="usage-week">
+        <span className="mt-uw" id={id} data-labelled={labelled ? "true" : undefined} data-testid="usage-week">
             <span aria-hidden />
             {WeekDayKeys.map((key, i) => (
                 <span
@@ -135,11 +158,13 @@ export function UsageWeekGrid({
                             className="mt-uw-row"
                             role="img"
                             aria-label={label}
+                            title={row.title}
                             data-testid="usage-week-row"
                             data-provider={row.agent}
+                            data-window={row.window}
                             data-unreadable="true"
                         >
-                            <AgentLogo agent={row.agent} name={name} named={named} />
+                            <RowLead row={row} named={named} />
                             <span className="mt-uw-note" data-testid="usage-week-unreadable">
                                 {t("usageWeek.unreadable")}
                             </span>
@@ -162,13 +187,15 @@ export function UsageWeekGrid({
                         className="mt-uw-row"
                         role="img"
                         aria-label={parts.join(", ")}
+                        title={row.title}
                         style={{ "--mt-uw-pace": paceColour(line.pace) } as CSSProperties}
                         data-pace={line.pace > 1 ? (line.pace > PaceRedAt ? "red" : "above") : "ok"}
                         data-old={row.old ? "true" : undefined}
                         data-testid="usage-week-row"
                         data-provider={row.agent}
+                        data-window={row.window}
                     >
-                        <AgentLogo agent={row.agent} name={name} named={named} />
+                        <RowLead row={row} named={named} />
                         {dayFills(line.percent, line.start).map((fill, i) => (
                             <span
                                 key={i}
@@ -183,6 +210,11 @@ export function UsageWeekGrid({
                         <b className="mt-uw-pct" data-testid="usage-week-percent">
                             {t("usageWeek.percent", { percent: line.percent })}
                         </b>
+                        {row.note ? (
+                            <span className="mt-uw-detail" data-testid="usage-week-note">
+                                {row.note}
+                            </span>
+                        ) : null}
                     </span>
                 );
             })}

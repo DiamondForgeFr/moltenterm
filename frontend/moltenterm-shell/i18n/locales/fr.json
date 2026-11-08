@@ -2050,6 +2050,12 @@
                 "day": "{count} j",
                 "min": "{count} min"
             },
+            "windowShort": {
+                "session": "Session",
+                "week": "Semaine",
+                "spend": "Dépenses",
+                "model": "Semaine ({name})"
+            },
             "reason": {
                 "notsetup": "Ligne d'état non configurée",
                 "waiting": "En attente de la ligne d'état de l'agent : elle donne les limites après sa prochaine réponse",

@@ -4,8 +4,8 @@
 // The week grid of a plan usage (FR-BOSS-009, AC48 to AC51, #2100): from the windows a reader gives (FR-SHELL-027), the
 // line each one draws under the initials of the calendar week, Monday to Sunday: its rounded percent, the block of its
 // last reset (0 %, where the fill starts and runs forward round the week) and its pace (consumed against the share of
-// the window elapsed since that reset). Pure and tied to no surface: Brokk's group shows it, and other usage surfaces
-// can (#2102).
+// the window elapsed since that reset). Pure and tied to no surface: Brokk's group shows it, and so do the companion's
+// gauges (#2102).
 
 import type { UsageWindow } from "../companion/companion-gauges-model";
 
@@ -45,22 +45,32 @@ export type UsageWeekLine = {
     start: number;
 };
 
-// A window's length: the one the reader gave, else the one its id names; -1 for the per-model and spend windows, which
-// are never a provider's main window.
-export function usageWindowMins(window: UsageWindow): number {
-    if (window.id === SpendWindowId || window.id?.startsWith(ModelWindowPrefix)) {
-        return -1;
-    }
+function isModelWindow(window: UsageWindow): boolean {
+    return window.id?.startsWith(ModelWindowPrefix) === true;
+}
+
+// A window's own length, per-model and spend windows included: the one the reader gave, else the one its id names (a
+// per-model window is a week, as its label says); 0 when unknown. It sets the window's last reset and its pace.
+export function windowLength(window: UsageWindow): number {
     if (window.windowmins > 0) {
         return window.windowmins;
     }
-    if (window.id === WeekWindowId) {
+    if (window.id === WeekWindowId || isModelWindow(window)) {
         return WeekMins;
     }
     if (window.id === SessionWindowId) {
         return SessionMins;
     }
     return 0;
+}
+
+// A window's length for choosing the main window: -1 for the per-model and spend windows, which are never a provider's
+// main window.
+export function usageWindowMins(window: UsageWindow): number {
+    if (window.id === SpendWindowId || isModelWindow(window)) {
+        return -1;
+    }
+    return windowLength(window);
 }
 
 function isRunning(window: UsageWindow, now: number): boolean {
@@ -168,7 +178,7 @@ export function paceColour(ratio: number): string {
 export function usageWeekLine(window: UsageWindow, now: number): UsageWeekLine {
     const percent = Math.round(Math.min(100, Math.max(0, window.usedpercent)));
     const resetsAt = window.resetsat ?? 0;
-    const windowMins = Math.max(0, usageWindowMins(window));
+    const windowMins = windowLength(window);
     return {
         percent,
         pace: paceRatio(percent, resetsAt, windowMins, now),

@@ -5,6 +5,7 @@
 // limits (pkg/molten/usage) and the pure rules of their section. Pure, so they are tested without a window.
 
 import { getLocale, t } from "../i18n/i18n";
+import { UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
 import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
@@ -89,16 +90,19 @@ export function usageReasonText(reason: string, agent?: string): string {
 
 export type GaugeLevel = "normal" | "warning" | "error";
 
-// percentShort and resetsShort: the compact line's words ("23.5 %", "in 2 h").
+// percentShort and resetsShort: the words of a one-line list ("23.5 %", "in 2 h"). `line` is what the week grid draws
+// for the window (#2102) and `shortLabel` its name when the room is short ("Week (Opus)").
 export type GaugeRow = {
     id: string;
     label: string;
+    shortLabel: string;
     percent: string;
     percentShort: string;
     bar: number;
     level: GaugeLevel;
     resets: string;
     resetsShort: string;
+    line: UsageWeekLine;
 };
 
 export type GaugesView =
@@ -106,7 +110,7 @@ export type GaugesView =
     | { kind: "off" }
     | { kind: "setup"; setup: UsageSetup }
     | { kind: "unavailable"; reason: string }
-    | { kind: "enabled"; rows: GaugeRow[]; source: string; age: string; credits: string };
+    | { kind: "enabled"; agent: string; now: number; rows: GaugeRow[]; source: string; age: string; credits: string };
 
 export function gaugeLevel(percent: number): GaugeLevel {
     if (percent >= 95) {
@@ -171,24 +175,25 @@ function resetWords(resetsAt: number, now: number, short: boolean): string {
     return at(`${weekdayName(d)} ${d.getDate()} ${monthName(d)}, ${clockTime(d)}`);
 }
 
-const WindowLabelKeys: Record<string, string> = {
-    "Current session": "companion.gauges.window.session",
-    "This week": "companion.gauges.window.week",
-    "Spend limit": "companion.gauges.window.spend",
+const WindowLabelNames: Record<string, string> = {
+    "Current session": "session",
+    "This week": "week",
+    "Spend limit": "spend",
 };
 
 // The readers name a window in English ("This week", "This week (Opus)", "5-hour", "GPT-5 5-hour"): the words they
 // send are mapped to keys here, so every surface shows the translation (FR-I18N-001). A label that matches none is
-// shown as the reader gave it.
-export function usageWindowLabel(label: string): string {
+// shown as the reader gave it. `short` gives the form for a narrow column ("Week (Opus)"): a duration is short already.
+function windowWords(label: string, short: boolean): string {
     const text = (label || "").trim();
-    const fixed = WindowLabelKeys[text];
+    const group = short ? "companion.gauges.windowShort" : "companion.gauges.window";
+    const fixed = WindowLabelNames[text];
     if (fixed != null) {
-        return t(fixed);
+        return t(`${group}.${fixed}`);
     }
     const model = /^This week \((.+)\)$/.exec(text);
     if (model != null) {
-        return t("companion.gauges.window.model", { name: model[1] });
+        return t(`${group}.model`, { name: model[1] });
     }
     const duration = /^(\d+)-(hour|day|min)$/.exec(text);
     if (duration != null) {
@@ -196,9 +201,18 @@ export function usageWindowLabel(label: string): string {
     }
     const extra = /^(.+) (5-hour|This week|\d+-(?:hour|day|min))$/.exec(text);
     if (extra != null) {
-        return t("companion.gauges.window.extra", { name: extra[1], window: usageWindowLabel(extra[2]) });
+        return t("companion.gauges.window.extra", { name: extra[1], window: windowWords(extra[2], short) });
     }
     return text;
+}
+
+export function usageWindowLabel(label: string): string {
+    return windowWords(label, false);
+}
+
+// The window's name for a narrow column, as the companion's week grid labels its rows (#2102).
+export function usageWindowShortLabel(label: string): string {
+    return windowWords(label, true);
 }
 
 // A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it.
@@ -208,12 +222,14 @@ export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
         .map((w) => ({
             id: w.id,
             label: usageWindowLabel(w.label) || w.id,
+            shortLabel: usageWindowShortLabel(w.label) || w.id,
             percent: gaugePercent(w.usedpercent),
             percentShort: `${Math.round(w.usedpercent * 10) / 10} %`,
             bar: Math.min(100, Math.max(0, w.usedpercent)),
             level: gaugeLevel(w.usedpercent),
             resets: resetText(w.resetsat, now),
             resetsShort: resetShortText(w.resetsat, now),
+            line: usageWeekLine(w, now),
         }));
 }
 
@@ -305,6 +321,8 @@ export function gaugesView(info: CompanionUsageInfo, now: number): GaugesView {
     const at = info.snapshot?.readat;
     return {
         kind: "enabled",
+        agent: info.agent,
+        now,
         rows,
         source: info.sourcename ?? "",
         age: at ? t("companion.gauges.updated", { ago: relativeTime(at, now) }) : "",
