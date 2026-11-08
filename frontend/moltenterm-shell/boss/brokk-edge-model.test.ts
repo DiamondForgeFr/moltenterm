@@ -8,18 +8,23 @@ import {
     AjarPx,
     BounceMs,
     bounceKeyframes,
-    bounceOnNews,
     edgeAttributes,
     EdgeFacePx,
     edgeFaceShiftPx,
-    edgeGutterOn,
+    EdgeFadeMs,
+    edgeLineOn,
+    edgeMotionFrames,
+    edgeMotionOf,
     EdgeNews,
     edgeNewsAfter,
     EdgePx,
+    EdgeShape,
     edgeShapeOf,
+    EdgeSlideMs,
     edgeUnfoldsOn,
+    newsToTell,
     NoNews,
-    playBounce,
+    playEdgeMotion,
     sidebarPlaceOf,
 } from "./brokk-edge-model";
 
@@ -51,37 +56,31 @@ describe("where the sidebar stands for him (FR-BOSS-009, AC14, AC27, #2070)", ()
     });
 });
 
-describe("how open the collapsed sidebar stays (AC29)", () => {
-    it("rests on its strip when nothing waits", () => {
+describe("how far the collapsed sidebar comes out (AC44 to AC46, #2093)", () => {
+    it("is out of sight at rest, when nothing waits and nothing is being told", () => {
         expect(edgeShapeOf("edge", { visit: false, cue: false })).toBe("rest");
+        expect(edgeShapeOf("edge", { visit: false, cue: false, telling: false })).toBe("rest");
     });
 
-    it("stays half open while a visit is due, or held back for a menu, a dialog or his group", () => {
+    it("peeks out by its strip only while it tells a new notification", () => {
+        expect(edgeShapeOf("edge", { visit: false, cue: false, telling: true })).toBe("peek");
+    });
+
+    it("stays half open while a visit is due, or held back for a menu, a dialog or his group, news or not", () => {
         expect(edgeShapeOf("edge", { visit: true, cue: false })).toBe("ajar");
         expect(edgeShapeOf("edge", { visit: false, cue: true })).toBe("ajar");
+        expect(edgeShapeOf("edge", { visit: true, cue: false, telling: true })).toBe("ajar");
     });
 
     it("is not a shape of a sidebar that is on screen or absent", () => {
-        expect(edgeShapeOf("screen", { visit: true, cue: true })).toBeNull();
-        expect(edgeShapeOf("none", { visit: true, cue: true })).toBeNull();
+        expect(edgeShapeOf("screen", { visit: true, cue: true, telling: true })).toBeNull();
+        expect(edgeShapeOf("none", { visit: true, cue: true, telling: true })).toBeNull();
     });
 
-    it("leaves the strip's room to the content while collapsed with Brokk on, unfolded or not", () => {
-        expect(edgeGutterOn(true, true)).toBe(true);
-        expect(edgeGutterOn(true, false)).toBe(false);
-        expect(edgeGutterOn(false, true)).toBe(false);
-    });
-});
-
-describe("hover and click (AC30)", () => {
-    it("unfolds the sidebar over the strip, but not over his face, which stays under the pointer for the click", () => {
-        expect(edgeUnfoldsOn("edge", false)).toBe(true);
-        expect(edgeUnfoldsOn("edge", true)).toBe(false);
-    });
-
-    it("does nothing for a sidebar that is already on screen or absent", () => {
-        expect(edgeUnfoldsOn("screen", false)).toBe(false);
-        expect(edgeUnfoldsOn("none", false)).toBe(false);
+    it("says the event's line on the scene of a collapsed sidebar, half open or unfolded, not on a docked one", () => {
+        expect(edgeLineOn(true, true)).toBe(true);
+        expect(edgeLineOn(true, false)).toBe(false);
+        expect(edgeLineOn(false, true)).toBe(false);
     });
 });
 
@@ -157,7 +156,83 @@ describe("the news (AC28)", () => {
     });
 });
 
-describe("the bounce (AC28)", () => {
+describe("a new notification is told once, to the sidebar that waits at the edge (AC45)", () => {
+    it("tells when a new bounce was counted, and not again for the same one", () => {
+        const first = newsToTell(1, 0, "edge");
+        expect(first).toEqual({ played: 1, tell: true });
+        expect(newsToTell(1, first.played, "edge").tell).toBe(false);
+        expect(newsToTell(2, first.played, "edge").tell).toBe(true);
+    });
+
+    it("does not tell a sidebar that is on screen or absent, and does not keep it for later", () => {
+        expect(newsToTell(1, 0, "screen")).toEqual({ played: 1, tell: false });
+        expect(newsToTell(1, 0, "none")).toEqual({ played: 1, tell: false });
+    });
+});
+
+// The shapes the collapsed sidebar goes through, and what it plays on each change, as use-brokk-edge.ts drives them.
+function walk(steps: { shape: EdgeShape; tell?: boolean }[], reduced = false) {
+    let before: EdgeShape = null;
+    return steps.map((step) => {
+        const motion = edgeMotionOf(before, step.shape, step.tell === true, reduced);
+        before = step.shape;
+        return motion;
+    });
+}
+
+describe("the motion as it comes out (AC45 to AC47, #2093)", () => {
+    it("bounces once for a notification, then ends fully hidden, playing nothing on the way back", () => {
+        const telling = edgeShapeOf("edge", { visit: false, cue: false, telling: true });
+        const told = edgeShapeOf("edge", { visit: false, cue: false, telling: false });
+        expect([telling, told]).toEqual(["peek", "rest"]);
+        expect(walk([{ shape: "rest" }, { shape: telling, tell: true }, { shape: told }])).toEqual([
+            null,
+            "bounce",
+            null,
+        ]);
+    });
+
+    it("bounces as it comes out for something important, and stays half open", () => {
+        expect(walk([{ shape: "rest" }, { shape: "ajar" }, { shape: "ajar" }])).toEqual([null, "bounce", null]);
+        expect(walk([{ shape: "rest" }, { shape: "peek", tell: true }, { shape: "ajar" }])).toEqual([
+            null,
+            "bounce",
+            "bounce",
+        ]);
+    });
+
+    it("bounces again for a new notification while it is half open", () => {
+        expect(walk([{ shape: "rest" }, { shape: "ajar" }, { shape: "ajar", tell: true }])).toEqual([
+            null,
+            "bounce",
+            "bounce",
+        ]);
+    });
+
+    it("plays nothing as it folds back to half open after a hover, or after being docked", () => {
+        expect(walk([{ shape: "ajar" }, { shape: null }, { shape: "ajar" }])).toEqual([null, null, null]);
+    });
+
+    it("plays nothing as it closes, once the item is handled or put off", () => {
+        expect(walk([{ shape: "rest" }, { shape: "ajar" }, { shape: "rest" }])).toEqual([null, "bounce", null]);
+    });
+
+    it("has no bounce under reduced motion: the peek fades in and out, the half-open state fades in", () => {
+        expect(walk([{ shape: "rest" }, { shape: "peek", tell: true }, { shape: "rest" }], true)).toEqual([
+            null,
+            "peek-fade",
+            null,
+        ]);
+        expect(walk([{ shape: "rest" }, { shape: "ajar" }], true)).toEqual([null, "fade-in"]);
+        expect(walk([{ shape: "rest" }, { shape: "ajar" }, { shape: "ajar", tell: true }], true)).toEqual([
+            null,
+            "fade-in",
+            null,
+        ]);
+    });
+});
+
+describe("the bounce and the fades (AC45, AC46)", () => {
     it("moves out and back twice, the second smaller, and ends where it began", () => {
         const frames = bounceKeyframes();
         const xs = frames.map((frame) => Number(/translateX\((-?\d+)px\)/.exec(frame.transform)[1]));
@@ -169,84 +244,71 @@ describe("the bounce (AC28)", () => {
         expect(offsets).toEqual([...offsets].sort((a, b) => a - b));
     });
 
-    it("is laid over the sidebar's own transform, not instead of it", () => {
+    it("is laid over the sidebar's own transform once it has slid out, not instead of it", () => {
         const animate = vi.fn(() => ({ cancel: vi.fn() }));
-        const bounce = playBounce({ animate }, false);
-        expect(bounce).not.toBeNull();
+        const played = playEdgeMotion({ animate }, "bounce");
+        expect(played).not.toBeNull();
         expect(animate).toHaveBeenCalledTimes(1);
-        expect(animate).toHaveBeenCalledWith(bounceKeyframes(), expect.objectContaining({ duration: BounceMs, composite: "add" }));
+        expect(animate).toHaveBeenCalledWith(
+            bounceKeyframes(),
+            expect.objectContaining({ duration: BounceMs, delay: EdgeSlideMs, composite: "add" })
+        );
     });
 
-    it("plays nothing under reduced motion: the badge and the face's outline say it", () => {
+    it("fades the peek in and out without moving it, and holds it transparent until it is out of sight", () => {
+        const { keyframes, options } = edgeMotionFrames("peek-fade");
+        expect(keyframes.map((frame) => frame.opacity)).toEqual([0, 1, 1, 0]);
+        expect(keyframes.some((frame) => "transform" in frame)).toBe(false);
+        expect(options).toMatchObject({ fill: "forwards" });
+        expect(options.composite).toBeUndefined();
+    });
+
+    it("fades the half-open state in, in the app's fade time", () => {
+        const { keyframes, options } = edgeMotionFrames("fade-in");
+        expect(keyframes.map((frame) => frame.opacity)).toEqual([0, 1]);
+        expect(options).toMatchObject({ duration: EdgeFadeMs });
+    });
+
+    it("reports its end, so that the peek hides again", () => {
+        const animation: { cancel: () => void; onfinish?: () => void } = { cancel: vi.fn() };
+        const done = vi.fn();
+        playEdgeMotion({ animate: () => animation }, "bounce", done);
+        expect(done).not.toHaveBeenCalled();
+        animation.onfinish();
+        expect(done).toHaveBeenCalledTimes(1);
+    });
+
+    it("ends at once where the page cannot animate, and plays nothing for no motion", () => {
+        const done = vi.fn();
+        expect(playEdgeMotion({}, "bounce", done)).toBeNull();
+        expect(playEdgeMotion(null, "peek-fade", done)).toBeNull();
+        expect(done).toHaveBeenCalledTimes(2);
         const animate = vi.fn();
-        expect(playBounce({ animate }, true)).toBeNull();
+        expect(playEdgeMotion({ animate }, null, done)).toBeNull();
         expect(animate).not.toHaveBeenCalled();
     });
 
-    it("plays nothing where the page cannot animate", () => {
-        expect(playBounce({}, false)).toBeNull();
-        expect(playBounce(null, false)).toBeNull();
+    it("keeps its timings equal to the tokens it follows", () => {
+        const tokens = readFileSync(join(__dirname, "../tokens.css"), "utf8");
+        expect(tokens).toContain(`--mt-duration-base: ${EdgeSlideMs}ms;`);
+        expect(tokens).toContain(`--mt-duration-fade: ${EdgeFadeMs}ms;`);
     });
 });
 
-describe("the bounce, told once to the sidebar that waits (AC28)", () => {
-    const sidebar = (edge: string = "rest") => ({
-        dataset: { edge },
-        animate: vi.fn(() => ({ cancel: vi.fn() })),
-    });
-
-    it("plays when a new bounce was told, and not again for the same one", () => {
-        const element = sidebar();
-        const first = bounceOnNews(1, 0, element, false);
-        expect(first.bounce).not.toBeNull();
-        expect(first.played).toBe(1);
-        expect(bounceOnNews(1, first.played, element, false).bounce).toBeNull();
-        expect(element.animate).toHaveBeenCalledTimes(1);
-        expect(bounceOnNews(2, first.played, element, false).bounce).not.toBeNull();
-        expect(element.animate).toHaveBeenCalledTimes(2);
-    });
-
-    it("plays on a sidebar that is already half open for something important too", () => {
-        expect(bounceOnNews(1, 0, sidebar("ajar"), false).bounce).not.toBeNull();
-    });
-
-    it("does not play on a sidebar that was unfolded meanwhile, and does not keep it for later", () => {
-        const unfolded = { animate: vi.fn(() => ({ cancel: vi.fn() })), dataset: {} };
-        const step = bounceOnNews(1, 0, unfolded, false);
-        expect(step.bounce).toBeNull();
-        expect(step.played).toBe(1);
-        expect(unfolded.animate).not.toHaveBeenCalled();
-    });
-
-    it("does not play under reduced motion", () => {
-        const element = sidebar();
-        const step = bounceOnNews(1, 0, element, true);
-        expect(step.bounce).toBeNull();
-        expect(element.animate).not.toHaveBeenCalled();
+describe("what the sidebar's element says of the edge (AC44 to AC46)", () => {
+    it("says how far it is out, and gives the content no margin of its own", () => {
+        expect(edgeAttributes("rest")).toEqual({ "data-edge": "rest" });
+        expect(edgeAttributes("peek")).toEqual({ "data-edge": "peek" });
+        expect(edgeAttributes("ajar")).toEqual({ "data-edge": "ajar" });
+        expect(edgeAttributes(null)).toEqual({ "data-edge": undefined });
     });
 });
 
-describe("what the sidebar's element says of the edge (AC27, AC29)", () => {
-    it("says how open it stays, and leaves the strip's room while it is collapsed with Brokk on", () => {
-        expect(edgeAttributes("rest", true, true)).toEqual({ "data-edge": "rest", "data-gutter": "true" });
-        expect(edgeAttributes("ajar", true, true)).toEqual({ "data-edge": "ajar", "data-gutter": "true" });
-    });
-
-    it("keeps the strip's room while it is unfolded over the content, so that the panels do not move", () => {
-        expect(edgeAttributes(null, true, true)).toEqual({ "data-edge": undefined, "data-gutter": "true" });
-    });
-
-    it("says nothing when it is docked, or when Brokk is off", () => {
-        expect(edgeAttributes(null, false, true)).toEqual({ "data-edge": undefined, "data-gutter": undefined });
-        expect(edgeAttributes(null, true, false)).toEqual({ "data-edge": undefined, "data-gutter": undefined });
-    });
-});
-
-describe("the strip, in the model and in the style sheets (AC27, AC29)", () => {
+describe("the edge, in the model and in the style sheets (AC40, AC44 to AC46)", () => {
     const sidebar = css("../sidebar/sidebar.css");
     const avatar = css("brokk-avatar.css");
 
-    it("is 30 px at rest, 190 px half open, and the face is 20 px: the sheets say the same numbers", () => {
+    it("is 30 px while it peeks, 190 px half open, and the face is 20 px: the sheets say the same numbers", () => {
         expect(sidebar).toMatch(
             new RegExp(
                 `\\.mt-sb-frame\\s*\\{[^}]*--mt-edge-px: ${EdgePx}px;[^}]*--mt-ajar-px: ${AjarPx}px;[^}]*--mt-edge-face: ${EdgeFacePx}px;`
@@ -255,20 +317,32 @@ describe("the strip, in the model and in the style sheets (AC27, AC29)", () => {
         expect([EdgePx, AjarPx, EdgeFacePx]).toEqual([30, 190, 20]);
     });
 
-    it("moves the sidebar out of the window by all but its strip, and by all but its half", () => {
+    it("shows nothing at rest: no strip, no face, no badge, and nothing the pointer or the keyboard reaches", () => {
         const rest = rule(sidebar, '.mt-sb.is-hidden[data-edge="rest"]');
-        const ajar = rule(sidebar, '.mt-sb.is-hidden[data-edge="ajar"]');
-        expect(rest).toContain("translateX(calc(-100% + var(--mt-edge-px) - var(--mt-frame-gap)))");
-        expect(ajar).toContain("translateX(calc(-100% + var(--mt-ajar-px) - var(--mt-frame-gap)))");
+        expect(rest).toContain("visibility: hidden");
+        expect(rest).not.toMatch(/transform:\s*translateX/);
+        expect(rule(sidebar, ".mt-sb.is-hidden")).toContain("transform: translateX(calc(-100% - 24px))");
     });
 
-    it("gives the strip's room to the content, so that no panel is covered", () => {
-        expect(rule(sidebar, ".mt-sb.is-hidden[data-gutter] ~ .mt-frame-content")).toContain(
-            "margin-left: var(--mt-edge-px)"
+    it("hides at rest only once the slide that folds it has ended", () => {
+        expect(rule(sidebar, '.mt-sb.is-hidden[data-edge="rest"]')).toMatch(
+            /visibility 0s linear var\(--mt-duration-base\)/
         );
     });
 
-    it("hides all of the sidebar but his face and his banner, out of the keyboard's way", () => {
+    it("gives the content no strip's margin: the content keeps its whole width", () => {
+        expect(sidebar).not.toMatch(/data-gutter/);
+        expect(sidebar).not.toMatch(/\.mt-frame-content\s*\{[^}]*margin-left:\s*var\(--mt-edge-px\)/);
+    });
+
+    it("moves the sidebar out of the window by all but its strip while it peeks, and by all but its half", () => {
+        const peek = rule(sidebar, '.mt-sb.is-hidden[data-edge="peek"]');
+        const ajar = rule(sidebar, '.mt-sb.is-hidden[data-edge="ajar"]');
+        expect(peek).toContain("translateX(calc(-100% + var(--mt-edge-px) - var(--mt-frame-gap)))");
+        expect(ajar).toContain("translateX(calc(-100% + var(--mt-ajar-px) - var(--mt-frame-gap)))");
+    });
+
+    it("hides all of the sidebar but his face and his banner while it is out, out of the keyboard's way", () => {
         const hidden = rule(
             sidebar,
             ".mt-sb[data-edge] > :not(.mt-sb-window-row, .mt-brokk-scene-layer),\n.mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar)"
@@ -302,3 +376,24 @@ describe("the strip, in the model and in the style sheets (AC27, AC29)", () => {
         expect(rule(avatar, '.mt-brokk-avatar[data-news="true"]')).toContain("var(--mt-action)");
     });
 });
+
+describe("hover and click (AC30, AC47)", () => {
+    it("unfolds the sidebar over the visible edge, but not over his face, which stays under the pointer for the click", () => {
+        expect(edgeUnfoldsOn("edge", false)).toBe(true);
+        expect(edgeUnfoldsOn("edge", true)).toBe(false);
+    });
+
+    it("does nothing for a sidebar that is already on screen or absent", () => {
+        expect(edgeUnfoldsOn("screen", false)).toBe(false);
+        expect(edgeUnfoldsOn("none", false)).toBe(false);
+    });
+
+    it("is on screen while unfolded from half open, and half open again once the pointer leaves", () => {
+        const view = { visit: true, cue: false };
+        expect(edgeShapeOf(sidebarPlaceOf(true, true, false, true), view)).toBe("ajar");
+        expect(sidebarPlaceOf(true, true, true, true)).toBe("screen");
+        expect(edgeShapeOf(sidebarPlaceOf(true, true, true, true), view)).toBeNull();
+        expect(edgeShapeOf(sidebarPlaceOf(true, true, false, true), view)).toBe("ajar");
+    });
+});
+

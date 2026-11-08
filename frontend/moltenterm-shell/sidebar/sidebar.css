@@ -227,29 +227,32 @@
     width: 14px;
 }
 
-/* Collapsed with Brokk on (FR-BOSS-009, AC27 to AC30, #2070): the sidebar does not leave the window, 30 px of it stay at
-   the left edge and hold his face, which is in its title row, at its right end (30 px, not 22: the download ring around
-   the 20 px face needs 29.6 px, #2083). A new notification makes it bounce
-   (use-brokk-edge.ts), something important keeps it half open, and the pointer over it unfolds the rest as the left edge
-   does. The numbers are boss/brokk-edge-model.ts's (EdgePx, AjarPx, EdgeFacePx), which a test keeps equal to these. The
-   content takes the strip's room (the aside's data-gutter), so that no panel is covered and none moves when the
-   sidebar unfolds. */
+/* Collapsed with Brokk on (FR-BOSS-009, AC44 to AC47, #2070, #2093): at rest the sidebar is wholly out of the window,
+   as without him, and the content keeps its whole width. A new notification brings 30 px of it out, its title row's
+   face at its right end (30 px, not 22: the download ring around the 20 px face needs 29.6 px, #2083), bounces it and
+   hides it again (use-brokk-edge.ts); something important keeps it half open, and the pointer over it unfolds the rest as
+   the left edge does. The numbers are boss/brokk-edge-model.ts's (EdgePx, AjarPx, EdgeFacePx), which a test keeps equal
+   to these. */
 .mt-sb-frame {
     --mt-edge-px: 30px;
     --mt-ajar-px: 190px;
     --mt-edge-face: 20px;
 }
 
+/* At rest nothing of it is seen, reached by the pointer or by the keyboard, once the slide that folds it has ended. */
 .mt-sb.is-hidden[data-edge="rest"] {
+    visibility: hidden;
+    transition:
+        transform var(--mt-duration-base) var(--mt-ease),
+        visibility 0s linear var(--mt-duration-base);
+}
+
+.mt-sb.is-hidden[data-edge="peek"] {
     transform: translateX(calc(-100% + var(--mt-edge-px) - var(--mt-frame-gap)));
 }
 
 .mt-sb.is-hidden[data-edge="ajar"] {
     transform: translateX(calc(-100% + var(--mt-ajar-px) - var(--mt-frame-gap)));
-}
-
-.mt-sb.is-hidden[data-gutter] ~ .mt-frame-content {
-    margin-left: var(--mt-edge-px);
 }
 
 /* Out of sight, and out of the keyboard's way, all of the sidebar but his face and, while it is half open, his banner.
