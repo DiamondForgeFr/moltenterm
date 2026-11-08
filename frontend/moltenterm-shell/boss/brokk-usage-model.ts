@@ -92,6 +92,7 @@ export function weeklyUsage(readings: UsageReadings, now: number, unreadable?: U
             provider,
             percent: 0,
             pace: 1,
+            unused: 0,
             resetsAt: 0,
             windowMins: 0,
             start: -1,

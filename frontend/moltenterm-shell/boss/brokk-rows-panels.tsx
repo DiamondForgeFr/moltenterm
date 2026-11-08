@@ -1,10 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The Agents, Sessions, Téléchargements and Usage panels of Brokk's group (FR-BOSS-009, AC19 and AC20, #2032). Agents and
-// Sessions are the Sessions tab of #2003 split in two (brokk-rows-model.ts): the agents, and the terminals and SSH
-// sessions the agents no longer crowd, each grouped by workspace, the current one first. Téléchargements is the #1992
-// section as it is, with its origin line. Usage is the former tab, opened by a click on the weekly block.
+// The Agents, Sessions and Téléchargements panels of Brokk's group (FR-BOSS-009, AC19, #2032). Agents and Sessions are
+// the Sessions tab of #2003 split in two (brokk-rows-model.ts): the agents, and the terminals and SSH sessions the agents
+// no longer crowd, each grouped by workspace, the current one first. Téléchargements is the #1992 section as it is, with
+// its origin line. The group has no Usage panel any more (AC58, #2106).
 
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -23,7 +23,6 @@ import { GoButton, SecondaryButton } from "./boss-card-buttons";
 import { CardGroup, cardGroups, CardRow } from "./boss-card-model";
 import { EmptyLine, PanelFrame, PanelProblem } from "./brokk-panel-frame";
 import { agentGroups, rowCount, sessionGroups, taskOf } from "./brokk-rows-model";
-import { BrokkUsageTab } from "./brokk-usage-tab";
 import { goToWorkspace, WorkspaceTag } from "./brokk-workspace-tag";
 import { BrokkActions } from "./use-brokk-actions";
 
@@ -369,17 +368,6 @@ export function DownloadsPanel({
         <PanelFrame id="downloads" title={t("boss.group.panels.downloads")} count={count} onClose={onClose}>
             <div className="-mx-3">
                 <DownloadsList onLeave={onLeave} />
-            </div>
-        </PanelFrame>
-    );
-}
-
-export function UsagePanel({ onClose }: { onClose: () => void }) {
-    const t = useT();
-    return (
-        <PanelFrame id="usage" title={t("boss.group.panels.usage")} onClose={onClose}>
-            <div className="-mx-3">
-                <BrokkUsageTab />
             </div>
         </PanelFrame>
     );

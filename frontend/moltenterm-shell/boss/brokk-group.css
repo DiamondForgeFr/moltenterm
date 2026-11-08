@@ -400,28 +400,12 @@
     overflow-y: auto;
 }
 
+/* The usage grid: no control, it opens nothing (FR-BOSS-009, AC58, #2106). It never scrolls: the card is as tall as its
+   rows, measured (blockHeight in brokk-group-model.ts), and the field stands below the last one. */
 .mt-brokk-usage {
     display: block;
-    max-height: 84px;
     margin: 0;
     padding: 0;
-    overflow-y: auto;
-    border: 0;
-    border-radius: var(--mt-radius-control);
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.mt-brokk-usage:focus-visible {
-    outline: 2px solid var(--mt-focus-ring);
-    outline-offset: 2px;
-}
-
-.mt-brokk-usage[aria-pressed="true"] {
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-action) 60%, transparent);
 }
 
 .mt-brokk-usage-empty {

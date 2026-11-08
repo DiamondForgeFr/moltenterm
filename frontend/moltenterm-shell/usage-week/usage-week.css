@@ -3,15 +3,23 @@
 
 /* The week grid of a plan usage (FR-BOSS-009, AC48 to AC51, #2100): one grid for the whole block, so the day initials
    written once on top stand over the seven blocks of every row: logo, Monday to Sunday, percent. A row is display:
-   contents, its parts being the grid's cells. Nothing changes on hover, and the block never grows. */
+   contents, its parts being the grid's cells. Nothing changes on hover, and the block never grows.
+   Slim everywhere (#2106): the day blocks are --mt-uw-block-h high, 3 px apart and at most
+   --mt-uw-block-max wide, so a wide panel keeps the grid compact instead of stretching it; the label and the percent
+   stay next to the blocks. */
 .mt-uw {
-    --mt-uw-first: 16px;
+    --mt-uw-first: 18px;
     --mt-uw-block-min: 0px;
+    --mt-uw-block-max: 30px;
+    --mt-uw-block-h: 6px;
     display: grid;
-    grid-template-columns: var(--mt-uw-first) repeat(7, minmax(var(--mt-uw-block-min), 1fr)) 46px;
-    gap: 8px 4px;
+    grid-template-columns:
+        var(--mt-uw-first) repeat(7, minmax(var(--mt-uw-block-min), var(--mt-uw-block-max)))
+        minmax(52px, max-content);
+    justify-content: start;
+    gap: 7px 3px;
     align-items: center;
-    padding: 4px 0;
+    padding: 2px 0;
 }
 
 /* A surface that shows one agent labels each row by its window (#2102): the first column takes what a short label needs,
@@ -64,15 +72,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     color: var(--mt-text-2);
     font-size: var(--mt-text-12);
 }
 
 .mt-uw-logo svg {
-    width: 15px;
-    height: 15px;
+    width: 17px;
+    height: 17px;
 }
 
 /* The agent's name next to its logo: a small popover in the app's look, in a portal above the floating surfaces. */
@@ -90,7 +98,7 @@
 
 .mt-uw-cell {
     position: relative;
-    height: 10px;
+    height: var(--mt-uw-block-h);
     overflow: hidden;
     border-radius: var(--mt-radius-control);
     background: var(--mt-line-2);
@@ -104,18 +112,24 @@
     background: var(--mt-uw-pace, var(--color-success));
 }
 
-/* Today: its column stands out on every row, a lighter block with a light outline. */
+/* Today: its column stands out on every row, a lighter block with a subtle 1 px outline. */
 .mt-uw-cell.is-today {
     background: var(--mt-surface-3);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 55%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 35%, transparent);
 }
 
-/* The reset day, where the fill starts: a ring in the action colour, set 2 px away from its block so it reads the same
-   empty or full, and a slow sheen inside. Today's outline sits on the block itself, so both show when the reset day is
-   today. */
+/* The reset day, where the fill starts: a thin ring in the action colour, set 1.5 px away from its block so it reads the
+   same empty or full, and a slow sheen inside. Today's outline sits on the block itself, so both show when the reset day
+   is today. */
 .mt-uw-cell.is-reset {
-    outline: 1.5px solid var(--mt-action);
-    outline-offset: 2px;
+    overflow: visible;
+    outline: 1px solid var(--mt-action);
+    outline-offset: 1.5px;
+}
+
+/* A block that clips its content paints no outline (Chromium): the reset block lets it show and rounds its own fill. */
+.mt-uw-cell.is-reset i {
+    border-radius: inherit;
 }
 
 .mt-uw-cell.is-reset::after {
