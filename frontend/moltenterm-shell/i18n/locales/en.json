@@ -2050,6 +2050,12 @@
                 "day": "{count}-day",
                 "min": "{count}-min"
             },
+            "windowShort": {
+                "session": "Session",
+                "week": "Week",
+                "spend": "Spend",
+                "model": "Week ({name})"
+            },
             "reason": {
                 "notsetup": "Status line not set up",
                 "waiting": "Waiting for the agent's status line: it gives the limits after its next response",

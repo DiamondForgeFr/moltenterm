@@ -5,11 +5,43 @@
    written once on top stand over the seven blocks of every row: logo, Monday to Sunday, percent. A row is display:
    contents, its parts being the grid's cells. Nothing changes on hover, and the block never grows. */
 .mt-uw {
+    --mt-uw-first: 16px;
+    --mt-uw-block-min: 0px;
     display: grid;
-    grid-template-columns: 16px repeat(7, minmax(0, 1fr)) 46px;
+    grid-template-columns: var(--mt-uw-first) repeat(7, minmax(var(--mt-uw-block-min), 1fr)) 46px;
     gap: 8px 4px;
     align-items: center;
     padding: 4px 0;
+}
+
+/* A surface that shows one agent labels each row by its window (#2102): the first column takes what a short label needs,
+   up to 6.25rem, and the label is cut with an ellipsis when the room is short. The day blocks keep a minimum width, so a
+   narrow panel shortens the labels, never the blocks. */
+.mt-uw[data-labelled="true"] {
+    --mt-uw-first: minmax(0, 6.25rem);
+    --mt-uw-block-min: 12px;
+}
+
+.mt-uw-label {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A line under a row, across the grid: closer to its row than the rows are to each other. */
+.mt-uw-detail {
+    grid-column: 1 / -1;
+    margin-top: -4px;
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mt-uw-day {

@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The plan usage section of the companion (FR-SHELL-027, DS-SHELL-030): opt-in per agent and marked experimental, it
-// shows each limit window of the agent's plan with its bar and reset. wavesrv reads the source and publishes the
-// gauges when they change; the section never polls the source. A failure is one muted line.
+// shows each limit window of the agent's plan as a row of the usage week grid Brokk's block uses (usage-week, #2102),
+// labelled by its window. wavesrv reads the source and publishes the gauges when they change; the section never polls
+// the source. A failure is one muted line.
 
 import { getSettingsKeyAtom } from "@/app/store/global";
 import { makeORef } from "@/app/store/wos";
@@ -16,6 +17,7 @@ import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
+import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     CompanionUsageInfo,
@@ -23,7 +25,6 @@ import {
     experimentalLabel,
     experimentalView,
     ExperimentalView,
-    GaugeLevel,
     GaugeRow,
     gaugesView,
     GaugesView,
@@ -273,17 +274,26 @@ export type PlanUsageActions = {
     onDetails?: (details: boolean) => void;
 };
 
-const BarColours: Record<GaugeLevel, string> = {
-    normal: "bg-[var(--mt-text-muted)]",
-    warning: "bg-[var(--mt-state-running)]",
-    error: "bg-[var(--mt-state-error)]",
-};
-
-const PercentColours: Record<GaugeLevel, string> = {
-    normal: "text-secondary",
-    warning: "text-warning",
-    error: "text-danger",
-};
+// A window's row in the week grid: the agent is the session's, so the row is labelled by its window in place of a logo.
+// The exact percent and the reset time stay in its tooltip, with the source and age (`about`) when the form has no
+// header to say them; the details form (`detailed`) shows the reset under the row.
+function weekRow(
+    view: Extract<GaugesView, { kind: "enabled" }>,
+    row: GaugeRow,
+    about: string,
+    detailed: boolean
+): UsageWeekRow {
+    return {
+        key: row.id,
+        agent: view.agent,
+        name: row.label,
+        window: row.id,
+        label: row.shortLabel,
+        line: row.line,
+        title: [`${row.label}: ${row.percent}`, row.resets, about].filter((s) => !!s).join("\n"),
+        note: detailed ? row.resets : undefined,
+    };
+}
 
 export function PlanUsageBody({
     view,
@@ -385,11 +395,9 @@ export function PlanUsageBody({
                 onHide={onHide}
                 onLess={onDetails != null ? () => onDetails(false) : null}
             />
-            <ul className="mt-1.5 flex flex-col gap-2">
-                {view.rows.map((row) => (
-                    <GaugeRowView key={row.id} row={row} />
-                ))}
-            </ul>
+            <div className="mt-1.5" data-testid="companion-gauges">
+                <UsageWeekGrid rows={view.rows.map((row) => weekRow(view, row, "", true))} now={view.now} />
+            </div>
             {view.credits ? (
                 <div className="mt-1.5 text-11 text-secondary" data-testid="companion-plan-usage-credits">
                     {view.credits}
@@ -568,8 +576,8 @@ function GaugesHeader({
     );
 }
 
-// One line per limit: its name, a thin bar, the percent and the reset; the source and age in the tooltip, the rest
-// in the details.
+// One week-grid row per limit: its window, seven day blocks and the percent; the reset, the source and age in the
+// tooltip, the rest in the details.
 function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: "enabled" }>; onDetails: () => void }) {
     const t = useT();
     const rows = view.rows.slice(0, CompactRows);
@@ -579,88 +587,33 @@ function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: 
         .join(" · ");
     return (
         <section
-            className="shrink-0 px-3 py-1"
+            className="relative shrink-0 px-3 py-1"
             aria-label={t("companion.gauges.title")}
             data-testid="companion-plan-usage"
             data-state="enabled"
             data-compact="true"
         >
-            <div className="flex items-start gap-2">
-                <ul className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    {rows.length === 0 && view.credits ? (
-                        <li className="truncate text-11 text-secondary">{view.credits}</li>
-                    ) : null}
-                    {rows.map((row) => (
-                        <CompactGaugeRow key={row.id} row={row} about={about} />
-                    ))}
-                </ul>
-                <button
-                    type="button"
-                    className={cn(GhostButton, "-my-0.5")}
-                    onClick={onDetails}
-                    title={
-                        more > 0 ? t("companion.gauges.detailsMore", { count: more }) : t("companion.gauges.details")
-                    }
-                    aria-label={t("companion.gauges.details")}
-                    data-testid="companion-plan-usage-details"
-                >
-                    {more > 0 ? <span className="mr-1 tabular-nums">+{more}</span> : null}
-                    <i className="fa fa-solid fa-chevron-down" aria-hidden="true" />
-                </button>
+            <div data-testid="companion-gauges">
+                {rows.length === 0 && view.credits ? (
+                    <div className="truncate pr-14 text-11 text-secondary">{view.credits}</div>
+                ) : null}
+                {rows.length > 0 ? (
+                    <UsageWeekGrid rows={rows.map((row) => weekRow(view, row, about, false))} now={view.now} />
+                ) : null}
             </div>
+            {/* In the grid's empty corner, over the initials' line, so the rows keep the whole width. */}
+            <button
+                type="button"
+                className={cn(GhostButton, "absolute top-1 right-3")}
+                onClick={onDetails}
+                title={more > 0 ? t("companion.gauges.detailsMore", { count: more }) : t("companion.gauges.details")}
+                aria-label={t("companion.gauges.details")}
+                data-testid="companion-plan-usage-details"
+            >
+                {more > 0 ? <span className="mr-1 tabular-nums">+{more}</span> : null}
+                <i className="fa fa-solid fa-chevron-down" aria-hidden="true" />
+            </button>
         </section>
-    );
-}
-
-function CompactGaugeRow({ row, about }: { row: GaugeRow; about: string }) {
-    const percent = row.percentShort;
-    const resets = row.resetsShort;
-    return (
-        <li
-            className="flex items-center gap-2 text-11"
-            title={[`${row.label}: ${row.percent}`, row.resets, about].filter((s) => !!s).join("\n")}
-            data-testid="companion-gauge"
-            data-window={row.id}
-        >
-            <span className="w-24 shrink-0 truncate text-secondary">{row.label}</span>
-            <div
-                className="h-1 min-w-8 flex-1 overflow-hidden rounded-full bg-hover"
-                role="meter"
-                aria-label={row.label}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(row.bar)}
-                aria-valuetext={row.percent}
-            >
-                <div className={cn("h-full rounded-full", BarColours[row.level])} style={{ width: `${row.bar}%` }} />
-            </div>
-            <span className={cn("w-11 shrink-0 text-right tabular-nums", PercentColours[row.level])}>{percent}</span>
-            {/* A fixed width keeps the bars of the rows aligned. */}
-            <span className="w-[5.5rem] shrink-0 truncate text-muted tabular-nums">{resets}</span>
-        </li>
-    );
-}
-
-function GaugeRowView({ row }: { row: GaugeRow }) {
-    return (
-        <li className="flex flex-col gap-1" data-testid="companion-gauge" data-window={row.id}>
-            <div className="flex items-baseline gap-2 text-12">
-                <span className="text-primary">{row.label}</span>
-                <span className={cn("ml-auto tabular-nums", PercentColours[row.level])}>{row.percent}</span>
-            </div>
-            <div
-                className="h-1.5 w-full overflow-hidden rounded-full bg-hover"
-                role="meter"
-                aria-label={row.label}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(row.bar)}
-                aria-valuetext={row.percent}
-            >
-                <div className={cn("h-full rounded-full", BarColours[row.level])} style={{ width: `${row.bar}%` }} />
-            </div>
-            {row.resets ? <div className="text-11 text-muted">{row.resets}</div> : null}
-        </li>
     );
 }
 
