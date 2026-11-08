@@ -78,6 +78,49 @@ func TestComputeWorkLocalOnlyCountsLocalSessions(t *testing.T) {
 	}
 }
 
+// What counts as work is the developer's to set (FR-SHELL-023 AC15): a kind left out never counts, and an agent's
+// terminal stays the agent's, so its own process is not read as a command when agents do not count.
+func TestComputeWorkFollowsTheRules(t *testing.T) {
+	blocks := map[string]BlockInfo{
+		"agent":   {WorkspaceId: "ws-a"},
+		"build":   {WorkspaceId: "ws-b"},
+		"project": {WorkspaceId: "ws-c"},
+	}
+	var rules WorkRules
+	src := WorkSources{
+		Agents: func() []molten.AgentRunInfo {
+			return []molten.AgentRunInfo{{BlockId: "agent", Running: true, State: molten.AgentStateWorking}}
+		},
+		Commands: func() map[string]string {
+			return map[string]string{"agent": "claude", "build": "make all"}
+		},
+		Locate: func(ctx context.Context, blockId string) (BlockInfo, bool) {
+			info, ok := blocks[blockId]
+			return info, ok
+		},
+		MissionWorkspaces: func(ctx context.Context) []string { return []string{"ws-c"} },
+		Rules:             func() WorkRules { return rules },
+	}
+	cases := []struct {
+		rules WorkRules
+		want  map[string]bool
+		local bool
+	}{
+		{WorkRules{Agents: true, Commands: true, Projects: true}, map[string]bool{"ws-a": true, "ws-b": true, "ws-c": true}, true},
+		{WorkRules{Agents: true}, map[string]bool{"ws-a": true}, true},
+		{WorkRules{Commands: true}, map[string]bool{"ws-b": true}, true},
+		{WorkRules{Projects: true}, map[string]bool{"ws-c": true}, true},
+		{WorkRules{}, map[string]bool{}, false},
+	}
+	for _, c := range cases {
+		rules = c.rules
+		work := ComputeWork(context.Background(), src)
+		if !reflect.DeepEqual(work.Workspaces, c.want) || work.Local != c.local {
+			t.Errorf("rules %+v: work %+v, want %v", c.rules, work, c.want)
+		}
+	}
+}
+
 func TestIsSshCommand(t *testing.T) {
 	cases := map[string]bool{
 		"ssh host":                true,

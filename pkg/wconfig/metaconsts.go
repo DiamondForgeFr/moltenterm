@@ -121,6 +121,12 @@ const (
 	ConfigKey_TabHoldToCloseMs               = "tab:holdtoclosems"
 
 	ConfigKey_PowerSleepPolicy               = "power:sleeppolicy"
+	ConfigKey_PowerAutomatic                 = "power:automatic"
+	ConfigKey_PowerGraceMinutes              = "power:graceminutes"
+	ConfigKey_PowerWorkAgents                = "power:workagents"
+	ConfigKey_PowerWorkCommands              = "power:workcommands"
+	ConfigKey_PowerWorkProjects              = "power:workprojects"
+	ConfigKey_PowerTerminalRequests          = "power:terminalrequests"
 
 	ConfigKey_ShellWorkspaceSidebar          = "shell:workspacesidebar"
 

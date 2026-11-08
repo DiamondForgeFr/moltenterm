@@ -586,6 +586,7 @@ func main() {
 	sigutil.InstallShutdownSignalHandlers(doShutdown)
 	sigutil.InstallSIGUSR1Handler()
 	wconfig.MigratePresetsBackgrounds()
+	wconfig.MigratePowerSettings() // MOLTENTERM-PATCH (#2089): power:sleeppolicy becomes Automatic and the terminal requests
 	startConfigWatcher()
 	molten.StartModWatcher() // MOLTENTERM-PATCH (#19): reload mods on save
 	mission.Start()          // MOLTENTERM-PATCH (#31): Mission Control's collector

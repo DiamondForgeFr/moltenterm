@@ -132,7 +132,9 @@ func codingAgentOptions() []Option {
 // What an event does (FR-BOSS-009, AC4): Brokk comes, only the badge counts it, or nothing.
 var comingOptions = []Option{{Value: "vient", Label: "Comes to fetch me"}, {Value: "badge", Label: "Badge only"}, {Value: "rien", Label: "Nothing"}}
 
-var blockedOptions = []Option{{Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
+var graceOptions = []Option{{Value: "1", Label: "1 minute"}, {Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
+
+var blockedOptions =[]Option{{Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
 
 var onOff = []Option{{Value: "off", Label: "Off"}, {Value: "on", Label: "On"}, {Value: "term", Label: "Terminals only"}}
 
@@ -159,7 +161,16 @@ var settings = []Setting{
 	hidden("app:newworkspaceviews"),
 	{Key: "app:tilelauncher", Section: SectionGeneral, Group: "Panels", Label: "Tile launcher in empty panes", Description: "An empty pane shows the tile launcher instead of the command palette.", Control: ControlToggle},
 	{Key: "app:focusfollowscursor", Section: SectionGeneral, Group: "Panels", Label: "Focus follows the pointer", Description: "Focus the panel under the pointer without a click.", Control: ControlSelect, Options: onOff},
-	{Key: "power:sleeppolicy", Section: SectionGeneral, Group: "Energy", Label: "Keep the computer awake", Description: "Whether a program in a terminal may keep the computer awake.", Control: ControlSelect, UnsetLabel: "Ask the first time", Options: []Option{{Value: "allow", Label: "When a terminal asks"}, {Value: "untilworkends", Label: "Until work ends"}, {Value: "letsleep", Label: "Never"}}},
+	// #2089: keep-awake has two ways to turn on (Manual, a workspace's switch, and Automatic) and this configuration,
+	// which says how it behaves once on: what counts as work, how long it lasts after the work, and what a terminal's
+	// request gets. power:sleeppolicy, which mixed them, is read once at startup to move to these.
+	{Key: "power:automatic", Section: SectionGeneral, Group: "Energy", Label: "Automatic", Description: "Keep this computer awake whenever an agent works, until it has finished.", Control: ControlToggle},
+	{Key: "power:graceminutes", Section: SectionGeneral, Group: "Energy", Label: "Stay awake after the work ends", Description: "How long it stays awake after the last work stopped, so a pause between two turns is not a sleep.", Control: ControlSelect, Options: graceOptions, Default: 2, Unit: "min"},
+	{Key: "power:workagents", Section: SectionGeneral, Group: "Energy", Label: "Agents at work count", Description: "An agent working, or busy with background subagents or commands after its turn.", Control: ControlToggle, Default: true},
+	{Key: "power:workcommands", Section: SectionGeneral, Group: "Energy", Label: "Commands in terminals count", Description: "A command running in a terminal that is not an idle shell.", Control: ControlToggle, Default: true},
+	{Key: "power:workprojects", Section: SectionGeneral, Group: "Energy", Label: "Project runs count", Description: "A build, release, sync or local CI run of a project.", Control: ControlToggle, Default: true},
+	{Key: "power:terminalrequests", Section: SectionGeneral, Group: "Energy", Label: "When a terminal asks to stay awake", Description: "What happens when a program in a terminal asks to keep the computer awake (caffeinate, systemd-inhibit).", Control: ControlSelect, UnsetLabel: "Ask the first time", Options: []Option{{Value: "always", Label: "Always listen"}, {Value: "never", Label: "Never"}}},
+	hidden("power:sleeppolicy"),
 	{Key: "preview:showhiddenfiles", Section: SectionGeneral, Group: "Files and editor", Label: "Show hidden files", Description: "File views list dotfiles.", Control: ControlToggle, Default: true},
 	{Key: "preview:defaultsort", Section: SectionGeneral, Group: "Files and editor", Label: "Sort files by", Description: "The order of a new file view's list, folders first; each panel keeps its own.", Control: ControlSelect, Options: []Option{{Value: "name", Label: "Name"}, {Value: "type", Label: "Type"}, {Value: "modtime", Label: "Last modified"}}},
 	{Key: "editor:wordwrap", Section: SectionGeneral, Group: "Files and editor", Label: "Wrap long lines", Description: "The editor wraps lines wider than the panel.", Control: ControlToggle},

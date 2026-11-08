@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // What the windows show of the keep-awake (FR-SHELL-023, DS-SHELL-062; FR-SHELL-103): the coffee droplet on a rail item
-// and on a collapsed product, and the Energy card's details: the workspace's coffee, what holds the computer awake now
-// and the terminals that asked, with the per-session override. The cup of the window row is keepawake-cup.tsx
+// and on a collapsed product, and the Energy card's details: the workspace's Manual switch, what holds the computer
+// awake now and the terminals that asked, with the per-session override. The cup of the window row is keepawake-cup.tsx
 // (#1408). The OS-level detection and the marks on panes, tabs and the Sessions view are FR-SHELL-022's.
 
-import { atoms, useSettingsKeyAtom } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { PLATFORM } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -16,6 +16,7 @@ import {
     approvalLogText,
     approvalReasonText,
     approvalSummary,
+    automaticHoldingLine,
     coffeeApprovals,
     coffeeCondition,
     coffeeReason,
@@ -23,16 +24,13 @@ import {
     coffeeSupported,
     describeApproval,
     describeAttempt,
+    keepAwakeActive,
     KeepAwakeApproval,
     KeepAwakeCoffee,
-    keepAwakeActive,
     KeepAwakeSession,
     keepAwakeSessions,
     KeepAwakeState,
-    policyHoldingLine,
     sessionWhere,
-    SleepPolicySetting,
-    sleepPolicyDetail,
 } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
 import { TabActivity, whileShown } from "./tab-activity";
@@ -134,18 +132,18 @@ function formatSince(since: number, now: number): string {
     return formatClock(since);
 }
 
-// The coffee of the workspace the window shows, as a switch: the sidebar's workspace menu no longer carries it, and it
-// is the one way to start a coffee there (FR-SHELL-103).
+// The Manual switch of the workspace the window shows: the sidebar's workspace menu no longer carries it, and it is
+// the one way to start it there (FR-SHELL-103).
 function WorkspaceCoffeeRow({ workspaceId, name }: { workspaceId: string; name: string }) {
     const t = useT();
     const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(workspaceId));
     const on = coffee != null;
-    const label = t("keepawake.coffeeFor", { name });
+    const label = t("keepawake.mode.manual");
     return (
         <div className="molten-settings-row flex items-center gap-4 px-5 py-3" data-testid="keepawake-coffee-row">
             <div className="min-w-0 flex-1">
                 <div className="truncate text-12 font-medium text-primary">{label}</div>
-                <div className="text-12 text-muted">{t("keepawake.coffeeHint")}</div>
+                <div className="text-12 text-muted">{t("keepawake.mode.manualHint", { name })}</div>
             </div>
             <button
                 type="button"
@@ -169,24 +167,22 @@ function WorkspaceCoffeeRow({ workspaceId, name }: { workspaceId: string; name: 
     );
 }
 
-// Under the Energy card's setting (FR-SHELL-103): what the chosen option does, this workspace's coffee, what holds the
-// computer awake now (the coffees, each with Stop) and the terminals that asked, with their own override.
+// Under the Energy card's settings (FR-SHELL-103): what Automatic holds now, this workspace's Manual switch, what holds
+// the computer awake now (the coffees, each with Stop) and the terminals that asked, with their own override.
 export function KeepAwakeDetails() {
     const t = useT();
     const model = KeepAwakeModel.getInstance();
     const state = useAtomValue(model.stateAtom);
     const workspace = useAtomValue(atoms.workspace);
-    const policySetting = useSettingsKeyAtom(SleepPolicySetting);
     const platform = usePlatform();
     const sessions = keepAwakeSessions(state);
     const now = useNow(keepAwakeActive(state) || sessions.length > 0);
-    const holding = policyHoldingLine(state, platform, now);
+    const holding = automaticHoldingLine(state, now);
     return (
         <>
-            <div className="molten-settings-row flex flex-col gap-1 px-5 py-3 text-12 text-muted">
-                <span>{sleepPolicyDetail(policySetting ?? "")}</span>
-                {holding ? <span className="text-[var(--color-awake)]">{holding}</span> : null}
-            </div>
+            {holding ? (
+                <div className="molten-settings-row px-5 py-3 text-12 text-[var(--color-awake)]">{holding}</div>
+            ) : null}
             {coffeeSupported(platform) && workspace?.oid ? (
                 <WorkspaceCoffeeRow
                     workspaceId={workspace.oid}
@@ -209,8 +205,7 @@ export function KeepAwakeDetails() {
                                     {workspaceShownName(coffee.workspacename, t) || t("keepawake.workspace")}
                                 </span>
                                 <span className="truncate text-11 text-muted">
-                                    {t("keepawake.since", { time: formatClock(coffee.since) })} ·{" "}
-                                    {coffeeCondition(coffee, now)}
+                                    {t("keepawake.since", { time: formatClock(coffee.since) })} · {coffeeCondition()}
                                 </span>
                                 {coffeeReason(coffee) ? (
                                     <span className="truncate text-11 text-secondary" title={coffeeReason(coffee)}>

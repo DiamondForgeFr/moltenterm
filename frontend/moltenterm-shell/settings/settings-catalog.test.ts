@@ -276,9 +276,9 @@ describe("settings in the interface language (FR-I18N-001)", () => {
         const quit = all.find((e) => e.key === "app:confirmquit");
         expect(quit.label).toBe("Confirmer avant de quitter");
         expect(quit.group).toBe("Quitter et fermer");
-        const sleep = all.find((e) => e.key === "power:sleeppolicy");
-        expect(sleep.unsetLabel).toBe("Demander la première fois");
-        expect(sleep.options.find((o) => o.value === "letsleep").label).toBe("Jamais");
+        const requests = all.find((e) => e.key === "power:terminalrequests");
+        expect(requests.unsetLabel).toBe("Demander la première fois");
+        expect(requests.options.find((o) => o.value === "never").label).toBe("Jamais");
         expect(all.find((e) => e.key === "molten:folder").group).toBe("Cet espace de travail");
         const english = new Map([...WorkspaceSettings, ...catalog()].map((e) => [e.key, e]));
         const sameWord = ["Shell", "Minimap", "Zoom", "Git Bash"];

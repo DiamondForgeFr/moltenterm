@@ -34,7 +34,7 @@ import { DownloadsFolderCard } from "../downloads/downloads-settings";
 import { EmptyState } from "../empty-state";
 import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
-import { SleepPolicySetting } from "../keepawake-model";
+import { AutomaticSetting } from "../keepawake-model";
 import { KeepAwakeDetails } from "../keepawake-ui";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
@@ -817,7 +817,7 @@ export function SettingsSectionPage({
                                 ))
                             )}
                             {g.entries.some((e) => e.key === IntegrateOffKey) ? <IntegrationRuns /> : null}
-                            {g.entries.some((e) => e.key === SleepPolicySetting) ? <KeepAwakeDetails /> : null}
+                            {g.entries.some((e) => e.key === AutomaticSetting) ? <KeepAwakeDetails /> : null}
                             {g.entries.some((e) => e.key === View360SettingKey) ? <View360Screens /> : null}
                             {g.entries.some((e) => e.key === NewViewOpenKey) ? <NewViewFavorites /> : null}
                         </PageCard>

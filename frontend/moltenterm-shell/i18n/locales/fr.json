@@ -1149,14 +1149,34 @@
                 "label": "Durée de l'appui",
                 "description": "Combien de temps maintenir le bouton de fermeture avant que la vue se ferme."
             },
-            "power:sleeppolicy": {
-                "label": "Garder l'ordinateur éveillé",
-                "description": "Si un programme lancé dans un terminal peut garder l'ordinateur éveillé.",
+            "power:automatic": {
+                "label": "Automatique",
+                "description": "Garde cet ordinateur éveillé dès qu'un agent travaille, jusqu'à ce qu'il ait fini."
+            },
+            "power:graceminutes": {
+                "label": "Rester éveillé après la fin du travail",
+                "description": "Combien de temps il reste éveillé après le dernier travail, pour qu'une pause entre deux tours ne soit pas une veille.",
+                "options": { "1": "1 minute", "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+            },
+            "power:workagents": {
+                "label": "Les agents au travail comptent",
+                "description": "Un agent qui travaille, ou occupé par des sous-agents ou des commandes en arrière-plan après son tour."
+            },
+            "power:workcommands": {
+                "label": "Les commandes des terminaux comptent",
+                "description": "Une commande qui tourne dans un terminal et qui n'est pas un shell inactif."
+            },
+            "power:workprojects": {
+                "label": "Les exécutions de projet comptent",
+                "description": "Une exécution de build, de release, de synchronisation ou de CI locale d'un projet."
+            },
+            "power:terminalrequests": {
+                "label": "Quand un terminal demande à rester éveillé",
+                "description": "Ce qui se passe quand un programme lancé dans un terminal demande à garder l'ordinateur éveillé (caffeinate, systemd-inhibit).",
                 "unset": "Demander la première fois",
                 "options": {
-                    "allow": "Quand un terminal le demande",
-                    "untilworkends": "Jusqu'à la fin du travail",
-                    "letsleep": "Jamais"
+                    "always": "Toujours l'écouter",
+                    "never": "Jamais"
                 }
             },
             "moltenterm:tabviewpriority": {
@@ -3063,9 +3083,7 @@
             "sessionsEmpty": "Aucun terminal ni session SSH en cours.",
             "keepAwake": {
                 "unsupported": "Garder cet ordinateur éveillé n'est pas possible ici.",
-                "reason": "Raison",
-                "noReason": "Rien ne garde cet ordinateur éveillé.",
-                "until": "Jusqu'à la fin du travail."
+                "reason": "Raison"
             }
         },
         "menu": {
@@ -3265,22 +3283,35 @@
     "keepawake": {
         "computer": "cet ordinateur",
         "railStop": "Ne plus garder cet ordinateur éveillé pour {name}",
-        "railStart": "Garder cet ordinateur éveillé pendant que {name} travaille",
-        "untilWorkEnds": "jusqu'à la fin de son travail",
-        "endingIn": "fin dans {time}",
-        "tooltip": "Cet ordinateur reste éveillé jusqu'à la fin du travail dans {name}",
+        "railStart": "Garder cet ordinateur éveillé pour {name}",
+        "untilTurnedOff": "jusqu'à ce que vous l'arrêtiez",
+        "tooltip": "Cet ordinateur reste éveillé pour {name} jusqu'à ce que vous l'arrêtiez",
         "now": "En cours : {why}",
-        "nothingRuns": "Plus rien n'y tourne : fin dans {time}",
         "holding": "Cet ordinateur reste éveillé tant que du travail tourne",
         "holdingWhy": "Cet ordinateur reste éveillé tant que du travail tourne ({why})",
         "holdingEnding": "Cet ordinateur reste éveillé, fin dans {time}",
         "aTerminal": "Un terminal",
         "aTerminalLower": "un terminal",
-        "policy": {
-            "allowDetail": "Un terminal qui demande à rester éveillé est toujours écouté.",
-            "untilWorkEndsDetail": "MoltenTerm garde cet ordinateur éveillé tant que du travail tourne (un agent au travail, ou encore occupé par des sous-agents ou des commandes en arrière-plan après son tour ; une commande au premier plan qui n'est pas un shell inactif ; une exécution du projet), plus 2 minutes. Un agent qui attend une saisie sans rien exécuter ne travaille pas.",
-            "letSleepDetail": "Les blocages des terminaux sont arrêtés ; cet ordinateur se met en veille comme prévu et le travail reprend au réveil.",
-            "unsetDetail": "Le premier terminal qui demande à rester éveillé vous demande de choisir."
+        "on": "activé",
+        "off": "désactivé",
+        "mode": {
+            "manual": "Manuel",
+            "manualHint": "Garde cet ordinateur éveillé pour « {name} » jusqu'à ce que vous l'arrêtiez.",
+            "automatic": "Automatique",
+            "automaticHint": "Garde cet ordinateur éveillé dès qu'un agent travaille quelque part, jusqu'à ce qu'il ait fini."
+        },
+        "status": {
+            "awake": "Cet ordinateur reste éveillé",
+            "idleAutomatic": "Le mode automatique est activé, et rien ne travaille pour le moment.",
+            "idleOff": "Les modes automatique et manuel sont désactivés.",
+            "automatic": "Automatique",
+            "automaticWhy": "Automatique ({why})",
+            "automaticEnding": "Automatique (le travail est terminé : fin dans {time})",
+            "manual": "Manuel ({names})",
+            "terminals": {
+                "one": "Un terminal qui l'a demandé",
+                "other": "{count} terminaux qui l'ont demandé"
+            }
         },
         "reasonsCount": {
             "one": "{count} raison garde cet ordinateur éveillé",
@@ -3289,10 +3320,10 @@
         "row": {
             "terminal": "Terminal dans « {name} »",
             "left": "encore {time}",
-            "coffee": "à votre demande, jusqu'à la fin de son travail",
-            "coffeeWhy": "à votre demande, jusqu'à la fin de son travail : {why}",
-            "coffeeEnding": "à votre demande, son travail est terminé : fin dans {time}",
+            "coffee": "manuel, jusqu'à ce que vous l'arrêtiez",
+            "coffeeWhy": "manuel, jusqu'à ce que vous l'arrêtiez : {why}",
             "workLabel": "MoltenTerm",
+            "automaticLabel": "Automatique",
             "work": "jusqu'à la fin du travail",
             "workWhy": "jusqu'à la fin du travail : {why}",
             "workEnding": "le travail est terminé : fin dans {time}",
@@ -3306,17 +3337,14 @@
             "hours": "{hours} h {minutes}"
         },
         "cupIdle": "Cet ordinateur n'est pas gardé éveillé",
-        "cupCoffeeOn": "Café activé",
-        "cupCoffeeOff": "Café désactivé",
-        "cupTitle": "{state} · {reason}",
-        "cupHint": "Clic : activer/désactiver · Clic droit : options",
+        "cupHint": "Clic : manuel activé/désactivé · Clic droit : options",
+        "cupManual": "Manuel pour « {name} » : {state}",
+        "cupAutomatic": "Automatique : {state}",
         "popover": {
             "title": "Garder cet ordinateur éveillé",
             "moreSettings": "Plus de réglages…"
         },
-        "indicatorPolicy": "Réglage d’énergie : {policy}",
-        "coffeeFor": "Garder éveillé pendant que « {name} » travaille",
-        "coffeeHint": "Cet ordinateur reste éveillé tant que du travail tourne dans cet espace de travail, quel que soit le réglage ci-dessus.",
+        "manualFor": "Garder éveillé en manuel pour « {name} »",
         "approvalLog": "{path} dans le dossier de données de MoltenTerm",
         "sessionWhere": "{agent} dans {where}",
         "approves": "Approuve les demandes des agents : {sessions}",
@@ -3329,9 +3357,9 @@
             "one": "{count} laissée à votre choix",
             "other": "{count} laissées à votre choix"
         },
-        "sessionPolicy": "Règle de veille de {name}",
+        "sessionPolicy": "Demandes des terminaux de {name}",
         "override": {
-            "follow": "Suit la règle",
+            "follow": "Suit le réglage",
             "allow": "Autoriser pour cette session",
             "letSleep": "Laisser dormir pour cette session"
         },
@@ -9792,11 +9820,8 @@
                 "allow": "Autoriser",
                 "untilworkends": "Jusqu'à la fin du travail",
                 "letsleep": "Le laisser dormir",
-                "coffeeendtitle": "{name} : travail terminé, cet ordinateur peut de nouveau se mettre en veille",
-                "coffeeendtitleunnamed": "Un espace de travail : travail terminé, cet ordinateur peut de nouveau se mettre en veille",
-                "coffeeend": "Son café s'est arrêté 2 minutes après la fin du dernier travail dans l'espace de travail.",
                 "policyendtitle": "Travail terminé : cet ordinateur peut de nouveau se mettre en veille",
-                "policyend": "« Jusqu'à la fin du travail » l'a gardé éveillé pendant le travail ; MoltenTerm a levé son blocage 2 minutes après la fin du dernier travail."
+                "policyend": "Le mode automatique l'a gardé éveillé pendant le travail, puis MoltenTerm a levé son blocage {minutes} minutes après la fin du dernier travail."
             }
         },
         "browser": {

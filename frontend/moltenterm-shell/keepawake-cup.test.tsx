@@ -7,17 +7,11 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const Hoisted = vi.hoisted(() => ({ policy: "", coffee: null as unknown }));
-
 vi.mock("@/app/store/global", async () => {
     const { atom: makeAtom } = await import("jotai");
-    return {
-        useSettingsKeyAtom: () => Hoisted.policy,
-        atoms: { workspace: makeAtom({ oid: "ws1", name: "Alpha" }) },
-    };
+    return { atoms: { workspace: makeAtom({ oid: "ws1", name: "Alpha" }) } };
 });
 vi.mock("@/util/platformutil", () => ({ PLATFORM: "darwin" }));
-vi.mock("./command-panel/bindings", () => ({ writeSettings: vi.fn() }));
 vi.mock("./settings/settings-open", () => ({ openSettingsKey: vi.fn() }));
 vi.mock("./review/review-panels", () => ({ showPanel: vi.fn() }));
 vi.mock("./mission/menu-popover", () => ({
@@ -55,7 +49,6 @@ function item(variant: "status" | "sidebar" = "sidebar") {
 }
 
 beforeEach(() => {
-    Hoisted.policy = "";
     setState({});
 });
 
@@ -75,7 +68,7 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
     it("is a toggle named for the workspace, pressed while its coffee is on and lit while something holds", () => {
         setState({ hold: true, coffees: [{ workspaceid: "ws1", workspacename: "Alpha", since: 1, working: true }] });
         const html = item();
-        expect(html).toContain('aria-label="Keep awake while “Alpha” works"');
+        expect(html).toContain('aria-label="Manual keep-awake for “Alpha”"');
         expect(html).toContain('aria-pressed="true"');
         expect(html).toContain("data-lit");
         expect(html).not.toContain("fa-moon");
@@ -92,11 +85,25 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
         expect(item()).not.toContain("data-on");
     });
 
-    it("starts its tooltip with the state of coffee mode (#1470)", () => {
+    // #2089: with Automatic holding and Manual off, the tooltip must not read as a contradiction.
+    it("starts its tooltip with the real state and its cause, never with the switch's (#2089)", () => {
+        setState({
+            hold: true,
+            automatic: true,
+            automaticholding: true,
+            automaticworking: true,
+            automaticreasons: ["Léa: working"],
+        });
+        const html = item();
+        expect(html).toContain(
+            'title="This computer stays awake\nAutomatic (Léa: working)\n• Automatic · until the work ends'
+        );
+        expect(html).toContain("Manual for “Alpha”: off\nAutomatic: on");
+        expect(html).toContain('aria-pressed="false"');
         setState({ hold: true, coffees: [{ workspaceid: "ws1", workspacename: "Alpha", since: 1, working: true }] });
-        expect(item()).toContain('title="Coffee mode on · 1 reason keeps this computer awake');
+        expect(item()).toContain('title="This computer stays awake\nManual (Alpha)');
         setState({});
-        expect(item()).toContain('title="Coffee mode off · Not keeping this computer awake');
+        expect(item()).toContain('title="Not keeping this computer awake\nAutomatic and manual are off.');
     });
 
     it("does not show on when only something else holds: the icon is not coloured, a click turns coffee on", () => {
@@ -129,13 +136,12 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
         expect(html).toContain('aria-pressed="false"');
     });
 
-    it("says what a click and a right click do, the reason and the setting in its tooltip", () => {
-        Hoisted.policy = "untilworkends";
-        setState({ attempts: [attempt({})] });
+    it("says what a click and a right click do, the reason and both modes in its tooltip", () => {
+        setState({ attempts: [attempt({})], automatic: true });
         const html = item();
-        expect(html).toContain("Coffee mode off · 1 reason keeps this computer awake\n• A terminal · caffeinate");
-        expect(html).toContain("Energy setting: Until work ends");
-        expect(html).toContain("Click: on/off · Right-click: options");
+        expect(html).toContain("This computer stays awake\nA terminal that asked\n• A terminal · caffeinate");
+        expect(html).toContain("Manual for “Alpha”: off\nAutomatic: on");
+        expect(html).toContain("Click: manual on/off · Right-click: options");
         expect(html).not.toContain("Open Preferences");
     });
 
@@ -152,12 +158,12 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
         setState({
             hold: true,
             coffees: [{ workspaceid: "a", since: 1, working: true }],
-            policyholding: true,
+            automaticholding: true,
             attempts: [attempt({})],
         });
         for (const html of [item(), item("status")]) {
             expect(html).toMatch(/data-testid="keepawake-count"[^>]*>3</);
-            expect(html).toContain("3 reasons keep this computer awake");
+            expect(html).toContain("• Automatic");
         }
         const menu = renderToStaticMarkup(<KeepAwakePopover anchor={{} as Element} onClose={() => {}} />);
         expect(menu).toContain("3 reasons keep this computer awake");
@@ -180,14 +186,27 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
 describe("keep-awake popover (FR-SHELL-103, #1408)", () => {
     const popover = () => renderToStaticMarkup(<KeepAwakePopover anchor={{} as Element} onClose={() => {}} />);
 
-    it("offers the four options of Preferences › Energy with the same labels, the current one selected", () => {
-        Hoisted.policy = "untilworkends";
+    // #2089: the menu says the real state first, then both modes with their switches; no sleep policy radios.
+    it("leads with the real state, then shows both modes with their switches (FR-BOSS-009 AC47)", () => {
+        setState({
+            automatic: true,
+            automaticholding: true,
+            automaticworking: true,
+            automaticreasons: ["Léa: working"],
+        });
         const html = popover();
-        for (const label of ["Ask the first time", "When a terminal asks", "Until work ends", "Never"]) {
-            expect(html).toContain(label);
-        }
-        expect(html).toContain('role="radiogroup"');
-        expect(html).toMatch(/data-option="untilworkends"[^>]*>|data-selected=""[^>]*data-option="untilworkends"/);
+        const headline = html.indexOf('data-testid="keepawake-headline"');
+        const modes = html.indexOf('data-testid="keepawake-modes"');
+        expect(headline).toBeGreaterThan(-1);
+        expect(headline).toBeLessThan(modes);
+        expect(html).toContain("This computer stays awake");
+        expect(html).toContain("Automatic (Léa: working)");
+        expect(html).toMatch(/data-testid="keepawake-switch-manual"[^>]*/);
+        expect(html).toMatch(/aria-checked="false"[^>]*aria-label="Manual"[^>]*data-testid="keepawake-switch-manual"/);
+        expect(html).toMatch(
+            /aria-checked="true"[^>]*aria-label="Automatic"[^>]*data-testid="keepawake-switch-automatic"/
+        );
+        expect(html).not.toContain('role="radiogroup"');
     });
 
     it("says nothing holds the computer awake, and lists the coffees with Stop", () => {
@@ -199,12 +218,14 @@ describe("keep-awake popover (FR-SHELL-103, #1408)", () => {
     });
 
     it("says once why the computer is kept awake, naming the agent by its first name only (#1550)", () => {
-        setState({ hold: true, policyholding: true, policyworking: true, policyreasons: ["Adrien: working"] });
+        setState({ hold: true, automaticholding: true, automaticworking: true, automaticreasons: ["Adrien: working"] });
         const html = popover();
-        expect(html).toContain("1 reason keeps this computer awake");
+        expect(html).toContain("This computer stays awake");
+        expect(html).toContain("Automatic (Adrien: working)");
         expect(html).toContain("until the work ends: Adrien: working");
+        expect(html).toContain("1 reason keeps this computer awake");
         expect(html).not.toContain("Holding this computer awake");
-        expect(html.match(/Adrien/g)).toHaveLength(2);
+        expect(html.match(/Adrien/g)).toHaveLength(3);
         expect(html).not.toContain("Claude Code");
     });
 
@@ -223,8 +244,8 @@ describe("keep-awake popover (FR-SHELL-103, #1408)", () => {
                 }),
             ],
             coffees: [{ workspaceid: "a", workspacename: "Beta", since: 1, working: true }],
-            policyholding: true,
-            policyworking: true,
+            automaticholding: true,
+            automaticworking: true,
         });
         const html = popover();
         const rows = html.split('data-testid="keepawake-hold"').slice(1);
@@ -235,7 +256,7 @@ describe("keep-awake popover (FR-SHELL-103, #1408)", () => {
         expect(rows[0]).toContain('aria-label="Stop keeping this computer awake from Terminal in “Scoping”"');
         expect(rows[1]).toContain("Stop keeping this computer awake for Beta");
         expect(rows[1]).not.toContain(">Show<");
-        expect(rows[2]).toContain("MoltenTerm");
+        expect(rows[2]).toContain("Automatic");
         expect(rows[2]).not.toContain(">Stop<");
         expect(html).not.toContain("a terminal asked to stay awake");
         vi.restoreAllMocks();
