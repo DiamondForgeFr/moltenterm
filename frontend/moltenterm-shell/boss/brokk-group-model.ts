@@ -11,7 +11,8 @@
 // The group's panels are the rail's: the usage block under the square opens none (FR-BOSS-009, AC58, #2106).
 export type PanelId = "notifications" | "agents" | "sessions" | "downloads" | "keepawake";
 
-export const RailPanels: PanelId[] = ["notifications", "agents", "sessions", "downloads", "keepawake"];
+// The rail's order, top to bottom (FR-BOSS-009, AC60, #2108): the keys and the layout follow it.
+export const RailPanels: PanelId[] = ["notifications", "downloads", "keepawake", "agents", "sessions"];
 
 // A surface asks for a panel (a toast's Open, the downloads pill): seq tells two requests for the same panel apart, and
 // highlight names the notifications to mark when the request is about some.
@@ -333,22 +334,22 @@ export function activePanel(state: PanelState, auto: PanelId): PanelId {
     return state.hover ?? state.pinned ?? auto;
 }
 
-// The panel the group opens on when the priority has nothing to say and the developer used none yet: the agents, the
-// most useful one at rest.
-export const DefaultPanel: PanelId = "agents";
+// The panel the group opens on when the priority has nothing to say and the developer used none yet: the notifications,
+// where what comes in lands (FR-BOSS-009, AC60, #2108).
+export const DefaultPanel: PanelId = "notifications";
 
 // The panel the group opens with (#2090): the priority's when it has something to say, else the last one the developer
-// used, else the agents. Never none.
+// used, else the notifications. Never none.
 // A remembered panel the rail no longer has (the former usage detail, #2106) is not one.
 export function groupOpeningPanel(facts: PriorityFacts, remembered: PanelId): PanelId {
     const known = RailPanels.includes(remembered) ? remembered : null;
     return openingPanel(facts) ?? known ?? DefaultPanel;
 }
 
-// The panel that takes the place of one the developer closed: the one the group opened with, else the agents, else the
-// notifications, never the one closed. Closing the group is the way to have none.
+// The panel that takes the place of one the developer closed: the one the group opened with, else the notifications,
+// else the first other one in the rail's order, never the one closed. Closing the group is the way to have none.
 export function fallbackPanel(closed: PanelId, auto: PanelId): PanelId {
-    return [auto, DefaultPanel, "notifications" as PanelId].find((id) => id != null && id !== closed);
+    return [auto, DefaultPanel, ...RailPanels].find((id) => id != null && id !== closed);
 }
 
 // The panel's close control: another panel shows, pinned.

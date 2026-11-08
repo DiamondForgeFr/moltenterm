@@ -79,10 +79,17 @@ describe("the geometry of the group", () => {
         expect(g.icons.notifications.y).toBe(6);
     });
 
+    it("stacks the rail top to bottom: notifications, downloads, keep awake, agents, sessions (AC60, #2108)", () => {
+        const g = groupGeometry();
+        expect(RailPanels).toEqual(["notifications", "downloads", "keepawake", "agents", "sessions"]);
+        const tops = RailPanels.map((id) => g.icons[id].y);
+        expect(tops).toEqual([...tops].sort((a, b) => a - b));
+    });
+
     it("works the gap out again for another square or tile", () => {
         const g = groupGeometry(300, 40);
         expect(g.gap).toBe((300 - 12 - 200) / 4);
-        const last = g.icons.keepawake;
+        const last = g.icons[RailPanels[RailPanels.length - 1]];
         expect(last.y + last.h + 6).toBe(300);
     });
 
@@ -279,20 +286,21 @@ describe("a panel always open", () => {
     });
 
     it("never opens on the former usage detail, even when it was used last (AC58, #2106)", () => {
-        expect(groupOpeningPanel(Quiet, "usage" as PanelId)).toBe(DefaultPanel);
+        expect(groupOpeningPanel(Quiet, "usage" as PanelId)).toBe("notifications");
         expect(groupOpeningPanel({ ...Quiet, downloadRunning: true }, "usage" as PanelId)).toBe("downloads");
     });
 
-    it("opens the agents with nothing to say and nothing used yet, never none", () => {
+    it("opens the notifications with nothing to say and nothing used yet, never none (AC60, #2108)", () => {
         expect(groupOpeningPanel(Quiet, null)).toBe(DefaultPanel);
-        expect(DefaultPanel).toBe("agents");
-        expect(activePanel(InitialPanels, groupOpeningPanel(Quiet, null))).toBe("agents");
+        expect(DefaultPanel).toBe("notifications");
+        expect(activePanel(InitialPanels, groupOpeningPanel(Quiet, null))).toBe("notifications");
     });
 
-    it("switches to another panel when the open one is closed: the opening one, else the agents, else Notifications", () => {
+    it("switches to another panel when the open one is closed: the opening one, else Notifications, else the next in the rail (AC60, #2108)", () => {
         expect(activePanel(afterClose("sessions", "downloads"), "downloads")).toBe("downloads");
-        expect(activePanel(afterClose("downloads", "downloads"), "downloads")).toBe("agents");
+        expect(activePanel(afterClose("downloads", "downloads"), "downloads")).toBe("notifications");
         expect(activePanel(afterClose("agents", "agents"), "agents")).toBe("notifications");
+        expect(activePanel(afterClose("notifications", "notifications"), "notifications")).toBe("downloads");
         for (const closed of RailPanels) {
             for (const auto of RailPanels) {
                 const next = activePanel(afterClose(closed, auto), auto);
@@ -503,11 +511,12 @@ describe("the conversation window", () => {
 
 describe("keys between the icons", () => {
     it("moves down and up the rail and wraps", () => {
-        expect(neighbourPanel("notifications", "ArrowDown")).toBe("agents");
-        expect(neighbourPanel("keepawake", "ArrowDown")).toBe("notifications");
-        expect(neighbourPanel("notifications", "ArrowUp")).toBe("keepawake");
+        expect(neighbourPanel("notifications", "ArrowDown")).toBe("downloads");
+        expect(neighbourPanel("keepawake", "ArrowDown")).toBe("agents");
+        expect(neighbourPanel("sessions", "ArrowDown")).toBe("notifications");
+        expect(neighbourPanel("notifications", "ArrowUp")).toBe("sessions");
         expect(neighbourPanel("agents", "Home")).toBe("notifications");
-        expect(neighbourPanel("agents", "End")).toBe("keepawake");
+        expect(neighbourPanel("agents", "End")).toBe("sessions");
         expect(neighbourPanel("agents", "a")).toBeNull();
     });
 });
