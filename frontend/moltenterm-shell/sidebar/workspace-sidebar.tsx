@@ -39,7 +39,7 @@ import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
 import { visibleTabIds } from "../hidden-tabs";
 import { HoldToCloseGlyph } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
-import { coffeeCondition, coffeeSupported, sleepPolicyLabel, SleepPolicySetting } from "../keepawake-model";
+import { AutomaticSetting, coffeeCondition, coffeeSupported } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { usePlatform } from "../keepawake-ui";
 import { LibraryHost } from "../library/library-host";
@@ -345,16 +345,17 @@ function projectMenuItems(
     return items;
 }
 
-// The link to Preferences › Energy (#1332), the current option as its sub-label, where the computer supports it.
+// The link to Preferences › Energy (#1332), whether Automatic is on as its sub-label, where the computer supports it.
 function keepAwakeItem(platform: string, t: (key: string, vars?: Record<string, any>) => string): ContextMenuItem {
     if (!coffeeSupported(platform)) {
         return undefined;
     }
+    const automatic = globalStore.get(getSettingsKeyAtom(AutomaticSetting)) === true;
     return {
         label: t("sidebar.workspaceMenu.keepAwake"),
-        sublabel: sleepPolicyLabel(globalStore.get(getSettingsKeyAtom(SleepPolicySetting))),
+        sublabel: t("keepawake.cupAutomatic", { state: t(automatic ? "keepawake.on" : "keepawake.off") }),
         icon: "mug-hot",
-        click: () => fireAndForget(() => openSettingsKey("general", SleepPolicySetting)),
+        click: () => fireAndForget(() => openSettingsKey("general", AutomaticSetting)),
     };
 }
 
@@ -1898,7 +1899,7 @@ function WorkspaceDot({
         attention.push(tc("rail.working", working));
     }
     if (coffee != null) {
-        attention.push(t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) }));
+        attention.push(t("rail.keptAwake", { condition: coffeeCondition() }));
     }
     const label = [entry.name, ...attention].join(" · ");
     const showPopover = dotShowsPopover({

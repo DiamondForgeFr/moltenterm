@@ -55,7 +55,10 @@ vi.mock("../agent-state-store", async () => {
 vi.mock("../notifications-store", async () => {
     const { atom } = await import("jotai");
     const entriesAtom = atom([]);
-    return { MoltentermNotifications: { getInstance: () => ({ entriesAtom, shownEntriesAtom: entriesAtom }) } };
+    return {
+        MoltentermNotifications: { getInstance: () => ({ entriesAtom, shownEntriesAtom: entriesAtom }) },
+        registerNotificationGesture: vi.fn(),
+    };
 });
 vi.mock("../sessions/sessions-store", async () => {
     const { atom } = await import("jotai");
@@ -68,6 +71,8 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { PendingHandoff } from "../agent-handoff-types";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { EmptyKeepAwakeState, KeepAwakeState, keepAwakeStatus } from "../keepawake-model";
+import { KeepAwakeModel } from "../keepawake-store";
 import { SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel, BossDom } from "./boss-store";
@@ -568,5 +573,30 @@ describe("the settings (AC8, AC9)", () => {
         expect(globalStore.get(model.nameAtom)).toBe("Léa");
         globalStore.set(settings, { "boss:name": "x".repeat(40) });
         expect(globalStore.get(model.nameAtom)).toBe("x".repeat(24));
+    });
+});
+
+// #2089: the title-bar face's cup mark and the Garder éveillé panel's first line are one answer.
+describe("the face's cup mark follows the real keep-awake state (FR-BOSS-009, AC44)", () => {
+    function keepState(partial: Partial<KeepAwakeState>): KeepAwakeState {
+        return { ...EmptyKeepAwakeState, version: 1, ...partial };
+    }
+
+    it("marks the face while Automatic holds with Manual off, and clears it when nothing holds", () => {
+        const keep = KeepAwakeModel.getInstance();
+        const working = keepState({
+            hold: true,
+            automatic: true,
+            automaticholding: true,
+            automaticworking: true,
+            automaticreasons: ["Léa: working"],
+        });
+        globalStore.set(keep.stateAtom, working);
+        expect(globalStore.get(model.keepAwakeAtom)).toBe(true);
+        expect(keepAwakeStatus(working, 0).awake).toBe(true);
+        const asleep = keepState({ automatic: false, requests: "never" });
+        globalStore.set(keep.stateAtom, asleep);
+        expect(globalStore.get(model.keepAwakeAtom)).toBe(false);
+        expect(keepAwakeStatus(asleep, 0).awake).toBe(false);
     });
 });

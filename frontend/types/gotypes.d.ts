@@ -1479,6 +1479,12 @@ declare global {
         "tab:holdtoclose"?: boolean;
         "tab:holdtoclosems"?: number;
         "power:sleeppolicy"?: string;
+        "power:automatic"?: boolean;
+        "power:graceminutes"?: number;
+        "power:workagents"?: boolean;
+        "power:workcommands"?: boolean;
+        "power:workprojects"?: boolean;
+        "power:terminalrequests"?: string;
         "shell:workspacesidebar"?: boolean;
         "app:newviewopen"?: string;
         "app:newviewfavorites"?: string[];

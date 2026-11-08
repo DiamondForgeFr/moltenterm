@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
@@ -78,11 +79,27 @@ type AutoApproveSession struct {
 	ReasonText *uimsg.Text `json:"reasontext,omitempty"`
 }
 
-// HasCoffee tells whether a workspace's coffee holds now: on, in its grace, or kept on by work.
+// HasCoffee tells whether a workspace's coffee covers its agents' prompts now: it is on and its work runs, or the grace
+// delay after the work has not passed. A coffee left on for hours with nothing running holds the computer awake but
+// answers nothing (FR-SHELL-023 AC17): the approvals' window is the one the coffee had when it ended after its grace.
 func (k *Keeper) HasCoffee(wsId string) bool {
 	k.lock.Lock()
 	defer k.lock.Unlock()
-	return wsId != "" && k.coffees[wsId] != nil
+	rec := k.coffees[wsId]
+	if wsId == "" || rec == nil {
+		return false
+	}
+	if rec.working {
+		return true
+	}
+	return !rec.graceStart.IsZero() && k.env.Now().Sub(rec.graceStart) < k.graceLocked()
+}
+
+func (k *Keeper) graceLocked() time.Duration {
+	if k.cfg.Grace <= 0 {
+		return DefaultGrace
+	}
+	return k.cfg.Grace
 }
 
 // RecordApproval keeps a decision, logs it and publishes.

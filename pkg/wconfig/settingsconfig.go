@@ -192,8 +192,17 @@ type SettingsType struct {
 	TabHoldToClose   *bool  `json:"tab:holdtoclose,omitempty" jsonschema_description:"Closing a tab with its close button takes a press-and-hold; false closes it on a single click"`
 	TabHoldToCloseMs *int64 `json:"tab:holdtoclosems,omitempty" jsonschema_description:"How long a tab's close button is held before it closes the tab, in milliseconds (200 to 2000)"`
 
-	// MOLTENTERM-PATCH (#276, #493): whether terminals may keep the computer awake (FR-SHELL-023, pkg/molten/keepawake); unset asks once.
-	PowerSleepPolicy string `json:"power:sleeppolicy,omitempty" jsonschema:"enum=allow,enum=untilworkends,enum=letsleep" jsonschema_description:"Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input with nothing running is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep."`
+	// MOLTENTERM-PATCH (#276, #493, #2089): keep-awake (FR-SHELL-023, pkg/molten/keepawake). Two activation modes, Manual
+	// (a workspace's switch, held in the keeper) and Automatic (power:automatic), and a configuration: what counts as
+	// work, the grace delay and what a terminal's request gets. power:sleeppolicy is the setting they replace; it is
+	// read once at startup to migrate (MigratePowerSettings) and never written again.
+	PowerSleepPolicy      string `json:"power:sleeppolicy,omitempty" jsonschema:"enum=allow,enum=untilworkends,enum=letsleep" jsonschema_description:"Replaced by power:automatic and power:terminalrequests; MoltenTerm moves its value to them at startup and removes it"`
+	PowerAutomatic        bool   `json:"power:automatic,omitempty" jsonschema_description:"Automatic keep-awake: while any agent works on this computer, MoltenTerm keeps it awake itself and releases it after the grace delay (power:graceminutes). The display may always sleep"`
+	PowerGraceMinutes    *int64 `json:"power:graceminutes,omitempty" jsonschema:"enum=1,enum=2,enum=5,enum=10,enum=15" jsonschema_description:"Minutes the computer stays awake after the last work stopped (1, 2, 5, 10 or 15); 2 when unset"`
+	PowerWorkAgents       *bool  `json:"power:workagents,omitempty" jsonschema_description:"An agent at work, or still busy with background subagents or commands after its turn, counts as work; true when unset"`
+	PowerWorkCommands     *bool  `json:"power:workcommands,omitempty" jsonschema_description:"A foreground command in a terminal that is not an idle shell counts as work; true when unset"`
+	PowerWorkProjects     *bool  `json:"power:workprojects,omitempty" jsonschema_description:"A Mission Control run of a project counts as work; true when unset"`
+	PowerTerminalRequests string `json:"power:terminalrequests,omitempty" jsonschema:"enum=always,enum=never" jsonschema_description:"What happens when a program in a terminal asks to keep the computer awake (caffeinate, systemd-inhibit). always: their blocks go through. never: their blocks are stopped and the computer sleeps as planned. Unset: the first request asks"`
 
 	// MOLTENTERM-PATCH (#1183): the workspace sidebar replaces the tab bar, the rail and the status bar (FR-SHELL-079, frontend/moltenterm-shell/sidebar).
 	ShellWorkspaceSidebar *bool `json:"shell:workspacesidebar,omitempty" jsonschema_description:"Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back"`

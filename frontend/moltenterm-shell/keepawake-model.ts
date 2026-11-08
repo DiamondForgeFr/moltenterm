@@ -16,19 +16,35 @@ export const KeepAwakeStateCommand = "keepawakestate";
 export const KeepAwakeCoffeeCommand = "keepawakecoffee";
 export const KeepAwakeOverrideCommand = "keepawakeoverride";
 export const KeepAwakeStopCommand = "keepawakestop";
-// The ask-once notification's actions run this gesture with the chosen policy.
+// The ask-once notification's actions run this gesture with the chosen answer.
 export const SleepPolicyGesture = "molten:sleeppolicy";
-export const SleepPolicySetting = "power:sleeppolicy";
+// The settings of the two activation modes and of what a terminal's request gets (FR-SHELL-023 AC14, AC15, #2089).
+export const AutomaticSetting = "power:automatic";
+export const TerminalRequestsSetting = "power:terminalrequests";
 
-export type SleepPolicy = "allow" | "untilworkends" | "letsleep";
+// The three answers of the ask-once notification, worded as the policy they replace.
+export type AskAnswer = "allow" | "untilworkends" | "letsleep";
 
-// must match Coffee in pkg/molten/keepawake/keepawake.go
+// The settings an answer of the ask-once notification writes.
+export function askAnswerSettings(answer: string): Record<string, boolean | string> {
+    switch (answer) {
+        case "allow":
+            return { [TerminalRequestsSetting]: "always" };
+        case "untilworkends":
+            return { [AutomaticSetting]: true, [TerminalRequestsSetting]: "always" };
+        case "letsleep":
+            return { [TerminalRequestsSetting]: "never" };
+        default:
+            return null;
+    }
+}
+
+// must match Coffee in pkg/molten/keepawake/keepawake.go: a workspace's Manual switch.
 export type KeepAwakeCoffee = {
     workspaceid: string;
     workspacename?: string;
     since: number;
     working: boolean;
-    endsat?: number;
     // What works in the workspace now, the most telling first ("Claude Code: background work"), while working.
     reasons?: string[];
     reasonstext?: ServerText[];
@@ -66,12 +82,15 @@ export type KeepAwakeOverride = {
 export type KeepAwakeState = {
     version: number;
     hold: boolean;
-    policy: string;
-    policyholding?: boolean;
-    policyworking?: boolean;
-    policyendsat?: number;
-    policyreasons?: string[];
-    policyreasonstext?: ServerText[];
+    // The Automatic mode is on; requests is what a terminal's request gets ("always", "never", empty while it asks).
+    automatic: boolean;
+    requests?: string;
+    // Automatic holds the blocker: work runs, or it is in its grace until automaticendsat.
+    automaticholding?: boolean;
+    automaticworking?: boolean;
+    automaticendsat?: number;
+    automaticreasons?: string[];
+    automaticreasonstext?: ServerText[];
     coffees: KeepAwakeCoffee[];
     attempts: KeepAwakeAttempt[];
     overrides: KeepAwakeOverride[];
@@ -111,7 +130,7 @@ export type KeepAwakeApproval = {
 export const EmptyKeepAwakeState: KeepAwakeState = {
     version: -1,
     hold: false,
-    policy: "",
+    automatic: false,
     coffees: [],
     attempts: [],
     overrides: [],
@@ -163,13 +182,9 @@ export function formatCountdown(endsAt: number, now: number): string {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-// The condition of a coffee, in a few words: "until its work ends" while work runs, the time left in its grace
-// otherwise (DS-SHELL-063).
-export function coffeeCondition(coffee: KeepAwakeCoffee, now: number): string {
-    if (coffee.working || !coffee.endsat) {
-        return t("keepawake.untilWorkEnds");
-    }
-    return t("keepawake.endingIn", { time: formatCountdown(coffee.endsat, now) });
+// The condition of a coffee, the Manual switch, in a few words: it holds until the developer turns it off (#2089).
+export function coffeeCondition(): string {
+    return t("keepawake.untilTurnedOff");
 }
 
 // Why the computer is kept awake, in one line: the reasons wavesrv sent, joined (#493), worded by their codes (#656).
@@ -190,25 +205,22 @@ export function approvalReasonText(item: { reason?: string; reasontext?: ServerT
 }
 
 // The coffee bud's tooltip while on (DS-SHELL-062), and the one line the rail item adds.
-export function coffeeTooltip(coffee: KeepAwakeCoffee, name: string, platform: string, now: number): string {
+export function coffeeTooltip(coffee: KeepAwakeCoffee, name: string): string {
     const base = t("keepawake.tooltip", { name });
-    if (coffee.working || !coffee.endsat) {
-        const why = coffeeReason(coffee);
-        return why ? `${base}\n${t("keepawake.now", { why })}` : base;
-    }
-    return `${base}\n${t("keepawake.nothingRuns", { time: formatCountdown(coffee.endsat, now) })}`;
+    const why = coffeeReason(coffee);
+    return why ? `${base}\n${t("keepawake.now", { why })}` : base;
 }
 
-// What the policy holds right now, in a few words; "" while it holds nothing.
-export function policyHoldingLine(state: KeepAwakeState, platform: string, now: number): string {
-    if (!state.policyholding) {
+// What Automatic holds right now, in a few words; "" while it holds nothing.
+export function automaticHoldingLine(state: KeepAwakeState, now: number): string {
+    if (!state.automaticholding) {
         return "";
     }
-    if (state.policyworking || !state.policyendsat) {
-        const why = state.policyworking ? reasonsText(state.policyreasons, state.policyreasonstext) : "";
+    if (state.automaticworking || !state.automaticendsat) {
+        const why = state.automaticworking ? reasonsText(state.automaticreasons, state.automaticreasonstext) : "";
         return why ? t("keepawake.holdingWhy", { why }) : t("keepawake.holding");
     }
-    return t("keepawake.holdingEnding", { time: formatCountdown(state.policyendsat, now) });
+    return t("keepawake.holdingEnding", { time: formatCountdown(state.automaticendsat, now) });
 }
 
 export function attemptAlive(attempt: KeepAwakeAttempt): boolean {
@@ -269,15 +281,10 @@ function terminalHold(blockid: string, attempts: KeepAwakeAttempt[], now: number
     };
 }
 
-function coffeeHold(coffee: KeepAwakeCoffee, now: number): KeepAwakeHold {
+function coffeeHold(coffee: KeepAwakeCoffee): KeepAwakeHold {
     const name = workspaceShownName(coffee.workspacename, t) || t("keepawake.workspace");
-    let detail: string;
-    if (coffee.working || !coffee.endsat || now == null) {
-        const why = coffeeReason(coffee);
-        detail = why ? t("keepawake.row.coffeeWhy", { why }) : t("keepawake.row.coffee");
-    } else {
-        detail = t("keepawake.row.coffeeEnding", { time: formatCountdown(coffee.endsat, now) });
-    }
+    const why = coffeeReason(coffee);
+    const detail = why ? t("keepawake.row.coffeeWhy", { why }) : t("keepawake.row.coffee");
     return {
         kind: "coffee",
         key: `coffee:${coffee.workspaceid}`,
@@ -290,17 +297,17 @@ function coffeeHold(coffee: KeepAwakeCoffee, now: number): KeepAwakeHold {
 
 function workHold(state: KeepAwakeState, now: number): KeepAwakeHold {
     let detail: string;
-    if (state.policyworking || !state.policyendsat || now == null) {
-        const why = state.policyworking ? reasonsText(state.policyreasons, state.policyreasonstext) : "";
+    if (state.automaticworking || !state.automaticendsat || now == null) {
+        const why = state.automaticworking ? reasonsText(state.automaticreasons, state.automaticreasonstext) : "";
         detail = why ? t("keepawake.row.workWhy", { why }) : t("keepawake.row.work");
     } else {
-        detail = t("keepawake.row.workEnding", { time: formatCountdown(state.policyendsat, now) });
+        detail = t("keepawake.row.workEnding", { time: formatCountdown(state.automaticendsat, now) });
     }
-    return { kind: "work", key: "work", label: t("keepawake.row.workLabel"), detail, canStop: false };
+    return { kind: "work", key: "work", label: t("keepawake.row.automaticLabel"), detail, canStop: false };
 }
 
 // The reasons keeping the computer awake, one per row (#1780): each terminal whose block went through (a neutralised
-// attempt blocks nothing), each coffee, then the Until work ends setting while it holds. The cup's count, its tooltip
+// attempt blocks nothing), each coffee (a Manual switch), then Automatic while it holds. The cup's count, its tooltip
 // and its menu all read this list, so they never disagree. Without a clock the rows leave out what time left they
 // would show.
 export function keepAwakeHolds(state: KeepAwakeState, now?: number): KeepAwakeHold[] {
@@ -315,12 +322,12 @@ export function keepAwakeHolds(state: KeepAwakeState, now?: number): KeepAwakeHo
         holds.push(terminalHold(blockid, attempts, now));
     }
     for (const coffee of state.coffees) {
-        holds.push(coffeeHold(coffee, now));
+        holds.push(coffeeHold(coffee));
     }
-    if (state.policyholding) {
+    if (state.automaticholding) {
         holds.push(workHold(state, now));
     }
-    if (state.hold && state.coffees.length === 0 && !state.policyholding) {
+    if (state.hold && state.coffees.length === 0 && !state.automaticholding) {
         holds.push({ kind: "work", key: "hold", label: t("keepawake.row.workLabel"), detail: "", canStop: false });
     }
     return holds;
@@ -334,6 +341,48 @@ export function keepAwakeCount(state: KeepAwakeState): number {
 // "2 reasons keep this computer awake", for the cup's tooltip and the menu's heading.
 export function keepAwakeCountLabel(count: number): string {
     return tCount("keepawake.reasonsCount", count);
+}
+
+export type KeepAwakeStatus = {
+    awake: boolean;
+    headline: string;
+    // Who keeps it awake, mode by mode, or what the two modes are while nothing does: the line under the headline.
+    cause: string;
+};
+
+function automaticCause(state: KeepAwakeState, now: number): string {
+    if (state.automaticworking || !state.automaticendsat || now == null) {
+        const why = state.automaticworking ? reasonsText(state.automaticreasons, state.automaticreasonstext) : "";
+        return why ? t("keepawake.status.automaticWhy", { why }) : t("keepawake.status.automatic");
+    }
+    return t("keepawake.status.automaticEnding", { time: formatCountdown(state.automaticendsat, now) });
+}
+
+// What the person reads first about the keep-awake (#2089): whether this computer is kept awake and what by, mode by
+// mode, never the state of a switch. The switches come after it. Its answer is keepAwakeActive's, which the face's mark
+// and the rail's dot read too.
+export function keepAwakeStatus(state: KeepAwakeState, now?: number): KeepAwakeStatus {
+    const holds = keepAwakeHolds(state, now);
+    if (holds.length === 0) {
+        return {
+            awake: false,
+            headline: t("keepawake.cupIdle"),
+            cause: t(state.automatic ? "keepawake.status.idleAutomatic" : "keepawake.status.idleOff"),
+        };
+    }
+    const causes: string[] = [];
+    if (state.automaticholding) {
+        causes.push(automaticCause(state, now));
+    }
+    const coffees = holds.filter((h) => h.kind === "coffee");
+    if (coffees.length > 0) {
+        causes.push(t("keepawake.status.manual", { names: coffees.map((h) => h.label).join(", ") }));
+    }
+    const terminals = holds.filter((h) => h.kind === "terminal").length;
+    if (terminals > 0) {
+        causes.push(tCount("keepawake.status.terminals", terminals));
+    }
+    return { awake: true, headline: t("keepawake.status.awake"), cause: causes.join(" · ") };
 }
 
 export type KeepAwakeSession = {
@@ -380,36 +429,6 @@ export function keepAwakeSessions(state: KeepAwakeState): KeepAwakeSession[] {
     return [...sessions.values()];
 }
 
-// The four options of the sleep setting, worded once: Preferences, the sidebar indicator and the workspace menu all
-// read these (FR-SHELL-103-AC3). Unset is the fourth: the first block asks.
-export function sleepPolicyLabel(policy: string): string {
-    const base = `settings.items.${SleepPolicySetting}`;
-    switch (cleanSleepPolicy(policy)) {
-        case "allow":
-            return t(`${base}.options.allow`);
-        case "untilworkends":
-            return t(`${base}.options.untilworkends`);
-        case "letsleep":
-            return t(`${base}.options.letsleep`);
-        default:
-            return t(`${base}.unset`);
-    }
-}
-
-// What the chosen option does, shown under the setting in Preferences; "" while unset.
-export function sleepPolicyDetail(policy: string): string {
-    switch (cleanSleepPolicy(policy)) {
-        case "allow":
-            return t("keepawake.policy.allowDetail");
-        case "untilworkends":
-            return t("keepawake.policy.untilWorkEndsDetail");
-        case "letsleep":
-            return t("keepawake.policy.letSleepDetail");
-        default:
-            return t("keepawake.policy.unsetDetail");
-    }
-}
-
 // The indicator shows only while something keeps the computer awake (FR-SHELL-103-AC1).
 export function keepAwakeActive(state: KeepAwakeState): boolean {
     return keepAwakeCount(state) > 0;
@@ -418,13 +437,6 @@ export function keepAwakeActive(state: KeepAwakeState): boolean {
 // One line per reason for the cup's tooltip: "Terminal “Scoping” · caffeinate -i -t 600 · 9 min left".
 export function holdLine(hold: KeepAwakeHold): string {
     return hold.detail ? `${hold.label} · ${hold.detail}` : hold.label;
-}
-
-export function cleanSleepPolicy(value: string): SleepPolicy {
-    if (value === "allow" || value === "untilworkends" || value === "letsleep") {
-        return value;
-    }
-    return null;
 }
 
 export function describeAttempt(attempt: KeepAwakeAttempt): string {

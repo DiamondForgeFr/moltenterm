@@ -7,7 +7,9 @@ vi.mock("./workspace-project", () => ({ ProjectMetaKey: "molten:project", Worksp
 
 import {
     applyKeepAwakeState,
-    cleanSleepPolicy,
+    askAnswerSettings,
+    automaticHoldingLine,
+    AutomaticSetting,
     coffeeCondition,
     coffeeOf,
     coffeeReason,
@@ -24,13 +26,11 @@ import {
     keepAwakeHolds,
     keepAwakeSessions,
     KeepAwakeState,
-    policyHoldingLine,
+    keepAwakeStatus,
     railCoffeeLabel,
     reasonsText,
     sessionWhere,
-    sleepPolicyDetail,
-    sleepPolicyLabel,
-    SleepPolicySetting,
+    TerminalRequestsSetting,
 } from "./keepawake-model";
 import { settingsCatalog } from "./settings/settings-catalog";
 
@@ -50,28 +50,27 @@ describe("keep-awake model", () => {
         expect(applyKeepAwakeState(newer, older)).toBe(newer);
         expect(applyKeepAwakeState(newer, null)).toBe(newer);
         // A state without lists still reads as empty lists.
-        const bare = { version: 6, hold: false, policy: "" } as KeepAwakeState;
+        const bare = { version: 6, hold: false, automatic: false } as KeepAwakeState;
         expect(applyKeepAwakeState(newer, bare)).toMatchObject({ coffees: [], attempts: [], overrides: [] });
     });
 
     it("names the coffee bud for its state (FR-SHELL-023-AC8)", () => {
-        expect(railCoffeeLabel("Notulia", false, "darwin")).toBe("Keep this computer awake while Notulia works");
+        expect(railCoffeeLabel("Notulia", false, "darwin")).toBe("Keep this computer awake for Notulia");
         expect(railCoffeeLabel("Notulia", true, "darwin")).toBe("Stop keeping this computer awake for Notulia");
-        expect(railCoffeeLabel("Notulia", false, "linux")).toBe("Keep this computer awake while Notulia works");
+        expect(railCoffeeLabel("Notulia", false, "linux")).toBe("Keep this computer awake for Notulia");
         expect(coffeeSupported("darwin")).toBe(true);
         expect(coffeeSupported("linux")).toBe(true);
         expect(coffeeSupported("win32")).toBe(false);
     });
 
-    it("tells a coffee's condition", () => {
+    it("tells that the Manual switch holds until it is turned off, whether or not work runs (FR-SHELL-023 AC14)", () => {
         const working = { workspaceid: "a", since: 0, working: true };
-        const grace = { workspaceid: "a", since: 0, working: false, endsat: 120_000 };
-        expect(coffeeCondition(working, 0)).toBe("until its work ends");
-        expect(coffeeCondition(grace, 1_000)).toBe("ending in 1:59");
+        const idle = { workspaceid: "a", since: 0, working: false };
+        expect(coffeeCondition()).toBe("until you turn it off");
         expect(formatCountdown(10_000, 20_000)).toBe("0:00");
         expect(formatCountdown(65_500, 0)).toBe("1:06");
-        expect(coffeeTooltip(working, "A", "darwin", 0)).toBe("Keeping this computer awake until the work in A ends");
-        expect(coffeeTooltip(grace, "A", "darwin", 60_000)).toContain("ending in 1:00");
+        expect(coffeeTooltip(working, "A")).toBe("Keeping this computer awake for A until you turn it off");
+        expect(coffeeTooltip(idle, "A")).toBe("Keeping this computer awake for A until you turn it off");
     });
 
     it("says why the computer is kept awake (#493)", () => {
@@ -82,29 +81,29 @@ describe("keep-awake model", () => {
             reasons: ["Claude Code: background work", "Command: go test ./..."],
         };
         expect(coffeeReason(background)).toBe("Claude Code: background work, Command: go test ./...");
-        expect(coffeeTooltip(background, "A", "darwin", 0)).toBe(
-            "Keeping this computer awake until the work in A ends\nNow: Claude Code: background work, Command: go test ./..."
+        expect(coffeeTooltip(background, "A")).toBe(
+            "Keeping this computer awake for A until you turn it off\nNow: Claude Code: background work, Command: go test ./..."
         );
-        // In its grace nothing runs: no reason, even a stale one.
-        const grace = { ...background, working: false, endsat: 120_000 };
-        expect(coffeeReason(grace)).toBe("");
-        expect(coffeeTooltip(grace, "A", "darwin", 0)).not.toContain("Now:");
+        // Once nothing runs there is no reason, even a stale one.
+        const idle = { ...background, working: false };
+        expect(coffeeReason(idle)).toBe("");
+        expect(coffeeTooltip(idle, "A")).not.toContain("Now:");
         expect(reasonsText(undefined)).toBe("");
         const holding = state({
-            policyholding: true,
-            policyworking: true,
-            policyreasons: ["Claude Code: background work"],
+            automaticholding: true,
+            automaticworking: true,
+            automaticreasons: ["Claude Code: background work"],
         });
-        expect(policyHoldingLine(holding, "darwin", 0)).toBe(
+        expect(automaticHoldingLine(holding, 0)).toBe(
             "Holding this computer awake while work runs (Claude Code: background work)"
         );
-        expect(policyHoldingLine(state({ policyholding: true, policyworking: true }), "linux", 0)).toBe(
+        expect(automaticHoldingLine(state({ automaticholding: true, automaticworking: true }), 0)).toBe(
             "Holding this computer awake while work runs"
         );
-        expect(policyHoldingLine(state({ policyholding: true, policyendsat: 60_000 }), "darwin", 0)).toBe(
+        expect(automaticHoldingLine(state({ automaticholding: true, automaticendsat: 60_000 }), 0)).toBe(
             "Holding this computer awake, ending in 1:00"
         );
-        expect(policyHoldingLine(state({}), "darwin", 0)).toBe("");
+        expect(automaticHoldingLine(state({}), 0)).toBe("");
     });
 
     it("finds a workspace's coffee", () => {
@@ -120,8 +119,8 @@ describe("keep-awake model", () => {
                 { workspaceid: "a", since: 1, working: true },
                 { workspaceid: "b", since: 2, working: true },
             ],
-            policyholding: true,
-            policyworking: true,
+            automaticholding: true,
+            automaticworking: true,
             attempts: [
                 attempt({ id: "1", blockid: "b1" }),
                 attempt({ id: "2", blockid: "b1" }),
@@ -155,15 +154,15 @@ describe("keep-awake model", () => {
             coffees: [
                 { workspaceid: "ws", workspacename: "MoltenTerm", since: 1, working: true, reasons: ["Léa: working"] },
             ],
-            policyholding: true,
-            policyworking: true,
-            policyreasons: ["Alexis: working", "Arthur: working"],
+            automaticholding: true,
+            automaticworking: true,
+            automaticreasons: ["Alexis: working", "Arthur: working"],
         });
         const lines = keepAwakeHolds(s, 0).map(holdLine);
         expect(lines).toEqual([
             "Terminal in “Scoping” · caffeinate -i -t 9600 · 2 h 40 left · MoltenTerm",
-            "MoltenTerm · at your request, until its work ends: Léa: working",
-            "MoltenTerm · until the work ends: Alexis: working, Arthur: working",
+            "MoltenTerm · manual, until you turn it off: Léa: working",
+            "Automatic · until the work ends: Alexis: working, Arthur: working",
         ]);
         expect(keepAwakeCountLabel(lines.length)).toBe("3 reasons keep this computer awake");
         expect(keepAwakeCountLabel(1)).toBe("1 reason keeps this computer awake");
@@ -175,9 +174,9 @@ describe("keep-awake model", () => {
                 attempt({ id: "1", blockid: "bare", stoppable: true }),
                 attempt({ id: "2", blockid: "wrapped", tool: "caffeinate", args: ["-i", "make"] }),
             ],
-            coffees: [{ workspaceid: "a", since: 1, working: false, endsat: 90_000 }],
-            policyholding: true,
-            policyendsat: 60_000,
+            coffees: [{ workspaceid: "a", since: 1, working: false }],
+            automaticholding: true,
+            automaticendsat: 60_000,
         });
         const holds = keepAwakeHolds(s, 0);
         expect(holds.map((h) => [h.kind, h.canStop])).toEqual([
@@ -188,7 +187,7 @@ describe("keep-awake model", () => {
         ]);
         expect(holds[0].blockid).toBe("bare");
         expect(holds[1].detail).toBe("caffeinate -i make");
-        expect(holds[2].detail).toBe("at your request, its work is done: ending in 1:30");
+        expect(holds[2].detail).toBe("manual, until you turn it off");
         expect(holds[3].detail).toBe("the work is done: ending in 1:00");
         expect(holds.find((h) => h.blockid === "bare").label).toBe("A terminal");
     });
@@ -236,23 +235,31 @@ describe("keep-awake model", () => {
         ).toContain("Scoping");
     });
 
-    it("spells out the work rule next to Until work ends (FR-SHELL-023-AC1)", () => {
-        const detail = sleepPolicyDetail("untilworkends");
-        expect(detail).toContain("still busy with background subagents or commands after its turn");
-        expect(detail).toContain("waiting for input with nothing running is not work");
-        expect(sleepPolicyDetail("allow")).toBe("A terminal that asks to stay awake is always heard.");
-        expect(cleanSleepPolicy("letsleep")).toBe("letsleep");
-        expect(cleanSleepPolicy("never")).toBeNull();
+    it("holds the configuration of keep-awake in the Energy group of Preferences (FR-SHELL-023 AC15, #2089)", () => {
+        const catalog = settingsCatalog("darwin").filter((e) => e.group === "Energy");
+        expect(catalog.map((e) => e.key)).toEqual([
+            AutomaticSetting,
+            "power:graceminutes",
+            "power:workagents",
+            "power:workcommands",
+            "power:workprojects",
+            TerminalRequestsSetting,
+        ]);
+        const requests = catalog.find((e) => e.key === TerminalRequestsSetting);
+        expect(requests.options.map((o) => o.value)).toEqual(["always", "never"]);
+        expect(requests.unsetLabel).toBe("Ask the first time");
+        // The setting the two modes replace stays out of the screen.
+        expect(settingsCatalog("darwin").some((e) => e.key === "power:sleeppolicy")).toBe(false);
     });
 
-    it("words the four options once: the indicator and the menu read Preferences' labels (FR-SHELL-103-AC3)", () => {
-        const entry = settingsCatalog("darwin").find((e) => e.key === SleepPolicySetting);
-        expect(entry.group).toBe("Energy");
-        for (const option of entry.options) {
-            expect(sleepPolicyLabel(option.value)).toBe(option.label);
-        }
-        expect(sleepPolicyLabel("")).toBe(entry.unsetLabel);
-        expect(entry.options.map((o) => o.value)).toEqual(["allow", "untilworkends", "letsleep"]);
+    it("maps the answers of the ask-once notification to the settings that replace the policy (AC19)", () => {
+        expect(askAnswerSettings("allow")).toEqual({ [TerminalRequestsSetting]: "always" });
+        expect(askAnswerSettings("untilworkends")).toEqual({
+            [AutomaticSetting]: true,
+            [TerminalRequestsSetting]: "always",
+        });
+        expect(askAnswerSettings("letsleep")).toEqual({ [TerminalRequestsSetting]: "never" });
+        expect(askAnswerSettings("never")).toBeNull();
     });
 
     it("is active only while something keeps the computer awake (FR-SHELL-103-AC1)", () => {
@@ -262,11 +269,77 @@ describe("keep-awake model", () => {
         expect(keepAwakeActive(state({ hold: true }))).toBe(true);
     });
 
+    // #2089: the first line is the real state and its cause, whatever the Manual switch says, and the face's mark, the
+    // rail's dot and the cup read the very same answer (keepAwakeActive).
+    describe("the real state and its cause, before any switch (FR-BOSS-009 AC44)", () => {
+        const working = { automatic: true, automaticholding: true, automaticworking: true };
+
+        it("states the computer is kept awake by Automatic while agents work, with the switch off", () => {
+            const s = state({ ...working, automaticreasons: ["Léa: working", "Juliette: working"] });
+            const status = keepAwakeStatus(s, 0);
+            expect(coffeeOf(s, "ws1")).toBeNull();
+            expect(status.awake).toBe(true);
+            expect(status.headline).toBe("This computer stays awake");
+            expect(status.cause).toBe("Automatic (Léa: working, Juliette: working)");
+            expect(keepAwakeActive(s)).toBe(status.awake);
+        });
+
+        it("states the computer is not kept awake when both modes are off", () => {
+            const s = state({ automatic: false, requests: "never" });
+            const status = keepAwakeStatus(s, 0);
+            expect(status.awake).toBe(false);
+            expect(status.headline).toBe("Not keeping this computer awake");
+            expect(status.cause).toBe("Automatic and manual are off.");
+            expect(keepAwakeActive(s)).toBe(status.awake);
+        });
+
+        it("says Automatic is on while nothing works, and that the work is done while it is in its grace", () => {
+            const idle = keepAwakeStatus(state({ automatic: true }), 0);
+            expect(idle).toMatchObject({ awake: false, cause: "Automatic is on, and nothing works now." });
+            const grace = state({ automatic: true, automaticholding: true, automaticendsat: 90_000 });
+            expect(keepAwakeStatus(grace, 30_000)).toMatchObject({
+                awake: true,
+                cause: "Automatic (the work is done: ending in 1:00)",
+            });
+        });
+
+        it("names Manual, with its workspaces, and the terminals that asked, each beside Automatic", () => {
+            const coffee = { workspaceid: "a", workspacename: "Alpha", since: 1, working: false };
+            expect(keepAwakeStatus(state({ coffees: [coffee] }), 0).cause).toBe("Manual (Alpha)");
+            const all = state({
+                ...working,
+                coffees: [coffee, { ...coffee, workspaceid: "b", workspacename: "Beta" }],
+                attempts: [attempt({ blockid: "b1" }), attempt({ id: "2", blockid: "b2" })],
+            });
+            expect(keepAwakeStatus(all, 0).cause).toBe("Automatic · Manual (Alpha, Beta) · 2 terminals that asked");
+            expect(keepAwakeStatus(state({ attempts: [attempt({})] }), 0).cause).toBe("A terminal that asked");
+        });
+
+        it("agrees with the face's mark in every case", () => {
+            const cases = [
+                state({}),
+                state({ automatic: true }),
+                state({ ...working }),
+                state({ coffees: [{ workspaceid: "a", since: 1, working: false }] }),
+                state({ attempts: [attempt({})] }),
+                state({ attempts: [attempt({ outcome: "neutralised" })] }),
+                state({ hold: true }),
+            ];
+            for (const s of cases) {
+                expect(keepAwakeStatus(s, 0).awake).toBe(keepAwakeActive(s));
+            }
+        });
+    });
+
     it("names what keeps it awake, one row per reason (FR-SHELL-103-AC2, AC4, #1780)", () => {
-        const working = state({ policyholding: true, policyworking: true, policyreasons: ["Adrien: working"] });
-        expect(keepAwakeHolds(working, 0).map(holdLine)).toEqual(["MoltenTerm · until the work ends: Adrien: working"]);
-        expect(keepAwakeHolds(state({ policyholding: true, policyworking: true }), 0).map(holdLine)).toEqual([
-            "MoltenTerm · until the work ends",
+        const working = state({
+            automaticholding: true,
+            automaticworking: true,
+            automaticreasons: ["Adrien: working"],
+        });
+        expect(keepAwakeHolds(working, 0).map(holdLine)).toEqual(["Automatic · until the work ends: Adrien: working"]);
+        expect(keepAwakeHolds(state({ automaticholding: true, automaticworking: true }), 0).map(holdLine)).toEqual([
+            "Automatic · until the work ends",
         ]);
         const coffee = { workspaceid: "a", workspacename: "Alpha", since: 1, working: true };
         expect(

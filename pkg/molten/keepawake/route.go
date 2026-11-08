@@ -245,8 +245,8 @@ func processName(pid int32) string {
 	return name
 }
 
-func currentPolicy() string {
-	return wconfig.GetWatcher().GetFullConfig().Settings.PowerSleepPolicy
+func currentConfig() Config {
+	return ConfigFromSettings(wconfig.GetWatcher().GetFullConfig().Settings)
 }
 
 // eventSignal is all the event carries: readers ask the route for the state.
@@ -296,10 +296,11 @@ func makeService(hooks Hooks) *service {
 		Locate:            s.locateBlock,
 		MissionWorkspaces: hooks.MissionWorkspaces,
 		BusyTrees:         makeBusyTracker(sampleTrees, time.Now).Busy,
+		Rules:             func() WorkRules { return currentConfig().Work },
 	}
 	s.keeper = MakeKeeper(Env{
 		Now:          time.Now,
-		Policy:       currentPolicy,
+		Config:       currentConfig,
 		Work:         func(ctx context.Context) Work { return ComputeWork(ctx, sources) },
 		Workspace:    s.workspaceName,
 		LocateNames:  s.locateNames,
@@ -395,7 +396,7 @@ func (l *routeLink) route() localroute.Route {
 			Refusals: map[string]string{
 				StateCommand:      "the keep-awake state is read by MoltenTerm's windows",
 				CoffeeCommand:     "a coffee is turned on or off from a MoltenTerm window",
-				OverrideCommand:   "a session's sleep policy is set from a MoltenTerm window",
+				OverrideCommand:   "a session's keep-awake choice is set from a MoltenTerm window",
 				StopCommand:       "a terminal's keep-awake is stopped from a MoltenTerm window",
 				ShimCommand:       "the sleep shims report from a local MoltenTerm terminal",
 				PermissionCommand: "permission requests come from a local MoltenTerm terminal",

@@ -287,7 +287,7 @@ function RailButton({
     const dragging = moves.dragOffsetY != null;
     const connect = grouping?.connect;
     const coffeeText =
-        coffee != null ? ` · ${t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) })}` : "";
+        coffee != null ? ` · ${t("rail.keptAwake", { condition: coffeeCondition() })}` : "";
     const stateText = (member?.stateText ? ` · ${member.stateText}` : "") + coffeeText;
     const size = member != null ? RailMemberPx : RailItemPx;
     const primary: RailTrayPrimary =
@@ -295,7 +295,7 @@ function RailButton({
             ? {
                   kind: "coffee",
                   label: railCoffeeLabel(entry.name, true, platform),
-                  tooltip: [coffeeTooltip(coffee, entry.name, platform, Date.now()), ...approvalLines].join("\n"),
+                  tooltip: [coffeeTooltip(coffee, entry.name), ...approvalLines].join("\n"),
                   pressed: true,
                   onActivate: () => setCoffee(false),
               }

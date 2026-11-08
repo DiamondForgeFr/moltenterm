@@ -951,14 +951,34 @@
                 "label": "Hold duration",
                 "description": "How long the close button is held before the view closes."
             },
-            "power:sleeppolicy": {
-                "label": "Keep the computer awake",
-                "description": "Whether a program in a terminal may keep the computer awake.",
+            "power:automatic": {
+                "label": "Automatic",
+                "description": "Keep this computer awake whenever an agent works, until it has finished."
+            },
+            "power:graceminutes": {
+                "label": "Stay awake after the work ends",
+                "description": "How long it stays awake after the last work stopped, so a pause between two turns is not a sleep.",
+                "options": { "1": "1 minute", "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+            },
+            "power:workagents": {
+                "label": "Agents at work count",
+                "description": "An agent working, or busy with background subagents or commands after its turn."
+            },
+            "power:workcommands": {
+                "label": "Commands in terminals count",
+                "description": "A command running in a terminal that is not an idle shell."
+            },
+            "power:workprojects": {
+                "label": "Project runs count",
+                "description": "A build, release, sync or local CI run of a project."
+            },
+            "power:terminalrequests": {
+                "label": "When a terminal asks to stay awake",
+                "description": "What happens when a program in a terminal asks to keep the computer awake (caffeinate, systemd-inhibit).",
                 "unset": "Ask the first time",
                 "options": {
-                    "allow": "When a terminal asks",
-                    "untilworkends": "Until work ends",
-                    "letsleep": "Never"
+                    "always": "Always listen",
+                    "never": "Never"
                 }
             },
             "moltenterm:tabviewpriority": {
@@ -3063,9 +3083,7 @@
             "sessionsEmpty": "No terminal or SSH session is running.",
             "keepAwake": {
                 "unsupported": "Keeping this computer awake is not available here.",
-                "reason": "Reason",
-                "noReason": "Nothing keeps this computer awake.",
-                "until": "Until the work ends."
+                "reason": "Reason"
             }
         },
         "menu": {
@@ -3265,22 +3283,35 @@
     "keepawake": {
         "computer": "this computer",
         "railStop": "Stop keeping this computer awake for {name}",
-        "railStart": "Keep this computer awake while {name} works",
-        "untilWorkEnds": "until its work ends",
-        "endingIn": "ending in {time}",
-        "tooltip": "Keeping this computer awake until the work in {name} ends",
+        "railStart": "Keep this computer awake for {name}",
+        "untilTurnedOff": "until you turn it off",
+        "tooltip": "Keeping this computer awake for {name} until you turn it off",
         "now": "Now: {why}",
-        "nothingRuns": "Nothing runs there now: ending in {time}",
         "holding": "Holding this computer awake while work runs",
         "holdingWhy": "Holding this computer awake while work runs ({why})",
         "holdingEnding": "Holding this computer awake, ending in {time}",
         "aTerminal": "A terminal",
         "aTerminalLower": "a terminal",
-        "policy": {
-            "allowDetail": "A terminal that asks to stay awake is always heard.",
-            "untilWorkEndsDetail": "MoltenTerm keeps this computer awake while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a project run), and 2 minutes more. An agent waiting for input with nothing running is not work.",
-            "letSleepDetail": "Terminals' blocks are stopped; this computer sleeps as planned and the work goes on after wake.",
-            "unsetDetail": "The first terminal that asks to stay awake asks you to choose."
+        "on": "on",
+        "off": "off",
+        "mode": {
+            "manual": "Manual",
+            "manualHint": "Keeps this computer awake for “{name}” until you turn it off.",
+            "automatic": "Automatic",
+            "automaticHint": "Keeps this computer awake whenever an agent works anywhere, until it has finished."
+        },
+        "status": {
+            "awake": "This computer stays awake",
+            "idleAutomatic": "Automatic is on, and nothing works now.",
+            "idleOff": "Automatic and manual are off.",
+            "automatic": "Automatic",
+            "automaticWhy": "Automatic ({why})",
+            "automaticEnding": "Automatic (the work is done: ending in {time})",
+            "manual": "Manual ({names})",
+            "terminals": {
+                "one": "A terminal that asked",
+                "other": "{count} terminals that asked"
+            }
         },
         "reasonsCount": {
             "one": "{count} reason keeps this computer awake",
@@ -3289,10 +3320,10 @@
         "row": {
             "terminal": "Terminal in “{name}”",
             "left": "{time} left",
-            "coffee": "at your request, until its work ends",
-            "coffeeWhy": "at your request, until its work ends: {why}",
-            "coffeeEnding": "at your request, its work is done: ending in {time}",
+            "coffee": "manual, until you turn it off",
+            "coffeeWhy": "manual, until you turn it off: {why}",
             "workLabel": "MoltenTerm",
+            "automaticLabel": "Automatic",
             "work": "until the work ends",
             "workWhy": "until the work ends: {why}",
             "workEnding": "the work is done: ending in {time}",
@@ -3305,18 +3336,15 @@
             "minutes": "{count} min",
             "hours": "{hours} h {minutes}"
         },
-        "indicatorPolicy": "Energy setting: {policy}",
         "cupIdle": "Not keeping this computer awake",
-        "cupHint": "Click: on/off · Right-click: options",
-        "cupCoffeeOn": "Coffee mode on",
-        "cupCoffeeOff": "Coffee mode off",
-        "cupTitle": "{state} · {reason}",
+        "cupHint": "Click: manual on/off · Right-click: options",
+        "cupManual": "Manual for “{name}”: {state}",
+        "cupAutomatic": "Automatic: {state}",
         "popover": {
             "title": "Keep this computer awake",
             "moreSettings": "More settings…"
         },
-        "coffeeFor": "Keep awake while “{name}” works",
-        "coffeeHint": "This computer stays awake while work runs in this workspace, whatever the setting above.",
+        "manualFor": "Manual keep-awake for “{name}”",
         "approvalLog": "{path} in MoltenTerm's data folder",
         "sessionWhere": "{agent} in {where}",
         "approves": "Approves the agents' requests: {sessions}",
@@ -3329,9 +3357,9 @@
             "one": "{count} left to you",
             "other": "{count} left to you"
         },
-        "sessionPolicy": "Sleep policy of {name}",
+        "sessionPolicy": "Terminal requests of {name}",
         "override": {
-            "follow": "Follows the policy",
+            "follow": "Follows the setting",
             "allow": "Allow for this session",
             "letSleep": "Let it sleep for this session"
         },
@@ -9792,11 +9820,8 @@
                 "allow": "Allow",
                 "untilworkends": "Until work ends",
                 "letsleep": "Let it sleep",
-                "coffeeendtitle": "{name}: work finished, this computer may sleep again",
-                "coffeeendtitleunnamed": "A workspace: work finished, this computer may sleep again",
-                "coffeeend": "Its coffee ended 2 minutes after the last work in the workspace stopped.",
                 "policyendtitle": "Work finished: this computer may sleep again",
-                "policyend": "Until work ends kept it awake while work ran; MoltenTerm released its block 2 minutes after the last work stopped."
+                "policyend": "Automatic kept it awake while work ran; MoltenTerm released its block {minutes} minutes after the last work stopped."
             }
         },
         "browser": {
