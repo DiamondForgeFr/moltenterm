@@ -14,6 +14,7 @@ import {
     ArrivalStepMs,
     ArrivalSteps,
     badgeShares,
+    BlockChromePx,
     BlockHeightPx,
     ConversationChromePx,
     conversationHeight,
@@ -57,6 +58,7 @@ import {
     ReportSize,
     reportView,
     SquarePx,
+    TilePx,
 } from "./brokk-group-model";
 
 const Quiet: PriorityFacts = {
@@ -91,6 +93,37 @@ describe("the geometry of the group", () => {
         expect(g.field.y).toBe(272 + BlockHeightPx + 8);
         expect(g.field.w).toBe(g.width);
         expect(g.panelLeft).toBe(g.width + 16);
+    });
+
+    // The usage grid's height with n providers, as usage-week.css lays it out: 2 px padding above and below, the 11 px
+    // initials, then per row a 7 px gap and the 18 px logo.
+    const usageGridPx = (n: number) => 4 + 11 + n * (7 + 18);
+
+    it("keeps every usage row above the field, for 1, 2 and 3 providers (AC57, #2106)", () => {
+        for (const n of [1, 2, 3]) {
+            const usage = usageGridPx(n);
+            const g = groupGeometry(SquarePx, TilePx, usage);
+            const lastRowBottom = g.block.y + BlockChromePx - 10 - 1 + usage;
+            expect(g.block.h, `${n} providers`).toBeGreaterThanOrEqual(BlockChromePx + usage);
+            expect(g.field.y, `${n} providers`).toBeGreaterThanOrEqual(lastRowBottom + 10 + 1 + EdgePx);
+            expect(g.field.y).toBe(g.block.y + g.block.h + EdgePx);
+            const flow = groupFlow(g, 40);
+            expect(flow.field.y).toBe(g.field.y + 40);
+        }
+        expect(groupGeometry(SquarePx, TilePx, usageGridPx(3)).field.y).toBeGreaterThan(
+            groupGeometry(SquarePx, TilePx, usageGridPx(2)).field.y
+        );
+    });
+
+    it("counts in the card's chrome what brokk-group.css gives it", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        const block = /\n\.mt-brokk-block \{([^}]*)\}/.exec(css)[1];
+        expect(block).toContain("gap: 9px;");
+        expect(block).toContain("padding: 10px 12px;");
+        expect(block).toContain("border: 1px solid");
+        expect(/\.mt-brokk-say \{([^}]*)\}/.exec(css)[1]).toContain("min-height: 34px;");
+        expect(BlockChromePx).toBe(10 * 2 + 1 * 2 + 34 + 9);
+        expect(/\.mt-brokk-usage \{([^}]*)\}/.exec(css)[1]).not.toMatch(/max-height|overflow/);
     });
 
     it("stands 8 px right of the sidebar and 8 px from the top, or 8 px from the left edge without a sidebar", () => {
@@ -205,24 +238,23 @@ describe("which panel shows", () => {
     });
 
     it("shows one panel at a time: a preview wins over the pinned one, the pinned one over the opening one", () => {
-        const pinned = afterClick(InitialPanels, "sessions", "agents", "agents");
+        const pinned = afterClick("sessions");
         expect(activePanel(pinned, "agents")).toBe("sessions");
         expect(activePanel(afterHover(pinned, "downloads"), "agents")).toBe("downloads");
         expect(activePanel(afterHover(afterHover(pinned, "downloads"), null), "agents")).toBe("sessions");
     });
 
     it("pins a panel on a click on its icon, and keeps it on a second click, like a tab (#2090)", () => {
-        const pinned = afterClick(InitialPanels, "downloads", "notifications", "notifications");
+        const pinned = afterClick("downloads");
         expect(pinned).toEqual({ pinned: "downloads", hover: null });
-        const again = afterClick(pinned, "downloads", "downloads", "notifications");
+        const again = afterClick("downloads");
         expect(activePanel(again, "notifications")).toBe("downloads");
-        const opening = afterClick(InitialPanels, "notifications", "notifications", "notifications");
+        const opening = afterClick("notifications");
         expect(activePanel(opening, "notifications")).toBe("notifications");
     });
 
     it("pins a previewed panel on a click on its icon", () => {
-        const previewing = afterHover(InitialPanels, "sessions");
-        const pinned = afterClick(previewing, "sessions", "sessions", "agents");
+        const pinned = afterClick("sessions");
         expect(activePanel(afterHover(pinned, null), "agents")).toBe("sessions");
     });
 
@@ -230,11 +262,8 @@ describe("which panel shows", () => {
         expect(activePanel(afterRequest("downloads"), "notifications")).toBe("downloads");
     });
 
-    it("pins the usage detail from its toggle, and a second click switches to another panel, never to none", () => {
-        const usage = afterClick(InitialPanels, "usage", "agents", "agents");
-        expect(activePanel(usage, "agents")).toBe("usage");
-        expect(activePanel(afterClick(usage, "usage", "usage", "agents"), "agents")).toBe("agents");
-        expect(activePanel(afterClick(usage, "usage", "usage", "usage"), "usage")).toBe("agents");
+    it("has no usage panel: the group's panels are the rail's (AC58, #2106)", () => {
+        expect(RailPanels).not.toContain("usage");
     });
 });
 
@@ -247,7 +276,11 @@ describe("a panel always open", () => {
 
     it("opens the panel used last when the priority has nothing to say", () => {
         expect(groupOpeningPanel(Quiet, "sessions")).toBe("sessions");
-        expect(groupOpeningPanel(Quiet, "usage")).toBe("usage");
+    });
+
+    it("never opens on the former usage detail, even when it was used last (AC58, #2106)", () => {
+        expect(groupOpeningPanel(Quiet, "usage" as PanelId)).toBe(DefaultPanel);
+        expect(groupOpeningPanel({ ...Quiet, downloadRunning: true }, "usage" as PanelId)).toBe("downloads");
     });
 
     it("opens the agents with nothing to say and nothing used yet, never none", () => {
@@ -260,8 +293,8 @@ describe("a panel always open", () => {
         expect(activePanel(afterClose("sessions", "downloads"), "downloads")).toBe("downloads");
         expect(activePanel(afterClose("downloads", "downloads"), "downloads")).toBe("agents");
         expect(activePanel(afterClose("agents", "agents"), "agents")).toBe("notifications");
-        for (const closed of [...RailPanels, "usage" as const]) {
-            for (const auto of [...RailPanels, "usage" as const]) {
+        for (const closed of RailPanels) {
+            for (const auto of RailPanels) {
                 const next = activePanel(afterClose(closed, auto), auto);
                 expect(next).not.toBeNull();
                 expect(next).not.toBe(closed);
@@ -599,7 +632,7 @@ describe("the hover that previews a panel", () => {
 
     it("holds the pointer under the group only while a preview shows, so that a page tile cannot keep it open", () => {
         expect(holdsHover(InitialPanels)).toBe(false);
-        expect(holdsHover(afterClick(InitialPanels, "agents", "notifications", "notifications"))).toBe(false);
+        expect(holdsHover(afterClick("agents"))).toBe(false);
         const previewing = afterHover(InitialPanels, "downloads");
         expect(holdsHover(previewing)).toBe(true);
         expect(holdsHover(afterHover(previewing, null))).toBe(false);

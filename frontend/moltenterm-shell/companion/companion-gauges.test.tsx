@@ -462,10 +462,13 @@ describe("the companion's usage week grid (#2102)", () => {
         // 70 % when 2 days of 7 allow 28.5 %.
         expect(colour("model:opus")).toBe("var(--color-error)");
         expect(rowTag(html, "model:opus")).toContain('data-pace="red"');
-        // 23.5 % of a session that is 2 h 46 min old of 5 h.
+        // 24 % (23.5 rounded) of a session that is 2 h 46 min old of 5 h: 55.3 % allowed, 31.3 points left unused,
+        // nearly full blue (#2106).
         const session = markup(enabled);
-        expect(/--mt-uw-pace:([^"]*)"/.exec(rowTag(session, "session"))?.[1]).toBe("var(--color-success)");
-        expect(rowTag(session, "session")).toContain('data-pace="ok"');
+        expect(/--mt-uw-pace:([^"]*)"/.exec(rowTag(session, "session"))?.[1]).toBe(
+            "color-mix(in srgb, var(--mt-info) 85%, var(--color-success))"
+        );
+        expect(rowTag(session, "session")).toContain('data-pace="under"');
     });
 
     it("writes the initials Monday first in the interface language, today's emphasised, and follows a switch", () => {

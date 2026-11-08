@@ -4,7 +4,10 @@
 import { describe, expect, it } from "vitest";
 import En from "../i18n/locales/en.json";
 import Fr from "../i18n/locales/fr.json";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
+    allowedPercent,
     dayFills,
     lastReset,
     mainWindow,
@@ -13,6 +16,9 @@ import {
     paceRatio,
     PaceRedAt,
     startIndex,
+    UnusedBlueAt,
+    UnusedBlueFrom,
+    unusedPoints,
     usageWeekLine,
     usageWeekLines,
     weekdayIndex,
@@ -102,6 +108,83 @@ describe("the week grid of a plan usage (FR-BOSS-009, AC48 to AC51, #2100)", () 
         const ratio = paceRatio(47, Now + 30 * Day, 43200, Now);
         expect(Number.isFinite(ratio)).toBe(true);
         expect(ratio).toBeGreaterThan(PaceRedAt);
+    });
+});
+
+// #2106: the slim grid of mockup version 13, the same in Brokk's group and the companion.
+describe("the slim week grid (FR-BOSS-009, AC56, #2106)", () => {
+    const css = readFileSync(join(__dirname, "usage-week.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = (selector: string) =>
+        new RegExp(`\\n${selector.replace(/[.[\]]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+
+    it("draws 6 px blocks, 3 px apart, at most 30 px wide, packed to the start", () => {
+        const grid = rule(".mt-uw");
+        expect(grid).toContain("--mt-uw-block-h: 6px;");
+        expect(grid).toContain("--mt-uw-block-max: 30px;");
+        expect(grid).toContain("repeat(7, minmax(var(--mt-uw-block-min), var(--mt-uw-block-max)))");
+        expect(grid).toContain("justify-content: start;");
+        expect(grid).toContain("gap: 7px 3px;");
+        expect(rule(".mt-uw-cell")).toContain("height: var(--mt-uw-block-h);");
+    });
+
+    it("gives the percent a column wide enough for 100 % on one line", () => {
+        expect(rule(".mt-uw")).toContain("minmax(52px, max-content);");
+        expect(rule(".mt-uw-pct")).toContain("white-space: nowrap;");
+    });
+
+    it("rings the reset day thin and close, and outlines today with 1 px at low opacity", () => {
+        expect(rule(".mt-uw-cell.is-reset")).toContain("outline: 1px solid var(--mt-action);");
+        expect(rule(".mt-uw-cell.is-reset")).toContain("outline-offset: 1.5px;");
+        expect(rule(".mt-uw-cell.is-today")).toContain(
+            "box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 35%, transparent);"
+        );
+    });
+});
+
+// #2106: too little used for the time gone, tokens risk being lost before the reset: green turns to blue.
+describe("the under-use scale (FR-BOSS-009, AC59, #2106)", () => {
+    // Thursday 12 November 2026, 10:00; a weekly window that resets on Tuesday last reset on Tuesday 10, 2 days ago.
+    const thursday = new Date(2026, 10, 12, 10, 0).getTime();
+    const tuesday = new Date(2026, 10, 17, 10, 0).getTime();
+
+    it("counts the points the time gone allowed and the window did not use", () => {
+        expect(allowedPercent(tuesday, 10080, thursday)).toBeCloseTo((2 / 7) * 100, 5);
+        expect(unusedPoints(0, tuesday, 10080, thursday)).toBeCloseTo((2 / 7) * 100, 5);
+        expect(unusedPoints(40, tuesday, 10080, thursday)).toBe(0);
+        expect(unusedPoints(40, 0, 10080, thursday)).toBe(0);
+        expect(unusedPoints(40, tuesday, 0, thursday)).toBe(0);
+    });
+
+    it("keeps the normal rule up to 10 points unused, mixes green to blue past them, full blue from 35", () => {
+        expect(paceColour(0.7, UnusedBlueFrom)).toBe("var(--color-success)");
+        expect(paceColour(1.3, 4)).toBe("color-mix(in srgb, var(--color-error) 33%, var(--color-warning))");
+        expect(paceColour(0.5, 22.5)).toBe("color-mix(in srgb, var(--mt-info) 50%, var(--color-success))");
+        expect(paceColour(0, UnusedBlueAt)).toBe("var(--mt-info)");
+        expect(paceColour(0, 80)).toBe("var(--mt-info)");
+        expect(UnusedBlueFrom).toBe(10);
+        expect(UnusedBlueAt).toBe(35);
+    });
+
+    it("turns a week reset on Tuesday and unused on Thursday blue, and leaves the reset day green", () => {
+        const thursdayLine = usageWeekLine(
+            { id: "week", label: "This week", usedpercent: 0, resetsat: tuesday, windowmins: 10080 },
+            thursday
+        );
+        expect(thursdayLine.unused).toBeCloseTo(28.57, 1);
+        expect(paceColour(thursdayLine.pace, thursdayLine.unused)).toBe(
+            "color-mix(in srgb, var(--mt-info) 74%, var(--color-success))"
+        );
+        // On the reset day itself little is allowed yet, so nothing used is still on pace.
+        const resetDayLine = usageWeekLine(
+            { id: "week", label: "This week", usedpercent: 0, resetsat: tuesday, windowmins: 10080 },
+            new Date(2026, 10, 10, 20, 0).getTime()
+        );
+        expect(resetDayLine.unused).toBeLessThan(UnusedBlueFrom);
+        expect(paceColour(resetDayLine.pace, resetDayLine.unused)).toBe("var(--color-success)");
+    });
+
+    it("reads blue from a theme token, never a raw colour", () => {
+        expect(paceColour(0, 50)).not.toMatch(/#|rgb\(/);
     });
 });
 

@@ -8,10 +8,8 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
+// The group's panels are the rail's: the usage block under the square opens none (FR-BOSS-009, AC58, #2106).
 export type PanelId = "notifications" | "agents" | "sessions" | "downloads" | "keepawake";
-
-// The usage detail is a panel too, opened by a click on the block under the square: it has no icon in the rail.
-export type ShownPanel = PanelId | "usage";
 
 export const RailPanels: PanelId[] = ["notifications", "agents", "sessions", "downloads", "keepawake"];
 
@@ -29,8 +27,18 @@ export const EdgePx = 8;
 export const LinkPx = 16;
 export const PanelWidthPx = 420;
 export const MinPanelWidthPx = 280;
+// The card under the square is never shorter than this; past it, it is as tall as its content (blockHeight, #2106).
 export const BlockHeightPx = 96;
+// What the card holds besides the usage grid, at rest (brokk-group.css): its padding (10 above and below) and 1 px
+// border, Brokk's line (34) and the 9 px gap above the grid.
+export const BlockChromePx = 65;
 export const FieldHeightPx = 36;
+
+// The card's height at rest (FR-BOSS-009, AC57, #2106): its chrome and the usage grid as measured, one row per provider,
+// so the field and what follows stand below the last row whatever the number of providers.
+export function blockHeight(usageHeight: number): number {
+    return Math.max(BlockHeightPx, BlockChromePx + Math.max(0, Math.ceil(usageHeight || 0)));
+}
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -50,7 +58,9 @@ export type GroupGeometry = {
 };
 
 // The gap between the icons is worked out so that the rail is exactly as tall as the square: (square - 12 - 5 tiles) / 4.
-export function groupGeometry(square: number = SquarePx, tile: number = TilePx): GroupGeometry {
+// `usageHeight` is the usage grid's measured height: the card and the field below it follow it.
+export function groupGeometry(square: number = SquarePx, tile: number = TilePx, usageHeight = 0): GroupGeometry {
+    const blockH = blockHeight(usageHeight);
     const count = RailPanels.length;
     const gap = Math.max(0, (square - RailPaddingPx - count * tile) / (count - 1));
     const railWidth = tile + RailPaddingPx;
@@ -67,8 +77,8 @@ export function groupGeometry(square: number = SquarePx, tile: number = TilePx):
         width,
         rail: { x: square + EdgePx, y: 0, w: railWidth, h: square },
         icons,
-        block: { x: 0, y: square + EdgePx, w: width, h: BlockHeightPx },
-        field: { x: 0, y: square + EdgePx + BlockHeightPx + EdgePx, w: width, h: FieldHeightPx },
+        block: { x: 0, y: square + EdgePx, w: width, h: blockH },
+        field: { x: 0, y: square + EdgePx + blockH + EdgePx, w: width, h: FieldHeightPx },
         panelLeft: width + LinkPx,
     };
 }
@@ -313,13 +323,13 @@ export class HoverIntent {
 }
 
 // Which panel shows is a preview by hover first, then the one the developer pinned, then the one the group opened with.
-export type PanelState = { pinned: ShownPanel; hover: PanelId };
+export type PanelState = { pinned: PanelId; hover: PanelId };
 
 export const InitialPanels: PanelState = { pinned: null, hover: null };
 
 // A panel is always open while the group is (FR-BOSS-009, AC18, #2090): `auto` is the one the group opened with
 // (groupOpeningPanel), so something always shows.
-export function activePanel(state: PanelState, auto: ShownPanel): ShownPanel {
+export function activePanel(state: PanelState, auto: PanelId): PanelId {
     return state.hover ?? state.pinned ?? auto;
 }
 
@@ -329,18 +339,20 @@ export const DefaultPanel: PanelId = "agents";
 
 // The panel the group opens with (#2090): the priority's when it has something to say, else the last one the developer
 // used, else the agents. Never none.
-export function groupOpeningPanel(facts: PriorityFacts, remembered: ShownPanel): ShownPanel {
-    return openingPanel(facts) ?? remembered ?? DefaultPanel;
+// A remembered panel the rail no longer has (the former usage detail, #2106) is not one.
+export function groupOpeningPanel(facts: PriorityFacts, remembered: PanelId): PanelId {
+    const known = RailPanels.includes(remembered) ? remembered : null;
+    return openingPanel(facts) ?? known ?? DefaultPanel;
 }
 
 // The panel that takes the place of one the developer closed: the one the group opened with, else the agents, else the
 // notifications, never the one closed. Closing the group is the way to have none.
-export function fallbackPanel(closed: ShownPanel, auto: ShownPanel): ShownPanel {
-    return [auto, DefaultPanel, "notifications" as ShownPanel].find((id) => id != null && id !== closed);
+export function fallbackPanel(closed: PanelId, auto: PanelId): PanelId {
+    return [auto, DefaultPanel, "notifications" as PanelId].find((id) => id != null && id !== closed);
 }
 
 // The panel's close control: another panel shows, pinned.
-export function afterClose(closed: ShownPanel, auto: ShownPanel): PanelState {
+export function afterClose(closed: PanelId, auto: PanelId): PanelState {
     return { pinned: fallbackPanel(closed, auto), hover: null };
 }
 
@@ -423,12 +435,8 @@ export function holdsHover(state: PanelState): boolean {
     return state.hover != null;
 }
 
-// A click on an icon pins its panel; a click on the icon of the one that shows keeps it, like a tab (#2090). The usage
-// detail opens from a toggle under the square: a second click closes it, and another panel takes its place.
-export function afterClick(state: PanelState, id: ShownPanel, active: ShownPanel, auto: ShownPanel): PanelState {
-    if (id === "usage" && active === "usage") {
-        return afterClose("usage", auto);
-    }
+// A click on an icon pins its panel; a click on the icon of the one that shows keeps it, like a tab (#2090).
+export function afterClick(id: PanelId): PanelState {
     return { pinned: id, hover: null };
 }
 

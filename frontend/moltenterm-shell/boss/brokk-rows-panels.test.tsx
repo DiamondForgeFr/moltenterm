@@ -26,12 +26,11 @@ vi.mock("./boss-card-actions", () => ({
     startTerminal: vi.fn(),
 }));
 vi.mock("../downloads/downloads-view", () => ({ DownloadsList: () => <div data-testid="mock-downloads" /> }));
-vi.mock("./brokk-usage-tab", () => ({ BrokkUsageTab: () => <div data-testid="mock-usage" /> }));
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { DurableSession } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
-import { AgentsPanel, DownloadsPanel, SessionsPanel, UsagePanel } from "./brokk-rows-panels";
+import { AgentsPanel, DownloadsPanel, SessionsPanel } from "./brokk-rows-panels";
 import type { BrokkActions } from "./use-brokk-actions";
 
 const sessionsAtom = DurableSessions.getInstance().dataAtom as any;
@@ -228,7 +227,7 @@ describe("the Sessions panel (FR-BOSS-009, AC19)", () => {
     });
 });
 
-describe("the Téléchargements and Usage panels (FR-BOSS-009, AC19 and AC20; FR-MC-019)", () => {
+describe("the Téléchargements panel (FR-BOSS-009, AC19; FR-MC-019)", () => {
     it("hosts the downloads section of #1992 as it is, with its count", () => {
         const html = renderToStaticMarkup(<DownloadsPanel count={3} onLeave={() => {}} onClose={() => {}} />);
         expect(html).toContain('data-testid="mock-downloads"');
@@ -237,11 +236,5 @@ describe("the Téléchargements and Usage panels (FR-BOSS-009, AC19 and AC20; FR
         expect(readFileSync(join(__dirname, "brokk-rows-panels.tsx"), "utf8")).toContain(
             "<DownloadsList onLeave={onLeave} />"
         );
-    });
-
-    it("hosts the former Usage tab: every window of every provider", () => {
-        const html = renderToStaticMarkup(<UsagePanel onClose={() => {}} />);
-        expect(html).toContain('data-testid="mock-usage"');
-        expect(html).toContain(">Usage<");
     });
 });

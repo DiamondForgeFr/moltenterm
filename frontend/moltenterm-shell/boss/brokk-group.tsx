@@ -73,8 +73,8 @@ import {
     ReportSize,
     ReportView,
     reportView,
-    ShownPanel,
     SquarePx,
+    TilePx,
 } from "./brokk-group-model";
 import "./brokk-group.css";
 import { BrokkHubModel } from "./brokk-hub-store";
@@ -83,7 +83,7 @@ import { brokkMenuItems } from "./brokk-menu";
 import { buildNotes, consultedIds, noteFacts, NoteRow } from "./brokk-notes-model";
 import { NotificationsPanel } from "./brokk-notes-panel";
 import { PanelContentAttr, PanelHeadAttr } from "./brokk-panel-frame";
-import { AgentsPanel, DownloadsPanel, SessionsPanel, UsagePanel } from "./brokk-rows-panels";
+import { AgentsPanel, DownloadsPanel, SessionsPanel } from "./brokk-rows-panels";
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk } from "./brokk-talk";
 import { talkPose, talkWaits } from "./brokk-talk-model";
@@ -95,8 +95,6 @@ import { useCardLive } from "./use-brokk-live";
 
 // How often "up 12 min" and the ages are read again while the group shows.
 const AgeTickMs = 15000;
-// The week grid's id: the usage button is described by its rows, its own name being what a click does (#2100).
-const UsageWeekId = "brokk-usage-week";
 
 // A provider's row in the shared week grid, named with its agent's display name.
 function weekRow(u: WeeklyUsage): UsageWeekRow {
@@ -118,9 +116,9 @@ let downloadsLookedAt = 0;
 
 // The last panel the developer chose (a click, a request, a close that switched): the group opens on it next time when
 // the priority has nothing to say (#2090). It lasts for a run of MoltenTerm.
-let rememberedPanel: ShownPanel = null;
+let rememberedPanel: PanelId = null;
 
-export function rememberPanel(id: ShownPanel): void {
+export function rememberPanel(id: PanelId): void {
     rememberedPanel = id;
 }
 
@@ -333,7 +331,25 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const [reportSize, setReportSize] = useState<ReportSize>({ full: 0, shown: 0 });
     const [reportHovered, setReportHovered] = useState(false);
     const [reportFocused, setReportFocused] = useState(false);
-    const g = useMemo(() => groupGeometry(), []);
+    // The usage grid's height, measured: the card under the square is as tall as its rows, and the field and the
+    // layout under it follow (AC57, #2106).
+    const usageRef = useRef<HTMLDivElement>(null);
+    const [usageHeight, setUsageHeight] = useState(0);
+    useLayoutEffect(() => {
+        const usage = usageRef.current;
+        if (usage == null) {
+            return;
+        }
+        const measure = () => setUsageHeight(usage.offsetHeight);
+        measure();
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(measure);
+        observer.observe(usage);
+        return () => observer.disconnect();
+    }, []);
+    const g = useMemo(() => groupGeometry(SquarePx, TilePx, usageHeight), [usageHeight]);
     const report = reportView(g, reportSize, reportHovered || reportFocused, frame.place.heightRoom);
     const flow = groupFlow(g, report.growth);
     const onReportSize = useCallback(
@@ -370,8 +386,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         keepAwake,
     };
     // The panel the group opens with is read once, when it opens: nothing changes under the developer's eyes after.
-    const [auto] = useState<ShownPanel>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));
-    const active: ShownPanel = activePanel(panels, auto);
+    const [auto] = useState<PanelId>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));
+    const active: PanelId = activePanel(panels, auto);
     useEffect(() => {
         if (panels.pinned != null) {
             rememberPanel(panels.pinned);
@@ -380,8 +396,6 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const marks = railMarks(railInput);
     const weekly = useMemo(() => weeklyUsage(readings, now, unreadable), [readings, now, unreadable]);
     const weekRows = useMemo(() => weekly.map(weekRow), [weekly]);
-    // The logos name their agents while the usage block has the keyboard focus: they take no focus of their own.
-    const [usageFocused, setUsageFocused] = useState(false);
 
     // What his face does with the conversation: it listens while the developer writes, thinks while his session works on
     // a message, speaks while his answer comes in (AC25).
@@ -582,7 +596,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     }, [boss]);
 
     const closePanel = () => setPanels(afterClose(active, auto));
-    const clickIcon = (id: ShownPanel) => setPanels((state) => afterClick(state, id, active, auto));
+    const clickIcon = (id: PanelId) => setPanels(afterClick(id));
     const onRailKeyDown = (e: React.KeyboardEvent, id: PanelId) => {
         const next = neighbourPanel(id, e.key);
         if (next == null) {
@@ -608,7 +622,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     };
     const delay = (i: number): CSSProperties => ({ ["--i" as string]: i * (ArrivalStepMs / 50) });
     const square: Rect = { x: 0, y: 0, w: g.square, h: g.square };
-    const bodyLabel = (id: ShownPanel) => t(`boss.group.panels.${id}`);
+    const bodyLabel = (id: PanelId) => t(`boss.group.panels.${id}`);
     const railLabel = (id: PanelId): string => {
         const mark = marks[id];
         const label = bodyLabel(id);
@@ -663,8 +677,6 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                 return <DownloadsPanel count={downloadItems.length} onLeave={leave} onClose={closePanel} />;
             case "keepawake":
                 return <BrokkKeepAwakePanel onLeave={leave} onClose={closePanel} />;
-            case "usage":
-                return <UsagePanel onClose={closePanel} />;
             default:
                 return null;
         }
@@ -798,25 +810,15 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                         onHover={setReportHovered}
                         onFocusVisible={setReportFocused}
                     />
-                    <button
-                        type="button"
-                        className="mt-brokk-usage"
-                        aria-label={t("boss.group.usage.open")}
-                        aria-pressed={active === "usage"}
-                        aria-describedby={weekly.length > 0 ? UsageWeekId : undefined}
-                        data-testid="brokk-usage"
-                        onClick={() => clickIcon("usage")}
-                        onFocus={(e) => setUsageFocused(e.currentTarget.matches(":focus-visible"))}
-                        onBlur={() => setUsageFocused(false)}
-                    >
+                    <div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">
                         {weekly.length === 0 ? (
                             <span className="mt-brokk-usage-empty" data-testid="brokk-usage-empty">
                                 {t("boss.panel.usage.empty")}
                             </span>
                         ) : (
-                            <UsageWeekGrid rows={weekRows} now={now} id={UsageWeekId} named={usageFocused} />
+                            <UsageWeekGrid rows={weekRows} now={now} />
                         )}
-                    </button>
+                    </div>
                 </div>
                 <div
                     className="mt-brokk-fieldbox"

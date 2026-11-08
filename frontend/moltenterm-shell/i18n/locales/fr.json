@@ -3060,8 +3060,7 @@
                 "agents": "Agents",
                 "sessions": "Sessions",
                 "downloads": "Téléchargements",
-                "keepawake": "Garder éveillé",
-                "usage": "Usage"
+                "keepawake": "Garder éveillé"
             },
             "rail": {
                 "label": "Panneaux de {name}",
@@ -3077,9 +3076,6 @@
                 "answer": "À répondre",
                 "info": "Info",
                 "done": "Fait"
-            },
-            "usage": {
-                "open": "Voir le détail de l'usage de chaque forfait"
             },
             "agentsEmpty": "Aucun agent en cours.",
             "sessionsEmpty": "Aucun terminal ni session SSH en cours.",

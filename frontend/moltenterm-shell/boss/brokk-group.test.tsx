@@ -133,7 +133,6 @@ vi.mock("./brokk-rows-panels", () => ({
     AgentsPanel: () => <div data-testid="mock-agents" />,
     SessionsPanel: () => <div data-testid="mock-sessions" />,
     DownloadsPanel: () => <div data-testid="mock-downloads" />,
-    UsagePanel: () => <div data-testid="mock-usage" />,
 }));
 
 import { globalStore } from "@/app/store/jotaiStore";
@@ -147,7 +146,7 @@ import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
-import { ArrivalSteps, groupGeometry, ReportSize, ReportView, reportView } from "./brokk-group-model";
+import { ArrivalSteps, groupGeometry, PanelId, ReportSize, ReportView, reportView } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 
 const boss = BossBubbleModel.getInstance() as any;
@@ -552,8 +551,9 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
     it("opens the panel used last when there is nothing to say, and the priority's when there is (#2090)", () => {
         rememberPanel("keepawake");
         expect(panel(render())).toBe("keepawake");
-        rememberPanel("usage");
-        expect(panel(render())).toBe("usage");
+        // The former usage detail, remembered from before #2106, is no panel any more (AC58).
+        rememberPanel("usage" as PanelId);
+        expect(panel(render())).toBe("agents");
         globalStore.set(notifications.shownEntriesAtom, [entry("n1")]);
         expect(panel(render())).toBe("notifications");
     });
@@ -650,7 +650,7 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
     it("reads the priority once, when the group opens, so that nothing changes under the developer's eyes", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain(
-            "const [auto] = useState<ShownPanel>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));"
+            "const [auto] = useState<PanelId>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));"
         );
     });
 });
@@ -658,7 +658,7 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
 describe("the windows never overlap (AC18)", () => {
     it("keeps the panel while the conversation is open, giving way above the field, and grows back when it folds (#2090)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("const active: ShownPanel = activePanel(panels, auto);");
+        expect(source).toContain("const active: PanelId = activePanel(panels, auto);");
         expect(source).toContain("const heightRoom = panelRoom(g, frame.place.heightRoom, conversation);");
         expect(source).toContain("panelHeight(head + content + 16, heightRoom, Math.min(g.square, heightRoom))");
         expect(source).toContain("height: Math.min(height, heightRoom)");
@@ -915,7 +915,7 @@ describe("the block under the square (AC17 and AC20)", () => {
     });
 
     // The tests run without a DOM: the popover itself (a floating portal) is checked through its source and its style.
-    it("names each agent's logo in a small popover on hover and while the block has the keyboard focus", () => {
+    it("names each agent's logo in a small popover on hover", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
         const html = render();
         const logos = [...html.matchAll(/<span [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
@@ -924,11 +924,9 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(attr(html, "brokk-usage", "title")).toBeUndefined();
         const grid = readFileSync(join(__dirname, "../usage-week/usage-week.tsx"), "utf8");
         expect(grid).toContain("useHover(context, { delay: { open: NameDelayMs, close: 0 } })");
-        expect(grid).toContain("const open = hovered || named;");
+        expect(grid).toContain("onOpenChange: setOpen,");
         expect(grid).toMatch(/<FloatingPortal>\s*<span[^>]*className="mt-uw-name"/);
         const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(group).toContain('onFocus={(e) => setUsageFocused(e.currentTarget.matches(":focus-visible"))}');
-        expect(group).toContain("named={usageFocused}");
         expect(group).toContain("name: agentName(provider)");
         const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
             /\/\*[\s\S]*?\*\//g,
@@ -939,7 +937,7 @@ describe("the block under the square (AC17 and AC20)", () => {
         );
     });
 
-    it("names each row for a screen reader and describes the button with them, with no tooltip", () => {
+    it("names each row for a screen reader, with no tooltip", () => {
         const resetsat = Date.now() + 3 * 24 * 60 * Min;
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 73, resetsat) });
         const html = render();
@@ -947,8 +945,6 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(cellTag(html, "claude")).toContain(`aria-label="Claude, 73 %, resets ${day}"`);
         expect(cellTag(html, "claude")).toContain('role="img"');
         expect(cellTag(html, "claude")).not.toContain("title=");
-        expect(attr(html, "brokk-usage", "aria-describedby")).toBe("brokk-usage-week");
-        expect(attr(html, "usage-week", "id")).toBe("brokk-usage-week");
         expect(attr(html, "usage-week-day", "aria-hidden")).toBe("true");
     });
 
@@ -1035,8 +1031,9 @@ describe("the block under the square (AC17 and AC20)", () => {
             ""
         );
         // A ring set away from the block reads the same empty or full; today's outline sits on the block itself.
+        // Thin and close, as the slim grid of mockup version 13 (#2106); a block that clips paints no outline.
         expect(css).toMatch(
-            /\.mt-uw-cell\.is-reset \{\s*outline: 1\.5px solid var\(--mt-action\);\s*outline-offset: 2px;/
+            /\.mt-uw-cell\.is-reset \{\s*overflow: visible;\s*outline: 1px solid var\(--mt-action\);\s*outline-offset: 1\.5px;/
         );
         expect(css).toMatch(/\.mt-uw-cell\.is-today \{[^}]*box-shadow: 0 0 0 1px/);
     });
@@ -1129,13 +1126,32 @@ describe("the block under the square (AC17 and AC20)", () => {
         globalStore.set(UsageUnreadableAtom, {});
     });
 
-    it("says in one line when no provider shares a reading, and the click on the block opens the detail", () => {
+    it("says in one line when no provider shares a reading", () => {
         expect(render()).toContain('data-testid="brokk-usage-empty"');
+    });
+
+    // AC58 (#2106): the Usage panel repeated the grid; a later dedicated panel (#1893) will take the click.
+    it("opens nothing on a click on the usage block: no control, no pressed state, no Usage panel", () => {
+        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
         const html = render();
-        expect(attr(html, "brokk-usage", "aria-label")).toBe("Show the usage of each plan in detail");
-        expect(readFileSync(join(__dirname, "brokk-group.tsx"), "utf8")).toContain(
-            'onClick={() => clickIcon("usage")}'
-        );
+        const tag = /<[a-z]+ [^>]*data-testid="brokk-usage"[^>]*>/.exec(html)[0];
+        expect(tag.startsWith("<div ")).toBe(true);
+        expect(tag).not.toMatch(/aria-pressed|aria-label|tabindex|role=/);
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).not.toContain('clickIcon("usage")');
+        expect(source).not.toContain("UsagePanel");
+        expect(attr(html, "brokk-panel", "data-panel")).toBe("agents");
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).not.toMatch(/\.mt-brokk-usage\[aria-pressed|\.mt-brokk-usage:focus-visible/);
+    });
+
+    // AC57 (#2106): the card follows the grid's measured height, so no row is drawn under the field.
+    it("measures the usage grid and lays the card and the field out from it", () => {
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toContain("const measure = () => setUsageHeight(usage.offsetHeight);");
+        expect(source).toContain("observer.observe(usage);");
+        expect(source).toContain("groupGeometry(SquarePx, TilePx, usageHeight)");
+        expect(source).toContain('<div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">');
     });
 
     it("keeps no 5-hour or per-model window in the block: they are in the detail", () => {

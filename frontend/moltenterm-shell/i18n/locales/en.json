@@ -3060,8 +3060,7 @@
                 "agents": "Agents",
                 "sessions": "Sessions",
                 "downloads": "Downloads",
-                "keepawake": "Keep awake",
-                "usage": "Usage"
+                "keepawake": "Keep awake"
             },
             "rail": {
                 "label": "Panels of {name}",
@@ -3077,9 +3076,6 @@
                 "answer": "To answer",
                 "info": "Info",
                 "done": "Done"
-            },
-            "usage": {
-                "open": "Show the usage of each plan in detail"
             },
             "agentsEmpty": "No agent is running.",
             "sessionsEmpty": "No terminal or SSH session is running.",
