@@ -65,6 +65,7 @@ export const PaceRedAt = 1.6;
 const MinAllowedPercent = 0.5;
 
 const DaysInWeek = 7;
+const MinsPerDay = 24 * 60;
 
 export type WeeklyUsage = {
     provider: string;
@@ -133,8 +134,8 @@ export function paceRatio(percent: number, resetsAt: number, windowMins: number,
     if (!(resetsAt > 0) || !(windowMins > 0)) {
         return percent > GravePercent ? PaceRedAt * 2 : 1;
     }
-    const length = windowMins * 60 * 1000;
-    const gone = Math.min(1, Math.max(0, (now - (resetsAt - length)) / length));
+    const last = lastReset(resetsAt, windowMins);
+    const gone = Math.min(1, Math.max(0, (now - last) / (resetsAt - last)));
     const allowed = Math.max(MinAllowedPercent, gone * 100);
     return percent / allowed;
 }
@@ -215,36 +216,37 @@ export function weekdayIndex(at: number): number {
     return (new Date(at).getDay() + DaysInWeek - 1) % DaysInWeek;
 }
 
-// Monday 00:00 of the calendar week that holds `at`, in local time.
-export function weekStart(at: number): number {
-    const d = new Date(at);
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - weekdayIndex(at));
+// The window's last reset: its reset time less its length. Whole days are taken off the calendar, so a change of
+// daylight saving time never moves the reset to the day before.
+export function lastReset(resetsAt: number, windowMins: number): number {
+    if (!(windowMins > 0)) {
+        return resetsAt;
+    }
+    if (windowMins % MinsPerDay !== 0) {
+        return resetsAt - windowMins * 60 * 1000;
+    }
+    const d = new Date(resetsAt);
+    d.setDate(d.getDate() - windowMins / MinsPerDay);
     return d.getTime();
 }
 
-// The block of the reset day: the day the window resets on, or the day it last reset (its reset time less its length),
-// when that day falls in the current calendar week; -1 otherwise. The coming reset wins when both do.
-export function resetIndex(resetsAt: number, windowMins: number, now: number): number {
+// The block the fill starts on, the reset day's (0 %): the weekday of the window's last reset, which a weekly window
+// shares with its coming one; -1 when the reader gives no reset time.
+export function startIndex(resetsAt: number, windowMins: number): number {
     if (!(resetsAt > 0)) {
         return -1;
     }
-    const start = weekStart(now);
-    const end = new Date(start);
-    end.setDate(end.getDate() + DaysInWeek);
-    const inWeek = (at: number) => at >= start && at < end.getTime();
-    if (inWeek(resetsAt)) {
-        return weekdayIndex(resetsAt);
-    }
-    const last = windowMins > 0 ? resetsAt - windowMins * 60 * 1000 : 0;
-    if (last > 0 && inWeek(last)) {
-        return weekdayIndex(last);
-    }
-    return -1;
+    return weekdayIndex(lastReset(resetsAt, windowMins));
 }
 
-// How full each of the seven day blocks is, from 0 to 1: percent × 7 / 100 blocks, left to right, the last one partly.
-export function dayFills(percent: number): number[] {
+// How full each of the seven day blocks is, Monday to Sunday, from 0 to 1: percent × 7 / 100 blocks, the last one
+// partly, starting on the reset day's block and running forward round the week (past Sunday to Monday). Without a
+// reset day the fill starts on Monday.
+export function dayFills(percent: number, start = 0): number[] {
     const units = (Math.min(100, Math.max(0, percent)) * DaysInWeek) / 100;
-    return Array.from({ length: DaysInWeek }, (_, i) => Math.min(1, Math.max(0, units - i)));
+    const from = start >= 0 ? start : 0;
+    return Array.from({ length: DaysInWeek }, (_, i) => {
+        const k = (i - from + DaysInWeek) % DaysInWeek;
+        return Math.min(1, Math.max(0, units - k));
+    });
 }
