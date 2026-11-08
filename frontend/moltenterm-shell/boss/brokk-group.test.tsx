@@ -897,7 +897,13 @@ describe("the block under the square (AC17 and AC20)", () => {
             "31 %",
         ]);
         expect([...html.matchAll(/data-testid="brokk-usage-block"/g)]).toHaveLength(14);
-        expect(blocksOf(html, "claude").map((b) => b.fill)).toEqual([100, 100, 100, 100, 100, 11, 0]);
+        // The fixture's week resets in two days: its fill starts on that weekday's block and wraps round the week.
+        const start = (today + 2) % 7;
+        const fromStart = [100, 100, 100, 100, 100, 11, 0];
+        expect(blocksOf(html, "claude").map((b) => b.fill)).toEqual(
+            Array.from({ length: 7 }, (_, i) => fromStart[(i - start + 7) % 7])
+        );
+        expect(blocksOf(html, "claude").map((b) => b.reset)).toEqual(Array.from({ length: 7 }, (_, i) => i === start));
         expect([...html.matchAll(/data-logo="([a-z]+)"/g)].map((m) => m[1])).toEqual(["claude", "ai"]);
         expect(html).not.toContain("brokk-usage-bar");
     });
@@ -915,21 +921,32 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(attr(html, "brokk-usage-day", "aria-hidden")).toBe("true");
     });
 
-    it("marks the reset day's block only when the coming or the last reset falls in this calendar week", () => {
+    it("starts each row on its reset day's block (0 %), ringed, and fills forward round the week", () => {
         vi.useFakeTimers({ toFake: ["Date"] });
         try {
             // Wednesday 11 November 2026: the week runs from Monday 9 to Sunday 15.
             vi.setSystemTime(new Date(2026, 10, 11, 10, 0));
+            // 66 % of a week resetting on Friday: Fri, Sat, Sun, Mon full, Tue partly.
             const friday = new Date(2026, 10, 13, 9, 0).getTime();
-            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40, friday) });
-            let marks = blocksOf(render(), "claude").map((b) => b.reset);
-            expect(marks).toEqual([false, false, false, false, true, false, false]);
-            // A week resetting next Tuesday last reset this Tuesday.
-            const nextTuesday = new Date(2026, 10, 17, 9, 0).getTime();
-            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40, nextTuesday) });
-            marks = blocksOf(render(), "claude").map((b) => b.reset);
-            expect(marks).toEqual([false, true, false, false, false, false, false]);
-            // A 30-day window twelve days in: neither reset is this week.
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 66, friday) });
+            let blocks = blocksOf(render(), "claude");
+            expect(blocks.map((b) => b.reset)).toEqual([false, false, false, false, true, false, false]);
+            expect(blocks.map((b) => b.fill)).toEqual([100, 62, 0, 0, 100, 100, 100]);
+            // 31 % of a week resetting on Monday: Mon, Tue full, Wed partly.
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 31, new Date(2026, 10, 16, 1, 0).getTime()),
+            });
+            blocks = blocksOf(render(), "claude");
+            expect(blocks.map((b) => b.reset)).toEqual([true, false, false, false, false, false, false]);
+            expect(blocks.map((b) => b.fill)).toEqual([100, 100, 17, 0, 0, 0, 0]);
+            // 50 % of a week resetting on Sunday: Sun full, then Mon, Tue full, Wed half.
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 50, new Date(2026, 10, 15, 18, 0).getTime()),
+            });
+            blocks = blocksOf(render(), "claude");
+            expect(blocks.map((b) => b.reset)).toEqual([false, false, false, false, false, false, true]);
+            expect(blocks.map((b) => b.fill)).toEqual([100, 100, 50, 0, 0, 0, 100]);
+            // A 30-day window that last reset on Saturday 31 October starts on Saturday, whatever week it is.
             globalStore.set(UsageReadingsAtom, {
                 codex: {
                     agent: "codex",
@@ -940,14 +957,15 @@ describe("the block under the square (AC17 and AC20)", () => {
                             id: "window:43200",
                             label: "30-day",
                             usedpercent: 30,
-                            resetsat: Date.now() + 18 * 24 * 60 * Min,
+                            resetsat: new Date(2026, 10, 30, 14, 0).getTime(),
                             windowmins: 43200,
                         },
                     ],
                 },
             });
-            marks = blocksOf(render(), "codex").map((b) => b.reset);
-            expect(marks).toEqual(Array(7).fill(false));
+            blocks = blocksOf(render(), "codex");
+            expect(blocks.map((b) => b.reset)).toEqual([false, false, false, false, false, true, false]);
+            expect(blocks.map((b) => b.fill)).toEqual([10, 0, 0, 0, 0, 100, 100]);
         } finally {
             vi.useRealTimers();
         }

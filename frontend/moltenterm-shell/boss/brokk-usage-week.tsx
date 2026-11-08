@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The usage block under Brokk's square as a week grid (FR-BOSS-009, AC48 to AC51, #2100): the initials of the calendar
-// week once on top, today's emphasised, then one row per provider with its logo, seven day blocks filled left to right
-// and its percent. Today's column stands out on every row; the block of the reset day, when it falls this week, carries
-// a slow sheen and a soft glow. The fill and the percent take the colour of the pace, from on pace (success) to running
-// out before the reset (error). No detail on hover: a click opens the Usage panel (the button around it,
+// week once on top, Monday to Sunday, today's emphasised, then one row per provider with its logo, seven day blocks and
+// its percent. The reset day's block is the start (0 %): the fill runs from it forward round the week, and it carries an
+// accent ring and a slow sheen. Today's column stands out on every row. The fill and the percent take the colour of the
+// pace, from on pace (success) to running out before the reset (error). No detail on hover: a click opens the Usage panel (the button around it,
 // brokk-group.tsx).
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
@@ -21,7 +21,7 @@ import {
     paceColour,
     PaceRedAt,
     resetDay,
-    resetIndex,
+    startIndex,
     weekdayIndex,
     WeekDayKeys,
     WeeklyUsage,
@@ -86,7 +86,7 @@ export function BrokkUsageWeek({ rows, now, id }: { rows: WeeklyUsage[]; now: nu
                         </span>
                     );
                 }
-                const reset = resetIndex(u.resetsAt, u.windowMins, now);
+                const reset = startIndex(u.resetsAt, u.windowMins);
                 const day = resetDay(u.resetsAt, locale);
                 const age = u.old ? relativeTime(u.readAt, now) : "";
                 const parts = [
@@ -110,7 +110,7 @@ export function BrokkUsageWeek({ rows, now, id }: { rows: WeeklyUsage[]; now: nu
                         data-provider={u.provider}
                     >
                         <AgentLogo provider={u.provider} />
-                        {dayFills(u.percent).map((fill, i) => (
+                        {dayFills(u.percent, reset).map((fill, i) => (
                             <span
                                 key={i}
                                 className={cn("mt-brokk-uw-cell", i === today && "is-today", i === reset && "is-reset")}
