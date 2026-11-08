@@ -3076,6 +3076,19 @@
                 "open": "Voir le détail de l'usage de chaque forfait",
                 "asOf": "Relevé {ago}",
                 "unreadable": "aucun relevé",
+                "row": "{name}, {percent} %",
+                "rowReset": "{name}, {percent} %, remise à zéro {day}",
+                "rowAsOf": "relevé {ago}",
+                "rowUnreadable": "{name}, aucun relevé : {reason}",
+                "day": {
+                    "mon": "L",
+                    "tue": "M",
+                    "wed": "M",
+                    "thu": "J",
+                    "fri": "V",
+                    "sat": "S",
+                    "sun": "D"
+                },
                 "resets": "Réinitialisation : {day}",
                 "percent": "{percent} %"
             },
