@@ -32,7 +32,7 @@ import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { BossBubbleModel } from "../boss/boss-store";
 import { BrokkAvatarSlot } from "../boss/brokk-avatar";
-import { edgeAttributes, edgeGutterOn, edgeUnfoldsOn } from "../boss/brokk-edge-model";
+import { edgeAttributes, edgeLineOn, edgeUnfoldsOn } from "../boss/brokk-edge-model";
 import { useBrokkEdge } from "../boss/use-brokk-edge";
 import { useBrokkGateProps, useBrokkVisitUp } from "../boss/use-brokk-hub";
 import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
@@ -2696,8 +2696,8 @@ export function WorkspaceSidebar() {
             setBrokkSeen(true);
         }
     }, [brokkUp]);
-    // Collapsed with Brokk on (FR-BOSS-009, AC27 to AC30, #2070): 22 px of the sidebar stay at the window's edge with his
-    // face on them, a new notification makes it bounce, and something important keeps it half open.
+    // Collapsed with Brokk on (FR-BOSS-009, AC44 to AC47, #2070, #2093): out of sight at rest, it peeks out with his face
+    // and bounces for a new notification, then hides again; something important keeps it half open.
     const brokkShown = useAtomValue(BossBubbleModel.getInstance().showAtom);
     const edge = useBrokkEdge(asideRef);
     const keepPeek = () => clearTimeout(peekTimerRef.current);
@@ -2740,7 +2740,7 @@ export function WorkspaceSidebar() {
                 aria-label={t("sidebar.label", { name })}
                 data-testid="workspace-sidebar"
                 data-hidden={hidden ? "true" : undefined}
-                {...edgeAttributes(edge.shape, hidden, brokkShown)}
+                {...edgeAttributes(edge.shape)}
                 data-brokk-visit={brokkUp ? "open" : undefined}
                 className={cn(
                     "mt-sb flex h-full shrink-0 flex-col gap-2 select-none",
@@ -2761,7 +2761,7 @@ export function WorkspaceSidebar() {
                     <Suspense fallback={null}>
                         <BrokkVisitScene
                             rowHeight={hidden ? PeekWindowRowHeight : WindowRowHeight}
-                            line={edgeGutterOn(hidden, brokkShown)}
+                            line={edgeLineOn(hidden, brokkShown)}
                         />
                     </Suspense>
                 ) : null}

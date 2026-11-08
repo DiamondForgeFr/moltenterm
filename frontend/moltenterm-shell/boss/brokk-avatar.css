@@ -37,7 +37,7 @@
 /* On the strip of the collapsed sidebar (FR-BOSS-009, AC27, #2070): smaller, so that it fits the 30 px strip, and moved from
    its place at the right end of the title row to the middle of the strip, which centres it and its rings (#2083). It
    grows back and slides to its place as the sidebar unfolds, so the face rides with the sidebar and is never twice on
-   screen. Its badge hangs over the content's margin, which the strip's room leaves free. */
+   screen. The strip only shows while the sidebar peeks out for news or stays half open (#2093). */
 .mt-brokk-avatar.is-edge {
     --mt-brokk-size: var(--mt-edge-face, 20px);
     transform: translateX(calc(var(--mt-peek-inset, 12px) - (var(--mt-edge-px, 30px) - var(--mt-edge-face, 20px)) / 2));
