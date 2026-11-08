@@ -21,6 +21,7 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStates } from "../agent-state-store";
+import { agentName } from "../companion/companion-task-model";
 import { isActive, overallDownloadProgress, runningDownloads } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useLocale, useT } from "../i18n/i18n";
@@ -29,6 +30,7 @@ import { KeepAwakeModel } from "../keepawake-store";
 import { modalIsOpen } from "../modal-open";
 import { MoltentermNotifications } from "../notifications-store";
 import { TabActivity, whileShown } from "../tab-activity";
+import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
 import { loadWorkspaceSources } from "../workspace-rail";
 import { AnchorAttr, cardKeyAction, CardKeyInput, CardTestId, isOutsidePress } from "./boss-card-model";
 import { attentionAgents } from "./boss-overview";
@@ -84,8 +86,7 @@ import { AgentsPanel, DownloadsPanel, SessionsPanel, UsagePanel } from "./brokk-
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk } from "./brokk-talk";
 import { talkPose, talkWaits } from "./brokk-talk-model";
-import { weeklyUsage } from "./brokk-usage-model";
-import { BrokkUsageWeek } from "./brokk-usage-week";
+import { WeeklyUsage, weeklyUsage } from "./brokk-usage-model";
 import { useBrokkActions } from "./use-brokk-actions";
 import { useGroupCaption } from "./use-brokk-caption";
 import { useAvatarKeys } from "./use-brokk-hub";
@@ -95,6 +96,20 @@ import { useCardLive } from "./use-brokk-live";
 const AgeTickMs = 15000;
 // The week grid's id: the usage button is described by its rows, its own name being what a click does (#2100).
 const UsageWeekId = "brokk-usage-week";
+
+// A provider's row in the shared week grid, named with its agent's display name.
+function weekRow(u: WeeklyUsage): UsageWeekRow {
+    const { provider, readAt, old, unreadable, ...line } = u;
+    return {
+        key: provider,
+        agent: provider,
+        name: agentName(provider),
+        line: unreadable ? undefined : line,
+        unreadable,
+        readAt,
+        old,
+    };
+}
 
 // When the developer last looked at the Téléchargements panel: a download that failed or finished since is news, until he
 // looks (FR-BOSS-009, AC18). It lasts for a run of MoltenTerm.
@@ -362,6 +377,9 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     }, [panels.pinned]);
     const marks = railMarks(railInput);
     const weekly = useMemo(() => weeklyUsage(readings, now, unreadable), [readings, now, unreadable]);
+    const weekRows = useMemo(() => weekly.map(weekRow), [weekly]);
+    // The logos name their agents while the usage block has the keyboard focus: they take no focus of their own.
+    const [usageFocused, setUsageFocused] = useState(false);
 
     // What his face does with the conversation: it listens while the developer writes, thinks while his session works on
     // a message, speaks while his answer comes in (AC25).
@@ -767,18 +785,19 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                         type="button"
                         className="mt-brokk-usage"
                         aria-label={t("boss.group.usage.open")}
-                        title={t("boss.group.usage.open")}
                         aria-pressed={active === "usage"}
                         aria-describedby={weekly.length > 0 ? UsageWeekId : undefined}
                         data-testid="brokk-usage"
                         onClick={() => clickIcon("usage")}
+                        onFocus={(e) => setUsageFocused(e.currentTarget.matches(":focus-visible"))}
+                        onBlur={() => setUsageFocused(false)}
                     >
                         {weekly.length === 0 ? (
                             <span className="mt-brokk-usage-empty" data-testid="brokk-usage-empty">
                                 {t("boss.panel.usage.empty")}
                             </span>
                         ) : (
-                            <BrokkUsageWeek rows={weekly} now={now} id={UsageWeekId} />
+                            <UsageWeekGrid rows={weekRows} now={now} id={UsageWeekId} named={usageFocused} />
                         )}
                     </button>
                 </div>

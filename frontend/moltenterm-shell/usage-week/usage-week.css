@@ -1,0 +1,157 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The week grid of a plan usage (FR-BOSS-009, AC48 to AC51, #2100): one grid for the whole block, so the day initials
+   written once on top stand over the seven blocks of every row: logo, Monday to Sunday, percent. A row is display:
+   contents, its parts being the grid's cells. Nothing changes on hover, and the block never grows. */
+.mt-uw {
+    display: grid;
+    grid-template-columns: 16px repeat(7, minmax(0, 1fr)) 46px;
+    gap: 8px 4px;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.mt-uw-day {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1;
+    text-align: center;
+}
+
+.mt-uw-day[data-today="true"] {
+    color: var(--mt-text-1);
+    font-weight: 600;
+}
+
+.mt-uw-row {
+    display: contents;
+}
+
+.mt-uw-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+}
+
+.mt-uw-logo svg {
+    width: 15px;
+    height: 15px;
+}
+
+/* The agent's name next to its logo: a small popover in the app's look, in a portal above the floating surfaces. */
+.mt-uw-name {
+    z-index: 1000;
+    padding: 2px 8px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.mt-uw-cell {
+    position: relative;
+    height: 10px;
+    overflow: hidden;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-line-2);
+}
+
+/* The fill and the percent take the pace colour the row sets (--mt-uw-pace, from the theme's success, warning and
+   error). */
+.mt-uw-cell i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--mt-uw-pace, var(--color-success));
+}
+
+/* Today: its column stands out on every row, a lighter block with a light outline. */
+.mt-uw-cell.is-today {
+    background: var(--mt-surface-3);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 55%, transparent);
+}
+
+/* The reset day, where the fill starts: a ring in the action colour, set 2 px away from its block so it reads the same
+   empty or full, and a slow sheen inside. Today's outline sits on the block itself, so both show when the reset day is
+   today. */
+.mt-uw-cell.is-reset {
+    outline: 1.5px solid var(--mt-action);
+    outline-offset: 2px;
+}
+
+.mt-uw-cell.is-reset::after {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--mt-radius-control);
+    background: linear-gradient(
+        100deg,
+        transparent 20%,
+        color-mix(in srgb, var(--mt-text-1) 60%, transparent) 50%,
+        transparent 80%
+    );
+    background-size: 250% 100%;
+    mix-blend-mode: screen;
+    animation: mt-uw-sheen 2.6s ease-in-out infinite;
+    content: "";
+}
+
+@keyframes mt-uw-sheen {
+    0% {
+        background-position: 120% 0;
+    }
+    60%,
+    100% {
+        background-position: -60% 0;
+    }
+}
+
+.mt-uw-pct {
+    color: var(--mt-uw-pace, var(--mt-text-1));
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* The calm line of a reading that cannot be read (#2074), across the day blocks and the percent. */
+.mt-uw-note {
+    grid-column: 2 / -1;
+    overflow: hidden;
+    color: var(--mt-text-3);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* An old reading (#2074): its age is in the row's name, its figures are dimmed. */
+.mt-uw-row[data-old="true"] .mt-uw-pct,
+.mt-uw-row[data-old="true"] .mt-uw-cell i {
+    opacity: 0.6;
+}
+
+/* Under reduced motion, told by the system or by the app, the reset day's sheen is a still hatch. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-uw-cell.is-reset::after {
+        background: repeating-linear-gradient(
+            135deg,
+            color-mix(in srgb, var(--mt-action-text) 35%, transparent) 0 3px,
+            transparent 3px 6px
+        );
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-uw-cell.is-reset::after {
+    background: repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--mt-action-text) 35%, transparent) 0 3px,
+        transparent 3px 6px
+    );
+    animation: none;
+}

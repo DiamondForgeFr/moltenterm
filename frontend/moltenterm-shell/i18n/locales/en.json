@@ -3073,24 +3073,7 @@
                 "done": "Done"
             },
             "usage": {
-                "open": "Show the usage of each plan in detail",
-                "resets": "Resets {day}",
-                "percent": "{percent} %",
-                "asOf": "Read {ago}",
-                "unreadable": "no reading",
-                "row": "{name}, {percent} %",
-                "rowReset": "{name}, {percent} %, resets {day}",
-                "rowAsOf": "read {ago}",
-                "rowUnreadable": "{name}, no reading: {reason}",
-                "day": {
-                    "mon": "M",
-                    "tue": "T",
-                    "wed": "W",
-                    "thu": "T",
-                    "fri": "F",
-                    "sat": "S",
-                    "sun": "S"
-                }
+                "open": "Show the usage of each plan in detail"
             },
             "agentsEmpty": "No agent is running.",
             "sessionsEmpty": "No terminal or SSH session is running.",
@@ -11635,6 +11618,24 @@
         "folded": {
             "hint": "You usually skip this step.",
             "show": "Show"
+        }
+    },
+    "usageWeek": {
+        "percent": "{percent} %",
+        "unreadable": "no reading",
+        "row": "{name}, {percent} %",
+        "rowReset": "{name}, {percent} %, resets {day}",
+        "rowAsOf": "read {ago}",
+        "rowUnreadable": "{name}, no reading: {reason}",
+        "rowNoReading": "{name}, no reading",
+        "day": {
+            "mon": "M",
+            "tue": "T",
+            "wed": "W",
+            "thu": "T",
+            "fri": "F",
+            "sat": "S",
+            "sun": "S"
         }
     }
 }

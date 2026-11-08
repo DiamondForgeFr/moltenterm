@@ -859,15 +859,15 @@ describe("the block under the square (AC17 and AC20)", () => {
     });
 
     const cellTag = (html: string, provider: string) =>
-        [...html.matchAll(/<span [^>]*data-testid="brokk-usage-cell"[^>]*>/g)]
+        [...html.matchAll(/<span [^>]*data-testid="usage-week-row"[^>]*>/g)]
             .map((m) => m[0])
             .find((tag) => tag.includes(`data-provider="${provider}"`)) ?? "";
     // The seven day blocks of a row, in order: their fill and whether the reset mark stands before them.
     const blocksOf = (html: string, provider: string) => {
         const start = html.indexOf(cellTag(html, provider));
-        const rowHtml = html.slice(start, html.indexOf("brokk-usage-percent", start));
+        const rowHtml = html.slice(start, html.indexOf("usage-week-percent", start));
         return [
-            ...rowHtml.matchAll(/<span ([^>]*data-testid="brokk-usage-block"[^>]*)><i style="width:([0-9.]+)%"/g),
+            ...rowHtml.matchAll(/<span ([^>]*data-testid="usage-week-block"[^>]*)><i style="width:([0-9.]+)%"/g),
         ].map((m) => ({ fill: Number(m[2]), reset: m[1].includes('data-reset="true"') }));
     };
 
@@ -875,7 +875,7 @@ describe("the block under the square (AC17 and AC20)", () => {
     it("draws a week grid: the initials once, today marked, a row per provider with its logo, 7 blocks and the percent", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 73), codex: reading("codex", 31.2) });
         const html = render();
-        expect([...html.matchAll(/data-testid="brokk-usage-day"[^>]*>([^<]*)</g)].map((m) => m[1])).toEqual([
+        expect([...html.matchAll(/data-testid="usage-week-day"[^>]*>([^<]*)</g)].map((m) => m[1])).toEqual([
             "M",
             "T",
             "W",
@@ -885,18 +885,18 @@ describe("the block under the square (AC17 and AC20)", () => {
             "S",
         ]);
         const today = (new Date().getDay() + 6) % 7;
-        const days = [...html.matchAll(/<span [^>]*data-testid="brokk-usage-day"[^>]*>/g)].map((m) => m[0]);
+        const days = [...html.matchAll(/<span [^>]*data-testid="usage-week-day"[^>]*>/g)].map((m) => m[0]);
         expect(days.map((tag) => tag.includes('data-today="true"'))).toEqual(
             Array.from({ length: 7 }, (_, i) => i === today)
         );
         expect(
-            [...html.matchAll(/data-testid="brokk-usage-cell"[^>]*data-provider="([a-z]+)"/g)].map((m) => m[1])
+            [...html.matchAll(/data-testid="usage-week-row"[^>]*data-provider="([a-z]+)"/g)].map((m) => m[1])
         ).toEqual(["claude", "codex"]);
-        expect([...html.matchAll(/data-testid="brokk-usage-percent">([^<]*)</g)].map((m) => m[1])).toEqual([
+        expect([...html.matchAll(/data-testid="usage-week-percent">([^<]*)</g)].map((m) => m[1])).toEqual([
             "73 %",
             "31 %",
         ]);
-        expect([...html.matchAll(/data-testid="brokk-usage-block"/g)]).toHaveLength(14);
+        expect([...html.matchAll(/data-testid="usage-week-block"/g)]).toHaveLength(14);
         // The fixture's week resets in two days: its fill starts on that weekday's block and wraps round the week.
         const start = (today + 2) % 7;
         const fromStart = [100, 100, 100, 100, 100, 11, 0];
@@ -908,6 +908,31 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(html).not.toContain("brokk-usage-bar");
     });
 
+    // The tests run without a DOM: the popover itself (a floating portal) is checked through its source and its style.
+    it("names each agent's logo in a small popover on hover and while the block has the keyboard focus", () => {
+        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
+        const html = render();
+        const logos = [...html.matchAll(/<span [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
+        expect(logos.map((tag) => /data-name="([^"]*)"/.exec(tag)?.[1])).toEqual(["Claude", "Codex"]);
+        expect(logos.every((tag) => !tag.includes("title="))).toBe(true);
+        expect(attr(html, "brokk-usage", "title")).toBeUndefined();
+        const grid = readFileSync(join(__dirname, "../usage-week/usage-week.tsx"), "utf8");
+        expect(grid).toContain("useHover(context, { delay: { open: NameDelayMs, close: 0 } })");
+        expect(grid).toContain("const open = hovered || named;");
+        expect(grid).toMatch(/<FloatingPortal>\s*<span[^>]*className="mt-uw-name"/);
+        const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(group).toContain('onFocus={(e) => setUsageFocused(e.currentTarget.matches(":focus-visible"))}');
+        expect(group).toContain("named={usageFocused}");
+        expect(group).toContain("name: agentName(provider)");
+        const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        expect(css).toMatch(
+            /\.mt-uw-name \{[^}]*border: 1px solid var\(--mt-line-2\);[^}]*background: var\(--mt-surface-2\);\s*color: var\(--mt-text-1\);[^}]*pointer-events: none;/
+        );
+    });
+
     it("names each row for a screen reader and describes the button with them, with no tooltip", () => {
         const resetsat = Date.now() + 3 * 24 * 60 * Min;
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 73, resetsat) });
@@ -917,8 +942,8 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(cellTag(html, "claude")).toContain('role="img"');
         expect(cellTag(html, "claude")).not.toContain("title=");
         expect(attr(html, "brokk-usage", "aria-describedby")).toBe("brokk-usage-week");
-        expect(attr(html, "brokk-usage-week", "id")).toBe("brokk-usage-week");
-        expect(attr(html, "brokk-usage-day", "aria-hidden")).toBe("true");
+        expect(attr(html, "usage-week", "id")).toBe("brokk-usage-week");
+        expect(attr(html, "usage-week-day", "aria-hidden")).toBe("true");
     });
 
     it("starts each row on its reset day's block (0 %), ringed, and fills forward round the week", () => {
@@ -969,11 +994,11 @@ describe("the block under the square (AC17 and AC20)", () => {
         } finally {
             vi.useRealTimers();
         }
-        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
-        expect(css).toMatch(/\.mt-brokk-uw-cell\.is-reset::after \{[^}]*animation: mt-brokk-uw-sheen/);
+        const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8");
+        expect(css).toMatch(/\.mt-uw-cell\.is-reset::after \{[^}]*animation: mt-uw-sheen/);
         const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-        expect(media).toMatch(/\.mt-brokk-uw-cell\.is-reset::after \{[^}]*animation: none/);
-        expect(css).toMatch(/\.prefers-reduced-motion \.mt-brokk-uw-cell\.is-reset::after \{[^}]*animation: none/);
+        expect(media).toMatch(/\.mt-uw-cell\.is-reset::after \{[^}]*animation: none/);
+        expect(css).toMatch(/\.prefers-reduced-motion \.mt-uw-cell\.is-reset::after \{[^}]*animation: none/);
     });
 
     it("keeps the reset ring on a full block, and both marks when the reset day is today", () => {
@@ -988,8 +1013,8 @@ describe("the block under the square (AC17 and AC20)", () => {
             const html = render();
             const tags = (provider: string) => {
                 const start = html.indexOf(cellTag(html, provider));
-                const rowHtml = html.slice(start, html.indexOf("brokk-usage-percent", start));
-                return [...rowHtml.matchAll(/<span [^>]*data-testid="brokk-usage-block"[^>]*>/g)].map((m) => m[0]);
+                const rowHtml = html.slice(start, html.indexOf("usage-week-percent", start));
+                return [...rowHtml.matchAll(/<span [^>]*data-testid="usage-week-block"[^>]*>/g)].map((m) => m[0]);
             };
             expect(tags("claude")[4]).toContain('data-today="true"');
             expect(tags("claude")[4]).toContain('data-reset="true"');
@@ -999,18 +1024,21 @@ describe("the block under the square (AC17 and AC20)", () => {
         } finally {
             vi.useRealTimers();
         }
-        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
         // A ring set away from the block reads the same empty or full; today's outline sits on the block itself.
         expect(css).toMatch(
-            /\.mt-brokk-uw-cell\.is-reset \{\s*outline: 1\.5px solid var\(--mt-action\);\s*outline-offset: 2px;/
+            /\.mt-uw-cell\.is-reset \{\s*outline: 1\.5px solid var\(--mt-action\);\s*outline-offset: 2px;/
         );
-        expect(css).toMatch(/\.mt-brokk-uw-cell\.is-today \{[^}]*box-shadow: 0 0 0 1px/);
+        expect(css).toMatch(/\.mt-uw-cell\.is-today \{[^}]*box-shadow: 0 0 0 1px/);
     });
 
     it("writes the initials in the interface language, Monday first, and follows a change without a restart", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40) });
         const initials = () =>
-            [...render().matchAll(/data-testid="brokk-usage-day"[^>]*>([^<]*)</g)].map((m) => m[1]).join("");
+            [...render().matchAll(/data-testid="usage-week-day"[^>]*>([^<]*)</g)].map((m) => m[1]).join("");
         const i18n = I18nModel.getInstance();
         try {
             globalStore.set(i18n.languageSettingAtom, "fr");
@@ -1026,7 +1054,7 @@ describe("the block under the square (AC17 and AC20)", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
         const html = render();
         const today = (new Date().getDay() + 6) % 7;
-        const todayBlocks = [...html.matchAll(/<span [^>]*data-testid="brokk-usage-block"[^>]*>/g)]
+        const todayBlocks = [...html.matchAll(/<span [^>]*data-testid="usage-week-block"[^>]*>/g)]
             .map((m, i) => [i % 7, m[0].includes('data-today="true"')])
             .filter(([, on]) => on)
             .map(([i]) => i);
@@ -1042,13 +1070,16 @@ describe("the block under the square (AC17 and AC20)", () => {
         });
         const html = render();
         expect(cellTag(html, "claude")).toContain('data-pace="ok"');
-        expect(cellTag(html, "claude")).toContain("--mt-brokk-pace:var(--color-success)");
+        expect(cellTag(html, "claude")).toContain("--mt-uw-pace:var(--color-success)");
         expect(cellTag(html, "codex")).toContain('data-pace="above"');
-        expect(cellTag(html, "codex")).toMatch(/--mt-brokk-pace:color-mix\(in srgb, var\(--color-warning\) \d+%/);
+        expect(cellTag(html, "codex")).toMatch(/--mt-uw-pace:color-mix\(in srgb, var\(--color-warning\) \d+%/);
         expect(cellTag(html, "gemini")).toContain('data-pace="above"');
-        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-        expect(css).toMatch(/\.mt-brokk-uw-cell i \{[^}]*background: var\(--mt-brokk-pace/);
-        expect(css).toMatch(/\.mt-brokk-uw-pct \{[^}]*color: var\(--mt-brokk-pace/);
+        const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        expect(css).toMatch(/\.mt-uw-cell i \{[^}]*background: var\(--mt-uw-pace/);
+        expect(css).toMatch(/\.mt-uw-pct \{[^}]*color: var\(--mt-uw-pace/);
     });
 
     it("gives Codex's 30-day window a row", () => {
@@ -1070,8 +1101,8 @@ describe("the block under the square (AC17 and AC20)", () => {
         });
         const html = render();
         expect(cellTag(html, "codex")).toContain('data-pace="red"');
-        expect(cellTag(html, "codex")).toContain("--mt-brokk-pace:var(--color-error)");
-        expect(html).toMatch(/data-testid="brokk-usage-percent">47 %</);
+        expect(cellTag(html, "codex")).toContain("--mt-uw-pace:var(--color-error)");
+        expect(html).toMatch(/data-testid="usage-week-percent">47 %</);
     });
 
     // #2074: a day-old reading of a running week still shows, with its age; one that cannot be read says so calmly.
@@ -1080,15 +1111,15 @@ describe("the block under the square (AC17 and AC20)", () => {
         let html = render();
         expect(cellTag(html, "codex")).toContain('data-old="true"');
         expect(cellTag(html, "codex")).toMatch(/aria-label="Codex, 9 %, resets [A-Za-z]+, read [^"]+"/);
-        expect(html).toMatch(/data-testid="brokk-usage-percent">9 %</);
+        expect(html).toMatch(/data-testid="usage-week-percent">9 %</);
         globalStore.set(UsageReadingsAtom, { codex: reading("codex", 9) });
         expect(cellTag(render(), "codex")).not.toContain("data-old");
         globalStore.set(UsageReadingsAtom, {});
         globalStore.set(UsageUnreadableAtom, { codex: "expired" });
         html = render();
         expect(html).not.toContain('data-testid="brokk-usage-empty"');
-        expect(html).toMatch(/data-testid="brokk-usage-unreadable">no reading</);
-        expect(html).not.toContain('data-testid="brokk-usage-block"');
+        expect(html).toMatch(/data-testid="usage-week-unreadable">no reading</);
+        expect(html).not.toContain('data-testid="usage-week-block"');
         globalStore.set(UsageUnreadableAtom, {});
     });
 
@@ -1113,7 +1144,7 @@ describe("the block under the square (AC17 and AC20)", () => {
             },
         });
         const html = render();
-        expect(html.match(/data-testid="brokk-usage-cell"/g)).toHaveLength(1);
+        expect(html.match(/data-testid="usage-week-row"/g)).toHaveLength(1);
         expect(html).toContain("62 %");
         expect(html).not.toContain("99 %");
     });

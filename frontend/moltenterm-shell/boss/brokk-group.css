@@ -428,126 +428,6 @@
     color: var(--mt-text-3);
 }
 
-/* The week grid (FR-BOSS-009, AC48 to AC51, #2100): one grid for the whole block, so the day initials written once on
-   top stand over the seven blocks of every row: logo, Monday to Sunday, percent. A row is display: contents, its parts
-   being the grid's cells. Nothing changes on hover but the percent's colour, and the block never grows. */
-.mt-brokk-uw {
-    display: grid;
-    grid-template-columns: 16px repeat(7, minmax(0, 1fr)) 46px;
-    gap: 8px 4px;
-    align-items: center;
-    padding: 4px 0;
-}
-
-.mt-brokk-uw-day {
-    color: var(--mt-text-3);
-    font-size: var(--mt-text-11);
-    line-height: 1;
-    text-align: center;
-}
-
-.mt-brokk-uw-day[data-today="true"] {
-    color: var(--mt-text-1);
-    font-weight: 600;
-}
-
-.mt-brokk-uw-row {
-    display: contents;
-}
-
-.mt-brokk-uw-logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    color: var(--mt-text-2);
-    font-size: var(--mt-text-12);
-}
-
-.mt-brokk-uw-logo svg {
-    width: 15px;
-    height: 15px;
-}
-
-.mt-brokk-uw-cell {
-    position: relative;
-    height: 10px;
-    overflow: hidden;
-    border-radius: var(--mt-radius-control);
-    background: var(--mt-line-2);
-}
-
-/* The fill and the percent take the pace colour the row sets (--mt-brokk-pace, from the theme's success, warning and
-   error). */
-.mt-brokk-uw-cell i {
-    position: absolute;
-    inset: 0 auto 0 0;
-    background: var(--mt-brokk-pace, var(--color-success));
-}
-
-/* Today: its column stands out on every row, a lighter block with a light outline. */
-.mt-brokk-uw-cell.is-today {
-    background: var(--mt-surface-3);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 55%, transparent);
-}
-
-/* The reset day: a ring in the action colour, set 2 px away from its block so it reads the same empty or full, and a
-   slow sheen inside. Today's outline sits on the block itself, so both show when the reset day is today. */
-.mt-brokk-uw-cell.is-reset {
-    outline: 1.5px solid var(--mt-action);
-    outline-offset: 2px;
-}
-
-.mt-brokk-uw-cell.is-reset::after {
-    position: absolute;
-    inset: 0;
-    border-radius: var(--mt-radius-control);
-    background: linear-gradient(
-        100deg,
-        transparent 20%,
-        color-mix(in srgb, var(--mt-text-1) 60%, transparent) 50%,
-        transparent 80%
-    );
-    background-size: 250% 100%;
-    mix-blend-mode: screen;
-    animation: mt-brokk-uw-sheen 2.6s ease-in-out infinite;
-    content: "";
-}
-
-@keyframes mt-brokk-uw-sheen {
-    0% {
-        background-position: 120% 0;
-    }
-    60%,
-    100% {
-        background-position: -60% 0;
-    }
-}
-
-.mt-brokk-uw-pct {
-    color: var(--mt-brokk-pace, var(--mt-text-1));
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-    white-space: nowrap;
-}
-
-/* The calm line of a reading that cannot be read (#2074), across the day blocks and the percent. */
-.mt-brokk-uw-note {
-    grid-column: 2 / -1;
-    overflow: hidden;
-    color: var(--mt-text-3);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* An old reading (#2074): its age is in the row's name, its figures are dimmed. */
-.mt-brokk-uw-row[data-old="true"] .mt-brokk-uw-pct,
-.mt-brokk-uw-row[data-old="true"] .mt-brokk-uw-cell i {
-    opacity: 0.6;
-}
-
 /* The field: one row, one frame; what it says hangs under it. It is also the conversation window (FR-BOSS-009, AC22,
    #2033): the frame grows in place, from the field's top, to the width of the group and the panel area together, with
    the exchange above the row. The size is the group's (inline width and height); this only moves it smoothly. Its top
@@ -1022,16 +902,6 @@
     .mt-brokk-say > span:first-child {
         transition: none !important;
     }
-
-    /* The reset day's sheen is a still hatch (#2100). */
-    .mt-brokk-uw-cell.is-reset::after {
-        background: repeating-linear-gradient(
-            135deg,
-            color-mix(in srgb, var(--mt-action-text) 35%, transparent) 0 3px,
-            transparent 3px 6px
-        );
-        animation: none;
-    }
 }
 
 .prefers-reduced-motion .mt-brokk-sq,
@@ -1060,13 +930,4 @@
 
 .prefers-reduced-motion .mt-brokk-say > span:first-child {
     transition: none !important;
-}
-
-.prefers-reduced-motion .mt-brokk-uw-cell.is-reset::after {
-    background: repeating-linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--mt-action-text) 35%, transparent) 0 3px,
-        transparent 3px 6px
-    );
-    animation: none;
 }
