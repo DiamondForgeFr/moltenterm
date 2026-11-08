@@ -133,6 +133,7 @@ vi.mock("./brokk-rows-panels", () => ({
 import { globalStore } from "@/app/store/jotaiStore";
 import { AgentStates } from "../agent-state-store";
 import { DownloadsModel } from "../downloads/downloads-store";
+import { I18nModel } from "../i18n/i18n";
 import { EmptyKeepAwakeState } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { MoltentermNotifications } from "../notifications-store";
@@ -857,63 +858,219 @@ describe("the block under the square (AC17 and AC20)", () => {
         });
     });
 
-    it("tells the weekly usage per provider in percent, with a bar each, the fullest first", () => {
-        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 62), codex: reading("codex", 31.2) });
+    const cellTag = (html: string, provider: string) =>
+        [...html.matchAll(/<span [^>]*data-testid="brokk-usage-cell"[^>]*>/g)]
+            .map((m) => m[0])
+            .find((tag) => tag.includes(`data-provider="${provider}"`)) ?? "";
+    // The seven day blocks of a row, in order: their fill and whether the reset mark stands before them.
+    const blocksOf = (html: string, provider: string) => {
+        const start = html.indexOf(cellTag(html, provider));
+        const rowHtml = html.slice(start, html.indexOf("brokk-usage-percent", start));
+        return [
+            ...rowHtml.matchAll(/<span ([^>]*data-testid="brokk-usage-block"[^>]*)><i style="width:([0-9.]+)%"/g),
+        ].map((m) => ({ fill: Number(m[2]), reset: m[1].includes('data-reset="true"') }));
+    };
+
+    // #2100: the week grid of AC48 to AC51.
+    it("draws a week grid: the initials once, today marked, a row per provider with its logo, 7 blocks and the percent", () => {
+        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 73), codex: reading("codex", 31.2) });
         const html = render();
-        const cells = [...html.matchAll(/data-provider="([a-z]+)"/g)].map((m) => m[1]);
-        expect(cells).toEqual(["claude", "codex"]);
+        expect([...html.matchAll(/data-testid="brokk-usage-day"[^>]*>([^<]*)</g)].map((m) => m[1])).toEqual([
+            "M",
+            "T",
+            "W",
+            "T",
+            "F",
+            "S",
+            "S",
+        ]);
+        const today = (new Date().getDay() + 6) % 7;
+        const days = [...html.matchAll(/<span [^>]*data-testid="brokk-usage-day"[^>]*>/g)].map((m) => m[0]);
+        expect(days.map((tag) => tag.includes('data-today="true"'))).toEqual(
+            Array.from({ length: 7 }, (_, i) => i === today)
+        );
+        expect(
+            [...html.matchAll(/data-testid="brokk-usage-cell"[^>]*data-provider="([a-z]+)"/g)].map((m) => m[1])
+        ).toEqual(["claude", "codex"]);
         expect([...html.matchAll(/data-testid="brokk-usage-percent">([^<]*)</g)].map((m) => m[1])).toEqual([
-            "62 %",
+            "73 %",
             "31 %",
         ]);
-        expect([...html.matchAll(/data-testid="brokk-usage-bar"/g)]).toHaveLength(2);
-        expect(html).toMatch(/style="width:62%"/);
-        expect(html).toContain(">Claude<");
+        expect([...html.matchAll(/data-testid="brokk-usage-block"/g)]).toHaveLength(14);
+        expect(blocksOf(html, "claude").map((b) => b.fill)).toEqual([100, 100, 100, 100, 100, 11, 0]);
+        expect([...html.matchAll(/data-logo="([a-z]+)"/g)].map((m) => m[1])).toEqual(["claude", "ai"]);
+        expect(html).not.toContain("brokk-usage-bar");
     });
 
-    it("turns the bar and the number grave above 90 %, and not at 90 %", () => {
-        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 91), codex: reading("codex", 90) });
+    it("names each row for a screen reader and describes the button with them, with no tooltip", () => {
+        const resetsat = Date.now() + 3 * 24 * 60 * Min;
+        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 73, resetsat) });
         const html = render();
-        const cell = (provider: string) =>
-            [...html.matchAll(/<span [^>]*data-testid="brokk-usage-cell"[^>]*>/g)]
-                .map((m) => m[0])
-                .find((tag) => tag.includes(`data-provider="${provider}"`));
-        expect(cell("claude")).toContain('data-hi="true"');
-        expect(cell("codex")).not.toContain("data-hi");
-        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-        expect(css).toMatch(/\.mt-brokk-pv\[data-hi="true"\] b \{\s*color: var\(--mt-state-blocked-text\)/);
-        expect(css).toMatch(
-            /\.mt-brokk-pv\[data-hi="true"\] \.mt-brokk-bar i \{\s*background: var\(--mt-state-blocked\)/
-        );
+        const day = new Date(resetsat).toLocaleDateString("en", { weekday: "long" });
+        expect(cellTag(html, "claude")).toContain(`aria-label="Claude, 73 %, resets ${day}"`);
+        expect(cellTag(html, "claude")).toContain('role="img"');
+        expect(cellTag(html, "claude")).not.toContain("title=");
+        expect(attr(html, "brokk-usage", "aria-describedby")).toBe("brokk-usage-week");
+        expect(attr(html, "brokk-usage-week", "id")).toBe("brokk-usage-week");
+        expect(attr(html, "brokk-usage-day", "aria-hidden")).toBe("true");
     });
 
-    it("gives the reset day as a tooltip, and nothing else", () => {
-        const monday = new Date(2026, 10, 9, 8, 0, 0).getTime();
-        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40, monday) });
-        const cell = /<span [^>]*data-testid="brokk-usage-cell"[^>]*>/.exec(
-            // The reset is in the past for the clock of this run: read it with the cell drawn from a future reset.
-            (() => {
-                globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40, Date.now() + 3 * 24 * 60 * Min) });
-                return render();
-            })()
-        )?.[0];
-        expect(cell).toMatch(/title="Resets [A-Za-z]+"/);
+    it("marks the reset day's block only when the coming or the last reset falls in this calendar week", () => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        try {
+            // Wednesday 11 November 2026: the week runs from Monday 9 to Sunday 15.
+            vi.setSystemTime(new Date(2026, 10, 11, 10, 0));
+            const friday = new Date(2026, 10, 13, 9, 0).getTime();
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40, friday) });
+            let marks = blocksOf(render(), "claude").map((b) => b.reset);
+            expect(marks).toEqual([false, false, false, false, true, false, false]);
+            // A week resetting next Tuesday last reset this Tuesday.
+            const nextTuesday = new Date(2026, 10, 17, 9, 0).getTime();
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40, nextTuesday) });
+            marks = blocksOf(render(), "claude").map((b) => b.reset);
+            expect(marks).toEqual([false, true, false, false, false, false, false]);
+            // A 30-day window twelve days in: neither reset is this week.
+            globalStore.set(UsageReadingsAtom, {
+                codex: {
+                    agent: "codex",
+                    source: "t",
+                    readat: Date.now(),
+                    windows: [
+                        {
+                            id: "window:43200",
+                            label: "30-day",
+                            usedpercent: 30,
+                            resetsat: Date.now() + 18 * 24 * 60 * Min,
+                            windowmins: 43200,
+                        },
+                    ],
+                },
+            });
+            marks = blocksOf(render(), "codex").map((b) => b.reset);
+            expect(marks).toEqual(Array(7).fill(false));
+        } finally {
+            vi.useRealTimers();
+        }
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).toMatch(/\.mt-brokk-uw-cell\.is-reset::after \{[^}]*animation: mt-brokk-uw-sheen/);
+        const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+        expect(media).toMatch(/\.mt-brokk-uw-cell\.is-reset::after \{[^}]*animation: none/);
+        expect(css).toMatch(/\.prefers-reduced-motion \.mt-brokk-uw-cell\.is-reset::after \{[^}]*animation: none/);
+    });
+
+    it("keeps the reset ring on a full block, and both marks when the reset day is today", () => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        try {
+            // Friday 13 November 2026: Claude resets tonight, Codex is full and resets on Saturday.
+            vi.setSystemTime(new Date(2026, 10, 13, 12, 0));
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 2, new Date(2026, 10, 13, 20, 0).getTime()),
+                codex: reading("codex", 100, new Date(2026, 10, 14, 7, 0).getTime()),
+            });
+            const html = render();
+            const tags = (provider: string) => {
+                const start = html.indexOf(cellTag(html, provider));
+                const rowHtml = html.slice(start, html.indexOf("brokk-usage-percent", start));
+                return [...rowHtml.matchAll(/<span [^>]*data-testid="brokk-usage-block"[^>]*>/g)].map((m) => m[0]);
+            };
+            expect(tags("claude")[4]).toContain('data-today="true"');
+            expect(tags("claude")[4]).toContain('data-reset="true"');
+            expect(tags("claude")[4]).toContain("is-today is-reset");
+            expect(tags("codex")[5]).toContain('data-reset="true"');
+            expect(blocksOf(html, "codex")[5]).toEqual({ fill: 100, reset: true });
+        } finally {
+            vi.useRealTimers();
+        }
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        // A ring set away from the block reads the same empty or full; today's outline sits on the block itself.
+        expect(css).toMatch(
+            /\.mt-brokk-uw-cell\.is-reset \{\s*outline: 1\.5px solid var\(--mt-action\);\s*outline-offset: 2px;/
+        );
+        expect(css).toMatch(/\.mt-brokk-uw-cell\.is-today \{[^}]*box-shadow: 0 0 0 1px/);
+    });
+
+    it("writes the initials in the interface language, Monday first, and follows a change without a restart", () => {
+        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40) });
+        const initials = () =>
+            [...render().matchAll(/data-testid="brokk-usage-day"[^>]*>([^<]*)</g)].map((m) => m[1]).join("");
+        const i18n = I18nModel.getInstance();
+        try {
+            globalStore.set(i18n.languageSettingAtom, "fr");
+            expect(initials()).toBe("LMMJVSD");
+            globalStore.set(i18n.languageSettingAtom, "en");
+            expect(initials()).toBe("MTWTFSS");
+        } finally {
+            globalStore.set(i18n.languageSettingAtom, "");
+        }
+    });
+
+    it("makes today's column stand out on every row", () => {
+        globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
+        const html = render();
+        const today = (new Date().getDay() + 6) % 7;
+        const todayBlocks = [...html.matchAll(/<span [^>]*data-testid="brokk-usage-block"[^>]*>/g)]
+            .map((m, i) => [i % 7, m[0].includes('data-today="true"')])
+            .filter(([, on]) => on)
+            .map(([i]) => i);
+        expect(todayBlocks).toEqual([today, today]);
+    });
+
+    it("colours each row by its pace: on pace green, a little ahead orange, far ahead red", () => {
+        // Two days before the reset of a week, 5/7 of it is gone: 71 % allowed.
+        globalStore.set(UsageReadingsAtom, {
+            claude: reading("claude", 62),
+            codex: reading("codex", 78),
+            gemini: reading("gemini", 100),
+        });
+        const html = render();
+        expect(cellTag(html, "claude")).toContain('data-pace="ok"');
+        expect(cellTag(html, "claude")).toContain("--mt-brokk-pace:var(--color-success)");
+        expect(cellTag(html, "codex")).toContain('data-pace="above"');
+        expect(cellTag(html, "codex")).toMatch(/--mt-brokk-pace:color-mix\(in srgb, var\(--color-warning\) \d+%/);
+        expect(cellTag(html, "gemini")).toContain('data-pace="above"');
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        expect(css).toMatch(/\.mt-brokk-uw-cell i \{[^}]*background: var\(--mt-brokk-pace/);
+        expect(css).toMatch(/\.mt-brokk-uw-pct \{[^}]*color: var\(--mt-brokk-pace/);
+    });
+
+    it("gives Codex's 30-day window a row", () => {
+        globalStore.set(UsageReadingsAtom, {
+            codex: {
+                agent: "codex",
+                source: "t",
+                readat: Date.now(),
+                windows: [
+                    {
+                        id: "window:43200",
+                        label: "30-day",
+                        usedpercent: 47,
+                        resetsat: Date.now() + 29 * 24 * 60 * Min,
+                        windowmins: 43200,
+                    },
+                ],
+            },
+        });
+        const html = render();
+        expect(cellTag(html, "codex")).toContain('data-pace="red"');
+        expect(cellTag(html, "codex")).toContain("--mt-brokk-pace:var(--color-error)");
+        expect(html).toMatch(/data-testid="brokk-usage-percent">47 %</);
     });
 
     // #2074: a day-old reading of a running week still shows, with its age; one that cannot be read says so calmly.
     it("marks an old reading with its age, and says when a provider cannot be read", () => {
         globalStore.set(UsageReadingsAtom, { codex: { ...reading("codex", 9), readat: Date.now() - 26 * 60 * Min } });
         let html = render();
-        expect(html).toContain('data-testid="brokk-usage-age"');
+        expect(cellTag(html, "codex")).toContain('data-old="true"');
+        expect(cellTag(html, "codex")).toMatch(/aria-label="Codex, 9 %, resets [A-Za-z]+, read [^"]+"/);
         expect(html).toMatch(/data-testid="brokk-usage-percent">9 %</);
         globalStore.set(UsageReadingsAtom, { codex: reading("codex", 9) });
-        expect(render()).not.toContain('data-testid="brokk-usage-age"');
+        expect(cellTag(render(), "codex")).not.toContain("data-old");
         globalStore.set(UsageReadingsAtom, {});
         globalStore.set(UsageUnreadableAtom, { codex: "expired" });
         html = render();
         expect(html).not.toContain('data-testid="brokk-usage-empty"');
         expect(html).toMatch(/data-testid="brokk-usage-unreadable">no reading</);
-        expect(html).not.toContain('data-testid="brokk-usage-bar"');
+        expect(html).not.toContain('data-testid="brokk-usage-block"');
         globalStore.set(UsageUnreadableAtom, {});
     });
 

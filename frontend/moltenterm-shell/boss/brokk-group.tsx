@@ -21,9 +21,6 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStates } from "../agent-state-store";
-import { usageReasonText } from "../companion/companion-gauges-model";
-import { relativeTime } from "../companion/companion-model";
-import { agentName } from "../companion/companion-task-model";
 import { isActive, overallDownloadProgress, runningDownloads } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useLocale, useT } from "../i18n/i18n";
@@ -87,7 +84,8 @@ import { AgentsPanel, DownloadsPanel, SessionsPanel, UsagePanel } from "./brokk-
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk } from "./brokk-talk";
 import { talkPose, talkWaits } from "./brokk-talk-model";
-import { resetDay, weeklyUsage } from "./brokk-usage-model";
+import { weeklyUsage } from "./brokk-usage-model";
+import { BrokkUsageWeek } from "./brokk-usage-week";
 import { useBrokkActions } from "./use-brokk-actions";
 import { useGroupCaption } from "./use-brokk-caption";
 import { useAvatarKeys } from "./use-brokk-hub";
@@ -95,6 +93,8 @@ import { useCardLive } from "./use-brokk-live";
 
 // How often "up 12 min" and the ages are read again while the group shows.
 const AgeTickMs = 15000;
+// The week grid's id: the usage button is described by its rows, its own name being what a click does (#2100).
+const UsageWeekId = "brokk-usage-week";
 
 // When the developer last looked at the Téléchargements panel: a download that failed or finished since is news, until he
 // looks (FR-BOSS-009, AC18). It lasts for a run of MoltenTerm.
@@ -769,6 +769,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                         aria-label={t("boss.group.usage.open")}
                         title={t("boss.group.usage.open")}
                         aria-pressed={active === "usage"}
+                        aria-describedby={weekly.length > 0 ? UsageWeekId : undefined}
                         data-testid="brokk-usage"
                         onClick={() => clickIcon("usage")}
                     >
@@ -777,57 +778,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                                 {t("boss.panel.usage.empty")}
                             </span>
                         ) : (
-                            weekly.map((u) => {
-                                if (u.unreadable) {
-                                    return (
-                                        <span
-                                            key={u.provider}
-                                            className="mt-brokk-pv"
-                                            data-testid="brokk-usage-cell"
-                                            data-provider={u.provider}
-                                            data-unreadable="true"
-                                            title={usageReasonText(u.unreadable, u.provider)}
-                                        >
-                                            <span className="truncate">{agentName(u.provider)}</span>
-                                            <span className="mt-brokk-pv-note" data-testid="brokk-usage-unreadable">
-                                                {t("boss.group.usage.unreadable")}
-                                            </span>
-                                        </span>
-                                    );
-                                }
-                                const day = resetDay(u.resetsAt, locale);
-                                const age = u.old ? relativeTime(u.readAt, now) : "";
-                                const titles = [
-                                    day ? t("boss.group.usage.resets", { day }) : "",
-                                    age ? t("boss.group.usage.asOf", { ago: age }) : "",
-                                ].filter(Boolean);
-                                return (
-                                    <span
-                                        key={u.provider}
-                                        className="mt-brokk-pv"
-                                        data-hi={u.grave ? "true" : undefined}
-                                        data-testid="brokk-usage-cell"
-                                        data-provider={u.provider}
-                                        title={titles.length > 0 ? titles.join(" · ") : undefined}
-                                    >
-                                        <span className="truncate">
-                                            {agentName(u.provider)}
-                                            {age ? (
-                                                <span className="mt-brokk-pv-note" data-testid="brokk-usage-age">
-                                                    {" · "}
-                                                    {age}
-                                                </span>
-                                            ) : null}
-                                        </span>
-                                        <b data-testid="brokk-usage-percent">
-                                            {t("boss.group.usage.percent", { percent: u.percent })}
-                                        </b>
-                                        <span className="mt-brokk-bar" aria-hidden>
-                                            <i style={{ width: `${u.percent}%` }} data-testid="brokk-usage-bar" />
-                                        </span>
-                                    </span>
-                                );
-                            })
+                            <BrokkUsageWeek rows={weekly} now={now} id={UsageWeekId} />
                         )}
                     </button>
                 </div>
