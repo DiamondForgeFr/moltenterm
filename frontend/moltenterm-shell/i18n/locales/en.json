@@ -3381,7 +3381,7 @@
         "approved": "approved",
         "askedYou": "asked you",
         "everyDecision": "Every decision: {log}",
-        "unknownPolicy": "Unknown sleep policy."
+        "unknownPolicy": "Unknown answer."
     },
     "worktree": {
         "missingLabel": "missing worktree",

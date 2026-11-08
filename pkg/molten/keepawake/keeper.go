@@ -54,7 +54,7 @@ type coffeeRec struct {
 	name    string
 	working bool
 	// graceStart: when the workspace's last work stopped, or when the coffee was turned on with nothing running (zero
-	// while it works). The coffee never ends by it; the approvals' window does (CoffeeCovers).
+	// while it works). The coffee never ends by it; the approvals' window does (HasCoffee).
 	graceStart time.Time
 	reasons    []string
 }

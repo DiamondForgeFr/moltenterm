@@ -3381,7 +3381,7 @@
         "approved": "approuvée",
         "askedYou": "vous a demandé",
         "everyDecision": "Toutes les décisions : {log}",
-        "unknownPolicy": "Règle de veille inconnue."
+        "unknownPolicy": "Réponse inconnue."
     },
     "worktree": {
         "missingLabel": "worktree manquant",
