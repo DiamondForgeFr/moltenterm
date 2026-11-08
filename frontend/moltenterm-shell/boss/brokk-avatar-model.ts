@@ -3,8 +3,8 @@
 
 // Where Brokk's avatar stands and what opens beside it (FR-BOSS-009, AC1, AC14, AC27, #2002, #2070): the avatar sits in
 // the sidebar's title row, which stays at the window's edge when the sidebar is collapsed, or hangs from the window's
-// top edge when there is no sidebar; his hover tooltip stands under it
-// (his floating group stands beside the sidebar: brokk-group-model.ts). Pure, so the rules are tested without a window.
+// top edge when there is no sidebar; hovering it opens his floating group, which stands beside the sidebar
+// (brokk-group-model.ts). Pure, so the rules are tested without a window.
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
@@ -66,26 +66,119 @@ export function avatarSituation(ownWorking: boolean): BrokkSituation {
     return { working: ownWorking ? 1 : 0, waiting: 0, cardOpen: false, away: false };
 }
 
-// The hover tooltip is read only: it shows after the pointer rests on the avatar, and a pass over it shows nothing.
-export const PeekDelayMs = 350;
-export const PeekWidthPx = 296;
-export const PeekGapPx = 8;
-export const ViewMarginPx = 8;
+// Hovering the face opens his group (FR-BOSS-009, AC52 to AC55, #2103): there is no hover card. The pointer must rest on
+// the face, so that a pass on the way to the window buttons opens nothing; a group opened that way closes by itself
+// once the pointer has left both the face and the group, and stays once the developer interacts with it (pinned).
+export const FaceHoverOpenMs = 250;
+export const FaceHoverCloseMs = 400;
 
-export type Viewport = { width: number; height: number };
+export type FaceClick = "open" | "pin" | "close";
 
-// Where the tooltip stands, in window coordinates: under the avatar, its right edge on the avatar's, kept inside the
-// window.
-export function peekPosition(
-    anchor: Rect,
-    viewport: Viewport,
-    width: number = PeekWidthPx
-): { top: number; left: number; width: number } {
-    const fit = Math.max(0, Math.min(width, viewport.width - 2 * ViewMarginPx));
-    const right = anchor.left + anchor.width;
-    const left = Math.min(
-        Math.max(right - fit, ViewMarginPx),
-        Math.max(viewport.width - fit - ViewMarginPx, ViewMarginPx)
-    );
-    return { top: anchor.top + anchor.height + PeekGapPx, left, width: fit };
+// A click (or Enter, Space) on the face: it opens a closed group, pins one the hover opened, and closes only a pinned
+// one. The hover's group must never close under the click that meant to keep it.
+export function faceClickAction(open: boolean, pinned: boolean): FaceClick {
+    if (!open) {
+        return "open";
+    }
+    return pinned ? "close" : "pin";
+}
+
+export type FaceHoverDeps = {
+    isOpen: () => boolean;
+    isPinned: () => boolean;
+    // No menu and no dialog is open.
+    canOpen: () => boolean;
+    // Opens the group unpinned, without the focus.
+    open: () => void;
+    close: () => void;
+    setTimer: (run: () => void, ms: number) => unknown;
+    clearTimer: (timer: unknown) => void;
+};
+
+// The face and the group tell it where the pointer is; the clock is the deps', so the tests drive it by hand.
+export class FaceHoverIntent {
+    deps: FaceHoverDeps;
+    onFace = false;
+    onGroup = false;
+    openTimer: unknown = null;
+    closeTimer: unknown = null;
+
+    constructor(deps: FaceHoverDeps) {
+        this.deps = deps;
+    }
+
+    clearOpen(): void {
+        if (this.openTimer != null) {
+            this.deps.clearTimer(this.openTimer);
+        }
+        this.openTimer = null;
+    }
+
+    clearClose(): void {
+        if (this.closeTimer != null) {
+            this.deps.clearTimer(this.closeTimer);
+        }
+        this.closeTimer = null;
+    }
+
+    // `pressed`: a button is held as the pointer arrives (a drag, a text selection): nothing opens.
+    enterFace(pressed: boolean): void {
+        this.onFace = true;
+        this.clearClose();
+        if (pressed || this.openTimer != null || this.deps.isOpen()) {
+            return;
+        }
+        this.openTimer = this.deps.setTimer(() => this.opens(), FaceHoverOpenMs);
+    }
+
+    leaveFace(): void {
+        this.onFace = false;
+        this.clearOpen();
+        this.closeSoon();
+    }
+
+    enterGroup(): void {
+        this.onGroup = true;
+        this.clearClose();
+    }
+
+    leaveGroup(): void {
+        this.onGroup = false;
+        this.closeSoon();
+    }
+
+    // The face was clicked: the click decides, nothing waits to open or to close.
+    cancel(): void {
+        this.clearOpen();
+        this.clearClose();
+    }
+
+    // The group left the page: the pointer can no longer be over it.
+    groupGone(): void {
+        this.onGroup = false;
+        this.clearClose();
+    }
+
+    closeSoon(): void {
+        if (this.onFace || this.onGroup || this.closeTimer != null || !this.deps.isOpen() || this.deps.isPinned()) {
+            return;
+        }
+        this.closeTimer = this.deps.setTimer(() => this.closes(), FaceHoverCloseMs);
+    }
+
+    opens(): void {
+        this.openTimer = null;
+        if (!this.onFace || this.deps.isOpen() || !this.deps.canOpen()) {
+            return;
+        }
+        this.deps.open();
+    }
+
+    closes(): void {
+        this.closeTimer = null;
+        if (this.onFace || this.onGroup || !this.deps.isOpen() || this.deps.isPinned()) {
+            return;
+        }
+        this.deps.close();
+    }
 }

@@ -3215,20 +3215,11 @@
             }
         },
         "peek": {
-            "waitingTitle": "Vous attendent",
-            "workingTitle": "Au travail",
-            "usageTitle": "Usage du forfait",
             "usage": "{agent} : {label}, {used}",
             "usageResets": "{agent} : {label}, {used} · {resets}",
-            "latestTitle": "Dernière notification",
-            "downloadsTitle": "Téléchargements",
             "more": {
                 "one": "et 1 autre",
                 "other": "et {count} autres"
-            },
-            "moreWorkspaces": {
-                "one": "et 1 autre espace de travail",
-                "other": "et {count} autres espaces de travail"
             }
         },
         "screen": {

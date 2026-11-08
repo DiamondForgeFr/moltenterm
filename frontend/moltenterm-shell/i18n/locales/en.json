@@ -3215,20 +3215,11 @@
             }
         },
         "peek": {
-            "waitingTitle": "Waiting for you",
-            "workingTitle": "At work",
-            "usageTitle": "Plan usage",
             "usage": "{agent}: {label}, {used}",
             "usageResets": "{agent}: {label}, {used} · {resets}",
-            "latestTitle": "Latest notification",
-            "downloadsTitle": "Downloads",
             "more": {
                 "one": "and 1 more",
                 "other": "and {count} more"
-            },
-            "moreWorkspaces": {
-                "one": "and 1 more workspace",
-                "other": "and {count} more workspaces"
             }
         },
         "screen": {

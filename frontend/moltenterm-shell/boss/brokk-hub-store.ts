@@ -23,8 +23,9 @@ import { GoldUpdateModel } from "../update/update-store";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel } from "./boss-store";
 import { UsageReadingsAtom } from "./boss-usage";
-import { closedDownloadIds } from "./brokk-extra-feeds";
+import { FaceHoverIntent } from "./brokk-avatar-model";
 import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
+import { closedDownloadIds } from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
@@ -59,6 +60,9 @@ export class BrokkHubModel {
     // The downloads whose notification the developer settled or cleared (FR-BOSS-009, AC16), the same set while it holds.
     closedDownloadsAtom: Atom<ReadonlySet<string>>;
     hub: BrokkHub;
+    // The hover of the title-bar face, which opens his group (FR-BOSS-009, AC53 to AC55, #2103): the face and the group
+    // both tell it where the pointer is.
+    faceHover: FaceHoverIntent;
 
     private constructor() {
         const agents = AgentStates.getInstance();
@@ -113,6 +117,23 @@ export class BrokkHubModel {
                     // A full or missing storage only means this view's marks stay in this view.
                 }
             },
+        });
+        const boss = BossBubbleModel.getInstance();
+        this.faceHover = new FaceHoverIntent({
+            isOpen: () => globalStore.get(boss.cardOpenAtom),
+            isPinned: () => globalStore.get(boss.cardPinnedAtom),
+            canOpen: () =>
+                ContextMenuModel.getInstance().session == null &&
+                !modalIsOpen() &&
+                !modalsModel.hasOpenModals() &&
+                globalStore.get(sidebarDragAtom) == null,
+            open: () => {
+                this.hub.panelOpened();
+                boss.openCard(undefined, { pinned: false });
+            },
+            close: () => boss.closeCard({ restoreFocus: false }),
+            setTimer: (run, ms) => setTimeout(run, ms),
+            clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
         });
     }
 

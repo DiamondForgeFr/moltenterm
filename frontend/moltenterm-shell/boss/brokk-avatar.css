@@ -261,16 +261,6 @@
     color: var(--mt-state-warning-fg);
 }
 
-/* The tooltip is read only and never takes the pointer, so it leaves with the pointer and the focus stays in the
-   terminal. It stands on the page (a portal), above the panels and under the toasts (9400). */
-.mt-brokk-tooltip {
-    position: fixed;
-    z-index: 900;
-    box-sizing: border-box;
-    max-width: calc(100vw - 16px);
-    pointer-events: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
     .mt-brokk-avatar,
     .mt-brokk-avatar[data-scene="up"] {

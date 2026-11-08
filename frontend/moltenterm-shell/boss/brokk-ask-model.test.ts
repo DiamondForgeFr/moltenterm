@@ -124,7 +124,6 @@ describe("what the bubble loads up front (the perf budget of the entry's JavaScr
         "brokk-hub-host.tsx",
         "brokk-avatar-model.ts",
         "brokk-avatar.tsx",
-        "brokk-peek.tsx",
         "brokk-caption.ts",
         "use-brokk-hub.ts",
         "brokk-group-model.ts",

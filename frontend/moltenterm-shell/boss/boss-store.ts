@@ -66,6 +66,9 @@ export class BossBubbleModel {
     cueAtom = atom(0) as PrimitiveAtom<number>;
     // His panel shows (FR-BOSS-009, AC9).
     cardOpenAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The developer pinned it: it stays open whatever the pointer does. A group opened by hovering the title-bar face
+    // is not, until he interacts with it, and closes by itself once the pointer has left it (FR-BOSS-009, AC54, #2103).
+    cardPinnedAtom = atom(false) as PrimitiveAtom<boolean>;
     // The tab a surface asked the panel to show: the panel reads it when it changes (showPanel).
     tabRequestAtom = atom(null) as PrimitiveAtom<PanelRequest>;
     // The To handle rows set aside with Later, by their key: back at the card's next opening (FR-BOSS-003).
@@ -141,20 +144,30 @@ export class BossBubbleModel {
     // The developer's click (the avatar, the scene) or command (the palette) shows the card; nothing else does. The focus
     // moves into it because he asked, and goes back to returnTo (the element that held it) when the card hides. With Brokk
     // turned off only a gesture on a section (showPanel) opens it: the notifications and the downloads stay reachable.
-    openCard(returnTo?: FocusTarget, options: { force?: boolean } = {}): void {
+    // `pinned: false` is the hover of the title-bar face (#2103): the group opens without the focus and unpinned.
+    openCard(returnTo?: FocusTarget, options: { force?: boolean; pinned?: boolean } = {}): void {
         if (globalStore.get(this.cardOpenAtom) || (!globalStore.get(this.showAtom) && options.force !== true)) {
             return;
         }
         this.cardReturn = returnTo ?? focusTargetOf(this.dom?.activeElement, this.dom);
         globalStore.set(this.parkedAtom, {});
         globalStore.set(this.tabRequestAtom, null);
+        globalStore.set(this.cardPinnedAtom, options.pinned !== false);
         globalStore.set(this.cardOpenAtom, true);
     }
 
+    // The developer interacted with a group opened by hover: it stays open from now on (FR-BOSS-009, AC54).
+    pinCard(): void {
+        if (globalStore.get(this.cardOpenAtom) && !globalStore.get(this.cardPinnedAtom)) {
+            globalStore.set(this.cardPinnedAtom, true);
+        }
+    }
+
     // A tab of the panel, asked by the developer's gesture (a toast's Open, the downloads pill, a notification's View):
-    // the panel opens on it, or goes to it when it is open.
+    // the panel opens on it, or goes to it when it is open, and is pinned.
     showPanel(tab: PanelId, highlight: string[] = []): void {
         this.openCard(undefined, { force: true });
+        this.pinCard();
         this.requestTab(tab, highlight);
     }
 
@@ -212,6 +225,7 @@ export class BossBubbleModel {
         this.cardReturn = null;
         globalStore.set(this.tabRequestAtom, null);
         globalStore.set(this.cardOpenAtom, false);
+        globalStore.set(this.cardPinnedAtom, false);
         if (options.restoreFocus === false || target == null || dom == null) {
             return;
         }
@@ -219,7 +233,12 @@ export class BossBubbleModel {
         setTimeout(() => restoreFocus(target, dom), 0);
     }
 
+    // Like a click on the face: a group opened by hover is pinned, never closed (AC55).
     toggleCard(returnTo?: FocusTarget): void {
+        if (globalStore.get(this.cardOpenAtom) && !globalStore.get(this.cardPinnedAtom)) {
+            this.pinCard();
+            return;
+        }
         if (globalStore.get(this.cardOpenAtom)) {
             this.closeCard();
             return;
@@ -277,6 +296,7 @@ export class BossBubbleModel {
             stopHandoffs();
             stopUsage();
             globalStore.set(this.cardOpenAtom, false);
+            globalStore.set(this.cardPinnedAtom, false);
             this.cardReturn = null;
             this.dom = null;
         };

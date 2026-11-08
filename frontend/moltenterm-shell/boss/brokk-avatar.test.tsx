@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,6 @@ vi.mock("@/app/store/contextmenu", () => ({ ContextMenuModel: { getInstance: () 
 vi.mock("../settings/settings-open", () => ({ openSettingsSection: vi.fn() }));
 vi.mock("./brokk-menu", () => ({ brokkMenuItems: () => [] }));
 vi.mock("../working-beat", () => ({ useWorkingBeat: vi.fn() }));
-vi.mock("./brokk-peek", () => ({ BrokkTooltip: () => null }));
 vi.mock("../downloads/downloads-store", async () => {
     const { atom } = await import("jotai");
     const model = { runningAtom: atom<unknown[]>([]) };
@@ -29,10 +28,12 @@ vi.mock("./boss-store", async () => {
         nameAtom: atom("Brokk"),
         showAtom: atom(true),
         cardOpenAtom: atom(false),
+        cardPinnedAtom: atom(false),
         talkingAtom: atom(false),
         keepAwakeAtom: atom(false),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
         closeCard: vi.fn(),
+        pinCard: vi.fn(),
     };
     return { BossBubbleModel: { getInstance: () => model } };
 });
@@ -43,6 +44,7 @@ vi.mock("./brokk-hub-store", async () => {
         ownWorkingAtom: atom(false),
         settingsAtom: atom(DefaultVisitSettings),
         sidebarPlaceAtom: atom("screen"),
+        faceHover: { enterFace: vi.fn(), leaveFace: vi.fn(), cancel: vi.fn() },
         get hub() {
             return Mocks.hub;
         },
@@ -51,10 +53,10 @@ vi.mock("./brokk-hub-store", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { DownloadsModel } from "../downloads/downloads-store";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkAvatar, BrokkAvatarSlot } from "./brokk-avatar";
-import { EdgeFacePx, EdgePx } from "./brokk-edge-model";
 import {
     AvatarSizePx,
     downloadRingRadiusUnits,
@@ -63,9 +65,9 @@ import {
     RingUnits,
     workingRingBoxPx,
 } from "./brokk-avatar-model";
+import { EdgeFacePx, EdgePx } from "./brokk-edge-model";
 import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkHub, HubDeps } from "./brokk-hub";
-import { DownloadsModel } from "../downloads/downloads-store";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { DefaultVisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
@@ -154,6 +156,7 @@ beforeEach(() => {
     globalStore.set(boss.nameAtom, "Brokk");
     globalStore.set(boss.showAtom, true);
     globalStore.set(boss.cardOpenAtom, false);
+    globalStore.set(boss.cardPinnedAtom, false);
     globalStore.set(boss.talkingAtom, false);
     globalStore.set(boss.keepAwakeAtom, false);
     globalStore.set(hubModel.ownWorkingAtom, false);
@@ -203,12 +206,23 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         expect(rule(css("brokk-avatar.css"), '.mt-brokk-avatar[data-panel="open"] .mt-brokk-face')).toBe("");
     });
 
-    it("names its click for what it does while the group is open: it closes it", () => {
+    it("names its click for what it does while the group is open and pinned: it closes it", () => {
         globalStore.set(boss.cardOpenAtom, true);
+        globalStore.set(boss.cardPinnedAtom, true);
         expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Close Brokk");
+        expect(attr(render(), "brokk-avatar", "data-pinned")).toBe("true");
         globalStore.set(boss.nameAtom, "Léa");
         expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Close Léa");
         expect(attr(render(), "brokk-avatar", "title")).toBeUndefined();
+    });
+
+    it("does not name its click Close while the hover opened the group: the click pins it (#2103, AC55)", () => {
+        globalStore.set(boss.cardOpenAtom, true);
+        globalStore.set(boss.cardPinnedAtom, false);
+        const html = render();
+        expect(attr(html, "brokk-avatar", "aria-label")).toBe("Brokk, 0 waiting");
+        expect(attr(html, "brokk-avatar", "aria-expanded")).toBe("true");
+        expect(attr(html, "brokk-avatar", "data-pinned")).toBeUndefined();
     });
 
     it("keeps its badge while the group is open", () => {
@@ -453,18 +467,28 @@ describe("how the sidebar stands for him (#2070, AC27, AC29)", () => {
     });
 });
 
-describe("the tooltip (AC1)", () => {
-    it("is read only, takes neither the pointer nor the focus, and stands above the panels and under the toasts", () => {
-        const tooltip = rule(css("brokk-avatar.css"), ".mt-brokk-tooltip");
-        expect(tooltip).toMatch(/pointer-events: none/);
-        const z = Number(/z-index: (\d+)/.exec(tooltip)?.[1]);
-        expect(z).toBeGreaterThan(800);
-        expect(z).toBeLessThan(9400);
+describe("no hover card: hovering the face opens his group (FR-BOSS-009, AC52 to AC55, #2103)", () => {
+    const source = () => readFileSync(join(__dirname, "brokk-avatar.tsx"), "utf8");
+
+    it("renders no tooltip or summary card, and the card's module and style are gone", () => {
+        globalStore.set(boss.cardOpenAtom, false);
+        const html = render();
+        expect(html).not.toContain('role="tooltip"');
+        expect(html).not.toContain("boss-peek");
+        expect(attr(html, "brokk-avatar", "aria-describedby")).toBeUndefined();
+        expect(existsSync(join(__dirname, "brokk-peek.tsx"))).toBe(false);
+        expect(css("brokk-avatar.css")).not.toContain("mt-brokk-tooltip");
+        expect(source()).not.toMatch(/BrokkTooltip|PeekDelayMs/);
     });
 
-    it("shows nothing until the pointer has stayed: the bubble's old delay", () => {
-        expect(render()).not.toContain('role="tooltip"');
-        expect(attr(render(), "brokk-avatar", "aria-describedby")).toBeUndefined();
+    it("tells the face's hover when the pointer arrives and leaves, with a held button as no hover", () => {
+        expect(source()).toContain("hover.enterFace(e.buttons !== 0)");
+        expect(source()).toContain("onPointerLeave={() => hover.leaveFace()}");
+    });
+
+    it("decides its click by faceClickAction: a hover-opened group is pinned, only a pinned one closes", () => {
+        expect(source()).toContain("faceClickAction(cardOpen, pinned)");
+        expect(source()).toMatch(/action === "pin"\) \{\s*boss\.pinCard\(\);/);
     });
 });
 
@@ -544,7 +568,8 @@ describe("the download ring on his face (FR-BOSS-009, AC34 to AC36, #2083)", () 
     });
 
     it("fits both rings inside the collapsed strip, the face centred in it, with no clipping at the window's edge (#2083)", () => {
-        const outer = (radiusUnits: number) => ((radiusUnits + RingStrokeUnits / 2) * workingRingBoxPx("edge")) / RingUnits;
+        const outer = (radiusUnits: number) =>
+            ((radiusUnits + RingStrokeUnits / 2) * workingRingBoxPx("edge")) / RingUnits;
         const half = EdgePx / 2;
         expect(outer(downloadRingRadiusUnits("edge"))).toBeLessThanOrEqual(half);
         expect(outer(13)).toBeLessThanOrEqual(half);

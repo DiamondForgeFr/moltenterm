@@ -50,16 +50,22 @@ vi.mock("./boss-store", async () => {
     const model = {
         nameAtom: atom("Brokk"),
         tabRequestAtom: atom(null as any),
+        cardPinnedAtom: atom(true),
         toHandleAtom: atom({ items: [], info: [], parked: 0 } as any),
         talkingAtom: atom(false),
         closeCard: vi.fn(),
+        pinCard: vi.fn(),
     };
     return { BossBubbleModel: { getInstance: () => model } };
 });
 vi.mock("./brokk-hub-store", async () => {
     const { atom } = await import("jotai");
     const { DefaultVisitSettings } = await import("./brokk-visit-events");
-    const model = { settingsAtom: atom(DefaultVisitSettings), ownWorkingAtom: atom(false) };
+    const model = {
+        settingsAtom: atom(DefaultVisitSettings),
+        ownWorkingAtom: atom(false),
+        faceHover: { enterGroup: vi.fn(), leaveGroup: vi.fn(), groupGone: vi.fn() },
+    };
     return { BrokkHubModel: { getInstance: () => model } };
 });
 vi.mock("./boss-usage", async () => {
