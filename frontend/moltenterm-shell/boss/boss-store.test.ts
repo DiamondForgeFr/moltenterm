@@ -400,6 +400,39 @@ describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
         detach();
     });
 
+    it("opens pinned for a click, unpinned for the face's hover, and an interaction pins it (FR-BOSS-009, AC54, #2103)", () => {
+        const { detach } = attached();
+        model.openCard();
+        expect(globalStore.get(model.cardPinnedAtom)).toBe(true);
+        model.closeCard();
+        expect(globalStore.get(model.cardPinnedAtom)).toBe(false);
+        model.openCard(undefined, { pinned: false });
+        expect(globalStore.get(model.cardOpenAtom)).toBe(true);
+        expect(globalStore.get(model.cardPinnedAtom)).toBe(false);
+        model.pinCard();
+        expect(globalStore.get(model.cardPinnedAtom)).toBe(true);
+        model.closeCard();
+        model.pinCard();
+        expect(globalStore.get(model.cardPinnedAtom)).toBe(false);
+        detach();
+    });
+
+    it("pins a hover-opened group for a toggle or a surface's request instead of closing it (AC55)", () => {
+        const { detach } = attached();
+        model.openCard(undefined, { pinned: false });
+        model.toggleCard();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(true);
+        expect(globalStore.get(model.cardPinnedAtom)).toBe(true);
+        model.toggleCard();
+        expect(globalStore.get(model.cardOpenAtom)).toBe(false);
+        model.openCard(undefined, { pinned: false });
+        model.showInOpenPanel("notifications");
+        expect(globalStore.get(model.cardPinnedAtom)).toBe(false);
+        model.showPanel("downloads");
+        expect(globalStore.get(model.cardPinnedAtom)).toBe(true);
+        detach();
+    });
+
     it("gives the focus back to where it was, once the card is gone", () => {
         vi.useFakeTimers();
         const terminal = focusable();

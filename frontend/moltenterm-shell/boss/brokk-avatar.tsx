@@ -5,8 +5,9 @@
 // sidebar's title row, which stays on the strip of the collapsed sidebar at the window's edge (smaller, there), or hangs
 // from the window's top edge when there is no sidebar. It carries the badge of what
 // waits, an animated ring while Brokk himself works (never because other agents do), a small cup while keep-awake holds
-// this computer awake and he is closed, and a soft halo while a visit waits for the gate. Hovering it shows a tooltip,
-// nothing else; a click opens his floating group. It never opens anything by itself, takes no focus and plays no sound.
+// this computer awake and he is closed, and a soft halo while a visit waits for the gate. It shows no hover card: the
+// pointer resting on it opens his floating group, unpinned and without the focus, and a click opens it pinned, or pins
+// the one the hover opened (AC52 to AC55, #2103). It never opens anything by itself, takes no focus and plays no sound.
 // While the scene stands in his place it is hidden; while his group is open it keeps its place and its badge, takes a
 // soft ring in the action colour and shows a still frame, so the only animated Brokk is the group's square (#2032).
 
@@ -14,7 +15,7 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect } from "react";
 import { downloadRingOf } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useT } from "../i18n/i18n";
@@ -22,13 +23,12 @@ import { useWorkingBeat } from "../working-beat";
 import { bubbleLabel } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
-import { AvatarVariant, avatarVariant, PeekDelayMs, Rect } from "./brokk-avatar-model";
+import { AvatarVariant, avatarVariant, faceClickAction } from "./brokk-avatar-model";
 import "./brokk-avatar.css";
 import { AvatarDownloadRing, useDownloadWords } from "./brokk-download-ring";
 import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { brokkMenuItems } from "./brokk-menu";
-import { BrokkTooltip } from "./brokk-peek";
 import { useAvatarBadge, useAvatarLive, useHubSelect } from "./use-brokk-hub";
 import { useMotionAllowed } from "./use-brokk-live";
 
@@ -68,6 +68,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const hubModel = BrokkHubModel.getInstance();
     const name = useAtomValue(boss.nameAtom, { store: globalStore });
     const cardOpen = useAtomValue(boss.cardOpenAtom, { store: globalStore });
+    const pinned = useAtomValue(boss.cardPinnedAtom, { store: globalStore });
     const talking = useAtomValue(boss.talkingAtom, { store: globalStore });
     const keepAwake = useAtomValue(boss.keepAwakeAtom, { store: globalStore });
     const ownWorking = useAtomValue(hubModel.ownWorkingAtom, { store: globalStore });
@@ -80,43 +81,34 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const downloadRing = downloadRingOf(running);
     const downloadWords = useDownloadWords(running);
     const motion = useMotionAllowed();
-    const buttonRef = useRef<HTMLButtonElement>(null);
-    const peekTimer = useRef<ReturnType<typeof setTimeout>>(null);
-    const [peek, setPeek] = useState<Rect>(null);
-    const tooltipId = useId();
+    const hover = hubModel.faceHover;
 
-    const closePeek = () => {
-        clearTimeout(peekTimer.current);
-        setPeek(null);
-    };
-    const openPeekSoon = () => {
-        clearTimeout(peekTimer.current);
-        peekTimer.current = setTimeout(() => {
-            const box = buttonRef.current?.getBoundingClientRect();
-            if (box != null) {
-                setPeek({ left: box.left, top: box.top, width: box.width, height: box.height });
-            }
-        }, PeekDelayMs);
-    };
-    useEffect(() => () => clearTimeout(peekTimer.current), []);
-    // His panel opening, or the scene standing in his place, ends the tooltip.
+    // The face leaves the page (the scene stands in its place, Brokk turned off): the pointer is no longer on it.
+    useEffect(() => () => hover.leaveFace(), [hover]);
     useEffect(() => {
-        if (cardOpen || sceneUp) {
-            closePeek();
+        if (sceneUp) {
+            hover.leaveFace();
         }
-    }, [cardOpen, sceneUp]);
+    }, [hover, sceneUp]);
 
-    // His animated face lives in the group's square while it is open: the avatar keeps a still frame, and its click closes.
-    const base = cardOpen
-        ? t("boss.avatar.close", { name })
-        : cue
-          ? t("boss.avatar.labelCue", { name, count: badge.count })
-          : bubbleLabel(name, badge.count);
+    // His animated face lives in the group's square while it is open: the avatar keeps a still frame. Its click closes
+    // only a pinned group; it pins one the hover opened (AC55).
+    const base =
+        cardOpen && pinned
+            ? t("boss.avatar.close", { name })
+            : cue
+              ? t("boss.avatar.labelCue", { name, count: badge.count })
+              : bubbleLabel(name, badge.count);
     const label = downloadWords != null ? `${base}. ${downloadWords}` : base;
     const onActivate = () => {
-        closePeek();
-        if (cardOpen) {
+        hover.cancel();
+        const action = faceClickAction(cardOpen, pinned);
+        if (action === "close") {
             boss.closeCard();
+            return;
+        }
+        if (action === "pin") {
+            boss.pinCard();
             return;
         }
         hubModel.hub.open();
@@ -124,7 +116,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        closePeek();
+        hover.cancel();
         ContextMenuModel.getInstance().showContextMenu(
             brokkMenuItems(name, () => boss.closeCard({ restoreFocus: false }), {
                 label: t("boss.menu.openCard", { name }),
@@ -136,13 +128,8 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
 
     return (
         <button
-            ref={buttonRef}
             type="button"
-            className={cn(
-                "mt-brokk-avatar",
-                variant === "hanging" && "is-hanging",
-                variant === "edge" && "is-edge"
-            )}
+            className={cn("mt-brokk-avatar", variant === "hanging" && "is-hanging", variant === "edge" && "is-edge")}
             style={style}
             data-testid="brokk-avatar"
             data-boss-anchor=""
@@ -152,24 +139,16 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             data-scene={sceneUp ? "up" : undefined}
             data-panel={cardOpen ? "open" : undefined}
             data-news={variant === "edge" && unseen && !motion ? "true" : undefined}
+            data-pinned={cardOpen && pinned ? "true" : undefined}
             aria-label={label}
             aria-haspopup="dialog"
             aria-expanded={cardOpen}
-            aria-describedby={peek != null ? tooltipId : undefined}
             onClick={onActivate}
             onContextMenu={onContextMenu}
-            onPointerEnter={(e) => (e.pointerType === "touch" ? undefined : openPeekSoon())}
-            onPointerLeave={closePeek}
-            onFocus={(e) => (e.currentTarget.matches(":focus-visible") ? openPeekSoon() : undefined)}
-            onBlur={closePeek}
+            onPointerEnter={(e) => (e.pointerType === "touch" ? undefined : hover.enterFace(e.buttons !== 0))}
+            onPointerLeave={() => hover.leaveFace()}
             // A press on the avatar must not move the focus out of the terminal he types in.
             onMouseDown={(e) => e.preventDefault()}
-            onKeyDown={(e) => {
-                if (e.key === "Escape" && peek != null) {
-                    e.stopPropagation();
-                    closePeek();
-                }
-            }}
         >
             <span className="mt-brokk-face" aria-hidden>
                 <BossPortrait live={live} />
@@ -194,7 +173,6 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
                     {badge.text}
                 </span>
             ) : null}
-            {peek != null ? <BrokkTooltip id={tooltipId} anchor={peek} /> : null}
         </button>
     );
 }

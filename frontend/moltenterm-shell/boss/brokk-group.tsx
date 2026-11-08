@@ -5,7 +5,8 @@
 // interface (no modal, no backdrop, nothing moves under it) and replaces the panel of #2003: his square, with the screen
 // effect and his name; one rail of five round icons against it; under it one block (a line from him, then the weekly usage
 // per provider) and the field to write to him; and beside the rail one panel at a time, chosen by priority when the group
-// opens, previewed by hover, pinned by a click. It closes with Escape, a click outside, the face again or the square. The
+// opens, previewed by hover, pinned by a click. It closes with Escape, a click outside, the face again or the square;
+// opened by hovering the face, it closes by itself once the pointer has left both until the developer pins it (#2103). The
 // geometry and the rules of which panel shows are brokk-group-model.ts's; the rows of each panel are the models that
 // already hold the facts (brokk-notes-model.ts, brokk-rows-model.ts, brokk-usage-model.ts).
 //
@@ -295,6 +296,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const downloads = DownloadsModel.getInstance();
     const name = useAtomValue(boss.nameAtom, { store: globalStore });
     const request = useAtomValue(boss.tabRequestAtom, { store: globalStore });
+    const pinned = useAtomValue(boss.cardPinnedAtom, { store: globalStore });
     const toHandle = useAtomValue(boss.toHandleAtom, { store: globalStore });
     const entries = useAtomValue(notifications.shownEntriesAtom, { store: globalStore });
     const settings = useAtomValue(hubModel.settingsAtom, { store: globalStore });
@@ -426,10 +428,20 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         setHighlight(request.highlight);
     }, [request]);
 
-    // The developer asked for the group, so the focus comes into it.
+    // The developer asked for the group, so the focus comes into it. A group the hover of the face opened takes none, so
+    // that typing still goes where it went, until the developer pins it (FR-BOSS-009, AC53, AC55, #2103).
     useEffect(() => {
-        rootRef.current?.focus({ preventScroll: true });
-    }, []);
+        const root = rootRef.current;
+        if (!pinned || root == null || root.contains(document.activeElement)) {
+            return;
+        }
+        root.focus({ preventScroll: true });
+    }, [pinned]);
+    // Any interaction pins it: a press or the focus inside (typing in the field, the rail's arrows), a panel opened by a
+    // click (AC54). The pointer tells the face's hover where it is, so that leaving both closes an unpinned group.
+    const faceHover = hubModel.faceHover;
+    const pin = useCallback(() => boss.pinCard(), [boss]);
+    useEffect(() => () => faceHover.groupGone(), [faceHover]);
     useEffect(() => TabActivity.getInstance().every(whileShown(AgeTickMs), () => setNow(Date.now()), "clock"), []);
     useEffect(() => {
         let live = true;
@@ -682,8 +694,13 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                 data-testid={CardTestId}
                 data-shown={shown ? "true" : "false"}
                 data-conversation={conversation ? "true" : undefined}
+                data-pinned={pinned ? "true" : "false"}
                 className={cn("mt-brokk-group", shown && "is-in")}
                 style={{ left: frame.place.left, top: frame.place.top, width: g.width, height: flow.height }}
+                onPointerDownCapture={pin}
+                onFocusCapture={pin}
+                onPointerEnter={() => faceHover.enterGroup()}
+                onPointerLeave={() => faceHover.leaveGroup()}
             >
                 <div
                     className="mt-brokk-sq"

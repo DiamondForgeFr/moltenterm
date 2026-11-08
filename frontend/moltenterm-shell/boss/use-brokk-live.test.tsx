@@ -267,8 +267,6 @@ describe("the group's square is driven by the same pose and mood models (FR-BOSS
         const caption = readFileSync(join(__dirname, "use-brokk-caption.ts"), "utf8");
         expect(caption).toContain("useBrokkScene(");
         expect(caption).toContain("useBrokkSituation(");
-        // The avatar's tooltip reads the same scene.
-        expect(readFileSync(join(__dirname, "brokk-peek.tsx"), "utf8")).toContain("useBrokkScene(");
     });
 
     it("keeps the expressions model watching, and lets his nod answer what the developer handles in the panels", () => {
