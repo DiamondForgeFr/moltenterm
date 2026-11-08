@@ -360,11 +360,63 @@
     line-height: 17px;
 }
 
-.mt-brokk-say > span {
+.mt-brokk-say {
+    position: relative;
+}
+
+.mt-brokk-say > span:first-child {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
+}
+
+/* A report cut at two lines (#2090): hovering or focusing the card lays the whole of it over what is under it, from the
+   card's own place and its text at the same spot, so nothing of the group moves. Only a cut report has it. */
+.mt-brokk-say[data-cut="true"] {
+    outline: none;
+}
+
+.mt-brokk-say[data-cut="true"]:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+.mt-brokk-say-full {
+    position: absolute;
+    top: -6px;
+    left: -2px;
+    right: -6px;
+    z-index: 3;
+    max-height: 220px;
+    padding: 6px 6px 6px 9px;
+    overflow-y: auto;
+    border-left: 2px solid var(--mt-action);
+    border-radius: 0 var(--mt-radius-control) var(--mt-radius-control) 0;
+    background: var(--mt-surface-1);
+    box-shadow: var(--mt-shadow-e2);
+    color: var(--mt-text-1);
+    white-space: pre-line;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scaleY(0.96);
+    transform-origin: top;
+    transition:
+        opacity var(--mt-duration-base) linear,
+        transform var(--mt-duration-base) cubic-bezier(0.3, 1.12, 0.4, 1),
+        visibility 0s linear var(--mt-duration-base);
+}
+
+.mt-brokk-say[data-cut="true"]:hover > .mt-brokk-say-full,
+.mt-brokk-say[data-cut="true"]:focus-visible > .mt-brokk-say-full {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+    transition:
+        opacity var(--mt-duration-base) linear,
+        transform var(--mt-duration-base) cubic-bezier(0.3, 1.12, 0.4, 1);
 }
 
 .mt-brokk-usage {
@@ -916,6 +968,18 @@
     .mt-brokk-scrim {
         transition: opacity var(--mt-duration-fade) linear;
     }
+
+    .mt-brokk-say-full {
+        transform: none !important;
+        transition:
+            opacity var(--mt-duration-fade) linear,
+            visibility 0s linear var(--mt-duration-fade) !important;
+    }
+
+    .mt-brokk-say[data-cut="true"]:hover > .mt-brokk-say-full,
+    .mt-brokk-say[data-cut="true"]:focus-visible > .mt-brokk-say-full {
+        transition: opacity var(--mt-duration-fade) linear !important;
+    }
 }
 
 .prefers-reduced-motion .mt-brokk-sq,
@@ -940,4 +1004,16 @@
 .prefers-reduced-motion .mt-brokk-thread,
 .prefers-reduced-motion .mt-brokk-scrim {
     transition: opacity var(--mt-duration-fade) linear;
+}
+
+.prefers-reduced-motion .mt-brokk-say-full {
+    transform: none !important;
+    transition:
+        opacity var(--mt-duration-fade) linear,
+        visibility 0s linear var(--mt-duration-fade) !important;
+}
+
+.prefers-reduced-motion .mt-brokk-say[data-cut="true"]:hover > .mt-brokk-say-full,
+.prefers-reduced-motion .mt-brokk-say[data-cut="true"]:focus-visible > .mt-brokk-say-full {
+    transition: opacity var(--mt-duration-fade) linear !important;
 }

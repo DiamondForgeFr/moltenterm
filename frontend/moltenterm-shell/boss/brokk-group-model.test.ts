@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
     activePanel,
     afterClick,
+    afterClose,
     afterHover,
     afterRequest,
     arrivalOffset,
@@ -19,8 +20,11 @@ import {
     ConversationMaxPx,
     ConversationMinPx,
     conversationWidth,
+    DefaultPanel,
+    fallbackPanel,
     GroupDurations,
     groupGeometry,
+    groupOpeningPanel,
     GroupParts,
     groupPlace,
     holdsHover,
@@ -34,6 +38,7 @@ import {
     openingPanel,
     panelHeight,
     PanelId,
+    panelRoom,
     panelWidth,
     partMotion,
     PriorityFacts,
@@ -43,6 +48,7 @@ import {
     railMarks,
     RailPanels,
     Rect,
+    reportCut,
     SquarePx,
 } from "./brokk-group-model";
 
@@ -187,57 +193,129 @@ describe("the panel that opens by priority", () => {
 });
 
 describe("which panel shows", () => {
-    it("shows the priority panel when nothing is pinned or previewed", () => {
-        expect(activePanel(InitialPanels, "agents", false)).toBe("agents");
-        expect(activePanel(InitialPanels, null, false)).toBeNull();
+    it("shows the panel the group opened with when nothing is pinned or previewed", () => {
+        expect(activePanel(InitialPanels, "agents")).toBe("agents");
     });
 
-    it("shows one panel at a time: a preview wins over the pinned one, the pinned one over the priority", () => {
-        const pinned = afterClick(InitialPanels, "sessions", "agents");
-        expect(activePanel(pinned, "agents", false)).toBe("sessions");
-        expect(activePanel(afterHover(pinned, "downloads"), "agents", false)).toBe("downloads");
-        expect(activePanel(afterHover(afterHover(pinned, "downloads"), null), "agents", false)).toBe("sessions");
+    it("shows one panel at a time: a preview wins over the pinned one, the pinned one over the opening one", () => {
+        const pinned = afterClick(InitialPanels, "sessions", "agents", "agents");
+        expect(activePanel(pinned, "agents")).toBe("sessions");
+        expect(activePanel(afterHover(pinned, "downloads"), "agents")).toBe("downloads");
+        expect(activePanel(afterHover(afterHover(pinned, "downloads"), null), "agents")).toBe("sessions");
     });
 
-    it("pins a panel on a click on its icon and closes the one that shows on a second click", () => {
-        const pinned = afterClick(InitialPanels, "downloads", "notifications");
-        expect(pinned).toEqual({ pinned: "downloads", hover: null, dismissed: false });
-        const closed = afterClick(pinned, "downloads", "downloads");
-        expect(activePanel(closed, "notifications", false)).toBeNull();
+    it("pins a panel on a click on its icon, and keeps it on a second click, like a tab (#2090)", () => {
+        const pinned = afterClick(InitialPanels, "downloads", "notifications", "notifications");
+        expect(pinned).toEqual({ pinned: "downloads", hover: null });
+        const again = afterClick(pinned, "downloads", "downloads", "notifications");
+        expect(activePanel(again, "notifications")).toBe("downloads");
+        const opening = afterClick(InitialPanels, "notifications", "notifications", "notifications");
+        expect(activePanel(opening, "notifications")).toBe("notifications");
     });
 
-    it("closes the panel the priority opened on a click on its icon", () => {
-        const closed = afterClick(InitialPanels, "notifications", "notifications");
-        expect(closed.dismissed).toBe(true);
-        expect(activePanel(closed, "notifications", false)).toBeNull();
-    });
-
-    it("lets a hover bring a panel back after it was closed", () => {
-        const closed = afterClick(InitialPanels, "notifications", "notifications");
-        expect(activePanel(afterHover(closed, "agents"), "notifications", false)).toBe("agents");
+    it("pins a previewed panel on a click on its icon", () => {
+        const previewing = afterHover(InitialPanels, "sessions");
+        const pinned = afterClick(previewing, "sessions", "sessions", "agents");
+        expect(activePanel(afterHover(pinned, null), "agents")).toBe("sessions");
     });
 
     it("shows what a surface asked for, pinned", () => {
-        expect(activePanel(afterRequest("downloads"), "notifications", false)).toBe("downloads");
+        expect(activePanel(afterRequest("downloads"), "notifications")).toBe("downloads");
     });
 
-    it("pins the usage detail the same way", () => {
-        const usage = afterClick(InitialPanels, "usage", null);
-        expect(activePanel(usage, "notifications", false)).toBe("usage");
-        expect(activePanel(afterClick(usage, "usage", "usage"), "notifications", false)).toBeNull();
+    it("pins the usage detail from its toggle, and a second click switches to another panel, never to none", () => {
+        const usage = afterClick(InitialPanels, "usage", "agents", "agents");
+        expect(activePanel(usage, "agents")).toBe("usage");
+        expect(activePanel(afterClick(usage, "usage", "usage", "agents"), "agents")).toBe("agents");
+        expect(activePanel(afterClick(usage, "usage", "usage", "usage"), "usage")).toBe("agents");
+    });
+});
+
+// #2090: a panel is always open while the group is; closing the group is the way to have none.
+describe("a panel always open", () => {
+    it("opens the priority's panel when it has something to say, whatever was used last", () => {
+        expect(groupOpeningPanel({ ...Quiet, urgentOrAnswer: true }, "sessions")).toBe("notifications");
+        expect(groupOpeningPanel({ ...Quiet, downloadRunning: true }, "keepawake")).toBe("downloads");
     });
 
-    it("never overlaps the conversation: no panel shows while it is open, whatever is pinned, previewed or chosen", () => {
-        const pinned = afterClick(InitialPanels, "sessions", null);
-        expect(activePanel(pinned, "notifications", true)).toBeNull();
-        expect(activePanel(afterHover(pinned, "agents"), "notifications", true)).toBeNull();
-        expect(activePanel(InitialPanels, "notifications", true)).toBeNull();
+    it("opens the panel used last when the priority has nothing to say", () => {
+        expect(groupOpeningPanel(Quiet, "sessions")).toBe("sessions");
+        expect(groupOpeningPanel(Quiet, "usage")).toBe("usage");
     });
 
-    it("brings the panel back when the conversation folds", () => {
-        const pinned = afterClick(InitialPanels, "sessions", null);
-        expect(activePanel(pinned, "notifications", true)).toBeNull();
-        expect(activePanel(pinned, "notifications", false)).toBe("sessions");
+    it("opens the agents with nothing to say and nothing used yet, never none", () => {
+        expect(groupOpeningPanel(Quiet, null)).toBe(DefaultPanel);
+        expect(DefaultPanel).toBe("agents");
+        expect(activePanel(InitialPanels, groupOpeningPanel(Quiet, null))).toBe("agents");
+    });
+
+    it("switches to another panel when the open one is closed: the opening one, else the agents, else Notifications", () => {
+        expect(activePanel(afterClose("sessions", "downloads"), "downloads")).toBe("downloads");
+        expect(activePanel(afterClose("downloads", "downloads"), "downloads")).toBe("agents");
+        expect(activePanel(afterClose("agents", "agents"), "agents")).toBe("notifications");
+        for (const closed of [...RailPanels, "usage" as const]) {
+            for (const auto of [...RailPanels, "usage" as const]) {
+                const next = activePanel(afterClose(closed, auto), auto);
+                expect(next).not.toBeNull();
+                expect(next).not.toBe(closed);
+            }
+        }
+    });
+
+    it("pins the panel it switched to and forgets a preview, so it stays when the pointer leaves", () => {
+        const previewing = afterHover(InitialPanels, "keepawake");
+        const closed = afterClose(activePanel(previewing, "agents"), "agents");
+        expect(closed).toEqual({ pinned: "agents", hover: null });
+        expect(fallbackPanel("keepawake", "agents")).toBe("agents");
+    });
+});
+
+// #2090: when the conversation window opens from the field's top over the panel area, the panel gives way above it.
+describe("the panel and the grown field never overlap (layout as data)", () => {
+    const g = groupGeometry();
+    // The panel stands at the group's top (y 0): its bottom is its height, sized as the group sizes it.
+    const panelBottom = (content: number, room: number, conversation: boolean) => {
+        const r = panelRoom(g, room, conversation);
+        return panelHeight(content, r, Math.min(g.square, r));
+    };
+
+    it("keeps the panel's bottom above the field's top, 8 px clear, however tall its content", () => {
+        for (const content of [0, 264, 400, 900, 5000]) {
+            expect(panelBottom(content, 784, true)).toBeLessThanOrEqual(g.field.y - 8);
+        }
+        expect(panelBottom(5000, 784, true)).toBe(g.field.y - 8);
+    });
+
+    it("lets a short panel keep its height: it only shrinks when it would reach the field", () => {
+        expect(panelBottom(0, 784, true)).toBe(g.square);
+        expect(panelBottom(300, 784, true)).toBe(300);
+    });
+
+    it("grows back to the window's room when the field folds", () => {
+        expect(panelBottom(5000, 784, false)).toBe(784);
+        expect(panelRoom(g, 784, false)).toBe(784);
+    });
+
+    it("never gives more room than the window has, nor less than none", () => {
+        expect(panelRoom(g, 200, true)).toBe(200);
+        expect(panelRoom(g, -5, true)).toBe(0);
+    });
+
+    it("leaves the field where it is: the conversation grows from the field's top", () => {
+        expect(g.field.y).toBe(SquarePx + 8 + BlockHeightPx + 8);
+    });
+});
+
+// #2090: the report under the square is cut at two lines; only a cut one shows the whole of it on hover or focus.
+describe("the report's cut", () => {
+    it("is cut when the text needs more than the card's two lines", () => {
+        expect(reportCut(51, 34)).toBe(true);
+    });
+
+    it("is not cut when it fits, a rounding pixel included", () => {
+        expect(reportCut(34, 34)).toBe(false);
+        expect(reportCut(17, 34)).toBe(false);
+        expect(reportCut(35, 34)).toBe(false);
     });
 });
 
@@ -411,7 +489,7 @@ describe("the hover that previews a panel", () => {
 
     it("holds the pointer under the group only while a preview shows, so that a page tile cannot keep it open", () => {
         expect(holdsHover(InitialPanels)).toBe(false);
-        expect(holdsHover(afterClick(InitialPanels, "agents", "notifications"))).toBe(false);
+        expect(holdsHover(afterClick(InitialPanels, "agents", "notifications", "notifications"))).toBe(false);
         const previewing = afterHover(InitialPanels, "downloads");
         expect(holdsHover(previewing)).toBe(true);
         expect(holdsHover(afterHover(previewing, null))).toBe(false);
