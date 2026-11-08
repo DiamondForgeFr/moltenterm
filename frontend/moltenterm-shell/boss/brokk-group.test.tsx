@@ -139,7 +139,7 @@ import { MoltentermNotifications } from "../notifications-store";
 import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
-import { BrokkGroup, BrokkScrim, GroupFrame } from "./brokk-group";
+import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
 import { ArrivalSteps, groupGeometry } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 
@@ -220,6 +220,7 @@ function quiet() {
 
 beforeEach(() => {
     quiet();
+    rememberPanel(null);
     Calls.live.length = 0;
     Calls.caption.length = 0;
 });
@@ -534,10 +535,26 @@ describe("the rail (AC17)", () => {
 describe("the panel that opens by priority, through the group (AC18)", () => {
     const panel = (html: string) => attr(html, "brokk-panel", "data-panel");
 
-    it("opens nothing with nothing to say", () => {
+    it("opens the agents with nothing to say and no panel used yet: a panel is always open (#2090)", () => {
         const html = render();
-        expect(html).not.toContain('data-testid="brokk-panel"');
-        expect(html).not.toContain('data-testid="brokk-plink"');
+        expect(panel(html)).toBe("agents");
+        expect(html).toContain('data-testid="brokk-plink"');
+        expect(attr(html, "brokk-rail-agents", "data-active")).toBe("true");
+    });
+
+    it("opens the panel used last when there is nothing to say, and the priority's when there is (#2090)", () => {
+        rememberPanel("keepawake");
+        expect(panel(render())).toBe("keepawake");
+        rememberPanel("usage");
+        expect(panel(render())).toBe("usage");
+        globalStore.set(notifications.shownEntriesAtom, [entry("n1")]);
+        expect(panel(render())).toBe("notifications");
+    });
+
+    it("remembers the panel the developer pins, and switches to another when the open one is closed (#2090)", () => {
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toContain("rememberPanel(panels.pinned);");
+        expect(source).toContain("const closePanel = () => setPanels(afterClose(active, auto));");
     });
 
     it("1. opens Notifications for a row that is grave or waits for an answer", () => {
@@ -573,7 +590,7 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
     it("leaves a notification that was read, and a download cancelled by the developer, unsaid", () => {
         globalStore.set(notifications.shownEntriesAtom, [entry("n1", { read: true })]);
         globalStore.set(downloads.itemsAtom, [download("d1", "cancelled", Date.now())]);
-        expect(render()).not.toContain('data-testid="brokk-panel"');
+        expect(panel(render())).toBe("agents");
     });
 
     it("4. opens Notifications for a pull request ready to merge while a download runs, as in the gold (#2085)", () => {
@@ -625,14 +642,19 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
 
     it("reads the priority once, when the group opens, so that nothing changes under the developer's eyes", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("const [auto] = useState<PanelId>(() =>");
+        expect(source).toContain(
+            "const [auto] = useState<ShownPanel>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));"
+        );
     });
 });
 
 describe("the windows never overlap (AC18)", () => {
-    it("gives no panel while the conversation is open, and brings it back when it folds, through the one rule", () => {
+    it("keeps the panel while the conversation is open, giving way above the field, and grows back when it folds (#2090)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("const active: ShownPanel = activePanel(panels, auto, conversation);");
+        expect(source).toContain("const active: ShownPanel = activePanel(panels, auto);");
+        expect(source).toContain("const heightRoom = panelRoom(g, frame.place.heightRoom, conversation);");
+        expect(source).toContain("panelHeight(head + content + 16, heightRoom, Math.min(g.square, heightRoom))");
+        expect(source).toContain("height: Math.min(height, heightRoom)");
         expect(source).toContain("const onFocusChange = useCallback((open: boolean) => setConversation(open), []);");
         expect(source).toContain("onFocusChange={onFocusChange}");
     });
@@ -682,6 +704,54 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(attr(render(), "brokk-say", "class")).toBe("mt-brokk-say");
         expect(render()).toMatch(/data-testid="brokk-say"[^>]*><span>He says something<\/span>/);
         expect(attr(render(), "brokk-say", "data-source")).toBe("activity");
+    });
+
+    // #2090: the card keeps two lines; a report that needs more shows whole on hover or focus, in place.
+    describe("the whole report on hover or focus", () => {
+        const Long =
+            "Une chose pour vous : Adrien attend votre accord pour supprimer deux branches, et Léa a terminé sa revue de la PR.";
+        const card = (cut: boolean) => renderToStaticMarkup(<SayCard line={Long} source="activity" cut={cut} />);
+
+        it("lays the whole report over the card when it is cut, and lets the keyboard reach it", () => {
+            const html = card(true);
+            expect(attr(html, "brokk-say", "data-cut")).toBe("true");
+            expect(attr(html, "brokk-say", "tabindex")).toBe("0");
+            expect(attr(html, "brokk-say", "role")).toBe("note");
+            expect(html).toContain(
+                `<span class="mt-brokk-say-full" aria-hidden="true" data-testid="brokk-say-full">${Long}</span>`
+            );
+        });
+
+        it("changes nothing for a report that fits: no copy, no focus stop", () => {
+            const html = card(false);
+            expect(attr(html, "brokk-say", "data-cut")).toBeUndefined();
+            expect(attr(html, "brokk-say", "tabindex")).toBeUndefined();
+            expect(html).not.toContain("brokk-say-full");
+            expect(html).toBe(renderToStaticMarkup(<SayCard line={Long} source="activity" cut={false} />));
+        });
+
+        it("measures the cut from the card's own text, again when the report changes", () => {
+            const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+            expect(source).toContain("setCut(reportCut(text.scrollHeight, text.clientHeight))");
+            expect(source).toContain("}, [line]);");
+        });
+
+        it("shows the copy on hover and on keyboard focus only, over what is under it, and fades under reduced motion", () => {
+            const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+            expect(css).toMatch(
+                /\.mt-brokk-say-full \{[^}]*position: absolute;[^}]*opacity: 0;[^}]*visibility: hidden;/
+            );
+            expect(css).toMatch(
+                /\.mt-brokk-say\[data-cut="true"\]:hover > \.mt-brokk-say-full,\s*\.mt-brokk-say\[data-cut="true"\]:focus-visible > \.mt-brokk-say-full \{\s*opacity: 1;\s*visibility: visible;/
+            );
+            const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+            const app = css.slice(css.indexOf(".prefers-reduced-motion .mt-brokk-sq"));
+            for (const scope of [media, app]) {
+                expect(scope).toMatch(
+                    /\.mt-brokk-say-full \{\s*transform: none !important;\s*transition:\s*opacity var\(--mt-duration-fade\) linear,/
+                );
+            }
+        });
     });
 
     // FR-BOSS-009, AC25: his line comes from his session when he has something the developer has not seen.

@@ -93,7 +93,7 @@ export const ConversationMaxPx = 460;
 export const ConversationChromePx = 53;
 
 // As wide as the group and the panel area together: it reaches the right edge where a panel stands, and covers nothing
-// since the panel folds away while it is open.
+// since the panel gives way above it while it is open (panelRoom, #2090).
 export function conversationWidth(g: GroupGeometry, panelRoom: number): number {
     return g.panelLeft + panelWidth(panelRoom);
 }
@@ -312,18 +312,52 @@ export class HoverIntent {
     }
 }
 
-// Which panel shows is a preview by hover first, then the one the developer pinned, then the one the priority chose.
-export type PanelState = { pinned: ShownPanel; hover: PanelId; dismissed: boolean };
+// Which panel shows is a preview by hover first, then the one the developer pinned, then the one the group opened with.
+export type PanelState = { pinned: ShownPanel; hover: PanelId };
 
-export const InitialPanels: PanelState = { pinned: null, hover: null, dismissed: false };
+export const InitialPanels: PanelState = { pinned: null, hover: null };
 
-// The windows never overlap: while the conversation is open (the field is focused, or the exchange is pinned) no panel
-// shows, and it comes back when the conversation folds (FR-BOSS-009, AC18). `auto` is the panel the priority chose.
-export function activePanel(state: PanelState, auto: PanelId, conversation: boolean): ShownPanel {
-    if (conversation || state.dismissed) {
-        return null;
-    }
+// A panel is always open while the group is (FR-BOSS-009, AC18, #2090): `auto` is the one the group opened with
+// (groupOpeningPanel), so something always shows.
+export function activePanel(state: PanelState, auto: ShownPanel): ShownPanel {
     return state.hover ?? state.pinned ?? auto;
+}
+
+// The panel the group opens on when the priority has nothing to say and the developer used none yet: the agents, the
+// most useful one at rest.
+export const DefaultPanel: PanelId = "agents";
+
+// The panel the group opens with (#2090): the priority's when it has something to say, else the last one the developer
+// used, else the agents. Never none.
+export function groupOpeningPanel(facts: PriorityFacts, remembered: ShownPanel): ShownPanel {
+    return openingPanel(facts) ?? remembered ?? DefaultPanel;
+}
+
+// The panel that takes the place of one the developer closed: the one the group opened with, else the agents, else the
+// notifications, never the one closed. Closing the group is the way to have none.
+export function fallbackPanel(closed: ShownPanel, auto: ShownPanel): ShownPanel {
+    return [auto, DefaultPanel, "notifications" as ShownPanel].find((id) => id != null && id !== closed);
+}
+
+// The panel's close control: another panel shows, pinned.
+export function afterClose(closed: ShownPanel, auto: ShownPanel): PanelState {
+    return { pinned: fallbackPanel(closed, auto), hover: null };
+}
+
+// The windows never overlap (#2090): while the conversation window is open it grows from the field's top over the
+// panel area, so the panel only has the room above it, 8 px clear; its content scrolls. It grows back when the window
+// folds. `heightRoom` is the window area's room from the group's top.
+export function panelRoom(g: GroupGeometry, heightRoom: number, conversation: boolean): number {
+    if (!conversation) {
+        return heightRoom;
+    }
+    return Math.max(0, Math.min(heightRoom, g.field.y - EdgePx));
+}
+
+// Brokk's report under the square is cut when its text needs more height than the card's two lines (#2090): only then
+// does hovering or focusing it show the whole of it. 1 px of rounding is no cut.
+export function reportCut(textHeight: number, shownHeight: number): boolean {
+    return textHeight > shownHeight + 1;
 }
 
 // A web page tile is a guest view of its own: the window hears nothing from the pointer once it is over one, so a preview
@@ -333,21 +367,22 @@ export function holdsHover(state: PanelState): boolean {
     return state.hover != null;
 }
 
-// A click on an icon pins its panel; a click on the one that shows closes it.
-export function afterClick(state: PanelState, id: ShownPanel, active: ShownPanel): PanelState {
-    if (state.pinned === id || active === id) {
-        return { pinned: null, hover: state.hover, dismissed: true };
+// A click on an icon pins its panel; a click on the icon of the one that shows keeps it, like a tab (#2090). The usage
+// detail opens from a toggle under the square: a second click closes it, and another panel takes its place.
+export function afterClick(state: PanelState, id: ShownPanel, active: ShownPanel, auto: ShownPanel): PanelState {
+    if (id === "usage" && active === "usage") {
+        return afterClose("usage", auto);
     }
-    return { pinned: id, hover: null, dismissed: false };
+    return { pinned: id, hover: null };
 }
 
 export function afterHover(state: PanelState, id: PanelId): PanelState {
-    return { ...state, hover: id, dismissed: id != null ? false : state.dismissed };
+    return { ...state, hover: id };
 }
 
 // A surface asked for a panel: it shows, pinned.
 export function afterRequest(id: PanelId): PanelState {
-    return { pinned: id, hover: null, dismissed: false };
+    return { pinned: id, hover: null };
 }
 
 // What the priority rule reads.

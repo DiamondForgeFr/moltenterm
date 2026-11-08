@@ -8,7 +8,7 @@
 // authorisation asks once more), and the notes about a message his agent could not take, each with a way out: choose an
 // agent, try again, or open his terminal. He listens while the developer writes (onTyping). Folded, the field is one
 // row as wide as the group, and what it says hangs under it, so the group's geometry never moves. While the window is
-// open no panel shows beside the group (onFocusChange, AC18).
+// open the panel beside the group gives way above it (onFocusChange, AC18, #2090).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
@@ -55,7 +55,7 @@ export function BrokkTalk({
     onContentHeight,
 }: {
     onTyping: (typing: boolean) => void;
-    // The window opens or folds (AC22): the group shows no panel while it is open.
+    // The window opens or folds (AC22): the group's panel gives way above it while it is open.
     onFocusChange?: (open: boolean) => void;
     // What the exchange needs, so that the window can grow with it.
     onContentHeight?: (height: number) => void;

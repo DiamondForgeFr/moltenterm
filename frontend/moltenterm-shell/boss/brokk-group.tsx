@@ -42,6 +42,7 @@ import { BrokkItem, sayLine } from "./brokk-exchange-model";
 import {
     activePanel,
     afterClick,
+    afterClose,
     afterHover,
     afterRequest,
     arrivalOffset,
@@ -50,14 +51,15 @@ import {
     conversationHeight,
     conversationWidth,
     groupGeometry,
+    groupOpeningPanel,
     GroupPlace,
     holdsHover,
     HoverIntent,
     InitialPanels,
     neighbourPanel,
-    openingPanel,
     panelHeight,
     PanelId,
+    panelRoom,
     PanelState,
     panelWidth,
     priorityFactsOf,
@@ -66,6 +68,7 @@ import {
     railMarks,
     RailPanels,
     Rect,
+    reportCut,
     ShownPanel,
     SquarePx,
 } from "./brokk-group-model";
@@ -92,6 +95,14 @@ const AgeTickMs = 15000;
 // When the developer last looked at the Téléchargements panel: a download that failed or finished since is news, until he
 // looks (FR-BOSS-009, AC18). It lasts for a run of MoltenTerm.
 let downloadsLookedAt = 0;
+
+// The last panel the developer chose (a click, a request, a close that switched): the group opens on it next time when
+// the priority has nothing to say (#2090). It lasts for a run of MoltenTerm.
+let rememberedPanel: ShownPanel = null;
+
+export function rememberPanel(id: ShownPanel): void {
+    rememberedPanel = id;
+}
 
 const RailIcons: Record<PanelId, string> = {
     notifications: "bell",
@@ -162,6 +173,61 @@ export function BrokkScrim({ shown, onClose }: { shown: boolean; onClose: () => 
     );
 }
 
+// The card under the square, Brokk's report, as it shows (#2090): two lines at rest. When the report needs more, the card
+// takes the keyboard focus, and hovering or focusing it lays the whole report over what is under it, in place, so nothing
+// of the group moves; a report that fits changes nothing. The copy over it is only drawn: the line itself is read.
+export function SayCard({
+    line,
+    source,
+    cut,
+    textRef,
+}: {
+    line: string;
+    source: string;
+    cut: boolean;
+    textRef?: React.Ref<HTMLSpanElement>;
+}) {
+    return (
+        <div
+            className="mt-brokk-say"
+            data-testid="brokk-say"
+            data-source={source}
+            data-cut={cut ? "true" : undefined}
+            role={cut ? "note" : undefined}
+            tabIndex={cut ? 0 : undefined}
+        >
+            <span ref={textRef}>{line}</span>
+            {cut ? (
+                <span className="mt-brokk-say-full" aria-hidden data-testid="brokk-say-full">
+                    {line}
+                </span>
+            ) : null}
+        </div>
+    );
+}
+
+// Whether the report is cut is measured: the card's two lines against what the text needs, again when the text or the
+// card's size changes.
+function BrokkSay({ line, source }: { line: string; source: string }) {
+    const ref = useRef<HTMLSpanElement>(null);
+    const [cut, setCut] = useState(false);
+    useLayoutEffect(() => {
+        const text = ref.current;
+        if (text == null) {
+            return;
+        }
+        const measure = () => setCut(reportCut(text.scrollHeight, text.clientHeight));
+        measure();
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(measure);
+        observer.observe(text);
+        return () => observer.disconnect();
+    }, [line]);
+    return <SayCard line={line} source={source} cut={cut} textRef={ref} />;
+}
+
 export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean }) {
     const t = useT();
     const locale = useLocale();
@@ -191,8 +257,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const panelRef = useRef<HTMLDivElement>(null);
     const [now, setNow] = useState(Date.now());
     const [typing, setTyping] = useState(false);
-    // The conversation window is open while the field has the focus or holds text: no panel shows then (the windows never
-    // overlap, AC18). `exchangeHeight` is what the exchange in it needs.
+    // The conversation window is open while the field has the focus or holds text: the panel then gives way above it (the
+    // windows never overlap, AC18, #2090). `exchangeHeight` is what the exchange in it needs.
     const [conversation, setConversation] = useState(false);
     const [exchangeHeight, setExchangeHeight] = useState(0);
     const [panels, setPanels] = useState<PanelState>(() =>
@@ -226,9 +292,14 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         downloadRunning: running.length > 0,
         keepAwake,
     };
-    // The panel the priority chose is read once, when the group opens: nothing changes under the developer's eyes after.
-    const [auto] = useState<PanelId>(() => openingPanel(priorityFactsOf(railInput)));
-    const active: ShownPanel = activePanel(panels, auto, conversation);
+    // The panel the group opens with is read once, when it opens: nothing changes under the developer's eyes after.
+    const [auto] = useState<ShownPanel>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));
+    const active: ShownPanel = activePanel(panels, auto);
+    useEffect(() => {
+        if (panels.pinned != null) {
+            rememberPanel(panels.pinned);
+        }
+    }, [panels.pinned]);
     const marks = railMarks(railInput);
     const weekly = useMemo(() => weeklyUsage(readings, now, unreadable), [readings, now, unreadable]);
 
@@ -322,7 +393,9 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     );
 
     // The panel's height: the square's by default, what its content needs past it, up to the window, then it scrolls.
+    // While the conversation window is open, only up to its top (#2090).
     const panelW = panelWidth(frame.place.panelRoom);
+    const heightRoom = panelRoom(g, frame.place.heightRoom, conversation);
     const panelRect = useRef<Rect>({ x: g.panelLeft, y: 0, w: panelW, h: 0 });
     useLayoutEffect(() => {
         const panel = panelRef.current;
@@ -333,7 +406,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         const measure = () => {
             const head = panel.querySelector<HTMLElement>(`[${PanelHeadAttr}]`)?.offsetHeight ?? 0;
             const content = panel.querySelector<HTMLElement>(`[${PanelContentAttr}]`)?.offsetHeight ?? 0;
-            const next = panelHeight(head + content + 16, frame.place.heightRoom, g.square);
+            const next = panelHeight(head + content + 16, heightRoom, Math.min(g.square, heightRoom));
             setHeight(next);
             panelRect.current = { x: g.panelLeft, y: 0, w: panelW, h: next };
         };
@@ -345,7 +418,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         const observer = new ResizeObserver(measure);
         observer.observe(content);
         return () => observer.disconnect();
-    }, [active, panelW, frame.place.heightRoom, g, rows.length]);
+    }, [active, panelW, heightRoom, g, rows.length]);
 
     // Hover: the zone decides, 80 ms to open and 250 ms to close (brokk-group-model.ts HoverIntent).
     useEffect(() => {
@@ -417,8 +490,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         };
     }, [boss]);
 
-    const closePanel = () => setPanels((state) => afterClick(state, active, active));
-    const clickIcon = (id: ShownPanel) => setPanels((state) => afterClick(state, id, active));
+    const closePanel = () => setPanels(afterClose(active, auto));
+    const clickIcon = (id: ShownPanel) => setPanels((state) => afterClick(state, id, active, auto));
     const onRailKeyDown = (e: React.KeyboardEvent, id: PanelId) => {
         const next = neighbourPanel(id, e.key);
         if (next == null) {
@@ -621,13 +694,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                         ...delay(1),
                     }}
                 >
-                    <div
-                        className="mt-brokk-say"
-                        data-testid="brokk-say"
-                        data-source={unseen != null && line !== caption ? "session" : "activity"}
-                    >
-                        <span>{line}</span>
-                    </div>
+                    <BrokkSay line={line} source={unseen != null && line !== caption ? "session" : "activity"} />
                     <button
                         type="button"
                         className="mt-brokk-usage"
@@ -735,7 +802,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                             className="mt-brokk-gpanel"
                             data-testid="brokk-panel"
                             data-panel={active}
-                            style={{ left: g.panelLeft, top: 0, width: panelW, height }}
+                            style={{ left: g.panelLeft, top: 0, width: panelW, height: Math.min(height, heightRoom) }}
                         >
                             {panelBody()}
                         </div>
