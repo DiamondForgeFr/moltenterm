@@ -140,7 +140,7 @@ import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
-import { ArrivalSteps, groupGeometry } from "./brokk-group-model";
+import { ArrivalSteps, groupGeometry, ReportSize, ReportView, reportView } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 
 const boss = BossBubbleModel.getInstance() as any;
@@ -685,7 +685,7 @@ describe("the windows never overlap (AC18)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain("w: conversationWidth(g, frame.place.panelRoom),");
         expect(source).toContain(
-            "h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - g.field.y),"
+            "h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - flow.field.y),"
         );
         expect(source).toContain("width: fieldSize.w,");
         expect(source).toContain("height: fieldSize.h,");
@@ -706,49 +706,120 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(attr(render(), "brokk-say", "data-source")).toBe("activity");
     });
 
-    // #2090: the card keeps two lines; a report that needs more shows whole on hover or focus, in place.
-    describe("the whole report on hover or focus", () => {
+    // #2090, #2097: the card keeps two lines; a report that needs more makes the card itself taller while it is pointed
+    // at or focused, in the group's flow, with no copy laid over it.
+    describe("the card that grows to the whole report", () => {
         const Long =
             "Une chose pour vous : Adrien attend votre accord pour supprimer deux branches, et Léa a terminé sa revue de la PR.";
-        const card = (cut: boolean) => renderToStaticMarkup(<SayCard line={Long} source="activity" cut={cut} />);
+        // Five lines of 17 px, two of them kept at rest.
+        const Cut: ReportSize = { full: 85, shown: 34 };
+        const views = {
+            rest: reportView(g, Cut, false, Frame.place.heightRoom),
+            open: reportView(g, Cut, true, Frame.place.heightRoom),
+            fits: reportView(g, { full: 34, shown: 34 }, true, Frame.place.heightRoom),
+        };
+        const card = (view: ReportView) => renderToStaticMarkup(<SayCard line={Long} source="activity" view={view} />);
 
-        it("lays the whole report over the card when it is cut, and lets the keyboard reach it", () => {
-            const html = card(true);
+        it("keeps the two lines at rest, and lets the keyboard reach a cut report", () => {
+            const html = card(views.rest);
             expect(attr(html, "brokk-say", "data-cut")).toBe("true");
             expect(attr(html, "brokk-say", "tabindex")).toBe("0");
             expect(attr(html, "brokk-say", "role")).toBe("note");
-            expect(html).toContain(
-                `<span class="mt-brokk-say-full" aria-hidden="true" data-testid="brokk-say-full">${Long}</span>`
-            );
+            expect(attr(html, "brokk-say", "data-open")).toBeUndefined();
+            expect(html).toContain(`<span style="height:34px">${Long}</span>`);
         });
 
-        it("changes nothing for a report that fits: no copy, no focus stop", () => {
-            const html = card(false);
+        it("grows the card's own text to the whole report while it is pointed at", () => {
+            const html = card(views.open);
+            expect(attr(html, "brokk-say", "data-open")).toBe("true");
+            expect(html).toContain(`<span style="height:85px">${Long}</span>`);
+        });
+
+        it("draws no overlay: the report is in the card once, whatever the state, and no rule or code is left for a copy", () => {
+            for (const view of Object.values(views)) {
+                const html = card(view);
+                expect(html).not.toContain("brokk-say-full");
+                expect(html.split(Long)).toHaveLength(2);
+            }
+            expect(render()).not.toContain("brokk-say-full");
+            const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+            const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+            expect(css).not.toContain("say-full");
+            expect(source).not.toContain("say-full");
+            expect(css).not.toMatch(/\.mt-brokk-say[^{]*\{[^}]*position: absolute/);
+        });
+
+        it("changes nothing for a report that fits: no focus stop, no height, pointed at or not", () => {
+            const html = card(views.fits);
             expect(attr(html, "brokk-say", "data-cut")).toBeUndefined();
             expect(attr(html, "brokk-say", "tabindex")).toBeUndefined();
-            expect(html).not.toContain("brokk-say-full");
-            expect(html).toBe(renderToStaticMarkup(<SayCard line={Long} source="activity" cut={false} />));
+            expect(attr(html, "brokk-say", "data-open")).toBeUndefined();
+            expect(html).toContain(`<span>${Long}</span>`);
+            expect(html).toBe(card(reportView(g, { full: 34, shown: 34 }, false, Frame.place.heightRoom)));
         });
 
-        it("measures the cut from the card's own text, again when the report changes", () => {
+        it("measures the report from its own text and the lines the card keeps, again when the report changes", () => {
             const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-            expect(source).toContain("setCut(reportCut(text.scrollHeight, text.clientHeight))");
-            expect(source).toContain("}, [line]);");
+            expect(source).toContain("full: text.scrollHeight,");
+            expect(source).toContain("Math.round(lineHeight * ReportLines)");
+            expect(source).toContain("}, [line, onSize]);");
+            expect(source).not.toContain("text.clientHeight))");
         });
 
-        it("shows the copy on hover and on keyboard focus only, over what is under it, and fades under reduced motion", () => {
+        it("is open for the pointer over the card or the keyboard on it, and a click's focus does not keep it open", () => {
+            const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+            expect(source).toContain(
+                "reportView(g, reportSize, reportHovered || reportFocused, frame.place.heightRoom)"
+            );
+            expect(source).toContain("onHover={setReportHovered}");
+            expect(source).toContain("onFocusVisible={setReportFocused}");
+            expect(source).toContain('onFocusVisible?.(e.currentTarget.matches(":focus-visible"))');
+            expect(source).toContain("onPointerEnter={() => onHover?.(true)}");
+            expect(source).toContain("onPointerLeave={() => onHover?.(false)}");
+        });
+
+        it("moves what stands under the card with it: the block's least height, the field's top and the group's height", () => {
+            const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+            expect(source).toContain("const flow = groupFlow(g, report.growth);");
+            expect(source).toContain("minHeight: flow.block.h,");
+            expect(source).toContain("top: flow.field.y,");
+            expect(source).toContain("height: flow.height }}");
+            expect(source).toContain("frame.place.heightRoom - flow.field.y),");
+        });
+
+        it("rests as before when the card has not grown: same block, field and group sizes", () => {
+            const html = render();
+            expect(attr(html, "brokk-block", "style")).toContain(`min-height:${g.block.h}px`);
+            expect(attr(html, "brokk-fieldbox", "style")).toContain(`top:${g.field.y}px`);
+            expect(attr(html, "boss-card", "style")).toContain(`height:${g.field.y + g.field.h}px`);
+            expect(html).toMatch(/data-testid="brokk-say"[^>]*><span>He says something<\/span>/);
+        });
+
+        it("keeps the panel where it is while the card grows: the field's resting top caps it, not the pushed one", () => {
+            const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+            expect(source).toContain("const heightRoom = panelRoom(g, frame.place.heightRoom, conversation);");
+        });
+
+        it("grows smoothly, the text, the block and the field at one pace, and at once under reduced motion", () => {
             const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
             expect(css).toMatch(
-                /\.mt-brokk-say-full \{[^}]*position: absolute;[^}]*opacity: 0;[^}]*visibility: hidden;/
+                /\.mt-brokk-say > span:first-child \{[^}]*-webkit-line-clamp: 2;[^}]*transition: height var\(--mt-duration-settle\) var\(--mt-ease\);/
             );
             expect(css).toMatch(
-                /\.mt-brokk-say\[data-cut="true"\]:hover > \.mt-brokk-say-full,\s*\.mt-brokk-say\[data-cut="true"\]:focus-visible > \.mt-brokk-say-full \{\s*opacity: 1;\s*visibility: visible;/
+                /\.mt-brokk-say\[data-open="true"\] > span:first-child \{\s*display: block;\s*-webkit-line-clamp: none;\s*overflow-y: auto;/
+            );
+            expect(css).toMatch(
+                /\.mt-brokk-group\.is-in > \.mt-brokk-block \{[^}]*min-height var\(--mt-duration-settle\) var\(--mt-ease\);/
+            );
+            expect(/\.mt-brokk-fieldbox \{\s*overflow: visible;([^}]*)\}/.exec(css)?.[1]).toContain(
+                "top var(--mt-duration-settle) var(--mt-ease)"
             );
             const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
             const app = css.slice(css.indexOf(".prefers-reduced-motion .mt-brokk-sq"));
             for (const scope of [media, app]) {
+                expect(scope).toMatch(/\.mt-brokk-say > span:first-child \{\s*transition: none !important;/);
                 expect(scope).toMatch(
-                    /\.mt-brokk-say-full \{\s*transform: none !important;\s*transition:\s*opacity var\(--mt-duration-fade\) linear,/
+                    /\.mt-brokk-block,\s*(?:\.prefers-reduced-motion )?\.mt-brokk-fieldbox \{\s*transform: none !important;\s*transition: opacity var\(--mt-duration-fade\) linear !important;/
                 );
             }
         });

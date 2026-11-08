@@ -102,6 +102,15 @@
         opacity var(--mt-duration-show) linear calc(var(--i, 0) * 50ms);
 }
 
+/* The block grows with Brokk's report (#2097) at the same pace as the text and the field under it, with no arrival step
+   to wait for. */
+.mt-brokk-group.is-in > .mt-brokk-block {
+    transition:
+        transform var(--mt-duration-snap) cubic-bezier(0.3, 1.12, 0.4, 1) calc(var(--i, 0) * 50ms),
+        opacity var(--mt-duration-show) linear calc(var(--i, 0) * 50ms),
+        min-height var(--mt-duration-settle) var(--mt-ease);
+}
+
 /* The square: his upper body under the screen effect. */
 .mt-brokk-sq {
     top: 0;
@@ -360,19 +369,22 @@
     line-height: 17px;
 }
 
-.mt-brokk-say {
-    position: relative;
-}
-
+/* The report's text keeps two lines at rest (ReportLines in brokk-group-model.ts). Its height is the group's, inline
+   (reportView): the kept lines at rest, the whole report while the card is pointed at, so this only makes the change
+   smooth. */
 .mt-brokk-say > span:first-child {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
+    transition: height var(--mt-duration-settle) var(--mt-ease);
 }
 
-/* A report cut at two lines (#2090): hovering or focusing the card lays the whole of it over what is under it, from the
-   card's own place and its text at the same spot, so nothing of the group moves. Only a cut report has it. */
+/* A report cut at two lines (#2090, #2097): pointing at the card or focusing it makes the card itself taller, in the
+   group's flow, to hold the whole report. Nothing is laid over it, so no text of the card shows under another one; what
+   stands under the card follows it (the block's least height and the field's top, brokk-group.tsx, move with the same
+   duration). The clamp goes at once, so the lines show as the card grows; the text scrolls only when the window has no
+   more room. Only a cut report takes the focus. */
 .mt-brokk-say[data-cut="true"] {
     outline: none;
 }
@@ -382,41 +394,10 @@
     outline-offset: 2px;
 }
 
-.mt-brokk-say-full {
-    position: absolute;
-    top: -6px;
-    left: -2px;
-    right: -6px;
-    z-index: 3;
-    max-height: 220px;
-    padding: 6px 6px 6px 9px;
+.mt-brokk-say[data-open="true"] > span:first-child {
+    display: block;
+    -webkit-line-clamp: none;
     overflow-y: auto;
-    border-left: 2px solid var(--mt-action);
-    border-radius: 0 var(--mt-radius-control) var(--mt-radius-control) 0;
-    background: var(--mt-surface-1);
-    box-shadow: var(--mt-shadow-e2);
-    color: var(--mt-text-1);
-    white-space: pre-line;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: scaleY(0.96);
-    transform-origin: top;
-    transition:
-        opacity var(--mt-duration-base) linear,
-        transform var(--mt-duration-base) cubic-bezier(0.3, 1.12, 0.4, 1),
-        visibility 0s linear var(--mt-duration-base);
-}
-
-.mt-brokk-say[data-cut="true"]:hover > .mt-brokk-say-full,
-.mt-brokk-say[data-cut="true"]:focus-visible > .mt-brokk-say-full {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: none;
-    transition:
-        opacity var(--mt-duration-base) linear,
-        transform var(--mt-duration-base) cubic-bezier(0.3, 1.12, 0.4, 1);
 }
 
 .mt-brokk-usage {
@@ -502,14 +483,16 @@
 
 /* The field: one row, one frame; what it says hangs under it. It is also the conversation window (FR-BOSS-009, AC22,
    #2033): the frame grows in place, from the field's top, to the width of the group and the panel area together, with
-   the exchange above the row. The size is the group's (inline width and height); this only moves it smoothly. */
+   the exchange above the row. The size is the group's (inline width and height); this only moves it smoothly. Its top
+   follows the report card above it when that grows (#2097), at the card's pace. */
 .mt-brokk-fieldbox {
     overflow: visible;
     transition:
         transform var(--mt-duration-snap) cubic-bezier(0.3, 1.12, 0.4, 1),
         opacity var(--mt-duration-show) linear,
         width var(--mt-duration-slow) cubic-bezier(0.3, 1.12, 0.4, 1),
-        height var(--mt-duration-slow) cubic-bezier(0.3, 1.12, 0.4, 1);
+        height var(--mt-duration-slow) cubic-bezier(0.3, 1.12, 0.4, 1),
+        top var(--mt-duration-settle) var(--mt-ease);
 }
 
 .mt-brokk-field {
@@ -969,16 +952,8 @@
         transition: opacity var(--mt-duration-fade) linear;
     }
 
-    .mt-brokk-say-full {
-        transform: none !important;
-        transition:
-            opacity var(--mt-duration-fade) linear,
-            visibility 0s linear var(--mt-duration-fade) !important;
-    }
-
-    .mt-brokk-say[data-cut="true"]:hover > .mt-brokk-say-full,
-    .mt-brokk-say[data-cut="true"]:focus-visible > .mt-brokk-say-full {
-        transition: opacity var(--mt-duration-fade) linear !important;
+    .mt-brokk-say > span:first-child {
+        transition: none !important;
     }
 }
 
@@ -1006,14 +981,6 @@
     transition: opacity var(--mt-duration-fade) linear;
 }
 
-.prefers-reduced-motion .mt-brokk-say-full {
-    transform: none !important;
-    transition:
-        opacity var(--mt-duration-fade) linear,
-        visibility 0s linear var(--mt-duration-fade) !important;
-}
-
-.prefers-reduced-motion .mt-brokk-say[data-cut="true"]:hover > .mt-brokk-say-full,
-.prefers-reduced-motion .mt-brokk-say[data-cut="true"]:focus-visible > .mt-brokk-say-full {
-    transition: opacity var(--mt-duration-fade) linear !important;
+.prefers-reduced-motion .mt-brokk-say > span:first-child {
+    transition: none !important;
 }
