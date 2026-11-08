@@ -237,7 +237,7 @@ describe("the group (FR-BOSS-009, AC17)", () => {
         expect(attr(html, "boss-card", "role")).toBe("dialog");
         expect(attr(html, "boss-card", "aria-modal")).toBe("false");
         expect(attr(html, "boss-card", "aria-label")).toBe(
-            "Brokk: notifications, agents, sessions, downloads and keep-awake"
+            "Brokk: notifications, downloads, keep-awake, agents and sessions"
         );
         expect(attr(html, "boss-card", "style")).toBe(
             `left:272px;top:8px;width:${g.width}px;height:${g.field.y + g.field.h}px`
@@ -255,7 +255,14 @@ describe("the group (FR-BOSS-009, AC17)", () => {
         expect(order.every((at) => at > 0)).toBe(true);
         expect([...order].sort((a, b) => a - b)).toEqual(order);
         const icons = [...html.matchAll(/data-rail-id="([a-z]+)"/g)].map((m) => m[1]);
-        expect(icons).toEqual(["notifications", "agents", "sessions", "downloads", "keepawake"]);
+        expect(icons).toEqual(["notifications", "downloads", "keepawake", "agents", "sessions"]);
+    });
+
+    it("draws the Agents icon as the shared AI icon of the agent tabs, not a robot (AC60, #2108)", () => {
+        const html = render();
+        const agentsIcon = /<button[^>]*data-testid="brokk-rail-agents"[\s\S]*?<\/button>/.exec(html)[0];
+        expect(agentsIcon).toContain("fa-sparkles");
+        expect(agentsIcon).not.toContain("fa-robot");
     });
 
     it("makes the square 264 px and the rail exactly as tall, with the icons 44 px", () => {
@@ -541,11 +548,11 @@ describe("the rail (AC17)", () => {
 describe("the panel that opens by priority, through the group (AC18)", () => {
     const panel = (html: string) => attr(html, "brokk-panel", "data-panel");
 
-    it("opens the agents with nothing to say and no panel used yet: a panel is always open (#2090)", () => {
+    it("opens the notifications with nothing to say and no panel used yet: a panel is always open (#2090, AC60 #2108)", () => {
         const html = render();
-        expect(panel(html)).toBe("agents");
+        expect(panel(html)).toBe("notifications");
         expect(html).toContain('data-testid="brokk-plink"');
-        expect(attr(html, "brokk-rail-agents", "data-active")).toBe("true");
+        expect(attr(html, "brokk-rail-notifications", "data-active")).toBe("true");
     });
 
     it("opens the panel used last when there is nothing to say, and the priority's when there is (#2090)", () => {
@@ -553,7 +560,7 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
         expect(panel(render())).toBe("keepawake");
         // The former usage detail, remembered from before #2106, is no panel any more (AC58).
         rememberPanel("usage" as PanelId);
-        expect(panel(render())).toBe("agents");
+        expect(panel(render())).toBe("notifications");
         globalStore.set(notifications.shownEntriesAtom, [entry("n1")]);
         expect(panel(render())).toBe("notifications");
     });
@@ -597,7 +604,7 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
     it("leaves a notification that was read, and a download cancelled by the developer, unsaid", () => {
         globalStore.set(notifications.shownEntriesAtom, [entry("n1", { read: true })]);
         globalStore.set(downloads.itemsAtom, [download("d1", "cancelled", Date.now())]);
-        expect(panel(render())).toBe("agents");
+        expect(panel(render())).toBe("notifications");
     });
 
     it("4. opens Notifications for a pull request ready to merge while a download runs, as in the gold (#2085)", () => {
@@ -1140,7 +1147,7 @@ describe("the block under the square (AC17 and AC20)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).not.toContain('clickIcon("usage")');
         expect(source).not.toContain("UsagePanel");
-        expect(attr(html, "brokk-panel", "data-panel")).toBe("agents");
+        expect(attr(html, "brokk-panel", "data-panel")).toBe("notifications");
         const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
         expect(css).not.toMatch(/\.mt-brokk-usage\[aria-pressed|\.mt-brokk-usage:focus-visible/);
     });

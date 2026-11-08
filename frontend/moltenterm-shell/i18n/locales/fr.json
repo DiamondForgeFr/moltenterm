@@ -3052,7 +3052,7 @@
             }
         },
         "group": {
-            "ariaLabel": "{name} : notifications, agents, sessions, téléchargements et garder éveillé",
+            "ariaLabel": "{name} : notifications, téléchargements, garder éveillé, agents et sessions",
             "close": "Fermer {name}",
             "closePanel": "Fermer le panneau",
             "panels": {

@@ -22,6 +22,7 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStates } from "../agent-state-store";
+import { AiIcon } from "../ai-icon";
 import { agentName } from "../companion/companion-task-model";
 import { isActive, overallDownloadProgress, runningDownloads } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
@@ -124,7 +125,7 @@ export function rememberPanel(id: PanelId): void {
 
 const RailIcons: Record<PanelId, string> = {
     notifications: "bell",
-    agents: "robot",
+    agents: AiIcon,
     sessions: "terminal",
     downloads: "download",
     keepawake: "mug-hot",
