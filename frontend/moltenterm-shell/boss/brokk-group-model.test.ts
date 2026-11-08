@@ -21,8 +21,10 @@ import {
     ConversationMinPx,
     conversationWidth,
     DefaultPanel,
+    EdgePx,
     fallbackPanel,
     GroupDurations,
+    groupFlow,
     groupGeometry,
     groupOpeningPanel,
     GroupParts,
@@ -49,6 +51,11 @@ import {
     RailPanels,
     Rect,
     reportCut,
+    reportGrowth,
+    ReportLines,
+    reportRoom,
+    ReportSize,
+    reportView,
     SquarePx,
 } from "./brokk-group-model";
 
@@ -316,6 +323,109 @@ describe("the report's cut", () => {
         expect(reportCut(34, 34)).toBe(false);
         expect(reportCut(17, 34)).toBe(false);
         expect(reportCut(35, 34)).toBe(false);
+    });
+});
+
+// FR-BOSS-009, AC43 (#2097): the whole report is shown by the card growing, in the group's flow, never by a copy laid
+// over it, and nothing of the group meets the panel.
+describe("the report's card grows in the group's flow (layout as data)", () => {
+    const g = groupGeometry();
+    // Five lines of 17 px, two of them kept at rest.
+    const Whole: ReportSize = { full: 85, shown: 34 };
+    const Fits: ReportSize = { full: 34, shown: 34 };
+    const Room = 784;
+    const meets = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+    it("keeps the lines the card shows at rest as the CSS clamp does", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        expect(ReportLines).toBe(2);
+        expect(css).toMatch(new RegExp(`-webkit-line-clamp: ${ReportLines};`));
+    });
+
+    it("leaves the group's room under it as the most the card can grow by", () => {
+        expect(reportRoom(g, Room)).toBe(Room - (g.field.y + g.field.h));
+        expect(reportRoom(g, 100)).toBe(0);
+    });
+
+    it("grows by what the text needs past the kept lines, and by nothing for a report that fits", () => {
+        expect(reportGrowth(Whole, 372)).toBe(51);
+        expect(reportGrowth(Fits, 372)).toBe(0);
+        expect(reportGrowth({ full: 17, shown: 34 }, 372)).toBe(0);
+        expect(reportGrowth({ full: 35, shown: 34 }, 372)).toBe(0);
+    });
+
+    it("stops at the room under the group, and never grows backwards", () => {
+        expect(reportGrowth(Whole, 20)).toBe(20);
+        expect(reportGrowth(Whole, 0)).toBe(0);
+        expect(reportGrowth(Whole, -5)).toBe(0);
+    });
+
+    it("keeps the kept lines at rest, and draws no growth until it is pointed at", () => {
+        expect(reportView(g, Whole, false, Room)).toEqual({ cut: true, open: false, growth: 0, textHeight: 34 });
+    });
+
+    it("makes the text as tall as the whole report once it is pointed at", () => {
+        expect(reportView(g, Whole, true, Room)).toEqual({ cut: true, open: true, growth: 51, textHeight: 85 });
+    });
+
+    it("changes nothing for a report that fits, pointed at or not", () => {
+        const rest = { cut: false, open: false, growth: 0, textHeight: null };
+        expect(reportView(g, Fits, false, Room)).toEqual(rest);
+        expect(reportView(g, Fits, true, Room)).toEqual(rest);
+        expect(reportView(g, { full: 0, shown: 0 }, true, Room)).toEqual(rest);
+    });
+
+    it("scrolls the text in the card when the window has no more room for it", () => {
+        const tight = g.field.y + g.field.h + 20;
+        expect(reportView(g, Whole, true, tight)).toEqual({ cut: true, open: true, growth: 20, textHeight: 54 });
+        expect(reportView(g, Whole, true, g.field.y)).toMatchObject({ growth: 0, textHeight: 34 });
+    });
+
+    it("is the group at rest when the card has not grown", () => {
+        expect(groupFlow(g, 0)).toEqual({ block: g.block, field: g.field, height: g.field.y + g.field.h });
+    });
+
+    it("pushes what is under the card down by what the card grew, keeping the 8 px between them", () => {
+        for (const growth of [1, 17, 51, 120, 372]) {
+            const flow = groupFlow(g, growth);
+            expect(flow.block).toEqual({ ...g.block, h: g.block.h + growth });
+            expect(flow.field).toEqual({ ...g.field, y: g.field.y + growth });
+            expect(flow.block.y + flow.block.h + EdgePx).toBe(flow.field.y);
+            expect(flow.height).toBe(flow.field.y + flow.field.h);
+        }
+    });
+
+    it("never pulls the group up", () => {
+        expect(groupFlow(g, -40)).toEqual(groupFlow(g, 0));
+    });
+
+    it("never lets the grown card, the field under it and the panel meet", () => {
+        for (const growth of [0, 17, 51, 120, 372]) {
+            for (const conversation of [false, true]) {
+                const flow = groupFlow(g, growth);
+                const room = panelRoom(g, Room, conversation);
+                const panel: Rect = {
+                    x: g.panelLeft,
+                    y: 0,
+                    w: panelWidth(600),
+                    h: panelHeight(5000, room, Math.min(g.square, room)),
+                };
+                const field: Rect = conversation ? { ...flow.field, w: conversationWidth(g, 600), h: 300 } : flow.field;
+                const label = `growth ${growth}, conversation ${conversation}`;
+                expect(meets(panel, flow.block), label).toBe(false);
+                expect(meets(panel, field), label).toBe(false);
+                expect(meets(flow.block, field), label).toBe(false);
+                expect(flow.block.x + flow.block.w, label).toBeLessThan(panel.x);
+                if (conversation) {
+                    expect(field.y - (panel.y + panel.h), label).toBeGreaterThanOrEqual(EdgePx);
+                }
+            }
+        }
+    });
+
+    it("leaves the panel still while the card grows: it is capped by the field's resting top", () => {
+        expect(panelRoom(g, Room, true)).toBe(g.field.y - EdgePx);
+        expect(panelRoom(g, Room, false)).toBe(Room);
     });
 });
 

@@ -346,7 +346,9 @@ export function afterClose(closed: ShownPanel, auto: ShownPanel): PanelState {
 
 // The windows never overlap (#2090): while the conversation window is open it grows from the field's top over the
 // panel area, so the panel only has the room above it, 8 px clear; its content scrolls. It grows back when the window
-// folds. `heightRoom` is the window area's room from the group's top.
+// folds. `heightRoom` is the window area's room from the group's top. It is the field's resting top, not the one the
+// report card pushes it to (groupFlow, #2097): the panel stays still while the developer reads the report, and the
+// card, left of the panel, never meets it.
 export function panelRoom(g: GroupGeometry, heightRoom: number, conversation: boolean): number {
     if (!conversation) {
         return heightRoom;
@@ -354,10 +356,64 @@ export function panelRoom(g: GroupGeometry, heightRoom: number, conversation: bo
     return Math.max(0, Math.min(heightRoom, g.field.y - EdgePx));
 }
 
+// The lines the card under the square keeps at rest; must match the -webkit-line-clamp of .mt-brokk-say in
+// brokk-group.css.
+export const ReportLines = 2;
+
 // Brokk's report under the square is cut when its text needs more height than the card's two lines (#2090): only then
 // does hovering or focusing it show the whole of it. 1 px of rounding is no cut.
 export function reportCut(textHeight: number, shownHeight: number): boolean {
     return textHeight > shownHeight + 1;
+}
+
+// What the report's text measures: `full` is the height it needs, `shown` the height of the lines the card keeps. Both are
+// read from the text itself, never from its current box, so they do not move while the card grows or folds.
+export type ReportSize = { full: number; shown: number };
+
+// The room the window leaves under the group at rest: the most the report's card can grow by (FR-BOSS-009, AC43, #2097).
+export function reportRoom(g: GroupGeometry, heightRoom: number): number {
+    return Math.max(0, heightRoom - (g.field.y + g.field.h));
+}
+
+// How much the card grows to show the whole report: what the text needs past the lines the card keeps, up to the room
+// under the group; past that the text scrolls in the card. Nothing when the report fits.
+export function reportGrowth(size: ReportSize, room: number): number {
+    if (!reportCut(size.full, size.shown)) {
+        return 0;
+    }
+    return Math.max(0, Math.min(size.full - size.shown, room));
+}
+
+// The report card as it shows (FR-BOSS-009, AC43, #2097). No copy is laid over it: the card itself is taller while the
+// developer points at it. `pointed`: the pointer is over it, or the keyboard focus is on it.
+export type ReportView = {
+    cut: boolean;
+    open: boolean;
+    // The height the card grows by, 0 at rest and for a report that fits.
+    growth: number;
+    // The height of the report's text: the kept lines at rest, the whole of the report once open. null for a report that
+    // fits, which sizes itself.
+    textHeight: number;
+};
+
+export function reportView(g: GroupGeometry, size: ReportSize, pointed: boolean, heightRoom: number): ReportView {
+    const cut = reportCut(size.full, size.shown);
+    const open = cut && pointed;
+    const growth = open ? reportGrowth(size, reportRoom(g, heightRoom)) : 0;
+    return { cut, open, growth, textHeight: cut ? size.shown + growth : null };
+}
+
+// The group's flow (#2097): what stands under the report card moves down by what the card grew. `block.h` is the card's
+// least height; the field and the root follow.
+export type GroupFlow = { block: Rect; field: Rect; height: number };
+
+export function groupFlow(g: GroupGeometry, growth: number): GroupFlow {
+    const grown = Math.max(0, growth);
+    return {
+        block: { ...g.block, h: g.block.h + grown },
+        field: { ...g.field, y: g.field.y + grown },
+        height: g.field.y + grown + g.field.h,
+    };
 }
 
 // A web page tile is a guest view of its own: the window hears nothing from the pointer once it is over one, so a preview

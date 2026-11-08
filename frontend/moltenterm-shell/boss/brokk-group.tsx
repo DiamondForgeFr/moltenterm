@@ -50,6 +50,7 @@ import {
     ConversationChromePx,
     conversationHeight,
     conversationWidth,
+    groupFlow,
     groupGeometry,
     groupOpeningPanel,
     GroupPlace,
@@ -68,7 +69,10 @@ import {
     railMarks,
     RailPanels,
     Rect,
-    reportCut,
+    ReportLines,
+    ReportSize,
+    ReportView,
+    reportView,
     ShownPanel,
     SquarePx,
 } from "./brokk-group-model";
@@ -173,50 +177,80 @@ export function BrokkScrim({ shown, onClose }: { shown: boolean; onClose: () => 
     );
 }
 
-// The card under the square, Brokk's report, as it shows (#2090): two lines at rest. When the report needs more, the card
-// takes the keyboard focus, and hovering or focusing it lays the whole report over what is under it, in place, so nothing
-// of the group moves; a report that fits changes nothing. The copy over it is only drawn: the line itself is read.
+// The card under the square, Brokk's report, as it shows (#2090, #2097): two lines at rest. When the report needs more,
+// the card takes the keyboard focus, and pointing at it or focusing it makes the card itself taller, in the group's
+// flow, to hold the whole report (reportView): nothing is laid over anything, and what stands under the card moves down
+// with it. A report that fits changes nothing.
 export function SayCard({
     line,
     source,
-    cut,
+    view,
     textRef,
+    onHover,
+    onFocusVisible,
 }: {
     line: string;
     source: string;
-    cut: boolean;
+    view: ReportView;
     textRef?: React.Ref<HTMLSpanElement>;
+    onHover?: (hovered: boolean) => void;
+    onFocusVisible?: (focused: boolean) => void;
 }) {
     return (
         <div
             className="mt-brokk-say"
             data-testid="brokk-say"
             data-source={source}
-            data-cut={cut ? "true" : undefined}
-            role={cut ? "note" : undefined}
-            tabIndex={cut ? 0 : undefined}
+            data-cut={view.cut ? "true" : undefined}
+            data-open={view.open ? "true" : undefined}
+            role={view.cut ? "note" : undefined}
+            tabIndex={view.cut ? 0 : undefined}
+            onPointerEnter={() => onHover?.(true)}
+            onPointerLeave={() => onHover?.(false)}
+            // A click focuses the card too, and must not keep it open once the pointer is gone: only the keyboard does.
+            onFocus={(e) => onFocusVisible?.(e.currentTarget.matches(":focus-visible"))}
+            onBlur={() => onFocusVisible?.(false)}
         >
-            <span ref={textRef}>{line}</span>
-            {cut ? (
-                <span className="mt-brokk-say-full" aria-hidden data-testid="brokk-say-full">
-                    {line}
-                </span>
-            ) : null}
+            <span ref={textRef} style={view.textHeight != null ? { height: view.textHeight } : undefined}>
+                {line}
+            </span>
         </div>
     );
 }
 
-// Whether the report is cut is measured: the card's two lines against what the text needs, again when the text or the
-// card's size changes.
-function BrokkSay({ line, source }: { line: string; source: string }) {
+// What the text measures is read from the text itself: the height it needs (scrollHeight, the whole of it whether the
+// card clamps it or has grown to it) and the height of the lines the card keeps. Neither is the box's current height, so
+// they stay the same while the card grows and folds.
+function reportSizeOf(text: HTMLElement): ReportSize {
+    const lineHeight = parseFloat(getComputedStyle(text).lineHeight);
+    return {
+        full: text.scrollHeight,
+        shown: Number.isFinite(lineHeight) ? Math.round(lineHeight * ReportLines) : text.clientHeight,
+    };
+}
+
+function BrokkSay({
+    line,
+    source,
+    view,
+    onSize,
+    onHover,
+    onFocusVisible,
+}: {
+    line: string;
+    source: string;
+    view: ReportView;
+    onSize: (size: ReportSize) => void;
+    onHover: (hovered: boolean) => void;
+    onFocusVisible: (focused: boolean) => void;
+}) {
     const ref = useRef<HTMLSpanElement>(null);
-    const [cut, setCut] = useState(false);
     useLayoutEffect(() => {
         const text = ref.current;
         if (text == null) {
             return;
         }
-        const measure = () => setCut(reportCut(text.scrollHeight, text.clientHeight));
+        const measure = () => onSize(reportSizeOf(text));
         measure();
         if (typeof ResizeObserver === "undefined") {
             return;
@@ -224,8 +258,17 @@ function BrokkSay({ line, source }: { line: string; source: string }) {
         const observer = new ResizeObserver(measure);
         observer.observe(text);
         return () => observer.disconnect();
-    }, [line]);
-    return <SayCard line={line} source={source} cut={cut} textRef={ref} />;
+    }, [line, onSize]);
+    return (
+        <SayCard
+            line={line}
+            source={source}
+            view={view}
+            textRef={ref}
+            onHover={onHover}
+            onFocusVisible={onFocusVisible}
+        />
+    );
 }
 
 export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean }) {
@@ -268,7 +311,24 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const [workspaces, setWorkspaces] = useState<Map<string, Workspace>>(new Map());
     const [lookedAt, setLookedAt] = useState(downloadsLookedAt);
     const [height, setHeight] = useState(SquarePx);
+    // Brokk's report under the square (AC43, #2097): what its text measures, and whether the developer points at it
+    // (the pointer over it, or the keyboard on it). The card grows while he does, and what is under it moves down.
+    const [reportSize, setReportSize] = useState<ReportSize>({ full: 0, shown: 0 });
+    const [reportHovered, setReportHovered] = useState(false);
+    const [reportFocused, setReportFocused] = useState(false);
     const g = useMemo(() => groupGeometry(), []);
+    const report = reportView(g, reportSize, reportHovered || reportFocused, frame.place.heightRoom);
+    const flow = groupFlow(g, report.growth);
+    const onReportSize = useCallback(
+        (next: ReportSize) =>
+            setReportSize((prev) => (prev.full === next.full && prev.shown === next.shown ? prev : next)),
+        []
+    );
+    useEffect(() => {
+        if (!report.cut) {
+            setReportFocused(false);
+        }
+    }, [report.cut]);
 
     const rows = useMemo(
         () => buildNotes({ toHandle, entries, settings, now }),
@@ -328,11 +388,12 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         ids.forEach((id) => listedRef.current.add(id));
     }, []);
     const onFocusChange = useCallback((open: boolean) => setConversation(open), []);
-    // The window is as wide as the group and the panel area together, as tall as the exchange needs.
+    // The window is as wide as the group and the panel area together, as tall as the exchange needs, from the field's top
+    // wherever the grown report card has pushed it (it gives way when the window's room runs out).
     const fieldSize = conversation
         ? {
               w: conversationWidth(g, frame.place.panelRoom),
-              h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - g.field.y),
+              h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - flow.field.y),
           }
         : { w: g.field.w, h: g.field.h };
 
@@ -604,7 +665,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                 data-shown={shown ? "true" : "false"}
                 data-conversation={conversation ? "true" : undefined}
                 className={cn("mt-brokk-group", shown && "is-in")}
-                style={{ left: frame.place.left, top: frame.place.top, width: g.width, height: g.field.y + g.field.h }}
+                style={{ left: frame.place.left, top: frame.place.top, width: g.width, height: flow.height }}
             >
                 <div
                     className="mt-brokk-sq"
@@ -689,12 +750,19 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                     style={{
                         top: g.block.y,
                         width: g.block.w,
-                        minHeight: g.block.h,
+                        minHeight: flow.block.h,
                         ...offsetOf(g.block),
                         ...delay(1),
                     }}
                 >
-                    <BrokkSay line={line} source={unseen != null && line !== caption ? "session" : "activity"} />
+                    <BrokkSay
+                        line={line}
+                        source={unseen != null && line !== caption ? "session" : "activity"}
+                        view={report}
+                        onSize={onReportSize}
+                        onHover={setReportHovered}
+                        onFocusVisible={setReportFocused}
+                    />
                     <button
                         type="button"
                         className="mt-brokk-usage"
@@ -766,7 +834,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                 <div
                     className="mt-brokk-fieldbox"
                     style={{
-                        top: g.field.y,
+                        top: flow.field.y,
                         width: fieldSize.w,
                         height: fieldSize.h,
                         ...offsetOf(g.field),
