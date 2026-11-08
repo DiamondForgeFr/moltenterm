@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Review tab's side of wavesrv (FR-REV-002, DS-REV-002, DS-REV-007): the PR's file list and one file's two sides,
 // computed by local git on commit ids (pkg/molten/review), the review store, and the tab itself. The frontend never
@@ -170,6 +170,8 @@ export type ReviewRestartResult = {
     lead?: boolean;
     leadfolder?: string;
     leadguessed?: boolean;
+    // #1955: the result is about a sub-agent of the agent firstname and blockid name.
+    subagent?: boolean;
 };
 
 // How a new agent works (#758): out of sight, or in a tab the window shows; must match agentstart.go.
@@ -263,6 +265,8 @@ export type ReviewMergeRecord = {
     movedfrom?: string;
     movedto?: string;
     minutes?: number;
+    // status: GitHub's HTTP status when it did not answer (code unavailable, #1871).
+    status?: number;
     // The English text of records made before #672.
     message?: string;
     updated?: boolean;

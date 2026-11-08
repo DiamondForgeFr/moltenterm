@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The top tab bar's geometry (FR-SHELL-056, DS-SHELL-098). Wave gives every tab one width; MoltenTerm sizes each tab
 // to its content between 64 and 200 px and draws the pinned Project tab as a 32 px icon. A short name's tab hugs it

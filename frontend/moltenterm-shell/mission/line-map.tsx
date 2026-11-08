@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The line map (FR-MC-022, DS-MC-014): one inline SVG, time left to right, main on top, develop in the chart steel blue,
 // the branches under it, every version tag a station on main, and the route to the next public release. The data

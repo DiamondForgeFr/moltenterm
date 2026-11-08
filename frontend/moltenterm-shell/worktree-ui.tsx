@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where the worktree of a terminal shows (FR-SHELL-016): the pane header's context and its command panel's link
 // suggestion (header/panel-header.tsx, FR-SHELL-052), the status bar and the tab tooltip. Closing a linked terminal:

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A workspace is a product made of typed projects (FR-SHELL-087): Desktop, Mobile, Website… each a repository. The
 // list lives in the workspace's meta; the current project keeps living in the keys every reader already follows

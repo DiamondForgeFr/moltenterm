@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The windows' side of the hook setup offer (#221): the offer wavesrv made per terminal, and the agents dismissed
 // in this window (wavesrv remembers them for good, so other windows learn it at their next ask).

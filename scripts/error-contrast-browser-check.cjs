@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Run after build:prod with a disposable --user-data-dir. Real components, built shell CSS, mocked side effects.
 const fs = require("node:fs/promises");
@@ -19,7 +19,7 @@ app.whenReady().then(async () => {
             platform: "browser", format: "iife", jsx: "automatic", loader: { ".css": "empty", ".scss": "empty" }, external: ["electron"],
             define: { "process.env.NODE_ENV": '"development"' },
             plugins: [{ name: "contrast-read-only-fixtures", setup(builder) {
-                builder.onResolve({ filter: /(?:^@\/app\/store\/(?:global|services|wos)$|^@\/layout\/index$|^@\/util\/util$|\/i18n\/(?:i18n|i18n-core|server-text)$|\/(?:busy-close-store|busy-close-main|notifications-store|reopen-store|worktree-store|molten-host|view-pins-store)$)/ },
+                builder.onResolve({ filter: /(?:(?:^|\/)app\/store\/(?:global|services|wos)$|(?:^|\/)layout\/index$|(?:^|\/)util\/util$|\/i18n\/(?:i18n|i18n-core|server-text)$|\/(?:busy-close-store|busy-close-main|notifications-store|reopen-store|worktree-store|molten-host|view-pins-store)$)/ },
                     () => ({ path: path.resolve("scripts/fixtures/error-contrast-mocks.ts") }));
             } }],
         });

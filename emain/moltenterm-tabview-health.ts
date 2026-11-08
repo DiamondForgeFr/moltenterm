@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A cached tab view shown again after a long time off-screen can stay black (#223, #199): its renderer is alive and
 // answers wave-init, but no frame of it is displayed. Chromium evicts the saved frame of a view it believes unseen

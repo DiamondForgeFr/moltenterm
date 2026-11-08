@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace sidebar (FR-SHELL-079, DS-SHELL-123, DS-SHELL-124): each workspace's own column on the left, in place
 // of the tab bar, the workspace rail and the status bar. Top to bottom: the window row (sidebar toggle; keep-awake and
@@ -30,11 +30,16 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { BossBubbleModel } from "../boss/boss-store";
+import { BrokkAvatarSlot } from "../boss/brokk-avatar";
+import { edgeAttributes, edgeLineOn, edgeUnfoldsOn } from "../boss/brokk-edge-model";
+import { useBrokkEdge } from "../boss/use-brokk-edge";
+import { useBrokkGateProps, useBrokkVisitUp } from "../boss/use-brokk-hub";
+import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
 import { visibleTabIds } from "../hidden-tabs";
 import { HoldToCloseGlyph } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
-import { KeepAwakeStatusItem } from "../keepawake-cup";
-import { coffeeCondition, coffeeSupported, sleepPolicyLabel, SleepPolicySetting } from "../keepawake-model";
+import { AutomaticSetting, coffeeCondition, coffeeSupported } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { usePlatform } from "../keepawake-ui";
 import { LibraryHost } from "../library/library-host";
@@ -43,7 +48,6 @@ import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
 import { narrowWindowAtom } from "../narrow-window";
 import { currentNewViewChoices, openNewView } from "../newview/new-view";
-import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { openMoltentermView } from "../open-view";
@@ -78,7 +82,7 @@ import {
     useTabTooltip,
     viewDisplayName,
 } from "../tab-identity-ui";
-import { ReleaseUpdateButton } from "../update/release-update-ui";
+import { ReleaseUpdateHost } from "../update/release-update-host";
 import { GoldUpdateButton } from "../update/update-dialog";
 import { useScreenPublisher } from "../view360/screen-publisher";
 import { View360ExitHost } from "../view360/view360-toggle";
@@ -113,6 +117,7 @@ import { useProjectFollowToast } from "./project-follow";
 import { AgentsSection } from "./sidebar-agents";
 import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
 import {
+    pinSiteOrigins,
     topRowBlocks,
     TopRowIconWidth,
     topRowLineFit,
@@ -185,6 +190,7 @@ import {
 } from "./window-corner-model";
 import { WorkspaceDotPopover } from "./workspace-dot-popover";
 import { DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
+import { snapRipplesOf, workspaceDotLook } from "./workspace-dot-ripple";
 import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
@@ -203,6 +209,9 @@ const DragThresholdPx = 4;
 // Loaded on demand: the project page only shows while a project is added or edited, so its code stays out of the JS
 // every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
 const ProjectPageView = lazy(() => import("./sidebar-project-page").then((m) => ({ default: m.ProjectPageView })));
+
+// Brokk's visit scene (FR-BOSS-009, #2002): his clips load with the first visit, never with the window.
+const BrokkVisitScene = lazy(() => import("../boss/brokk-visit-scene").then((m) => ({ default: m.BrokkVisitScene })));
 
 const IconButton =
     "relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
@@ -336,16 +345,17 @@ function projectMenuItems(
     return items;
 }
 
-// The link to Preferences › Energy (#1332), the current option as its sub-label, where the computer supports it.
+// The link to Preferences › Energy (#1332), whether Automatic is on as its sub-label, where the computer supports it.
 function keepAwakeItem(platform: string, t: (key: string, vars?: Record<string, any>) => string): ContextMenuItem {
     if (!coffeeSupported(platform)) {
         return undefined;
     }
+    const automatic = globalStore.get(getSettingsKeyAtom(AutomaticSetting)) === true;
     return {
         label: t("sidebar.workspaceMenu.keepAwake"),
-        sublabel: sleepPolicyLabel(globalStore.get(getSettingsKeyAtom(SleepPolicySetting))),
+        sublabel: t("keepawake.cupAutomatic", { state: t(automatic ? "keepawake.on" : "keepawake.off") }),
         icon: "mug-hot",
-        click: () => fireAndForget(() => openSettingsKey("general", SleepPolicySetting)),
+        click: () => fireAndForget(() => openSettingsKey("general", AutomaticSetting)),
     };
 }
 
@@ -440,8 +450,8 @@ function ToggleButton() {
     );
 }
 
-// The window's own row: the room the window buttons take, then the toggle; keep-awake and notifications on the right.
-// Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
+// The window's own row: the room the window buttons take, then the toggle; Brokk's avatar on the right (FR-BOSS-009):
+// the bell and the keep-awake cup are in his panel (#2003). Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
 // floating panel (#1293) it is exactly as tall as the window buttons, which Electron main places at the panel's inner
 // margin from its top and left edges (macButtonsPosition), so the row starts where they do and its icons share their
 // centre line.
@@ -464,8 +474,7 @@ function WindowRow({ peeked, standIns }: { peeked: boolean; standIns: boolean })
             <AppMenuButton />
             <ToggleButton />
             <div className="h-full flex-1" />
-            <KeepAwakeStatusItem variant="sidebar" />
-            <NotificationCenter />
+            <BrokkAvatarSlot />
         </div>
     );
 }
@@ -848,7 +857,10 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
             ? t("sidebar.pins.tileTitle", { name: identity.name, workspace })
             : identity.name;
     const working = isAgentWorking(identity.agent);
-    const titled = baseTitle != null && summary ? `${baseTitle}\n${summary}` : baseTitle;
+    const titled =
+        baseTitle != null && (summary || identity.pages)
+            ? [baseTitle, identity.pages, summary].filter(Boolean).join("\n")
+            : baseTitle;
     const title = withWorkingTitle(titled, identity.agent);
     // The glyph is decoration: the tile is named for what it is, whatever its icons.
     const label = renaming
@@ -1440,6 +1452,10 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
     const { target, over } = useZone("top");
     const width = useRowWidth(ref, pins.length > 0 || !!target);
     useGlide(ref, pins.map((p) => p.id).join(" "));
+    // A block of one page wears its site's icon, the page the pin saved (#1962): the icons of those sites are asked for.
+    const favicons = useAtomValue(faviconsAtom);
+    const pinOrigins = pins.flatMap(pinSiteOrigins).join(" ");
+    useEffect(() => requestFavicons(pinOrigins === "" ? [] : pinOrigins.split(" ")), [pinOrigins]);
     if (pins.length === 0 && !target) {
         return null;
     }
@@ -1459,7 +1475,7 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
             data-cap={t("sidebar.views.captionEverywhere")}
             {...zoneProps("top")}
         >
-            {topRowLines(topRowBlocks(pins, instances)).map((line) => {
+            {topRowLines(topRowBlocks(pins, instances, favicons)).map((line) => {
                 const fit = topRowLineFit(width, line.length);
                 const isActive = (block: TopRowBlockFacts) => !!block.tabId && block.tabId === activeTabId;
                 const hasActive = line.some(isActive);
@@ -1801,7 +1817,7 @@ function BranchLine() {
             <span className="flex shrink-0 items-center gap-1 font-sans">
                 <UpdateStatusBanner />
                 <GoldUpdateButton />
-                <ReleaseUpdateButton />
+                <ReleaseUpdateHost />
                 <button
                     type="button"
                     title={`${view.tooltip}\n\n${t("status.build.releaseNotes")}`}
@@ -1861,6 +1877,7 @@ function WorkspaceDot({
     const platform = usePlatform();
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
     const agent = useAtomValue(AgentStates.getInstance().workspaceAtom(entry.id));
+    const working = useAtomValue(AgentStates.getInstance().workspaceWorkingAtom(entry.id));
     const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(entry.id));
     const [anchor, setAnchor] = useState<HTMLButtonElement>(null);
     const choice = workspace?.color ?? entry.color;
@@ -1869,7 +1886,7 @@ function WorkspaceDot({
     const ringColour = stops[0] ?? "var(--color-secondary)";
     const letterColour = stops.length > 0 ? colourChoiceForeground(choice) : "black";
     const waiting = agent?.state === "waiting";
-    const ring = !entry.active && (unread > 0 || waiting);
+    const { ring, ripple } = workspaceDotLook({ active: entry.active, unread, waiting, working });
     const letter = (Array.from(entry.name ?? "")[0] ?? "").toUpperCase();
     const attention: string[] = [];
     if (unread > 0) {
@@ -1878,8 +1895,11 @@ function WorkspaceDot({
     if (waiting) {
         attention.push(agentStateTitle(agent));
     }
+    if (working > 0) {
+        attention.push(tc("rail.working", working));
+    }
     if (coffee != null) {
-        attention.push(t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) }));
+        attention.push(t("rail.keptAwake", { condition: coffeeCondition() }));
     }
     const label = [entry.name, ...attention].join(" · ");
     const showPopover = dotShowsPopover({
@@ -1926,6 +1946,7 @@ function WorkspaceDot({
                 "mt-sb-dot relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0",
                 current && "is-on",
                 ring && "has-ring",
+                ripple && "is-working",
                 drag.offsetX != null && "z-10"
             )}
             style={
@@ -2130,6 +2151,7 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
             data-testid="sidebar-workspace-dots"
             data-many={many ? "true" : undefined}
             onPointerLeave={() => hoverRef.current.leave()}
+            onAnimationStart={snapRipplesOf}
         >
             {letter != null ? (
                 <span
@@ -2665,7 +2687,33 @@ export function WorkspaceSidebar() {
     // A view closed in one click waits aside for its toast (#1656): the view on screen shows it and ends it.
     useEffect(() => followSetAside(activeTabId), [ws, activeTabId]);
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
+    // Brokk's visit (FR-BOSS-009, #2002): the scene stands at the top of the sidebar and the content below the window
+    // row makes room for it. The pointer and the gestures in the sidebar are what the calibration gate reads.
+    const brokkUp = useBrokkVisitUp();
+    const brokkGate = useBrokkGateProps();
+    const [brokkSeen, setBrokkSeen] = useState(false);
+    useEffect(() => {
+        if (brokkUp) {
+            setBrokkSeen(true);
+        }
+    }, [brokkUp]);
+    // Collapsed with Brokk on (FR-BOSS-009, AC44 to AC47, #2070, #2093): out of sight at rest, it peeks out with his face
+    // and bounces for a new notification, then hides again; something important keeps it half open.
+    const brokkShown = useAtomValue(BossBubbleModel.getInstance().showAtom);
+    const edge = useBrokkEdge(asideRef);
     const keepPeek = () => clearTimeout(peekTimerRef.current);
+    // The pointer over the strip unfolds the sidebar, but not over the face: it stays under the pointer for the click
+    // that opens his group.
+    const unfoldFromEdge = (e: React.SyntheticEvent) => {
+        if (edge.place !== "edge") {
+            return;
+        }
+        const overFace = (e.target as Element).closest?.("[data-brokk-avatar]") != null;
+        if (edgeUnfoldsOn(edge.place, overFace)) {
+            keepPeek();
+            model.setPeek(true);
+        }
+    };
     const endPeek = () => {
         // The open top field keeps the peeked sidebar; closing it ends the peek.
         if (!hidden || TopFieldModel.getInstance().isOpen()) {
@@ -2693,6 +2741,8 @@ export function WorkspaceSidebar() {
                 aria-label={t("sidebar.label", { name })}
                 data-testid="workspace-sidebar"
                 data-hidden={hidden ? "true" : undefined}
+                {...edgeAttributes(edge.shape)}
+                data-brokk-visit={brokkUp ? "open" : undefined}
                 className={cn(
                     "mt-sb flex h-full shrink-0 flex-col gap-2 select-none",
                     hidden ? "is-hidden" : "pb-[var(--mt-frame-gap)] pl-[var(--mt-frame-gap)]",
@@ -2702,11 +2752,24 @@ export function WorkspaceSidebar() {
                 style={{ width, "--mt-peek-inset": `${PeekInsetPx}px` } as React.CSSProperties}
                 onMouseEnter={keepPeek}
                 onMouseLeave={endPeek}
+                onPointerMove={unfoldFromEdge}
+                onClick={unfoldFromEdge}
                 onContextMenu={onWorkspaceMenu}
+                {...brokkGate}
             >
                 <span className="mt-sb-place-strip" data-testid="sidebar-place-strip" aria-hidden />
+                {brokkSeen || brokkUp ? (
+                    <Suspense fallback={null}>
+                        <BrokkVisitScene
+                            rowHeight={hidden ? PeekWindowRowHeight : WindowRowHeight}
+                            line={edgeLineOn(hidden, brokkShown)}
+                        />
+                    </Suspense>
+                ) : null}
                 <WindowRow peeked={hidden} standIns={standIns} />
-                <TopField />
+                <div className="mt-brokk-room" data-testid="sidebar-brokk-room">
+                    <TopField />
+                </div>
                 <TopRow instances={sections.everywhere ?? {}} activeTabId={activeTabId} />
                 <div ref={viewportRef} className="mt-sb-viewport relative flex min-h-0 flex-1 flex-col overflow-hidden">
                     <div
@@ -2729,7 +2792,12 @@ export function WorkspaceSidebar() {
                                     activeTabId={activeTabId}
                                     label={t("sidebar.tiles.label", { name })}
                                 />
-                                <AgentsSection agents={sections.agents} activeTabId={activeTabId} projects={projects} />
+                                <AgentsSection
+                                    agents={sections.agents}
+                                    activeTabId={activeTabId}
+                                    projects={projects}
+                                    ws={ws}
+                                />
                                 <TemporaryViews
                                     ids={sections.temporary}
                                     activeTabId={activeTabId}

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The facts of a Moltenterm build, written once at build time for the status bar (FR-SHELL-008, DS-SHELL-008) and the
 // About panel (FR-REL-001). Runs in the build configuration (Node), never in the app.

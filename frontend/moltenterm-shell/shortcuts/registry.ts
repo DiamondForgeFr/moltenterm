@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The shortcut registry (FR-SHELL-042, DS-SHELL-067): every key MoltenTerm answers, with a label and a category, in one
 // list read by the shortcuts sheet, the menus and the picker, so the same action shows the same keys everywhere. Keys

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Carries out a palette entry (FR-SHELL-013). "in place" replaces the pane the palette lives in, or opens a new pane
 // from the global palette; "right" splits the given pane to its right.
@@ -9,12 +9,15 @@ import {
     createBlockSplitHorizontally,
     getApi,
     getBlockComponentModel,
+    getFocusedBlockId,
+    refocusNode,
     replaceBlock,
 } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { Atom } from "jotai";
 import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
+import { BossBubbleModel } from "../boss/boss-store";
 import { handOffActivePage } from "../browser/browser-routing";
 import { openPanelFromPalette, runPanelPaletteEntry } from "../command-panel/command-panel-palette";
 import { equalizeCurrentTab } from "../equalize/equalize-actions";
@@ -135,6 +138,16 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
         case "sessions":
             await openMoltentermView(MoltentermSessionsView);
             return;
+        case "bosscard": {
+            // The palette's own input is gone by the time the card hides: the focus goes back to the pane it came from,
+            // or to the one the layout has focused when the palette was the sidebar's field. refocusNode, not
+            // focusBlock: the pane may already be the layout's focused one, which focusing the node again leaves alone.
+            const origin = target.blockId || getFocusedBlockId();
+            BossBubbleModel.getInstance().openCard(
+                origin ? { isConnected: true, focus: () => refocusNode(origin) } : undefined
+            );
+            return;
+        }
         case "focusorigin":
             focusBlock(target.blockId);
             return;

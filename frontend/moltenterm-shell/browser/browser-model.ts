@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tabs of a browser panel (FR-SHELL-007), kept in the block meta so they come back after a restart. Pure
 // functions: the view applies them and writes the result. Since #1187 (FR-SHELL-083) a panel shows one page: what
@@ -61,8 +61,9 @@ export function isAgentTabId(id: string): boolean {
 const MaxTabIdLength = 200;
 
 // engine is unset for the in-app engine, else the id of the installed browser the page was handed off to (FR-BRW-002):
-// the tab is then an entry with no page of its own here.
-export type BrowserTab = { id: string; url: string; title?: string; engine?: string };
+// the tab is then an entry with no page of its own here. allowed: the user let this tab show a local or inline page
+// (FR-BRW-014, #1978, local-page.ts); it is saved with the tab, which only the MoltenTerm window writes.
+export type BrowserTab = { id: string; url: string; title?: string; engine?: string; allowed?: boolean };
 
 export type BrowserState = { tabs: BrowserTab[]; activeId: string };
 
@@ -86,6 +87,9 @@ export function readBrowserState(meta: Record<string, any>, defaultUrl: string, 
                   };
                   if (typeof t.engine === "string" && t.engine !== "" && t.engine !== "app") {
                       tab.engine = t.engine;
+                  }
+                  if (t.allowed === true) {
+                      tab.allowed = true;
                   }
                   return tab;
               })
@@ -111,6 +115,18 @@ export function browserBlockDef(url: string, notice?: string, askEngine?: boolea
     return { meta: meta as MetaType };
 }
 
+// A panel for an address the user typed (the top field, the command palette): its tab is saved as allowed, so a local
+// or inline page opens without the question a terminal's page gets (FR-BRW-014, #1978). The saved tabs are meta only
+// the MoltenTerm window can write, which is why this stands for the user's own action.
+export function typedBlockDef(url: string): BlockDef {
+    const def = browserBlockDef(url);
+    const id = makeTabId();
+    const meta = def.meta as Record<string, any>;
+    meta[BrowserTabsMetaKey] = [{ id, url, allowed: true }];
+    meta[BrowserActiveMetaKey] = id;
+    return def;
+}
+
 export type BesideOpts = { notice?: string; ask?: boolean; keepFocus?: boolean };
 
 // A browser panel shows one page (FR-SHELL-083, #1187): a page opened "in a new tab" becomes a panel of its own. Its
@@ -123,12 +139,15 @@ export function besideBlockDef(tab: Partial<BrowserTab> & { url: string }, opts?
         meta[BrowserKeepFocusMetaKey] = true;
     }
     if (tab.id) {
-        const saved: Record<string, string> = { id: tab.id, url: tab.url };
+        const saved: Record<string, any> = { id: tab.id, url: tab.url };
         if (tab.title) {
             saved.title = tab.title;
         }
         if (tab.engine) {
             saved.engine = tab.engine;
+        }
+        if (tab.allowed) {
+            saved.allowed = true;
         }
         meta[BrowserTabsMetaKey] = [saved];
         meta[BrowserActiveMetaKey] = tab.id;
@@ -289,12 +308,15 @@ export function consumeCloseRequestsMeta(consumed: BrowserCloseRequest[]): Recor
 export function browserMeta(state: BrowserState): Record<string, any> {
     return {
         [BrowserTabsMetaKey]: state.tabs.map((t) => {
-            const saved: Record<string, string> = { id: t.id, url: t.url };
+            const saved: Record<string, any> = { id: t.id, url: t.url };
             if (t.title) {
                 saved.title = t.title;
             }
             if (t.engine) {
                 saved.engine = t.engine;
+            }
+            if (t.allowed) {
+                saved.allowed = true;
             }
             return saved;
         }),
@@ -373,7 +395,7 @@ export function updateTab(state: BrowserState, id: string, patch: Partial<Omit<B
             return t;
         }
         const next = { ...t, ...patch };
-        changed = next.url !== t.url || next.title !== t.title;
+        changed = next.url !== t.url || next.title !== t.title || next.allowed !== t.allowed;
         return next;
     });
     return changed ? { ...state, tabs } : state;

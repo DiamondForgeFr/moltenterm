@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -13,6 +13,30 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
+
+// How often a test's followed runs are read again, and how often its waits look at them. A run is over in a few
+// milliseconds, so the 700 ms of production would be most of each test (#2019).
+const testPoll = 5 * time.Millisecond
+
+// makeTestRuns is MakeRuns for tests: the runs it follows are read again every testPoll.
+func makeTestRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs {
+	r := MakeRuns(baseDir, trust, publish)
+	r.pollEvery = testPoll
+	return r
+}
+
+// The tests read the runs they follow every few milliseconds; MoltenTerm itself keeps reading them as often as before.
+func TestRunsPollAtTheirOwnIntervalUnlessTold(t *testing.T) {
+	t.Parallel()
+	r := MakeRuns(t.TempDir(), nil, nil)
+	if r.pollInterval() != 700*time.Millisecond || r.ciPollInterval() != time.Second {
+		t.Fatalf("defaults: a run every %v, a build's CI every %v", r.pollInterval(), r.ciPollInterval())
+	}
+	r.pollEvery = testPoll
+	if r.pollInterval() != testPoll || r.ciPollInterval() != testPoll {
+		t.Fatalf("told: a run every %v, a build's CI every %v", r.pollInterval(), r.ciPollInterval())
+	}
+}
 
 func writePipeline(t *testing.T, dir string, builds string) {
 	t.Helper()
@@ -34,8 +58,8 @@ func makeRunsFixture(t *testing.T, builds string) (*Runs, string) {
 	gitIn(t, dir, "add", "-A")
 	gitIn(t, dir, "commit", "-q", "-m", "init")
 	data := t.TempDir()
-	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
-	r.git = plainRunner
+	r := makeTestRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	r.git = withoutGh
 	// Registered after both temp folders, so it runs before their removal: a run a test started and did not wait for
 	// still writes its record, its log and its build tree, and the removal then fails with "directory not empty" (#643).
 	t.Cleanup(func() { waitRunsIdle(t, r) })
@@ -58,7 +82,7 @@ func waitRunsIdle(t *testing.T, r *Runs) {
 			t.Errorf("runs still going a minute after the test: %d", runsBusy(r))
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 }
 
@@ -72,7 +96,7 @@ func waitRun(t *testing.T, r *Runs, dir string, runId string) RunRecord {
 				return rec
 			}
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 	t.Fatalf("run %s did not finish", runId)
 	return RunRecord{}
@@ -100,6 +124,7 @@ func trustAndStart(t *testing.T, r *Runs, dir string, id string) RunRecord {
 }
 
 func TestRunNeedsTrustFirst(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","title":"Gold","run":"echo hi","artifact":"~/Apps/Fixture.app"}`)
 	res, err := r.Start(RunRequest{Dir: dir, Kind: RunKindBuild, Id: "gold"})
 	if err != nil || res.Run != nil || res.Untrusted == nil || len(res.Untrusted.Commands) != 1 || res.Untrusted.Commands[0].Run != "echo hi" {
@@ -122,6 +147,7 @@ func TestRunNeedsTrustFirst(t *testing.T) {
 }
 
 func TestArtifactPath(t *testing.T) {
+	t.Parallel()
 	if got := artifactPath("/p", "dist/App.app"); got != "/p/dist/App.app" {
 		t.Errorf("relative artifact: %q", got)
 	}
@@ -134,6 +160,7 @@ func TestArtifactPath(t *testing.T) {
 }
 
 func TestRunSucceedsWithPhasesAndLog(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"echo '▶ phase: build'; echo working; echo '▶ phase: deliver'; pwd"}`)
 	rec := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
 	if rec.State != RunStateSuccess || rec.Exit == nil || *rec.Exit != 0 || strings.Join(rec.Phases, ",") != "build,deliver" {
@@ -156,6 +183,7 @@ func TestRunSucceedsWithPhasesAndLog(t *testing.T) {
 }
 
 func TestRunFailureAndExclusivity(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"slow","run":"sleep 3600"},{"id":"bad","run":"exit 3"}`)
 	slow := trustAndStart(t, r, dir, "slow")
 	if _, err := r.Start(RunRequest{Dir: dir, Kind: RunKindBuild, Id: "bad"}); err == nil || !strings.Contains(err.Error(), "already running") {
@@ -174,6 +202,7 @@ func TestRunFailureAndExclusivity(t *testing.T) {
 }
 
 func TestCloseFinishedRun(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"slow","run":"sleep 3600"}`)
 	slow := trustAndStart(t, r, dir, "slow")
 	if err := r.Close(dir, slow.Id); err == nil || !strings.Contains(err.Error(), "still running") {
@@ -199,6 +228,7 @@ func TestCloseFinishedRun(t *testing.T) {
 }
 
 func TestClosedFailureSurvivesRestart(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"bad","run":"exit 3"}`)
 	first := waitRun(t, r, dir, trustAndStart(t, r, dir, "bad").Id)
 	if first.Closed {
@@ -207,8 +237,8 @@ func TestClosedFailureSurvivesRestart(t *testing.T) {
 	if err := r.Close(dir, first.Id); err != nil {
 		t.Fatal(err)
 	}
-	restarted := MakeRuns(r.baseDir, r.trust, nil)
-	restarted.git = plainRunner
+	restarted := makeTestRuns(r.baseDir, r.trust, nil)
+	restarted.git = withoutGh
 	runs := restarted.List(dir)
 	if len(runs) != 1 || !runs[0].Closed || runs[0].State != RunStateFailure {
 		t.Fatalf("the closed flag is stored with the run: %+v", runs)
@@ -220,6 +250,7 @@ func TestClosedFailureSurvivesRestart(t *testing.T) {
 }
 
 func TestRunLostAfterRestart(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
 	runDir := filepath.Join(r.projectDir(dir), "20260101-000000-aaaaaa")
 	os.MkdirAll(runDir, 0700)
@@ -232,6 +263,7 @@ func TestRunLostAfterRestart(t *testing.T) {
 }
 
 func TestRunRequestsAreChecked(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
 	if _, err := r.Start(RunRequest{Dir: dir, Kind: "rc", Id: "cut"}); err == nil {
 		r.GrantTrust(dir, CommandsHash(PipelineCommands(molten.ValidatePipeline(dir).Pipeline)))
@@ -249,6 +281,7 @@ func TestRunRequestsAreChecked(t *testing.T) {
 }
 
 func TestBuildVerifiesWithTheLocalCiFirst(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("runs use /bin/sh")
 	}
@@ -264,10 +297,10 @@ func TestBuildVerifiesWithTheLocalCiFirst(t *testing.T) {
 	gitIn(t, dir, "commit", "-q", "-m", "init")
 	data := t.TempDir()
 	trust := MakeTrustStore(filepath.Join(data, TrustFileName))
-	r := MakeRuns(filepath.Join(data, "runs"), trust, nil)
+	r := makeTestRuns(filepath.Join(data, "runs"), trust, nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
-	r.git = plainRunner
-	r.UseCi(MakeCi(filepath.Join(data, "ci"), trust, plainRunner, nil))
+	r.git = withoutGh
+	r.UseCi(MakeCi(filepath.Join(data, "ci"), trust, withoutGh, nil))
 	failed := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
 	if failed.State != RunStateFailure || strings.Join(failed.Phases, ",") != "verify" {
 		t.Fatalf("a red CI stops the build at verify: %+v", failed)

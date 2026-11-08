@@ -65,6 +65,13 @@ It has a TypeScript/React frontend and a Go backend. They talk together over `ws
 - Interpolated values are text, never HTML. The output of `molten` and `wsh` stays English (agents parse it).
 - UI text never names the machine or the OS (Mac, macOS, Finder, Windows Explorer): say "this computer", "Show in folder", "the system keychain". Shortcut glyphs adapt per platform (⌘ / Ctrl), and a feature that only exists on one platform may say so (allow-list in `frontend/moltenterm-shell/i18n/neutral-words.test.ts`).
 
+### Licence headers (Moltenterm, MOLTENTERM-PATCH #1870)
+
+- Moltenterm's own code is AGPL-3.0-only; the files that come from Wave Terminal stay Apache-2.0 (`NOTICE`, `UPSTREAM.md` "Licensing").
+- A **new** source file starts with `Copyright 2026, DiamondForge` and `SPDX-License-Identifier: AGPL-3.0-only` (in the comment syntax of the language), as the files around it do.
+- A file that comes from Wave keeps its header as it is, Command Line Inc.'s copyright line included, whatever MOLTENTERM-PATCH edits it gets. Never change that line or its identifier.
+- `node scripts/moltenterm-check-license.mjs` checks both rules (CI runs it); `--apply` fixes a Moltenterm file's header.
+
 ### RPC System
 
 To define a new RPC call, add the new definition to `pkg/wshrpc/wshrpctypes.go` including any input/output data that is required. After modifying wshrpctypes.go run `task generate` to generate the client APIs.

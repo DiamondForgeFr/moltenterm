@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The local CI's data on the panel side (FR-MC-011): mirrors pkg/molten/mission/ci.go. Kept apart from the components
 // so the rules can be tested without the app.

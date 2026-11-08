@@ -1,5 +1,5 @@
 // Copyright 2026, Moltenterm
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -25,6 +25,7 @@ var hostileValues = []string{
 }
 
 func TestCommandVarsRefuseHostileValues(t *testing.T) {
+	t.Parallel()
 	for _, value := range hostileValues {
 		for name, vars := range map[string]CommandVars{
 			"version": {Version: value},
@@ -44,6 +45,7 @@ func TestCommandVarsRefuseHostileValues(t *testing.T) {
 }
 
 func TestCommandVarsKeepNormalValues(t *testing.T) {
+	t.Parallel()
 	got, err := expandCommand("r {version} {tag} {branch}", CommandVars{Version: "1.0.0-2", Tag: "v1.0.0-2", Branch: "feature/306-quote_x.y"})
 	if err != nil || got != "r 1.0.0-2 v1.0.0-2 feature/306-quote_x.y" {
 		t.Fatalf("expand: %q %v", got, err)
@@ -51,6 +53,7 @@ func TestCommandVarsKeepNormalValues(t *testing.T) {
 }
 
 func TestReleaseCommandsRefuseHostileValues(t *testing.T) {
+	t.Parallel()
 	step := molten.PipelineStep{Id: "bump"}
 	step.Run = "echo {tag}"
 	if _, err := preparationCommand([]molten.PipelineStep{step}, "1.0.0", "v1.0.0; touch PWNED", "develop"); err == nil {
@@ -74,6 +77,7 @@ func startWithTrust(t *testing.T, r *Runs, req RunRequest) (RunResult, error) {
 }
 
 func TestStartRefusesHostileVersionBeforeRunningAnything(t *testing.T) {
+	t.Parallel()
 	marker := filepath.Join(t.TempDir(), "PWNED")
 	r, dir := makeRunsFixture(t, `{"id":"gold","title":"Gold","run":"echo {version}","artifact":"out"}`)
 	for _, value := range hostileValues {
@@ -91,6 +95,7 @@ func TestStartRefusesHostileVersionBeforeRunningAnything(t *testing.T) {
 }
 
 func TestStartRunsNormalVersionAndBranch(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","title":"Gold","run":"echo v={version} b={branch} t={tag}","artifact":"out"}`)
 	res, err := startWithTrust(t, r, RunRequest{Dir: dir, Kind: RunKindBuild, Id: "gold", Version: "1.2.3"})
 	if err != nil {

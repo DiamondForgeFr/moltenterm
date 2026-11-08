@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The launcher of a new view (FR-SHELL-089, DS-SHELL-128): the command palette with the favourites on top. A new view
 // opened directly on an agent passes through here too: the agent starts at once, without the chooser.

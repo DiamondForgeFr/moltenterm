@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Review tab's state (FR-REV-002, DS-REV-002, DS-REV-012): one per molten-review block. It reads the PR from the
 // block's meta, the file list and one file at a time from wavesrv, the viewed marks and the heads shown from the review

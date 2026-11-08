@@ -1,0 +1,29 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* A site's icon wherever a view, a bookmark or a menu draws one (#1962, DS-SHELL-126): an image the size of the icon
+   it stands for (1em, as the line glyphs are), in its own colours. */
+.mt-favicon {
+    display: block;
+    flex: none;
+    width: 1em;
+    height: 1em;
+    object-fit: contain;
+    -webkit-user-drag: none;
+}
+
+/* An icon measured as too dark for the dark sidebar sits on a light plate, the same 1 px larger on every side so its
+   own size does not change. The light theme needs no plate: a dark icon reads there. */
+.mt-favicon.is-dark {
+    box-sizing: content-box;
+    padding: 1px;
+    margin: -1px;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-text-1);
+}
+
+.mt-light .mt-favicon.is-dark {
+    padding: 0;
+    margin: 0;
+    background: none;
+}

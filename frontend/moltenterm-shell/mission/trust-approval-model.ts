@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A run refused from a terminal for untrusted commands (DS-MC-005, #1017): wavesrv publishes one notification per
 // folder (pkg/molten/mission/trust_ask.go). These rules read it; the sheet is in trust-approval.tsx.

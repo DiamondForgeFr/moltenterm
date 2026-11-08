@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The actions of the notification wavesrv publishes once the release setup's draft has its checks done (#1788): Mark
 // ready runs gh pr ready on the developer's click, Open shows the pull request. Registered by every window, so the

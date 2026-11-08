@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A panel reopened on the 360 carpet (Cmd+Shift+T, FR-SHELL-126-AC4) comes back at its place among the columns
 // (view360-model.ts rewriteAction); this brings it into view and gives it the focus, which wavesrv's split does not.

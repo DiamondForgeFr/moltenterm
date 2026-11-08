@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The test context of a local app (FR-BRW-017, DS-BRW-024, #962): which checkout, branch, commit and pull request the
 // page of a browser tab is served from. wavesrv resolves it (pkg/molten/mission/testcontext.go); this file only reads

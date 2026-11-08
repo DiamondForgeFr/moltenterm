@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What an agent MoltenTerm started works on (#1123, FR-MC-024), for its line in the project panel: "group merge: #1102
 // → #1105 · 1 of 2 merged", "rebase of #1107", "review of #1107". The work comes before any branch or commit: a

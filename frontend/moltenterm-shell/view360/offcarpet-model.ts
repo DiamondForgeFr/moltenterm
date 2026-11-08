@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Panels off-screen on the carpet are throttled, never unloaded (FR-SHELL-069, DS-SHELL-120). One flag per block says
 // whether the panel is off-carpet: the single source the views read. view360-offcarpet.tsx feeds the tracker with the

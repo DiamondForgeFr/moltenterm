@@ -1,4 +1,4 @@
-// Copyright 2026, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 // MOLTENTERM-PATCH (#371): renderer presentation with correlated, exactly-once sessions.
 // MOLTENTERM-PATCH (#408): native menus get the host's sections and Developer gate (FR-SHELL-054).

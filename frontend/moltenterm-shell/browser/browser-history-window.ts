@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The window's back and forward keys (#1744, FR-SHELL-139): the window's key model asks the browser panel that holds the
 // focus before it switches views (keymodel.ts), and binds Alt+← and Alt+→ off macOS.

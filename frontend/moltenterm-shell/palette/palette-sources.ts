@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The palette's entries (FR-SHELL-013), from configuration and the workspace: agent presets (presets "agent@<id>"),
 // panels (widgets.json), recent folders (FR-SHELL-009) and workspace actions. Pure, so the rules are tested without
@@ -8,7 +8,7 @@
 import { agentRow, agentRowByCommand, type FeatureMatrix } from "../agent-info/agent-features-model";
 import { agentWorks, pickerSummary } from "../agent-info/agent-works-model";
 import { AiIcon } from "../ai-icon";
-import { addressUrl, browserBlockDef, looksLikeAddress } from "../browser/browser-model";
+import { addressUrl, looksLikeAddress, typedBlockDef } from "../browser/browser-model";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
 import { getLocale, t } from "../i18n/i18n";
 import { FallbackLanguage, languageText } from "../i18n/i18n-core";
@@ -86,7 +86,7 @@ export function addressEntry(query: string): PaletteEntry {
         group: "panels",
         label: t("palette.openAddress", { address: text }),
         icon: "globe",
-        run: { kind: "widget", blockdef: browserBlockDef(url) },
+        run: { kind: "widget", blockdef: typedBlockDef(url) },
     };
 }
 
@@ -126,6 +126,8 @@ export type PaletteSourceInput = {
     picker?: PickerSource;
     // The shortcuts sheet's keys, shown on its entry.
     shortcutsHint?: string;
+    // The foreman's name while his bubble shows (FR-BOSS-002): the palette offers his card. Absent, no card to show.
+    bossName?: string;
     // The pin moves of the view on screen, as its menu offers them, and the move the keep shortcut makes (#1652).
     viewPin?: { moves: PinMove[]; keepMove: PinMove; keepHint: string };
 };
@@ -429,6 +431,25 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
     return rtn;
 }
 
+// "Show {name}'s card" (FR-BOSS-002-AC1): the Sessions of every workspace over the app, while his bubble or his pennant
+// is there to anchor it.
+export function bossCardEntries(name: string): PaletteEntry[] {
+    if (!name) {
+        return [];
+    }
+    return [
+        {
+            id: "action:bosscard",
+            group: "actions",
+            label: t("palette.actions.bossCard", { name }),
+            detail: t("palette.actions.bossCardDetail"),
+            icon: "layer-group",
+            keywords: paletteKeywords("bossCard", name),
+            run: { kind: "bosscard" },
+        },
+    ];
+}
+
 // The shortcuts sheet (FR-SHELL-042-AC8): the palette names it, with its keys.
 export function shortcutsEntry(hint?: string): PaletteEntry {
     return {
@@ -638,6 +659,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...panels,
         ...folderEntries(folders, input.home),
         ...actions,
+        ...bossCardEntries(input.bossName),
         ...(input.picker == null ? viewPinEntries(input.viewPin) : []),
         ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
         ...termUpdateEntries(input.outdatedTerminals),

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -41,6 +41,7 @@ func textInOrder(t *testing.T, text string, parts ...string) {
 
 // AC: behind its base, a failed remote check and a failed local CI status → one brief, the three blockers in order.
 func TestAnalyzeAndResolveListsTheBlockersInOrder(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.agentOnBranch()
 	req := f.investigateRequest(false)
@@ -73,6 +74,7 @@ func TestAnalyzeAndResolveListsTheBlockersInOrder(t *testing.T) {
 
 // AC: only a failed local CI status (named after the local CI) → the brief targets the local CI alone.
 func TestAnalyzeAndResolveLocalCiOnly(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.agentOnBranch()
 	req := f.investigateRequest(false)
@@ -94,6 +96,7 @@ func TestAnalyzeAndResolveLocalCiOnly(t *testing.T) {
 // The other blockers: no test report, an unanswered review round (its own brief, the round handed over), a local CI
 // whose statuses are missing on the head.
 func TestAnalyzeAndResolveReportRoundAndMissingLocalCi(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	f.agentOnBranch()
@@ -132,6 +135,7 @@ func TestAnalyzeAndResolveReportRoundAndMissingLocalCi(t *testing.T) {
 }
 
 func TestIsLocalCiCheck(t *testing.T) {
+	t.Parallel()
 	for name, want := range map[string]bool{"local-e2e": true, "AI testing / local CI": true, "Local-CI": true, "Backend": false, "localize": false} {
 		if IsLocalCiCheck(name) != want {
 			t.Errorf("%q: %v", name, !want)
@@ -141,6 +145,7 @@ func TestIsLocalCiCheck(t *testing.T) {
 
 // AC: the required checks pass but a local CI status fails on the pushed head → never green, needs you with its name.
 func TestInvestigationIsNotGreenWhileALocalStatusFails(t *testing.T) {
+	t.Parallel()
 	f, follow, st, ci := investigateFollow(t)
 	ci.checks = `[{"name":"Backend","bucket":"pass"}]`
 	ci.allChecks = `[{"name":"Backend","bucket":"pass"},{"name":"local-e2e","bucket":"fail"}]`
@@ -164,6 +169,7 @@ func TestInvestigationIsNotGreenWhileALocalStatusFails(t *testing.T) {
 // local status yet and the gate check named after the local CI is red: MoltenTerm waits for the local CI there instead
 // of calling it red, tells the developer when it never comes, and judges the statuses once they are posted.
 func TestInvestigationWaitsForTheLocalCiOnThePushedHead(t *testing.T) {
+	t.Parallel()
 	f, follow, st, ci := investigateFollow(t)
 	now := time.UnixMilli(5000)
 	f.r.env.Now = func() time.Time { return now }
@@ -193,6 +199,7 @@ func TestInvestigationWaitsForTheLocalCiOnThePushedHead(t *testing.T) {
 
 // A project whose local CI posts statuses: green on GitHub alone is not green while the head has none.
 func TestJudgeChecksWaitsForDeclaredLocalStatuses(t *testing.T) {
+	t.Parallel()
 	pass := []ghCheckBucket{{Name: "Backend", Bucket: "pass"}}
 	if v := judgeChecks(pass, pass, true); v.state != ciPending || !v.localWait {
 		t.Errorf("declared, none posted: %+v", v)
@@ -213,6 +220,7 @@ func TestJudgeChecksWaitsForDeclaredLocalStatuses(t *testing.T) {
 // A broken local CI (#1020): the brief tells the code's failure from the CI's, and the agent's outcome line for a wrong
 // declaration or a MoltenTerm bug becomes a "needs you" saying so.
 func TestBrokenLocalCiNeedsYouWithTheReason(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.agentOnBranch()
 	req := f.investigateRequest(false)

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Closing a pinned view (FR-SHELL-080, #1760): the view is the workspace's, each project holds an instance of it, so it
 // closes for every project. A tile closes every instance of its slot, a view pinned everywhere this workspace's

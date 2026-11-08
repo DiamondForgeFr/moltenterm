@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Coalesces state reads and keeps retrying a failed read until it succeeds or the owner stops.
 // Events received during a read require one more read, because that response may predate the event.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package viewpin keeps what a pinned view is made of (FR-SHELL-080): its panels and their layout, without what
 // belongs to one project or one moment. A view pinned in a workspace keeps this configuration in its tab; a view

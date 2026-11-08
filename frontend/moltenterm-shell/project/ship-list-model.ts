@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What would ship (#903, FR-MC-021): the changes waiting on the trunk, grouped by ticket along GitHub's parent links
 // (Epic > Story or Task, Story > Task, Task > Task), behaviour changes first. The commits come from the snapshot the

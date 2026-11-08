@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package agenthandoff
 
@@ -26,6 +26,7 @@ func TestRouteCallers(t *testing.T) {
 	notTerminals := append([]routetest.From{e.Window(), e.Electron()}, e.Forged()...)
 	routetest.MustRefuseWith(t, link, notTerminals, ListCommand, map[string]any{"token": "t"}, errRemote)
 	routetest.MustRefuseWith(t, link, notTerminals, SendCommand, map[string]any{"token": "t", "to": "Jérôme"}, errRemote)
+	routetest.MustRefuseWith(t, link, notTerminals, SettleCommand, map[string]any{"token": "t", "target": "1872"}, errRemote)
 	for _, from := range []routetest.From{e.Window(), e.Electron()} {
 		if _, errStr := routetest.Ask(t, link, from, AnswerCommand, answer); !strings.Contains(errStr, "no longer waiting") {
 			t.Errorf("the answer from %s reached the manager: %q", from.Name, errStr)

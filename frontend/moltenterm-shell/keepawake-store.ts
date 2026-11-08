@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The windows' copy of wavesrv's keep-awake state (FR-SHELL-023, DS-SHELL-062): a read at start, then the
 // molten:keepawake events, which carry the whole state on every change, so every window agrees within a moment
@@ -14,7 +14,8 @@ import { selectAtom } from "jotai/utils";
 import { t } from "./i18n/i18n";
 import {
     applyKeepAwakeState,
-    cleanSleepPolicy,
+    askAnswerSettings,
+    AutomaticSetting,
     coffeeApprovalLines,
     coffeeOf,
     EmptyKeepAwakeState,
@@ -26,7 +27,6 @@ import {
     KeepAwakeState,
     KeepAwakeStateCommand,
     KeepAwakeStopCommand,
-    SleepPolicy,
     SleepPolicyGesture,
 } from "./keepawake-model";
 import { KeepAwakeRefresh } from "./keepawake-refresh";
@@ -44,7 +44,6 @@ function sameCoffee(a: KeepAwakeCoffee, b: KeepAwakeCoffee): boolean {
         a.workspaceid === b.workspaceid &&
         a.since === b.since &&
         a.working === b.working &&
-        a.endsat === b.endsat &&
         a.workspacename === b.workspacename
     );
 }
@@ -112,11 +111,11 @@ export class KeepAwakeModel {
             return;
         }
         registerNotificationGesture(SleepPolicyGesture, async (args) => {
-            const policy = cleanSleepPolicy(args?.policy);
-            if (policy == null) {
+            const settings = askAnswerSettings(args?.policy);
+            if (settings == null) {
                 return { ok: false, error: t("keepawake.unknownPolicy") };
             }
-            await this.setPolicy(policy);
+            await RpcApi.SetConfigCommand(TabRpcClient, settings);
             return { ok: true, resolve: true };
         });
         this.refreshState.request();
@@ -186,7 +185,8 @@ export class KeepAwakeModel {
         this.apply(await this.call(KeepAwakeStopCommand, { blockid: blockId }));
     }
 
-    async setPolicy(policy: SleepPolicy): Promise<void> {
-        await RpcApi.SetConfigCommand(TabRpcClient, { "power:sleeppolicy": policy });
+    // The Automatic mode: the setting is the one source, wavesrv reads it and publishes the state.
+    async setAutomatic(on: boolean): Promise<void> {
+        await RpcApi.SetConfigCommand(TabRpcClient, { [AutomaticSetting]: on });
     }
 }

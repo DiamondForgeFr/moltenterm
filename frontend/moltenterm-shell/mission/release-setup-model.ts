@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release setup (FR-MC-036, DS-MC-030): what wavesrv drafts (pkg/molten/pipelinesetup), the stepper's choices,
 // the flow diagram's model and the review's line diff. Pure functions, tested without the app.
@@ -360,7 +360,16 @@ export type SetupChange = {
     local?: boolean;
 };
 export type SetupUpdateReason = {
-    code: "protected" | "labels" | "notlabels" | "template" | "customised" | "adjusted" | "local" | "proposed";
+    code:
+        | "protected"
+        | "labels"
+        | "notlabels"
+        | "template"
+        | "customised"
+        | "changedsince"
+        | "adjusted"
+        | "local"
+        | "proposed";
     detail?: string;
 };
 export type SetupCheck = {
@@ -461,7 +470,11 @@ export function needsReleaseSetup(rcSteps: readonly unknown[], publicSteps: read
 }
 
 export function setupReasonText(t: TFunction, reason: SetupUpdateReason): string {
-    return t(`mc.setup.update.reason.${reason.code}`, { branch: reason.detail ?? "", count: reason.detail ?? "" });
+    return t(`mc.setup.update.reason.${reason.code}`, {
+        branch: reason.detail ?? "",
+        count: reason.detail ?? "",
+        step: reason.detail ?? "",
+    });
 }
 
 export function toggled<T>(list: readonly T[], item: T, on: boolean): T[] {

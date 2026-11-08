@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
@@ -64,10 +64,10 @@ function words(a: LeftoverAsk) {
 }
 
 describe("a leftover's owner asked (#1143)", () => {
-    it("asked: the agents' section, Follow {name}, calm", () => {
+    it("asked: the In progress section, Follow {name}, calm", () => {
         expect(words(ask({ state: "asked" }))).toEqual({
             kind: "agent-working",
-            turn: "agents",
+            turn: "waiting",
             tone: "agent",
             sentence: "Asked Valentin · waiting",
             why: "",
@@ -78,7 +78,7 @@ describe("a leftover's owner asked (#1143)", () => {
             history: "Cleanup asked of Valentin at 11:40",
         });
         // A request queued behind the owner's work reads the same: nothing is the developer's yet.
-        expect(words(ask({ state: "asked", delivery: "queued" })).turn).toBe("agents");
+        expect(words(ask({ state: "asked", delivery: "queued" })).turn).toBe("waiting");
     });
 
     it("needs you: Yours, the PR card's own Answer {name} and sentence, with the owner's reason", () => {
@@ -125,7 +125,7 @@ describe("a leftover's owner asked (#1143)", () => {
             asks(ask({ state: "needsyou" }), ask({ number: 1142, worktree: "/p/w2", state: "asked" }))
         );
         expect(rows.yours.map((r) => r.leftover.pr)).toEqual([1141]);
-        expect(rows.agents.map((r) => r.leftover.pr)).toEqual([1142]);
+        expect(rows.waiting.map((r) => r.leftover.pr)).toEqual([1142]);
     });
 
     it("unreachable owner: named by process and pid, never asked", () => {

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A workspace linked to its project (FR-MC-001): the project folder and the optional logo live in the workspace's
 // meta. molten writes the same keys (pkg/molten/project.go). Kept apart from the components so the rules can be

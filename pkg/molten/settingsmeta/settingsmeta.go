@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package settingsmeta is what the settings screen knows about each key of settings.json (FR-SHELL-050,
 // DS-SHELL-091): its section, group, label, one-line description and control. cmd/generateschema writes it into
@@ -20,10 +20,12 @@ const (
 	SectionAppearance = "appearance"
 	SectionTerminal   = "terminal"
 	SectionAgents     = "agents"
-	SectionBrowser    = "browser"
-	SectionMission    = "mission"
-	SectionKeyboard   = "keyboard"
-	SectionAdvanced   = "advanced"
+	// The foreman's bubble (FR-BOSS-001): the screen titles the section with his name, which the developer chooses.
+	SectionBoss     = "boss"
+	SectionBrowser  = "browser"
+	SectionMission  = "mission"
+	SectionKeyboard = "keyboard"
+	SectionAdvanced = "advanced"
 )
 
 const (
@@ -37,6 +39,10 @@ const (
 	// An object or a list the screen does not edit: the row opens settings.json.
 	ControlJSON = "json"
 )
+
+// BrokkTableGroup is the group the screen draws as the table "Quand Brokk vient me chercher"; it must match
+// BrokkTableGroup in frontend/moltenterm-shell/boss/brokk-coming-card.tsx.
+const BrokkTableGroup = "When he comes to fetch me"
 
 // Options filled by the screen at run time (the terminal themes come from the themes config).
 const OptionsTermThemes = "termthemes"
@@ -53,6 +59,7 @@ var Sections = []string{
 	SectionAppearance,
 	SectionTerminal,
 	SectionAgents,
+	SectionBoss,
 	SectionBrowser,
 	SectionMission,
 	SectionKeyboard,
@@ -122,6 +129,13 @@ func codingAgentOptions() []Option {
 	return rtn
 }
 
+// What an event does (FR-BOSS-009, AC4): Brokk comes, only the badge counts it, or nothing.
+var comingOptions = []Option{{Value: "vient", Label: "Comes to fetch me"}, {Value: "badge", Label: "Badge only"}, {Value: "rien", Label: "Nothing"}}
+
+var graceOptions = []Option{{Value: "1", Label: "1 minute"}, {Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
+
+var blockedOptions =[]Option{{Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
+
 var onOff = []Option{{Value: "off", Label: "Off"}, {Value: "on", Label: "On"}, {Value: "term", Label: "Terminals only"}}
 
 // The order of the list is the order of the rows inside each section.
@@ -147,7 +161,16 @@ var settings = []Setting{
 	hidden("app:newworkspaceviews"),
 	{Key: "app:tilelauncher", Section: SectionGeneral, Group: "Panels", Label: "Tile launcher in empty panes", Description: "An empty pane shows the tile launcher instead of the command palette.", Control: ControlToggle},
 	{Key: "app:focusfollowscursor", Section: SectionGeneral, Group: "Panels", Label: "Focus follows the pointer", Description: "Focus the panel under the pointer without a click.", Control: ControlSelect, Options: onOff},
-	{Key: "power:sleeppolicy", Section: SectionGeneral, Group: "Energy", Label: "Keep the computer awake", Description: "Whether a program in a terminal may keep the computer awake.", Control: ControlSelect, UnsetLabel: "Ask the first time", Options: []Option{{Value: "allow", Label: "When a terminal asks"}, {Value: "untilworkends", Label: "Until work ends"}, {Value: "letsleep", Label: "Never"}}},
+	// #2089: keep-awake has two ways to turn on (Manual, a workspace's switch, and Automatic) and this configuration,
+	// which says how it behaves once on: what counts as work, how long it lasts after the work, and what a terminal's
+	// request gets. power:sleeppolicy, which mixed them, is read once at startup to move to these.
+	{Key: "power:automatic", Section: SectionGeneral, Group: "Energy", Label: "Automatic", Description: "Keep this computer awake whenever an agent works, until it has finished.", Control: ControlToggle},
+	{Key: "power:graceminutes", Section: SectionGeneral, Group: "Energy", Label: "Stay awake after the work ends", Description: "How long it stays awake after the last work stopped, so a pause between two turns is not a sleep.", Control: ControlSelect, Options: graceOptions, Default: 2, Unit: "min"},
+	{Key: "power:workagents", Section: SectionGeneral, Group: "Energy", Label: "Agents at work count", Description: "An agent working, or busy with background subagents or commands after its turn.", Control: ControlToggle, Default: true},
+	{Key: "power:workcommands", Section: SectionGeneral, Group: "Energy", Label: "Commands in terminals count", Description: "A command running in a terminal that is not an idle shell.", Control: ControlToggle, Default: true},
+	{Key: "power:workprojects", Section: SectionGeneral, Group: "Energy", Label: "Project runs count", Description: "A build, release, sync or local CI run of a project.", Control: ControlToggle, Default: true},
+	{Key: "power:terminalrequests", Section: SectionGeneral, Group: "Energy", Label: "When a terminal asks to stay awake", Description: "What happens when a program in a terminal asks to keep the computer awake (caffeinate, systemd-inhibit).", Control: ControlSelect, UnsetLabel: "Ask the first time", Options: []Option{{Value: "always", Label: "Always listen"}, {Value: "never", Label: "Never"}}},
+	hidden("power:sleeppolicy"),
 	{Key: "preview:showhiddenfiles", Section: SectionGeneral, Group: "Files and editor", Label: "Show hidden files", Description: "File views list dotfiles.", Control: ControlToggle, Default: true},
 	{Key: "preview:defaultsort", Section: SectionGeneral, Group: "Files and editor", Label: "Sort files by", Description: "The order of a new file view's list, folders first; each panel keeps its own.", Control: ControlSelect, Options: []Option{{Value: "name", Label: "Name"}, {Value: "type", Label: "Type"}, {Value: "modtime", Label: "Last modified"}}},
 	{Key: "editor:wordwrap", Section: SectionGeneral, Group: "Files and editor", Label: "Wrap long lines", Description: "The editor wraps lines wider than the panel.", Control: ControlToggle},
@@ -201,6 +224,29 @@ var settings = []Setting{
 	{Key: "companion:usagegauges", Section: SectionAgents, Group: "Companion", Label: "Plan usage", Description: "The agents whose plan usage the companion shows.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 	{Key: "agent:sessionroots", Section: SectionAgents, Group: "Companion", Label: "More session folders", Description: "Extra configuration folders per agent whose sessions the companion reads.", Control: ControlJSON},
 
+	// The foreman (FR-BOSS-001): the bubble that counts what waits across every workspace.
+	// Range, for a text, is its length in characters.
+	{Key: "boss:name", Section: SectionBoss, Group: "Avatar", Label: "Name", Description: "The name the foreman goes by, from 1 to 24 characters. His tooltip, card and menus use it.", Control: ControlText, Range: rng(1, 24, 1), Default: "Brokk"},
+	{Key: "boss:show", Section: SectionBoss, Group: "Avatar", Label: "Show the avatar", Description: "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows.", Control: ControlToggle, Default: true},
+	// The avatar stays in the title row, never over a terminal: there is nothing left to fold (#2002).
+	hidden("boss:collapseontype"),
+	// When Brokk comes to fetch the developer (#2001 keys, #2003 table, FR-BOSS-009 AC4): the screen draws this group as
+	// one table, "Quand Brokk vient me chercher", with a choice per event.
+	{Key: "boss:visitsecurity", Section: SectionBoss, Group: BrokkTableGroup, Label: "A security alert on a dependency", Description: "A high or critical alert on a dependency of your projects.", Control: ControlSelect, Options: comingOptions, Default: "vient"},
+	{Key: "boss:visitblocked", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent waits for my answer", Description: "An agent blocked on you for longer than the threshold below.", Control: ControlSelect, Options: comingOptions, Default: "vient"},
+	{Key: "boss:visiterror", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent stopped on an error", Description: "An agent that stopped on an error.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitci", Section: SectionBoss, Group: BrokkTableGroup, Label: "CI failed on my pull request", Description: "The checks of one of your pull requests failed.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitready", Section: SectionBoss, Group: BrokkTableGroup, Label: "A pull request is ready to merge", Description: "A pull request that is approved and green.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitfinished", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent finished", Description: "An agent that finished its work.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitdownload", Section: SectionBoss, Group: BrokkTableGroup, Label: "A download finished or failed", Description: "A file downloaded from a web page, finished or interrupted.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitupdate", Section: SectionBoss, Group: BrokkTableGroup, Label: "An update is available", Description: "A new version of MoltenTerm.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitusage", Section: SectionBoss, Group: BrokkTableGroup, Label: "Plan usage above 90 %", Description: "The plan usage of an agent crosses 90 %.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:blockedmin", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent counts as blocked after", Description: "How long an agent may wait for you before it counts as blocked; three times as long is grave.", Control: ControlSelect, Options: blockedOptions, Default: 5, Unit: "min"},
+	{Key: "boss:quiet", Section: SectionBoss, Group: BrokkTableGroup, Label: "Quiet hours", Description: "During these hours only the badge changes, even for the events that come to fetch you.", Control: ControlToggle, Default: true},
+	{Key: "boss:quietfrom", Section: SectionBoss, Group: BrokkTableGroup, Label: "Quiet hours begin", Description: "The hour the quiet hours begin, as HH:MM.", Control: ControlText, Default: "22:00"},
+	{Key: "boss:quietto", Section: SectionBoss, Group: BrokkTableGroup, Label: "Quiet hours end", Description: "The hour the quiet hours end, as HH:MM.", Control: ControlText, Default: "08:00"},
+	{Key: "boss:nevercome", Section: SectionBoss, Group: BrokkTableGroup, Label: "Never come, only the badge", Description: "Master switch: no scene leaves the avatar. The badge keeps counting.", Control: ControlToggle},
+
 	// Browser
 	{Key: "browser:default", Section: SectionBrowser, Group: "Opening pages", Label: "Open web pages in", Description: "Where links and web pages open by default.", Control: ControlSelect, UnsetLabel: "Ask for each site", Options: []Option{{Value: "app", Label: "MoltenTerm's browser"}, {Value: "installed", Label: "The installed browser"}}},
 	{Key: "browser:installed", Section: SectionBrowser, Group: "Opening pages", Label: "Installed browser", Description: "The Chromium browser pages are handed off to.", Control: ControlSelect, UnsetLabel: "First one found", Options: []Option{{Value: "chrome", Label: "Chrome"}, {Value: "brave", Label: "Brave"}, {Value: "edge", Label: "Edge"}, {Value: "arc", Label: "Arc"}, {Value: "vivaldi", Label: "Vivaldi"}, {Value: "opera", Label: "Opera"}, {Value: "chromium", Label: "Chromium"}}},
@@ -210,8 +256,11 @@ var settings = []Setting{
 	{Key: "web:defaultsearch", Section: SectionBrowser, Group: "Browser panel", Label: "Search engine", Description: "The search URL, with {query} where the words go.", Control: ControlText},
 	{Key: "moltenterm:hiddenpagefreeze", Section: SectionBrowser, Group: "Browser panel", Label: "Pause hidden pages", Description: "A page not on screen stops running until shown, unless an agent drives it or it plays audio.", Control: ControlToggle, Default: true},
 	{Key: "moltenterm:hiddenpagediscardmin", Section: SectionBrowser, Group: "Browser panel", Label: "Unload hidden pages after", Description: "A page not on screen this long is unloaded, then reloads when shown; 0 keeps pages loaded.", Control: ControlNumber, Range: rng(0, 1440, 1), Unit: "min", Default: 10},
+	{Key: "browser:downloadask", Section: SectionBrowser, Group: "Downloads", Label: "Always ask where to save", Description: "Ask for a folder before each download; off saves it straight to your Downloads folder.", Control: ControlToggle},
 	{Key: "browser:agentsites", Section: SectionBrowser, Group: "Agents", Label: "Agent site permissions", Description: "Sites agents may use or are blocked from in the browser panel.", Control: ControlJSON},
 	{Key: "browser:sitepermissions", Section: SectionBrowser, Group: "Browser panel", Label: "Site permissions", Description: "What each site may use: camera, microphone, location, notifications.", Control: ControlJSON},
+	{Key: "browser:clientcertificates", Section: SectionBrowser, Group: "Browser panel", Label: "Client certificates", Description: "The certificate each site gets to identify you, or none.", Control: ControlJSON},
+	{Key: "browser:localpages", Section: SectionBrowser, Group: "Browser panel", Label: "Files opened without asking", Description: "Files from this computer that a terminal or an agent may open in the browser panel without a question.", Control: ControlJSON},
 
 	// Mission Control
 	{Key: "linemap:animation", Section: SectionMission, Group: "Line map", Label: "Animate the line map", Description: "Play the load sequence and the moving trains; reduced motion turns it off.", Control: ControlToggle, Default: true},

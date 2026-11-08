@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Clean copy (FR-SHELL-017, DS-SHELL-018): the text an agent meant, from the lines its terminal UI drew. A pure
 // function over the selected buffer lines, so every rule is tested on captured samples (clean-copy.test.ts).

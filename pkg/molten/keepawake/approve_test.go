@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package keepawake
 
@@ -16,7 +16,8 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
-// TC-SHELL-130: the approval follows the coffee, its grace included, and ends with it.
+// TC-SHELL-130: the approval follows the coffee's work and the grace after it, and ends there while the coffee, the
+// Manual switch, goes on holding the computer awake (FR-SHELL-023 AC17).
 func TestApprovalFollowsTheCoffee(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()
@@ -40,10 +41,10 @@ func TestApprovalFollowsTheCoffee(t *testing.T) {
 	if decide("ws-a") != PermissionAllow {
 		t.Fatal("in its grace the coffee still holds")
 	}
-	f.advance(GracePeriod)
+	f.advance(DefaultGrace)
 	k.Evaluate(ctx)
-	if decide("ws-a") != "" {
-		t.Fatal("coffee ended: no answer")
+	if decide("ws-a") != "" || !k.State().Hold {
+		t.Fatal("past the grace the coffee holds the computer awake but answers nothing")
 	}
 	k.SetCoffee(ctx, "ws-a", true)
 	k.SetCoffee(ctx, "ws-a", false)

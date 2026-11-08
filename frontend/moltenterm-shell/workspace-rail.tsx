@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace rail (FR-SHELL-001, DS-SHELL-002): every workspace at a glance on the left, one click to switch, as
 // in Notulia. It replaces the switcher of the tab bar and reuses Wave's workspace calls; a workspace is edited in
@@ -21,10 +21,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentRailDot } from "./agent-state-ui";
+import { OpenPageKeeper } from "./downloads/open-page-keeper";
 import { useT, useTCount } from "./i18n/i18n";
 import { coffeeCondition, coffeeSupported, coffeeTooltip, railCoffeeLabel } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
 import { RailCoffeeDrop, usePlatform } from "./keepawake-ui";
+import { installMorphDesignHandoff } from "./morph-design/morph-design-open";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
@@ -285,7 +287,7 @@ function RailButton({
     const dragging = moves.dragOffsetY != null;
     const connect = grouping?.connect;
     const coffeeText =
-        coffee != null ? ` · ${t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) })}` : "";
+        coffee != null ? ` · ${t("rail.keptAwake", { condition: coffeeCondition() })}` : "";
     const stateText = (member?.stateText ? ` · ${member.stateText}` : "") + coffeeText;
     const size = member != null ? RailMemberPx : RailItemPx;
     const primary: RailTrayPrimary =
@@ -293,7 +295,7 @@ function RailButton({
             ? {
                   kind: "coffee",
                   label: railCoffeeLabel(entry.name, true, platform),
-                  tooltip: [coffeeTooltip(coffee, entry.name, platform, Date.now()), ...approvalLines].join("\n"),
+                  tooltip: [coffeeTooltip(coffee, entry.name), ...approvalLines].join("\n"),
                   pressed: true,
                   onActivate: () => setCoffee(false),
               }
@@ -825,11 +827,14 @@ export function WorkspaceRailHosts({ entries }: { entries: WorkspaceRailEntry[] 
     const active = useAtomValue(atoms.workspace);
     // `molten review open|publish|merge` in a terminal of this workspace (FR-REV-014).
     useEffect(() => installReviewHandoff(active?.oid), [active?.oid]);
+    // `molten morph design <mod-id>` in a terminal of this workspace (FR-MORPH-019).
+    useEffect(() => installMorphDesignHandoff(active?.oid), [active?.oid]);
     return (
         <>
             <ProjectLinkDetector />
             <ProjectTabKeeper />
             <PaneFocusKeeper />
+            <OpenPageKeeper />
             <WorktreeCloseHost />
             <AgentChoiceHost />
             <LeadResumeHost />

@@ -21,6 +21,7 @@ import {
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
+import { watchGuestFavicons } from "./moltenterm-favicons"; // MOLTENTERM-PATCH (#1962)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireViewForTab, noteTabViewDestroyed, noteTabViewDestroying } from "./moltenterm-tabview-host"; // MOLTENTERM-PATCH (#461)
 import { opaqueBackground } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
@@ -274,6 +275,7 @@ export async function getOrCreateWebViewForTab(
     // (Wave's deny-and-forward moved to emain/moltenterm-popups.ts).
     tabView.webContents.on("did-attach-webview", (event, wc) => {
         attachWebviewWindowOpen(tabView, wc);
+        watchGuestFavicons(wc); // MOLTENTERM-PATCH (#1962): a page's declared icon is kept per origin
     });
     tabView.webContents.on("before-input-event", (e, input) => {
         const waveEvent = adaptFromElectronKeyEvent(input);

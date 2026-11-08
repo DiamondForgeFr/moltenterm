@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 3 of the pipeline setup, "Prepare and validate" (#1104, FR-MC-038): the prepared pipeline drawn as it will run,
 // its exact changes file by file (with the checks and the formatter the draft proposes, each one dropped by a tick),

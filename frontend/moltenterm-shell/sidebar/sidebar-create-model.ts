@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The new-workspace page of the sidebar (FR-SHELL-082, FR-SHELL-102): what the form holds, the colours it offers and
 // the pending dot it draws in the bottom row.

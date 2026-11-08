@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package keepawake
 
@@ -19,8 +19,9 @@ import (
 
 // Env is what the keeper needs from wavesrv, injected so tests run without it.
 type Env struct {
-	Now    func() time.Time
-	Policy func() string
+	Now func() time.Time
+	// Config: the power:* settings; nil reads as DefaultConfig.
+	Config func() Config
 	Work   func(ctx context.Context) Work
 	// Workspace: the workspace's name, and whether it still exists.
 	Workspace func(ctx context.Context, wsId string) (string, bool)
@@ -52,7 +53,8 @@ type coffeeRec struct {
 	since   int64
 	name    string
 	working bool
-	// graceStart: when the workspace's last work stopped (zero while it works).
+	// graceStart: when the workspace's last work stopped, or when the coffee was turned on with nothing running (zero
+	// while it works). The coffee never ends by it; the approvals' window does (HasCoffee).
 	graceStart time.Time
 	reasons    []string
 }
@@ -62,14 +64,15 @@ type Keeper struct {
 	lock    sync.Mutex
 	env     Env
 	coffees map[string]*coffeeRec
-	policy  string
-	// The Until work ends policy's own reason.
-	policyHolding    bool
-	policyWorking    bool
-	policyGraceStart time.Time
-	policyReasons    []string
-	attempts         []Attempt
-	overrides        map[string]*Override
+	// cfg: the configuration of the last evaluation or shim request.
+	cfg Config
+	// Automatic's own reason.
+	autoHolding    bool
+	autoWorking    bool
+	autoGraceStart time.Time
+	autoReasons    []string
+	attempts       []Attempt
+	overrides      map[string]*Override
 	// asked: the ask-once notification went out in this run.
 	asked     bool
 	version   int64
@@ -89,15 +92,21 @@ func computerName() string {
 	return "this computer"
 }
 
-func (k *Keeper) policyNow() string {
-	if k.env.Policy == nil {
-		return PolicyAsk
+func (k *Keeper) configNow() Config {
+	if k.env.Config == nil {
+		return DefaultConfig()
 	}
-	return CleanPolicy(k.env.Policy())
+	cfg := k.env.Config()
+	cfg.Requests = CleanRequests(cfg.Requests)
+	if cfg.Grace <= 0 {
+		cfg.Grace = DefaultGrace
+	}
+	return cfg
 }
 
-// SetCoffee turns a workspace's coffee on or off. A coffee turned on while nothing runs in the workspace starts in its
-// grace; the evaluation that follows at once tells whether work runs.
+// SetCoffee turns a workspace's coffee (its Manual switch) on or off. A coffee turned on while nothing runs in the
+// workspace starts in its grace, which only matters to the approvals; the evaluation that follows at once tells whether
+// work runs.
 func (k *Keeper) SetCoffee(ctx context.Context, wsId string, on bool) (State, error) {
 	if wsId == "" {
 		return k.State(), fmt.Errorf("no workspace given")
@@ -134,19 +143,20 @@ func (k *Keeper) removeCoffee(wsId string) {
 	delete(k.coffees, wsId)
 }
 
-// Shim decides a shim's block attempt and records it. The session's override wins over the global policy; with no
-// policy set, the first attempt of the run raises the ask-once notification and the tool runs meanwhile.
+// Shim decides a shim's block attempt and records it. The session's override wins over the terminal requests setting;
+// with it unset, the first attempt of the run raises the ask-once notification and the tool runs meanwhile.
 //
-// The answer comes from memory only (the policy, the session's override): the shim's caller waits for it (NFR-SHELL-009,
-// under 50 ms). Where the session is, the parent's name, the notification and the publish follow off that path. An
-// answer that would reach the shim after its deadline is recorded as allowed: the shim has run the real tool by then.
+// The answer comes from memory only (the setting, the session's override): the shim's caller waits for it
+// (NFR-SHELL-009, under 50 ms). Where the session is, the parent's name, the notification and the publish follow off
+// that path. An answer that would reach the shim after its deadline is recorded as allowed: the shim has run the real
+// tool by then.
 func (k *Keeper) Shim(ctx context.Context, req ShimRequest) (ShimAnswer, error) {
 	if !IsShimTool(req.Tool) {
 		return ShimAnswer{Policy: PolicyAllow}, fmt.Errorf("unknown tool %q", req.Tool)
 	}
-	policy := k.policyNow()
+	cfg := k.configNow()
 	late := req.Deadline > 0 && k.env.Now().UnixMilli() > req.Deadline-shimAnswerMargin.Milliseconds()
-	answer, id, ask := k.recordAttempt(req, policy, late)
+	answer, id, ask := k.recordAttempt(req, cfg, late)
 	k.async(func() { k.completeAttempt(id, req, ask) })
 	return answer, nil
 }
@@ -206,15 +216,15 @@ func clipArgs(args []string) []string {
 	return rtn
 }
 
-func (k *Keeper) recordAttempt(req ShimRequest, policy string, late bool) (ShimAnswer, string, bool) {
+func (k *Keeper) recordAttempt(req ShimRequest, cfg Config, late bool) (ShimAnswer, string, bool) {
 	k.lock.Lock()
 	defer k.lock.Unlock()
-	effective := policy
+	effective := ShimPolicy(cfg.Requests)
 	override := k.overrides[req.BlockId]
 	if override != nil {
 		effective = override.Policy
 	}
-	answer := ShimAnswer{Policy: ShimPolicy(effective)}
+	answer := ShimAnswer{Policy: effective}
 	if late {
 		answer.Policy = PolicyAllow
 	}
@@ -233,8 +243,8 @@ func (k *Keeper) recordAttempt(req ShimRequest, policy string, late bool) (ShimA
 	if len(k.attempts) > MaxAttempts {
 		k.attempts = k.attempts[len(k.attempts)-MaxAttempts:]
 	}
-	k.policy = policy
-	ask := policy == PolicyAsk && override == nil && !k.asked
+	k.cfg = cfg
+	ask := cfg.Requests == RequestsAsk && override == nil && !k.asked
 	if ask {
 		k.asked = true
 	}
@@ -414,13 +424,13 @@ func (k *Keeper) forgetBlockLocked(blockId string) {
 	k.attempts = kept
 }
 
-// Active tells whether an evaluation has anything to do besides noticing a new policy: a coffee is on, the policy is
-// Until work ends or still holds, or an attempt's process may end. Otherwise what runs in the terminals is not read.
+// Active tells whether an evaluation has anything to do besides noticing a new configuration: a coffee is on, Automatic
+// is on or still holds, or an attempt's process may end. Otherwise what runs in the terminals is not read.
 func (k *Keeper) Active() bool {
-	policy := k.policyNow()
+	cfg := k.configNow()
 	k.lock.Lock()
 	defer k.lock.Unlock()
-	return policy == PolicyUntilWorkEnds || len(k.coffees) > 0 || k.policyHolding || len(k.attempts) > 0 || k.policy != policy
+	return cfg.Automatic || len(k.coffees) > 0 || k.autoHolding || len(k.attempts) > 0 || k.cfg != cfg
 }
 
 type coffeeCheck struct {
@@ -428,13 +438,14 @@ type coffeeCheck struct {
 	exists bool
 }
 
-// Evaluate applies the rules now: each coffee and the policy's reason follow the work, end after their grace with one
-// notification each, and a coffee whose workspace was deleted ends without one. Attempts whose process exited go.
+// Evaluate applies the rules now: each coffee follows the work (it never ends by itself), Automatic's reason follows it
+// and ends after the grace delay with one notification, and a coffee whose workspace was deleted ends without one.
+// Attempts whose process exited go.
 func (k *Keeper) Evaluate(ctx context.Context) {
-	policy := k.policyNow()
+	cfg := k.configNow()
 	ids, pids := k.snapshotIds()
 	var work Work
-	if (policy == PolicyUntilWorkEnds || len(ids) > 0) && k.env.Work != nil {
+	if (cfg.Automatic || len(ids) > 0) && k.env.Work != nil {
 		work = k.env.Work(ctx)
 	}
 	checks := map[string]coffeeCheck{}
@@ -453,7 +464,7 @@ func (k *Keeper) Evaluate(ctx context.Context) {
 			}
 		}
 	}
-	notices := k.apply(policy, work, checks, dead)
+	notices := k.apply(cfg, work, checks, dead)
 	if k.env.Notify != nil {
 		for _, n := range notices {
 			k.env.Notify(n)
@@ -477,7 +488,7 @@ func (k *Keeper) snapshotIds() ([]string, []int32) {
 	return ids, pids
 }
 
-func (k *Keeper) apply(policy string, work Work, checks map[string]coffeeCheck, dead map[int32]bool) []molten.NotificationInput {
+func (k *Keeper) apply(cfg Config, work Work, checks map[string]coffeeCheck, dead map[int32]bool) []molten.NotificationInput {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 	now := k.env.Now()
@@ -505,26 +516,22 @@ func (k *Keeper) apply(policy string, work Work, checks map[string]coffeeCheck, 
 			rec.working = false
 			rec.graceStart = now
 		}
-		if now.Sub(rec.graceStart) >= GracePeriod {
-			delete(k.coffees, id)
-			notices = append(notices, coffeeEndNotice(id, rec.name))
-		}
 	}
-	k.policy = policy
-	k.policyReasons = nil
-	if policy != PolicyUntilWorkEnds {
-		k.policyHolding, k.policyWorking, k.policyGraceStart = false, false, time.Time{}
+	k.cfg = cfg
+	k.autoReasons = nil
+	if !cfg.Automatic {
+		k.autoHolding, k.autoWorking, k.autoGraceStart = false, false, time.Time{}
 	} else if work.Local {
-		k.policyHolding, k.policyWorking, k.policyGraceStart = true, true, time.Time{}
-		k.policyReasons = work.LocalReasons
-	} else if k.policyHolding {
-		if k.policyWorking || k.policyGraceStart.IsZero() {
-			k.policyWorking = false
-			k.policyGraceStart = now
+		k.autoHolding, k.autoWorking, k.autoGraceStart = true, true, time.Time{}
+		k.autoReasons = work.LocalReasons
+	} else if k.autoHolding {
+		if k.autoWorking || k.autoGraceStart.IsZero() {
+			k.autoWorking = false
+			k.autoGraceStart = now
 		}
-		if now.Sub(k.policyGraceStart) >= GracePeriod {
-			k.policyHolding, k.policyGraceStart = false, time.Time{}
-			notices = append(notices, policyEndNotice())
+		if now.Sub(k.autoGraceStart) >= cfg.Grace {
+			k.autoHolding, k.autoGraceStart = false, time.Time{}
+			notices = append(notices, automaticEndNotice(cfg.Grace))
 		}
 	}
 	if len(dead) > 0 {
@@ -539,30 +546,15 @@ func (k *Keeper) apply(policy string, work Work, checks map[string]coffeeCheck, 
 	return notices
 }
 
-func coffeeEndNotice(wsId string, name string) molten.NotificationInput {
-	titleText := uimsg.Make("keepawake.notice.coffeeendtitle", "name", name)
-	if name == "" {
-		name = "A workspace"
-		titleText = uimsg.Make("keepawake.notice.coffeeendtitleunnamed")
-	}
+func automaticEndNotice(grace time.Duration) molten.NotificationInput {
+	minutes := int(grace / time.Minute)
 	return molten.NotificationInput{
-		Source:      NotificationSource,
-		Title:       fmt.Sprintf("%s: work finished, %s may sleep again", name, computerName()),
-		TitleText:   titleText,
-		Message:     "Its coffee ended 2 minutes after the last work in the workspace stopped.",
-		MessageText: uimsg.Make("keepawake.notice.coffeeend"),
-		Kind:        noticeKindInfo,
-		WorkspaceId: wsId,
-	}
-}
-
-func policyEndNotice() molten.NotificationInput {
-	return molten.NotificationInput{
-		Source:      NotificationSource,
-		Title:       fmt.Sprintf("Work finished: %s may sleep again", computerName()),
-		TitleText:   uimsg.Make("keepawake.notice.policyendtitle"),
-		Message:     "Until work ends kept it awake while work ran; MoltenTerm released its block 2 minutes after the last work stopped.",
-		MessageText: uimsg.Make("keepawake.notice.policyend"),
+		Source:    NotificationSource,
+		Title:     fmt.Sprintf("Work finished: %s may sleep again", computerName()),
+		TitleText: uimsg.Make("keepawake.notice.policyendtitle"),
+		Message: fmt.Sprintf("Automatic kept it awake while work ran; MoltenTerm released its block %d minutes after the last work stopped.",
+			minutes),
+		MessageText: uimsg.Make("keepawake.notice.policyend", "minutes", strconv.Itoa(minutes)),
 		Kind:        noticeKindInfo,
 	}
 }
@@ -577,29 +569,31 @@ func (k *Keeper) State() State {
 }
 
 func (k *Keeper) buildLocked() State {
+	grace := k.cfg.Grace
+	if grace <= 0 {
+		grace = DefaultGrace
+	}
 	state := State{
-		Policy:        k.policy,
-		PolicyHolding: k.policyHolding,
-		PolicyWorking: k.policyHolding && k.policyWorking,
-		Coffees:       []Coffee{},
-		Attempts:      append([]Attempt{}, k.attempts...),
-		Overrides:     []Override{},
+		Automatic:        k.cfg.Automatic,
+		Requests:         k.cfg.Requests,
+		AutomaticHolding: k.autoHolding,
+		AutomaticWorking: k.autoHolding && k.autoWorking,
+		Coffees:          []Coffee{},
+		Attempts:         append([]Attempt{}, k.attempts...),
+		Overrides:        []Override{},
 	}
-	if k.policyHolding && !k.policyWorking && !k.policyGraceStart.IsZero() {
-		state.PolicyEndsAt = k.policyGraceStart.Add(GracePeriod).UnixMilli()
+	if k.autoHolding && !k.autoWorking && !k.autoGraceStart.IsZero() {
+		state.AutomaticEndsAt = k.autoGraceStart.Add(grace).UnixMilli()
 	}
-	if state.PolicyWorking {
-		state.PolicyReasons = append([]string(nil), k.policyReasons...)
-		state.PolicyReasonsText = reasonsText(state.PolicyReasons)
+	if state.AutomaticWorking {
+		state.AutomaticReasons = append([]string(nil), k.autoReasons...)
+		state.AutomaticReasonsText = reasonsText(state.AutomaticReasons)
 	}
 	for id, rec := range k.coffees {
 		c := Coffee{WorkspaceId: id, WorkspaceName: rec.name, Since: rec.since, Working: rec.working}
 		if rec.working {
 			c.Reasons = append([]string(nil), rec.reasons...)
 			c.ReasonsText = reasonsText(c.Reasons)
-		}
-		if !rec.working && !rec.graceStart.IsZero() {
-			c.EndsAt = rec.graceStart.Add(GracePeriod).UnixMilli()
 		}
 		state.Coffees = append(state.Coffees, c)
 	}
@@ -614,7 +608,7 @@ func (k *Keeper) buildLocked() State {
 	}
 	sort.Slice(state.Overrides, func(i, j int) bool { return state.Overrides[i].BlockId < state.Overrides[j].BlockId })
 	k.approvalsState(&state)
-	state.Hold = state.PolicyHolding || len(state.Coffees) > 0
+	state.Hold = state.AutomaticHolding || len(state.Coffees) > 0
 	return state
 }
 

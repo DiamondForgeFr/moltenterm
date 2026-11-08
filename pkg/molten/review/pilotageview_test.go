@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -11,6 +11,7 @@ import (
 
 // The Project tab opens Pilotage by mission's copy of the view name (#1177): both must name the same view.
 func TestPilotageViewMatchesReviewsView(t *testing.T) {
+	t.Parallel()
 	if mission.PilotageView != ReviewsViewName {
 		t.Errorf("mission.PilotageView %q, ReviewsViewName %q", mission.PilotageView, ReviewsViewName)
 	}

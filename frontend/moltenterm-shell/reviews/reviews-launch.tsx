@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Launch in the Reviews view (FR-REV-031): the cards' Launch button and their "running here" line, the launch bar at
 // the top of the list (each step, its log, Open, Stop, Retry, Back to the trunk), the confirmation that names what a

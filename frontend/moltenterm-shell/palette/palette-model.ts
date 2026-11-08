@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The command palette (FR-SHELL-013, DS-SHELL-013): one filterable, grouped list served by an empty pane and by the
 // global shortcut. This file holds the rules (fuzzy match, grouping, keyboard) as pure functions, tested without the
@@ -35,6 +35,8 @@ export type PaletteRun =
     | { kind: "gettingstarted" }
     // The Sessions view (FR-SHELL-020).
     | { kind: "sessions" }
+    // The foreman's Sessions card over the app (FR-BOSS-002), anchored to his bubble.
+    | { kind: "bosscard" }
     // Back to the pane the palette was opened from, to type an agent's own command there.
     | { kind: "focusorigin" }
     // The browser panel's active page, handed off to the installed browser (FR-BRW-002).

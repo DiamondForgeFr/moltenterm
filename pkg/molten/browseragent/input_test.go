@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package browseragent
 
@@ -839,6 +839,35 @@ func TestADownloadAsksAndItsDenyFailsTheClickThatStartedIt(t *testing.T) {
 	w.m.Control(wshutil.ElectronRoute, ControlRequest{BlockId: w.key.PanelId, BrowserTabId: w.key.BrowserTabId, Action: ControlTakeOver})
 	if a, _ := w.m.AskDownload(context.Background(), wshutil.ElectronRoute, DownloadRequest{BlockId: w.key.PanelId, BrowserTabId: w.key.BrowserTabId}); a.Allow {
 		t.Fatalf("a tab the user took over gets no download through the agent's question")
+	}
+}
+
+func TestAnAllowedDownloadNamesTheAgentThatStartedIt(t *testing.T) {
+	w, ip := makeInputWorld(t)
+	w.navigateAllowed(t, "https://example.com/files")
+	answers := make(chan DownloadAnswer, 1)
+	ip.set(func(ip *inputPage) {
+		ip.atPoint = targetInfo{Found: true, Kind: "link", Link: true}
+		ip.onEvent = func(e inputEvent) error {
+			if e.kind() == "mouseReleased" {
+				go func() {
+					a, _ := w.m.AskDownload(context.Background(), wshutil.ElectronRoute, DownloadRequest{BlockId: w.key.PanelId, BrowserTabId: w.key.BrowserTabId, Host: "files.example.com"})
+					answers <- a
+				}()
+			}
+			return nil
+		}
+	})
+	pending := w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[10,10]`))
+	p := w.actionPrompt(t)
+	w.answer(t, p, DecisionAllow)
+	waitResult(t, pending)
+	a := <-answers
+	if !a.Allow {
+		t.Fatalf("emain hears the Allow: %+v", a)
+	}
+	if a.AgentName == "" {
+		t.Fatalf("an allowed download names the agent that started it: %+v", a)
 	}
 }
 

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 4 of the pipeline setup (FR-MC-042): a pipeline saved as a template on this computer, and the template offered
 // at step 2b of a later setup. Pure functions, tested without the app; the files live in wavesrv

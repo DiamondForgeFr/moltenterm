@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Opening one of MoltenTerm's views from the shell (the notification center, the status bar): the one already in the
 // active tab gets the focus, else a new block opens, in a temporary view when the active one is pinned (FR-SHELL-094).
@@ -15,7 +15,8 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { atom, Atom } from "jotai";
-import { openAppPanel } from "./app-panel";
+import { openAppPanel, openFromPanel } from "./app-panel";
+import type { PanelOrigin } from "./app-panel-model";
 import { currentMissionView } from "./project/project-model";
 import { toggleStep } from "./view-toggle-model";
 
@@ -39,9 +40,15 @@ export async function focusMoltentermView(requested: string): Promise<boolean> {
     return false;
 }
 
-// An app action's view (FR-SHELL-094): never added to a pinned view (app-panel.ts).
-export async function openMoltentermView(requested: string): Promise<void> {
-    await openAppPanel({ meta: { view: currentMissionView(requested) } });
+// A view opened by an app action (FR-SHELL-094): never added to a pinned view (app-panel.ts). From a call to action
+// inside a panel, origin names that panel and the view opens beside it, in the same view (#1844, FR-SHELL-139 AC13).
+export async function openMoltentermView(requested: string, origin?: PanelOrigin): Promise<void> {
+    const blockDef = { meta: { view: currentMissionView(requested) } };
+    if (origin != null) {
+        await openFromPanel(origin, blockDef);
+        return;
+    }
+    await openAppPanel(blockDef);
 }
 
 // The block of the active tab showing the view, read from the tab's blocks as they are in the store, so a rail button

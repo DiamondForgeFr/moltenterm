@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the Project overview's header band shows (FR-MC-021, DS-MC-012, DS-MC-013): the next station, what waits on
 // the trunk, the ticker of those changes and the trunk the Run CI button runs on. Computed from what the core already
@@ -34,6 +34,8 @@ export type NextStation = {
     // The bump level and the commits' reason of a derived station, so a dated one can word its note again.
     level?: string;
     reason?: string;
+    // The station is the dated milestone due first rather than the derived version (#2069): its note is final.
+    milestonefirst?: boolean;
 };
 
 export type WaitingCounts = {
@@ -80,7 +82,7 @@ function scheduledStation(station: NextStation, schedule: StationSchedule): Next
     let note = station.note;
     if (station.state === "decision") {
         note = t("project.station.decisionNote");
-    } else if (station.state === "derived" && station.chip) {
+    } else if (station.state === "derived" && station.chip && !station.milestonefirst) {
         note = station.reason
             ? t("project.station.levelDerivedReason", { level: station.chip, reason: station.reason })
             : t("project.station.levelDerived", { level: station.chip });
@@ -127,6 +129,11 @@ function plainStation(git: MissionGit, session: ReleaseSession, milestones?: rea
             note: next.reason || t("project.station.choice"),
         };
     }
+    const floor = last ? parseBase(tagVersion(last.name.trim(), prefix)) : null;
+    const first = dueFirstMilestone(milestones, floor);
+    if (first != null && milestoneKey(first.title) !== next.version) {
+        return milestoneFirstStation(git, prefix, first, floor, next.level, next.reason);
+    }
     return {
         tag: prefix + next.version,
         state: "derived",
@@ -165,18 +172,67 @@ function plannedStation(
     };
 }
 
-function plannedMilestone(milestones: readonly Milestone[], floor: Version): Milestone {
-    const named = (milestones ?? [])
+const BumpRank: Record<string, number> = { patch: 1, minor: 2, major: 3 };
+
+// A derived release goes to the dated milestone due first (FR-MC-021, #2069), not to the later milestone its derived
+// number happens to match. When the commits call for a bigger bump than that milestone, the note says so; the number
+// stays the developer's choice in the Release menu.
+function milestoneFirstStation(
+    git: MissionGit,
+    prefix: string,
+    milestone: Milestone,
+    floor: Version,
+    derivedLevel: string,
+    reason: string
+): NextStation {
+    const tag = prefix + milestoneKey(milestone.title);
+    const level = bumpLevel(floor, parseBase(milestoneKey(milestone.title)));
+    const trunk = git.trunk || t("project.theTrunk");
+    let note = t("project.station.milestoneFirst", { milestone: milestone.title, trunk });
+    if ((BumpRank[derivedLevel] ?? 0) > (BumpRank[level] ?? 0)) {
+        const vars = { tag, level: levelLabel(derivedLevel), trunk, reason };
+        note = reason ? t("project.station.biggerBump", vars) : t("project.station.biggerBumpPlain", vars);
+    }
+    return {
+        tag,
+        state: "derived",
+        chip: levelLabel(level),
+        note,
+        level,
+        reason,
+        milestonefirst: true,
+    };
+}
+
+// The bump from the last public version to a milestone's; a first release counts as major.
+function bumpLevel(from: Version, to: Version): string {
+    if (from == null || to == null || to.major > from.major) {
+        return "major";
+    }
+    return to.minor > from.minor ? "minor" : "patch";
+}
+
+function namedMilestones(milestones: readonly Milestone[], floor: Version): { m: Milestone; version: Version }[] {
+    return (milestones ?? [])
         .filter((m) => m != null)
         .map((m) => ({ m, version: parseBase(milestoneKey(m.title)) }))
         .filter(({ version }) => version != null && (floor == null || compareVersions(version, floor) > 0));
-    const dated = named
+}
+
+// The open milestone above the last tag that is due first; null when none has a due date.
+function dueFirstMilestone(milestones: readonly Milestone[], floor: Version): Milestone {
+    const dated = namedMilestones(milestones, floor)
         .filter(({ m }) => m.due_on)
         .sort((a, b) => utcDay(a.m.due_on).localeCompare(utcDay(b.m.due_on)) || compareVersions(a.version, b.version));
-    if (dated.length > 0) {
-        return dated[0].m;
+    return dated[0]?.m ?? null;
+}
+
+function plannedMilestone(milestones: readonly Milestone[], floor: Version): Milestone {
+    const dated = dueFirstMilestone(milestones, floor);
+    if (dated != null) {
+        return dated;
     }
-    const lowest = [...named].sort((a, b) => compareVersions(a.version, b.version));
+    const lowest = namedMilestones(milestones, floor).sort((a, b) => compareVersions(a.version, b.version));
     return lowest[0]?.m ?? null;
 }
 

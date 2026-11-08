@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -58,6 +58,11 @@ const (
 	RestartReasonTerminal     = "terminal"
 	RestartReasonNotStarted   = "notstarted"
 	RestartReasonNotTyped     = "nottyped"
+	// The index of who works on what (#1955, owners.go): a sub-agent of a lead, or a background agent, works on the PR;
+	// the worktree to start in holds an agent.
+	RestartReasonSubagentBusy   = "subagentbusy"
+	RestartReasonBackgroundBusy = "backgroundbusy"
+	RestartReasonTreeInUse      = "treeinuse"
 	// RestartReasonAgentMissing: the chosen coding agent is not installed (#845); ChosenAgent names it, Agents lists
 	// the installed ones to pick for this run.
 	RestartReasonAgentMissing = "agentmissing"
@@ -130,6 +135,9 @@ type RestartResult struct {
 	Lead        bool   `json:"lead,omitempty"`
 	LeadFolder  string `json:"leadfolder,omitempty"`
 	LeadGuessed bool   `json:"leadguessed,omitempty"`
+	// Subagent (#1955): the result is about a sub-agent of the agent FirstName and BlockId name: it works on the PR
+	// (RestartReasonSubagentBusy), or its lead was asked to continue it (Lead is then set too).
+	Subagent bool `json:"subagent,omitempty"`
 }
 
 // RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now; Gone:
@@ -182,6 +190,8 @@ type RestartEnv struct {
 	Gh           GhRunner
 	HoldState    func(blockId string, state string, message string, text *uimsg.Text)
 	ReleaseState func(blockId string, state string, message string, text *uimsg.Text)
+	// StopSettled (#1876): the terminal's stop was settled by the lead or the developer, so it raises no notification.
+	StopSettled func(blockId string) bool
 	// The lead agent that owns a PR (#1779, lead.go): FindLead says which running agent a LeadQuery names, SendLead gives
 	// it MoltenTerm's own brief through the handoffs (the developer's click is the approval), LeadSession says how a lead
 	// that no longer runs is resumed, PreferName gives a resumed terminal the lead's first name back. LeadStartWait and
@@ -192,6 +202,9 @@ type RestartEnv struct {
 	PreferName    func(blockId string, name string)
 	LeadStartWait time.Duration
 	LeadStartPoll time.Duration
+	// BranchAgents (#1955, owners.go): the agents on the project's branches, as the Integration rows show them; false when
+	// they cannot be read. nil reads none.
+	BranchAgents func(ctx context.Context, dir string) ([]mission.BranchAgent, bool)
 }
 
 type Restarter struct {
@@ -497,6 +510,13 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 	}
 	roundId := round.Id
 	ticket := restartTicket(req)
+	gate := r.gate(ctx, req)
+	verdict, owner := decideOwner(gate.rows)
+	if verdict == OwnerWorking {
+		result := busyResult(req, *owner)
+		result.Round = roundId
+		return result, nil
+	}
 	linked, main, err := r.branchTrees(ctx, req.Dir, req.HeadRef)
 	if err != nil {
 		return RestartResult{Status: RestartFailed, Reason: RestartReasonWorktree, Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err), Round: roundId}, nil
@@ -516,6 +536,36 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 		}
 		return r.markRestarted(req, roundId, tree, result)
 	}
+	if verdict == OwnerAsleep {
+		if panel := gate.asleepOf(mission.UpcomingAgentPanel); panel != nil {
+			result := RestartResult{Round: roundId, Worktree: panel.agent.Worktree}
+			line, ok := r.restartLine(state, *round, roundNumber, req, panel.agent.Worktree, ticket, &result)
+			if !ok {
+				return result, nil
+			}
+			if r.wakePanel(ctx, gate, line, &result) {
+				r.noteReused(ctx, req, &result)
+				if result.Status != RestartSent && result.Status != RestartTyped {
+					return result, nil
+				}
+				return r.markRestarted(req, roundId, panel.agent.Worktree, result)
+			}
+		}
+		if sub := gate.asleepOf(mission.UpcomingAgentSubagent); sub != nil && sub.canResume() {
+			result := RestartResult{Round: roundId, Worktree: sub.agent.Worktree}
+			line, ok := r.restartLine(state, *round, roundNumber, req, sub.agent.Worktree, ticket, &result)
+			if !ok {
+				return result, nil
+			}
+			if handed, ok := r.resumeSubagent(ctx, req, *sub, line); ok {
+				handed.Round = roundId
+				if handed.Status == RestartFailed {
+					return handed, nil
+				}
+				return r.markRestarted(req, roundId, sub.agent.Worktree, handed)
+			}
+		}
+	}
 	if main != "" {
 		return RestartResult{Status: RestartFailed, Reason: RestartReasonMainCheckout, Branch: req.HeadRef, Round: roundId,
 			Message: mainCheckoutText(req.HeadRef, main)}, nil
@@ -526,6 +576,11 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 	tree, created, err := r.agentTree(ctx, req)
 	if err != nil {
 		return RestartResult{Status: RestartFailed, Reason: restartTreeReason(err), Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err), Round: roundId}, nil
+	}
+	if held := r.treeHeld(ctx, gate, tree); held != nil {
+		result := treeInUseResult(req, tree, *held)
+		result.Round = roundId
+		return result, nil
 	}
 	result := RestartResult{Round: roundId, Worktree: tree, WorktreeCreated: created}
 	line, ok := r.restartLine(state, *round, roundNumber, req, tree, ticket, &result)

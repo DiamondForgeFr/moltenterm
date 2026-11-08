@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -58,20 +58,13 @@ func TestMoltenReleaseHelper(t *testing.T) {
 }
 
 // makeMoltentermFixture makes <tmp>/origin.git and its clone <tmp>/app, whose pipeline declares MoltenTerm's own
-// versions and release steps, and a bin folder whose molten is this test binary.
-func makeMoltentermFixture(t *testing.T) (*Runs, string, string) {
+// versions and release steps, and a bin folder whose molten is this test binary. It also returns the environment of
+// the steps: it is theirs alone, and not the test process's, so that the tests that run beside this one never see it.
+func makeMoltentermFixture(t *testing.T) (*Runs, string, string, []string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("the steps run through /bin/sh")
 	}
-	t.Setenv("GIT_CONFIG_GLOBAL", TestGitConfigPath)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Release test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "release@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Release test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "release@example.invalid")
-	// MoltenTerm's pipeline names a real coding agent for the notes: a test never runs it.
-	t.Setenv(release.NotesAiEnv, "off")
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -126,16 +119,24 @@ func makeMoltentermFixture(t *testing.T) (*Runs, string, string) {
 	if err := os.WriteFile(filepath.Join(bin, "molten"), []byte(shim), 0755); err != nil {
 		t.Fatal(err)
 	}
-	savedLogin, savedBin := readLoginPath, appBinDir
-	readLoginPath = func() string { return os.Getenv("PATH") }
-	appBinDir = func() string { return bin }
-	t.Cleanup(func() { readLoginPath, appBinDir = savedLogin, savedBin })
-
 	runsData := t.TempDir()
-	r := MakeRuns(filepath.Join(runsData, "runs"), MakeTrustStore(filepath.Join(runsData, TrustFileName)), nil)
+	r := makeTestRuns(filepath.Join(runsData, "runs"), MakeTrustStore(filepath.Join(runsData, TrustFileName)), nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = offGithub
-	return r, dir, origin
+	// The last value of a variable wins, so this PATH puts the molten of this test binary first, where the app's own
+	// bin folder is on the steps' PATH when MoltenTerm runs them.
+	env := []string{
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=Release test",
+		"GIT_AUTHOR_EMAIL=release@example.invalid",
+		"GIT_COMMITTER_NAME=Release test",
+		"GIT_COMMITTER_EMAIL=release@example.invalid",
+		// MoltenTerm's pipeline names a real coding agent for the notes: a test never runs it.
+		release.NotesAiEnv + "=off",
+		"PATH=" + bin + string(os.PathListSeparator) + os.Getenv("PATH"),
+	}
+	r.UseAgentEnv(func(string) []string { return env })
+	return r, dir, origin, env
 }
 
 func mustSucceed(t *testing.T, r *Runs, dir string, what string, rec RunRecord) {
@@ -203,16 +204,19 @@ func cutMoltentermRelease(t *testing.T, r *Runs, dir string, origin string, chan
 }
 
 func TestMoltentermReleaseStepsEndToEnd(t *testing.T) {
-	r, dir, origin := makeMoltentermFixture(t)
+	t.Parallel()
+	r, dir, origin, env := makeMoltentermFixture(t)
 	if report := molten.ValidatePipeline(dir); !report.Valid || len(report.Warnings) > 0 {
 		t.Fatalf("the fixture's pipeline: %v %v", report.Errors, report.Warnings)
 	}
 	commitOn(t, dir, "feat(#2): a feature for v1.0.0-1")
+	candidateEnv := append(slices.Clone(env), stepCommitTime(time.Now().Add(-time.Minute))...)
+	r.UseAgentEnv(func(string) []string { return candidateEnv })
 	cutMoltentermRelease(t, r, dir, origin, ReleaseChannelRc, "v1.0.0-1")
+	r.UseAgentEnv(func(string) []string { return env })
 	if got := gitIn(t, origin, "log", "-1", "--format=%s", "v1.0.0-1"); got != "chore(release): v1.0.0-1 (rc)" {
 		t.Fatalf("release commit %q", got)
 	}
-	time.Sleep(1100 * time.Millisecond)
 	commitOn(t, dir, "feat(#3): a feature for v1.0.0")
 	cutMoltentermRelease(t, r, dir, origin, ReleaseChannelPublic, "v1.0.0")
 	if got := gitIn(t, origin, "show", "v1.0.0:package-lock.json"); strings.Count(got, `"1.0.0"`) != 2 {

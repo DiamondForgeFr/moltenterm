@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 2a of the deployment pipeline setup (FR-MC-040): the existing pipeline drawn, and "What we understood" beside
 // it, each point with where it was read, confirmed or adjusted; a point to confirm keeps Next disabled. A node and its

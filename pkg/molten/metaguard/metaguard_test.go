@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package metaguard_test
 
@@ -111,7 +111,8 @@ func TestOtherObjectWrites(t *testing.T) {
 		meta waveobj.MetaMapType
 	}{
 		{"own block, molten worktree", ownBlock, waveobj.MetaMapType{molten.WorktreeMetaKey: "/w"}},
-		{"own block, any molten key", ownBlock, waveobj.MetaMapType{molten.AgentFirstNameMetaKey: "Ada", "term:mode": "vdom"}},
+		{"own block, wave keys", ownBlock, waveobj.MetaMapType{"term:mode": "vdom", "view": molten.BrowserView}},
+		{"own block, browser and file requests", ownBlock, waveobj.MetaMapType{molten.BrowserOpenKeyPrefix + "01": "https://example.com", molten.BrowserCloseKeyPrefix + "02": "t1", "molten:filefilter": "*.go"}},
 		{"browser panel page", otherBlock, molten.BrowserOpenRequestMeta("01", "https://example.com")},
 		{"browser panel close", otherBlock, molten.BrowserCloseRequestMeta("01", "t1")},
 		{"file panel", otherBlock, waveobj.MetaMapType{"file": "/p/a", "molten:fileorigin": "agent", "molten:filefilter": "*.go"}},
@@ -135,6 +136,14 @@ func TestOtherObjectWrites(t *testing.T) {
 		{"client state", client, waveobj.MetaMapType{"molten:workspaceorder": []any{}}},
 		{"another block's browser tabs", otherBlock, waveobj.MetaMapType{molten.BrowserTabsMetaKey: []any{}}},
 		{"another block's worktree", otherBlock, waveobj.MetaMapType{molten.WorktreeMetaKey: "/w"}},
+		{"own block posing as Brokk's session", ownBlock, waveobj.MetaMapType{molten.OwnSessionMetaKey: true}},
+		{"own block clearing Brokk's marker", ownBlock, waveobj.MetaMapType{molten.OwnSessionMetaKey: nil}},
+		{"own block renamed as another agent", ownBlock, waveobj.MetaMapType{molten.AgentFirstNameMetaKey: "Ada", "term:mode": "vdom"}},
+		{"own block turned into a browser panel with allowed local tabs", ownBlock, waveobj.MetaMapType{
+			"view":                    molten.BrowserView,
+			molten.BrowserTabsMetaKey: []any{map[string]any{"id": "t1", "url": "file:///tmp/x.html", "allowed": true}},
+		}},
+		{"own block, a key MoltenTerm adds later", ownBlock, waveobj.MetaMapType{"molten:somethingnew": true}},
 	}
 	for _, r := range refused {
 		mustRefuse(t, r.name, metaguard.CheckWrite(terminal(), r.oref, r.meta))
@@ -278,6 +287,48 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+// MoltenTerm's own events reach the windows and local terminals, never a remote or unverified caller (#1914).
+func TestSubscribeMoltenEvents(t *testing.T) {
+	never := func(waveobj.ORef) bool { return false }
+	reqs := []wps.SubscriptionRequest{
+		{Event: molten.MorphDesignEvent, AllScopes: true},
+		{Event: molten.MorphDesignHandoffEvent, Scopes: []string{"mod-id"}},
+		{Event: molten.AgentStateEvent, Scopes: []string{"workspace:" + ownWs}},
+		{Event: molten.ModsChangedEvent, AllScopes: true},
+		{Event: "molten:review:state", AllScopes: true},
+	}
+	admitted := []struct {
+		name string
+		c    metaguard.Caller
+	}{
+		{"window", metaguard.Caller{Trusted: true}},
+		{"local terminal", terminal()},
+		{"terminal without a block", metaguard.Caller{Local: true}},
+	}
+	for _, req := range reqs {
+		for _, a := range admitted {
+			if err := metaguard.CheckSubscribe(a.c, req, never); err != nil {
+				t.Errorf("%s refused %+v: %v", a.name, req, err)
+			}
+		}
+		err := metaguard.CheckSubscribe(metaguard.Caller{}, req, never)
+		if err == nil || !strings.HasPrefix(err.Error(), "refused: a remote or unverified terminal cannot follow MoltenTerm's") || !strings.Contains(err.Error(), req.Event) {
+			t.Errorf("remote subscribed %+v: %v", req, err)
+		}
+	}
+	others := []wps.SubscriptionRequest{
+		{Event: wps.Event_BlockClose, AllScopes: true},
+		{Event: wps.Event_Config, AllScopes: true},
+		{Event: wps.Event_Badge, AllScopes: true},
+		{Event: "moltenish", AllScopes: true},
+	}
+	for _, req := range others {
+		if err := metaguard.CheckSubscribe(metaguard.Caller{}, req, never); err != nil {
+			t.Errorf("remote refused %+v outside the molten: family: %v", req, err)
+		}
+	}
+}
+
 func TestCreateBlock(t *testing.T) {
 	allowed := []waveobj.MetaMapType{
 		{"view": molten.BrowserView, "url": "https://example.com"},
@@ -295,13 +346,47 @@ func TestCreateBlock(t *testing.T) {
 		}
 	}
 	mustRefuse(t, "a panel in another workspace's tab", metaguard.CheckCreateBlock(terminal(), false, waveobj.MetaMapType{"view": "term"}))
-	for _, meta := range []waveobj.MetaMapType{{molten.BrowserTabsMetaKey: []any{}}, {"view": "term", molten.AgentFirstNameMetaKey: "Ada"}, {"molten:pin": true}} {
+	for _, meta := range []waveobj.MetaMapType{{molten.BrowserTabsMetaKey: []any{}}, {"view": "term", molten.AgentFirstNameMetaKey: "Ada"}, {"molten:pin": true}, {"view": "term", molten.OwnSessionMetaKey: true}} {
 		for _, u := range untrusted() {
 			mustRefuse(t, u.name+" creates with molten keys", metaguard.CheckCreateBlock(u.c, true, meta))
 		}
 		if err := metaguard.CheckCreateBlock(metaguard.Caller{Trusted: true}, false, meta); err != nil {
 			t.Errorf("the window was refused %v: %v", meta, err)
 		}
+	}
+}
+
+// The developer's note on an agent is never the agent's to read (FR-SHELL-084, #2008): it lives in the workspace's meta,
+// which a terminal neither reads, writes nor follows, while its own block's meta, and its workspace's other blocks',
+// are open to it.
+func TestAgentNotesStayOutOfATerminalsReach(t *testing.T) {
+	own := waveobj.MakeORef(waveobj.OType_Workspace, ownWs)
+	notes := waveobj.MetaMapType{molten.AgentNotesMetaKey: map[string]any{routetest.TerminalBlock: "audit sécu nov6, ne pas relancer"}}
+	withLink := waveobj.MetaMapType{molten.ProjectMetaKey: "/p", molten.AgentNotesMetaKey: notes[molten.AgentNotesMetaKey]}
+	trusted := metaguard.Caller{Trusted: true}
+	if err := metaguard.CheckWrite(trusted, own, notes); err != nil {
+		t.Fatalf("the window was refused its notes: %v", err)
+	}
+	for _, u := range untrusted() {
+		mustRefuse(t, u.name+" writes the notes", metaguard.CheckWrite(u.c, own, notes))
+		mustRefuse(t, u.name+" writes the notes with the link", metaguard.CheckWrite(u.c, own, withLink))
+		if got, err := metaguard.ReadMeta(u.c, own, withLink); err == nil && got[molten.AgentNotesMetaKey] != nil {
+			t.Errorf("%s read the notes of its own workspace: %v", u.name, got)
+		}
+		if listed := metaguard.ListedWorkspaceMeta(u.c, ownWs, withLink); listed[molten.AgentNotesMetaKey] != nil {
+			t.Errorf("%s listed the notes of its own workspace: %v", u.name, listed)
+		}
+		req := wps.SubscriptionRequest{Event: wps.Event_WaveObjUpdate, Scopes: []string{"workspace:" + ownWs}}
+		if err := metaguard.CheckSubscribe(u.c, req, func(waveobj.ORef) bool { return true }); err == nil {
+			t.Errorf("%s follows the updates of its workspace, whose meta holds the notes", u.name)
+		}
+	}
+	if got, err := metaguard.ReadMeta(trusted, own, withLink); err != nil || got[molten.AgentNotesMetaKey] == nil {
+		t.Errorf("the window read %v, %v", got, err)
+	}
+	onBlock := waveobj.MetaMapType{"view": "term", molten.AgentNotesMetaKey: "on the block"}
+	if got := metaguard.ReadBlockMeta(terminal(), true, onBlock); got[molten.AgentNotesMetaKey] == nil {
+		t.Errorf("the block's meta is open to its workspace's terminals: that is why the notes are not kept there")
 	}
 }
 

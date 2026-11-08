@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Typing the morph call into the workspace's agent (#1653, #1672), for the Library's "Missing a tool?" card and the
 // new view launcher's empty result. The rules are in morph-call-model.ts.

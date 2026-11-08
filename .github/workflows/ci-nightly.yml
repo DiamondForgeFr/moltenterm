@@ -1,0 +1,33 @@
+# Copyright 2026, DiamondForge
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Every night, runs CI's full suites on develop (#2011). Pull requests run only the tests their change affects, so a gap
+# in that selection, a flaky test or a new dependency advisory shows here within a day; ci.yml's "Report a failed full
+# run" job opens or updates an issue when it fails. It dispatches ci.yml on develop rather than running on a schedule
+# itself: a scheduled run checks out the default branch (main) and would put develop's results on main's commit. GitHub
+# fires a schedule only from the default branch, so this starts once the file is on main.
+
+name: CI nightly
+
+on:
+    schedule:
+        - cron: "17 2 * * *"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    dispatch:
+        name: Run the full CI on develop
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            actions: write
+        steps:
+            # A dispatch by the job's token starts a run, unlike its other events.
+            - name: Dispatch ci.yml on develop
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: gh workflow run ci.yml --ref develop

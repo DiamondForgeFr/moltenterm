@@ -1,15 +1,20 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/ghguard"
 )
 
 // NoGitMaintenanceConfig turns off git's automatic housekeeping in every git the tests start (#794). After a commit,
@@ -27,7 +32,7 @@ const NoGitMaintenanceConfig = "[maintenance]\n\tauto = false\n[gc]\n\tauto = 0\
 var TestGitConfigPath string
 
 func TestMain(m *testing.M) {
-	os.Exit(runWithTestGitConfig(m))
+	os.Exit(ghguard.Wrap(func() int { return runWithTestGitConfig(m) }))
 }
 
 func runWithTestGitConfig(m *testing.M) int {
@@ -43,7 +48,25 @@ func runWithTestGitConfig(m *testing.M) int {
 		return 1
 	}
 	os.Setenv("GIT_CONFIG_GLOBAL", TestGitConfigPath)
+	// A fixture that starts a run finds its programs on the PATH the tests run with (ghguard's gh first), not on a
+	// login shell's: set once here, so that no fixture has to replace it, which would keep its tests from running in
+	// parallel.
+	readLoginPath = func() string { return os.Getenv("PATH") }
 	return m.Run()
+}
+
+// The tests of this package run in parallel (#2019): a test calls t.Parallel() first, unless it changes state that the
+// others read or reads state that the others disturb. Go runs the parallel tests together once every serial one is
+// over, so a serial test may change package-level state or the environment without disturbing them.
+//
+// serialTest marks such a test: one that replaces readLoginPath, appBinDir, depSyncTimeout, depSyncKillGrace, a tab
+// opener or the agent line, one that measures the process (the heap) or one that counts what a file-system watch
+// reports, which a busy machine delivers late. It sets an environment variable only so that Go refuses a t.Parallel()
+// on the same test, in either order: a restored variable another test just read, or a timeout another test waits for,
+// is a flake that appears one run in fifty.
+func serialTest(t *testing.T) {
+	t.Helper()
+	t.Setenv("MISSION_SERIAL_TEST", "1")
 }
 
 func TestGitInTestsSpawnsNoMaintenance(t *testing.T) {
@@ -69,5 +92,37 @@ func TestGitInTestsSpawnsNoMaintenance(t *testing.T) {
 	}
 	if strings.Contains(string(data), `"maintenance"`) || strings.Contains(string(data), `"gc"`) {
 		t.Fatal("git spawned its detached maintenance: it would outlive the test and race t.TempDir's cleanup")
+	}
+}
+
+// #1857: no test reaches the real gh. plainRunner refuses it and records the refusal, so the run fails even when the
+// code under test swallows the error; withoutGh is the explicit fake that answers it.
+func TestPlainRunnerRefusesGhAndRecordsIt(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	out, err := plainRunner(context.Background(), dir, "gh", "pr", "list")
+	forgotten := ghguard.Forget(dir)
+	if out != nil || !errors.Is(err, ghguard.ErrRealGh) {
+		t.Fatalf("plainRunner ran gh: %q, %v", out, err)
+	}
+	if len(forgotten) != 1 || forgotten[0] != dir+": gh pr list" {
+		t.Fatalf("the refusal was not recorded: %q", forgotten)
+	}
+}
+
+func TestWithoutGhFailsGhQuietlyAndRunsTheRest(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	dir := t.TempDir()
+	if out, err := withoutGh(context.Background(), dir, "gh", "pr", "list"); out != nil || err == nil {
+		t.Fatalf("withoutGh answered gh: %q, %v", out, err)
+	}
+	if forgotten := ghguard.Forget(dir); len(forgotten) != 0 {
+		t.Fatalf("an explicit fake is not a violation: %q", forgotten)
+	}
+	if out, err := withoutGh(context.Background(), dir, "git", "--version"); err != nil || !strings.HasPrefix(string(out), "git version") {
+		t.Fatalf("withoutGh did not run git: %q, %v", out, err)
 	}
 }

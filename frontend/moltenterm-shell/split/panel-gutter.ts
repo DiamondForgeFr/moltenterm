@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The gutter between panels (FR-SHELL-086): an Arc-like pill (panel-gutter.css) that resizes the panels on either side
 // when dragged and gives them equal sizes on a double-click.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The images found in the current project's folder, for the sidebar header's icon (#1760): read once per folder for the
 // session, so switching projects back and forth never reads the disk again.

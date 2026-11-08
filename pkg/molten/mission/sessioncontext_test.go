@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -26,6 +26,7 @@ func defaultTicketOf(branch string) int {
 }
 
 func TestResolveSessionContextByBranch(t *testing.T) {
+	t.Parallel()
 	gh := sessionGithub()
 	cases := []struct {
 		branch string
@@ -49,6 +50,7 @@ func TestResolveSessionContextByBranch(t *testing.T) {
 }
 
 func TestResolveSessionContextByOriginNumber(t *testing.T) {
+	t.Parallel()
 	gh := sessionGithub()
 	ctx := ResolveSessionContext(molten.SessionContextQuery{Branch: "whatever", Repo: "acme/app", Number: 9}, gh, nil)
 	if ctx.Pr != 9 || ctx.PrState != molten.SessionPrMerged || ctx.PrTitle != "Merged one" {
@@ -67,6 +69,7 @@ func TestResolveSessionContextByOriginNumber(t *testing.T) {
 }
 
 func TestResolveSessionContextWithoutCache(t *testing.T) {
+	t.Parallel()
 	ctx := ResolveSessionContext(molten.SessionContextQuery{Branch: "fix/42-thing"}, nil, defaultTicketOf)
 	if ctx.Ticket != 42 || ctx.Pr != 0 || ctx.PrUrl != "" {
 		t.Fatalf("no cache: %+v", ctx)

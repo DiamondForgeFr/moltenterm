@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Install on a card of the pour runs the catalog's command and follows it (FR-ONB-007 AC-5, #1667).
 

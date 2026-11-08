@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // #928: `webContents.fromId` throws on anything but an integer (a webRequest from a destroyed tab view,
 // a service worker or main's `net` has no webContentsId), and a throw in a main-process callback quits the app.

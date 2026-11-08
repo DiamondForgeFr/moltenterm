@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package wshserver
 
@@ -106,10 +106,10 @@ func moltenCheckSubscribe(ctx context.Context, req wps.SubscriptionRequest) erro
 	if req.Event == wps.Event_BlockFile {
 		return moltenCheckBlockFileSubscribe(ctx, req)
 	}
-	if req.Event != wps.Event_WaveObjUpdate {
+	if req.Event != wps.Event_WaveObjUpdate && !metaguard.IsMoltenEvent(req.Event) {
 		return nil
 	}
-	caller := moltenMetaCaller(ctx, true)
+	caller := moltenMetaCaller(ctx, req.Event == wps.Event_WaveObjUpdate)
 	return metaguard.CheckSubscribe(caller, req, func(oref waveobj.ORef) bool { return moltenInWorkspace(ctx, caller, oref) })
 }
 
@@ -125,7 +125,21 @@ func moltenCheckCreateBlock(ctx context.Context, tabId string, blockDef *waveobj
 	return metaguard.CheckCreateBlock(caller, moltenInWorkspace(ctx, caller, waveobj.MakeORef(waveobj.OType_Tab, tabId)), meta)
 }
 
-// moltenCheckTabOrder: a terminal reorders its own workspace's tabs, never adds or drops one.
+// moltenCheckCreateSubBlock keeps a terminal's sub-blocks to the rules of its blocks (#2067): a sub-block is a block the
+// window lists and searches like any other, so one made with molten:brokk would pass for Brokk's session.
+func moltenCheckCreateSubBlock(ctx context.Context, parentBlockId string, blockDef *waveobj.BlockDef) error {
+	caller := moltenMetaCaller(ctx, true)
+	if caller.Trusted {
+		return nil
+	}
+	var meta waveobj.MetaMapType
+	if blockDef != nil {
+		meta = blockDef.Meta
+	}
+	return metaguard.CheckCreateBlock(caller, moltenInWorkspace(ctx, caller, waveobj.MakeORef(waveobj.OType_Block, parentBlockId)), meta)
+}
+
+// moltenCheckTabOrder:a terminal reorders its own workspace's tabs, never adds or drops one.
 func moltenCheckTabOrder(ctx context.Context, workspaceId string, tabIds []string) error {
 	oref := waveobj.MakeORef(waveobj.OType_Workspace, workspaceId)
 	if err := moltenCheckOwnWorkspace(ctx, oref, "reorder tabs"); err != nil {

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The agent companion's view (FR-SHELL-018): next to a terminal running a coding agent, its session as wavesrv reads
 // it from the agent's own transcript. Display only: nothing is sent to the agent.

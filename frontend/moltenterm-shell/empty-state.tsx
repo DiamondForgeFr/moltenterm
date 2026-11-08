@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The empty and error state of MoltenTerm's own surfaces (FR-SHELL-053, DS-SHELL-094): what happened in plain words
 // and the next action. Raw output (git's stderr, an RPC error, an error code) only goes under Details, collapsed, so

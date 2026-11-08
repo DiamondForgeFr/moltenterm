@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 2a of the pipeline setup for a project already set up (FR-MC-040, #1102), the #1086 update inside the stepper
 // (FR-MC-036): the declared pipeline drawn with a numbered badge on each change this version of MoltenTerm proposes,
@@ -353,7 +353,7 @@ function UpdateHeadline({ check }: { check: SetupCheck }) {
             <div className="text-12 font-medium text-primary">{t("mc.setup.update.why")}</div>
             <ul className="flex list-disc flex-col gap-1 pl-4 text-12 text-secondary">
                 {check.reasons.map((r) => (
-                    <li key={r.code}>{setupReasonText(t, r)}</li>
+                    <li key={`${r.code}:${r.detail ?? ""}`}>{setupReasonText(t, r)}</li>
                 ))}
             </ul>
             <p className="text-11 text-muted">{setUpBy}</p>

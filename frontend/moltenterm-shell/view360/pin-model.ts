@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Pinning a carpet panel to the fixed zone (FR-SHELL-067, DS-SHELL-118). A pin is kept in the tab's meta under the
 // panel's block id, never in the layout tree: the tree keeps its order, so the normal layout is untouched and an

@@ -11,6 +11,7 @@ import { makeMoltentermBuildChanges, makeMoltentermBuildInfo } from "./frontend/
 import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
 import { moltentermEntryGuard } from "./frontend/moltenterm-shell/build/entry-guard"; // MOLTENTERM-PATCH (#453)
 import { ignoredDevJson, moltentermLocalesHot } from "./frontend/moltenterm-shell/build/locales-hot"; // MOLTENTERM-PATCH (#1215)
+import { moltentermStableClips } from "./frontend/moltenterm-shell/build/stable-clips"; // MOLTENTERM-PATCH (#1904)
 
 // from our electron build
 const CHROME = "chrome140";
@@ -188,6 +189,7 @@ export default defineConfig({
             tailwindcss(),
             moltentermEntryGuard(), // MOLTENTERM-PATCH (#453): fails the build when the entry pulls a heavy library
             moltentermLocalesHot(), // MOLTENTERM-PATCH (#1215): a dictionary changed under `task dev` reaches the views
+            moltentermStableClips(), // MOLTENTERM-PATCH (#1904): a character's clips keep their names, the shared package reads them by name
         ],
     },
 });

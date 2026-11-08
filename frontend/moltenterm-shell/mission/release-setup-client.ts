@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release setup's calls to wavesrv (FR-MC-036): the draft and the agent's proposal write nothing; the write is the
 // developer's click on the reviewed diff, and opens a pull request (#1098). The agent proposes step changes, never a

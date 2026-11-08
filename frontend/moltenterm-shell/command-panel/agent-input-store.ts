@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The calls of the Agent section to wavesrv's moltenagentinput (FR-SHELL-048) and the facts the section shows before
 // a command (the permission mode Claude Code drew last). The facts are read when the panel collects its sections,

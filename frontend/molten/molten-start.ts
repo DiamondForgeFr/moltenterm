@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Wires the mod host to the running tab. `frontend/wave.ts` calls startMoltenHost once, after the first render,
 // through its only Moltenterm patch for the host.
@@ -10,7 +10,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermSafeModeVarName } from "@/util/moltenterm-safemode";
-import { base64ToString, fireAndForget } from "@/util/util";
+import { base64ToString, fireAndForget, stringToBase64 } from "@/util/util";
 import { getLocale, I18nModel } from "../moltenterm-shell/i18n/i18n";
 import { loadShippedLanguages } from "../moltenterm-shell/i18n/i18n-core";
 import { startLanguagePackNotice } from "../moltenterm-shell/i18n/language-pack-notice";
@@ -60,6 +60,10 @@ async function readTextFile(path: string): Promise<string> {
     return file.data64 ? base64ToString(file.data64) : "";
 }
 
+async function writeTextFile(path: string, text: string): Promise<void> {
+    await RpcApi.FileWriteCommand(TabRpcClient, { info: { path }, data64: stringToBase64(text) });
+}
+
 // The blob URL each mod was imported from → the mod id, to attribute long animation frames to mods (FR-PERF-014).
 const BlobOwners = new Map<string, string>();
 
@@ -95,6 +99,7 @@ function makeMoltenHostEnv(page: MoltenPageGuard): MoltenHostEnv {
         trustFile: `${getApi().getDataDir()}/molten/trust.json`,
         listDir,
         readTextFile,
+        writeTextFile,
         importModule,
         writeClipboard: (text: string) => navigator.clipboard.writeText(text),
         getLocale,

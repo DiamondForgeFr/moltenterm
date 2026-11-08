@@ -162,6 +162,7 @@ declare global {
         setWindowButtons: (state: { visible: boolean; zoom: number; peekGap?: number } | null) => void; // moltenterm-window-buttons, MOLTENTERM-PATCH (#1216, #1279, #1293)
         setWindowLook: (look: { translucent: boolean; blur: boolean }) => void; // moltenterm-window-look, MOLTENTERM-PATCH (#1281)
         getWindowLookSupport: () => Promise<{ translucent: boolean; blur: boolean }>; // MOLTENTERM-PATCH (#1281)
+        moltentermGetSystemIdleSec: () => Promise<number>; // moltenterm-system-idle-get, MOLTENTERM-PATCH (#1958)
         closeBuilderWindow: () => void; // close-builder-window
         incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => void; // increment-term-commands
         nativePaste: () => void; // native-paste
@@ -189,6 +190,11 @@ declare global {
     // MOLTENTERM-PATCH (#371, #408): optional presentation metadata; the menu host renders a heading per section.
     type ContextMenuItem = {
         icon?: string;
+        // MOLTENTERM-PATCH (#1962): a site's icon (an image address) drawn in the icon's place, the generic web icon when
+        // it cannot be drawn
+        iconImage?: string;
+        // MOLTENTERM-PATCH (#1962): the icon was measured too dark for a dark surface, so it sits on a light plate
+        iconImageDark?: boolean;
         destructive?: boolean;
         section?: string;
         label?: string;

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The first run's work behind the pour (#1642, #1709): the project scene creates or links the project, the last
 // scene makes the first view, and Later or Skip make none.

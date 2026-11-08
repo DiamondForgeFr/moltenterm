@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The suggested merge order (FR-REV-024): the order of the PRs waiting for review that spends the fewest CI runs.
 // A PR whose base moved reruns its CI only when it has to be rebased: when an earlier merge of the sequence puts it in

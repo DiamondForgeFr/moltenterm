@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // For tests: wavesrv's real compatibility matrix, the build's copy pkg/molten/agentcontinuity's
 // TestMatrixGolden keeps equal to what the molten:agentfeatures route answers (MOLTENTERM_UPDATE_GOLDEN=1

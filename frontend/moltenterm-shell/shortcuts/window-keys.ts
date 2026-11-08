@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The window keys that follow the browser's reflexes beyond ⌘ (#1759, FR-SHELL-139 AC8 to AC10): off macOS the browsers'
 // Ctrl+T, Ctrl+N, Ctrl+W, Ctrl+Shift+W and Ctrl+L beside the Alt keys, F6, the previous and next panel, and find

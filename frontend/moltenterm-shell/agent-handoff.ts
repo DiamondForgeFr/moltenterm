@@ -1,21 +1,42 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Handing work to another agent by first name (FR-CONT-015, NFR-CONT-005): the first send between two agents raises a
 // notification (pkg/molten/agenthandoff) whose buttons run this gesture, which gives the developer's answer to
 // wavesrv's handoff route. Only a window may answer: wavesrv refuses an answer from a terminal.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { AgentHandoffDecision, PendingHandoff } from "./agent-handoff-types";
 import { t } from "./i18n/i18n";
 import { serverErrorText, unwireError } from "./i18n/server-text";
 import { NotificationGestureResult } from "./notifications-store";
+
+export { AgentHandoffNotificationKeyPrefix } from "./agent-handoff-types";
+export type {
+    AgentHandoffDecision,
+    PendingHandoff,
+    PendingHandoffBrief,
+    PendingHandoffFile,
+    PendingHandoffLink,
+} from "./agent-handoff-types";
 
 // must match pkg/molten/handoffwire/handoffwire.go
 export const AgentHandoffRouteId = "molten:agenthandoff";
 export const AgentHandoffAnswerCommand = "moltenagenthandoffanswer";
 export const AgentHandoffGesture = "molten:agenthandoff";
+// Every request waiting for the developer, in every workspace (#1926): the event says the list changed, the command
+// reads it, and answerAgentHandoff answers an entry as the notification's buttons do.
+export const AgentHandoffPendingCommand = "moltenagenthandoffpending";
+export const AgentHandoffPendingEvent = "molten:agenthandoffpending";
 
-export type AgentHandoffDecision = "once" | "always" | "block" | "dismiss";
+export async function readPendingHandoffs(): Promise<PendingHandoff[]> {
+    const result = await TabRpcClient.wshRpcCall(
+        AgentHandoffPendingCommand,
+        {},
+        { route: AgentHandoffRouteId, timeout: AnswerTimeoutMs }
+    );
+    return Array.isArray(result?.entries) ? result.entries : [];
+}
 
 export type AgentHandoffAnswer = { requestid: string; decision: AgentHandoffDecision };
 

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews card's one state (#1060, FR-REV-001 AC11): every state of the mockup's table, the precedence between
 // them, the one primary action, the menu and the facts.
@@ -93,6 +93,16 @@ function words(input: Partial<CardInput> & { pr: ReviewPr }) {
 const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr } }[] = [
     { kind: "agent-waiting", input: { pr: pr(), agents: [Diane] } },
     { kind: "agent-working", input: { pr: pr({ merge: "conflicts", draft: true }), agents: [Nathan] } },
+    // #1841: a draft held until another PR merges.
+    {
+        kind: "waiting-on",
+        input: {
+            pr: pr({ draft: true }),
+            agents: [Jeanne],
+            agentReadies: true,
+            waitsOn: [{ number: 1099, title: "Logo palette", kind: "pr", state: "open", from: "body" }],
+        },
+    },
     { kind: "agent-finish", input: { pr: pr({ draft: true }), agents: [Jeanne], agentReadies: true } },
     {
         kind: "interrupted",
@@ -107,6 +117,8 @@ const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr }
     },
     { kind: "conflicts", input: { pr: pr({ merge: "conflicts" }) } },
     { kind: "failing", input: { pr: pr({ merge: "failing" }, [Failed(), ...Green.slice(1)]), rerunnable: true } },
+    // #1876: the merge queue stopped on a PR that is otherwise fine.
+    { kind: "queue-stopped", input: { pr: pr(), batchStopped: true } },
     { kind: "ci-trust", input: { pr: pr({ merge: "failing" }, [WaitingLocal, ...Green]) } },
     { kind: "ci-stopped", input: { pr: pr({ merge: "failing" }, [StoppedLocal, ...Green]) } },
     { kind: "review-required", input: { pr: pr({ merge: "blocked", reviewdecision: "REVIEW_REQUIRED" }) } },
@@ -124,6 +136,10 @@ const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr }
     },
     { kind: "ready", input: { pr: pr() } },
 ];
+
+function caseOf(kind: CardStateKind) {
+    return Cases.find((c) => c.kind === kind).input;
+}
 
 describe("cardState: the nine states (#1060)", () => {
     it("covers every state of the table", () => {
@@ -151,7 +167,7 @@ describe("cardState: the nine states (#1060)", () => {
         expect(w.primary).toBe("Follow Nathan");
         expect(s.molten).toBe(false);
         expect(s.tone).toBe("agent");
-        expect(s.turn).toBe("agents");
+        expect(s.turn).toBe("waiting");
         expect(w.facts).not.toContain("conflicts with develop");
         const ready = s.menu.find((a) => a.id === "mark-ready");
         expect(wordPhrase(ready.confirm)).toBe("Nathan is still working on this branch.");
@@ -231,7 +247,7 @@ describe("cardState: the nine states (#1060)", () => {
     });
 
     it("work interrupted, session open: Relaunch {name}, molten", () => {
-        const w = words(Cases[3].input);
+        const w = words(caseOf("interrupted"));
         expect(w.sentence).toBe("Work interrupted");
         expect(w.why).toBe("Jeanne stopped before finishing the rebase");
         expect(w.primary).toBe("Relaunch Jeanne");
@@ -242,7 +258,7 @@ describe("cardState: the nine states (#1060)", () => {
         const s = state({ pr: pr({ merge: "conflicts" }) });
         expect(wordPhrase(s.primary.label)).toBe("Hand the rebase over");
         expect(s.tone).toBe("broken");
-        expect(s.turn).toBe("blocked");
+        expect(s.turn).toBe("yours");
         const validate = s.menu.find((a) => a.id === "validate");
         expect(wordPhrase(validate.disabled)).toBe("Conflicts with develop: ask for a rebase first.");
         expect(s.menu.some((a) => a.id === "investigate")).toBe(false);
@@ -433,9 +449,10 @@ describe("cardState: the nine states (#1060)", () => {
     });
 
     it("CI running: calm Assisted review, Validate still in the menu, behind is a fact", () => {
-        const w = words(Cases[11].input);
-        expect(w.sentence).toBe("CI running");
-        expect(w.why).toBe("2 of 4, Backend, Build");
+        const w = words(caseOf("ci-running"));
+        expect(w.sentence).toBe("Waiting for the CI");
+        expect(w.why).toBe("");
+        expect(wordPhrase(state(caseOf("ci-running")).status.line)).toBe("CI running · 2/4 · Backend, Build");
         expect(w.primary).toBe("Assisted review");
         expect(w.molten).toBe(false);
         expect(w.menu).toEqual(["Validate", "Launch this version", "Open on GitHub"]);
@@ -578,9 +595,9 @@ describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
     });
 
     it("CI running with nothing asked: the state line shows them", () => {
-        const s = state(Cases[11].input);
+        const s = state(caseOf("ci-running"));
         expect([s.kind, s.works, s.motion]).toEqual(["ci-running", true, "state"]);
-        expect(state({ ...Cases[11].input, agents: [Jeanne] }).motion).toBe("state");
+        expect(state({ ...caseOf("ci-running"), agents: [Jeanne] }).motion).toBe("state");
     });
 
     it("nothing works: no dominoes", () => {
@@ -624,11 +641,11 @@ describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
         expect([s.kind, s.motion]).toEqual(["agent-working", "state"]);
     });
 
-    it("the CI fact while checks run reads running, never the check mark", () => {
+    it("while checks run the status line says so, and the facts carry no green check for them (#1876)", () => {
         const s = state({ pr: pr({ draft: true }, Running), ...InProgress });
-        const ci = s.facts.find((f) => f.id === "ci");
-        expect(wordPhrase(ci.text)).toBe("CI 3/13, 10 running");
-        expect(ci.tone).toBe("running");
+        expect(wordPhrase(s.status.line)).toBe("CI running · 3/13 · Job 0, Job 1 +8");
+        expect(s.status.running).toBe(true);
+        expect(s.facts.find((f) => f.id === "ci")).toBeUndefined();
     });
 
     it("the CI fact once every check passed: the check mark", () => {
@@ -751,10 +768,16 @@ describe("in French", () => {
         expect(words({ pr: pr({ draft: true }) }).primary).toBe("Passer en revue");
         expect(words({ pr: pr() }).sentence).toBe("Prête à fusionner");
         expect(words({ pr: pr({ merge: "conflicts" }) }).primary).toBe("Confier le rebase");
-        expect(words(Cases[5].input).sentence).toBe("CI en échec\u00a0: Backend");
+        expect(words(caseOf("failing")).sentence).toBe("CI en échec\u00a0: Backend");
         expect(
-            words({ pr: pr({ draft: true }, [...Green, { name: "E2E", state: "pending" }]), agents: [Nathan] }).facts
-        ).toContain("CI 4/5, 1 en cours");
+            wordPhrase(
+                state({
+                    pr: pr({ draft: true }, [...Green, { name: "E2E", state: "pending" }]),
+                    agents: [Nathan],
+                    now: 60_001,
+                }).status.line
+            )
+        ).toBe("Nathan travaille dessus · 1 min");
         expect(words({ pr: pr({}, [...Green, { name: "E2E", state: "neutral" }]) }).facts).toContain(
             "CI 4/5, ignorées\u00a0: 1"
         );

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A Review tab whose PR is finished (#686): merged from MoltenTerm (the review store's merge record), merged or closed
 // on GitHub (the PR's state, read when it leaves the Reviews list). The header then shows a calm state in place of

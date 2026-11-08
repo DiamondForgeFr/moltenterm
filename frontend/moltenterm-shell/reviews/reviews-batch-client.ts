@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The merge queue's side of wavesrv (FR-REV-025, FR-REV-026): the queue of each project and base, asked when a Reviews
 // list or a Validate sheet shows and kept up to date by its event, so a reload of the window shows it where it is.

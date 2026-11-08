@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -391,6 +391,14 @@ func treeNeeds(name string, branch string, facts treeFacts) (string, *uimsg.Text
 // needsYou: the run waits for the developer, with the reason in its state and, once per reason, a notification.
 func (r *Restarter) needsYou(ctx context.Context, f agentFollow, st *followState, name string, message string, text *uimsg.Text) {
 	r.holdState(f, st, molten.AgentStateWaiting, message, text)
+	if r.env.StopSettled != nil && r.env.StopSettled(f.blockId) {
+		// Settled by the lead or the developer (#1876): the question no longer needs anyone, and its notification goes.
+		if st.notice == message {
+			st.notice = ""
+			r.resolveNotice(ctx, f)
+		}
+		return
+	}
 	if st.notice == message {
 		return
 	}

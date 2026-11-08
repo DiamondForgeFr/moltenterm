@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package mcpbrowser is `molten mcp browser` (FR-BRW-008, DS-BRW-009): a stdio MCP server an agent started in a
 // MoltenTerm pane launches to drive the browser panel of the pane's tab. This package holds the protocol and the tool
@@ -24,6 +24,8 @@ const (
 	SiteCommand   = "moltenbrowseragentsite"
 	// emain asks whether a download an agent's tab started may go on (FR-BRW-010).
 	DownloadCommand = "moltenbrowseragentdownload"
+	// emain asks whether `wsh web get` may read the page of a Wave web block (FR-BRW-009, #1976).
+	WebReadCommand = "moltenbrowseragentwebread"
 	// The panel lists the agents it can share a tab with, shares one, and types the Share and tell line (FR-BRW-011).
 	ListCommand      = "moltenbrowseragentlist"
 	ShareCommand     = "moltenbrowseragentshare"
@@ -36,6 +38,7 @@ const (
 const (
 	ToolTabsContext = "tabs_context"
 	ToolTabsCreate  = "tabs_create"
+	ToolTabsShow    = "tabs_show"
 	ToolTabsClose   = "tabs_close"
 	ToolNavigate    = "navigate"
 	ToolReadPage    = "read_page"
@@ -88,6 +91,7 @@ const (
 
 	ErrSiteBlocked       = "The user blocked agents on this site"
 	ErrSiteNotAllowed    = "The user did not allow this site"
+	ErrWebReadNotAllowed = "The user has not allowed agents on this site yet: open the page in the browser panel (wsh web open), where the browser tools ask the user"
 	ErrPermissionTimeout = "No answer from the user about this site (2 minutes)"
 	ErrSchemeRefused     = "Only http and https pages can be opened"
 	ErrUrlRequired       = "url must be a web address, \"back\" or \"forward\""

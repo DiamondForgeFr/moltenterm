@@ -8,7 +8,9 @@ import {
     resolveRemoteFile,
     resolveSrcSet,
     transformBlocks,
+    withoutRemoteCandidates, // MOLTENTERM-PATCH (#2045)
 } from "@/app/element/markdown-util";
+import { isRemoteImage, RemoteImageLink } from "../../moltenterm-shell/remote-image"; // MOLTENTERM-PATCH (#2045)
 import remarkMermaidToTag from "@/app/element/remark-mermaid-to-tag";
 import { boundNumber, useAtomValueSafe, cn } from "@/util/util";
 import clsx from "clsx";
@@ -252,10 +254,18 @@ const MarkdownImg = ({
     const [resolvedStr, setResolvedStr] = useState<string>(null);
     const [resolving, setResolving] = useState<boolean>(true);
 
+    const remote = isRemoteImage(props.src); // MOLTENTERM-PATCH (#2045)
+
     useEffect(() => {
+        // MOLTENTERM-PATCH (#2045): a remote image is never requested (the app page's CSP refuses it); it is a link.
+        if (remote) {
+            setResolving(false);
+            return;
+        }
         if (props.src.startsWith("data:image/")) {
             setResolving(false);
             setResolvedSrc(props.src);
+            setResolvedSrcSet(withoutRemoteCandidates(props.srcSet)); // MOLTENTERM-PATCH (#2045)
             setResolvedStr(null);
             return;
         }
@@ -280,6 +290,9 @@ const MarkdownImg = ({
         resolveFn();
     }, [props.src, props.srcSet]);
 
+    if (remote) {
+        return <RemoteImageLink src={props.src} alt={props.alt} />; // MOLTENTERM-PATCH (#2045)
+    }
     if (resolving) {
         return null;
     }

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Store on the carpet" (FR-SHELL-123, DS-SHELL-136): the button in the header of every panel outside the fixed zone,
 // in the place of the pin button and always there, so the header keeps its shape. It opens the chooser "Visible

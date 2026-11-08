@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The MoltenTerm section of a terminal's command panel (FR-SHELL-049, DS-SHELL-089): MoltenTerm's own actions for
 // this panel. An item registers only when its feature exists in the build, so an unshipped one is absent rather than

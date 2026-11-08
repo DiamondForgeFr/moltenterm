@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Sessions view (FR-SHELL-020): every durable terminal still running, local and SSH, grouped by workspace, the
 // ones no pane shows first. A pane like CI/CD: it can stay open while you work. Since FR-SHELL-058 (DS-SHELL-100) it

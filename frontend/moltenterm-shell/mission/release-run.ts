@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A release on its way, phase by phase (FR-MC-016), as Notulia's devReleaseRun: what is done, what it waits on, and
 // why it is stuck when it is. Everything is derived from the facts wavesrv reads (pkg/molten/mission/release_facts.go)

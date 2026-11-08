@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package review is wavesrv's side of the Review tab (FR-REV-002, DS-REV-002, DS-REV-007): the PR's file list and
 // each file's two sides, computed by local git on commit ids, the review store (viewed files, the heads shown, the

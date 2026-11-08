@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Preferences › Workspaces and views › New workspace views (FR-SHELL-092, FR-SHELL-106, DS-SHELL-132): the template a
 // workspace created from now on starts with, edited as the tiles it creates. Each view is a tile like the sidebar's,

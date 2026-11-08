@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The preview's code editor reveals the line a terminal file link names (FR-SHELL-017): the link writes it in the
 // block meta (term-copy.ts), the editor follows it while it is mounted, so a link to a file already open moves it.

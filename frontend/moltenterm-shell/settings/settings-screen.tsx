@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The settings screen (FR-SHELL-050, DS-SHELL-091): the sections on the left, a search over label, key and
 // description, and on the right the rows of a section, each with its label, a one-line description, its control and a
@@ -23,31 +23,33 @@ import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
+import { BrokkComingCard, BrokkTableKey } from "../boss/brokk-coming-card";
+import { useBossName } from "../boss/use-boss-name";
 import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
 import { IntegrateOffKey } from "../companion/companion-integration-model";
+import { DownloadsFolderCard } from "../downloads/downloads-settings";
 import { EmptyState } from "../empty-state";
 import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
-import { SleepPolicySetting } from "../keepawake-model";
+import { AutomaticSetting } from "../keepawake-model";
 import { KeepAwakeDetails } from "../keepawake-ui";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
-import { NotificationPanelCard, NotificationSubjectsCard } from "../notification-settings";
+import { NotificationSubjectsCard } from "../notification-settings";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
 import { SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import { TipsCards } from "../tips/tips-view";
-import { ReleaseCandidatesSettingKey } from "../update/release-feed";
-import { ReleaseUpdateCheck } from "../update/release-update-ui";
 import { View360SettingKey } from "../view360/view360-decision";
 import { workspaceShownName } from "../workspace-default-name";
 import { openCurrentWorkspaceEditor } from "../workspace-edit";
 import { NewWorkspaceViewsCard } from "../workspace-views/workspace-views-settings";
+import { AboutBuildCard, AboutUpdatesCard } from "./settings-about";
 import { BookmarksCard } from "./settings-bookmarks";
 import {
     clampSetting,
@@ -75,6 +77,7 @@ import {
 import { ChoiceRows } from "./settings-choice-rows";
 import { settingsGroupIcon, SettingsSectionConcepts } from "./settings-icons";
 import { IntegrationRuns } from "./settings-integration-runs";
+import { LearnedCards } from "./settings-learned";
 import { ModsSection } from "./settings-mods";
 import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSectionMetaKey } from "./settings-open";
 import { settingOverriders } from "./settings-overrides";
@@ -243,6 +246,7 @@ function TextField({
     parse,
     className,
     placeholder,
+    maxLength,
 }: {
     entry: SettingEntry;
     value: unknown;
@@ -250,6 +254,7 @@ function TextField({
     parse?: (raw: string) => unknown;
     className?: string;
     placeholder?: string;
+    maxLength?: number;
 }) {
     const saved = value == null ? "" : String(value);
     const [draft, setDraft] = useState(saved);
@@ -277,6 +282,7 @@ function TextField({
             value={draft}
             spellCheck={false}
             placeholder={placeholder}
+            maxLength={maxLength}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => {
@@ -428,6 +434,7 @@ function Control({
                     onSet={onSet}
                     className="w-72"
                     placeholder={entry.defaultValue != null ? String(entry.defaultValue) : t(PlaceholderKeyFor.text)}
+                    maxLength={entry.range?.max}
                 />
             );
         case "path":
@@ -688,7 +695,8 @@ export function useSettingsPageData(): SettingsPageData {
         () => new Map(settingsCatalog(platformName()).map((e) => [e.key, groupSlug(e.group)])),
         []
     );
-    const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
+    const bossName = useBossName();
+    const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t, bossName)), [t, bossName]);
     const themes = useMemo(
         () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
         [fullConfig?.termthemes]
@@ -716,6 +724,8 @@ function sectionFlowBlocks(section: SettingsSectionId, groups: number): number {
         groups +
         (section === "advanced" ? 1 : 0) +
         (section === "mods" ? 1 : 0) +
+        (section === "learned" ? 1 : 0) +
+        (section === "about" ? 2 : 0) +
         (section === "general" ? 1 : 0) +
         (section === "spaces" ? 2 : 0) +
         (section === "browser" ? 1 : 0) +
@@ -758,6 +768,7 @@ export function SettingsSectionPage({
     actions,
 }: SettingsSectionPageProps) {
     const t = useT();
+    const bossName = useBossName();
     const currentSection = data.sections.find((s) => s.id === section);
     const groups = groupEntries(sectionEntries(data.catalog, section));
     const flowBlocks = sectionFlowBlocks(section, groups.length);
@@ -779,40 +790,48 @@ export function SettingsSectionPage({
                     {groups.map((g) => (
                         <PageCard
                             key={g.group}
-                            title={g.group}
+                            title={
+                                g.entries.some((e) => e.key === BrokkTableKey)
+                                    ? t("boss.coming.title", { name: bossName })
+                                    : g.group
+                            }
                             icon={suiteIcon(settingsGroupIcon(data.groupSlugByKey.get(g.entries[0].key)))}
                             glow={highlight != null && g.entries.some((e) => e.key === highlight)}
                             scope="app"
                         >
                             {g.entries.some((e) => e.key === SidebarTintKey) ? <SidebarModeRows /> : null}
-                            {g.entries.map((entry) => (
-                                <SettingRow
-                                    key={entry.key}
-                                    entry={entry}
-                                    rowId={rowId(entry.key)}
-                                    value={data.settings?.[entry.key]}
-                                    overriddenIn={data.overriddenIn.get(entry.key)}
-                                    themes={data.themes}
-                                    highlighted={highlight === entry.key}
-                                    onOpenJson={openSettingsJson}
-                                />
-                            ))}
+                            {g.entries.some((e) => e.key === BrokkTableKey) ? (
+                                <BrokkComingCard entries={g.entries} settings={data.settings} />
+                            ) : (
+                                g.entries.map((entry) => (
+                                    <SettingRow
+                                        key={entry.key}
+                                        entry={entry}
+                                        rowId={rowId(entry.key)}
+                                        value={data.settings?.[entry.key]}
+                                        overriddenIn={data.overriddenIn.get(entry.key)}
+                                        themes={data.themes}
+                                        highlighted={highlight === entry.key}
+                                        onOpenJson={openSettingsJson}
+                                    />
+                                ))
+                            )}
                             {g.entries.some((e) => e.key === IntegrateOffKey) ? <IntegrationRuns /> : null}
-                            {g.entries.some((e) => e.key === SleepPolicySetting) ? <KeepAwakeDetails /> : null}
+                            {g.entries.some((e) => e.key === AutomaticSetting) ? <KeepAwakeDetails /> : null}
                             {g.entries.some((e) => e.key === View360SettingKey) ? <View360Screens /> : null}
                             {g.entries.some((e) => e.key === NewViewOpenKey) ? <NewViewFavorites /> : null}
-                            {g.entries.some((e) => e.key === ReleaseCandidatesSettingKey) ? (
-                                <ReleaseUpdateCheck />
-                            ) : null}
                         </PageCard>
                     ))}
                     {section === "spaces" ? <TopRowCard /> : null}
                     {section === "spaces" ? <NewWorkspaceViewsCard /> : null}
                     {section === "general" ? <WorkspaceSheetCard name={data.workspaceName} /> : null}
+                    {section === "browser" ? <DownloadsFolderCard /> : null}
                     {section === "browser" ? <BookmarksCard /> : null}
                     {section === "notifications" ? <NotificationSubjectsCard /> : null}
-                    {section === "notifications" ? <NotificationPanelCard /> : null}
                     {section === "mods" ? <ModsSection /> : null}
+                    {section === "learned" ? <LearnedCards /> : null}
+                    {section === "about" ? <AboutBuildCard /> : null}
+                    {section === "about" ? <AboutUpdatesCard /> : null}
                 </PageFlow>
             ) : null}
             {section === "tips" ? <TipsCards /> : null}
@@ -832,6 +851,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const t = useT();
     const data = useSettingsPageData();
     const { catalog, sections } = data;
+    const bossName = useBossName();
     const [section, setSectionState] = useState<SettingsSectionId>(
         () => initialSection ?? openedOnSection(blockId) ?? LastSection.get(blockId) ?? "general"
     );
@@ -1075,7 +1095,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                     <ScopeLine scope="workspace" className="shrink-0" />
                                                 ) : (
                                                     <span className="shrink-0 text-11 text-muted">
-                                                        {sectionTitle(entry.section, t)}
+                                                        {sectionTitle(entry.section, t, bossName)}
                                                     </span>
                                                 )}
                                             </li>

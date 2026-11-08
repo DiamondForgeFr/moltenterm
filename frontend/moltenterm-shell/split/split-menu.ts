@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Split…" in every panel's menus (FR-SHELL-042-AC4, DS-SHELL-064, #677), with its keys from the shortcut registry.
 

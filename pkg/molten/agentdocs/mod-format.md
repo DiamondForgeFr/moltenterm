@@ -91,7 +91,37 @@ version, description, declared capabilities and folder, and `molten` waits for t
 - **No answer within 5 minutes:** the prompt closes and `molten` exits 1; run the command again.
 
 A mod enabled in `mods.json` but not trusted is reported as `untrusted`, and none of its code is read.
-`molten mod untrust <id>` stops the mod and forgets the trust; `molten mod remove` forgets it too.
+`molten mod remove` forgets the trust too.
+
+### Taking the trust back
+
+The user can withdraw their approval of a mod at any time. In MoltenTerm, Settings > Mods shows each mod that runs
+code as trusted (with the date) or not trusted, and a trusted mod has a **Revoke trust** action. The same thing is one
+command, which works from the terminal of any coding agent:
+
+```
+molten mod untrust <id>
+```
+
+- The mod stops in every tab, without a restart: its commands, timers and anything it added to the page go with it
+  (the path of `molten mod disable`).
+- Its trust record is forgotten and it is no longer enabled. The next `molten mod enable <id>` shows the trust prompt
+  again and waits for the user's answer, as for a mod never trusted. An agent never grants the trust back itself.
+- It prints `mod "<id>" is stopped and no longer trusted; enabling it again asks you first`, or
+  `mod "<id>" was not trusted` when there was nothing to change. Both exit 0. A trust file that is not valid JSON is
+  reported (exit 1) and left as it is.
+- With `--json`: `{"id": "<id>", "action": "untrust", "changed": true, "trust": "none"}`, plus a `claudecode` note when
+  the mod's Claude Code part stops with it. `molten mod list --json` gives each mod that runs code `trusted`
+  (`true` or `false`) and, when trusted, `trustedat` (RFC 3339).
+- A built-in mod has no trust to take back: turn it off with `molten mod disable <id>`.
+
+Run it only when the user asks you to take their trust back, or says a mod must not run again: it stops a mod they
+rely on.
+
+A mod built through `/morph` asks for this trust at one moment: when the user agrees to the agent's plan, which lists
+every access the mod will need. The agent creates the mod with those capabilities, enables it, and the prompt above is
+the user's approval of that list. The agent never enables a mod before the agreement, and stops to ask again for an
+access the plan did not list.
 
 Mods are not sandboxed in this version. The prompt keeps code from running by mistake; it does not stop a program
 that already runs with the user's rights, such as a hostile agent, from writing the trust file itself.
@@ -240,6 +270,24 @@ the app: they need no trust prompt and run unless turned off with `molten mod di
 `"disabled"` in `mods.json`). `molten mod list` marks them `(built-in)`; they cannot be removed or untrusted. A
 folder in `<config>/mods/` named like a built-in mod is ignored.
 
+## License of a mod
+
+A mod is its author's. MoltenTerm's own code is licensed under the AGPL-3.0, but a mod or an agent part that uses only
+the public mod interface (this page, `claude-code-parts.md`, `agent-integrations.md`, the `molten` command and its
+output) is not a work the AGPL covers: its author licenses it as they wish, open or proprietary, free or paid. This is
+the additional permission under section 7 of the AGPL in `LICENSE-EXCEPTION`, at the root of the repository
+(https://github.com/DiamondForgeFr/moltenterm/blob/main/LICENSE-EXCEPTION).
+
+- **Condition:** the mod talks to MoltenTerm only through that interface. It copies no MoltenTerm source, reaches into
+  no internals (see "The page is not part of the API"), and does not modify MoltenTerm.
+- **Examples:** the example mods next to this page (`examples/`) and the snippets of these guides may be copied into a
+  mod and used under the mod's license. The `copy-box` example is a copy of a built-in mod and carries MoltenTerm's
+  header: replace the header with your own when you copy it.
+- **Built-in mods** are part of MoltenTerm and stay under the AGPL.
+- **Name:** a mod may be called "<name> for MoltenTerm"; it does not use the MoltenTerm logo as its own, and it does not
+  claim to come from DiamondForge (`TRADEMARKS.md` at the root of the repository).
+- Put the license of the mod in a `LICENSE` file in its folder. `mod.json` has no field for it.
+
 ## Coding agents: /morph
 
 The user asks their own coding agent for a change with `/morph <request>`; the agent follows the `morph.md` guide to
@@ -274,6 +322,26 @@ Copilot CLI, Cursor, Grok Build and Mistral Vibe. Gemini CLI is kept for those w
 Enterprise, paid API keys); personal Google accounts use Antigravity CLI (`agy`) since 2026-06-18.
 `/morph` replaced `/molten-feature`: `molten agent install` deletes a `molten-feature` guide that molten wrote, and
 leaves a file of the same name that someone else wrote.
+
+The guide is one flow, the same for every agent above, written once in `morph.md`:
+
+1. **Look first** at what already exists (`molten mod list --json`).
+2. **One to three questions**, only about what the request leaves open, as choices when possible. A request that says
+   to just do it ("fais-le", "just do it", in any language) gets none.
+3. **A reformulation and a plan** whose detail matches how precise the request was. The plan states the split rule
+   and lists every access the mod will need.
+4. **Trust, when the user agrees to the plan**, with that list: the mod is created with the planned capabilities and
+   `molten mod enable` shows the trust prompt. Nothing is enabled before that agreement, and an access the plan did
+   not list is asked again before it is used.
+5. **The design view**, when the installed version has it (`molten help` lists `morph design`); otherwise the same
+   steps run in the terminal.
+6. **A live build**, marked as a draft, with sample data first; each save reloads the mod.
+7. **Adjustments** through the conversation.
+8. **Validation**: a name, three icons to pick from, a category. Giving up runs `molten undo`.
+9. **Your mods**: where the mod lives, and what to do to undo or turn it off.
+
+The split rule, which says what goes in the mod's MoltenTerm part (`mod.json` and `main.js`) and what in its agent
+part (today a Claude Code part, `claude-code-parts.md`), is written once, in `morph.md`.
 
 ## A complete example: the copy box
 
@@ -380,8 +448,12 @@ disable and `molten undo`, skipped in safe mode, recorded in `molten history`):
 | Palette, command panel, keys | show a mod command in the palette and the command panel, and bind it to a key | #724 |
 | Events and state | react to "an agent finished", "a tab opened"…, read the workspace, project and agents | #725 |
 | Cards and status bar items | add Mission Control cards and status bar items, drawn by the host like boxes | #726 |
+| Declarative panel | a layout or panel of the mod's own, described as data and drawn by the host (Morph v7) | #1890 |
+| Declared files | read and write only the paths the mod declares, approved by the user (Morph v7) | #1892 |
+| Sources | collect from a service with a token kept in Secrets, host-side, approved per service (Morph v7) | #1897 |
+| Source notifications | notify when a source has something new, by host-side rules (Morph v7) | #1898 |
 
-Layouts and free-form panels come later. Until then, use only `api`: a mod that reaches into the page (`document`,
+Until these exist, use only `api`: a mod that reaches into the page (`document`,
 injected styles, MoltenTerm's internal objects) is unsupported, breaks on any update, and what it changes stays on
 screen after the mod stops or is undone, beyond the safety net described in "The page is not part of the API".
 

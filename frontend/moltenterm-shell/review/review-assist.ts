@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Assisted review with the agent on the left (FR-REV-033, #1352). Once the developer accepted the confirmation, the
 // Reviews view opens the PR's Review tab and leaves the ask in the tab's meta: each tab of a window is a page of its

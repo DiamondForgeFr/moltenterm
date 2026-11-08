@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Monaco (about 8 MB with its language services) loads when the first editor or diff view mounts, not with every
 // tab view. monaco-react.tsx imports monaco-env.ts, which registers the workers (the TypeScript one starts only when

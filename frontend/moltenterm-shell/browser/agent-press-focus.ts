@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // An agent's click must not move the window's keyboard focus (#971, FR-BRW-008). A mouse press the agent sends to a page
 // gives its webview the window's focus, as a real click does; the user, still typing to the agent in the terminal, would

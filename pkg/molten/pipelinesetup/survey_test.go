@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package pipelinesetup
 
@@ -42,12 +42,6 @@ func surveyRunner(releases string) Runner {
 
 func surveyRepository(t *testing.T, files map[string]string, tags ...string) string {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Setup test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "setup@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Setup test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "setup@example.invalid")
 	dir := filepath.Join(t.TempDir(), "app")
 	gitIn(t, filepath.Dir(dir), "init", "--quiet", "-b", "develop", dir)
 	files["app.txt"] = "one\n"
@@ -61,6 +55,7 @@ func surveyRepository(t *testing.T, files map[string]string, tags ...string) str
 }
 
 func TestSurveySaaSFoundryShapedCli(t *testing.T) {
+	t.Parallel()
 	dir := surveyRepository(t, map[string]string{
 		".molten/project.json":                 sfPipeline,
 		".saasfoundry.json":                    sfManifest,
@@ -106,6 +101,7 @@ func TestSurveySaaSFoundryShapedCli(t *testing.T) {
 // The last public tag on a merge commit tells how the release branch took the last release (#1101); a later
 // pre-release does not count as the last public tag.
 func TestSurveyLastPublicTagOnAMergeCommit(t *testing.T) {
+	t.Parallel()
 	dir := surveyRepository(t, map[string]string{})
 	gitIn(t, dir, "checkout", "--quiet", "-b", "rc-1.0.0")
 	writeFiles(t, dir, map[string]string{"release.txt": "1.0.0\n"})
@@ -124,6 +120,7 @@ func TestSurveyLastPublicTagOnAMergeCommit(t *testing.T) {
 }
 
 func TestSurveyEmptyRepositoryRecommendsDescribing(t *testing.T) {
+	t.Parallel()
 	dir := surveyRepository(t, map[string]string{"README.md": "# App\n"})
 	s := MakeSetup(surveyRunner(""), nil)
 	answer, err := s.Survey(context.Background(), SurveyRequest{Dir: dir})
@@ -147,6 +144,7 @@ func TestSurveyEmptyRepositoryRecommendsDescribing(t *testing.T) {
 }
 
 func TestSurveyReleasesUnreadSaysWhy(t *testing.T) {
+	t.Parallel()
 	dir := surveyRepository(t, map[string]string{"README.md": "# App\n"})
 	gitIn(t, dir, "remote", "add", "origin", "https://github.com/acme/app.git")
 	answer, err := MakeSetup(surveyRunner(""), nil).Survey(context.Background(), SurveyRequest{Dir: dir})
@@ -163,6 +161,7 @@ func TestSurveyReleasesUnreadSaysWhy(t *testing.T) {
 
 // gh's failures, as the GitHub state words them (#1106).
 func TestGhProblem(t *testing.T) {
+	t.Parallel()
 	for text, want := range map[string]string{
 		`exec: "gh": executable file not found in $PATH`:                             GhMissing,
 		"To get started with GitHub CLI, please run:  gh auth login":                 GhSignedOut,
@@ -177,6 +176,7 @@ func TestGhProblem(t *testing.T) {
 
 // The coding agent that proposes changes is known at step 1, so the stepper says before any click when there is none.
 func TestSurveyNamesTheAgent(t *testing.T) {
+	t.Parallel()
 	dir := surveyRepository(t, map[string]string{"README.md": "# App\n"})
 	s := MakeSetup(surveyRunner(""), nil)
 	s.ChooseAgent = claudeChoice
@@ -194,6 +194,7 @@ func TestSurveyNamesTheAgent(t *testing.T) {
 }
 
 func TestAppTypes(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		files map[string]string
@@ -221,6 +222,7 @@ func TestAppTypes(t *testing.T) {
 }
 
 func TestAnswersResumeAndDropOnANewBase(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	s := MakeSetup(noSf, nil)
 	s.AnswersDir = filepath.Join(t.TempDir(), "answers")

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package wshutil
 
@@ -222,6 +222,10 @@ func TestRemoteHostRouteAllowlist(t *testing.T) {
 	}
 	if e.ask(t, e.window, "decrypt", ElectronRoute, "electrondecrypt", map[string]any{"ciphertext": "x"}) {
 		t.Error("a host asked Electron main to decrypt")
+	}
+	// #1976: `wsh web get` reads a Wave web block's page, signed-in session included; a host never does.
+	if e.ask(t, e.window, "webselector", ElectronRoute, "webselector", map[string]any{"blockid": "b", "tabid": "t", "workspaceid": "w", "selector": "body"}) {
+		t.Error("a host read a web block's page through Electron main")
 	}
 	if e.ask(t, e.window, "screenshot", MakeTabRouteId("win"), "captureblockscreenshot", map[string]any{"blockid": "b"}) {
 		t.Error("a host captured a panel of the window")

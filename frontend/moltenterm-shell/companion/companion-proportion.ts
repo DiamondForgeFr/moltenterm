@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Is an agent's intelligence in proportion with its task (#601)? The ticket's complexity label (the sf-workflow's
 // `complexity: bug|low|medium|complex`, read by wavesrv, pkg/molten/companion/tickets.go) against the agent's model and

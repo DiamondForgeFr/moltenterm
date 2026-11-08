@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // `molten i18n` and `molten mod new --language` (FR-I18N-002, DS-I18N-009): what the developer's coding agent uses to
 // write a language pack. The tab answers export, check and status from the dictionaries, the packs and the check it

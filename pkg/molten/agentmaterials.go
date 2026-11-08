@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package molten
 
@@ -67,6 +67,7 @@ type MaterialsRequest struct {
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	Project     string `json:"project,omitempty"`
 	All         bool   `json:"all,omitempty"`
+	Summary     bool   `json:"summary,omitempty"`
 	Id          string `json:"id,omitempty"`
 	TrashId     string `json:"trashid,omitempty"`
 	Title       string `json:"title,omitempty"`
@@ -171,6 +172,7 @@ type MaterialsProject struct {
 	Key    string `json:"key"`
 	Folder string `json:"folder,omitempty"`
 	Name   string `json:"name,omitempty"`
+	Count  int    `json:"count,omitempty"`
 }
 
 // MaterialsUsage is what the copies take, against the caps; Full: a new copy would not fit.

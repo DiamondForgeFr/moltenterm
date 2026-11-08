@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library (FR-SHELL-088): what is not in the sidebar, over the window, behind the sidebar's bottom-left button.
 // Its own navigation on the left, a wide page on the right: every workspace side by side, the panel kinds explained,
@@ -22,6 +22,7 @@ import { actionGate, gateMessage, morphWorks } from "../agent-info/agent-action-
 import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { agentCallName, agentStateMessage } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { useBossName } from "../boss/use-boss-name";
 import { BrowserActiveMetaKey } from "../browser/browser-model";
 import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { typeMorphCall } from "../morph/morph-call";
@@ -926,6 +927,7 @@ function LibrarySettingsBlock({ block }: { block: SettingsSectionId }) {
 // there, its first tab Overview (null) holding the blocks as compact cards.
 function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: (block: SettingsSectionId) => void }) {
     const t = useT();
+    const bossName = useBossName();
     const hasConfigErrors = useAtomValue(atoms.hasConfigErrors);
     const reducedMotion = useAtomValue(atoms.prefersReducedMotionAtom);
     const revealSetting = useAtomValue(getSettingsKeyAtom(SettingsRevealKey));
@@ -1046,7 +1048,7 @@ function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: 
                         onClick={(e) => openFromTile(s.id, e.currentTarget)}
                     >
                         <i className={makeIconClass(s.icon, true)} aria-hidden />
-                        <span>{localizeSection(s, t).title}</span>
+                        <span>{localizeSection(s, t, bossName).title}</span>
                     </button>
                 ))}
             </div>
@@ -1064,7 +1066,7 @@ function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: 
             {block == null ? (
                 <div className="mt-lib-setgrid" data-testid="library-settings-cards">
                     {SettingsSections.map((s) => {
-                        const section = localizeSection(s, t);
+                        const section = localizeSection(s, t, bossName);
                         return (
                             <button
                                 key={s.id}

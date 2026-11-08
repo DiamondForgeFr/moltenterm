@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project view (FR-MC-020, DS-MC-012): Mission Control's single overview of the linked project, shown by the
 // Project tab (FR-SHELL-015, DS-SHELL-015). Top to bottom: the header band with the actions, the line map, then one
@@ -28,6 +28,7 @@ import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "../m
 import { MissionSnapshot, UntrustedInfo } from "../mission/mission-model";
 import { TrustPrompt, useStartRun } from "../mission/runs-view";
 import { openMoltentermView } from "../open-view";
+import { useNewViewHint, usePanelOrigin } from "../panel-cta";
 import { ProjectSwitchChips } from "../sidebar/project-chips";
 import { openProjectSheet } from "../workspace-edit";
 import { pathBaseName } from "../workspace-project";
@@ -122,6 +123,25 @@ function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props:
                 <CardBody card={card} props={props} />
             </div>
         </section>
+    );
+}
+
+// The header's way to CI/CD: the panel opens beside this one, in the same view (#1844, FR-SHELL-094, FR-SHELL-139 AC13).
+export function CicdHeaderButton() {
+    const t = useT();
+    const origin = usePanelOrigin();
+    const hint = useNewViewHint();
+    return (
+        <button
+            type="button"
+            onClick={(e) => fireAndForget(() => openMoltentermView(MoltentermCicdView, origin(e)))}
+            className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
+            title={hint(t("project.openCicdTitle"))}
+            data-testid="project-open-cicd"
+        >
+            <i className="fa fa-solid fa-list-check text-11" />
+            CI/CD
+        </button>
     );
 }
 
@@ -232,15 +252,7 @@ function ProjectContent({
                 >
                     {t("projectSheet.open")}
                 </button>
-                <button
-                    type="button"
-                    onClick={() => fireAndForget(() => openMoltentermView(MoltentermCicdView))}
-                    className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
-                    title={t("project.openCicdTitle")}
-                >
-                    <i className="fa fa-solid fa-list-check text-11" />
-                    CI/CD
-                </button>
+                <CicdHeaderButton />
             </MissionHeader>
             <ProjectSwitchChips workspace={project.workspace} />
             {fullMapCard != null ? (

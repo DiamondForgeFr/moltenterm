@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Wave has no in-app notification stack, only blocking modals. The mod host mounts its own React root so that
 // reporting a failed mod never patches Wave's layout.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Each step's "Question" in the pipeline setup (#1152, FR-MC-044). A screen wraps its content in <HelpScope dir screen
 // context> and puts <QuestionButton step> beside each step. The scope also tells the panel's "Ask for help"

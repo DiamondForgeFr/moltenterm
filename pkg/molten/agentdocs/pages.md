@@ -15,7 +15,11 @@ The exception is the developer asking for their own browser ("open it in Brave",
 3. Read it with `get_page_text`, `read_page` or `find`, and act on it with `computer` or `form_input`, when the
    developer wants you to work in it. The first action on each site asks the developer, who may allow it once, always,
    or block it.
-4. Close the tabs you opened with `tabs_close` when you no longer need them, unless the developer wants them kept.
+4. `tabs_show` (takes a `tabId`) brings a page you already have open back in front of the developer, without changing
+   it: use it when they should look at a mockup, a pull request or a preview you opened earlier. `tabs_create` and
+   `navigate` already do this for the page they load, so do not call `tabs_show` right after them. One call shows the
+   page once: never repeat it to catch their eye. It reads nothing from the page and asks no site permission.
+5. Close the tabs you opened with `tabs_close` when you no longer need them, unless the developer wants them kept.
 
 Prefer a tab the developer shared with you (`tabs_context` lists it) to opening another one for the same page.
 
@@ -31,11 +35,20 @@ molten browsers                             # the browsers found on this compute
 Programs that read the `BROWSER` variable (`gh pr view --web`, `npm`, `python -m webbrowser`) already open their pages
 in MoltenTerm in a local MoltenTerm terminal: it is set to MoltenTerm's own handler.
 
+A `file:` or `data:` page (`molten open file:///…`, `wsh web open`) does not load until the developer confirms it in the
+panel, which names the file: the page can run scripts next to their files. Ask for one only when the developer wants
+that file, serve a build over `http://localhost` otherwise, and do not queue it again if they decline (the panel closes).
+
 ## What the developer sees
 
 - The page opens as a panel to the right of your terminal, which keeps the keyboard focus. Nothing opens in another tab
   or workspace.
-- In a 360 view, a page you open or navigate that is off-screen on the carpet is scrolled into view, so the developer
-  sees what you show. The carpet only scrolls: the focus does not move and no view is switched. Reading, clicking or
-  typing in the page never scrolls it.
+- In a 360 view, a page you open, navigate or show with `tabs_show` that is off-screen on the carpet is scrolled into
+  view, so the developer sees what you show. The carpet only scrolls: the focus does not move and no view is switched.
+  Reading, clicking or typing in the page never scrolls it.
+- In a grid view, a page hidden behind a panel the developer magnified is brought out: the magnification ends. No
+  panel is moved, resized or closed, and a page already in view changes nothing.
+- The tab's bar says why the page came into view: "<your first name> is showing you this page", for a few seconds.
+- The keyboard focus never moves, whether the developer is typing or not: the page comes into view beside what they
+  are doing, and their keys keep reaching their terminal.
 - A bar on the tab says you are controlling it; the developer can stop you or take over at any time.

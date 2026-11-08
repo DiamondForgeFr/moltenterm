@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The first run's record (FR-ONB-001, DS-ONB-001): the client meta "molten:onboarding", written by wavesrv only
 // (pkg/molten/onboarding) and read here. Pure selectors, so the panel's page logic is tested without a window.

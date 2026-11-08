@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The 360 view's icon (#824): a solid fixed first column, then an outlined panel above a two-way arrow, the carpet
 // that scrolls sideways. Two equal bars read as a video pause button, so the column is solid and narrower than the

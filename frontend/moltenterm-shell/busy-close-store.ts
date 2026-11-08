@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Reading what a close would stop (FR-SHELL-061, DS-SHELL-106), for terminals of this tab, of another tab or of the
 // whole workspace: the controller status and the runtime info come from wavesrv, the agent states from the copy every
@@ -196,6 +196,9 @@ export type BusyCloseRequest = {
     name?: string;
     quits?: boolean;
     kept?: RunningItem[];
+    // The downloads a quit would interrupt (FR-MC-019 AC11, #1992): told in a line of the dialog, and enough to ask when
+    // nothing else runs.
+    downloads?: number;
     answer: (close: boolean) => void;
 };
 

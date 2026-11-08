@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The site permission bar of the browser panel (#663): a page asks for the camera, the microphone, the location or
 // notifications, and the tab asks the user in the slot of the other bars. Allow and Block are remembered for the site
@@ -7,9 +7,7 @@
 // and a click right after it appears is ignored, so a click meant for the page cannot answer it.
 
 import { Button } from "@/app/element/button";
-import { getApi } from "@/app/store/global";
-import { globalStore } from "@/app/store/jotaiStore";
-import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import { useRef } from "react";
 import { useT } from "../i18n/i18n";
 import { suiteIcon } from "../suite/suite-icons";
@@ -23,67 +21,7 @@ import {
     KindMicrophone,
     sitePermissionWhatKey,
 } from "./site-permission";
-
-export type SiteAsk = { requestid: string; site: string; kinds: string[] };
-
-type SitePermissionApi = { moltentermSitePermissionAnswer?: (requestId: string, decision: string) => void };
-
-export function isSiteAsk(value: any): value is SiteAsk {
-    return (
-        value != null &&
-        typeof value.requestid === "string" &&
-        typeof value.site === "string" &&
-        Array.isArray(value.kinds) &&
-        value.kinds.every((k: unknown) => typeof k === "string")
-    );
-}
-
-// The questions of one panel, per browser tab, oldest first; in memory only.
-export class SitePermissionModel {
-    asksAtom = atom({}) as PrimitiveAtom<Record<string, SiteAsk[]>>;
-
-    add(tabId: string, ask: SiteAsk): void {
-        const all = globalStore.get(this.asksAtom);
-        const list = all[tabId] ?? [];
-        if (list.some((a) => a.requestid === ask.requestid)) {
-            return;
-        }
-        globalStore.set(this.asksAtom, { ...all, [tabId]: [...list, ask] });
-    }
-
-    // The question is gone: answered here, or settled by main (another answer, the timeout, the page closed).
-    remove(requestId: string): void {
-        const all = globalStore.get(this.asksAtom);
-        let changed = false;
-        const next: Record<string, SiteAsk[]> = {};
-        for (const [tabId, list] of Object.entries(all)) {
-            const kept = list.filter((a) => a.requestid !== requestId);
-            changed = changed || kept.length !== list.length;
-            if (kept.length > 0) {
-                next[tabId] = kept;
-            }
-        }
-        if (changed) {
-            globalStore.set(this.asksAtom, next);
-        }
-    }
-
-    current(tabId: string): SiteAsk {
-        return globalStore.get(this.asksAtom)[tabId]?.[0] ?? null;
-    }
-
-    answer(requestId: string, decision: string): void {
-        this.remove(requestId);
-        (getApi() as SitePermissionApi).moltentermSitePermissionAnswer?.(requestId, decision);
-    }
-
-    // A closed tab refuses what its pages asked.
-    forgetTab(tabId: string): void {
-        for (const ask of globalStore.get(this.asksAtom)[tabId] ?? []) {
-            this.answer(ask.requestid, DecisionDismiss);
-        }
-    }
-}
+import { SitePermissionModel } from "./site-permission-store";
 
 function kindIcon(kinds: string[]) {
     if (kinds.includes(KindCamera)) {

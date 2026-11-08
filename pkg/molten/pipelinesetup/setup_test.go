@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package pipelinesetup
 
@@ -148,6 +148,7 @@ func stepIds(steps []molten.PipelineStep) []string {
 }
 
 func TestDraftSaaSFoundryShapedRepository(t *testing.T) {
+	t.Parallel()
 	dir := saasFoundryFixture(t)
 	before, _ := os.ReadFile(filepath.Join(dir, ".molten/project.json"))
 	s := MakeSetup(noSf, nil)
@@ -211,6 +212,7 @@ func TestDraftSaaSFoundryShapedRepository(t *testing.T) {
 }
 
 func TestWriteOnlyTheReviewedTextWhenTheFileIsUnchanged(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	s := prSetup(t, &fakeForge{}, protectedRules(t))
 	answer, err := s.Draft(context.Background(), DraftRequest{Dir: dir})
@@ -247,6 +249,7 @@ func TestWriteOnlyTheReviewedTextWhenTheFileIsUnchanged(t *testing.T) {
 
 // Outside a git repository there is nothing to open a pull request on.
 func TestWriteOutsideGitIsRefused(t *testing.T) {
+	t.Parallel()
 	dir := saasFoundryFixture(t)
 	s := MakeSetup(noSf, nil)
 	s.TreesDir = t.TempDir()
@@ -267,6 +270,7 @@ func TestWriteOutsideGitIsRefused(t *testing.T) {
 }
 
 func TestDraftWithoutPipelineCreatesTheFile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{
 		"package.json":                  `{ "name": "tool", "version": "0.3.0", "private": true }`,
@@ -300,6 +304,7 @@ func TestDraftWithoutPipelineCreatesTheFile(t *testing.T) {
 }
 
 func TestSaasKindDraftsDeploySteps(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{
 		".molten/project.json":                 `{ "schema": 1, "name": "DiamondForge" }`,
@@ -324,6 +329,7 @@ func TestSaasKindDraftsDeploySteps(t *testing.T) {
 }
 
 func TestManualStepBeforePromoteMovesThePreparation(t *testing.T) {
+	t.Parallel()
 	dir := saasFoundryFixture(t)
 	f := Detect(dir)
 	o := DefaultOptions(f)
@@ -346,6 +352,7 @@ func TestManualStepBeforePromoteMovesThePreparation(t *testing.T) {
 }
 
 func TestSaaSFoundryProviderAdapter(t *testing.T) {
+	t.Parallel()
 	fixture, err := os.ReadFile(filepath.Join("testdata", "sf-pipeline-draft.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -392,6 +399,7 @@ func TestSaaSFoundryProviderAdapter(t *testing.T) {
 }
 
 func TestRefineOnlyProposes(t *testing.T) {
+	t.Parallel()
 	dir := saasFoundryFixture(t)
 	before, _ := os.ReadFile(filepath.Join(dir, ".molten/project.json"))
 	var gotArgv []string
@@ -425,6 +433,7 @@ func TestRefineOnlyProposes(t *testing.T) {
 }
 
 func TestGithubFilters(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		patterns []string
 		name     string
@@ -447,6 +456,7 @@ func TestGithubFilters(t *testing.T) {
 }
 
 func TestMergeKeepsOtherKeys(t *testing.T) {
+	t.Parallel()
 	current := "{\n  \"schema\": 1,\n  \"name\": \"X\",\n  \"ci\": { \"jobs\": [ {\"name\":\"a\",\"run\":\"true\"} ] }\n}\n"
 	out, err := MergeTopLevel([]byte(current), nil, []keyValue{{Key: "name", Value: "Y"}, {Key: "release", Value: map[string]any{"rc": []any{}}}})
 	if err != nil {
@@ -459,6 +469,7 @@ func TestMergeKeepsOtherKeys(t *testing.T) {
 }
 
 func TestEvaluateChoicesWithoutTargets(t *testing.T) {
+	t.Parallel()
 	choices := EvaluateChoices([]string{RcFormatNumeric, RcFormatRcDot}, RcFormatRules, nil)
 	if !choices[0].Allowed || !choices[1].Allowed || len(choices[1].Reasons) != 0 {
 		t.Fatalf("%+v", choices)

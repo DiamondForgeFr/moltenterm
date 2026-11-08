@@ -15,6 +15,12 @@ import {
     type CdpCallData,
     type ControlData,
 } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300)
+import {
+    BrowserAgentRoute,
+    readWebBlockPage,
+    WebReadAskTimeoutMs,
+    WebReadCommand,
+} from "./moltenterm-webselector-gate"; // MOLTENTERM-PATCH (#1976)
 
 export class ElectronWshClientType extends WshClient {
     constructor() {
@@ -33,8 +39,18 @@ export class ElectronWshClientType extends WshClient {
         if (wc == null) {
             throw new Error(`no webcontents found with blockid ${data.blockid}`);
         }
-        const rtn = await webGetSelector(wc, data.selector, data.opts);
-        return rtn;
+        // MOLTENTERM-PATCH (#1976): the page is read only on a site the user allowed for agents (FR-BRW-009), and
+        // comes back inside the untrusted page content envelope (emain/moltenterm-webselector-gate.ts)
+        return readWebBlockPage({
+            pageUrl: () => (wc.isDestroyed() ? "" : wc.getURL()),
+            ask: (url) =>
+                ElectronWshClient.wshRpcCall(
+                    WebReadCommand,
+                    { url },
+                    { route: BrowserAgentRoute, timeout: WebReadAskTimeoutMs }
+                ),
+            read: () => webGetSelector(wc, data.selector, data.opts),
+        });
     }
 
     async handle_notify(rh: RpcResponseHelper, notificationOptions: WaveNotificationOptions) {

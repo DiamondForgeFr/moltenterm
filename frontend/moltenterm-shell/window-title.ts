@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The window title, "MoltenTerm - <tab>": the tab view's document title, which Electron shows on the window. It reads
 // the tab as the tab bar and the sidebar do: a Project tab is named in the interface language (#741), and a tab that

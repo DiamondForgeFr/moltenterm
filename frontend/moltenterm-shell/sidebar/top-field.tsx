@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The field at the top of the sidebar (FR-SHELL-083, #1187). Closed, it shows the focused panel: a page's address, or
 // "<panel> · <view>". ⌘L or a click opens it: it searches views, agents, workspaces, pull requests, panels and

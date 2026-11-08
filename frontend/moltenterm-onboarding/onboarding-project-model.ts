@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What step 3, "Your project and your sessions" (FR-ONB-004, DS-ONB-004), decides, kept apart from the component so
 // it is tested without a window: the folders it proposes, the colour a project gets, and how the user's agent connects

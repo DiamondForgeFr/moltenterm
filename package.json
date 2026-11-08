@@ -5,7 +5,7 @@
     },
     "productName": "MoltenTerm",
     "description": "The terminal that takes your shape. A soft fork of Wave Terminal.",
-    "license": "Apache-2.0",
+    "license": "AGPL-3.0-only AND Apache-2.0",
     "version": "1.0.0-8",
     "homepage": "https://github.com/DiamondForgeFr/moltenterm",
     "build": {
@@ -44,7 +44,7 @@
         "@types/ws": "^8",
         "@vitejs/plugin-react-swc": "4.2.3",
         "@vitest/coverage-istanbul": "^4.1.12",
-        "electron": "45.2.0",
+        "electron": "45.2.3",
         "electron-builder": "^26.15.3",
         "electron-vite": "^5.0",
         "eslint": "^9.39",
@@ -68,6 +68,7 @@
     },
     "dependencies": {
         "@ai-sdk/react": "^2.0.104",
+        "@diamondforge/character": "git+ssh://git@github.com/DiamondForgeFr/character-studio.git#v0.3.1",
         "@floating-ui/react": "^0.27.16",
         "@observablehq/plot": "^0.6.17",
         "@react-hook/resize-observer": "^2.0.2",
@@ -143,7 +144,9 @@
         "monaco-editor@0.55.1": {
             "dompurify": "3.4.17"
         },
+        "glob@>=9.0.0 <15.0.0": "14.0.3",
         "katex": "0.18.10",
+        "minimatch@>=7.0.0 <12.0.0": "11.0.4",
         "postcss-selector-parser": "7.1.6",
         "satori": {
             ".": "0.33.5",

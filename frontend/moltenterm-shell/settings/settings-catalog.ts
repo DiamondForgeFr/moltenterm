@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the settings screen shows (FR-SHELL-050, DS-SHELL-091), read from schema/settings.json: the add-config path
 // generates the schema from wconfig.SettingsType, and cmd/generateschema adds each key's "x-moltenterm" metadata
@@ -9,6 +9,7 @@
 
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
+import { DefaultBossName } from "../boss/boss-name";
 import { t, TFunction } from "../i18n/i18n";
 import { hasKey } from "../i18n/i18n-core";
 import { ProjectMetaKey, WorkspaceFolderMetaKey } from "../workspace-project";
@@ -19,14 +20,17 @@ export type SettingsSectionId =
     | "appearance"
     | "terminal"
     | "agents"
+    | "boss"
     | "browser"
     | "mission"
     | "notifications"
     | "keyboard"
     | "mods"
     | "secrets"
+    | "learned"
     | "tips"
-    | "advanced";
+    | "advanced"
+    | "about";
 
 export type SettingsControl = "toggle" | "select" | "number" | "slider" | "text" | "path" | "multi" | "json";
 
@@ -66,6 +70,13 @@ export const SettingsSections: SettingsSection[] = [
         icon: "robot",
         description: "The agent companion, and what MoltenTerm adds when an agent starts in its terminals.",
     },
+    // Titled with the foreman's name, which the developer chooses (FR-BOSS-001): localizeSection takes it.
+    {
+        id: "boss",
+        title: DefaultBossName,
+        icon: "flag",
+        description: "The avatar that counts what waits for you in every workspace.",
+    },
     {
         id: "browser",
         title: "Browser",
@@ -96,7 +107,21 @@ export const SettingsSections: SettingsSection[] = [
         description:
             "Values stored in your system's secret store, for connections and commands. Never shown unless you ask.",
     },
+    // What the guided workflows remember of the developer lives in MoltenTerm's data folder (FR-LRN-003).
+    {
+        id: "learned",
+        title: "What MoltenTerm learned",
+        icon: "brain",
+        description: "What the guided workflows remember of how you work: see it, change it, forget it.",
+    },
     { id: "tips", title: "Tips", icon: "lightbulb", description: "Reshape MoltenTerm, work faster, every shortcut." },
+    // The version, its updates and its origin (#1860); no settings.json key maps here.
+    {
+        id: "about",
+        title: "About",
+        icon: "circle-info",
+        description: "The version you run, its updates and where MoltenTerm comes from.",
+    },
     {
         id: "advanced",
         title: "Advanced",
@@ -311,11 +336,17 @@ export function localizeCatalog(entries: SettingEntry[], tr: TFunction): Setting
     return entries.map((e) => localizeSettingEntry(e, tr));
 }
 
-export function localizeSection(section: SettingsSection, tr: TFunction): SettingsSection {
+// bossName: the foreman's name, which titles and describes the section that bears it.
+export function localizeSection(
+    section: SettingsSection,
+    tr: TFunction,
+    bossName: string = DefaultBossName
+): SettingsSection {
+    const named: TFunction = (key, vars) => tr(key, { name: bossName, ...vars });
     return {
         ...section,
-        title: translatedOr(tr, `settings.sections.${section.id}.title`, section.title),
-        description: translatedOr(tr, `settings.sections.${section.id}.description`, section.description),
+        title: translatedOr(named, `settings.sections.${section.id}.title`, section.title),
+        description: translatedOr(named, `settings.sections.${section.id}.description`, section.description),
     };
 }
 
@@ -338,9 +369,9 @@ export function groupEntries(entries: SettingEntry[]): { group: string; entries:
     return groups;
 }
 
-export function sectionTitle(id: SettingsSectionId, tr: TFunction = t): string {
+export function sectionTitle(id: SettingsSectionId, tr: TFunction = t, bossName: string = DefaultBossName): string {
     const section = SettingsSections.find((s) => s.id === id);
-    return section != null ? localizeSection(section, tr).title : id;
+    return section != null ? localizeSection(section, tr, bossName).title : id;
 }
 
 function normalize(text: string): string {

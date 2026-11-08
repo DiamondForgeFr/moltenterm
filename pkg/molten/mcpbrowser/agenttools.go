@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mcpbrowser
 
@@ -60,10 +60,10 @@ func AgentTools() []ToolDef {
 				"browser pages by url or by the tabId of your MoltenTerm browser tab). Set reply when you expect an answer: " +
 				"the receiver then answers with send_to_agent. Files outside the receiver's project are copied next to the " +
 				"brief. The first send between two agents asks the user (allow once, always for this pair, block): the call " +
-				"waits up to 50 seconds for the answer. Without an answer by then the result's status is \"pending\": the " +
-				"request stays with the user, nothing is sent until they allow it, and MoltenTerm types the outcome in your " +
-				"terminal (a line starting with [MoltenTerm]) once they answer; do not send it again. A busy receiver gets " +
-				"the prompt when its prompt is idle.",
+				"returns at once with the status \"pending\": the request stays with the user, nothing is sent until they " +
+				"allow it, and MoltenTerm types the outcome in your terminal (a line starting with [MoltenTerm]) once they " +
+				"answer; do not send it again, carry on or end your turn. A busy receiver gets the prompt when its prompt " +
+				"is idle.",
 			InputSchema: objectSchema(map[string]any{
 				"name": map[string]any{"type": "string", "description": "The receiver's first name (see list_agents)."},
 				"brief": objectSchema(map[string]any{
@@ -110,6 +110,7 @@ const PagesInstructions = " To show a page to the user (\"open the doc\", \"show
 	"MoltenTerm's browser: tabs_create then navigate, or `molten open <url>` from a shell. Do not use `open`, " +
 	"`xdg-open`, `start` or the system browser, unless the user asks for their own browser (`molten open --browser " +
 	"installed <url>`). The page appears next to this terminal, in view, and the terminal keeps the keyboard focus. " +
+	"To bring a page you already have open back in front of the user, call tabs_show on its tab. " +
 	"Details: pages.md in the folder `molten docs` prints."
 
 // BookmarksInstructions: the web pages the developer bookmarked for the project, with a note on each (FR-BRW-020,
@@ -118,12 +119,26 @@ const BookmarksInstructions = " The developer keeps the project's useful web pag
 	"`molten bookmarks list [--json]` lists them (read-only); opening one goes through these browser tools. " +
 	"Details: bookmarks.md in the folder `molten docs` prints."
 
+// LearningInstructions: a guided workflow remembers what the developer adjusts, and an agent that drives one reads and
+// feeds that memory (FR-LRN-002, pkg/molten/agentdocs/learning.md), whatever agent CLI it is.
+const LearningInstructions = " A guided workflow (a pipeline setup, a mod design) learns from the developer: when you " +
+	"start one, read `molten learn defaults <workflow>` and start from what it prefills; record only what the developer " +
+	"adjusted in that workflow with `molten learn record <workflow>`. Details: learning.md in the folder `molten docs` " +
+	"prints."
+
+// DecisionsInstructions: a lead that decided what an agent stopped to ask tells the Integration panel (#1876,
+// pkg/molten/agentdocs/agent-decisions.md), whatever agent CLI it is.
+const DecisionsInstructions = " When an agent stopped to ask for a decision and you decided it (you answered another way, " +
+	"you marked its pull request ready, you fixed what it asked about), settle its stop so the Integration panel stops " +
+	"asking the developer: `molten agent decision settle <ticket|agent> --note \"why\"`. " +
+	"Details: agent-decisions.md in the folder `molten docs` prints."
+
 // AgentInstructions completes the server's instructions with the agent's own first name (FR-CONT-014): Claude Code
 // puts server instructions in its system prompt, so the agent can sign its briefs and knows it is addressed.
 func AgentInstructions(firstName string) string {
 	rtn := PagesInstructions + " To hand work to another agent when the user asks (\"send this to Jérôme\"), call " +
 		"list_agents, then send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions + FilesInstructions +
-		BookmarksInstructions
+		BookmarksInstructions + LearningInstructions + DecisionsInstructions
 	if firstName != "" {
 		rtn = fmt.Sprintf(" In MoltenTerm your first name is %s: the user and other agents call you by it, and handoffs you "+
 			"send are signed with it.", firstName) + rtn + SignInstructions

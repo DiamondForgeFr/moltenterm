@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Shortcut keys as people read them (DS-SHELL-067): macOS glyphs (⌃ ⌥ ⇧ ⌘), words elsewhere where Wave's "Cmd" is
 // Alt; and as Electron accelerators, so the native menus show the same keys.

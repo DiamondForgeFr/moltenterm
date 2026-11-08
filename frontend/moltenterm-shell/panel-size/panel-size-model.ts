@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Panel size memory (#606): a side panel reopens at the size the developer last dragged it to, per panel kind, while
 // terminals and the Project view always fill what is left. Kept apart from the layout so the rules are tested alone.

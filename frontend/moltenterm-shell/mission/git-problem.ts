@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Why Mission Control could not read a project's history, from the collector's git error (FR-SHELL-053): the panel
 // says it in plain words and keeps git's own output under Details.

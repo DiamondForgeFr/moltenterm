@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The close guard of the window's terminals. Closing what a worktree is linked to (FR-SHELL-016, #114, #134): every
 // close of a terminal linked to a worktree shows its plan first (remove, keep or cancel); closing a whole tab shows one

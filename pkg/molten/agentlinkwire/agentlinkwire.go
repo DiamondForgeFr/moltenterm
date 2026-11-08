@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentlinkwire is what the MoltenTerm MCP servers (`molten mcp browser`, `molten mcp review`, in wsh) and
 // wavesrv's link registry (pkg/molten/agentlinks) exchange about each server's link to MoltenTerm (FR-CONT-022,

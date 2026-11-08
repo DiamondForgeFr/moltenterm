@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The upcoming work's side of wavesrv (#712): asked while the Reviews view shows, each time its review list changes
 // (the collector's 15 s ask while shown, a refresh, a review action) and when the window gets the focus. No timer of

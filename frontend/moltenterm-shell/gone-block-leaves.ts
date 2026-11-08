@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A block deleted without the layout being told (ObjectService.DeleteBlock straight from a view, as the onboarding
 // sign-in terminal does once the sign-in succeeds) used to leave its leaf behind: an empty place in the grid, a blank

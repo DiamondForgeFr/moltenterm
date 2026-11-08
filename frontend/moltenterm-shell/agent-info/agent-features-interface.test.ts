@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // FR-AGC-003 (#1684): the lists the interface kept by hand, read from wavesrv's real matrix, give what they gave
 // before; a fake matrix with one more agent offers it where its features work, with no interface change.

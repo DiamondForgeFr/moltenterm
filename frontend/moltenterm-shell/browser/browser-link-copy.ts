@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Copy link" of a page panel (FR-SHELL-051, #1544): the address chip's button, the header's "⋯" and the chip's menu
 // copy the page's address as the developer sees it and confirm in place, on the chip, with no toast.

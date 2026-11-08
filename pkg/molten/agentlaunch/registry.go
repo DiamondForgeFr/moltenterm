@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentlaunch starts coding agents with MoltenTerm's integration for one run (FR-SHELL-036, DS-SHELL-044 to
 // 048, FR-SHELL-038 for Codex). In a local MoltenTerm terminal, `claude` and `codex` are launchers placed first on
@@ -84,6 +84,8 @@ type LaunchAdapter interface {
 	Id() string
 	// Executable is the program name the launcher is installed under.
 	Executable() string
+	// InstallCommand is the agent's official install command, shown when the launcher finds no agent to run.
+	InstallCommand() string
 	// PassThrough tells whether the arguments run a command that starts no session (--version, a management
 	// subcommand): the real binary then runs with nothing added.
 	PassThrough(args []string) bool

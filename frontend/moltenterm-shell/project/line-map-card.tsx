@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project overview's map slot (FR-MC-020, FR-MC-022): the line map of the linked project, with its "Full size"
 // that enlarges the map over the whole Project panel, in place (FR-SHELL-094).

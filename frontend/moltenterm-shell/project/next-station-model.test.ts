@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
@@ -498,7 +498,7 @@ describe("the planned station: the open milestone when nothing is released (FR-M
     });
 
     it("keeps a release the commits justify, dated by the milestone of that version only", () => {
-        const s = nextStation(Released, null, [planned("v1.1.1", { due_on: "2026-10-16T07:00:00Z" })], Oct13);
+        const s = nextStation(Released, null, [planned("v1.1.1")], Oct13);
         expect(s).toMatchObject({ tag: "v1.2.0", state: "derived", chip: "minor" });
     });
 
@@ -589,5 +589,73 @@ describe("the planned station on SaaSFoundryAI's data (#1808)", () => {
 
     it("has nothing yet only while the snapshot holds no milestone", () => {
         expect(nextStation(SaasFoundry, null, undefined, Nov3)).toMatchObject({ tag: null, state: "nothing" });
+    });
+});
+
+// #2069: SaaSFoundryAI as the developer saw it: two features since v1.1.0, milestones v1.1.1 (Nov 20) and v1.2.0
+// (Dec 4). The derived minor matched v1.2.0, and the header put the earlier v1.1.1 second.
+describe("the dated milestone due first wins over the derived version (FR-MC-021, #2069)", () => {
+    const Nov7 = new Date("2026-11-07T10:00:00Z").getTime();
+    const features = commits("feat(#1201): agents list", "feat(#1202): skill doctor", "chore(#1203): deps");
+    const Project = git({
+        release: "master",
+        ahead: features,
+        sincepublic: [...features].reverse(),
+        lastpublic: "v1.1.0",
+        tags: [{ name: "v1.1.0", sha: "18b3409", date: "2026-11-01T21:22:12+01:00" }],
+    });
+    const ms = (number: number, title: string, due_on?: string): Milestone => ({
+        number,
+        title,
+        due_on,
+        open_issues: 5,
+        closed_issues: 0,
+        html_url: `https://github.com/o/r/milestone/${number}`,
+    });
+    const Both = [ms(9, "v1.2.0", "2026-12-04T00:00:00Z"), ms(10, "v1.1.1", "2026-11-20T00:00:00Z")];
+
+    it("is the milestone due first, then the later one", () => {
+        const station = nextStation(Project, null, Both, Nov7);
+        expect(station).toMatchObject({
+            tag: "v1.1.1",
+            state: "derived",
+            chip: "due Nov 20",
+            chiptitle: "Due Nov 20 (milestone v1.1.1)",
+        });
+        expect(stationSchedule(station, Both, "v", Nov7).then.label).toBe("then v1.2.0 · Dec 4");
+        const map = buildLineMap({ git: Project, milestones: Both, now: Nov7, days: 21 });
+        expect(map.terminus).toMatchObject({ tag: "v1.1.1", note: station.note });
+    });
+
+    it("says in one line when the commits call for a bigger bump than that milestone", () => {
+        expect(nextStation(Project, null, Both, Nov7).note).toBe(
+            "2 new features on develop: v1.1.1 would be a minor version."
+        );
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(nextStation(Project, null, Both, Nov7).note).toBe(
+                "2 nouvelles fonctionnalités sur develop : v1.1.1 serait une version mineure."
+            );
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+    });
+
+    it("names the milestone without a warning when the commits fit in it", () => {
+        const later = [ms(9, "v1.3.0", "2026-11-14T00:00:00Z"), ms(10, "v1.2.0", "2026-11-20T00:00:00Z")];
+        expect(nextStation(Project, null, later, Nov7)).toMatchObject({
+            tag: "v1.3.0",
+            chip: "due Nov 14",
+            note: "Milestone v1.3.0 is due first; the changes on develop fit in it.",
+        });
+    });
+
+    it("keeps the derived version without dated milestones, before the first release and once chosen", () => {
+        expect(nextStation(Project, null)).toMatchObject({ tag: "v1.2.0", state: "derived", chip: "minor" });
+        const undated = [ms(10, "v1.1.1"), ms(9, "v1.2.0")];
+        expect(nextStation(Project, null, undated, Nov7)).toMatchObject({ tag: "v1.2.0", chip: "minor" });
+        expect(nextStation(Project, null, [], Nov7)).toMatchObject({ tag: "v1.2.0", chip: "minor" });
+        expect(nextStation(git(), null, Both, Nov7)).toMatchObject({ tag: "v1.0.0", state: "decision" });
+        expect(nextStation(Project, session("public", "1.2.0"), Both, Nov7)).toMatchObject({ tag: "v1.2.0" });
     });
 });

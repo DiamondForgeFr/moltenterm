@@ -1,12 +1,13 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A Reviews card (#1060, FR-REV-001 AC11): one computed state (reviews-card-model.ts) draws the left rail, one state
 // sentence with its reason, one primary action and a "…" menu for the rest; the facts line carries what is true but
 // is no state; every agent of the branch has its own line below. In the merge queue (#1062) the card carries its rank
 // and its place in the order's direction, and its conflicts with the other cards; its "…" menu takes it out of the group
-// merge or puts it back (#1108). Its number is its ticket's, its PR's a chip (#1108). A click on the card, or Enter on it, opens the PR's
-// assisted review; the card's own buttons keep their clicks and keys.
+// merge or puts it back (#1108). Its number is its ticket's, its PR's a chip (#1108); both are links to their page
+// (#1921). A click on the card, or Enter on it, opens the PR's assisted review; the card's own buttons and links keep
+// their clicks and keys.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { cn, fireAndForget } from "@/util/util";
@@ -16,26 +17,38 @@ import { useLocale, useT } from "../i18n/i18n";
 import { Phrase, phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { usePanelOrigin } from "../panel-cta";
 import { showPanel } from "../review/review-panels";
 import { StateMark, type StateMarkKind } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
 import { RowAgentLine, useCardContext, useHeadStillFails } from "./reviews-agent-bar";
 import type { QueuedAsk } from "./reviews-ask-queue";
-import { BatchRowChip } from "./reviews-batch";
-import type { BatchRowMark } from "./reviews-batch-model";
-import { CardAction, CardFact, CardFactTone, cardState, CardState, CardTone } from "./reviews-card-model";
+import { BatchRowChip, BatchStopLine } from "./reviews-batch";
+import type { BatchRowMark, BatchStopAction } from "./reviews-batch-model";
+import {
+    CardAction,
+    CardFact,
+    CardFactTone,
+    cardState,
+    CardState,
+    CardTone,
+    settledPhrase,
+} from "./reviews-card-model";
 import { RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { relationClass } from "./reviews-forecast";
 import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
 import { launchTargetOfPr } from "./reviews-launch-model";
+import { ticketLinkUrl } from "./reviews-links-model";
 import { approveCommands, runLocalCiAgain } from "./reviews-local-ci";
 import { MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import { blockersText, RebaseAsk, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
+import { NumberLink } from "./reviews-number-link";
 import { MergeOrderRank } from "./reviews-order";
 import { QueuedAskLine } from "./reviews-queue";
 import { CardRelation, groupMergeAction } from "./reviews-queue-model";
 import { cardInputOf } from "./reviews-sections-model";
+import { settleAll, settleFromCard } from "./reviews-settle-client";
 import { ReviewsModel } from "./reviews-store";
 import type { PrTaskKind } from "./reviews-task-model";
 
@@ -118,6 +131,10 @@ function actionTitle(action: CardAction, pr: ReviewPr, name: Phrase): Phrase {
             return phrase("reviews.card.actionTitle.approveCommands");
         case "run-ci":
             return phrase("reviews.card.actionTitle.runCi", { branch: pr.branch });
+        case "go-to-pr":
+            return action.target?.title
+                ? phrase("reviews.card.actionTitle.goTo", { number: action.target.number, title: action.target.title })
+                : null;
     }
     return null;
 }
@@ -145,6 +162,7 @@ export function ReviewRow({
     onGroupMerge,
     queued,
     batchMark,
+    onBatchRetry,
     card: cardProp,
     filled,
 }: {
@@ -178,6 +196,8 @@ export function ReviewRow({
     queued?: QueuedAsk;
     // batchMark: its place in the merge queue's run.
     batchMark?: BatchRowMark;
+    // onBatchRetry: Try again on the PR the queue stopped (#1871), alone; the problem, if any.
+    onBatchRetry?: () => Promise<Phrase>;
 }) {
     const t = useT();
     useLocale();
@@ -186,8 +206,12 @@ export function ReviewRow({
     const input = useMemo(() => cardInputOf(pr, rebaseAsk, ctx), [pr, rebaseAsk, ctx]);
     const prTask = input.task;
     useHeadStillFails(dir, pr, input.agents, input.taskState);
-    const markReady = useMarkReady(dir, pr.number, repo);
+    // Marking it ready from this panel is the developer's decision about the question its agent stopped on (#1876).
+    const markReady = useMarkReady(dir, pr.number, repo, () =>
+        fireAndForget(() => settleAll(input.agents, t("reviews.card.settled.markedReady")))
+    );
     const rerun = useRerunFailed(dir, pr.number);
+    const origin = usePanelOrigin();
     const [busy, setBusy] = useState<string>(null);
     const [outcome, setOutcome] = useState<RebaseOutcome>(null);
     // The task the outcome answers, for the offer to queue it for a busy agent (#1062).
@@ -292,6 +316,9 @@ export function ReviewRow({
                 }
                 runPhrase(action.id, () => model.stopAgent(action.blockId));
                 return;
+            case "settle":
+                runPhrase(action.id, () => settleFromCard(action.blockId, ""));
+                return;
             case "rerun":
                 rerun.ask();
                 return;
@@ -303,6 +330,37 @@ export function ReviewRow({
                 return;
             case "launch":
                 LaunchModel.getInstance().ask(dir, launchTargetOfPr(pr));
+                return;
+            case "github":
+                fireAndForget(() => openWebLink(pr.url));
+                return;
+            case "go-to-pr": {
+                // #1841: the PR it waits on is a card of this panel; an issue opens on GitHub.
+                const target = action.target;
+                if (target?.kind === "pr") {
+                    fireAndForget(() => model.openReviews(dir, target.number, undefined, origin()));
+                } else if (target?.url) {
+                    fireAndForget(() => openWebLink(target.url));
+                }
+                return;
+            }
+        }
+    };
+    const onStopAction = (action: BatchStopAction) => {
+        switch (action) {
+            case "retry":
+                if (onBatchRetry != null) {
+                    runPhrase("batch-retry", onBatchRetry);
+                }
+                return;
+            case "rebase":
+                ask("rebase", "rebase", onAskRebase);
+                return;
+            case "revalidate":
+                onValidate();
+                return;
+            case "ci":
+                fireAndForget(() => openWebLink(`${pr.url}/checks`));
                 return;
             case "github":
                 fireAndForget(() => openWebLink(pr.url));
@@ -356,6 +414,8 @@ export function ReviewRow({
             ? word(card.primary.confirm)
             : word(card.menu.find((a) => a.id === "mark-ready")?.confirm);
     const sentence = word(card.sentence);
+    const status = word(card.status.line);
+    const settledText = word(settledPhrase(card.settled));
     // A queued card says its place in the order where its own state gives no reason, or only the CI's.
     const queueSays = queueWhy != null && (card.why == null || card.kind === "ready" || card.kind === "ci-running");
     const why = word(queueSays ? queueWhy : card.why);
@@ -399,6 +459,7 @@ export function ReviewRow({
                 t("reviews.aria.pr", { number: pr.number }),
                 pr.draft ? t("reviews.card.draftTag") : "",
                 why ? `${sentence} · ${why}` : sentence,
+                status,
                 ...facts.map((f) => word(f.text)),
                 relationFact,
                 relationTag,
@@ -430,10 +491,28 @@ export function ReviewRow({
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
                         <MergeOrderRank rank={rank} />
                         {/* One number per card (#1108): the ticket, else the PR's; beside a ticket the PR's number is a
-                            muted fact (#1351). */}
-                        <span className="shrink-0 font-normal text-muted" data-testid="reviews-card-number">
-                            {head.ticket || `#${pr.number}`}
-                        </span>
+                            muted fact (#1351). Each opens its page (#1921). */}
+                        {head.ticket ? (
+                            <NumberLink
+                                kind="ticket"
+                                number={pr.ticket}
+                                url={ticketLinkUrl(pr.ticket, pr.ticketurl, pr.url)}
+                                className="shrink-0 font-normal text-muted"
+                                testId="reviews-card-number"
+                            >
+                                {head.ticket}
+                            </NumberLink>
+                        ) : (
+                            <NumberLink
+                                kind="pr"
+                                number={pr.number}
+                                url={pr.url}
+                                className="shrink-0 font-normal text-muted"
+                                testId="reviews-card-number"
+                            >
+                                #{pr.number}
+                            </NumberLink>
+                        )}
                         <span
                             className="min-w-0 truncate"
                             title={t("reviews.card.prChipTitle", { number: pr.number, branch: pr.branch })}
@@ -458,7 +537,8 @@ export function ReviewRow({
                             </span>
                         ) : null}
                     </div>
-                    <CardStateLine tone={card.tone} sentence={sentence} why={why} working={card.motion === "state"} />
+                    <CardStateLine tone={card.tone} sentence={sentence} why={why} working={false} />
+                    <CardStatusLine running={card.status.running} moving={card.motion === "state"} text={status} />
                     {wait ? (
                         <div
                             className="flex min-w-0 items-center gap-1.5 text-11 leading-4 text-secondary"
@@ -475,13 +555,16 @@ export function ReviewRow({
                         data-testid="reviews-card-facts"
                     >
                         {head.ticket ? (
-                            <span
+                            <NumberLink
+                                kind="pr"
+                                number={pr.number}
+                                url={pr.url}
                                 className="shrink-0 whitespace-nowrap text-muted tabular-nums"
                                 title={t("reviews.card.prChipTitle", { number: pr.number, branch: pr.branch })}
-                                data-testid="reviews-card-pr"
+                                testId="reviews-card-pr"
                             >
                                 {t("reviews.card.prChip", { number: pr.number })}
-                            </span>
+                            </NumberLink>
                         ) : null}
                         {facts.map((f) => (
                             <CardFactView key={f.id} fact={f} pr={pr} />
@@ -500,9 +583,26 @@ export function ReviewRow({
                         <BatchRowChip mark={batchMark} />
                         <LaunchCardActions dir={dir} target={launchTargetOfPr(pr)} runningOnly />
                     </div>
+                    <BatchStopLine
+                        mark={batchMark}
+                        number={pr.ticket || pr.number}
+                        base={pr.base}
+                        busy={busy === "batch-retry" || (batchMark?.stop?.action === "rebase" && busy === "rebase")}
+                        onAction={onStopAction}
+                        onOpenLink={(url) => fireAndForget(() => openWebLink(url))}
+                    />
                     {card.history ? (
                         <div className="text-11 leading-4 text-muted" data-testid="reviews-card-history">
                             {word(card.history)}
+                        </div>
+                    ) : null}
+                    {settledText ? (
+                        <div
+                            className="min-w-0 truncate text-11 leading-4 text-muted"
+                            title={settledText}
+                            data-testid="reviews-card-settled"
+                        >
+                            {settledText}
                         </div>
                     ) : null}
                 </div>
@@ -646,6 +746,31 @@ export function CardStateLine({
             <span className="min-w-0 truncate" title={why ? `${sentence} · ${why}` : sentence}>
                 {sentence}
                 {why ? <span className="font-normal text-secondary"> · {why}</span> : null}
+            </span>
+        </div>
+    );
+}
+
+// The card's status line (#1876, FR-REV-001 AC17): what runs on the PR now, with the dominoes beside it while nothing
+// else of the card moves, or "Nothing runs" and why, still. It is always there, so a card never reads idle while a check
+// runs, nor busy when nothing does.
+export function CardStatusLine({ running, moving, text }: { running: boolean; moving: boolean; text: string }) {
+    return (
+        <div
+            className={cn(
+                "flex min-w-0 items-center gap-1.5 text-11 leading-4",
+                running ? "text-secondary" : "text-muted"
+            )}
+            data-testid="reviews-card-status"
+            data-running={running || undefined}
+        >
+            {moving ? (
+                <span className="-mx-1 inline-flex shrink-0 scale-75" data-testid="reviews-card-working">
+                    <DominoLoader />
+                </span>
+            ) : null}
+            <span className="min-w-0 truncate" title={text}>
+                {text}
             </span>
         </div>
     );

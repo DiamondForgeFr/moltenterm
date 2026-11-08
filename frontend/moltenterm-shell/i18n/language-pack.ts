@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Language packs (FR-I18N-002, DS-I18N-008, DS-I18N-010): the dictionary a data-only mod brings, checked against
 // English. The same function answers `molten i18n check` and the mod host's load, so the agent that writes a pack

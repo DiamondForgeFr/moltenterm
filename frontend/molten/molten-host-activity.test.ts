@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // FR-PERF-014: mods load where they are needed, are measured against their budget, and two mods registering the same
 // command get an error naming both. The mods here are real modules, imported from their source as the app does, so the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Release menu's setup actions open the pipeline setup's tab (FR-MC-038, #1150), as a pull request card opens its
 // Review tab: wavesrv returns the project's tab, made the first time, and the window shows it. An existing tab is only

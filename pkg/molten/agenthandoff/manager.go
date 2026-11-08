@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package agenthandoff
 
@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	// The sender waits this long for the developer's answer to the first send between two agents: under Codex's default
-	// 60-second MCP tool timeout, so the agent reads the outcome instead of a timeout. The request itself stays open
-	// after that, until the developer answers (#790).
-	DefaultApprovalTimeout = 50 * time.Second
+	// The sender does not wait for the developer's answer to the first send between two agents: its call returns
+	// pending at once, the request stays open until the developer answers, and the outcome is typed in the sender's
+	// terminal (#790, #1926). An agent blocked on the answer could not tell a slow developer from a hang.
+	DefaultApprovalTimeout = 0
 	// A queued handoff waits this long for its receiver's idle prompt.
 	DefaultQueueTimeout = time.Hour
 	DefaultQueuePoll    = time.Second
@@ -85,6 +85,9 @@ type Env interface {
 	// RecordHandoff keeps on the receiver's terminal the first terminal that handed it work, which the Sessions table
 	// nests it under (FR-SHELL-058, #933).
 	RecordHandoff(ctx context.Context, fromBlockId string, toBlockId string)
+	// SettleStop settles the stop MoltenTerm holds on a terminal (#1876): one of molten.AgentSettleDone, AgentSettleNone
+	// and AgentSettleOwnPrompt. by is the settler's first name.
+	SettleStop(blockId string, by string, note string) string
 }
 
 // pendingAnswer is a request waiting for the developer. late: the sender stopped waiting, so the answer, whenever it
@@ -97,6 +100,7 @@ type pendingAnswer struct {
 	from     Party
 	to       Party
 	brief    Brief
+	asked    time.Time
 }
 
 type delivery struct {
@@ -105,6 +109,8 @@ type delivery struct {
 	line      string
 	briefPath string
 	queuedAt  time.Time
+	// brief: what the sender asked, for the note of the stop it settles (#1876); empty for MoltenTerm's own requests.
+	brief Brief
 	// receipt: MoltenTerm's own line to the sender of a late answer; failing to type it is only logged.
 	receipt bool
 }
@@ -118,6 +124,8 @@ type Manager struct {
 	queueTimeout    time.Duration
 	queuePoll       time.Duration
 	sleep           func(time.Duration)
+	// pendingChanged tells the windows the requests waiting for the developer changed (PendingEvent); outside the lock.
+	pendingChanged func()
 
 	lock sync.Mutex
 	// pairs: always or block, for a pair of panes, until MoltenTerm restarts (NFR-CONT-005).
@@ -125,6 +133,8 @@ type Manager struct {
 	pending map[string]*pendingAnswer
 	// queues: the handoffs waiting for a receiver's idle prompt, oldest first; a receiver with a queue has one loop.
 	queues map[string][]*delivery
+	// typedWatch: the receivers whose typed notice waits for their prompt to be submitted, one watch each (#1938).
+	typedWatch map[string]bool
 	// history: the handoffs passed on since MoltenTerm started, oldest first, at most maxHistory (FR-SHELL-084).
 	history []HistoryEntry
 }
@@ -138,9 +148,11 @@ func MakeManager(env Env) *Manager {
 		queueTimeout:    DefaultQueueTimeout,
 		queuePoll:       DefaultQueuePoll,
 		sleep:           time.Sleep,
+		pendingChanged:  func() {},
 		pairs:           map[string]string{},
 		pending:         map[string]*pendingAnswer{},
 		queues:          map[string][]*delivery{},
+		typedWatch:      map[string]bool{},
 	}
 }
 
@@ -400,6 +412,8 @@ func (m *Manager) send(ctx context.Context, req SendRequest, fromName *string) (
 	}
 	targetRun, _ := m.env.Run(target.blockId)
 	to := m.party(target.blockId, targetRun, true, targetLoc)
+	// The steps of a handoff are logged without the brief's words (#1926).
+	m.logf("%s from=%q to=%q requested files=%d links=%d\n", logPrefix, from.callName(), to.callName(), len(brief.Files), len(brief.Links))
 	if err := m.resolveBrowserLinks(ctx, senderId, &brief); err != nil {
 		return SendResult{}, err
 	}
@@ -415,7 +429,7 @@ func (m *Manager) send(ctx context.Context, req SendRequest, fromName *string) (
 }
 
 func pendingMessage(to Party) string {
-	return fmt.Sprintf("The developer has not answered yet: the request stays in MoltenTerm's notifications and nothing "+
+	return fmt.Sprintf("Pending: waiting for the developer's approval. MoltenTerm asked them in its notifications; nothing "+
 		"is sent to %s until they allow it. When they answer, MoltenTerm types the outcome in your terminal, starting "+
 		"with %s. Do not send it again: carry on with other work or end your turn.", to.callName(), receiptPrefix)
 }
@@ -426,7 +440,7 @@ func (m *Manager) complete(ctx context.Context, from Party, to Party, brief Brie
 	if err != nil {
 		return SendResult{}, fmt.Errorf("MoltenTerm could not write the brief: %v", err)
 	}
-	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now()}
+	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now(), brief: brief}
 	m.addHistory(from, to, brief)
 	m.env.RecordHandoff(ctx, from.BlockId, to.BlockId)
 	return m.deliver(ctx, d)
@@ -463,13 +477,16 @@ func (m *Manager) setPairDecision(key string, decision string) {
 	m.pairs[key] = decision
 }
 
+// The deferred pendingChanged runs after the unlock: deferred calls run last in, first out.
 func (m *Manager) addPending(id string, p *pendingAnswer) {
+	defer m.pendingChanged()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.pending[id] = p
 }
 
 func (m *Manager) takePending(id string) *pendingAnswer {
+	defer m.pendingChanged()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	p := m.pending[id]
@@ -492,6 +509,7 @@ func (m *Manager) stopWaiting(id string, p *pendingAnswer) (string, bool) {
 // claimAnswer takes the request for the answer. A sender still waiting gets the decision through its channel; late
 // tells the caller to carry it out.
 func (m *Manager) claimAnswer(id string, decision string) (*pendingAnswer, bool) {
+	defer m.pendingChanged()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	p := m.pending[id]
@@ -519,9 +537,17 @@ func (m *Manager) approve(ctx context.Context, from Party, to Party, b Brief) (b
 	}
 	id := uuid.NewString()
 	notifKey := NotificationKeyPrefix + id
-	p := &pendingAnswer{pair: key, answer: make(chan string, 1), notifKey: notifKey, from: from, to: to, brief: b}
+	p := &pendingAnswer{pair: key, answer: make(chan string, 1), notifKey: notifKey, from: from, to: to, brief: b,
+		asked: m.now()}
+	if m.approvalTimeout <= 0 {
+		p.late = true
+	}
 	m.addPending(id, p)
 	m.env.Notify(approvalNotification(notifKey, id, from, to, b))
+	m.logf("%s from=%q to=%q asked the developer request=%s\n", logPrefix, from.callName(), to.callName(), id)
+	if p.late {
+		return true, nil
+	}
 	timer := time.NewTimer(m.approvalTimeout)
 	defer timer.Stop()
 	var decision string
@@ -637,8 +663,10 @@ func (m *Manager) Answer(source string, req AnswerRequest) error {
 	}
 	p, late := m.claimAnswer(req.RequestId, req.Decision)
 	if p == nil {
+		m.logf("%s answer %q for request=%s, which no longer waits\n", logPrefix, req.Decision, cleanLine(req.RequestId))
 		return uimsg.Errorf(uimsg.Make("handoff.notwaiting"), "This handoff request is no longer waiting")
 	}
+	m.logf("%s from=%q to=%q answered %q request=%s\n", logPrefix, p.from.callName(), p.to.callName(), req.Decision, req.RequestId)
 	if late {
 		go m.answerLate(p, req.Decision)
 	}
@@ -698,6 +726,7 @@ func (m *Manager) deliver(ctx context.Context, d *delivery) (SendResult, error) 
 				m.logf("%s from=%q to=%q delivered submitted=%v\n", logPrefix, d.from.callName(), d.to.callName(), out.Submitted)
 				if out.Submitted {
 					rtn.Status, rtn.Message = StatusDelivered, fmt.Sprintf("Sent to %s. The brief is at %s.", d.to.FirstName, d.briefPath)
+					m.settleByReply(d)
 					return rtn, nil
 				}
 				m.notifyTyped(d)
@@ -823,6 +852,8 @@ func (m *Manager) runQueue(blockId string) {
 			m.logf("%s from=%q to=%q delivered from the queue submitted=%v\n", logPrefix, d.from.callName(), d.to.callName(), out.Submitted)
 			if !out.Submitted {
 				m.notifyTyped(d)
+			} else {
+				m.settleByReply(d)
 			}
 		} else {
 			m.notifyUndelivered(d, out.Message, out.MessageText)
@@ -843,6 +874,7 @@ func (m *Manager) notifyTyped(d *delivery) {
 	receiver := d.to.callName()
 	m.env.Notify(molten.NotificationInput{
 		Source:      NotificationSource,
+		Key:         TypedKeyPrefix + d.to.BlockId,
 		Title:       fmt.Sprintf("Typed in %s's prompt: press Enter in its terminal to start", receiver),
 		TitleText:   uimsg.Make("handoff.typed.title", "receiver", receiver),
 		Message:     fmt.Sprintf("%s's handoff was added after what was already in the prompt. The brief is at %s.", capitalize(d.from.callName()), d.briefPath),
@@ -856,6 +888,53 @@ func (m *Manager) notifyTyped(d *delivery) {
 			Kind: "open", WorkspaceId: d.to.WorkspaceId, TabId: d.to.TabId, BlockId: d.to.BlockId,
 		}},
 	})
+	m.watchTyped(d.to.BlockId)
+}
+
+// typedSubmitted says the receiver's prompt no longer holds the typed handoff: its main session took a turn (Enter
+// pressed, so it works or waits for an answer), or its agent ended and the prompt went with it. MoltenTerm typed only
+// into an idle prompt, so a busy state seen afterwards is that turn.
+func typedSubmitted(run molten.AgentRunInfo, ok bool) bool {
+	return !ok || !run.Running || receiverBusy(run)
+}
+
+func (m *Manager) startTypedWatch(blockId string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.typedWatch[blockId] {
+		return false
+	}
+	m.typedWatch[blockId] = true
+	return true
+}
+
+func (m *Manager) endTypedWatch(blockId string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	delete(m.typedWatch, blockId)
+}
+
+// watchTyped resolves the receiver's typed notice once its prompt is submitted (#1938), so the developer is not left
+// with a task already done. One watch per receiver: later handoffs typed into the same prompt update the same notice.
+func (m *Manager) watchTyped(blockId string) {
+	if !m.startTypedWatch(blockId) {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.logf("%s typed watch panic: %v\n", logPrefix, r)
+			}
+		}()
+		defer m.endTypedWatch(blockId)
+		for {
+			if typedSubmitted(m.env.Run(blockId)) {
+				m.env.ResolveNotification(TypedKeyPrefix + blockId)
+				return
+			}
+			m.sleep(m.queuePoll)
+		}
+	}()
 }
 
 // The sender sits mid-sentence in some languages ("le passage de relais de Camille"): a nameless terminal gets its own

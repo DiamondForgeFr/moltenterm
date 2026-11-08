@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mounted once by the rail, in every tab view: it shows the sheet of the open request, and picks up a double-click
 // handed over by the tab view the window switched away from. The sheet loads on its first opening, out of the JS

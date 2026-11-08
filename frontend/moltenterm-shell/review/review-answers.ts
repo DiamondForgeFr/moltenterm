@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The agent's answers to the developer's questions (FR-REV-006): cards of the AI panel grouped by the lines they are
 // about (an anchor), so a follow-up on the same lines sits with the first answer, and markers in the diff's gutter on

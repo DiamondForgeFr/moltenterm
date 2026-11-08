@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Agents in the browser panel (FR-BRW-008, DS-BRW-011): which tabs of this panel an agent controls, as wavesrv's
 // sessions publish it (pkg/molten/browseragent), and what the control bar shows. Stop, takeover and Give back go to
@@ -48,6 +48,9 @@ const ListTimeoutMs = 1500;
 export const ActionCueMs = 1500;
 // How long the bar says how to take over after the user's click or key was held back (#971).
 export const HeldHintMs = 4000;
+// How long the bar says the agent is showing the page (#1994): long enough to read, short enough to give the bar back
+// to the agent's last action.
+export const ShownNoteMs = 6000;
 
 // A request waiting on a tab: a site permission, or one sensitive action, whose words say what (must match
 // PermissionPrompt in pkg/molten/browseragent/env.go).
@@ -104,6 +107,8 @@ export type ControlBarView = {
     takenOver: boolean;
     // The user's click or key was just held back: the detail says how to take over (#971).
     held?: boolean;
+    // The agent just put this page in front of the developer: the detail says so (#1994).
+    shown?: boolean;
     title: string;
     detail: string;
     // The emulated viewport, e.g. "390 × 844", or "".
@@ -144,10 +149,17 @@ export function shownStamps(tabs: AgentTabs): ShownStamps {
     return rtn;
 }
 
-// Whether the agent put a page in front of the developer since `seen` was read (#1812): a tab opened, or a tab gone to
-// another page, has a later stamp than the one last read.
+// The tabs whose page the agent put in front of the developer since `seen` was read (#1812, #1994), the latest shown
+// last: a tab opened, a tab gone to another page or a page shown again has a later stamp than the one last read.
+export function tabsShownSince(tabs: AgentTabs, seen: ShownStamps): string[] {
+    return Object.values(tabs ?? {})
+        .filter((tab) => (tab.shownts ?? 0) > (seen?.[tab.browsertabid] ?? 0))
+        .sort((a, b) => (a.shownts ?? 0) - (b.shownts ?? 0))
+        .map((tab) => tab.browsertabid);
+}
+
 export function agentShowedPage(tabs: AgentTabs, seen: ShownStamps): boolean {
-    return Object.values(tabs ?? {}).some((tab) => (tab.shownts ?? 0) > (seen?.[tab.browsertabid] ?? 0));
+    return tabsShownSince(tabs, seen).length > 0;
 }
 
 export function agentName(tab: AgentTab): string {
@@ -155,8 +167,10 @@ export function agentName(tab: AgentTab): string {
 }
 
 // The bar of a controlled tab, or null when no agent controls it (DS-BRW-011). Taking over is the user's explicit act
-// (#971): the bar offers Take over, and says so when emain just held back the user's click or key (held).
-export function controlBarView(tab: AgentTab, held = false): ControlBarView {
+// (#971): the bar offers Take over, and says so when emain just held back the user's click or key (held). For a few
+// seconds after the agent put the page in front of the developer, the bar says why it came into view (shown, #1994);
+// the hint about the held click comes first, since it answers something the developer just did.
+export function controlBarView(tab: AgentTab, held = false, shown = false): ControlBarView {
     if (tab == null) {
         return null;
     }
@@ -177,12 +191,18 @@ export function controlBarView(tab: AgentTab, held = false): ControlBarView {
     if (tab.state !== AgentStateActive || (tab.origin === OriginShared && !tab.engaged)) {
         return null;
     }
+    const noted = shown && !held;
     return {
         takenOver: false,
         title: t("browser.agent.controlling", { name }),
-        detail: held ? t("browser.agent.heldHint", { name }) : serverText(tab.actiontext, tab.action ?? ""),
+        detail: held
+            ? t("browser.agent.heldHint", { name })
+            : noted
+              ? t("browser.agent.showsYou", { name })
+              : serverText(tab.actiontext, tab.action ?? ""),
         viewport,
         held,
+        shown: noted,
         buttons: [
             { label: t("browser.agent.takeOver"), action: "takeover", primary: held },
             { label: t("browser.agent.stop"), action: "stop", primary: false },
@@ -367,10 +387,14 @@ export class BrowserAgentModel {
     // The tabs where emain just held back the user's click or key (#971), whose bar says how to take over.
     heldAtom = atom({}) as PrimitiveAtom<Record<string, true>>;
     heldTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    // Asked when the agent puts a page in front of the developer (#1812). Only a state event can ask: the snapshot read
-    // when the panel mounts is where the stamps start, so an agent's old page never moves the carpet.
-    onShown: () => void = null;
+    // Asked when the agent puts a page in front of the developer (#1812), with the tabs it showed, the latest last. Only
+    // a state event can ask: the snapshot read when the panel mounts is where the stamps start, so an agent's old page
+    // never moves the carpet nor raises the note.
+    onShown: (tabIds: string[]) => void = null;
     shownSeen: ShownStamps = {};
+    // The tabs whose bar says the agent is showing the page (#1994), for ShownNoteMs.
+    shownAtom = atom({}) as PrimitiveAtom<Record<string, true>>;
+    shownTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     constructor(blockId: string) {
         this.blockId = blockId;
@@ -439,12 +463,31 @@ export class BrowserAgentModel {
         }
         this.stateVersion++;
         const tabs = readPanelAgentState(state);
-        const showed = live && agentShowedPage(tabs, this.shownSeen);
+        const showed = live ? tabsShownSince(tabs, this.shownSeen) : [];
         this.shownSeen = shownStamps(tabs);
         globalStore.set(this.tabsAtom, tabs);
-        if (showed) {
-            this.onShown?.();
+        if (showed.length === 0) {
+            return;
         }
+        this.noteShown(showed);
+        this.onShown?.(showed);
+    }
+
+    noteShown(browserTabIds: string[]): void {
+        const next = { ...globalStore.get(this.shownAtom) };
+        for (const id of browserTabIds) {
+            next[id] = true;
+            clearTimeout(this.shownTimers.get(id));
+            this.shownTimers.set(
+                id,
+                setTimeout(() => {
+                    this.shownTimers.delete(id);
+                    const { [id]: _gone, ...rest } = globalStore.get(this.shownAtom);
+                    globalStore.set(this.shownAtom, rest);
+                }, ShownNoteMs)
+            );
+        }
+        globalStore.set(this.shownAtom, next);
     }
 
     control(browserTabId: string, action: AgentControlAction): void {
@@ -529,5 +572,9 @@ export class BrowserAgentModel {
             clearTimeout(timer);
         }
         this.heldTimers.clear();
+        for (const timer of this.shownTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.shownTimers.clear();
     }
 }

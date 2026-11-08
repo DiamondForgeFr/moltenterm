@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -16,6 +16,7 @@ import (
 )
 
 func TestUpcomingCandidates(t *testing.T) {
+	t.Parallel()
 	res := branchTicketRes(map[string]string{"feature": "feature/{N}-{description}", "fix": "fix/{N}-{description}"})
 	refs := []branchRef{
 		{name: "develop", commitAt: 9},
@@ -45,6 +46,7 @@ func TestUpcomingCandidates(t *testing.T) {
 }
 
 func TestApplyUpcomingTickets(t *testing.T) {
+	t.Parallel()
 	branches := []UpcomingBranch{{Branch: "feature/1-a", Ticket: 1}, {Branch: "feature/2-b", Ticket: 2}, {Branch: "feature/3-c", Ticket: 3}, {Branch: "feature/4-d", Ticket: 4}}
 	tickets := map[int]upcomingTicket{
 		1: {Title: "One", Url: "u1", Status: "In progress"},
@@ -58,6 +60,7 @@ func TestApplyUpcomingTickets(t *testing.T) {
 }
 
 func TestMatchBranchAgents(t *testing.T) {
+	t.Parallel()
 	trees := []treeEntry{
 		{path: "/p", branch: "develop"},
 		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},
@@ -88,6 +91,7 @@ func TestMatchBranchAgents(t *testing.T) {
 }
 
 func TestBackgroundAgents(t *testing.T) {
+	t.Parallel()
 	now := time.UnixMilli(10_000_000)
 	recent := now.Add(-3 * time.Minute).UnixMilli()
 	old := now.Add(-BackgroundActivityWindow - time.Second).UnixMilli()
@@ -118,6 +122,7 @@ func TestBackgroundAgents(t *testing.T) {
 }
 
 func TestUpcomingTicketsQueryFallsBackWithoutTheBoard(t *testing.T) {
+	t.Parallel()
 	var calls atomic.Int32
 	run := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
 		calls.Add(1)
@@ -136,6 +141,7 @@ func TestUpcomingTicketsQueryFallsBackWithoutTheBoard(t *testing.T) {
 // A project with ticket branches: one with a PR, one done, one plain, one in a worktree with a panel agent and one in
 // a Claude Code worktree with fresh changes and no terminal.
 func TestUpcomingGet(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	sf := `{"workflow":{"prTargetBranch":"develop","branchNaming":{"feature":"feature/{N}-{description}"}}}`
 	if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(sf), 0644); err != nil {
@@ -214,7 +220,8 @@ func TestUpcomingGet(t *testing.T) {
 	for _, a := range answer.Agents {
 		agents[a.Branch] = a
 	}
-	if a := agents["feature/11-agent"]; a.Kind != UpcomingAgentPanel || a.BlockId != "b1" || a.Started != 42 {
+	// #1841: the session started at 42, long before its worktree existed: it is on the branch since the worktree is.
+	if a := agents["feature/11-agent"]; a.Kind != UpcomingAgentPanel || a.BlockId != "b1" || a.Started <= 42 {
 		t.Fatalf("panel agent: %+v", a)
 	}
 	if a := agents["feature/12-bg"]; a.Kind != UpcomingAgentBackground || a.ParentBlockId != "b0" || a.ActiveAt == 0 {
@@ -229,6 +236,7 @@ func TestUpcomingGet(t *testing.T) {
 // #1077: the agent terminals a restart restores reach wavesrv's agent states after its first answer; the next ask,
 // even a forced one within upcomingForcedInterval or a plain one within upcomingMaxAge, places them at once.
 func TestUpcomingPlacesAgentsRestoredAfterAnAnswer(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	gitRun(t, dir, "branch", "feature/21-one", "develop")
 	gitRun(t, dir, "branch", "feature/22-two", "develop")
@@ -305,8 +313,9 @@ func panelAgents(answer UpcomingAnswer) []BranchAgent {
 }
 
 func TestUpcomingWithoutGithubListsNoBranch(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
-	u := MakeUpcoming(UpcomingEnv{Run: plainRunner, Snapshot: func(string) (Snapshot, bool) { return Snapshot{}, false }})
+	u := MakeUpcoming(UpcomingEnv{Run: withoutGh, Snapshot: func(string) (Snapshot, bool) { return Snapshot{}, false }})
 	answer, err := u.Get(UpcomingRequest{Dir: dir})
 	if err != nil || len(answer.Branches) != 0 || answer.Agents == nil {
 		t.Fatalf("without the open PRs nothing is upcoming: %+v %v", answer, err)

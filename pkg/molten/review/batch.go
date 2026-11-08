@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -87,6 +87,9 @@ const (
 	BatchReasonUnknown     = "unknown"
 	BatchReasonMergeFailed = "mergefailed"
 	BatchReasonRead        = "read"
+	// BatchReasonUnavailable: GitHub did not answer (a 5xx, a timeout, the network), even after the tries again
+	// (#1871); Status is its HTTP status, 0 for a timeout or the network. Nothing GitHub decided: try again later.
+	BatchReasonUnavailable = "unavailable"
 	BatchReasonHeadMoved   = "headmoved"
 	BatchReasonDraft       = "draft"
 	BatchReasonMergedAway  = "mergedaway"
@@ -163,6 +166,8 @@ type BatchItem struct {
 	Note   string   `json:"note,omitempty"`
 	Detail string   `json:"detail,omitempty"`
 	Code   string   `json:"code,omitempty"`
+	// Status: GitHub's HTTP status when it did not answer (BatchReasonUnavailable).
+	Status int `json:"status,omitempty"`
 	// ByYou: the developer withdrew it.
 	ByYou bool `json:"byyou,omitempty"`
 	// Head: the head read last; Rebases: how many times the agent rebased it; CiRuns: the CI runs it redid.

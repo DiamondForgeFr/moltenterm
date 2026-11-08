@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package cmd
 
@@ -170,11 +170,12 @@ func moltenPlannedIntegrationWith(adapter agentlaunch.LaunchAdapter, getenv func
 		}
 		status.OnPath, status.Launcher = onPath, agentlaunch.IsLauncher(onPath)
 	}
-	real, ok := agentlaunch.FindRealBinary(adapter.Executable(), getenv("PATH"), getenv(agentlaunch.AgentBinDirVarName), agentlaunch.IsLauncher)
+	search, ok := agentlaunch.FindAgentBinary(adapter.Executable(), getenv, agentlaunch.IsLauncher)
 	if !ok {
-		status.Note = fmt.Sprintf("no %s found on PATH", molten.AgentDisplayName(adapter.Id()))
+		status.Note = fmt.Sprintf("no %s found on PATH nor in another Node version", molten.AgentDisplayName(adapter.Id()))
 		return status
 	}
+	real := search.Path
 	report := molten.AgentIntegrationReport{Agent: adapter.Id(), RealPath: real}
 	if !status.Launcher {
 		report.StepAside = "`" + adapter.Executable() + "` does not run MoltenTerm's launcher in this shell"

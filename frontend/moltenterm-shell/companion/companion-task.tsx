@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The companion's "Workspace task" section (FR-CONT-007): the task checkpoint of the terminal's workspace, which
 // every agent continues from. It shows when it was last updated and by whom, opens it rendered or in the code editor

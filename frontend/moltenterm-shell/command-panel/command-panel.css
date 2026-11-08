@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The command panel (FR-SHELL-047, DS-SHELL-085): the top layer that catches a click outside, the popover's motion,
    and the controls Tailwind has no utility for (switch, slider, swatch, segmented scope). Tokens only (tokens.css). */

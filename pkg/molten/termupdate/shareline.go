@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package termupdate
 
@@ -59,6 +59,17 @@ func TypeHandoffLine(ctx context.Context, blockId string, line string) AgentInpu
 		return refusedCannotType()
 	}
 	return u.typeLine(ctx, blockId, line, true)
+}
+
+// AgentTakesLine tells, without typing, whether the agent in blockId would take a typed line with Enter now: it runs,
+// its hooks report precise states, and no draft is in its prompt. Brokk's session waits for it before typing the first
+// message into an agent it just started (#2028).
+func AgentTakesLine(blockId string) bool {
+	u := getRunningUpdater()
+	if u == nil {
+		return false
+	}
+	return !u.inputState(blockId).Draft
 }
 
 // cleanTypedLine keeps one printable line: no control character can end the paste, add a newline or press a key.

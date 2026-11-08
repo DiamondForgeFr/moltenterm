@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The molten reveal of a settings block opened in the library (FR-SHELL-088, DS-SHELL-138, #1407, #1549). The clicked
 // chip melts into the channels (settings-channels.ts) and the molten flows along them, a viscous liquid with a bulge

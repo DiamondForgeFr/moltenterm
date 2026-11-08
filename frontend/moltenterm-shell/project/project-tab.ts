@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project tab's lifecycle on the window side (FR-SHELL-015): wavesrv decides and makes the tab
 // (pkg/wcore/moltenterm_projecttab.go) under one lock; the window asks when it shows a workspace or its link changes,

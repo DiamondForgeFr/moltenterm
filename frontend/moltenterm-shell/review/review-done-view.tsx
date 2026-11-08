@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Review tab's header once its PR is finished (#686): a calm state in place of Validate, never a call to action.
 // Validated (merged from MoltenTerm) reopens the Validate sheet's result; Merged on GitHub and Closed without merge only

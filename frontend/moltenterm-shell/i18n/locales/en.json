@@ -334,6 +334,10 @@
             "preview": "Preview",
             "edit": "Edit"
         },
+        "markdown": {
+            "remoteImage": "Image from {site}",
+            "remoteImageTitle": "Images from the web are not loaded here. Click to open {address}"
+        },
         "search": {
             "placeholder": "Search",
             "results": "Search results",
@@ -418,6 +422,8 @@
             "gettingStartedDetail": "your agent, a first morph, your project",
             "sessions": "Sessions",
             "sessionsDetail": "terminals and agents still running, local and SSH",
+            "bossCard": "Show {name}'s card",
+            "bossCardDetail": "the sessions of every workspace, over the app",
             "checkUpdates": "Check for updates now",
             "checkUpdatesDetail": "asks GitHub now, even when it was asked today",
             "settings": "Settings",
@@ -450,6 +456,7 @@
             "gettingStarted": "onboarding, setup, welcome, tour, first run",
             "checkUpdates": "check for updates, update, upgrade, release, new version",
             "sessions": "sessions, durable, running, agents, ssh, detached, jobs, processes",
+            "bossCard": "boss, foreman, avatar, bubble, pennant, card, overview, sessions, agents, waiting",
             "settings": "config, preferences",
             "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
             "viewPin": "pin, unpin, keep, temporary, view, tab",
@@ -527,6 +534,7 @@
             "filesAndEditor": "Files and editor",
             "text": "Text",
             "openingPages": "Opening pages",
+            "downloads": "Downloads",
             "browserPanel": "Web page",
             "energy": "Energy",
             "window": "Window",
@@ -542,9 +550,85 @@
             "codingAgent": "Coding agent",
             "newViews": "New views",
             "sidebar": "Sidebar",
-            "theme": "Theme"
+            "theme": "Theme",
+            "avatar": "Avatar",
+            "whenHeComesToFetchMe": "When he comes to fetch me"
         },
         "items": {
+            "boss:name": {
+                "label": "Name",
+                "description": "The name the foreman goes by, from 1 to 24 characters. His tooltip, card and menus use it."
+            },
+            "boss:show": {
+                "label": "Show the avatar",
+                "description": "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows."
+            },
+            "boss:visitsecurity": {
+                "label": "A security alert on a dependency",
+                "description": "A high or critical alert on a dependency of your projects.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitblocked": {
+                "label": "An agent waits for my answer",
+                "description": "An agent blocked on you for longer than the threshold below.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visiterror": {
+                "label": "An agent stopped on an error",
+                "description": "An agent that stopped on an error.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitci": {
+                "label": "CI failed on my pull request",
+                "description": "The checks of one of your pull requests failed.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitready": {
+                "label": "A pull request is ready to merge",
+                "description": "A pull request that is approved and green.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitfinished": {
+                "label": "An agent finished",
+                "description": "An agent that finished its work.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitdownload": {
+                "label": "A download finished or failed",
+                "description": "A file downloaded from a web page, finished or interrupted.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitupdate": {
+                "label": "An update is available",
+                "description": "A new version of MoltenTerm.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:visitusage": {
+                "label": "Plan usage above 90 %",
+                "description": "The plan usage of an agent crosses 90 %.",
+                "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
+            },
+            "boss:blockedmin": {
+                "label": "An agent counts as blocked after",
+                "description": "How long an agent may wait for you before it counts as blocked; three times as long is grave.",
+                "options": { "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+            },
+            "boss:quiet": {
+                "label": "Quiet hours",
+                "description": "During these hours only the badge changes, even for the events that come to fetch you."
+            },
+            "boss:quietfrom": {
+                "label": "Quiet hours begin",
+                "description": "The hour the quiet hours begin, as HH:MM."
+            },
+            "boss:quietto": {
+                "label": "Quiet hours end",
+                "description": "The hour the quiet hours end, as HH:MM."
+            },
+            "boss:nevercome": {
+                "label": "Never come, only the badge",
+                "description": "Master switch: no scene leaves the avatar. The badge keeps counting."
+            },
             "moltenterm:theme": {
                 "label": "Theme",
                 "description": "The interface's colours. Terminals stay dark unless you pick a light terminal theme.",
@@ -806,6 +890,10 @@
                     "installed": "The installed browser"
                 }
             },
+            "browser:downloadask": {
+                "label": "Always ask where to save",
+                "description": "Ask for a folder before each download; off saves it straight to your Downloads folder."
+            },
             "browser:sites": {
                 "label": "Per-site browser",
                 "description": "Sites that always open in MoltenTerm's browser or the installed one."
@@ -814,9 +902,17 @@
                 "label": "Site permissions",
                 "description": "What each site may use: camera, microphone, location, notifications."
             },
+            "browser:clientcertificates": {
+                "label": "Client certificates",
+                "description": "The certificate each site gets to identify you, or none. You are asked the first time."
+            },
             "browser:agentsites": {
                 "label": "Agent site permissions",
                 "description": "Sites agents may use or are blocked from in the Web page panel."
+            },
+            "browser:localpages": {
+                "label": "Files opened without asking",
+                "description": "Files from this computer that a terminal or an agent may open in the Web page panel without a question."
             },
             "markdown:fontsize": {
                 "label": "Markdown text size",
@@ -855,14 +951,34 @@
                 "label": "Hold duration",
                 "description": "How long the close button is held before the view closes."
             },
-            "power:sleeppolicy": {
-                "label": "Keep the computer awake",
-                "description": "Whether a program in a terminal may keep the computer awake.",
+            "power:automatic": {
+                "label": "Automatic",
+                "description": "Keep this computer awake whenever an agent works, until it has finished."
+            },
+            "power:graceminutes": {
+                "label": "Stay awake after the work ends",
+                "description": "How long it stays awake after the last work stopped, so a pause between two turns is not a sleep.",
+                "options": { "1": "1 minute", "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+            },
+            "power:workagents": {
+                "label": "Agents at work count",
+                "description": "An agent working, or busy with background subagents or commands after its turn."
+            },
+            "power:workcommands": {
+                "label": "Commands in terminals count",
+                "description": "A command running in a terminal that is not an idle shell."
+            },
+            "power:workprojects": {
+                "label": "Project runs count",
+                "description": "A build, release, sync or local CI run of a project."
+            },
+            "power:terminalrequests": {
+                "label": "When a terminal asks to stay awake",
+                "description": "What happens when a program in a terminal asks to keep the computer awake (caffeinate, systemd-inhibit).",
                 "unset": "Ask the first time",
                 "options": {
-                    "allow": "When a terminal asks",
-                    "untilworkends": "Until work ends",
-                    "letsleep": "Never"
+                    "always": "Always listen",
+                    "never": "Never"
                 }
             },
             "moltenterm:tabviewpriority": {
@@ -1225,6 +1341,10 @@
                 "title": "Agents",
                 "description": "The agent companion, and what MoltenTerm adds when an agent starts in its terminals."
             },
+            "boss": {
+                "title": "{name}",
+                "description": "The avatar that counts what waits for you in every workspace."
+            },
             "browser": {
                 "title": "Browser",
                 "description": "The Web page panel, how pages open, and the browser agents use."
@@ -1245,6 +1365,10 @@
                 "title": "Secrets",
                 "description": "Values stored in your system's secret store, for connections and commands. Never shown unless you ask."
             },
+            "learned": {
+                "title": "What MoltenTerm learned",
+                "description": "What the guided workflows remember of how you work: see it, change it, forget it."
+            },
             "advanced": {
                 "title": "Advanced",
                 "description": "Window and app internals, debugging, and the JSON files behind every setting."
@@ -1260,7 +1384,16 @@
             "tips": {
                 "title": "Tips",
                 "description": "Reshape MoltenTerm, work faster, every shortcut."
+            },
+            "about": {
+                "title": "About",
+                "description": "The version you run, its updates and where MoltenTerm comes from."
             }
+        },
+        "about": {
+            "build": "This build",
+            "updates": "Updates",
+            "updatesHint": "MoltenTerm tells you when a new release is out and never installs one before you say so."
         },
         "mods": {
             "label": "Mods",
@@ -1277,7 +1410,7 @@
                 "pending": "Loads when this view shows",
                 "loading": "Loading",
                 "disabled": "Off",
-                "untrusted": "Not trusted",
+                "untrusted": "Waiting for your approval",
                 "safemode": "Off (safe mode)",
                 "failed": "Stopped",
                 "refused": "Refused"
@@ -1290,6 +1423,17 @@
                 },
                 "activation": "activation {ms} ms",
                 "heap": "{mb} MB at activation"
+            },
+            "trust": {
+                "trustedOn": "Trusted on {date}",
+                "trusted": "Trusted",
+                "notTrusted": "Not trusted. Enabling it asks for your agreement first.",
+                "revoke": "Revoke trust",
+                "revoking": "Revoking…",
+                "revokeTitle": "Stop this mod and forget that you trusted it",
+                "revoked": "The mod is stopped. MoltenTerm will ask for your agreement again the next time it is enabled.",
+                "failed": "Trust could not be revoked: {error}",
+                "dismiss": "Close this message"
             }
         },
         "secrets": {
@@ -1361,6 +1505,11 @@
                 "microphone": "Microphone",
                 "location": "Location",
                 "notifications": "Notifications"
+            },
+            "certificate": {
+                "picked": "Certificate chosen",
+                "none": "No certificate",
+                "forget": "Forget the certificate choice for {site}"
             }
         }
     },
@@ -1386,22 +1535,29 @@
         },
         "trust": {
             "title": "Trust the mod “{name}”?",
-            "intro": "A coding agent asked to enable this mod. It runs inside MoltenTerm with your rights: it can read and change your files and run commands.",
-            "introEnd": "Trust it only if you know where it comes from.",
+            "askedBy": "Asked by a coding agent",
+            "versionChip": "v{version}",
+            "risk": "A mod runs with your rights. Trust it only if you know where it comes from.",
+            "canTitle": "What it can do",
+            "canRun": "Runs in MoltenTerm with your rights",
+            "canRunDetail": "It can read and change your files and run commands.",
+            "canPart": "Has a Claude Code part",
+            "canPartDetail": "It runs inside Claude Code, with your rights, in every Claude Code session you start in a MoltenTerm terminal: it can change what Claude Code shows and does, read files and run commands.",
+            "capabilities": "Declared capabilities",
+            "noCapabilities": "none declared",
+            "details": "Details",
+            "detailsFolder": "Folder",
+            "showInFolder": "Show in folder",
+            "detailsPart": "Claude Code part",
+            "detailsPartTarget": "Written for Claude Code {version}",
+            "keepsEditing": "The agent can keep editing it without asking again.",
+            "revoke": "You can take your trust back at any time in Settings > Mods, or from a terminal:",
             "ok": "Trust and enable",
             "cancel": "Don't trust",
-            "partWarning": "It also carries a Claude Code part that runs inside Claude Code, in every Claude Code session you start in a MoltenTerm terminal, with your rights: it can change what Claude Code shows and does, read files and run commands.",
             "partTitle": "Trust the Claude Code part of “{name}”?",
-            "partIntro": "A coding agent asked to enable this mod, which you trusted before it had a Claude Code part. The part runs inside Claude Code, in every Claude Code session you start in a MoltenTerm terminal, with your rights: it can change what Claude Code shows and does, read files and run commands. Declining keeps the rest of the mod running.",
-            "partOk": "Trust the part",
-            "fieldMod": "Mod",
-            "fieldDescription": "Description",
-            "fieldCapabilities": "Capabilities",
-            "noCapabilities": "none declared",
-            "fieldFolder": "Folder",
-            "fieldPart": "Claude Code part",
-            "partWrittenFor": ", written for Claude Code {version}",
-            "footer": "The agent can keep editing it without asking again. Undo with molten mod untrust {id}."
+            "partRisk": "You trusted this mod before it had this part. Trust the part only if you know where it comes from.",
+            "declineKeeps": "Declining keeps the rest of the mod running.",
+            "partOk": "Trust the part"
         },
         "budget": {
             "cpu": "{pct} CPU while idle over the last {window} s (budget {budget} %)",
@@ -1442,7 +1598,7 @@
                 "start": "Ready"
             },
             "legal": {
-                "license": "Open source, Apache License 2.0",
+                "license": "Open source, AGPL-3.0 (parts from Wave Terminal: Apache-2.0)",
                 "licence": "Licence",
                 "privacy": "Privacy",
                 "about": "About"
@@ -1663,6 +1819,8 @@
         "stateLine": "{name}: {state}",
         "modelTitle": "Model: {model}",
         "modelClick": "Click to change the model",
+        "modelUnavailable": "{model} is not available with this sign-in: choose another model",
+        "modelUnavailableClick": "Click to choose another model",
         "effortTitle": "Effort: {effort}",
         "effortClick": "Click to change the effort level",
         "viaProvider": "{agent} via {provider}",
@@ -1882,6 +2040,22 @@
             "title": "Workspace task"
         },
         "gauges": {
+            "window": {
+                "session": "Current session",
+                "week": "This week",
+                "spend": "Spend limit",
+                "model": "This week ({name})",
+                "extra": "{name} {window}",
+                "hour": "{count}-hour",
+                "day": "{count}-day",
+                "min": "{count}-min"
+            },
+            "windowShort": {
+                "session": "Session",
+                "week": "Week",
+                "spend": "Spend",
+                "model": "Week ({name})"
+            },
             "reason": {
                 "notsetup": "Status line not set up",
                 "waiting": "Waiting for the agent's status line: it gives the limits after its next response",
@@ -2171,7 +2345,10 @@
             "title": "MoltenTerm {version} is available",
             "seeNotes": "See its notes on the release page.",
             "download": "Download",
+            "update": "Update",
+            "notes": "Release notes",
             "buttonTitle": "MoltenTerm {version} is available: open its release page to download it",
+            "buttonTitleInstall": "MoltenTerm {version} is available: open About to update it",
             "button": "{version} available"
         },
         "check": {
@@ -2186,6 +2363,56 @@
             "disabled": "This build does not check for updates.",
             "error": "Could not reach GitHub, try again",
             "retry": "Try again"
+        },
+        "install": {
+            "downloading": "Downloading MoltenTerm {version}…",
+            "percent": "{percent} %",
+            "verifying": "Checking MoltenTerm {version}…",
+            "ready": "MoltenTerm {version} is downloaded and checked.",
+            "readyWhen": "It installs when you quit MoltenTerm, or at once if you restart now.",
+            "restart": "Restart now",
+            "later": "Later",
+            "downloaded": "MoltenTerm {version} was downloaded and checked. Installing it is up to you.",
+            "showInFolder": "Show in folder",
+            "releasePage": "Open the release page",
+            "failed": "MoltenTerm {version} was not installed",
+            "notice": {
+                "readyTitle": "MoltenTerm {version} is ready to install",
+                "readyMessage": "It installs when you quit MoltenTerm, or at once if you restart now.",
+                "downloadedTitle": "MoltenTerm {version} was downloaded and checked",
+                "downloadedMessage": "{why} The file is in your downloads folder.",
+                "failedTitle": "MoltenTerm {version} was not installed",
+                "installedTitle": "MoltenTerm {version} installed",
+                "installedMessage": "Your configuration and workspaces are as you left them.",
+                "whatsNew": "What's new",
+                "rolledBackTitle": "MoltenTerm {version} did not start: MoltenTerm went back to the previous version",
+                "rolledBackMessage": "Try the update again later, or download it from the release page.",
+                "swapFailedTitle": "The update could not be installed",
+                "swapFailedMessage": "MoltenTerm is unchanged. {detail}"
+            },
+            "why": {
+                "readonly": "MoltenTerm cannot replace itself from where it is installed.",
+                "package": "This copy comes from a package that your system manages, so MoltenTerm does not replace it.",
+                "translocated": "MoltenTerm runs from a temporary copy the system made. Move it to where you keep your apps, then open it again.",
+                "platform": "MoltenTerm cannot install updates by itself on this computer yet. The release page has the files.",
+                "dev": "This build does not install updates."
+            },
+            "error": {
+                "network": "MoltenTerm could not download it. Check your connection and try again.",
+                "missing": "This release has no file for this computer, or no checksums.",
+                "unsigned": "This release is not signed, so MoltenTerm will not install it by itself.",
+                "signature": "The release's signature did not check out, so nothing was installed.",
+                "checksum": "The downloaded file does not match its signed checksum, so nothing was installed.",
+                "toolarge": "The file is larger than any MoltenTerm release, so it was not downloaded.",
+                "unpack": "The downloaded file could not be unpacked.",
+                "notapp": "The downloaded app is not the MoltenTerm release it should be.",
+                "codesign": "The downloaded app's code signature did not check out, so nothing was installed.",
+                "disk": "MoltenTerm could not write the file to this computer.",
+                "stale": "This release is no longer the one offered. Check for updates again.",
+                "busy": "Another update is already under way.",
+                "unsupported": "MoltenTerm cannot install updates by itself here.",
+                "swap": "MoltenTerm could not prepare the installation."
+            }
         },
         "dialog": {
             "title": "A new MoltenTerm gold is ready",
@@ -2321,6 +2548,17 @@
             "allow": "Allow",
             "block": "Block"
         },
+        "clientCertificate": {
+            "aria": "Client certificate request",
+            "title": "{site} asks for a certificate to identify you",
+            "detail": "Pick the one to use, or continue without. Your choice is remembered for this site.",
+            "listAria": "Certificates offered to {site}",
+            "unnamed": "Unnamed certificate",
+            "issuedBy": "Issued by {issuer}",
+            "expires": "Expires {date}",
+            "use": "Use this certificate",
+            "without": "Continue without a certificate"
+        },
         "engine": {
             "yourBrowser": "your browser",
             "showHereTitle": "Show this page in MoltenTerm's panel",
@@ -2335,6 +2573,7 @@
             "giveBackTo": "Give back to {name}",
             "takeOver": "Take over",
             "heldHint": "{name} is using this tab: Take over to use it",
+            "showsYou": "{name} is showing you this page",
             "stop": "Stop",
             "controlling": "{name} is controlling this tab",
             "controlAria": "Agent control",
@@ -2355,6 +2594,20 @@
             "otherBrowsers": "Other browsers",
             "remember": "Remember for {site}",
             "dismissTitle": "Keep MoltenTerm for this page, and ask again next time"
+        },
+        "local": {
+            "fileTitle": "Open a file from this computer?",
+            "fileHint": "A program asked to show this file. A page from this computer can run scripts: open it only if you expect it.",
+            "dataTitle": "Open an inline page?",
+            "dataHint": "A program asked to show a page whose content is written in its address. It can run scripts: open it only if you expect it.",
+            "dataKind": "{type}, {length} characters",
+            "dataStart": "Starts with",
+            "open": "Open page",
+            "always": "Always open this file",
+            "alwaysTitle": "Remember this file: it opens without asking, in any panel",
+            "decline": "Don't open",
+            "declineTitle": "Close this panel without loading the page",
+            "notSaved": "The choice could not be saved: {error}"
         },
         "share": {
             "noAgent": "No agent is running in this view",
@@ -2784,25 +3037,270 @@
             "open": "{panel} commands and options…"
         }
     },
+    "boss": {
+        "label": "{name}, {count} waiting",
+        "avatar": {
+            "labelCue": "{name}, {count} waiting: has something to tell you",
+            "close": "Close {name}",
+            "downloadKnown": {
+                "one": "{count} download running, {percent} %",
+                "other": "{count} downloads running, {percent} %"
+            },
+            "downloadUnknown": {
+                "one": "{count} download running",
+                "other": "{count} downloads running"
+            }
+        },
+        "group": {
+            "ariaLabel": "{name}: notifications, downloads, keep-awake, agents and sessions",
+            "close": "Close {name}",
+            "closePanel": "Close the panel",
+            "panels": {
+                "notifications": "Notifications",
+                "agents": "Agents",
+                "sessions": "Sessions",
+                "downloads": "Downloads",
+                "keepawake": "Keep awake"
+            },
+            "rail": {
+                "label": "Panels of {name}",
+                "count": "{name}, {count} waiting",
+                "blocked": "{name}, an agent is blocked",
+                "running": "{name}, {percent} % downloaded",
+                "runningUnknown": "{name}, a download is running",
+                "news": "{name}, a download has news",
+                "awake": "{name}, on"
+            },
+            "priority": {
+                "urgent": "Urgent",
+                "answer": "To answer",
+                "info": "Info",
+                "done": "Done"
+            },
+            "agentsEmpty": "No agent is running.",
+            "sessionsEmpty": "No terminal or SSH session is running.",
+            "keepAwake": {
+                "unsupported": "Keeping this computer awake is not available here.",
+                "reason": "Reason"
+            }
+        },
+        "menu": {
+            "openCard": "Open the card of {name}"
+        },
+        "visit": {
+            "label": "{name} would like a word ({severity})",
+            "example": "Example: {name} would like a word ({severity}). An agent has been waiting for you for 6 min.",
+            "exampleLine": "An agent has waited 6 min",
+            "severity": {
+                "grave": "grave",
+                "important": "important",
+                "neutre": "neutral",
+                "bonne": "good news"
+            },
+            "later": {
+                "label": "Later",
+                "menu": "When should he come back?",
+                "5min": "5 min",
+                "15min": "15 min",
+                "1h": "1 h",
+                "tonight": "This evening",
+                "tomorrow": "Tomorrow morning"
+            }
+        },
+        "card": {
+            "goTo": "Go to",
+            "goToName": "Go to {name}",
+            "showIt": "Show it",
+            "showItName": "Show {name} in a pane",
+            "openSessions": "Open the Sessions view",
+            "newTerminal": "New terminal"
+        },
+        "coming": {
+            "title": "When {name} comes to fetch me",
+            "intro": "One choice per line. Comes brings his scene out of the avatar; Badge counts it without moving anything; Nothing does not count it.",
+            "event": "Event",
+            "vient": "Comes",
+            "badge": "Badge",
+            "rien": "Nothing",
+            "quietBetween": "Quiet hours, from and to",
+            "severity": "Severity sets his face and the delays of Later, never the words: the scene has no text.",
+            "example": {
+                "button": "Show a visit",
+                "hint": "Example: an agent has been waiting for you for 6 min. Nothing is recorded or counted, and quiet hours do not hold it back."
+            }
+        },
+        "panel": {
+            "menu": "{name}'s menu",
+            "menuComing": "When {name} comes to fetch me…",
+            "menuSettings": "{name}'s preferences",
+            "menuOff": "Turn {name} off",
+            "usage": {
+                "empty": "No plan usage to show yet: it appears when an agent shares its reading."
+            },
+            "talk": {
+                "placeholder": "Write to {name}…",
+                "label": "Message to {name}",
+                "send": "Send",
+                "sending": "On its way…",
+                "starting": "{name} is settling in…",
+                "thinking": "{name} is thinking…",
+                "replyLabel": "{name}'s answer",
+                "unread": "{name} answered in his terminal: open it to read him.",
+                "noReply": "No answer from {name} yet: see where he is in his terminal.",
+                "chooseAgent": "Choose an agent",
+                "retry": "Try again",
+                "openTerminal": "Open his terminal",
+                "busy": "{name}'s agent is busy: your message stays here, try again in a moment.",
+                "noAgent": "No coding agent is installed to start {name}'s session.",
+                "agentMissing": "The coding agent you chose is not installed: {name} cannot start.",
+                "gone": "{name}'s terminal was closed: send your message again to start a new one.",
+                "notSubmitted": "Your message waits in {name}'s terminal: open it and press Enter.",
+                "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
+                "failed": "The message did not go: {name}'s session could not be reached.",
+                "window": "Conversation with {name}",
+                "empty": "Tell {name} what you need.",
+                "you": "You",
+                "actionsLabel": "Replies {name} offers",
+                "confirmAsk": "Send “{text}”?",
+                "confirm": "Confirm",
+                "cancel": "Cancel"
+            }
+        },
+        "todo": {
+            "parked": {
+                "one": "{count} set aside, back when you open the card again",
+                "other": "{count} set aside, back when you open the card again"
+            },
+            "infoDone": "Finished its work.",
+            "agentWaiting": "{name} waits for you",
+            "agentError": "{name} stopped on an error",
+            "goTo": "Go to {name}",
+            "ciFailed": "CI failing: {checks}",
+            "seeFailure": "See the failure",
+            "rerunCi": "Rerun the CI",
+            "openIntegration": "Open in Integration",
+            "seePr": "See the PR",
+            "open": "Open",
+            "done": "Done",
+            "seen": "Seen",
+            "later": "Later",
+            "ignore": "Ignore",
+            "handoff": {
+                "terminal": "A terminal",
+                "once": "Allow once",
+                "always": "Always for this pair",
+                "refuse": "Refuse",
+                "brief": "Read the brief",
+                "hideBrief": "Hide the brief",
+                "alwaysTitle": "Allow this handoff and every later one between {from} and {to}. You can take it back from the terminal's connections menu.",
+                "refuseTitle": "Refuse this handoff and block {from} from handing work to {to} until MoltenTerm restarts. You can lift it from the terminal's connections menu.",
+                "goal": "“{goal}”",
+                "attached": "Attached: {list}",
+                "files": {
+                    "one": "{count} file",
+                    "other": "{count} files"
+                },
+                "links": {
+                    "one": "{count} link",
+                    "other": "{count} links"
+                },
+                "both": "{files} and {links}",
+                "sees": "{to} will find the brief in its terminal, with {attached}. Nothing else from the sender reaches it.",
+                "seesBare": "{to} will find the brief in its terminal, with no file or link. Nothing else from the sender reaches it.",
+                "briefGoal": "Goal",
+                "briefContext": "Context",
+                "briefFiles": "Files",
+                "briefLinks": "Links",
+                "briefLines": "lines {lines}",
+                "replyYes": "{to} is asked to reply to {from}.",
+                "replyNo": "No reply is expected."
+            }
+        },
+        "peek": {
+            "usage": "{agent}: {label}, {used}",
+            "usageResets": "{agent}: {label}, {used} · {resets}",
+            "more": {
+                "one": "and 1 more",
+                "other": "and {count} more"
+            }
+        },
+        "screen": {
+            "quiet": "Nothing to handle",
+            "toHandle": {
+                "one": "{count} thing to handle",
+                "other": "{count} things to handle"
+            },
+            "working": "{name} is working",
+            "workingCount": {
+                "one": "{count} agent at work",
+                "other": "{count} agents at work"
+            },
+            "nothingForYou": "Nothing for you",
+            "asleep": "Asleep while you are away",
+            "speech": {
+                "one": "A thing for you: {line}",
+                "other": "{count} things for you: {line}"
+            },
+            "finished": "{name} finished",
+            "finishedAll": "Everyone finished",
+            "merged": "PR #{number} merged",
+            "cleared": "All handled",
+            "thanks": "Thank you",
+            "niceWork": "Nice work",
+            "lateNight": "It is getting late",
+            "relieved": "Sorted out",
+            "welcomeBack": "Welcome back",
+            "backNothing": "Nothing new",
+            "backFinished": {
+                "one": "{names} finished while you were away",
+                "other": "{names} finished while you were away"
+            },
+            "backArrived": {
+                "one": "{count} thing arrived while you were away",
+                "other": "{count} things arrived while you were away"
+            },
+            "waitedFor": "{name} has waited {minutes} min",
+            "waitedLine": "{line} · {minutes} min",
+            "handled": {
+                "answer": "Noted",
+                "rerun": "Rerunning the CI",
+                "handoff": "Handoff allowed",
+                "done": "Noted"
+            }
+        }
+    },
     "keepawake": {
         "computer": "this computer",
         "railStop": "Stop keeping this computer awake for {name}",
-        "railStart": "Keep this computer awake while {name} works",
-        "untilWorkEnds": "until its work ends",
-        "endingIn": "ending in {time}",
-        "tooltip": "Keeping this computer awake until the work in {name} ends",
+        "railStart": "Keep this computer awake for {name}",
+        "untilTurnedOff": "until you turn it off",
+        "tooltip": "Keeping this computer awake for {name} until you turn it off",
         "now": "Now: {why}",
-        "nothingRuns": "Nothing runs there now: ending in {time}",
         "holding": "Holding this computer awake while work runs",
         "holdingWhy": "Holding this computer awake while work runs ({why})",
         "holdingEnding": "Holding this computer awake, ending in {time}",
         "aTerminal": "A terminal",
         "aTerminalLower": "a terminal",
-        "policy": {
-            "allowDetail": "A terminal that asks to stay awake is always heard.",
-            "untilWorkEndsDetail": "MoltenTerm keeps this computer awake while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a project run), and 2 minutes more. An agent waiting for input with nothing running is not work.",
-            "letSleepDetail": "Terminals' blocks are stopped; this computer sleeps as planned and the work goes on after wake.",
-            "unsetDetail": "The first terminal that asks to stay awake asks you to choose."
+        "on": "on",
+        "off": "off",
+        "mode": {
+            "manual": "Manual",
+            "manualHint": "Keeps this computer awake for “{name}” until you turn it off.",
+            "automatic": "Automatic",
+            "automaticHint": "Keeps this computer awake whenever an agent works anywhere, until it has finished."
+        },
+        "status": {
+            "awake": "This computer stays awake",
+            "idleAutomatic": "Automatic is on, and nothing works now.",
+            "idleOff": "Automatic and manual are off.",
+            "automatic": "Automatic",
+            "automaticWhy": "Automatic ({why})",
+            "automaticEnding": "Automatic (the work is done: ending in {time})",
+            "manual": "Manual ({names})",
+            "terminals": {
+                "one": "A terminal that asked",
+                "other": "{count} terminals that asked"
+            }
         },
         "reasonsCount": {
             "one": "{count} reason keeps this computer awake",
@@ -2811,10 +3309,10 @@
         "row": {
             "terminal": "Terminal in “{name}”",
             "left": "{time} left",
-            "coffee": "at your request, until its work ends",
-            "coffeeWhy": "at your request, until its work ends: {why}",
-            "coffeeEnding": "at your request, its work is done: ending in {time}",
+            "coffee": "manual, until you turn it off",
+            "coffeeWhy": "manual, until you turn it off: {why}",
             "workLabel": "MoltenTerm",
+            "automaticLabel": "Automatic",
             "work": "until the work ends",
             "workWhy": "until the work ends: {why}",
             "workEnding": "the work is done: ending in {time}",
@@ -2827,18 +3325,15 @@
             "minutes": "{count} min",
             "hours": "{hours} h {minutes}"
         },
-        "indicatorPolicy": "Energy setting: {policy}",
         "cupIdle": "Not keeping this computer awake",
-        "cupHint": "Click: on/off · Right-click: options",
-        "cupCoffeeOn": "Coffee mode on",
-        "cupCoffeeOff": "Coffee mode off",
-        "cupTitle": "{state} · {reason}",
+        "cupHint": "Click: manual on/off · Right-click: options",
+        "cupManual": "Manual for “{name}”: {state}",
+        "cupAutomatic": "Automatic: {state}",
         "popover": {
             "title": "Keep this computer awake",
             "moreSettings": "More settings…"
         },
-        "coffeeFor": "Keep awake while “{name}” works",
-        "coffeeHint": "This computer stays awake while work runs in this workspace, whatever the setting above.",
+        "manualFor": "Manual keep-awake for “{name}”",
         "approvalLog": "{path} in MoltenTerm's data folder",
         "sessionWhere": "{agent} in {where}",
         "approves": "Approves the agents' requests: {sessions}",
@@ -2851,9 +3346,9 @@
             "one": "{count} left to you",
             "other": "{count} left to you"
         },
-        "sessionPolicy": "Sleep policy of {name}",
+        "sessionPolicy": "Terminal requests of {name}",
         "override": {
-            "follow": "Follows the policy",
+            "follow": "Follows the setting",
             "allow": "Allow for this session",
             "letSleep": "Let it sleep for this session"
         },
@@ -2875,7 +3370,7 @@
         "approved": "approved",
         "askedYou": "asked you",
         "everyDecision": "Every decision: {log}",
-        "unknownPolicy": "Unknown sleep policy."
+        "unknownPolicy": "Unknown answer."
     },
     "worktree": {
         "missingLabel": "missing worktree",
@@ -4424,6 +4919,7 @@
                     "notlabels": "Lines dismissed as not version labels: {count}. They are not offered again.",
                     "template": "Steps written by an earlier version of MoltenTerm differ from what it writes now.",
                     "customised": "You changed steps MoltenTerm wrote: keep yours or take its version. A choice you write is not offered again.",
+                    "changedsince": "MoltenTerm changed the step “{step}” since your choice: keep yours or take its new version.",
                     "adjusted": "Your adjusted choices write these steps differently.",
                     "local": "Your uncommitted edits are included: each one is a change to check.",
                     "proposed": "MoltenTerm proposes what a new setup gets: a check that proves each step done by hand is done, and your project's formatter on the files the release changes."
@@ -5351,7 +5847,13 @@
     "notif": {
         "center": {
             "noPath": "no path to show",
-            "archiveOne": "Archive this notification",
+            "clearOne": "Clear",
+            "clearAll": "Clear all",
+            "clearAllTitle": "Moves every notification of the list to the archive. You can undo it for a few seconds.",
+            "cleared": {
+                "one": "{count} notification cleared",
+                "other": "{count} notifications cleared"
+            },
             "resolved": "Resolved",
             "silence": "Don't tell me again…",
             "running": "Running…",
@@ -5390,11 +5892,8 @@
         },
         "settings": {
             "intro": "What each subject may tell. Errors are always told.",
-            "openPanel": "Open the notification panel for every new notification",
-            "openPanelHint": "Otherwise it opens by itself only for what needs your answer; the rest shows for a few seconds at the bottom right.",
             "footer": "Quiet keeps the message here, already read: no badge and no toast. Off does not keep it.",
-            "subjectsTitle": "Subjects",
-            "panelTitle": "Notification panel"
+            "subjectsTitle": "Subjects"
         },
         "subjects": {
             "agents": "Agents",
@@ -5403,7 +5902,8 @@
             "releases": "Releases",
             "updates": "MoltenTerm updates",
             "mods": "Mods",
-            "dependencies": "Dependencies"
+            "dependencies": "Dependencies",
+            "downloads": "Downloads"
         },
         "delivery": {
             "notify": "Notify",
@@ -5419,6 +5919,7 @@
             "ci": "CI",
             "release": "release",
             "deps": "dependencies",
+            "download": "download",
             "trust": "approval"
         },
         "goToTerminal": "Go to the terminal",
@@ -5455,6 +5956,10 @@
         "unread": {
             "one": "{count} unread",
             "other": "{count} unread"
+        },
+        "working": {
+            "one": "{count} agent at work",
+            "other": "{count} agents at work"
         },
         "unsavedWorkspace": "Unsaved workspace",
         "unsavedClickToSave": "Unsaved workspace: click to save it",
@@ -5560,6 +6065,7 @@
             "reviews": "Integration",
             "review": "Review",
             "pipeline": "Pipeline setup",
+            "morphDesign": "Mod design",
             "companion": "Companion",
             "system": "System",
             "launcher": "Launcher",
@@ -5722,6 +6228,9 @@
             "onItsWay": "The public release {tag} is on its way.",
             "nothing": "Nothing to release yet.",
             "planned": "Planned — milestone {milestone}, {open}, nothing on {trunk} yet",
+            "milestoneFirst": "Milestone {milestone} is due first; the changes on {trunk} fit in it.",
+            "biggerBump": "{reason} on {trunk}: {tag} would be a {level} version.",
+            "biggerBumpPlain": "The changes on {trunk} call for a {level} version: {tag} would be one.",
             "open": {
                 "one": "{count} open",
                 "other": "{count} open"
@@ -5892,6 +6401,8 @@
         "unknownVersion": "unknown",
         "releaseNotes": "Release notes",
         "basedOn": "Based on Wave Terminal {wave} by Command Line Inc. (Apache-2.0)",
+        "license": "Open source, AGPL-3.0 (parts from Wave Terminal: Apache-2.0)",
+        "licenseTitle": "Which licence covers which part, and the source code",
         "copyright": "© {year} DiamondForge. Portions © Command Line Inc."
     },
     "releases": {
@@ -5926,6 +6437,9 @@
     "lazy": {
         "loadingEditor": "Loading editor…",
         "loadingDiff": "Loading diff…"
+    },
+    "cta": {
+        "newViewHint": "{title} (Shift-click: in a new view)"
     },
     "split": {
         "right": "Split right",
@@ -6186,6 +6700,7 @@
         "background": "Background agent",
         "busyOn": "busy on #{number}",
         "busyElsewhere": "busy elsewhere",
+        "visiting": "only passed through",
         "state": {
             "working": "working",
             "waiting": "waiting for you",
@@ -6589,6 +7104,8 @@
                 "unknown": "GitHub did not say whether it merges cleanly",
                 "mergefailed": "The merge failed: {detail}",
                 "read": "GitHub could not be read: {detail}",
+                "unavailable": "GitHub did not answer (error {status}): nothing was merged. Try again once GitHub is back.",
+                "unavailableNoStatus": "GitHub did not answer in time: nothing was merged. Try again once GitHub is back.",
                 "headmoved": "Its branch kept moving",
                 "draft": "It is a draft",
                 "mergedaway": "Already merged",
@@ -6653,6 +7170,25 @@
                 "voided": "Validation void: new push",
                 "withdrawn": "Validation cancelled",
                 "needsAnswer": "Your agent waits for you"
+            },
+            "stop": {
+                "mergefailed": "GitHub refused the merge: nothing was merged.",
+                "read": "GitHub could not be read: nothing was merged.",
+                "agentstart": "The agent could not be started for the rebase.",
+                "retry": "Try again",
+                "retryTitle": "Put #{number} back in the merge queue, bound to the commit you validated",
+                "rebase": "Rebase",
+                "rebaseTitle": "Ask the agent to rebase #{number} on {base}",
+                "revalidate": "Validate again",
+                "revalidateTitle": "Open the Validate sheet on the current commit of #{number}",
+                "ci": "See the CI",
+                "ciTitle": "Open the checks of #{number} on GitHub",
+                "github": "See on GitHub",
+                "githubTitle": "Open #{number} on GitHub",
+                "status": "GitHub status",
+                "statusTitle": "Open githubstatus.com: does GitHub have an outage?",
+                "details": "Details",
+                "hideDetails": "Hide details"
             },
             "withdraw": "Cancel validation",
             "withdrawTitle": "Take #{number} out of the merge queue: it is not merged and goes back to review",
@@ -6988,6 +7524,9 @@
             "waiting": "{name} is waiting for your answer on {branch}.",
             "inflight": "An agent is already being reached for this pull request.",
             "notready": "{name} cannot take the rebase now: {message}",
+            "subagentWorking": "A sub-agent of {name} is already working on {branch}: nothing was started.",
+            "backgroundWorking": "An agent is probably already working on {branch}: nothing was started.",
+            "treeInUse": "An agent ({name}) already works in {folder}: no second agent was started there.",
             "maincheckout": "{branch} is checked out in the project's main folder, where MoltenTerm never starts an agent: switch that folder to another branch, then ask again.",
             "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
             "failed": "The rebase could not be asked: {message}",
@@ -7095,6 +7634,8 @@
         "lead": {
             "sent": "Handed to {name}, the lead agent that owns this work: the brief is in its terminal, it decides who does it.",
             "queued": "{name} is busy: the brief is typed in its terminal when its prompt is idle.",
+            "subagentSent": "Handed to {name}, which continues its sub-agent that already worked on this: the brief is in its terminal.",
+            "subagentQueued": "{name} is busy: the brief is typed in its terminal when its prompt is idle, and it continues its sub-agent.",
             "started": "{name}'s session is resuming in a view of its own: the brief is sent once its prompt is up.",
             "gone": "{name} no longer runs.",
             "tab": "Resume #{number}",
@@ -7158,6 +7699,8 @@
             "draftTagTitle": "This pull request is a draft on GitHub.",
             "prChip": "PR #{number}",
             "prChipTitle": "Pull request #{number} · {branch}",
+            "openTicket": "Open ticket #{number}",
+            "openPr": "Open pull request #{number}",
             "groupAdd": "Add to the group merge",
             "groupTakeOut": "Take out of the group merge",
             "disabledTitle": "{action}: {reason}",
@@ -7174,6 +7717,8 @@
                 "agentFinishBy": "{name} still has to mark it ready",
                 "agentDone": "Done · {name} has to mark it ready",
                 "agentDoneBlocked": "Done · {name} has to pick it up again",
+                "waitingOn": "Waiting on #{number} · {title}",
+                "waitingOnNumber": "Waiting on #{number}",
                 "agentOn": {
                     "rebase": "{name} is rebasing onto {base}",
                     "investigate": "{name} is resolving what blocks it",
@@ -7189,7 +7734,8 @@
                 "ciTrust": "Local CI waiting for your approval",
                 "ciStopped": "Local CI interrupted",
                 "ciElsewhere": "Local CI not running on this computer",
-                "ciRunning": "CI running",
+                "ciRunning": "Waiting for the CI",
+                "queueStopped": "The merge queue stopped on it",
                 "mergeChecking": "GitHub is checking the merge",
                 "ready": "Ready to merge",
                 "readyReview": "Ready · yours to review and merge",
@@ -7217,12 +7763,17 @@
                 "approval": "GitHub awaits an approval",
                 "reasons": "{reasons}",
                 "yours": "yours",
-                "running": "{count} of {total}, {names}",
                 "ciTrust": "its commands must be approved before the CI runs ({names})",
                 "ciStopped": "last heard of on {when}, nothing runs it now ({names})",
                 "ciStoppedUnknown": "nothing runs it now ({names})",
                 "ciElsewhere": "status posted on {when}, no run of it here ({names})",
-                "ciElsewhereUnknown": "no run of it here ({names})"
+                "ciElsewhereUnknown": "no run of it here ({names})",
+                "waitsOn": {
+                    "body": "its description says it depends on #{number}",
+                    "comment": "its agent's comment says it depends on #{number}",
+                    "ticket": "its ticket says it is blocked by #{number}",
+                    "relation": "on GitHub, its ticket is blocked by #{number}"
+                }
             },
             "action": {
                 "approveCommands": "Approve the commands…",
@@ -7243,7 +7794,9 @@
                 "stop": "Stop {name}",
                 "rerun": "Rerun failed jobs: {names}",
                 "markReady": "Mark ready for review",
-                "markReadyMenu": "Mark ready for review: the PR leaves draft"
+                "markReadyMenu": "Mark ready for review: the PR leaves draft",
+                "settle": "Mark the stop as settled",
+                "goTo": "Go to #{number}"
             },
             "ciRun": {
                 "notStarted": "The local CI did not start."
@@ -7251,6 +7804,7 @@
             "actionTitle": {
                 "approveCommands": "Open the project's declared commands to approve them. Approving starts nothing.",
                 "runCi": "Run the local CI on {branch}, asking for the approval of the commands first when it is missing",
+                "goTo": "Show #{number} · {title}",
                 "answer": "Show {name}'s terminal: it is waiting for your answer",
                 "follow": "Show {name}'s terminal",
                 "relaunch": "Send the same task to {name} again, in its session, with the pull request as it is now",
@@ -7262,7 +7816,6 @@
             "fact": {
                 "ciFailing": "CI failing: {names}",
                 "othersGreen": "{count} other checks green",
-                "ciRunning": "CI {success}/{total}, {pending} running",
                 "ciGreen": "CI {success}/{total}",
                 "ciSkipped": "CI {success}/{total}, {skipped} skipped",
                 "report": "report",
@@ -7276,10 +7829,51 @@
                 "rank": "#{rank} in the merge order",
                 "otherBranch": "also on this ticket: the branch {branches}",
                 "otherBranches": "also on this ticket: the branches {branches}",
+                "alsoWaitsOn": "also waiting on {numbers}",
                 "board": "column {status}"
             },
             "history": {
                 "gone": "{name} stopped before finishing {what}."
+            },
+            "status": {
+                "idle": "Nothing runs · {why}",
+                "ci": "CI running · {done}/{total} · {names}",
+                "ciSince": "CI running · {done}/{total} · {names} · {elapsed}",
+                "agent": "{name} is working on it",
+                "agentSince": "{name} is working on it · {elapsed}",
+                "agentProbably": "An agent is probably working on it",
+                "merge": "GitHub is checking the merge",
+                "why": {
+                    "agentWaiting": "{name} waits for your answer",
+                    "waitingOn": "waiting for #{number} to merge",
+                    "agentFinish": "{name} stopped before marking it ready",
+                    "interrupted": "{name}'s task stopped before it was done",
+                    "conflicts": "conflicts with {base}",
+                    "changes": "changes requested",
+                    "queueStopped": "the merge queue stopped on it",
+                    "ciTrust": "the local CI waits for your approval",
+                    "ciStopped": "the local CI was interrupted",
+                    "ciElsewhere": "the local CI does not run on this computer",
+                    "approval": "waiting for an approval",
+                    "rule": "a rule blocks the merge",
+                    "draftToTest": "draft to test · {ci}",
+                    "ciGreenAgo": "CI finished {ago} ago, green",
+                    "ciGreen": "CI green",
+                    "ciNone": "no CI result yet",
+                    "ciFailedAgo": "CI finished {ago} ago, red on {names}",
+                    "ciFailed": "CI finished, red on {names}"
+                }
+            },
+            "settled": {
+                "by": "settled by {name}: {note}",
+                "byNoNote": "settled by {name}",
+                "you": "settled by you: {note}",
+                "youNoNote": "settled by you",
+                "markedReady": "marked ready"
+            },
+            "settle": {
+                "none": "No stop waits on this agent any more.",
+                "ownPrompt": "This agent is blocked on a prompt of its own terminal: answer it there."
             }
         },
         "sort": {
@@ -7289,15 +7883,14 @@
             "merge": "Merge order"
         },
         "sections": {
-            "yours": "Yours",
-            "yoursHint": "answer, review, test",
-            "ready": "Ready",
-            "readyHint": "merge",
+            "yours": "Needs you",
+            "yoursHint": "stuck until you act",
+            "ready": "Ready to merge",
+            "readyHint": "CI green, nothing open",
+            "waiting": "In progress",
+            "waitingHint": "something runs",
             "agents": "With the agents",
-            "blocked": "Blocked",
-            "blockedHint": "nobody on it",
-            "waiting": "Running",
-            "waitingHint": "waiting on CI",
+            "agentsHint": "nothing runs, nothing for you",
             "none": "No pull request open into",
             "working": "Work in progress in this section"
         }
@@ -7978,6 +8571,8 @@
                 "newwarning": "Not merged: a new warning appeared since the plan. Validate again.",
                 "newred": "Not merged: checks failed since the plan ({names}). Validate again.",
                 "mergeerror": "The merge failed and is not retried.",
+                "unavailable": "GitHub did not answer (error {status}), even after trying again: nothing was merged. Try again once GitHub is back.",
+                "unavailableNoStatus": "GitHub did not answer in time, even after trying again: nothing was merged. Try again once GitHub is back.",
                 "methodrefused": "GitHub does not allow {method} on this repository: nothing was merged. Validate again to pick an allowed method.",
                 "updateerror": "GitHub could not update the branch with its base: nothing was merged.",
                 "stopped": "Stopped while waiting for CI: nothing was merged.",
@@ -8445,6 +9040,11 @@
                 "noround": "No review round is published yet: publish your comments first, then restart the work.",
                 "inflight": "Restart work is already on its way for this PR.",
                 "agentbusy": "{agent} is {state} in {folder}: restart the work once it is done.",
+                "subagentbusy": "A sub-agent of {name} is already working on {branch}: restart the work once it is done.",
+                "backgroundbusy": "An agent is probably already working on {branch}: restart the work once it is done.",
+                "treeinuse": "An agent ({name}) already works in {folder}: no second agent was started there.",
+                "subagentSent": "Handed to {name}, which continues its sub-agent that already worked on this.",
+                "subagentQueued": "{name} is busy: the round is typed in its terminal when its prompt is idle, and it continues its sub-agent.",
                 "notready": "{agent} cannot take the comments now: {message}",
                 "maincheckout": "{branch} is checked out in the project's main folder, where Restart work never works: switch that folder to another branch, then restart the work.",
                 "worktree": "The worktree of {branch} could not be prepared: {message}",
@@ -8482,6 +9082,15 @@
     },
     "server": {
         "remoteask": {
+            "readVariablesTitle": "A server wants to read variables",
+            "readVariables": "{server} wants to read {path} stored by MoltenTerm. It may contain credentials.",
+            "writeVariablesTitle": "A server wants to change variables",
+            "writeVariables": "{server} wants to change {path} stored by MoltenTerm. Variables can affect programs started on this computer.",
+            "variablesShared": "shared variables / {file}",
+            "variablesWorkspace": "workspace {name} / {file}",
+            "variablesTab": "view {name} / {file}",
+            "variablesPanel": "panel {name} / {file}",
+            "variablesFile": "variable file {name} / {file}",
             "readTitle": "A server wants to read a file of this computer",
             "read": "{server} wants to read {path} on this computer.",
             "writeTitle": "A server wants to write a file on this computer",
@@ -9027,6 +9636,8 @@
                         "unknown": "GitHub did not say whether it merges cleanly",
                         "mergefailed": "the merge failed: {detail}",
                         "read": "GitHub could not be read: {detail}",
+                        "unavailable": "GitHub did not answer (error {status}), try again later",
+                        "unavailableNoStatus": "GitHub did not answer in time, try again later",
                         "headmoved": "its branch kept moving",
                         "draft": "it is a draft",
                         "mergedaway": "already merged",
@@ -9198,11 +9809,8 @@
                 "allow": "Allow",
                 "untilworkends": "Until work ends",
                 "letsleep": "Let it sleep",
-                "coffeeendtitle": "{name}: work finished, this computer may sleep again",
-                "coffeeendtitleunnamed": "A workspace: work finished, this computer may sleep again",
-                "coffeeend": "Its coffee ended 2 minutes after the last work in the workspace stopped.",
                 "policyendtitle": "Work finished: this computer may sleep again",
-                "policyend": "Until work ends kept it awake while work ran; MoltenTerm released its block 2 minutes after the last work stopped."
+                "policyend": "Automatic kept it awake while work ran; MoltenTerm released its block {minutes} minutes after the last work stopped."
             }
         },
         "browser": {
@@ -9217,6 +9825,7 @@
                 "zoom": "Zoomed into the page",
                 "wait": "Waiting",
                 "opened": "Opened this tab",
+                "shown": "Showed you the page",
                 "engaged": "Working in the tab you shared",
                 "clicked": "Clicked",
                 "clickedon": "Clicked {on}",
@@ -9459,6 +10068,123 @@
             "linkedTerminal": "The project's terminal is open on the left.",
             "linkedTerminalNamed": "The project's terminal is open on the left; {agent} starts there when you ask.",
             "goto": "Go there"
+        }
+    },
+    "morphDesign": {
+        "tabName": "Design · {mod}",
+        "viewName": "Mod design",
+        "title": "Designing {mod}",
+        "origin": "Opened by /morph. Your agent keeps these steps up to date as you talk. The terminal on the left stays free for anything else, and every step can be skipped.",
+        "loading": "Reading the design…",
+        "noDesign": "No mod to design",
+        "noDesignHint": "Ask your agent to open the design again with /morph.",
+        "missing": {
+            "title": "This design is no longer open",
+            "hint": "MoltenTerm was restarted since this view was made. Ask your agent to open it again with molten morph design {mod}."
+        },
+        "soon": "Soon",
+        "agent": {
+            "gets": "{agent} gets your choices.",
+            "getsHere": "{agent} gets your choices, in the terminal on the left.",
+            "none": "No agent is listening right now. Say it in the terminal on the left: your choices stay here for the agent that comes.",
+            "goto": "Go there",
+            "terminal": "Go to the terminal"
+        },
+        "told": {
+            "sent": "Sent to {agent}.",
+            "typed": "Typed in {agent}'s prompt: it starts when you press Enter there.",
+            "queued": "{agent} will get it as soon as its prompt is free.",
+            "noagent": "No agent took it. It stays here for the agent that comes, and you can also say it in the terminal on the left."
+        },
+        "state": {
+            "current": "Current step",
+            "todo": "To do",
+            "done": "Done",
+            "terminal": "Done in the terminal",
+            "skipped": "Skipped"
+        },
+        "step": {
+            "skip": "Skip this step",
+            "terminal": "I'll do it in the terminal",
+            "back": "Take it back",
+            "need": {
+                "title": "Your need",
+                "hint": "What you asked for, in your agent's words.",
+                "empty": "Your agent writes your request in its own words here, to check it understood."
+            },
+            "questions": {
+                "title": "A few questions",
+                "hint": "Only what is missing, as choices to click.",
+                "empty": "If something is missing, a question to click appears here. A request that is clear enough gets none."
+            },
+            "plan": {
+                "title": "The plan",
+                "hint": "What goes where, and what the tool will be allowed to reach.",
+                "empty": "The plan appears here before anything is created."
+            },
+            "preview": {
+                "title": "Live preview",
+                "hint": "The draft, as it grows. It starts with invented data.",
+                "empty": "Nothing to show yet. The draft appears here as soon as your agent starts building."
+            },
+            "adjust": {
+                "title": "Adjustments",
+                "hint": "Changes you ask for, one at a time.",
+                "empty": "Ask for changes in the terminal on the left, in your own words. Each one shows up in the preview."
+            },
+            "finish": {
+                "title": "Name, icon and category",
+                "hint": "The finishing touches, once you are happy.",
+                "empty": "When you are happy, your agent asks for a name, an icon and a category here.",
+                "soon": "The icon and the category are kept with the tool once the Your mods page arrives. Soon."
+            },
+            "validate": {
+                "title": "Validation",
+                "hint": "Keep the tool, or give it up.",
+                "empty": "When everything is set, validate the tool here. Giving up undoes what the agent made."
+            },
+            "collect": {
+                "title": "Your mods",
+                "hint": "Where the tool lives afterwards.",
+                "empty": "Your agent tells you where the tool lives."
+            }
+        },
+        "questions": {
+            "recommended": "Recommended",
+            "selected": "Selected",
+            "terminalHint": "Or answer in the terminal on the left.",
+            "answered": "Answered: {answer}",
+            "inTerminal": "in the terminal"
+        },
+        "plan": {
+            "moltenPart": "In MoltenTerm",
+            "agentPart": "In the agent",
+            "accesses": "What it will access",
+            "nothingElse": "Nothing else",
+            "waits": "What waits",
+            "trust": "Accesses are approved in MoltenTerm's trust prompt, not here.",
+            "agree": "I agree",
+            "change": "Change something",
+            "agreed": "You agreed to this plan."
+        },
+        "preview": {
+            "draft": "Draft",
+            "sample": "Invented sample data",
+            "real": "Real data",
+            "commands": "Commands",
+            "boxes": "Boxes",
+            "placeholder": "The tool's own panel will be drawn here."
+        },
+        "validate": {
+            "validate": "Validate",
+            "giveUp": "Give up",
+            "confirm": "Give up this tool? Your agent undoes what it made.",
+            "keep": "Keep going",
+            "validated": "You validated the tool.",
+            "gaveUp": "You gave the tool up: your agent undoes what it made."
+        },
+        "collect": {
+            "soon": "The Your mods page arrives soon. Until then your agent tells you where the tool lives."
         }
     },
     "codingAgent": {
@@ -9769,7 +10495,14 @@
             "expand": "Show what {name} is linked to",
             "collapse": "Hide what {name} is linked to",
             "projectTitle": "Runs in {project}",
-            "outsideTitle": "Runs in {folder}, outside this workspace's projects"
+            "outsideTitle": "Runs in {folder}, outside this workspace's projects",
+            "noProject": "No project",
+            "note": {
+                "add": "Add a note…",
+                "edit": "Edit note",
+                "remove": "Remove note",
+                "field": "Note for {name}"
+            }
         },
         "view": {
             "equalize": "Equalize panel widths",
@@ -9810,6 +10543,7 @@
             "iconTitle": "Icon of “{name}”",
             "iconChoice": "Icon {icon}",
             "panelIcons": "What the view shows",
+            "siteIcon": "Use the site's icon",
             "copyName": "{name} (copy)",
             "duplicated": "“{name}” created: the same configuration",
             "reordered": "Order changed",
@@ -10607,6 +11341,148 @@
         "bookmarkDocuments": "Documents",
         "bookmarkRoot": "Root"
     },
+    "downloads": {
+        "tab": "Downloads",
+        "size": "{value} {unit}",
+        "units": {
+            "b": "B",
+            "kb": "KB",
+            "mb": "MB",
+            "gb": "GB",
+            "tb": "TB"
+        },
+        "speed": "{size}/s",
+        "duration": {
+            "seconds": "{s} s",
+            "minutes": "{m} min",
+            "minutesSeconds": "{m} min {s} s",
+            "hours": "{h} h",
+            "hoursMinutes": "{h} h {m} min"
+        },
+        "stats": {
+            "ofTotal": "{received} of {total}",
+            "received": "{received} received",
+            "percent": "{percent}%",
+            "paused": "paused",
+            "left": "about {time} left"
+        },
+        "state": {
+            "paused": "Paused",
+            "interrupted": "Interrupted",
+            "cancelled": "Cancelled"
+        },
+        "group": {
+            "running": {
+                "one": "In progress · {count}",
+                "other": "In progress · {count}"
+            }
+        },
+        "day": {
+            "today": "Today",
+            "yesterday": "Yesterday"
+        },
+        "action": {
+            "pause": "Pause",
+            "resume": "Resume",
+            "cancel": "Cancel",
+            "retry": "Retry",
+            "redownload": "Download again",
+            "open": "Open",
+            "reveal": "Show in folder",
+            "copyLink": "Copy link",
+            "copied": "Link copied",
+            "remove": "Remove from list",
+            "view": "View"
+        },
+        "row": {
+            "progress": "Download progress",
+            "startedBy": "Started by {name}",
+            "program": "Program",
+            "missing": "File moved or deleted"
+        },
+        "origin": {
+            "goTo": "Go to the page",
+            "inView": "in {view}",
+            "inWorkspace": "in {workspace}",
+            "pageClosed": "Original page closed: {name}",
+            "viewClosed": "Original view closed: {name}",
+            "workspaceGone": "Original workspace deleted",
+            "reopen": "Reopen the page",
+            "reopenIn": "Reopen in {workspace}",
+            "reopenTitle": "Reopen the page in the workspace “{workspace}”",
+            "toView": "Go to the view"
+        },
+        "reason": {
+            "connectionAt": "The connection was lost at {percent}%",
+            "connectionAfter": "The connection was lost after {size}",
+            "server": "The site did not send the file (not found or refused)",
+            "appclosed": "MoltenTerm was closed during the download",
+            "noresume": "This site does not let a download continue where it stopped",
+            "unknown": "The download stopped"
+        },
+        "confirm": {
+            "aria": "Confirm opening a program",
+            "title": "Open “{name}”?",
+            "body": "It is a program: opening it can run code on this computer. It comes from {site}.",
+            "cancel": "Cancel",
+            "open": "Open anyway"
+        },
+        "empty": {
+            "title": "No downloads.",
+            "body": "The files you download from MoltenTerm's web pages show up here, with their progress.",
+            "noDelete": "Clearing the list never deletes the files."
+        },
+        "folder": {
+            "open": "Open the Downloads folder"
+        },
+        "clear": "Clear the list",
+        "clearNote": "Files are never deleted",
+        "pill": {
+            "one": "Downloading: {name}",
+            "many": {
+                "one": "{count} download in progress",
+                "other": "{count} downloads in progress"
+            }
+        },
+        "bell": {
+            "running": {
+                "one": "{count} download in progress",
+                "other": "{count} downloads in progress"
+            }
+        },
+        "card": {
+            "aria": {
+                "one": "Downloads, {count} in progress",
+                "other": "Downloads, {count} in progress"
+            }
+        },
+        "notify": {
+            "doneTitle": "Download finished: {name}",
+            "failedTitle": "Download interrupted: {name}",
+            "program": "It is a program: opening it asks you to confirm.",
+            "startedBy": "Started by {name}"
+        },
+        "error": {
+            "noitem": "This download is no longer in the list.",
+            "missing": "The file was moved or deleted.",
+            "executable": "Confirm opening the program first.",
+            "failed": "That did not work. Try again."
+        },
+        "quit": {
+            "subtitle": "Quitting interrupts the downloads in progress.",
+            "line": {
+                "one": "{count} download in progress will be interrupted. It stays in the list, with Retry.",
+                "other": "{count} downloads in progress will be interrupted. They stay in the list, with Retry."
+            }
+        },
+        "settings": {
+            "folderTitle": "Downloads folder",
+            "folderLabel": "Saved to",
+            "folderUnknown": "The system's Downloads folder",
+            "askOn": "Each download asks where to save it.",
+            "askOff": "Downloads are saved here without asking."
+        }
+    },
     "fileFilter": {
         "setByAgent": "Set by {name}",
         "setByTerminal": "Set by the terminal",
@@ -10648,6 +11524,111 @@
                 "none": "MoltenTerm cannot read {agent}'s plan usage.",
                 "alt": "{agent}'s own usage page or command shows it."
             }
+        }
+    },
+    "learning": {
+        "title": "What MoltenTerm learned",
+        "intro": "What the guided workflows remember of how you work, so the next run asks less. It stays on this computer: change it, forget it or reset it whenever you like.",
+        "count": {
+            "one": "{count} thing",
+            "other": "{count} things"
+        },
+        "empty": "Nothing learned yet in {workflow}.",
+        "workflow": {
+            "pipelineSetup": "Pipeline setup",
+            "morphDesign": "Mod design"
+        },
+        "sentence": {
+            "answer": "{title}: you answered {value}.",
+            "preference": "{title}: you prefer {value}.",
+            "correction": "{title}: you choose {value}.",
+            "correctionFrom": "{title}: you choose {value} instead of {proposed}.",
+            "skip": "You skip {title}."
+        },
+        "keys": {
+            "pipelineSetup": {
+                "merge": "How the release branch is reached",
+                "rcformat": "Candidate versions",
+                "tagprefix": "Tag prefix",
+                "notes": "Release notes rewritten with the coding agent",
+                "milestone": "Close the milestone once published",
+                "syncback": "Carry the release commit back to the working branch"
+            },
+            "morphDesign": {
+                "name": "Name",
+                "icon": "Icon",
+                "category": "Category",
+                "need": "your need",
+                "questions": "the questions",
+                "plan": "the plan",
+                "preview": "the live preview",
+                "adjust": "the adjustments",
+                "finish": "name, icon and category",
+                "validate": "the validation",
+                "collect": "the collection"
+            }
+        },
+        "value": {
+            "yes": "yes",
+            "no": "no",
+            "rcformat": {
+                "numeric": "numbered (…-1, …-2)",
+                "rcdot": "release candidates (…-rc.1, …-rc.2)"
+            }
+        },
+        "confidence": {
+            "low": "tentative",
+            "medium": "likely",
+            "high": "settled"
+        },
+        "meta": {
+            "seen": {
+                "one": "Seen {count} time",
+                "other": "Seen {count} times"
+            },
+            "run": "run {run}"
+        },
+        "by": {
+            "agent": "recorded by an agent",
+            "user": "edited by you"
+        },
+        "edit": "Edit",
+        "forget": "Forget",
+        "save": "Save",
+        "cancel": "Cancel",
+        "reset": {
+            "button": "Reset this workflow",
+            "confirm": {
+                "one": "Forget the {count} thing learned here? This cannot be undone.",
+                "other": "Forget the {count} things learned here? This cannot be undone."
+            },
+            "yes": "Forget everything"
+        },
+        "prefill": {
+            "mark": "Based on your earlier choices",
+            "title": "Filled in from what you chose in earlier runs. Change it as you like."
+        },
+        "folded": {
+            "hint": "You usually skip this step.",
+            "show": "Show"
+        }
+    },
+    "usageWeek": {
+        "percent": "{percent} %",
+        "unreadable": "no reading",
+        "row": "{name}, {percent} %",
+        "rowReset": "{name}, {percent} %, resets {day}",
+        "rowAsOf": "read {ago}",
+        "rowUnreadable": "{name}, no reading: {reason}",
+        "rowNoReading": "{name}, no reading",
+        "day": {
+            "mon": "M",
+            "tue": "T",
+            "wed": "W",
+            "thu": "T",
+            "fri": "F",
+            "sat": "S",
+            "sun": "S"
         }
     }
 }

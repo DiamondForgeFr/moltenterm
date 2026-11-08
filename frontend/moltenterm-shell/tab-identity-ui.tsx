@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pieces of a top tab that MoltenTerm draws (FR-SHELL-056, DS-SHELL-098): the 14 px icon, the name shown in place
 // of Wave's generic T<n>, and the agent mark, whose shape tells the state without its colour (NFR-SHELL-026): a
@@ -12,6 +12,7 @@ import { Atom, atom, useAtomValue } from "jotai";
 import { useMemo } from "react";
 import { AgentStateInfo, agentStatesOfBlocks, agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
+import { pageLineOf } from "./favicon/site";
 import { I18nModel, TFunction, useT } from "./i18n/i18n";
 import { ProjectTabMetaKey, ProjectTabName, tabShownName } from "./project/project-model";
 import { ReviewDoneMeta, reviewDoneTabTitle } from "./review/review-done";
@@ -99,6 +100,9 @@ export type TabIdentity = {
     agents: AgentStateInfo[];
     // A Review tab whose PR is merged or closed (#686).
     reviewDone: ReviewDoneMeta;
+    // The web pages the tab shows, one line each (the page's title and its site), for the tooltip, where the view is
+    // named after its site alone (#1962).
+    pages?: string;
 };
 
 // The tab's first panel decides the icon and the generic name; any agent of the tab (idle included) gives its glyph,
@@ -116,6 +120,10 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
                 pinned: !!(tab?.meta as Record<string, unknown>)?.[ProjectTabMetaKey],
                 agentId: agents[0]?.agent ?? "",
                 nameKey: (tab?.meta as Record<string, unknown>)?.[ViewNameKeyMetaKey] ?? null,
+                pages: blockIds
+                    .map((id) => pageLineOf(get(getWaveObjectAtom<Block>(makeORef("block", id)))?.meta))
+                    .filter((line) => line !== "")
+                    .join("\n"),
             };
         });
     }, [tabId]);
@@ -148,13 +156,19 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
         agent: urgent,
         agents: facts.pinned ? [] : agents,
         reviewDone: panelReviewDone(facts.meta),
+        pages: facts.pages,
     };
 }
 
-// The tab's tooltip: the Review tab's done hint, the tab's agents (#1033), then the trees of its terminals. now dates
-// the agents' run times (the tab refreshes it on hover).
+// The tab's tooltip: the web pages it shows (#1962), the Review tab's done hint, the tab's agents (#1033), then the trees
+// of its terminals. now dates the agents' run times (the tab refreshes it on hover).
 export function tabTooltip(t: TFunction, identity: TabIdentity, treesTitle: string, now = Date.now()): string {
-    return [reviewDoneTabTitle(t, identity.reviewDone), tabAgentsTitle(t, identity.agents, now), treesTitle]
+    return [
+        identity.pages,
+        reviewDoneTabTitle(t, identity.reviewDone),
+        tabAgentsTitle(t, identity.agents, now),
+        treesTitle,
+    ]
         .filter((s) => !!s)
         .join("\n");
 }

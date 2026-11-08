@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package agenthandoff
 
@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,6 +37,27 @@ type fakeEnv struct {
 	dataDir  string
 	onNotify func(input molten.NotificationInput)
 	handoffs [][2]string
+	// stops: the status SettleStop answers per block (none when absent); settled records the calls.
+	stops   map[string]string
+	settled []settleCall
+}
+
+type settleCall struct{ blockId, by, note string }
+
+func (e *fakeEnv) SettleStop(blockId string, by string, note string) string {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	e.settled = append(e.settled, settleCall{blockId, by, note})
+	if status, ok := e.stops[blockId]; ok {
+		return status
+	}
+	return molten.AgentSettleNone
+}
+
+func (e *fakeEnv) settleCalls() []settleCall {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	return append([]settleCall(nil), e.settled...)
 }
 
 func (e *fakeEnv) VerifyToken(token string) (string, error) {
@@ -174,7 +196,27 @@ func makeFixture(t *testing.T) (*Manager, *fakeEnv, string, string) {
 	// Answered tests return as soon as the answer comes: the wait only bounds a failing run, and a short one would turn
 	// a slow answer into a pending request.
 	m.approvalTimeout = time.Minute
+	// A typed notice's watch (#1938) polls until the receiver's run ends: end them all, and wait for the watches.
+	t.Cleanup(func() {
+		endRuns(env)
+		waitFor(t, "the typed watches to end", func() bool { return typedWatches(m) == 0 })
+	})
 	return m, env, projA, projB
+}
+
+func endRuns(env *fakeEnv) {
+	env.lock.Lock()
+	defer env.lock.Unlock()
+	for id, r := range env.runs {
+		r.Running = false
+		env.runs[id] = r
+	}
+}
+
+func typedWatches(m *Manager) int {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return len(m.typedWatch)
 }
 
 // answerWith answers every approval with the decision, from a window.
@@ -437,6 +479,94 @@ func TestTypedWithoutEnterIsNotified(t *testing.T) {
 		n.Actions[0].WorkspaceId != "wsB" || n.Actions[0].LabelText == nil || n.Actions[0].LabelText.Code != "handoff.typed.goto" {
 		t.Fatalf("go to action: %+v", n.Actions)
 	}
+	if n.Key != TypedKeyPrefix+"blockB" {
+		t.Fatalf("the typed notice is keyed to the receiver's prompt: %q", n.Key)
+	}
+}
+
+// typedFixture types a handoff without Enter into Jérôme's idle prompt and counts the polls of the typed watch.
+func typedFixture(t *testing.T) (*Manager, *fakeEnv, *atomic.Int64) {
+	t.Helper()
+	m, env, _, _ := makeFixture(t)
+	polls := &atomic.Int64{}
+	m.sleep = func(time.Duration) {
+		polls.Add(1)
+		time.Sleep(time.Millisecond)
+	}
+	answerWith(m, env, DecisionOnce)
+	env.typeOut = func(string) TypeResult { return TypeResult{Sent: true} }
+	res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "x"}})
+	if err != nil || res.Status != StatusTyped {
+		t.Fatalf("typed: %+v %v", res, err)
+	}
+	return m, env, polls
+}
+
+func checkTypedOpen(t *testing.T, env *fakeEnv, polls *atomic.Int64) {
+	t.Helper()
+	start := polls.Load()
+	waitFor(t, "the typed watch to look at the idle prompt", func() bool { return polls.Load() >= start+3 })
+	for _, key := range env.resolvedKeys() {
+		if key == TypedKeyPrefix+"blockB" {
+			t.Fatal("the typed notice was resolved while the prompt still waits for Enter")
+		}
+	}
+}
+
+func waitTypedResolved(t *testing.T, env *fakeEnv) {
+	t.Helper()
+	waitFor(t, "the typed notice to be resolved", func() bool {
+		for _, key := range env.resolvedKeys() {
+			if key == TypedKeyPrefix+"blockB" {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// #1938: Enter in the receiver's terminal starts its turn, and the typed notice resolves on its own.
+func TestTypedNoticeResolvesWhenThePromptIsSubmitted(t *testing.T) {
+	m, env, polls := typedFixture(t)
+	checkTypedOpen(t, env, polls)
+	env.setState("blockB", molten.AgentStateWorking)
+	waitTypedResolved(t, env)
+	waitFor(t, "the watch to end", func() bool { return typedWatches(m) == 0 })
+}
+
+// An agent that ends takes its prompt, the typed text with it: nothing is left to submit.
+func TestTypedNoticeResolvesWhenTheReceiverEnds(t *testing.T) {
+	_, env, polls := typedFixture(t)
+	checkTypedOpen(t, env, polls)
+	endRuns(env)
+	waitTypedResolved(t, env)
+}
+
+// Sub-agents working do not submit the main prompt (#1092): the notice stays until the main session takes a turn.
+func TestTypedNoticeIgnoresSubagents(t *testing.T) {
+	_, env, polls := typedFixture(t)
+	env.lock.Lock()
+	r := env.runs["blockB"]
+	r.Subagents = 2
+	env.runs["blockB"] = r
+	env.lock.Unlock()
+	checkTypedOpen(t, env, polls)
+	env.setState("blockB", molten.AgentStateWaiting)
+	waitTypedResolved(t, env)
+}
+
+// A second handoff typed into the same prompt updates the same notice and shares its one watch.
+func TestTypedNoticeHasOneWatchPerPrompt(t *testing.T) {
+	m, env, polls := typedFixture(t)
+	if _, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "y"}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := typedWatches(m); n != 1 {
+		t.Fatalf("watches: %d", n)
+	}
+	checkTypedOpen(t, env, polls)
+	env.setState("blockB", molten.AgentStateWorking)
+	waitTypedResolved(t, env)
 }
 
 func TestOnlyAWindowAnswers(t *testing.T) {

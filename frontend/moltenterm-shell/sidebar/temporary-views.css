@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The temporary views, as in Arc (FR-SHELL-080, DS-SHELL-125, #1253): no title, a thin separator under the pinned
    part with "↓ Clear" at its right end, "+ New view", then the rows. The separator keeps its room with no view (it only

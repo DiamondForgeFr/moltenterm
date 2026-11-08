@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The link between a terminal and its worktree lives in the block's meta (DS-SHELL-016); the plan and the removal are
 // asked of wavesrv, which re-reads the plan before removing anything.

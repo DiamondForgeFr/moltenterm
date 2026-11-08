@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Two real renderers, one real backend, only disposable fixture commands and data. Build first with
 // task build:backend and npm run build:prod, then node scripts/mission-admission-app-check.mjs.

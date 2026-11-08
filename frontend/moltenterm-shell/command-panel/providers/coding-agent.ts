@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Agent option (#845) of every panel that starts a coding agent: Reviews (investigate, rebase, restart, batch
 // merge), the Review tab (the assisted review), the Project view (the release notes) and the companion (Start the

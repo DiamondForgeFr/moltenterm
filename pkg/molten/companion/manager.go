@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package companion
 
@@ -249,9 +249,13 @@ type Manager struct {
 	openFiles      func(pid int32) []string
 	procTable      func() (*proctree.Table, error)
 	settings       func() *wconfig.SettingsType
-	now            func() time.Time
-	tick           time.Duration
-	idleTick       time.Duration
+	// The global Codex reading (globalusage.go): its folder and its read, replaced in tests.
+	codexHomeDir    func() string
+	readCodexGlobal func(ctx context.Context, home string) (usage.UsageSnapshot, error)
+	globalPublished string
+	now             func() time.Time
+	tick            time.Duration
+	idleTick        time.Duration
 }
 
 func MakeManager() *Manager {
@@ -663,6 +667,11 @@ func (m *Manager) readSettings(blockId string, agent string, adapter Adapter, pa
 			panichandler.PanicHandler("molten:companion:settings", recover())
 		}()
 		if settings, ok := reader.ReadSettings(path); ok {
+			if m.runOf != nil {
+				if now, ok := m.runOf(blockId); ok {
+					settings = mergeFollowedSettings(now.Settings, settings)
+				}
+			}
 			m.setSettings(blockId, agent, settings)
 		}
 	}()
@@ -1252,6 +1261,9 @@ func (w *watcher) settleSubagents() {
 	var lastWrite func(string) int64
 	if writer != nil {
 		lastWrite = func(agentId string) int64 { return writer.SubagentWritten(path, agentId) }
+	}
+	if w.adapter.Id() == molten.AgentIdClaude {
+		w.session.ReviveSubagents(now.UnixMilli(), lastWrite)
 	}
 	w.session.QuietSubagents(now.UnixMilli(), lastWrite)
 }

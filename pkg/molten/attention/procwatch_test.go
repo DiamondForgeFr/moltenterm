@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package attention
 
@@ -287,6 +287,52 @@ func TestProcWatchFindsAgentsWithoutShellIntegration(t *testing.T) {
 	h.states.input("b1", []byte("ls\r"))
 	if !h.next("b1").IsZero() {
 		t.Error("Enter in an integrated shell plans a look")
+	}
+}
+
+// After Enter in a shell without the shell integration, a shell still at its prompt is looked at again for a while
+// (#2048): an agent it starts after the first look is found though it prints nothing, and Enter with no command
+// costs a bounded number of looks.
+func TestProcWatchFindsSilentAgentStartedLate(t *testing.T) {
+	h := makeProcHarness()
+	h.shells["b1"] = ShellProcess{BlockId: "b1", Pid: 100, StartMs: 1_000}
+	h.setProcs(shellProc(100, 100))
+	h.out("b1", "$ ")
+	h.advance(procFirstDelay)
+	h.clock = h.clock.Add(procProbeEvery)
+	h.states.input("b1", []byte("\r"))
+	reads := h.reads
+	for i := 0; i < 60; i++ {
+		h.advance(time.Second)
+	}
+	if !h.next("b1").IsZero() {
+		t.Fatal("Enter with no command keeps looking past its window")
+	}
+	if looks := h.reads - reads; looks == 0 || looks > int(procEnteredFor/procFastPeriod)+1 {
+		t.Fatalf("Enter with no command: %d looks", looks)
+	}
+
+	h.clock = h.clock.Add(procProbeEvery)
+	h.states.input("b1", []byte("\r"))
+	h.advance(procFirstDelay)
+	if _, _, ok := h.record("b1"); ok {
+		t.Fatal("no agent runs yet")
+	}
+	h.advance(procFastPeriod)
+	start := h.clock.UnixMilli()
+	h.setProcs(shellProc(100, 200), childProc(200, 100, 200, "codex", start))
+	h.advance(procFastPeriod)
+	run, _, ok := h.record("b1")
+	if !ok || run.Agent != molten.AgentIdCodex || !run.Running {
+		t.Fatalf("a silent agent started after the first look: %+v %v", run, ok)
+	}
+	h.setProcs(shellProc(100, 100))
+	h.advance(procSlowPeriod)
+	if _, _, ok := h.record("b1"); ok {
+		t.Fatal("the agent that exited is forgotten")
+	}
+	if !h.next("b1").IsZero() {
+		t.Fatal("polling stops at the prompt once the agent ended")
 	}
 }
 

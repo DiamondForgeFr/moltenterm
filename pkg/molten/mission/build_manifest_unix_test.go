@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //go:build !windows
 
@@ -19,6 +19,7 @@ import (
 )
 
 func TestBuildManifestSpecialFiles(t *testing.T) {
+	t.Parallel()
 	if dir := os.Getenv("MT_BUILD_MANIFEST_TEST_DIR"); dir != "" {
 		fifo := filepath.Join(dir, "fifo")
 		link := filepath.Join(dir, "manifest.json")
@@ -37,7 +38,7 @@ func TestBuildManifestSpecialFiles(t *testing.T) {
 		if !report.Valid {
 			t.Fatalf("pipeline invalid: %v", report.Errors)
 		}
-		r := MakeRuns(filepath.Join(dir, "runs"), nil, nil)
+		r := makeTestRuns(filepath.Join(dir, "runs"), nil, nil)
 		r.git = func(context.Context, string, string, ...string) ([]byte, error) { return nil, errors.New("no git") }
 		facts, err := r.BuildsFacts(dir, false)
 		if err != nil || len(facts.Builds) != 1 || facts.Builds[0].Last != nil {

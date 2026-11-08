@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -12,6 +12,7 @@ import (
 )
 
 func TestTrunkRemoteCi(t *testing.T) {
+	t.Parallel()
 	runs := json.RawMessage(`[
 	  {"headBranch": "feature/9-x", "headSha": "f", "status": "completed", "conclusion": "failure", "url": "u-f"},
 	  {"headBranch": "develop", "headSha": "b", "status": "completed", "conclusion": "success", "url": "u-b1"},
@@ -38,6 +39,7 @@ func TestTrunkRemoteCi(t *testing.T) {
 }
 
 func TestMemberWorst(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		state GroupMemberState
 		want  string
@@ -66,8 +68,9 @@ func groupProject(name string, group string) func(dir string) molten.ProjectInfo
 }
 
 func TestGroupsGet(t *testing.T) {
+	t.Parallel()
 	app, site, molt := "/p/app", "/p/site", "/p/molten"
-	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{
 		Dir:   app,
 		GitAt: 1000,

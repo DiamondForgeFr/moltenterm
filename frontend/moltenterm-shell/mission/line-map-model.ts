@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the line map draws (FR-MC-022, DS-MC-013), in time rather than pixels: develop and main, the branches that left
 // and rejoined develop, the ones still open, every version tag as a station with the develop commit it came from,

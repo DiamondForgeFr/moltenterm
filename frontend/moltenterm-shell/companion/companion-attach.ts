@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The companion's next actions when it has nothing to show (FR-SHELL-053, DS-SHELL-094): attach it to a terminal of
 // its tab, or start the project's coding agent (its agent@ preset, #845) and follow it. The agent is typed into the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Help me choose on the first launch's agents scene (FR-ONB-008 AC-1, AC-2, AC-6 to AC-10, #1697): the same path as the
 // Library's, the short profile on each card, the suggestions outlined without moving a card.

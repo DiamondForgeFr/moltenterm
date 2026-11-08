@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The gold update (#64), modelled on Notulia's local update (src-tauri/src/local_update.rs): the installed gold reads
 // the manifest the gold delivery writes, stages a copy of the new app, quits, and a detached script swaps the app
@@ -156,7 +156,12 @@ export const SwapScript = `#!/bin/sh
 # in a folder the user's processes can write, so it is verified once more right before the swap, and only a verified
 # bundle loses its quarantine.
 # started is the marker the reopened build writes once it runs (#1193).
+# The in-app update of a release (#1860) runs this same script: its build is the version, its requirement is "integrity"
+# while the running app is signed ad hoc (the bundle must be sealed and unmodified, there is no identity to match), its
+# quarantine argument is 0 (the app never removes the quarantine of an update), and its assess argument is 1 for a
+# Developer ID app, which the system must also accept (spctl).
 pid="$1"; staged="$2"; installed="$3"; target="$4"; reopen="$5"; build="$6"; status="$7"; requirement="$8"; started="$9"
+quarantine="\${10:-1}"; assess="\${11:-0}"
 grace="\${MOLTENTERM_SWAP_GRACE:-${SwapGraceSeconds}}"
 # Tests start the binary directly so the reopened app keeps their isolated profile; users get a normal launch.
 reopen_app() {
@@ -177,7 +182,16 @@ while kill -0 "$pid" 2>/dev/null; do
     if [ "$i" -gt 240 ]; then echo "failed: MoltenTerm did not quit" > "$status"; exit 1; fi
     sleep 0.5
 done
-if [ -z "$requirement" ] || ! /usr/bin/codesign --verify --deep --strict -R "=$requirement" "$staged"; then
+staged_signature_ok() {
+    if [ "$requirement" = integrity ]; then
+        /usr/bin/codesign --verify --deep --strict "$staged"
+    elif [ -n "$requirement" ]; then
+        /usr/bin/codesign --verify --deep --strict -R "=$requirement" "$staged"
+    else
+        return 1
+    fi
+}
+if ! staged_signature_ok || { [ "$assess" = 1 ] && ! /usr/sbin/spctl --assess --type execute "$staged"; }; then
     rm -rf "$staged"
     echo "failed: the new build's signature did not verify" > "$status"
     [ "$reopen" = 1 ] && reopen_app "$installed"
@@ -191,7 +205,9 @@ if ! mv "$staged" "$target"; then
     [ "$reopen" = 1 ] && reopen_app "$installed"
     exit 1
 fi
-xattr -dr com.apple.quarantine "$target" 2>/dev/null
+if [ "$quarantine" != 0 ]; then
+    xattr -dr com.apple.quarantine "$target" 2>/dev/null
+fi
 if [ "$reopen" != 1 ]; then
     rm -rf "$aside"
     echo "installed $build" > "$status"
@@ -246,34 +262,93 @@ echo "rolledback $build" > "$status"
 reopen_app "$installed"
 `;
 
-type PendingSwap = { staged: string; installed: string; target: string; buildId: number; requirement: string };
+// A swap ready to run: the script, and its arguments after the pid of the app that must quit first. The gold update and
+// the in-app update of a release (#1860) both stage one and hand it to startSwap, or to the quit that runs it.
+export type PendingSwap = {
+    // The script's file name in the update folder.
+    name: string;
+    script: string;
+    // What the status file names the outcome after: the gold's build id, a release's version.
+    label: string;
+    args: (reopen: boolean, status: string, started: string) => string[];
+};
 
 let pendingOnQuit: PendingSwap = null;
 
-function startSwap(swap: PendingSwap, reopen: boolean) {
+export function swapOnQuit(swap: PendingSwap | null) {
+    pendingOnQuit = swap;
+}
+
+export function hasSwapOnQuit(): boolean {
+    return pendingOnQuit != null;
+}
+
+export function startSwap(swap: PendingSwap, reopen: boolean) {
     const dir = updateDir();
-    const script = path.join(dir, "swap.sh");
-    fs.writeFileSync(script, SwapScript, { mode: 0o755 });
+    fs.mkdirSync(dir, { recursive: true });
+    const script = path.join(dir, swap.name);
+    fs.writeFileSync(script, swap.script, { mode: 0o755 });
     fs.rmSync(statusFile(), { force: true });
     const log = fs.openSync(path.join(dir, "swap.log"), "a");
     const child = spawn(
         "/bin/sh",
-        [
-            script,
-            String(process.pid),
-            swap.staged,
-            swap.installed,
-            swap.target,
-            reopen ? "1" : "0",
-            String(swap.buildId),
-            statusFile(),
-            swap.requirement,
-            startedFile(),
-        ],
+        [script, String(process.pid), ...swap.args(reopen, statusFile(), startedFile())],
         { detached: true, stdio: ["ignore", log, log] }
     );
     child.unref();
-    console.log("[gold-update] swap started", swap.buildId, reopen ? "(reopen)" : "(on quit)");
+    console.log("[update] swap started", swap.label, reopen ? "(reopen)" : "(on quit)");
+}
+
+export function goldSwap(p: { staged: string; installed: string; target: string; buildId: number; requirement: string }) {
+    const swap: PendingSwap = {
+        name: "swap.sh",
+        script: SwapScript,
+        label: String(p.buildId),
+        args: (reopen, status, started) => [
+            p.staged,
+            p.installed,
+            p.target,
+            reopen ? "1" : "0",
+            String(p.buildId),
+            status,
+            p.requirement,
+            started,
+        ],
+    };
+    return swap;
+}
+
+// The in-app update of a release (#1860) swaps the macOS bundle with this same script. requirement is the running
+// app's designated requirement, or "integrity" while that app is signed ad hoc and so names no identity.
+export function releaseMacSwap(p: {
+    staged: string;
+    installed: string;
+    version: string;
+    requirement: string;
+    assess: boolean;
+}) {
+    const swap: PendingSwap = {
+        name: "swap.sh",
+        script: SwapScript,
+        label: p.version,
+        args: (reopen, status, started) => [
+            p.staged,
+            p.installed,
+            p.installed,
+            reopen ? "1" : "0",
+            p.version,
+            status,
+            p.requirement,
+            started,
+            "0",
+            p.assess ? "1" : "0",
+        ],
+    };
+    return swap;
+}
+
+export function swapDirectory(): string {
+    return updateDir();
 }
 
 async function stage(buildId: number): Promise<PendingSwap> {
@@ -301,7 +376,7 @@ async function stage(buildId: number): Promise<PendingSwap> {
     // Never over another app already at the new name.
     const renamed = goldInstallTarget(installed);
     const target = renamed !== installed && fs.existsSync(renamed) ? installed : renamed;
-    return { staged, installed, target, buildId, requirement };
+    return goldSwap({ staged, installed, target, buildId, requirement });
 }
 
 export async function applyGoldUpdate(buildId: number, when: GoldApplyWhen): Promise<GoldApplyResult> {
@@ -341,8 +416,9 @@ export function initMoltentermUpdate() {
         applyGoldUpdate(buildId, when)
     );
     handleAppIpc(MoltentermUpdateLastChannel, () => takeLastSwapStatus());
-    // Called once wavesrv is ready (initIpcHandlers): the new build has started normally.
-    if (process.platform === "darwin" && electron.app.isPackaged) {
+    // Called once wavesrv is ready (initIpcHandlers): the new build has started normally. The in-app update of a
+    // release (#1860) reads it too, on Linux as well as on macOS.
+    if (electron.app.isPackaged) {
         markStarted();
     }
     // Releases learn about newer releases from GitHub (#188); golds keep the local update above.

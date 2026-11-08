@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Molten call-to-action buttons (FR-SHELL-014). molten-button.css holds the look; this module maps Wave's Button
 // classes onto it and provides the wave layer that a molten button carries as its last child.

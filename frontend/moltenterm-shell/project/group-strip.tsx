@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The group strip of the Project tab (FR-MC-028): above the next station band, every member of the linked project's
 // product with its state, the stale flags and their Sync. A click on another member switches to its workspace. It

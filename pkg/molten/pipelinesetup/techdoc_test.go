@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package pipelinesetup
 
@@ -46,6 +46,7 @@ func saasFoundryDocInput(t *testing.T) TechDocInput {
 
 // An update keeps the earlier history, newest first, and never repeats a row when the preview is built again.
 func TestTechDocUpdateCarriesTheHistory(t *testing.T) {
+	t.Parallel()
 	in := saasFoundryDocInput(t)
 	first := BuildTechDoc(in)
 	in.Previous = first
@@ -67,6 +68,7 @@ func TestTechDocUpdateCarriesTheHistory(t *testing.T) {
 }
 
 func TestTechDocEscapesTheModelsText(t *testing.T) {
+	t.Parallel()
 	in := saasFoundryDocInput(t)
 	in.Pipeline.Release.Rc = []molten.PipelineStep{{Id: "odd", Title: "A \"quoted\" | piped\ntitle", Phase: "cut", PipelineCommand: molten.PipelineCommand{Run: "echo `x`"}}}
 	doc := BuildTechDoc(in)
@@ -131,6 +133,7 @@ func (f *fakeSf) runner(next Runner) Runner {
 }
 
 func TestSaaSFoundryDocBackendAdapter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	dir := saasFoundryFixture(t)
 	sf := &fakeSf{help: sfSrsHelpToday}
@@ -169,6 +172,7 @@ func TestSaaSFoundryDocBackendAdapter(t *testing.T) {
 
 // Without a backend the document is the repository file of the pull request, previewed against the committed one.
 func TestTechDocGoesInThePullRequestWithoutABackend(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	forge := &fakeForge{}
 	s := prSetup(t, forge, protectedRules(t))
@@ -255,6 +259,7 @@ func (b *fakeDocBackend) Write(ctx context.Context, dir string, topic string, ti
 // With a backend the document goes there once the pull request is open, with its address; a failed write is the
 // step's, never the pull request's.
 func TestTechDocGoesToTheBackendAfterThePullRequest(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	forge := &fakeForge{}
 	s := prSetup(t, forge, protectedRules(t))
@@ -303,6 +308,7 @@ func TestTechDocGoesToTheBackendAfterThePullRequest(t *testing.T) {
 // The document follows the project's documentation language (#1106): French when language.srs says so, English
 // otherwise; identifiers stay, and an update carries the earlier rows whatever language they were written in.
 func TestTechDocFollowsTheDocLanguage(t *testing.T) {
+	t.Parallel()
 	in := saasFoundryDocInput(t)
 	english := BuildTechDoc(in)
 	in.Lang = "fr"
@@ -348,6 +354,7 @@ func TestTechDocFollowsTheDocLanguage(t *testing.T) {
 
 // Every language words every sentence English has, with the same placeholders.
 func TestTechDocWordsAreComplete(t *testing.T) {
+	t.Parallel()
 	en := techDocTexts[TechDocLangEn]
 	if en["hist.head"] != techDocHistoryHead {
 		t.Fatal("the English history heading moved")

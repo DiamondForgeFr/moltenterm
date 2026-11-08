@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -1054,6 +1054,35 @@ describe("360 view carpet positions per screen width (#1131)", () => {
             });
         });
     }
+});
+
+describe("360 view revealing its last panel with uneven proportions (#1862)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        setSetting("auto");
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        setThreshold(8);
+    });
+
+    it("jumps first → last → first with the screen full each time", () => {
+        // Two panels a screen, the last remembered wider than the one before: the last two do not fit together.
+        setThreshold(3);
+        const { model } = makeModel(null, sizedRow(30, 30, 40));
+        pass(model, sizedRow(30, 30, 40), 3440);
+        const layout = pass(model, sizedRow(30, 30, 40, 40, 40), 3440);
+        expect(model.active).toBe(true);
+        expect(visibleCarpetColumnIds(layout, 0)).toHaveLength(2);
+        const view = layout.viewport.width;
+        const last = layout.columns[layout.columns.length - 1];
+        model.scrollToColumn(last.nodeId, false);
+        expect(model.scrollLeft).toBe(layout.maxScroll);
+        expect(model.scrollLeft + view - (last.x + last.width)).toBeLessThanOrEqual(1);
+        expect(visibleCarpetColumnIds(layout, model.scrollLeft)).toHaveLength(2);
+        model.scrollToColumn(layout.columns[0].nodeId, false);
+        expect(model.scrollLeft).toBe(0);
+    });
 });
 
 describe("View360Model first-switch notice and focus (FR-SHELL-066-AC10, #1654)", () => {

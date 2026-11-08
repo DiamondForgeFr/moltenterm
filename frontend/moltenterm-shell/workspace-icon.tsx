@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A workspace's badge, as every surface draws it (FR-SHELL-031, DS-SHELL-037): the imported image, the project's logo
 // (FR-MC-001) or its Font Awesome icon in its colour, resolved by workspace-icon-model.ts. The Font Awesome icon stays

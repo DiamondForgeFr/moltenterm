@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -55,6 +55,7 @@ func numbers(prs []ReviewPr) []int {
 }
 
 func TestBuildReviewsListsReadyPrsOfTheTarget(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, reviewsSfManifest)
 	answer := BuildReviews(reviewsSnapshot(dir, reviewsPrs))
 	if answer.Target != "develop" || answer.TargetFrom != ReviewTargetFromSaaSFoundry {
@@ -89,6 +90,7 @@ func TestBuildReviewsListsReadyPrsOfTheTarget(t *testing.T) {
 
 // #683: the row's merge state reads mergeable first, as the Validate plan does (pkg/molten/review/merge.go).
 func TestReviewMergeOfPr(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		mergeable, state, want string
 	}{
@@ -121,6 +123,7 @@ func TestReviewMergeOfPr(t *testing.T) {
 
 // #1059: GitHub says UNSTABLE while a check it does not require still runs; that reads as running until one fails.
 func TestBuildReviewsReadsRunningChecksAsRunning(t *testing.T) {
+	t.Parallel()
 	answer := BuildReviews(reviewsSnapshot(reviewsProject(t, reviewsSfManifest), `[
   {"number":1,"headRefName":"feature/4-a","baseRefName":"develop","mergeable":"MERGEABLE","mergeStateStatus":"UNSTABLE",
    "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"SUCCESS"},{"name":"lint","status":"IN_PROGRESS"}]},
@@ -142,6 +145,7 @@ func TestBuildReviewsReadsRunningChecksAsRunning(t *testing.T) {
 }
 
 func TestBuildReviewsFallsBackToTheTrunk(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, "")
 	answer := BuildReviews(reviewsSnapshot(dir, `[{"number":1,"headRefName":"feature/4-a","baseRefName":"trunk-from-git"}]`))
 	if answer.Target != "trunk-from-git" || answer.TargetFrom != ReviewTargetFromTrunk || len(answer.Ready) != 1 {
@@ -153,6 +157,7 @@ func TestBuildReviewsFallsBackToTheTrunk(t *testing.T) {
 }
 
 func TestBuildReviewsKeepsGithubStates(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, "")
 	snap := Snapshot{Dir: dir, Github: &GithubSnapshot{State: GithubStateLoggedOut, Message: "run gh auth login"}}
 	answer := BuildReviews(snap)
@@ -165,6 +170,7 @@ func TestBuildReviewsKeepsGithubStates(t *testing.T) {
 }
 
 func TestIsTestReport(t *testing.T) {
+	t.Parallel()
 	cases := map[string]bool{
 		"## Test report (#576)\n\nall green":                                 true,
 		"<!-- marker -->\n### Test Report\n":                                 true,
@@ -199,6 +205,7 @@ func TestIsTestReport(t *testing.T) {
 }
 
 func TestReadReviewReports(t *testing.T) {
+	t.Parallel()
 	var args []string
 	run := func(ctx context.Context, dir string, name string, a ...string) ([]byte, error) {
 		args = a
@@ -250,6 +257,7 @@ func contains(list []string, item string) bool {
 }
 
 func TestGhRepoArgs(t *testing.T) {
+	t.Parallel()
 	if got := ghRepoArgs("acme/app", []string{"pr", "list"}); !reflect.DeepEqual(got, []string{"pr", "list", "--repo", "acme/app"}) {
 		t.Fatalf("pr list: %v", got)
 	}
@@ -265,6 +273,7 @@ func TestGhRepoArgs(t *testing.T) {
 }
 
 func TestCollectGithubNamesTheRepository(t *testing.T) {
+	t.Parallel()
 	var calls [][]string
 	run := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
 		calls = append(calls, args)
@@ -284,6 +293,7 @@ func TestCollectGithubNamesTheRepository(t *testing.T) {
 
 // The reports are read once per minute while the PRs stay the same, again when a PR changes, never twice at once.
 func TestReviewsReportsThrottle(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, reviewsSfManifest)
 	now := time.Unix(1_000_000, 0)
 	reviews := MakeReviews(nil, nil, nil)
@@ -327,6 +337,7 @@ func TestReviewsReportsThrottle(t *testing.T) {
 
 // The view asks; the collector is read within its limits and the reports come as an event.
 func TestReviewsGetPublishesReports(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, reviewsSfManifest)
 	var graphql atomic.Int32
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
@@ -345,7 +356,7 @@ func TestReviewsGetPublishesReports(t *testing.T) {
 		return []byte(`[]`), nil
 	}
 	published := make(chan ReviewsAnswer, 4)
-	collector := MakeCollector("", run, nil)
+	collector := testCollector(t, "", run, nil)
 	reviews := MakeReviews(collector, run, func(a ReviewsAnswer) { published <- a })
 	first, err := reviews.Get(ReviewsRequest{Dir: dir})
 	if err != nil {
@@ -382,6 +393,7 @@ func TestReviewsGetPublishesReports(t *testing.T) {
 // #688: the rail's passive ask reads GitHub only for a project whose origin is on GitHub, and never starts the
 // reports query.
 func TestReviewsPassiveGet(t *testing.T) {
+	t.Parallel()
 	for _, withOrigin := range []bool{false, true} {
 		dir := makeGitFlowRepo(t)
 		os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
@@ -404,7 +416,7 @@ func TestReviewsPassiveGet(t *testing.T) {
 			}
 			return []byte(`[]`), nil
 		}
-		collector := MakeCollector("", run, nil)
+		collector := testCollector(t, "", run, nil)
 		reviews := MakeReviews(collector, run, nil)
 		// Generous: it only bounds a failing run.
 		deadline := time.Now().Add(time.Minute)

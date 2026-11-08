@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The files the agent changed in the session (FR-SHELL-018), at the bottom of the companion and collapsed by default
 // (#555): the count shows; expanded, a filter field narrows the list as you type. Each file shows its diff and opens

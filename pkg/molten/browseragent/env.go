@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package browseragent owns the agent sessions of `molten mcp browser` in wavesrv (FR-BRW-008, DS-BRW-010/011/020):
 // who a session is (from the pane's verified token, never from tool input), which browser tabs it may address (the
@@ -116,8 +116,9 @@ type PanelAgentTab struct {
 	Engaged bool `json:"engaged,omitempty"`
 	// Since: when the agent got the tab (Unix ms), for the library's Sent to AI (FR-SHELL-088).
 	Since int64 `json:"since,omitempty"`
-	// ShownTs: when the agent last put this page in front of the developer, by opening the tab or going to another
-	// page (Unix ms, always increasing). A panel off-screen on the 360 carpet scrolls into view when it changes (#1812).
+	// ShownTs: when the agent last put this page in front of the developer, by opening the tab, going to another page
+	// or tabs_show (Unix ms, always increasing). A panel off-screen on the 360 carpet scrolls into view, a magnified
+	// panel hiding it in a grid gives way, and the tab's bar says why, when it changes (#1812, #1994).
 	ShownTs int64 `json:"shownts,omitempty"`
 }
 
@@ -175,8 +176,11 @@ type DownloadRequest struct {
 	Host         string `json:"host"`
 }
 
+// DownloadAnswer carries the agent's name with an Allow, so the download shows in the Downloads section with the agent
+// that started it (FR-MC-019 AC7, #1992). A denial names no one: nothing is received.
 type DownloadAnswer struct {
-	Allow bool `json:"allow"`
+	Allow     bool   `json:"allow"`
+	AgentName string `json:"agentname,omitempty"`
 }
 
 // Env is what the sessions need from wavesrv, the windows and emain; tests replace it.

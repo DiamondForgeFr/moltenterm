@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package agentcontinuity
 
@@ -321,9 +321,18 @@ func TestCodexModels(t *testing.T) {
 	if got := codex.Models(env); len(got) != 3 || got[2].Configured {
 		t.Errorf("a profile's model is not the user's: %+v", got)
 	}
-	os.WriteFile(filepath.Join(codexHome, "config.toml"), []byte("model = \"my-own\"\n"), 0600)
-	if got := codex.Models(env); got[len(got)-1] != (ModelChoice{Id: "my-own", Label: "my-own", Configured: true}) {
-		t.Errorf("configured model not listed: %+v", got)
+	// #2076: Codex lists the signed-in account's models; a configured one it leaves out (gpt-6-astra with a ChatGPT
+	// sign-in) cannot run and is not offered.
+	os.WriteFile(filepath.Join(codexHome, "config.toml"), []byte("model = \"gpt-6-astra\"\n"), 0600)
+	if got := codex.Models(env); !reflect.DeepEqual(got, []ModelChoice{want[0], want[1], {Id: "gpt-6-luna", Label: "gpt-6-luna", ContextWindow: 272000}}) {
+		t.Errorf("a configured model Codex does not list for the account is offered: %+v", got)
+	}
+	// Without Codex's list nothing says the configured model is out of reach: it stays.
+	noCache := t.TempDir()
+	os.MkdirAll(filepath.Join(noCache, ".codex"), 0700)
+	os.WriteFile(filepath.Join(noCache, ".codex", "config.toml"), []byte("model = \"my-own\"\n"), 0600)
+	if got := codex.Models(ModelEnv{Home: noCache, Getenv: func(string) string { return "" }}); got[len(got)-1] != (ModelChoice{Id: "my-own", Label: "my-own", Configured: true}) {
+		t.Errorf("configured model not listed without a cache: %+v", got)
 	}
 	other := t.TempDir()
 	envHome := ModelEnv{Home: home, Getenv: func(name string) string {

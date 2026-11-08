@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package browseragent
 
@@ -26,6 +26,7 @@ const (
 	agentTabIdPrefix = "agent-"
 
 	actionOpened = "Opened this tab"
+	actionShown  = "Showed you the page"
 
 	ownerAgent = "you"
 	ownerUser  = "shared by the user"
@@ -75,6 +76,8 @@ func (m *Manager) dispatch(ctx context.Context, s sessionInfo, loc BlockLocation
 		return m.tabsContext(ctx, s, loc, args), callLog{}
 	case mcpbrowser.ToolTabsCreate:
 		return m.tabsCreate(ctx, s, loc)
+	case mcpbrowser.ToolTabsShow:
+		return m.tabsShow(ctx, s, loc, args)
 	case mcpbrowser.ToolTabsClose:
 		return m.tabsClose(ctx, s, loc, args)
 	case mcpbrowser.ToolNavigate:
@@ -424,6 +427,30 @@ func (m *Manager) waitForTab(ctx context.Context, sessionId string, tabId int64,
 		case <-time.After(openPollEvery):
 		}
 	}
+}
+
+// tabsShow puts the page of one of the session's tabs in front of the developer without changing it (#1994): the
+// panel is stamped as shown, which scrolls a 360 carpet to it or ends the magnification hiding it in a grid, and its
+// bar says why. It reads and acts on nothing, so it asks no site permission, and it never moves the keyboard focus.
+func (m *Manager) tabsShow(ctx context.Context, s sessionInfo, loc BlockLocation, args json.RawMessage) (mcpbrowser.CallResult, callLog) {
+	tabId, ok := parseTabId(args)
+	if !ok {
+		return mcpbrowser.ErrorResult(mcpbrowser.ErrTabIdRequired), callLog{}
+	}
+	resolved, errText := m.resolveTab(ctx, s, loc, tabId, true)
+	if errText != "" {
+		return mcpbrowser.ErrorResult(errText), callLog{tabId: tabId}
+	}
+	entry := callLog{tabId: tabId, site: siteOf(resolved.page.Url)}
+	errText, _ = m.runOnTab(ctx, s.id, tabId, func(ctx context.Context) error {
+		m.showPage(s.id, tabId, actionShown)
+		return nil
+	})
+	if errText != "" {
+		return mcpbrowser.ErrorResult(errText), entry
+	}
+	return mcpbrowser.TextResult(jsonText(map[string]any{"tabId": tabId, "shown": true}) + "\n" +
+		fmt.Sprintf("Tab %d is in front of the user. Their keyboard focus did not move.", tabId)), entry
 }
 
 // tabsClose closes a tab the session opened; shared tabs stay the user's (AC3).

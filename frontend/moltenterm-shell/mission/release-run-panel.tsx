@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release in flight (FR-MC-016), as Notulia's ReleaseRunPanel: five phases, where it is, what it waits on, and why
 // it is stuck when it is. Each phase has at most one button, the next thing to do there (after a failure, the step
@@ -14,6 +14,7 @@ import { t, useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { useNewViewHint, usePanelOrigin } from "../panel-cta";
 import { askReleaseResolve } from "../review/review-client";
 import { showStartedAgent } from "../reviews/agent-choice";
 import { DominoLoader } from "../suite/suite";
@@ -630,6 +631,26 @@ function UnformattedNote({ format }: { format: ReleaseFormat }) {
     );
 }
 
+// The CI the release waits on, in the CI/CD panel's Remote tab: beside the panel this card is in, in the same view; a new
+// view only with Shift held (#1844, FR-SHELL-139 AC13).
+export function ShowCiButton() {
+    const t = useT();
+    const origin = usePanelOrigin();
+    const hint = useNewViewHint();
+    return (
+        <button
+            type="button"
+            className="flex cursor-pointer items-center gap-1 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary"
+            onClick={(e) => fireAndForget(() => openCicdTab("remote", origin(e)))}
+            title={hint(t("mc.releaseRun.showCi"))}
+            data-testid="release-run-show-ci"
+        >
+            <i className="fa fa-solid fa-cloud text-11" />
+            {t("mc.releaseRun.showCi")}
+        </button>
+    );
+}
+
 function Detail({
     run,
     phase,
@@ -692,15 +713,7 @@ function Detail({
                             workflows: (awaits.workflows ?? []).join(", ") || "CI",
                         })}
                     </span>
-                    <button
-                        type="button"
-                        className="flex cursor-pointer items-center gap-1 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary"
-                        onClick={() => fireAndForget(() => openCicdTab("remote"))}
-                        data-testid="release-run-show-ci"
-                    >
-                        <i className="fa fa-solid fa-cloud text-11" />
-                        {t("mc.releaseRun.showCi")}
-                    </button>
+                    <ShowCiButton />
                 </div>
             ) : null}
             {phase.id === "cut" && phase.status !== "done" && run.unformatted ? (

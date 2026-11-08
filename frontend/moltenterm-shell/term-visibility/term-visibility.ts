@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A terminal shown again must display its current content without a manual resize (#290). The decisions are pure and
 // live here; termwrap.ts applies them. Two rules: the PTY never learns a size the user did not choose (a pane that is

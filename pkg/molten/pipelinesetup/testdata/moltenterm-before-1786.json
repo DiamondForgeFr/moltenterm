@@ -1,0 +1,147 @@
+{
+    "schema": 1,
+    "name": "MoltenTerm",
+    "icon": "build/moltenterm/icon.svg",
+    "versions": {
+        "tagprefix": "v",
+        "notes": "releases/{tag}.md",
+        "firstpublic": "1.0.0",
+        "notesagent": ["claude", "-p", "--disallowed-tools", "Bash", "Edit", "Write", "Read", "WebFetch", "WebSearch"],
+        "files": [
+            { "path": "package.json", "format": "json", "keys": [["version"]] },
+            { "path": "package-lock.json", "format": "json", "keys": [["version"], ["packages", "", "version"]] }
+        ]
+    },
+    "ci": {
+        "prepare": { "run": "npm install --no-audit --no-fund" },
+        "jobs": [
+            {
+                "name": "ledger",
+                "title": "Patch ledger and icons",
+                "lane": "quick",
+                "run": "node scripts/moltenterm-check-ledger.mjs && node scripts/moltenterm-check-icons.mjs"
+            },
+            { "name": "typecheck", "title": "TypeScript", "lane": "frontend", "run": "task check:ts" },
+            { "name": "lint", "title": "ESLint", "lane": "frontend", "run": "npx eslint . --quiet" },
+            { "name": "vitest", "title": "Frontend tests", "lane": "frontend", "run": "npx vitest run" },
+            { "name": "gotest", "title": "Backend tests", "lane": "backend", "run": "go test ./cmd/... ./pkg/..." }
+        ]
+    },
+    "builds": [
+        {
+            "id": "gold",
+            "title": "Gold",
+            "kind": "gold",
+            "description": "The app you use every day, with your configuration and workspaces.",
+            "verify": "ci",
+            "phases": [
+                {
+                    "id": "verify",
+                    "title": "Verify",
+                    "text": "The local CI on this commit of develop: only the jobs not green yet run."
+                },
+                {
+                    "id": "build",
+                    "title": "Build",
+                    "text": "The app, on the gold channel, with the build id stamped in it."
+                },
+                {
+                    "id": "deliver",
+                    "title": "Deliver",
+                    "text": "The app and its manifest in the local builds folder; the previous one moves to previous/."
+                }
+            ],
+            "prepare": { "run": "npm install --no-audit --no-fund" },
+            "run": "./scripts/moltenterm-build-gold.sh",
+            "artifact": "~/Library/Application Support/Moltenterm Local Builds/gold.noindex/Moltenterm.app"
+        }
+    ],
+    "steps": [
+        {
+            "id": "rehearse",
+            "title": "Rehearse the release build: macOS and Linux files from develop, no tag, no release (then walk RELEASE.md)",
+            "section": "cd",
+            "run": "molten release rehearse --workflow release.yml --download ~/Downloads/MoltenTerm-rehearsal"
+        },
+        {
+            "id": "checklist",
+            "title": "Release checklist (RELEASE.md): walk it on every rehearsal and release candidate",
+            "section": "cd",
+            "run": "cat RELEASE.md"
+        }
+    ],
+    "release": {
+        "rc": [
+            {
+                "id": "promote",
+                "title": "Promote develop onto main once CI is green",
+                "phase": "prepare",
+                "run": "molten release promote --workflow ci.yml"
+            },
+            {
+                "id": "prepare",
+                "title": "Bump the version and draft the notes beside the checkout",
+                "phase": "prepare",
+                "run": "molten release prepare {tag}"
+            },
+            {
+                "id": "rewrite-notes",
+                "title": "Rewrite the public notes with the coding agent",
+                "notes": true,
+                "run": "molten release notes {tag}"
+            },
+            {
+                "id": "finalize",
+                "title": "Commit, tag and push: release.yml builds macOS and Linux and publishes the prerelease",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed: the release workflow builds it and publishes it as a prerelease. Walk RELEASE.md's checklist on the rehearsal of this commit first, and on the prerelease after.",
+                "run": "molten release finalize {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop by pull request",
+                "phase": "back",
+                "run": "molten release sync-back {tag}"
+            }
+        ],
+        "public": [
+            {
+                "id": "promote",
+                "title": "Promote develop onto main once CI is green",
+                "phase": "prepare",
+                "run": "molten release promote --workflow ci.yml"
+            },
+            {
+                "id": "prepare",
+                "title": "Bump the version and draft the notes beside the checkout",
+                "phase": "prepare",
+                "run": "molten release prepare {tag}"
+            },
+            {
+                "id": "rewrite-notes",
+                "title": "Rewrite the public notes with the coding agent",
+                "notes": true,
+                "run": "molten release notes {tag}"
+            },
+            {
+                "id": "finalize",
+                "title": "Commit, tag and push: release.yml builds macOS and Linux and leaves a draft release",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed, and goes to every user once its draft release is published. Walk RELEASE.md's checklist on the draft's files before publishing it.",
+                "run": "molten release finalize {tag}"
+            },
+            {
+                "id": "close-milestone",
+                "title": "Close the milestone once the release is published",
+                "phase": "publish",
+                "run": "molten release close-milestone {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop by pull request",
+                "phase": "back",
+                "run": "molten release sync-back {tag}"
+            }
+        ]
+    }
+}

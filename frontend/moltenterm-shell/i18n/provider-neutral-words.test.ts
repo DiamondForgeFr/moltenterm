@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // MoltenTerm is provider-agnostic (FR-I18N-001 AC11, #1452): you connect any agent CLI or model to it, so a sentence
 // never names Claude, Codex, Anthropic, OpenAI, GPT or Gemini as a fixed word. An agent is named by its first name, a
@@ -30,11 +30,11 @@ export const ProviderSubjectKeys: Record<string, string> = {
     "settings.items.companion:usageclaudeoauth.description":
         "the setting belongs to one adapter's undocumented endpoint",
     // A mod's Claude Code part is a plugin of that product: the trust prompt must say what runs where.
-    "molten.trust.partWarning": "the part is a Claude Code plugin",
     "molten.trust.partTitle": "the part is a Claude Code plugin",
-    "molten.trust.partIntro": "the part is a Claude Code plugin",
-    "molten.trust.fieldPart": "the part is a Claude Code plugin",
-    "molten.trust.partWrittenFor": "the part targets a Claude Code version",
+    "molten.trust.canPart": "the part is a Claude Code plugin",
+    "molten.trust.canPartDetail": "the part is a Claude Code plugin",
+    "molten.trust.detailsPart": "the part is a Claude Code plugin",
+    "molten.trust.detailsPartTarget": "the part targets a Claude Code version",
 };
 
 // key prefix → why every key under it names providers.

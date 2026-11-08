@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -27,7 +27,8 @@ import (
 // fresh gh pr view and the review store: the checks and the steps. The plan is kept here under an id and bound to the head it read. Merge runs only on the developer's
 // click on that plan, reads the PR again, refuses when anything was pushed since, and lets GitHub refuse too
 // (--match-head-commit). A PR behind its base is updated by GitHub first and merged once CI passed on the new head.
-// The merge is never retried: a refusal or a failure asks for a new Validate. Its progress and outcome are kept in the
+// The merge is never retried: a refusal or a failure asks for a new Validate. Only GitHub not answering (a 5xx, a
+// timeout, the network) is tried again a few times before the merge stops (#1871, ghretry.go). Its progress and outcome are kept in the
 // review store; the cleanup after a merge is the PostMerge hook's (FR-REV-013, postmerge.go).
 
 const (
@@ -251,6 +252,8 @@ type MergeRecord struct {
 	Overridden []string    `json:"overridden,omitempty"`
 	StartedAt  int64       `json:"startedat"`
 	EndedAt    int64       `json:"endedat,omitempty"`
+	// Status: GitHub's HTTP status when it did not answer (MergeCodeUnavailable), 0 for a timeout or the network.
+	Status int `json:"status,omitempty"`
 	// CleanupRunning: the post-merge hook runs; its outcome is the store's State.Cleanup.
 	CleanupRunning bool `json:"cleanuprunning,omitempty"`
 }
@@ -301,6 +304,8 @@ type Merger struct {
 	pollEvery time.Duration
 	ciTimeout time.Duration
 	sleep     func(ctx context.Context, d time.Duration) bool
+	// retryDelays: the waits before each new try while GitHub does not answer (ghretry.go).
+	retryDelays []time.Duration
 
 	lock    sync.Mutex
 	plans   map[PrKey]MergePlan
@@ -325,6 +330,7 @@ func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *
 		pollEvery:   defaultPollEvery,
 		ciTimeout:   defaultCiTimeout,
 		sleep:       sleepCtx,
+		retryDelays: ghRetryDelays,
 		plans:       map[PrKey]MergePlan{},
 		running:     map[PrKey]*runningMerge{},
 		done:        map[PrKey]chan struct{}{},
@@ -863,9 +869,17 @@ func headMoved(record MergeRecord, head string, expected string) MergeRecord {
 
 func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 	k := PrKey{Repo: plan.Repo, Number: plan.Number}
-	pr, ci, unpublished, state, err := m.inputs(ctx, plan.Dir, k)
+	var pr ghMergePr
+	var ci mission.ReviewCi
+	var unpublished int
+	var state State
+	err := m.retryGh(ctx, k, "read of the PR", func() error {
+		var err error
+		pr, ci, unpublished, state, err = m.inputs(ctx, plan.Dir, k)
+		return err
+	}, nil)
 	if err != nil {
-		m.end(k, record, MergeFailed, "", MergeCodeReread, err)
+		m.endGh(k, record, MergeCodeReread, err)
 		return
 	}
 	if strings.EqualFold(pr.State, "MERGED") {
@@ -903,10 +917,21 @@ func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 	record.State = MergeMerging
 	record.Head = head
 	m.record(k, record)
-	_, err = m.runGh(ctx, plan.Dir, plan.Repo, mergeArgs(strconv.Itoa(plan.Number), record.Method, head)...)
+	err = m.retryGh(ctx, k, "merge", func() error {
+		_, err := m.runGh(ctx, plan.Dir, plan.Repo, mergeArgs(strconv.Itoa(plan.Number), record.Method, head)...)
+		return err
+	}, func() bool {
+		// The merge got through although its answer did not: never sent a second time.
+		pr, err := m.viewPr(ctx, plan.Dir, k)
+		return err == nil && strings.EqualFold(pr.State, "MERGED")
+	})
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "head branch was modified") {
 			m.end(k, record, MergeRefused, RefusedHeadMoved, MergeCodeGithubMoved, err)
+			return
+		}
+		if _, ok := ghTransient(err.Error()); ok {
+			m.endGh(k, record, MergeCodeMergeError, err)
 			return
 		}
 		m.forgetMethods(plan.Repo)
@@ -1002,8 +1027,16 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 	k := PrKey{Repo: plan.Repo, Number: plan.Number}
 	record.State = MergeUpdating
 	m.record(k, record)
-	if _, err := m.runGh(ctx, plan.Dir, plan.Repo, updateBranchArgs(strconv.Itoa(plan.Number), record.Method)...); err != nil {
-		m.end(k, record, MergeFailed, "", MergeCodeUpdateError, err)
+	err := m.retryGh(ctx, k, "update of the branch", func() error {
+		_, err := m.runGh(ctx, plan.Dir, plan.Repo, updateBranchArgs(strconv.Itoa(plan.Number), record.Method)...)
+		return err
+	}, func() bool {
+		// GitHub updated the branch although its answer did not come: it is no longer behind, or has a new head.
+		pr, err := m.viewPr(ctx, plan.Dir, k)
+		return err == nil && (pr.HeadRefOid != plan.HeadOid || !strings.EqualFold(pr.MergeStateStatus, "BEHIND"))
+	})
+	if err != nil {
+		m.endGh(k, record, MergeCodeUpdateError, err)
 		return "", record, false
 	}
 	record.Updated = true
@@ -1027,7 +1060,7 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 		if err != nil {
 			errors++
 			if errors >= maxPollErrors {
-				m.end(k, record, MergeFailed, "", MergeCodePollError, err)
+				m.endGh(k, record, MergeCodePollError, err)
 				return "", record, false
 			}
 			continue

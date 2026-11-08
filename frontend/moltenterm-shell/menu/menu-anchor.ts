@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A menu that belongs to a button opens under that button, not where the event says the pointer was (#1439): a script
 // click or an Enter or Space on the button carries clientX and clientY of 0, which would put the menu in the window's

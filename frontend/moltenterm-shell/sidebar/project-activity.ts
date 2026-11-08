@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the agents of the projects not shown are doing (FR-SHELL-087, #1760): a project switch hides the other
 // projects' views, never their agents, so the header and the project menu say which of them wait for you, work or

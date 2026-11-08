@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -19,6 +19,7 @@ import {
     agentModelPart,
     agentModelTitle,
     AgentStateInfo,
+    agentStateMessage,
 } from "../agent-state-model";
 import { EffortItemId, ModelItemId } from "../command-panel/agent-commands";
 import { AgentInputs } from "../command-panel/agent-input-store";
@@ -85,5 +86,42 @@ describe("header model and effort (#573)", () => {
         inputs.infos.delete("b1");
         await inputs.ready("b1");
         expect(inputs.infos.get("b1").info.models).toEqual([{ id: "opus", label: "Opus (latest)" }]);
+    });
+});
+
+describe("a model the sign-in cannot use (#2076)", () => {
+    const lea: AgentStateInfo = {
+        blockid: "b1",
+        agent: "codex",
+        agentname: "Codex",
+        state: "idle",
+        version: 1,
+        model: "gpt-6-astra",
+        effort: "high",
+        message: "turn done",
+        modelunavailable: true,
+    };
+
+    it("says so in one calm line, outranking the agent's own message", () => {
+        expect(agentStateMessage(lea)).toBe("gpt-6-astra is not available with this sign-in: choose another model");
+        expect(agentStateMessage(lea)).not.toContain("\n");
+        expect(agentStateMessage({ ...lea, modelunavailable: false })).toBe("turn done");
+    });
+
+    it("turns the header model into the way out: the Model choice", () => {
+        const html = renderToStaticMarkup(
+            <HeaderModelEffort
+                blockId="b1"
+                model={agentModelPart(lea)}
+                modelTitle={agentModelTitle(lea)}
+                modelUnavailable={lea.modelunavailable}
+                effort={agentEffortPart(lea)}
+                effortTitle={agentEffortTitle(lea)}
+            />
+        );
+        expect(html).toMatch(
+            /<button[^>]*class="[^"]*text-warning[^"]*"[^>]*data-unavailable="true"[^>]*title="gpt-6-astra is not available with this sign-in: choose another model\nClick to choose another model"[^>]*data-testid="molten-header-model"/
+        );
+        expect(render({ ...lea, modelunavailable: false })).not.toContain("text-warning");
     });
 });

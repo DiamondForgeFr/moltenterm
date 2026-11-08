@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pull request status dots on the block that shows Integration (FR-SHELL-085, #1304; FR-SHELL-098, #1327): one
 // dot per section of the panel, named and counted as the section is. A PR counts under the dot of the section its
@@ -13,7 +13,7 @@ export type PrCountKind = CardTurn;
 export type PrCounts = Record<PrCountKind, number>;
 
 // The order the dots read in, top to bottom: the most critical first.
-export const PrCountKinds: PrCountKind[] = ["blocked", "yours", "ready", "waiting", "agents"];
+export const PrCountKinds: PrCountKind[] = ["yours", "ready", "waiting", "agents"];
 
 // A dot's tooltip and accessible name: the section's title (the panel's own words) and the count, a plural
 // (.one / .other).
@@ -25,7 +25,7 @@ export function prCountSectionKey(kind: PrCountKind): string {
 }
 
 export function emptyPrCounts(): PrCounts {
-    return { blocked: 0, yours: 0, ready: 0, waiting: 0, agents: 0 };
+    return { yours: 0, ready: 0, waiting: 0, agents: 0 };
 }
 
 // prCountKind: the one dot a PR counts in. With its card (the Integration panel's state for it), the card decides;

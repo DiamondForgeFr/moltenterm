@@ -92,7 +92,8 @@ func setVarRun(cmd *cobra.Command, args []string) (rtnErr error) {
 			commandData.Val = value
 		}
 
-		err = wshclient.SetVarCommand(RpcClient, commandData, &wshrpc.RpcOpts{Timeout: 2000})
+		// MOLTENTERM-PATCH (#1964): a remote variable write may wait for confirmation in the window.
+		err = wshclient.SetVarCommand(RpcClient, commandData, &wshrpc.RpcOpts{Timeout: fileTimeoutFor(2000, RpcContext.Conn)})
 		if err != nil {
 			return fmt.Errorf("setting variable %s: %w", key, err)
 		}

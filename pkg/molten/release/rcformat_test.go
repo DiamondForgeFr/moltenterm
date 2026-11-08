@@ -1,11 +1,10 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,12 +17,6 @@ import (
 // v1.1.0-rc.2 after it, on the way to the public v1.1.0.
 func makeRcDotRepo(t *testing.T) string {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Release test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "release@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Release test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "release@example.invalid")
 	dir := t.TempDir()
 	gitIn(t, dir, "init", "--quiet", "-b", "develop")
 	gitIn(t, dir, "remote", "add", "origin", "https://github.com/o/r.git")
@@ -45,6 +38,7 @@ func makeRcDotRepo(t *testing.T) string {
 }
 
 func TestRcDotReleasesReadTheirProject(t *testing.T) {
+	t.Parallel()
 	dir := makeRcDotRepo(t)
 	p, err := coverageEnv(dir).LoadProject(context.Background())
 	if err != nil {
@@ -76,6 +70,7 @@ func TestRcDotReleasesReadTheirProject(t *testing.T) {
 }
 
 func TestRcDotNotesRangeAndChangelogScope(t *testing.T) {
+	t.Parallel()
 	dir := makeRcDotRepo(t)
 	env := coverageEnv(dir)
 	for tag, want := range map[string]string{"v1.1.0": "v1.0.1", "v1.1.0-rc.3": "v1.1.0-rc.2", "v1.1.0-rc.2": "v1.1.0-1", "v1.1.0-1": "v1.0.1"} {
@@ -100,6 +95,7 @@ func TestRcDotNotesRangeAndChangelogScope(t *testing.T) {
 // The chain cuts an X.Y.Z-rc.N candidate as it cuts X.Y.Z-N: the tag, the version files, the notes, the release
 // commit, the sync-back branch.
 func TestRcDotCandidateIsCutEndToEnd(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	e := f.env()
@@ -135,6 +131,7 @@ func TestRcDotCandidateIsCutEndToEnd(t *testing.T) {
 }
 
 func TestChangelogSectionOfAnRcDotProject(t *testing.T) {
+	t.Parallel()
 	changelog := "# Changelog\n\n## [1.1.0-rc.2]\n\n- Import (#22).\n\n## [1.1.0-1]\n\n- Export (#20).\n"
 	if _, ok := ChangelogSection(changelog, "1.1.0", ""); ok {
 		t.Fatal("a candidate's heading, rc.N or N, is not the public version's")

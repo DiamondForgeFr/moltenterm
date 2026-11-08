@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -45,6 +45,7 @@ func setupBoardLink(t *testing.T, scopes map[string]string) (*localroute.Link, *
 }
 
 func TestSetupBoardCommandsByCaller(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	link, e, board := setupBoardLink(t, map[string]string{routetest.TerminalBlock: dir})
 	agentRefusal := "the pipeline setup's agent commands run in the terminal of the project's pipeline tab"
@@ -88,6 +89,7 @@ func TestSetupBoardCommandsByCaller(t *testing.T) {
 }
 
 func TestSetupBoardAgentReachesOnlyItsOwnTabsProject(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	link, e, board := setupBoardLink(t, map[string]string{})
 	if _, errStr := routetest.Ask(t, link, e.Window(), SetupBoardOpenCommand, map[string]any{"dir": dir, "screen": "understand", "text": setupBoardDraft}); errStr != "" {

@@ -1,14 +1,14 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's upcoming work and the agents on each branch (#712, FR-REV-022, DS-REV-015): wavesrv places the
 // agents on branches (pkg/molten/mission/upcoming.go), the window adds what its agent-state store knows now (state,
 // first name), so a bar turns from working to waiting at once. Kept apart from the components to be tested alone.
 
+import { agentFactsLine, type AgentFacts } from "../agent-facts";
 import { agentDisplayName, currentFeatureMatrix } from "../agent-info/agent-features-model";
-import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { agentToolName, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import { branchTicketNumber } from "../agent-work-model";
-import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction } from "../i18n/i18n";
 import type { Phrase } from "../i18n/phrase";
 import type { ServerText } from "../i18n/server-text";
@@ -68,14 +68,21 @@ export type BranchAgent = {
     blockid?: string;
     agent?: string;
     firstname?: string;
+    // A panel's time on the branch (#1841: never before it entered the worktree), a sub-agent's start.
     started?: number;
+    // #1841: a panel whose session only passed through the worktree (it wrote nothing there since it came).
+    visiting?: boolean;
     activeat?: number;
     parentblockid?: string;
     parentfirstname?: string;
-    // A sub-agent's (#1035): its model, its task, its state; activeat is then its last write, or its end.
+    // A sub-agent's (#1035): its model, its task, its state; activeat is then its last write, or its end. effort
+    // (#1848) is its effort level; a signed background agent has the model and effort it signed.
     model?: string;
+    effort?: string;
     description?: string;
     state?: SubagentState;
+    // #1955: a sub-agent's id in its CLI, which its lead continues it by.
+    agentid?: string;
     // #1603: a background agent named by its work's signature; agentname is its CLI as signed, blockid the signer's
     // session while a panel still runs it.
     signed?: boolean;
@@ -130,9 +137,13 @@ export type AgentBarFacts = {
     since: number;
     parentBlockId?: string;
     parentName?: string;
-    // A sub-agent's (#1035): what its own files say of it.
+    // The CLI, model and effort every agent line says in that order (#1848): a panel's are those its terminal's run
+    // reports, a sub-agent's what its own files say of it (#1035), a signed background agent's its signature's.
+    // modelName: the model as the agent itself names it, when it gave no id.
     agentName?: string;
     model?: string;
+    modelName?: string;
+    effort?: string;
     description?: string;
     subState?: SubagentState;
     // When the agent's state last changed, and whether it is in error (#954: a task's agent stopped since the ask).
@@ -149,6 +160,11 @@ export type AgentBarFacts = {
     // A panel on the branch whose only work is sub-agents on other tickets (#1796): idle here, its line says where it
     // is busy; ticket 0 when the sub-agents' branch names none.
     elsewhere?: { ticket: number };
+    // A panel whose session only passed through the branch's worktree (#1841): idle here, its line says so.
+    visiting?: boolean;
+    // The stop this panel made for a decision was settled by its lead or the developer (#1876): it is idle, and this
+    // says who settled it and why. by is "" for the developer.
+    settled?: { by: string; note: string; at: number };
 };
 
 // The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv; so does
@@ -273,6 +289,8 @@ export function branchAgents(
                 parentName: states?.states?.[a.parentblockid]?.firstname || a.parentfirstname,
                 signed: a.signed,
                 agentName: a.signed ? a.agentname : undefined,
+                model: a.signed ? a.model : undefined,
+                effort: a.signed ? a.effort : undefined,
                 // The signer's session, while the windows still know its terminal.
                 blockId: a.signed && a.blockid && states?.states?.[a.blockid] != null ? a.blockid : undefined,
             });
@@ -284,7 +302,13 @@ export function branchAgents(
             continue;
         }
         const elsewhere = busyElsewhere(upcoming, info, branch, own.ticket, own.pr);
-        found.push(elsewhere != null ? { ...facts, state: "idle", held: undefined, elsewhere } : facts);
+        if (elsewhere != null) {
+            found.push({ ...facts, state: "idle", held: undefined, elsewhere });
+        } else if (a.visiting) {
+            found.push({ ...facts, state: "idle", held: undefined, visiting: true });
+        } else {
+            found.push(facts);
+        }
     }
     const rank = (f: AgentBarFacts) => KindRank[f.kind] * 10 + (f.kind === "panel" ? BarUrgency[f.state] : 0);
     return found
@@ -326,9 +350,7 @@ export function busyElsewhere(
 
 // namesWork: a sub-agent's task names the ticket ("#1821") or the PR ("PR #1824", "#1824", "PR 1824").
 function namesWork(text: string, own: { ticket: number; pr: number }): boolean {
-    return [own.ticket, own.pr].some(
-        (n) => n > 0 && new RegExp(`(?:#|\\bPR\\s*#?)${n}(?!\\d)`, "i").test(text ?? "")
-    );
+    return [own.ticket, own.pr].some((n) => n > 0 && new RegExp(`(?:#|\\bPR\\s*#?)${n}(?!\\d)`, "i").test(text ?? ""));
 }
 
 // The first ticket or PR number a sub-agent's task names, 0 when none.
@@ -352,9 +374,16 @@ export function panelFacts(blockId: string, info: AgentStateInfo, placed?: Branc
         since: placed != null ? (placed.started ?? 0) : (info.since ?? 0),
         stateSince: info.since ?? 0,
         errored: info.state === "error",
+        agentName: agentToolName(info) || toolName(placed?.agent),
+        model: info.model,
+        modelName: info.modelname,
+        effort: info.effort,
     };
     if (info.messagetext != null) {
         facts.held = { text: info.messagetext, english: info.message ?? "" };
+    }
+    if (info.settled != null) {
+        facts.settled = { by: info.settled.by ?? "", note: info.settled.note ?? "", at: info.settled.at };
     }
     return facts;
 }
@@ -381,23 +410,32 @@ function subagentFacts(a: BranchAgent, states: AgentStatesData): AgentBarFacts {
         parentBlockId: a.parentblockid,
         parentName: (parent?.firstname || a.parentfirstname || "").trim(),
         model: a.model,
+        effort: a.effort,
         description: a.description,
         subState,
     };
 }
 
-// What the bar says after a sub-agent's name: "Claude Code · Opus 5.5 · #1033 agent name in tabs".
-// A signed background agent's (#1603): its CLI, as data, never in a sentence.
-export function subagentDetails(facts: AgentBarFacts): string {
-    if (facts?.kind === "background" && facts.signed) {
-        return facts.agentName || toolName(facts.agent);
+// agentFacts: the CLI, model and effort an agent line says after its name, in that order (#1848), each only when
+// known; a signed background agent's (#1603) come from its signature, as data, never in a sentence. A panel named by
+// its CLI for want of a first name does not say it twice.
+export function agentFacts(facts: AgentBarFacts): AgentFacts {
+    if (facts == null || (facts.kind === "background" && !facts.signed)) {
+        return {};
     }
-    if (facts?.kind !== "subagent") {
-        return "";
-    }
-    return [facts.agentName || toolName(facts.agent), modelDisplayName(facts.model), (facts.description ?? "").trim()]
-        .filter((s) => !!s)
-        .join(" · ");
+    const cli = facts.agentName || toolName(facts.agent);
+    return {
+        cli: facts.kind === "panel" && cli.toLowerCase() === (facts.name ?? "").trim().toLowerCase() ? "" : cli,
+        model: facts.model,
+        modelName: facts.modelName,
+        effort: facts.effort,
+    };
+}
+
+// What the bar says after an agent's name: "Codex · gpt-5.5 · high", and a sub-agent's task after them:
+// "Claude Code · Opus 5.5 · high · #1033 agent name in tabs".
+export function agentDetails(facts: AgentBarFacts): string {
+    return agentFactsLine(agentFacts(facts), facts?.kind === "subagent" ? facts.description : "");
 }
 
 const BarUrgency: Record<BarState, number> = { waiting: 4, working: 3, done: 2, idle: 1, background: 0 };
@@ -489,7 +527,8 @@ export function sinceText(since: number, now: number): string {
 
 // The bar's time line: "for 12 min · since 20:41", or for a background agent "last change 3 min ago".
 export function barTimeText(t: TFunction, facts: AgentBarFacts, now: number): string {
-    if (facts == null || !facts.since) {
+    // A lead only passing through the branch has no time on it (#1841).
+    if (facts == null || !facts.since || facts.visiting) {
         return "";
     }
     const elapsed = durationText(t, now - facts.since);
@@ -500,6 +539,20 @@ export function barTimeText(t: TFunction, facts: AgentBarFacts, now: number): st
         return t("reviewsAgents.lastChange", { duration: elapsed });
     }
     return t("reviewsAgents.forSince", { duration: elapsed, since: sinceText(facts.since, now) });
+}
+
+// barPlaceText: what a panel's line says instead of its state when its state is not work on this branch: a lead busy
+// on another ticket (#1796), one only passing through the branch's worktree (#1841). "" otherwise.
+export function barPlaceText(t: TFunction, facts: AgentBarFacts): string {
+    if (facts?.elsewhere != null) {
+        return facts.elsewhere.ticket > 0
+            ? t("reviewsAgents.busyOn", { number: facts.elsewhere.ticket })
+            : t("reviewsAgents.busyElsewhere");
+    }
+    if (facts?.visiting) {
+        return t("reviewsAgents.visiting");
+    }
+    return "";
 }
 
 export function barStateText(t: TFunction, state: BarState): string {

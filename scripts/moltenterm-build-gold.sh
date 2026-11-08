@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # Builds a Moltenterm gold from the current commit and delivers it where the installed gold looks for updates (#64):
 # ~/Library/Application Support/Moltenterm Local Builds/gold/ (MOLTENTERM_GOLD_DIR overrides it). macOS only.

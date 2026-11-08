@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package uimsg carries the sentences wavesrv hands MoltenTerm's windows as a code plus details, so that the window
 // words them in the interface language (#656, after #589 and #652). The English stays beside the code: it is what

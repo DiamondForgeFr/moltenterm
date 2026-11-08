@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace sidebar's state (FR-SHELL-079): its width and whether it is hidden live in the window's meta, so every
 // tab view of the window draws the same sidebar and a relaunch keeps them; the peek (the sidebar shown over the content
@@ -115,12 +115,17 @@ export class SidebarModel {
         return globalStore.get(this.hiddenAtom);
     }
 
-    private writeWindowMeta(meta: Record<string, any>): Promise<void> {
+    // The write is read back from wavesrv before the pending value goes: a view whose object updates no longer arrive
+    // (its events were lost after a websocket reconnect, #1951) would otherwise fall back to the old value at once,
+    // and every toggle would write the same choice again.
+    private async writeWindowMeta(meta: Record<string, any>): Promise<void> {
         const windowId = globalStore.get(atoms.uiContext)?.windowid;
         if (!windowId) {
-            return Promise.resolve();
+            return;
         }
-        return RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("window", windowId), meta: meta as MetaType });
+        const oref = WOS.makeORef("window", windowId);
+        await RpcApi.SetMetaCommand(TabRpcClient, { oref, meta: meta as MetaType });
+        await WOS.reloadWaveObject<WaveWindow>(oref);
     }
 
     dragWidth(width: number) {

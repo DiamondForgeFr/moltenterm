@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -50,6 +50,7 @@ func writeChangelog(t *testing.T, dir string, rel string, text string) {
 }
 
 func TestPublicChangelogSectionCoversTheCandidates(t *testing.T) {
+	t.Parallel()
 	r, dir := makeChangelogFixture(t)
 	res := startRelease(t, r, dir, ReleaseChannelPublic, "v1.1.0")
 	waitRun(t, r, dir, res.Run.Id)
@@ -105,6 +106,7 @@ func TestPublicChangelogSectionCoversTheCandidates(t *testing.T) {
 
 // #1717: a ticket an earlier section cites shipped in that release, though the range lists it again.
 func TestPublicChangelogSectionLeavesOutTicketsOfEarlierSections(t *testing.T) {
+	t.Parallel()
 	r, dir := makeChangelogFixture(t)
 	res := startRelease(t, r, dir, ReleaseChannelPublic, "v1.1.0")
 	waitRun(t, r, dir, res.Run.Id)
@@ -127,6 +129,7 @@ func TestPublicChangelogSectionLeavesOutTicketsOfEarlierSections(t *testing.T) {
 }
 
 func TestCandidateChangelogSectionStartsAtThePreviousCandidate(t *testing.T) {
+	t.Parallel()
 	r, dir := makeChangelogFixture(t)
 	res := startRelease(t, r, dir, ReleaseChannelRc, "v1.1.0-3")
 	waitRun(t, r, dir, res.Run.Id)

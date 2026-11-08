@@ -77,7 +77,25 @@ Claude Code loads plugins when a session starts. So a part, once enabled:
 field gives `state` and `takeseffect` (`next-session` or `new-terminal`).
 
 **A part added after a terminal opened** needs a new MoltenTerm terminal: that terminal's environment was fixed
-before the part existed. `molten` says so.
+before the part existed. `molten` says so. A part a `/morph` request has just created is always in that case: it
+loads in a new Claude Code session started in a new MoltenTerm terminal (`claude --continue` there keeps the
+conversation).
+
+## Writing the part with the plugin-authoring skill
+
+Claude Code's `plugin-authoring` skill is the reference for the plugin API, and it also tells where to write a mod and
+how to load it. For a part of a MoltenTerm mod, the rules of this page and of `morph.md` win:
+
+- **Write only in the part's folder**, `agents/claude-code/` in the mod, never in the skill's `dev-mods` folder: one
+  copy, in the mod, which is what history, undo and safe mode snapshot and control.
+- **The skill's hot reloading stays off.** It starts when a file is written under its `dev-mods` folder, with the
+  question "Turn on the mods Claude writes in this session?"; nothing is written there, so it never comes up. If it
+  does, the user answers "Not now". Do not use `claude --plugin-dir` either: MoltenTerm loads the part through
+  `CLAUDE_CODE_PLUGIN_DIRS` (below). Claude Code still reloads a saved edit of a part in a session that loaded it,
+  because it watches those folders; that is not the skill's hot reloading.
+- **A panel in MoltenTerm is the MoltenTerm part's.** The skill answers a request for a panel with a pane inside the
+  Claude Code session; that pane is for what lives only in that session, beside the chat (the split rule in
+  `morph.md`).
 
 ## How MoltenTerm loads the part
 
@@ -117,6 +135,13 @@ await $.process.run(['wsh', 'notify', 'Tests failed'])
 `molten` talks to the tab of the terminal Claude Code runs in, and a box opens next to that terminal. A MoltenTerm
 part cannot call into Claude Code: the Claude Code part pulls, by running a `molten` command the MoltenTerm part
 registered.
+
+## License
+
+The Claude Code part belongs to its mod and to its author. A part that reaches MoltenTerm only through the `molten`
+and `wsh` commands, as above, is not covered by MoltenTerm's AGPL-3.0: the author licenses it as they wish, paid
+included (the additional permission in `LICENSE-EXCEPTION`; `mod-format.md`, "License of a mod"). `examples/test-band/`
+may be copied into a mod and used under that mod's license.
 
 ## The example: test-band
 

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar never keeps a raw key while the interface language loads on demand (#1215): a dictionary chunk that
 // fails once is fetched again, and a dictionary file changed while the app runs (a pull under the dev server, which

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A mod is a folder `<config>/mods/<mod-id>/` holding a `mod.json` manifest and the ES module named by `main`
 // (DS-MORPH-001), or, for a data-only mod such as a language pack, the data files it declares. The manifest is checked before any mod code is read, so a broken manifest never runs code.

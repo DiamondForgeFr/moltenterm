@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -61,6 +61,7 @@ func holdAdmissionRunner(t *testing.T, runner *Runner, match string) (<-chan str
 }
 
 func TestAdmissionBuildNestedCiKeepsTrustedAliasProject(t *testing.T) {
+	t.Parallel()
 	for _, retarget := range []bool{false, true} {
 		t.Run(map[bool]string{false: "stable", true: "retargeted"}[retarget], func(t *testing.T) {
 			pipeline := `{"schema":1,"name":"Pinned A","builds":[{"id":"build","run":"echo built > built.txt","verify":"ci","artifact":"artifact.txt"}],"ci":{"jobs":[{"name":"check","run":"echo ciA > checks"}]}}`
@@ -71,7 +72,7 @@ func TestAdmissionBuildNestedCiKeepsTrustedAliasProject(t *testing.T) {
 				t.Fatal(err)
 			}
 			trustAdmission(t, r, alias)
-			ci := MakeCi(filepath.Join(t.TempDir(), "ci"), r.trust, plainRunner, nil)
+			ci := MakeCi(filepath.Join(t.TempDir(), "ci"), r.trust, withoutGh, nil)
 			r.UseCi(ci)
 			entered, proceed := holdAdmissionRunner(t, &ci.run, "rev-parse")
 			result, err := r.Start(RunRequest{Dir: alias, Kind: RunKindBuild, Id: "build"})
@@ -129,6 +130,7 @@ func admissionPoll(t *testing.T, condition func() bool) {
 // This guard needs #812's post-start cleanup. Keep the failure injection after cmd.Start: a failure before it
 // cannot establish that a released admission leaves no live, unrecorded process behind.
 func TestAdmissionPostStartRecordFailureCleansChild(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, `{"schema":1,"name":"fixture","steps":[{"id":"held","title":"Held","section":"timeline","run":"echo $$ > child.pid; touch child.ready; while ! test -f child.done; do sleep 0.02; done"}]}`)
 	trustAdmission(t, r, dir)
 	var temporary string
@@ -217,6 +219,7 @@ type admittedRelease struct {
 }
 
 func TestAdmissionSameKindBeforeRecordExists(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, admissionPipeline)
 	trustAdmission(t, r, dir)
 	alias := filepath.Join(t.TempDir(), "project")
@@ -256,6 +259,7 @@ func TestAdmissionSameKindBeforeRecordExists(t *testing.T) {
 }
 
 func TestAdmissionDoesNotSerializeOtherKindsOrProjects(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, admissionPipeline)
 	_, other := makeReleaseFixture(t, admissionPipeline)
 	trustAdmission(t, r, dir)
@@ -287,6 +291,7 @@ func TestAdmissionDoesNotSerializeOtherKindsOrProjects(t *testing.T) {
 }
 
 func TestAdmissionReleaseStartEndAndStepShareBoundary(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releasePipeline)
 	trustAdmission(t, r, dir)
 	entered, proceed := holdAdmission(t, r, "refs/tags/v1.2.0-3")
@@ -329,6 +334,7 @@ func TestAdmissionReleaseStartEndAndStepShareBoundary(t *testing.T) {
 }
 
 func TestAdmissionFailuresReleaseReservation(t *testing.T) {
+	t.Parallel()
 	for _, failure := range []string{"validation", "record", "startup"} {
 		t.Run(failure, func(t *testing.T) {
 			r, dir := makeReleaseFixture(t, admissionPipeline)
@@ -375,6 +381,7 @@ func TestAdmissionFailuresReleaseReservation(t *testing.T) {
 }
 
 func TestAdmissionReleaseRollbackAllowsRetry(t *testing.T) {
+	t.Parallel()
 	for _, failure := range []string{"session", "startup"} {
 		t.Run(failure, func(t *testing.T) { testAdmissionReleaseRollback(t, failure) })
 	}
@@ -421,6 +428,7 @@ func testAdmissionReleaseRollback(t *testing.T, failure string) {
 }
 
 func TestAdmissionConcurrentReleaseSteps(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releasePipeline)
 	trustAdmission(t, r, dir)
 	if err := r.writeReleaseSession(dir, ReleaseSession{Tag: "v1.2.0-3", Channel: ReleaseChannelRc, Version: "1.2.0-3"}); err != nil {
@@ -466,6 +474,7 @@ func writeLegacyAdmissionRecord(t *testing.T, r *Runs, dir, id string, pid int) 
 }
 
 func TestAdmissionLegacyAliasHistoryAfterRestart(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, admissionPipeline)
 	trustAdmission(t, r, dir)
 	alias := filepath.Join(t.TempDir(), "project")
@@ -484,8 +493,8 @@ func TestAdmissionLegacyAliasHistoryAfterRestart(t *testing.T) {
 	t.Cleanup(func() { input.Close(); cmd.Process.Kill() })
 	writeLegacyAdmissionRecord(t, r, dir, "canonical-history", 0)
 	writeLegacyAdmissionRecord(t, r, alias, "legacy-alias", cmd.Process.Pid)
-	restarted := MakeRuns(r.baseDir, r.trust, nil)
-	restarted.git = plainRunner
+	restarted := makeTestRuns(r.baseDir, r.trust, nil)
+	restarted.git = withoutGh
 	t.Cleanup(func() { waitRunsIdle(t, restarted) })
 	if runs := restarted.List(dir); len(runs) != 2 {
 		t.Fatalf("alias history hidden: %+v", runs)
@@ -503,13 +512,14 @@ func TestAdmissionLegacyAliasHistoryAfterRestart(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(r.baseDir, projectKey(alias), "legacy-alias", RunFileName)); err != nil {
 		t.Fatalf("legacy record was moved: %v", err)
 	}
-	last := MakeRuns(r.baseDir, r.trust, nil)
+	last := makeTestRuns(r.baseDir, r.trust, nil)
 	if runs := last.List(dir); len(runs) != 2 {
 		t.Fatalf("history disappeared after restart: %+v", runs)
 	}
 }
 
 func TestAdmissionRetargetedAliasDoesNotExposePreviousProject(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, admissionPipeline)
 	_, other := makeReleaseFixture(t, admissionPipeline)
 	alias := filepath.Join(t.TempDir(), "project")
@@ -528,7 +538,7 @@ func TestAdmissionRetargetedAliasDoesNotExposePreviousProject(t *testing.T) {
 	if err := os.Symlink(other, alias); err != nil {
 		t.Fatal(err)
 	}
-	for _, runs := range []*Runs{r, MakeRuns(r.baseDir, r.trust, nil)} {
+	for _, runs := range []*Runs{r, makeTestRuns(r.baseDir, r.trust, nil)} {
 		if records := runs.List(alias); len(records) != 0 {
 			t.Fatalf("retargeted alias exposed old runs: %+v", records)
 		}
@@ -542,6 +552,7 @@ func TestAdmissionRetargetedAliasDoesNotExposePreviousProject(t *testing.T) {
 }
 
 func TestAdmissionPinsProjectBeforeExternalLookup(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{RunKindStep, RunKindRelease} {
 		t.Run(kind, func(t *testing.T) {
 			pipeline, lookup := admissionPipeline, "symbolic-ref"
@@ -609,6 +620,7 @@ func TestAdmissionPinsProjectBeforeExternalLookup(t *testing.T) {
 }
 
 func TestAdmissionReleaseWithoutPreparationSurvivesAliasRestart(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, `{"schema":1,"name":"fixture","release":{"rc":[{"id":"cut","phase":"cut","run":"echo cut"}]}}`)
 	alias := filepath.Join(t.TempDir(), "project")
 	if err := os.Symlink(dir, alias); err != nil {
@@ -619,8 +631,8 @@ func TestAdmissionReleaseWithoutPreparationSurvivesAliasRestart(t *testing.T) {
 	if err != nil || result.Session == nil || result.Run != nil {
 		t.Fatalf("session-only release failed: %+v, %v", result, err)
 	}
-	restarted := MakeRuns(r.baseDir, r.trust, nil)
-	restarted.git = plainRunner
+	restarted := makeTestRuns(r.baseDir, r.trust, nil)
+	restarted.git = withoutGh
 	session, err := restarted.ReleaseSessionOf(dir)
 	if err != nil || session == nil || session.Tag != result.Session.Tag {
 		t.Fatalf("session-only identity lost: %+v, %v", session, err)
@@ -638,6 +650,7 @@ func TestAdmissionReleaseWithoutPreparationSurvivesAliasRestart(t *testing.T) {
 }
 
 func TestAdmissionKeepsIgnoredTagsAcrossHistoricalAliases(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releasePipeline)
 	alias := filepath.Join(t.TempDir(), "project")
 	if err := os.Symlink(dir, alias); err != nil {
@@ -655,7 +668,7 @@ func TestAdmissionKeepsIgnoredTagsAcrossHistoricalAliases(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	restarted := MakeRuns(r.baseDir, r.trust, nil)
+	restarted := makeTestRuns(r.baseDir, r.trust, nil)
 	if tags := restarted.ignoredReleases(dir); strings.Join(tags, ",") != "v1.1.0-1,v1.2.0-1" {
 		t.Fatalf("historical ignored tags hidden: %+v", tags)
 	}
@@ -665,13 +678,14 @@ func TestAdmissionKeepsIgnoredTagsAcrossHistoricalAliases(t *testing.T) {
 	if err := os.Chtimes(filepath.Join(restarted.projectDir(dir), ReleaseIgnoredFileName), time.Unix(2, 0), time.Unix(2, 0)); err != nil {
 		t.Fatal(err)
 	}
-	last := MakeRuns(r.baseDir, r.trust, nil)
+	last := makeTestRuns(r.baseDir, r.trust, nil)
 	if tags := last.ignoredReleases(alias); strings.Join(tags, ",") != "v1.1.0-1,v1.2.0-1,v1.3.0-1" {
 		t.Fatalf("ignored choices lost after restart: %+v", tags)
 	}
 }
 
 func TestAdmissionFindsOriginalLegacySessionAfterCanonicalCache(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releasePipeline)
 	alias := filepath.Join(t.TempDir(), "project")
 	if err := os.Symlink(dir, alias); err != nil {
@@ -699,7 +713,7 @@ func TestAdmissionFindsOriginalLegacySessionAfterCanonicalCache(t *testing.T) {
 	if err != nil || json.Unmarshal(data, &identity) != nil || identity != canonical {
 		t.Fatalf("identity was not backfilled beside the actual session: %q, %v", data, err)
 	}
-	restarted := MakeRuns(r.baseDir, r.trust, nil)
+	restarted := makeTestRuns(r.baseDir, r.trust, nil)
 	if session, err := restarted.ReleaseSessionOf(canonical); err != nil || session == nil || *session != want {
 		t.Fatalf("backfilled session identity lost after restart: %+v, %v", session, err)
 	}
@@ -710,7 +724,7 @@ func TestAdmissionFindsOriginalLegacySessionAfterCanonicalCache(t *testing.T) {
 	if err := os.Symlink(other, alias); err != nil {
 		t.Fatal(err)
 	}
-	retargeted := MakeRuns(r.baseDir, r.trust, nil)
+	retargeted := makeTestRuns(r.baseDir, r.trust, nil)
 	if session, err := retargeted.ReleaseSessionOf(alias); err != nil || session != nil {
 		t.Fatalf("backfilled old session attached to retargeted alias: %+v, %v", session, err)
 	}
@@ -726,6 +740,7 @@ func TestAdmissionFindsOriginalLegacySessionAfterCanonicalCache(t *testing.T) {
 }
 
 func TestAdmissionBackfillsSecondaryRecordBeforeRetarget(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, admissionPipeline)
 	_, other := makeReleaseFixture(t, admissionPipeline)
 	alias := filepath.Join(t.TempDir(), "project")
@@ -748,7 +763,7 @@ func TestAdmissionBackfillsSecondaryRecordBeforeRetarget(t *testing.T) {
 	if err := os.Symlink(other, alias); err != nil {
 		t.Fatal(err)
 	}
-	restarted := MakeRuns(r.baseDir, r.trust, nil)
+	restarted := makeTestRuns(r.baseDir, r.trust, nil)
 	if records := restarted.List(alias); len(records) != 0 {
 		t.Fatalf("retargeted alias inherited another project's history: %+v", records)
 	}
@@ -765,6 +780,7 @@ func TestAdmissionBackfillsSecondaryRecordBeforeRetarget(t *testing.T) {
 // A build's handoff (alias path) and a List refresh (real path) must exclude each other even after the alias is
 // retargeted; otherwise the refresh can overwrite the fresh record as lost (#1477).
 func TestRecordLockIsSharedAcrossRetargetedAlias(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, admissionPipeline)
 	_, other := makeReleaseFixture(t, admissionPipeline)
 	alias := filepath.Join(t.TempDir(), "project")

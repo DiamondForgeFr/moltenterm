@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package molten
 
@@ -33,10 +33,18 @@ const (
 	AgentStateSetCommand = "moltenagentstateset"
 	// A window tells that the user has seen a done agent (#784): its green mark clears.
 	AgentStateSeenCommand = "moltenagentstateseen"
+	// A window settles the stop held on a terminal (#1876).
+	AgentStopSettleCommand = "moltenagentstopsettle"
 
 	// The last first name a pane's agent had (FR-CONT-014), kept in the block's meta so a session that outlives a
 	// restart of MoltenTerm (a durable terminal) gets it back.
 	AgentFirstNameMetaKey = "molten:agentfirstname"
+
+	// The developer's short notes on the agents of a workspace (FR-SHELL-084, #2008), in the workspace's meta by
+	// agent terminal ("<block id>", "<block id>/<sub-agent id>"). On the workspace rather than the block because a
+	// terminal reads the meta of its own workspace's blocks, and never the workspace's: the note is never the agent's
+	// to read. Must match AgentNotesMetaKey in frontend/moltenterm-shell/sidebar/agent-note-model.ts
+	AgentNotesMetaKey = "molten:agentnotes"
 
 	AgentMessageMaxLength = 200
 	agentIdMaxLength      = 32
@@ -349,6 +357,9 @@ type AgentStateInfo struct {
 	Model     string `json:"model,omitempty"`
 	ModelName string `json:"modelname,omitempty"`
 	Effort    string `json:"effort,omitempty"`
+	// ModelUnavailable: the agent refused its latest turn because Model is not available to the signed-in account
+	// (#2076); the header's model is then the way out, the Model choice.
+	ModelUnavailable bool `json:"modelunavailable,omitempty"`
 	// Provider, ProviderName: the host the run talks to when it is not Anthropic's and how MoltenTerm names it
 	// (FR-AGC-008: "GLM", else the host), "" for Anthropic. Anthropic's plan gauges, models and effort levels do not
 	// apply to such a run. NativeProvider names the agent's own provider then ("Anthropic"), for the windows to say
@@ -362,6 +373,43 @@ type AgentStateInfo struct {
 	Background bool `json:"background,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
+	// Own: the block is Brokk's own session (OwnSessionMetaKey): the windows keep it out of every list of agents.
+	Own bool `json:"own,omitempty"`
+	// Settled (#1876): the agent stopped for a decision, MoltenTerm held that stop (State would be waiting), and
+	// someone decided it: State is idle and this says who and why.
+	Settled *AgentSettled `json:"settled,omitempty"`
+}
+
+// AgentSettled is a stop question someone settled (#1876). By is the settler's first name, "" for the developer; Note
+// one line of why; At when, in Unix milliseconds.
+type AgentSettled struct {
+	By   string `json:"by,omitempty"`
+	Note string `json:"note,omitempty"`
+	At   int64  `json:"at"`
+}
+
+// AgentStopSettleRequest settles the stop held on a terminal: the developer's own click in a window (the route is
+// the windows' only), or the lead's `molten agent decision settle` through the handoff route. Note is cleaned and cut
+// to AgentSettleNoteMax.
+type AgentStopSettleRequest struct {
+	BlockId string `json:"blockid"`
+	By      string `json:"by,omitempty"`
+	Note    string `json:"note,omitempty"`
+}
+
+// The results of settling a stop (AgentStopSettleResult.Status).
+const (
+	AgentSettleDone = "settled"
+	// None: the terminal holds no stop that waits for the developer.
+	AgentSettleNone = "none"
+	// OwnPrompt: the agent itself waits on a prompt of its terminal; only answering it there moves it.
+	AgentSettleOwnPrompt = "ownprompt"
+
+	AgentSettleNoteMax = 200
+)
+
+type AgentStopSettleResult struct {
+	Status string `json:"status"`
 }
 
 // AgentSettings is a run's model and effort level as its agent reports them (#549); "" fields are unknown. Provider:
@@ -371,6 +419,9 @@ type AgentSettings struct {
 	ModelName string
 	Effort    string
 	Provider  string
+	// ModelUnavailable: the agent refused its latest turn because the model is not available to the signed-in
+	// account (#2076, Codex's model_not_found), and no turn or model change came since.
+	ModelUnavailable bool
 }
 
 // AgentRunInfo is what the agent companion (DS-SHELL-019) needs of a block's agent: which one, and since when it runs.

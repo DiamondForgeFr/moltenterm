@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # Signs a MoltenTerm release folder with the DiamondForge release key (#576): SHA256SUMS.txt (written by
 # moltenterm-release-files.sh) into SHA256SUMS.txt.asc, which covers every file, plus a detached <file>.asc beside each

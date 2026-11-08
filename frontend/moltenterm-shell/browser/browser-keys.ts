@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The browser panel's own shortcuts (#1722, FR-SHELL-007): the keys every browser answers, per platform, in Wave's key
 // notation (keyutil.ts, where "Cmd" is Command on macOS and Alt elsewhere, so the other platforms spell Ctrl out).

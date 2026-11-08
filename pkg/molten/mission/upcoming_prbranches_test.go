@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -15,6 +15,7 @@ import (
 // a ticket the PR closes) are listed on that PR, never Upcoming; the PR's own branch, in an agent worktree, is no
 // candidate at all; a ticket without an open PR stays Upcoming.
 func TestUpcomingTicketWithAnOpenPrIsNeverUpcoming(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	sf := `{"workflow":{"prTargetBranch":"develop","branchNaming":{"feature":"feature/{N}-{description}","fix":"fix/{N}-{description}"}}}`
 	if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(sf), 0644); err != nil {
@@ -75,6 +76,7 @@ func TestUpcomingTicketWithAnOpenPrIsNeverUpcoming(t *testing.T) {
 
 // #1172: whose turn a draft is depends on the project's workflow: a Solo board has no Human Testing column.
 func TestReadHumanTesting(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	write := func(sf string) {
 		if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(sf), 0644); err != nil {

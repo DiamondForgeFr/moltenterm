@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // `molten project sync [source]` (FR-MC-030-AC1): runs this workspace's project's declared sync for a dependency, as
 // the notification's Sync does, and follows it to its end. Mission Control runs it (pkg/molten/mission/depsync.go):

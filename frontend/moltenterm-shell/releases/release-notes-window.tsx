@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The version history (FR-REL-004, DS-REL-004), after Notulia's ReleaseNotesDialog: the versions this build knows on
 // the left, each public version with its release candidates under it, and the notes of the selected one on the right.

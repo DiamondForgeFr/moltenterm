@@ -1,16 +1,19 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews card's one state (#1060, FR-REV-001 AC11, FR-REV-022 AC10, FR-REV-028 AC12): computed from the PR, every
 // agent on its branch and the task asked, it decides the card's rail colour, its state sentence, its one primary action
 // and the "…" menu. Everything else is a muted fact. Pure, so the sections (#1061), the merge queue (#1062) and the
 // motion (#1063) read the same state. Sentences are phrases (key + vars), worded where they show.
+// #1876: the sections are by what the developer must do (FR-REV-001 AC16) and the card carries one true status line
+// (reviews-status-model.ts): what runs now, or "Nothing runs" and why.
 
 import { getLocale } from "../i18n/i18n";
 import { phrase, type Phrase } from "../i18n/phrase";
 import { batchStatePhrase } from "./reviews-batch-agent";
 import type { BatchItem, BatchRun } from "./reviews-batch-model";
-import { blockedReasons, checkNames, checksOf, LeadFacts, ReviewPr } from "./reviews-model";
+import { blockedReasons, checkNames, checksOf, LeadFacts, ReviewDependency, ReviewPr } from "./reviews-model";
+import { cardStatus, type CardStatus } from "./reviews-status-model";
 import type { PrTask, PrTaskState } from "./reviews-task-model";
 import type { AgentBarFacts, DraftTurn } from "./reviews-upcoming-model";
 
@@ -18,10 +21,12 @@ import type { AgentBarFacts, DraftTurn } from "./reviews-upcoming-model";
 export const CardStateKinds = [
     "agent-waiting",
     "agent-working",
+    "waiting-on",
     "agent-finish",
     "interrupted",
     "conflicts",
     "failing",
+    "queue-stopped",
     "ci-trust",
     "ci-stopped",
     "review-required",
@@ -37,9 +42,11 @@ export type CardStateKind = (typeof CardStateKinds)[number];
 // the CI runs, ember broken and nobody on it, a line a draft left to its agent, grey waiting on a reviewer or nothing.
 export type CardTone = "ready" | "you" | "agent" | "broken" | "running" | "draft" | "wait";
 
-// Whose turn the card is, for the sections by turn (#1061). "ready" splits out of "yours" and "waiting" reads
-// "Running" (#1327) so the sidebar's status dots count exactly the PRs a section lists.
-export type CardTurn = "yours" | "ready" | "agents" | "blocked" | "waiting";
+// What the developer must do about the card, for the sections (#1061, #1876, FR-REV-001 AC16): "yours" is what is
+// stuck until they act (Needs you), "ready" what they can merge, "waiting" what runs now (In progress: CI, an agent,
+// the merge queue) and "agents" what nothing runs and is nobody's to do for now. The sidebar's status dots count
+// exactly the PRs a section lists (#1327).
+export type CardTurn = "yours" | "ready" | "agents" | "waiting";
 
 // The one vocabulary of the turns (#1327, FR-SHELL-098): a section's title, a status dot's tooltip and its accessible
 // name all read these keys, so a PR counted under a dot is listed in the section of the same name.
@@ -47,7 +54,6 @@ export const TurnTitleKeys: Record<CardTurn, string> = {
     yours: "reviews.sections.yours",
     ready: "reviews.sections.ready",
     agents: "reviews.sections.agents",
-    blocked: "reviews.sections.blocked",
     waiting: "reviews.sections.waiting",
 };
 
@@ -65,20 +71,24 @@ export type CardActionId =
     | "validate"
     | "open-work"
     | "stop"
+    | "settle"
     | "rerun"
     | "approve-commands"
     | "run-ci"
     | "launch"
-    | "github";
+    | "github"
+    | "go-to-pr";
 
 // An action of the card. disabled: why GitHub refuses it (shown, never hidden); confirm: what the developer confirms
-// before it runs (#943: a soft signal asks, it never blocks); blockId: the agent's terminal it acts on.
+// before it runs (#943: a soft signal asks, it never blocks); blockId: the agent's terminal it acts on; target: the PR
+// or issue it goes to (#1841).
 export type CardAction = {
     id: CardActionId;
     label: Phrase;
     disabled?: Phrase;
     confirm?: Phrase;
     blockId?: string;
+    target?: ReviewDependency;
 };
 
 // running: checks still run, with a still mark (the card's one animation is its state line or its agent line, #1085).
@@ -105,11 +115,17 @@ export type CardState = {
     facts: CardFact[];
     // What a stopped task left, one muted line ("Salomé stopped without fixing Backend").
     history?: Phrase;
-    // Something works and nothing is the developer's to do for now (#1085, FR-REV-022 AC13): the dominoes' meaning.
+    // Something runs on the PR now (#1085, FR-REV-022 AC13; #1876: the status line's truth, whatever the card's state):
+    // the dominoes' meaning.
     works: boolean;
-    // Where the card's one domino animation is: "state" in place of the state dot; "agent" when an agent line of the
-    // card already shows it (the state line keeps its dot); null when nothing works.
+    // The one true line of what runs now, or "Nothing runs" and why (#1876, FR-REV-001 AC17).
+    status: CardStatus;
+    // Where the card's one domino animation is: "state" beside the status line; "agent" when an agent line of the card
+    // already shows it; null when nothing runs.
     motion: "state" | "agent" | null;
+    // The stop this card's agent made for a decision was settled by its lead or the developer (#1876): who and why,
+    // for the muted "settled by …" line. by is "" for the developer.
+    settled?: { by: string; note: string };
 };
 
 export type CardInput = {
@@ -141,15 +157,28 @@ export type CardInput = {
     others?: { branch: string; worktree?: string }[];
     // The merge queue's step while the queue works on the PR (#1128); its agent is in agents (withBatchAgent).
     batch?: { run: BatchRun; item: BatchItem };
+    // The open PRs or issues the PR waits on (#1841, openWaits): a draft held until they merge.
+    waitsOn?: ReviewDependency[];
+    // The minute clock, for the status line's durations (#1876).
+    now?: number;
+    // The merge queue stopped on the PR and says what to do about it (#1871, batchStopHelp): the developer's move.
+    batchStopped?: boolean;
 };
+
+// openWaits (#1841): what a PR waits on that is still open, as wavesrv last read it.
+export function openWaits(pr: ReviewPr): ReviewDependency[] {
+    return (pr?.waitson ?? []).filter((w) => w.number > 0 && w.number !== pr.number && w.state === "open");
+}
 
 const Tones: Record<CardStateKind, CardTone> = {
     "agent-waiting": "you",
     "agent-working": "agent",
+    "waiting-on": "wait",
     "agent-finish": "draft",
     interrupted: "you",
     conflicts: "broken",
     failing: "broken",
+    "queue-stopped": "you",
     "ci-trust": "you",
     "ci-stopped": "you",
     "review-required": "you",
@@ -161,11 +190,13 @@ const Tones: Record<CardStateKind, CardTone> = {
 
 const Turns: Record<CardStateKind, CardTurn> = {
     "agent-waiting": "yours",
-    "agent-working": "agents",
+    "agent-working": "waiting",
+    "waiting-on": "agents",
     "agent-finish": "agents",
     interrupted: "yours",
-    conflicts: "blocked",
-    failing: "blocked",
+    conflicts: "yours",
+    failing: "yours",
+    "queue-stopped": "yours",
     "ci-trust": "yours",
     "ci-stopped": "yours",
     "review-required": "yours",
@@ -178,8 +209,9 @@ const Turns: Record<CardStateKind, CardTurn> = {
 // Calm primaries: nothing is the developer's to do right now. The same states are the ones where something works
 // (#1085): their card shows the dominoes.
 const CalmKinds = new Set<CardStateKind>(["agent-working", "ci-running"]);
-// A draft left to its agent (#1212) asks nothing of the developer either, but nothing works on it: calm, no dominoes.
-const QuietKinds = new Set<CardStateKind>([...CalmKinds, "agent-finish", "ci-elsewhere"]);
+// A draft left to its agent (#1212), or held until another PR merges (#1841), asks nothing of the developer either, but
+// nothing works on it: calm, no dominoes.
+const QuietKinds = new Set<CardStateKind>([...CalmKinds, "waiting-on", "agent-finish", "ci-elsewhere"]);
 
 // agentLineMoves: an agent line shows the dominoes (reviews-agent-bar.tsx) while its agent works or runs in the
 // background, unless it tells a stopped task. The card reads the same so it never shows a second animation.
@@ -305,7 +337,15 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     // theirs and they stopped, so the card says whose turn it is next, never "an agent is on it" with the dominoes.
     const known = (input.agents ?? []).length > 0;
     const inferred = !known && (input.agentReadies ? input.recentCommit : input.boardTurn?.owner === "agent");
-    if (working != null || (inferred && pr.draft)) {
+    if (working != null) {
+        return "agent-working";
+    }
+    // #1841: a draft held until another PR or issue is done is neither finished nor the developer's; a commit pushed
+    // before it was held does not make it worked on.
+    if (pr.draft && (input.waitsOn?.length ?? 0) > 0) {
+        return "waiting-on";
+    }
+    if (inferred && pr.draft) {
         return "agent-working";
     }
     // #1212: a draft no agent works on is still its agent's (it stopped before marking it ready), whatever its CI or
@@ -326,6 +366,10 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     }
     if (input.taskState === "stuck") {
         return "interrupted";
+    }
+    // #1876: the merge queue stopped on it and says what to do: nothing moves until the developer does it.
+    if (input.batchStopped) {
+        return "queue-stopped";
     }
     // #1713: a local CI nothing runs is the developer's to unblock, never "CI running".
     if (checksOf(pr.ci, "untrusted").length > 0) {
@@ -375,12 +419,6 @@ function cardFacts(input: CardInput, kind: CardStateKind, said: Set<string>): Ca
         });
     } else if (failed.length > 0 && success > 0) {
         facts.push({ id: "ci", text: phrase("reviews.card.fact.othersGreen", { count: success }), tone: "muted" });
-    } else if (pending > 0 && kind !== "ci-running") {
-        facts.push({
-            id: "ci",
-            text: phrase("reviews.card.fact.ciRunning", { success, total: checks.length, pending }),
-            tone: "running",
-        });
     } else if (checks.length > 0 && failed.length === 0 && pending === 0 && success === checks.length) {
         facts.push({
             id: "ci",
@@ -489,6 +527,20 @@ const AssistedReview = (): CardAction => action("assisted-review", "reviews.card
 const Launch = (): CardAction => action("launch", "reviews.card.action.launch");
 const Github = (): CardAction => action("github", "reviews.card.action.github");
 
+// settledPhrase (#1876): the muted line a settled stop leaves on the card: "settled by Arthur: <note>", "settled by you"
+// when the developer did it.
+export function settledPhrase(settled: { by: string; note: string }): Phrase {
+    if (settled == null) {
+        return null;
+    }
+    const note = (settled.note ?? "").trim();
+    if (!settled.by) {
+        return note ? phrase("reviews.card.settled.you", { note }) : phrase("reviews.card.settled.youNoNote");
+    }
+    const name = phrase("reviews.card.name", { name: settled.by });
+    return note ? phrase("reviews.card.settled.by", { name, note }) : phrase("reviews.card.settled.byNoNote", { name });
+}
+
 // The agent's own actions in the menu: its work beside the diff, and Stop (panels only: a terminal to act on). The
 // merge queue's agent has neither: its work is the queue's, which the banner stops (#1128).
 function agentActions(agent: AgentBarFacts): CardAction[] {
@@ -561,6 +613,7 @@ export function cardState(input: CardInput): CardState {
     let primary: CardAction;
     let menu: CardAction[] = [];
     let history: Phrase;
+    const extra: CardFact[] = [];
     const relaunch = relaunchAction(input);
     if (input.task != null && input.taskState === "stuck" && !input.taskLive && kind !== "interrupted") {
         history = phrase("reviews.card.history.gone", { name: input.task.name || "", what: taskWhat(input.task) });
@@ -573,7 +626,15 @@ export function cardState(input: CardInput): CardState {
                 ...action("answer", "reviews.card.action.answer", { name: agentName(waiting) }),
                 blockId: waiting.blockId,
             };
-            menu = [...agentActions(waiting), Github()];
+            // A stop MoltenTerm holds for a decision is the developer's to settle too (#1876); an agent's own prompt is
+            // answered in its terminal.
+            menu = [
+                ...agentActions(waiting),
+                ...(waiting.held != null && waiting.blockId
+                    ? [{ ...action("settle", "reviews.card.action.settle"), blockId: waiting.blockId }]
+                    : []),
+                Github(),
+            ];
             break;
         case "agent-working": {
             agent = working;
@@ -619,6 +680,34 @@ export function cardState(input: CardInput): CardState {
                 Launch(),
                 Github(),
             ];
+            break;
+        }
+        case "waiting-on": {
+            const waits = input.waitsOn;
+            const first = waits[0];
+            agent = agents.find((a) => a.kind === "panel") ?? agents[0] ?? null;
+            sentence = phrase(first.title ? "reviews.card.state.waitingOn" : "reviews.card.state.waitingOnNumber", {
+                number: first.number,
+                title: first.title ?? "",
+            });
+            why = phrase(`reviews.card.why.waitsOn.${first.from ?? "body"}`, { number: first.number });
+            if (waits.length > 1) {
+                extra.push({
+                    id: "waits",
+                    text: phrase("reviews.card.fact.alsoWaitsOn", {
+                        numbers: waits
+                            .slice(1)
+                            .map((w) => `#${w.number}`)
+                            .join(", "),
+                    }),
+                    tone: "muted",
+                });
+            }
+            primary = {
+                ...action("go-to-pr", "reviews.card.action.goTo", { number: first.number }),
+                target: first,
+            };
+            menu = [...agentActions(agent), AssistedReview(), mergeAction(input, null), Launch(), Github()];
             break;
         }
         case "agent-finish": {
@@ -697,6 +786,12 @@ export function cardState(input: CardInput): CardState {
             ];
             break;
         }
+        case "queue-stopped":
+            // The row under the card says why it stopped and offers the action that answers (BatchStopLine, #1871).
+            sentence = phrase("reviews.card.state.queueStopped");
+            primary = null;
+            menu = [mergeAction(input, null), AssistedReview(), Github()];
+            break;
         case "ci-trust": {
             const waiting = checksOf(pr.ci, "untrusted");
             said.add("ci");
@@ -754,17 +849,9 @@ export function cardState(input: CardInput): CardState {
             break;
         case "ci-running": {
             const running = checksOf(pr.ci, "pending");
-            const total = pr.ci?.checks?.length ?? 0;
             if (running.length > 0 || (pr.ci?.pending ?? 0) > 0) {
+                // What runs, and for how long, is the status line's (#1876).
                 sentence = phrase("reviews.card.state.ciRunning");
-                why =
-                    running.length > 0
-                        ? phrase("reviews.card.why.running", {
-                              count: running.length,
-                              total,
-                              names: checkNames(running),
-                          })
-                        : undefined;
             } else {
                 sentence = phrase("reviews.card.state.mergeChecking");
             }
@@ -779,9 +866,24 @@ export function cardState(input: CardInput): CardState {
             menu = [AssistedReview(), Launch(), Github()];
             break;
     }
-    const works = CalmKinds.has(kind);
+    const status = cardStatus(
+        input,
+        kind,
+        {
+            working,
+            workingName: agentName(working),
+            waitingName: agentName(waiting),
+            stoppedName: lead?.name ? phrase("reviews.card.name", { name: lead.name }) : agentName(agent),
+            taskName: phrase("reviews.card.name", { name: input.task?.name || "" }),
+        },
+        input.now ?? Date.now()
+    );
+    const works = status.running;
+    const settled = agents.find((a) => a.settled != null)?.settled;
     return {
         works,
+        status,
+        settled: settled != null ? { by: settled.by, note: settled.note } : undefined,
         motion: cardMotion(input, works),
         kind,
         tone: Tones[kind],
@@ -793,7 +895,7 @@ export function cardState(input: CardInput): CardState {
         primary,
         molten: primary != null && !QuietKinds.has(kind) && primary.disabled == null,
         menu: menuOrder(menu.filter((a) => a != null && a.id !== primary?.id)),
-        facts: cardFacts(input, kind, said),
+        facts: [...extra, ...cardFacts(input, kind, said)],
         history,
     };
 }

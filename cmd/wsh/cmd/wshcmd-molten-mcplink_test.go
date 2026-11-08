@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package cmd
 
@@ -39,7 +39,9 @@ type fakeWavesrv struct {
 	// silentConn: the connection number whose requests get no answer, the probe's included.
 	silentConn int
 	// dieOn: a tool whose call closes the connection instead of answering, once.
-	dieOn  string
+	dieOn string
+	// dieOnReport: the connection number whose link report (sent while the link is opened) closes it unanswered.
+	dieOnReport int
 	hellos int
 	calls  map[string]int
 	notice chan handoffwire.LinkNoticeRequest
@@ -210,6 +212,10 @@ func (f *fakeWavesrv) handle(conn net.Conn, connNo int, msg wshutil.RpcMessage) 
 		case f.watches <- fakeWatch{connNo: connNo, req: req}:
 		default:
 		}
+		if connNo == f.dieOnReport {
+			conn.Close()
+			return nil, "", false
+		}
 		if req.HoldMs == 0 {
 			return agentlinkwire.WatchResult{}, "", true
 		}
@@ -315,6 +321,28 @@ func TestMoltenMcpLinkFailsFastThenTellsTheDeveloperOnceItIsBack(t *testing.T) {
 	case n := <-f.notice:
 		t.Fatalf("a second notice: %+v", n)
 	default:
+	}
+}
+
+// #1926: MoltenTerm ends the connection while the link reports itself on it, before anything else is sent. The report
+// waited forever under the link's lock, and every later call (list_agents, send_to_agent) with it, for 30 minutes.
+func TestMoltenMcpLinkSurvivesAConnectionThatEndsWhileItOpens(t *testing.T) {
+	f := makeFakeWavesrv(t)
+	f.set(func(f *fakeWavesrv) { f.dieOnReport = 1 })
+	f.start()
+	b := makeTestMcpBackend(t, f)
+	done := make(chan mcpbrowser.CallResult, 1)
+	go func() {
+		b.Start(context.Background(), mcpbrowser.ClientInfo{Name: "claude-code"})
+		done <- b.CallTool(context.Background(), mcpbrowser.ToolListAgents, nil)
+	}()
+	select {
+	case r := <-done:
+		if r.IsError || !strings.Contains(resultText(r), "Valentin") {
+			t.Fatalf("list_agents after the connection ended while it opened: %+v", r)
+		}
+	case <-time.After(time.Minute):
+		t.Fatal("list_agents hangs: the link wedged on a connection that ended while it opened")
 	}
 }
 

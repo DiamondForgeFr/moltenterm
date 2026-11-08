@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
 import type { AgentStatesData } from "../agent-state-model";
@@ -13,10 +13,10 @@ import {
     emptyPrCounts,
     firstPilotageTab,
     hasPrCounts,
-    PrCountKinds,
     prCountKind,
-    prCountSectionKey,
+    PrCountKinds,
     prCounts,
+    prCountSectionKey,
     shownPrKinds,
 } from "./pr-counts-model";
 
@@ -57,19 +57,14 @@ const failing = {
 const reviewRequired = { merge: "blocked" as const, reviewdecision: "REVIEW_REQUIRED" };
 
 describe("the status dots' kinds (FR-SHELL-098, #1327)", () => {
-    it("read top to bottom blocked, yours, ready, running, with the agents", () => {
-        expect(PrCountKinds).toEqual(["blocked", "yours", "ready", "waiting", "agents"]);
-        expect(shownPrKinds({ blocked: 1, yours: 0, ready: 0, waiting: 2, agents: 3 })).toEqual([
-            "blocked",
-            "waiting",
-            "agents",
-        ]);
+    it("read top to bottom needs you, ready, in progress, with the agents (#1876)", () => {
+        expect(PrCountKinds).toEqual(["yours", "ready", "waiting", "agents"]);
+        expect(shownPrKinds({ yours: 1, ready: 0, waiting: 2, agents: 3 })).toEqual(["yours", "waiting", "agents"]);
         expect(shownPrKinds(emptyPrCounts())).toEqual([]);
     });
 
     it("are named after the panel's own section titles", () => {
         expect(PrCountKinds.map(prCountSectionKey)).toEqual([
-            "reviews.sections.blocked",
             "reviews.sections.yours",
             "reviews.sections.ready",
             "reviews.sections.waiting",
@@ -83,22 +78,22 @@ describe("the status dots' kinds (FR-SHELL-098, #1327)", () => {
         }
     });
 
-    it("moves a failing CI into blocked, a running one into running", () => {
+    it("moves a failing CI into needs you, a running one into in progress", () => {
         const counts = prCounts(answer({ ready: [pr(1), pr(2, { ci: running }), pr(3, { ci: failing })] }));
-        expect(counts).toEqual({ blocked: 1, yours: 0, ready: 1, waiting: 1, agents: 0 });
+        expect(counts).toEqual({ yours: 1, ready: 1, waiting: 1, agents: 0 });
     });
 
     it("reads a merge state that says CI runs as running, as the panel's card does", () => {
         expect(prCountKind(pr(2, { merge: "running" }))).toBe("waiting");
     });
 
-    it("counts a conflict as blocked, never as ready", () => {
-        expect(prCountKind(pr(1, { merge: "conflicts" }))).toBe("blocked");
+    it("counts a conflict as needs you, never as ready", () => {
+        expect(prCountKind(pr(1, { merge: "conflicts" }))).toBe("yours");
     });
 
     it("never counts a PR the panel shows as Review required as ready (AC2)", () => {
         const counts = prCounts(answer({ ready: [pr(1), pr(2, reviewRequired)] }));
-        expect(counts).toEqual({ blocked: 0, yours: 1, ready: 1, waiting: 0, agents: 0 });
+        expect(counts).toEqual({ yours: 1, ready: 1, waiting: 0, agents: 0 });
     });
 
     it("counts each PR once, drafts with the agents or yours as their card says", () => {
@@ -112,13 +107,12 @@ describe("the status dots' kinds (FR-SHELL-098, #1327)", () => {
             undefined,
             cards
         );
-        expect(counts).toEqual({ blocked: 2, yours: 1, ready: 2, waiting: 1, agents: 1 });
+        expect(counts).toEqual({ yours: 3, ready: 2, waiting: 2, agents: 0 });
     });
 
     it("follows the panel's split: a draft marked ready here counts as ready", () => {
         const readied = { [rebaseAskKey("/p", 9)]: 200 };
         expect(prCounts(answer({ drafts: [pr(9, { draft: true })] }), readied)).toEqual({
-            blocked: 0,
             yours: 0,
             ready: 1,
             waiting: 0,
@@ -161,7 +155,9 @@ describe("the status dots count what the panel's sections list (FR-SHELL-098 AC1
                 drafts: [],
                 at: 1,
             },
-            states: { states: { b1: { state: "working", firstname: "Olivia", since: 1 } } } as unknown as AgentStatesData,
+            states: {
+                states: { b1: { state: "working", firstname: "Olivia", since: 1 } },
+            } as unknown as AgentStatesData,
             now: 100_000,
             boardText: (s) => s,
         });
@@ -170,7 +166,7 @@ describe("the status dots count what the panel's sections list (FR-SHELL-098 AC1
         for (const kind of PrCountKinds) {
             expect(counts[kind], kind).toBe(sections.find((s) => s.turn === kind)?.prs.length ?? 0);
         }
-        expect(counts).toEqual({ blocked: 2, yours: 1, ready: 2, waiting: 1, agents: 1 });
+        expect(counts).toEqual({ yours: 3, ready: 2, waiting: 2, agents: 0 });
     });
 });
 
@@ -182,15 +178,23 @@ describe("the status dots follow the panel's card states (#1304)", () => {
         expect(prCountKind(draft, cardState({ pr: draft, agents: [agent("waiting")] }))).toBe("yours");
     });
 
-    it("a conflict an agent works on is with the agents; nobody on it, it blocks", () => {
+    it("a conflict an agent works on is in progress; nobody on it, it needs you", () => {
         const conflict = pr(1, { merge: "conflicts" });
-        expect(prCountKind(conflict, cardState({ pr: conflict, agents: [agent("working")] }))).toBe("agents");
-        expect(prCountKind(conflict, cardState({ pr: conflict, agents: [] }))).toBe("blocked");
+        expect(prCountKind(conflict, cardState({ pr: conflict, agents: [agent("working")] }))).toBe("waiting");
+        expect(prCountKind(conflict, cardState({ pr: conflict, agents: [] }))).toBe("yours");
     });
 
-    it("a failing CI nobody works on blocks; CI running is running; a clean PR is ready", () => {
+    it("a settled stop is no longer yours: the PR's own state decides (#1876)", () => {
+        const clean = pr(1);
+        const settled: AgentBarFacts = { ...agent("idle"), settled: { by: "Arthur", note: "ok", at: 5 } };
+        expect(prCountKind(clean, cardState({ pr: clean, agents: [settled] }))).toBe("ready");
+        const pending = pr(2, { ci: running });
+        expect(prCountKind(pending, cardState({ pr: pending, agents: [settled] }))).toBe("waiting");
+    });
+
+    it("a failing CI nobody works on needs you; CI running is in progress; a clean PR is ready", () => {
         const failed = pr(1, { ci: failing });
-        expect(prCountKind(failed, cardState({ pr: failed, agents: [] }))).toBe("blocked");
+        expect(prCountKind(failed, cardState({ pr: failed, agents: [] }))).toBe("yours");
         const pending = pr(2, { ci: running });
         expect(prCountKind(pending, cardState({ pr: pending, agents: [] }))).toBe("waiting");
         const clean = pr(3);
@@ -210,11 +214,10 @@ describe("the status dots follow the panel's card states (#1304)", () => {
             2: cardState({ pr: b, agents: [agent("working")] }),
         };
         expect(prCounts(answer({ ready: [a, b] }), undefined, cards)).toEqual({
-            blocked: 0,
             yours: 1,
             ready: 0,
-            waiting: 0,
-            agents: 1,
+            waiting: 1,
+            agents: 0,
         });
     });
 });

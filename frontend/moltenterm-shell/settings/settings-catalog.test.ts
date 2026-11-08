@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,7 @@ vi.mock("../workspace-project", () => ({ ProjectMetaKey: "molten:project", Works
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
 import { integrationRunRows, integrationRunText } from "../agent-integration-runs";
+import { BrokkTableGroup, BrokkTableKey } from "../boss/brokk-coming-card";
 import { hasKey, translate } from "../i18n/i18n-core";
 import { SuiteIcons } from "../suite/suite-icons";
 import {
@@ -71,13 +72,16 @@ describe("settings catalog (FR-SHELL-050)", () => {
             "Appearance",
             "Terminal",
             "Agents",
+            "Brokk",
             "Browser",
             "Project",
             "Notifications",
             "Keyboard",
             "Mods",
             "Secrets",
+            "What MoltenTerm learned",
             "Tips",
+            "About",
             "Advanced",
         ]);
     });
@@ -89,7 +93,12 @@ describe("settings catalog (FR-SHELL-050)", () => {
         expect(sectionEntries(catalog(), "general").map((e) => e.key)).not.toContain("app:newviewopen");
         expect(sectionEntries(catalog(), "appearance").map((e) => e.key)).not.toContain("moltenterm:sidebartint");
         const browser = sectionEntries(catalog(), "browser").map((e) => e.key);
-        for (const key of ["browser:sites", "browser:agentsites", "browser:sitepermissions"]) {
+        for (const key of [
+            "browser:sites",
+            "browser:agentsites",
+            "browser:sitepermissions",
+            "browser:clientcertificates",
+        ]) {
             expect(browser).toContain(key);
         }
     });
@@ -105,10 +114,10 @@ describe("settings catalog (FR-SHELL-050)", () => {
         }
     });
 
-    // Notifications, Mods, Secrets and Tips hold what settings.json does not.
+    // Notifications, Mods, Secrets, What MoltenTerm learned, Tips and About hold what settings.json does not.
     it("gives each section but Advanced and Keyboard its own settings", () => {
         const all = [...WorkspaceSettings, ...catalog()];
-        const noKeys = ["mods", "secrets", "notifications", "tips"];
+        const noKeys = ["mods", "secrets", "learned", "notifications", "tips", "about"];
         for (const s of SettingsSections.filter((s) => !noKeys.includes(s.id))) {
             expect(sectionEntries(all, s.id).length, s.id).toBeGreaterThan(0);
         }
@@ -267,9 +276,9 @@ describe("settings in the interface language (FR-I18N-001)", () => {
         const quit = all.find((e) => e.key === "app:confirmquit");
         expect(quit.label).toBe("Confirmer avant de quitter");
         expect(quit.group).toBe("Quitter et fermer");
-        const sleep = all.find((e) => e.key === "power:sleeppolicy");
-        expect(sleep.unsetLabel).toBe("Demander la première fois");
-        expect(sleep.options.find((o) => o.value === "letsleep").label).toBe("Jamais");
+        const requests = all.find((e) => e.key === "power:terminalrequests");
+        expect(requests.unsetLabel).toBe("Demander la première fois");
+        expect(requests.options.find((o) => o.value === "never").label).toBe("Jamais");
         expect(all.find((e) => e.key === "molten:folder").group).toBe("Cet espace de travail");
         const english = new Map([...WorkspaceSettings, ...catalog()].map((e) => [e.key, e]));
         const sameWord = ["Shell", "Minimap", "Zoom", "Git Bash"];
@@ -404,5 +413,81 @@ describe("Agents with the integration (FR-SHELL-040, #947)", () => {
             ["codex", "Without the hookup"],
             ["Valentin · Claude Code", "With the hookup"],
         ]);
+    });
+});
+
+describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
+    const boss = SettingsSections.find((s) => s.id === "boss");
+    const tr = (key: string, vars?: Record<string, string | number>) => translate("en", key, vars);
+    const trFr = (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars);
+
+    it("holds the name and Show the avatar, then the table of when he comes, and no longer the bubble's collapse (FR-BOSS-009, AC4, AC13)", () => {
+        const keys = sectionEntries(catalog(), "boss").map((e) => e.key);
+        expect(keys.slice(0, 2)).toEqual(["boss:name", "boss:show"]);
+        expect(keys.slice(2)).toEqual([
+            "boss:visitsecurity",
+            "boss:visitblocked",
+            "boss:visiterror",
+            "boss:visitci",
+            "boss:visitready",
+            "boss:visitfinished",
+            "boss:visitdownload",
+            "boss:visitupdate",
+            "boss:visitusage",
+            "boss:blockedmin",
+            "boss:quiet",
+            "boss:quietfrom",
+            "boss:quietto",
+            "boss:nevercome",
+        ]);
+        expect(entry("boss:collapseontype")).toBeUndefined();
+    });
+
+    it("draws the keys of the table as one group, the one the card of Preferences replaces the rows of", () => {
+        const table = sectionEntries(catalog(), "boss").filter((e) => e.key !== "boss:name" && e.key !== "boss:show");
+        expect(new Set(table.map((e) => e.group))).toEqual(new Set([BrokkTableGroup]));
+        expect(table[0].key).toBe(BrokkTableKey);
+    });
+
+    it("shows the avatar by default, as a toggle", () => {
+        expect(entry("boss:show")).toMatchObject({ control: "toggle", defaultValue: true, label: "Show the avatar" });
+    });
+
+    it("takes a name of 1 to 24 characters, Brokk by default", () => {
+        expect(entry("boss:name")).toMatchObject({
+            control: "text",
+            defaultValue: "Brokk",
+            range: { min: 1, max: 24 },
+        });
+    });
+
+    it("is titled with the name the developer chose, in both languages", () => {
+        expect(localizeSection(boss, tr, "Brokk").title).toBe("Brokk");
+        expect(localizeSection(boss, tr, "Léa").title).toBe("Léa");
+        expect(localizeSection(boss, trFr, "Léa").title).toBe("Léa");
+        expect(sectionTitle("boss", tr, "Gaston")).toBe("Gaston");
+        expect(localizeSection(boss, tr, "Léa").description).toBe(
+            "The avatar that counts what waits for you in every workspace."
+        );
+    });
+
+    it("leaves the other sections' titles alone", () => {
+        const agents = SettingsSections.find((s) => s.id === "agents");
+        expect(localizeSection(agents, tr, "Léa").title).toBe("Agents");
+    });
+
+    it("speaks French for its settings and the table's rows", () => {
+        const localized = localizeCatalog(sectionEntries(catalog(), "boss"), trFr);
+        expect(localized.slice(0, 2).map((e) => e.label)).toEqual(["Nom", "Afficher l'avatar"]);
+        expect(localized.slice(0, 2).every((e) => e.group === "Avatar")).toBe(true);
+        const table = localized.slice(2);
+        expect(table.every((e) => e.group === "Quand il vient me chercher")).toBe(true);
+        expect(table.find((e) => e.key === "boss:visitblocked").label).toBe("Un agent attend ma réponse");
+        expect(table.find((e) => e.key === "boss:visitci").options.map((o) => o.label)).toEqual([
+            "Vient me chercher",
+            "Badge seulement",
+            "Rien",
+        ]);
+        expect(table.every((e) => e.label !== "" && e.description !== "")).toBe(true);
     });
 });

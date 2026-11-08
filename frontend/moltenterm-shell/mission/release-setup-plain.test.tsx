@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Your way of publishing" (FR-MC-044, #1151): SaaSFoundryAI's committed pipeline (a copy of its .molten/project.json
 // release block), a single-branch project and a custom step, told in plain words; the diagram's numbers are the

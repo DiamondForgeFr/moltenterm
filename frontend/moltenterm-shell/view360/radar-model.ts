@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The radar scrubber of the carpet (FR-SHELL-068, DS-SHELL-119): one tick per carpet column, in carpet order, coloured
 // by its panel kind; the ticks of the columns in view are framed by a window (#678); the tick of a column that needs

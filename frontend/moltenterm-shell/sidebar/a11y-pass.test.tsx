@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The short accessibility pass (FR-SHELL-099, #1328): 24 px targets, the 2 px focus ring, an accessible name for tiles
 // and the Files buttons, and the same hidden-files words in Files and in Preferences.

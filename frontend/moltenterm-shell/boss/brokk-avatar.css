@@ -1,0 +1,274 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Brokk's avatar (FR-BOSS-009, AC1, AC2, AC14, AC27): 26 px in the sidebar's title row, 20 px on the strip of the
+   collapsed sidebar, 14 px when it hangs from the window's top edge. The portrait fills a round face and is framed on his head by boss-portrait.css, the one place that holds
+   the framing. The ring, the badge and the halo lie around the face, so they are never clipped by it. Nothing here
+   loops: the ring turns on the working beat (moltenterm-shell.css, mt-beat-turn) and the halo dims on it, so that a
+   view with an avatar draws a frame a second at most, and both stand still without the beat (reduced motion). */
+
+.mt-brokk-avatar {
+    --mt-brokk-size: 26px;
+    position: relative;
+    flex: none;
+    box-sizing: border-box;
+    width: var(--mt-brokk-size);
+    height: var(--mt-brokk-size);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-app-region: no-drag;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-state-warning) 50%, transparent);
+    transition:
+        opacity var(--mt-duration-fade) linear var(--mt-duration-fade),
+        visibility 0s linear 0s,
+        box-shadow var(--mt-duration-fast) var(--mt-ease),
+        width var(--mt-duration-base) var(--mt-ease),
+        height var(--mt-duration-base) var(--mt-ease),
+        transform var(--mt-duration-base) var(--mt-ease);
+}
+
+/* On the strip of the collapsed sidebar (FR-BOSS-009, AC27, #2070): smaller, so that it fits the 30 px strip, and moved from
+   its place at the right end of the title row to the middle of the strip, which centres it and its rings (#2083). It
+   grows back and slides to its place as the sidebar unfolds, so the face rides with the sidebar and is never twice on
+   screen. The strip only shows while the sidebar peeks out for news or stays half open (#2093). */
+.mt-brokk-avatar.is-edge {
+    --mt-brokk-size: var(--mt-edge-face, 20px);
+    transform: translateX(calc(var(--mt-peek-inset, 12px) - (var(--mt-edge-px, 30px) - var(--mt-edge-face, 20px)) / 2));
+}
+
+.mt-brokk-avatar.is-edge .mt-brokk-ring {
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+}
+
+.mt-brokk-avatar.is-edge .mt-brokk-halo {
+    inset: 0;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 55%, transparent);
+}
+
+.mt-brokk-avatar.is-edge .mt-brokk-cup,
+.mt-brokk-avatar.is-edge .mt-brokk-talk {
+    display: none;
+}
+
+/* Under the face, inside the strip: at the top right it would hide a third of a 20 px face and lie over the first panel. */
+.mt-brokk-avatar.is-edge .mt-brokk-badge {
+    top: calc(100% + 3px);
+    right: 50%;
+    transform: translateX(50%);
+}
+
+/* A new notification, with reduced motion: no bounce, the badge and an outline in the action colour say it until the
+   developer looks (FR-BOSS-009, AC28). */
+.mt-brokk-avatar[data-news="true"] {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-action) 85%, transparent);
+}
+
+.mt-brokk-avatar:hover {
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--mt-state-warning) 50%, transparent),
+        0 0 0 3px color-mix(in srgb, var(--mt-action) 45%, transparent);
+}
+
+.mt-brokk-avatar:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+/* The scene stands in his place: the avatar is gone from sight, from the pointer and from the keyboard, and comes back
+   once the scene has folded into it. */
+.mt-brokk-avatar[data-scene="up"] {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity var(--mt-duration-fade) linear,
+        visibility 0s linear var(--mt-duration-fade);
+}
+
+/* Hanging from the window's top edge, where the pennant hung: it sits above the panels in the layer of the host, and
+   covers no control of theirs. The panels start one frame margin (8 px) below the edge and their headers' controls 7 px
+   lower still, so the avatar is 14 px high from the edge, the pennant's footprint, and its badge hangs to its left. */
+.mt-brokk-avatar.is-hanging {
+    --mt-brokk-size: 14px;
+    position: absolute;
+    top: 0;
+    pointer-events: auto;
+    background: var(--mt-surface-1);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--mt-state-warning) 50%, transparent),
+        0 2px 6px rgb(0 0 0 / 0.35);
+}
+
+.mt-brokk-face {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--mt-surface-0);
+}
+
+/* His group is open (#2032): the avatar keeps its place, its face (a still frame: the animated Brokk is the group's
+   square) and its badge, and takes a soft ring in the action colour. Its click closes the group. Nothing moves. */
+.mt-brokk-avatar[data-panel="open"] {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-action) 65%, transparent);
+}
+
+/* The cup: keep-awake holds this computer awake and the group is closed. It is drawn at the smallest text size of the
+   scale and scaled down to a 14 px mark, from its corner. */
+.mt-brokk-cup {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    display: flex;
+    width: 22px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--mt-action);
+    border-radius: 50%;
+    background: var(--mt-surface-0);
+    color: var(--mt-action);
+    font-size: var(--mt-text-11);
+    pointer-events: none;
+    transform: scale(0.64);
+    transform-origin: bottom right;
+}
+
+.mt-brokk-avatar.is-hanging .mt-brokk-cup {
+    display: none;
+}
+
+/* The sign of a conversation: the developer writes to him or his session answers. */
+.mt-brokk-talk {
+    position: absolute;
+    left: -3px;
+    bottom: -3px;
+    display: flex;
+    width: 19px;
+    height: 19px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--mt-surface-0);
+    font-size: var(--mt-text-11);
+    color: var(--mt-action);
+    pointer-events: none;
+    transform: scale(0.64);
+    transform-origin: bottom left;
+}
+
+/* At 14 px the ring says it alone. */
+.mt-brokk-avatar.is-hanging .mt-brokk-talk {
+    display: none;
+}
+
+/* The ring around the face, the bell's: only while Brokk himself works. */
+.mt-brokk-ring {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    rotate: -90deg;
+    color: var(--mt-text-2);
+    pointer-events: none;
+}
+
+/* The download ring (FR-BOSS-009, AC34, #2083): a thin arc of the rail's ember, concentric with the working ring and 2 px
+   outside it, at the overall progress of the running downloads. Its box is the working ring's (the same inset per
+   variant, so the same scale), and it overflows that box, which is where its arc is drawn. It never turns. */
+.mt-brokk-download {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    overflow: visible;
+    rotate: -90deg;
+    pointer-events: none;
+}
+
+.mt-brokk-avatar.is-edge .mt-brokk-download,
+.mt-brokk-avatar.is-hanging .mt-brokk-download {
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+}
+
+/* The soft cue: he has something to tell you, and the gate holds him back. A halo in the waiting colour around the face. */
+.mt-brokk-halo {
+    position: absolute;
+    inset: -1px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mt-state-waiting) 55%, transparent);
+    pointer-events: none;
+}
+
+.mt-brokk-badge {
+    position: absolute;
+    top: -5px;
+    right: -6px;
+    box-sizing: border-box;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 9999px;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 16px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px var(--mt-surface-1);
+    pointer-events: none;
+    transition:
+        top var(--mt-duration-base) var(--mt-ease),
+        right var(--mt-duration-base) var(--mt-ease),
+        transform var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-brokk-avatar.is-hanging .mt-brokk-badge {
+    top: 0;
+    right: auto;
+    left: -20px;
+}
+
+.mt-brokk-avatar.is-hanging .mt-brokk-ring {
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+}
+
+.mt-brokk-avatar.is-hanging .mt-brokk-halo {
+    inset: 0;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 55%, transparent);
+}
+
+/* The tone is never told by the colour alone: the count, and the tooltip's rows, name each state. */
+.mt-brokk-badge[data-tone="error"] {
+    background: var(--mt-state-blocked);
+    color: var(--mt-state-blocked-fg);
+}
+
+.mt-brokk-badge[data-tone="waiting"] {
+    background: var(--mt-state-warning);
+    color: var(--mt-state-warning-fg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-brokk-avatar,
+    .mt-brokk-avatar[data-scene="up"] {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-brokk-avatar,
+.prefers-reduced-motion .mt-brokk-avatar[data-scene="up"] {
+    transition: none;
+}

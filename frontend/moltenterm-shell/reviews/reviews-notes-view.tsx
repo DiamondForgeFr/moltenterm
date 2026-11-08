@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's Notes (FR-REV-008, DS-REV-012): the explanations the developer kept in this project, newest first,
 // with a text filter. A note opens in place with its principles, text, other uses and sources; its path:line links open

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Integration block's pull request status dots sit in the block's corner column, under its agent mark or modified
 // ring (FR-SHELL-085, #1304, sidebar.css .mt-sb-corner). A top-row block that clipped its overflow hid what it carries
@@ -38,17 +38,14 @@ describe("the sidebar's status dots (#1304)", () => {
     });
 
     it("colour each state from the theme's state tokens", () => {
-        expect(rule(".mt-sb-prdot.is-blocked")).toContain("var(--mt-state-blocked)");
         expect(rule(".mt-sb-prdot.is-ready")).toContain("var(--mt-state-ready)");
         expect(rule(".mt-sb-prdot.is-yours")).toContain("var(--mt-state-waiting)");
         expect(rule(".mt-sb-prdot.is-waiting")).toContain("var(--mt-state-running)");
         expect(rule(".mt-sb-prdot.is-agents")).toContain("var(--mt-state-draft)");
     });
 
-    it("give each section its state's shape, so the five stay apart in greyscale (#1327, FR-SHELL-116)", () => {
-        const blocked = rule(".mt-sb-prdot.is-blocked");
-        expect(blocked).toMatch(/transform:\s*rotate\(45deg\)/);
-        expect(blocked).toMatch(/border-radius:\s*0;/);
+    it("give each section its state's shape, so the four stay apart in greyscale (#1327, #1876, FR-SHELL-116)", () => {
+        expect(css).not.toContain(".mt-sb-prdot.is-blocked");
         expect(rule(".mt-sb-prdot.is-yours")).toMatch(/box-shadow:\s*0 0 0 1\.5px color-mix/);
         const running = rule(".mt-sb-prdot.is-waiting");
         expect(running).toMatch(/background:\s*transparent/);
@@ -96,7 +93,7 @@ describe("the sidebar's status dots (#1304)", () => {
         expect(block).toContain("aria-label={summary ? `${pin.name}, ${summary}` : pin.name}");
         expect(block).toMatch(/"sidebar\.pins\.topTitle", \{\s*name: pin\.name/);
         const row = functionSource("TopRow");
-        expect(row).toContain("topRowLines(topRowBlocks(pins, instances))");
+        expect(row).toContain("topRowLines(topRowBlocks(pins, instances, favicons))");
         expect(row).toContain("topRowLineFit(width, line.length)");
     });
 

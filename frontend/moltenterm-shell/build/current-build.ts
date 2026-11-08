@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The build that runs, as the status bar and the About panel name it (FR-SHELL-008, FR-REL-001).
 

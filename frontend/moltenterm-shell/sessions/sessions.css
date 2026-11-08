@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge
-   SPDX-License-Identifier: Apache-2.0 */
+   SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The Sessions view's checkbox (#533): a native checkbox, so the keyboard and screen readers keep the real control,
    drawn with MoltenTerm's tokens instead of the platform's white box. It shows on the row's hover or focus, and for

@@ -1,0 +1,66 @@
+MoltenTerm additional permission for mods and agent parts
+(GNU Affero General Public License, version 3, section 7)
+
+Version 1, 2026-11-04 (#1870)
+
+MoltenTerm's own code is licensed under the GNU Affero General Public License, version 3 only (see LICENSE).
+The files that come from Wave Terminal stay under the Apache License, Version 2.0 (see LICENSE-APACHE and NOTICE).
+This file gives an additional permission under section 7 of the GNU AGPL version 3, on the code that MoltenTerm
+licenses to you under that license. It adds to the AGPL; it takes nothing away from it.
+
+1. Definitions
+
+"MoltenTerm" is the program published by DiamondForge at https://github.com/DiamondForgeFr/moltenterm, in source and
+in object code.
+
+The "Public Mod Interface" is what MoltenTerm documents for mods and for agent parts, as printed by `molten docs` for
+the version you use:
+
+- the mod folder and its `mod.json`, and `MoltenApi`, as `mod-format.md` documents them;
+- the `molten` command, its commands and its output;
+- the Claude Code part of a mod, the Codex integration and the other agent parts, as `claude-code-parts.md` and
+  `agent-integrations.md` document them;
+- the typings and schemas MoltenTerm writes or publishes for those interfaces.
+
+A "Mod" is a work that MoltenTerm loads or that runs next to it, and that talks to MoltenTerm only through the Public
+Mod Interface: a mod, an agent part, a script that drives the `molten` command, a theme or language pack.
+
+2. Permission
+
+You may write, copy, convey, sell and license a Mod under any terms you choose, including proprietary terms and
+terms that ask for a fee. A Mod that meets section 3 is an independent work: it is not a work based on MoltenTerm,
+and the GNU AGPL does not apply to it, even when MoltenTerm loads it, runs it, or conveys it in the same package or
+collection.
+
+3. Conditions
+
+A Mod meets this section when it:
+
+(a) uses MoltenTerm only through the Public Mod Interface. It does not copy, link with or include MoltenTerm's source
+    or object code, and it does not reach into the page or the internals that `mod-format.md` ("The page is not part
+    of the API") says are not part of the API;
+(b) does not modify MoltenTerm and does not ship a modified part of it.
+
+4. Examples, templates and typings
+
+The examples and templates in the documentation `molten docs` prints (the example mods under `examples/`, the code
+snippets of the guides), and the typings MoltenTerm writes for mods and agent parts, may be copied into a Mod and
+used under the license of that Mod.
+
+5. What this does not cover
+
+- MoltenTerm itself, and any modified version of it, stay under the GNU AGPL version 3. The mods that ship inside
+  MoltenTerm (the built-in mods) are part of it.
+- A work that does not meet section 3 is not a Mod. If it is a work based on MoltenTerm, the GNU AGPL applies to it.
+- This permission gives you no right to the name or the logo of MoltenTerm. See TRADEMARKS.md.
+- The files that come from Wave Terminal are under the Apache License, Version 2.0, which already allows more.
+
+6. Removing this permission
+
+As section 7 of the GNU AGPL allows, when you convey a copy of MoltenTerm, or of a part of it, you may remove this
+additional permission from that copy. Whoever receives that copy then has only the GNU AGPL for it. Contributions to
+MoltenTerm are accepted under CLA.md, which lets DiamondForge extend this permission to them.
+
+7. No legal advice
+
+This text is the project's own wording of the permission. Ask a lawyer if you need certainty for a commercial use.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The gold update (#64): a status bar button when a newer gold is delivered, and the dialog that shows what changed,
 // what a restart stops, and lets the user choose when.

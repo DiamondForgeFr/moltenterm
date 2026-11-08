@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Equalize panels (#825), one per tab layout: a click evens out the panel columns once; the auto mode, kept in the
 // tab's meta, evens them out again after every change of the tree's shape (a panel added, closed or moved) and every

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -16,6 +16,7 @@ import (
 )
 
 func TestParsePaneStatus(t *testing.T) {
+	t.Parallel()
 	out := strings.Join([]string{
 		"# branch.oid 4f2a9c0d",
 		"# branch.head feature/108-status",
@@ -37,6 +38,7 @@ func TestParsePaneStatus(t *testing.T) {
 }
 
 func TestMatchPullRequest(t *testing.T) {
+	t.Parallel()
 	raw := json.RawMessage(`[{"number":7,"title":"Other","url":"u7","headRefName":"feature/7-x"},
 		{"number":108,"title":"Status bar","url":"u108","headRefName":"feature/108-status","isDraft":true}]`)
 	pr := matchPullRequest(raw, "feature/108-status")
@@ -63,8 +65,9 @@ func makePaneRepo(t *testing.T) (string, string) {
 }
 
 func TestPaneStateFollowsTheTree(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
-	panes := MakePanes(plainRunner, nil, nil)
+	panes := MakePanes(withoutGh, nil, nil)
 	sub := filepath.Join(clone, "src")
 	os.MkdirAll(sub, 0755)
 	state, err := panes.Get(PaneRequest{Dir: sub})
@@ -101,20 +104,22 @@ func TestPaneStateFollowsTheTree(t *testing.T) {
 }
 
 func TestPaneOutsideARepository(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	state, err := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: dir})
+	state, err := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if state.Root != "" || state.Branch != "" || state.Name != filepath.Base(dir) {
 		t.Fatalf("plain folder: %+v", state)
 	}
-	if _, err := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: "relative"}); err == nil {
+	if _, err := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: "relative"}); err == nil {
 		t.Fatal("a relative folder was accepted")
 	}
 }
 
 func TestPaneProbesAtMostOnceASecond(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	var statuses atomic.Int32
 	counting := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
@@ -152,11 +157,12 @@ func TestPaneProbesAtMostOnceASecond(t *testing.T) {
 }
 
 func TestPaneReadsTheCollectorCacheOnly(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/108-status")
 	cacheDir := t.TempDir()
-	collector := MakeCollector(cacheDir, plainRunner, nil)
-	panes := MakePanes(plainRunner, nil, collector)
+	collector := testCollector(t, cacheDir, withoutGh, nil)
+	panes := MakePanes(withoutGh, nil, collector)
 	state, _ := panes.Get(PaneRequest{Dir: clone})
 	if state.Pr != nil {
 		t.Fatalf("no snapshot, yet a pull request: %+v", state.Pr)
@@ -179,6 +185,7 @@ func TestPaneReadsTheCollectorCacheOnly(t *testing.T) {
 }
 
 func TestParseHeads(t *testing.T) {
+	t.Parallel()
 	out := strings.Join([]string{
 		"refs/remotes/origin/HEAD",
 		"refs/remotes/origin/feature/109-loader",
@@ -198,6 +205,7 @@ func TestParseHeads(t *testing.T) {
 }
 
 func TestPickDetachedBranch(t *testing.T) {
+	t.Parallel()
 	prs := parsePanePrs(json.RawMessage(`[{"number":7,"title":"Seven","url":"u7","headRefName":"feature/7-x","headRefOid":"aaa"},
 		{"number":9,"title":"Nine","url":"u9","headRefName":"feature/9-y","headRefOid":"bbb","isDraft":true}]`))
 	branch, pr := pickDetachedBranch(prs, []string{"develop", "feature/9-y"}, "bbb")
@@ -220,6 +228,7 @@ func TestPickDetachedBranch(t *testing.T) {
 
 // The reported case: a checkout detached at origin/<branch> because another worktree holds the branch.
 func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/109-loader")
 	commit(t, clone, "l.txt", "feat(#109): loader")
@@ -229,12 +238,12 @@ func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
 	gitRun(t, clone, "checkout", "-q", "--detach", "origin/feature/109-loader")
 
 	cacheDir := t.TempDir()
-	collector := MakeCollector(cacheDir, plainRunner, nil)
+	collector := testCollector(t, cacheDir, withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{
 		State: GithubStateOk,
 		Prs:   json.RawMessage(`[{"number":109,"title":"Loader","url":"u109","headRefName":"feature/109-loader"}]`),
 	}})
-	panes := MakePanes(plainRunner, nil, collector)
+	panes := MakePanes(withoutGh, nil, collector)
 	state, err := panes.Get(PaneRequest{Dir: clone})
 	if err != nil {
 		t.Fatal(err)
@@ -273,6 +282,7 @@ func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
 }
 
 func TestPaneFolderAboveARepository(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -284,7 +294,7 @@ func TestPaneFolderAboveARepository(t *testing.T) {
 	os.MkdirAll(filepath.Join(parent, "notes"), 0755)
 	os.MkdirAll(filepath.Join(parent, ".hidden", ".git"), 0755)
 
-	state, err := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: parent})
+	state, err := MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: parent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +306,7 @@ func TestPaneFolderAboveARepository(t *testing.T) {
 	other := filepath.Join(parent, "other")
 	os.MkdirAll(other, 0755)
 	gitRun(t, other, "init", "-q", "-b", "main")
-	state, _ = MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: parent})
+	state, _ = MakePanes(withoutGh, nil, nil).Get(PaneRequest{Dir: parent})
 	if state.Below || state.Root != "" || state.Branch != "" || state.Name != filepath.Base(parent) {
 		t.Fatalf("two repositories below: %+v", state)
 	}

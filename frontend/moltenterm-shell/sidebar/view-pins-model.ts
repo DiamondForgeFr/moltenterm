@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The three states of a view (FR-SHELL-080): temporary, pinned in the workspace (a tile, its configuration kept in
 // the tab), pinned everywhere (a block in every workspace's top row, one configuration kept in the client and opened

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's entry points (FR-REV-001-AC3, DS-REV-012): the widget opens the view, Mission Control's Pull
 // requests waiting block opens it on one PR, and a row opens that PR's Review tab (FR-REV-002).
@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
+import type { PanelOrigin } from "../app-panel-model";
 import { CodingAgentChoice, codingAgentName, fetchCodingAgent } from "../coding-agent/coding-agent";
 import { t } from "../i18n/i18n";
 import { errorPhrase, phrase, type Phrase } from "../i18n/phrase";
@@ -47,7 +48,6 @@ import {
     LeadFacts,
     markReadyError,
     MoltentermReviewsView,
-    ReadiedPrs,
     RebaseAsk,
     rebaseAskKey,
     rebaseOutcome,
@@ -67,6 +67,7 @@ import {
     QueueMemory,
     queueMemory,
 } from "./reviews-queue-model";
+import { SharedReadiedAtom } from "./reviews-state-atoms";
 import { checkAgentsPlan, CheckReport, prLeft, PrTaskKind } from "./reviews-task-model";
 
 // The PR a Reviews view brings into sight and marks, asked by another surface; or, by its branch, a future PR's
@@ -82,7 +83,7 @@ export class ReviewsModel {
     // The rebases asked from the rows (#683), by rebaseAskKey.
     rebaseAsksAtom = atom({}) as PrimitiveAtom<Record<string, RebaseAsk>>;
     // The drafts marked ready from MoltenTerm (#687), by rebaseAskKey: splitReviews moves them at once.
-    readiedAtom = atom({}) as PrimitiveAtom<ReadiedPrs>;
+    readiedAtom = SharedReadiedAtom;
     // A row's Validate sheet, open with no Review tab (#707), in the Reviews panel blockId.
     validateSheetAtom = atom(null) as PrimitiveAtom<ReviewsValidateSheet>;
     stopSheet: () => void = null;
@@ -106,14 +107,15 @@ export class ReviewsModel {
     }
 
     // Opens the Reviews view of the active tab (or focuses it), on a PR when one is named, else on the Upcoming entry
-    // of a branch when one is named.
-    async openReviews(dir?: string, number?: number, branch?: string): Promise<void> {
+    // of a branch when one is named. From a call to action inside a panel, origin opens it beside that panel in the same
+    // view (#1844).
+    async openReviews(dir?: string, number?: number, branch?: string, origin?: PanelOrigin): Promise<void> {
         if (dir && number) {
             globalStore.set(this.focusAtom, { dir, number, at: Date.now() });
         } else if (dir && branch) {
             globalStore.set(this.focusAtom, { dir, number: 0, branch, at: Date.now() });
         }
-        await openMoltentermView(MoltentermReviewsView);
+        await openMoltentermView(MoltentermReviewsView, origin);
     }
 
     // A row's action: the PR's Review tab in this workspace, created the first time, shown after.
@@ -508,7 +510,11 @@ export class ReviewsModel {
                 ...(mode != null ? agentStartOf("finish", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);
-            showLead(result);
+            // Only the developer's own Resume shows the lead: Check the agents may reach a lead per PR (#1955), and
+            // nothing opens unasked.
+            if (lead != null) {
+                showLead(result);
+            }
             outcome = rebaseOutcome(result, null, "finish");
         } catch (e) {
             outcome = rebaseOutcome(null, errorPhrase(e), "finish");

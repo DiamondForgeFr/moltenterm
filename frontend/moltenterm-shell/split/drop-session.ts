@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One drag to split at a time (FR-SHELL-060): what is dragged, the panel and zone under the pointer, the drop and the
 // Escape that cancels it. The page is reached through deps (drop-zones.ts), so the session is tested without the app.

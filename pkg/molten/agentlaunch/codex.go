@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package agentlaunch
 
@@ -81,6 +81,9 @@ type codexAdapter struct{}
 
 func (codexAdapter) Id() string         { return CodexAgentId }
 func (codexAdapter) Executable() string { return codexExecutable }
+
+// InstallCommand: the npm package, global to the Node version on PATH (learn.chatgpt.com/docs/codex/cli).
+func (codexAdapter) InstallCommand() string { return "npm install -g @openai/codex" }
 
 // codexArgs is what the plan reads of the user's arguments, before "--".
 type codexArgs struct {

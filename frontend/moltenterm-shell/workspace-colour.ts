@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The colours a workspace can take (#657): its project logo's colours and gradients first, then presets spread around
 // the hue wheel, curated gradients and a custom colour. A choice is a string of 1-3 lowercase #rrggbb stops joined by

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -44,12 +44,13 @@ func (r *ghRecorder) runner() Runner {
 }
 
 func TestReadGithubRunLogFailedStepsFirst(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	rec := &ghRecorder{outputs: map[string]string{
 		"gh run view 42 --log-failed": "build\tstep\tboom\n",
 		"gh run view 42 --log":        "everything\n",
 	}}
-	c := MakeCollector(t.TempDir(), rec.runner(), nil)
+	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	log, err := c.ReadGithubRunLog(GithubRunRequest{Dir: dir, RunId: 42, Failed: true})
 	if err != nil {
 		t.Fatal(err)
@@ -63,8 +64,9 @@ func TestReadGithubRunLogFailedStepsFirst(t *testing.T) {
 }
 
 func TestReadGithubRunLogFallsBackToTheWholeLog(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{outputs: map[string]string{"gh run view 7 --log": "all steps\n"}}
-	c := MakeCollector(t.TempDir(), rec.runner(), nil)
+	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	log, err := c.ReadGithubRunLog(GithubRunRequest{Dir: t.TempDir(), RunId: 7, Failed: true})
 	if err != nil {
 		t.Fatal(err)
@@ -82,9 +84,10 @@ func TestReadGithubRunLogFallsBackToTheWholeLog(t *testing.T) {
 }
 
 func TestReadGithubRunLogKeepsTheTail(t *testing.T) {
+	t.Parallel()
 	long := strings.Repeat("early line\n", maxGithubRunLog/8) + "the failing line\n"
 	rec := &ghRecorder{outputs: map[string]string{"gh run view 9 --log": long}}
-	c := MakeCollector(t.TempDir(), rec.runner(), nil)
+	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	log, err := c.ReadGithubRunLog(GithubRunRequest{Dir: t.TempDir(), RunId: 9})
 	if err != nil {
 		t.Fatal(err)
@@ -98,16 +101,18 @@ func TestReadGithubRunLogKeepsTheTail(t *testing.T) {
 }
 
 func TestReadGithubRunLogError(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{fails: map[string]error{"gh run view 5 --log": errors.New("gh: run 5 not found")}}
-	c := MakeCollector(t.TempDir(), rec.runner(), nil)
+	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	if _, err := c.ReadGithubRunLog(GithubRunRequest{Dir: t.TempDir(), RunId: 5}); err == nil {
 		t.Fatal("gh's error should reach the panel")
 	}
 }
 
 func TestGithubRunRequestChecks(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{}
-	c := MakeCollector(t.TempDir(), rec.runner(), nil)
+	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	if _, err := c.ReadGithubRunLog(GithubRunRequest{Dir: "relative", RunId: 1}); err == nil {
 		t.Fatal("a relative folder is refused")
 	}
@@ -120,8 +125,9 @@ func TestGithubRunRequestChecks(t *testing.T) {
 }
 
 func TestRerunGithubRun(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{}
-	c := MakeCollector(t.TempDir(), rec.runner(), nil)
+	c := testCollector(t, t.TempDir(), rec.runner(), nil)
 	dir := t.TempDir()
 	if err := c.RerunGithubRun(GithubRunRequest{Dir: dir, RunId: 12, Failed: true}); err != nil {
 		t.Fatal(err)
@@ -135,9 +141,10 @@ func TestRerunGithubRun(t *testing.T) {
 }
 
 func TestGithubRunRouteRerunOnlyFromAWindow(t *testing.T) {
+	t.Parallel()
 	rec := &ghRecorder{outputs: map[string]string{"gh run view 3 --log": "ok\n"}}
 	e := routetest.Make(t)
-	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: MakeCollector(t.TempDir(), rec.runner(), nil)}).route())
+	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: testCollector(t, t.TempDir(), rec.runner(), nil)}).route())
 	if err != nil {
 		t.Fatal(err)
 	}

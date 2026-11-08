@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pending state of a window (#450, FR-PERF-004, DS-PERF-005): while a workspace's view loads, the window shows the
 // workspace's name and a quiet progress line instead of a blank or frozen surface, says when it retries, and offers

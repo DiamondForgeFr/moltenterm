@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package spawns counts the programs MoltenTerm's own background work starts (git, gh, the agents' usage readers),
 // so the performance harness can tell how many a minute an idle app runs (FR-PERF-011, NFR-PERF-001). Terminals and

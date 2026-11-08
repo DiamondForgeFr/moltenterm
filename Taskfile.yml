@@ -28,7 +28,7 @@ tasks:
 
     security:test:
         desc: Test dependency policy failures and workflow contracts without installing dependencies.
-        cmd: node --test scripts/security/policy-check.mjs
+        cmd: node --test scripts/security/policy-check.mjs scripts/security/electron-staleness-check.mjs
 
     security:runtime:
         desc: Exercise runtime dependency compatibility against local fixture servers.

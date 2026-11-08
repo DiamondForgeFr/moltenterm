@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A pinned view whose last panel closed (FR-SHELL-081): the view stays, as a pinned view closes only once unpinned,
 // and says how to go on: add a panel, or unpin it. A new workspace's view not opened yet (FR-SHELL-092) makes its

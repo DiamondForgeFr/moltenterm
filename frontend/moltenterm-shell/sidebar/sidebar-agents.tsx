@@ -1,14 +1,16 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's agents (FR-SHELL-084): one row per agent of the workspace, between the pinned views and the temporary
 // ones. A row says who, what it is doing and its state; its twisty opens its sub-agents, the agents it is linked to,
 // then the link to everything about it. Tools, MCP servers, pages and commands stay in that window, not in the tree.
+// Any of these rows can carry the developer's own short note (agent-note-ui.tsx, #2008).
 
 import { getBlockMetaKeyAtom } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { atom, useAtomValue } from "jotai";
+import { useMemo, useRef, useState } from "react";
+import { agentFactsLine, agentRunFacts } from "../agent-facts";
 import {
     goToAgent,
     useLinkedAgents,
@@ -19,16 +21,29 @@ import {
 import {
     MaxRunningSubRows,
     subagentGroups,
-    subagentKindKey,
+    subagentLeafTitle,
     subagentRows,
     type SubagentRow,
 } from "../agent-info/agent-info-model";
 import { AgentInfoModel } from "../agent-info/agent-info-store";
-import { agentStateLabel, agentStateMessage, type AgentStateInfo } from "../agent-state-model";
+import { agentStateLabel, agentStateMessage, agentToolName, type AgentStateInfo } from "../agent-state-model";
 import { useCompanionFollow } from "../companion/companion-follow";
 import type { CompanionView } from "../companion/companion-model";
 import { useT, useTCount } from "../i18n/i18n";
 import { DominoLoader } from "../suite/suite";
+import { noteKey } from "./agent-note-model";
+import {
+    AgentNoteField,
+    AgentNoteFull,
+    AgentNoteTag,
+    showAgentNoteMenu,
+    useAgentNote,
+    useNoteEditing,
+    useNoteRefocus,
+    type NoteSubject,
+} from "./agent-note-ui";
+import { projectIdOfAgent } from "./project-activity";
+import { activeProjectOf, agentGroups } from "./sidebar-agents-group";
 import {
     agentProjectLabel,
     agentRowLook,
@@ -38,7 +53,7 @@ import {
 } from "./sidebar-agents-model";
 import "./sidebar-agents.css";
 import { SidebarGlyph } from "./sidebar-icons";
-import type { WorkspaceProjectEntry } from "./workspace-projects";
+import { projectLabel, type WorkspaceProjectEntry } from "./workspace-projects";
 
 const AgentPaths = {
     sub: (
@@ -127,25 +142,55 @@ function SectionTitle({
 // A sub-agent row (FR-SHELL-104): its description alone, so a long one keeps the width; its state is a mark, never a
 // word (F26). One loader only: the agent's own row, which works while its sub-agents do (#1092); the section's header
 // carries it only when that row does not (the agent waits on a question while its sub-agents run).
-function SubagentLeaf({ row, onOpen }: { row: SubagentRow; onOpen: () => void }) {
+export function SubagentLeaf({
+    row,
+    cli,
+    onOpen,
+    workspaceId,
+    blockId,
+}: {
+    row: SubagentRow;
+    cli: string;
+    onOpen: () => void;
+    workspaceId: string;
+    blockId: string;
+}) {
     const t = useT();
-    const kindKey = subagentKindKey(row.kind);
-    const kind = kindKey ? t(kindKey) : row.kind;
     const state = t(`agentInfo.subState.${row.state}`);
-    const title = [row.name, [state, kind, row.model].filter(Boolean).join(" · "), t("agentInfo.sub.open")]
-        .filter(Boolean)
-        .join("\n");
+    const title = subagentLeafTitle(t, row, cli);
+    const subject: NoteSubject = {
+        kind: "sub",
+        at: `sub:${noteKey(blockId, row.id)}`,
+        workspaceId,
+        key: noteKey(blockId, row.id),
+        name: row.name,
+    };
+    const note = useAgentNote(workspaceId, subject.key);
+    const editing = useNoteEditing(subject.at);
+    const ref = useRef<HTMLButtonElement>(null);
+    useNoteRefocus(subject.at, editing, ref);
+    if (editing) {
+        return (
+            <div className="mt-sb-leaf is-noting">
+                <AgentGlyph name="sub" />
+                <AgentNoteField at={subject.at} name={row.name} initial={note} />
+            </div>
+        );
+    }
     return (
         <button
+            ref={ref}
             type="button"
             className={cn("mt-sb-leaf", `is-sub-${row.state}`)}
             title={title}
             data-testid="sidebar-agent-sub"
             data-state={row.state}
             onClick={onOpen}
+            onContextMenu={(e) => showAgentNoteMenu(e, subject)}
         >
             <AgentGlyph name="sub" />
             <span className="mt-sb-leaf-t">{row.name}</span>
+            {note !== "" ? <AgentNoteTag text={note} /> : null}
             {row.state === "done" || row.state === "error" || row.state === "idle" ? (
                 <span className="mt-sb-sub-mark" aria-label={state} />
             ) : null}
@@ -171,6 +216,7 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
     const running = allRunning ? groups.running : groups.running.slice(0, MaxRunningSubRows);
     const more = groups.running.length - running.length;
     const open = (s: SubagentRow) => model.openSub(info.blockid, s.id);
+    const cli = agentToolName(info);
     const counts = [
         groups.running.length > 0 ? tc("agentInfo.sub.running", groups.running.length) : "",
         doneCount > 0 ? tc("agentInfo.sub.done", doneCount) : "",
@@ -198,7 +244,14 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
             {shut ? null : (
                 <>
                     {running.map((s) => (
-                        <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />
+                        <SubagentLeaf
+                            key={s.id}
+                            row={s}
+                            cli={cli}
+                            onOpen={() => open(s)}
+                            workspaceId={info.workspaceid}
+                            blockId={info.blockid}
+                        />
                     ))}
                     {more > 0 ? (
                         <button
@@ -211,7 +264,14 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
                         </button>
                     ) : null}
                     {groups.lingering.map((s) => (
-                        <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />
+                        <SubagentLeaf
+                            key={s.id}
+                            row={s}
+                            cli={cli}
+                            onOpen={() => open(s)}
+                            workspaceId={info.workspaceid}
+                            blockId={info.blockid}
+                        />
                     ))}
                 </>
             )}
@@ -219,7 +279,16 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
     );
 }
 
-function LinkedLeaf({ row, workspaceId }: { row: LinkedAgentRow; workspaceId: string }) {
+// The linked agent's own note: the one its row under Agents shows, kept in its workspace.
+export function LinkedLeaf({
+    row,
+    workspaceId,
+    parentId,
+}: {
+    row: LinkedAgentRow;
+    workspaceId: string;
+    parentId: string;
+}) {
     const t = useT();
     const otherWorkspace = row.workspaceId && row.workspaceId !== workspaceId ? row.workspaceId : "";
     const wsName = useWorkspaceName(otherWorkspace);
@@ -231,19 +300,41 @@ function LinkedLeaf({ row, workspaceId }: { row: LinkedAgentRow; workspaceId: st
         count: row.count,
     });
     const reachable = row.info != null;
+    const subject: NoteSubject = {
+        kind: "linked",
+        at: `link:${parentId}:${row.dir}:${row.blockId}`,
+        workspaceId: row.workspaceId || workspaceId,
+        key: noteKey(row.blockId),
+        name: row.name,
+    };
+    const note = useAgentNote(subject.workspaceId, subject.key);
+    const editing = useNoteEditing(subject.at);
+    const ref = useRef<HTMLButtonElement>(null);
+    useNoteRefocus(subject.at, editing, ref);
+    if (editing) {
+        return (
+            <div className="mt-sb-leaf is-noting">
+                <AgentGlyph name={row.dir} />
+                <AgentNoteField at={subject.at} name={row.name} initial={note} />
+            </div>
+        );
+    }
     return (
         <button
+            ref={ref}
             type="button"
             className={cn("mt-sb-leaf", !reachable && "is-static")}
             title={reachable ? `${title}\n${t("agentInfo.link.goTo", { name: row.name })}` : title}
-            disabled={!reachable}
+            aria-disabled={!reachable || undefined}
             data-testid="sidebar-agent-link"
             onClick={() => reachable && fireAndForget(() => goToAgent(row.info))}
+            onContextMenu={(e) => showAgentNoteMenu(e, subject)}
         >
             <AgentGlyph name={row.dir} />
             <span className="mt-sb-leaf-t">
                 {row.name} <span className="mt-sb-leaf-what">{what}</span>
             </span>
+            {note !== "" ? <AgentNoteTag text={note} /> : null}
         </button>
     );
 }
@@ -254,8 +345,16 @@ function AgentTree({ info, shut }: { info: AgentStateInfo; shut: Partial<Record<
     const links = useLinkedAgents(info.blockid);
     const name = agentDisplayName(info);
     const model = AgentInfoModel.getInstance();
+    const note: NoteSubject = {
+        kind: "agent",
+        at: `tree:${info.blockid}`,
+        workspaceId: info.workspaceid,
+        key: noteKey(info.blockid),
+        name,
+    };
     return (
         <div className="mt-sb-tree" data-testid="sidebar-agent-tree">
+            <AgentNoteFull subject={note} />
             <SubagentsGroup info={info} companion={companion} />
             {links.length > 0 ? (
                 <>
@@ -269,7 +368,12 @@ function AgentTree({ info, shut }: { info: AgentStateInfo; shut: Partial<Record<
                     {shut?.links
                         ? null
                         : links.map((l) => (
-                              <LinkedLeaf key={`${l.dir}:${l.blockId}`} row={l} workspaceId={info.workspaceid} />
+                              <LinkedLeaf
+                                  key={`${l.dir}:${l.blockId}`}
+                                  row={l}
+                                  workspaceId={info.workspaceid}
+                                  parentId={info.blockid}
+                              />
                           ))}
                 </>
             ) : null}
@@ -319,10 +423,12 @@ function AgentBlock({
     info,
     active,
     projects,
+    grouped,
 }: {
     info: AgentStateInfo;
     active: boolean;
     projects: WorkspaceProjectEntry[];
+    grouped: boolean;
 }) {
     const t = useT();
     const tree = useAtomValue(AgentInfoModel.getInstance().treeAtom(info.blockid));
@@ -331,9 +437,20 @@ function AgentBlock({
     const look = agentRowLook(info);
     const name = agentDisplayName(info);
     const doing = agentDoing(info);
-    const label = agentProjectLabel(folder, projects);
+    const label = grouped ? null : agentProjectLabel(folder, projects);
     const go = () => fireAndForget(() => goToAgent(agentRowTarget(info)));
     const toggleLabel = t(open ? "sidebar.agents.collapse" : "sidebar.agents.expand", { name });
+    const subject: NoteSubject = {
+        kind: "agent",
+        at: `row:${info.blockid}`,
+        workspaceId: info.workspaceid,
+        key: noteKey(info.blockid),
+        name,
+    };
+    const note = useAgentNote(subject.workspaceId, subject.key);
+    const editing = useNoteEditing(subject.at);
+    const rowRef = useRef<HTMLDivElement>(null);
+    useNoteRefocus(subject.at, editing, rowRef);
     return (
         <div
             className={cn("mt-sb-agent", !open && "is-closed")}
@@ -341,16 +458,22 @@ function AgentBlock({
             data-block-id={info.blockid}
         >
             <div
+                ref={rowRef}
                 role="button"
                 tabIndex={0}
-                className={cn("mt-sb-row mt-sb-arow", `is-${look}`, active && "is-on")}
+                className={cn("mt-sb-row mt-sb-arow", `is-${look}`, active && "is-on", editing && "is-noting")}
                 aria-current={active ? "page" : undefined}
-                title={`${t("sidebar.agents.goTo", { name })}\n${agentStateLabel(info.state)}${
-                    doing !== agentStateLabel(info.state) ? ` · ${doing}` : ""
-                }`}
+                title={[
+                    t("sidebar.agents.goTo", { name }),
+                    `${agentStateLabel(info.state)}${doing !== agentStateLabel(info.state) ? ` · ${doing}` : ""}`,
+                    agentFactsLine(agentRunFacts(info)),
+                ]
+                    .filter(Boolean)
+                    .join("\n")}
                 data-testid="sidebar-agent-row"
                 data-state={look}
                 onClick={go}
+                onContextMenu={(e) => showAgentNoteMenu(e, subject)}
                 onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
@@ -377,13 +500,51 @@ function AgentBlock({
                     <SidebarGlyph name="chev" size={13} />
                 </button>
                 <AgentAvatar info={info} />
-                <span className="mt-sb-agent-tx">
-                    <AgentNameLine name={name} label={label} />
-                    <span className="mt-sb-agent-ss">{doing}</span>
-                </span>
-                {look === "working" ? <WorkingDominoes label={agentStateLabel("working")} /> : null}
+                {editing ? (
+                    <AgentNoteField at={subject.at} name={name} initial={note} />
+                ) : (
+                    <>
+                        <span className="mt-sb-agent-tx">
+                            <AgentNameLine name={name} label={label} />
+                            <span className="mt-sb-agent-ss">{doing}</span>
+                        </span>
+                        {note !== "" ? <AgentNoteTag text={note} /> : null}
+                        {look === "working" ? <WorkingDominoes label={agentStateLabel("working")} /> : null}
+                    </>
+                )}
             </div>
             {open ? <AgentTree info={info} shut={tree?.shut ?? {}} /> : null}
+        </div>
+    );
+}
+
+// The folder of each agent's terminal, read from its block: the groups follow a terminal that changes folder (#1867).
+function useAgentFolders(agents: AgentStateInfo[]): Record<string, string> {
+    const ids = (agents ?? []).map((a) => a.blockid).join(",");
+    const foldersAtom = useMemo(
+        () =>
+            atom((get) =>
+                Object.fromEntries(
+                    ids
+                        .split(",")
+                        .filter((id) => id !== "")
+                        .map((id): [string, string] => [id, get(getBlockMetaKeyAtom(id, "cmd:cwd")) ?? ""])
+                )
+            ),
+        [ids]
+    );
+    return useAtomValue(foldersAtom);
+}
+
+// The separator that opens a project's group (FR-SHELL-084, #1867): a thin rule, and the project's name where the
+// temporary views' "Close all" row sits. Not a button.
+function AgentGroupSeparator({ name }: { name: string }) {
+    return (
+        <div className="mt-sb-ag-sep" role="separator" aria-label={name} data-testid="sidebar-agent-group-sep">
+            <span className="mt-sb-ag-line" />
+            <span className="mt-sb-ag-name text-11 text-muted" data-testid="sidebar-agent-group-name">
+                {name}
+            </span>
         </div>
     );
 }
@@ -392,16 +553,25 @@ export function AgentsSection({
     agents,
     activeTabId,
     projects,
+    ws,
 }: {
     agents: AgentStateInfo[];
     activeTabId: string;
     projects?: WorkspaceProjectEntry[];
+    ws?: { meta?: Record<string, any> };
 }) {
     const t = useT();
     const tc = useTCount();
+    const folders = useAgentFolders(agents);
     if (agents.length === 0) {
         return null;
     }
+    const groups = agentGroups(
+        agents,
+        projects,
+        (info) => projectIdOfAgent(ws ?? {}, projects, info, folders[info.blockid] ?? ""),
+        activeProjectOf(ws, activeTabId)
+    );
     const live = agents.filter((a) => {
         const look = agentRowLook(a);
         return look === "working" || look === "waiting" || look === "error";
@@ -414,11 +584,41 @@ export function AgentsSection({
                     {live > 0 ? tc("sidebar.agents.active", live) : t("sidebar.agents.resting")}
                 </span>
             </div>
-            <div className="flex flex-col gap-px">
-                {agents.map((a) => (
-                    <AgentBlock key={a.blockid} info={a} active={a.tabid === activeTabId} projects={projects} />
-                ))}
-            </div>
+            {groups == null ? (
+                <div className="flex flex-col gap-px">
+                    {agents.map((a) => (
+                        <AgentBlock
+                            key={a.blockid}
+                            info={a}
+                            active={a.tabid === activeTabId}
+                            projects={projects}
+                            grouped={false}
+                        />
+                    ))}
+                </div>
+            ) : (
+                groups.map((g) => (
+                    <div
+                        key={g.project?.id ?? "none"}
+                        className="mt-sb-ag-group flex flex-col gap-px"
+                        data-testid="sidebar-agent-group"
+                        data-project={g.project?.id ?? undefined}
+                    >
+                        <AgentGroupSeparator
+                            name={g.project ? projectLabel(g.project) : t("sidebar.agents.noProject")}
+                        />
+                        {g.agents.map((a) => (
+                            <AgentBlock
+                                key={a.blockid}
+                                info={a}
+                                active={a.tabid === activeTabId}
+                                projects={projects}
+                                grouped
+                            />
+                        ))}
+                    </div>
+                ))
+            )}
         </div>
     );
 }

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The toast stack (FR-SHELL-055, DS-SHELL-097): what arrives shows under the notification bell instead of opening the
 // whole notification center (#1403). At most three toasts show, the newest nearest the bell; an older one leaves for

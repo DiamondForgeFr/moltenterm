@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Interface languages (FR-I18N-001, DS-I18N-001, DS-I18N-002): the dictionaries, key resolution and the language
 // resolution, without React or Jotai so Electron main uses the same rules as the renderer. Pattern from Notulia

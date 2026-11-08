@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One menu per view (FR-SHELL-081): the same on a tile, a top-row block and a temporary row, headed "<name> · <state>"
 // and offering only what the state allows (view-menu-model.ts). The tab's own actions of the former tab bar that are

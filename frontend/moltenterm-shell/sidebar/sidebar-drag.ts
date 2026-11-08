@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Dragging views in the sidebar (FR-SHELL-081): tiles and top-row blocks reorder among their row, a tile or a
 // temporary view dropped on the top row is pinned everywhere, a temporary view dropped on the tiles is pinned in the

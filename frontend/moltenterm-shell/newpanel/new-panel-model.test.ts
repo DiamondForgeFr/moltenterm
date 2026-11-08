@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { splitHorizontal } from "@/layout/lib/layoutTree";
 import { FlexDirection, type LayoutNode, type LayoutTreeState } from "@/layout/lib/types";

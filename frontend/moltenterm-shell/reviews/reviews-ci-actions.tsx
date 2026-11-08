@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A failed CI on a Reviews row (#797): Rerun failed jobs, from the card's "…" menu (#1060), asks for a confirmation in
 // the card, then wavesrv reruns them and a notification tells the outcome. Analyze and resolve is the card's own

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The command palette (FR-SHELL-013, DS-SHELL-013): one component for the empty pane (Wave's launcher view) and for
 // the global modal. A grouped, fuzzy-filtered list driven by the keyboard; the mouse works too.
@@ -14,10 +14,13 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { createPortal } from "react-dom";
 import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import type { AgentStateInfo } from "../agent-state-model";
+import { BossBubbleModel } from "../boss/boss-store";
+import { useBossName } from "../boss/use-boss-name";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
+import { FaviconMark } from "../favicon/favicon-mark";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
 import {
@@ -32,7 +35,7 @@ import {
 import { NewViewMorphHint } from "../newview/new-view-morph-hint";
 import { formatShortcutById } from "../shortcuts/format";
 import { ViewCube } from "../sidebar/view-cube";
-import { isGlyphCube, keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
+import { isGlyphCube, isGlyphFavicon, keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
 import { keepViewKeysLabel } from "../sidebar/view-pin-actions";
 import { isProjectTab } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
@@ -208,6 +211,8 @@ export function usePaletteEntries(picker: PickerSource) {
     const viewModified = useAtomValue(pins.modifiedAtom(tabId));
     const locale = useLocale();
     const matrix = useFeatureMatrix();
+    const bossShown = useAtomValue(BossBubbleModel.getInstance().showAtom);
+    const bossName = useBossName();
     const projectTab = isProjectTab(tab);
     const hasTab = tab != null;
     const viewPin = useMemo(
@@ -247,6 +252,7 @@ export function usePaletteEntries(picker: PickerSource) {
                 picker,
                 shortcutsHint: formatShortcutById("shortcuts"),
                 viewPin,
+                bossName: bossShown ? bossName : undefined,
             }),
         [
             fullConfig,
@@ -264,6 +270,8 @@ export function usePaletteEntries(picker: PickerSource) {
             locale,
             viewPin,
             matrix,
+            bossShown,
+            bossName,
         ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home, locale]);
@@ -381,6 +389,8 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
                     {entry.panelIcons.map((icon, i) =>
                         isGlyphCube(icon) ? (
                             <ViewCube key="cube" cube={icon} small />
+                        ) : isGlyphFavicon(icon) ? (
+                            <FaviconMark key={i} url={icon.url} dark={icon.dark} />
                         ) : (
                             <i key={i} className={makeIconClass(icon, true)} />
                         )

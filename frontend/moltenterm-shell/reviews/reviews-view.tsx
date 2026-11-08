@@ -1,10 +1,10 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view (FR-REV-001, DS-REV-012): the pull requests of the workspace's project waiting for the developer's
 // review, each with its ticket, CI, test report and merge state, read through the developer's gh by Mission Control's
 // collector. Each card shows one computed state (#1060, reviews-card.tsx), and the cards are grouped by whose turn it
-// is (#1061): Yours, Agents on it, Blocked, Waiting, then Upcoming, Notes and Recently merged; the header's control
+// is (#1061, #1876): Needs you, Ready to merge, In progress, With the agents, then Upcoming, Notes and Recently merged; the header's control
 // sorts them by state or by merge order. The numbered merge queue and the status line after a merge sit at the top of
 // Yours (#1062), once two PRs at least can merge now; the others say on their card why they wait (#1211). A hovered or focused card lights up the cards it conflicts with. Cards move instead of jumping
 // when they arrive, leave, reorder or change section (#1063, reviews-motion.tsx). A card opens the PR's assisted review; the keyboard walks the cards of the
@@ -33,6 +33,7 @@ import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
     batchItemEnded,
     batchPlan,
+    batchRetryRequest,
     batchRowMark,
     batchShown,
     batchStartRequest,
@@ -92,6 +93,7 @@ import { SectionHeading } from "./reviews-section-heading";
 import {
     cardStates,
     filledAction,
+    queueSectionOf,
     sectionOf,
     sectionRows,
     sectionsByTurn,
@@ -297,9 +299,8 @@ function Loading() {
 const TurnSectionText: Record<CardTurn, { title: string; hint?: string }> = {
     yours: { title: TurnTitleKeys.yours, hint: "reviews.sections.yoursHint" },
     ready: { title: TurnTitleKeys.ready, hint: "reviews.sections.readyHint" },
-    agents: { title: TurnTitleKeys.agents },
-    blocked: { title: TurnTitleKeys.blocked, hint: "reviews.sections.blockedHint" },
     waiting: { title: TurnTitleKeys.waiting, hint: "reviews.sections.waitingHint" },
+    agents: { title: TurnTitleKeys.agents, hint: "reviews.sections.agentsHint" },
 };
 
 function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAnswer; blockId: string }) {
@@ -357,7 +358,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     // A rank only with an order to follow (#1211): two PRs at least the developer can merge now.
     const ranks = useMemo(() => (shown ? queueRanks(queue) : {}), [queue, shown]);
     // The batch merge (FR-REV-025): the queue's steps in its order, the confirmation modal, and the merge queue they
-    // join (FR-REV-026), which wavesrv publishes. Its banner sits in "Agents on it" (#1123), shown even with no card.
+    // join (FR-REV-026), which wavesrv publishes. Its banner sits in "In progress" (#1123, #1876), shown even with no card.
     const batchRun = useBatchRun(dir, answer.target);
     const batchVisible = batchShown(batchRun);
     // Hidden once ended, the queue keeps a pointer there while its agent's session is open (#1128).
@@ -370,8 +371,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         [upcoming, answer, leftoverAsks]
     );
     const sections = useMemo(() => {
-        let rtn = withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "agents", batchVisible || batchPointer);
-        rtn = withTurnShown(rtn, "agents", (leftoverTurns.agents?.length ?? 0) > 0);
+        let rtn = withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "waiting", batchVisible || batchPointer);
+        rtn = withTurnShown(rtn, "waiting", (leftoverTurns.waiting?.length ?? 0) > 0);
         return withTurnShown(rtn, "yours", (leftoverTurns.yours?.length ?? 0) > 0);
     }, [listed, cards, sort, ranks, batchVisible, batchPointer, leftoverTurns]);
     const filled = useMemo(
@@ -434,6 +435,21 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             return errorPhrase(e);
         }
         setConfirming(false);
+        return null;
+    };
+    // Try again on a PR the queue stopped (#1871): it alone goes back in the queue, the others stay as they are.
+    const retryBatchItem = async (number: number): Promise<Phrase> => {
+        const item = batchRun?.items.find((it) => it.number === number);
+        if (item == null) {
+            return null;
+        }
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        try {
+            const order = queueOrder(forecast, listed, batchRun, [number]);
+            await BatchRuns.getInstance().add(batchRetryRequest(batchRun, item, workspaceId, order));
+        } catch (e) {
+            return errorPhrase(e);
+        }
         return null;
     };
     useEffect(() => {
@@ -552,6 +568,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         onGroupMerge: (inGroup: boolean) => model.setInGroupMerge(dir, pr.number, inGroup),
         queued: queuedAsks[rebaseAskKey(dir, pr.number)],
         batchMark: batchRowMark(batchRun, pr.number),
+        onBatchRetry: () => retryBatchItem(pr.number),
     });
     const edgeText = (number: number, where: EdgeWhere) =>
         word(
@@ -566,12 +583,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         const row = (e.target as HTMLElement).closest?.("[data-pr]");
         setHovered(row == null ? null : Number(row.getAttribute("data-pr")));
     };
-    // Check the agents sits on the heading of the agents' section, else of the first PR section shown.
-    const checkTurn = sections.some((s) => s.turn === "agents") ? "agents" : sections[0]?.turn;
-    // The queue and the after-merge line sit at the top of the first section when it is the developer's ("Yours" or
-    // "Ready"), else above the sections.
-    const firstTurn = sections[0]?.turn;
-    const queueTurn: CardTurn = firstTurn === "yours" || firstTurn === "ready" ? firstTurn : null;
+    // Check the agents sits on the heading of the section of what runs (agents work there), else of the first PR
+    // section shown.
+    const checkTurn = sections.some((s) => s.turn === "waiting") ? "waiting" : sections[0]?.turn;
+    const queueTurn = queueSectionOf(sections);
     const queueBlock = (
         <>
             <AfterMergeLine
@@ -674,10 +689,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                             </SectionHeading>
                             {section.turn === checkTurn ? <CheckAgentsReport check={check} /> : null}
                             {section.turn === queueTurn ? queueBlock : null}
-                            {section.turn === "agents" && batchVisible ? (
+                            {section.turn === "waiting" && batchVisible ? (
                                 <BatchBanner run={batchRun} ids={shownIds} />
                             ) : null}
-                            {section.turn === "agents" && batchPointer ? (
+                            {section.turn === "waiting" && batchPointer ? (
                                 <BatchPointer run={batchRun} ids={shownIds} />
                             ) : null}
                             {isOpen && count > 0 ? (

@@ -1,11 +1,11 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Check the agents (#954, FR-REV-022 AC8): on the developer's click only, the agent on each listed PR with something
 // left (conflicts, red CI, requested changes, no test report) is asked to verify the PR against its ticket and finish
 // it; the others are skipped and a busy agent is left alone. The PRs whose agent is gone wait for one confirmation
 // before a new agent starts on each, out of sight. A line reports the count, and each row's agent line then follows its
-// task (working, done, stuck). The button sits on the heading of the "Agents on it" section (#1061), its report and
+// task (working, done, stuck). The button sits on the heading of the "In progress" section (#1061, #1876), its report and
 // offer under that heading.
 
 import { fireAndForget } from "@/util/util";

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Preferences › Workspaces and views (FR-SHELL-106): what is not a key of settings.json. The sidebar docked or
 // floating (the window's meta, as the shortcut does), and the top row, the views pinned everywhere, as the tiles the
@@ -9,9 +9,11 @@
 import { globalStore } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { useEffect } from "react";
+import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
 import { useT } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
-import { pinGlyph } from "../sidebar/sidebar-blocks";
+import { pinGlyph, pinSiteOrigins } from "../sidebar/sidebar-blocks";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { ViewGlyph } from "../sidebar/view-glyph";
 import { ViewPins } from "../sidebar/view-pins-store";
@@ -68,6 +70,9 @@ export function SidebarModeRows() {
 export function TopRowCard() {
     const t = useT();
     const pins = useAtomValue(ViewPins.getInstance().globalPinsAtom, { store: globalStore });
+    const favicons = useAtomValue(faviconsAtom, { store: globalStore });
+    const pinOrigins = pins.flatMap(pinSiteOrigins).join(" ");
+    useEffect(() => requestFavicons(pinOrigins === "" ? [] : pinOrigins.split(" ")), [pinOrigins]);
     const reorder = (from: number, to: number) => {
         const dragged = pins[from]?.id;
         const target = pins[to]?.id;
@@ -124,7 +129,7 @@ export function TopRowCard() {
                                     }
                                 }}
                             >
-                                <ViewGlyph icons={pinGlyph(pin)} />
+                                <ViewGlyph icons={pinGlyph(pin, favicons)} />
                                 <span className="max-w-full truncate">{pin.name}</span>
                             </div>
                         ))}

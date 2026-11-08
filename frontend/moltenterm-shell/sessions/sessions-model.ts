@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Durable sessions (FR-SHELL-020, DS-SHELL-021): every durable terminal still running, local or SSH. wavesrv builds
 // the list (pkg/molten/sessions) and publishes it when it changes; the Sessions view, the rail's badge and Welcome

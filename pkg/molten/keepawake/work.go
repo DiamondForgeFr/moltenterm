@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package keepawake
 
@@ -68,6 +68,8 @@ type WorkSources struct {
 	MissionWorkspaces func(ctx context.Context) []string
 	// BusyTrees: which of these agents' process trees are busy (busy.go). Nil: background work is not seen.
 	BusyTrees func(roots []TreeRoot) map[string]bool
+	// Rules: the kinds of work that count (power:workagents, power:workcommands, power:workprojects). Nil: all of them.
+	Rules func() WorkRules
 }
 
 // Work is what runs now.
@@ -219,6 +221,10 @@ func IsSshCommand(cmdline string) bool {
 // ComputeWork applies the rule to every terminal with something running and to Mission Control's runs.
 func ComputeWork(ctx context.Context, src WorkSources) Work {
 	work := Work{Workspaces: map[string]bool{}}
+	rules := WorkRules{Agents: true, Commands: true, Projects: true}
+	if src.Rules != nil {
+		rules = src.Rules()
+	}
 	agents := map[string]molten.AgentRunInfo{}
 	if src.Agents != nil {
 		for _, run := range src.Agents() {
@@ -245,7 +251,7 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 	// lets the tracker forget the trees it followed.
 	var roots []TreeRoot
 	for id, run := range agents {
-		if run.State != molten.AgentStateWorking && run.Pid > 0 {
+		if rules.Agents && run.State != molten.AgentStateWorking && run.Pid > 0 {
 			roots = append(roots, TreeRoot{BlockId: id, Pid: run.Pid, StartMs: run.PidStartMs})
 		}
 	}
@@ -275,7 +281,7 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 		if !ok || info.WorkspaceId == "" {
 			continue
 		}
-		why, works := blockWork(blockId, info, agents, commands, cmdBlocks, busy)
+		why, works := blockWork(blockId, info, agents, commands, cmdBlocks, busy, rules)
 		if !works {
 			continue
 		}
@@ -286,7 +292,7 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 			localReasons = append(localReasons, why)
 		}
 	}
-	if src.MissionWorkspaces != nil {
+	if src.MissionWorkspaces != nil && rules.Projects {
 		for _, wsId := range src.MissionWorkspaces(ctx) {
 			mission := reason{rank: reasonMission, text: missionReason}
 			if wsId != "" {
@@ -308,9 +314,13 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 	return work
 }
 
-// blockWork tells whether a terminal works now, and what its work is.
-func blockWork(blockId string, info BlockInfo, agents map[string]molten.AgentRunInfo, commands map[string]string, cmdBlocks map[string]bool, busy map[string]bool) (reason, bool) {
+// blockWork tells whether a terminal works now, and what its work is. A kind of work the rules leave out never counts,
+// and an agent's terminal stays the agent's: its own process is not read as a command when agents do not count.
+func blockWork(blockId string, info BlockInfo, agents map[string]molten.AgentRunInfo, commands map[string]string, cmdBlocks map[string]bool, busy map[string]bool, rules WorkRules) (reason, bool) {
 	if run, ok := agents[blockId]; ok {
+		if !rules.Agents {
+			return reason{}, false
+		}
 		if run.State == molten.AgentStateWorking {
 			return agentReason(run.FirstName, reasonAgentWorking), true
 		}
@@ -321,7 +331,7 @@ func blockWork(blockId string, info BlockInfo, agents map[string]molten.AgentRun
 		}
 		return reason{}, false
 	}
-	if info.Remote {
+	if info.Remote || !rules.Commands {
 		return reason{}, false
 	}
 	if cmdline, ok := commands[blockId]; ok {

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // `molten project deps` (FR-MC-029-AC6): each dependency this workspace's project declares in `dependson`, evaluated
 // afresh by Mission Control from the local git of both members. It only reads: nothing is written in either project.

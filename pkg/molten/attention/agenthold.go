@@ -1,9 +1,11 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package attention
 
 import (
+	"strings"
+
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
@@ -18,6 +20,23 @@ type agentHold struct {
 	state   string
 	message string
 	text    *uimsg.Text
+	// settled (#1876): a waiting hold that someone decided; see settleStop.
+	settled *agentSettle
+}
+
+// agentSettle: who settled the stop, why and when. rec and seq are the agent's record and its state change then, which
+// tie the settlement to that stop: the agent working again (or stopping again) moves them, and the settlement no
+// longer applies.
+type agentSettle struct {
+	by   string
+	note string
+	at   int64
+	rec  *agentRecord
+	seq  int64
+}
+
+func (s *agentSettle) appliesTo(rec *agentRecord) bool {
+	return s != nil && rec != nil && s.rec == rec && s.seq == rec.stateSeq
 }
 
 // ownStateLocked: the agent's own state shows through a hold: it works, asks or failed.
@@ -43,7 +62,69 @@ func (a *agentStates) heldInfoLocked(blockId string, rec *agentRecord, info *mol
 	if ownStateLocked(rec) {
 		return
 	}
+	if hold.state == molten.AgentStateWaiting && hold.settled != nil {
+		if hold.settled.appliesTo(rec) {
+			info.State, info.Message, info.MessageText = molten.AgentStateIdle, "", nil
+			info.Settled = &molten.AgentSettled{By: hold.settled.by, Note: hold.settled.note, At: hold.settled.at}
+			return
+		}
+		hold.settled = nil
+	}
 	info.State, info.Message, info.MessageText = hold.state, hold.message, hold.text
+}
+
+// settleStop records that someone decided the stop MoltenTerm holds on the block (#1876). A settled stop shows idle,
+// with who settled it and why, until the agent works or stops again. A stop the agent itself raises (a prompt of its
+// terminal) is not MoltenTerm's to settle: answering it is what moves the agent.
+func (a *agentStates) settleStop(blockId string, by string, note string) string {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	hold := a.holds[blockId]
+	rec := a.records[blockId]
+	if hold == nil || rec == nil || !rec.running || hold.state != molten.AgentStateWaiting {
+		return molten.AgentSettleNone
+	}
+	if ownStateLocked(rec) {
+		if rec.state == molten.AgentStateWaiting {
+			return molten.AgentSettleOwnPrompt
+		}
+		return molten.AgentSettleNone
+	}
+	hold.settled = &agentSettle{by: by, note: note, at: a.now().UnixMilli(), rec: rec, seq: rec.stateSeq}
+	a.markDirtyLocked(blockId)
+	return molten.AgentSettleDone
+}
+
+// stopSettled: the block's stop is settled and the settlement still applies.
+func (a *agentStates) stopSettled(blockId string) bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	hold := a.holds[blockId]
+	rec := a.records[blockId]
+	return hold != nil && hold.settled.appliesTo(rec) && !ownStateLocked(rec)
+}
+
+// cleanSettleText: one line, cut to molten.AgentSettleNoteMax runes.
+func cleanSettleText(text string, max int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if runes := []rune(text); len(runes) > max {
+		return strings.TrimSpace(string(runes[:max-1])) + "…"
+	}
+	return text
+}
+
+// SettleAgentStop settles the stop held on a terminal (#1876): by is the settler's first name, "" for the developer.
+// The result is one of molten.AgentSettleDone, AgentSettleNone and AgentSettleOwnPrompt.
+func SettleAgentStop(blockId string, by string, note string) string {
+	if blockId == "" {
+		return molten.AgentSettleNone
+	}
+	return defaultAgentStates.settleStop(blockId, cleanSettleText(by, 64), cleanSettleText(note, molten.AgentSettleNoteMax))
+}
+
+// AgentStopSettled: the terminal's stop is settled and the settlement applies (the PR follow stops raising it).
+func AgentStopSettled(blockId string) bool {
+	return defaultAgentStates.stopSettled(blockId)
 }
 
 func (a *agentStates) heldLocked(blockId string) bool {

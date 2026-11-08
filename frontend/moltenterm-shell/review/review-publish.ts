@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Publish review (FR-REV-010, DS-REV-008): what the Publish sheet shows of each staged comment (its original, its
 // translation into the publication language, where it lands on GitHub) and when Post review can be clicked. wavesrv

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The harness scenarios (FR-PERF-006, DS-PERF-001). Each one starts its own isolated instance and disposes of it in
 // a finally block; a failing scenario is recorded in the report and the next one still runs.

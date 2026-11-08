@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package keepawake
 
@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
 type fakeEnv struct {
 	now        time.Time
-	policy     string
+	cfg        Config
 	work       Work
 	workspaces map[string]string
 	notices    []molten.NotificationInput
@@ -26,6 +27,7 @@ type fakeEnv struct {
 func makeFakeEnv() *fakeEnv {
 	return &fakeEnv{
 		now:        time.UnixMilli(1_000_000),
+		cfg:        DefaultConfig(),
 		work:       Work{Workspaces: map[string]bool{}},
 		workspaces: map[string]string{"ws-a": "Alpha", "ws-b": "Beta"},
 		alive:      map[int32]bool{},
@@ -35,7 +37,7 @@ func makeFakeEnv() *fakeEnv {
 func (f *fakeEnv) keeper() *Keeper {
 	return MakeKeeper(Env{
 		Now:    func() time.Time { return f.now },
-		Policy: func() string { return f.policy },
+		Config: func() Config { return f.cfg },
 		Work: func(ctx context.Context) Work {
 			f.workCalls++
 			return f.work
@@ -58,7 +60,8 @@ func (f *fakeEnv) advance(d time.Duration) {
 	f.now = f.now.Add(d)
 }
 
-func TestCoffeeHoldsWhileWorkRunsAndEndsAfterGrace(t *testing.T) {
+// The Manual switch holds until it is turned off: the work ending, however long ago, does not end it (FR-SHELL-023 AC14).
+func TestManualHoldsUntilTurnedOff(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()
 	ctx := context.Background()
@@ -68,65 +71,69 @@ func TestCoffeeHoldsWhileWorkRunsAndEndsAfterGrace(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !state.Hold || len(state.Coffees) != 1 || !state.Coffees[0].Working || state.Coffees[0].WorkspaceName != "Alpha" {
-		t.Fatalf("coffee on with work: %+v", state)
+		t.Fatalf("manual on with work: %+v", state)
 	}
-	// Work elsewhere does not keep it on (AC11).
+	// Work elsewhere is not this workspace's work, and the switch holds all the same.
 	f.work.Workspaces = map[string]bool{"ws-b": true}
 	f.advance(time.Second)
 	k.Evaluate(ctx)
 	state = k.State()
-	if state.Coffees[0].Working || state.Coffees[0].EndsAt != f.now.Add(GracePeriod).UnixMilli() {
-		t.Fatalf("grace not started: %+v", state.Coffees[0])
+	if state.Coffees[0].Working || !state.Hold {
+		t.Fatalf("work elsewhere: %+v", state)
 	}
-	f.advance(GracePeriod - time.Second)
-	k.Evaluate(ctx)
-	if len(k.State().Coffees) != 1 || len(f.notices) != 0 {
-		t.Fatalf("ended before the grace: %+v %v", k.State(), f.notices)
-	}
-	f.advance(time.Second)
+	f.advance(24 * time.Hour)
 	k.Evaluate(ctx)
 	state = k.State()
-	if len(state.Coffees) != 0 || state.Hold {
-		t.Fatalf("coffee did not end: %+v", state)
+	if len(state.Coffees) != 1 || !state.Hold || len(f.notices) != 0 {
+		t.Fatalf("manual ended by itself: %+v %v", state, f.notices)
 	}
-	if len(f.notices) != 1 || !strings.Contains(f.notices[0].Title, "Alpha: work finished") || f.notices[0].WorkspaceId != "ws-a" {
-		t.Fatalf("notices: %+v", f.notices)
-	}
-	k.Evaluate(ctx)
-	if len(f.notices) != 1 {
-		t.Fatalf("notified twice: %+v", f.notices)
+	state, _ = k.SetCoffee(ctx, "ws-a", false)
+	if state.Hold || len(state.Coffees) != 0 {
+		t.Fatalf("manual off: %+v", state)
 	}
 }
 
-func TestCoffeeWorkResumingInGraceKeepsIt(t *testing.T) {
+// The approvals of FR-SHELL-063 keep the window the coffee had: its work, and the grace delay after it (AC17).
+func TestManualApprovesOnlyWhileTheWorkRunsAndInTheGrace(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()
 	ctx := context.Background()
+	if k.HasCoffee("ws-a") {
+		t.Fatalf("no coffee covers anything")
+	}
 	if _, err := k.SetCoffee(ctx, "ws-a", true); err != nil {
 		t.Fatal(err)
 	}
-	// Turned on with nothing running: it starts in its grace.
-	state := k.State()
-	if state.Coffees[0].Working || state.Coffees[0].EndsAt == 0 || !state.Hold {
-		t.Fatalf("idle coffee: %+v", state)
+	if !k.HasCoffee("ws-a") {
+		t.Fatalf("turned on with nothing running, it starts in its grace")
 	}
-	f.advance(GracePeriod - 10*time.Second)
+	f.advance(f.cfg.Grace - time.Second)
+	if !k.HasCoffee("ws-a") {
+		t.Fatalf("still in its grace")
+	}
+	f.advance(time.Second)
+	k.Evaluate(ctx)
+	if k.HasCoffee("ws-a") || !k.State().Hold {
+		t.Fatalf("after the grace the switch holds the computer but approves nothing: %+v", k.State())
+	}
 	f.work.Workspaces["ws-a"] = true
 	k.Evaluate(ctx)
-	f.work.Workspaces = map[string]bool{}
-	f.advance(30 * time.Second)
-	k.Evaluate(ctx)
-	if len(k.State().Coffees) != 1 {
-		t.Fatalf("work in the grace did not restart it: %+v", k.State())
+	if !k.HasCoffee("ws-a") {
+		t.Fatalf("work in the workspace covers it again")
 	}
-	f.advance(GracePeriod)
+	f.work.Workspaces = map[string]bool{}
+	f.advance(time.Second)
 	k.Evaluate(ctx)
-	if len(k.State().Coffees) != 0 || len(f.notices) != 1 {
-		t.Fatalf("did not end after a new grace: %+v %v", k.State(), f.notices)
+	if !k.HasCoffee("ws-a") {
+		t.Fatalf("the grace after the work covers it")
+	}
+	f.advance(f.cfg.Grace)
+	if k.HasCoffee("ws-a") {
+		t.Fatalf("the grace is over")
 	}
 }
 
-func TestCoffeeOffReleasesAtOnceAndDeletedWorkspaceEndsSilently(t *testing.T) {
+func TestManualOffReleasesAtOnceAndDeletedWorkspaceEndsSilently(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()
 	ctx := context.Background()
@@ -148,60 +155,114 @@ func TestCoffeeOffReleasesAtOnceAndDeletedWorkspaceEndsSilently(t *testing.T) {
 	}
 }
 
-func TestPolicyUntilWorkEnds(t *testing.T) {
+func TestAutomatic(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()
 	ctx := context.Background()
-	f.policy = PolicyUntilWorkEnds
+	f.cfg.Automatic = true
 	k.Evaluate(ctx)
-	if k.State().Hold {
-		t.Fatalf("held with no work")
+	if k.State().Hold || !k.State().Automatic {
+		t.Fatalf("held with no work, or not shown on: %+v", k.State())
 	}
 	f.work.Local = true
 	k.Evaluate(ctx)
 	state := k.State()
-	if !state.Hold || !state.PolicyHolding || !state.PolicyWorking {
+	if !state.Hold || !state.AutomaticHolding || !state.AutomaticWorking {
 		t.Fatalf("work runs: %+v", state)
 	}
 	f.work.Local = false
 	k.Evaluate(ctx)
 	state = k.State()
-	if !state.Hold || state.PolicyWorking || state.PolicyEndsAt == 0 {
+	if !state.Hold || state.AutomaticWorking || state.AutomaticEndsAt != f.now.Add(DefaultGrace).UnixMilli() {
 		t.Fatalf("grace: %+v", state)
 	}
-	f.advance(GracePeriod)
+	f.advance(DefaultGrace)
 	k.Evaluate(ctx)
 	if k.State().Hold || len(f.notices) != 1 || !strings.HasPrefix(f.notices[0].Title, "Work finished") {
 		t.Fatalf("release: %+v %v", k.State(), f.notices)
 	}
-	// Another policy drops the reason at once, without a notification.
+	if got := f.notices[0].MessageText.Vars["minutes"]; got != "2" {
+		t.Fatalf("the notice says %q minutes", got)
+	}
+	// Turning Automatic off drops the reason at once, without a notification.
 	f.work.Local = true
 	k.Evaluate(ctx)
-	f.policy = PolicyLetSleep
+	f.cfg.Automatic = false
 	k.Evaluate(ctx)
-	if k.State().Hold || len(f.notices) != 1 {
-		t.Fatalf("policy change: %+v %v", k.State(), f.notices)
+	if k.State().Hold || k.State().Automatic || len(f.notices) != 1 {
+		t.Fatalf("automatic off: %+v %v", k.State(), f.notices)
+	}
+}
+
+func TestAutomaticGraceFollowsTheSetting(t *testing.T) {
+	f := makeFakeEnv()
+	k := f.keeper()
+	ctx := context.Background()
+	f.cfg.Automatic = true
+	f.cfg.Grace = 10 * time.Minute
+	f.work.Local = true
+	k.Evaluate(ctx)
+	f.work.Local = false
+	k.Evaluate(ctx)
+	if got := k.State().AutomaticEndsAt; got != f.now.Add(10*time.Minute).UnixMilli() {
+		t.Fatalf("ends at %d", got)
+	}
+	f.advance(10*time.Minute - time.Second)
+	k.Evaluate(ctx)
+	if !k.State().Hold {
+		t.Fatalf("released before the grace delay")
+	}
+	f.advance(time.Second)
+	k.Evaluate(ctx)
+	if k.State().Hold || f.notices[0].MessageText.Vars["minutes"] != "10" {
+		t.Fatalf("not released after it: %+v %+v", k.State(), f.notices)
+	}
+}
+
+// Manual and Automatic are independent: either holds alone, both can hold, and the state says which (AC14).
+func TestManualAndAutomaticHoldIndependently(t *testing.T) {
+	f := makeFakeEnv()
+	k := f.keeper()
+	ctx := context.Background()
+	f.cfg.Automatic = true
+	f.work.Local = true
+	f.work.Workspaces["ws-a"] = true
+	f.work.LocalReasons = []string{"Léa: working"}
+	k.Evaluate(ctx)
+	state := k.State()
+	if !state.Hold || !state.AutomaticHolding || len(state.Coffees) != 0 {
+		t.Fatalf("automatic alone: %+v", state)
+	}
+	state, _ = k.SetCoffee(ctx, "ws-a", true)
+	if !state.AutomaticHolding || len(state.Coffees) != 1 {
+		t.Fatalf("both: %+v", state)
+	}
+	f.cfg.Automatic = false
+	k.Evaluate(ctx)
+	state = k.State()
+	if !state.Hold || state.AutomaticHolding || len(state.Coffees) != 1 {
+		t.Fatalf("manual alone: %+v", state)
 	}
 }
 
 func TestNoWorkReadWhenNothingNeedsIt(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()
-	f.policy = PolicyLetSleep
+	f.cfg.Requests = RequestsNever
 	k.Evaluate(context.Background())
 	if f.workCalls != 0 {
 		t.Fatalf("work read %d times", f.workCalls)
 	}
 }
 
-func TestCoffeeAppliesUnderLetItSleep(t *testing.T) {
+func TestManualAppliesWhateverTheTerminalRequestsSetting(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()
-	f.policy = PolicyLetSleep
+	f.cfg.Requests = RequestsNever
 	f.work.Workspaces["ws-a"] = true
 	state, _ := k.SetCoffee(context.Background(), "ws-a", true)
 	if !state.Hold {
-		t.Fatalf("coffee under Let it sleep does not hold")
+		t.Fatalf("manual with requests refused does not hold")
 	}
 	// The coffee never asks (AC12).
 	if len(f.notices) != 0 {
@@ -216,7 +277,7 @@ func TestShimDecisionsAndAskOnce(t *testing.T) {
 	req := ShimRequest{BlockId: "b1", Tool: ToolCaffeinate, Args: []string{"-i", "-t", "300"}, Pid: 10, ParentPid: 9}
 	answer, err := k.Shim(ctx, req)
 	if err != nil || answer.Policy != PolicyAllow {
-		t.Fatalf("unset policy: %v %v", answer, err)
+		t.Fatalf("unset requests: %v %v", answer, err)
 	}
 	if len(f.notices) != 1 || f.notices[0].Key != AskNotificationKey || len(f.notices[0].Actions) != 3 {
 		t.Fatalf("ask once: %+v", f.notices)
@@ -225,10 +286,10 @@ func TestShimDecisionsAndAskOnce(t *testing.T) {
 	if len(f.notices) != 1 {
 		t.Fatalf("asked twice")
 	}
-	f.policy = PolicyLetSleep
+	f.cfg.Requests = RequestsNever
 	answer, _ = k.Shim(ctx, req)
 	if answer.Policy != PolicyLetSleep {
-		t.Fatalf("let it sleep: %v", answer)
+		t.Fatalf("never: %v", answer)
 	}
 	if _, err := k.SetOverride(ctx, OverrideRequest{BlockId: "b1", Policy: PolicyAllow}); err != nil {
 		t.Fatal(err)
@@ -241,10 +302,11 @@ func TestShimDecisionsAndAskOnce(t *testing.T) {
 	if answer.Policy != PolicyLetSleep {
 		t.Fatalf("the override leaked to another session: %v", answer)
 	}
-	f.policy = PolicyUntilWorkEnds
+	f.cfg.Requests = RequestsAlways
+	f.cfg.Automatic = true
 	answer, _ = k.Shim(ctx, ShimRequest{BlockId: "b2", Tool: ToolCaffeinate, Pid: 12})
 	if answer.Policy != PolicyAllow {
-		t.Fatalf("until work ends lets blocks through: %v", answer)
+		t.Fatalf("always lets blocks through: %v", answer)
 	}
 	state := k.State()
 	if len(state.Overrides) != 1 || state.Overrides[0].TabName != "Tab 1" {
@@ -286,7 +348,7 @@ func TestShimDecisionsAndAskOnce(t *testing.T) {
 func TestLateShimAnswerIsRecordedAsAllowed(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()
-	f.policy = PolicyLetSleep
+	f.cfg.Requests = RequestsNever
 	// The shim stops waiting at its deadline and runs the real tool: an answer past it cannot stop the block.
 	answer, _ := k.Shim(context.Background(), ShimRequest{BlockId: "b1", Tool: ToolCaffeinate, Pid: 10, Deadline: f.now.UnixMilli() + 10})
 	if answer.Policy != PolicyAllow || k.State().Attempts[0].Outcome != OutcomeAllowed {
@@ -321,12 +383,31 @@ func TestPublishOnlyOnChangeWithGrowingVersion(t *testing.T) {
 	}
 }
 
-func TestCleanPolicy(t *testing.T) {
-	cases := map[string]string{"allow": PolicyAllow, " UntilWorkEnds ": PolicyUntilWorkEnds, "letsleep": PolicyLetSleep, "": PolicyAsk, "never": PolicyAsk}
+func TestCleanRequests(t *testing.T) {
+	cases := map[string]string{"always": RequestsAlways, " Never ": RequestsNever, "": RequestsAsk, "allow": RequestsAsk}
 	for in, want := range cases {
-		if got := CleanPolicy(in); got != want {
-			t.Errorf("CleanPolicy(%q) = %q, want %q", in, got, want)
+		if got := CleanRequests(in); got != want {
+			t.Errorf("CleanRequests(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestConfigFromSettings(t *testing.T) {
+	if got := ConfigFromSettings(wconfig.SettingsType{}); got != DefaultConfig() {
+		t.Fatalf("nothing set: %+v", got)
+	}
+	minutes, off := int64(10), false
+	got := ConfigFromSettings(wconfig.SettingsType{
+		PowerAutomatic: true, PowerTerminalRequests: "never", PowerGraceMinutes: &minutes,
+		PowerWorkAgents: &off, PowerWorkCommands: &off,
+	})
+	want := Config{Automatic: true, Requests: RequestsNever, Grace: 10 * time.Minute, Work: WorkRules{Projects: true}}
+	if got != want {
+		t.Fatalf("set: %+v, want %+v", got, want)
+	}
+	odd := int64(3)
+	if got := ConfigFromSettings(wconfig.SettingsType{PowerGraceMinutes: &odd, PowerTerminalRequests: "ask"}); got != DefaultConfig() {
+		t.Fatalf("invalid values read as their default: %+v", got)
 	}
 }
 

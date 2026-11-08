@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The carpet's surface and chrome in 360 view (FR-SHELL-065, DS-SHELL-115, DS-SHELL-152), drawn by the tile layout
 // around its panels: the surface under them (no frame since #1545: it holds the observer's sensors), then the fixed

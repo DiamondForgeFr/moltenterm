@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -11,6 +11,7 @@ import (
 
 // #1130: a PR's notification names it by its card's number, the PR number after it only when the two differ.
 func TestPrCard(t *testing.T) {
+	t.Parallel()
 	ticketed := MakePrCard(1120, 1107)
 	if ticketed.Number() != "1107" || ticketed.English() != "#1107 (PR #1120)" {
 		t.Fatalf("with a ticket: %+v %s", ticketed, ticketed.English())

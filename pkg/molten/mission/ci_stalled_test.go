@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -36,6 +36,7 @@ func checkNamed(t *testing.T, pr ReviewPr, name string) ReviewCheck {
 }
 
 func TestIsLocalCiCheck(t *testing.T) {
+	t.Parallel()
 	for name, want := range map[string]bool{
 		"local-unit":             true,
 		"AI testing / Local CI":  true,
@@ -51,6 +52,7 @@ func TestIsLocalCiCheck(t *testing.T) {
 }
 
 func TestReconcileLocalCiWaitingForApproval(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 1, 18, 0, 0, 0, time.UTC)
 	pr := stalledPr(now.Add(-4 * 24 * time.Hour))
 	if pr.Ci.Pending != 1 || pr.Merge != ReviewMergeRunning {
@@ -69,6 +71,7 @@ func TestReconcileLocalCiWaitingForApproval(t *testing.T) {
 }
 
 func TestReconcileLocalCiInterrupted(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 1, 18, 0, 0, 0, time.UTC)
 	posted := now.Add(-4 * 24 * time.Hour)
 	// A run of this computer on that commit left behind: interrupted, at its last sign of life.
@@ -87,6 +90,7 @@ func TestReconcileLocalCiInterrupted(t *testing.T) {
 // No run record here, commands approved: the status may be another computer's or a teammate's, so it is neither
 // running nor interrupted; it keeps when it was posted.
 func TestReconcileLocalCiNotOnThisComputer(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 1, 18, 0, 0, 0, time.UTC)
 	posted := now.Add(-4 * 24 * time.Hour)
 	other := CiRunRecord{Id: "r0", Sha: "0000000000000000000000000000000000000000", Status: CiStateInterrupted, FinishedAt: posted.UnixMilli()}
@@ -104,6 +108,7 @@ func TestReconcileLocalCiNotOnThisComputer(t *testing.T) {
 }
 
 func TestReconcileLocalCiLeavesLiveChecks(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 1, 18, 0, 0, 0, time.UTC)
 	recent := stalledPr(now.Add(-30 * time.Second))
 	reconcileLocalCi(&recent, localCiFacts{untrusted: true}, now)
@@ -125,6 +130,7 @@ func TestReconcileLocalCiLeavesLiveChecks(t *testing.T) {
 }
 
 func TestReconcileLocalCiTakesTheLocalVerdict(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 1, 18, 0, 0, 0, time.UTC)
 	posted := now.Add(-time.Hour)
 	for _, status := range []string{CiStateSuccess, CiStateFailure} {
@@ -145,6 +151,7 @@ func TestReconcileLocalCiTakesTheLocalVerdict(t *testing.T) {
 }
 
 func TestCiInterruptedRunStoppedAtItsLastSignOfLife(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"a","run":"true"},{"name":"b","run":"true"}]}`)
 	c.writeRecord(CiRunRecord{Id: "20260101-000000-bbbbbb", Dir: dir, Status: CiStateRunning, StartedAt: 1000, SeenAt: 9000,
 		Jobs: []CiJobRecord{{Name: "a", Status: CiStateSuccess, StartedAt: 2000, FinishedAt: 3000}, {Name: "b", Status: CiStateRunning, StartedAt: 3000}}})
@@ -158,6 +165,7 @@ func TestCiInterruptedRunStoppedAtItsLastSignOfLife(t *testing.T) {
 }
 
 func TestCiStatusExplainsNotRun(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"a","run":"true"}]}`)
 	sha := gitIn(t, dir, "rev-parse", "HEAD")
 	tree := gitIn(t, dir, "rev-parse", "HEAD^{tree}")
@@ -180,6 +188,7 @@ func TestCiStatusExplainsNotRun(t *testing.T) {
 }
 
 func TestReconcileAnswerOnlyWithALocalCi(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"a","run":"true"}]}`)
 	now := time.Now()
 	answer := ReviewsAnswer{Dir: dir, Ready: []ReviewPr{stalledPr(now.Add(-time.Hour))}}
@@ -195,6 +204,7 @@ func TestReconcileAnswerOnlyWithALocalCi(t *testing.T) {
 }
 
 func TestTrustNoticeSaysTheCiIsBlocked(t *testing.T) {
+	t.Parallel()
 	notice := trustNotice("/p/SaaSFoundry", nil, "")
 	if notice.TitleText == nil || notice.TitleText.Code != "notif.trust.title" || len(notice.Actions) != 1 {
 		t.Fatalf("notice: %+v", notice)

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package molten
 
@@ -84,7 +84,7 @@ func TestAgentRenderings(t *testing.T) {
 		if m := agentMarkerRegex.FindStringSubmatch(content); m == nil || m[1] != "morph" || m[2] != "1.2.3" {
 			t.Errorf("%s: missing version marker", p.Id)
 		}
-		if !strings.Contains(content, "molten docs") || !strings.Contains(content, "molten copy") || !strings.Contains(content, "Decide what the request changes") {
+		if !strings.Contains(content, "molten docs") || !strings.Contains(content, "molten copy") || !strings.Contains(content, "Ask for trust when the user agrees to the plan") {
 			t.Errorf("%s: the guide must be complete", p.Id)
 		}
 		switch p.Format {

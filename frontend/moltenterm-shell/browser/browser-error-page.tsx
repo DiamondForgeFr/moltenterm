@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The error page drawn over a tab's webview when its page fails to load (FR-SHELL-051, DS-SHELL-092).
 

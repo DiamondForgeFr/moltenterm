@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package pipelinesetup
 
@@ -19,6 +19,7 @@ import (
 // .gitignore can ignore the documentation's folder. The commit still carries every file the developer approved,
 // says which rule matched, and a retry after a failure reuses the ticket already created.
 func TestIgnoredFilesAreCommittedAndARetryReusesTheTicket(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	exclude := filepath.Join(dir, ".git", "info", "exclude")
 	if err := os.MkdirAll(filepath.Dir(exclude), 0755); err != nil {
@@ -121,6 +122,7 @@ func ruleOf(job PrJob, source string) *PrIgnored {
 }
 
 func TestIgnoreSourceName(t *testing.T) {
+	t.Parallel()
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Skip("no home folder")

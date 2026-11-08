@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Moltenterm ships no AI modes of its own: the Wave AI panel only runs modes
 // that the user defines in waveai.json (their own provider or a local model).

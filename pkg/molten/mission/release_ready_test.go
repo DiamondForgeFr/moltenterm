@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -19,6 +19,7 @@ func preparationStep(id string, run string) molten.PipelineStep {
 // The release card shows the readiness check as one step of the preparation (#1800): the first phase of the chain
 // molten cuts, before the first step that writes anything.
 func TestPreparationStartsWithTheReadinessCheckWhenMoltenCutsTheRelease(t *testing.T) {
+	t.Parallel()
 	steps := []molten.PipelineStep{
 		preparationStep("promote", "molten release promote --workflow ci.yml"),
 		preparationStep("prepare", "molten release prepare {tag}"),
@@ -44,6 +45,7 @@ func TestPreparationStartsWithTheReadinessCheckWhenMoltenCutsTheRelease(t *testi
 }
 
 func TestPreparationOfAnotherToolHasNoReadinessCheck(t *testing.T) {
+	t.Parallel()
 	for _, run := range []string{"echo prepared {tag}", "./scripts/release.sh --prepare {tag}", "molten release promote", "molten releases prepare {tag}"} {
 		got, err := preparationCommand([]molten.PipelineStep{preparationStep("prepare", run)}, "1.2.0", "v1.2.0", "develop")
 		if err != nil || strings.Contains(got, ReleaseReadyStepId) {
@@ -53,6 +55,7 @@ func TestPreparationOfAnotherToolHasNoReadinessCheck(t *testing.T) {
 }
 
 func TestReadinessCheckRefusesAHostileTag(t *testing.T) {
+	t.Parallel()
 	if _, err := preparationCommand([]molten.PipelineStep{preparationStep("prepare", "molten release prepare {tag}")}, "1.0.0", "v1.0.0; touch PWNED", "develop"); err == nil {
 		t.Fatal("a hostile tag must be refused")
 	}

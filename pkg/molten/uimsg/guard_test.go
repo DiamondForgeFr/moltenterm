@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package uimsg_test
 
@@ -42,6 +42,8 @@ var englishFields = map[string]string{
 	"pipelinesetup.BoardExplain.Note":       "the setup agent's own words beside the highlighted step (#1163)",
 	"pipelinesetup.BoardRefusal.Detail":     "`molten pipeline setup` output, agent-facing (#1163)",
 	"mission.SetupAgentRequest.Why":         "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
+	"molten.MorphDesignChoice.Detail":       "the design agent's own line under a choice, shown as it wrote it in the design panel (#1888)",
+	"molten.MorphDesignDraft.Note":          "the design agent's own sentence about its draft, shown as it wrote it in the design panel (#1888)",
 	"mission.SetupAgentRequest.Note":        "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
 	"onboarding.agentSignInRequest.Note":    "a line the frontend already translated (signInNote), printed above the sign-in command (#1723)",
 	"review.MergePlan.Warnings":             "check ids (MergeCheck codes), worded by the Validate sheet",
@@ -51,6 +53,8 @@ var englishFields = map[string]string{
 	"review.MarkReadyResult.Reason":         "a code (MarkReadyReason…) the Reviews list words",
 	"review.MarkReadyResult.Message":        "gh's raw error, the detail of the reason error",
 	"review.RestartResult.Reason":           "a code (RestartReason…) the Review tab words",
+	"brokksession.Result.Reason":            "a code (Reason…) the panel's talk field words (boss.panel.talk.*, #2003)",
+	"brokksession.Result.Message":           "the English detail of a refusal, logged and never shown: the field words the Reason (#2003)",
 	"review.BatchItem.Reason":               "a code (BatchReason…) the Reviews list and the notifications word",
 	"review.BatchItem.Note":                 "the agent's own words on an ambiguous conflict, data",
 	"review.BatchItem.Detail":               "gh's or git's raw error (tokens masked), the detail under Reason's code",
@@ -62,6 +66,7 @@ var englishFields = map[string]string{
 	"reviewsession.ciInfo.Why":              "review_context output, agent-facing",
 	"reviewsession.untrustedText.Note":      "MCP tool output, agent-facing",
 	"browseragent.tabEntry.Note":            "tabs_context output, agent-facing (#971)",
+	"browseragent.WebReadAnswer.Error":      "the refusal `wsh web get` prints to the agent, agent-facing (#1976)",
 	"reviewsession.reviewContext.Note":      "review_context output, agent-facing",
 	"reviewsession.translateInfo.Note":      "MCP tool output, agent-facing",
 	"mcpreview.BriefResult.Reason":          "a code (#652) the Review tab words (review-session-text.ts)",
@@ -78,9 +83,15 @@ var englishFields = map[string]string{
 	"molten.DurableSession.Reason":          "a code (SessionReason...), the Sessions view words it under sessions.reason.*",
 	"agentcontinuity.FeatureSupport.Reason": "a code (Reason...), the agent features model words it (#1683)",
 	"agentcontinuity.FeatureSupport.Note":   "the compatibility matrix's technical note, `molten agent list --features` output, agent-facing (#1683)",
+	"molten.AgentSettled.Note":              "the settler's own one-line why, shown on the card as written (#1876)",
+	"molten.AgentStopSettleRequest.Note":    "the developer's or the lead's own one-line why, kept as written (#1876)",
+	"handoffwire.SettleRequest.Note":        "`molten agent decision settle --note`, the lead's own words (#1876)",
+	"handoffwire.SettleResult.Note":         "the note as kept, `molten agent decision settle` output, agent-facing (#1876)",
 	"handoffwire.SendResult.Message":        "agent-facing: the sending agent reads it (MCP send_to_agent)",
 	"handoffwire.FileRef.Note":              "agent-written brief content, typed for the receiving agent",
 	"handoffwire.LinkRef.Note":              "agent-written brief content, typed for the receiving agent",
+	"handoffwire.PendingFile.Note":          "the sender's own words, read as written in the card's brief (#1891)",
+	"handoffwire.PendingLink.Note":          "the sender's own words, read as written in the card's brief (#1891)",
 	"mission.BranchPlan.Reason":             "a code (merged-pr, open-pr...) the window words under mc.branches.reason/keep",
 	"mission.GithubSnapshot.Message":        "gh's own error output, shown inside mc.github.state.error",
 	"mission.ReviewsAnswer.Message":         "gh's own error output (the collector's GithubSnapshot.Message)",

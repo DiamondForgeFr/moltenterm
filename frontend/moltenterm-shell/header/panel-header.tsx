@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The panel header's lead and pill for every panel (FR-SHELL-052, DS-SHELL-093), drawn by Wave's blockframe-header:
 // [16 px icon] Title (12/600), the muted context (a terminal's project and branch, once; the connection only when
@@ -87,6 +87,8 @@ export type MoltenHeaderState = {
     // The agent's model and effort ("Opus" and "high", #549), each its own click target (#573), "" when not reported.
     model: string;
     modelTitle: string;
+    // #2076: the account cannot use model; the model is the way out.
+    modelUnavailable: boolean;
     effort: string;
     effortTitle: string;
     pill: HeaderPillSpec;
@@ -190,6 +192,7 @@ export function useMoltenHeader(input: MoltenHeaderInput): MoltenHeaderState {
         context,
         model: agentModelPart(agent),
         modelTitle: agentModelTitle(agent),
+        modelUnavailable: !!agent?.modelunavailable,
         effort: agentEffortPart(agent),
         effortTitle: agentEffortTitle(agent),
         pill,
@@ -300,6 +303,7 @@ export function MoltenHeaderLead({
                             blockId={blockId}
                             model={state.model}
                             modelTitle={state.modelTitle}
+                            modelUnavailable={state.modelUnavailable}
                             effort={state.effort}
                             effortTitle={state.effortTitle}
                         />

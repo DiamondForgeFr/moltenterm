@@ -36,6 +36,7 @@ import {
     getWaveConfigDir,
     getWaveDataDir,
     isDev,
+    remoteDebuggingLogLine, // MOLTENTERM-PATCH (#2057)
     unameArch,
     unamePlatform,
 } from "./emain-platform";
@@ -62,12 +63,20 @@ import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PA
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { initMoltentermHangWatch } from "./moltenterm-hang-watch"; // MOLTENTERM-PATCH (#849)
 import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
+import { initMoltentermDownloads } from "./moltenterm-downloads"; // MOLTENTERM-PATCH (#1992)
+import { planMoltentermCookieEncryption, startMoltentermCookieEncryption } from "./moltenterm-cookie-encryption"; // MOLTENTERM-PATCH (#2058)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermSitePermissions, installMoltentermSitePermissionHandlers } from "./moltenterm-site-permissions"; // MOLTENTERM-PATCH (#663)
+import {
+    initMoltentermClientCertificates,
+    installMoltentermClientCertificateHandler,
+} from "./moltenterm-client-certificates"; // MOLTENTERM-PATCH (#1979)
 import { initMoltentermScreen } from "./moltenterm-screen"; // MOLTENTERM-PATCH (#1083)
+import { initMoltentermSystemIdle } from "./moltenterm-system-idle"; // MOLTENTERM-PATCH (#1958)
 import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
 import { initMoltentermCarpetThumbs } from "./moltenterm-carpet-thumbs"; // MOLTENTERM-PATCH (#1814)
+import { initMoltentermFavicons } from "./moltenterm-favicons"; // MOLTENTERM-PATCH (#1962)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
 import { initMoltentermTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
 import { initMoltentermTheme, initMoltentermThemeDefault } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
@@ -97,6 +106,10 @@ console.log(
 );
 if (isDev) {
     console.log("waveterm-app WAVETERM_DEV set");
+}
+// MOLTENTERM-PATCH (#2057): the debugging policy ran before the log existed; its line goes to the main log too.
+if (remoteDebuggingLogLine) {
+    console.log(remoteDebuggingLogLine);
 }
 
 function handleWSEvent(evtMsg: WSEventType) {
@@ -417,6 +430,7 @@ async function appMain() {
         fireAndForget(createNewWaveWindow);
     });
     exportSystemLanguageToEnv(); // MOLTENTERM-PATCH (#623): review:language's default in wavesrv follows the interface language
+    await planMoltentermCookieEncryption(); // MOLTENTERM-PATCH (#2058): the clear cookies, read before Chromium locks the database
     try {
         await runWaveSrv(handleWSEvent);
     } catch (e) {
@@ -425,15 +439,19 @@ async function appMain() {
     const ready = await getWaveSrvReady();
     console.log("wavesrv ready signal received", ready, Date.now() - startTs, "ms");
     await electronApp.whenReady();
+    await startMoltentermCookieEncryption(); // MOLTENTERM-PATCH (#2058): stored encrypted again, before any page loads
     getTrustedAppSession();
     initIpcHandlers();
     initBusyCloseReplies(); // MOLTENTERM-PATCH (#490, #806): registered application replies to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
     initMoltentermScreen(); // MOLTENTERM-PATCH (#1083): the screen each window is on, for the 360 view threshold
+    initMoltentermSystemIdle(); // MOLTENTERM-PATCH (#1958): this computer's idle time, so Brokk sleeps while you are away
     initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
     initMoltentermCarpetThumbs(); // MOLTENTERM-PATCH (#1814): the 360 carpet's thumbnails, kept on disk
+    initMoltentermFavicons(); // MOLTENTERM-PATCH (#1962): the sites' icons, kept on disk per origin
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
     installMoltentermSitePermissionHandlers(); // MOLTENTERM-PATCH (#663): what pages may use, before any page loads
+    installMoltentermClientCertificateHandler(); // MOLTENTERM-PATCH (#1979): no page gets a client certificate the user did not pick
     initMoltentermHangWatch(); // MOLTENTERM-PATCH (#849): windows that stop answering, gone processes, slow sendSync
 
     await sleep(10); // wait a bit for wavesrv to be ready
@@ -449,6 +467,8 @@ async function appMain() {
     initMoltentermI18n(fullConfig); // MOLTENTERM-PATCH (#623): menus and dialogs follow app:language, live
     initMoltentermTheme(fullConfig); // MOLTENTERM-PATCH (#1341): nativeTheme.themeSource follows moltenterm:theme, live
     initMoltentermSitePermissions(fullConfig); // MOLTENTERM-PATCH (#663): the remembered site permissions, live
+    initMoltentermClientCertificates(fullConfig); // MOLTENTERM-PATCH (#1979): the remembered certificate per site, live
+    initMoltentermDownloads(fullConfig); // MOLTENTERM-PATCH (#1992): the downloads of the web pages, their history and their notifications
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];

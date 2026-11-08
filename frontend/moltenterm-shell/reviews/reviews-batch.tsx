@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The batch merge and the merge queue in the Reviews list (FR-REV-025, FR-REV-026, DS-REV-017): the confirmation
 // modal, opened from the merge queue's Merge in this order (#1062), (the order, the method, what the agent does, the main checkout untouched; Enter adds them
@@ -34,6 +34,7 @@ import {
     batchRowMark,
     BatchRun,
     batchStepText,
+    BatchStopAction,
     batchSummary,
     batchTitle,
     canWithdraw,
@@ -71,6 +72,104 @@ export function BatchRowChip({ mark }: { mark: BatchRowMark }) {
             {mark.current ? <DominoLoader /> : <i className="fa fa-solid fa-layer-group text-10" aria-hidden />}
             {mark.label}
         </span>
+    );
+}
+
+const GithubStatusUrl = "https://www.githubstatus.com";
+
+// The line under a PR the queue stopped (#1871): why, in one plain sentence, the action that answers it, GitHub's
+// status page when GitHub did not answer, and the raw error behind Details.
+export function BatchStopLine({
+    mark,
+    number,
+    base,
+    busy,
+    onAction,
+    onOpenLink,
+}: {
+    mark: BatchRowMark;
+    number: number;
+    base: string;
+    busy: boolean;
+    onAction: (action: BatchStopAction) => void;
+    onOpenLink: (url: string) => void;
+}) {
+    const t = useT();
+    const [open, setOpen] = useState(false);
+    const help = mark?.stop;
+    if (help == null) {
+        return null;
+    }
+    const vars = { number, base };
+    return (
+        <div className="flex min-w-0 flex-col gap-1 text-11 leading-4" data-testid="reviews-batch-stop">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <i className="fa fa-solid fa-circle-exclamation text-10 text-danger" aria-hidden />
+                <span className="min-w-0 text-secondary" data-testid="reviews-batch-stop-why">
+                    {help.sentence}
+                </span>
+                {help.action != null ? (
+                    <button
+                        type="button"
+                        className={PlainButton}
+                        aria-busy={busy || undefined}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (!busy) {
+                                onAction(help.action);
+                            }
+                        }}
+                        onKeyDown={stop}
+                        title={t(`reviews.batch.stop.${help.action}Title`, vars)}
+                        data-testid="reviews-batch-stop-action"
+                        data-action={help.action}
+                    >
+                        {busy ? <DominoLoader /> : null}
+                        {t(`reviews.batch.stop.${help.action}`)}
+                    </button>
+                ) : null}
+                {help.outage ? (
+                    <button
+                        type="button"
+                        className={cn(PlainButton, "border-transparent")}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenLink(GithubStatusUrl);
+                        }}
+                        onKeyDown={stop}
+                        title={t("reviews.batch.stop.statusTitle")}
+                        data-testid="reviews-batch-stop-status"
+                    >
+                        {t("reviews.batch.stop.status")}
+                        <i className="fa fa-solid fa-arrow-up-right-from-square text-10" aria-hidden />
+                    </button>
+                ) : null}
+                {help.detail ? (
+                    <button
+                        type="button"
+                        className={cn(PlainButton, "border-transparent")}
+                        aria-expanded={open}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setOpen(!open);
+                        }}
+                        onKeyDown={stop}
+                        data-testid="reviews-batch-stop-details"
+                    >
+                        {open ? t("reviews.batch.stop.hideDetails") : t("reviews.batch.stop.details")}
+                    </button>
+                ) : null}
+            </div>
+            {open && help.detail ? (
+                <pre
+                    className="max-h-24 overflow-auto rounded-4 border border-border bg-hover/40 px-2 py-1 font-mono text-10 whitespace-pre-wrap text-muted select-text"
+                    onClick={stop}
+                    data-testid="reviews-batch-stop-detail"
+                >
+                    {help.detail}
+                </pre>
+            ) : null}
+        </div>
     );
 }
 
@@ -253,7 +352,7 @@ export function BatchConfirmDialog({
     );
 }
 
-// The banner in the Reviews list's "Agents on it" section (FR-REV-026 AC7, #1123): who works on the queue and its PRs
+// The banner in the Reviews list's "In progress" section (FR-REV-026 AC7, #1123, #1876): who works on the queue and its PRs
 // in order, the dominoes while it runs, its progress and the PR in progress, each validated PR with its place and
 // Cancel validation until its merge starts, Stop and the way to the agent's terminal; the summary once it ended, until
 // Hide.
@@ -417,7 +516,7 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
     );
 }
 
-// The pointer a hidden, finished queue leaves in "Agents on it" while its agent's session is open (#1128,
+// The pointer a hidden, finished queue leaves in "In progress" while its agent's session is open (#1128,
 // FR-REV-026 AC13): one line with Go there; it goes with the session.
 export function BatchPointer({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
     const t = useT();

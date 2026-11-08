@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A panel created to be used at once (a page opened beside, #1187) takes the focus once the layout has placed it: the
 // created block's "focused" flag comes before its node exists, and the page it was opened from keeps the focus otherwise.

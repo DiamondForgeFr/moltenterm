@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Kept explanations (FR-REV-008): the answers the developer keeps, a notes list per project stored by wavesrv in
 // MoltenTerm's data folder (pkg/molten/review/notes.go), never in the project. A note's path:line links are read from

@@ -325,6 +325,9 @@ func (ws *WshServer) CreateBlockCommand(ctx context.Context, data wshrpc.Command
 
 func (ws *WshServer) CreateSubBlockCommand(ctx context.Context, data wshrpc.CommandCreateSubBlockData) (*waveobj.ORef, error) {
 	parentBlockId := data.ParentBlockId
+	if err := moltenCheckCreateSubBlock(ctx, parentBlockId, data.BlockDef); err != nil { // MOLTENTERM-PATCH (#2067): a terminal's sub-blocks keep the rules of its blocks
+		return nil, err
+	}
 	blockData, err := wcore.CreateSubBlock(ctx, parentBlockId, data.BlockDef)
 	if err != nil {
 		return nil, fmt.Errorf("error creating block: %w", err)
@@ -590,6 +593,9 @@ func (ws *WshServer) EventReadHistoryCommand(ctx context.Context, data wshrpc.Co
 }
 
 func (ws *WshServer) SetConfigCommand(ctx context.Context, data wshrpc.MetaSettingsType) error {
+	if err := moltenCheckConfigWrite(ctx, data.MetaMapType); err != nil { // MOLTENTERM-PATCH (#1961)
+		return err
+	}
 	return wconfig.SetBaseConfigValue(data.MetaMapType)
 }
 
@@ -1398,6 +1404,10 @@ func (ws *WshServer) ActivityCommand(ctx context.Context, activity wshrpc.Activi
 }
 
 func (ws *WshServer) GetVarCommand(ctx context.Context, data wshrpc.CommandVarData) (*wshrpc.CommandVarResponseData, error) {
+	// MOLTENTERM-PATCH (#1964): variable files cannot bypass the caller's wave-file boundary.
+	if err := moltenCheckVars(ctx, data, false); err != nil {
+		return nil, err
+	}
 	_, fileData, err := filestore.WFS.ReadFile(ctx, data.ZoneId, data.FileName)
 	if err == fs.ErrNotExist {
 		return &wshrpc.CommandVarResponseData{Key: data.Key, Exists: false}, nil
@@ -1411,6 +1421,9 @@ func (ws *WshServer) GetVarCommand(ctx context.Context, data wshrpc.CommandVarDa
 }
 
 func (ws *WshServer) GetAllVarsCommand(ctx context.Context, data wshrpc.CommandVarData) ([]wshrpc.CommandVarResponseData, error) {
+	if err := moltenCheckVars(ctx, data, false); err != nil {
+		return nil, err
+	}
 	_, fileData, err := filestore.WFS.ReadFile(ctx, data.ZoneId, data.FileName)
 	if err == fs.ErrNotExist {
 		return []wshrpc.CommandVarResponseData{}, nil
@@ -1436,6 +1449,9 @@ func (ws *WshServer) GetAllVarsCommand(ctx context.Context, data wshrpc.CommandV
 }
 
 func (ws *WshServer) SetVarCommand(ctx context.Context, data wshrpc.CommandVarData) error {
+	if err := moltenCheckVars(ctx, data, true); err != nil {
+		return err
+	}
 	_, fileData, err := filestore.WFS.ReadFile(ctx, data.ZoneId, data.FileName)
 	if err == fs.ErrNotExist {
 		fileData = []byte{}

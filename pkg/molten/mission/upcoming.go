@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -91,18 +91,26 @@ type BranchAgent struct {
 	BlockId   string `json:"blockid,omitempty"`
 	Agent     string `json:"agent,omitempty"`
 	FirstName string `json:"firstname,omitempty"`
-	// Started: the agent run's start (panel), in Unix milliseconds.
+	// Started: since when a panel is on the branch (#1841: never before it entered the worktree, the worktree or the
+	// branch existed), a sub-agent's run start, in Unix milliseconds.
 	Started int64 `json:"started,omitempty"`
+	// Visiting (#1841): a panel whose session only ran commands in the worktree and wrote nothing there since it came;
+	// it does not work on the branch.
+	Visiting bool `json:"visiting,omitempty"`
 	// ActiveAt: a background agent's last sign of activity, in Unix milliseconds.
 	ActiveAt int64 `json:"activeat,omitempty"`
 	// ParentBlockId: the panel agent that probably started a background agent, when one stands out.
 	ParentBlockId   string `json:"parentblockid,omitempty"`
 	ParentFirstName string `json:"parentfirstname,omitempty"`
 	// A sub-agent's (#1035): its model, its task, and its state (companion.SubagentRunning, SubagentQuiet,
-	// SubagentDone); ActiveAt is then its last write, or its end.
+	// SubagentDone); ActiveAt is then its last write, or its end. Effort (#1848) is the effort level its own files
+	// record; Model and Effort of a signed background agent are those of its signature. "" when unknown, never a guess.
 	Model       string `json:"model,omitempty"`
+	Effort      string `json:"effort,omitempty"`
 	Description string `json:"description,omitempty"`
 	State       string `json:"state,omitempty"`
+	// AgentId (#1955): a sub-agent's id in its CLI, the one its lead resumes it by.
+	AgentId string `json:"agentid,omitempty"`
 	// Signed (#1603): a background agent named by its work's signature (FirstName, AgentName: the CLI's name as
 	// signed, Agent when the catalog knows it); BlockId is then the signer's session when it is still open.
 	Signed    bool   `json:"signed,omitempty"`
@@ -205,6 +213,8 @@ type Upcoming struct {
 	states map[string]*upcomingState
 	// One computation per project at a time.
 	running map[string]*sync.Mutex
+	// Where each agent terminal was last placed, and since when (#1841), by its block.
+	seen map[string]panelSeen
 }
 
 func MakeUpcoming(env UpcomingEnv) *Upcoming {
@@ -214,7 +224,7 @@ func MakeUpcoming(env UpcomingEnv) *Upcoming {
 	if env.FileTime == nil {
 		env.FileTime = fileTimeMs
 	}
-	return &Upcoming{env: env, states: map[string]*upcomingState{}, running: map[string]*sync.Mutex{}}
+	return &Upcoming{env: env, states: map[string]*upcomingState{}, running: map[string]*sync.Mutex{}, seen: map[string]panelSeen{}}
 }
 
 func fileTimeMs(path string) int64 {
@@ -340,10 +350,10 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		return answer
 	}
 	ticketRes := branchTicketRes(readBranchNaming(dir))
-	answer.Agents = MatchBranchAgents(trees, places)
+	answer.Agents = u.panelsOnBranch(ctx, g, trees, places, MatchBranchAgents(trees, places))
 	if u.env.Subagents != nil {
 		subs := u.env.Subagents(places)
-		panels := answer.Agents
+		panels := atWork(answer.Agents)
 		answer.Agents = append(answer.Agents, SubagentBranchAgents(trees, panels, subs)...)
 		answer.Agents = append(answer.Agents, UnplacedSubagents(trees, panels, subs)...)
 	}
@@ -352,9 +362,12 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		targetRef = "refs/remotes/origin/" + answer.Target
 	}
 	procs := u.procsReader()
-	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, answer.Agents, places, ticketRes, backgroundFacts{
+	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, atWork(answer.Agents), places, ticketRes, backgroundFacts{
 		procs: procs, targetRef: targetRef, prBodies: openPrBodies(snap),
 	})...)
+	if len(trees) > 0 {
+		answer.Agents = tieAgentsToPrs(g, answer.Agents, snap, trees[0].path)
+	}
 	refs := parseBranchRefs(g.lines("for-each-ref", "--format=%(refname)%00%(committerdate:unix)", "refs/heads", "refs/remotes/origin"))
 	heads, known := openPrHeads(snap)
 	if !known {
@@ -647,7 +660,7 @@ func SubagentBranchAgents(trees []treeEntry, panels []BranchAgent, subs []PaneSu
 		rtn = append(rtn, BranchAgent{
 			Branch: tree.branch, Worktree: tree.path, Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started,
 			ActiveAt: s.LastWrite, ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
-			Description: s.Description, State: s.State,
+			Effort: s.Effort, Description: s.Description, State: s.State, AgentId: s.AgentId,
 		})
 	}
 	return rtn
@@ -683,8 +696,8 @@ func UnplacedSubagents(trees []treeEntry, panels []BranchAgent, subs []PaneSubag
 		}
 		rtn = append(rtn, BranchAgent{
 			Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started, ActiveAt: s.LastWrite,
-			ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
-			Description: s.Description, State: s.State,
+			ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model, Effort: s.Effort,
+			Description: s.Description, State: s.State, AgentId: s.AgentId,
 		})
 	}
 	return rtn

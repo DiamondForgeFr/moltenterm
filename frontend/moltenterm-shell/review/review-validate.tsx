@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Validate (FR-REV-012, DS-REV-010): the Review tab's header button and its sheet. The sheet is a stepper in the order
 // things happen (#672): before the merge it is the plan, each step saying what it will do, bound to the head it read;

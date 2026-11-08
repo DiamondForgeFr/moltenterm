@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every shipped dictionary, loaded up front: Electron main (its menus and dialogs speak at once), the tests and the
 // preview server. The renderer takes them on demand instead (i18n-locales-lazy.ts, #1213).

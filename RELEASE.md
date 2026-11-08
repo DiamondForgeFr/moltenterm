@@ -236,6 +236,12 @@ on the ticket of the release.
       re-read; prices, free tiers, plans, models and region limits updated; checked date set. Then
       `MOLTENTERM_RC_DATE=<the candidate's date, YYYY-MM-DD> go test -run '^TestAgentProfilesFreshForRelease$' ./pkg/molten/onboarding/`
       lists every entry checked more than 30 days before the candidate. Tick this item only when it lists nothing.
+- [ ] Electron fuses (#1975): the run's "Check the signatures" (macOS) and "Check the fuses" (Linux) steps are green, so
+      every packaged app has run-as-node, `NODE_OPTIONS` and `--inspect` off and checks its `app.asar`. On a downloaded
+      app: `node scripts/moltenterm-check-fuses.mjs /Applications/MoltenTerm.app`, and
+      `node scripts/moltenterm-qualify-packaged.mjs /Applications/MoltenTerm.app` to start it in a test instance (own
+      folders under /tmp, never the installed app's data). An Electron upgrade or a change to
+      `build/moltenterm/electron-fuses.cjs` is qualified this way before it ships.
 - [ ] `sha256sum --ignore-missing -c SHA256SUMS.txt` (`shasum -a 256 -c` on macOS) passes on the downloaded files.
 - [ ] Once the release key exists: `SHA256SUMS.txt.asc` and a `.asc` per AppImage and deb are there, and
       `gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt` says "Good signature" and names the fingerprint of "The release
@@ -293,6 +299,19 @@ itself, never an older one); on, candidates too. Needs two successive candidates
       candidate shows "MoltenTerm X is available" with the notes and a download link to the release page. The link
       opens the right release. Turning it off again withdraws the candidate's notification.
 - [ ] Turning the notification off in the settings stops it. A gold and a dev build never show it.
+
+Install from the app (#1860), with the earlier candidate installed from its zip (macOS) or AppImage (Linux) in a folder
+the user can write, and the later one published and signed (`SHA256SUMS.txt.asc` among its files):
+
+- [ ] Settings › About shows the installed version and the last check; "Check for updates" finds the later release, and
+      its Update button downloads it (progress), checks it, and offers "Restart now"; "Later" keeps it for the quit.
+- [ ] Restart now: the app quits, the later version opens in the same place, About shows it as installed and a
+      notification says what is new. Configuration, workspaces and mods are as they were.
+- [ ] Quitting instead of restarting installs the update too, and the next start is the later version.
+- [ ] A release published without `SHA256SUMS.txt.asc` is offered but refused by the app, with its reason and a link to
+      the release page. A copy in a read-only place downloads and checks the file, and shows it in its folder.
+- [ ] macOS: the update never asks for an administrator password and the app keeps its privacy grants (the Developer ID
+      requirement is the same from one release to the next).
 
 ### 5. The release page
 

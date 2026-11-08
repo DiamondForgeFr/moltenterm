@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package handoffwire is what wsh (the MCP server, `molten agent list` and `molten agent send`) and wavesrv's handoff
 // route (pkg/molten/agenthandoff) exchange, with no dependency on wavesrv.
@@ -14,6 +14,8 @@ const (
 	ListCommand   = "moltenagenthandofflist"
 	SendCommand   = "moltenagenthandoffsend"
 	AnswerCommand = "moltenagenthandoffanswer"
+	// `molten agent decision settle` (#1876): the caller says an agent's stop question is decided.
+	SettleCommand = "moltenagenthandoffsettle"
 	// An MCP server tells MoltenTerm its link came back after calls failed (#1029).
 	LinkNoticeCommand = "moltenagenthandofflinknotice"
 	// Notifications of one pane's lost link: LinkNoticeKeyPrefix + block id.
@@ -26,6 +28,10 @@ const (
 	// started; HistoryEvent tells the windows a new one was added. Windows only.
 	HistoryCommand = "moltenagenthandoffhistory"
 	HistoryEvent   = "molten:agenthandoffs"
+	// Every request waiting for the developer, in every workspace (#1926): PendingEvent tells the windows the list
+	// changed, PendingCommand reads it, AnswerCommand answers an entry, as its notification's buttons do. Windows only.
+	PendingCommand = "moltenagenthandoffpending"
+	PendingEvent   = "molten:agenthandoffpending"
 	// The link notice's action opens that menu on the agent's terminal.
 	LinksGesture = "molten:agentlinks"
 
@@ -33,7 +39,10 @@ const (
 	AnswerGesture = "molten:agenthandoff"
 	// Notifications of one request: NotificationKeyPrefix + request id.
 	NotificationKeyPrefix = "agenthandoff:"
-	NotificationSource    = "agents"
+	// The notice of a handoff typed without Enter (#1938): TypedKeyPrefix + the receiver's block id, one per prompt,
+	// resolved once that prompt is submitted.
+	TypedKeyPrefix     = "agenthandofftyped:"
+	NotificationSource = "agents"
 
 	DecisionOnce   = "once"
 	DecisionAlways = "always"
@@ -163,6 +172,28 @@ type SendResult struct {
 	Message   string `json:"message"`
 }
 
+// SettleRequest: Token is the calling pane's WAVETERM_JWT. Target is a ticket number ("1872", "#1872"), of the
+// caller's project, or an agent's first name. Note is one line of why.
+type SettleRequest struct {
+	Token  string `json:"token"`
+	Target string `json:"target"`
+	Note   string `json:"note,omitempty"`
+}
+
+// SettledEntry is an agent whose stop was settled.
+type SettledEntry struct {
+	FirstName string `json:"firstname"`
+	Agent     string `json:"agent,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
+}
+
+type SettleResult struct {
+	// Settled: the agents whose open stop the call settled; By: who it is said to be settled by ("" outside an agent).
+	Settled []SettledEntry `json:"settled"`
+	By      string         `json:"by,omitempty"`
+	Note    string         `json:"note,omitempty"`
+}
+
 // AnswerRequest is the developer's answer from a window's notification.
 type AnswerRequest struct {
 	RequestId string `json:"requestid"`
@@ -197,7 +228,36 @@ type PairEntry struct {
 	Decision  string `json:"decision,omitempty"`
 }
 
-// PendingEntry is a handoff request waiting for the developer, from or to the pane.
+// PendingFile and PendingLink are what the sender attached, as the developer reads it before answering (#1891): the path
+// and the sender's words, never the file's content.
+type PendingFile struct {
+	Path    string `json:"path"`
+	Project string `json:"project,omitempty"`
+	Lines   string `json:"lines,omitempty"`
+	Note    string `json:"note,omitempty"`
+	// Excerpt: what the sender pasted for the receiver, cut.
+	Excerpt string `json:"excerpt,omitempty"`
+}
+
+type PendingLink struct {
+	Url   string `json:"url,omitempty"`
+	Title string `json:"title,omitempty"`
+	Kind  string `json:"kind,omitempty"`
+	Note  string `json:"note,omitempty"`
+}
+
+// PendingBrief is the brief a pending request holds: what the receiver gets once the developer allows it. Context is
+// cut for a window; the brief written for the receiver holds all of it.
+type PendingBrief struct {
+	Goal    string        `json:"goal"`
+	Context string        `json:"context,omitempty"`
+	Files   []PendingFile `json:"files,omitempty"`
+	Links   []PendingLink `json:"links,omitempty"`
+	Reply   bool          `json:"reply,omitempty"`
+}
+
+// PendingEntry is a handoff request waiting for the developer, from or to the pane. The fields after CreatedAt come
+// with the list the cards read (PendingCommand), not with a pane's connections menu (PairsResult).
 type PendingEntry struct {
 	RequestId   string `json:"requestid"`
 	FromBlockId string `json:"fromblockid"`
@@ -205,6 +265,19 @@ type PendingEntry struct {
 	From        string `json:"from"`
 	To          string `json:"to"`
 	Goal        string `json:"goal,omitempty"`
+	// CreatedAt: when the request was asked, in Unix milliseconds.
+	CreatedAt int64 `json:"createdat,omitempty"`
+	// Workspace and project of each end, as the windows name them (default workspace names are stored in English).
+	FromWorkspace string        `json:"fromworkspace,omitempty"`
+	ToWorkspace   string        `json:"toworkspace,omitempty"`
+	FromProject   string        `json:"fromproject,omitempty"`
+	ToProject     string        `json:"toproject,omitempty"`
+	Brief         *PendingBrief `json:"brief,omitempty"`
+}
+
+// PendingResult: the requests waiting for the developer, oldest first.
+type PendingResult struct {
+	Entries []PendingEntry `json:"entries"`
 }
 
 type PairsResult struct {

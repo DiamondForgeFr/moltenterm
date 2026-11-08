@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package pipelinesetup
 
@@ -38,12 +38,6 @@ const navLabel = "export const nav = [\n  {\n    text: 'v1.0.4',\n    items: []\
 // there, so their merge conflicts while master holds nothing develop lacks.
 func protectedRepository(t *testing.T) string {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Setup test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "setup@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Setup test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "setup@example.invalid")
 	base := t.TempDir()
 	dir := filepath.Join(base, "app")
 	// Named so that the checkout reads as a GitHub one (onGithub); the fake gh names the real repository.
@@ -122,6 +116,7 @@ func githubAs(t *testing.T, rules string, extra func(path string) ([]byte, bool)
 }
 
 func TestDraftProtectedDivergedRepositoryGoesByPullRequest(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	rules, err := os.ReadFile(filepath.Join("testdata", "rules-branches-protected.json"))
 	if err != nil {
@@ -216,6 +211,7 @@ func TestDraftProtectedDivergedRepositoryGoesByPullRequest(t *testing.T) {
 
 // A candidate something publishes (a prerelease on npm) still goes to the release branch by pull request.
 func TestPublishedCandidateGoesByPullRequest(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	writeFiles(t, dir, map[string]string{".github/workflows/next.yml": "name: Publish next\non:\n  push:\n    tags: ['v*-*']\njobs:\n  p:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm publish --tag next\n"})
 	rules, _ := os.ReadFile(filepath.Join("testdata", "rules-branches-protected.json"))
@@ -230,6 +226,7 @@ func TestPublishedCandidateGoesByPullRequest(t *testing.T) {
 }
 
 func TestDraftUnprotectedRepositoryKeepsThePromotion(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	gitIn(t, dir, "push", "--quiet", "--force", "origin", "develop:master")
 	gitIn(t, dir, "fetch", "--quiet", "origin")
@@ -250,6 +247,7 @@ func TestDraftUnprotectedRepositoryKeepsThePromotion(t *testing.T) {
 }
 
 func TestBypassableProtectionKeepsThePromotion(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	rules := `[{"type":"pull_request","parameters":{"allowed_merge_methods":["merge"]},"ruleset_id":7}]`
 	s := MakeSetup(githubAs(t, rules, func(path string) ([]byte, bool) {
@@ -274,6 +272,7 @@ func TestBypassableProtectionKeepsThePromotion(t *testing.T) {
 }
 
 func TestNotEquivalentCommitWarnsInsteadOfReconciling(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	gitIn(t, dir, "checkout", "--quiet", "hotfix")
 	writeFiles(t, dir, map[string]string{"only-master.txt": "x\n"})
@@ -300,6 +299,7 @@ func TestNotEquivalentCommitWarnsInsteadOfReconciling(t *testing.T) {
 }
 
 func TestAmbiguousLabelBecomesAManualStep(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{
 		"package.json": `{ "name": "tool", "version": "2.1.0", "private": true }`,

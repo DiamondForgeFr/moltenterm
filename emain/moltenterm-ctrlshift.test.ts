@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Ctrl+Shift hold that numbers the panels and the carpet's tabs (FR-SHELL-126-AC2): on while both keys are down
 // and no Cmd, off when either goes up or the window loses focus.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // `molten rail group` (FR-MC-032-AC10): the rail's local groups from a terminal, the same commands as the link bud and
 // the rail's menus (DS-MC-028). wavesrv writes them; nothing is written in any project.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The handoff question as a system notification (#605): an agent waits for the developer's answer, so when no
 // MoltenTerm window is in front the question also goes to the OS (emain/moltenterm-system-notify.ts decides, from the
@@ -8,6 +8,7 @@
 
 import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { BossBubbleModel } from "./boss/boss-store";
 import { MoltentermNotification, notificationMessage, notificationTitle } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 
@@ -82,7 +83,7 @@ export function startHandoffSystemNotifications(
         if (!isOpenHandoffQuestion(entry)) {
             return;
         }
-        model.requestPanel([entry.id]);
+        BossBubbleModel.getInstance().showPanel("notifications", [entry.id]);
     };
 
     update();

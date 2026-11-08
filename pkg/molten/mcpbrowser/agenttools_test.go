@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mcpbrowser
 
@@ -45,6 +45,16 @@ func TestAgentInstructionsMentionMoltenFiles(t *testing.T) {
 	}
 }
 
+// A lead of any CLI learns to settle the stop of an agent whose question it decided (#1876).
+func TestAgentInstructionsMentionSettlingAStop(t *testing.T) {
+	for _, name := range []string{"", "Arthur"} {
+		got := AgentInstructions(name)
+		if !strings.Contains(got, "molten agent decision settle") || !strings.Contains(got, "agent-decisions.md") {
+			t.Fatalf("instructions for %q do not mention settling a stop: %s", name, got)
+		}
+	}
+}
+
 // Claude Code and Codex start the same server and read the instructions it returns at initialize: a page shown to the
 // developer opens in MoltenTerm's browser for both, with or without the agent's first name (#1812).
 func TestInitializeTellsEveryAgentToShowPagesInMoltenTerm(t *testing.T) {
@@ -55,7 +65,7 @@ func TestInitializeTellsEveryAgentToShowPagesInMoltenTerm(t *testing.T) {
 			c.send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"` + client + `"}}}`)
 			instructions := c.recv()["result"].(map[string]any)["instructions"].(string)
 			c.close()
-			for _, want := range []string{"tabs_create", "navigate", "molten open", "pages.md", "xdg-open", "system browser", "keyboard focus"} {
+			for _, want := range []string{"tabs_create", "navigate", "tabs_show", "molten open", "pages.md", "xdg-open", "system browser", "keyboard focus"} {
 				if !strings.Contains(instructions, want) {
 					t.Fatalf("instructions for %s (%T) lack %q: %s", client, backend, want, instructions)
 				}
@@ -74,6 +84,18 @@ func TestAgentInstructionsMentionMoltenBookmarks(t *testing.T) {
 		got := AgentInstructions(name)
 		if !strings.Contains(got, "molten bookmarks list") || !strings.Contains(got, "bookmarks.md") {
 			t.Fatalf("instructions for %q do not mention molten bookmarks: %s", name, got)
+		}
+	}
+}
+
+// Claude Code and Codex both learn of `molten learn` from the molten browser server (FR-LRN-002).
+func TestAgentInstructionsMentionMoltenLearn(t *testing.T) {
+	for _, name := range []string{"", "Olivia"} {
+		got := AgentInstructions(name)
+		for _, want := range []string{"molten learn defaults", "molten learn record", "learning.md"} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("instructions for %q do not mention %q: %s", name, want, got)
+			}
 		}
 	}
 }

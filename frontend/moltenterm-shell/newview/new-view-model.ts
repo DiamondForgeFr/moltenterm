@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The new view chooser (FR-SHELL-089, DS-SHELL-128): a new view opens the panel launcher with 2 to 4 favourite choices
 // on top, or one type directly when the developer chose so. The rules (which choices exist, the favourites, what a new

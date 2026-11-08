@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Not a version label" (#1791): a label the release setup found is dismissed, recorded in versions.notlabels, so a
 // false positive does not keep the setup update offered.
@@ -90,6 +90,21 @@ describe("Not a version label", () => {
         try {
             expect(setupReasonText(t, { code: "notlabels", detail: "1" })).toContain("libellés de version (1)");
             expect(render(options)).toContain("Pas un libellé de version");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+    });
+
+    it("names the step the template changed since the developer's choice (#1843)", () => {
+        const reason = { code: "changedsince" as const, detail: "Commit, tag and push" };
+        expect(setupReasonText(t, reason)).toBe(
+            "MoltenTerm changed the step “Commit, tag and push” since your choice: keep yours or take its new version."
+        );
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(setupReasonText(t, reason)).toContain(
+                "MoltenTerm a changé l’étape « Commit, tag and push » depuis votre choix"
+            );
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");
         }

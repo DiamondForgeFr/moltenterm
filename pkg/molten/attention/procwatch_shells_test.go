@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //go:build darwin || linux
 
@@ -9,6 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -17,14 +20,19 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 )
 
-// A generous bound for a failing run only: a loaded machine may start a shell slowly.
-const shellTestDeadline = time.Minute
+const (
+	// A generous bound for a failing run only: a loaded machine may start a shell slowly.
+	shellTestDeadline = time.Minute
+	shellPrompt       = "molten-prompt$ "
+)
 
 type ptyShell struct {
 	file  pty.Pty
 	cmd   *exec.Cmd
 	out   chan []byte
 	shell ShellProcess
+	// printed: what the terminal showed so far, for the prompt.
+	printed strings.Builder
 }
 
 // startPtyShell runs an interactive shell in a terminal of its own, without any rc file nor the shell integration, as
@@ -32,7 +40,7 @@ type ptyShell struct {
 func startPtyShell(t *testing.T, path string, args ...string) *ptyShell {
 	t.Helper()
 	cmd := exec.Command(path, args...)
-	cmd.Env = append(os.Environ(), fakeAgentEnv+"=1", "PS1=$ ", "ENV=", "BASH_ENV=")
+	cmd.Env = append(os.Environ(), fakeAgentEnv+"=1", "PS1="+shellPrompt, "ENV=", "BASH_ENV=")
 	file, err := pty.Start(cmd)
 	if err != nil {
 		t.Fatalf("%s: %v", path, err)
@@ -92,6 +100,7 @@ func (s *ptyShell) forward(h *procHarness) {
 	for {
 		select {
 		case data := <-s.out:
+			s.printed.Write(data)
 			h.out("b1", string(data))
 		default:
 			return
@@ -135,35 +144,102 @@ func TestProcWatchFindsAgentInEveryShell(t *testing.T) {
 			if err != nil {
 				t.Skipf("%s is not installed", c.path)
 			}
-			s := startPtyShell(t, path, c.args...)
-			h := makeProcHarness()
-			h.pw.now = time.Now
-			h.clock = time.Now()
-			h.pw.readTable = proctree.Read
-			h.pw.readArgs = readProcessArgs
-			h.shells["b1"] = s.shell
-			atPrompt := func() bool {
-				table, err := proctree.Read()
-				return err == nil && !table.Running(s.shell.Pid) && h.next("b1").IsZero()
-			}
-			h.out("b1", "")
-			waitShell(t, h, s, "the shell's prompt", atPrompt)
-			if _, ok := h.states.runOf("b1"); ok {
-				t.Fatal("a shell at its prompt runs no agent")
-			}
-			if _, err := s.file.Write([]byte("'" + codex + "'\r")); err != nil {
-				t.Fatal(err)
-			}
-			h.states.input("b1", []byte("\r"))
-			waitShell(t, h, s, "the agent's detection", func() bool {
-				run, ok := h.states.runOf("b1")
-				return ok && run.Agent == molten.AgentIdCodex && run.Running
-			})
-			killForeground(s.shell.Pid)
-			waitShell(t, h, s, "the agent's end", func() bool {
-				_, ok := h.states.runOf("b1")
-				return !ok
-			})
+			s, h := startShellAtPrompt(t, path, c.args...)
+			s.enter(t, h, codex)
+			followAgent(t, h, s)
 		})
 	}
+}
+
+// A shell the machine holds back past the look Enter asked for, which finds it at its prompt and stops, starts its
+// agent later: the agent's output brings the look that finds it (#1957).
+func TestProcWatchFindsAgentStartedAfterTheFirstLook(t *testing.T) {
+	codex := filepath.Join(t.TempDir(), "bin", "codex")
+	copyBinary(t, codex)
+	s, h := startShellAtPrompt(t, "/bin/sh", "-i")
+	// Without the looks after Enter (#2048), only the agent's output can find it.
+	h.pw.enteredFor = 0
+	if err := s.cmd.Process.Signal(syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	s.enter(t, h, codex)
+	waitShell(t, h, s, "the first look's end", func() bool { return h.next("b1").IsZero() })
+	if err := s.cmd.Process.Signal(syscall.SIGCONT); err != nil {
+		t.Fatal(err)
+	}
+	followAgent(t, h, s)
+}
+
+// The same late start with an agent that prints nothing (#2048): the looks Enter asked for go on while the shell is
+// at its prompt, and find it. The window covers any delay here: the test checks the looks, not their duration.
+func TestProcWatchFindsSilentAgentStartedAfterTheFirstLook(t *testing.T) {
+	codex := filepath.Join(t.TempDir(), "bin", "codex")
+	copyBinary(t, codex)
+	s, h := startShellAtPrompt(t, "/bin/sh", "-i")
+	h.pw.enteredFor = shellTestDeadline
+	var looks atomic.Int32
+	h.pw.readTable = func() (*proctree.Table, error) {
+		looks.Add(1)
+		return proctree.Read()
+	}
+	if err := s.cmd.Process.Signal(syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.file.Write([]byte(fakeAgentEnv + "=" + fakeAgentSilent + " '" + codex + "'\r")); err != nil {
+		t.Fatal(err)
+	}
+	h.states.input("b1", []byte("\r"))
+	waitShell(t, h, s, "the first look", func() bool { return looks.Load() > 0 })
+	if _, ok := h.states.runOf("b1"); ok {
+		t.Fatal("the held-back shell runs no agent yet")
+	}
+	if err := s.cmd.Process.Signal(syscall.SIGCONT); err != nil {
+		t.Fatal(err)
+	}
+	followAgent(t, h, s)
+}
+
+// startShellAtPrompt returns once the shell printed its prompt and reads what is typed: the process table shows it in
+// the foreground from its very start, long before.
+func startShellAtPrompt(t *testing.T, path string, args ...string) (*ptyShell, *procHarness) {
+	t.Helper()
+	s := startPtyShell(t, path, args...)
+	h := makeProcHarness()
+	h.pw.now = time.Now
+	h.clock = time.Now()
+	h.pw.readTable = proctree.Read
+	h.pw.readArgs = readProcessArgs
+	h.shells["b1"] = s.shell
+	h.out("b1", "")
+	waitShell(t, h, s, "the shell's prompt", func() bool {
+		table, err := proctree.Read()
+		return err == nil && !table.Running(s.shell.Pid) && h.next("b1").IsZero() && strings.Contains(s.printed.String(), shellPrompt)
+	})
+	if _, ok := h.states.runOf("b1"); ok {
+		t.Fatal("a shell at its prompt runs no agent")
+	}
+	return s, h
+}
+
+// enter types a command and Enter in the terminal, as the terminal's input does.
+func (s *ptyShell) enter(t *testing.T, h *procHarness, command string) {
+	t.Helper()
+	if _, err := s.file.Write([]byte("'" + command + "'\r")); err != nil {
+		t.Fatal(err)
+	}
+	h.states.input("b1", []byte("\r"))
+}
+
+// followAgent waits for the fake Codex to be found as a running agent, kills it and waits for it to be forgotten.
+func followAgent(t *testing.T, h *procHarness, s *ptyShell) {
+	t.Helper()
+	waitShell(t, h, s, "the agent's detection", func() bool {
+		run, ok := h.states.runOf("b1")
+		return ok && run.Agent == molten.AgentIdCodex && run.Running
+	})
+	killForeground(s.shell.Pid)
+	waitShell(t, h, s, "the agent's end", func() bool {
+		_, ok := h.states.runOf("b1")
+		return !ok
+	})
 }

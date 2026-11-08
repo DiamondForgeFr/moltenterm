@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -21,6 +21,7 @@ func linkedWorkspace(id string, dir string) *waveobj.Workspace {
 }
 
 func TestLinksFollowTheRailOrder(t *testing.T) {
+	t.Parallel()
 	workspaces := []*waveobj.Workspace{
 		linkedWorkspace("app", "/r/app"),
 		linkedWorkspace("plain", ""),
@@ -52,6 +53,7 @@ func TestLinksFollowTheRailOrder(t *testing.T) {
 // FR-SHELL-105: a project's group is declared in its repository's files, so a workspace whose project keeps its code
 // in a repository inside its folder is linked by that repository; one without is linked by its folder, as before.
 func TestLinksFollowTheProjectsRepository(t *testing.T) {
+	t.Parallel()
 	client := linkedWorkspace("client", "/r/client")
 	client.Meta[molten.ProjectRepoMetaKey] = "/r/client/app"
 	outside := linkedWorkspace("outside", "/r/outside")
@@ -70,6 +72,7 @@ func TestLinksFollowTheProjectsRepository(t *testing.T) {
 }
 
 func TestReorderedPublishesTheNewMemberOrder(t *testing.T) {
+	t.Parallel()
 	links := []molten.GroupLink{{WorkspaceId: "app", Dir: "/r/app"}, {WorkspaceId: "site", Dir: "/r/site"}}
 	published := []GroupsAnswer{}
 	g := MakeGroups(nil, nil, nil, nil, func(ctx context.Context) ([]molten.GroupLink, error) {
@@ -91,6 +94,7 @@ func TestReorderedPublishesTheNewMemberOrder(t *testing.T) {
 }
 
 func TestProductsOf(t *testing.T) {
+	t.Parallel()
 	groups := []molten.ProjectGroup{
 		{Key: "notulia", Members: []molten.GroupMember{
 			{Dir: "/r/app", Workspaces: []molten.GroupWorkspace{{Id: "app"}, {Id: "app2"}}},
@@ -110,6 +114,7 @@ func TestProductsOf(t *testing.T) {
 }
 
 func TestProductMapOf(t *testing.T) {
+	t.Parallel()
 	groups := []molten.ProjectGroup{
 		{Key: "notulia", Name: "Notulia", Members: []molten.GroupMember{
 			{Dir: "/r/app", Workspaces: []molten.GroupWorkspace{{Id: "app"}}},
@@ -127,6 +132,7 @@ func TestProductMapOf(t *testing.T) {
 }
 
 func TestRailGroupNotices(t *testing.T) {
+	t.Parallel()
 	notices := railGroupNotices([]railorder.Displaced{{WorkspaceId: "d", WorkspaceName: "D", GroupId: "g", GroupName: "B", ProductName: "Notulia"}})
 	if len(notices) != 1 {
 		t.Fatalf("notices = %+v", notices)

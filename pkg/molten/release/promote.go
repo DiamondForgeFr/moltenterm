@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
@@ -22,8 +22,11 @@ const maxListedCommits = 20
 // Promote brings the trunk onto the release branch (Notulia's promote.mjs): a fast-forward when the release branch is
 // behind, else a merge commit (a project carrying an upstream's history is never rebased). The result must hold
 // exactly the trunk's tree: anything else means the release branch carries a change the trunk does not, such as a
-// release commit not carried back yet, and it is refused. The trunk's CI must be green on the promoted commit. The
-// merge is made in a temporary worktree, so the checkout is never touched, and pushed without force.
+// release commit not carried back yet, and it is refused. A sync-back copies the release commit, so the merge base stays
+// behind it and a trunk change next to the version line conflicts although nothing would be lost: when every commit of
+// the release branch has its equivalent on the trunk, the merge takes the trunk's tree. The trunk's CI must be green on
+// the promoted commit. The merge is made in a temporary worktree, so the checkout is never touched, and pushed without
+// force.
 func (e *Env) Promote(ctx context.Context, opts PromoteOptions) error {
 	p, err := e.LoadProject(ctx)
 	if err != nil {
@@ -114,11 +117,62 @@ func (e *Env) mergeInTemporaryWorktree(ctx context.Context, root string, p *Proj
 	if _, err := e.git(ctx, dir, "merge", "--no-ff", "--no-edit", "-m", msg, trunk); err != nil {
 		conflicts, _ := e.gitLines(ctx, dir, "diff", "--name-only", "--diff-filter=U")
 		e.git(ctx, dir, "merge", "--abort")
-		return "", fmt.Errorf("merging %s into %s conflicts (%s): %s holds a change %s does not, carry it back first; nothing was pushed", p.Trunk, p.Release, strings.Join(conflicts, ", "), p.Release, p.Trunk)
+		lacking, err := e.commitsLackingOnTrunk(ctx, root, trunk, rel)
+		if err != nil {
+			return "", err
+		}
+		if len(lacking) > 0 {
+			listed := lacking[:min(maxListedCommits, len(lacking))]
+			return "", fmt.Errorf("merging %s into %s conflicts (%s): %s holds %d commit(s) %s has no equivalent of (%s), carry them back first; nothing was pushed", p.Trunk, p.Release, strings.Join(conflicts, ", "), p.Release, len(lacking), p.Trunk, strings.Join(listed, "; "))
+		}
+		// commit-tree, as git has no "-s theirs": the merge must hold exactly the trunk's tree, and -X theirs would still
+		// keep the release branch's changes outside the conflicts.
+		merged, err := e.git(ctx, root, "commit-tree", trunk+"^{tree}", "-p", rel, "-p", trunk, "-m", msg)
+		if err != nil {
+			return "", fmt.Errorf("could not merge %s into %s: %w", p.Trunk, p.Release, err)
+		}
+		e.printf("Merging %s into %s conflicts (%s), but %s holds an equivalent of every commit of %s: the merge keeps %s's tree.\n", p.Trunk, p.Release, strings.Join(conflicts, ", "), p.Trunk, p.Release, p.Trunk)
+		return merged, nil
 	}
 	if _, err := e.git(ctx, dir, "diff", "--quiet", trunk, "HEAD"); err != nil {
 		drift, _ := e.gitLines(ctx, dir, "diff", "--name-only", trunk, "HEAD")
 		return "", fmt.Errorf("the merge differs from %s in %s: %s holds a change %s does not (a release commit not carried back?); nothing was pushed", p.Trunk, strings.Join(drift, ", "), p.Release, p.Trunk)
 	}
 	return e.git(ctx, dir, "rev-parse", "HEAD")
+}
+
+// commitsLackingOnTrunk lists the commits of the release branch (merges aside) the trunk holds no equivalent of.
+func (e *Env) commitsLackingOnTrunk(ctx context.Context, dir string, trunk string, rel string) ([]string, error) {
+	commits, err := e.gitLines(ctx, dir, "log", "--no-merges", "--format=%H %s", trunk+".."+rel)
+	if err != nil {
+		return nil, err
+	}
+	var lacking []string
+	for _, commit := range commits {
+		sha, subject, _ := strings.Cut(commit, " ")
+		missing, err := e.lacksEquivalent(ctx, dir, trunk, sha)
+		if err != nil {
+			return nil, err
+		}
+		if missing {
+			lacking = append(lacking, sha[:min(7, len(sha))]+" "+subject)
+		}
+	}
+	return lacking, nil
+}
+
+// lacksEquivalent tells whether the trunk holds no commit with the same change as sha. Each commit is compared on its
+// own, as Mission Control reads a release back on the trunk: once a promotion merged the trunk, its cherry-pick is
+// reachable from both branches and a branch-wide comparison no longer sees it.
+func (e *Env) lacksEquivalent(ctx context.Context, dir string, trunk string, sha string) (bool, error) {
+	cherry, err := e.gitLines(ctx, dir, "cherry", trunk, sha, sha+"^")
+	if err != nil {
+		return false, err
+	}
+	for _, line := range cherry {
+		if strings.HasPrefix(line, "+") {
+			return true, nil
+		}
+	}
+	return false, nil
 }

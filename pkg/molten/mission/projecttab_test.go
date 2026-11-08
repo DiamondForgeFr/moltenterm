@@ -1,11 +1,12 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
 import "testing"
 
 func TestDecideProjectTab(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		facts ProjectTabFacts
@@ -43,6 +44,7 @@ func TestDecideProjectTab(t *testing.T) {
 }
 
 func TestEnsureProjectTabWithoutWcore(t *testing.T) {
+	serialTest(t)
 	saved := projectTabs.ensure
 	defer UseProjectTabs(saved)
 	UseProjectTabs(nil)

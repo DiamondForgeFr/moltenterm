@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // How the "Store on the carpet" chooser names the two panels in its sentence (#1453): the agent by its first name
 // alone, the page by its title. The radar's "Name · Tool" label is not reused here, a sentence never names the

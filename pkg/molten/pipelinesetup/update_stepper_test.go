@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package pipelinesetup
 
@@ -19,6 +19,7 @@ import (
 // Step 2a proposes what a new setup's step 3 does (#1104): a check on each changelog step and the project's formatter,
 // as changes to tick; the Release menu's check does not, and a check taken is never offered back for removal.
 func TestStep2aProposesTheChecksAndTheFormatter(t *testing.T) {
+	t.Parallel()
 	dir, s := upToDateRepository(t)
 	writeFiles(t, dir, map[string]string{"package.json": `{ "name": "saasfoundryai", "version": "1.0.4", "scripts": { "format": "prettier --write" } }`})
 	gitIn(t, dir, "commit", "--quiet", "-am", "chore(#4): format script")
@@ -63,6 +64,7 @@ func TestStep2aProposesTheChecksAndTheFormatter(t *testing.T) {
 
 // The formatter added to SaaSFoundryAI's versions block: one new field, the version files as written.
 func TestKeptVersionsAddsOnlyTheNewField(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("testdata", "saasfoundry-committed-f191383e.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -100,6 +102,7 @@ func TestKeptVersionsAddsOnlyTheNewField(t *testing.T) {
 
 // SaaSFoundryAI's committed pipeline writes short steps on one line: a change keeps every other step's text.
 func TestKeptReleaseKeepsTheStepsAsWritten(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("testdata", "saasfoundry-committed-f191383e.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -162,6 +165,7 @@ func upToDateRepository(t *testing.T) (string, *Setup) {
 }
 
 func TestCheckDrawsTheRemovedAndAddedStepsInPlace(t *testing.T) {
+	t.Parallel()
 	dir := pre1046Repository(t, nil)
 	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
 	check, err := s.Check(context.Background(), CheckRequest{Dir: dir})
@@ -184,6 +188,7 @@ func TestCheckDrawsTheRemovedAndAddedStepsInPlace(t *testing.T) {
 
 // An up-to-date pipeline can still be adjusted: the adjustment's changes are offered and written by pull request.
 func TestCheckAdjustsAnUpToDatePipeline(t *testing.T) {
+	t.Parallel()
 	dir, s := upToDateRepository(t)
 	ctx := context.Background()
 	plain, err := s.Check(ctx, CheckRequest{Dir: dir})
@@ -245,6 +250,7 @@ func TestCheckAdjustsAnUpToDatePipeline(t *testing.T) {
 
 // Nothing to change: the update refuses to open a pull request.
 func TestUpdateRefusesAnUpToDatePipeline(t *testing.T) {
+	t.Parallel()
 	dir, s := upToDateRepository(t)
 	check, err := s.Check(context.Background(), CheckRequest{Dir: dir})
 	if err != nil {
@@ -262,6 +268,7 @@ func TestUpdateRefusesAnUpToDatePipeline(t *testing.T) {
 // Uncommitted edits, included, are changes of their own: one per release step, one for the rest of the file; one
 // left out keeps its committed text and is not recorded as declined.
 func TestCheckListsTheUncommittedEditsAsChanges(t *testing.T) {
+	t.Parallel()
 	dir, s := upToDateRepository(t)
 	ctx := context.Background()
 	path := filepath.Join(dir, molten.ProjectPipelineFile)
@@ -349,6 +356,7 @@ func TestCheckListsTheUncommittedEditsAsChanges(t *testing.T) {
 // The update takes the agent's proposals as a new setup does (#1106): the ticked changes, built on the checked update,
 // go into its pull request; only the owned keys are taken, and an invalid text is refused.
 func TestUpdateTakesTheAgentsTickedChanges(t *testing.T) {
+	t.Parallel()
 	dir, s := upToDateRepository(t)
 	ctx := context.Background()
 	plain, err := s.Check(ctx, CheckRequest{Dir: dir})

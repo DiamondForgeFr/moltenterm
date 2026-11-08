@@ -384,8 +384,11 @@ func SetActiveTab(ctx context.Context, workspaceId string, tabId string) error {
 			return fmt.Errorf("tab %q is not in workspace %q", tabId, workspaceId)
 		}
 		moltenRememberActiveTab(workspace, tabId) // MOLTENTERM-PATCH (#1345): closing the view returns to this one
+		left := workspace.ActiveTabId
 		workspace.ActiveTabId = tabId
 		moltenRevealTab(workspace, tabId) // MOLTENTERM-PATCH (#758): a hidden agent tab shown is a tab like any other
+		// MOLTENTERM-PATCH (#2033): Brokk's own tab never stays among the views
+		moltenHideLeftOwnTab(ctx, workspace, left, tabId)
 		// MOLTENTERM-PATCH (#1760): showing a view of another project makes it current
 		moltenFollowTabProject(workspace, tabId)
 		wstore.DBUpdate(ctx, workspace)

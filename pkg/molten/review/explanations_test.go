@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -13,6 +13,7 @@ import (
 // follow-up under an answer's id replaces it in place, keeping its lines, question and technique (FR-REV-007) when it
 // names none.
 func TestSessionExplanationsKept(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	svc := MakeService(dir, nil, func(k PrKey, state State) {})
 	k := PrKey{Repo: "Owner/Repo", Number: 7}

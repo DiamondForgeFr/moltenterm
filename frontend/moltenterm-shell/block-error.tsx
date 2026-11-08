@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A render error in one panel stays in that panel (#1750): the layout draws each block inside its own boundary, whose
 // fallback fills the panel's place with the error, so the rest of the view keeps working.

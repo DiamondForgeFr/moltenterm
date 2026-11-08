@@ -1,11 +1,10 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -19,12 +18,6 @@ const coverageProject = `{"schema":1,"name":"SaaSFoundryAI","versions":{"tagpref
 // candidates v1.1.0-1 and v1.1.0-2 on the way to the public v1.1.0.
 func makeCoverageRepo(t *testing.T) string {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	t.Setenv("GIT_AUTHOR_NAME", "Release test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "release@example.invalid")
-	t.Setenv("GIT_COMMITTER_NAME", "Release test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "release@example.invalid")
 	dir := t.TempDir()
 	gitIn(t, dir, "init", "--quiet", "-b", "develop")
 	gitIn(t, dir, "remote", "add", "origin", "https://github.com/DiamondForgeFr/SaasFoundryAI.git")
@@ -53,6 +46,7 @@ func coverageEnv(dir string) *Env {
 }
 
 func TestChangelogSinceSkipsCandidatesForAPublicVersion(t *testing.T) {
+	t.Parallel()
 	dir := makeCoverageRepo(t)
 	env := coverageEnv(dir)
 	for tag, want := range map[string]string{"v1.1.0": "v1.0.1", "v1.1.0-2": "v1.1.0-1", "v1.1.0-1": "v1.0.1"} {
@@ -64,6 +58,7 @@ func TestChangelogSinceSkipsCandidatesForAPublicVersion(t *testing.T) {
 }
 
 func TestChangelogItemsCoverTheCandidatesRange(t *testing.T) {
+	t.Parallel()
 	dir := makeCoverageRepo(t)
 	since, items, err := coverageEnv(dir).ChangelogItems(context.Background(), "v1.1.0")
 	if err != nil || since != "v1.0.1" {
@@ -106,6 +101,7 @@ const englishChangelog = `# Changelog
 `
 
 func TestChangelogSectionStopsAtTheNextVersion(t *testing.T) {
+	t.Parallel()
 	section, ok := ChangelogSection(englishChangelog, "1.1.0", "")
 	if !ok || !strings.Contains(section, "#24") || strings.Contains(section, "1.0.1") {
 		t.Fatalf("section: %q", section)
@@ -123,6 +119,7 @@ func TestChangelogSectionStopsAtTheNextVersion(t *testing.T) {
 }
 
 func TestUncoveredItemsOfASectionMissingTheCandidatesRange(t *testing.T) {
+	t.Parallel()
 	items := CoverageItems([]string{"fix(#24): a late fix", "fix: typo in the help", "feat(#22): import a board", "fix(#21): the crash on start", "feat(#20): export the board", "chore(#23): CI cache"}, "")
 	section, _ := ChangelogSection(englishChangelog, "1.1.0", "")
 	var missing []string
@@ -148,6 +145,7 @@ func TestUncoveredItemsOfASectionMissingTheCandidatesRange(t *testing.T) {
 }
 
 func TestNotesPromptSaysTheScope(t *testing.T) {
+	t.Parallel()
 	public := notesPrompt(NotesFacts{Tag: "v1.1.0", Channel: "public", Since: "v1.0.1"}, "")
 	if !strings.Contains(public, "since v1.0.1, the last public release, release candidates included") {
 		t.Fatalf("public prompt: %s", public)

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -10,6 +10,7 @@ import (
 )
 
 func TestRunningWorkAcrossProjects(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","title":"Gold","run":"echo '▶ phase: build'; sleep 3600","artifact":"out"}`)
 	if work := RunningWork(r, nil); len(work) != 0 {
 		t.Fatalf("nothing runs: %+v", work)
@@ -23,7 +24,7 @@ func TestRunningWorkAcrossProjects(t *testing.T) {
 		if len(work) == 1 && work[0].Detail == "build" {
 			break
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 	if len(work) != 1 || work[0].Id != rec.Id || work[0].Kind != RunKindBuild || work[0].Dir != dir || work[0].Progress != WorkProgressUnknown {
 		t.Fatalf("the build runs: %+v", work)
@@ -42,6 +43,7 @@ func TestRunningWorkAcrossProjects(t *testing.T) {
 // A cancel that arrives right as the build command starts, before its preparation has ended, used to be recorded for
 // the preparation and then forgotten: the build ran to its end (#651). Publishing that record is the moment to hit.
 func TestCancelAsTheBuildCommandStarts(t *testing.T) {
+	t.Parallel()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"sleep 300"}`)
 	var once sync.Once
 	cancelled := make(chan error, 1)
@@ -69,6 +71,7 @@ func TestCancelAsTheBuildCommandStarts(t *testing.T) {
 }
 
 func TestCiWorkMeasuresJobs(t *testing.T) {
+	t.Parallel()
 	item := ciWork(CiRunRecord{Id: "r", Dir: "/p", Branch: "feature/2-x", Jobs: []CiJobRecord{
 		{Name: "a", Status: CiStateSuccess}, {Name: "b", Status: CiStateRunning}, {Name: "c", Status: CiStateQueued}, {Name: "d", Status: CiStateFailure}}})
 	if item.Title != "Local CI on feature/2-x" || item.Detail != "b" || item.Progress != 0.5 {
@@ -77,6 +80,7 @@ func TestCiWorkMeasuresJobs(t *testing.T) {
 }
 
 func TestWithWorkspacesNamesTheLinkedWorkspace(t *testing.T) {
+	t.Parallel()
 	lookups := 0
 	items := WithWorkspaces([]WorkItem{{Id: "a", Dir: "/p"}, {Id: "b", Dir: "/p"}, {Id: "c", Dir: "/other"}, {Id: "d"}},
 		func(dir string) string {

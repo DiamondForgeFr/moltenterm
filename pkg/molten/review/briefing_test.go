@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -15,6 +15,7 @@ const testHead = "0123456789abcdef0123456789abcdef01234567"
 // FR-REV-005 AC4: the session's briefing is kept in the review store, the latest in place of the previous one, and
 // read again when the PR is reopened; other posts are not kept here.
 func TestSessionBriefingKept(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	var published []State
 	svc := MakeService(dir, nil, func(k PrKey, state State) { published = append(published, state) })

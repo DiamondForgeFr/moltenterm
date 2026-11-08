@@ -1,11 +1,12 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,16 @@ import (
 // without phases, cuts a release candidate and a public release end to end against a local origin.
 
 const notGithubAnswer = "gh run list: failed to determine base repo: none of the git remotes configured for this repository point to a known GitHub host."
+
+// stepCommitTime dates the commits and tags that a release step makes. git sorts tags by their creation date, to the
+// second: a cut that follows another one in the same second leaves "the newest tag" to a tie-break. The test that
+// cuts a candidate and then a public release dates the candidate a minute back instead of waiting a second between
+// the two (#2019).
+func stepCommitTime(at time.Time) []string {
+	// git's raw format, which no time zone or locale changes the meaning of.
+	stamp := fmt.Sprintf("%d +0000", at.Unix())
+	return []string{"GIT_AUTHOR_DATE=" + stamp, "GIT_COMMITTER_DATE=" + stamp}
+}
 
 // gh answers as it does in a folder whose remotes are not on GitHub.
 func offGithub(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
@@ -58,7 +69,7 @@ func makeNotuliaFixture(t *testing.T, variant string) (*Runs, string) {
 	}
 	dir := filepath.Join(base, "fixture")
 	data := t.TempDir()
-	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	r := makeTestRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = offGithub
 	return r, dir
@@ -160,16 +171,19 @@ func cutRelease(t *testing.T, r *Runs, dir string, channel string, tag string, p
 }
 
 func TestNotuliaShapedReleaseEndToEnd(t *testing.T) {
+	t.Parallel()
 	for _, variant := range []string{"unphased", "phased"} {
 		t.Run(variant, func(t *testing.T) {
+			t.Parallel()
 			r, dir := makeNotuliaFixture(t, variant)
 			report := molten.ValidatePipeline(dir)
 			if !report.Valid {
 				t.Fatalf("the fixture's pipeline: %v", report.Errors)
 			}
+			r.UseAgentEnv(func(string) []string { return stepCommitTime(time.Now().Add(-time.Minute)) })
 			cutRelease(t, r, dir, ReleaseChannelRc, "v1.0.0-1", variant == "phased")
 			// The next release starts again from develop, which holds the candidate's release commit.
-			time.Sleep(1100 * time.Millisecond)
+			r.UseAgentEnv(nil)
 			cutRelease(t, r, dir, ReleaseChannelPublic, "v1.0.0", variant == "phased")
 			tags := gitIn(t, dir, "ls-remote", "--tags", "--refs", "origin")
 			if !strings.Contains(tags, "refs/tags/v1.0.0-1") || !strings.Contains(tags, "refs/tags/v1.0.0\n") && !strings.HasSuffix(tags, "refs/tags/v1.0.0") {
@@ -180,6 +194,7 @@ func TestNotuliaShapedReleaseEndToEnd(t *testing.T) {
 }
 
 func TestADeclaredStepNamedPrepareRunsAsItself(t *testing.T) {
+	t.Parallel()
 	r, dir := makeNotuliaFixture(t, "unphased")
 	start := startRelease(t, r, dir, ReleaseChannelRc, "v1.0.0-1")
 	waitRun(t, r, dir, start.Run.Id)
@@ -205,6 +220,7 @@ func TestADeclaredStepNamedPrepareRunsAsItself(t *testing.T) {
 }
 
 func TestAFailedCutIsNotReadAsTagged(t *testing.T) {
+	t.Parallel()
 	r, dir := makeNotuliaFixture(t, "phased")
 	start := startRelease(t, r, dir, ReleaseChannelRc, "v1.0.0-1")
 	waitRun(t, r, dir, start.Run.Id)
@@ -232,6 +248,7 @@ func TestAFailedCutIsNotReadAsTagged(t *testing.T) {
 }
 
 func TestAnAbandonedReleaseStartsAgainFromScratch(t *testing.T) {
+	t.Parallel()
 	r, dir := makeNotuliaFixture(t, "unphased")
 	start := startRelease(t, r, dir, ReleaseChannelRc, "v1.0.0-1")
 	waitRun(t, r, dir, start.Run.Id)
@@ -249,6 +266,7 @@ func TestAnAbandonedReleaseStartsAgainFromScratch(t *testing.T) {
 }
 
 func TestOldNotesInAnotherWorktreeAreNotOffered(t *testing.T) {
+	t.Parallel()
 	r, dir := makeNotuliaFixture(t, "unphased")
 	worktree := filepath.Join(filepath.Dir(dir), "fixture-release")
 	gitIn(t, dir, "worktree", "add", "-q", "--detach", worktree, "develop")
@@ -269,6 +287,7 @@ func TestOldNotesInAnotherWorktreeAreNotOffered(t *testing.T) {
 }
 
 func TestAReleaseWithoutPreparationStartsNothing(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, `{"schema":1,"name":"fixture","release":{
 		"rc":[{"id":"cut","title":"Cut","phase":"cut","confirm":"sure?","run":"git tag {tag}"}]}}`)
 	res, err := r.StartRelease(ReleaseStartRequest{Dir: dir, Channel: ReleaseChannelRc, Tag: "v1.0.0-1"})
@@ -285,6 +304,7 @@ func TestAReleaseWithoutPreparationStartsNothing(t *testing.T) {
 }
 
 func TestTheFollowedReleaseRunsAreNotPruned(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releasePipeline)
 	start := startRelease(t, r, dir, ReleaseChannelRc, "v1.2.0-3")
 	waitRun(t, r, dir, start.Run.Id)
@@ -307,6 +327,7 @@ func TestTheFollowedReleaseRunsAreNotPruned(t *testing.T) {
 }
 
 func TestReleaseStepPhaseInference(t *testing.T) {
+	t.Parallel()
 	steps := func(phases ...string) []molten.PipelineStep {
 		var rtn []molten.PipelineStep
 		for i, phase := range phases {
@@ -331,6 +352,7 @@ func TestReleaseStepPhaseInference(t *testing.T) {
 }
 
 func TestReleaseContractWarnings(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
 	os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(`{"schema":1,"name":"P","release":{

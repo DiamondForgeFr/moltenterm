@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The interface typeface (FR-SHELL-014): IBM Plex Sans, bundled under public/fonts with its OFL licence
 // (ibm-plex-sans-ofl.txt), from the official @ibm/plex-sans-variable package. One variable file per subset covers

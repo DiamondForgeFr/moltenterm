@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Grid and logo sizes for Wave's widget launcher (frontend/app/view/launcher/launcher.tsx). Pure functions so the
 // layout can be tested without a pane.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -224,8 +224,9 @@ func (r *Restarter) AskInvestigate(ctx context.Context, req InvestigateRequest) 
 		result.BriefPath = path
 		return investigatePromptLine(req, b, path), true
 	})
-	if result.Status == RestartSent && result.BlockId != "" {
+	if result.Status == RestartSent && result.BlockId != "" && !result.Lead {
 		// An agent already on the branch took the work: its state is MoltenTerm's until the PR is green, as a new one's.
+		// A lead that was asked to continue its sub-agent (#1955) keeps its own state: it delegates and reports back.
 		startHead, _ := r.git(ctx, result.Worktree, "rev-parse", "HEAD")
 		r.followAgent(agentFollow{req: rreq, origin: origin, tree: result.Worktree, blockId: result.BlockId,
 			startHead: startHead, agent: result.Agent}, result.BriefPath)

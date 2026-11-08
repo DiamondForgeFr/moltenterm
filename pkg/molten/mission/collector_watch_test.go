@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -20,8 +20,9 @@ import (
 // Mission Control view, or after a change.
 
 func TestCollectorProjectsBounded(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	var dirs []string
@@ -47,8 +48,9 @@ func TestCollectorProjectsBounded(t *testing.T) {
 }
 
 func TestCollectorEvictsGoneFoldersFirst(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	gone := map[string]bool{}
@@ -83,7 +85,8 @@ func TestCollectorEvictsGoneFoldersFirst(t *testing.T) {
 }
 
 func TestStartRefreshPassiveAndWatched(t *testing.T) {
-	c := MakeCollector("", plainRunner, nil)
+	t.Parallel()
+	c := testCollector(t, "", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	read := func(gitAge time.Duration, githubAge time.Duration) *projectState {
@@ -125,7 +128,8 @@ func TestStartRefreshPassiveAndWatched(t *testing.T) {
 // #688: the rail's Reviews counts read GitHub every railGithubInterval, and never call gh for a project without a
 // GitHub origin or once gh was missing or signed out.
 func TestStartRefreshRailReviews(t *testing.T) {
-	c := MakeCollector("", plainRunner, nil)
+	t.Parallel()
+	c := testCollector(t, "", withoutGh, nil)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	read := func(githubAge time.Duration, remote string, ghState string) *projectState {
@@ -175,6 +179,7 @@ func TestStartRefreshRailReviews(t *testing.T) {
 }
 
 func TestCollectorRereadsOnChangeOnlyForAView(t *testing.T) {
+	serialTest(t)
 	dir := makeGitFlowRepo(t)
 	var gitReads atomic.Int32
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
@@ -187,7 +192,7 @@ func TestCollectorRereadsOnChangeOnlyForAView(t *testing.T) {
 		return plainRunner(ctx, d, name, args...)
 	}
 	published := make(chan Snapshot, 16)
-	c := MakeCollector(t.TempDir(), run, func(s Snapshot) { published <- s })
+	c := testCollector(t, t.TempDir(), run, func(s Snapshot) { published <- s })
 	watch := gitwatch.MakeWatcher(10 * time.Millisecond)
 	defer watch.Close()
 	c.UseWatcher(watch)
@@ -258,12 +263,13 @@ func TestCollectorRereadsOnChangeOnlyForAView(t *testing.T) {
 
 // AC3: repeated refreshes over many projects keep the collector's memory flat.
 func TestCollectorMemoryFlatOverRefreshes(t *testing.T) {
+	serialTest(t)
 	base := t.TempDir()
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
 		return nil, &MissingProgramError{Name: name}
 	}
 	done := make(chan struct{}, 1024)
-	c := MakeCollector("", run, func(Snapshot) { done <- struct{}{} })
+	c := testCollector(t, "", run, func(Snapshot) { done <- struct{}{} })
 	cycle := func(round int) {
 		for i := 0; i < 200; i++ {
 			dir := filepath.Join(base, fmt.Sprintf("r%d-%03d", round%3, i))

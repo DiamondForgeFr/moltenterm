@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -77,7 +77,7 @@ func makeForeignTreeFixture(t *testing.T) *foreignTreeFixture {
 	os.WriteFile(filepath.Join(gitDir, "MERGE_HEAD"), []byte(headOf(t, dir, "develop")+"\n"), 0644)
 
 	data := t.TempDir()
-	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	r := makeTestRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
@@ -85,7 +85,7 @@ func makeForeignTreeFixture(t *testing.T) *foreignTreeFixture {
 		}
 		return plainRunner(ctx, d, name, args...)
 	}
-	r.UseWorktrees(MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
+	r.UseWorktrees(MakeWorktrees(withoutGh, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 		return []WorktreeTerminal{}
 	}), data)
 	busy := f.trees["e"]
@@ -107,6 +107,7 @@ func branchNamed(plan BranchesPlan, name string) BranchPlan {
 }
 
 func TestBranchesPlanForeignAndLockedWorktrees(t *testing.T) {
+	t.Parallel()
 	f := makeForeignTreeFixture(t)
 	plan, err := f.r.PlanBranches(f.dir)
 	if err != nil {
@@ -147,6 +148,7 @@ func TestBranchesPlanForeignAndLockedWorktrees(t *testing.T) {
 }
 
 func TestCleanBranchesRemovesOnlyCheckedForeignWorktrees(t *testing.T) {
+	t.Parallel()
 	f := makeForeignTreeFixture(t)
 	all := []string{"feature/a", "feature/b", "feature/c", "feature/d", "feature/e", "feature/f"}
 	res, err := f.r.CleanBranches(BranchesCleanRequest{Dir: f.dir, Names: all, Worktrees: []string{f.trees["a"]}})
@@ -188,6 +190,7 @@ func TestCleanBranchesRemovesOnlyCheckedForeignWorktrees(t *testing.T) {
 }
 
 func TestCleanBranchesKeepsWorktreeAProcessEnteredSinceThePlan(t *testing.T) {
+	t.Parallel()
 	f := makeForeignTreeFixture(t)
 	outside := f.trees["b"]
 	// The plan reads the processes first; the removal reads them again and finds an agent started in the worktree.
@@ -216,6 +219,7 @@ func TestCleanBranchesKeepsWorktreeAProcessEnteredSinceThePlan(t *testing.T) {
 }
 
 func TestWorktreeRemoveRefusesLockedUnlessConfirmed(t *testing.T) {
+	t.Parallel()
 	f := makeForeignTreeFixture(t)
 	tree := f.trees["a"]
 	if _, err := f.r.worktrees.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: &WorktreeRisk{}}); err == nil {
@@ -232,6 +236,7 @@ func TestWorktreeRemoveRefusesLockedUnlessConfirmed(t *testing.T) {
 }
 
 func TestTreeToolReadsThePath(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	data := t.TempDir()
 	for path, want := range map[string]string{
@@ -248,6 +253,7 @@ func TestTreeToolReadsThePath(t *testing.T) {
 }
 
 func TestLiveCwdsFindsAProcessWorkingInAFolder(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("uses /bin/sleep")
 	}
@@ -268,6 +274,7 @@ func TestLiveCwdsFindsAProcessWorkingInAFolder(t *testing.T) {
 }
 
 func TestProcessesInMatchesTheFolderAndBelow(t *testing.T) {
+	t.Parallel()
 	tree := t.TempDir()
 	cwds := []procCwd{{pid: 1, name: "a", cwd: tree}, {pid: 2, name: "b", cwd: filepath.Join(tree, "x")},
 		{pid: 3, name: "c", cwd: tree + "-other"}, {pid: 4, name: "d", cwd: filepath.Dir(tree)}}

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The card of a leftover whose owner was asked to remove its worktree (#1143, FR-REV-022 AC16), in the PR section of
 // whose turn it is: the PR card's rail, state line and primary button (reviews-card.tsx CardStateLine and

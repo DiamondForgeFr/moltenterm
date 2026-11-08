@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mission Control's helpers for the interface language (FR-I18N-001): label tables and view names that read the
 // dictionaries each time they are used, so a language change shows without a restart.

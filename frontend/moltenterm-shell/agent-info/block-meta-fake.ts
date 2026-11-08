@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // For tests (#1763): blocks' meta as wavesrv holds them. A SetMetaCommand lands in the block, and every page reads the
 // block's meta live; a restart keeps them, as the database does. Wire it with vi.mock of @/app/store/global

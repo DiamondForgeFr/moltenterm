@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package materials
 
@@ -118,8 +118,25 @@ func TestListAllProjectsMaterials(t *testing.T) {
 	if !keys[h.key()] || !keys[otherKey] {
 		t.Errorf("each material names its drawer: %v", keys)
 	}
+	out, err = l.handle(molten.MaterialsListCommand, window, molten.MaterialsRequest{WorkspaceId: "ws-1", Summary: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary := out.(molten.MaterialsView)
+	if len(summary.Materials) != 0 || len(summary.Projects) != 2 {
+		t.Fatalf("project summaries must not include full records: %+v", summary)
+	}
+	for _, project := range summary.Projects {
+		if project.Count != 1 {
+			t.Errorf("project %s count = %d, want 1", project.Key, project.Count)
+		}
+	}
+	out, err = l.handle(molten.MaterialsListCommand, window, molten.MaterialsRequest{Project: otherKey})
+	if err != nil || len(out.(molten.MaterialsView).Materials) != 1 || out.(molten.MaterialsView).Materials[0].Project != otherKey {
+		t.Fatalf("selected drawer only: %+v %v", out, err)
+	}
 	term := localroute.Caller{IsLocalTerminal: true, BlockId: "block-1"}
-	out, err = l.handle(molten.MaterialsListCommand, term, molten.MaterialsRequest{BlockId: "block-1", All: true})
+	out, err = l.handle(molten.MaterialsListCommand, term, molten.MaterialsRequest{BlockId: "block-1", All: true, Summary: true})
 	if err != nil || len(out.(molten.MaterialsView).Materials) != 1 {
 		t.Errorf("a terminal never reads the other projects: %+v %v", out, err)
 	}

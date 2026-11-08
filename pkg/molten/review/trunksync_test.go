@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -114,6 +114,7 @@ func expectNotified(t *testing.T, notices *trunkNotices, dir string, parts ...st
 }
 
 func TestLocalTrunkFastForwardsTheCheckout(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.write(f.dir, "a.txt", "an unrelated local change\n")
 	f.write(f.dir, "notes.txt", "untracked\n")
@@ -151,6 +152,7 @@ func TestLocalTrunkFastForwardsTheCheckout(t *testing.T) {
 }
 
 func TestLocalTrunkMovesTheRefWhenNotCheckedOut(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.git(f.dir, "checkout", "--quiet", "-b", "spike")
 	f.write(f.dir, "a.txt", "work in progress\n")
@@ -177,6 +179,7 @@ func TestLocalTrunkMovesTheRefWhenNotCheckedOut(t *testing.T) {
 }
 
 func TestLocalTrunkAlreadyUpToDate(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.git(f.dir, "pull", "--quiet", "--ff-only", "origin", "develop")
 	notices := &trunkNotices{}
@@ -190,6 +193,7 @@ func TestLocalTrunkAlreadyUpToDate(t *testing.T) {
 }
 
 func TestLocalTrunkRefusesLocalCommits(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.write(f.dir, "local.txt", "mine\n")
 	f.git(f.dir, "add", "local.txt")
@@ -220,6 +224,7 @@ func TestLocalTrunkRefusesLocalCommits(t *testing.T) {
 }
 
 func TestLocalTrunkRefusesAChangeInTheWay(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.advanceOrigin("a.txt", "changed on origin\n")
 	f.write(f.dir, "a.txt", "changed here\n")
@@ -248,6 +253,7 @@ func TestLocalTrunkRefusesAChangeInTheWay(t *testing.T) {
 }
 
 func TestLocalTrunkRefusesARebaseInProgress(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	tip := f.git(f.dir, "rev-parse", "develop")
 	// The rebase stops on its exec line: develop is being rebased, the checkout's HEAD is detached.
@@ -276,6 +282,7 @@ func TestLocalTrunkRefusesARebaseInProgress(t *testing.T) {
 }
 
 func TestLocalTrunkRefusesAMergeInProgress(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.git(f.dir, "branch", "side", "HEAD")
 	f.git(f.dir, "checkout", "--quiet", "side")
@@ -297,6 +304,7 @@ func TestLocalTrunkRefusesAMergeInProgress(t *testing.T) {
 }
 
 func TestLocalTrunkInAnotherWorktree(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.git(f.dir, "checkout", "--quiet", "-b", "spike")
 	tree := filepath.Join(f.root, "app-develop")
@@ -315,6 +323,7 @@ func TestLocalTrunkInAnotherWorktree(t *testing.T) {
 }
 
 func TestLocalTrunkFollowsTheWorkingBranch(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, false)
 	f.write(f.dir, molten.ProjectSaaSFoundryFile, `{"workflow":{"workingBranch":"trunk"}}`)
 	if got := trunkOf(f.dir, "develop"); got != "trunk" {
@@ -335,6 +344,7 @@ func TestLocalTrunkFollowsTheWorkingBranch(t *testing.T) {
 // The batch's last notification sums, in a quiet sentence, what the cleanups after its merges brought to the local
 // trunk; a batch that updated nothing says nothing of it.
 func TestBatchEndSaysTheLocalTrunkWasUpdated(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	f.start(1, 4)
 	run := f.waitEnd()
@@ -363,6 +373,7 @@ func TestBatchEndSaysTheLocalTrunkWasUpdated(t *testing.T) {
 }
 
 func TestLocalTrunkPlanned(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	steps := f.cleaner().Plan(context.Background(), MergedPr{Dir: f.dir, Repo: cleanupRepo, Number: 7, HeadRef: "feature/7-thing", BaseRef: "develop", HeadOid: f.headOid})
 	for _, step := range steps {

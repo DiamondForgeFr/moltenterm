@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Molten motion (#1163): the app's one way to change an interface before the developer's eyes. molten-motion.css holds
 // the look (flow-in, melt-out, move, the glow pass and the steady glow, the reduced-motion fade); this module holds

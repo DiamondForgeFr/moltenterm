@@ -34,3 +34,20 @@ registration, navigation and destruction, native fallback transport, PDF Range/H
 lifecycle. Human packaged verification remains required before 1.0.0: app startup, multiple windows/hot spares/builder,
 PDF and media previews, default/custom guest login persistence, and guest/popup/subframe refusal against harmless app
 metadata. Use a disposable isolated app profile for these checks, never the installed user profile.
+
+## Content-Security-Policy of the app page (#1977)
+
+The app renderer holds the privileged preload and the credentials above, so Electron main sets a Content-Security-Policy
+on every response of the private app session for the app's own files (the packaged `file:` page, its chunks and its
+workers, or the dev server): `emain/moltenterm-app-csp.ts`, installed by `getTrustedAppSession()`. It is a header and
+not a `<meta>` tag because the backend endpoints are chosen at run time and a header also reaches the workers' own
+scripts. It denies by default, runs only the app's own scripts (no inline script, no `eval`), allows no object, no
+framing and no form submission, and connects only to the live backend endpoints (HTTP and WebSocket). Guests keep the
+policy of the site they show: they run in other sessions.
+
+Every source beyond `'self'` is listed with its reason in `AppCspAllowances`, and `moltenterm-app-csp.test.ts` fails when
+the policy gains one that is not listed, or lists one it no longer has. Adding a source is a decision: name the code
+that needs it. Each distinct violation is written once to the main log (`csp: blocked <directive>: <what>`). To find
+what a change breaks without blocking it, start the app with `MOLTENTERM_CSP=report-only`; nothing in the product sets
+it. Under the dev server (`task dev`) the policy only reports, since the hot reload client is not the app's own file; the
+violations show in the terminal, and `MOLTENTERM_CSP=enforce` makes the dev server enforce. A packaged build always enforces.

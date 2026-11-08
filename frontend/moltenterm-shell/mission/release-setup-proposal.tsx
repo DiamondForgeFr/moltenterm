@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The agent's help in the release setup (#1099, FR-MC-039): the developer says what they want in their words, the
 // project's coding agent answers with step changes (never a file), and each change is a card the developer ticks; the

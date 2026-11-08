@@ -1,10 +1,10 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release notification of 1.0.0 (#188, FR-REL-005 reduced): an installed release learns from the repository's
-// GitHub Releases that a newer release of its channel is out, and says so once with its notes and a download link.
-// Nothing is downloaded or installed (that waits for signed builds, #507). Shared by emain (the request and its cache)
-// and the renderer (the notification), and kept free of both so that the rules are tested alone.
+// GitHub Releases that a newer release of its channel is out, and says so once with its notes. The check downloads and
+// installs nothing: the in-app update does that on the user's click (release-install.ts, #1860). Shared by emain (the
+// request and its cache) and the renderer (the notification), and kept free of both so that the rules are tested alone.
 
 import { GitHubReleaseLink, isWebLink } from "../../util/moltenterm-web-link";
 import { compareVersions, releaseOf, Version, VersionRules } from "../releases/versions";

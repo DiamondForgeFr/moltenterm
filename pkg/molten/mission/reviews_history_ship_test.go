@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -10,6 +10,7 @@ import (
 )
 
 func TestPrSummary(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		body string
@@ -33,6 +34,7 @@ func TestPrSummary(t *testing.T) {
 }
 
 func TestBehaviourChange(t *testing.T) {
+	t.Parallel()
 	if got := behaviourChange("feat(#1): cards", "## Summary\n\nA new card.", []string{"enhancement"}); got != nil {
 		t.Fatalf("no signal flags nothing, got %+v", got)
 	}
@@ -62,6 +64,7 @@ func TestBehaviourChange(t *testing.T) {
 }
 
 func TestHistoryTicketParents(t *testing.T) {
+	t.Parallel()
 	var issue ghHistoryIssue
 	raw := `{"number":3,"title":"Task","url":"u3","issueType":{"name":"Task"},"parent":{"number":2,"title":"Story","url":"u2","issueType":{"name":"Story"},"parent":{"number":1,"title":"Epic","url":"u1","issueType":{"name":"Epic"}}}}`
 	if err := json.Unmarshal([]byte(raw), &issue); err != nil {
@@ -77,6 +80,7 @@ func TestHistoryTicketParents(t *testing.T) {
 }
 
 func TestMakeHistoryPrReadsSummaryAndFlag(t *testing.T) {
+	t.Parallel()
 	var pr ghHistoryPr
 	raw := `{"number":9,"title":"fix(#4): x","body":"## Summary\n\nOne line.\n\n## Behaviour change\n\nCheck the menu.","labels":{"nodes":[{"name":"bug"}]}}`
 	if err := json.Unmarshal([]byte(raw), &pr); err != nil {

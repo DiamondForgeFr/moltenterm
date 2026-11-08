@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -21,7 +21,9 @@ const releaseFactsPipeline = `{"schema":1,"name":"fixture","versions":{"notes":"
 		{"id":"cut","title":"Cut","phase":"cut","confirm":"The tag is public once pushed.","run":"git tag {tag}"}],
 	"public":[{"id":"cut","title":"Cut","phase":"cut","run":"git tag {tag}"}]}}`
 
-// No gh in tests: GitHub facts are read only through it.
+// No gh in tests: GitHub facts are read only through it. It is the runner of every component a test builds (a
+// collector, panes, groups, runs...), since those read GitHub in the background; plainRunner is for direct git reads
+// and refuses gh (#1857).
 func withoutGh(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
 	if name == "gh" {
 		return nil, errors.New("gh: not in tests")
@@ -41,6 +43,7 @@ func runStep(t *testing.T, r *Runs, dir string, tag string, step string) RunReco
 // #662: a repository that commits its notes file, or the folder holding it, as a link to a file of the user's
 // (~/.zshrc) never gets that file overwritten.
 func TestSaveReleaseNotesNeverWritesThroughALink(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	start := startRelease(t, r, dir, ReleaseChannelRc, "v1.0.0-1")
@@ -96,6 +99,7 @@ func TestSaveReleaseNotesNeverWritesThroughALink(t *testing.T) {
 }
 
 func TestReleaseFactsFollowTheStepsTheNotesAndTheTag(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	if facts, err := r.ReleaseFactsOf(dir); err != nil || facts.Tag != "" {
@@ -155,6 +159,7 @@ func TestReleaseFactsFollowTheStepsTheNotesAndTheTag(t *testing.T) {
 }
 
 func TestReleaseCarriedBackByACherryPick(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	gitIn(t, dir, "checkout", "-q", "-b", "main")
@@ -174,6 +179,7 @@ func TestReleaseCarriedBackByACherryPick(t *testing.T) {
 }
 
 func TestOldTagIsNotFollowed(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	gitIn(t, dir, "tag", "v0.9.0")
@@ -184,6 +190,7 @@ func TestOldTagIsNotFollowed(t *testing.T) {
 }
 
 func TestTerminalReleaseCanBeDismissed(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh
 	gitIn(t, dir, "tag", "v2.0.0")

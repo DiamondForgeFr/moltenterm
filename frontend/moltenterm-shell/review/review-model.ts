@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Review tab's pure helpers (FR-REV-002): the file tree, the viewed marks, the collapsed files' wording and the
 // diff editor's language. Kept apart from the view so they can be tested.

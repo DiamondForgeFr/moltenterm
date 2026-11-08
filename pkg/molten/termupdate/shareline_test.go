@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package termupdate
 
@@ -83,6 +83,29 @@ func TestHandoffLineSubmitsWithoutADraft(t *testing.T) {
 	out = MakeUpdater(g.env()).typeLine(context.Background(), "b1", "[From Camille] do it", true)
 	if out.Result != InputSent || out.Submitted || strings.Join(g.input, "|") != "\x1b[200~[From Camille] do it\x1b[201~" {
 		t.Fatalf("a draft must not be sent: %+v, typed %q", out, g.input)
+	}
+}
+
+// #2028: Brokk's session asks, without typing, whether its agent takes a line with Enter yet.
+func TestAgentTakesLineFollowsTheDraft(t *testing.T) {
+	setRunningUpdater(nil)
+	if AgentTakesLine("b1") {
+		t.Fatal("before start nothing takes a line")
+	}
+	f := claudeInputTerm()
+	f.state.Draft = true
+	u := MakeUpdater(f.env())
+	setRunningUpdater(u)
+	t.Cleanup(func() { setRunningUpdater(nil) })
+	if AgentTakesLine("b1") {
+		t.Error("an agent that may hold a draft does not take a line with Enter")
+	}
+	f.state.Draft = false
+	if !AgentTakesLine("b1") {
+		t.Error("an agent with an empty prompt takes the line")
+	}
+	if len(f.input) != 0 {
+		t.Errorf("asking typed %q", f.input)
 	}
 }
 

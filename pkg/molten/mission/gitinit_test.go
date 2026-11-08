@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -19,11 +19,12 @@ import (
 )
 
 func TestInitGitCreatesARepository(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
 	dir := t.TempDir()
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	snap, err := c.InitGit(GitInitRequest{Dir: dir})
 	if err != nil {
 		t.Fatalf("git init: %v", err)
@@ -39,6 +40,7 @@ func TestInitGitCreatesARepository(t *testing.T) {
 // The GitHub read made before git init failed on "not a git repository"; the one after must ask again (#1650), not
 // keep that answer for minGithubInterval.
 func TestInitGitReadsGithubAgain(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -55,7 +57,7 @@ func TestInitGitReadsGithubAgain(t *testing.T) {
 		return nil, errors.New("no git remotes found")
 	}
 	published := make(chan Snapshot, 8)
-	c := MakeCollector(t.TempDir(), run, func(s Snapshot) { published <- s })
+	c := testCollector(t, t.TempDir(), run, func(s Snapshot) { published <- s })
 	next := func(what string) Snapshot {
 		select {
 		case s := <-published:
@@ -83,6 +85,7 @@ func TestInitGitReadsGithubAgain(t *testing.T) {
 }
 
 func TestInitGitRefusesARepository(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -94,7 +97,7 @@ func TestInitGitRefusesARepository(t *testing.T) {
 	if err := os.Mkdir(inner, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	for _, d := range []string{dir, inner} {
 		if _, err := c.InitGit(GitInitRequest{Dir: d}); err == nil || !strings.Contains(err.Error(), "already inside") {
 			t.Fatalf("%s: want a refusal, got %v", d, err)
@@ -106,7 +109,8 @@ func TestInitGitRefusesARepository(t *testing.T) {
 }
 
 func TestInitGitRefusesAMissingOrRelativeFolder(t *testing.T) {
-	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	t.Parallel()
+	c := testCollector(t, t.TempDir(), withoutGh, nil)
 	if _, err := c.InitGit(GitInitRequest{Dir: "relative/path"}); err == nil {
 		t.Fatalf("a relative path was accepted")
 	}
@@ -116,8 +120,9 @@ func TestInitGitRefusesAMissingOrRelativeFolder(t *testing.T) {
 }
 
 func TestInitGitOnlyFromAWindow(t *testing.T) {
+	t.Parallel()
 	e := routetest.Make(t)
-	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: MakeCollector(t.TempDir(), plainRunner, nil)}).route())
+	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: testCollector(t, t.TempDir(), withoutGh, nil)}).route())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A project's release numbering (FR-REL-001, DS-REL-001), ported from Notulia (src/lib/releaseChannel.ts,
 // src/lib/nextVersion.ts). The twin of pkg/molten/versions: both run pkg/molten/versions/testdata/vectors.json, so the

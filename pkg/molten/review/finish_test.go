@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -46,6 +46,7 @@ func checkFinishPrompt(t *testing.T, line string, briefPath string) {
 
 // #954 AC8: the agent on the branch gets what is left, through the guarded typing path, with a brief in the data folder.
 func TestAskFinishReachesTheAgentOnTheBranch(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
@@ -69,6 +70,7 @@ func TestAskFinishReachesTheAgentOnTheBranch(t *testing.T) {
 
 // A busy agent is left alone; with no agent the window is offered the start, nothing starts before the confirmation.
 func TestAskFinishLeavesABusyAgentAndOffersWithNone(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
@@ -84,6 +86,7 @@ func TestAskFinishLeavesABusyAgentAndOffersWithNone(t *testing.T) {
 
 // Confirmed, a fresh agent starts out of sight with the finish brief.
 func TestAskFinishStartsAnAgentWhenConfirmed(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	res := f.askFinish(f.finishRequest(true))
 	if res.Status != RestartStarted || res.BlockId != "new-block" || !res.Hidden {
@@ -98,6 +101,7 @@ func TestAskFinishStartsAnAgentWhenConfirmed(t *testing.T) {
 // #1212: a draft its agent stopped before marking ready, in a workflow without Human Testing: the resumed agent marks it
 // ready itself once its CI is green, as the project's workflow says, and still never merges it.
 func TestAskFinishAsksTheAgentToMarkItsDraftReady(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	tree := f.agentTreeOnBranch()
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
@@ -126,6 +130,7 @@ func TestAskFinishAsksTheAgentToMarkItsDraftReady(t *testing.T) {
 }
 
 func TestAskFinishRefusesBadRequests(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	for _, req := range []FinishRequest{
 		{PrKey: f.k, Dir: f.dir, HeadRef: "feature/9-fix-x"},

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The top of the companion (#555): the recent topics of the session, then the agents at work with their model and
 // effort and what they work on. Display only, from the transcript and the pane's agent state.

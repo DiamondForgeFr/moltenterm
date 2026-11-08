@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // #1779, FR-REV-022 AC19: Resume hands the work to the lead agent that owns it. Who owns it: the PR's signature, else
 // the lead whose sub-agent built it, else nobody; the button names it, the menu keeps New agent.

@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Review comments in the diff's gutter (FR-REV-003): Monaco takes class names for its decorations, so their look lives
    here. The colour says the state: draft (warning), staged and translated (accent), published (success). */

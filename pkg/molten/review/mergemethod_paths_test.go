@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -46,6 +46,7 @@ func (f *batchFixture) batch(method string, prs ...BatchPr) (BatchRun, error) {
 }
 
 func TestBatchItemMethod(t *testing.T) {
+	t.Parallel()
 	plan := MergePlan{Methods: []string{MergeMethodMerge, MergeMethodRebase}, Method: MergeMethodRebase}
 	cases := []struct {
 		name   string
@@ -70,6 +71,7 @@ func TestBatchItemMethod(t *testing.T) {
 
 // The DiamondForge case: rebase remembered, a batch whose modal leaves the method to the repository merges with it.
 func TestBatchUsesTheRememberedMethod(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	f.allow(mergeOrRebase)
 	if err := f.merger.store.SetLastMergeMethod(testRepo, MergeMethodRebase); err != nil {
@@ -94,6 +96,7 @@ func TestBatchUsesTheRememberedMethod(t *testing.T) {
 // The method chosen in the batch modal is the one merged with and the repository's next default; a PR that joined
 // earlier keeps the method shown when it joined.
 func TestBatchKeepsTheMethodChosenInTheModal(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	f.allow(mergeOrRebase)
 	if _, err := f.batch(MergeMethodRebase, f.prs[1]); err != nil {
@@ -118,6 +121,7 @@ func TestBatchKeepsTheMethodChosenInTheModal(t *testing.T) {
 }
 
 func TestBatchRefusesAMethodTheRepositoryDoesNotAllow(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	if _, err := f.batch(MergeMethodRebase, f.prs[1]); err == nil || !strings.Contains(err.Error(), "not allowed") {
 		t.Fatalf("a modal method GitHub refuses does not start: %v", err)
@@ -129,6 +133,7 @@ func TestBatchRefusesAMethodTheRepositoryDoesNotAllow(t *testing.T) {
 
 // A PR whose method GitHub no longer allows when its turn comes stops; it never merges with another method.
 func TestBatchStopsRatherThanMergeWithAnotherMethod(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, nil)
 	pr := f.prs[1]
 	pr.Method = MergeMethodSquash
@@ -144,6 +149,7 @@ func TestBatchStopsRatherThanMergeWithAnotherMethod(t *testing.T) {
 
 // Validate while CI runs: the method of the sheet is kept as the default when the PR joins, and merged with.
 func TestQueueValidateKeepsTheMethodOfTheSheet(t *testing.T) {
+	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	f.allow(mergeOrRebase)
 	plan, err := f.merger.Plan(context.Background(), MergePlanRequest{PrKey: PrKey{Repo: testRepo, Number: 1}, Dir: f.dir})
@@ -171,6 +177,7 @@ func TestQueueValidateKeepsTheMethodOfTheSheet(t *testing.T) {
 // Validate: the merged method is the one shown, a refused remembered method is announced, and GitHub refusing the
 // method has its own outcome.
 func TestValidateMergesWithTheMethodShown(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	gh := &fakeGh{views: []fakePr{cleanPr()}, repo: onlyMethod(MergeMethodMerge)}
 	m, dir, _ := testMerger(t, gh)
@@ -203,6 +210,7 @@ func TestValidateMergesWithTheMethodShown(t *testing.T) {
 }
 
 func TestMethodRefusedByGithub(t *testing.T) {
+	t.Parallel()
 	for _, msg := range []string{"GraphQL: Rebase merges are not allowed on this repository (mergePullRequest)", "Merge method is not allowed"} {
 		if !methodRefusedError(errorString(msg)) {
 			t.Errorf("not seen as a method refusal: %s", msg)

@@ -14,6 +14,7 @@ import {
     WindowReloadedChannel,
 } from "./moltenterm-hang-ipc";
 import { SlowSyncIpcMs } from "./moltenterm-hang-model";
+import { webBlockWebviewSelector } from "./moltenterm-webselector-policy"; // MOLTENTERM-PATCH (#1961)
 
 function sendSync(channel: string, ...args: any[]): any {
     return timedSendSync(ipcRenderer, SlowSyncIpcMs, () => performance.now(), channel, ...args);
@@ -135,9 +136,25 @@ contextBridge.exposeInMainWorld("api", {
     moltentermUpdateLast: () => ipcRenderer.invoke("moltenterm-update-last"),
     // MOLTENTERM-PATCH (#188, #1806): newer releases on GitHub (emain/moltenterm-release-feed.ts); the mode is due, now or read
     moltentermReleaseCheck: (mode?: string) => ipcRenderer.invoke("moltenterm-release-check", mode),
+    // MOLTENTERM-PATCH (#1860): the in-app update of a release (emain/moltenterm-release-install.ts)
+    moltentermReleaseInstallState: () => ipcRenderer.invoke("moltenterm-release-install-state"),
+    moltentermReleaseInstallStart: (tag: string) => ipcRenderer.invoke("moltenterm-release-install-start", tag),
+    moltentermReleaseInstallApply: (when: string) => ipcRenderer.invoke("moltenterm-release-install-apply", when),
+    moltentermReleaseInstallReveal: () => ipcRenderer.invoke("moltenterm-release-install-reveal"),
+    moltentermReleaseInstallLast: () => ipcRenderer.invoke("moltenterm-release-install-last"),
+    onMoltentermReleaseInstall: (callback: (state: any) => void) => {
+        const listener = (_event, state: any) => callback(state);
+        ipcRenderer.on("moltenterm-release-install-event", listener);
+        return () => ipcRenderer.removeListener("moltenterm-release-install-event", listener);
+    },
     // MOLTENTERM-PATCH (#300): a browser panel tab's webview, for the agents' DevTools controller (emain/moltenterm-browseragent.ts)
-    moltentermRegisterWebview: (blockId: string, browserTabId: string, webContentsId: number) =>
-        ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId),
+    moltentermRegisterWebview: (
+        blockId: string,
+        browserTabId: string,
+        webContentsId: number,
+        tabId?: string,
+        workspaceId?: string
+    ) => ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId, tabId, workspaceId),
     // MOLTENTERM-PATCH (#971): an agent's click is about to reach a webview, which must not take the window's focus
     onMoltentermAgentPress: (callback: (webContentsId: number, pressing: boolean) => void) => {
         const listener = (_event, webContentsId: number, pressing: boolean) => callback(webContentsId, pressing);
@@ -153,6 +170,9 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#663): the user's answer to a page's permission question (emain/moltenterm-site-permissions.ts)
     moltentermSitePermissionAnswer: (requestId: string, decision: string) =>
         ipcRenderer.send("moltenterm-site-permission-answer", requestId, decision),
+    // MOLTENTERM-PATCH (#1979): the user's pick of a client certificate for a site (emain/moltenterm-client-certificates.ts)
+    moltentermClientCertificateAnswer: (requestId: string, decision: string, fingerprint?: string) =>
+        ipcRenderer.send("moltenterm-client-certificate-answer", requestId, decision, fingerprint),
     // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
     onMoltentermGettingStarted: (callback: () => void) =>
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
@@ -181,6 +201,8 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#1083): the screen the window is on, for the 360 view's threshold (emain/moltenterm-screen.ts)
     moltentermGetScreen: () => sendSync("moltenterm-screen-get"),
     onMoltentermScreen: (callback) => ipcRenderer.on("moltenterm-screen", (_event, info) => callback(info)),
+    // MOLTENTERM-PATCH (#1958): this computer's idle time, so Brokk sleeps while you are away (emain/moltenterm-system-idle.ts)
+    moltentermGetSystemIdleSec: () => ipcRenderer.invoke("moltenterm-system-idle-get"),
     // MOLTENTERM-PATCH (#459, #618): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
     moltentermWebviewShown: (
         blockId: string,
@@ -215,6 +237,37 @@ contextBridge.exposeInMainWorld("api", {
     moltentermCarpetThumbPut: (req: any) => ipcRenderer.invoke("moltenterm-carpet-thumb-put", req),
     moltentermCarpetThumbRead: (items: any[]) => ipcRenderer.invoke("moltenterm-carpet-thumb-read", items),
     moltentermCarpetThumbRemove: (keys: string[]) => ipcRenderer.invoke("moltenterm-carpet-thumb-remove", keys),
+    // MOLTENTERM-PATCH (#1962): the sites' icons kept per origin on disk (emain/moltenterm-favicons.ts)
+    moltentermFaviconRead: (origins: string[]) => ipcRenderer.invoke("moltenterm-favicon-read", origins),
+    moltentermFaviconMeasured: (origin: string, dark: boolean) =>
+        ipcRenderer.invoke("moltenterm-favicon-measured", origin, dark),
+    moltentermFaviconCapture: (webContentsId: number) =>
+        ipcRenderer.invoke("moltenterm-favicon-capture", webContentsId),
+    onMoltentermFaviconChanged: (callback: (change: any) => void) => {
+        const listener = (_event, change) => callback(change);
+        ipcRenderer.on("moltenterm-favicon-changed", listener);
+        return () => ipcRenderer.removeListener("moltenterm-favicon-changed", listener);
+    },
+    onMoltentermFaviconsCleared: (callback: () => void) => {
+        const listener = () => callback();
+        ipcRenderer.on("moltenterm-favicons-cleared", listener);
+        return () => ipcRenderer.removeListener("moltenterm-favicons-cleared", listener);
+    },
+    // MOLTENTERM-PATCH (#1992): the downloads of the web pages, tracked by Electron main (emain/moltenterm-downloads.ts)
+    moltentermDownloadsList: () => ipcRenderer.invoke("moltenterm-downloads-list"),
+    moltentermDownloadsAct: (request: any) => ipcRenderer.invoke("moltenterm-downloads-act", request),
+    moltentermDownloadsClear: () => ipcRenderer.invoke("moltenterm-downloads-clear"),
+    moltentermDownloadsCheck: () => ipcRenderer.invoke("moltenterm-downloads-check"),
+    onMoltentermDownloadsChanged: (callback: (snapshot: any) => void) => {
+        const listener = (_event, snapshot) => callback(snapshot);
+        ipcRenderer.on("moltenterm-downloads-changed", listener);
+        return () => ipcRenderer.removeListener("moltenterm-downloads-changed", listener);
+    },
+    onMoltentermDownloadsNotify: (callback: (notice: any) => void) => {
+        const listener = (_event, notice) => callback(notice);
+        ipcRenderer.on("moltenterm-downloads-notify", listener);
+        return () => ipcRenderer.removeListener("moltenterm-downloads-notify", listener);
+    },
     // MOLTENTERM-PATCH (#849): the window did not answer for a while, and what Electron main recorded about it
     // (emain/moltenterm-hang-watch.ts)
     onMoltentermWindowHang: (callback: (hang: any) => void) => {
@@ -284,8 +337,28 @@ ipcRenderer.on("moltenterm-site-permission-done", (e, requestId) => {
     window.dispatchEvent(new CustomEvent("moltenterm-site-permission-done", { detail: { requestid: requestId } }));
 });
 
+// MOLTENTERM-PATCH (#1979): a site asks for a client certificate (emain/moltenterm-client-certificates.ts). Same path as
+// the permission question: the panel tab's webview shows it, a webview no panel handles goes without a certificate.
+ipcRenderer.on("moltenterm-client-certificate-ask", (e, requestId, webContentsId, site, certificates) => {
+    const source = webviewByContentsId(webContentsId);
+    const event = new CustomEvent("moltenterm-client-certificate", {
+        detail: { requestid: requestId, site, certificates },
+        cancelable: true,
+    });
+    const handled = source != null && !source.dispatchEvent(event);
+    if (!handled) {
+        ipcRenderer.send("moltenterm-client-certificate-answer", requestId, "dismiss");
+    }
+});
+ipcRenderer.on("moltenterm-client-certificate-done", (e, requestId) => {
+    window.dispatchEvent(
+        new CustomEvent("moltenterm-client-certificate-done", { detail: { requestid: requestId } })
+    );
+});
+
 ipcRenderer.on("webcontentsid-from-blockid", (e, blockId, responseCh) => {
-    const webviewElem: WebviewTag = document.querySelector("div[data-blockid='" + blockId + "'] webview");
+    // MOLTENTERM-PATCH (#1961): a Wave web block's page only, never a browser panel tab (no site approval here)
+    const webviewElem: WebviewTag = document.querySelector(webBlockWebviewSelector(blockId));
     const wcId = webviewElem?.dataset?.webcontentsid;
     ipcRenderer.send(responseCh, wcId);
 });

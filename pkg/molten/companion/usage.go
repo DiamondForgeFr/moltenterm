@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package companion
 
@@ -50,7 +50,9 @@ type ExperimentalInfo struct {
 // UsageInfo answers `moltencompanionusage` (DS-SHELL-029, DS-SHELL-030): the agent's usage page, and its plan
 // gauges when the user turned them on for the agent. It is also the data of the `molten:companionusage` event.
 type UsageInfo struct {
-	BlockId  string `json:"blockid"`
+	BlockId string `json:"blockid"`
+	// Global: the reading of the whole app, without a block (#2074).
+	Global   bool   `json:"global,omitempty"`
 	Agent    string `json:"agent"`
 	PageURL  string `json:"pageurl"`
 	PageName string `json:"pagename"`

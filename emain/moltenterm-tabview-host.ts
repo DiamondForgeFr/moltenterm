@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The tab view host (#461, FR-PERF-015, DS-PERF-013): every tab view's lifecycle in one place, along the state machine
 // of emain/moltenterm-tabview-machine.ts. It owns the hot spare and the tab view cache (Wave's, in emain-tabview.ts
@@ -56,6 +56,13 @@ import { MoltentermReinitTimeoutMs, nextWaveReady, withTimeout } from "./moltent
 // loads (Wave's flow), the paint check judges whatever the window's state, the cache evictions take any view that is not
 // active, a view kept by another window is reused as it is, and invalid transitions are only logged.
 export const TabViewHostSetting = "moltenterm:tabviewhost";
+
+// How long a window that shows no view yet (a launch) keeps waiting, after the retry, on a first view whose renderer is
+// alive and still booting (#1665). A cold start on a loaded machine can take longer than both readiness periods, and
+// dropping that view only left the window on the failed page: there is no other view to fall back to. A renderer
+// that crashed or went away ends the wait at once.
+export const MoltentermLaunchViewPatienceMs = 120000;
+const LaunchViewPollMs = 1000;
 
 // Wave's default, changed by window:maxtabcachesize; #454's budget normally keeps far fewer.
 const DefaultMaxCacheSize = 10;
@@ -554,7 +561,7 @@ async function setTabViewIntoWindow(
     if (!tabInitialized) {
         console.log("initializing a new tab", primaryStartupTab ? "(primary startup)" : "");
         try {
-            await initializeTab(win, tabView, primaryStartupTab, waitReady, run);
+            await initializeTab(win, tabView, primaryStartupTab, waitReady, oldActiveView == null, run);
         } catch (e) {
             // A view that never initialized is dropped, so the next switch builds a new one (#283); so is a view whose
             // action was superseded, or whose tab no longer exists (#449).
@@ -610,14 +617,18 @@ async function initializeTab(
     tabView: WaveTabView,
     primaryStartupTab: boolean,
     offScreen: boolean,
+    nothingShown: boolean,
     run: ActionRun
 ) {
     const clientId = await run.race(getClientId());
     // The queue never waits indefinitely on one view's init (#283); a view still loading at the deadline is kept and
-    // waited for once more (#450).
+    // waited for once more (#450), and longer while it is all a launching window has to show (#1665).
     let viewReady = await run.race(awaitViewInitialized(tabView, run.remainingMs()));
     if (!viewReady && retryAtReadinessDeadline(win, tabView, "init", run)) {
         viewReady = await run.race(awaitViewInitialized(tabView, run.remainingMs()));
+    }
+    if (!viewReady && nothingShown) {
+        viewReady = await awaitLaunchView(tabView, run);
     }
     if (!viewReady) {
         await onReadinessDeadline(win, tabView, "init");
@@ -680,7 +691,7 @@ function retryAtReadinessDeadline(
     stage: "init" | "wave-ready",
     run: ActionRun
 ): boolean {
-    if (tabView.isDestroyed || tabView.webContents.isDestroyed() || tabView.webContents.isCrashed()) {
+    if (rendererGone(tabView)) {
         return false;
     }
     if (!run.extendOnce(readinessDeadlineMs(isDev))) {
@@ -691,6 +702,31 @@ function retryAtReadinessDeadline(
     const state = windowState(win);
     state.pending.setPhase(state.pendingToken, "retrying");
     return true;
+}
+
+function rendererGone(tabView: WaveTabView): boolean {
+    return tabView.isDestroyed || tabView.webContents.isDestroyed() || tabView.webContents.isCrashed();
+}
+
+// The first view of a window that shows nothing else, still booting after the retry (#1665): waited for while its
+// renderer lives, up to MoltentermLaunchViewPatienceMs, in slices so a renderer that dies ends the wait.
+async function awaitLaunchView(tabView: WaveTabView, run: ActionRun): Promise<boolean> {
+    if (rendererGone(tabView)) {
+        return false;
+    }
+    console.log(`[#1665] first view of the window still booting, waiting for it`, tabView.waveTabId);
+    const end = Date.now() + MoltentermLaunchViewPatienceMs;
+    while (Date.now() < end) {
+        const ready = await run.race(awaitViewInitialized(tabView, Math.min(LaunchViewPollMs, end - Date.now())));
+        if (ready) {
+            return true;
+        }
+        if (rendererGone(tabView)) {
+            console.log(`[#1665] its renderer went away while it booted`, tabView.waveTabId);
+            return false;
+        }
+    }
+    return tabView.isInitialized;
 }
 
 // The one place a missed readiness deadline is decided (after the retry of #450). Returns whether the view is shown

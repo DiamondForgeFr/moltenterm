@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -21,6 +21,7 @@ const checkedManualPipeline = `{"schema":1,"name":"fixture","release":{
 		{"id":"tag","title":"Tag","phase":"cut","confirm":"{tag} is public once pushed.","run":"touch tag-ran"}]}}`
 
 func TestManualStepCheckRecordsNothingUntilItHoldsOrIsConfirmed(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, checkedManualPipeline)
 	res := startRelease(t, r, dir, ReleaseChannelPublic, "v1.1.0")
 	waitRun(t, r, dir, res.Run.Id)
@@ -64,6 +65,7 @@ func TestManualStepCheckRecordsNothingUntilItHoldsOrIsConfirmed(t *testing.T) {
 }
 
 func TestManualStepCheckReadsTheReleaseWorktree(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, checkedManualPipeline)
 	wt := dir + "-release"
 	gitIn(t, dir, "worktree", "add", "-q", "-b", "rc-1.1.0", wt)
@@ -79,6 +81,7 @@ func TestManualStepCheckReadsTheReleaseWorktree(t *testing.T) {
 }
 
 func TestManualStepCheckValidation(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
 	bad := `{"schema":1,"name":"P","release":{"rc":[
@@ -103,6 +106,7 @@ func TestManualStepCheckValidation(t *testing.T) {
 }
 
 func TestStartingAReleaseSaysWhenThePipelineIsUncommitted(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, checkedManualPipeline)
 	trusted := startTrusted(t, r, dir)
 	changed := strings.Replace(checkedManualPipeline, `"title":"Tag"`, `"title":"Tag it"`, 1)
@@ -122,6 +126,7 @@ func TestStartingAReleaseSaysWhenThePipelineIsUncommitted(t *testing.T) {
 }
 
 func TestStartingAReleaseSaysWhenThePipelineDiffersFromTheTrunk(t *testing.T) {
+	t.Parallel()
 	r, dir := makeReleaseFixture(t, checkedManualPipeline)
 	startTrusted(t, r, dir)
 	// The trunk moved on (#1091 finding 1: origin/develop held the release block the checkout lacked).
@@ -136,6 +141,7 @@ func TestStartingAReleaseSaysWhenThePipelineDiffersFromTheTrunk(t *testing.T) {
 }
 
 func TestReleaseFactsReadTheLastFormatWord(t *testing.T) {
+	t.Parallel()
 	pipeline := `{"schema":1,"name":"fixture","release":{"public":[
 		{"id":"prepare","title":"Prepare","phase":"prepare","run":"echo '▶ format: formatted prettier' && echo '▶ format: failed node_modules/.bin/prettier --write -- '\\''releases/v1.1.0.md'\\''' && echo done"},
 		{"id":"tag","title":"Tag","phase":"cut","confirm":"{tag} is public once pushed.","run":"echo '▶ format: none'"}]}}`

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -113,6 +113,12 @@ func batchReasonText(it BatchItem, base string) (string, *uimsg.Text) {
 		return "the merge failed: " + it.Detail + it.Code, uimsg.Make("notif.review.batch.why.mergefailed", "detail", it.Detail+it.Code)
 	case BatchReasonRead:
 		return "GitHub could not be read: " + it.Detail, uimsg.Make("notif.review.batch.why.read", "detail", it.Detail)
+	case BatchReasonUnavailable:
+		if it.Status == 0 {
+			return "GitHub did not answer in time, try again later", uimsg.Make("notif.review.batch.why.unavailableNoStatus")
+		}
+		status := strconv.Itoa(it.Status)
+		return "GitHub did not answer (error " + status + "), try again later", uimsg.Make("notif.review.batch.why.unavailable", "status", status)
 	case BatchReasonHeadMoved:
 		return "its branch kept moving", uimsg.Make("notif.review.batch.why.headmoved")
 	case BatchReasonDraft:

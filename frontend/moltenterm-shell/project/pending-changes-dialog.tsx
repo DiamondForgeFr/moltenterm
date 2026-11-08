@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What would ship (#903, FR-MC-021), opened from the header band's Waiting block: the pending changes grouped by
 // ticket. The commits are the header's; the PRs and tickets come from the merged history (#960), asked again while

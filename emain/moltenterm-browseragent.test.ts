@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { createHmac } from "node:crypto";
 import { EventEmitter } from "node:events";
@@ -17,7 +17,11 @@ describe("browser agent takeover and input", () => {
     let session: EventEmitter;
     const ev = () => ({ preventDefault: vi.fn() });
     const held = () => host.send.mock.calls.filter(([channel]: any[]) => channel === agent.UserInputHeldChannel).length;
-    let ask: ReturnType<typeof vi.fn<(blockId: string, browserTabId: string, host: string) => Promise<boolean>>>;
+    let ask: ReturnType<
+        typeof vi.fn<
+            (blockId: string, browserTabId: string, host: string) => Promise<boolean | { allow: boolean; agentname?: string }>
+        >
+    >;
     let input: (event: any, payload?: any) => any;
     let attached: boolean;
     let host: Record<string, any>;
@@ -331,6 +335,44 @@ describe("browser agent takeover and input", () => {
         const third = { preventDefault: vi.fn() };
         session.emit("will-download", third, item, wc);
         expect(third.preventDefault).toHaveBeenCalled();
+    });
+
+    it("tells the downloads module which download it held back, and which agent started the one the user allowed (#1992)", async () => {
+        const hold = await import("./moltenterm-download-hold");
+        ask.mockResolvedValue({ allow: true, agentname: "Jérôme" });
+        const item = { getURL: () => "https://files.example.com/report.pdf" };
+        const first = { preventDefault: vi.fn() };
+        session.emit("will-download", first, item, wc);
+        expect(first.preventDefault).toHaveBeenCalled();
+        expect(hold.isHeld(item)).toBe(true);
+        await vi.runAllTimersAsync();
+        expect(wc.downloadURL).toHaveBeenCalledWith("https://files.example.com/report.pdf");
+        // The restarted download goes through: nothing holds it back, so the downloads module lists it, with the agent.
+        const restarted = { getURL: () => "https://files.example.com/report.pdf" };
+        const again = { preventDefault: vi.fn() };
+        session.emit("will-download", again, restarted, wc);
+        expect(again.preventDefault).not.toHaveBeenCalled();
+        expect(hold.isHeld(restarted)).toBe(false);
+        expect(hold.takeAgentDownload(42, "https://files.example.com/report.pdf")).toBe("Jérôme");
+        expect(hold.takeAgentDownload(42, "https://files.example.com/report.pdf")).toBe("");
+    });
+
+    it("keeps the question as it was when the answer carries no agent name, and names no one for a denial", async () => {
+        const hold = await import("./moltenterm-download-hold");
+        const item = { getURL: () => "https://files.example.com/a.zip" };
+        ask.mockResolvedValueOnce(true);
+        session.emit("will-download", { preventDefault: vi.fn() }, item, wc);
+        await vi.runAllTimersAsync();
+        expect(wc.downloadURL).toHaveBeenCalledTimes(1);
+        expect(hold.takeAgentDownload(42, "https://files.example.com/a.zip")).toBe("");
+        ask.mockResolvedValueOnce({ allow: false, agentname: "Jérôme" });
+        const other = { getURL: () => "https://files.example.com/b.zip" };
+        const prevented = { preventDefault: vi.fn() };
+        session.emit("will-download", prevented, other, wc);
+        await vi.runAllTimersAsync();
+        expect(prevented.preventDefault).toHaveBeenCalled();
+        expect(wc.downloadURL).toHaveBeenCalledTimes(1);
+        expect(hold.takeAgentDownload(42, "https://files.example.com/b.zip")).toBe("");
     });
 
     it("cancels a download the user denies, and leaves tabs under no control alone", async () => {

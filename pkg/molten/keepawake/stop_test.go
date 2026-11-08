@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package keepawake
 
@@ -70,7 +70,7 @@ func TestAttemptLimits(t *testing.T) {
 
 func TestShimRecordsWhenTheAttemptEnds(t *testing.T) {
 	s := makeStopEnv()
-	s.policy = PolicyAllow
+	s.cfg.Requests = RequestsAlways
 	k := s.keeper()
 	shim(t, k, "b1", ToolCaffeinate, 11, "-i", "-t", "600")
 	shim(t, k, "b2", ToolCaffeinate, 12, "-i", "npm", "test")
@@ -88,7 +88,7 @@ func TestShimRecordsWhenTheAttemptEnds(t *testing.T) {
 
 func TestStopBlockEndsOnlyItsBareKeepAwake(t *testing.T) {
 	s := makeStopEnv()
-	s.policy = PolicyAllow
+	s.cfg.Requests = RequestsAlways
 	k := s.keeper()
 	shim(t, k, "b1", ToolCaffeinate, 11, "-i", "-t", "600")
 	shim(t, k, "b1", ToolCaffeinate, 12, "-i", "make")
@@ -112,7 +112,7 @@ func TestStopBlockEndsOnlyItsBareKeepAwake(t *testing.T) {
 
 func TestStopBlockLeavesAReusedPidAlone(t *testing.T) {
 	s := makeStopEnv()
-	s.policy = PolicyAllow
+	s.cfg.Requests = RequestsAlways
 	k := s.keeper()
 	shim(t, k, "b1", ToolCaffeinate, 11, "-i")
 	s.names[11] = "zsh"
@@ -130,7 +130,7 @@ func TestStopBlockLeavesAReusedPidAlone(t *testing.T) {
 
 func TestStopBlockRefusesWhatItCannotStop(t *testing.T) {
 	s := makeStopEnv()
-	s.policy = PolicyLetSleep
+	s.cfg.Requests = RequestsNever
 	k := s.keeper()
 	shim(t, k, "b1", ToolCaffeinate, 11, "-i")
 	s.names[11] = ToolCaffeinate
@@ -140,7 +140,7 @@ func TestStopBlockRefusesWhatItCannotStop(t *testing.T) {
 	if _, err := k.StopBlock(context.Background(), StopRequest{}); err == nil {
 		t.Fatal("no terminal given")
 	}
-	s.policy = PolicyAllow
+	s.cfg.Requests = RequestsAlways
 	shim(t, k, "b2", ToolCaffeinate, 21, "-i")
 	s.names[21] = ToolCaffeinate
 	s.failPid = 21

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package settingsmeta
 
@@ -86,5 +86,51 @@ func TestOrderFollowsTheList(t *testing.T) {
 		if s.Order != i {
 			t.Fatalf("%s has order %d, want %d", s.Key, s.Order, i)
 		}
+	}
+}
+
+func TestBossNameDefaultsToBrokk(t *testing.T) {
+	s, ok := Lookup("boss:name")
+	if !ok {
+		t.Fatalf("boss:name has no entry")
+	}
+	if s.Default != "Brokk" {
+		t.Errorf("boss:name defaults to %v, want Brokk", s.Default)
+	}
+}
+
+// The table "Quand Brokk vient me chercher" (FR-BOSS-009, AC4, #2003) draws these keys: none stays hidden, and each
+// carries the default the visit model falls back to (frontend/moltenterm-shell/boss/brokk-visit-events.ts).
+func TestBrokkVisitKeysAreShown(t *testing.T) {
+	defaults := map[string]any{
+		"boss:visitsecurity": "vient",
+		"boss:visitblocked":  "vient",
+		"boss:visiterror":    "badge",
+		"boss:visitci":       "badge",
+		"boss:visitready":    "badge",
+		"boss:visitfinished": "badge",
+		"boss:visitdownload": "badge",
+		"boss:visitupdate":   "badge",
+		"boss:visitusage":    "badge",
+		"boss:blockedmin":    5,
+		"boss:quiet":         true,
+		"boss:quietfrom":     "22:00",
+		"boss:quietto":       "08:00",
+	}
+	for key, want := range defaults {
+		s, ok := Lookup(key)
+		if !ok || s.Hidden {
+			t.Errorf("%s must be a shown setting", key)
+			continue
+		}
+		if s.Section != SectionBoss || s.Group != BrokkTableGroup {
+			t.Errorf("%s is in %s/%q, want the Brokk section's table", key, s.Section, s.Group)
+		}
+		if s.Default != want {
+			t.Errorf("%s defaults to %v, want %v", key, s.Default, want)
+		}
+	}
+	if s, ok := Lookup("boss:nevercome"); !ok || s.Hidden {
+		t.Errorf("boss:nevercome must be a shown setting")
 	}
 }

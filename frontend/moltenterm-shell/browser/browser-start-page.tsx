@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // MoltenTerm's start page (FR-SHELL-111): drawn over a browser panel whose repository page has no repository to show,
 // a project without a GitHub remote or a workspace without a project. It shows the project's README when its folder

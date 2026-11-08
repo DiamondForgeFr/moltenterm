@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -13,6 +13,7 @@ import (
 )
 
 func TestBranchesPlanNamesTheTerminalsHoldingAWorktree(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	plan, err := f.r.PlanBranches(f.dir)
 	if err != nil {
@@ -41,6 +42,7 @@ func closerOf(f ownTreeFixture, closed *[]string) TerminalCloser {
 }
 
 func TestCloseAndCleanBranchClosesTheSessionThenCleans(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	var closed []string
 	res, err := f.r.CloseAndCleanBranch(BranchesCloseRequest{Dir: f.dir, Name: "feature/12-tree", BlockIds: []string{"block-12"}}, closerOf(f, &closed))
@@ -62,6 +64,7 @@ func TestCloseAndCleanBranchClosesTheSessionThenCleans(t *testing.T) {
 }
 
 func TestCloseAndCleanBranchRefusesATerminalOpenedSince(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	f.terms["block-new"] = WorktreeTerminal{BlockId: "block-new", Tab: "Later"}
 	var closed []string
@@ -75,6 +78,7 @@ func TestCloseAndCleanBranchRefusesATerminalOpenedSince(t *testing.T) {
 }
 
 func TestCloseAndCleanBranchNeverClosesForUncommittedWork(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	var closed []string
 	res, err := f.r.CloseAndCleanBranch(BranchesCloseRequest{Dir: f.dir, Name: "feature/11-tree", BlockIds: []string{"block-12"}}, closerOf(f, &closed))
@@ -90,6 +94,7 @@ func TestCloseAndCleanBranchNeverClosesForUncommittedWork(t *testing.T) {
 }
 
 func TestTreePrsReadsTheMergedPullRequestOfABranch(t *testing.T) {
+	t.Parallel()
 	f := makeOwnTreeFixture(t)
 	calls := 0
 	git := f.r.git

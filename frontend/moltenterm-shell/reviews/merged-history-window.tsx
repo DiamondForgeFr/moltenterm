@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The merged history (#960, FR-REV-030), opened from Recently merged's "All merged pull requests": the shape of the
 // version history (DS-REL-004, versions left and content right) for the project's own PRs. Left: All, the next

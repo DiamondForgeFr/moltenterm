@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -40,16 +40,13 @@ type depSyncFixture struct {
 }
 
 func makeDepSyncFixture(t *testing.T) *depSyncFixture {
-	saved := readLoginPath
-	readLoginPath = func() string { return os.Getenv("PATH") }
-	t.Cleanup(func() { readLoginPath = saved })
 	f := makeDepFixture(t)
 	depCommit(t, f.clock, f.site, "chore: sync script", map[string]string{".molten/project.json": depSyncSitePipeline, "scripts/sync.sh": depSyncScript})
 	data := t.TempDir()
-	runs := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, "trust.json")), nil)
+	runs := makeTestRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, "trust.json")), nil)
 	t.Cleanup(func() { waitRunsIdle(t, runs) })
 	links := []molten.GroupLink{{WorkspaceId: "w-app", WorkspaceName: "App", Dir: f.app}, {WorkspaceId: "w-site", WorkspaceName: "Site", Dir: f.site}}
-	groups := MakeGroups(nil, nil, runs, plainRunner, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil }, nil, nil)
+	groups := MakeGroups(nil, nil, runs, withoutGh, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil }, nil, nil)
 	trees := filepath.Join(data, "worktrees")
 	groups.UseSync(MakeDepAcks(filepath.Join(data, "deps")), trees)
 	return &depSyncFixture{depFixture: f, groups: groups, runs: runs, trees: trees}
@@ -91,7 +88,7 @@ func (f *depSyncFixture) sync(t *testing.T) RunRecord {
 			}
 			return rec
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 	t.Fatal("the sync did not end")
 	return RunRecord{}
@@ -128,6 +125,7 @@ func (f *depSyncFixture) assertNoSourceTree(t *testing.T) {
 }
 
 func TestDepSyncLifecycle(t *testing.T) {
+	t.Parallel()
 	f := makeDepSyncFixture(t)
 
 	// Trust first (AC2): nothing runs before the user trusted the command.
@@ -271,6 +269,7 @@ func TestDepSyncLifecycle(t *testing.T) {
 
 // The run event of an ended sync is what the user acts on: a sync started right after it must not be refused (#485).
 func TestDepSyncReleasesBeforeItReadsAsEnded(t *testing.T) {
+	t.Parallel()
 	f := makeDepSyncFixture(t)
 	f.trust(t)
 	freeAtEnd := make(chan bool, 1)
@@ -300,9 +299,10 @@ func TestDepSyncReleasesBeforeItReadsAsEnded(t *testing.T) {
 
 // A sync that ignores SIGTERM is killed once the time limit passed, and reads as a failure; a cancel ends one too.
 func TestDepSyncStops(t *testing.T) {
-	savedTimeout, savedGrace := depSyncTimeout, depSyncKillGrace
-	depSyncTimeout, depSyncKillGrace = time.Second, 200*time.Millisecond
-	t.Cleanup(func() { depSyncTimeout, depSyncKillGrace = savedTimeout, savedGrace })
+	serialTest(t)
+	savedTimeout, savedGrace, savedPoll := depSyncTimeout, depSyncKillGrace, depSyncCancelPoll
+	depSyncTimeout, depSyncKillGrace, depSyncCancelPoll = 100*time.Millisecond, 50*time.Millisecond, testPoll
+	t.Cleanup(func() { depSyncTimeout, depSyncKillGrace, depSyncCancelPoll = savedTimeout, savedGrace, savedPoll })
 	f := makeDepSyncFixture(t)
 	// The sleep outlasts any wait of the test (#1208): a sync that was not stopped shows as one that never ends.
 	depCommit(t, f.clock, f.site, "chore: a stubborn sync", map[string]string{"scripts/sync.sh": "trap '' TERM\necho stubborn\nsleep 3600\n"})
@@ -326,7 +326,7 @@ func TestDepSyncStops(t *testing.T) {
 		if time.Now().After(started) {
 			t.Fatal("the second sync never started its script")
 		}
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 	if err := f.runs.Cancel(f.site, res.Run.Id); err != nil {
 		t.Fatal(err)
@@ -341,12 +341,13 @@ func TestDepSyncStops(t *testing.T) {
 			f.assertNoSourceTree(t)
 			return
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 	t.Fatal("the cancelled sync did not end")
 }
 
 func TestDepSyncRefusals(t *testing.T) {
+	t.Parallel()
 	f := makeDepSyncFixture(t)
 	f.trust(t)
 	if _, err := f.groups.Sync(DepSyncRequest{Dir: f.site, Project: "Ghost"}); err == nil || !strings.Contains(err.Error(), "no dependency on Ghost") {
@@ -365,13 +366,14 @@ func TestDepSyncRefusals(t *testing.T) {
 		t.Fatalf("no sync declared: %v", err)
 	}
 	// Not available without its setup.
-	plain := MakeGroups(nil, nil, f.runs, plainRunner, nil, nil, nil)
+	plain := MakeGroups(nil, nil, f.runs, withoutGh, nil, nil, nil)
 	if _, err := plain.Sync(DepSyncRequest{Dir: f.site}); err == nil {
 		t.Fatal("Sync needs UseSync")
 	}
 }
 
 func TestPickSyncDeclaration(t *testing.T) {
+	t.Parallel()
 	declared := []molten.PipelineDependency{
 		{Project: "Notulia", Sync: "a"},
 		{Project: "Docs"},
@@ -417,6 +419,7 @@ func intPtr(i int) *int {
 }
 
 func TestDepAckKey(t *testing.T) {
+	t.Parallel()
 	dep := siteDependency()
 	same := dep
 	same.Project = " notulia "

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
 import {
@@ -10,6 +10,7 @@ import {
     ReloadNormal,
     ReloadStop,
     runReload,
+    tabFaviconSrc,
 } from "./browser-loading";
 
 function fakeWebview(opts: { throws?: boolean } = {}) {
@@ -59,6 +60,15 @@ describe("pickFavicon", () => {
         expect(pickFavicon(["javascript:alert(1)"])).toBeUndefined();
         expect(pickFavicon(null)).toBeUndefined();
     });
+
+    it("never takes an icon on MoltenTerm's backend, whose requests carry the app's credentials (#1961)", () => {
+        const backend = "http://127.0.0.1:52011";
+        expect(
+            pickFavicon(["http://127.0.0.1:52011/wave/stream-file?path=%2Fetc%2Fhosts", "https://a.dev/f.ico"], backend)
+        ).toBe("https://a.dev/f.ico");
+        expect(pickFavicon(["http://127.0.0.1:52011/x.png"], backend)).toBeUndefined();
+        expect(pickFavicon(["http://127.0.0.1:3000/favicon.ico"], backend)).toBe("http://127.0.0.1:3000/favicon.ico");
+    });
 });
 
 describe("BrowserLoadModel", () => {
@@ -83,6 +93,13 @@ describe("BrowserLoadModel", () => {
         expect(m.get("a")).toBeUndefined();
     });
 
+    it("remembers the site of the page that declared the icon, and names it to be asked of main", () => {
+        const m = new BrowserLoadModel();
+        expect(m.noteFavicons("a", ["https://cdn.a.dev/f.ico"], "https://a.dev/docs/x?q=1")).toBe("https://a.dev");
+        expect(m.get("a")).toEqual({ favicon: "https://cdn.a.dev/f.ico", site: "https://a.dev" });
+        expect(m.noteFavicons("a", ["javascript:x"], "https://a.dev/")).toBeNull();
+    });
+
     it("leaves the atom alone when nothing changes", () => {
         const m = new BrowserLoadModel();
         m.noteStop("a");
@@ -101,5 +118,36 @@ describe("BrowserLoadModel", () => {
         m.noteStart("a");
         expect(m.isCrashed("a")).toBe(false);
         expect(m.isLoading("a")).toBe(true);
+    });
+});
+
+describe("tabFaviconSrc (#2045: the app page loads no image from a web address)", () => {
+    const kept = { "https://a.dev": { url: "data:image/png;base64,KEPT" } };
+
+    it("draws the icon main kept for the page's site, never the address the page declared", () => {
+        const load = { favicon: "https://a.dev/f.ico", site: "https://a.dev" };
+        expect(tabFaviconSrc(load, kept)).toBe("data:image/png;base64,KEPT");
+        expect(tabFaviconSrc(load, {})).toBeNull();
+        expect(tabFaviconSrc({ favicon: "https://b.dev/f.ico", site: "https://b.dev" }, kept)).toBeNull();
+        expect(tabFaviconSrc({ favicon: "https://a.dev/f.ico" }, kept)).toBeNull();
+    });
+
+    it("draws an inline icon as the page declared it", () => {
+        expect(tabFaviconSrc({ favicon: "data:image/png;base64,AA", site: "https://a.dev" }, kept)).toBe(
+            "data:image/png;base64,AA"
+        );
+    });
+
+    it("draws nothing for a page that declared no icon, even when its site has one kept", () => {
+        expect(tabFaviconSrc({ site: "https://a.dev" }, kept)).toBeNull();
+        expect(tabFaviconSrc(undefined, kept)).toBeNull();
+    });
+
+    it("never hands back a kept entry that is not an inline image", () => {
+        expect(
+            tabFaviconSrc({ favicon: "https://a.dev/f.ico", site: "https://a.dev" }, {
+                "https://a.dev": { url: "https://a.dev/f.ico" },
+            })
+        ).toBeNull();
     });
 });

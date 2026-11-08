@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Minimal Chrome DevTools Protocol client over Node's global WebSocket (Node 22), for the renderers
 // (--remote-debugging-port) and the Electron main process (--inspect).
@@ -113,7 +113,16 @@ export function neverRan(e) {
 
 // The Electron main process, through its Node inspector. `require` comes from the command-line API.
 export async function connectMain(inspectPort) {
-  const targets = await (await fetch(`http://127.0.0.1:${inspectPort}/json/list`)).json();
+  let targets;
+  try {
+    targets = await (await fetch(`http://127.0.0.1:${inspectPort}/json/list`)).json();
+  } catch (e) {
+    throw new Error(
+      `the main-process inspector on port ${inspectPort} does not answer (${e.message}). A packaged build has ` +
+        `--inspect off (the EnableNodeCliInspectArguments fuse, #1975): this harness drives the dev build in ` +
+        `node_modules/electron, and a packaged app is qualified by scripts/moltenterm-qualify-packaged.mjs.`
+    );
+  }
   if (!targets.length) {
     throw new Error("no main-process inspector target");
   }

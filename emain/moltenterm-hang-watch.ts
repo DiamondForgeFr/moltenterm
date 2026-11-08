@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The hang watch (#849): Electron main records in waveapp.log when a window stops answering, when a renderer or a
 // child process dies, when its own loop was blocked and when a sendSync round trip was slow; the window that stalled

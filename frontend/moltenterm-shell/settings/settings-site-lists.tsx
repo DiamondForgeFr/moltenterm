@@ -1,20 +1,23 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Browser › the per-site settings as editable lists (FR-SHELL-106): which browser opens a site, what agents may do on
-// it, and what it may use (camera, microphone, location, notifications). A site per row, its choice changed in place
-// or the site removed; the browser panel's bars add the sites. "Edit in JSON" stays for the rest of the file.
+// it, what it may use (camera, microphone, location, notifications) and the client certificate it gets. A site per row,
+// its choice changed in place or the site removed; the browser panel's bars add the sites. "Edit in JSON" stays for the
+// rest of the file.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { BrowserEngineModel, EngineApp, EngineInstalled, engineName } from "../browser/browser-engine";
+import { CertificateNone } from "../browser/client-certificate";
 import { DecisionAllow, DecisionBlock, SitePermissionStore } from "../browser/site-permission";
 import { writeSettings } from "../command-panel/bindings";
 import { useT } from "../i18n/i18n";
 import {
     AgentSitesKey,
+    ClientCertificatesListKey,
     SiteDecisions,
     SiteEnginesKey,
     siteKinds,
@@ -243,9 +246,45 @@ function PermissionSites({ entryKey, label, value, onOpenJson }: ListProps) {
     );
 }
 
+// The certificate each site gets (#1979): forgetting a row makes the site ask again. The list never picks a
+// certificate: the tab's bar does, with the user in front of it.
+function CertificateSites({ entryKey, label, value, onOpenJson }: ListProps) {
+    const t = useT();
+    const [errorKey, write] = useWrite(entryKey);
+    const map = value as Record<string, string>;
+    const rows = siteRows<string>(value);
+    return (
+        <ListFrame label={label} count={rows.length} errorKey={errorKey} onOpenJson={onOpenJson}>
+            {rows.map(({ site, value: choice }) => (
+                <li key={site} className={RowClass} data-site={site}>
+                    <span className={SiteClass} title={site}>
+                        {site}
+                    </span>
+                    <span className="shrink-0 text-12 text-secondary" title={choice === CertificateNone ? "" : choice}>
+                        {choice === CertificateNone
+                            ? t("settings.sites.certificate.none")
+                            : t("settings.sites.certificate.picked")}
+                    </span>
+                    <button
+                        type="button"
+                        className={RemoveButton}
+                        aria-label={t("settings.sites.certificate.forget", { site })}
+                        title={t("settings.sites.certificate.forget", { site })}
+                        onClick={() => write(withoutSite(map, site))}
+                    >
+                        <i className="fa fa-solid fa-rotate-left text-11" aria-hidden />
+                    </button>
+                </li>
+            ))}
+        </ListFrame>
+    );
+}
+
 // The list under a per-site row of Browser, or null for any other key.
 export function SiteList(props: ListProps) {
     switch (props.entryKey) {
+        case ClientCertificatesListKey:
+            return <CertificateSites {...props} />;
         case SiteEnginesKey:
             return <EngineSites {...props} />;
         case AgentSitesKey:

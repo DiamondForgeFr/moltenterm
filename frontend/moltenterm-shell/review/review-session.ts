@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The review session (FR-REV-004, DS-REV-004): the developer's own Claude Code or Codex, started by wavesrv in a
 // terminal of the Review tab, in the PR's worktree, read-only, with the molten-review MCP tools

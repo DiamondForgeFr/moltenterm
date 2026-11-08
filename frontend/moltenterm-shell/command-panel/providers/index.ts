@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The command panel's built-in providers, registered once when the panel host mounts. The Agent section (#402,
 // FR-SHELL-048) is agent.ts, { kind: "agent", needs: ["terminal", "agent:*"] }, for the agents with a command table

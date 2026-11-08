@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package pipelinesetup
 
@@ -41,6 +41,7 @@ func sf1116DocInput(t *testing.T) TechDocInput {
 }
 
 func TestTechDocOfPR1116IsShort(t *testing.T) {
+	t.Parallel()
 	in := sf1116DocInput(t)
 	doc := BuildTechDoc(in)
 	if BuildTechDoc(in) != doc {
@@ -104,6 +105,7 @@ func TestTechDocOfPR1116IsShort(t *testing.T) {
 }
 
 func TestTechDocEveryStepShowsAPhase(t *testing.T) {
+	t.Parallel()
 	doc := BuildTechDoc(sf1116DocInput(t))
 	rows, notes := 0, 0
 	for _, line := range strings.Split(doc, "\n") {
@@ -141,6 +143,7 @@ func TestTechDocEveryStepShowsAPhase(t *testing.T) {
 }
 
 func TestTechDocHistoryLinksThePullRequest(t *testing.T) {
+	t.Parallel()
 	in := sf1116DocInput(t)
 	if doc := BuildTechDoc(in); !strings.Contains(doc, "| Pipeline set up | Setup test | ["+"#1116]("+sf1116PrUrl+") | 2 |") {
 		t.Fatalf("history:\n%s", doc[strings.Index(doc, techDocHistoryStart):])
@@ -152,6 +155,7 @@ func TestTechDocHistoryLinksThePullRequest(t *testing.T) {
 }
 
 func TestTechDocPathIsOutsideTheDocsSiteAndConfigurable(t *testing.T) {
+	t.Parallel()
 	if TechDocPath != ".molten/release-pipeline.md" || TechDocPathOf(nil) != TechDocPath || TechDocPathOf(&molten.Pipeline{}) != TechDocPath {
 		t.Fatalf("default path: %q", TechDocPath)
 	}
@@ -178,6 +182,7 @@ func quote(s string) string {
 // A generated document at the former default path is moved by the pull request, not copied: the old file is removed,
 // the new one keeps its history rows, and the row of this change links the pull request.
 func TestTechDocMovesFromTheFormerPath(t *testing.T) {
+	t.Parallel()
 	dir := protectedRepository(t)
 	old := "# Release pipeline: old\n\n" + techDocHistoryStart + "\n" + techDocHistoryHead + "\n" + techDocHistoryRule +
 		"\n| 2026-09-01 | Pipeline set up | Early dev | — | 1 |\n" + techDocHistoryEnd + "\n"

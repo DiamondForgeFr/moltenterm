@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A terminal's proposals in the command panel's suggestions row (FR-SHELL-052): they left the header, which keeps one
 // pill for the panel's state. Update terminal (FR-SHELL-041) and the hook setup (#221) open their dialog in the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -83,9 +83,10 @@ func readyReviews(t *testing.T, reviews *Reviews, dir string) {
 
 // #797: Rerun failed jobs reruns each run holding a failed check, naming the repository, and tells the outcome.
 func TestReviewsRerunFailed(t *testing.T) {
+	t.Parallel()
 	dir := reviewsProject(t, reviewsSfManifest)
 	gh := &rerunGh{}
-	collector := MakeCollector("", gh.run, nil)
+	collector := testCollector(t, "", gh.run, nil)
 	reviews := MakeReviews(collector, gh.run, nil)
 	told := make(chan molten.NotificationInput, 1)
 	reviews.notify = func(ctx context.Context, input molten.NotificationInput) error {

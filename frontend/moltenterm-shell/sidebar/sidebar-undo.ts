@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's Undo (FR-SHELL-081): a change to the views (an order, a pin, a duplicate) shows a toast with Undo, and
 // ⌘Z (Ctrl+Z elsewhere) undoes the latest one while its toast shows.

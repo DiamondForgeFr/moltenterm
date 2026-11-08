@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The panel header (FR-SHELL-052, DS-SHELL-093): one hierarchy for every panel, the Pill and the working segment.
    The row, title and icon sizes come from moltenterm-shell.css (--header-height, --header-font,

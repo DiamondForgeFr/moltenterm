@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The library's Materials section (FR-MAT-002, DS-MAT-005): what agents produced outside the repository, kept per
 // project by wavesrv's registry (FR-MAT-001, pkg/molten/materials). The route's names and types, and the rules the
@@ -81,7 +81,7 @@ export type Material = {
     updated: number;
 };
 
-export type MaterialsProject = { key: string; folder?: string; name?: string };
+export type MaterialsProject = { key: string; folder?: string; name?: string; count?: number };
 
 export type MaterialsView = {
     project: MaterialsProject;
@@ -297,30 +297,39 @@ export function materialOpenPlan(m: Material): MaterialOpen {
 // A panel open now, as the section reads it to say "Show it" (AC8).
 export type OpenPanel = { blockId: string; tabId: string; view: string; file?: string; urls?: string[] };
 
-function sameUrl(a: string, b: string): boolean {
-    const clean = (u: string) => (u ?? "").replace(/#.*$/, "").replace(/\/+$/, "");
-    return !!a && !!b && clean(a) === clean(b);
+function panelUrlKey(url: string): string {
+    return (url ?? "").replace(/#.*$/, "").replace(/\/+$/, "");
 }
 
-function samePath(a: string, b: string): boolean {
-    return !!a && !!b && a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
+function panelPathKey(path: string): string {
+    return (path ?? "").replace(/\/+$/, "");
+}
+
+export function makeOpenPanelLookup(panels: OpenPanel[]): (m: Material) => OpenPanel {
+    type Match = { panel: OpenPanel; order: number };
+    const urls = new Map<string, Match>();
+    const files = new Map<string, Match>();
+    for (const [order, panel] of (panels ?? []).entries()) {
+        const match = { panel, order };
+        for (const url of panel.urls ?? []) {
+            if (url && !urls.has(panelUrlKey(url))) urls.set(panelUrlKey(url), match);
+        }
+        if (panel.file && !files.has(panelPathKey(panel.file))) files.set(panelPathKey(panel.file), match);
+    }
+    return (m) => {
+        if (m == null) return null;
+        let first = m.link ? urls.get(panelUrlKey(m.link)) : undefined;
+        for (const file of [m.copypath, m.original]) {
+            const match = file ? files.get(panelPathKey(file)) : undefined;
+            if (match && (!first || match.order < first.order)) first = match;
+        }
+        return first?.panel ?? null;
+    };
 }
 
 // The panel already showing the material, if any: its link in a browser panel, or its copy or original in a preview.
 export function findOpenPanel(panels: OpenPanel[], m: Material): OpenPanel {
-    if (m == null) {
-        return null;
-    }
-    const files = [m.copypath, m.original].filter(Boolean);
-    for (const panel of panels ?? []) {
-        if (m.link && (panel.urls ?? []).some((u) => sameUrl(u, m.link))) {
-            return panel;
-        }
-        if (panel.file && files.some((f) => samePath(f, panel.file))) {
-            return panel;
-        }
-    }
-    return null;
+    return makeOpenPanelLookup(panels)(m);
 }
 
 // The grey count on the section's entry (AC12): what arrived since the last visit; a first visit counts everything.
@@ -660,10 +669,11 @@ export function otherProjects(projects: MaterialsProject[], materials: Material[
     }
     const rtn: ScopeProject[] = [];
     for (const p of projects ?? []) {
-        if (p.key === activeKey || p.key === MaterialsNoProject || !(counts.get(p.key) > 0)) {
+        const count = p.count ?? counts.get(p.key) ?? 0;
+        if (p.key === activeKey || p.key === MaterialsNoProject || count === 0) {
             continue;
         }
-        rtn.push({ key: p.key, name: projectDisplayName(p), folder: p.folder, count: counts.get(p.key) });
+        rtn.push({ key: p.key, name: projectDisplayName(p), folder: p.folder, count });
     }
     return rtn.sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
 }

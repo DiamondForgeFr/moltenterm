@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // FR-SHELL-025 / DS-SHELL-026: a tab's close button closes only after a press-and-hold, so a click that lands slightly
 // too far right on a tab no longer closes it. The deliberate paths (Cmd+W, the menus, middle-click) never go through it.

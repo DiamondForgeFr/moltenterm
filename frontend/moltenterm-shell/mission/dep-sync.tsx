@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Sync of a stale dependency (FR-MC-030): the one entry point every Sync button calls (the notification's action, the
 // stale flag on the group strip). wavesrv runs the dependent's declared command against a clean worktree of the

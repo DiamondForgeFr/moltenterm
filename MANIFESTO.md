@@ -89,6 +89,16 @@ These are the non-negotiables. A feature that breaks one of them does not ship i
    something you can share, not a local configuration that nobody else can use.
 7. **Safe to share.** Mods declare what they touch. Declarative mods are safe by construction.
    Mods that run code ask for explicit trust.
+8. **A complex workflow opens its own view.** When a complex workflow starts, such as a pipeline setup
+   ([#1149](https://github.com/DiamondForgeFr/moltenterm/issues/1149)) or the mod design that `/morph` opens, MoltenTerm
+   opens a view set up for that task. The guiding panel sits on the right: plain-word steps, clickable choices, a live
+   preview, the app's real components. The agent's terminal sits on the left, beside it, as the free path for any
+   precision the panel does not cover. The panel never blocks: every step can be skipped or done in the terminal, both
+   stay in sync through `molten`, so the user never types twice, and the flow is the same for every agent CLI.
+9. **The app learns from the user.** The adjustments a user makes during a workflow (answers, skipped steps,
+   corrections, preferred choices) are remembered, so the next run asks less. What was learned stays visible, editable
+   and resettable, and it stays on the user's computer unless they choose otherwise. MoltenTerm grows with the person
+   using it, and never without their knowledge.
 
 ## What is in the box
 
@@ -207,6 +217,26 @@ DiamondForge funds it the way an open project can, without breaking the principl
 What it will not do: resell model access or proxy tokens (Principle 1), sell usage data, or make the free version
 worse to push the paid one.
 
+## Licence
+
+*Decided on 2026-11-04.* MoltenTerm's own code is licensed **AGPL-3.0-only**. The code inherited from Wave Terminal
+stays **Apache-2.0**, with its authors' copyright, and each file says which licence applies to it.
+
+- **Free forever.** The AGPL lets anyone use, study, change and share MoltenTerm, and requires whoever distributes or
+  runs a modified version for others to share their changes under the same licence. Nobody else can ship a closed,
+  proprietary copy of MoltenTerm and sell it. A permissive licence would have allowed that.
+- **The Mozilla model.** The code is free, the name and the logo are protected by a trademark and a policy
+  ([TRADEMARKS.md](TRADEMARKS.md)), and contributions come with a contributor agreement ([CLA.md](CLA.md)). A fork is
+  welcome; it is called something else.
+- **Mods stay free to license.** A mod or an agent part that uses only the public mod interface is not a covered work
+  ([LICENSE-EXCEPTION](LICENSE-EXCEPTION), an AGPL section 7 additional permission). Its author licenses it as they
+  wish, paid mods included: a shared mod library can have both free and paid mods.
+- **DiamondForge's own paid services stay possible.** Contributors keep their copyright and give DiamondForge the right
+  to relicense (the CLA), which is what lets it offer teams and cost-governance services around the free core without
+  ever putting the core behind a paywall.
+- **What this does not change.** Releases published before this decision keep the Apache licence they were published
+  under. Wave Terminal's releases keep being merged, and what comes from Wave stays Apache-2.0.
+
 ## Foundation
 
 *This is the current technical direction. It is not frozen.*
@@ -250,7 +280,6 @@ These phases have no dates. Each one validates the next.
   service?
 - **Fork strategy.** How much can go upstream? Wave's roadmap already plans an AI widget builder and the import and
   export of layouts.
-- **Licence.** Probably Apache-2.0, like Wave.
 - **Name.** A trademark search is required before any public launch.
 
 ## The name

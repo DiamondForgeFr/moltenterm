@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The neighbour's exact sidebar for the workspace swipe (FR-SHELL-082, DS-SHELL-130, #1261). Each workspace lives in
 // its own tab view, so the view on screen cannot draw another workspace's sidebar: its likeness (sidebar-ghost.tsx)

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's side of Launch (FR-REV-031): the calls to wavesrv, the launch of each project as wavesrv
 // publishes it, and the dialogs' request. Nothing here polls: the state comes with molten:mission:launch.

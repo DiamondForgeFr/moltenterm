@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // How the companion names the session it shows and lets the user choose another (DS-SHELL-060): the session bar
 // (title, start time, how it was linked, history button), the hint of a guessed link, and the history list.

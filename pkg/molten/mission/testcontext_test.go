@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -19,6 +19,7 @@ import (
 )
 
 func TestLocalAppTarget(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		url  string
 		host string
@@ -45,6 +46,7 @@ func TestLocalAppTarget(t *testing.T) {
 }
 
 func TestParsePidLinesAndListeners(t *testing.T) {
+	t.Parallel()
 	if got := parsePidLines("412\n412\n\n77\nx\n"); !slices.Equal(got, []int32{412, 77}) {
 		t.Fatalf("pids: %v", got)
 	}
@@ -62,6 +64,7 @@ func TestParsePidLinesAndListeners(t *testing.T) {
 
 // The system's own answer: this test process listens on a port, and the lookup finds it.
 func TestListeningPidsFindsThisProcess(t *testing.T) {
+	t.Parallel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("cannot listen: %v", err)
@@ -81,6 +84,7 @@ func TestListeningPidsFindsThisProcess(t *testing.T) {
 
 // Launch names the processes on its ports through the same lookup as the test context (#1003).
 func TestLaunchHoldersUseTheTestContextLookup(t *testing.T) {
+	t.Parallel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("cannot listen: %v", err)
@@ -122,17 +126,18 @@ func makeFakeTestContexts(panes *Panes, collector *Collector, host *fakeTestCont
 }
 
 func TestTestContextOfAPullRequestBranch(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
 	commit(t, clone, "l.txt", "feat(#12): loader")
 	os.WriteFile(filepath.Join(clone, "wip.txt"), []byte("wip"), 0644)
 	web := filepath.Join(clone, "apps", "web")
 	os.MkdirAll(web, 0755)
-	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":110,"title":"Loader","url":"https://github.com/o/r/pull/110","headRefName":"feature/12-loader","isDraft":true,
 		  "statusCheckRollup":[{"name":"build","status":"COMPLETED","conclusion":"FAILURE"}]}]`)}})
-	panes := MakePanes(plainRunner, nil, collector)
+	panes := MakePanes(withoutGh, nil, collector)
 	host := &fakeTestContextHost{pids: []int32{500, 400}, cwds: map[int32]string{400: t.TempDir(), 500: web}}
 	contexts := makeFakeTestContexts(panes, collector, host)
 
@@ -160,14 +165,15 @@ func TestTestContextOfAPullRequestBranch(t *testing.T) {
 
 // A worktree's project is its main checkout with symlinks resolved; the collector keeps it under the linked path.
 func TestTestContextOfAWorktreeFindsTheLinkedProjectsPrs(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
 	tree := filepath.Join(base, "wt")
 	gitRun(t, clone, "worktree", "add", "-q", "-b", "feature/12-loader", tree)
-	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":110,"title":"Loader","url":"u","headRefName":"feature/12-loader"}]`)}})
 	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: tree}}
-	contexts := makeFakeTestContexts(MakePanes(plainRunner, nil, collector), collector, host)
+	contexts := makeFakeTestContexts(MakePanes(withoutGh, nil, collector), collector, host)
 	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:3950", WorkspaceDir: clone})
 	if !answer.Worktree || !answer.SameProject || answer.Pr == nil || answer.Pr.Number != 110 || answer.Pr.Draft {
 		t.Fatalf("worktree on a PR branch: %+v", answer)
@@ -176,6 +182,7 @@ func TestTestContextOfAWorktreeFindsTheLinkedProjectsPrs(t *testing.T) {
 
 // The developer's case: the checkout serving the app is detached at a PR branch's tip (#961's resolution).
 func TestTestContextOfADetachedCheckoutAtAPrBranch(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
 	commit(t, clone, "l.txt", "feat(#12): loader")
@@ -184,11 +191,11 @@ func TestTestContextOfADetachedCheckoutAtAPrBranch(t *testing.T) {
 	gitRun(t, clone, "branch", "-q", "-D", "feature/12-loader")
 	gitRun(t, clone, "fetch", "-q", "origin")
 	gitRun(t, clone, "checkout", "-q", "--detach", "origin/feature/12-loader")
-	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":110,"title":"Loader","url":"u","headRefName":"feature/12-loader"}]`)}})
 	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: clone}}
-	contexts := makeFakeTestContexts(MakePanes(plainRunner, nil, collector), collector, host)
+	contexts := makeFakeTestContexts(MakePanes(withoutGh, nil, collector), collector, host)
 	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:5173", WorkspaceDir: clone})
 	if !answer.Detached || answer.Branch != "feature/12-loader" || answer.Ticket != 12 || answer.Pr == nil || answer.Pr.Number != 110 {
 		t.Fatalf("detached at a PR branch: %+v", answer)
@@ -198,6 +205,7 @@ func TestTestContextOfADetachedCheckoutAtAPrBranch(t *testing.T) {
 // A Reviews Launch of a PR whose branch is not on origin detaches at GitHub's pull/<N>/head (#1003): the chip names
 // the PR's head branch and the PR, not a bare commit.
 func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
+	t.Parallel()
 	base, clone := makePaneRepo(t)
 	origin := filepath.Join(base, "origin")
 	gitRun(t, origin, "checkout", "-q", "-b", "feature/7-fork")
@@ -218,11 +226,11 @@ func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
 	if err := os.Symlink(clone, linked); err != nil {
 		t.Fatal(err)
 	}
-	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: linked, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":7,"title":"Fork","url":"u","headRefName":"feature/7-fork","headRefOid":"` + sha + `"}]`)}})
 	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: realPath(clone)}}
-	contexts := makeFakeTestContexts(MakePanes(plainRunner, nil, collector), collector, host)
+	contexts := makeFakeTestContexts(MakePanes(withoutGh, nil, collector), collector, host)
 	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:5173", WorkspaceDir: linked})
 	if !answer.Detached || answer.Branch != "feature/7-fork" || answer.Ticket != 7 || answer.Pr == nil || answer.Pr.Number != 7 || !answer.SameProject {
 		t.Fatalf("detached at pull/7/head: %+v", answer)
@@ -230,11 +238,12 @@ func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
 }
 
 func TestTestContextFuturePr(t *testing.T) {
+	t.Parallel()
 	_, clone := makePaneRepo(t)
-	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk,
 		Prs: json.RawMessage(`[{"number":7,"title":"Other","url":"u","headRefName":"feature/7-other"}]`)}})
-	panes := MakePanes(plainRunner, nil, collector)
+	panes := MakePanes(withoutGh, nil, collector)
 	host := &fakeTestContextHost{pids: []int32{9}, cwds: map[int32]string{9: clone}}
 	contexts := makeFakeTestContexts(panes, collector, host)
 
@@ -251,7 +260,8 @@ func TestTestContextFuturePr(t *testing.T) {
 }
 
 func TestTestContextNeverGuesses(t *testing.T) {
-	panes := MakePanes(plainRunner, nil, nil)
+	t.Parallel()
+	panes := MakePanes(withoutGh, nil, nil)
 	host := &fakeTestContextHost{}
 	contexts := makeFakeTestContexts(panes, nil, host)
 	if a, _ := contexts.Get(TestContextRequest{Url: "https://example.com"}); a.Known || a.Unknown != TestContextNotLocal {
@@ -272,8 +282,9 @@ func TestTestContextNeverGuesses(t *testing.T) {
 }
 
 func TestTestContextReadsListenersAtMostEveryTwoSeconds(t *testing.T) {
+	t.Parallel()
 	host := &fakeTestContextHost{}
-	contexts := makeFakeTestContexts(MakePanes(plainRunner, nil, nil), nil, host)
+	contexts := makeFakeTestContexts(MakePanes(withoutGh, nil, nil), nil, host)
 	clock := time.Now()
 	contexts.now = func() time.Time { return clock }
 	contexts.Get(TestContextRequest{Url: "http://localhost:5173"})

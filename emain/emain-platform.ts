@@ -4,6 +4,8 @@
 import { fireAndForget } from "@/util/util";
 import { app, dialog, shell } from "electron";
 import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
+import { applyRemoteDebuggingPolicy } from "./moltenterm-remote-debugging"; // MOLTENTERM-PATCH (#2057)
+import { webviewPreloadFile } from "./moltenterm-webview-attach-policy"; // MOLTENTERM-PATCH (#1961)
 import envPaths from "env-paths";
 import { existsSync, mkdirSync } from "fs";
 import os from "os";
@@ -94,6 +96,20 @@ function takeOverLegacyGoldDirs() {
 // With the product name "Moltenterm", Electron's default userData folder would be the data directory itself on
 // case-insensitive disks. This must run before the single-instance lock is requested (emain.ts).
 app.setPath("userData", path.join(getWaveDataDir(), "electron"));
+
+// MOLTENTERM-PATCH (#2057, FR-BRW-014): a packaged app ignores the remote debugging switches on the user's own profile.
+// Runs right after userData is set and before anything writes in it, so a fresh test profile is still new here.
+let remoteDebuggingLogLine: string = null;
+applyRemoteDebuggingPolicy({
+    commandLine: app.commandLine,
+    packaged: app.isPackaged,
+    profileDir: app.getPath("userData"),
+    defaultProfileDir: path.join(getDefaultWaveDataDir(), "electron"),
+    log: (line) => {
+        console.log(line);
+        remoteDebuggingLogLine = line;
+    },
+});
 
 export function checkIfRunningUnderARM64Translation(fullConfig: FullConfigType) {
     if (!fullConfig.settings["app:dismissarchitecturewarning"] && app.runningUnderARM64Translation) {
@@ -189,16 +205,18 @@ function getWaveDataDir(): string {
     }
 
     const override = process.env[MoltentermDataHomeVarName]; // MOLTENTERM-PATCH (#4)
-    const xdgDataHome = process.env.XDG_DATA_HOME;
-    let retVal: string;
-    if (override) {
-        retVal = override;
-    } else if (xdgDataHome) {
-        retVal = path.join(xdgDataHome, waveDirName);
-    } else {
-        retVal = paths.data;
+    // MOLTENTERM-PATCH (#2057): the default folder is also the user's own profile, which the debugging policy keeps.
+    return ensurePathExists(override || getDefaultWaveDataDir());
+}
+
+// MOLTENTERM-PATCH (#2057): the data folder of this build when no override names one.
+function getDefaultWaveDataDir(): string {
+    const waveHomeDir = getWaveHomeDir();
+    if (waveHomeDir) {
+        return waveHomeDir;
     }
-    return ensurePathExists(retVal);
+    const xdgDataHome = process.env.XDG_DATA_HOME;
+    return xdgDataHome ? path.join(xdgDataHome, waveDirName) : paths.data;
 }
 
 function getElectronAppBasePath(): string {
@@ -250,7 +268,8 @@ onAppIpc("get-host-name", (event) => {
     event.returnValue = os.hostname();
 });
 onAppIpc("get-webview-preload", (event) => {
-    event.returnValue = path.join(getElectronAppBasePath(), "preload", "preload-webview.cjs");
+    // MOLTENTERM-PATCH (#1961): the same file will-attach-webview lets a guest run (emain/authkey.ts)
+    event.returnValue = webviewPreloadFile(getElectronAppBasePath());
 });
 onAppIpc("get-data-dir", (event) => {
     event.returnValue = getWaveDataDir();
@@ -337,6 +356,7 @@ export {
     getXdgCurrentDesktop,
     isDev,
     isDevVite,
+    remoteDebuggingLogLine, // MOLTENTERM-PATCH (#2057)
     unameArch,
     unamePlatform,
 };

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -16,6 +16,7 @@ import (
 )
 
 func TestSubagentBranchAgents(t *testing.T) {
+	t.Parallel()
 	trees := []treeEntry{
 		{path: "/p", branch: "develop"},
 		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},
@@ -25,7 +26,7 @@ func TestSubagentBranchAgents(t *testing.T) {
 	panels := []BranchAgent{{Branch: "feature/10-d", Worktree: "/x/d", Kind: UpcomingAgentPanel}}
 	sub := func(worktree string, state string, at int64, desc string) PaneSubagent {
 		return PaneSubagent{ParentBlockId: "parent", ParentFirstName: "Valentin", Agent: "claude", SubagentIdentity: companion.SubagentIdentity{
-			Worktree: worktree, State: state, LastWrite: at, Description: desc, Model: "claude-opus-5-5",
+			Worktree: worktree, State: state, LastWrite: at, Description: desc, Model: "claude-opus-5-5", Effort: "high",
 		}}
 	}
 	subs := []PaneSubagent{
@@ -41,7 +42,7 @@ func TestSubagentBranchAgents(t *testing.T) {
 		t.Fatalf("one sub-agent per linked worktree without a panel: %+v", got)
 	}
 	if a := got[0]; a.Branch != "feature/7-a" || a.Kind != UpcomingAgentSubagent || a.Description != "#7 working" || a.State != companion.SubagentRunning ||
-		a.ParentBlockId != "parent" || a.ParentFirstName != "Valentin" || a.Agent != "claude" || a.Model != "claude-opus-5-5" {
+		a.ParentBlockId != "parent" || a.ParentFirstName != "Valentin" || a.Agent != "claude" || a.Model != "claude-opus-5-5" || a.Effort != "high" {
 		t.Fatalf("the running sub-agent wins: %+v", a)
 	}
 	if a := got[1]; a.Branch != "feature/8-b" || a.State != companion.SubagentDone || a.ActiveAt != 20 {
@@ -61,6 +62,7 @@ func TestSubagentBranchAgents(t *testing.T) {
 // #1825: a read-only sub-agent (the main checkout, a panel's own worktree, or no folder) is listed on no branch, so
 // the Integration cards can match its task with their ticket or PR; a finished one and a placed one are not.
 func TestUnplacedSubagents(t *testing.T) {
+	t.Parallel()
 	trees := []treeEntry{
 		{path: "/p", branch: "develop"},
 		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},
@@ -69,7 +71,7 @@ func TestUnplacedSubagents(t *testing.T) {
 	panels := []BranchAgent{{Branch: "feature/10-d", Worktree: "/x/d", Kind: UpcomingAgentPanel}}
 	sub := func(worktree string, state string, desc string) PaneSubagent {
 		return PaneSubagent{ParentBlockId: "parent", ParentFirstName: "Arthur", Agent: "claude", SubagentIdentity: companion.SubagentIdentity{
-			Worktree: worktree, State: state, LastWrite: 5, Started: 1, Description: desc, Model: "claude-opus-5-5",
+			Worktree: worktree, State: state, LastWrite: 5, Started: 1, Description: desc, Model: "claude-opus-5-5", Effort: "low",
 		}}
 	}
 	subs := []PaneSubagent{
@@ -85,7 +87,7 @@ func TestUnplacedSubagents(t *testing.T) {
 	var descs []string
 	for _, a := range got {
 		if a.Branch != "" || a.Worktree != "" || a.Kind != UpcomingAgentSubagent || a.ParentBlockId != "parent" || a.ParentFirstName != "Arthur" ||
-			a.Agent != "claude" || a.Model != "claude-opus-5-5" || a.ActiveAt != 5 || a.Started != 1 {
+			a.Agent != "claude" || a.Model != "claude-opus-5-5" || a.Effort != "low" || a.ActiveAt != 5 || a.Started != 1 {
 			t.Fatalf("unplaced sub-agent: %+v", a)
 		}
 		descs = append(descs, a.Description)
@@ -106,6 +108,7 @@ func TestUnplacedSubagents(t *testing.T) {
 // The ticket's fixture (#1035): a parent session with two sub-agent meta files, one running and one finished, whose
 // worktrees hold two ticket branches; the two Upcoming rows carry the parent, tool, model, task and state.
 func TestUpcomingNamesSubagents(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	sf := `{"workflow":{"prTargetBranch":"develop","branchNaming":{"feature":"feature/{N}-{description}"}}}`
 	if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(sf), 0644); err != nil {

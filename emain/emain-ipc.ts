@@ -37,11 +37,13 @@ import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PA
 import { initNativePathIpc } from "./moltenterm-native-path"; // MOLTENTERM-PATCH (#1575)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
+import { initMoltentermReleaseInstall } from "./moltenterm-release-install"; // MOLTENTERM-PATCH (#1860)
 import { initMoltentermAccessibility } from "./moltenterm-accessibility"; // MOLTENTERM-PATCH (#808)
 import { initMoltentermWindowButtons } from "./moltenterm-window-buttons"; // MOLTENTERM-PATCH (#1216)
 import { liveWebContentsFromId } from "./moltenterm-webcontents-id"; // MOLTENTERM-PATCH (#928)
 import { initMoltentermWindowLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
 import { sendKeyNotice } from "./moltenterm-key-notice"; // MOLTENTERM-PATCH (#1242)
+import { clearFaviconCache } from "./moltenterm-favicons"; // MOLTENTERM-PATCH (#1962)
 
 let webviewFocusId: number = null;
 let webviewKeys: string[] = [];
@@ -222,6 +224,7 @@ export function initIpcHandlers() {
     });
     initMoltentermDialogs(); // MOLTENTERM-PATCH (#30): folder and image pickers of the Moltenterm shell
     initMoltentermUpdate(); // MOLTENTERM-PATCH (#64): gold updates
+    initMoltentermReleaseInstall(); // MOLTENTERM-PATCH (#1860): the in-app update of a release
     // MOLTENTERM-PATCH (#300, #302, #971): a download the agent's tab starts waits for the user's Allow (route
     // molten:browseragent); taking a tab over is the user's explicit act in the panel, never a click in the page
     initMoltentermBrowserAgent(async (blockId, browserTabId, host) => {
@@ -231,7 +234,7 @@ export function initIpcHandlers() {
                 { blockid: blockId, browsertabid: browserTabId, host },
                 { route: "molten:browseragent", timeout: 130000 }
             );
-            return answer?.allow === true;
+            return { allow: answer?.allow === true, agentname: answer?.agentname };
         } catch (e) {
             console.log("molten browser agent: download answer failed", e);
             return false;
@@ -431,6 +434,7 @@ export function initIpcHandlers() {
             const wc = electron.webContents.fromId(webContentsId);
             if (wc && wc.session) {
                 await wc.session.clearStorageData();
+                await clearFaviconCache(); // MOLTENTERM-PATCH (#1962): the sites' icons go with the cookies and storage
                 console.log("Cleared cookies and storage for webContentsId:", webContentsId);
             }
         } catch (e) {

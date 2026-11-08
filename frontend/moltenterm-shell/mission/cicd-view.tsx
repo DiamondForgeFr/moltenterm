@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mission Control's CI/CD workshop (FR-MC-025), modelled on Notulia's Dev › CI: CI local, CI remote and CD tabs for the
 // active workspace's project, with history, detail and logs only, and a Jobs tab listing every CI job (#637). The actions and summaries live in Project
@@ -11,10 +11,10 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { focusMoltentermView } from "../open-view";
+import { openMoltentermView } from "../open-view";
+import { useNewViewHint, usePanelOrigin } from "../panel-cta";
 import { githubBase } from "../project/next-station-model";
 import { MoltentermProjectView } from "../project/project-model";
-import { openProjectOverview } from "../project/project-tab";
 import { cicdRuns, CicdRunsKey } from "../widget-options";
 import { pathBaseName } from "../workspace-project";
 import { AdapterSteps } from "./adapter-steps";
@@ -90,22 +90,17 @@ function LocalCiTab({ project, report, github }: { project: ActiveProject; repor
     );
 }
 
-// The overview beside this panel when the tab holds it, else the Project tab (or a Project view when it is gone).
-async function showProject() {
-    if (await focusMoltentermView(MoltentermProjectView)) {
-        return;
-    }
-    await openProjectOverview();
-}
-
+// The overview the view already shows, else beside this panel, in the same view (#1844, FR-SHELL-139 AC13).
 function ProjectLink() {
     const t = useT();
+    const origin = usePanelOrigin();
+    const hint = useNewViewHint();
     return (
         <button
             type="button"
-            onClick={() => fireAndForget(showProject)}
+            onClick={(e) => fireAndForget(() => openMoltentermView(MoltentermProjectView, origin(e)))}
             className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
-            title={t("mc.cicd.projectLinkTitle")}
+            title={hint(t("mc.cicd.projectLinkTitle"))}
         >
             <i className="fa fa-solid fa-diagram-project text-11" />
             {t("mc.cicd.project")}
@@ -157,6 +152,7 @@ function CicdContent({
     setTab: (tab: TabId) => void;
 }) {
     const t = useT();
+    const origin = usePanelOrigin();
     const runs = useMissionRuns(project.dir);
     const report = snapshot?.pipeline;
     const pipeline = report?.valid ? report.pipeline : null;
@@ -212,7 +208,7 @@ function CicdContent({
                         dir={project.dir}
                         githubAt={snapshot?.githubat}
                         onRefresh={refresh}
-                        onShowRelease={() => fireAndForget(showProject)}
+                        onShowRelease={() => fireAndForget(() => openMoltentermView(MoltentermProjectView, origin()))}
                     />
                 ) : null}
                 {tab === "cd" ? (

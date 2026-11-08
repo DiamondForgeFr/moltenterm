@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
@@ -36,7 +36,7 @@ for arg in "$@"; do
 		fi ;;
 	esac
 done
-echo "fake prettier: $files file(s)" >> "$FAKE_PRETTIER_LOG"
+echo "fake prettier: $files file(s)" >> @LOG@
 `
 
 // The fixture's pipeline with a changelog the cut commits, and an install step that puts the fake prettier in place.
@@ -68,8 +68,9 @@ func formatFixture(t *testing.T, format string, extra map[string]string) (*fixtu
 	}
 	f := makeFixture(t)
 	log := filepath.Join(f.base, "prettier.log")
-	t.Setenv("FAKE_PRETTIER_LOG", log)
-	writeFile(t, filepath.Join(f.base, "fake-prettier"), fakePrettier)
+	// The log's path is written into the script: an environment variable would keep every test of this fixture from
+	// running in parallel.
+	writeFile(t, filepath.Join(f.base, "fake-prettier"), strings.ReplaceAll(fakePrettier, "@LOG@", "'"+log+"'"))
 	if err := os.Chmod(filepath.Join(f.base, "fake-prettier"), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -103,6 +104,7 @@ func prettierCheck(t *testing.T, f *fixture, branch string, path string) error {
 }
 
 func TestOpenPrCommitsTheFilesAsThePrettierOfTheProjectWritesThem(t *testing.T) {
+	t.Parallel()
 	f, e, log := formatFixture(t, "", map[string]string{".prettierrc": "{}\n", "package.json": "{\n    \"name\": \"fixture\",\n    \"version\": \"1.0.0-0\"\n}\n"})
 	ctx := context.Background()
 	mustRun(t, f, "prepare --pr", e.PreparePr(ctx, "v1.0.0-1"))
@@ -131,6 +133,7 @@ func TestOpenPrCommitsTheFilesAsThePrettierOfTheProjectWritesThem(t *testing.T) 
 }
 
 func TestTheDeclaredFormatterComesFirst(t *testing.T) {
+	t.Parallel()
 	declared := `"format": "../fake-prettier --write",`
 	f, e, log := formatFixture(t, declared, map[string]string{".prettierrc": "{}\n"})
 	ctx := context.Background()
@@ -147,6 +150,7 @@ func TestTheDeclaredFormatterComesFirst(t *testing.T) {
 }
 
 func TestAMissingOrFailingFormatterIsSaidAndBlocksNothing(t *testing.T) {
+	t.Parallel()
 	f, e, _ := formatFixture(t, "", nil)
 	ctx := context.Background()
 	mustRun(t, f, "prepare --pr", e.PreparePr(ctx, "v1.0.0-1"))
@@ -168,6 +172,7 @@ func TestAMissingOrFailingFormatterIsSaidAndBlocksNothing(t *testing.T) {
 }
 
 func TestFormatterDetection(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		files map[string]string

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The companion's recap (#555): the recent topics of the session and the agents at work, from what wavesrv read of
 // the transcript (pkg/molten/companion/topics.go) and the pane's agent state. Nothing here is written by a model: a

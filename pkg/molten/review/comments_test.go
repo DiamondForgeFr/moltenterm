@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -13,6 +13,7 @@ import (
 )
 
 func TestParseHunksAndInHunk(t *testing.T) {
+	t.Parallel()
 	out := "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,6 +1,8 @@ func A\n a\n+b\n@@ -20 +22,0 @@\n-x\n @@ not a header\n"
 	hunks := ParseHunks([]byte(out))
 	want := []Hunk{{OldStart: 1, OldLines: 6, NewStart: 1, NewLines: 8}, {OldStart: 20, OldLines: 1, NewStart: 22, NewLines: 0}}
@@ -39,6 +40,7 @@ func TestParseHunksAndInHunk(t *testing.T) {
 }
 
 func TestFindExcerpt(t *testing.T) {
+	t.Parallel()
 	text := "a\nb\nc\nx\ny\nz\nx\ny\n"
 	if s, e, ok := FindExcerpt(text, "x\ny\n", 6); !ok || s != 7 || e != 8 {
 		t.Errorf("nearest: %d %d %v", s, e, ok)
@@ -61,6 +63,7 @@ func anchorOn(head string, side string, start int, line int, excerpt string) *mc
 // FR-REV-003 AC3: a comment is saved as a draft with its anchor; its text can change until it is published. FR-REV-009
 // AC5: dropping keeps it, with its history.
 func TestSaveAndDropComment(t *testing.T) {
+	t.Parallel()
 	s := MakeStore(t.TempDir())
 	k := PrKey{Repo: "o/r", Number: 3}
 	head := strings.Repeat("a", 40)
@@ -109,6 +112,7 @@ func TestSaveAndDropComment(t *testing.T) {
 
 // FR-REV-003 AC5: after a push, an anchor moves with its lines, or is outdated with its excerpt.
 func TestRelocate(t *testing.T) {
+	t.Parallel()
 	fx := makeFixture(t)
 	ctx := context.Background()
 	svc := MakeService(t.TempDir(), execGit, nil)

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The language packs in force (FR-I18N-002, DS-I18N-008). The mod host hands over the packs of its active data-only
 // mods after each sync; one pack per language code is registered with the dictionaries (registerLanguage), the most

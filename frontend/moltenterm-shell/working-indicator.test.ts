@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The suite's falling dominoes are MoltenTerm's one working indicator (#739 AC2): no spinner glyph says "working" or
 // "loading" in the shell. A refresh button whose own arrows turn while it refreshes keeps them (the icon means

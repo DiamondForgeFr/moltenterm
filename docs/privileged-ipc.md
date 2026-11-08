@@ -53,15 +53,20 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `updater.ts` | `install-app-update`, `get-app-update-status`, `get-updater-channel` |
 | `moltenterm-update.ts` | `moltenterm-update-check`, `moltenterm-update-apply`, `moltenterm-update-last` |
 | `moltenterm-release-feed.ts` | `moltenterm-release-check` |
+| `moltenterm-release-install.ts` | `moltenterm-release-install-state`, `moltenterm-release-install-start` (main accepts only the release its own last check offers, builds the file addresses from the release tag and the file name, and installs nothing before the signed checksums, the file's SHA-256 and the platform's signature check pass), `moltenterm-release-install-apply`, `moltenterm-release-install-reveal`, `moltenterm-release-install-last` |
 | `moltenterm-dialogs.ts` | `moltenterm-choose-path` |
 | `moltenterm-i18n.ts` | `moltenterm-system-languages`, `moltenterm-set-language-packs`, `moltenterm-set-locale` |
 | `moltenterm-system-notify.ts` | `moltenterm-system-notify`, `moltenterm-system-notify-close` |
 | `moltenterm-carpet-thumbs.ts` | `moltenterm-carpet-thumb-put`, `moltenterm-carpet-thumb-read`, `moltenterm-carpet-thumb-remove` (the 360 carpet's thumbnails: the key is checked, a JPEG of at most 1 MB is written only into the application's own `carpet-thumbs` data folder) |
+| `moltenterm-favicons.ts` | `moltenterm-favicon-read`, `moltenterm-favicon-measured`, `moltenterm-favicon-capture` (the sites' icons: an origin is checked as a web origin; main reads a page's own declared icon only through that page's session, keeps an image format of at most 64 KB in the application's own `favicons` data folder, and `capture` accepts only a web page guest of the calling window) |
+| `moltenterm-downloads.ts` | `moltenterm-downloads-list`, `moltenterm-downloads-act`, `moltenterm-downloads-clear`, `moltenterm-downloads-check` (the downloads of the web pages: a request names a download by the id main gave it and one action of a fixed list; main re-checks the file before opening or revealing it, refuses a program unless the request says the user confirmed, and answers only with codes, never a path the window did not already hold; the history is a record in the application's own `downloads` data folder and clearing it touches no file) |
 | `moltenterm-tab-activity.ts` | `moltenterm-window-activity-get` |
 | `moltenterm-screen.ts` | `moltenterm-screen-get` |
+| `moltenterm-system-idle.ts` | `moltenterm-system-idle-get` (a number of seconds, this computer's idle time; no argument) |
 | `moltenterm-tabview-host.ts` | `moltenterm-view-pending-action` |
 | `moltenterm-busy-close.ts` | `moltenterm-busy-reply` |
 | `moltenterm-site-permissions.ts` | `moltenterm-site-permission-answer` |
+| `moltenterm-client-certificates.ts` | `moltenterm-client-certificate-answer` (only the window that holds the asking tab answers; main accepts a certificate only if it was in the list offered for that request, and no other answer than use, none or dismiss) |
 | `moltenterm-webview-lifecycle.ts` | `moltenterm-webview-shown` |
 | `moltenterm-browseragent.ts` | `moltenterm-webview-registered` |
 | `moltenterm-contextmenu.ts` | `moltenterm-contextmenu-revoke`, `moltenterm-contextmenu-guest`, `moltenterm-contextmenu-capture`, `moltenterm-contextmenu-role`, `moltenterm-contextmenu-save-image` |

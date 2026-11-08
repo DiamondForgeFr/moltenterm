@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package browseragent
 
@@ -66,6 +66,8 @@ func fixedActionText(action string) *uimsg.Text {
 		return uimsg.Make("browser.action.wait")
 	case actionOpened:
 		return uimsg.Make("browser.action.opened")
+	case actionShown:
+		return uimsg.Make("browser.action.shown")
 	case actionEngaged:
 		return uimsg.Make("browser.action.engaged")
 	case "Scrolled up":

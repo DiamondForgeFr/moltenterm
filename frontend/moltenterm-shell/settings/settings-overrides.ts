@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The app settings a workspace can replace with its own value (FR-SHELL-101): the window's look (FR-SHELL-091) is
 // resolved workspace over project over the app's window:* settings, so a workspace with its own look, or on a project

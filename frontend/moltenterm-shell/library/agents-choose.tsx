@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Help me choose (FR-ONB-008 AC-6 to AC-9): the questions and the suggestions, one component for the Library's Agents
 // section and the first launch's agents scene, so both ask the same questions and apply the same rules

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -193,6 +193,7 @@ func readText(t *testing.T, path string) string {
 }
 
 func TestRestartNeedsAPublishedRound(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	if res, err := f.r.Restart(context.Background(), f.request()); err != nil || res.Status != RestartFailed || res.Reason != RestartReasonNoRound {
 		t.Errorf("want a refusal before any round is published, got %+v %v", res, err)
@@ -203,6 +204,7 @@ func TestRestartNeedsAPublishedRound(t *testing.T) {
 }
 
 func TestRestartCreatesTheWorktreeAndStartsTheAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	res := f.restart()
@@ -276,6 +278,7 @@ func TestRestartCreatesTheWorktreeAndStartsTheAgent(t *testing.T) {
 }
 
 func TestRestartReusesTheAgentWorktreeAndItsIdleAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	tree := filepath.Join(f.root, "app-9")
@@ -301,6 +304,7 @@ func TestRestartReusesTheAgentWorktreeAndItsIdleAgent(t *testing.T) {
 }
 
 func TestRestartSkipsTheReviewSessionTerminal(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	tree := filepath.Join(f.root, "app-9")
@@ -316,6 +320,7 @@ func TestRestartSkipsTheReviewSessionTerminal(t *testing.T) {
 }
 
 func TestRestartRefusesABusyAgent(t *testing.T) {
+	t.Parallel()
 	for _, state := range []string{molten.AgentStateWorking, molten.AgentStateWaiting} {
 		f := makeRestartFixture(t)
 		f.publishRound()
@@ -335,6 +340,7 @@ func TestRestartRefusesABusyAgent(t *testing.T) {
 }
 
 func TestRestartAgentThatCannotTakeThePrompt(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	tree := filepath.Join(f.root, "app-9")
@@ -353,6 +359,7 @@ func TestRestartAgentThatCannotTakeThePrompt(t *testing.T) {
 }
 
 func TestRestartNeverWorksInTheMainCheckout(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	f.git(f.dir, "fetch", "--quiet", "origin")
@@ -367,6 +374,7 @@ func TestRestartNeverWorksInTheMainCheckout(t *testing.T) {
 }
 
 func TestRestartPutsANewWorktreeBesideTheOthers(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	f.git(f.dir, "worktree", "add", "--quiet", "-b", "feature/3-other", filepath.Join(f.dir, ".claude", "worktrees", "agent-3"))
@@ -378,6 +386,7 @@ func TestRestartPutsANewWorktreeBesideTheOthers(t *testing.T) {
 }
 
 func TestRestartLeavesTheReviewWorktreeOutOfTheConvention(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	// The data folder reached through a symlink, as /tmp is on macOS: git lists the real path of the review worktree.
@@ -395,6 +404,7 @@ func TestRestartLeavesTheReviewWorktreeOutOfTheConvention(t *testing.T) {
 }
 
 func TestRestartFollowsTheProjectsConventionsAndSkill(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	f.conv = &molten.ProjectConventions{CommitPattern: "type(#N): description", RequireTicket: true}
@@ -414,6 +424,7 @@ func TestRestartFollowsTheProjectsConventionsAndSkill(t *testing.T) {
 }
 
 func TestRestartWithoutAnAgent(t *testing.T) {
+	t.Parallel()
 	f := makeRestartFixture(t)
 	f.publishRound()
 	f.installed = map[string]bool{}
@@ -424,6 +435,7 @@ func TestRestartWithoutAnAgent(t *testing.T) {
 }
 
 func TestRestartIsAWindowsOnly(t *testing.T) {
+	t.Parallel()
 	l := &routeLink{service: &Service{}}
 	if _, err := callAs(l, "proc:block-1", RestartCommand, map[string]any{}); err == nil {
 		t.Errorf("a terminal must not restart the work")

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -43,7 +43,7 @@ func makeCiFixture(t *testing.T, ci string) (*Ci, string) {
 	gitIn(t, dir, "commit", "-q", "-m", "init")
 	data := t.TempDir()
 	trust := MakeTrustStore(filepath.Join(data, TrustFileName))
-	c := MakeCi(filepath.Join(data, "ci"), trust, plainRunner, nil)
+	c := MakeCi(filepath.Join(data, "ci"), trust, withoutGh, nil)
 	report := molten.ValidatePipeline(dir)
 	if !report.Valid {
 		t.Fatalf("pipeline: %v", report.Errors)
@@ -66,7 +66,7 @@ func waitCi(t *testing.T, c *Ci, dir string, runId string) CiRunRecord {
 			}
 			return rec
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 	t.Fatalf("CI run %s did not finish", runId)
 	return CiRunRecord{}
@@ -94,6 +94,7 @@ func jobStatuses(rec CiRunRecord) map[string]string {
 }
 
 func TestSelectCiJobsAndLanes(t *testing.T) {
+	t.Parallel()
 	jobs := []molten.PipelineJob{{Name: "check", Lane: "web"}, {Name: "e2e", Lane: "web"}, {Name: "rust", Lane: "rust"}, {Name: "solo"}}
 	verdicts := map[string]CiVerdict{"check": {Status: CiStateSuccess}, "e2e": {Status: CiStateFailure}}
 	names := func(js []molten.PipelineJob) []string {
@@ -122,6 +123,7 @@ func TestSelectCiJobsAndLanes(t *testing.T) {
 }
 
 func TestCiRunKeepsVerdictsPerTree(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[
 		{"name":"check","lane":"web","run":"echo checking; test -f a.txt"},
 		{"name":"e2e","lane":"web","run":"test -f fixed.txt"},
@@ -165,6 +167,7 @@ func TestCiRunKeepsVerdictsPerTree(t *testing.T) {
 }
 
 func TestCiFailedJobStopsItsLane(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[
 		{"name":"first","lane":"web","run":"exit 2"},
 		{"name":"second","lane":"web","run":"echo never"},
@@ -179,6 +182,7 @@ func TestCiFailedJobStopsItsLane(t *testing.T) {
 }
 
 func TestCiCancelAndPrepare(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"prepare":{"run":"echo preparing"},"jobs":[{"name":"slow","run":"sleep 3600"}]}`)
 	res, err := c.Start(CiRunRequest{Dir: dir})
 	if err != nil || res.Run == nil {
@@ -192,7 +196,7 @@ func TestCiCancelAndPrepare(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("the slow job never ran")
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(testPoll)
 	}
 	if err := c.Cancel(dir, res.Run.Id); err != nil {
 		t.Fatal(err)
@@ -213,6 +217,7 @@ func TestCiCancelAndPrepare(t *testing.T) {
 // An agent works in a linked worktree on its own branch: the CI of that branch is started from the project's main
 // checkout by naming the branch, and tests the branch's code, not the code checked out in the project folder (#383).
 func TestCiRunsABranchCheckedOutInAnotherWorktree(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"feature","run":"test -f b.txt"}]}`)
 	worktree := filepath.Join(t.TempDir(), "wt")
 	gitIn(t, dir, "worktree", "add", "-q", "-b", "feature/383-x", worktree)
@@ -239,6 +244,7 @@ func TestCiRunsABranchCheckedOutInAnotherWorktree(t *testing.T) {
 // worktree, sends the project folder (the main checkout) and the worktree as From: the run must test B's head and
 // say so, never the main checkout's HEAD under "no branch".
 func TestCiRunWithNoBranchTestsTheCallersWorktree(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"b","run":"test -f b.txt"}]}`)
 	gitIn(t, dir, "checkout", "-q", "-b", "fix/1189-a")
 	os.WriteFile(filepath.Join(dir, "main.txt"), []byte("a\n"), 0644)
@@ -287,6 +293,7 @@ func TestCiRunWithNoBranchTestsTheCallersWorktree(t *testing.T) {
 
 // #1072: a folder of another repository is not a checkout of the project: refused, nothing guessed.
 func TestCiRunRefusesACheckoutOfAnotherRepository(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"a","run":"true"}]}`)
 	other := t.TempDir()
 	gitIn(t, other, "init", "-q", "-b", "develop")
@@ -305,6 +312,7 @@ func TestCiRunRefusesACheckoutOfAnotherRepository(t *testing.T) {
 }
 
 func TestCiRunLeftRunningIsInterrupted(t *testing.T) {
+	t.Parallel()
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"a","run":"true"}]}`)
 	c.writeRecord(CiRunRecord{Id: "20260101-000000-aaaaaa", Dir: dir, Status: CiStateRunning, StartedAt: 1, Jobs: []CiJobRecord{{Name: "a", Status: CiStateRunning}}})
 	runs := c.runs(dir)

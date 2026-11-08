@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The browser panel's tab strip and header buttons (FR-SHELL-051, DS-SHELL-092). The tabs take the app's tab look
    (tab-bar.css, DS-SHELL-098) at 28 px: a 14 px icon, a left-aligned 12/500 name, a quiet fill on the active tab and

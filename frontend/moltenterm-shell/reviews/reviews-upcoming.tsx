@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's Upcoming section (#712, FR-REV-022 AC1 and AC11), after the PR sections: the ticket branches with
 // commits and no PR yet. Each is a card like a PR's (#1061): a rail and a state sentence (an agent waits for you, an
@@ -13,8 +13,8 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { agentFactsLine } from "../agent-facts";
 import { AgentStates } from "../agent-state-store";
-import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction, useT, useTCount } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -29,6 +29,7 @@ import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
 import { launchTargetOfBranch } from "./reviews-launch-model";
 import type { ReviewsAnswer } from "./reviews-model";
+import { NumberLink } from "./reviews-number-link";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
 import { SectionHeading } from "./reviews-section-heading";
 import { upcomingEntries, UpcomingEntry, UpcomingItem, upcomingWaitingCount } from "./reviews-sections-model";
@@ -37,6 +38,7 @@ import { useUpcomingAnswer, useUpcomingWatch } from "./reviews-upcoming-client";
 import {
     afterPrText,
     AgentBarFacts,
+    agentFacts,
     aheadText,
     boardStatusText,
     branchAgent,
@@ -320,7 +322,15 @@ function UpcomingRow({
             <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
-                        <span className="shrink-0 font-normal text-muted">#{branch.ticket}</span>
+                        <NumberLink
+                            kind="ticket"
+                            number={branch.ticket}
+                            url={url}
+                            className="shrink-0 font-normal text-muted"
+                            testId="reviews-upcoming-number"
+                        >
+                            #{branch.ticket}
+                        </NumberLink>
                         <span className="min-w-0 truncate" title={branch.branch}>
                             {branch.title || branch.branch}
                         </span>
@@ -516,7 +526,7 @@ function SessionLine({ item, now, url, marked }: { item: UpcomingItem; now: numb
     const detail =
         agent.kind === "background"
             ? t("reviewsAgents.upcoming.session.background")
-            : modelDisplayName(agent.model) || (branch.status ? boardStatusText(t, branch.status) : "");
+            : agentFactsLine(agentFacts(agent)) || (branch.status ? boardStatusText(t, branch.status) : "");
     return (
         <div
             tabIndex={-1}
@@ -536,7 +546,15 @@ function SessionLine({ item, now, url, marked }: { item: UpcomingItem; now: numb
             title={url ? t("reviewsAgents.upcoming.openTicket") : undefined}
             data-testid="reviews-upcoming-session-line"
         >
-            <b className="shrink-0 font-semibold text-muted">#{branch.ticket}</b>
+            <NumberLink
+                kind="ticket"
+                number={branch.ticket}
+                url={url}
+                className="shrink-0 font-semibold text-muted"
+                testId="reviews-upcoming-session-number"
+            >
+                #{branch.ticket}
+            </NumberLink>
             <span className="min-w-0 truncate text-secondary">{branch.title || branch.branch}</span>
             {working && agent.kind !== "background" ? (
                 <DominoLoader className="shrink-0 text-[var(--mt-state-working)]" label={stateText} />

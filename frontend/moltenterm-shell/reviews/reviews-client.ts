@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's side of wavesrv (FR-REV-001, NFR-REV-002): it asks while it is shown and adds no poller. Mission
 // Control's frame already asks the collector every 15 s while the view shows (whileShown); the review list is asked
@@ -11,7 +11,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
@@ -19,6 +19,7 @@ import { MissionSnapshot } from "../mission/mission-model";
 import { TabActivity, whileShown } from "../tab-activity";
 import { ReviewsMerges, withLocalMerges } from "./reviews-merges";
 import { ReviewsAnswer } from "./reviews-model";
+import { SharedReviewsAnswersAtom } from "./reviews-state-atoms";
 
 // must match the names in pkg/molten/mission/reviews.go and reviews_rerun.go
 export const ReviewsCommand = "moltenmissionreviews";
@@ -47,7 +48,7 @@ const RailPollMs = 60000;
 export class ReviewsAnswers {
     private static instance: ReviewsAnswers = null;
 
-    answersAtom = atom({}) as PrimitiveAtom<Record<string, ReviewsAnswer>>;
+    answersAtom = SharedReviewsAnswersAtom;
 
     private constructor() {}
 

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -74,6 +74,9 @@ func (s *Service) AskReleaseResolve(ctx context.Context, req ReleaseResolveReque
 func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 	env := baseLiveRestartEnv(git)
 	liveLeadEnv(&env)
+	env.BranchAgents = func(ctx context.Context, dir string) ([]mission.BranchAgent, bool) {
+		return mission.LiveBranchAgents(dir)
+	}
 	return env
 }
 
@@ -124,5 +127,6 @@ func baseLiveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 		Gh:           ExecGh,
 		HoldState:    attention.HoldAgentState,
 		ReleaseState: attention.ReleaseAgentState,
+		StopSettled:  attention.AgentStopSettled,
 	}
 }

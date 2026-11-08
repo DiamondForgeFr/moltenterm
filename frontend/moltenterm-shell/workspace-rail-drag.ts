@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The rules of a rail item's drag (FR-MC-031, DS-MC-025), apart from the component so they can be tested.
 

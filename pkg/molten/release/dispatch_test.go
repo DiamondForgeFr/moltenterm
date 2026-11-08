@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
@@ -11,6 +11,7 @@ import (
 )
 
 func TestDispatchFollowsTheRunAndItsApproval(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	f.gh.dispatch = func() {
 		f.gh.rehearsals = "[" + rehearsalRun(77, "queued", "", "abc", time.Now()) + "]"
@@ -34,6 +35,7 @@ func TestDispatchFollowsTheRunAndItsApproval(t *testing.T) {
 }
 
 func TestTheCutMayCommitTheDeclaredChangelogs(t *testing.T) {
+	t.Parallel()
 	p := &Project{Notes: DefaultNotesPath, Changelogs: []string{"docs/changelog.md", "docs/fr/changelog.md"}}
 	allowed := p.releaseFiles("v1.0.0")
 	if !allowed["docs/changelog.md"] || !allowed["docs/fr/changelog.md"] || allowed["README.md"] {
@@ -42,6 +44,7 @@ func TestTheCutMayCommitTheDeclaredChangelogs(t *testing.T) {
 }
 
 func TestDispatchFailsWithItsRun(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	f.gh.dispatch = func() {
 		f.gh.rehearsals = "[" + rehearsalRun(78, "queued", "", "abc", time.Now()) + "]"

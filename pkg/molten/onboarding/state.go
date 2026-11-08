@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package onboarding records MoltenTerm's first run (FR-ONB-001, DS-ONB-001) in the client meta "molten:onboarding".
 // wavesrv is its only writer: windows send updates through the route leaf "molten:onboarding" (route.go), so tabs

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentsign is who made a pull request and who reviewed it (#847). Agents commit and open PRs with the
 // developer's GitHub account, so the work carries its own signature: a commit trailer

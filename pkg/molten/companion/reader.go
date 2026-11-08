@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package companion
 
@@ -76,6 +76,17 @@ func (r *SessionReader) Poll() (SessionDigest, error) {
 		d.Id = strings.TrimSuffix(filepath.Base(r.Path), ".jsonl")
 	}
 	return d, nil
+}
+
+// LatestAnswer is the last answer read by Poll, for a surface that shows what the agent said (Brokk's field, #2028).
+func (r *SessionReader) LatestAnswer() (AnswerView, bool) {
+	return r.session.Answer(0)
+}
+
+// AnswerAt is the answer of one turn read by Poll (Brokk's window reads a first answer to its end once a second message
+// started a newer turn, #2033); false when the turn is not held any more.
+func (r *SessionReader) AnswerAt(index int) (AnswerView, bool) {
+	return r.session.Answer(index)
 }
 
 func (r *SessionReader) Close() {

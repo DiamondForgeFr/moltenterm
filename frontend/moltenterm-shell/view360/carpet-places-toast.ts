@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The message after a 360 × N (FR-SHELL-123-AC8): what happened, with Undo for 10 seconds. A toast never takes the
 // focus and is read as a status; a new apply replaces the one before.

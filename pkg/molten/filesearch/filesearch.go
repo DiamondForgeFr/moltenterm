@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package filesearch is `molten files` (FR-FILE-002, DS-FILE-002): an agent shows what it searched for in its tab's
 // file panel, and gets the same matches back as text. wavesrv computes the matches (one folder read, or a bounded walk

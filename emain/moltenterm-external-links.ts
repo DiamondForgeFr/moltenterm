@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The one rule for links MoltenTerm hands to the system (#663): open-external from the renderers, Wave's navigation
 // and window-open fallbacks, and a page's request to launch an app. A link's text can say https://… while it points

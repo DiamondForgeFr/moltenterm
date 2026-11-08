@@ -10,5 +10,9 @@
         "rc/promote": "f9aeb729ec3c",
         "rc/rewrite-notes": "5436867c2a4f",
         "rc/sync-back": "59a826c0f381"
+    },
+    "declined": {
+        "public/finalize": "5dc2d8a2b186",
+        "rc/finalize": "5dc2d8a2b186"
     }
 }

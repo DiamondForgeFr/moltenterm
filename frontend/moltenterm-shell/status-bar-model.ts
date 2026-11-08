@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the status bar shows: the focused pane's project, branch, CI verdict and pull request on the left
 // (FR-SHELL-010), the build of Moltenterm that runs as one badge on the right (FR-SHELL-008). Kept apart from the

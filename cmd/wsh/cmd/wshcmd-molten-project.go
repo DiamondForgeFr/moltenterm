@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // `molten project` (FR-MC-001): the workspace the terminal belongs to is linked to one project folder, stored in the
 // workspace's meta. Mission Control shows the project of the active workspace. Nothing is written in the project.

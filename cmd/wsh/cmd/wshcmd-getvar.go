@@ -89,7 +89,8 @@ func getVarRun(cmd *cobra.Command, args []string) error {
 		FileName: getVarFileName,
 	}
 
-	resp, err := wshclient.GetVarCommand(RpcClient, commandData, &wshrpc.RpcOpts{Timeout: 2000})
+	// MOLTENTERM-PATCH (#1964): a remote variable read may wait for confirmation in the window.
+	resp, err := wshclient.GetVarCommand(RpcClient, commandData, &wshrpc.RpcOpts{Timeout: fileTimeoutFor(2000, RpcContext.Conn)})
 	if err != nil {
 		return fmt.Errorf("getting variable: %w", err)
 	}
@@ -113,7 +114,7 @@ func getAllVariables(zoneId string) error {
 		FileName: getVarFileName,
 	}
 
-	vars, err := wshclient.GetAllVarsCommand(RpcClient, commandData, &wshrpc.RpcOpts{Timeout: 2000})
+	vars, err := wshclient.GetAllVarsCommand(RpcClient, commandData, &wshrpc.RpcOpts{Timeout: fileTimeoutFor(2000, RpcContext.Conn)})
 	if err != nil {
 		return fmt.Errorf("getting variables: %w", err)
 	}

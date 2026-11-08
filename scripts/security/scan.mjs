@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 /* global console, process, setTimeout, clearTimeout, URL */
 import { spawn } from "node:child_process";

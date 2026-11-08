@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Every web page Moltenterm opens inside the app goes through openInBrowserPanel (#140): it opens beside the browser
 // panel the user last focused in the current tab (a panel of its own since #1187), or in a new panel when the tab has
@@ -9,7 +9,7 @@
 // workspace. The first link to a site without an engine opens here at once and asks (DS-BRW-007); `molten open` never
 // asks, a page a terminal program opens through BROWSER (molten-open) does (DS-BRW-022).
 
-import { atoms, createBlock, getBlockComponentModel, getSettingsKeyAtom } from "@/app/store/global";
+import { atoms, getBlockComponentModel, getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -90,7 +90,9 @@ async function openInBrowserPanelNow(url: string): Promise<void> {
         model.openUrlInNewTab(url, askSite, notice);
         return;
     }
-    await createBlock(browserBlockDef(url, notice, askSite != null));
+    // The page opens to the right of the panel it was clicked in (#1844); loaded on use, as app-panel.ts reaches this file.
+    const { createBesideFocused } = await import("../app-panel");
+    await createBesideFocused(browserBlockDef(url, notice, askSite != null));
 }
 
 // A launched version's page (FR-REV-031, #1005): the tab of this window tab that already shows a page the launch

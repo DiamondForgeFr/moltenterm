@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Validate's stepper, the pure part (#672, FR-REV-012, FR-REV-013): the five steps in the order they happen (checks,
 // the merge, ticket, cleanup, other open PRs), built from the plan, the merge record and the cleanup result.
@@ -217,6 +217,10 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
             return t("review.validate.outcome.newred", { names: listNames(t, record.names ?? []) });
         case "citimeout":
             return t("review.validate.outcome.citimeout", { minutes: record.minutes ?? 0 });
+        case "unavailable":
+            return record.status
+                ? t("review.validate.outcome.unavailable", { status: record.status })
+                : t("review.validate.outcome.unavailableNoStatus");
         case "reread":
         case "mergedaway":
         case "headmoved":

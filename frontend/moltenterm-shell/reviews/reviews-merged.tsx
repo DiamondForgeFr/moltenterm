@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's Recently merged section (#843), last in the panel: a merged PR leaves the review list, and this
 // says it merged, when and where it ships. The PRs are grouped by the version that ships them (#1061, FR-REV-027 AC6
@@ -16,9 +16,11 @@ import { formatWhen } from "../mission/time-format";
 import { openWebLink } from "../open-web-link";
 import { useReviewNotes } from "../review/review-notes";
 import { LaunchBackButton } from "./reviews-launch";
-import { mergedByQueueText, mergeKey, ReviewsMerges } from "./reviews-merges";
+import { ticketLinkUrl } from "./reviews-links-model";
 import { MergedDays, MergedOpenPref, notesByPr, ReviewMergedPr } from "./reviews-merged-model";
+import { mergedByQueueText, mergeKey, ReviewsMerges } from "./reviews-merges";
 import type { ReviewsAnswer } from "./reviews-model";
+import { NumberLink } from "./reviews-number-link";
 import { SectionHeading } from "./reviews-section-heading";
 import { MergedGroup, MergedGroupRows, mergedGroups, mergedTitle, mergedWho } from "./reviews-sections-model";
 
@@ -286,7 +288,15 @@ function MergedRow({
                 )}
                 data-testid="reviews-merged-row"
             >
-                <span className="shrink-0 text-muted tabular-nums">#{num}</span>
+                <NumberLink
+                    kind={pr.ticket ? "ticket" : "pr"}
+                    number={num}
+                    url={pr.ticket ? ticketLinkUrl(pr.ticket, "", pr.url) : pr.url}
+                    className="shrink-0 text-muted tabular-nums"
+                    testId="reviews-merged-number"
+                >
+                    #{num}
+                </NumberLink>
                 <span className="min-w-0 flex-1 truncate" title={title}>
                     {title}
                 </span>

@@ -21,6 +21,8 @@ import {
     stripBackendCredentials,
     TrustedAppCallers,
 } from "./moltenterm-app-auth-policy";
+import { hardenWebviewAttach, webviewPreloadFile } from "./moltenterm-webview-attach-policy"; // MOLTENTERM-PATCH (#1961)
+import { configureAppCsp, CspViolationLog, cspModeFromEnv, isBuilderContents } from "./moltenterm-app-csp"; // MOLTENTERM-PATCH (#1977)
 
 const AuthKeyHeader = "X-AuthKey";
 export const WaveAuthKeyEnv = "WAVETERM_AUTH_KEY";
@@ -30,6 +32,8 @@ export const AppOrigin = isDevVite ? new URL(process.env.ELECTRON_RENDERER_URL).
 const trustedAppCallers = new TrustedAppCallers();
 configurePrivilegedIpc(isTrustedAppSender);
 const configuredSessions = new WeakSet<Electron.Session>();
+const policySessions = new WeakSet<Electron.Session>(); // MOLTENTERM-PATCH (#1977)
+const cspViolations = new CspViolationLog((line) => console.log(line)); // MOLTENTERM-PATCH (#1977)
 const rendererProof = callerProof(CallerSecret, "renderer");
 const mainProof = callerProof(CallerSecret, "main");
 
@@ -55,7 +59,21 @@ export function getAppDocumentUrl(): string {
 export function getTrustedAppSession(): Electron.Session {
     const appSession = session.fromPartition(AppSessionPartition);
     configureAuthKeyRequestInjection(appSession);
+    configureAppContentSecurityPolicy(appSession); // MOLTENTERM-PATCH (#1977)
     return appSession;
+}
+
+// MOLTENTERM-PATCH (#1977): the app page's Content-Security-Policy, set on the private app session's responses.
+function configureAppContentSecurityPolicy(appSession: Electron.Session) {
+    if (policySessions.has(appSession)) return;
+    policySessions.add(appSession);
+    configureAppCsp(appSession, {
+        webEndpoint: getWebServerEndpoint,
+        wsEndpoint: getWSServerEndpoint,
+        devOrigin: AppOrigin,
+        reportOnly: cspModeFromEnv(process.env, !!isDevVite) === "report-only",
+        isBuilder: isBuilderContents,
+    });
 }
 
 export function isTrustedAppSender(event: Pick<Electron.IpcMainEvent, "sender" | "senderFrame">): boolean {
@@ -67,9 +85,16 @@ export function registerTrustedAppContents(contents: Electron.WebContents): void
     if (contents.session !== appSession) throw new Error("Application contents must use the private app session");
     trustedAppCallers.register(contents, appSession, getAppDocumentUrl());
     contents.once("destroyed", () => trustedAppCallers.forget(contents));
+    contents.on("console-message", (event) => cspViolations.note(event.message)); // MOLTENTERM-PATCH (#1977)
     contents.on("will-attach-webview", (event, preferences, params) => {
         const partition = params.partition || "";
         if (partition === AppSessionPartition || partition === `persist:${AppSessionPartition}`) {
+            event.preventDefault();
+            return;
+        }
+        // MOLTENTERM-PATCH (#1961): no Node, isolated, sandboxed, and only MoltenTerm's page preload, whatever the tag
+        // asked for; script and engine URLs never attach.
+        if (!hardenWebviewAttach(preferences as any, params, webviewPreloadFile(getElectronAppBasePath()))) {
             event.preventDefault();
             return;
         }

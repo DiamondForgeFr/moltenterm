@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -376,6 +376,7 @@ func otherPrsByNumber(step *CleanupStepResult) map[int]CleanupPr {
 }
 
 func TestCleanupAfterMerge(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	review := reviewsession.ReviewTreeDir(f.dataDir, f.dir, 7)
 	f.git(f.dir, "worktree", "add", "--quiet", "--detach", review, f.headOid)
@@ -465,6 +466,7 @@ func TestCleanupAfterMerge(t *testing.T) {
 
 // A batch merge's own PRs (FR-REV-025) are left to the batch: their agents are not asked for a rebase.
 func TestCleanupLeavesTheBatchPrsToTheBatch(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.addOtherPr(9, "feature/9-idle", molten.AgentStateIdle, "Jérôme")
 	f.openPrs = `[{"number":9,"headRefName":"feature/9-idle","mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}]`
@@ -482,6 +484,7 @@ func TestCleanupLeavesTheBatchPrsToTheBatch(t *testing.T) {
 
 // A PR GitHub has not computed by the bound is reported still checking, and nothing is asked for it.
 func TestCleanupOtherPrStillChecking(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.addOtherPr(9, "feature/9-idle", molten.AgentStateIdle, "Jérôme")
 	f.mergeableWait = 20 * time.Millisecond
@@ -507,6 +510,7 @@ func TestCleanupOtherPrStillChecking(t *testing.T) {
 
 // Once every PR is known the step reads them no more.
 func TestCleanupOtherPrsReadOnceWhenKnown(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.openPrs = `[{"number":11,"headRefName":"feature/11-clean","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}]`
 
@@ -521,6 +525,7 @@ func TestCleanupOtherPrsReadOnceWhenKnown(t *testing.T) {
 // Asking for the rebase fails (the branch is in the main checkout's way, a brief that cannot be written…): the PR is
 // flagged with the reason and the step fails.
 func TestCleanupOtherPrRebaseNotAsked(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.openPrs = `[{"number":9,"headRefName":"feature/9-x","mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}]`
 	cleaner := f.cleaner()
@@ -543,6 +548,7 @@ func TestCleanupOtherPrRebaseNotAsked(t *testing.T) {
 }
 
 func TestCleanupKeepsDirtyAgentWorktree(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.write(f.agent, "b.txt", "unsaved edit\n")
 
@@ -588,6 +594,7 @@ func TestCleanupKeepsDirtyAgentWorktree(t *testing.T) {
 }
 
 func TestCleanupKeepsUnmergedWork(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, false)
 	// A commit made after the merge, never pushed: the branch holds work that is not in the merged PR.
 	f.write(f.agent, "e.txt", "late work\n")
@@ -620,6 +627,7 @@ func TestCleanupKeepsUnmergedWork(t *testing.T) {
 
 // The three cases of #672: only git-ignored files, uncommitted work, and a rebase merge whose commits have new ids.
 func TestCleanupRemovesIgnoredOnlyWorktree(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.write(f.dir, ".git/info/exclude", "node_modules/\ndist/\n.task/\ntest-results.xml\n.env\n")
 	f.write(f.agent, "node_modules/x/index.js", "x\n")
@@ -643,6 +651,7 @@ func TestCleanupRemovesIgnoredOnlyWorktree(t *testing.T) {
 // A panel still working in the worktree keeps it, even with nothing to lose and after the developer chose to remove
 // it; once the panel is closed, the same step removes it.
 func TestCleanupKeepsAWorktreeAPanelWorksIn(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.terminals[realOf(f.agent)] = []mission.WorktreeTerminal{{BlockId: "agent-block", Tab: "Agent 7", Workspace: "app", Linked: true}}
 	f.states["agent-block"] = molten.AgentStateWorking
@@ -679,6 +688,7 @@ func TestCleanupKeepsAWorktreeAPanelWorksIn(t *testing.T) {
 }
 
 func TestCleanupKeepsUntrackedWork(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.write(f.agent, "notes.md", "draft\n")
 	f.write(f.agent, "src/new.ts", "x\n")
@@ -698,6 +708,7 @@ func TestCleanupKeepsUntrackedWork(t *testing.T) {
 // Without the merged head (GitHub's refs/pull/N/head out of reach), the commits are compared by patch: the rebase merge
 // gave them new ids on develop, and nothing is lost.
 func TestCleanupRebaseMergeWithoutMergedHead(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, false)
 	f.prHead = strings.Repeat("f", 40)
 
@@ -713,6 +724,7 @@ func TestCleanupRebaseMergeWithoutMergedHead(t *testing.T) {
 // A squash merge, then a later edit on develop of a file the PR added: by patch or by content the branch's commits
 // look unmerged, but every one of them is in the head GitHub merged, so nothing is lost (#673 adds squash merges).
 func TestCleanupCommitsAreJudgedByTheMergedHead(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, false)
 	f.write(f.agent, "x.txt", "x\n")
 	f.git(f.agent, "add", "x.txt")
@@ -742,6 +754,7 @@ func TestCleanupCommitsAreJudgedByTheMergedHead(t *testing.T) {
 
 // A merge commit (#673): the branch's commits are on develop as they are, and the cleanup removes everything.
 func TestCleanupAfterAMergeCommit(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, false)
 	f.write(f.agent, "x.txt", "x\n")
 	f.git(f.agent, "add", "x.txt")
@@ -765,6 +778,7 @@ func TestCleanupAfterAMergeCommit(t *testing.T) {
 }
 
 func TestCleanupPlanSaysWhatWillGo(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, false)
 	steps := f.cleaner().Plan(context.Background(), MergedPr{Dir: f.dir, Repo: cleanupRepo, Number: 7, HeadRef: "feature/7-thing", BaseRef: "develop"})
 	byId := map[string]CleanupStepResult{}
@@ -789,6 +803,7 @@ func TestCleanupPlanSaysWhatWillGo(t *testing.T) {
 }
 
 func TestCleanupFailureStopsOnlyItsDependents(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.ghFail["issue close"] = errors.New("gh issue close 7: HTTP 502")
 	f.ghFail["pr list"] = errors.New("gh pr list: HTTP 502")
@@ -806,6 +821,7 @@ func TestCleanupFailureStopsOnlyItsDependents(t *testing.T) {
 }
 
 func TestCleanupNeedsAMergedPr(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.prState = "OPEN"
 
@@ -824,6 +840,7 @@ func TestCleanupNeedsAMergedPr(t *testing.T) {
 }
 
 func TestCleanupAlreadyDone(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.issue = "CLOSED"
 	f.write(f.dir, CleanupWorkflowCliPath, "#!/bin/sh\necho \"$@\" >> \"$(dirname \"$0\")/calls.log\"\n"+
@@ -839,6 +856,7 @@ func TestCleanupAlreadyDone(t *testing.T) {
 }
 
 func TestCleanupRequestChecks(t *testing.T) {
+	t.Parallel()
 	c := MakeCleaner(CleanupEnv{Run: func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
 		t.Fatalf("ran %s", name)
 		return nil, nil
@@ -856,6 +874,7 @@ func TestCleanupRequestChecks(t *testing.T) {
 }
 
 func TestStoreKeepsCleanupSteps(t *testing.T) {
+	t.Parallel()
 	s := MakeStore(t.TempDir())
 	first := CleanupResult{Repo: cleanupRepo, Number: 7, Steps: []CleanupStepResult{
 		{Id: CleanupStepPr, State: CleanupStateDone},

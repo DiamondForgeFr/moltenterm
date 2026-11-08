@@ -209,9 +209,10 @@ func (bc *BuilderController) buildAndRun(ctx context.Context, appId string, buil
 		return
 	}
 
-	nodePath := wavebase.GetWaveAppElectronExecPath()
-	if nodePath == "" {
-		bc.handleBuildError(fmt.Errorf("electron executable path not set"), resultCh)
+	// MOLTENTERM-PATCH (#1975): a packaged app has its runAsNode fuse off, so Node.js comes from the PATH there.
+	nodePath, err := wavebase.GetNodeRunnerPath()
+	if err != nil {
+		bc.handleBuildError(err, resultCh)
 		return
 	}
 

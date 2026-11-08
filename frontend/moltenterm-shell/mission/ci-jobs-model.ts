@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The CI/CD panel's Jobs tab (#637): the project's CI jobs, what each is for and when it runs, in plain words. wavesrv
 // parses the files (pkg/molten/mission/cijobs.go); these rules turn its facts into sentences of the interface

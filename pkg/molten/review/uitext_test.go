@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -28,6 +28,7 @@ func mustCode(t *testing.T, err error, code string, english string) {
 
 // #656: the Review tab gets the code of what the service refused; `molten review` and the logs keep the English.
 func TestWindowsGetTheServiceCodes(t *testing.T) {
+	t.Parallel()
 	e := routetest.Make(t)
 	link, err := localroute.MakeLink(e.Router, (&routeLink{service: &Service{store: MakeStore(t.TempDir())}}).route())
 	if err != nil {
@@ -44,6 +45,7 @@ func TestWindowsGetTheServiceCodes(t *testing.T) {
 }
 
 func TestCommentRefusalsCarryCodes(t *testing.T) {
+	t.Parallel()
 	s := MakeStore(t.TempDir())
 	k := PrKey{Repo: "o/r", Number: 3}
 	head := strings.Repeat("a", 40)
@@ -66,6 +68,7 @@ func TestCommentRefusalsCarryCodes(t *testing.T) {
 }
 
 func TestDiscussWithoutSessionCarriesItsCode(t *testing.T) {
+	t.Parallel()
 	store := MakeStore(t.TempDir())
 	k := PrKey{Repo: "o/r", Number: 3}
 	state, _, err := store.SaveComment(CommentRequest{PrKey: k, Anchor: anchorOn(strings.Repeat("a", 40), mcpreview.SideRight, 0, 1, "x"), Subject: SubjectLine, Text: "t"})
@@ -78,6 +81,7 @@ func TestDiscussWithoutSessionCarriesItsCode(t *testing.T) {
 }
 
 func TestPublishRecordCarriesItsCode(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	a := f.comment(SubjectFile, 3, "Un")
 	f.translate(a, "One")

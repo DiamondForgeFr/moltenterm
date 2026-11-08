@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // `molten project group` (FR-MC-026): the product group of this workspace's project, as Mission Control resolves it
 // from the workspace links and each member's `.molten/project.json`. It only reads: nothing runs in any member.

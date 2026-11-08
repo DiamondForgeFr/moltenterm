@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -194,6 +194,7 @@ func commentById(state State, id string) Comment {
 // TC-REV-008, AC3, AC6: French comments, one English review with the line comment on its lines, the file-level and the
 // outdated ones as file comments; ids, round and both texts are kept.
 func TestPublishOneReview(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	line := f.comment(SubjectLine, 12, "Renomme `doThing` en `apply`.")
 	file := f.comment(SubjectFile, 30, "Ce fichier mérite un test.")
@@ -277,6 +278,7 @@ func TestPublishOneReview(t *testing.T) {
 
 // AC5: the review was created but its answer was lost; the retry finds its marker and never posts a second review.
 func TestPublishRetryNeverPostsASecondReview(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	line := f.comment(SubjectLine, 5, "Pourquoi ?")
 	file := f.comment(SubjectFile, 9, "Ajoute un test.")
@@ -311,6 +313,7 @@ func TestPublishRetryNeverPostsASecondReview(t *testing.T) {
 
 // AC5: a file comment that failed is the only thing a retry posts.
 func TestPublishPartialThenRetry(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	a := f.comment(SubjectFile, 3, "Un")
 	b := f.comment(SubjectFile, 6, "Deux")
@@ -346,6 +349,7 @@ func TestPublishPartialThenRetry(t *testing.T) {
 
 // AC5: GitHub refusing the lines; the review goes without them and each is re-posted as a file comment, reported.
 func TestPublishRefusedLinesGoFileLevel(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	line := f.comment(SubjectLine, 5, "Ligne")
 	f.translate(line, "Line")
@@ -368,6 +372,7 @@ func TestPublishRefusedLinesGoFileLevel(t *testing.T) {
 
 // AC4: Post as written publishes the originals; a comment already in the publication language is never translated.
 func TestPublishAsWrittenAndTranslateRequest(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	fr := f.comment(SubjectLine, 5, "Pourquoi ce choix ?")
 	state, _, _ := f.service.store.SaveComment(CommentRequest{PrKey: f.k, Anchor: anchorOn(oidA, mcpreview.SideLeft, 0, 2, "x"), Subject: SubjectLine, Text: "Looks good", Lang: "en-US"})
@@ -417,6 +422,7 @@ func TestPublishAsWrittenAndTranslateRequest(t *testing.T) {
 }
 
 func TestPlanComments(t *testing.T) {
+	t.Parallel()
 	other := strings.Repeat("c", 40)
 	mk := func(subject string, head string, path string) *Comment {
 		return &Comment{Id: path, Subject: subject, Anchor: mcpreview.Anchor{Path: path, Side: mcpreview.SideRight, Line: 10, HeadOid: head}, Original: CommentText{Lang: "en", Text: "x"}}
@@ -449,6 +455,7 @@ func TestPlanComments(t *testing.T) {
 }
 
 func TestDecodeList(t *testing.T) {
+	t.Parallel()
 	got, err := decodeList[ghReview]([]byte(`[{"id":1}][{"id":2},{"id":3}]` + "\n"))
 	if err != nil || len(got) != 3 || got[2].Id != 3 {
 		t.Errorf("%v %+v", err, got)
@@ -457,6 +464,7 @@ func TestDecodeList(t *testing.T) {
 
 // The publication language: the project's, else the setting, else detected from the PRs and README, else English.
 func TestPublicationLanguage(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	ctx := context.Background()
 	res, _ := f.service.PublicationLanguage(ctx, PublishInfoRequest{PrKey: f.k, Dir: f.dir})
@@ -493,6 +501,7 @@ func TestPublicationLanguage(t *testing.T) {
 
 // NFR-REV-003: the publication's commands answer a MoltenTerm window only.
 func TestPublishCommandsAreWindowOnly(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	f.comment(SubjectFile, 3, "Un")
 	link := &routeLink{service: f.service}
@@ -517,6 +526,7 @@ func TestPublishCommandsAreWindowOnly(t *testing.T) {
 
 // The agent's translation is kept from the session's post; one for a comment no longer staged is not.
 func TestSessionTranslationKept(t *testing.T) {
+	t.Parallel()
 	f := makePublishFixture(t)
 	id := f.comment(SubjectLine, 4, "Bien")
 	f.service.SessionPosted(mcpreview.Update{Repo: testRepo, Number: 7, Post: &mcpreview.Post{Kind: mcpreview.PostTranslation, CommentId: id, Text: "Good", Lang: "en"}})

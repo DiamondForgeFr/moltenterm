@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package metaguard keeps the object meta the window trusts out of a terminal's reach (NFR-FORK-001, #1821). Wave's
 // GetMeta, SetMeta and WorkspaceList trust any terminal, so any agent, while MoltenTerm keeps user-trusted data in
@@ -93,6 +93,9 @@ func CheckWrite(c Caller, oref waveobj.ORef, meta waveobj.MetaMapType) error {
 		return checkWorkspaceWrite(c, oref, meta)
 	case waveobj.OType_Block:
 		if c.Local && c.BlockId != "" && c.BlockId == oref.OID {
+			if refused := refusedOwnBlockKeys(meta); len(refused) > 0 {
+				return fmt.Errorf("refused: a terminal cannot set MoltenTerm's %s on its own block (%s); only wavesrv and the MoltenTerm window set them", sortedKeys(refused), oref)
+			}
 			return nil
 		}
 		if refused := refusedBlockKeys(meta); len(refused) > 0 {
@@ -121,6 +124,21 @@ func refusedBlockKeys(meta waveobj.MetaMapType) []string {
 			continue
 		}
 		refused = append(refused, key)
+	}
+	return refused
+}
+
+// refusedOwnBlockKeys are the molten:* keys a terminal may not write on its own block (#2067): all but the ones of
+// refusedBlockKeys and `molten worktree`'s link. The others name or trust the block: Brokk's session marker
+// (molten:brokk, which hands the terminal what the developer types to Brokk), an agent's first name, a browser
+// panel's saved tabs (their allowed flag skips the local-page question once the block turns into a browser panel).
+// An allow-list, so a key MoltenTerm adds later is the window's until a terminal is given it on purpose.
+func refusedOwnBlockKeys(meta waveobj.MetaMapType) []string {
+	var refused []string
+	for _, key := range refusedBlockKeys(meta) {
+		if key != molten.WorktreeMetaKey {
+			refused = append(refused, key)
+		}
 	}
 	return refused
 }
@@ -212,11 +230,29 @@ var UntrustedEvents = map[string]bool{
 	"molten:modschanged": true,
 }
 
-// CheckSubscribe tells whether c may receive object updates for the scopes it asks: a terminal receives only its own
-// workspace's blocks and tabs, never a workspace, a window or the client (their meta holds what the window trusts).
-// Other events are unchanged. inOwnWorkspace tells whether a block or tab is in c's workspace.
+// IsMoltenEvent tells whether event is one of MoltenTerm's own (molten:*), which carry the state a Molten feature
+// publishes for the windows.
+func IsMoltenEvent(event string) bool {
+	return strings.HasPrefix(event, moltenKeyPrefix)
+}
+
+// CheckSubscribe tells whether c may receive event for the scopes it asks. MoltenTerm's own events reach the windows
+// and this computer's terminals only, the callers their routes admit (AllowWindow, AllowLocalTerminal): a remote
+// terminal or an unverified caller never reads them (#1914); each event's scopes (mod id, workspace id) stay the
+// publisher's. For object updates a terminal receives only its own workspace's blocks and tabs, never a workspace, a
+// window or the client (their meta holds what the window trusts). Other events are unchanged. inOwnWorkspace tells
+// whether a block or tab is in c's workspace.
 func CheckSubscribe(c Caller, req wps.SubscriptionRequest, inOwnWorkspace func(waveobj.ORef) bool) error {
-	if c.Trusted || req.Event != wps.Event_WaveObjUpdate {
+	if c.Trusted {
+		return nil
+	}
+	if IsMoltenEvent(req.Event) {
+		if c.Local {
+			return nil
+		}
+		return fmt.Errorf("refused: a remote or unverified terminal cannot follow MoltenTerm's %q events; only the MoltenTerm window and this computer's terminals do", req.Event)
+	}
+	if req.Event != wps.Event_WaveObjUpdate {
 		return nil
 	}
 	if req.AllScopes || len(req.Scopes) == 0 {

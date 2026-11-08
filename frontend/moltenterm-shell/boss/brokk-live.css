@@ -1,0 +1,58 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Brokk's clips over his still (FR-BOSS-007). The package is asked for the picture alone (`bare`): its own frame, tint,
+   scanlines, viewfinder and caption are not drawn, and the tint is the ember of the action colour. The package's picture is a box that fills the frame it is put in, and its clips lie over
+   the still of boss-portrait.tsx, which stays under them: it is what shows until a clip plays, and when none can. The
+   package's own still is hidden for that reason. The package's rules sit in its `components` layer, which these
+   unlayered rules outrank.
+
+   A bare picture wears no tone: the clips carry no filter, as the package intends (a filtered video clipped to a round
+   makes Chromium draw a lighter rectangle past the edge of the round). The still of boss-portrait.css is toned, so it
+   stands without its filter while the clips play, and fades back to it when they are gone: a clip fading in over it
+   then changes nothing but the motion. The tint variables are the ones the package documents; a bare picture uses
+   none, they keep anything it adds in the app's colours. */
+
+.mt-brokk-live {
+    position: absolute;
+    inset: 0;
+}
+
+.mt-brokk-portrait {
+    --character-accent: var(--mt-action-hover);
+    --character-tint: var(--mt-action);
+    position: absolute;
+    inset: 0;
+}
+
+.mt-brokk-portrait .character-still {
+    display: none;
+}
+
+.mt-brokk-portrait .character-video {
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+}
+
+/* The still drops its filter under clips: a clip fading in over a still that is toned differently would show as a
+   jump. */
+.mt-boss-portrait-image {
+    transition: filter var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-boss-portrait:has(.mt-brokk-live) .mt-boss-portrait-image {
+    filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-boss-portrait-image,
+    .mt-brokk-portrait .character-video {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-boss-portrait-image,
+.prefers-reduced-motion .mt-brokk-portrait .character-video {
+    transition: none;
+}

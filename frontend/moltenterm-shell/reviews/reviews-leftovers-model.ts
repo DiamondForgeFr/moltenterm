@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What a merged PR left behind (#1088, FR-REV-022 AC14): wavesrv finds the branches whose merged PR's head is their tip
 // (pkg/molten/mission/upcoming_done.go), and since #1121 (AC15) a closed PR's branch whose content is in the base, a

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -30,6 +30,7 @@ func checkCardAction(t *testing.T, note molten.NotificationInput, dir string, nu
 // #1130: an agent's notification names the PR by its card's number, the PR number after it when they differ, and a
 // click on it opens that card.
 func TestAgentNotificationsNameTheCard(t *testing.T) {
+	t.Parallel()
 	f, follow, st, _ := investigateFollow(t)
 	follow.req.Ticket = 1107
 	f.r.ciGreen(context.Background(), follow, "Bruno", "")
@@ -63,6 +64,7 @@ func TestAgentNotificationsNameTheCard(t *testing.T) {
 
 // #1130: the merge queue's notifications name each PR by its card's number.
 func TestQueueNotificationsNameTheCard(t *testing.T) {
+	t.Parallel()
 	var notes []molten.NotificationInput
 	b := &BatchRunner{env: BatchEnv{Now: time.Now, Agents: &Restarter{env: RestartEnv{Notify: func(ctx context.Context, input molten.NotificationInput) error {
 		notes = append(notes, input)

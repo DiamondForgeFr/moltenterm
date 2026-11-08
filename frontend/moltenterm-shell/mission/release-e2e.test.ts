@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A release cut end to end (#230): the Project tab's sequencing (releaseRun) picks every step, and the real runner
 // (pkg/molten/mission, through its TestReleaseDriver) runs it on a throwaway Notulia-shaped fixture whose origin is a

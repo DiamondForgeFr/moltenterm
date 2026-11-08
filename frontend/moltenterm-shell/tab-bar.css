@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The top tab bar's tabs (FR-SHELL-056, DS-SHELL-098), over Wave's frontend/app/tab/tab.scss: tabs sized to their
    content by tab-layout.ts, a 14 px icon and a left-aligned 12/500 name, no dividers, the close control only on hover

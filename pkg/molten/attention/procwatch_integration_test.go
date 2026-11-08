@@ -1,11 +1,12 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 //go:build darwin || linux
 
 package attention
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -17,16 +18,33 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 )
 
-const fakeAgentEnv = "MOLTEN_TEST_FAKE_AGENT"
+const (
+	fakeAgentEnv    = "MOLTEN_TEST_FAKE_AGENT"
+	fakeAgentSilent = "silent"
+)
 
-// A copy of the test binary is the fake agent: started with fakeAgentEnv, it only waits (a copy of a system binary
-// would not run on macOS, whose platform binaries are bound to their path).
+// A copy of the test binary is the fake agent: started with fakeAgentEnv, it works for a while (a copy of a system
+// binary would not run on macOS, whose platform binaries are bound to their path).
 func TestMain(m *testing.M) {
 	if os.Getenv(fakeAgentEnv) != "" {
-		time.Sleep(30 * time.Second)
+		runFakeAgent()
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
+}
+
+// runFakeAgent prints as a real agent does: a shell without the shell integration that starts it after the look Enter
+// asked for is only looked at again on its output (#1957). With fakeAgentSilent it prints nothing (#2048).
+func runFakeAgent() {
+	deadline := time.Now().Add(30 * time.Second)
+	if os.Getenv(fakeAgentEnv) == fakeAgentSilent {
+		time.Sleep(time.Until(deadline))
+		return
+	}
+	for time.Now().Before(deadline) {
+		fmt.Printf("working\n")
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 // copyBinary makes a fake agent: a copy of the test binary under the agent's name.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What the first launch, "the pour" (FR-ONB-007, DS-ONB-007), decides, kept apart from its components so the rules are
 // tested without a window: the six scenes (#1709), the keys that move between them, what each move records, and the

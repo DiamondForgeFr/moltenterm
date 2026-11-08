@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What runs now, for the notification center (FR-MC-019): the builds, release and adapter steps and local CI runs of
 // every project (pkg/molten/mission/work.go), and the gold update while it is applied. Kept current by the run and CI

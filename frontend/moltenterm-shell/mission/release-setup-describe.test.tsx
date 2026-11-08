@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -270,5 +270,34 @@ describe("step 2b: describe a new pipeline (FR-MC-041)", () => {
         );
         expect(forgotten).toContain("“My CLI” is forgotten on this computer; the choices it filled in are kept below");
         expect(forgotten).not.toContain("No template is saved");
+    });
+
+    // FR-LRN-004: a choice filled in from the earlier runs opens the detailed choices and says so, so none is a surprise.
+    it("opens the detailed choices and marks them when a learned choice fills one in", () => {
+        const o = describeDefaults(draftOf(base), base);
+        const render = (prefilled?: boolean) =>
+            renderToStaticMarkup(
+                <DescribeStep
+                    draft={draftOf(o)}
+                    options={o}
+                    from="standard"
+                    models={[]}
+                    model=""
+                    words=""
+                    appType="cli"
+                    prefilled={prefilled}
+                    onChange={() => {}}
+                    onFrom={() => {}}
+                    onWords={() => {}}
+                >
+                    <span>all the choices here</span>
+                </DescribeStep>
+            );
+        const learned = render(true);
+        expect(learned).toMatch(/<details[^>]*open=""[^>]*data-testid="setup-describe-all"/);
+        expect(learned).toContain("Based on your earlier choices");
+        const plain = render();
+        expect(plain).not.toContain("Based on your earlier choices");
+        expect(plain).not.toMatch(/<details[^>]*open=""/);
     });
 });

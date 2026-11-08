@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -10,6 +10,7 @@ import (
 )
 
 func TestProjectTypeFromName(t *testing.T) {
+	t.Parallel()
 	cases := map[[2]string]string{
 		{"Notulia Mobile", "Notulia"}:     "Mobile",
 		{"notulia - Site web", "Notulia"}: "Site web",
@@ -25,6 +26,7 @@ func TestProjectTypeFromName(t *testing.T) {
 }
 
 func TestPlanProjectsMigration(t *testing.T) {
+	t.Parallel()
 	workspaces := map[string]MigrateWorkspace{
 		"a": {Id: "a", Name: "Notulia", Dir: "/p/notulia", Type: "Desktop"},
 		"b": {Id: "b", Name: "Notulia Mobile", Dir: "/p/notulia-mobile"},
@@ -67,6 +69,7 @@ func TestPlanProjectsMigration(t *testing.T) {
 }
 
 func TestProjectsMigrationNotice(t *testing.T) {
+	t.Parallel()
 	plan := MigratePlan{HostId: "a", HostName: "Notulia", GroupName: "Notulia",
 		Projects: []WorkspaceProject{{Id: "p1", Dir: "/p/notulia"}, {Id: "p2", Type: "Mobile", Dir: "/p/m"}},
 		Moved:    []string{"Notulia Mobile"}}

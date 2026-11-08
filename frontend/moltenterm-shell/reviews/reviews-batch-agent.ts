@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The merge queue's agent on the cards (#1128, FR-REV-026 AC13): while the running queue works on a PR, its card is
-// the agent's like a PR another agent works on, in "Agents on it" with the agent's line, and goes back to its own
+// the agent's like a PR another agent works on, in "In progress" with the agent's line, and goes back to its own
 // section once the queue leaves it. The queue's agent works in a detached worktree, so wavesrv never places it on the
 // PR's branch: the card learns it from the queue's run. Pure, so it is tested without a window.
 

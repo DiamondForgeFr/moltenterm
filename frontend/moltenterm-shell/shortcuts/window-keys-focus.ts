@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where the keyboard focus is when a window key is pressed (#1759), read from the window; the rule is window-keys.ts's.
 

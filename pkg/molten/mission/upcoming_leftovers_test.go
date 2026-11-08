@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -28,6 +28,7 @@ func writeCommit(t *testing.T, dir string, files map[string]string, subject stri
 const lockStart = "Sun Oct 25 16:46:51 2026"
 
 func TestParseLockReason(t *testing.T) {
+	t.Parallel()
 	holder, ok := ParseLockReason("claude agent agent-ac88 (pid 44215 start " + lockStart + ")")
 	at, _ := time.ParseInLocation(lockStartLayout, lockStart, time.Local)
 	if !ok || holder.Pid != 44215 || holder.StartMs != at.UnixMilli() {
@@ -48,6 +49,7 @@ func TestParseLockReason(t *testing.T) {
 // keeps its leftover hidden, one locked with no pid is offered as held; a pr<N> copy of a merged PR and the PR's review
 // worktree join its card, a copy with its own commit does not.
 func TestUpcomingExtraLeftovers(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	// 40: closed, its change reached develop inside a bigger commit (another patch id).
 	gitRun(t, dir, "checkout", "-q", "-b", "feature/40-copied", "develop")
@@ -181,6 +183,7 @@ func TestUpcomingExtraLeftovers(t *testing.T) {
 // CommitsNotOn judges by content: a copy that landed in a bigger commit is on the target, a commit whose lines the
 // target changed since (a conflict on replay) is not, nor is a new file.
 func TestCommitsNotOn(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	ctx := context.Background()
 	gitRun(t, dir, "checkout", "-q", "-b", "copied", "develop")

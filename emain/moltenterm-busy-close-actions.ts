@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The closes Electron main decides, asked like FR-SHELL-061 (FR-SHELL-062, DS-SHELL-109): which renderer asks,
 // what the action stops, and bringing a minimised or hidden window forward when its renderer has to ask. Called from

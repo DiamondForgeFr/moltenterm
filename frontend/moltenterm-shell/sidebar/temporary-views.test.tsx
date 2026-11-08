@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The temporary views as in Arc (FR-SHELL-080, #1253): no title; "+ New view" alone with no view; the separator,
 // "+ New view" and the list with some; Clear closes only the temporary views, through the busy-close guard; Undo

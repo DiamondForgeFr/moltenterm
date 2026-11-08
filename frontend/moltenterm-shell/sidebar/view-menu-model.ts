@@ -1,10 +1,11 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // One menu per view, and pinned blocks reorder by drag (FR-SHELL-081, DS-SHELL-126): what the view menu offers in each
 // state, a view's glyph (its panels' icons separated by a slash, or the icon the developer chose), and where a dragged
 // block lands. Kept apart from the components so the rules can be tested without the app.
 
+import { GenericWebIcon } from "../favicon/site";
 import { DefaultAgentGlyph, DefaultTabIcon, panelIcon } from "../tab-identity";
 import { AgentSlotMetaKey, PinConfig, PinNode, ViewIconMetaKey, viewMoves, ViewState } from "./view-pins-model";
 
@@ -12,6 +13,8 @@ export { ViewIconMetaKey };
 
 // A combination shows at most this many of its panels' icons.
 export const MaxGlyphIcons = 3;
+
+export { GenericWebIcon };
 
 // The glyphs the icon menu offers (the #1181 prototype's set, in Font Awesome Free).
 export const ViewIconChoices = [
@@ -37,23 +40,68 @@ export function readViewIcon(value: any): string {
     return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
-// The 360 carpet as a view's icon draws it (FR-SHELL-081, #1823): one cube for the whole carpet, whose front face is
-// the icon of the carpet panel in front. id: that panel's block; index and count: its place among the carpet's panels,
-// which tell the way the cube turns when another comes in front.
-export type GlyphCube = { cube: true; id: string; icon: string; index: number; count: number };
+// A carpet panel as the cube draws it: its block and its icon.
+// site: the site's icon a web page panel shows in place of its icon, in the icon menu's preview only (#1962).
+export type GlyphCubePanel = { id: string; icon: string; site?: GlyphFavicon };
 
-// One mark of a view's icon: a panel's icon name, or the carpet's cube.
-export type GlyphIcon = string | GlyphCube;
+// The 360 carpet as a view's icon draws it (FR-SHELL-081, #1823, #1861): one mark for the whole carpet, a cube whose
+// front face is the icon of the carpet panel in front, or a prism of the icons of the panels on screen. id and icon:
+// the first panel on screen; index and count: its place among the carpet's panels, which tell the way the cube turns
+// when another comes in front; shown: how many panels are on screen from it on; panels: the carpet's panels in order,
+// the belt the face slides along.
+export type GlyphCube = {
+    cube: true;
+    id: string;
+    icon: string;
+    index: number;
+    count: number;
+    shown: number;
+    panels: GlyphCubePanel[];
+};
+
+// A site's icon as a view's icon draws it (#1962, DS-SHELL-126): the origin it belongs to, its image as an address an
+// image tag draws, and whether it is too dark for the dark sidebar (it then sits on a light plate).
+export type GlyphFavicon = { favicon: true; origin: string; url: string; dark?: boolean };
+
+// One mark of a view's icon: a panel's icon name, a site's icon, or the carpet's cube.
+export type GlyphIcon = string | GlyphCube | GlyphFavicon;
 
 export function isGlyphCube(icon: GlyphIcon): icon is GlyphCube {
-    return typeof icon === "object" && icon != null && icon.cube === true;
+    return typeof icon === "object" && icon != null && "cube" in icon && icon.cube === true;
+}
+
+export function isGlyphFavicon(icon: GlyphIcon): icon is GlyphFavicon {
+    return typeof icon === "object" && icon != null && "favicon" in icon && icon.favicon === true;
+}
+
+// The icon a developer chose can be a site's: "site:<origin>" names the origin whose icon the view then wears, whatever
+// page the view shows afterwards (#1962).
+export const SiteIconPrefix = "site:";
+
+export function siteIconChoice(origin: string): string {
+    return `${SiteIconPrefix}${origin}`;
+}
+
+// The origin a chosen icon names, "" for an icon name.
+export function readSiteIconChoice(chosen: string): string {
+    const icon = readViewIcon(chosen);
+    return icon != null && icon.startsWith(SiteIconPrefix) ? icon.slice(SiteIconPrefix.length) : "";
 }
 
 // A chosen icon replaces the panels' icons; otherwise the first three marks, in order (a screen region each, see
-// screenGlyphIcons). A view without a panel shows the default square.
-export function viewGlyphIcons(chosen: string, panelIcons: GlyphIcon[]): GlyphIcon[] {
+// screenGlyphIcons). A view without a panel shows the default square. A chosen site's icon is drawn from siteIcon, the
+// generic web icon while that site's icon is not known.
+export function viewGlyphIcons(
+    chosen: string,
+    panelIcons: GlyphIcon[],
+    siteIcon?: (origin: string) => GlyphFavicon
+): GlyphIcon[] {
     const icon = readViewIcon(chosen);
     if (icon != null) {
+        const origin = readSiteIconChoice(icon);
+        if (origin !== "") {
+            return [siteIcon?.(origin) ?? GenericWebIcon];
+        }
         return [icon];
     }
     const icons = (panelIcons ?? []).filter((i) => !!i).slice(0, MaxGlyphIcons);
@@ -87,6 +135,14 @@ export function configPaneIcons(config: PinConfig): string[] {
         return [];
     }
     return treePanes(config.tree).map((i) => paneIcon(config.panes[i]));
+}
+
+// The panels of a configuration as they were saved, in the order of its layout.
+export function configPaneMetas(config: PinConfig): Record<string, any>[] {
+    if (config == null) {
+        return [];
+    }
+    return treePanes(config.tree).map((i) => config.panes[i]);
 }
 
 // A stored layout and the tab's panels: the panels the tree lacks (added while the view was not on screen, or a view

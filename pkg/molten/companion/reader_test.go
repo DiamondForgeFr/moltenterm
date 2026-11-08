@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package companion
 
@@ -63,6 +63,73 @@ func TestSessionReaderClaudeDigest(t *testing.T) {
 	d, _ = r.Poll()
 	if len(d.Prompts) != 3 || d.Prompts[2].Text != "Third prompt" || d.FirstPrompt.Text != "Add a greeting to hello.go" {
 		t.Fatalf("appended prompt: %+v", d.Prompts)
+	}
+}
+
+// Brokk's field shows the answer of his session (#2028): the reader gives the last answer it read, and a new one once the
+// agent writes it.
+func TestSessionReaderLatestAnswer(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "-work-demo", "11111111-2222-3333-4444-555555555555.jsonl")
+	copyFixture(t, "claude-session.jsonl", path)
+	r, err := OpenAdapterSessionReader(MakeClaudeAdapter([]string{root}), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if _, ok := r.LatestAnswer(); ok {
+		t.Fatal("nothing is read before the first poll")
+	}
+	r.Poll()
+	first, ok := r.LatestAnswer()
+	if !ok || first.Markdown == "" || first.At == 0 {
+		t.Fatalf("latest answer: %+v %v", first, ok)
+	}
+
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"user","message":{"role":"user","content":"How many agents run?"},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:00.000Z"}` + "\n")
+	f.WriteString(`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Two agents run now."}]},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:03.000Z"}` + "\n")
+	f.Close()
+	r.Poll()
+	next, ok := r.LatestAnswer()
+	if !ok || next.Markdown != "Two agents run now." || next.Index <= first.Index || next.At <= first.At {
+		t.Fatalf("new answer: %+v (first %+v)", next, first)
+	}
+}
+
+// Brokk's window keeps each answer apart (#2033): the first one stays readable by its turn once a second message started
+// a newer one.
+func TestSessionReaderAnswerAtReadsATurnWhateverCameAfterIt(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "-work-demo", "11111111-2222-3333-4444-555555555555.jsonl")
+	copyFixture(t, "claude-session.jsonl", path)
+	r, err := OpenAdapterSessionReader(MakeClaudeAdapter([]string{root}), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	r.Poll()
+	first, ok := r.AnswerAt(0)
+	if !ok {
+		t.Fatal("the fixture holds an answer")
+	}
+
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"user","message":{"role":"user","content":"How many agents run?"},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:00.000Z"}` + "\n")
+	f.WriteString(`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Two agents run now."}]},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:03.000Z"}` + "\n")
+	f.Close()
+	r.Poll()
+
+	latest, _ := r.AnswerAt(0)
+	if latest.Markdown != "Two agents run now." {
+		t.Fatalf("latest answer: %+v", latest)
+	}
+	earlier, ok := r.AnswerAt(first.Index)
+	if !ok || earlier.Markdown != first.Markdown || earlier.Latest {
+		t.Fatalf("answer of turn %d: %+v %v, want the first answer, no longer the latest", first.Index, earlier, ok)
+	}
+	if _, ok := r.AnswerAt(first.Index + 100); ok {
+		t.Fatal("a turn that does not exist has no answer")
 	}
 }
 

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import {
     autoUpdate,
@@ -22,6 +22,7 @@ import {
     useTypeahead,
 } from "@floating-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FaviconMark } from "../favicon/favicon-mark";
 import { useFloatingInPlace } from "../floating-in-place";
 import { t } from "../i18n/i18n";
 import { actionableMenuItem, layoutMenuItems, menuItemRole, menuLabel, shortcutLabel } from "./menu-model";
@@ -304,6 +305,8 @@ function MenuItemContent({ item, submenu }: { item: ContextMenuItem; submenu?: b
                     ) : (
                         "✓"
                     )
+                ) : item.iconImage ? (
+                    <FaviconMark url={item.iconImage} dark={item.iconImageDark} />
                 ) : item.icon ? (
                     <i className={`fa fa-${item.icon}`} />
                 ) : null}

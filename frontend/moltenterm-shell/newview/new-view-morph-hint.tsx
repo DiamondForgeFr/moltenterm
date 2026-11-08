@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The launcher's way forward when nothing matches (FR-SHELL-089, #1672): ask the workspace's agent for the tool with
 // /morph, or, with no agent in the workspace, show the agents that can start. Mounted only on an empty result, so the

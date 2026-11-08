@@ -1,11 +1,11 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
-// Package keepawake is MoltenTerm's own keep-awake and the sleep policy (FR-SHELL-023, DS-SHELL-024, DS-SHELL-025,
-// DS-SHELL-062). wavesrv holds one state: the global policy, the reasons MoltenTerm keeps the computer awake (the
-// Until work ends policy while work runs, each workspace's coffee, and later the on-demand keep-awake of FR-SHELL-024),
-// the block attempts the inhibitor shims report and the per-session overrides. Electron main holds the one system
-// sleep blocker while any reason is active (emain/moltenterm-keepawake.ts); the windows show the coffees and the list.
+// Package keepawake is MoltenTerm's own keep-awake (FR-SHELL-023, DS-SHELL-024, DS-SHELL-025, DS-SHELL-062). wavesrv
+// holds one state: the configuration, the reasons MoltenTerm keeps the computer awake (Automatic while work runs, each
+// workspace's Manual switch, which the code calls its coffee, and later the on-demand keep-awake of FR-SHELL-024), the
+// block attempts the inhibitor shims report and the per-session overrides. Electron main holds the one system sleep
+// blocker while any reason is active (emain/moltenterm-keepawake.ts); the windows show the coffees and the list.
 // Nothing is kept across a restart: quitting or a crash ends every reason, and the blocker goes with the process.
 package keepawake
 
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
 const (
@@ -28,12 +29,19 @@ const (
 	StopCommand     = "keepawakestop"
 )
 
-// The values of the power:sleeppolicy setting; PolicyAsk is the setting left unset.
+// What a shim answers, and a session's own choice: PolicyAllow lets the tool run, PolicyLetSleep neutralises it.
+// PolicyUntilWorkEnds is only an answer of the ask-once notification (it turns Automatic on).
 const (
-	PolicyAsk           = ""
 	PolicyAllow         = "allow"
 	PolicyUntilWorkEnds = "untilworkends"
 	PolicyLetSleep      = "letsleep"
+)
+
+// The values of the power:terminalrequests setting; RequestsAsk is the setting left unset.
+const (
+	RequestsAsk    = ""
+	RequestsAlways = "always"
+	RequestsNever  = "never"
 )
 
 // What a shim did with a block attempt.
@@ -49,8 +57,9 @@ const (
 )
 
 const (
-	// GracePeriod absorbs the short pauses between an agent's turns before a reason ends (DS-SHELL-025).
-	GracePeriod = 2 * time.Minute
+	// DefaultGrace absorbs the short pauses between an agent's turns before Automatic ends (DS-SHELL-025); the setting
+	// power:graceminutes changes it.
+	DefaultGrace = 2 * time.Minute
 	// MaxAttempts caps the attempts kept in the state; the oldest go first.
 	MaxAttempts = 50
 )
@@ -64,15 +73,15 @@ const (
 	noticeKindInfo     = "info"
 )
 
-// Coffee is one workspace kept awake from its rail bud (DS-SHELL-062).
+// Coffee is a workspace's Manual switch (DS-SHELL-062, FR-SHELL-023 AC14): it keeps the computer awake until the user
+// turns it off, whether or not work runs.
 type Coffee struct {
 	WorkspaceId   string `json:"workspaceid"`
 	WorkspaceName string `json:"workspacename,omitempty"`
 	// Since: when the user turned it on (Unix milliseconds).
 	Since int64 `json:"since"`
-	// Working: work runs in the workspace now; otherwise the coffee is in its grace and ends at EndsAt.
-	Working bool  `json:"working"`
-	EndsAt  int64 `json:"endsat,omitempty"`
+	// Working: work runs in the workspace now.
+	Working bool `json:"working"`
 	// Reasons: what works in the workspace now, the most telling first ("Adrien: background work"), while Working.
 	Reasons []string `json:"reasons,omitempty"`
 	// ReasonsText: Reasons' codes for the windows, by position (#656).
@@ -113,17 +122,20 @@ type Override struct {
 type State struct {
 	Version int64 `json:"version"`
 	// Hold: MoltenTerm keeps the system awake now (Electron main holds its blocker).
-	Hold   bool   `json:"hold"`
-	Policy string `json:"policy"`
-	// The Until work ends policy holds the blocker: work runs, or it is in its grace until PolicyEndsAt.
-	PolicyHolding bool  `json:"policyholding,omitempty"`
-	PolicyWorking bool  `json:"policyworking,omitempty"`
-	PolicyEndsAt  int64 `json:"policyendsat,omitempty"`
-	// PolicyReasons: what works on this computer now, while PolicyWorking.
-	PolicyReasons []string `json:"policyreasons,omitempty"`
-	// PolicyReasonsText: PolicyReasons' codes for the windows, by position (#656).
-	PolicyReasonsText []*uimsg.Text `json:"policyreasonstext,omitempty"`
-	// Coffees, oldest first.
+	Hold bool `json:"hold"`
+	// Automatic: the Automatic mode is on (power:automatic); Requests is what a terminal's request gets
+	// (power:terminalrequests, empty while it asks).
+	Automatic bool   `json:"automatic"`
+	Requests  string `json:"requests,omitempty"`
+	// Automatic holds the blocker: work runs, or it is in its grace until AutomaticEndsAt.
+	AutomaticHolding bool  `json:"automaticholding,omitempty"`
+	AutomaticWorking bool  `json:"automaticworking,omitempty"`
+	AutomaticEndsAt  int64 `json:"automaticendsat,omitempty"`
+	// AutomaticReasons: what works on this computer now, while AutomaticWorking.
+	AutomaticReasons []string `json:"automaticreasons,omitempty"`
+	// AutomaticReasonsText: AutomaticReasons' codes for the windows, by position (#656).
+	AutomaticReasonsText []*uimsg.Text `json:"automaticreasonstext,omitempty"`
+	// Coffees (the Manual switches), oldest first.
 	Coffees   []Coffee   `json:"coffees"`
 	Attempts  []Attempt  `json:"attempts"`
 	Overrides []Override `json:"overrides"`
@@ -165,17 +177,61 @@ type OverrideRequest struct {
 	Policy string `json:"policy,omitempty"`
 }
 
-// CleanPolicy reads the setting's value; anything unknown is the unset policy, which asks.
-func CleanPolicy(value string) string {
+// WorkRules are the kinds of work that count (power:workagents, power:workcommands, power:workprojects).
+type WorkRules struct {
+	Agents   bool
+	Commands bool
+	Projects bool
+}
+
+// Config is the keep-awake configuration the keeper reads at each evaluation (the power:* settings).
+type Config struct {
+	// Automatic: the Automatic mode (power:automatic).
+	Automatic bool
+	// Requests: what a terminal's request to stay awake gets: RequestsAsk, RequestsAlways or RequestsNever.
+	Requests string
+	// Grace: how long Automatic holds after the last work stopped.
+	Grace time.Duration
+	Work  WorkRules
+}
+
+// DefaultConfig is the configuration while nothing is set.
+func DefaultConfig() Config {
+	return Config{Grace: DefaultGrace, Work: WorkRules{Agents: true, Commands: true, Projects: true}}
+}
+
+// CleanRequests reads power:terminalrequests; anything unknown is the unset value, which asks.
+func CleanRequests(value string) string {
 	switch strings.TrimSpace(strings.ToLower(value)) {
-	case PolicyAllow:
-		return PolicyAllow
-	case PolicyUntilWorkEnds:
-		return PolicyUntilWorkEnds
-	case PolicyLetSleep:
-		return PolicyLetSleep
+	case RequestsAlways:
+		return RequestsAlways
+	case RequestsNever:
+		return RequestsNever
 	}
-	return PolicyAsk
+	return RequestsAsk
+}
+
+// graceChoices are the minutes power:graceminutes may take.
+var graceChoices = map[int64]bool{1: true, 2: true, 5: true, 10: true, 15: true}
+
+// ConfigFromSettings reads the power:* settings; a missing or invalid value reads as its default.
+func ConfigFromSettings(s wconfig.SettingsType) Config {
+	cfg := DefaultConfig()
+	cfg.Automatic = s.PowerAutomatic
+	cfg.Requests = CleanRequests(s.PowerTerminalRequests)
+	if s.PowerGraceMinutes != nil && graceChoices[*s.PowerGraceMinutes] {
+		cfg.Grace = time.Duration(*s.PowerGraceMinutes) * time.Minute
+	}
+	if s.PowerWorkAgents != nil {
+		cfg.Work.Agents = *s.PowerWorkAgents
+	}
+	if s.PowerWorkCommands != nil {
+		cfg.Work.Commands = *s.PowerWorkCommands
+	}
+	if s.PowerWorkProjects != nil {
+		cfg.Work.Projects = *s.PowerWorkProjects
+	}
+	return cfg
 }
 
 // ValidOverride tells the per-session policies a session may take.
@@ -183,10 +239,10 @@ func ValidOverride(policy string) bool {
 	return policy == PolicyAllow || policy == PolicyLetSleep
 }
 
-// ShimPolicy is what a shim does under a policy: only Let it sleep keeps it from asserting; Allow, Until work ends and
-// the unset policy (which asks once meanwhile) let the real tool run.
-func ShimPolicy(policy string) string {
-	if policy == PolicyLetSleep {
+// ShimPolicy is what a shim does under the terminal requests setting: only Never keeps it from asserting; Always and
+// the unset value (which asks once meanwhile) let the real tool run.
+func ShimPolicy(requests string) string {
+	if requests == RequestsNever {
 		return PolicyLetSleep
 	}
 	return PolicyAllow

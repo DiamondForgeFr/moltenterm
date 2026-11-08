@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Panels that run hidden (#916, DS-REV-012): a block of the tab kept outside the layout, such as the review session's
 // terminal, whose agent works while the AI panel shows its cards. The layout spares it when it cleans up orphaned

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package checkpoint is the workspace task checkpoint (FR-CONT-007, DS-CONT-008 to DS-CONT-010): one living task
 // memory per workspace, every agent continues from it. MoltenTerm keeps it in its data folder, never in the

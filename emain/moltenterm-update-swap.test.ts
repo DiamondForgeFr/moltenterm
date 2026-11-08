@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The gold swap script run for real against fake app bundles (#1193): a liveness check that cannot run never rolls
 // back a build that started, and a build that really quits is still rolled back.

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -15,6 +15,7 @@ import (
 )
 
 func TestParseRaw(t *testing.T) {
+	t.Parallel()
 	a := strings.Repeat("a", 40)
 	b := strings.Repeat("b", 40)
 	raw := ":100644 100644 " + a + " " + b + " M\x00src/x.go\x00" +
@@ -44,6 +45,7 @@ func TestParseRaw(t *testing.T) {
 }
 
 func TestApplyNumstat(t *testing.T) {
+	t.Parallel()
 	files := []File{{Path: "a.go"}, {Path: "to/y.ts", OldPath: "from/y.ts"}, {Path: "img.png"}}
 	ApplyNumstat(files, []byte("3\t1\ta.go\x00"+"2\t2\t\x00from/y.ts\x00to/y.ts\x00"+"-\t-\timg.png\x00"))
 	if files[0].Additions != 3 || files[0].Deletions != 1 {
@@ -58,6 +60,7 @@ func TestApplyNumstat(t *testing.T) {
 }
 
 func TestGeneratedAndCollapsed(t *testing.T) {
+	t.Parallel()
 	for _, p := range []string{"package-lock.json", "web/yarn.lock", "go.sum", "frontend/types/gotypes.d.ts", "api/x.pb.go", "dist/app.min.js"} {
 		if !IsGeneratedName(p) {
 			t.Errorf("%s should be generated", p)
@@ -95,6 +98,7 @@ func TestGeneratedAndCollapsed(t *testing.T) {
 }
 
 func TestParsers(t *testing.T) {
+	t.Parallel()
 	sizes := ParseLsTreeSizes([]byte("100644 blob " + strings.Repeat("a", 40) + "    1234\tdir/a b.txt\x00160000 commit " + strings.Repeat("b", 40) + "       -\tsub\x00"))
 	if sizes["dir/a b.txt"] != 1234 || len(sizes) != 1 {
 		t.Errorf("sizes: %v", sizes)
@@ -187,6 +191,7 @@ func execGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
 }
 
 func TestFilesAndFile(t *testing.T) {
+	t.Parallel()
 	fx := makeFixture(t)
 	d := MakeDiffer(execGit)
 	ctx := context.Background()
@@ -253,6 +258,7 @@ func TestFilesAndFile(t *testing.T) {
 }
 
 func TestSinceAndCompare(t *testing.T) {
+	t.Parallel()
 	fx := makeFixture(t)
 	runGit(t, fx.dir, "checkout", "-q", "feature/1-x")
 	write(t, fx.dir, "change.go", "package change\n\nfunc A() {}\n\nfunc B() {}\n\nfunc C() {}\n")
@@ -276,6 +282,7 @@ func TestSinceAndCompare(t *testing.T) {
 }
 
 func TestRequestChecks(t *testing.T) {
+	t.Parallel()
 	d := MakeDiffer(execGit)
 	ctx := context.Background()
 	if _, err := d.Files(ctx, FilesRequest{Dir: "rel", HeadRef: "a", BaseRef: "b"}); err == nil {
@@ -290,6 +297,7 @@ func TestRequestChecks(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
+	t.Parallel()
 	s := MakeStore(t.TempDir())
 	s.now = func() time.Time { return time.UnixMilli(1000) }
 	k := PrKey{Repo: "Owner/Name", Number: 7}

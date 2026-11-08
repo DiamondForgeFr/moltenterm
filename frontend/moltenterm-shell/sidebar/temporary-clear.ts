@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Clear (FR-SHELL-080, #1253): "↓ Clear" closes the workspace's temporary views, never a pinned one. What their
 // terminals run is read once and asked once (the busy-close guard, FR-SHELL-061); a view linked to a worktree keeps

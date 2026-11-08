@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Mark ready for review (#687), on a draft's row in the Reviews list and in its Review tab's header: the button asks
 // for a confirmation that says what GitHub does next, then runs gh pr ready through ReviewsModel.markReady.
@@ -23,7 +23,8 @@ export type MarkReadyState = {
     cancel: () => void;
 };
 
-export function useMarkReady(dir: string, number: number, repo: string): MarkReadyState {
+// onReady: told once the PR left draft, for what the click decides besides (the card settles its agents' stops, #1876).
+export function useMarkReady(dir: string, number: number, repo: string, onReady?: () => void): MarkReadyState {
     const word = useWordPhrase();
     const [phase, setPhase] = useState<MarkReadyPhase>("idle");
     const [error, setError] = useState<Phrase>(null);
@@ -48,6 +49,9 @@ export function useMarkReady(dir: string, number: number, repo: string): MarkRea
                 const failed = await ReviewsModel.getInstance().markReady(dir, number, repo);
                 setError(failed);
                 setPhase(failed != null ? "failed" : "idle");
+                if (failed == null) {
+                    onReady?.();
+                }
             });
         },
         cancel,

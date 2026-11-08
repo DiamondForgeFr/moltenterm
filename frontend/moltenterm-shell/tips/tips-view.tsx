@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Tips (#534): MoltenTerm's own help page, opened from the rail's lightbulb, in the language of Settings. It replaces
 // Wave's tips view under the same view type ("tips"), whose content was about Wave's blocks and wsh. The shortcuts come

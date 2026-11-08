@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -201,6 +201,7 @@ func checkOf(plan MergePlan, id string) MergeCheck {
 }
 
 func TestMergePlanClean(t *testing.T) {
+	serialTest(t, "installs the process-wide post-merge hook")
 	hook := &fakeHook{}
 	SetPostMerge(hook)
 	defer SetPostMerge(nil)
@@ -231,6 +232,7 @@ func TestMergePlanClean(t *testing.T) {
 }
 
 func TestMergePlanBlocks(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		change func(p *fakePr)
@@ -274,6 +276,7 @@ func TestMergePlanBlocks(t *testing.T) {
 // A ready PR whose required checks still run is BLOCKED by GitHub: the rules' row waits for the CI instead of failing,
 // and a failing CI is the only failure counted (#925).
 func TestMergePlanBlockedByRunningCi(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		change   func(p *fakePr)
@@ -335,6 +338,7 @@ func redCheck(name string) map[string]string {
 // Red checks GitHub does not require (UNSTABLE, PR #938's case) never block Validate: they are a warning naming them,
 // and the merge runs once the developer confirmed it (#943).
 func TestMergeOptionalRedChecksAskForConfirmation(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	pr := cleanPr()
 	pr.Checks = append(pr.Checks, redCheck("sync-review"))
@@ -370,6 +374,7 @@ func TestMergeOptionalRedChecksAskForConfirmation(t *testing.T) {
 
 // Under branch protection GitHub says BLOCKED while a required check is red: Validate keeps refusing (#943).
 func TestMergeRequiredRedChecksStillBlock(t *testing.T) {
+	t.Parallel()
 	pr := cleanPr()
 	pr.Checks = append(pr.Checks, redCheck("build-required"))
 	pr.MergeState = "BLOCKED"
@@ -395,6 +400,7 @@ func TestMergeRequiredRedChecksStillBlock(t *testing.T) {
 
 // A check that turned red after the confirmation was not seen: the merge refuses and names it (#943).
 func TestMergeRefusesANewRedCheck(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	pr := cleanPr()
 	pr.Checks = append(pr.Checks, redCheck("sync-review"))
@@ -419,6 +425,7 @@ func TestMergeRefusesANewRedCheck(t *testing.T) {
 
 // Behind its base: the confirmed red check fails again on the updated head and the merge goes on; another one stops it.
 func TestMergeBehindWithConfirmedRedCheck(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	behind := cleanPr()
 	behind.MergeState = "BEHIND"
@@ -481,6 +488,7 @@ func writeComments(t *testing.T, dir string, states ...string) {
 }
 
 func TestMergeUnpublishedCommentIsAWarning(t *testing.T) {
+	t.Parallel()
 	gh := &fakeGh{views: []fakePr{cleanPr()}}
 	m, dir, _ := testMerger(t, gh)
 	writeComments(t, dir, "staged", "published", "dropped", "draft")
@@ -509,6 +517,7 @@ func TestMergeUnpublishedCommentIsAWarning(t *testing.T) {
 }
 
 func TestMergeRebaseBoundToHead(t *testing.T) {
+	serialTest(t, "installs the process-wide post-merge hook")
 	hook := &fakeHook{}
 	SetPostMerge(hook)
 	defer SetPostMerge(nil)
@@ -553,6 +562,7 @@ func TestMergeRebaseBoundToHead(t *testing.T) {
 }
 
 func TestMergeRefusedAfterAPush(t *testing.T) {
+	serialTest(t, "installs the process-wide post-merge hook")
 	hook := &fakeHook{}
 	SetPostMerge(hook)
 	defer SetPostMerge(nil)
@@ -578,6 +588,7 @@ func TestMergeRefusedAfterAPush(t *testing.T) {
 }
 
 func TestMergeGithubRefusalIsNotRetried(t *testing.T) {
+	serialTest(t, "installs the process-wide post-merge hook")
 	hook := &fakeHook{}
 	SetPostMerge(hook)
 	defer SetPostMerge(nil)
@@ -610,6 +621,7 @@ func TestMergeGithubRefusalIsNotRetried(t *testing.T) {
 }
 
 func TestMergeBehindUpdatesThenWaitsForCi(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	behind := cleanPr()
 	behind.MergeState = "BEHIND"
@@ -655,6 +667,7 @@ func TestMergeBehindUpdatesThenWaitsForCi(t *testing.T) {
 }
 
 func TestMergeBehindRefusesAnotherPush(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	behind := cleanPr()
 	behind.MergeState = "BEHIND"
@@ -683,6 +696,7 @@ func TestMergeBehindRefusesAnotherPush(t *testing.T) {
 }
 
 func TestMergeBehindCiFailsOrCancel(t *testing.T) {
+	t.Parallel()
 	SetPostMerge(nil)
 	behind := cleanPr()
 	behind.MergeState = "BEHIND"
@@ -729,6 +743,7 @@ func TestMergeBehindCiFailsOrCancel(t *testing.T) {
 }
 
 func TestMergePlanExpiresAndIsReplaced(t *testing.T) {
+	t.Parallel()
 	gh := &fakeGh{views: []fakePr{cleanPr()}}
 	m, dir, _ := testMerger(t, gh)
 	first, _ := m.Plan(context.Background(), planReq(dir))
@@ -747,6 +762,7 @@ func TestMergePlanExpiresAndIsReplaced(t *testing.T) {
 }
 
 func TestMergeRestartInFlightWarns(t *testing.T) {
+	t.Parallel()
 	gh := &fakeGh{views: []fakePr{cleanPr()}}
 	m, dir, _ := testMerger(t, gh)
 	m.store.update(testKey, func(state *State) bool {
@@ -760,6 +776,7 @@ func TestMergeRestartInFlightWarns(t *testing.T) {
 }
 
 func TestMergeCommandsAreWindowOnly(t *testing.T) {
+	t.Parallel()
 	gh := &fakeGh{views: []fakePr{cleanPr()}}
 	service := MakeService(t.TempDir(), nil, nil)
 	service.merger.gh = gh.run

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -21,6 +21,7 @@ func fakeGhView(answer string, seen *[]string) func(ctx context.Context, dir str
 }
 
 func TestReadSetupPrStatus(t *testing.T) {
+	t.Parallel()
 	var seen []string
 	answer := `{"number": 42, "url": "https://github.com/o/r/pull/42", "state": "OPEN", "isDraft": true,
 		"headRefName": "feature/7-release-pipeline", "baseRefName": "develop", "statusCheckRollup": [

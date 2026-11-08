@@ -44,6 +44,11 @@ up), free ports for `--remote-debugging-port` and the main process `--inspect`, 
 `MOLTENTERM_SKIP_ONBOARDING=1`. The root holds a marker file naming it; the harness refuses to launch on or delete a
 directory without its marker, so it never touches the user's data, the dev instance (`moltenterm-dev`) or a gold.
 
+The harness drives the dev build (`node_modules/electron` running the checkout), whose fuses are Electron's defaults.
+A packaged app has `--inspect` off (#1975): `connectMain` says so when the inspector does not answer, and a packaged
+build is qualified with `scripts/moltenterm-qualify-packaged.mjs` (see `UPSTREAM.md`, "Packaged builds and Electron
+fuses"), which reuses this harness's isolated root.
+
 It stops only what it started: the Electron pid it spawned (only while that child has not exited, so a reused pid is
 never hit), the process tree captured under it (a pid is killed only while it still runs the same command), and the
 processes that run a binary from its root or carry its data directory in their environment (the detached `wsh` job
@@ -110,8 +115,10 @@ were running (load average 4 to 6). A second full run of the same build is compa
 pass it with `--baseline`. `baselines/fdc30e40.json` kept those machine-dependent values and replaced the bundle
 scenario with a run on origin/develop fdc30e40 (#1050), once the features merged since had used the raw bundle's whole
 tolerance. `baselines/96cfeb72.json` did the same on origin/develop 96cfeb72 (#1105), once they had used the up-front
-JavaScript's whole 2 % tolerance. The current baseline, `baselines/0215ba07.json`, does it again on origin/develop
-0215ba07 (#1184), for the same reason.
+JavaScript's whole 2 % tolerance. `baselines/0215ba07.json` did it again on origin/develop 0215ba07 (#1184), for the
+same reason, `baselines/d7cfa5e0.json` did it on origin/develop d7cfa5e0 (#1866), `baselines/308356c1.json` on
+origin/develop 308356c1 (#1904), and so does the current baseline, `baselines/6f59130c.json`, on origin/develop
+6f59130c (#1978).
 
 ## CI
 

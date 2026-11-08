@@ -1,0 +1,45 @@
+# Copyright 2026, DiamondForge
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Checks that every author of a pull request has signed the CLA (CLA.md, #1870): a bot, a maintainer listed in
+# .github/cla/cla.json, someone already in its `signatures`, or the pull request's own author adding their entry in this
+# very pull request. See CONTRIBUTING.md and UPSTREAM.md, "Continuous integration".
+#
+# It runs from the base branch (pull_request_target) so that a pull request cannot change the rules it is judged by,
+# and it never checks out or runs the pull request's code: the script reads the pull request through the API, as data.
+# It needs no secret, only the job's own read-only token.
+
+name: CLA
+
+on:
+    pull_request_target:
+        branches: [develop, main]
+        types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+    contents: read
+    pull-requests: read
+
+concurrency:
+    group: cla-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    cla:
+        name: CLA
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            # No `ref`: pull_request_target checks out the base branch, which is what holds the rules and the script.
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 22
+            - name: Every author has signed
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GITHUB_REPOSITORY: ${{ github.repository }}
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+              run: node scripts/moltenterm-check-cla.mjs "$PR_NUMBER"

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The writes of the project bookmarks (FR-BRW-019, FR-BRW-021): each one reads the workspace as it is now, applies a
 // pure change from bookmarks.ts and saves the key in one meta write, so the panel's menu and the settings card, which

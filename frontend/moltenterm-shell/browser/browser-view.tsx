@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The browser panel (FR-SHELL-007, DS-SHELL-007): one page per panel since #1187 (FR-SHELL-083), with no tab strip;
 // what opened a tab opens a panel to the right. The tab list of the block meta stays, holding that one page, so the
@@ -36,6 +36,7 @@ import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
+import { DownloadPill } from "../downloads/download-pill";
 import { HeaderCloseButton } from "../header/header-close-button";
 import { contentBoxWidth } from "../header/header-fold";
 import { Pill } from "../header/pill";
@@ -56,7 +57,6 @@ import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
-import { revealPanelOnCarpet } from "../view360/carpet-reveal";
 import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { CarpetHeaderButton } from "../view360/view360-places";
@@ -64,9 +64,12 @@ import { AddressHold, takeAddressFocus } from "./address-focus";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
+import { showAgentPage } from "./agent-show";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
 import { bookmarksMenu } from "./bookmarks-menu";
+import { captureFavicon, faviconsAtom, noteSiteLoading, requestFavicons } from "../favicon/favicon-store";
+import { originOfAddress } from "../favicon/site";
 import {
     AgentControlAction,
     agentName,
@@ -127,6 +130,7 @@ import {
     ReloadNormal,
     ReloadStop,
     runReload,
+    tabFaviconSrc,
     TabLoad,
 } from "./browser-loading";
 import {
@@ -182,8 +186,19 @@ import "./browser.css";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
 import { choiceEngineId, EngineChoice } from "./link-choice";
+import {
+    allowedWhenNavigated,
+    canRememberLocalPage,
+    isLocalPage,
+    localPageOf,
+    LocalPagesKey,
+    withRememberedLocalPage,
+} from "./local-page";
+import { GatedPage } from "./local-page-ask";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
-import { isSiteAsk, SitePermissionBar, SitePermissionModel } from "./site-permission-bar";
+import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
+import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
+import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
 import { TestContextChip } from "./test-context";
 
 export { MoltentermBrowserView };
@@ -198,12 +213,26 @@ const FallbackUrl = StartPageUrl;
 // The agents' DevTools controller needs each tab's webview (emain/moltenterm-browseragent.ts, FR-BRW-008).
 type BrowserAgentElectronApi = ElectronApi &
     AgentPressApi & {
-        moltentermRegisterWebview?: (blockId: string, browserTabId: string, webContentsId: number) => void;
+        moltentermRegisterWebview?: (
+            blockId: string,
+            browserTabId: string,
+            webContentsId: number,
+            tabId?: string,
+            workspaceId?: string
+        ) => void;
     };
 
-function registerWebview(blockId: string, browserTabId: string, webContentsId: number): void {
+// The workspace and view of the panel travel with the registration: a download that starts in this page remembers
+// where it came from (#1992).
+function registerWebview(blockId: string, browserTabId: string, webContentsId: number, tabId: string): void {
     listenAgentPresses(getApi() as BrowserAgentElectronApi);
-    (getApi() as BrowserAgentElectronApi).moltentermRegisterWebview?.(blockId, browserTabId, webContentsId);
+    (getApi() as BrowserAgentElectronApi).moltentermRegisterWebview?.(
+        blockId,
+        browserTabId,
+        webContentsId,
+        tabId,
+        globalStore.get(atoms.workspace)?.oid
+    );
 }
 
 function webviewPreloadUrl(): string {
@@ -244,6 +273,8 @@ export class BrowserViewModel implements ViewModel {
     // Sign-in refusals per tab (FR-BRW-003).
     signIn = new BrowserSignInModel();
     sitePermissions = new SitePermissionModel();
+    // The client certificate a site asks for, per tab (#1979).
+    clientCertificates = new ClientCertificateModel();
     // Load state and favicon per tab (#210).
     loads = new BrowserLoadModel();
     // The page that failed to load per tab, drawn as MoltenTerm's error page (FR-SHELL-051).
@@ -272,7 +303,16 @@ export class BrowserViewModel implements ViewModel {
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
         this.agents = new BrowserAgentModel(blockId);
-        this.agents.onShown = () => revealPanelOnCarpet(blockId);
+        this.agents.onShown = (shownTabIds) =>
+            showAgentPage(
+                {
+                    blockId,
+                    activeTabId: () => this.state().activeId,
+                    hasTab: (id) => this.findTab(id) != null,
+                    selectTab: (id) => this.showTab(id),
+                },
+                shownTabIds
+            );
         this.agents.start();
         this.lifecycle = new BrowserLifecycleModel(blockId);
         this.lifecycle.start((tabId, webContentsId, scroll) => this.discardTab(tabId, webContentsId, scroll));
@@ -325,12 +365,14 @@ export class BrowserViewModel implements ViewModel {
     // empty page nobody drives.
     openBeside(url: string, opts?: BesideOpts & { focus?: boolean }): void {
         const shown = this.findTab(this.state().activeId);
+        // A local page never replaces a shown page: it opens in a panel of its own, which asks (FR-BRW-014, #1978).
         if (
             shown != null &&
             !shown.engine &&
             isBlankPage(shown.url) &&
             !this.isAgentDriven(shown.id) &&
-            this.state().tabs.length === 1
+            this.state().tabs.length === 1 &&
+            !isLocalPage(url)
         ) {
             this.navigate(url);
             if (opts?.ask) {
@@ -348,7 +390,8 @@ export class BrowserViewModel implements ViewModel {
         fireAndForget(() => this.createBeside(besideBlockDef({ url }, opts), this.blockId, opts?.focus !== false));
     }
 
-    // The shown page goes to url (the top field's Enter, FR-SHELL-083); a handed-off entry reopens there.
+    // The shown page goes to url (the top field's Enter, FR-SHELL-083); a handed-off entry reopens there. An address
+    // is typed or clicked by the user: a local page it names is allowed, and replaces a question the tab was holding.
     navigate(url: string): void {
         const active = this.findTab(this.state().activeId);
         if (active == null || !url) {
@@ -363,7 +406,54 @@ export class BrowserViewModel implements ViewModel {
             .catch(() => {
                 // A failure arrives as did-fail-load and shows the error page.
             });
-        this.setState(updateTab(this.state(), active.id, { url, title: undefined }));
+        this.setState(
+            updateTab(this.state(), active.id, {
+                url,
+                title: undefined,
+                ...(isLocalPage(url) ? { allowed: true } : {}),
+            })
+        );
+    }
+
+    // "Open" of the question a local or inline page asks (FR-BRW-014, #1978): the tab shows it and keeps the answer
+    // with its saved state.
+    allowLocalPage(id: string): void {
+        if (this.findTab(id) == null) {
+            return;
+        }
+        this.setState(updateTab(this.state(), id, { allowed: true }));
+        this.persistNow();
+        this.focusPanel();
+    }
+
+    // "Always open this file": the file is remembered in browser:localpages, written by this window alone (a terminal's
+    // setconfig of it is refused), and opens now.
+    rememberLocalPage(id: string): void {
+        const page = localPageOf(this.findTab(id)?.url);
+        if (!canRememberLocalPage(page)) {
+            return;
+        }
+        const next = withRememberedLocalPage(globalStore.get(getSettingsKeyAtom(LocalPagesKey)), page);
+        this.allowLocalPage(id);
+        fireAndForget(async () => {
+            try {
+                await RpcApi.SetConfigCommand(TabRpcClient, { [LocalPagesKey]: next } as SettingsType);
+            } catch (e) {
+                this.showNotice(t("browser.local.notSaved", { error: errorText(e) }));
+            }
+        });
+    }
+
+    // "Don't open": the page never loaded; the panel opened for it closes.
+    declineLocalPage(id: string): void {
+        if (this.findTab(id) == null) {
+            return;
+        }
+        if (this.state().tabs.length <= 1) {
+            uxCloseBlock(this.blockId);
+            return;
+        }
+        this.closeTab(id);
     }
 
     shownUrl(): string {
@@ -445,6 +535,7 @@ export class BrowserViewModel implements ViewModel {
         this.lifecycle.forget(id);
         this.signIn.forget(id);
         this.sitePermissions.forgetTab(id);
+        this.clientCertificates.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -855,7 +946,7 @@ export class BrowserViewModel implements ViewModel {
     // A launch that replaced the version this tab shows (#1005): the tab loads the new one, is shown and focused.
     // A tab that never mounted its page loads tab.url when shown, so the state carries the URL too.
     showUrlInTab(id: string, url: string): void {
-        if (this.findTab(id) == null) {
+        if (this.findTab(id) == null || isLocalPage(url)) {
             return;
         }
         const webview = this.webviews.get(id);
@@ -948,6 +1039,7 @@ export class BrowserViewModel implements ViewModel {
         this.lifecycle.forget(id);
         this.signIn.forget(id);
         this.sitePermissions.forgetTab(id);
+        this.clientCertificates.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -971,7 +1063,11 @@ export class BrowserViewModel implements ViewModel {
             return;
         }
         fireAndForget(() =>
-            this.createBeside(besideBlockDef({ id: makeTabId(), url: tab.url, engine: tab.engine }), this.blockId, true)
+            this.createBeside(
+                besideBlockDef({ id: makeTabId(), url: tab.url, engine: tab.engine, allowed: tab.allowed }),
+                this.blockId,
+                true
+            )
         );
     }
 
@@ -1049,16 +1145,24 @@ export class BrowserViewModel implements ViewModel {
         const projectName = project != null ? projectLabel(project) : null;
         const data = readProjectBookmarks(ws?.meta, projectId);
         return bookmarksMenu(
-            { projectName, multi: projects.length > 1, data, pageUrl: bookmarkablePage(tab?.url) },
+            {
+                projectName,
+                multi: projects.length > 1,
+                data,
+                pageUrl: bookmarkablePage(tab?.url),
+                icons: globalStore.get(faviconsAtom),
+            },
             {
                 open: (url) => this.navigate(url),
-                bookmarkPage: () =>
+                bookmarkPage: () => {
+                    this.captureTabFavicon(tab);
                     this.askBookmark({
                         projectId,
                         projectName,
                         mode: "page",
                         initial: { url: tab.url, title: browserTabTitle(tab), description: "", folder: "" },
-                    }),
+                    });
+                },
                 editBookmark: (b) =>
                     this.askBookmark({
                         projectId,
@@ -1074,6 +1178,19 @@ export class BrowserViewModel implements ViewModel {
 
     askBookmark(request: BookmarkDialogRequest): void {
         globalStore.set(this.bookmarkDialogAtom, request);
+    }
+
+    // A bookmark added from a page that has an icon keeps that icon with its site's (#1962): Electron main reads the icon
+    // the page declared if it has not yet, through the page's own session.
+    captureTabFavicon(tab: BrowserTab): void {
+        try {
+            const webview = tab != null && !tab.engine ? this.webviews.get(tab.id) : null;
+            if (webview != null) {
+                captureFavicon(webview.getWebContentsId());
+            }
+        } catch (e) {
+            console.log("favicons: no page to read an icon from", e);
+        }
     }
 
     // The toolbar's Share with agent button opens the same entries as the tab menu (FR-BRW-011 AC1).
@@ -1564,7 +1681,9 @@ function TabWebview({
             if (e.isMainFrame === false || /^chrome-error:/i.test(e.url ?? "")) {
                 return;
             }
-            model.setState(updateTab(model.state(), tab.id, { url: e.url }));
+            model.setState(
+                updateTab(model.state(), tab.id, { url: e.url, ...allowedWhenNavigated(model.findTab(tab.id), e.url) })
+            );
             model.signIn.noteNavigation(tab.id, e.url);
             // In-page navigations (anchors, history.pushState on load) do not count as moving on.
             if (e.type === "did-navigate") {
@@ -1583,6 +1702,13 @@ function TabWebview({
             model.sitePermissions.add(tab.id, e.detail);
         };
         const onSitePermissionDone = (e: any) => model.sitePermissions.remove(e.detail?.requestid);
+        // A site asks for a client certificate (emain/moltenterm-client-certificates.ts, #1979).
+        const onClientCertificate = (e: any) => {
+            if (!isCertificateAsk(e.detail)) return;
+            e.preventDefault();
+            model.clientCertificates.add(tab.id, e.detail);
+        };
+        const onClientCertificateDone = (e: any) => model.clientCertificates.remove(e.detail?.requestid);
         const onTitle = (e: any) => model.setState(updateTab(model.state(), tab.id, { title: e.title }));
         // emain turns window.open and target=_blank into this event (emain/preload.ts dispatches it to this webview).
         const onNewWindow = (e: any) => {
@@ -1623,10 +1749,12 @@ function TabWebview({
         const onBlur = () => getApi().setWebviewFocus(null);
         const onStartLoading = () => {
             model.loads.noteStart(tab.id);
+            noteSiteLoading(model.blockId, true);
             model.errors.noteStart(tab.id);
         };
         const onStopLoading = () => {
             model.loads.noteStop(tab.id);
+            noteSiteLoading(model.blockId, false);
             model.errors.noteStop(tab.id);
             model.addressHold.noteLoadStopped(model.findTab(tab.id)?.url);
         };
@@ -1639,10 +1767,19 @@ function TabWebview({
             model.errors.noteFailure(tab.id, { url, code: e.errorCode, description: e.errorDescription });
             if (url && !/^chrome-error:/i.test(url)) {
                 // The previous page's title would name the tab otherwise: the host stands in for it.
-                model.setState(updateTab(model.state(), tab.id, { url, title: undefined }));
+                model.setState(
+                    updateTab(model.state(), tab.id, {
+                        url,
+                        title: undefined,
+                        ...allowedWhenNavigated(model.findTab(tab.id), url),
+                    })
+                );
             }
         };
-        const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
+        const onFavicon = (e: any) => {
+            const site = model.loads.noteFavicons(tab.id, e.favicons, webview.getURL());
+            if (site != null) requestFavicons([site]);
+        };
         // The 360 carpet keeps the page's previous thumbnail while its process is gone (#1814).
         const onProcessGone = (e: any) => {
             if ((e.details?.reason ?? e.reason) !== "clean-exit") {
@@ -1655,7 +1792,7 @@ function TabWebview({
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
             offHeld?.();
             offHeld = onInputHeld(webview.getWebContentsId(), () => model.agents.noteHeldInput(tab.id));
-            registerWebview(model.blockId, tab.id, webview.getWebContentsId());
+            registerWebview(model.blockId, tab.id, webview.getWebContentsId(), model.tabId);
             if (document.activeElement === webview) {
                 getApi().setWebviewFocus(webview.getWebContentsId());
             }
@@ -1688,6 +1825,8 @@ function TabWebview({
         webview.addEventListener("moltenterm-signin-refused", onSignInRefused);
         webview.addEventListener("moltenterm-site-permission", onSitePermission);
         window.addEventListener("moltenterm-site-permission-done", onSitePermissionDone);
+        webview.addEventListener("moltenterm-client-certificate", onClientCertificate);
+        window.addEventListener("moltenterm-client-certificate-done", onClientCertificateDone);
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
@@ -1722,6 +1861,8 @@ function TabWebview({
             webview.removeEventListener("moltenterm-signin-refused", onSignInRefused);
             webview.removeEventListener("moltenterm-site-permission", onSitePermission);
             window.removeEventListener("moltenterm-site-permission-done", onSitePermissionDone);
+            webview.removeEventListener("moltenterm-client-certificate", onClientCertificate);
+            window.removeEventListener("moltenterm-client-certificate-done", onClientCertificateDone);
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
             webview.removeEventListener("dom-ready", onDomReady);
@@ -1729,6 +1870,7 @@ function TabWebview({
             if (model.webviews.get(tab.id) === webview) {
                 model.webviews.delete(tab.id);
                 model.loads.noteStop(tab.id);
+                noteSiteLoading(model.blockId, false);
             }
         };
     }, [model, tab.id]);
@@ -1815,6 +1957,8 @@ function SharedTabBadge({ model, agentTab, tabId }: { model: BrowserViewModel; a
 function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
     const t = useT();
     const [broken, setBroken] = useState<string>(null);
+    const icons = useAtomValue(faviconsAtom);
+    const favicon = tabFaviconSrc(load, icons);
     if (load?.loading) {
         return (
             <span
@@ -1834,15 +1978,15 @@ function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
             />
         );
     }
-    if (load?.favicon == null || broken === load.favicon) {
+    if (favicon == null || broken === favicon) {
         return <i className="fa fa-solid fa-globe molten-browser-tab-icon" />;
     }
     return (
         <img
-            src={load.favicon}
+            src={favicon}
             alt=""
             draggable={false}
-            onError={() => setBroken(load.favicon)}
+            onError={() => setBroken(favicon)}
             className="molten-browser-tab-icon object-contain"
         />
     );
@@ -2092,6 +2236,8 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 </div>
             )}
             {active != null ? <AgentTabMarker model={model} agentTabs={agentTabs} tabId={active.id} /> : null}
+            {/* The pill of a download that started in this panel (#1992): outside the focus-only buttons, so it shows. */}
+            <DownloadPill blockId={model.blockId} />
             <div
                 ref={model.layoutNode.dragHandleRef}
                 onContextMenu={(e) => model.showPanelMenu(e)}
@@ -2132,12 +2278,15 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
 function BookmarksButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
     const workspace = useAtomValue(atoms.workspace);
+    const projectId = projectIdOfTab(workspace, model.tabId);
+    const data = readProjectBookmarks(workspace?.meta, projectId);
+    // The menu this button opens draws each bookmark with its site's icon (#1962): the icons it will need are asked for now.
+    const bookmarkOrigins = Array.from(new Set(data.items.map((b) => originOfAddress(b.url)))).join(" ");
+    useEffect(() => requestFavicons(bookmarkOrigins === "" ? [] : bookmarkOrigins.split(" ")), [bookmarkOrigins]);
     if (tab == null) {
         return null;
     }
-    const projectId = projectIdOfTab(workspace, model.tabId);
     const project = readProjects(workspace).find((p) => p.id === projectId);
-    const data = readProjectBookmarks(workspace?.meta, projectId);
     const saved = findBookmarkByAddress(data, bookmarkablePage(tab.url)) != null;
     const label = t("browser.bookmarks.button");
     return (
@@ -2347,10 +2496,11 @@ function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
 function ReloadingPlaceholder({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
     const loads = useAtomValue(model.loads.loadsAtom);
+    const icons = useAtomValue(faviconsAtom);
     if (tab == null || tab.engine) {
         return null;
     }
-    const favicon = loads[tab.id]?.favicon;
+    const favicon = tabFaviconSrc(loads[tab.id], icons);
     return (
         <div
             role="status"
@@ -2406,6 +2556,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const installedSetting = useAtomValue(getSettingsKeyAtom("browser:installed"));
     const defaultSetting = useAtomValue(getSettingsKeyAtom("browser:default"));
     const sitesSetting = useAtomValue(getSettingsKeyAtom("browser:sites"));
+    const localPages = useAtomValue(getSettingsKeyAtom(LocalPagesKey));
     const engineList = useAtomValue(model.engines.listAtom);
     const activity = useAtomValue(TabActivity.getInstance().stateAtom);
     const discarded = useAtomValue(model.lifecycle.discardedAtom);
@@ -2473,7 +2624,8 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 }
                 onDismiss={() => model.dismissChoice(state.activeId)}
             />
-            <SitePermissionBar permissions={model.sitePermissions} tabId={state.activeId} />
+            <SitePermissionHost permissions={model.sitePermissions} tabId={state.activeId} />
+            <ClientCertificateHost certificates={model.clientCertificates} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
             <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
@@ -2483,14 +2635,21 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                             <HandoffPage key={tab.id} model={model} tab={tab} />
                         ) : null
                     ) : discarded[tab.id] != null ? null : (
-                        <TabWebview
+                        <GatedPage
                             key={tab.id}
                             model={model}
                             tab={tab}
                             active={tab.id === state.activeId}
-                            shown={viewShown && tab.id === state.activeId}
-                            offCarpet={offCarpet}
-                        />
+                            remembered={localPages}
+                        >
+                            <TabWebview
+                                model={model}
+                                tab={tab}
+                                active={tab.id === state.activeId}
+                                shown={viewShown && tab.id === state.activeId}
+                                offCarpet={offCarpet}
+                            />
+                        </GatedPage>
                     )
                 )}
                 {discarded[state.activeId] != null || restoring[state.activeId] != null ? (

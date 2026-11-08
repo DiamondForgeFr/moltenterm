@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The global command palette (FR-SHELL-013): the same palette as an empty pane, over the tab, through Wave's modal
 // system. Enter fills the focused pane when it is empty (a launcher), else opens a new pane; Tab opens to the right

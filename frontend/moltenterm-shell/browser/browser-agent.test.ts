@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { I18nModel } from "../i18n/i18n";
 import {
     ActionCueMs,
     activeCue,
@@ -11,6 +12,7 @@ import {
     controlBarView,
     readPanelAgentState,
     shownStamps,
+    tabsShownSince,
 } from "./browser-agent";
 import {
     addTab,
@@ -190,5 +192,52 @@ describe("pages an agent shows", () => {
         expect(agentShowedPage(tabs(tab({ browsertabid: "shared-1", origin: "shared" })), {})).toBe(false);
         expect(agentShowedPage(tabs(), { "agent-1": 500 })).toBe(false);
         expect(agentShowedPage(null, {})).toBe(false);
+    });
+
+    // #1994: a panel can hold several tabs of one agent; the one shown last is the one the developer sees.
+    it("names the tabs shown since, the latest last", () => {
+        const both = tabs(
+            tab({ shownts: 700 }),
+            tab({ browsertabid: "agent-2", shownts: 900 }),
+            tab({ browsertabid: "agent-3", shownts: 100 })
+        );
+        expect(tabsShownSince(both, { "agent-1": 500, "agent-2": 500, "agent-3": 500 })).toEqual([
+            "agent-1",
+            "agent-2",
+        ]);
+        expect(tabsShownSince(both, { "agent-1": 700, "agent-2": 500, "agent-3": 500 })).toEqual(["agent-2"]);
+        expect(tabsShownSince(null, {})).toEqual([]);
+    });
+});
+
+// #1994: the bar says why the page came into view, in the agent's own name and the interface language.
+describe("the note on a page the agent shows", () => {
+    afterEach(() => I18nModel.getInstance().setLanguageSetting("en"));
+
+    it("replaces the agent's last action in the bar while the page is shown", () => {
+        const shown = controlBarView(tab({ agentname: "Arthur" }), false, true);
+        expect(shown.detail).toBe("Arthur is showing you this page");
+        expect(shown.shown).toBe(true);
+        expect(shown.title).toBe("Arthur is controlling this tab");
+        expect(controlBarView(tab({ agentname: "Arthur" })).detail).toBe("Opened this tab");
+        expect(controlBarView(tab({ agentname: "Arthur" })).shown).toBeFalsy();
+    });
+
+    it("reads in French with the agent's first name", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        expect(controlBarView(tab({ agentname: "Arthur" }), false, true).detail).toBe("Arthur vous montre cette page");
+    });
+
+    it("lets the hint about a held click come first, and leaves a taken-over tab alone", () => {
+        const held = controlBarView(tab({ agentname: "Arthur" }), true, true);
+        expect(held.detail).toBe("Arthur is using this tab: Take over to use it");
+        expect(held.shown).toBe(false);
+        const taken = controlBarView(tab({ agentname: "Arthur", state: "takenover" }), false, true);
+        expect(taken.title).toBe("You took over");
+        expect(taken.shown).toBeFalsy();
+    });
+
+    it("has no bar to speak in for a shared tab the agent does not work in", () => {
+        expect(controlBarView(tab({ origin: "shared", engaged: false }), false, true)).toBeNull();
     });
 });

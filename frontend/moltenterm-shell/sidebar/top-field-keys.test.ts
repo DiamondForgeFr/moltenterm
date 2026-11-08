@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // ⌘L is the top field's only key; ⌘K clears the terminal and never opens the field (FR-SHELL-083, #1219).
 

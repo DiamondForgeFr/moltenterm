@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package materials
 
@@ -507,7 +507,7 @@ func (s *Store) match(key string, artifactId string, link string, original strin
 	if i < 0 {
 		return molten.Material{}, false
 	}
-	return d.index.Materials[i], true
+	return snapshotMaterial(d.index.Materials[i]), true
 }
 
 // matchLocked is the index of the drawer's material a sighting is of, -1 for none.
@@ -563,7 +563,7 @@ func (s *Store) commit(key string, folder string, existingId string, rec molten.
 		}
 		rec.Id = newId(s.now())
 		rec.Created, rec.Updated = seenAt, now
-		d.index.Materials = append(d.index.Materials, rec)
+		d.index.Materials = append(d.index.Materials, snapshotMaterial(rec))
 		i = len(d.index.Materials) - 1
 	}
 	m := &d.index.Materials[i]
@@ -630,12 +630,12 @@ func (s *Store) commit(key string, folder string, existingId string, rec molten.
 		changed = true
 	}
 	if !changed {
-		out := *m
+		out := snapshotMaterial(*m)
 		s.lock.Unlock()
 		return s.view(out), false, nil
 	}
 	m.Updated = now
-	out := *m
+	out := snapshotMaterial(*m)
 	if err := s.saveLocked(d, folder); err != nil {
 		s.lock.Unlock()
 		return molten.Material{}, false, err

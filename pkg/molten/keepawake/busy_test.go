@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package keepawake
 
@@ -332,11 +332,11 @@ func TestSortReasons(t *testing.T) {
 	}
 }
 
-// The coffee and the Until work ends policy hold while a done agent's tree is busy, and end after the grace once it
-// is quiet, with the real rule and an injected process sampler (#493).
+// The coffee reads a done agent's busy tree as work and Automatic holds for it, then Automatic ends after the grace once
+// the tree is quiet while the coffee, the Manual switch, stays, with the real rule and an injected process sampler (#493).
 func TestCoffeeHoldsWhileAgentTreeBusy(t *testing.T) {
 	f := makeFakeEnv()
-	f.policy = PolicyUntilWorkEnds
+	f.cfg.Automatic = true
 	trees := &fakeTrees{trees: map[string]TreeSample{"b1": idleAgentTree()}}
 	trees.trees["b1"][shellPid] = ProcSample{Ppid: agentPid, StartMs: agentStart + 10_000}
 	tracker := makeBusyTracker(trees.sample, func() time.Time { return f.now })
@@ -351,7 +351,7 @@ func TestCoffeeHoldsWhileAgentTreeBusy(t *testing.T) {
 	}
 	k := MakeKeeper(Env{
 		Now:       func() time.Time { return f.now },
-		Policy:    func() string { return f.policy },
+		Config:    func() Config { return f.cfg },
 		Work:      func(ctx context.Context) Work { return ComputeWork(ctx, src) },
 		Workspace: func(ctx context.Context, wsId string) (string, bool) { return "Alpha", true },
 		Notify:    func(n molten.NotificationInput) { f.notices = append(f.notices, n) },
@@ -374,31 +374,31 @@ func TestCoffeeHoldsWhileAgentTreeBusy(t *testing.T) {
 	for i := 0; i < 150; i++ {
 		state = step(true)
 	}
-	if len(state.Coffees) != 1 || !state.Coffees[0].Working || !state.PolicyWorking {
+	if len(state.Coffees) != 1 || !state.Coffees[0].Working || !state.AutomaticWorking {
 		t.Fatalf("5 minutes of background work after the turn ended: %+v", state)
 	}
-	if !reflect.DeepEqual(state.Coffees[0].Reasons, []string{"Adrien: background work"}) || !reflect.DeepEqual(state.PolicyReasons, state.Coffees[0].Reasons) {
-		t.Errorf("why it is kept awake: %v, %v", state.Coffees[0].Reasons, state.PolicyReasons)
+	if !reflect.DeepEqual(state.Coffees[0].Reasons, []string{"Adrien: background work"}) || !reflect.DeepEqual(state.AutomaticReasons, state.Coffees[0].Reasons) {
+		t.Errorf("why it is kept awake: %v, %v", state.Coffees[0].Reasons, state.AutomaticReasons)
 	}
 	if len(f.notices) != 0 {
 		t.Fatalf("notices while work runs: %v", f.notices)
 	}
-	// The background work ends: the window drains, then the grace runs out.
+	// The background work ends: the window drains, then the grace runs out for Automatic; the coffee stays.
 	quietAt := f.now
-	for len(k.State().Coffees) > 0 && f.now.Sub(quietAt) < 10*time.Minute {
+	for k.State().AutomaticHolding && f.now.Sub(quietAt) < 10*time.Minute {
 		state = step(false)
 	}
 	took := f.now.Sub(quietAt)
-	if len(state.Coffees) != 0 || took < GracePeriod || took > BusyWindow+GracePeriod+5*time.Second {
-		t.Fatalf("the coffee ended %v after the work, want between the grace and the window plus the grace: %+v", took, state)
+	if state.AutomaticHolding || took < DefaultGrace || took > BusyWindow+DefaultGrace+5*time.Second {
+		t.Fatalf("Automatic ended %v after the work, want between the grace and the window plus the grace: %+v", took, state)
 	}
-	if state.Hold || state.PolicyHolding || len(f.notices) != 2 {
-		t.Errorf("after the grace: hold %v, policy %v, %d notices (want the coffee's and the policy's)", state.Hold, state.PolicyHolding, len(f.notices))
+	if len(state.Coffees) != 1 || state.Coffees[0].Working || !state.Hold || len(f.notices) != 1 {
+		t.Errorf("after the grace: hold %v, coffees %+v, %d notices (want the coffee kept and Automatic's one notice)", state.Hold, state.Coffees, len(f.notices))
 	}
 }
 
-// An agent at its prompt with its MCP servers ends the coffee after the grace, as before.
-func TestCoffeeEndsWithIdleAgentTree(t *testing.T) {
+// An agent at its prompt with its MCP servers is not work: the coffee holds all the same, and stops reading work.
+func TestCoffeeIsNotWorkingWithIdleAgentTree(t *testing.T) {
 	f := makeFakeEnv()
 	trees := &fakeTrees{trees: map[string]TreeSample{"b1": idleAgentTree()}}
 	tracker := makeBusyTracker(trees.sample, func() time.Time { return f.now })
@@ -420,19 +420,16 @@ func TestCoffeeEndsWithIdleAgentTree(t *testing.T) {
 	ctx := context.Background()
 	start := f.now
 	k.SetCoffee(ctx, "ws-a", true)
-	for len(k.State().Coffees) > 0 && f.now.Sub(start) < 10*time.Minute {
+	for f.now.Sub(start) < 2*DefaultGrace {
 		f.advance(2 * time.Second)
 		trees.use("b1", agentPid, 32*time.Millisecond, 0)
 		trees.use("b1", mcpPid, 2*time.Millisecond, 0)
 		k.Evaluate(ctx)
-		if c := k.State().Coffees; len(c) > 0 && c[0].Working {
-			t.Fatalf("an agent at its prompt keeps the coffee working at %v", f.now.Sub(start))
+		if c := k.State().Coffees; len(c) != 1 || c[0].Working {
+			t.Fatalf("an agent at its prompt keeps the coffee working at %v: %+v", f.now.Sub(start), c)
 		}
 	}
-	if took := f.now.Sub(start); len(k.State().Coffees) != 0 || took > GracePeriod+2*time.Second {
-		t.Fatalf("the coffee of an idle agent ended after %v, want the grace", took)
-	}
-	if len(f.notices) != 1 {
-		t.Errorf("%d notices, want the coffee's one", len(f.notices))
+	if !k.State().Hold || k.HasCoffee("ws-a") || len(f.notices) != 0 {
+		t.Errorf("the coffee of an idle agent: hold %v, covers %v, %d notices (want it kept, approving nothing, silent)", k.State().Hold, k.HasCoffee("ws-a"), len(f.notices))
 	}
 }

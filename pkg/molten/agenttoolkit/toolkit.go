@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agenttoolkit lists what an agent session can use (FR-CONT-006, FR-SHELL-084, #1543): its MCP servers, its
 // skills and its plugins, read-only, from the agent's own configuration files for the session's folder. Each agent's

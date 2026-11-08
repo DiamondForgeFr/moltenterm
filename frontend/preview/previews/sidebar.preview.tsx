@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The workspace sidebar (#1183, FR-SHELL-079) in a window-sized frame, on mock objects: a workspace with its Project
 // tab (a tile) and three temporary views, to compare with the #1181 prototype.

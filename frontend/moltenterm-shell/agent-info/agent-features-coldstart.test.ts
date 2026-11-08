@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // FR-AGC-003 (#1684): at a cold start, before wavesrv answers, the interface offers what it offered before from the
 // matrix shipped in the build; the route only refreshes it. No test matrix is set in this file.

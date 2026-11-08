@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The text a MoltenTerm menu shows, in the interface language (FR-I18N-001): edit roles from their keys, and the
 // section headings the host draws from the items' sections. Kept apart from menu-model.ts, which Electron main imports.

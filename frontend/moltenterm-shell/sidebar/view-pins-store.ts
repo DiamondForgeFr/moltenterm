@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The three states of a view (FR-SHELL-080) in the window: pinning in the workspace (the tab keeps its
 // configuration), pinning everywhere (the client keeps one configuration, each workspace opens its own instance on

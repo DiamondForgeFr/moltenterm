@@ -475,11 +475,21 @@ func (file *WaveFile) computePartMap(startOffset int64, size int64) map[int]int 
 }
 
 func (s *FileStore) getDirtyCacheKeys() []cacheKey {
+	// MOLTENTERM-PATCH (#1964): File belongs to the entry lock; pin the snapshot so entries survive while that lock waits.
 	s.Lock.Lock()
-	defer s.Lock.Unlock()
-	var dirtyCacheKeys []cacheKey
+	entries := make(map[cacheKey]*CacheEntry, len(s.Cache))
 	for key, entry := range s.Cache {
-		if entry.File != nil {
+		entry.PinCount++
+		entries[key] = entry
+	}
+	s.Lock.Unlock()
+	var dirtyCacheKeys []cacheKey
+	for key, entry := range entries {
+		entry.Lock.Lock()
+		dirty := entry.File != nil
+		entry.Lock.Unlock()
+		s.unpinEntryAndTryDelete(key.ZoneId, key.Name)
+		if dirty {
 			dirtyCacheKeys = append(dirtyCacheKeys, key)
 		}
 	}

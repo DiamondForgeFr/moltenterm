@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A sentence kept as data and worded each time it shows (#1058, FR-I18N-001): a result stored when an action ends
 // (React state, an atom) would otherwise keep the language of the click after the developer switches it.

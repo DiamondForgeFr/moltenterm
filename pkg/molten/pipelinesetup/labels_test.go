@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package pipelinesetup
 
@@ -44,6 +44,7 @@ const manifestoLike = "# Manifesto\n" +
 	"Docs version: 0.3.0\n"
 
 func TestDetectLabelsSkipsMarkdownCodeBlocks(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{
 		"MANIFESTO.md":      manifestoLike,
@@ -61,6 +62,7 @@ func TestDetectLabelsSkipsMarkdownCodeBlocks(t *testing.T) {
 }
 
 func TestDetectLabelsSkipsOtherPackagesManifests(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{
 		"docs/package.json":         "{\n  \"name\": \"docs\",\n  \"version\": \"0.0.0\",\n  \"private\": true\n}\n",
@@ -79,6 +81,7 @@ func TestDetectLabelsSkipsOtherPackagesManifests(t *testing.T) {
 // This repository's layout (#1791): the update the Release menu offered came from MANIFESTO.md:168, a top-level file,
 // so kept by default; docs/package.json was found too.
 func TestMoltenTermLayoutOffersNoLabels(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{
 		"package.json":      "{\n  \"name\": \"moltenterm\",\n  \"version\": \"1.0.0-6\"\n}\n",
@@ -114,6 +117,7 @@ func labelByPath(labels []VersionLabel, path string) (VersionLabel, bool) {
 // A label dismissed as "Not a version label" is recorded in versions.notlabels by the update's pull request; once
 // every label is declared or dismissed, the Release menu's check offers no update.
 func TestDismissedLabelIsNotOfferedAgain(t *testing.T) {
+	t.Parallel()
 	dir := pre1046FalseLabel(t)
 	s := prSetup(t, &fakeForge{}, "[]")
 	ctx := context.Background()
@@ -165,6 +169,7 @@ func TestDismissedLabelIsNotOfferedAgain(t *testing.T) {
 
 // The dismissal holds the line by its text: a line added above it does not bring it back.
 func TestDismissalSurvivesMovedLines(t *testing.T) {
+	t.Parallel()
 	not := []molten.PipelineNotLabel{{Path: "NOTES.md", Text: "Plugin version: 0.1.0"}}
 	moved := VersionLabel{Path: "NOTES.md", Line: 9, Text: "Plugin version: 0.1.0"}
 	other := VersionLabel{Path: "NOTES.md", Line: 3, Text: "Plugin version: 0.2.0"}
@@ -174,6 +179,7 @@ func TestDismissalSurvivesMovedLines(t *testing.T) {
 }
 
 func TestNotLabelsMustNameAFileAndAText(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{"package.json": `{ "name": "app", "version": "1.2.3" }`})
 	text := `{ "schema": 1, "name": "app", "versions": { "files": [{ "path": "package.json", "format": "json", "keys": [["version"]] }],

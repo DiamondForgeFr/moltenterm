@@ -1,12 +1,13 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The release notification's request (#188): asks the repository's GitHub Releases at most once a day for every
 // window together, and keeps the releases it read in <data>/molten/update/release-check.json so a restart does not ask
 // again. The offer is picked from them at every answer, for the version running then and the release candidates preference
 // read then (#948): an upgrade or a change of the preference never shows an offer made for another build or choice. The request is anonymous, from a session of its own,
-// and carries nothing about the user; nothing is downloaded. Check for updates now (#1806) asks at once, whatever the
-// day's check said, and records its time like the daily one.
+// and carries nothing about the user; the check downloads nothing (the in-app update does, on the user's click:
+// moltenterm-release-install.ts, #1860). Check for updates now (#1806) asks at once, whatever the day's check said, and
+// records its time like the daily one.
 
 import * as electron from "electron";
 import fs from "fs";
@@ -24,6 +25,7 @@ import {
     releaseFeedEnabled,
     ReleaseFeedTimeoutMs,
     releaseFeedUrl,
+    ReleaseOffer,
 } from "../frontend/moltenterm-shell/update/release-feed";
 import { MoltentermRepoUrl } from "../frontend/util/moltenterm-identity";
 import { getWaveDataDir } from "./emain-platform";
@@ -175,7 +177,31 @@ export async function checkReleaseFeed(mode: ReleaseCheckMode = "due"): Promise<
         });
     }
     const releases = await inflight;
-    return answer(releases, await wantsReleaseCandidates());
+    const rtn = answer(releases, await wantsReleaseCandidates());
+    for (const listener of listeners) {
+        listener(rtn);
+    }
+    return rtn;
+}
+
+const listeners = new Set<(check: ReleaseCheck) => void>();
+
+// The in-app update (#1860) learns of every answer, to withdraw a staged update that is no longer offered.
+export function onReleaseCheck(listener: (check: ReleaseCheck) => void) {
+    listeners.add(listener);
+}
+
+// The release offered now, as the last check read it, with no request and no announcement: what an install must still
+// be the one of when the user accepts it.
+export async function currentReleaseOffer(): Promise<ReleaseOffer> {
+    if (!releaseFeedEnabled(__MOLTENTERM_CHANNEL__, electron.app.isPackaged, process.env)) {
+        return null;
+    }
+    const cache = await knownCache();
+    if (cache == null) {
+        return null;
+    }
+    return pickReleaseOffer(cache.releases, await wantsReleaseCandidates(), electron.app.getVersion(), Rules);
 }
 
 function modeOf(value: unknown): ReleaseCheckMode {

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // When MoltenTerm offers to link a project (#77): a terminal of a workspace without a project goes into a project's
 // folder, or a workspace was linked without choosing its icon. Kept apart from the components so the rules can be

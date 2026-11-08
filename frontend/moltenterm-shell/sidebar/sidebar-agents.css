@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The sidebar's agents (FR-SHELL-084), sized as the #1181 prototype's agentBlock and agentTree. States use
    MoltenTerm's heat scale (FR-SHELL-116): waiting violet, done patina, error ember; working is the incandescent dominoes. */
@@ -114,9 +114,10 @@
     background: var(--mt-state-error);
 }
 
+/* A content basis, not 0: the text claims its own width, so the note (which shrinks first) cannot take it (#2008). */
 .mt-sb-agent-tx {
     display: flex;
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     flex-direction: column;
     line-height: 1.25;
@@ -244,6 +245,35 @@
     text-transform: none;
 }
 
+/* The separator opening a project's group (#1867): the temporary views' rule, with the project's name where their
+   Close all sits. */
+.mt-sb-ag-group + .mt-sb-ag-group {
+    margin-top: 6px;
+}
+
+.mt-sb-ag-sep {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 16px;
+    margin: 0 0 2px;
+    padding: 0 2px 0 6px;
+}
+
+.mt-sb-ag-line {
+    flex: 1;
+    height: 1px;
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+}
+
+.mt-sb-ag-name {
+    min-width: 0;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .mt-sb-leaf {
     display: flex;
     align-items: center;
@@ -342,6 +372,117 @@
 
 .mt-sb-tl .mt-sb-agent-dom {
     margin-left: 2px;
+}
+
+/* The developer's note on a row (FR-SHELL-084, #2008): on the right, just left of the activity glyph, in small
+   secondary text, never bold or coloured. It shrinks before anything else on the row (its shrink factor outweighs
+   the name block's), so the name and the status keep their room; the row's width decides, as a container, below
+   NarrowRowPx (agent-note-model.ts) only the glyph shows and the text stays for the hover and screen readers. */
+.mt-sb-arow,
+.mt-sb-leaf {
+    container: mtrow / inline-size;
+}
+
+.mt-sb-note {
+    display: inline-flex;
+    flex: 0 100000 auto;
+    align-items: center;
+    gap: 3px;
+    min-width: 12px;
+    max-width: 46%;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-style: normal;
+    font-weight: 400;
+}
+
+.mt-sb-leaf .mt-sb-note {
+    max-width: 52%;
+}
+
+.mt-sb-note-g {
+    flex: none;
+    opacity: 0.85;
+}
+
+.mt-sb-note-t {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@container mtrow (max-width: 240px) {
+    .mt-sb-note {
+        flex: none;
+        max-width: none;
+    }
+
+    .mt-sb-note-t {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
+/* The field takes the place of the row's text, the note and the activity glyph while it is open. */
+.mt-sb-note-in {
+    flex: 1;
+    min-width: 0;
+    height: 24px;
+    padding: 0 6px;
+    border: 1px solid color-mix(in srgb, var(--mt-veil) 28%, transparent);
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-surface-0) 60%, transparent);
+    color: var(--color-primary);
+    font: inherit;
+    font-size: var(--mt-text-12);
+    outline: none;
+}
+
+.mt-sb-note-in:focus {
+    border-color: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 70%, white);
+}
+
+.mt-sb-note-in::placeholder {
+    color: var(--mt-text-3);
+}
+
+.mt-sb-leaf.is-noting {
+    cursor: default;
+}
+
+/* The expanded agent shows the note whole, wrapped; a click edits it. */
+.mt-sb-note-full {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    width: 100%;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+    text-align: left;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.mt-sb-note-full:hover {
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+}
+
+.mt-sb-note-full .mt-sb-note-g {
+    margin-top: 2px;
+}
+
+.mt-sb-note-edit {
+    display: flex;
+    padding: 2px 0;
 }
 
 .mt-sb-more {

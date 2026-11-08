@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Waiting = domino (DS-SHELL-154, FR-SHELL-076 AC4, #1714): where the user waits for an action or an agent works, the
 // one domino loader shows, never a spinner icon and never a busy label alone. The guard reads the sources: a spinner
@@ -36,6 +36,8 @@ export const SpinnerAllowed: Record<string, string> = {
 // file → why it shows a busy label without drawing the loader itself.
 export const BusyLabelAllowed: Record<string, string> = {
     // Models and texts: the label is drawn by a component that shows the loader next to it.
+    "frontend/moltenterm-shell/boss/brokk-talk-model.ts":
+        "the sending note: brokk-talk draws the domino next to it while the message is on its way",
     "frontend/moltenterm-shell/companion/companion-model.ts":
         "statusMessage: companion-view's EmptyState draws the card dominoes while the session loads",
     "frontend/moltenterm-shell/mission/dep-sync-model.ts": "the syncing note: group-strip shows RunningDot while it syncs",
@@ -110,9 +112,23 @@ function stripComments(src: string): string {
     return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 }
 
+function scanFile(path: string, keys: string[]) {
+    const src = readFileSync(join(Root, path), "utf8");
+    const code = stripComments(src);
+    return {
+        path,
+        spinner: SpinnerPattern.test(code),
+        literalBusy: LiteralBusyPattern.test(code),
+        loader: LoaderPattern.test(src),
+        busyLabels: keys.filter((k) => src.includes(`"${k}"`)),
+    };
+}
+
 describe("waiting = domino (DS-SHELL-154, #1714)", () => {
-    const files = sourceFiles().map((path) => ({ path, src: readFileSync(join(Root, path), "utf8") }));
     const keys = busyKeys(en);
+    // Scanned here, while the file is collected: collection has no timeout, and a loaded machine stretches this CPU-bound
+    // work past a test's 5 s (#2039). The tests below only read the results.
+    const files = sourceFiles().map((path) => scanFile(path, keys));
 
     it("finds the busy labels", () => {
         expect(keys).toContain("worktree.close.removing");
@@ -130,34 +146,20 @@ describe("waiting = domino (DS-SHELL-154, #1714)", () => {
     });
 
     it("shows no spinner", () => {
-        const found = files
-            .filter((f) => SpinnerAllowed[f.path] == null && SpinnerPattern.test(stripComments(f.src)))
-            .map((f) => f.path);
+        const found = files.filter((f) => SpinnerAllowed[f.path] == null && f.spinner).map((f) => f.path);
         expect(found).toEqual([]);
     });
 
     it("draws the loader wherever a busy label shows", () => {
-        const found: string[] = [];
-        for (const f of files) {
-            if (BusyLabelAllowed[f.path] != null || LoaderPattern.test(f.src)) {
-                continue;
-            }
-            const used = keys.filter((k) => f.src.includes(`"${k}"`));
-            if (used.length > 0) {
-                found.push(`${f.path}: ${used.join(", ")}`);
-            }
-        }
+        const found = files
+            .filter((f) => BusyLabelAllowed[f.path] == null && !f.loader && f.busyLabels.length > 0)
+            .map((f) => `${f.path}: ${f.busyLabels.join(", ")}`);
         expect(found).toEqual([]);
     });
 
     it("draws the loader next to a literal busy text (Wave's untranslated Loading...)", () => {
         const found = files
-            .filter(
-                (f) =>
-                    LiteralBusyAllowed[f.path] == null &&
-                    LiteralBusyPattern.test(stripComments(f.src)) &&
-                    !LoaderPattern.test(f.src)
-            )
+            .filter((f) => LiteralBusyAllowed[f.path] == null && f.literalBusy && !f.loader)
             .map((f) => f.path);
         expect(found).toEqual([]);
     });
@@ -166,11 +168,11 @@ describe("waiting = domino (DS-SHELL-154, #1714)", () => {
         const stale = [
             ...Object.keys(SpinnerAllowed).filter((path) => {
                 const f = files.find((x) => x.path === path);
-                return f == null || !SpinnerPattern.test(stripComments(f.src));
+                return f == null || !f.spinner;
             }),
             ...Object.keys(BusyLabelAllowed).filter((path) => {
                 const f = files.find((x) => x.path === path);
-                return f == null || !keys.some((k) => f.src.includes(`"${k}"`));
+                return f == null || f.busyLabels.length === 0;
             }),
         ];
         expect(stale).toEqual([]);

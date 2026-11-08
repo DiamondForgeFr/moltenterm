@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Opening and closing the agent companion (FR-SHELL-018): a block docked to the right of its terminal, closed by
 // default, toggled by the agent label of the pane header or Cmd+Shift+J. The terminal keeps the focus: the agent is

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A view pinned everywhere looks the same in every workspace (FR-SHELL-080, TC-SHELL-190, #1270): its top-row glyph
 // comes from the pin, never from this workspace's live instance, where an agent may run.

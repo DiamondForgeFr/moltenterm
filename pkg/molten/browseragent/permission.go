@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package browseragent
 
@@ -533,7 +533,10 @@ func (m *Manager) AskDownload(ctx context.Context, source string, req DownloadRe
 		site = site[:253]
 	}
 	err := m.askAction(ctx, s, tabId, key, site, reasonDownload)
-	return DownloadAnswer{Allow: err == nil}, nil
+	if err != nil {
+		return DownloadAnswer{Allow: false}, nil
+	}
+	return DownloadAnswer{Allow: true, AgentName: s.agentName}, nil
 }
 
 // activeOwner is the session that drives a tab now, and its id for the tab; false when no agent does, or the user took

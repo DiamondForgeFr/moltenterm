@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Checks that no shell script of the repository writes a variable right before a non-ASCII character ("$NAME…"):
 // macOS's /bin/bash 3.2 in a UTF-8 locale reads those bytes as part of the name, so `set -u` stops on an unbound

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,12 +12,16 @@ vi.mock("@/app/store/jotaiStore", async () => {
     env.entriesAtom = atom([]);
     return { globalStore: env.store };
 });
+vi.mock("./boss/boss-store", () => ({
+    BossBubbleModel: {
+        getInstance: () => ({ showPanel: (tab: string, ids: string[]) => env.requested.push([tab, ...ids]) }),
+    },
+}));
 vi.mock("./notifications-store", () => ({
     MoltentermNotifications: {
         getInstance: () => ({
             entriesAtom: env.entriesAtom,
             entries: () => env.store.get(env.entriesAtom),
-            requestPanel: (ids: string[]) => env.requested.push(ids),
         }),
     },
 }));
@@ -111,7 +115,7 @@ describe("startHandoffSystemNotifications", () => {
         expect(lastHandoffSystemNotify.get("q1")).toBe("shown");
 
         calls.click("q1");
-        expect(env.requested).toEqual([["q1"]]);
+        expect(env.requested).toEqual([["notifications", "q1"]]);
 
         env.store.set(env.entriesAtom, [entry("q1", { resolved: 3 })]);
         expect(calls.close).toEqual(["q1"]);

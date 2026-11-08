@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -13,6 +13,7 @@ import (
 )
 
 func TestReviewerNameOf(t *testing.T) {
+	t.Parallel()
 	if got := reviewerNameOf(" Anthony ", func() string { return "Someone Else" }); got != "Anthony" {
 		t.Fatalf("setting first: %q", got)
 	}
@@ -50,6 +51,7 @@ func mergeWithReviewer(t *testing.T, pr fakePr, reviewer func(string) string, st
 }
 
 func TestValidateWritesReviewedByBeforeTheMerge(t *testing.T) {
+	t.Parallel()
 	pr := cleanPr()
 	pr.Body = agentsign.WithAgent("Resolves #590\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
 		agentsign.Signature{FirstName: "Valentin", Agent: "Claude Code", Model: "Opus 5.5", Effort: "medium"})
@@ -79,6 +81,7 @@ func TestValidateWritesReviewedByBeforeTheMerge(t *testing.T) {
 }
 
 func TestValidateReviewerFallsBackToTheAuthor(t *testing.T) {
+	t.Parallel()
 	writes := mergeWithReviewer(t, cleanPr(), func(string) string { return "" }, nil)
 	if len(writes) != 2 || !strings.Contains(writes[0][4], "Reviewed by devlogin · 2026-10-16") {
 		t.Fatalf("author's login: %v", writes)
@@ -86,6 +89,7 @@ func TestValidateReviewerFallsBackToTheAuthor(t *testing.T) {
 }
 
 func TestValidateWithoutReviewerWritesNoLine(t *testing.T) {
+	t.Parallel()
 	writes := mergeWithReviewer(t, cleanPr(), nil, nil)
 	if len(writes) != 1 || writes[0][1] != "merge" {
 		t.Fatalf("only the merge: %v", writes)

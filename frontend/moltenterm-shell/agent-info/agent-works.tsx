@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What works with an agent (FR-AGC-004, #1685): the same few lines on every agent card, from the compatibility matrix.
 // Showing it reads data only; the details open on a click, nothing else opens or runs.

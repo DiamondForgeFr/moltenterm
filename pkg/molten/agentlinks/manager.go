@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentlinks is wavesrv's registry of the MoltenTerm MCP servers' links (FR-CONT-022, DS-CONT-031): which
 // server runs for which agent of which terminal, whether its link to MoltenTerm is up, and the developer's Reconnect

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The setup's agent board in the panel (FR-MC-045, #1163): the terminal agent's proposals show in place, live, as
 // "proposed by" cards beside the channel they change; the sentences and the diagram mark the proposed step; once the

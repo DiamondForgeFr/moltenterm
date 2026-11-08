@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // A trackpad gesture read from its wheel events, shared by the sidebar's swipe (FR-SHELL-082, sidebar/sidebar-swipe.ts)
 // and the 360 carpet's whole-panel steps (FR-SHELL-123, #1466). Chromium's wheel events carry no phase (Electron's

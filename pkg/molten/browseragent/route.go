@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package browseragent
 
@@ -130,6 +130,12 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 			return nil, err
 		}
 		return l.manager.AskDownload(ctx, source, req)
+	case mcpbrowser.WebReadCommand:
+		var req WebReadRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.manager.WebRead(source, req)
 	case mcpbrowser.ListCommand:
 		var req ListRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

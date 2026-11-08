@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package molten
 
@@ -26,6 +26,8 @@ const (
 	CompanionUsageGaugesCommand = "moltencompanionusagegauges"
 	// Turn the agent's experimental usage source on (after its confirmation) or off (FR-SHELL-028).
 	CompanionUsageExperimentalCommand = "moltencompanionusageexperimental"
+	// The plan usage of the whole app, without a block: Brokk's weekly usage (#2074).
+	CompanionUsageGlobalCommand = "moltencompanionusageglobal"
 	// The plan gauges of a block, when its status line relay brings new windows.
 	CompanionUsageEvent = "molten:companionusage"
 	// What `molten agent statusline` sends: the rate limit windows of Claude Code's status line input.

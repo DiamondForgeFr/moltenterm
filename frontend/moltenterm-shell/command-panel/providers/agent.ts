@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Agent section (FR-SHELL-048, DS-SHELL-088): first in a terminal running Claude Code or Codex, absent in a plain
 // shell, and in a panel that drives such an agent in another terminal (the Review AI panel, #916). Every command goes through wavesrv's moltenagentinput, which types it only into the verified foreground

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package attention
 
@@ -128,7 +128,10 @@ type agentRecord struct {
 	// messageText: message's code when MoltenTerm wrote it (the end of a hold, agenthold.go).
 	messageText *uimsg.Text
 	since       int64
-	version     int64
+	// stateSeq: a number no other state change of the app has, so a settled stop (agenthold.go) tells the state it
+	// answers from a later one even when the clock gave both the same millisecond.
+	stateSeq int64
+	version  int64
 	// started: when the agent's command started (or its first report came), for the companion's session discovery.
 	started int64
 	// running: the agent's command still runs (an exited agent keeps its error until the next command).
@@ -136,6 +139,8 @@ type agentRecord struct {
 	located bool
 	tabId   string
 	wsId    string
+	// own: the block is Brokk's own session, read with the location.
+	own bool
 	// source: what made the record (the command line, a hook, the process tree); pid: the agent's process when the
 	// process tree found it, and its start time (pidStart, Unix milliseconds) to tell a reused pid apart.
 	source   string
@@ -160,10 +165,11 @@ type agentStates struct {
 	lock    sync.Mutex
 	records map[string]*agentRecord
 	// Blocks whose state changed since the publisher's last pass.
-	dirty   map[string]bool
-	version int64
-	notices map[string]noticeMark
-	panes   map[string]*paneActivity
+	dirty    map[string]bool
+	version  int64
+	stateSeq int64
+	notices  map[string]noticeMark
+	panes    map[string]*paneActivity
 	// holds: the blocks whose state MoltenTerm owns (agenthold.go, #896).
 	holds map[string]*agentHold
 	// hookedAgents: the agents whose hooks reported in this run; onHooked is told of each once (agenthookoffer.go).
@@ -177,9 +183,11 @@ type agentStates struct {
 	wake          chan struct{}
 	now           func() time.Time
 	// Injected: wavesrv's object store and event bus, replaced in tests.
-	locate  func(blockId string) (string, string, error)
-	publish func(info molten.AgentStateInfo)
-	notify  func(blockId string, signal AttentionSignal, kind string)
+	locate func(blockId string) (string, string, error)
+	// ownBlock: whether the block is Brokk's own session, which no list of agents shows (FR-BOSS-009, AC26).
+	ownBlock func(blockId string) bool
+	publish  func(info molten.AgentStateInfo)
+	notify   func(blockId string, signal AttentionSignal, kind string)
 	// procs: the process-tree watcher (procwatch.go), told when commands start and end; nil in tests.
 	procs *procWatcher
 	// names: the first names of the app's active agents, one per block with a record (FR-CONT-014). onNamed is told,
@@ -200,6 +208,7 @@ func makeAgentStates() *agentStates {
 		wake:         make(chan struct{}, 1),
 		now:          time.Now,
 		locate:       locateBlock,
+		ownBlock:     ownSessionBlock,
 		publish:      publishAgentState,
 		notify: func(blockId string, signal AttentionSignal, kind string) {
 			go recordAgentNotice(blockId, signal, kind)
@@ -254,6 +263,8 @@ func (a *agentStates) setStateLocked(blockId string, rec *agentRecord, state str
 	}
 	if rec.state != state {
 		rec.since = a.now().UnixMilli()
+		a.stateSeq++
+		rec.stateSeq = a.stateSeq
 		rec.fromActivity = false
 	}
 	rec.state = state
@@ -513,7 +524,9 @@ func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok
 	defer a.lock.Unlock()
 	rec := a.records[blockId]
 	if !ok {
-		if rec != nil && rec.running && rec.source == sourceProcess {
+		// A hook's agent the tree found (pid) and no longer finds exited (#1920): a shell without the integration
+		// marks no end of command, and the hooks of an agent that is gone never report again.
+		if rec != nil && rec.running && (rec.source == sourceProcess || rec.pid != 0) {
 			a.removeLocked(blockId)
 		}
 		return
@@ -537,22 +550,24 @@ func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok
 
 func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentStateInfo {
 	info := molten.AgentStateInfo{
-		BlockId:     blockId,
-		TabId:       rec.tabId,
-		WorkspaceId: rec.wsId,
-		Agent:       rec.agent,
-		AgentName:   molten.AgentDisplayName(rec.agent),
-		FirstName:   rec.firstName,
-		State:       rec.state,
-		Message:     rec.message,
-		MessageText: rec.messageText,
-		Since:       rec.since,
-		Started:     rec.started,
-		Version:     rec.version,
-		Hooked:      a.hookedAgents[rec.agent],
-		Model:       rec.settings.Model,
-		ModelName:   rec.settings.ModelName,
-		Effort:      rec.settings.Effort,
+		BlockId:          blockId,
+		TabId:            rec.tabId,
+		WorkspaceId:      rec.wsId,
+		Agent:            rec.agent,
+		AgentName:        molten.AgentDisplayName(rec.agent),
+		FirstName:        rec.firstName,
+		State:            rec.state,
+		Message:          rec.message,
+		MessageText:      rec.messageText,
+		Since:            rec.since,
+		Started:          rec.started,
+		Version:          rec.version,
+		Hooked:           a.hookedAgents[rec.agent],
+		Model:            rec.settings.Model,
+		ModelName:        rec.settings.ModelName,
+		Effort:           rec.settings.Effort,
+		Own:              rec.own,
+		ModelUnavailable: rec.settings.ModelUnavailable,
 	}
 	if rec.settings.Provider != "" {
 		info.Provider = rec.settings.Provider
@@ -667,14 +682,14 @@ func (a *agentStates) takeDirty() []pendingState {
 
 // storeLocation keeps where the block is for the rest of its agent's run (a new run looks again: the pane may have
 // moved to another tab).
-func (a *agentStates) storeLocation(blockId string, tabId string, wsId string) {
+func (a *agentStates) storeLocation(blockId string, tabId string, wsId string, own bool) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	rec := a.records[blockId]
 	if rec == nil {
 		return
 	}
-	rec.tabId, rec.wsId, rec.located = tabId, wsId, true
+	rec.tabId, rec.wsId, rec.own, rec.located = tabId, wsId, own, true
 }
 
 // flush publishes the blocks that changed, in the order they changed. The location is looked up once per agent run,
@@ -684,8 +699,9 @@ func (a *agentStates) flush() {
 		if p.locate {
 			tabId, wsId, err := a.locate(p.blockId)
 			if err == nil {
-				a.storeLocation(p.blockId, tabId, wsId)
-				p.info.TabId, p.info.WorkspaceId = tabId, wsId
+				own := a.ownBlock != nil && a.ownBlock(p.blockId)
+				a.storeLocation(p.blockId, tabId, wsId, own)
+				p.info.TabId, p.info.WorkspaceId, p.info.Own = tabId, wsId, own
 			}
 		}
 		a.publish(p.info)
@@ -713,6 +729,14 @@ func locateBlock(blockId string) (string, string, error) {
 		return tabId, "", nil
 	}
 	return tabId, wsId, nil
+}
+
+// ownSessionBlock tells whether the block carries Brokk's marker (FR-BOSS-009, AC26).
+func ownSessionBlock(blockId string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), agentLocateTimeout)
+	defer cancel()
+	block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+	return err == nil && block != nil && molten.IsOwnSession(block.Meta)
 }
 
 func publishAgentState(info molten.AgentStateInfo) {

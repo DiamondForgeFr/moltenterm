@@ -65,5 +65,19 @@ Wave Terminal project.
 
 ## Licence
 
-Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). MoltenTerm bundles
-[Font Awesome Free](https://fontawesome.com) (icons CC BY 4.0, fonts SIL OFL 1.1, code MIT).
+MoltenTerm is **AGPL-3.0-only**; the files that come from Wave Terminal remain **Apache-2.0**. See [NOTICE](NOTICE)
+for which parts are under which licence.
+
+- [LICENSE](LICENSE): the GNU Affero General Public License, version 3, for MoltenTerm's own code. Anyone may
+  use, change and share it, and nobody can ship a closed version of it.
+- [LICENSE-APACHE](LICENSE-APACHE): the Apache License 2.0, for the files from Wave Terminal (patched ones included).
+  Each source file says which one applies in its `SPDX-License-Identifier` header.
+- [LICENSE-EXCEPTION](LICENSE-EXCEPTION): an additional permission (AGPL section 7). A mod or an agent part that uses
+  only the public mod interface is not a covered work: its author licenses it as they wish, paid mods included.
+- [TRADEMARKS.md](TRADEMARKS.md): the name and the logo are not licensed. A fork must rename itself and drop the logo.
+- [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](CLA.md): how to contribute, and the agreement that lets DiamondForge
+  offer its own paid services on top of the free core.
+
+Releases published before this change were published under the Apache License 2.0 and keep it.
+
+MoltenTerm bundles [Font Awesome Free](https://fontawesome.com) (icons CC BY 4.0, fonts SIL OFL 1.1, code MIT).

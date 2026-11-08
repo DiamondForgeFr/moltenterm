@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -141,6 +141,24 @@ type Runs struct {
 	treeCwds func() []procCwd
 	// How long after the tag a run of a workflow it starts may take to appear (#1040); zero is releaseTagRunGrace.
 	tagRunGrace time.Duration
+	// How often a followed run is read again, and a build reads its local CI run; zero is runPollInterval and
+	// buildCiPoll. Tests shorten it (#2019).
+	pollEvery time.Duration
+}
+
+func (r *Runs) pollInterval() time.Duration {
+	if r.pollEvery > 0 {
+		return r.pollEvery
+	}
+	return runPollInterval
+}
+
+// ciPollInterval is how often a build looks at the local CI run it waits for.
+func (r *Runs) ciPollInterval() time.Duration {
+	if r.pollEvery > 0 {
+		return r.pollEvery
+	}
+	return buildCiPoll
 }
 
 // UseWorktrees lets branch cleaning remove MoltenTerm's own worktrees of merged pull requests, under dataDir.
@@ -530,7 +548,7 @@ func (r *Runs) watch(rec RunRecord) {
 		}()
 		defer r.stopWatching(rec.Id)
 		for rec.State == RunStateRunning {
-			time.Sleep(runPollInterval)
+			time.Sleep(r.pollInterval())
 			current, changed, err := r.refreshRecord(rec.storageProject(), rec.Id)
 			if err != nil {
 				continue

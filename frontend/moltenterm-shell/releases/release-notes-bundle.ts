@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The notes this build was made with (FR-REL-004), inlined by Vite at build time so the history reads offline. The
 // second pattern keeps the engineering records out of the app: the glob inlines contents, so a record filtered out at

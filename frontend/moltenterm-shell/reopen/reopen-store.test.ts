@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The window's side of reopening (#512, #1744): panels and views are recorded in the order they close, and Cmd+Shift+T
 // asks for the last one. The one closing order itself is kept by wavesrv (pkg/molten/reopen, route_test.go); these tests

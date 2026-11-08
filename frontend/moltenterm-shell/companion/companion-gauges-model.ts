@@ -1,10 +1,11 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The plan usage gauges of the agent companion (FR-SHELL-027, DS-SHELL-030): what wavesrv reads of an agent's plan
 // limits (pkg/molten/usage) and the pure rules of their section. Pure, so they are tested without a window.
 
 import { getLocale, t } from "../i18n/i18n";
+import { UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
 import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
@@ -43,6 +44,8 @@ export type UsageReason =
 export type UsageExperimental = { source: string; name: string; on: boolean; store: string; reason?: UsageReason };
 export type CompanionUsageInfo = {
     blockid: string;
+    // The reading of the whole app, without a block (#2074).
+    global?: boolean;
     agent: string;
     pageurl: string;
     pagename: string;
@@ -87,16 +90,19 @@ export function usageReasonText(reason: string, agent?: string): string {
 
 export type GaugeLevel = "normal" | "warning" | "error";
 
-// percentShort and resetsShort: the compact line's words ("23.5 %", "in 2 h").
+// percentShort and resetsShort: the words of a one-line list ("23.5 %", "in 2 h"). `line` is what the week grid draws
+// for the window (#2102) and `shortLabel` its name when the room is short ("Week (Opus)").
 export type GaugeRow = {
     id: string;
     label: string;
+    shortLabel: string;
     percent: string;
     percentShort: string;
     bar: number;
     level: GaugeLevel;
     resets: string;
     resetsShort: string;
+    line: UsageWeekLine;
 };
 
 export type GaugesView =
@@ -104,7 +110,7 @@ export type GaugesView =
     | { kind: "off" }
     | { kind: "setup"; setup: UsageSetup }
     | { kind: "unavailable"; reason: string }
-    | { kind: "enabled"; rows: GaugeRow[]; source: string; age: string; credits: string };
+    | { kind: "enabled"; agent: string; now: number; rows: GaugeRow[]; source: string; age: string; credits: string };
 
 export function gaugeLevel(percent: number): GaugeLevel {
     if (percent >= 95) {
@@ -169,19 +175,61 @@ function resetWords(resetsAt: number, now: number, short: boolean): string {
     return at(`${weekdayName(d)} ${d.getDate()} ${monthName(d)}, ${clockTime(d)}`);
 }
 
+const WindowLabelNames: Record<string, string> = {
+    "Current session": "session",
+    "This week": "week",
+    "Spend limit": "spend",
+};
+
+// The readers name a window in English ("This week", "This week (Opus)", "5-hour", "GPT-5 5-hour"): the words they
+// send are mapped to keys here, so every surface shows the translation (FR-I18N-001). A label that matches none is
+// shown as the reader gave it. `short` gives the form for a narrow column ("Week (Opus)"): a duration is short already.
+function windowWords(label: string, short: boolean): string {
+    const text = (label || "").trim();
+    const group = short ? "companion.gauges.windowShort" : "companion.gauges.window";
+    const fixed = WindowLabelNames[text];
+    if (fixed != null) {
+        return t(`${group}.${fixed}`);
+    }
+    const model = /^This week \((.+)\)$/.exec(text);
+    if (model != null) {
+        return t(`${group}.model`, { name: model[1] });
+    }
+    const duration = /^(\d+)-(hour|day|min)$/.exec(text);
+    if (duration != null) {
+        return t(`companion.gauges.window.${duration[2]}`, { count: duration[1] });
+    }
+    const extra = /^(.+) (5-hour|This week|\d+-(?:hour|day|min))$/.exec(text);
+    if (extra != null) {
+        return t("companion.gauges.window.extra", { name: extra[1], window: windowWords(extra[2], short) });
+    }
+    return text;
+}
+
+export function usageWindowLabel(label: string): string {
+    return windowWords(label, false);
+}
+
+// The window's name for a narrow column, as the companion's week grid labels its rows (#2102).
+export function usageWindowShortLabel(label: string): string {
+    return windowWords(label, true);
+}
+
 // A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it.
 export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
     return (snapshot?.windows ?? [])
         .filter((w) => w != null && Number.isFinite(w.usedpercent) && !(w.resetsat > 0 && w.resetsat <= now))
         .map((w) => ({
             id: w.id,
-            label: w.label || w.id,
+            label: usageWindowLabel(w.label) || w.id,
+            shortLabel: usageWindowShortLabel(w.label) || w.id,
             percent: gaugePercent(w.usedpercent),
             percentShort: `${Math.round(w.usedpercent * 10) / 10} %`,
             bar: Math.min(100, Math.max(0, w.usedpercent)),
             level: gaugeLevel(w.usedpercent),
             resets: resetText(w.resetsat, now),
             resetsShort: resetShortText(w.resetsat, now),
+            line: usageWeekLine(w, now),
         }));
 }
 
@@ -230,7 +278,10 @@ export function experimentalExplanation(): string {
 // The confirmation of FR-SHELL-028-AC1, naming where the token is read.
 export function experimentalStatement(store: string, source: string): string {
     const where = store || t("companion.gauges.tokenWhereDefault");
-    return t("companion.gauges.experimentalStatement", { where, source: source || t("companion.gauges.sourceDefault") });
+    return t("companion.gauges.experimentalStatement", {
+        where,
+        source: source || t("companion.gauges.sourceDefault"),
+    });
 }
 
 // The experimental source's row: offered while the gauges are on, its reason when it gives nothing.
@@ -270,6 +321,8 @@ export function gaugesView(info: CompanionUsageInfo, now: number): GaugesView {
     const at = info.snapshot?.readat;
     return {
         kind: "enabled",
+        agent: info.agent,
+        now,
         rows,
         source: info.sourcename ?? "",
         age: at ? t("companion.gauges.updated", { ago: relativeTime(at, now) }) : "",

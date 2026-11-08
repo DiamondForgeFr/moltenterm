@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The pure side of the renderer's hang report (#849): which long tasks are logged, how one reads in waveapp.log, and
 // the diagnostics text the "did not respond" notification copies. hang-report.ts wires it to the page.
@@ -9,6 +9,71 @@ export const LongTaskLogMs = 2000;
 // At most one long-task line per this period, so a page stuck in a loop of long tasks does not flood the log.
 export const LongTaskLogEveryMs = 10000;
 export const LongTasksKept = 20;
+export const HiddenPeriodsKept = 16;
+
+// When the page was hidden (document hidden, frozen, or its tab view taken off the window), in the
+// performance.now() time of the entries (#1929). A frame that spans such a period measures how long the view was
+// away, not a freeze: Chromium renders no frame while hidden, so the next one starts before and ends after.
+export class HiddenPeriods {
+    hiddenSince: number = null;
+    periods: { start: number; end: number }[] = [];
+
+    hidden(at: number) {
+        if (this.hiddenSince != null) {
+            return;
+        }
+        this.hiddenSince = at;
+    }
+
+    shown(at: number) {
+        if (this.hiddenSince == null) {
+            return;
+        }
+        this.periods.push({ start: this.hiddenSince, end: at });
+        this.hiddenSince = null;
+        if (this.periods.length > HiddenPeriodsKept) {
+            this.periods.splice(0, this.periods.length - HiddenPeriodsKept);
+        }
+    }
+
+    // How much of [start, end] the page spent hidden.
+    overlap(start: number, end: number): number {
+        let total = 0;
+        const spans = [...this.periods];
+        if (this.hiddenSince != null) {
+            spans.push({ start: this.hiddenSince, end: Infinity });
+        }
+        for (const span of spans) {
+            total += Math.max(0, Math.min(end, span.end) - Math.max(start, span.start));
+        }
+        return total;
+    }
+}
+
+// The fields of a long task or long-animation-frame entry the report reads.
+export type LongTaskEntry = {
+    startTime: number;
+    duration: number;
+    blockingDuration?: number;
+    scripts?: LongTaskScript[];
+};
+
+export function visibleMs(entry: LongTaskEntry, hidden: HiddenPeriods): number {
+    return entry.duration - hidden.overlap(entry.startTime, entry.startTime + entry.duration);
+}
+
+// How long the entry kept the main thread from answering a visible page. A long-animation-frame entry carries
+// blockingDuration (its long tasks and rendering): a frame stretched by a hidden or throttled view, with nothing
+// running, has almost none, even when no visibility event told the page it was hidden. Script time counts too, so a
+// frame whose work Chromium splits into tasks under 50 ms is still seen.
+export function busyMs(entry: LongTaskEntry, hidden: HiddenPeriods): number {
+    const visible = visibleMs(entry, hidden);
+    if (typeof entry.blockingDuration !== "number") {
+        return visible;
+    }
+    const scriptMs = (entry.scripts ?? []).reduce((sum, s) => sum + (s.duration ?? 0), 0);
+    return Math.min(visible, Math.max(entry.blockingDuration, scriptMs));
+}
 
 export class LongTaskLimiter {
     lastLogged = -Infinity;

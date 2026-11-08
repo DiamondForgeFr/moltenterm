@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package sessions builds the durable sessions (FR-SHELL-020, DS-SHELL-021): every durable terminal still running,
 // local or SSH, joined with its pane, its workspace, its connection, its agent and its folder. wavesrv keeps the last
@@ -282,6 +282,11 @@ func Join(s *Snapshot) molten.DurableSessionsData {
 	rtn := molten.DurableSessionsData{Sessions: []molten.DurableSession{}}
 	for _, job := range s.Jobs {
 		if !IsLive(job) {
+			continue
+		}
+		// Brokk's own session is no session of the developer's (FR-BOSS-009, AC26): the Sessions view, the Agents and
+		// Sessions panels and the counts never list it.
+		if p := paneOf(s, job); p.block != nil && molten.IsOwnSession(p.block.Meta) {
 			continue
 		}
 		ds := joinOne(s, job)

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -101,7 +101,7 @@ func makeDepFixture(t *testing.T) *depFixture {
 
 func (f *depFixture) evaluate(t *testing.T, dep molten.PipelineDependency) DependencyState {
 	t.Helper()
-	return EvaluateDependency(context.Background(), plainRunner, &f.group, f.site, "notulia-website", 0, dep, time.Now(), nil)
+	return EvaluateDependency(context.Background(), withoutGh, &f.group, f.site, "notulia-website", 0, dep, time.Now(), nil)
 }
 
 func siteDependency() molten.PipelineDependency {
@@ -110,6 +110,7 @@ func siteDependency() molten.PipelineDependency {
 }
 
 func TestDependencyLifecycle(t *testing.T) {
+	t.Parallel()
 	f := makeDepFixture(t)
 	dep := siteDependency()
 
@@ -159,6 +160,7 @@ func TestDependencyLifecycle(t *testing.T) {
 }
 
 func TestDependencyRemoteRefs(t *testing.T) {
+	t.Parallel()
 	f := makeDepFixture(t)
 	dep := siteDependency()
 	depCommit(t, f.clock, f.site, "chore: sync", map[string]string{"src/data/features/live-notes.json": "{}"})
@@ -191,6 +193,7 @@ func TestDependencyRemoteRefs(t *testing.T) {
 // A registry change made on a feature branch before the site's sync and merged after it landed after the sync: stale,
 // and the feature commit is listed even though its own date is older than the sync.
 func TestDependencyMergedAfterSync(t *testing.T) {
+	t.Parallel()
 	f := makeDepFixture(t)
 	dep := siteDependency()
 	depGit(t, f.app, f.clock.tick(), "checkout", "-q", "-b", "feature/1151-pro")
@@ -208,6 +211,7 @@ func TestDependencyMergedAfterSync(t *testing.T) {
 }
 
 func TestDependencyNotFound(t *testing.T) {
+	t.Parallel()
 	f := makeDepFixture(t)
 	ghost := siteDependency()
 	ghost.Project = "Ghost"
@@ -225,12 +229,12 @@ func TestDependencyNotFound(t *testing.T) {
 		t.Fatalf("a malformed declaration: %+v", got)
 	}
 	// Outside a group no member resolves.
-	if got := EvaluateDependency(context.Background(), plainRunner, nil, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
+	if got := EvaluateDependency(context.Background(), withoutGh, nil, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
 		t.Fatalf("no group: %+v", got)
 	}
 	// A project that is not a member (unlinked) is never found, even with the right name in the same folder tree.
 	alone := molten.ProjectGroup{Key: "notulia", Name: "Notulia", Members: f.group.Members[1:]}
-	if got := EvaluateDependency(context.Background(), plainRunner, &alone, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
+	if got := EvaluateDependency(context.Background(), withoutGh, &alone, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
 		t.Fatalf("an unlinked source: %+v", got)
 	}
 	// The default branch is the source's trunk.
@@ -242,6 +246,7 @@ func TestDependencyNotFound(t *testing.T) {
 }
 
 func TestCommitTickets(t *testing.T) {
+	t.Parallel()
 	if got := CommitTickets("feat(#1151): live notes (#1152) and #1151 again"); !reflect.DeepEqual(got, []string{"1151", "1152"}) {
 		t.Fatalf("%v", got)
 	}
@@ -252,7 +257,7 @@ func TestCommitTickets(t *testing.T) {
 
 func depGroups(t *testing.T, f *depFixture, notified *[]DependencyNotices) *Groups {
 	links := []molten.GroupLink{{WorkspaceId: "w-app", WorkspaceName: "App", Dir: f.app}, {WorkspaceId: "w-site", WorkspaceName: "Site", Dir: f.site}}
-	return MakeGroups(nil, nil, nil, plainRunner, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil },
+	return MakeGroups(nil, nil, nil, withoutGh, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil },
 		func(GroupsAnswer) {}, func(n DependencyNotices) error {
 			*notified = append(*notified, n)
 			return nil
@@ -260,6 +265,7 @@ func depGroups(t *testing.T, f *depFixture, notified *[]DependencyNotices) *Grou
 }
 
 func TestGroupsDependencies(t *testing.T) {
+	t.Parallel()
 	f := makeDepFixture(t)
 	// Two members may depend on each other (AC8).
 	depCommit(t, f.clock, f.app, "chore: read the site's pricing", map[string]string{".molten/project.json": `{"schema": 1, "name": "Notulia", "group": "Notulia",
@@ -344,6 +350,7 @@ func TestGroupsDependencies(t *testing.T) {
 }
 
 func TestDependencyNoticesKeepErrors(t *testing.T) {
+	t.Parallel()
 	member := GroupMemberInfo{GroupMember: molten.GroupMember{Dir: "/p/site", Name: "site"}}
 	member.State.Deps = []DependencyState{
 		{Index: 0, SourceName: "Api", State: DepStateError},
@@ -377,6 +384,7 @@ func TestDependencyNoticesKeepErrors(t *testing.T) {
 
 // NFR-MC-008: at most 200 ms per dependency on a repository of 10,000 commits.
 func TestDependencyCost(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("builds a 10,000-commit repository")
 	}
@@ -477,6 +485,7 @@ func commitsListed(out []byte) int {
 // While none of the commits a dependency read moved, a refresh reads no history again: only the worktree of a flagged
 // one (NFR-MC-008).
 func TestDependencyReusesUnmovedHistory(t *testing.T) {
+	t.Parallel()
 	f := makeDepFixture(t)
 	dep := siteDependency()
 	calls := map[string]int{}
@@ -510,6 +519,7 @@ func TestDependencyReusesUnmovedHistory(t *testing.T) {
 }
 
 func TestParseDepCommitNeedsASha(t *testing.T) {
+	t.Parallel()
 	if _, ok := parseDepCommit("1111111111111111111111111111111111111111\t1\tFAKE #999"); !ok {
 		t.Fatal("a full sha is read")
 	}
@@ -519,6 +529,7 @@ func TestParseDepCommitNeedsASha(t *testing.T) {
 }
 
 func TestGroupsRefreshCoalesces(t *testing.T) {
+	t.Parallel()
 	g := &Groups{}
 	if !g.claimRefresh() || g.claimRefresh() || g.claimRefresh() {
 		t.Fatal("one pass at a time")
@@ -532,6 +543,7 @@ func TestGroupsRefreshCoalesces(t *testing.T) {
 }
 
 func TestGroupsPublishIgnoresCheckTimes(t *testing.T) {
+	t.Parallel()
 	f := makeDepFixture(t)
 	var notified []DependencyNotices
 	groups := depGroups(t, f, &notified)

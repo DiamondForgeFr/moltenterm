@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Pilotage across a workspace's projects (FR-SHELL-087): the filter chips (All projects, then each project) and the
 // rows of every project's pull requests by whose turn it is, each tagged with its project.

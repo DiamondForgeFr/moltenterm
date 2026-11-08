@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package materials
 
@@ -69,6 +69,9 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 	r := l.r
 	switch command {
 	case molten.MaterialsListCommand:
+		if req.Summary && caller.IsUi() {
+			return molten.MaterialsView{Projects: r.store.Projects()}, nil
+		}
 		key, err := l.drawerOf(req, caller)
 		if err != nil {
 			return nil, err

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The renderer loads only the active language's dictionary (#1213, NFR-PERF-003): another one loads when it is chosen,
 // and the interface stays on a language whose texts are there until it has.

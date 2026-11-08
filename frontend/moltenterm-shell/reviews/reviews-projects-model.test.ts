@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { describe, expect, it, vi } from "vitest";
@@ -74,7 +74,7 @@ describe("Pilotage across projects (FR-SHELL-087)", () => {
             p2: [row("p2", 7, "yours"), row("p2", 9, "waiting")],
             p1: [row("p1", 3, "agents"), row("p1", 4, "yours")],
         });
-        expect(lanes.map((l) => l.turn)).toEqual(["yours", "agents", "waiting"]);
+        expect(lanes.map((l) => l.turn)).toEqual(["yours", "waiting", "agents"]);
         expect(lanes[0].rows.map((r) => `${r.projectId}#${r.pr.number}`)).toEqual(["p1#4", "p2#7"]);
         expect(projectLanes(Projects, {})).toEqual([]);
     });

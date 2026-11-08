@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Analyze and resolve (#1020, FR-REV-028 AC6 to AC8): every blocker of a PR, in the brief's order. When the card offers
 // it is the card's state (#1060, reviews-card-model.test.ts).

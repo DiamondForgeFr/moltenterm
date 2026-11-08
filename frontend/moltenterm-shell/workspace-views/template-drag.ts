@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Drag to reorder in the template editor (FR-SHELL-106): a press that moves a few pixels picks the item up, the item
 // under the pointer is where it lands, and the release drops it there. Pointer events rather than HTML drag and drop,

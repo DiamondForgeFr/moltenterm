@@ -1,0 +1,420 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Brokk's visit scene (FR-BOSS-009, AC6): a layer at the top of the sidebar, from y = 0 behind the title row to 8 px
+   above the search field once the content has slid down by 84 px. Edge to edge, no margin, no box, no rounded card.
+   The window row (sidebar.css) sits above it, so the window buttons and the sidebar button stay clickable. The
+   durations below are brokk-visit-scene-model.ts's MotionTimings (a test keeps the two equal): it grows from the avatar
+   in 360 ms, ease-out, and folds back in 300 ms; the content slides in sidebar.css (320 ms down, 300 ms up). */
+
+.mt-brokk-scene-layer {
+    --mt-brokk-open-ms: 360ms;
+    --mt-brokk-close-ms: 300ms;
+    --mt-brokk-fade-ms: 150ms;
+    --mt-brokk-appear-ms: 100ms;
+    --mt-brokk-vanish-ms: 200ms;
+    --mt-brokk-room: 84px;
+    --mt-brokk-gap: 8px;
+    --mt-brokk-fade: 60px;
+    --mt-brokk-field-top: var(--mt-brokk-row, 38px);
+    --mt-brokk-from-x: 0px;
+    --mt-brokk-from-y: 0px;
+    --mt-brokk-from-sx: 0.1;
+    --mt-brokk-from-sy: 0.2;
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(var(--mt-brokk-field-top) + var(--mt-brokk-room) - var(--mt-brokk-gap));
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+/* Floating over the content, the sidebar has its own inner margin above its window row and below it. */
+.mt-sb.is-hidden .mt-brokk-scene-layer {
+    --mt-brokk-field-top: calc(var(--mt-brokk-row, 38px) + 2 * var(--mt-peek-inset, 8px));
+}
+
+/* The scene itself. At rest it is the avatar's size and place and invisible; open it fills the layer. The forge's dark
+   is its own, the same in every theme: the clips are drawn for it. */
+.mt-brokk-scene {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    transform-origin: 0 0;
+    transform: translate(var(--mt-brokk-from-x), var(--mt-brokk-from-y))
+        scale(var(--mt-brokk-from-sx), var(--mt-brokk-from-sy));
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform var(--mt-brokk-close-ms) ease-in,
+        opacity var(--mt-brokk-vanish-ms) linear var(--mt-brokk-appear-ms);
+}
+
+.mt-brokk-scene[data-open="true"] {
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
+    transition:
+        transform var(--mt-brokk-open-ms) cubic-bezier(0.2, 0.7, 0.2, 1),
+        opacity var(--mt-brokk-appear-ms) linear;
+}
+
+/* The artwork: the forge's dark, the clip, the glow, the embers and the gradient under the title row. Its bottom fades
+   to nothing over 60 px with a mask, not with a gradient to a colour: what shows through is the sidebar's own background,
+   whatever it is (its surface, a workspace's tint, a see-through window, a texture), with no border and no rule. The
+   controls of the scene are not part of it, so that the fade does not dim them. The forge's dark is its own, the same in
+   every theme: the clips are drawn for it. */
+.mt-brokk-scene-art {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: rgb(26, 21, 16);
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to bottom, rgb(0, 0, 0) calc(100% - var(--mt-brokk-fade)), transparent);
+    mask-image: linear-gradient(to bottom, rgb(0, 0, 0) calc(100% - var(--mt-brokk-fade)), transparent);
+}
+
+/* The clip is a square picture with an edge of its own: left as it is, that edge shows as a straight line between the
+   dark of the scene and the forge. Its left side melts into the scene's dark over 42 % of its width, in steps that ease
+   the gradient, so that the forge has no box (the bottom of the artwork melts into the sidebar the same way). */
+.mt-brokk-scene-clip {
+    position: absolute;
+    right: -41px;
+    top: -20px;
+    width: 200px;
+    height: 200px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(
+        to right,
+        transparent 0,
+        rgba(0, 0, 0, 0.12) 8%,
+        rgba(0, 0, 0, 0.35) 16%,
+        rgba(0, 0, 0, 0.62) 26%,
+        rgba(0, 0, 0, 0.88) 35%,
+        rgb(0, 0, 0) 42%
+    );
+    mask-image: linear-gradient(
+        to right,
+        transparent 0,
+        rgba(0, 0, 0, 0.12) 8%,
+        rgba(0, 0, 0, 0.35) 16%,
+        rgba(0, 0, 0, 0.62) 26%,
+        rgba(0, 0, 0, 0.88) 35%,
+        rgb(0, 0, 0) 42%
+    );
+}
+
+.mt-brokk-scene-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+}
+
+/* His living portrait (#2025) fills the clip's box as the held frame does, so the crop and the fades stay the same. */
+.mt-brokk-scene-portrait {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.mt-brokk-scene-portrait .character-video {
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+}
+
+/* The face on the right, the left in the forge's dark, with no text to carry. */
+.mt-brokk-scene-shade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(20, 18, 16, 0.97) 0%,
+        rgba(20, 18, 16, 0.9) 38%,
+        rgba(20, 18, 16, 0.22) 62%,
+        rgba(20, 18, 16, 0) 80%
+    );
+    pointer-events: none;
+}
+
+/* The forge's glow behind him, a little hotter when it is grave, never red. */
+/* The glow is lit at its centre and nothing at the edge of its own box (closest-side): a gradient still lit where its
+   box ends would draw that box's outline on the scene. */
+.mt-brokk-scene-glow {
+    position: absolute;
+    right: 52px;
+    top: -34px;
+    width: 150px;
+    height: 112px;
+    background: radial-gradient(
+        ellipse closest-side,
+        rgba(255, 170, 60, 0.5),
+        rgba(255, 100, 20, 0.2) 58%,
+        transparent 100%
+    );
+    opacity: 0.7;
+    pointer-events: none;
+    animation: mt-brokk-flick var(--mt-duration-loop) ease-in-out infinite;
+}
+
+.mt-brokk-scene[data-severity="grave"] .mt-brokk-scene-glow {
+    opacity: 1;
+    background: radial-gradient(
+        ellipse closest-side,
+        rgba(255, 200, 90, 0.7),
+        rgba(255, 110, 20, 0.3) 60%,
+        transparent 100%
+    );
+}
+
+@keyframes mt-brokk-flick {
+    0%,
+    100% {
+        filter: brightness(1);
+    }
+    40% {
+        filter: brightness(1.25);
+    }
+    70% {
+        filter: brightness(0.9);
+    }
+}
+
+.mt-brokk-scene-embers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.mt-brokk-scene-embers i {
+    position: absolute;
+    bottom: 0;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: var(--mt-state-warning);
+    box-shadow: 0 0 4px var(--mt-action);
+    opacity: 0;
+    animation: mt-brokk-rise var(--mt-duration-loop) linear infinite;
+}
+
+.mt-brokk-scene-embers i:nth-child(1) {
+    left: 58%;
+}
+
+/* The embers rise one after the other, a third of a cycle apart. */
+.mt-brokk-scene-embers i:nth-child(2) {
+    left: 72%;
+    animation-delay: calc(var(--mt-duration-loop) / 3);
+}
+
+.mt-brokk-scene-embers i:nth-child(3) {
+    left: 86%;
+    animation-delay: calc(var(--mt-duration-loop) * 2 / 3);
+}
+
+@keyframes mt-brokk-rise {
+    0% {
+        transform: translateY(0);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-70px) translateX(-6px);
+        opacity: 0;
+    }
+}
+
+/* A subtle gradient under the title row, so that the window buttons stay legible over the clip. It takes no pointer. */
+.mt-brokk-scene-topfade {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 38px;
+    background: linear-gradient(to bottom, rgba(10, 8, 7, 0.6), rgba(10, 8, 7, 0));
+    pointer-events: none;
+}
+
+/* A click anywhere on the scene folds him back and opens his panel; this is the button that takes it, behind the
+   delays of Plus tard. */
+.mt-brokk-scene-hit {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+}
+
+.mt-brokk-scene-hit:focus-visible,
+.mt-brokk-later:focus-visible,
+.mt-brokk-later-choice:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: -2px;
+}
+
+/* His one line, for the scene of a collapsed sidebar, half open for him or unfolded (FR-BOSS-009, AC29, AC30, #2070): the
+   sentence of the event that brought him, on the forge's dark, at the right where the part of the sidebar that shows
+   when it is half open ends, and in the same place once it is unfolded. A docked sidebar's scene has no text (AC6).
+   Two lines at most. It takes no pointer: the click goes to the scene. */
+.mt-brokk-scene-line {
+    position: absolute;
+    left: auto;
+    right: 12px;
+    bottom: 22px;
+    z-index: 2;
+    max-width: calc(var(--mt-ajar-px, 190px) - 24px);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    color: rgb(244, 233, 220);
+    font-size: var(--mt-text-12);
+    line-height: 1.35;
+    text-align: right;
+    text-shadow: 0 1px 2px rgba(10, 8, 7, 0.9);
+    pointer-events: none;
+}
+
+/* A discreet Plus tard at the bottom left. */
+.mt-brokk-later {
+    position: absolute;
+    left: 10px;
+    bottom: 8px;
+    z-index: 3;
+    margin: 0;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: none;
+    color: var(--mt-text-2);
+    font: inherit;
+    font-size: var(--mt-text-11);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+}
+
+.mt-brokk-later:hover {
+    color: var(--mt-text-1);
+    background: color-mix(in srgb, var(--mt-text-1) 8%, transparent);
+}
+
+.mt-brokk-scene[data-menu="open"] .mt-brokk-later {
+    display: none;
+}
+
+.mt-brokk-later-menu {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 6px;
+    z-index: 3;
+    display: flex;
+    gap: 4px;
+}
+
+.mt-brokk-later-choice {
+    flex: 1;
+    margin: 0;
+    padding: 3px 2px;
+    border: 1px solid var(--mt-line-control);
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-surface-0) 90%, transparent);
+    color: var(--mt-text-1);
+    font: inherit;
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+}
+
+.mt-brokk-later-choice:hover {
+    background: var(--mt-action-wash);
+}
+
+.mt-brokk-later-choice.is-default {
+    border-color: color-mix(in srgb, var(--mt-action) 70%, transparent);
+}
+
+/* Reduced motion (the app's setting or the system's): the scene cross-fades in 150 ms and moves nothing; the glow and
+   the embers stand still or are not drawn. The app's own rule (.prefers-reduced-motion * sets no transition) leaves no
+   transition to fade with, so the fade is an animation, as molten-motion.css's is: in on the scene's phase "open", out on
+   its phase "closing", and nothing on "pre", the frame before it is drawn open. */
+@keyframes mt-brokk-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes mt-brokk-fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-brokk-scene,
+    .mt-brokk-scene[data-open="true"] {
+        transform: none;
+        transition: none;
+    }
+
+    .mt-brokk-scene[data-phase="open"] {
+        animation: mt-brokk-fade-in var(--mt-brokk-fade-ms) linear both;
+    }
+
+    .mt-brokk-scene[data-phase="closing"] {
+        opacity: 1;
+        animation: mt-brokk-fade-out var(--mt-brokk-fade-ms) linear both;
+    }
+
+    .mt-brokk-scene-glow {
+        animation: none;
+    }
+
+    .mt-brokk-scene-embers {
+        display: none;
+    }
+}
+
+.prefers-reduced-motion .mt-brokk-scene,
+.prefers-reduced-motion .mt-brokk-scene[data-open="true"] {
+    transform: none;
+    transition: none;
+}
+
+.prefers-reduced-motion .mt-brokk-scene[data-phase="open"] {
+    animation: mt-brokk-fade-in var(--mt-brokk-fade-ms) linear both;
+}
+
+.prefers-reduced-motion .mt-brokk-scene[data-phase="closing"] {
+    opacity: 1;
+    animation: mt-brokk-fade-out var(--mt-brokk-fade-ms) linear both;
+}
+
+.prefers-reduced-motion .mt-brokk-scene-glow {
+    animation: none;
+}
+
+.prefers-reduced-motion .mt-brokk-scene-embers {
+    display: none;
+}

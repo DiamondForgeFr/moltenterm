@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The setup's progression (#1163): Understand, Adjust, Validate as icon tiles, in plain words, with the counts of the
 // proposals waiting and the changes accepted on the connectors.

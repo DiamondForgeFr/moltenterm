@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -13,6 +13,7 @@ for (const source of [
     readFileSync("frontend/util/moltenterm-gold.ts", "utf8"),
     readFileSync("frontend/util/moltenterm-dialogs.ts", "utf8"),
     readFileSync("frontend/moltenterm-shell/update/release-feed.ts", "utf8"),
+    readFileSync("frontend/moltenterm-shell/update/release-install.ts", "utf8"),
 ]) {
     for (const match of source.matchAll(/const\s+(\w+Channel)\s*=\s*"([^"]+)"/g)) constants.set(match[1], match[2]);
 }

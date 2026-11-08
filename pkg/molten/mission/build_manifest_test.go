@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -12,6 +12,7 @@ import (
 )
 
 func TestBuildManifestRegularAndLimits(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.json")
 	contents := `{"commit":"abc","version":"1.0.0"}`

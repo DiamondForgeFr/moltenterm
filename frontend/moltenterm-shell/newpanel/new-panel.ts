@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // ⌘T, "New panel" (FR-SHELL-086, #1241, #1742): carries out new-panel-model.ts on the tab on screen.
 

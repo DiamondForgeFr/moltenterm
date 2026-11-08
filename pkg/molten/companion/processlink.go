@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package companion
 
@@ -282,7 +282,7 @@ func (m *Manager) followSettings(run molten.AgentRunInfo, follower SettingsFollo
 	m.lock.Lock()
 	t.offset = next
 	if found {
-		t.settings = settings
+		t.settings = mergeFollowedSettings(t.settings, settings)
 	}
 	current := t.settings
 	m.lock.Unlock()

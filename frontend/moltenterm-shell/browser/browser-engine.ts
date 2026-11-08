@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The installed browser engine (FR-BRW-002, DS-BRW-002): wavesrv finds the user's Chromium browsers, routes a page
 // (explicit engine, then the per-site choice, then browser:default) and asks the OS to open it there

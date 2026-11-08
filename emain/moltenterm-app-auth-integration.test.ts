@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,8 @@ const env = vi.hoisted(() => ({
     ipc: new Map<string, (event: any) => void>(),
     beforeHeaders: null as (details: any, callback: (result: any) => void) => void,
     install: vi.fn(),
+    installPolicy: vi.fn(),
+    headersReceived: null as (details: any, callback: (result: any) => void) => void,
     appSession: {} as any,
 }));
 vi.mock("electron", () => ({
@@ -42,6 +44,10 @@ env.appSession.webRequest = {
     onBeforeSendHeaders: (_filter: any, callback: any) => {
         env.install();
         env.beforeHeaders = callback;
+    },
+    onHeadersReceived: (_filter: any, callback: any) => {
+        env.installPolicy();
+        env.headersReceived = callback;
     },
 };
 
@@ -99,6 +105,26 @@ describe("Electron app caller integration", () => {
             expect(headers[CallerProofHeader]).toMatch(/^[a-f0-9]{64}$/);
             expect(headers.Range).toBe("bytes=0-3");
         }
+    });
+
+    it("gives the shared private session one content security policy, for the app's files only (#1977)", () => {
+        contents(11);
+        contents(12);
+        expect(env.installPolicy).toHaveBeenCalledTimes(1);
+        const answer = (url: string, responseHeaders: Record<string, string[]> = {}) => {
+            let result: any;
+            env.headersReceived({ url, webContentsId: 11, resourceType: "mainFrame", responseHeaders }, (value: any) => {
+                result = value;
+            });
+            return result.responseHeaders;
+        };
+        const page = answer(getAppDocumentUrl(), { "Content-Security-Policy": ["script-src *"] });
+        expect(Object.keys(page)).toEqual(["Content-Security-Policy"]);
+        expect(page["Content-Security-Policy"][0]).toContain("script-src 'self'");
+        expect(page["Content-Security-Policy"][0]).toContain("connect-src http://127.0.0.1:12345 ws://127.0.0.1:12346");
+        expect(page["Content-Security-Policy"][0]).not.toContain("script-src *");
+        const guestLike = { "Content-Type": ["text/html"] };
+        expect(answer("https://example.test/", guestLike)).toBe(guestLike);
     });
 
     it("strips copied credentials from guests, popups, child frames, navigation and retired contents", () => {
@@ -174,8 +200,41 @@ describe("Electron app caller integration", () => {
             const preferences: any = { session: env.appSession };
             app.emit("will-attach-webview", event, preferences, { partition });
             expect(event.preventDefault).not.toHaveBeenCalled();
-            expect(preferences).toEqual({ partition: partition ?? "" });
+            expect(preferences.session).toBeUndefined();
+            expect(preferences.partition).toBe(partition ?? "");
         }
+    });
+
+    it("attaches a guest without Node, isolated and sandboxed, with only the page preload (#1961)", () => {
+        const app = contents(9);
+        const attach = (preferences: any, params: any) => {
+            const event = { preventDefault: vi.fn() };
+            app.emit("will-attach-webview", event, preferences, params);
+            return event.preventDefault.mock.calls.length === 0;
+        };
+        const injected: any = {
+            nodeIntegration: true,
+            nodeIntegrationInSubFrames: true,
+            contextIsolation: false,
+            sandbox: false,
+            webSecurity: false,
+            webviewTag: true,
+            preload: "/tmp/evil.cjs",
+        };
+        expect(attach(injected, { src: "https://example.test/" })).toBe(true);
+        expect(injected).toMatchObject({
+            nodeIntegration: false,
+            nodeIntegrationInSubFrames: false,
+            contextIsolation: true,
+            sandbox: true,
+            webSecurity: true,
+            webviewTag: false,
+        });
+        expect(injected.preload).toBeUndefined();
+        const own: any = { preload: "/app/preload/preload-webview.cjs" };
+        expect(attach(own, { src: "https://example.test/" })).toBe(true);
+        expect(own.preload).toBe("/app/preload/preload-webview.cjs");
+        expect(attach({}, { src: "javascript:alert(1)" })).toBe(false);
     });
 
     it("protects native global-fetch fallback and refuses redirect credential forwarding", async () => {

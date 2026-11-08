@@ -25,7 +25,9 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/bookmarks"   // MOLTENTERM-PATCH (#1811)
 	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine" // MOLTENTERM-PATCH (#1624)
 	"github.com/wavetermdev/waveterm/pkg/molten/filesearch"  // MOLTENTERM-PATCH (#1625)
+	"github.com/wavetermdev/waveterm/pkg/molten/learning"    // MOLTENTERM-PATCH (#1879)
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"     // MOLTENTERM-PATCH (#31)
+	"github.com/wavetermdev/waveterm/pkg/molten/morphdesign" // MOLTENTERM-PATCH (#1888)
 	"github.com/wavetermdev/waveterm/pkg/molten/stdinwatch"  // MOLTENTERM-PATCH (#1043)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
@@ -584,6 +586,7 @@ func main() {
 	sigutil.InstallShutdownSignalHandlers(doShutdown)
 	sigutil.InstallSIGUSR1Handler()
 	wconfig.MigratePresetsBackgrounds()
+	wconfig.MigratePowerSettings() // MOLTENTERM-PATCH (#2089): power:sleeppolicy becomes Automatic and the terminal requests
 	startConfigWatcher()
 	molten.StartModWatcher() // MOLTENTERM-PATCH (#19): reload mods on save
 	mission.Start()          // MOLTENTERM-PATCH (#31): Mission Control's collector
@@ -600,6 +603,8 @@ func main() {
 	fileconfine.StartRoute()    // MOLTENTERM-PATCH (#1624): the file panels ask where a path really is
 	filesearch.StartRoute()     // MOLTENTERM-PATCH (#1625): molten files shows an agent's search in its tab's file panel
 	bookmarks.StartRoute()      // MOLTENTERM-PATCH (#1811): molten bookmarks list reads a project's web page bookmarks
+	learning.StartRoute()       // MOLTENTERM-PATCH (#1879): what the guided workflows learned of the developer, molten learn
+	morphdesign.StartRoute()    // MOLTENTERM-PATCH (#1888): the mod design view, molten morph design
 	// MOLTENTERM-PATCH (#1760): a project switch shows the project's own views; once, meta only, the views get their
 	// projects before any window shows a workspace
 	wcore.StartProjectViews()

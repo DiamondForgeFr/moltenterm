@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Find next and previous from the keyboard (#1759, FR-SHELL-139 AC10, TC-SHELL-254-3).
 

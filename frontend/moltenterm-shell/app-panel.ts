@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The one door for a panel an app action opens (FR-SHELL-094): the active view's own panel gets the focus, a temporary
 // view takes the panel, and a pinned view stays as the developer pinned it: the view that already shows the panel
@@ -7,16 +7,18 @@
 // Library's Add to) do not come here.
 
 import { ClientModel } from "@/app/store/client-model";
-import { atoms, createBlock, getApi } from "@/app/store/global";
+import { atoms, createBlock, createBlockSplitHorizontally, getApi, getFocusedBlockId } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { appPanelStep, PanelMatch, sameViewMatch, viewIsPinned } from "./app-panel-model";
+import { appPanelStep, panelCtaStep, PanelMatch, PanelOrigin, sameViewMatch, viewIsPinned } from "./app-panel-model";
 import { projectTabIds } from "./hidden-tabs";
 import { showTabFromHere } from "./opener-tab";
 import { readGlobalPins } from "./sidebar/view-pins-model";
+import { openPanelBeside } from "./split/add-beside";
+import { revealPanelOnCarpet } from "./view360/carpet-reveal";
 
 export type AppPanelOptions = {
     // Which open panel counts as this one; the same view by default.
@@ -71,6 +73,71 @@ async function patchPanel(blockId: string, patch: Record<string, any>): Promise<
         return;
     }
     await RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("block", blockId), meta: patch as MetaType });
+}
+
+async function focusPanel(blockId: string, patch: Record<string, any>): Promise<void> {
+    await patchPanel(blockId, patch);
+    const layoutModel = getLayoutModelForStaticTab();
+    const node = layoutModel?.getNodeByBlockId(blockId);
+    if (node == null) {
+        return;
+    }
+    // A magnified panel hides the others: the one asked for would stay out of sight.
+    if (layoutModel.magnifiedNodeId != null && layoutModel.magnifiedNodeId !== node.id) {
+        layoutModel.magnifyNodeToggle(layoutModel.magnifiedNodeId, false);
+    }
+    layoutModel.focusNode(node.id);
+    revealPanelOnCarpet(blockId);
+}
+
+// The one door for a call to action inside a panel that opens another panel (#1844, FR-SHELL-139 AC13): the view's own
+// panel of that kind gets the focus and what was asked, else the panel opens to the right of the panel the call to
+// action is in, in the same view and pinned or not (in 360 view right after that panel's column, the carpet turning to
+// it). A new view only when origin asks for one. Without a panel to open beside, it is an app action (openAppPanel).
+export async function openFromPanel(
+    origin: PanelOrigin,
+    blockDef: BlockDef,
+    opts: AppPanelOptions = {}
+): Promise<void> {
+    const sourceBlockId = origin?.blockId ?? null;
+    const layoutModel = getLayoutModelForStaticTab();
+    const match = opts.match ?? sameViewMatch(blockDef);
+    const activeTabId = globalStore.get(atoms.staticTabId);
+    const active = activeTabId ? await tabOf(activeTabId) : null;
+    const step = panelCtaStep({
+        newView: !!origin?.newView,
+        inActive: origin?.newView ? null : await panelIn(active, match),
+        sourceBlockId,
+        sourceLaidOut: sourceBlockId != null && layoutModel?.getNodeByBlockId(sourceBlockId) != null,
+    });
+    // What was asked is in the panel from the start, as the panel found open gets it written.
+    const def = opts.patch == null ? blockDef : { ...blockDef, meta: { ...blockDef.meta, ...opts.patch } };
+    switch (step.kind) {
+        case "focus":
+            await focusPanel(step.blockId, opts.patch);
+            return;
+        case "beside":
+            if ((await openPanelBeside(step.sourceBlockId, def)) == null) {
+                await createBlockSplitHorizontally(def, step.sourceBlockId, "after");
+            }
+            return;
+        case "newview":
+            getApi().createTab(def);
+            return;
+        case "door":
+            await openAppPanel(blockDef, opts);
+            return;
+    }
+}
+
+// A panel a link needs and the view lacks (a page when no browser panel is open): to the right of the focused panel,
+// which is the one the link was clicked in, else where Wave inserts. Never a new view (#1844, FR-SHELL-139 AC13).
+export async function createBesideFocused(blockDef: BlockDef): Promise<void> {
+    const focused = getFocusedBlockId();
+    if (focused != null && (await openPanelBeside(focused, blockDef)) != null) {
+        return;
+    }
+    await createBlock(blockDef);
 }
 
 export async function openAppPanel(blockDef: BlockDef, opts: AppPanelOptions = {}): Promise<void> {

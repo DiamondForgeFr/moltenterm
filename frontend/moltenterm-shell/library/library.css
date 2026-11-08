@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The library (FR-SHELL-088), from the #1181 prototype (.libx, .lnav, .lcont): over the window, its own navigation on
    the left, a wide page on the right. Under the dialogs (--zindex-modal-wrapper), so a sheet it opens stays on top. */
@@ -1265,7 +1265,6 @@
     gap: 6px;
     padding: 4px 0 8px;
     overflow-x: auto;
-    scrollbar-width: thin;
     background: color-mix(in srgb, var(--mt-sink) 18%, var(--mt-surface-0));
 }
 

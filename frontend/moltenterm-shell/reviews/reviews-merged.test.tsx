@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -126,6 +126,22 @@ describe("Recently merged (#843)", () => {
         expect(html).toContain("All merged pull requests");
         expect(html.indexOf("reviews-merged-all")).toBeLessThan(html.indexOf("reviews-merged-row"));
         expect(html).not.toContain("merged-history");
+    });
+
+    it("opens the ticket, else the pull request, from a row's number (#1921)", () => {
+        vi.stubGlobal("localStorage", memoryStorage());
+        const html = renderToStaticMarkup(
+            <MergedSection
+                answer={answer([merged(7, { ticket: 801, ships: "next" }), merged(6, { ships: "next" })])}
+                onShowNotes={() => {}}
+            />
+        );
+        const numbers = html.match(/<button[^>]*data-testid="reviews-merged-number"[^>]*>/g);
+        expect(numbers).toHaveLength(2);
+        expect(numbers[0]).toContain('aria-label="Open ticket #801"');
+        expect(numbers[0]).toContain('data-url="https://github.com/a/b/issues/801"');
+        expect(numbers[1]).toContain('aria-label="Open pull request #6"');
+        expect(numbers[1]).toContain('data-url="https://github.com/a/b/pull/6"');
     });
 
     it("shows six rows a group, then the rest in the history", () => {

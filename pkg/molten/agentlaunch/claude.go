@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package agentlaunch
 
@@ -59,6 +59,9 @@ type claudeAdapter struct{}
 
 func (claudeAdapter) Id() string         { return ClaudeAgentId }
 func (claudeAdapter) Executable() string { return claudeExecutable }
+
+// InstallCommand: the vendor's script, as the onboarding catalog gives it (code.claude.com/docs/en/setup).
+func (claudeAdapter) InstallCommand() string { return "curl -fsSL https://claude.ai/install.sh | bash" }
 
 // PassThrough: a management option anywhere before "--", or a subcommand as the first word that is not an option.
 // An option's value is never mistaken for a subcommand that changes anything: at worst a session gets no

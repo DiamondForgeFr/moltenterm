@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 /* global structuredClone, URL, process */
 import assert from "node:assert/strict";
@@ -216,24 +216,44 @@ test("advisory strings cannot inject Markdown tables or HTML into summaries", ()
     assert.ok(!markdown.includes("<img")); assert.ok(markdown.includes("&lt;img")); assert.ok(markdown.includes("&#124;"));
 });
 
-test("actual Required gate jq expression rejects failed, cancelled, skipped security and incomplete job lists", () => {
+// #2011: Dependency security, Backend and Perf budgets may be skipped, and only on Affected tests' outputs, so the gate
+// accepts their skip while it requires Affected tests itself.
+test("actual Required gate jq expression rejects failed, cancelled, unexplained skips and incomplete job lists", () => {
     const ci = fs.readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
     const expression = ci.match(/--argjson want "\$want" '([\s\S]*?)'\)/)?.[1];
     assert.ok(expression, "read the actual gate expression");
-    const wantLine = ci.split("\n").find((line) => line.trim().startsWith('want="'));
-    assert.ok(wantLine.includes("Dependency security / Scan dependencies"));
+    const gate = ci.slice(ci.indexOf("name: Required gate"));
+    const assigned = (text, name) => text.match(new RegExp(`\\b${name}='([^']*)'`))?.[1];
+    const draftLine = gate.split("\n").find((line) => line.includes('"$DRAFT" = "true"'));
+    const lists = { false: { heavy: assigned(gate, "heavy"), selected: assigned(gate, "selected") }, true: { heavy: assigned(draftLine, "heavy"), selected: assigned(draftLine, "selected") } };
+    const wantLine = gate.split("\n").find((line) => line.trim().startsWith('want="'));
     for (const draft of [true, false]) {
-        const want = JSON.parse(wantLine.trim().slice(6, -1).replaceAll('\\"', '"').replaceAll("$heavy", draft ? "skipped" : "success"));
-        const jobs = Object.entries(want).map(([name, conclusion]) => ({ name, status: "completed", conclusion }));
+        const want = JSON.parse(wantLine.trim().slice(6, -1).replaceAll('\\"', '"').replaceAll("$heavy", lists[draft].heavy).replaceAll("$selected", lists[draft].selected));
+        assert.deepEqual(Object.keys(want).sort(), ["Affected tests", "Backend", "Dependency security", "Frontend", "Perf budgets", "Quick checks"]);
+        assert.deepEqual(want["Affected tests"], ["success"]); assert.deepEqual(want["Quick checks"], ["success"]);
+        assert.deepEqual(want["Dependency security"], ["success", "skipped"]);
         const verdict = (entries) => {
             const result = spawnSync("jq", ["-r", "--argjson", "want", JSON.stringify(want), expression], { input: JSON.stringify(entries), encoding: "utf8" });
             assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
         };
+        const jobs = Object.entries(want).map(([name, allowed]) => ({ name: name === "Dependency security" ? `${name} / Scan dependencies` : name, status: "completed", conclusion: allowed[0] }));
+        const set = (prefix, change) => jobs.map((job) => (job.name.startsWith(prefix) ? { ...job, ...change } : job));
         assert.equal(verdict(jobs), "pass"); assert.equal(verdict(jobs.slice(1)), "wait");
-        for (const conclusion of ["failure", "cancelled", "skipped", "timed_out", "neutral"]) {
-            assert.equal(verdict(jobs.map((job) => job.name.startsWith("Dependency security") ? { ...job, conclusion } : job)), "fail");
+        // A skipped called workflow is listed under its caller's name.
+        assert.equal(verdict(set("Dependency security", { name: "Dependency security", conclusion: "skipped" })), "pass");
+        for (const conclusion of ["failure", "cancelled", "timed_out", "neutral", "action_required"]) {
+            for (const name of Object.keys(want)) assert.equal(verdict(set(name, { conclusion })), "fail", `${name} ${conclusion}`);
         }
-        assert.equal(verdict(jobs.map((job) => job.name.startsWith("Dependency security") ? { ...job, status: "in_progress", conclusion: null } : job)), "wait");
+        for (const name of ["Affected tests", "Quick checks", ...(draft ? [] : ["Frontend"])]) assert.equal(verdict(set(name, { conclusion: "skipped" })), "fail", `${name} skipped`);
+        assert.equal(verdict(set("Dependency security", { status: "in_progress", conclusion: null })), "wait");
+    }
+    // Their skip is the selection's only because these jobs skip on nothing but Affected tests' outputs (or a draft).
+    for (const [id, output] of [["security", "deps"], ["backend", "backend"], ["perf", "perf"]]) {
+        const section = ci.match(new RegExp(`^    ${id}:\\n([\\s\\S]*?)(?=^    \\w+:|$(?![\\s\\S]))`, "m"))?.[1] ?? "";
+        assert.match(section, /^ {8}needs: select$/m, id);
+        const condition = section.match(/^ {8}if: (.*)$/m)?.[1] ?? "";
+        assert.ok(condition.includes(`needs.select.outputs.${output} == 'true'`), `${id}: ${condition}`);
+        assert.equal(condition.replace(`needs.select.outputs.${output} == 'true'`, "").replace("(github.event_name != 'pull_request' || !github.event.pull_request.draft)", "").replace("&&", "").trim(), "", `${id}: ${condition}`);
     }
 });
 

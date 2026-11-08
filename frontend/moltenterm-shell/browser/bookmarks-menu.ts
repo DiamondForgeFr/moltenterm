@@ -1,16 +1,21 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The menu of the web page panel's Bookmarks button (FR-BRW-019), shown by the MenuHost like every MoltenTerm menu: the
 // current project's bookmarks (those directly in the project, then each folder as a submenu), then Bookmark this page…
 // and Manage bookmarks…. Choosing a bookmark opens it in the shown tab; the menu itself opens nothing. Unavailable
 // actions are absent, not disabled (FR-SHELL-049).
 
+import type { SiteIcon } from "../favicon/favicon-store";
+import { GenericWebIcon, originOfAddress } from "../favicon/site";
 import { t } from "../i18n/i18n";
 import { Bookmark, bookmarksOfFolder, findBookmarkByAddress, ProjectBookmarks } from "./bookmarks";
 import { shownAddress } from "./browser-model";
 
 export type BookmarksMenuInput = {
+    // The sites' icons known to the window (#1962): a bookmark wears its site's icon, the generic web icon when its site's
+    // was never kept (a page not visited yet).
+    icons?: Record<string, SiteIcon>;
     // null: the workspace has no project, so there is nothing to keep bookmarks in.
     projectName: string;
     // Only a workspace with several projects names the project in the menu.
@@ -27,11 +32,14 @@ export type BookmarksMenuActions = {
     manage: () => void;
 };
 
-function bookmarkItem(b: Bookmark, open: (url: string) => void): ContextMenuItem {
+function bookmarkItem(b: Bookmark, open: (url: string) => void, icons?: Record<string, SiteIcon>): ContextMenuItem {
+    const icon = icons?.[originOfAddress(b.url)];
     return {
         label: b.title,
         sublabel: shownAddress(b.url),
-        icon: "bookmark",
+        icon: GenericWebIcon,
+        iconImage: icon?.url,
+        iconImageDark: icon?.dark,
         tooltip: b.description || b.url,
         click: () => open(b.url),
     };
@@ -55,7 +63,7 @@ export function bookmarksMenu(input: BookmarksMenuInput, actions: BookmarksMenuA
         menu.push({ type: "header", label: t("browser.bookmarks.menu.project", { project: input.projectName }) });
     }
     for (const b of bookmarksOfFolder(data, "")) {
-        menu.push(bookmarkItem(b, actions.open));
+        menu.push(bookmarkItem(b, actions.open, input.icons));
     }
     for (const folder of data.folders) {
         const inside = bookmarksOfFolder(data, folder.id);
@@ -66,7 +74,7 @@ export function bookmarksMenu(input: BookmarksMenuInput, actions: BookmarksMenuA
             label: folder.name,
             type: "submenu",
             icon: "folder",
-            submenu: inside.map((b) => bookmarkItem(b, actions.open)),
+            submenu: inside.map((b) => bookmarkItem(b, actions.open, input.icons)),
         });
     }
     menu.push({ type: "separator" });

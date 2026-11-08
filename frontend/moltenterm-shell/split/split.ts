@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): one entry point for the menus, the placement
 // mode, Cmd+D / Cmd+Shift+D and the Ctrl+Shift+S chord. The new panel opens on the picker (the command palette in
@@ -14,7 +14,7 @@ import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { findNode, findParent } from "@/layout/lib/layoutNode";
 import type { LayoutTreeSplitHorizontalAction, LayoutTreeSplitVerticalAction } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
-import { besideColumns } from "./add-beside-model";
+import { besideColumns, type ColumnPlace } from "./add-beside-model";
 import { HalfSplit, pickerBlockDef, splitAxis, SplitDirection, SplitFromMetaKey, splitSizes } from "./split-model";
 
 // The pickers opened by a split and not chosen or cancelled yet (new block id -> source block id). Not persisted: a
@@ -117,13 +117,36 @@ export function insertBlockBeside(
 export async function addPickerColumn(
     layoutModel: LayoutModel,
     sourceBlockId: string,
-    place: () => { targetNodeId: string; position: "before" | "after"; columnSizes?: number[] }
+    place: () => ColumnPlace
+): Promise<string> {
+    return addColumn(layoutModel, splitPickerBlockDef(sourceBlockId, true), place, (newBlockId) => {
+        if (sourceBlockId) {
+            pendingSplits.set(newBlockId, sourceBlockId);
+        }
+    });
+}
+
+// The same column holding a panel of its own, not a picker: where a call to action inside a panel opens the panel it
+// names (#1844). Returns the new block id, null when there is no place.
+export async function addPanelColumn(
+    layoutModel: LayoutModel,
+    blockDef: BlockDef,
+    place: () => ColumnPlace
+): Promise<string> {
+    return addColumn(layoutModel, blockDef, place);
+}
+
+async function addColumn(
+    layoutModel: LayoutModel,
+    blockDef: BlockDef,
+    place: () => ColumnPlace,
+    created?: (newBlockId: string) => void
 ): Promise<string> {
     if (layoutModel == null || place() == null) {
         return null;
     }
     prunePendingSplits();
-    const newBlockId = await ObjectService.CreateBlock(splitPickerBlockDef(sourceBlockId, true), {
+    const newBlockId = await ObjectService.CreateBlock(blockDef, {
         termsize: { rows: 25, cols: 80 },
     });
     const where = place();
@@ -133,9 +156,7 @@ export async function addPickerColumn(
         fireAndForget(() => ObjectService.DeleteBlock(newBlockId));
         return null;
     }
-    if (sourceBlockId) {
-        pendingSplits.set(newBlockId, sourceBlockId);
-    }
+    created?.(newBlockId);
     if (layoutModel.magnifiedNodeId != null) {
         layoutModel.magnifyNodeToggle(layoutModel.magnifiedNodeId, false);
     }

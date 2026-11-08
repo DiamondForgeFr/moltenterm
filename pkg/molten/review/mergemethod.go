@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -446,7 +446,7 @@ func (m *Merger) waitQueue(ctx context.Context, plan MergePlan, record MergeReco
 		if err != nil {
 			failures++
 			if failures >= maxPollErrors {
-				m.end(k, record, MergeFailed, "", MergeCodePollError, err)
+				m.endGh(k, record, MergeCodePollError, err)
 				return ghMergePr{}, record, false
 			}
 			continue

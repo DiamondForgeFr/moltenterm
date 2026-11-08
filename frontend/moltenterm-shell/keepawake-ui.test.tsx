@@ -1,18 +1,13 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { atom, getDefaultStore } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const Hoisted = vi.hoisted(() => ({ policy: "" }));
-
 vi.mock("@/app/store/global", async () => {
     const { atom: makeAtom } = await import("jotai");
-    return {
-        useSettingsKeyAtom: () => Hoisted.policy,
-        atoms: { workspace: makeAtom({ oid: "ws1", name: "Alpha" }) },
-    };
+    return { atoms: { workspace: makeAtom({ oid: "ws1", name: "Alpha" }) } };
 });
 vi.mock("@/util/platformutil", () => ({ PLATFORM: "darwin" }));
 vi.mock("./settings/settings-open", () => ({ openSettingsKey: vi.fn() }));
@@ -24,8 +19,8 @@ vi.mock("./keepawake-store", async () => {
 });
 
 import { EmptyKeepAwakeState, KeepAwakeAttempt, KeepAwakeState } from "./keepawake-model";
-import { KeepAwakeDetails } from "./keepawake-ui";
 import { KeepAwakeModel } from "./keepawake-store";
+import { KeepAwakeDetails } from "./keepawake-ui";
 
 const model = KeepAwakeModel.getInstance() as unknown as { stateAtom: ReturnType<typeof atom> };
 
@@ -38,17 +33,23 @@ function attempt(partial: Partial<KeepAwakeAttempt>): KeepAwakeAttempt {
 }
 
 beforeEach(() => {
-    Hoisted.policy = "";
     setState({});
 });
 
 describe("Energy card details (FR-SHELL-103)", () => {
-    it("says what the chosen option does, and offers this workspace's coffee", () => {
-        Hoisted.policy = "allow";
+    it("says what Automatic holds now, and offers this workspace's Manual switch", () => {
+        setState({
+            automatic: true,
+            automaticholding: true,
+            automaticworking: true,
+            automaticreasons: ["Léa: working"],
+        });
         const html = renderToStaticMarkup(<KeepAwakeDetails />);
-        expect(html).toContain("A terminal that asks to stay awake is always heard.");
+        expect(html).toContain("Holding this computer awake while work runs (Léa: working)");
         expect(html).toContain('role="switch"');
-        expect(html).toContain("Keep awake while “Alpha” works");
+        expect(html).toContain("Manual");
+        expect(html).toContain("Keeps this computer awake for “Alpha” until you turn it off.");
+        expect(renderToStaticMarkup(<KeepAwakeDetails />)).not.toContain("is always heard");
     });
 
     it("keeps the terminals that asked, each with its own override", () => {

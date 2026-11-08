@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package agenthandoff
 
@@ -54,6 +54,10 @@ func (waveEnv) Runs() []molten.AgentRunInfo {
 
 func (waveEnv) Run(blockId string) (molten.AgentRunInfo, bool) {
 	return attention.AgentRun(blockId)
+}
+
+func (waveEnv) SettleStop(blockId string, by string, note string) string {
+	return attention.SettleAgentStop(blockId, by, note)
 }
 
 func (waveEnv) Subagents(blockId string) []companion.SubagentIdentity {

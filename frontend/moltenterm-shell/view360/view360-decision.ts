@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // When a tab shows in 360 view (FR-SHELL-066, DS-SHELL-116): the setting moltenterm:view360, the tab's manual choice,
 // and in automatic the readable minimum of every column against the tab's width, with a margin before leaving so a

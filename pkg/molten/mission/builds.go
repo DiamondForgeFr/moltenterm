@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -339,7 +339,7 @@ func (r *Runs) verifyBuild(ctx context.Context, b *buildLog) bool {
 		case <-ctx.Done():
 			r.ci.Cancel(b.rec.Dir, run.Id)
 			return false
-		case <-time.After(buildCiPoll):
+		case <-time.After(r.ciPollInterval()):
 		}
 		if b.cancelled() {
 			r.ci.Cancel(b.rec.Dir, run.Id)

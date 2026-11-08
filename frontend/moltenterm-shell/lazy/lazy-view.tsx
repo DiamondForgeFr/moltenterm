@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Lean renderer bundle (FR-PERF-007, DS-PERF-006): heavy libraries load at the view that needs them, through
 // React.lazy, so the entry every tab view evaluates stays small. The build fails if one of them reaches the entry

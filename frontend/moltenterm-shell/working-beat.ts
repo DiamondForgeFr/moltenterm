@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The working beat (#473): the one clock every working indicator of a view moves on (the rail and tab dots, the panel
 // header's segment, the bell's ring). It writes a phase, 0 to 3, on the root element

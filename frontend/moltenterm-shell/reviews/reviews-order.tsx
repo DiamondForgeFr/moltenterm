@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews panel's sort (FR-REV-001 AC13, #1061) and each card's rank in the suggested merge order (FR-REV-024):
 // the header's segmented control (by state, or by merge order). The merge queue itself, with its cost, is

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Add a panel on the left / on the right" (#732), in every panel's menus next to "Split…": a new top-level column
 // beside the panel's column, opening on the picker like a split (FR-SHELL-042). The panels already there keep their
@@ -24,7 +24,7 @@ import {
     insertIndexFor,
     shrinkableColumns,
 } from "./add-beside-model";
-import { addPickerColumn } from "./split";
+import { addPanelColumn, addPickerColumn } from "./split";
 
 export const AddBesideLeftIcon = "arrow-left";
 export const AddBesideRightIcon = "arrow-right";
@@ -103,6 +103,22 @@ export async function addPanelBeside(blockId: string, side: BesideSide): Promise
     }
     // Read again once the block exists: the layout may have changed meanwhile.
     return addPickerColumn(layoutModel, blockId, () => planBeside(layoutModel, blockId, side));
+}
+
+// The panel a call to action inside a panel opens (#1844, FR-SHELL-139 AC13): a column right of the panel's own, laid
+// out as "Add a panel on the right" lays one (the sizes, the 360 decision, the carpet turning to it), holding the panel
+// itself and not a picker. A magnified panel first returns to the layout, or the new one would open out of sight.
+// Returns the new block id, null when the panel is not in the layout.
+export async function openPanelBeside(blockId: string, blockDef: BlockDef): Promise<string> {
+    const layoutModel = getLayoutModelForStaticTab();
+    if (layoutModel?.getNodeByBlockId(blockId) == null) {
+        return null;
+    }
+    if (layoutModel.magnifiedNodeId != null) {
+        layoutModel.magnifyNodeToggle(layoutModel.magnifiedNodeId, false);
+    }
+    // Read again once the block exists: the layout may have changed meanwhile.
+    return addPanelColumn(layoutModel, blockDef, () => planBeside(layoutModel, blockId, "right"));
 }
 
 export function besideLabel(side: BesideSide): string {

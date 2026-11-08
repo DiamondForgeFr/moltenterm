@@ -1,0 +1,15 @@
+6feb6d7c6820f08e6e52a408a363d635196dd6a23203c800394a861bf4c0877a  MoltenTerm-darwin-arm64-1.0.0-8.dmg
+7711124159f7634d57707871c1ed57bc7ac10e92d882d060bc43b3f4c07a6617  MoltenTerm-darwin-arm64-1.0.0-8.dmg.blockmap
+fdfada52da5c92ba5d7bc973af8ccc0fd09d527be72ae0d2612c479fc78f838e  MoltenTerm-darwin-arm64-1.0.0-8.zip
+6571ddfbceee56b895af545d730ea5fcf4eb1e63496489db50dad6eeed4574d3  MoltenTerm-darwin-arm64-1.0.0-8.zip.blockmap
+8bb73afbe3321197984d46e44ad244c89a08d04ec52ebd07120fd483409e6f97  MoltenTerm-darwin-x64-1.0.0-8.dmg
+34a5def4db4d289d8bb7b4b8a7c679800ff02f2ef8d482fd52886b25ac9c00cc  MoltenTerm-darwin-x64-1.0.0-8.dmg.blockmap
+e0f3a077d1909eb0de4634ac58fb3dbd8631c731bf4f3bb47a098fb78c158f49  MoltenTerm-darwin-x64-1.0.0-8.zip
+f8b805592a9916768d6c0c251078cd164f0dfefd6f053935a828a31c348fa033  MoltenTerm-darwin-x64-1.0.0-8.zip.blockmap
+fa446658fb3b05d8ee072107b5dce7ed96d01aa712ab8f8209cd1ef8d98cd4e2  latest-linux-arm64.yml
+0bca4b082279c80f67ae164d5f804a074d83b6295cd5bd580a613dadbd41962b  latest-linux.yml
+a6f635615bbf56010cb8999428cb906c4eef70f99ef299eb150dddc6ceb39200  latest-mac.yml
+61a3e8baf07827059194ad40b0727f8ecfdf2a72988625196c2ada5682b10a94  moltenterm-linux-amd64-1.0.0-8.deb
+5a9d313e4a456d56c2d6911955648ae101a893d598817f5d6efff5aa36f1aae9  moltenterm-linux-arm64-1.0.0-8.AppImage
+303032e2958c736fc7ebfe46798898b101a641a57584eaa1e217763374271258  moltenterm-linux-arm64-1.0.0-8.deb
+46d2f1f1b634f2a4cbf404ea225d703d612cc5c9c0ad92c8108e3b5effd6a630  moltenterm-linux-x86_64-1.0.0-8.AppImage

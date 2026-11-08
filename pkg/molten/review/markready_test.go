@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -25,6 +25,7 @@ func markReadyService(err error) (*Service, *[][]string, *[]string) {
 
 // AC3: Mark ready for review runs gh pr ready on the PR, naming the repository, in the project's folder.
 func TestMarkReadyRunsGhPrReady(t *testing.T) {
+	t.Parallel()
 	s, calls, dirs := markReadyService(nil)
 	res, err := s.MarkReady(context.Background(), MarkReadyRequest{PrKey: PrKey{Repo: testRepo, Number: 12}, Dir: "/work/app"})
 	if err != nil {
@@ -41,6 +42,7 @@ func TestMarkReadyRunsGhPrReady(t *testing.T) {
 
 // AC4: gh's failures come back as a reason the window words, never as an RPC error.
 func TestMarkReadyFailures(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		err    error
 		reason string
@@ -69,6 +71,7 @@ func TestMarkReadyFailures(t *testing.T) {
 }
 
 func TestMarkReadyChecksTheRequest(t *testing.T) {
+	t.Parallel()
 	s, calls, _ := markReadyService(nil)
 	for _, req := range []MarkReadyRequest{
 		{PrKey: PrKey{Repo: "not-a-repo", Number: 12}, Dir: "/work/app"},

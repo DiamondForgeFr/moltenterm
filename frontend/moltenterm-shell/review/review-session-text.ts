@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The review session's outcomes in the interface language (#652). wavesrv answers a reason code (pkg/molten/mcpreview's
 // Reason…, or the typing path's reasons, pkg/molten/termupdate's InputReason…) with its English message, which is only

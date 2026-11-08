@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The hook setup offer (#221): a suggestion of the terminal's command panel (FR-SHELL-052,
 // header/header-proposals.ts), and a dialog with the snippet to add, where to add it, a copy button and the guide,

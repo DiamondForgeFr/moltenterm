@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Starts the renderer's interface language (FR-I18N-001, DS-I18N-002): the OS preferred languages from Electron main,
 // app:language from the settings atom, live. A value that names no available language resolves as the OS's and is

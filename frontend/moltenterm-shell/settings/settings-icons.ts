@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The suite icon (suite/suite-icons.ts, #658) of each settings section and group, so Settings draws the same icon as
 // Notulia for a shared concept. Groups are named by their English slug (groupSlug), which does not change with the
@@ -34,14 +34,17 @@ export const SettingsSectionConcepts: Record<SettingsSectionId, SuiteIconName> =
     appearance: "appearance",
     terminal: "terminal",
     agents: "agent",
+    boss: "boss",
     browser: "web",
     mission: "mission",
     notifications: "notifications",
     keyboard: "keyboard",
     mods: "mods",
     secrets: "secrets",
+    learned: "thinking",
     tips: "tips",
     advanced: "tools",
+    about: "identity",
 };
 
 const GroupConcepts: Record<string, SuiteIconName> = {
@@ -69,9 +72,12 @@ const GroupConcepts: Record<string, SuiteIconName> = {
     companion: "companion",
     codeReview: "review",
     agents: "agent",
+    avatar: "boss",
+    whenHeComesToFetchMe: "boss",
     codingAgent: "agent",
     browserPanel: "web",
     openingPages: "openExternal",
+    downloads: "folder",
     ciCd: "ci",
     lineMap: "lineMap",
     keys: "keyboard",

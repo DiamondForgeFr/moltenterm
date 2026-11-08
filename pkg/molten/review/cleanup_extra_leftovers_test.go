@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -24,6 +24,7 @@ func holderRuns(running bool) func() {
 
 // #1121 (FR-REV-013 AC9): a worktree locked by a session that ended goes like an unlocked one, its branch with it.
 func TestCleanupRemovesAWorktreeLockedByAnEndedSession(t *testing.T) {
+	serialTest(t, "replaces the process-wide check of a lock's holder")
 	f := makeCleanupFixture(t, false)
 	f.lockAgentTree(endedLockReason)
 	defer holderRuns(false)()
@@ -42,6 +43,7 @@ func TestCleanupRemovesAWorktreeLockedByAnEndedSession(t *testing.T) {
 // A lock whose holder still runs keeps the worktree, and Remove refuses an ended lock confirmed while its holder runs
 // again (the plan is read again under the removal lock).
 func TestCleanupKeepsAWorktreeLockedByARunningSession(t *testing.T) {
+	serialTest(t, "replaces the process-wide check of a lock's holder")
 	f := makeCleanupFixture(t, false)
 	f.lockAgentTree(endedLockReason)
 	restore := holderRuns(true)
@@ -69,6 +71,7 @@ func TestCleanupKeepsAWorktreeLockedByARunningSession(t *testing.T) {
 
 // A lock naming no process stays locked, as before #1121.
 func TestCleanupKeepsAWorktreeLockedWithoutAPid(t *testing.T) {
+	serialTest(t, "replaces the process-wide check of a lock's holder")
 	f := makeCleanupFixture(t, false)
 	f.lockAgentTree("on a removable disk")
 	defer holderRuns(false)()
@@ -80,6 +83,7 @@ func TestCleanupKeepsAWorktreeLockedWithoutAPid(t *testing.T) {
 
 // The copy-branches step deletes the PR's copies holding nothing new and names the others; it never runs unasked.
 func TestCleanupDeletesThePrCopies(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, false)
 	f.git(f.dir, "branch", "pr7", f.headOid)
 	f.git(f.dir, "branch", "pr-7", f.headOid)
@@ -106,6 +110,7 @@ func TestCleanupDeletesThePrCopies(t *testing.T) {
 // A PR closed without merging whose content is on the base: only its worktree and branches go, judged by content;
 // the ticket is never touched. Its head counts for nothing: a commit that is only in that head keeps the worktree.
 func TestCleanupOfAClosedPrInTheBase(t *testing.T) {
+	t.Parallel()
 	f := makeCleanupFixture(t, true)
 	f.prState = "CLOSED"
 	result := f.cleanup(CleanupRequest{Closed: true})

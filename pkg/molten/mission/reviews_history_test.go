@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -100,7 +100,7 @@ func (g *historyGh) run(ctx context.Context, dir string, name string, args ...st
 func historyReviews(t *testing.T, gh *historyGh) (*Reviews, string, *atomic.Int64) {
 	dir := makeGitFlowRepo(t)
 	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
-	collector := MakeCollector("", gh.run, nil)
+	collector := testCollector(t, "", gh.run, nil)
 	reviews := MakeReviews(collector, gh.run, nil)
 	deadline := time.Now().Add(time.Minute)
 	for {
@@ -154,6 +154,7 @@ func readHistoryTo(t *testing.T, r *Reviews, dir string, force bool) MergedHisto
 
 // AC2: every PR merged into the target, page after page, newest merge first, with its ticket.
 func TestMergedHistoryReadsEveryPage(t *testing.T) {
+	t.Parallel()
 	gh := &historyGh{}
 	base := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	for i := 1; i <= 230; i++ {
@@ -193,6 +194,7 @@ func TestMergedHistoryReadsEveryPage(t *testing.T) {
 
 // AC5: a complete history is kept; asked again later, only its newest page is read, and new PRs join it.
 func TestMergedHistoryRefreshReadsTheNewestPages(t *testing.T) {
+	t.Parallel()
 	gh := &historyGh{}
 	base := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	for i := 1; i <= 150; i++ {
@@ -221,6 +223,7 @@ func TestMergedHistoryRefreshReadsTheNewestPages(t *testing.T) {
 
 // A GitHub without issue types still gives the history, its tickets without a type.
 func TestMergedHistoryWithoutIssueTypes(t *testing.T) {
+	t.Parallel()
 	gh := &historyGh{noType: true}
 	gh.add(1, "develop", time.Now().Add(-time.Hour), nil)
 	reviews, dir, _ := historyReviews(t, gh)
@@ -231,6 +234,7 @@ func TestMergedHistoryWithoutIssueTypes(t *testing.T) {
 }
 
 func TestSortReleaseTags(t *testing.T) {
+	t.Parallel()
 	got := SortReleaseTags([]string{"v1.0.0", "v1.0.0-10", "v1.0.0-2", "v0.9.0", "nightly", "v1.0.0-rc.1", "v1.1.0-1", "v1.0.1"}, "v")
 	want := "v0.9.0,v1.0.0-2,v1.0.0-10,v1.0.0-rc.1,v1.0.0,v1.0.1,v1.1.0-1,nightly"
 	if strings.Join(got, ",") != want {
@@ -240,6 +244,7 @@ func TestSortReleaseTags(t *testing.T) {
 
 // AC2, AC4: where each merge commit ships, for the whole history at once, as ReadShips says it for one.
 func TestReadHistoryShips(t *testing.T) {
+	t.Parallel()
 	dir := makeGitFlowRepo(t)
 	oidOf := func() string { return gitIn(t, dir, "rev-parse", "HEAD") }
 	first := gitIn(t, dir, "rev-parse", "v1.1.0-1^{commit}")

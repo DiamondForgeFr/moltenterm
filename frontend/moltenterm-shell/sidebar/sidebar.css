@@ -1,5 +1,5 @@
 /* Copyright 2026, DiamondForge */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* The workspace sidebar (FR-SHELL-079, DS-SHELL-123, DS-SHELL-124): flat surfaces set into the window, controls that
    act (menus, chevrons, close) shown only under the pointer, the hidden sidebar shown over the content from the left
@@ -75,9 +75,41 @@
 /* The window row spans the band from the window's top edge to the top field (#1279): the sidebar's gap under it is
    taken back, so its icons and the window buttons Electron main places (window-corner-model.ts) share one centre line.
    In the floating panel (#1293) the row is as tall as the buttons and starts at the panel's inner margin, where Electron
-   main puts them; the top field starts one inner margin below it. */
+   main puts them; the top field starts one inner margin below it. Brokk's visit scene (FR-BOSS-009, #2002) stands at the
+   top of the sidebar, behind the row: the row is above it in the stacking order, so that the window buttons and the
+   sidebar button stay on top of it and clickable, and the scene's layer takes no pointer outside the scene itself
+   (boss/brokk-visit-scene.css). */
 .mt-sb-window-row {
+    position: relative;
+    z-index: 2;
     margin-bottom: calc(var(--spacing, 0.25rem) * -2);
+}
+
+/* The search field and everything below slide down to make room for the scene: 84 px, in 320 ms with an ease-out when
+   he comes, back in 300 ms with an ease-in when he goes. Reduced motion changes their place at once. The numbers are
+   boss/brokk-visit-scene-model.ts (SceneRoomPx, MotionTimings), which a test keeps equal to these. */
+.mt-brokk-room {
+    --mt-brokk-slide-up-ms: 300ms;
+    --mt-brokk-slide-down-ms: 320ms;
+    margin-top: 0;
+    transition: margin-top var(--mt-brokk-slide-up-ms) ease-in;
+}
+
+.mt-sb[data-brokk-visit="open"] .mt-brokk-room {
+    margin-top: 84px;
+    transition: margin-top var(--mt-brokk-slide-down-ms) cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-brokk-room,
+    .mt-sb[data-brokk-visit="open"] .mt-brokk-room {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-brokk-room,
+.prefers-reduced-motion .mt-sb[data-brokk-visit="open"] .mt-brokk-room {
+    transition: none;
 }
 
 .mt-sb-window-row.is-peeked {
@@ -193,6 +225,42 @@
     top: 0;
     bottom: 0;
     width: 14px;
+}
+
+/* Collapsed with Brokk on (FR-BOSS-009, AC44 to AC47, #2070, #2093): at rest the sidebar is wholly out of the window,
+   as without him, and the content keeps its whole width. A new notification brings 30 px of it out, its title row's
+   face at its right end (30 px, not 22: the download ring around the 20 px face needs 29.6 px, #2083), bounces it and
+   hides it again (use-brokk-edge.ts); something important keeps it half open, and the pointer over it unfolds the rest as
+   the left edge does. The numbers are boss/brokk-edge-model.ts's (EdgePx, AjarPx, EdgeFacePx), which a test keeps equal
+   to these. */
+.mt-sb-frame {
+    --mt-edge-px: 30px;
+    --mt-ajar-px: 190px;
+    --mt-edge-face: 20px;
+}
+
+/* At rest nothing of it is seen, reached by the pointer or by the keyboard, once the slide that folds it has ended. */
+.mt-sb.is-hidden[data-edge="rest"] {
+    visibility: hidden;
+    transition:
+        transform var(--mt-duration-base) var(--mt-ease),
+        visibility 0s linear var(--mt-duration-base);
+}
+
+.mt-sb.is-hidden[data-edge="peek"] {
+    transform: translateX(calc(-100% + var(--mt-edge-px) - var(--mt-frame-gap)));
+}
+
+.mt-sb.is-hidden[data-edge="ajar"] {
+    transform: translateX(calc(-100% + var(--mt-ajar-px) - var(--mt-frame-gap)));
+}
+
+/* Out of sight, and out of the keyboard's way, all of the sidebar but his face and, while it is half open, his banner.
+   They hide after the slide that folds them, and show at once when it unfolds. */
+.mt-sb[data-edge] > :not(.mt-sb-window-row, .mt-brokk-scene-layer),
+.mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar) {
+    visibility: hidden;
+    transition: visibility 0s linear var(--mt-duration-base);
 }
 
 /* The width grip, in the gap between the sidebar and the content. */
@@ -344,6 +412,142 @@
     }
 }
 
+.prefers-reduced-motion .mt-sb-dot.has-ring::after {
+    animation: none;
+}
+
+/* A workspace whose agents work ripples (FR-SHELL-082, #1943, workspace-dot-ripple.ts): two thin outline circles in
+   the workspace colour (a line, no fill, no shadow) start at the dot's edge, grow outward and fade to nothing, the
+   second one half a cycle (1.2 s) after the first, about 2.4 s a cycle. They are the dot's pseudo-elements, drawn over
+   the row and centred on the dot, so the dot keeps its size and place and the row never moves: clicks and drags stay
+   exact (pointer-events: none). A dot's circles reach 26 px, the current square's 32 px: beyond its 24 px slot, which
+   the square needs to show a ripple at all (the row gives them the room, see .mt-sb-dots below).
+   Cost (#473, #1399): transform and opacity only, so the compositor runs it and the main thread does nothing per
+   frame, whatever the number of dots; animating width and height instead drew the line at a constant width but cost
+   about 7 % of the main thread for three working dots (a style recalculation and a layout at every step), measured.
+   The circle is drawn at its final size and scaled up from the dot's size, so its line is thin at the start and
+   thickens as it fades: about 1.5 px half way, and never as thick as a border scaled out from the dot, where two
+   rings meet and read as a filled halo. Rhythm: 15 steps a second (36 steps in 2.4 s), the second circle 18 steps
+   behind, so every change falls on a frame of the dominoes' and the heat's grid; workspace-dot-ripple.ts puts the
+   start of each ripple onto that grid. No timer per dot. The ring and the ripple share ::after, so the ring wins: the
+   component never sets both, and :not(.has-ring) holds if it ever did. Sizes are unitless pixels, so the keyframes can
+   divide them. */
+.mt-sb-dot.is-working {
+    --mt-sb-ripple-size: 9;
+    --mt-sb-ripple-reach: 26;
+}
+
+.mt-sb-dot.is-working.is-on {
+    --mt-sb-ripple-size: 20;
+    --mt-sb-ripple-reach: 32;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot.is-working {
+    --mt-sb-ripple-size: 7;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot.is-working.is-on {
+    --mt-sb-ripple-size: 18;
+}
+
+/* Room for the circles above and below the 24 px slots: the row's padding box is 6 px taller on each side, which its
+   overflow clips at, and the same margin takes it back, so the bottom bar and the dots keep their place. */
+.mt-sb-dots {
+    padding-block: 6px;
+    margin-block: -6px;
+}
+
+.mt-sb-dot.is-working:not(.has-ring) > i {
+    position: relative;
+    z-index: 1;
+}
+
+.mt-sb-dot.is-working:not(.has-ring)::before,
+.mt-sb-dot.is-working:not(.has-ring)::after {
+    content: "";
+    position: absolute;
+    /* Laid out on the dot's own top left corner, then moved out by a translate to centre the larger circle (#1993).
+       The dot's box is rounded to whole device pixels when it is painted; the circle, a compositor layer, has only its
+       layout origin rounded, and the translate in its transform is not rounded at all. Laid out on the slot's centre
+       and centred by translate(-50%, -50%), the circle sat on the exact centre while the 9 px dot, half a pixel off
+       it in its 24 px slot, was rounded to one side or the other as the row moved by a fraction of a pixel (a resize,
+       a centred row that grew, the many-dot row's scroll): at 1x the gap between the dot and its circle went from
+       one pixel on one side to two on the other, and back. Laid out on the dot's corner, the circle's origin is
+       rounded exactly as the dot's, and the translate, (dot - reach) / 2, is the same in both. Never centred by auto
+       margins, which drop to 0 past the slot's 24 px and hang the circle off the top left corner. */
+    --mt-sb-ripple-shift: calc((var(--mt-sb-ripple-size) - var(--mt-sb-ripple-reach)) * 0.5px);
+    top: calc(50% - var(--mt-sb-ripple-size) * 0.5px);
+    left: calc(50% - var(--mt-sb-ripple-size) * 0.5px);
+    transform: translate(var(--mt-sb-ripple-shift), var(--mt-sb-ripple-shift))
+        scale(calc(var(--mt-sb-ripple-size) / var(--mt-sb-ripple-reach)));
+    box-sizing: border-box;
+    width: calc(var(--mt-sb-ripple-reach) * 1px);
+    height: calc(var(--mt-sb-ripple-reach) * 1px);
+    border: 2.25px solid var(--mt-sb-dot-colour);
+    border-radius: 9999px;
+    opacity: 0;
+    pointer-events: none;
+    animation: mt-sb-ripple 2.4s steps(36) infinite;
+}
+
+.mt-sb-dot.is-working.is-on:not(.has-ring)::before,
+.mt-sb-dot.is-working.is-on:not(.has-ring)::after {
+    border-radius: var(--mt-radius-panel);
+}
+
+.mt-sb-dot.is-working:not(.has-ring)::after {
+    animation-delay: 1.2s;
+}
+
+@keyframes mt-sb-ripple {
+    from {
+        transform: translate(var(--mt-sb-ripple-shift), var(--mt-sb-ripple-shift))
+            scale(calc(var(--mt-sb-ripple-size) / var(--mt-sb-ripple-reach)));
+        opacity: 0.85;
+    }
+
+    to {
+        transform: translate(var(--mt-sb-ripple-shift), var(--mt-sb-ripple-shift)) scale(1);
+        opacity: 0;
+    }
+}
+
+/* Reduced motion: no ripple, a faint fixed halo in the workspace colour around the dot instead. It stands in the first
+   circle, at the dot's own size and without its line, and the second goes. It stays a soft halo, not a ring, so a
+   working dot never reads as the fixed ring of a waiting one. The system's preference and MoltenTerm's own setting
+   (the app root's class). */
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-dot.is-working:not(.has-ring)::before {
+        animation: none;
+        transform: none;
+        width: calc(var(--mt-sb-ripple-size) * 1px);
+        height: calc(var(--mt-sb-ripple-size) * 1px);
+        opacity: 1;
+        border-width: 0;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--mt-sb-dot-colour) 28%, transparent);
+    }
+
+    .mt-sb-dot.is-working:not(.has-ring)::after {
+        content: none;
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-sb-dot.is-working:not(.has-ring)::before {
+    animation: none;
+    transform: none;
+    width: calc(var(--mt-sb-ripple-size) * 1px);
+    height: calc(var(--mt-sb-ripple-size) * 1px);
+    opacity: 1;
+    border-width: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mt-sb-dot-colour) 28%, transparent);
+}
+
+.prefers-reduced-motion .mt-sb-dot.is-working:not(.has-ring)::after {
+    content: none;
+    animation: none;
+}
+
 /* The build badge rests small beside the branch and fills under the pointer. Its letter is never dimmed with an
    opacity: at 0.45 it read 2.88:1 (#1328). */
 .mt-sb-build {
@@ -487,16 +691,9 @@
     height: 4px;
 }
 
-/* Each dot takes its state's shape (#1327, FR-SHELL-116, .mt-state-mark, WCAG 1.4.1), so the five stay apart in
-   greyscale. Blocked is a square as wide as the round dots, turned a quarter: its corners reach into the gap between
-   dots, which makes the shape readable at this size. Running turns a quarter per working beat (pr-counts.tsx) and
-   stands still without the beat. */
-.mt-sb-prdot.is-blocked {
-    border-radius: 0;
-    transform: rotate(45deg) scale(0.9);
-    color: var(--mt-state-blocked);
-}
-
+/* Each dot takes its state's shape (#1327, FR-SHELL-116, .mt-state-mark, WCAG 1.4.1), so the four stay apart in
+   greyscale (#1876: the blocked diamond went with the Blocked section, its PRs are Needs you). Running turns a quarter
+   per working beat (pr-counts.tsx) and stands still without the beat. */
 .mt-sb-prdot.is-yours {
     color: var(--mt-state-waiting);
     box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 30%, transparent);
@@ -689,7 +886,7 @@
     justify-content: flex-start;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 0 12px;
+    padding: 6px 12px;
     scrollbar-width: none;
     scroll-behavior: smooth;
     -webkit-mask: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);

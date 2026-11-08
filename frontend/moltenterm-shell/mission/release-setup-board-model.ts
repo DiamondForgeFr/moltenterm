@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The setup's agent board (FR-MC-045, #1163), as the panel reads it: the coding agent in the pipeline tab's terminal
 // proposes changes, flags points and highlights the step it explains through `molten pipeline setup`; wavesrv checks

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
@@ -24,6 +24,7 @@ func rehearsalRun(id int, status string, conclusion string, sha string, created 
 }
 
 func TestRehearseDispatchesWaitsAndDownloads(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	sha := f.originRef(t, "develop")
@@ -72,6 +73,7 @@ func TestRehearseDispatchesWaitsAndDownloads(t *testing.T) {
 }
 
 func TestRehearseFollowsTheRunAlreadyGoing(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	sha := f.originRef(t, "develop")
 	f.gh.rehearsals = "[" + rehearsalRun(5, "in_progress", "", sha, time.Now().Add(-10*time.Minute)) + "]"
@@ -87,6 +89,7 @@ func TestRehearseFollowsTheRunAlreadyGoing(t *testing.T) {
 }
 
 func TestRehearseReusesAGreenRunWithArtifacts(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	sha := f.originRef(t, "develop")
 	f.gh.rehearsals = "[" + rehearsalRun(4, "completed", "failure", sha, time.Now().Add(-time.Hour)) + "," +
@@ -109,6 +112,7 @@ func TestRehearseReusesAGreenRunWithArtifacts(t *testing.T) {
 }
 
 func TestRehearseFailsOnARedRun(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	sha := f.originRef(t, "develop")
 	f.gh.dispatch = func() {
@@ -123,6 +127,7 @@ func TestRehearseFailsOnARedRun(t *testing.T) {
 }
 
 func TestRehearseRefusals(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	ctx := context.Background()
 	mustFail(t, f, "no workflow", f.env().Rehearse(ctx, RehearseOptions{}), "--workflow")
@@ -136,6 +141,7 @@ func TestRehearseRefusals(t *testing.T) {
 }
 
 func TestExpandHome(t *testing.T) {
+	t.Parallel()
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Skip("no home folder")

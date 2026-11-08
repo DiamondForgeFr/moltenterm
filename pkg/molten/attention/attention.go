@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package attention records coding agents' calls for the user (FR-SHELL-003, DS-SHELL-004). It lives apart from
 // package molten, which wsh imports, because it needs wavesrv's object store.
@@ -287,13 +287,24 @@ func attentionKind(signal AttentionSignal) string {
 	return "warning"
 }
 
+// The store's reads and writes of a notice, replaced in tests.
+var (
+	isOwnBlock  = ownSessionBlock
+	writeNotice = writeAttention
+)
+
 func recordAgentNotice(blockId string, signal AttentionSignal, kind string) {
 	defer func() {
 		panichandler.PanicHandler("molten:recordAttention", recover())
 	}()
+	// Brokk's own session raises no notice, whether it is done or waits (FR-BOSS-009, AC26): there is one Brokk on
+	// screen, and what he does shows on his face.
+	if isOwnBlock(blockId) {
+		return
+	}
 	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFn()
-	err := writeAttention(ctx, blockId, signal, kind, time.Now())
+	err := writeNotice(ctx, blockId, signal, kind, time.Now())
 	if err != nil {
 		log.Printf("molten: recording attention for block %s: %v\n", blockId, err)
 	}

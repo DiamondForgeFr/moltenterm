@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Where a tab keeps its 360 view (FR-SHELL-065, FR-SHELL-066): in its meta, so its manual choice and the fixed zone's
 // width survive a restart and any tab can be switched, not only the one shown.

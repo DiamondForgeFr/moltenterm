@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // What each running agent got at launch (#947, FR-BRW-011, FR-SHELL-040): MoltenTerm's integration and its browser
 // server, from the launcher's report or, once MoltenTerm restarted, from the agent's arguments

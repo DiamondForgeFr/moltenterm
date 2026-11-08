@@ -1,34 +1,33 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
-// The keep-awake cup of the window row (FR-SHELL-103, #1408): a shortcut dedicated to the function it stands for. A left
-// click turns coffee mode on or off for the workspace the window shows; a right click (Shift+F10 or the context-menu key
-// on the keyboard) opens a small popover with what keeps the computer awake now and the sleep policy, drawn by the same
-// control as Preferences › Energy. Preferences is one discreet link away, never the click's target.
+// The keep-awake cup of the window row (FR-SHELL-103, #1408, FR-BOSS-009 AC47): a shortcut dedicated to the function it
+// stands for. A left click turns Manual on or off for the workspace the window shows; a right click (Shift+F10 or the
+// context-menu key on the keyboard) opens a small popover that says whether the computer is kept awake and what by,
+// shows the two modes, Manual and Automatic, with their switches, and lists the reasons. Preferences is one discreet
+// link away, never the click's target.
 
-import { atoms, useSettingsKeyAtom } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useMemo, useState } from "react";
-import { writeSettings } from "./command-panel/bindings";
+import { useState } from "react";
 import { useT } from "./i18n/i18n";
 import "./keepawake-cup.css";
 import {
+    AutomaticSetting,
     coffeeSupported,
     holdLine,
     keepAwakeActive,
     keepAwakeCountLabel,
     KeepAwakeHold,
     keepAwakeHolds,
-    sleepPolicyLabel,
-    SleepPolicySetting,
+    keepAwakeStatus,
 } from "./keepawake-model";
+import { KeepAwakeModes } from "./keepawake-modes";
 import { KeepAwakeModel } from "./keepawake-store";
 import { useNow, usePlatform } from "./keepawake-ui";
 import { MenuPopover } from "./mission/menu-popover";
 import { showPanel } from "./review/review-panels";
-import { localizeCatalog, settingChoices, settingsCatalog } from "./settings/settings-catalog";
-import { ChoiceRows } from "./settings/settings-choice-rows";
 import { openSettingsKey } from "./settings/settings-open";
 import { snapToCycle } from "./suite/suite";
 import { workspaceShownName } from "./workspace-default-name";
@@ -75,29 +74,6 @@ function CupIcon({ on, className }: { on: boolean; className: string }) {
     );
 }
 
-function PolicyChoices() {
-    const t = useT();
-    const platform = usePlatform();
-    const value = useSettingsKeyAtom(SleepPolicySetting);
-    const entry = useMemo(
-        () => localizeCatalog(settingsCatalog(platform), t).find((e) => e.key === SleepPolicySetting),
-        [platform, t]
-    );
-    const choices = useMemo(() => (entry ? settingChoices(entry, [], "") : null), [entry]);
-    if (entry == null || choices == null) {
-        return null;
-    }
-    return (
-        <ChoiceRows
-            entry={entry}
-            name="keepawake-popover-policy"
-            choices={choices}
-            value={value}
-            onSet={(v) => fireAndForget(() => writeSettings({ [SleepPolicySetting]: v ?? null }))}
-        />
-    );
-}
-
 const HoldIconClasses: Record<KeepAwakeHold["kind"], string> = {
     terminal: "fa-terminal",
     coffee: "fa-mug-hot",
@@ -109,7 +85,7 @@ const RowButtonClass =
 
 // One reason of the menu (#1780): what it is, what it does, and its actions: Show for a terminal, Stop where ending it
 // is MoltenTerm's to do (a terminal's bare keep-awake, a coffee).
-function HoldRow({ hold, onClose }: { hold: KeepAwakeHold; onClose: () => void }) {
+export function HoldRow({ hold, onClose }: { hold: KeepAwakeHold; onClose: () => void }) {
     const t = useT();
     const model = KeepAwakeModel.getInstance();
     const stop = () => {
@@ -179,9 +155,12 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
     const t = useT();
     const model = KeepAwakeModel.getInstance();
     const state = useAtomValue(model.stateAtom);
+    const workspace = useAtomValue(atoms.workspace);
     const active = keepAwakeActive(state);
     const now = useNow(active);
     const holds = keepAwakeHolds(state, now);
+    const status = keepAwakeStatus(state, now);
+    const name = workspaceShownName(workspace?.name, t) || t("keepawake.thisWorkspace");
     return (
         <MenuPopover
             anchor={anchor}
@@ -189,24 +168,37 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
             placement="bottom-end"
             role="dialog"
             ariaLabel={t("keepawake.popover.title")}
-            className="flex w-[340px] flex-col gap-3 p-0"
+            className="flex w-[340px] flex-col gap-1 p-0"
         >
-            <div className="flex flex-col gap-1 px-3 pt-3" data-testid="keepawake-now">
+            <div
+                className="flex flex-col gap-1 px-3 pt-3 pb-2"
+                data-testid="keepawake-now"
+                data-awake={active ? "true" : "false"}
+            >
                 <div className="text-12 font-medium text-primary">{t("keepawake.popover.title")}</div>
-                {active ? (
-                    <div className="text-12 text-[var(--color-awake)]">{keepAwakeCountLabel(holds.length)}</div>
-                ) : (
-                    <div className="text-12 text-muted">{t("keepawake.cupIdle")}</div>
-                )}
-                {holds.length > 0 ? (
-                    <ul className="flex flex-col gap-1 pt-1" aria-label={keepAwakeCountLabel(holds.length)}>
-                        {holds.map((hold) => (
-                            <HoldRow key={hold.key} hold={hold} onClose={onClose} />
-                        ))}
-                    </ul>
-                ) : null}
+                <div
+                    className={cn("text-12", active ? "text-[var(--color-awake)]" : "text-muted")}
+                    data-testid="keepawake-headline"
+                >
+                    {status.headline}
+                </div>
+                <div className="text-11 text-muted" data-testid="keepawake-cause">
+                    {status.cause}
+                </div>
             </div>
-            <PolicyChoices />
+            <div className="border-t border-border px-3">
+                <KeepAwakeModes state={state} workspaceId={workspace?.oid} name={name} />
+            </div>
+            {holds.length > 0 ? (
+                <ul
+                    className="flex flex-col gap-1 border-t border-border px-3 py-2"
+                    aria-label={keepAwakeCountLabel(holds.length)}
+                >
+                    {holds.map((hold) => (
+                        <HoldRow key={hold.key} hold={hold} onClose={onClose} />
+                    ))}
+                </ul>
+            ) : null}
             <div className="border-t border-border px-3 py-2">
                 <button
                     type="button"
@@ -214,7 +206,7 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
                     className="cursor-pointer text-11 text-muted hover:text-primary"
                     onClick={() => {
                         onClose();
-                        fireAndForget(() => openSettingsKey("general", SleepPolicySetting));
+                        fireAndForget(() => openSettingsKey("general", AutomaticSetting));
                     }}
                 >
                     {t("keepawake.popover.moreSettings")}
@@ -224,10 +216,10 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
     );
 }
 
-// The cup stays in the window row while nothing keeps the computer awake (calm), so coffee mode can be turned back on.
-// aria-pressed is the current workspace's coffee, the thing a click changes, and the icon itself says it: coloured,
-// with waving steam, while on (#1470); a background would read as hover. The text brightens a little while something
-// else holds. The workspace sidebar (#1183) draws it as a 28 px icon button. When more than one reason holds, their
+// The cup stays in the window row while nothing keeps the computer awake (calm), so Manual can be turned back on.
+// aria-pressed is the current workspace's Manual switch, the thing a click changes, and the icon itself says it:
+// coloured, with waving steam, while on (#1470); a background would read as hover. The text brightens a little while
+// something else holds, and the tooltip starts with the real state, never with the switch's (#2089). The workspace sidebar (#1183) draws it as a 28 px icon button. When more than one reason holds, their
 // number sits to the left of the cup as plain calm text, never a round badge: a badge reads as "something needs your
 // answer", which only the bell means (#1780).
 export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status" | "sidebar" }) {
@@ -235,7 +227,6 @@ export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status"
     const platform = usePlatform();
     const model = KeepAwakeModel.getInstance();
     const state = useAtomValue(model.stateAtom);
-    const policy = useSettingsKeyAtom(SleepPolicySetting);
     const workspace = useAtomValue(atoms.workspace);
     const coffee = useAtomValue(model.coffeeAtom(workspace?.oid));
     const [anchor, setAnchor] = useState<Element>(null);
@@ -248,13 +239,13 @@ export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status"
     const active = count > 0;
     const sidebar = variant === "sidebar";
     const name = workspaceShownName(workspace?.name, t) || t("keepawake.thisWorkspace");
+    const status = keepAwakeStatus(state);
     const title = [
-        t("keepawake.cupTitle", {
-            state: t(on ? "keepawake.cupCoffeeOn" : "keepawake.cupCoffeeOff"),
-            reason: active ? keepAwakeCountLabel(count) : t("keepawake.cupIdle"),
-        }),
+        status.headline,
+        status.cause,
         ...holds.map((h) => `• ${holdLine(h)}`),
-        t("keepawake.indicatorPolicy", { policy: sleepPolicyLabel(policy ?? "") }),
+        t("keepawake.cupManual", { name, state: t(on ? "keepawake.on" : "keepawake.off") }),
+        t("keepawake.cupAutomatic", { state: t(state.automatic ? "keepawake.on" : "keepawake.off") }),
         t("keepawake.cupHint"),
     ].join("\n");
     const toggle = () => {
@@ -273,7 +264,7 @@ export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status"
         <>
             <button
                 type="button"
-                aria-label={t("keepawake.coffeeFor", { name })}
+                aria-label={t("keepawake.manualFor", { name })}
                 aria-pressed={on}
                 aria-haspopup="dialog"
                 title={title}

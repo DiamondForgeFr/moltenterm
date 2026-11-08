@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The add-a-project page of the sidebar (FR-SHELL-087): it takes the sidebar's page with three fields, the project's
 // type, its folder and the branch it follows. Opened on a project, it edits it, and takes it out of the workspace

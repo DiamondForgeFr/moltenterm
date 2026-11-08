@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Delivers a built Moltenterm.app as the new gold (#64), modelled on Notulia's scripts/build-local.sh: the next state
 // (new app, the old one kept under previous/, the manifest) is assembled beside the gold folder, then renamed onto

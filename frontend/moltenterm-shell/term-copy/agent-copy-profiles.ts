@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // How each coding agent draws its terminal UI, for clean copy (FR-SHELL-017, DS-SHELL-018). The ids are the agent
 // registry's (AgentKinds in pkg/molten/agentstate.go): supporting a new agent is adding a row here next to its row

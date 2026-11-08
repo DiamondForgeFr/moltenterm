@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Providers of the command panel, registered by capability (DS-SHELL-086). A panel combining features gets every
 // matching provider's sections; sections come out ordered by kind (Agent, MoltenTerm, widget, Developer), never by

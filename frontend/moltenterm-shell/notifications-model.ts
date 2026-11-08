@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The notification center's data (FR-SHELL-002, DS-SHELL-003, FR-MC-010, DS-MC-009). Each notification is one key of
 // the client object's meta, "molten:notif:<id>". Wave persists that meta, sends it to every window, and merges updates
@@ -26,6 +26,8 @@ export type MoltentermNotificationSource =
     | "ci"
     | "release"
     | "deps"
+    // The downloads of the web pages (#1992, FR-MC-019 AC10): one when a download ends, one when it fails.
+    | "download"
     // A refused run waiting for the developer's approval (#1017): tied to no subject, so never silenced.
     | "trust";
 export type MoltentermNotificationKind = "info" | "success" | "warning" | "error";
@@ -450,6 +452,18 @@ export function resolveUpdate(entries: MoltentermNotification[], key: string, no
     );
 }
 
+// Settles these notifications, key or none: the developer acted on them or went to where they come from (#2026), or
+// says they did what it asked (#1938). They are resolved and filed in one step, so that they leave the active list, the
+// counts and the rows of À traiter at once, in every window.
+export function handledUpdate(entries: MoltentermNotification[], ids: string[], now: number): MetaUpdate {
+    const wanted = new Set(ids);
+    return changeUpdate(
+        entries,
+        (e) => wanted.has(e.id) && e.archived == null,
+        (e) => ({ resolved: e.resolved ?? now, archived: now, read: true })
+    );
+}
+
 export function readUpdate(entries: MoltentermNotification[], ids: string[]): MetaUpdate {
     const wanted = new Set(ids);
     return changeUpdate(
@@ -476,6 +490,40 @@ export function archiveUpdate(entries: MoltentermNotification[], ids: string[], 
     );
 }
 
+// What a notification was before it was cleared, to give it back as it was.
+export type ClearedMark = { id: string; read: boolean; resolved?: number };
+
+export function clearedMarks(entries: MoltentermNotification[], ids: string[]): ClearedMark[] {
+    const wanted = new Set(ids);
+    return entries
+        .filter((e) => wanted.has(e.id) && e.archived == null)
+        .map((e) => ({ id: e.id, read: e.read, resolved: e.resolved }));
+}
+
+// Undo of a clear made at `clearedAt`: each notification still archived at that very moment is open again, read and
+// resolved as it was. One that changed since (it was cleared again, published again, or pruned) is left alone.
+export function undoClearUpdate(
+    entries: MoltentermNotification[],
+    marks: ClearedMark[],
+    clearedAt: number
+): MetaUpdate {
+    const byId = new Map(entries.map((e) => [e.id, e]));
+    const update: MetaUpdate = {};
+    for (const mark of marks) {
+        const entry = byId.get(mark.id);
+        if (entry == null || entry.archived !== clearedAt) {
+            continue;
+        }
+        const { archived: _archived, resolved: _resolved, ...open } = stored(entry);
+        update[NotificationKeyPrefix + entry.id] = {
+            ...open,
+            read: mark.read,
+            ...(mark.resolved != null ? { resolved: mark.resolved } : {}),
+        };
+    }
+    return update;
+}
+
 export function archiveResolvedUpdate(entries: MoltentermNotification[], now: number): MetaUpdate {
     return archiveUpdate(
         entries,
@@ -490,6 +538,23 @@ export function clearArchiveUpdate(entries: MoltentermNotification[]): MetaUpdat
         update[NotificationKeyPrefix + entry.id] = null;
     }
     return update;
+}
+
+export type RowKeyAction = "clear" | "open";
+
+// What a key does on a focused row of the active list (#2026): Delete or Backspace clears it, Enter or Space opens it when
+// it leads somewhere. Only the row itself answers: the keys of a button inside it are that button's.
+export function rowKeyAction(
+    key: string,
+    row: { onRow: boolean; archived: boolean; hasOrigin: boolean }
+): RowKeyAction {
+    if (!row.onRow || row.archived) {
+        return null;
+    }
+    if (key === "Delete" || key === "Backspace") {
+        return "clear";
+    }
+    return row.hasOrigin && (key === "Enter" || key === " ") ? "open" : null;
 }
 
 export function formatAge(time: number, now: number): string {

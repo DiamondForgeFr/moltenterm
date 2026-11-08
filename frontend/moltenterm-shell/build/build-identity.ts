@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // How a Moltenterm build names itself (FR-REL-001), for the status bar badge and the About panel. As in Notulia
 // (localIdentity, #1000): a gold IS a version of its own, so a local build is named by its channel, build id and

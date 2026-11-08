@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package agentdocs holds the documentation coding agents read to build mods (DS-MORPH-006): the mod format, the
 // morph guide, and complete example mods; and to connect projects to Mission Control (FR-MC-008): the
@@ -29,8 +29,14 @@ import "embed"
 // files.md tells agents to show what they searched for in their tab's file panel with `molten files` (FR-FILE-002).
 // pages.md tells agents to open the pages they show the developer in MoltenTerm's browser, not the system's (#1812).
 // bookmarks.md tells agents to read the project's web page bookmarks with `molten bookmarks list` (FR-BRW-020).
+// learning.md tells agents to read what a guided workflow learned of the developer and to record their adjustments
+// with `molten learn` (FR-LRN-002).
+// morph-design.md teaches the agent that /morph runs the `molten morph design` commands that keep the mod design view's
+// panel in step with the conversation (FR-MORPH-019).
+// agent-decisions.md tells a lead to settle the stop of an agent whose question it decided, with `molten agent
+// decision settle` (#1876, FR-REV-022 AC20).
 //
-//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md materials.md files.md pages.md bookmarks.md all:examples
+//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md materials.md files.md pages.md bookmarks.md learning.md morph-design.md agent-decisions.md all:examples
 var Files embed.FS
 
 const ReviewGuideFile = "review.md"

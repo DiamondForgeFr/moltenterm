@@ -1,9 +1,9 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
-// The Reviews panel's sections by turn (#1061, FR-REV-001 AC12 and AC13, FR-REV-022 AC11, FR-REV-027 AC6): the
-// mockup's fixtures (Yours, Agents on it, Blocked, Waiting), both sorts, Upcoming's order and sessions, and Recently
-// merged's version groups.
+// The Reviews panel's sections (#1061, #1876, FR-REV-001 AC13 and AC16, FR-REV-022 AC11, FR-REV-027 AC6): the
+// mockup's fixtures (Needs you, Ready to merge, In progress, With the agents), both sorts, Upcoming's order and
+// sessions, and Recently merged's version groups.
 
 import { describe, expect, it } from "vitest";
 import type { AgentStatesData } from "../agent-state-model";
@@ -18,6 +18,7 @@ import {
     mergedGroups,
     mergedTitle,
     mergedWho,
+    queueSectionOf,
     sectionOf,
     sectionRows,
     sectionsByTurn,
@@ -101,12 +102,11 @@ function turns(prs: ReviewPr[], sort: "state" | "merge" = "state", ranks?: Recor
 
 describe("sections by turn (FR-REV-001 AC12)", () => {
     it("puts every card in its turn's section, in the panel's order", () => {
+        // Conflicts and a red CI are Needs you with the rest of what is stuck; an agent on it and the CI are In progress.
         expect(turns(panel())).toEqual([
-            ["yours", [1104, 1107]],
+            ["yours", [1103, 1102, 1104, 1107]],
             ["ready", [1101]],
-            ["agents", [1106]],
-            ["blocked", [1103, 1102]],
-            ["waiting", [1105]],
+            ["waiting", [1106, 1105]],
         ]);
     });
 
@@ -118,30 +118,30 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         expect(turns([])).toEqual([]);
     });
 
-    it("shows the agents' section for the merge queue's banner, cards or not (#1123)", () => {
+    it("shows the In progress section for the merge queue's banner, cards or not (#1123, #1876)", () => {
         const sections = [
             { turn: "yours" as const, prs: [pr(1101)] },
-            { turn: "waiting" as const, prs: [pr(1105)] },
+            { turn: "agents" as const, prs: [pr(1105)] },
         ];
-        expect(withTurnShown(sections, "agents", true).map((s) => [s.turn, s.prs.length])).toEqual([
+        expect(withTurnShown(sections, "waiting", true).map((s) => [s.turn, s.prs.length])).toEqual([
             ["yours", 1],
-            ["agents", 0],
-            ["waiting", 1],
+            ["waiting", 0],
+            ["agents", 1],
         ]);
-        expect(withTurnShown(sections, "agents", false)).toBe(sections);
-        expect(withTurnShown([], "agents", true).map((s) => s.turn)).toEqual(["agents"]);
-        const withAgents = [{ turn: "agents" as const, prs: [pr(1106)] }];
-        expect(withTurnShown(withAgents, "agents", true)).toBe(withAgents);
+        expect(withTurnShown(sections, "waiting", false)).toBe(sections);
+        expect(withTurnShown([], "waiting", true).map((s) => s.turn)).toEqual(["waiting"]);
+        const running = [{ turn: "waiting" as const, prs: [pr(1106)] }];
+        expect(withTurnShown(running, "waiting", true)).toBe(running);
     });
 
     it("moves a card when its state changes, not when GitHub's draft flag does", () => {
         const draft = pr(1107, { draft: true });
         expect(turns([draft])).toEqual([["yours", [1107]]]);
         const conflicting = { ...draft, merge: "conflicts" as const };
-        expect(turns([conflicting])).toEqual([["blocked", [1107]]]);
-        // An agent starts on its branch: the card goes to the agents' section.
+        expect(turns([conflicting])).toEqual([["yours", [1107]]]);
+        // An agent starts on its branch: the card goes to In progress.
         const onIt = { ...draft, branch: "feature/1106-x" };
-        expect(turns([onIt])).toEqual([["agents", [1107]]]);
+        expect(turns([onIt])).toEqual([["waiting", [1107]]]);
     });
 
     it("by state, cards of one state follow the merge queue's ranks, ranked first (#1062)", () => {
@@ -150,17 +150,29 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
     });
 
     it("sorts by merge order: ranked cards first, the others by state (AC13)", () => {
-        expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[0]).toEqual(["yours", [1104, 1107]]);
-        expect(turns(panel(), "merge", { 1104: 2, 1101: 1 })[0]).toEqual(["yours", [1104, 1107]]);
+        expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[0]).toEqual(["yours", [1104, 1103, 1102, 1107]]);
+        expect(turns(panel(), "merge", { 1104: 2, 1101: 1 })[0]).toEqual(["yours", [1104, 1103, 1102, 1107]]);
         expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[1]).toEqual(["ready", [1101]]);
+    });
+
+    it("puts the merge queue at the head of Ready to merge, where its call to action is (#1876)", () => {
+        const at = (...turns: ("yours" | "ready" | "waiting" | "agents")[]) =>
+            queueSectionOf(turns.map((turn) => ({ turn, prs: [] })));
+        expect(at("yours", "ready", "waiting")).toBe("ready");
+        expect(at("ready")).toBe("ready");
+        expect(at("yours", "waiting")).toBe("yours");
+        expect(at("waiting", "agents")).toBeNull();
+        expect(at()).toBeNull();
     });
 
     it("walks the open sections only, and finds a card's section", () => {
         const prs = panel();
         const cards = cardStates(prs, {}, (n) => `/p#${n}`, Ctx);
         const sections = sectionsByTurn(prs, cards, "state");
-        expect(sectionRows(sections, { blocked: true }).map((p) => p.number)).toEqual([1104, 1107, 1101, 1106, 1105]);
-        expect(sectionOf(sections, 1102)).toBe("blocked");
+        expect(sectionRows(sections, { ready: true }).map((p) => p.number)).toEqual([
+            1103, 1102, 1104, 1107, 1106, 1105,
+        ]);
+        expect(sectionOf(sections, 1102)).toBe("yours");
         expect(sectionOf(sections, 9)).toBeNull();
     });
 
@@ -168,11 +180,16 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         const prs = panel();
         const cards = cardStates(prs, {}, (n) => `/p#${n}`, Ctx);
         const sections = sectionsByTurn(prs, cards, "state");
-        // Validate (ready), Hand the rebase over and Analyse (blocked) are molten on their own: only one stays filled.
+        // Validate (ready), Hand the rebase over and Analyse (stuck) are molten on their own: only one stays filled.
         expect([1101, 1103, 1102].every((n) => cards[n].molten)).toBe(true);
-        expect(filledAction(sections, cards)).toBe("pr:1104");
-        // A Yours card that asks nothing filled passes the button to the next one, then to its leftovers.
-        const quiet = { ...cards, 1104: { ...cards[1104], molten: false } };
+        expect(filledAction(sections, cards)).toBe("pr:1103");
+        // A Needs you card that asks nothing filled passes the button to the next one, then to its leftovers.
+        const quiet = Object.fromEntries(
+            Object.entries(cards).map(([n, c]) => [
+                n,
+                [1103, 1102, 1104].includes(Number(n)) ? { ...c, molten: false } : c,
+            ])
+        );
         expect(filledAction(sections, quiet)).toBe("pr:1107");
         const none = { ...quiet, 1107: { ...cards[1107], molten: false } };
         expect(filledAction(sections, none, [{ key: "leftover:feature/9-x", molten: true }])).toBe(
@@ -327,7 +344,7 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         };
         expect(sections(gated)).toEqual([
             ["yours", [1169, 1170]],
-            ["agents", [1161]],
+            ["waiting", [1161]],
         ]);
     });
 });

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
@@ -133,6 +133,7 @@ func divergeMain(t *testing.T, f *fixture) {
 }
 
 func TestPrFlowEndToEnd(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	writeFile(t, filepath.Join(f.checkout, ".saasfoundry.json"), `{"workflow":{"branchNaming":{"release":"rc-{version}"}}}`)
 	gitIn(t, f.checkout, "add", ".saasfoundry.json")
@@ -228,6 +229,7 @@ func TestPrFlowEndToEnd(t *testing.T) {
 }
 
 func TestPrFlowRefusals(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	divergeMain(t, f)
 	gitIn(t, f.checkout, "checkout", "--quiet", "-B", "hotfix", "origin/main")
@@ -287,6 +289,7 @@ echo "$header" | grep -Eq '^[a-z]+\(#[0-9]+\): .+$' || { echo "commit-msg: bad h
 // The pull-request flow of a project with a commit convention and hooks (#1046): a candidate nothing publishes stays on
 // its RC branch, the public release goes through its pull request, and comes back to the trunk by a merge commit.
 func TestPrFlowConventionRcOnBranchAndMergeBack(t *testing.T) {
+	t.Parallel()
 	f := makeFixture(t)
 	writeFile(t, filepath.Join(f.checkout, ".molten", "project.json"), conventionProject)
 	writeFile(t, filepath.Join(f.checkout, "README.md"), "# Fixture\n\n**v1.0.0-0**\n")
@@ -407,6 +410,7 @@ func assertReleaseGuard(t *testing.T, f *fixture, gh *fakePrGitHub, tag string, 
 }
 
 func TestRcBranch(t *testing.T) {
+	t.Parallel()
 	p := &Project{}
 	p.Rules.TagPrefix = "v"
 	v, ok := p.Rules.ReleaseOf("v1.2.0-3")

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
 import type { HandoffHistoryEntry } from "../agent-links/agent-links-model";
@@ -71,6 +71,44 @@ describe("subagentRows", () => {
             { id: "1", name: "Screen inventory", kind: "Explore", model: "Haiku 5.5", state: "done", ...plain },
         ]);
         expect(subagentRows(null)).toEqual([]);
+    });
+
+    // #1941: the view the companion sends once a fork, started two hours ago, was resumed by SendMessage after its
+    // first end. It is listed as running however long ago it started, next to an old failure, and the running rows
+    // are exactly the companion's running sub-agents.
+    it("lists a resumed fork as running, as many running rows as the companion runs", () => {
+        const Now = Date.UTC(2026, 10, 5, 15, 50, 0);
+        const Hour = 3_600_000;
+        const rows = subagentRows({
+            blockid: "a",
+            version: 1,
+            status: "live" as any,
+            subagents: [
+                {
+                    id: "toolu_old",
+                    description: "Build ticket #58",
+                    kind: "general-purpose",
+                    state: "failed",
+                    background: true,
+                    started: Now - 5 * Hour,
+                    ended: Now - 4 * Hour,
+                },
+                {
+                    id: "toolu_fork",
+                    description: "Mascot keyframes and review panel",
+                    kind: "fork",
+                    state: "running",
+                    background: true,
+                    started: Now - 2 * Hour,
+                    ended: 0,
+                },
+            ],
+        });
+        const g = subagentGroups(rows, Now, false, {});
+        expect(g.running.map((r) => r.id)).toEqual(["toolu_fork"]);
+        expect(g.running[0].kind).toBe("fork");
+        expect(g.working).toBe(1);
+        expect(g.lingering.map((r) => r.id)).toEqual(["toolu_old"]);
     });
 });
 

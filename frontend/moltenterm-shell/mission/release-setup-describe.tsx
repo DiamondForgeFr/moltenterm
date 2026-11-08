@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Step 2b of the deployment pipeline setup (FR-MC-041): no pipeline yet, the developer describes the one they want. A
 // starting point (MoltenTerm's standard pipeline, another linked project as a model, their own words), a few questions
@@ -7,8 +7,9 @@
 // one click away. Nothing is written here: step 3 shows the result, the missing publish workflow included.
 
 import { cn } from "@/util/util";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { PrefillMark } from "../learning/prefill-mark";
 import { DominoLoader } from "../suite/suite";
 import {
     branchChoices,
@@ -93,7 +94,10 @@ export function DescribeStep({
     children,
     askedTemplate,
     forgotten,
+    prefilled,
 }: {
+    // A detailed choice holds a value learned from the earlier runs (FR-LRN-004): the choices open, so none is a surprise.
+    prefilled?: boolean;
     // Opened from step 1's "Use a template" (#1106): says so when none is saved yet.
     askedTemplate?: boolean;
     // The name of the template the draft was started from, just forgotten: its choices are kept (#1106).
@@ -118,6 +122,11 @@ export function DescribeStep({
     children?: ReactNode;
 }) {
     const t = useT();
+    // The choices open once a learned value fills one, and stay as the developer leaves them.
+    const [openedByLearning, setOpenedByLearning] = useState(false);
+    if (prefilled && !openedByLearning) {
+        setOpenedByLearning(true);
+    }
     const branches = branchChoices(draft, options);
     const same = sameBranch(options);
     const rows = targetRows(draft, options);
@@ -344,9 +353,14 @@ export function DescribeStep({
                 </div>
             </div>
             {children ? (
-                <details className="rounded-6 border border-border px-3 py-2" data-testid="setup-describe-all">
-                    <summary className="cursor-pointer text-12 text-primary">
+                <details
+                    className="rounded-6 border border-border px-3 py-2"
+                    open={openedByLearning ? true : undefined}
+                    data-testid="setup-describe-all"
+                >
+                    <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-12 text-primary">
                         {t("mc.setup.describe.allChoices")}
+                        {prefilled ? <PrefillMark /> : null}
                     </summary>
                     <div className="mt-2">{children}</div>
                 </details>

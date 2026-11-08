@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
@@ -265,21 +265,41 @@ func (e *Env) gatherNotesFacts(ctx context.Context, wt string, p *Project, tag s
 // rangeSubjects: the commit subjects since a release ("" for the whole history) up to HEAD, newest first, merges
 // excluded, and so are the commits the release already holds under another hash (#1717).
 func (e *Env) rangeSubjects(ctx context.Context, wt string, since string) ([]string, error) {
+	commits, err := e.rangeCommits(ctx, wt, since, "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	var subjects []string
+	for _, c := range commits {
+		subjects = append(subjects, c.Subject)
+	}
+	return subjects, nil
+}
+
+// rangeCommits: the commits since a release ("" for the whole history) up to head, newest first, with their bodies,
+// merges excluded, and so are the commits the release already holds under another hash (#1717). The notes, the
+// changelog coverage check and the plan (#1731) all read this range, so they agree on what a release ships.
+func (e *Env) rangeCommits(ctx context.Context, wt string, since string, head string) ([]versions.CommitInput, error) {
 	// A fork's upstream history is not the project's own: the first release would otherwise list every upstream
 	// commit since the beginning.
 	var notUpstream []string
 	if remotes, _ := e.gitLines(ctx, wt, "remote"); slices.Contains(remotes, "upstream") {
 		notUpstream = []string{"--not", "--remotes=upstream"}
 	}
+	const format = "--format=%at%x1f%s%x1f%b%x1e"
 	if since == "" {
-		return e.gitLines(ctx, wt, append([]string{"log", "--no-merges", "--format=%s", "HEAD"}, notUpstream...)...)
+		out, err := e.git(ctx, wt, append([]string{"log", "--no-merges", format, head}, notUpstream...)...)
+		if err != nil {
+			return nil, err
+		}
+		return parseRangeCommits(out, nil), nil
 	}
 	// A release merged to the main branch under other hashes (rebased, cherry-picked) and synced back leaves develop
-	// with the original commits while the tag holds their equivalents: since..HEAD lists what the release shipped
-	// again. --cherry-pick drops the equivalents of the same patch the tag holds beside HEAD; once the tag is merged
-	// into HEAD it sees none, so the commits are also matched on what a rebase or a cherry-pick keeps, even through a
+	// with the original commits while the tag holds their equivalents: since..head lists what the release shipped
+	// again. --cherry-pick drops the equivalents of the same patch the tag holds beside head; once the tag is merged
+	// into head it sees none, so the commits are also matched on what a rebase or a cherry-pick keeps, even through a
 	// conflict: the author date and the subject.
-	lines, err := e.gitLines(ctx, wt, append([]string{"log", "--no-merges", "--right-only", "--cherry-pick", "--format=%at%x1f%s", since + "...HEAD"}, notUpstream...)...)
+	out, err := e.git(ctx, wt, append([]string{"log", "--no-merges", "--right-only", "--cherry-pick", format, since + "..." + head}, notUpstream...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -288,15 +308,28 @@ func (e *Env) rangeSubjects(ctx context.Context, wt string, since string) ([]str
 	for _, line := range released {
 		shipped[line] = true
 	}
-	var subjects []string
-	for _, line := range lines {
-		if shipped[line] {
+	return parseRangeCommits(out, shipped), nil
+}
+
+// parseRangeCommits reads rangeCommits' records ("date\x1fsubject\x1fbody\x1e"), leaving out those whose date and
+// subject the shipped set holds.
+func parseRangeCommits(out string, shipped map[string]bool) []versions.CommitInput {
+	var commits []versions.CommitInput
+	for _, record := range strings.Split(out, "\x1e") {
+		fields := strings.SplitN(strings.TrimLeft(record, "\n"), rangeFieldSep, 3)
+		if len(fields) < 2 || fields[1] == "" {
 			continue
 		}
-		_, subject, _ := strings.Cut(line, rangeFieldSep)
-		subjects = append(subjects, subject)
+		if shipped[fields[0]+rangeFieldSep+fields[1]] {
+			continue
+		}
+		c := versions.CommitInput{Subject: fields[1]}
+		if len(fields) == 3 {
+			c.Body = strings.TrimSpace(fields[2])
+		}
+		commits = append(commits, c)
 	}
-	return subjects, nil
+	return commits
 }
 
 func noteLine(subject string) string {

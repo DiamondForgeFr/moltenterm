@@ -162,8 +162,14 @@ type SettingsType struct {
 	BrowserSites     map[string]string `json:"browser:sites,omitempty" jsonschema_description:"Per-site engine, host (subdomains included) to app, installed or a browser id"`
 	// MOLTENTERM-PATCH (#301): site permissions of the agents in the browser panel (FR-BRW-009, pkg/molten/browseragent).
 	BrowserAgentSites map[string]string `json:"browser:agentsites,omitempty" jsonschema_description:"Sites agents may use in the browser panel: a site (registrable domain, or host:port for localhost and IP addresses) to allow or block; set from the panel's permission bar, Block wins"`
+	// MOLTENTERM-PATCH (#1992): where the downloads of web pages are saved (FR-MC-019 AC12).
+	BrowserDownloadAsk bool `json:"browser:downloadask,omitempty" jsonschema_description:"Ask where to save each download of a web page; off (the default) saves it straight to the system Downloads folder with no dialog"`
 	// MOLTENTERM-PATCH (#663): what pages of the browser panel may use (camera, microphone, location, notifications).
 	BrowserSitePermissions map[string]map[string]string `json:"browser:sitepermissions,omitempty" jsonschema_description:"What each site in the browser panel may use: a host (with its port) to a map of camera, microphone, location or notifications to allow or block; set from the panel's permission bar"`
+	// MOLTENTERM-PATCH (#1979): the client certificate the user picked for a site (FR-BRW-016).
+	BrowserClientCertificates map[string]string `json:"browser:clientcertificates,omitempty" jsonschema_description:"The client certificate each site in the browser panel gets: a host (with its port) to the fingerprint of the certificate the user picked, or none to go without one; set from the panel's certificate bar"`
+	// MOLTENTERM-PATCH (#1978): files a terminal may open in the browser panel without asking (FR-BRW-014).
+	BrowserLocalPages map[string]string `json:"browser:localpages,omitempty" jsonschema_description:"Files from this computer that terminals and agents may open in the browser panel without asking: an absolute path to allow; set from the panel's question, never by a terminal"`
 
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`
@@ -186,8 +192,17 @@ type SettingsType struct {
 	TabHoldToClose   *bool  `json:"tab:holdtoclose,omitempty" jsonschema_description:"Closing a tab with its close button takes a press-and-hold; false closes it on a single click"`
 	TabHoldToCloseMs *int64 `json:"tab:holdtoclosems,omitempty" jsonschema_description:"How long a tab's close button is held before it closes the tab, in milliseconds (200 to 2000)"`
 
-	// MOLTENTERM-PATCH (#276, #493): whether terminals may keep the computer awake (FR-SHELL-023, pkg/molten/keepawake); unset asks once.
-	PowerSleepPolicy string `json:"power:sleeppolicy,omitempty" jsonschema:"enum=allow,enum=untilworkends,enum=letsleep" jsonschema_description:"Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input with nothing running is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep."`
+	// MOLTENTERM-PATCH (#276, #493, #2089): keep-awake (FR-SHELL-023, pkg/molten/keepawake). Two activation modes, Manual
+	// (a workspace's switch, held in the keeper) and Automatic (power:automatic), and a configuration: what counts as
+	// work, the grace delay and what a terminal's request gets. power:sleeppolicy is the setting they replace; it is
+	// read once at startup to migrate (MigratePowerSettings) and never written again.
+	PowerSleepPolicy      string `json:"power:sleeppolicy,omitempty" jsonschema:"enum=allow,enum=untilworkends,enum=letsleep" jsonschema_description:"Replaced by power:automatic and power:terminalrequests; MoltenTerm moves its value to them at startup and removes it"`
+	PowerAutomatic        bool   `json:"power:automatic,omitempty" jsonschema_description:"Automatic keep-awake: while any agent works on this computer, MoltenTerm keeps it awake itself and releases it after the grace delay (power:graceminutes). The display may always sleep"`
+	PowerGraceMinutes    *int64 `json:"power:graceminutes,omitempty" jsonschema:"enum=1,enum=2,enum=5,enum=10,enum=15" jsonschema_description:"Minutes the computer stays awake after the last work stopped (1, 2, 5, 10 or 15); 2 when unset"`
+	PowerWorkAgents       *bool  `json:"power:workagents,omitempty" jsonschema_description:"An agent at work, or still busy with background subagents or commands after its turn, counts as work; true when unset"`
+	PowerWorkCommands     *bool  `json:"power:workcommands,omitempty" jsonschema_description:"A foreground command in a terminal that is not an idle shell counts as work; true when unset"`
+	PowerWorkProjects     *bool  `json:"power:workprojects,omitempty" jsonschema_description:"A Mission Control run of a project counts as work; true when unset"`
+	PowerTerminalRequests string `json:"power:terminalrequests,omitempty" jsonschema:"enum=always,enum=never" jsonschema_description:"What happens when a program in a terminal asks to keep the computer awake (caffeinate, systemd-inhibit). always: their blocks go through. never: their blocks are stopped and the computer sleeps as planned. Unset: the first request asks"`
 
 	// MOLTENTERM-PATCH (#1183): the workspace sidebar replaces the tab bar, the rail and the status bar (FR-SHELL-079, frontend/moltenterm-shell/sidebar).
 	ShellWorkspaceSidebar *bool `json:"shell:workspacesidebar,omitempty" jsonschema_description:"Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back"`
@@ -227,6 +242,27 @@ type SettingsType struct {
 
 	// MOLTENTERM-PATCH (#1409): the sidebar's heat while agents work (FR-SHELL-122, frontend/moltenterm-shell/sidebar/sidebar-heat.tsx).
 	MoltentermSidebarHeat *bool `json:"moltenterm:sidebarheat,omitempty" jsonschema_description:"While agents of the workspace work, a faint heat rises in the free space at the bottom of the sidebar, stronger with more working agents. On when unset; false removes it. Reduced motion removes it too"`
+
+	// MOLTENTERM-PATCH (#1883): the foreman's bubble, the pennant and the hover peek (FR-BOSS-001, frontend/moltenterm-shell/boss).
+	BossName           string `json:"boss:name,omitempty" jsonschema_description:"The name of the foreman whose avatar shows what waits across every workspace: 1 to 24 characters, Brokk when unset. His tooltip, his card, his menus and his settings use it"`
+	BossShow           *bool  `json:"boss:show,omitempty" jsonschema_description:"Show the foreman's avatar in the title bar of every window. On when unset; false shows no avatar and he never comes"`
+	BossCollapseOnType *bool  `json:"boss:collapseontype,omitempty" jsonschema_description:"Obsolete since the bubble was replaced by the title-bar avatar, which is never over a terminal: nothing reads it"`
+
+	// MOLTENTERM-PATCH (#2001): when Brokk comes to fetch the developer (FR-BOSS-009, frontend/moltenterm-shell/boss/brokk-visit-events.ts).
+	BossVisitSecurity string `json:"boss:visitsecurity,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a security alert on a dependency (high or critical) does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset"`
+	BossVisitBlocked  string `json:"boss:visitblocked,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What an agent blocked waiting for you for longer than boss:blockedmin does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Vient when unset"`
+	BossVisitError    string `json:"boss:visiterror,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What an agent stopped on an error does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
+	BossVisitCi       string `json:"boss:visitci,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a failed CI on your pull request does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
+	BossVisitReady    string `json:"boss:visitready,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a pull request ready to merge does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
+	BossVisitFinished string `json:"boss:visitfinished,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What an agent that finished its work does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
+	BossVisitDownload string `json:"boss:visitdownload,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a download that finished or failed does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
+	BossVisitUpdate   string `json:"boss:visitupdate,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What an update that is available does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
+	BossVisitUsage    string `json:"boss:visitusage,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a plan usage above 90 % does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
+	BossBlockedMin    *int64 `json:"boss:blockedmin,omitempty" jsonschema:"enum=2,enum=5,enum=10,enum=15" jsonschema_description:"Minutes an agent may wait for you before it counts as blocked and Brokk may come (2, 5, 10 or 15). 5 when unset; after three times as long it is a grave visit"`
+	BossQuiet         *bool  `json:"boss:quiet,omitempty" jsonschema_description:"Quiet hours: between boss:quietfrom and boss:quietto Brokk does not come, only the badge changes. On when unset"`
+	BossQuietFrom     string `json:"boss:quietfrom,omitempty" jsonschema_description:"When the quiet hours begin, as HH:MM on the local clock. 22:00 when unset or invalid"`
+	BossQuietTo       string `json:"boss:quietto,omitempty" jsonschema_description:"When the quiet hours end, as HH:MM on the local clock. 08:00 when unset or invalid"`
+	BossNeverCome     bool   `json:"boss:nevercome,omitempty" jsonschema_description:"Brokk never comes to fetch you, whatever the events are set to: only the badge counts. Off when unset"`
 
 	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
 	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`

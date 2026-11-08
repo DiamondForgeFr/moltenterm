@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Package projectviews holds the rules that tie a workspace's views to its projects (FR-SHELL-087, FR-SHELL-080,
 // #1760): which project a view belongs to, which views a project shows, which view a project switch lands on and what

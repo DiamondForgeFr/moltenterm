@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Closing and resetting a workspace (#222): a workspace is closed only when the user lands on another one; the last one
 // is reset instead (one new tab). wavesrv enforces the same rule (pkg/wcore/moltenterm_workspace.go); this side decides

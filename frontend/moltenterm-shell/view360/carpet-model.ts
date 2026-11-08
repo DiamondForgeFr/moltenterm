@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // 360 view (FR-SHELL-065, DS-SHELL-114/115): a workspace tab drawn as a fixed zone on the left, holding the tab's
 // first column, and a carpet that scrolls horizontally with every other column laid on it at the width remembered for
@@ -36,6 +36,8 @@ export const FixedColumnGapPx = 0;
 const EdgeEpsilonPx = 0.5;
 // Below this, a column overlapping the band is not in view: what shows of it is its own half gap.
 const TouchEpsilonPx = 1;
+// The most room the carpet's last position leaves after its last panel (#1862): the rounding of floored slots.
+const EndRoomPx = 8;
 // The readable minimum of a column other than the first (FR-SHELL-066's automatic decision counts it too).
 export const ReadableCarpetColumnPx = 360;
 // What the carpet needs to show one column at its readable minimum: the column and the peeks' gutters.
@@ -363,17 +365,17 @@ export function computeCarpetLayout(input: CarpetLayoutInput): CarpetLayout {
     };
 }
 
-// The carpet's last position (#1131): the first panel edge from which the end of the carpet is in view, so it shows
-// whole panels. When the panels' widths do not add up to the carpet's, the carpet ends with some empty room rather
-// than a cut panel. Only when no edge works (the last panel wider than the carpet) does it stop where the content
-// ends.
+// The carpet's last position: the last panel against the carpet's right edge, so the last screen is full (#1862). A
+// panel edge at most EndRoomPx past that point is kept instead (#1131): the floored slots of equal places leave a few
+// pixels at the end, which read as the gutter, and the panel before keeps its edge. Stopping on a farther edge would
+// leave the end of the screen empty (a last panel alone in the left half of a 360 view showing two).
 function lastScrollStop(columns: CarpetColumn[], contentWidth: number, viewWidth: number): number {
     const contentEnd = Math.max(0, contentWidth - viewWidth);
     if (contentEnd <= EdgeEpsilonPx) {
         return 0;
     }
     const edge = columns.map((c) => c.x).find((x) => x >= contentEnd - EdgeEpsilonPx);
-    return edge ?? contentEnd;
+    return edge != null && edge <= contentEnd + EndRoomPx ? edge : contentEnd;
 }
 
 // The carpet's snap positions, left to right (#1131): its start, each panel's start edge, and its last position. Stepping and revealing a panel stop there.

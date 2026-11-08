@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The channels of the molten reveal (FR-SHELL-088, DS-SHELL-138, #1549): tidy pipework, as if dug by dwarves, from
 // the open block's chip in the row to each card of the block, into its icon tile (#1593). Straight runs, right angles and rounded

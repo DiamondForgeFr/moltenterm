@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The Reviews view's data (FR-REV-001, DS-REV-001): wavesrv derives the list from Mission Control's collector
 // (pkg/molten/mission/reviews.go); this side only words it. The pure helpers live here so they can be tested.
@@ -36,6 +36,8 @@ export type ReviewCheck = {
     startedat?: string;
     // ms; an interrupted local CI check's last sign of life
     stoppedat?: number;
+    // When a finished check ended (RFC 3339), for the card's "CI finished 3 h ago" (#1876); absent while it runs.
+    completedat?: string;
 };
 
 export type ReviewCi = {
@@ -77,6 +79,19 @@ export type ReviewPr = {
     unpublished: number;
     // who worked on the PR, the last agent first (#847); absent: unknown agent
     agents?: AgentSignature[];
+    // What the PR waits on, still open (#1841): declared in its body, its author's comments or its ticket, or GitHub's
+    // "blocked by" relationship.
+    waitson?: ReviewDependency[];
+};
+
+// must match ReviewDependency in pkg/molten/mission/reviews_waits.go
+export type ReviewDependency = {
+    number: number;
+    title?: string;
+    url?: string;
+    kind?: "pr" | "issue";
+    state: string;
+    from: "body" | "comment" | "ticket" | "relation";
 };
 
 // must match Signature in pkg/molten/agentsign/agentsign.go
@@ -283,6 +298,9 @@ export type RebaseResult = {
     lead?: boolean;
     leadfolder?: string;
     leadguessed?: boolean;
+    // #1955: the result is about a sub-agent of the agent firstname and blockid name: it works on the PR (reason
+    // subagentbusy), or its lead was asked to continue it (lead is then set too).
+    subagent?: boolean;
 };
 
 // The lead agent that owns a PR (#1779, FR-REV-022 AC19): named by the PR's signature, else by the sub-agent registry's
@@ -386,12 +404,22 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
             }
             return { kind: "asked", name, text: phrase(keys.asked, vars), note: what === "investigate" };
         case "queued":
-            return { kind: "asked", name, text: phrase("reviews.lead.queued", vars), note: true };
+            return {
+                kind: "asked",
+                name,
+                text: phrase(result.subagent ? "reviews.lead.subagentQueued" : "reviews.lead.queued", vars),
+                note: true,
+            };
         case "leadgone":
             return { kind: "leadgone", name, text: phrase("reviews.lead.gone", vars), result };
         case "sent": {
             if (result.lead) {
-                return { kind: "asked", name, text: phrase("reviews.lead.sent", vars), note: true };
+                return {
+                    kind: "asked",
+                    name,
+                    text: phrase(result.subagent ? "reviews.lead.subagentSent" : "reviews.lead.sent", vars),
+                    note: true,
+                };
             }
             const other = notChosen(result, name);
             return {
@@ -429,6 +457,21 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
                                 : phrase("reviews.rebase.working", vars),
                         busy: result.blockid ? { blockId: result.blockid, name } : undefined,
                     };
+                case "subagentbusy":
+                case "backgroundbusy":
+                    return {
+                        kind: "info",
+                        text: phrase(
+                            result.reason === "subagentbusy"
+                                ? "reviews.rebase.subagentWorking"
+                                : "reviews.rebase.backgroundWorking",
+                            vars
+                        ),
+                        busy: result.blockid ? { blockId: result.blockid, name } : undefined,
+                    };
+                case "treeinuse":
+                    // Not queued: the agent in the worktree is not working, so waiting for it to stop would never end.
+                    return { kind: "info", text: phrase("reviews.rebase.treeInUse", vars) };
                 case "inflight":
                     return { kind: "info", text: phrase("reviews.rebase.inflight") };
             }

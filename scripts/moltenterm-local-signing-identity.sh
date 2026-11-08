@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright 2026, DiamondForge
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # The code-signing identity local builds (the gold and any other local build) sign with (#224), modelled on Notulia's
 # scripts/local-signing-identity.sh.

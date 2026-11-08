@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package companion
 
@@ -148,6 +148,12 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 			return nil, err
 		}
 		return l.m.usageFor(req)
+	case molten.CompanionUsageGlobalCommand:
+		var req globalUsageRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.m.GlobalUsage(req.Fetch), nil
 	case molten.CompanionUsageGaugesCommand:
 		var req usageGaugesRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -224,7 +230,10 @@ func publishView(view CompanionView) {
 }
 
 func publishUsage(info UsageInfo) {
-	scopes := []string{waveobj.MakeORef(waveobj.OType_Block, info.BlockId).String()}
+	var scopes []string
+	if info.BlockId != "" {
+		scopes = []string{waveobj.MakeORef(waveobj.OType_Block, info.BlockId).String()}
+	}
 	wps.Broker.Publish(wps.WaveEvent{Event: molten.CompanionUsageEvent, Scopes: scopes, Data: info})
 }
 
@@ -267,7 +276,9 @@ func Start() {
 	usage.DefaultCodexUsage.SetTranscript(m.CodexLimits)
 	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {
 		m.settingsChanged(&config.Settings)
+		go m.GlobalUsage(false)
 	})
+	m.startGlobalUsage()
 	if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{m: m}).route()); err != nil {
 		log.Printf("molten: agent companion route not started: %v\n", err)
 		return

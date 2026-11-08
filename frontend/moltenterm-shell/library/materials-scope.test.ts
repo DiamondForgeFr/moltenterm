@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
 import en from "../i18n/locales/en.json";
@@ -75,6 +75,16 @@ describe("which project's materials (#1816)", () => {
         expect(validScope({ kind: "project", key: "nope" }, others, "sasu")).toEqual(ActiveScope);
         expect(validScope({ kind: "project", key: "sasu" }, others, "sasu")).toEqual(ActiveScope);
         expect(validScope({ kind: "all" }, others, "sasu")).toEqual({ kind: "all" });
+    });
+
+    it("offers project counts without downloading their materials", () => {
+        const summaries = Projects.map((p) => ({ ...p, count: p.key === "term" ? 250 : 0 }));
+        expect(otherProjects(summaries, undefined, "sasu")).toEqual([
+            { key: "term", name: "MoltenTerm", folder: Term.folder, count: 250 },
+        ]);
+        expect(
+            validScope({ kind: "project", key: "term" }, otherProjects(summaries, undefined, "sasu"), "sasu")
+        ).toEqual({ kind: "project", key: "term" });
     });
 
     it("names a project by its name, else by its folder, and No project by none", () => {

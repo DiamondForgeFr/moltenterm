@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -17,6 +17,10 @@ const Allowed: Record<string, string> = {
     "sidebar/workspace-sidebar.tsx": "the last workspace list, drawn by a new tab view until wavesrv answers",
     "legacy-storage.ts": "reads and drops what earlier versions kept, to move it into the settings or the meta",
     "reviews/reviews-order-store.ts": "the same move, for the Integration panel's sort and folds (#1758)",
+    "boss/brokk-hub-store.ts":
+        "what Brokk told and the Plus tard delay, handed from one view to the next within a run, so that a visit is not played again in each view (#2002); a restart starts them over",
+    "boss/boss-store.ts":
+        "the rows of À traiter the developer settled or ignored, handed from one view and window to the next within a run, for the episode they were made on (#2026); a restart starts them over, as the agents' states and their times do",
 };
 
 const Root = "frontend/moltenterm-shell";

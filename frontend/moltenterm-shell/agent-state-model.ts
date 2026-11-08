@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Agent states (FR-SHELL-011, DS-SHELL-011): wavesrv keeps the coding agent of each terminal and its state
 // (pkg/molten/attention/agentstate.go); the windows show them in the pane header, on the tab and on the workspace
@@ -13,6 +13,7 @@ export const AgentStateEvent = "molten:agentstate";
 export const AgentStatesRoute = "molten:agents";
 export const AgentStatesCommand = "moltenagentstates";
 export const AgentStateSeenCommand = "moltenagentstateseen";
+export const AgentStopSettleCommand = "moltenagentstopsettle";
 
 // How long a done agent's pane must stay in view, unfocused, before it counts as seen (#784).
 export const AgentSeenDwellMs = 1500;
@@ -41,6 +42,8 @@ export type AgentStateInfo = {
     model?: string;
     modelname?: string;
     effort?: string;
+    // #2076: the agent refused its latest turn because the signed-in account cannot use model.
+    modelunavailable?: boolean;
     // FR-AGC-008: the host the run talks to when it is not its agent's own provider, its name ("GLM", else the host)
     // and the agent's own provider ("Anthropic"), whose plan gauges, models and effort levels do not apply then.
     provider?: string;
@@ -51,7 +54,17 @@ export type AgentStateInfo = {
     subagents?: number;
     background?: boolean;
     cleared?: boolean;
+    // The block is Brokk's own session (FR-BOSS-009, AC26): no list of agents shows it, his face alone shows it works.
+    own?: boolean;
+    // #1876: the agent stopped for a decision and someone settled it; state is idle then.
+    settled?: AgentSettled;
 };
+
+// must match AgentSettled in pkg/molten/agentstate.go: by is the settler's first name, "" for the developer.
+export type AgentSettled = { by?: string; note?: string; at: number };
+
+// must match AgentStopSettleResult in pkg/molten/agentstate.go
+export type AgentStopSettleStatus = "settled" | "none" | "ownprompt";
 
 // The main session's prompt (#1092): what typing into it depends on. A pane working only through its sub-agents
 // shows working, but its prompt is idle.
@@ -100,6 +113,62 @@ export function applyAgentStates(data: AgentStatesData, infos: AgentStateInfo[])
     return next ?? data;
 }
 
+// Brokk's own session is kept apart (FR-BOSS-009, AC26, #2033): every list of agents reads `data`, which never holds it,
+// and his ring reads `own`. A state that says it is his goes to `own`, and takes the block out of `data` when an event
+// that came before its location put it there; the end of his session, which does not say it, goes to both.
+export function splitOwnStates(
+    infos: AgentStateInfo[],
+    data: AgentStatesData,
+    own: AgentStatesData
+): { shared: AgentStateInfo[]; own: AgentStateInfo[] } {
+    const rtn = { shared: [] as AgentStateInfo[], own: [] as AgentStateInfo[] };
+    for (const info of infos ?? []) {
+        if (info?.own) {
+            rtn.own.push(info);
+            if (data.states[info.blockid] != null) {
+                rtn.shared.push({ blockid: info.blockid, version: info.version, cleared: true });
+            }
+        } else if (info?.cleared && own.versions[info.blockid] != null) {
+            rtn.own.push(info);
+            rtn.shared.push(info);
+        } else {
+            rtn.shared.push(info);
+        }
+    }
+    return rtn;
+}
+
+// Applies a snapshot read again after a reconnect (#1949): it also drops the agents it no longer lists, whose end was
+// published while the window followed no event. Only those the window held when it asked (before: their versions then)
+// and that no event changed since: an agent that started while the snapshot travelled is not in it, yet is live.
+export function reconcileAgentStates(
+    data: AgentStatesData,
+    before: Record<string, number>,
+    snapshot: AgentStateInfo[]
+): AgentStatesData {
+    let next = applyAgentStates(data, snapshot);
+    const listed = new Set((snapshot ?? []).map((info) => info?.blockid));
+    for (const [blockId, version] of Object.entries(before ?? {})) {
+        if (listed.has(blockId) || next.states[blockId] == null || next.versions[blockId] !== version) {
+            continue;
+        }
+        if (next === data) {
+            next = { states: { ...data.states }, versions: { ...data.versions } };
+        }
+        delete next.states[blockId];
+    }
+    return next;
+}
+
+// The versions of the agents a window holds, for reconcileAgentStates.
+export function heldAgentVersions(data: AgentStatesData): Record<string, number> {
+    const rtn: Record<string, number> = {};
+    for (const blockId of Object.keys(data?.states ?? {})) {
+        rtn[blockId] = data.versions[blockId] ?? 0;
+    }
+    return rtn;
+}
+
 // The state a tab or a workspace shows: the most urgent of its panes' (waiting, error, working, done); idle shows
 // nothing.
 export function mostUrgentAgentState(infos: AgentStateInfo[]): AgentStateInfo {
@@ -113,6 +182,12 @@ export function mostUrgentAgentState(infos: AgentStateInfo[]): AgentStateInfo {
         }
     }
     return best;
+}
+
+// How many agents of the workspace work (#1943). A pane held up only by its sub-agents already reads working (#1092),
+// so the main session and the background sub-agents are counted by the one state; waiting, error and done are not work.
+export function workingAgentCount(infos: AgentStateInfo[]): number {
+    return (infos ?? []).filter((info) => info?.state === "working").length;
 }
 
 export function agentStatesOfBlocks(data: AgentStatesData, blockIds: string[]): AgentStateInfo[] {
@@ -237,6 +312,11 @@ export function agentStateTitle(info: AgentStateInfo): string {
 // What the state says beside its name: MoltenTerm's words in the interface language when it holds the state (#896),
 // else the agent's own message.
 export function agentStateMessage(info: AgentStateInfo): string {
+    // A refused model stops every turn until another one is chosen (#2076): it outranks the agent's own message.
+    const unavailable = agentModelUnavailableLine(info);
+    if (unavailable) {
+        return unavailable;
+    }
     if (info?.messagetext != null) {
         return serverText(info.messagetext, info.message);
     }
@@ -267,10 +347,22 @@ export function agentEffortPart(info: AgentStateInfo): string {
     return (info?.effort ?? "").trim();
 }
 
+// The one calm line of a model the signed-in account cannot use (#2076), "" otherwise.
+export function agentModelUnavailableLine(info: AgentStateInfo): string {
+    const model = agentModelPart(info);
+    if (!info?.modelunavailable || !model) {
+        return "";
+    }
+    return t("agent.modelUnavailable", { model });
+}
+
 export function agentModelTitle(info: AgentStateInfo): string {
     const label = agentModelPart(info);
     if (!label) {
         return "";
+    }
+    if (info.modelunavailable) {
+        return [agentModelUnavailableLine(info), t("agent.modelUnavailableClick")].join("\n");
     }
     const model =
         info.model && info.modelname && info.model !== info.modelname ? `${info.modelname} (${info.model})` : label;

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // UI transport locations and presentation/startup flags only. Credentials and arbitrary environment
 // access are never part of the renderer contract. Home/config/data paths have separate guarded APIs.
@@ -10,6 +10,9 @@ export const RendererEnvironmentNames = [
     "WAVETERM_DEV_VITE",
     "MOLTENTERM_CHANNEL",
     "MOLTENTERM_SAFE_MODE",
+    // A test instance's local release feed (#1806, #1860): the renderer only learns that the build looks for releases;
+    // Electron main alone decides whether the override is honoured (moltenterm-release-feed.ts).
+    "MOLTENTERM_RELEASE_FEED_URL",
 ] as const;
 const rendererEnvironmentNames = new Set<string>(RendererEnvironmentNames);
 

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The deployment pipeline setup (FR-MC-036, FR-MC-038, DS-MC-030): a stepper in the setup's own tab (#1150).
 // It drafts the missing release flow from the repository (SaaSFoundryAI's CLI when it offers one, else MoltenTerm's
@@ -11,8 +11,14 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
+import { LearnedSection } from "../learning/learned-section";
+import { learnFromRun } from "../learning/learning-client";
+import { applyPrefill, runLabel, stillPrefilled, WorkflowPipelineSetup } from "../learning/learning-model";
+import { PrefillMark } from "../learning/prefill-mark";
+import { useLearned } from "../learning/use-learned";
 import { MoltenWave } from "../molten-button";
 import { MotionClass } from "../molten-motion";
+import { usePanelOrigin } from "../panel-cta";
 import { DominoLoader } from "../suite/suite";
 import { analysePipeline, optionsOfAnswers, PointAnswers, sameOptions } from "./release-setup-analyse-model";
 import { BoardSection, useBoardText, useSetupBoard } from "./release-setup-board";
@@ -33,6 +39,7 @@ import { DetectStep } from "./release-setup-detect";
 import { FlowDiagram } from "./release-setup-diagram";
 import { QuestionButton, useHelpScreenInfo } from "./release-setup-help";
 import { HelpScreen, pipelineContextOf, plainContextOf } from "./release-setup-help-model";
+import { learnsFrom, pipelineLearningFields, pipelineLessons } from "./release-setup-learning";
 import {
     addManual,
     canOpenPr,
@@ -81,6 +88,20 @@ const PlainButton =
     "cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 const SectionClass = "flex flex-col gap-2 rounded-6 border border-border p-3";
 const SectionTitle = "text-12 font-medium text-primary";
+
+// A block's title, with the mark of a choice the learning filled in (FR-LRN-004): it stays while the field holds the
+// value learned from the earlier runs.
+function SectionHead({ title, marked }: { title: string; marked?: boolean }) {
+    if (!marked) {
+        return <div className={SectionTitle}>{title}</div>;
+    }
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            <span className={SectionTitle}>{title}</span>
+            <PrefillMark />
+        </div>
+    );
+}
 
 function Check({
     checked,
@@ -311,6 +332,7 @@ export function ChoicesStep({
     channel,
     setChannel,
     bare,
+    prefilledKeys,
 }: {
     draft: SetupDraft;
     options: SetupOptions;
@@ -319,9 +341,12 @@ export function ChoicesStep({
     setChannel: (c: SetupChannel) => void;
     // Without the draft's diagram and reasons: step 2a of a project already set up draws its own (#1102).
     bare?: boolean;
+    // The choices still holding a value learned from the developer's earlier runs (FR-LRN-004).
+    prefilledKeys?: string[];
 }) {
     const t = useT();
     const facts = draft.facts;
+    const marked = (...keys: string[]) => keys.some((k) => prefilledKeys?.includes(k));
     if (options.kind === "saas") {
         return (
             <div className="flex flex-col gap-3">
@@ -386,7 +411,7 @@ export function ChoicesStep({
                     <ReconcileCheck draft={draft} options={options} onChange={onChange} />
                 </div>
                 <div className={SectionClass}>
-                    <div className={SectionTitle}>{t("mc.setup.choices.merge")}</div>
+                    <SectionHead title={t("mc.setup.choices.merge")} marked={marked("merge")} />
                     <Choices
                         name="merge"
                         choices={draft.merges}
@@ -396,7 +421,7 @@ export function ChoicesStep({
                     />
                 </div>
                 <div className={SectionClass}>
-                    <div className={SectionTitle}>{t("mc.setup.choices.tags")}</div>
+                    <SectionHead title={t("mc.setup.choices.tags")} marked={marked("tagprefix", "rcformat")} />
                     <label className="flex items-center gap-2 text-12 text-secondary">
                         {t("mc.setup.choices.tagPrefix")}
                         <input
@@ -418,7 +443,7 @@ export function ChoicesStep({
                     />
                 </div>
                 <div className={SectionClass}>
-                    <div className={SectionTitle}>{t("mc.setup.choices.notes")}</div>
+                    <SectionHead title={t("mc.setup.choices.notes")} marked={marked("notes")} />
                     <label className="flex items-center gap-2 text-12 text-secondary">
                         {t("mc.setup.choices.notesPath")}
                         <input
@@ -495,7 +520,7 @@ export function ChoicesStep({
                     })}
                 </div>
                 <div className={SectionClass}>
-                    <div className={SectionTitle}>{t("mc.setup.choices.after")}</div>
+                    <SectionHead title={t("mc.setup.choices.after")} marked={marked("milestone", "syncback")} />
                     <Check
                         checked={options.syncback}
                         disabled={options.branchmodel === "single"}
@@ -604,6 +629,7 @@ export function ReleaseSetup({
     aside?: React.ReactNode;
 }) {
     const t = useT();
+    const origin = usePanelOrigin();
     const [draft, setDraft] = useState<SetupDraft>(null);
     const [options, setOptions] = useState<SetupOptions>(null);
     // Step 2a's answers to the points of the existing pipeline (FR-MC-040).
@@ -655,6 +681,10 @@ export function ReleaseSetup({
     const upd = useSetupCheck(dir);
     const templateName = useDefaultTemplateName(draft, options, appType);
     const templateForm = useTemplateSave(dir, draft, options, appType, templateName);
+    // What the setup learned of the developer (FR-LRN-004): the choices it filled in from earlier runs, to mark.
+    const learned = useLearned(WorkflowPipelineSetup);
+    const [prefilled, setPrefilled] = useState<Record<string, string>>({});
+    const taught = useRef(false);
 
     const load = (opts: SetupOptions, kind?: SetupKind, include = includeLocal) =>
         fireAndForget(async () => {
@@ -789,14 +819,45 @@ export function ReleaseSetup({
 
     const describing = describes(path, appType);
     // Step 2b opens on the questions' defaults, and reads the other projects once for "another project as a model".
+    // The choices the developer changed in earlier runs replace the proposal where the draft allows them (FR-LRN-004).
     useEffect(() => {
-        if (!describing || step !== "understand" || draft == null || options == null || loading) {
+        if (!describing || step !== "understand" || draft == null || options == null || loading || !learned.ready) {
             return;
         }
         if (options.rc == null) {
-            change(describeDefaults(draft, options));
+            const defaults = describeDefaults(draft, options);
+            if (!learnsFrom(path, from, defaults.kind)) {
+                change(defaults);
+                return;
+            }
+            const filled = applyPrefill(defaults, learned.defaults, pipelineLearningFields(draft));
+            setPrefilled(filled.prefilled);
+            change(filled.values);
         }
-    }, [describing, step, draft, options, loading]);
+    }, [describing, step, draft, options, loading, learned.ready]);
+    // A finished run teaches the choices the developer changed, and the habits they put back (FR-LRN-004).
+    useEffect(() => {
+        if (!done) {
+            taught.current = false;
+            return;
+        }
+        if (taught.current || draft == null || options == null || !learnsFrom(path, from, options.kind)) {
+            return;
+        }
+        taught.current = true;
+        fireAndForget(() =>
+            learnFromRun(
+                WorkflowPipelineSetup,
+                pipelineLessons(draft, options, learned.defaults),
+                runLabel(projectName)
+            )
+        );
+    }, [done]);
+    const markedChoices = useMemo(
+        () =>
+            draft == null || options == null ? [] : stillPrefilled(options, prefilled, pipelineLearningFields(draft)),
+        [draft, options, prefilled]
+    );
     useEffect(() => {
         if (!describing || step !== "understand" || models != null) {
             return;
@@ -860,8 +921,8 @@ export function ReleaseSetup({
     };
     const openPipelineFile = () =>
         fireAndForget(async () => {
-            const { createBlock } = await import("@/app/store/global");
-            await createBlock({ meta: { view: "preview", file: `${dir}/.molten/project.json` } });
+            const { openFromPanel } = await import("../app-panel");
+            await openFromPanel(origin(), { meta: { view: "preview", file: `${dir}/.molten/project.json` } });
         });
     const choosePath = (next: SetupPath) => {
         setPath(next);
@@ -968,7 +1029,7 @@ export function ReleaseSetup({
     const openReviews = (prDir: string, number: number) =>
         fireAndForget(async () => {
             const { ReviewsModel } = await import("../reviews/reviews-store");
-            await ReviewsModel.getInstance().openReviews(prDir, number);
+            await ReviewsModel.getInstance().openReviews(prDir, number, undefined, origin());
         });
     const again = () => {
         pr.reset();
@@ -1381,6 +1442,7 @@ export function ReleaseSetup({
                                 onChange={change}
                                 onFrom={chooseFrom}
                                 onWords={setWords}
+                                prefilled={markedChoices.length > 0}
                             >
                                 <ChoicesStep
                                     draft={draft}
@@ -1388,6 +1450,7 @@ export function ReleaseSetup({
                                     onChange={change}
                                     channel={channel}
                                     setChannel={setChannel}
+                                    prefilledKeys={markedChoices}
                                 />
                             </DescribeStep>
                         )
@@ -1457,6 +1520,7 @@ export function ReleaseSetup({
                     ) : null}
                 </div>
             )}
+            <LearnedSection workflow={WorkflowPipelineSetup} hideWhenEmpty />
         </SetupPanelFrame>
     );
 }

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // Agent first names (FR-CONT-014): wavesrv gives each pane's agent session a first name; the windows show it wherever
 // they name the agent.

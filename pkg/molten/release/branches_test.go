@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package release
 
@@ -25,6 +25,7 @@ func makeMasterFixture(t *testing.T) *fixture {
 }
 
 func TestPromoteUsesTheHarnessReleaseBranch(t *testing.T) {
+	t.Parallel()
 	f := makeMasterFixture(t)
 	ctx := context.Background()
 	mustFail(t, f, "promote without master", f.env().Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}, DryRun: true}),

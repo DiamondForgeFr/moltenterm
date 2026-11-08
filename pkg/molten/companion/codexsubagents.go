@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package companion
 
@@ -8,8 +8,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -27,14 +29,13 @@ import (
 
 const (
 	codexCollaboration = "collaboration"
-	// The end of a sub-agent's rollout read for its latest turn: its settings, its folder, whether it ended.
+	// The end of a main session's rollout read for the folder of its newest command (WorkFolder).
 	codexSubagentTail = 512 * 1024
 	// How much of a rollout's first line is read for its header, and how many headers are kept.
 	codexHeadBytes    = 256 * 1024
 	codexMaxHeadCache = 4000
 	// The distinct folders of a sub-agent's latest shell commands kept to find its worktree (#1463).
 	codexMaxCommandFolders = 8
-	codexMaxCommandRecords = 64
 )
 
 var (
@@ -219,29 +220,25 @@ func (a *CodexAdapter) SubagentIds(sessionPath string) map[string]string {
 	return nil
 }
 
-// ReadSubagent reads a sub-agent's rollout: the model and effort of its latest turn, its branch from its own folder
+// ReadSubagent reads a sub-agent's rollout: the model and effort of its latest settings, its branch from its own folder
 // on disk (#967: its latest turn's cwd, else its header's), and whether its latest turn ended.
 func (a *CodexAdapter) ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool) {
 	path, ok := a.subagentRollout(sessionPath, agentId)
 	if !ok {
 		return SubagentFacts{}, false
 	}
-	head, _ := a.head(path)
-	tail, err := readFileTail(path, codexSubagentTail)
-	if err != nil {
+	turn, ok := a.scanRollout(path, agentId)
+	if !ok {
 		return SubagentFacts{}, false
 	}
-	var facts SubagentFacts
-	if settings, ok := codexLastTurnSettings(tail, agentId); ok {
-		facts.Model, facts.Effort = settings.Model, settings.Effort
-	}
-	cwd, ended, folders := codexLastTurn(tail)
+	facts := SubagentFacts{Model: turn.settings.Model, Effort: turn.settings.Effort, Ended: turn.ended}
+	cwd := turn.cwd
 	if cwd == "" {
+		head, _ := a.head(path)
 		cwd = head.cwd
 	}
-	facts.Worktree = codexWorkFolder(cwd, folders)
+	facts.Worktree = codexWorkFolder(cwd, turn.folders)
 	facts.Branch = FolderBranch(facts.Worktree)
-	facts.Ended = ended
 	return facts, true
 }
 
@@ -271,7 +268,8 @@ func codexWorkFolder(cwd string, folders []string) string {
 }
 
 // codexCommandFolder reads the folder a shell command record runs in: a shell call's workdir, a local shell call's
-// working_directory, an exec_command event's cwd; "" for any other record.
+// working_directory, an exec_command event's cwd, a finished command's cwd (the CommandExecution item codex-cli 0.166
+// writes for every command, code mode's included); "" for any other record.
 func codexCommandFolder(line []byte) string {
 	var rec struct {
 		Type    string `json:"type"`
@@ -281,6 +279,7 @@ func codexCommandFolder(line []byte) string {
 			Arguments json.RawMessage `json:"arguments"`
 			Cwd       json.RawMessage `json:"cwd"`
 			Action    json.RawMessage `json:"action"`
+			Item      json.RawMessage `json:"item"`
 		} `json:"payload"`
 	}
 	if json.Unmarshal(line, &rec) != nil {
@@ -311,71 +310,37 @@ func codexCommandFolder(line []byte) string {
 			return ""
 		}
 		return cwd
+	case rec.Type == "event_msg" && p.Type == "item_completed":
+		var item struct {
+			Type string `json:"type"`
+			Cwd  string `json:"cwd"`
+		}
+		if json.Unmarshal(p.Item, &item) != nil || item.Type != "CommandExecution" {
+			return ""
+		}
+		return codexItemFolder(item.Cwd)
 	}
 	return ""
 }
 
-// codexLastTurn reads, from a rollout's last lines, its latest turn's folder, whether that turn ended, and the folders
-// its latest shell commands ran in (newest first, each once; at most codexMaxCommandFolders, from its last
-// codexMaxCommandRecords commands).
-func codexLastTurn(tail []byte) (cwd string, ended bool, folders []string) {
-	turnSeen := false
-	seen := map[string]bool{}
-	commands := 0
-	moreFolders := func() bool { return len(folders) < codexMaxCommandFolders && commands < codexMaxCommandRecords }
-	for end := len(tail); end > 0 && (cwd == "" || !turnSeen || moreFolders()); {
-		start := bytes.LastIndexByte(tail[:end], '\n') + 1
-		line := tail[start:end]
-		end = start - 1
-		if moreFolders() && codexCommandRecord(line) {
-			commands++
-			if folder := strings.TrimSpace(codexCommandFolder(line)); folder != "" && !seen[folder] {
-				seen[folder] = true
-				folders = append(folders, folder)
-			}
-		}
-		if cwd == "" && bytes.Contains(line, codexTurnContextMarker) {
-			var rec struct {
-				Type    string `json:"type"`
-				Payload struct {
-					Cwd string `json:"cwd"`
-				} `json:"payload"`
-			}
-			if json.Unmarshal(line, &rec) == nil && rec.Type == "turn_context" {
-				cwd = rec.Payload.Cwd
-			}
-			continue
-		}
-		if turnSeen {
-			continue
-		}
-		done := bytes.Contains(line, codexTaskCompleteMarker) || bytes.Contains(line, codexTurnAbortedMarker) || bytes.Contains(line, codexTurnCompleteMarker)
-		started := bytes.Contains(line, codexTaskStartedMarker) || bytes.Contains(line, codexTurnStartedMarker)
-		if !done && !started {
-			continue
-		}
-		var rec struct {
-			Type    string `json:"type"`
-			Payload struct {
-				Type string `json:"type"`
-			} `json:"payload"`
-		}
-		if json.Unmarshal(line, &rec) != nil || rec.Type != "event_msg" {
-			continue
-		}
-		switch rec.Payload.Type {
-		case "task_complete", "turn_complete", "turn_aborted":
-			turnSeen, ended = true, true
-		case "task_started", "turn_started":
-			turnSeen = true
-		}
+// codexItemFolder reads the folder a finished command's item names: a file:// URL since codex-cli 0.166 (spaces and
+// the like percent-encoded), a plain path before. The URL of another computer names no folder here.
+func codexItemFolder(cwd string) string {
+	cwd = strings.TrimSpace(cwd)
+	if !strings.HasPrefix(cwd, "file://") {
+		return cwd
 	}
-	return cwd, ended, folders
+	u, err := url.Parse(cwd)
+	if err != nil || (u.Host != "" && u.Host != "localhost") {
+		return ""
+	}
+	return u.Path
 }
 
 // codexCommandRecord tells, without decoding it, whether a line may be a shell command naming its folder.
 func codexCommandRecord(line []byte) bool {
-	return bytes.Contains(line, codexWorkdirMarker) || bytes.Contains(line, codexWorkingDirMarker) || bytes.Contains(line, codexExecCommandMarker)
+	return bytes.Contains(line, codexWorkdirMarker) || bytes.Contains(line, codexWorkingDirMarker) || bytes.Contains(line, codexExecCommandMarker) ||
+		bytes.Contains(line, codexCommandExecutionMarker)
 }
 
 // FindSubagents reads the headers of the rollouts written since the given time in the dated folders from then on
@@ -433,10 +398,12 @@ func (a *CodexAdapter) FindSubagents(sessionPath string, parents []string, since
 				AgentId: head.id, ParentId: head.parent, Path: head.path, Name: codexAgentName(head.path, head.nickname),
 				Kind: head.role, Started: head.started, Nested: sessionId == "" || strings.ToLower(head.parent) != sessionId,
 			})
-			if len(rtn) >= MaxSubagents {
-				return rtn
-			}
 		}
+	}
+	// A session that lives for days starts more agents than are kept: the newest are the ones still at work.
+	sort.SliceStable(rtn, func(i, j int) bool { return rtn[i].Started < rtn[j].Started })
+	if len(rtn) > MaxSubagents {
+		rtn = rtn[len(rtn)-MaxSubagents:]
 	}
 	return rtn
 }

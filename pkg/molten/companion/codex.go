@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package companion
 
@@ -43,6 +43,10 @@ type CodexAdapter struct {
 	rollouts map[string]string
 	// nameIndexes: what each session index last said of the threads' names (codexnames.go), by path.
 	nameIndexes map[string]*codexNameIndex
+	// scans: what each sub-agent's rollout said of its latest turn when it was last read (codexrolloutscan.go), by
+	// path; scanLock guards it and the reads that update it.
+	scanLock sync.Mutex
+	scans    map[string]*codexScan
 }
 
 // MakeCodexAdapter reads sessions under the given roots, or Codex's own and the

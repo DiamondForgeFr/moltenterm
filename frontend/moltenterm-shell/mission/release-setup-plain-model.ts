@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // "Your way of publishing" (FR-MC-044, #1151): the detected pipeline told the way a release manager would. Each
 // release step of the pipeline model becomes one plain sentence with who does it, built from what the step is (its run

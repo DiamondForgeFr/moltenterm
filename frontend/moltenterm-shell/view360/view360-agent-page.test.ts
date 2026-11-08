@@ -1,14 +1,15 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { findNode } from "@/layout/lib/layoutNode";
 import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isAgentPagePanel } from "./carpet-agent-page";
 import { carpetScrollStops, scrollToRevealColumn } from "./carpet-model";
+import { bringPanelIntoView } from "./carpet-reveal";
 import { View360MetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
 
@@ -37,6 +38,8 @@ vi.mock("../panel-size/panel-size-store", () => ({
     rememberPanelWidth: vi.fn(),
 }));
 vi.mock("./carpet-agent-page", () => ({ isAgentPagePanel: vi.fn() }));
+const shownLayout = vi.hoisted(() => ({ current: null as unknown }));
+vi.mock("@/layout/lib/layoutModelHooks", () => ({ getLayoutModelForStaticTab: () => shownLayout.current }));
 vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 0));
 vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
 
@@ -178,5 +181,64 @@ describe("a panel added to the carpet (#1812)", () => {
             expect(reveal).toHaveBeenCalledWith("b-c5");
             expect(isAgentPagePanel).not.toHaveBeenCalled();
         });
+    });
+});
+
+// #1994: the page the agent already had and shows again (tabs_show) goes through the layout of the shown tab.
+describe("a page the agent shows again (#1994)", () => {
+    function shownBy(rig: ReturnType<typeof makeModel>, magnified?: string) {
+        const shown = Object.assign(rig.layoutModel, {
+            moltenView360: rig.model,
+            magnifiedNodeId: magnified,
+            magnifyNodeToggle: vi.fn(),
+        });
+        shownLayout.current = shown;
+        return shown;
+    }
+
+    afterEach(() => {
+        shownLayout.current = null;
+        vi.useRealTimers();
+    });
+
+    it("scrolls the carpet to the page's column, on the same stops as a page opened, keeping the focus", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+        const rig = makeModel(rowOf(6));
+        rig.pass();
+        globalStore.set(rig.focusedNode, findNode(rig.layoutModel.treeState.rootNode, "c0"));
+        const layout = rig.pass();
+        const column = layout.columns.find((c) => c.nodeId === "c5");
+        const before = rig.model.scrollLeft;
+        expect(before + layout.viewport.width).toBeLessThan(column.x + column.width);
+        const shown = shownBy(rig);
+        bringPanelIntoView("b-c5");
+        await vi.advanceTimersByTimeAsync(1000);
+        const after = rig.model.scrollLeft;
+        expect(after).toBe(scrollToRevealColumn(layout, "c5", before));
+        expect(after + layout.viewport.width).toBeGreaterThanOrEqual(column.x + column.width - 1);
+        expect(shown.magnifyNodeToggle).not.toHaveBeenCalled();
+        expect(shown.focusNode).not.toHaveBeenCalled();
+        expect(globalStore.get(rig.focusedNode)?.id).toBe("c0");
+    });
+
+    it("leaves the carpet where it is when the page is already in view", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+        const rig = makeModel(rowOf(3));
+        rig.pass();
+        shownBy(rig);
+        bringPanelIntoView("b-c1");
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(rig.model.scrollLeft).toBe(0);
+    });
+
+    it("in a grid view ends the magnification hiding the page and scrolls nothing", async () => {
+        const rig = makeModel(rowOf(3), false);
+        rig.pass();
+        expect(rig.model.active).toBe(false);
+        const shown = shownBy(rig, "c0");
+        bringPanelIntoView("b-c2");
+        expect(shown.magnifyNodeToggle).toHaveBeenCalledWith("c0");
+        expect(shown.focusNode).not.toHaveBeenCalled();
+        expect(rig.model.scrollLeft).toBe(0);
     });
 });

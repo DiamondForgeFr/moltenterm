@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The dialog that adds or edits a bookmark (FR-BRW-019): address, title, description, folder, and for a new bookmark the
 // other projects to also add it to (a separate copy in each, nothing ticked by default). Opened by the web page panel's
@@ -10,6 +10,7 @@ import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { DialogFrame } from "../dialog-frame";
+import { AddressIcon } from "../favicon/favicon-mark";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { projectLabel, readProjects } from "../sidebar/workspace-projects";
@@ -123,15 +124,20 @@ export function BookmarkDialog({ request, onClose }: { request: BookmarkDialogRe
         >
             <label className="block">
                 <span className={LabelClass}>{t("browser.bookmarks.dialog.address")}</span>
-                <input
-                    className={InputClass}
-                    value={url}
-                    spellCheck={false}
-                    maxLength={BookmarkLimits.url + 1}
-                    onChange={(e) => setUrl(e.target.value)}
-                    onKeyDown={onFieldKey}
-                    data-testid="bookmark-address"
-                />
+                <span className="flex items-center gap-2">
+                    <span className="flex w-4 shrink-0 justify-center text-icon-16" data-testid="bookmark-address-icon">
+                        <AddressIcon address={typed} />
+                    </span>
+                    <input
+                        className={`${InputClass} min-w-0 flex-1`}
+                        value={url}
+                        spellCheck={false}
+                        maxLength={BookmarkLimits.url + 1}
+                        onChange={(e) => setUrl(e.target.value)}
+                        onKeyDown={onFieldKey}
+                        data-testid="bookmark-address"
+                    />
+                </span>
             </label>
             <label className="block">
                 <span className={LabelClass}>{t("browser.bookmarks.dialog.title")}</span>

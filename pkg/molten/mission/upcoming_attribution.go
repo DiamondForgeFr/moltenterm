@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -27,6 +27,8 @@ const (
 	// The branch's commits read for a signature trailer.
 	signatureMaxCommits = 50
 	commitSep           = "\x1e"
+	// The model part `molten agent whoami` signs for a sub-agent whose files do not say its model: no model (#1848).
+	signedModelUnknown = "subagent"
 )
 
 type backgroundFacts struct {
@@ -155,6 +157,10 @@ func SignedAgent(agent BranchAgent, sig agentsign.Signature, places []AgentPlace
 	agent.Signed = true
 	agent.FirstName = strings.TrimSpace(sig.FirstName)
 	agent.AgentName = strings.TrimSpace(sig.Agent)
+	if model := strings.TrimSpace(sig.Model); !strings.EqualFold(model, signedModelUnknown) {
+		agent.Model = model
+	}
+	agent.Effort = strings.TrimSpace(sig.Effort)
 	if id := agentIdOfName(sig.Agent); id != "" {
 		agent.Agent = id
 	} else if agent.AgentName != "" {

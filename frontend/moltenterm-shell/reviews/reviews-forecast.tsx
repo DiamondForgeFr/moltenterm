@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 // The conflict forecast in the Reviews list (FR-REV-023): a conflict is a relation between two cards (#1062). While a
 // card is hovered or focused it is framed and the cards it conflicts with, either way, are tinted (the card shows the

@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package review
 
@@ -24,6 +24,7 @@ func keptNotesService(t *testing.T, git func(ctx context.Context, dir string, ar
 // FR-REV-008 AC1, AC3, AC4: an answer is kept as a note copied from the review store, with its title (the technique),
 // text, principles, sources, PR and anchor, in MoltenTerm's data folder; it can be renamed and deleted.
 func TestKeepRenameDeleteNote(t *testing.T) {
+	t.Parallel()
 	svc, dataDir, _ := keptNotesService(t, nil)
 	k := PrKey{Repo: "Owner/Repo", Number: 7}
 	anchor := &mcpreview.Anchor{Path: "main.go", Side: mcpreview.SideRight, StartLine: 3, Line: 5, HeadOid: testHead}
@@ -83,6 +84,7 @@ func TestKeepRenameDeleteNote(t *testing.T) {
 
 // AC3: the notes outlive the PR: its review store going, its explanations rolling over, nothing prunes them.
 func TestNotesOutliveThePr(t *testing.T) {
+	t.Parallel()
 	svc, dataDir, _ := keptNotesService(t, nil)
 	k := PrKey{Repo: "o/r", Number: 3}
 	if _, _, err := svc.store.SetExplanation(k, Explanation{Id: "e1", Markdown: "text", At: 1}); err != nil {
@@ -102,6 +104,7 @@ func TestNotesOutliveThePr(t *testing.T) {
 
 // A notes file that does not read is reported, never overwritten.
 func TestUnreadableNotesKept(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := keptNotesService(t, nil)
 	file := svc.store.notesFile("o/r")
 	os.MkdirAll(filepath.Dir(file), 0700)
@@ -117,6 +120,7 @@ func TestUnreadableNotesKept(t *testing.T) {
 // AC2: a note's link reads the file from the project's git, at the merged commit, else the answer's head, else the
 // base branch, and never from the PR's worktree.
 func TestNoteFileAfterMerge(t *testing.T) {
+	t.Parallel()
 	fx := makeFixture(t)
 	svc, dataDir, _ := keptNotesService(t, execGit)
 	ctx := context.Background()

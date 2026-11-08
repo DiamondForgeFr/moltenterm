@@ -1,5 +1,5 @@
 // Copyright 2026, DiamondForge
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package mission
 
@@ -91,6 +91,7 @@ func (w *watchedPanes) waitChange(t *testing.T, root string) {
 }
 
 func TestPaneWatchedTreeProbesOncePerChange(t *testing.T) {
+	serialTest(t)
 	_, clone := makePaneRepo(t)
 	var git gitCounter
 	w := makeWatchedPanes(t, git.runner)
@@ -148,6 +149,7 @@ func TestPaneWatchedTreeProbesOncePerChange(t *testing.T) {
 }
 
 func TestPaneUnpushedCountedOnlyWhenRefsMove(t *testing.T) {
+	serialTest(t)
 	_, clone := makePaneRepo(t)
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/3-local")
 	commit(t, clone, "l.txt", "feat(#3): local")
@@ -171,6 +173,7 @@ func TestPaneUnpushedCountedOnlyWhenRefsMove(t *testing.T) {
 }
 
 func TestPaneWorktreeKindWithoutGit(t *testing.T) {
+	t.Parallel()
 	_, clone, tree := makeWorktreeFixture(t)
 	var git gitCounter
 	state, _ := MakePanes(git.runner, nil, nil).Get(PaneRequest{Dir: tree})
@@ -185,7 +188,8 @@ func TestPaneWorktreeKindWithoutGit(t *testing.T) {
 }
 
 func TestPaneCiVerdictsForgottenOnCiChange(t *testing.T) {
-	p := MakePanes(plainRunner, nil, nil)
+	t.Parallel()
+	p := MakePanes(withoutGh, nil, nil)
 	p.storeCi(paneCiKey{project: "/a", sha: "1"}, CiStateSuccess)
 	p.storeCi(paneCiKey{project: "/b", sha: "1"}, CiStateFailure)
 	p.CiChanged("/a")
@@ -204,8 +208,9 @@ func TestPaneCiVerdictsForgottenOnCiChange(t *testing.T) {
 }
 
 func TestPaneProjectsBounded(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
-	p := MakePanes(plainRunner, nil, nil)
+	p := MakePanes(withoutGh, nil, nil)
 	for i := 0; i < paneMaxProjects+40; i++ {
 		dir := filepath.Join(base, fmt.Sprintf("d%03d", i))
 		os.MkdirAll(dir, 0755)
