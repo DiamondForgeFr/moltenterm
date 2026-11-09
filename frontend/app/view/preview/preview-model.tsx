@@ -59,7 +59,19 @@ const textApplicationMimetypes = [
     "application/x-awk",
 ];
 
-function isTextFile(mimeType: string): boolean {
+// MOLTENTERM-PATCH (#2114): only real XML types; a bare includes("xml") caught the Office Open XML
+// types (…openxmlformats…), ZIP files that the editor would corrupt on save
+function isXmlMimeType(mimeType: string): boolean {
+    const base = mimeType.split(";")[0].trim().toLowerCase();
+    return (
+        base == "text/xml" ||
+        base == "application/xml" ||
+        base == "application/xml-dtd" ||
+        (base.startsWith("application/") && base.endsWith("+xml"))
+    );
+}
+
+export function isTextFile(mimeType: string): boolean {
     if (mimeType == null) {
         return false;
     }
@@ -68,7 +80,7 @@ function isTextFile(mimeType: string): boolean {
         textApplicationMimetypes.includes(mimeType) ||
         (mimeType.startsWith("application/") &&
             (mimeType.includes("json") || mimeType.includes("yaml") || mimeType.includes("toml"))) ||
-        mimeType.includes("xml")
+        isXmlMimeType(mimeType) // MOLTENTERM-PATCH (#2114)
     );
 }
 
@@ -600,7 +612,7 @@ export class PreviewModel implements ViewModel {
         if (isTextFile(mimeType) || fileInfo.size == 0) {
             return { specializedView: "codeedit" };
         }
-        return { errorStr: `Preview (${mimeType})` };
+        return { specializedView: "nopreview" }; // MOLTENTERM-PATCH (#2114): a calm state with the open actions
     }
 
     updateOpenFileModalAndError(isOpen, errorMsg = null) {

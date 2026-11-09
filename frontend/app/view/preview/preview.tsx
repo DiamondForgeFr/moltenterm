@@ -17,6 +17,7 @@ import { DirectoryPreview } from "./preview-directory";
 import { CodeEditPreview } from "./preview-edit";
 import { ErrorOverlay } from "./preview-error-overlay";
 import { MarkdownPreview } from "./preview-markdown";
+import { NoPreview } from "./preview-nopreview"; // MOLTENTERM-PATCH (#2114)
 import type { PreviewModel } from "./preview-model";
 import { StreamingPreview } from "./preview-streaming";
 import type { PreviewEnv } from "./previewenv";
@@ -32,6 +33,7 @@ const SpecializedViewMap: { [view: string]: ({ model }: SpecializedViewProps) =>
     codeedit: CodeEditPreview,
     csv: CSVViewPreview,
     directory: DirectoryPreview,
+    nopreview: NoPreview, // MOLTENTERM-PATCH (#2114)
 };
 
 function canPreview(mimeType: string): boolean {

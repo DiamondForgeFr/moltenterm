@@ -244,6 +244,18 @@
             "download": "Download file",
             "openInNewPanel": "Open in a new panel",
             "openTerminalHere": "Open a terminal here",
+            "noPreview": {
+                "kindWithExt": "{kind} ({ext})",
+                "hint": "The Files panel can't show this kind of file. Open it in the app that usually opens it.",
+                "hintRemote": "The Files panel can't show this kind of file. Download it to open it on this computer.",
+                "kind": {
+                    "spreadsheet": "Spreadsheet",
+                    "document": "Text document",
+                    "presentation": "Presentation",
+                    "archive": "Archive",
+                    "other": "File"
+                }
+            },
             "renameFailed": "Rename failed",
             "deleteFailed": "Delete failed",
             "confirmDeleteFolder": "Delete this folder?",
