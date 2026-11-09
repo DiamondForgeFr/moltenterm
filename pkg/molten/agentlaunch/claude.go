@@ -367,7 +367,8 @@ func planClaudeStateHooks(managed settingsSource, sources []settingsSource, plan
 			hooks = append(hooks, plannedHook{event: h.Event, command: h.Command})
 			continue
 		}
-		if where := hookWhere(all, h.Event, molten.IsAgentStateHookCommand); where != "" {
+		covers := func(command string) bool { return molten.AgentStateHookCovers(molten.AgentIdClaude, h.Event, command) }
+		if where := hookWhere(all, h.Event, covers); where != "" {
 			skipped, skippedIn = append(skipped, h.Event), where
 			continue
 		}

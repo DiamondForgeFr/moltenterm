@@ -240,7 +240,7 @@ func (w *attentionWatcher) handle(blockId string, data []byte) {
 		if item.repeat {
 			continue
 		}
-		if w.agents != nil && w.agents.heldDoneSignal(blockId, signal) {
+		if w.agents != nil && (w.agents.heldDoneSignal(blockId, signal) || w.agents.backgroundDoneSignal(blockId, signal)) {
 			continue
 		}
 		if w.agents != nil && !w.agents.allowNotice(blockId, noticeFromSignal) {

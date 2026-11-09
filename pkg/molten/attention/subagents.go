@@ -71,15 +71,26 @@ func (a *agentStates) forgetSubagentsLocked(blockId string, rec *agentRecord) {
 }
 
 // subagentsInfo shows a pane whose main session is idle or done, and whose sub-agents run, as working in the
-// background. A state MoltenTerm holds (agenthold.go) keeps its own words.
+// background, and so do its background commands (backgroundcommands.go, #2140). A state MoltenTerm holds
+// (agenthold.go) keeps its own words.
 func subagentsInfo(rec *agentRecord, info *molten.AgentStateInfo) {
 	n := len(rec.subagents)
 	info.Subagents = n
-	if n == 0 || info.State != rec.state || (rec.state != molten.AgentStateIdle && rec.state != molten.AgentStateDone) {
+	commands := len(rec.commands)
+	if n+commands == 0 || info.State != rec.state || (rec.state != molten.AgentStateIdle && rec.state != molten.AgentStateDone) {
 		return
 	}
 	info.State = molten.AgentStateWorking
 	info.Background = true
+	if n == 0 {
+		commandsMessage(rec, info)
+		return
+	}
+	if commands > 0 {
+		total := strconv.Itoa(n + commands)
+		info.Message, info.MessageText = total+" background tasks running", uimsg.Make("agentState.backgroundTasks", "count", total)
+		return
+	}
 	if n == 1 {
 		info.Message, info.MessageText = "1 sub-agent running", uimsg.Make("agentState.subagent")
 		return

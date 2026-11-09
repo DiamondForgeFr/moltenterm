@@ -154,6 +154,11 @@ type agentRecord struct {
 	firstName string
 	// subagents: the sub-agents of the session its hooks reported running (subagents.go, #1092).
 	subagents map[string]bool
+	// commands: the commands the session left running in the background, by id, with their words; their ends are
+	// read from commandsTranscript after commandsOffset (backgroundcommands.go, #2140).
+	commands           map[string]string
+	commandsTranscript string
+	commandsOffset     int64
 }
 
 type noticeMark struct {
@@ -417,6 +422,12 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		return nil, "", fmt.Errorf("invalid sub-agent id")
 	}
 	message := molten.CleanAgentMessage(req.Message)
+	// The transcript is read before the lock is taken (backgroundcommands.go).
+	ends := a.commandEnds(req)
+	startSize := int64(-1)
+	if req.BackgroundTask != "" && req.Subagent == "" {
+		startSize = transcriptSize(req.Transcript)
+	}
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	rec := a.records[req.BlockId]
@@ -437,6 +448,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.pid, rec.pidStart = 0, 0
 		rec.settings = molten.AgentSettings{}
 		rec.subagents = nil
+		a.forgetCommandsLocked(req.BlockId, rec)
 		a.markDirtyLocked(req.BlockId)
 	}
 	a.providerLocked(req, rec)
@@ -459,16 +471,21 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	if req.Start || subagentsTurnEnd(req.State) {
 		a.forgetSubagentsLocked(req.BlockId, rec)
 	}
+	if req.Start {
+		a.forgetCommandsLocked(req.BlockId, rec)
+	}
+	a.backgroundCommandLocked(req.BlockId, rec, req, startSize)
+	released := a.applyCommandEndsLocked(req.BlockId, rec, ends)
 	if req.Start && (previous == molten.AgentStateWorking || previous == molten.AgentStateWaiting) {
 		// A session started again in the middle of a turn (Codex's /clear while it works, a resume racing the first
 		// prompt): the start only makes the states precise.
 		return nil, "", nil
 	}
 	a.setStateLocked(req.BlockId, rec, req.State, message)
-	if previous == req.State || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {
+	if (previous == req.State && !released) || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {
 		return nil, "", nil
 	}
-	if req.State == molten.AgentStateDone && a.heldLocked(req.BlockId) {
+	if req.State == molten.AgentStateDone && (a.heldLocked(req.BlockId) || len(rec.commands) > 0) {
 		return nil, "", nil
 	}
 	if !a.allowNoticeLocked(req.BlockId, noticeFromHook) {
