@@ -18,7 +18,8 @@ vi.mock("./brokk-hub-store", async () => {
     const { atom } = await import("jotai");
     const sessionBlockAtom = atom(null);
     const ownWorkingAtom = atom(false);
-    return { BrokkHubModel: { getInstance: () => ({ sessionBlockAtom, ownWorkingAtom }) } };
+    const ownWaitingAtom = atom(false);
+    return { BrokkHubModel: { getInstance: () => ({ sessionBlockAtom, ownWorkingAtom, ownWaitingAtom }) } };
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
@@ -34,11 +35,14 @@ let said: any;
 // replies: one per reading, the last one repeats; working: his agent works at each reading.
 let replies: any[];
 let working: boolean[];
+// waiting: his agent's state says it waits for the developer at each reading (a fake agent state, #2155).
+let waiting: boolean[];
 let readings = 0;
 
 function nextReply(): any {
     const i = Math.min(readings, replies.length - 1);
     globalStore.set(hub.ownWorkingAtom, working[Math.min(readings, working.length - 1)]);
+    globalStore.set(hub.ownWaitingAtom, waiting[Math.min(readings, waiting.length - 1)]);
     readings++;
     return replies[i];
 }
@@ -61,6 +65,7 @@ beforeEach(() => {
     said = { status: "sent", blockid: "block-9", tabid: "tab-9", workspaceid: "ws-9" };
     replies = [{ status: "waiting" }];
     working = [true];
+    waiting = [false];
     readings = 0;
     BrokkSession.resetInstance();
     const session = BrokkSession.getInstance();
@@ -77,6 +82,7 @@ beforeEach(() => {
     session.useWait(async () => {});
     globalStore.set(hub.sessionBlockAtom, null);
     globalStore.set(hub.ownWorkingAtom, false);
+    globalStore.set(hub.ownWaitingAtom, false);
 });
 
 describe("the talk field goes to Brokk's session (FR-BOSS-009, AC15)", () => {
@@ -173,6 +179,26 @@ describe("his answer comes back under the field (#2028)", () => {
         const state = await settled(session, ["answered", "noreply", "unread", "failed"]);
         expect(state.phase).toBe("unread");
         expect(state.where).toEqual({ workspaceid: "ws-9", tabid: "tab-9", blockid: "block-9" });
+    });
+
+    // #2155: his agent stopped on a permission prompt in his hidden terminal. A fake agent state, never a real agent.
+    it("says he needs the developer's answer when his agent waits on a prompt, then reads his answer once it goes on", async () => {
+        replies = [{ status: "waiting" }];
+        working = [false];
+        waiting = [true];
+        const session = BrokkSession.getInstance();
+        await session.say("clean the old branches");
+        const blocked = await settled(session, ["needsanswer", "answered", "noreply", "unread", "failed"]);
+        expect(blocked.phase).toBe("needsanswer");
+        expect(blocked.where).toEqual({ workspaceid: "ws-9", tabid: "tab-9", blockid: "block-9" });
+
+        // The developer answered in his terminal: the agent works, then answers.
+        readings = 0;
+        replies = [{ status: "waiting" }, { status: "answer", markdown: "Done." }];
+        working = [true, false];
+        waiting = [false];
+        const state = await settled(session, ["answered", "noreply", "unread", "failed"]);
+        expect(state).toMatchObject({ phase: "answered", reply: "Done." });
     });
 });
 

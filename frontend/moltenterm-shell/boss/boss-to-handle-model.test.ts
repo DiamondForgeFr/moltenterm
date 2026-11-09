@@ -3,6 +3,8 @@
 
 import { describe, expect, it } from "vitest";
 import { PendingHandoff } from "../agent-handoff-types";
+import en from "../i18n/locales/en.json";
+import fr from "../i18n/locales/fr.json";
 import { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { MoltentermNotification } from "../notifications-model";
 import { ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
@@ -532,5 +534,12 @@ describe("buildToHandle: the rows settled or ignored (FR-BOSS-009, AC16, #2026)"
         for (const item of list.items) {
             expect(item.actions.map((a) => a.run.kind).slice(-2)).toEqual(["later", "ignore"]);
         }
+    });
+});
+
+describe("a waiting agent's row says the same in both languages (#2155)", () => {
+    it("says the agent waits for the developer, not that it asks an approval", () => {
+        expect(en.boss.todo.agentWaiting).toBe("{name} waits for you");
+        expect(fr.boss.todo.agentWaiting).toBe("{name} vous attend");
     });
 });

@@ -285,7 +285,8 @@ export class BrokkSession {
                 return;
             }
             const working = globalStore.get(hub.ownWorkingAtom) === true;
-            const step = followStep(state, follow, reply, working);
+            const waiting = globalStore.get(hub.ownWaitingAtom) === true;
+            const step = followStep(state, follow, reply, working, waiting);
             state = step.state;
             follow = step.follow;
             if (!step.done && Date.now() > until) {

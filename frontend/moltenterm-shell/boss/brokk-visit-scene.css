@@ -267,8 +267,7 @@
 
 /* His one line, for the scene of a collapsed sidebar, half open for him or unfolded (FR-BOSS-009, AC29, AC30, #2070): the
    sentence of the event that brought him, on the forge's dark, at the right where the part of the sidebar that shows
-   when it is half open ends, and in the same place once it is unfolded. A docked sidebar's scene has no text (AC6).
-   Two lines at most. It takes no pointer: the click goes to the scene. */
+   when it is half open ends, and in the same place once it is unfolded or docked (#2155). Two lines at most. It takes no pointer: the click goes to the scene. */
 .mt-brokk-scene-line {
     position: absolute;
     left: auto;

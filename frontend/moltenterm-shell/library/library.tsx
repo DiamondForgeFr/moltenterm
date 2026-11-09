@@ -69,6 +69,7 @@ import {
     LibrarySections,
     liveAgents,
     matchesQuery,
+    navFocusFollows,
     panelAboutKey,
     putAwayAgentNames,
     SentRow,
@@ -1175,6 +1176,16 @@ export function Library({
         rootRef.current?.querySelector<HTMLElement>(".mt-lib-ni.is-on")?.focus();
         return () => previous?.focus?.();
     }, []);
+    useEffect(() => {
+        const root = rootRef.current;
+        const focused = (document.activeElement as HTMLElement)?.closest?.(".mt-lib-ni");
+        if (root == null || focused == null || !root.contains(focused)) {
+            return;
+        }
+        if (navFocusFollows(focused.getAttribute("data-lib"), section)) {
+            root.querySelector<HTMLElement>(`.mt-lib-ni[data-lib="${section}"]`)?.focus();
+        }
+    }, [section]);
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== "Escape") {

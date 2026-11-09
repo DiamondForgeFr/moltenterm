@@ -12,6 +12,7 @@ import {
     LibrarySections,
     liveAgents,
     matchesQuery,
+    navFocusFollows,
     panelAboutKey,
     PublicDownloadUrl,
     putAwayAgentNames,
@@ -275,5 +276,13 @@ describe("Settings reopens on the last tab (#1592)", () => {
 
     it("falls back to Overview for a block that no longer exists", () => {
         expect(lastSettingsTab("gone", blocks)).toBeNull();
+    });
+});
+
+describe("one nav item looks current (#2155)", () => {
+    it("moves the focus to the current item when it sits on the item of another section", () => {
+        expect(navFocusFollows("agents", "materials")).toBe(true);
+        expect(navFocusFollows("materials", "materials")).toBe(false);
+        expect(navFocusFollows(null, "materials")).toBe(false);
     });
 });

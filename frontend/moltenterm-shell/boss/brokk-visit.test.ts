@@ -752,6 +752,27 @@ describe("never under the pointer (FR-BOSS-009, AC8)", () => {
     });
 });
 
+describe("what moves the collapsed sidebar (#2155)", () => {
+    it("lists only the events set to Vient: Badge counts, Rien neither counts nor moves", () => {
+        const w = drive({
+            ...DefaultVisitSettings,
+            coming: { ...DefaultVisitSettings.coming, error: "badge", ci: "rien", security: "vient" },
+        });
+        w.raise(High, T0);
+        w.raise(event("error", "agent:x"), T0);
+        w.raise(event("ci", "ci:/p:1"), T0);
+        expect(w.view.badgeKeys).toEqual(["agent:x", "sec:high"]);
+        expect(w.view.comingKeys).toEqual(["sec:high"]);
+    });
+
+    it("lists none while he never comes", () => {
+        const w = drive({ ...DefaultVisitSettings, never: true });
+        w.raise(High, T0);
+        expect(w.view.badgeKeys).toEqual(["sec:high"]);
+        expect(w.view.comingKeys).toEqual([]);
+    });
+});
+
 describe("quiet hours and the master switch (FR-BOSS-009, AC4)", () => {
     it("holds his visit during quiet hours, counts on the badge, and brings him when they end", () => {
         const w = drive();

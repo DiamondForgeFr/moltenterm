@@ -10,7 +10,15 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../molten-motion";
 import { BossBubbleModel } from "./boss-store";
-import { EdgeShape, edgeMotionOf, edgeShapeOf, newsToTell, Played, playEdgeMotion, SidebarPlace } from "./brokk-edge-model";
+import {
+    edgeMotionOf,
+    EdgeShape,
+    edgeShapeOf,
+    newsToTell,
+    Played,
+    playEdgeMotion,
+    SidebarPlace,
+} from "./brokk-edge-model";
 import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { useAvatarKeys, useHubSelect } from "./use-brokk-hub";
@@ -34,10 +42,12 @@ export function useBrokkEdge(asideRef: React.RefObject<HTMLElement>): { place: S
     const shapeBefore = useRef<EdgeShape>(null);
     // Looking at the badge is being able to: the sidebar is on screen, or his group is open.
     const looking = place !== "edge" || cardOpen;
+    const coming = useHubSelect((view) => view.comingKeys);
     const keysKey = keys.join("\n");
+    const comingKey = coming.join("\n");
     const shape = edgeShapeOf(place, { visit, cue, telling });
 
-    useEffect(() => edgeModel.tell(keys, looking, ready), [edgeModel, keysKey, looking, ready]);
+    useEffect(() => edgeModel.tell(keys, looking, ready, coming), [edgeModel, keysKey, comingKey, looking, ready]);
     useEffect(() => {
         const step = newsToTell(bounce, played.current, place);
         played.current = step.played;

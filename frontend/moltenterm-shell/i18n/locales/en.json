@@ -286,7 +286,17 @@
             "connecting": "Connecting to \"{name}\"...",
             "reconnect": "Reconnect",
             "copy": "Copy",
-            "alwaysDisableWsh": "always disable wsh"
+            "alwaysDisableWsh": "always disable wsh",
+            "local": "On this computer",
+            "remote": "Remote",
+            "reconnectTo": "Reconnect to {name}",
+            "disconnectFrom": "Disconnect from {name}",
+            "editConnections": "Edit connections",
+            "newConnection": "{name} (new connection)",
+            "connectTo": "Connect to (user@host)…"
+        },
+        "clipboard": {
+            "openUrl": "Open the copied link ({host})"
         },
         "term": {
             "openUrl": "Open URL",
@@ -1951,6 +1961,7 @@
         "noTerminalInTab": "No terminal in this view",
         "permissionRequest": "Permission request",
         "answerInTerminal": "Answer it in the terminal.",
+        "goToTerminal": "Go to the terminal",
         "answer": {
             "title": "Answer",
             "none": "No answer yet in this session.",
@@ -3066,6 +3077,7 @@
         "label": "{name}, {count} waiting",
         "avatar": {
             "labelCue": "{name}, {count} waiting: has something to tell you",
+            "labelCueAlone": "{name} has something to tell you",
             "close": "Close {name}",
             "downloadKnown": {
                 "one": "{count} download running, {percent} %",
@@ -3169,6 +3181,7 @@
                 "sending": "On its way…",
                 "starting": "{name} is settling in…",
                 "thinking": "{name} is thinking…",
+                "needsAnswer": "{name} needs your answer: his agent waits for you in his terminal.",
                 "replyLabel": "{name}'s answer",
                 "unread": "{name} answered in his terminal: open it to read him.",
                 "noReply": "No answer from {name} yet: see where he is in his terminal.",

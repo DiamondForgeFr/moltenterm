@@ -63,6 +63,13 @@ export function librarySectionAt(section: LibrarySection, step: number): Library
     return LibrarySections[((((i < 0 ? 0 : i) + step) % n) + n) % n].id;
 }
 
+// The section changed while the keyboard focus sits on the nav item of another one (the Library focuses the current item
+// as it opens; the section may change from the sidebar or a link): the focus follows the current item, so that one item
+// alone looks current (#2155). `focusedSection` is the section of the focused nav item, null when the focus is elsewhere.
+export function navFocusFollows(focusedSection: string, section: LibrarySection): boolean {
+    return focusedSection != null && focusedSection !== section;
+}
+
 // Each panel kind in plain words (library.panels.about.<key>); a kind without its own words shows the widget's.
 const PanelAbout: Record<string, string> = {
     term: "terminal",

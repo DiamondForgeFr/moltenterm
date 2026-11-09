@@ -20,6 +20,7 @@ import * as keyutil from "@/util/keyutil";
 import * as util from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
+import { t } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#2155): the picker in the interface language
 
 // newConnList -> connList => filteredList -> remoteItems -> sortedRemoteItems => remoteSuggestion
 // filteredList -> createNew
@@ -126,7 +127,7 @@ function getReconnectItem(
         status: "connected",
         icon: "arrow-right-arrow-left",
         iconColor: "var(--grey-text-color)",
-        label: `Reconnect to ${connStatus.connection}`,
+        label: t("wave.conn.reconnectTo", { name: connStatus.connection }), // MOLTENTERM-PATCH (#2155)
         value: "",
         onSelect: async (_: string) => {
             globalStore.set(changeConnModalAtom, false);
@@ -173,7 +174,7 @@ function getLocalSuggestions(
         return null;
     }
     const localSuggestions: SuggestionConnectionScope = {
-        headerText: "Local",
+        headerText: t("wave.conn.local"), // MOLTENTERM-PATCH (#2155)
         items: sortedSuggestionItems,
     };
     return localSuggestions;
@@ -194,7 +195,7 @@ function getRemoteSuggestions(
         return null;
     }
     const remoteSuggestions: SuggestionConnectionScope = {
-        headerText: "Remote",
+        headerText: t("wave.conn.remote"), // MOLTENTERM-PATCH (#2155)
         items: sortedSuggestionItems,
     };
     return remoteSuggestions;
@@ -216,7 +217,7 @@ function getDisconnectItem(
         status: "connected",
         icon: "xmark",
         iconColor: "var(--grey-text-color)",
-        label: `Disconnect ${connStatus.connection}`,
+        label: t("wave.conn.disconnectFrom", { name: connStatus.connection }), // MOLTENTERM-PATCH (#2155)
         value: "",
         onSelect: async (_: string) => {
             globalStore.set(changeConnModalAtom, false);
@@ -239,7 +240,7 @@ function getConnectionsEditItem(
         icon: "gear",
         iconColor: "var(--grey-text-color)",
         value: "Edit Connections",
-        label: "Edit Connections",
+        label: t("wave.conn.editConnections"), // MOLTENTERM-PATCH (#2155)
         onSelect: () => {
             util.fireAndForget(async () => {
                 globalStore.set(changeConnModalAtom, false);
@@ -274,7 +275,7 @@ function getNewConnectionSuggestionItem(
         status: "connected",
         icon: "plus",
         iconColor: "var(--grey-text-color)",
-        label: `${connSelected} (New Connection)`,
+        label: t("wave.conn.newConnection", { name: connSelected }), // MOLTENTERM-PATCH (#2155)
         value: "",
         onSelect: (_: string) => {
             changeConnection(connSelected);
@@ -486,7 +487,7 @@ const ChangeConnectionBlockModal = React.memo(
                 onKeyDown={(e) => keyutil.keydownWrapper(handleTypeAheadKeyDown)(e)}
                 onChange={(current: string) => setConnSelected(current)}
                 value={connSelected}
-                label="Connect to (username@host)..."
+                label={t("wave.conn.connectTo")} // MOLTENTERM-PATCH (#2155)
                 onClickBackdrop={() => globalStore.set(changeConnModalAtom, false)}
             />
         );

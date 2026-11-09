@@ -8,8 +8,8 @@
 // him back into the avatar and opens his panel in the same gesture; Plus tard, at the bottom left, asks when to come
 // back, and Escape takes the default delay. The content below the title row slides down to make room, which the sidebar
 // does itself (workspace-sidebar.tsx, sidebar.css). In a collapsed sidebar, half open for him or unfolded (AC29, AC30,
-// #2070), the scene is the banner it shows, and says its one line: the sentence of the event that brought him, the very
-// words of his rows (brokk-visit-line.ts). Its accessible name stays the label below.
+// #2070), the scene is the banner it shows; there and in a docked sidebar (#2155) it says its one line: the sentence of
+// the event that brought him, the very words of his rows (brokk-visit-line.ts). Its accessible name stays the label below.
 //
 // Loaded on the first visit, never with the window: the clips are Brokk's portrait and stay out of the up-front JavaScript.
 
@@ -229,8 +229,8 @@ export function BrokkVisitSceneView({
     name: string;
     phase: ScenePhase;
     rowHeight: string;
-    // The sidebar is collapsed with Brokk on, half open for him or unfolded: the scene says its one line, the sentence
-    // of the event. Without it the scene has no text but Plus tard.
+    // Brokk is on, in a collapsed or a docked sidebar (#2155): the scene says its one line, the sentence of the event.
+    // Without it the scene has no text but Plus tard.
     line?: string;
 }) {
     const t = useT();

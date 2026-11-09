@@ -269,7 +269,19 @@ export function workplaceNames(place: PeekWorkplace): string {
     return place.more > 0 ? `${names} ${tCount("boss.peek.more", place.more)}` : names;
 }
 
-// The button's name and its description's source (AC10): "{name}, {count} waiting".
+// The button's name and its description's source (AC10): "{name}, {count} waiting". Nothing waiting reads his name
+// alone: a screen reader saying "0 waiting" announces a count that is no news (#2155).
 export function bubbleLabel(name: string, count: number): string {
+    if (!(count > 0)) {
+        return name;
+    }
     return t("boss.label", { name, count });
+}
+
+// The same while he holds something back to tell (the soft cue): the count only when there is one.
+export function bubbleCueLabel(name: string, count: number): string {
+    if (!(count > 0)) {
+        return t("boss.avatar.labelCueAlone", { name });
+    }
+    return t("boss.avatar.labelCue", { name, count });
 }

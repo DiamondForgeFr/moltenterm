@@ -76,6 +76,7 @@ function sameView(a: HubView, b: HubView): boolean {
         a.mayArrive === b.mayArrive &&
         a.badge === b.badge &&
         a.badgeKeys.join("\n") === b.badgeKeys.join("\n") &&
+        a.comingKeys.join("\n") === b.comingKeys.join("\n") &&
         a.laterUntil === b.laterUntil &&
         a.ready === b.ready
     );

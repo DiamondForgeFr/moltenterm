@@ -286,7 +286,17 @@
             "connecting": "Connexion à « {name} »…",
             "reconnect": "Reconnecter",
             "copy": "Copier",
-            "alwaysDisableWsh": "toujours désactiver wsh"
+            "alwaysDisableWsh": "toujours désactiver wsh",
+            "local": "Sur cet ordinateur",
+            "remote": "À distance",
+            "reconnectTo": "Se reconnecter à {name}",
+            "disconnectFrom": "Se déconnecter de {name}",
+            "editConnections": "Modifier les connexions",
+            "newConnection": "{name} (nouvelle connexion)",
+            "connectTo": "Se connecter à (utilisateur@hôte)…"
+        },
+        "clipboard": {
+            "openUrl": "Ouvrir le lien copié ({host})"
         },
         "term": {
             "openUrl": "Ouvrir l'URL",
@@ -1951,6 +1961,7 @@
         "noTerminalInTab": "Aucun terminal dans cette vue",
         "permissionRequest": "Demande d'autorisation",
         "answerInTerminal": "Répondez-y dans le terminal.",
+        "goToTerminal": "Aller au terminal",
         "answer": {
             "title": "Réponse",
             "none": "Pas encore de réponse dans cette session.",
@@ -3065,7 +3076,8 @@
     "boss": {
         "label": "{name}, {count} en attente",
         "avatar": {
-            "labelCue": "{name}, {count} en attente : a quelque chose à vous dire",
+            "labelCueAlone": "{name} a quelque chose à vous dire",
+            "labelCue":"{name}, {count} en attente : a quelque chose à vous dire",
             "close": "Fermer {name}",
             "downloadKnown": {
                 "one": "{count} téléchargement en cours, {percent} %",
@@ -3169,6 +3181,7 @@
                 "sending": "En route…",
                 "starting": "{name} s'installe…",
                 "thinking": "{name} réfléchit…",
+                "needsAnswer": "{name} a besoin de votre réponse : son agent vous attend dans son terminal.",
                 "replyLabel": "Réponse de {name}",
                 "unread": "{name} a répondu dans son terminal : ouvrez-le pour le lire.",
                 "noReply": "Pas encore de réponse de {name} : voyez où il en est dans son terminal.",
@@ -3197,7 +3210,7 @@
                 "other": "{count} mises de côté, elles reviennent à la prochaine ouverture de la fiche"
             },
             "infoDone": "A terminé son travail.",
-            "agentWaiting": "{name} attend votre accord",
+            "agentWaiting": "{name} vous attend",
             "agentError": "{name} s'est arrêté sur une erreur",
             "goTo": "Aller à {name}",
             "ciFailed": "CI en échec : {checks}",

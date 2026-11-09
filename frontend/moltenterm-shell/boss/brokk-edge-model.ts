@@ -41,9 +41,10 @@ export function sidebarPlaceOf(enabled: boolean, hidden: boolean, peek: boolean,
     return brokkShown ? "edge" : "none";
 }
 
-// The sentence of the event shows on the scene of a collapsed sidebar, half open for him or unfolded (AC29, AC47).
-export function edgeLineOn(hidden: boolean, brokkShown: boolean): boolean {
-    return hidden && brokkShown;
+// The sentence of the event shows on the scene wherever it is drawn (AC29, AC47): collapsed, half open for him, unfolded
+// or docked, so the developer learns why he came without a click (#2155).
+export function edgeLineOn(brokkShown: boolean): boolean {
+    return brokkShown;
 }
 
 // The collapsed sidebar is out of sight at rest (AC44), peeks out by its strip while it tells a new notification (AC45),
@@ -90,15 +91,23 @@ function keptIn(keys: ReadonlySet<string>, now: ReadonlySet<string>): Set<string
 
 // `keys` are what the badge counts now. Looking (the sidebar is on screen, or his group is open) sees everything, and so
 // does the first reading of the feeds (`ready`): what was there when the window opened is no news. A key that leaves is
-// forgotten, so that the same one coming back is news again.
-export function edgeNewsAfter(before: EdgeNews, keys: string[], looking: boolean, ready: boolean): EdgeNewsStep {
+// forgotten, so that the same one coming back is news again. Only a key of `coming`, an event set to Vient, moves the
+// sidebar: one set to Badge counts on the badge and moves nothing (#2155), though it still marks the face unseen.
+export function edgeNewsAfter(
+    before: EdgeNews,
+    keys: string[],
+    coming: string[],
+    looking: boolean,
+    ready: boolean
+): EdgeNewsStep {
     const now = new Set(keys);
     if (looking || !ready || !before.ready) {
         return { news: { seen: now, told: now, ready }, fresh: false, unseen: false };
     }
     const seen = keptIn(before.seen, now);
     const told = keptIn(before.told, now);
-    const fresh = keys.some((key) => !told.has(key));
+    const moves = new Set(coming);
+    const fresh = keys.some((key) => !told.has(key) && moves.has(key));
     const unseen = keys.some((key) => !seen.has(key));
     return { news: { seen, told: new Set([...told, ...keys]), ready }, fresh, unseen };
 }

@@ -181,7 +181,8 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
 
     it("uses the name the developer chose", () => {
         globalStore.set(boss.nameAtom, "Léa");
-        expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Léa, 0 waiting");
+        // Nothing waits: no count of zero is read (#2155).
+        expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Léa");
     });
 
     it("carries his portrait, still when motion is reduced and calm and alive otherwise", () => {
@@ -220,7 +221,7 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         globalStore.set(boss.cardOpenAtom, true);
         globalStore.set(boss.cardPinnedAtom, false);
         const html = render();
-        expect(attr(html, "brokk-avatar", "aria-label")).toBe("Brokk, 0 waiting");
+        expect(attr(html, "brokk-avatar", "aria-label")).toBe("Brokk");
         expect(attr(html, "brokk-avatar", "aria-expanded")).toBe("true");
         expect(attr(html, "brokk-avatar", "data-pinned")).toBeUndefined();
     });
