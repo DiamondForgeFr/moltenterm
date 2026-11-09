@@ -915,6 +915,7 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 | `ACKNOWLEDGEMENTS.md` | Rewritten: thanks to Wave Terminal and the bundled fonts and icons, and a pointer to the third-party notices file of #2126 | Wave's file pointed to Wave's FOSSA report. Keep ours on a merge | #2124 |
 | `public/logos/wave-dark.png`, `public/logos/wave-logo-256.png`, `public/logos/wave-logo-dark.png`, `public/logos/wave-logo.png` | Deleted (binary, no marker) | Wave's logos, used by nothing, in the folder `TRADEMARKS.md` keeps for DiamondForge's own logos. Stay deleted on a merge | #2124 |
 | `ROADMAP.md` | Rewritten as a short MoltenTerm page that points to the phases in `MANIFESTO.md` and to the repository's milestones, with no dates | Wave's file was Wave Terminal's own roadmap, with a link to Wave's Discord. Keep ours on a merge | #2124 |
+| `emain/emain-wavesrv.ts` | The main log line written when wavesrv exits holds its exit code and signal. File already patched | The app quits when wavesrv dies, and the log did not say how it ended (a panic, a kill), which left a crash undiagnosable (#2125) | #2125 |
 
 ## Known upstream items
 

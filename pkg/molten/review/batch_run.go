@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // The queue's state machine (DS-REV-017): the first PR waiting, in the suggested order, goes queued → checking →
@@ -640,8 +641,11 @@ func (b *BatchRunner) waitMerge(ctx context.Context, ctl *batchCtl, k PrKey) Mer
 	m := b.env.Merger
 	done := make(chan struct{})
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:review:batch:waitmerge", recover())
+		}()
+		defer close(done)
 		m.wait(k)
-		close(done)
 	}()
 	cancelled := false
 	stopped := ctx.Done()

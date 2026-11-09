@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
@@ -208,8 +209,17 @@ func (s *ClaudeOAuthSource) prepareCall(ctx context.Context) (*oauthCall, uint64
 }
 
 func (s *ClaudeOAuthSource) runCall(call *oauthCall, gen uint64) {
+	fetched := false
+	defer func() {
+		err := panichandler.PanicHandler("molten:usage:claudeoauth", recover())
+		// A fetch that panicked still ends its call, else every read waits on it and no call starts again.
+		if err != nil && !fetched {
+			s.finishCall(call, gen, UsageSnapshot{}, oauthOutcome{reason: ReasonFailed})
+		}
+	}()
 	defer call.cancel()
 	snap, outcome := s.fetch(call.ctx)
+	fetched = true
 	s.finishCall(call, gen, snap, outcome)
 }
 

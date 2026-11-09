@@ -20,6 +20,7 @@ type fakeBackend struct {
 	calls   []string
 	closed  bool
 	block   chan struct{}
+	panicOn string
 }
 
 func (b *fakeBackend) Start(ctx context.Context, client ClientInfo) {
@@ -32,7 +33,11 @@ func (b *fakeBackend) CallTool(ctx context.Context, tool string, args json.RawMe
 	b.lock.Lock()
 	b.calls = append(b.calls, tool+" "+string(args))
 	block := b.block
+	panicOn := b.panicOn
 	b.lock.Unlock()
+	if tool == panicOn {
+		panic("backend blew up on " + tool)
+	}
 	if block != nil {
 		select {
 		case <-block:
@@ -208,6 +213,25 @@ func TestToolsListAndCall(t *testing.T) {
 	}
 	if len(backend.started) != 1 {
 		t.Fatalf("a call before initialize starts the backend once, got %v", backend.started)
+	}
+}
+
+// A tool call that panics answers as a failed call and the server keeps serving (#2125).
+func TestPanickingCallAnswersAndServerGoesOn(t *testing.T) {
+	backend := &fakeBackend{panicOn: "navigate"}
+	c := startServer(t, backend)
+	defer c.close()
+	c.send(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"navigate","arguments":{"url":"x"}}}`)
+	resp := c.recv()
+	result := resp["result"].(map[string]any)
+	text := result["content"].([]any)[0].(map[string]any)["text"].(string)
+	if result["isError"] != true || !strings.Contains(text, "navigate tool failed") {
+		t.Fatalf("a panicking call answers as failed: %v", resp)
+	}
+	c.send(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"tabs_close","arguments":{"tabId":4}}}`)
+	resp = c.recv()
+	if text := resp["result"].(map[string]any)["content"].([]any)[0].(map[string]any)["text"]; text != "ran tabs_close" {
+		t.Fatalf("the next call runs: %v", resp)
 	}
 }
 

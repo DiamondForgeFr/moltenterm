@@ -21,6 +21,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/sfticket"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // The setup's write goes through a pull request (FR-MC-036, #1098): a tracked file of the developer's checkout never
@@ -348,12 +349,24 @@ func (s *Setup) startJob(job *PrJob, steps []string, work func(ctx context.Conte
 	snapshot := copyJob(job)
 	s.jobLock.Unlock()
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:pipelinesetup:prjob", recover())
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), prJobTimeout)
 		defer cancel()
-		err := work(ctx, job)
-		s.finishJob(job, err)
+		s.finishJob(job, runPrWork(ctx, job, work))
 	}()
 	return snapshot, nil
+}
+
+// runPrWork turns a panic of the work into the job's failure: an unfinished job would keep the project busy.
+func runPrWork(ctx context.Context, job *PrJob, work func(ctx context.Context, job *PrJob) error) (err error) {
+	defer func() {
+		if perr := panichandler.PanicHandler("molten:pipelinesetup:prwork", recover()); perr != nil {
+			err = perr
+		}
+	}()
+	return work(ctx, job)
 }
 
 func copyJob(j *PrJob) PrJob {

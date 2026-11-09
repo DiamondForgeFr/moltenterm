@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -276,7 +277,12 @@ func Start() {
 	usage.DefaultCodexUsage.SetTranscript(m.CodexLimits)
 	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {
 		m.settingsChanged(&config.Settings)
-		go m.GlobalUsage(false)
+		go func() {
+			defer func() {
+				panichandler.PanicHandler("molten:companion:globalusage:settings", recover())
+			}()
+			m.GlobalUsage(false)
+		}()
 	})
 	m.startGlobalUsage()
 	if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{m: m}).route()); err != nil {

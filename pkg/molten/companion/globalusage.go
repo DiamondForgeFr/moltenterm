@@ -10,7 +10,6 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // The global plan usage (FR-SHELL-029, #2074): Brokk is global, and so is a plan. wavesrv reads Codex's limits for the
@@ -97,13 +96,5 @@ func (m *Manager) publishGlobalIfChanged(info UsageInfo) {
 
 // startGlobalUsage reads the global readings now and every two minutes, from the folder only.
 func (m *Manager) startGlobalUsage() {
-	go func() {
-		defer func() {
-			panichandler.PanicHandler("molten:companion:globalusage", recover())
-		}()
-		for {
-			m.GlobalUsage(false)
-			time.Sleep(globalUsageInterval)
-		}
-	}()
+	go everyRecovered("molten:companion:globalusage", globalUsageInterval, true, nil, func() { m.GlobalUsage(false) })
 }

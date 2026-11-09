@@ -15,6 +15,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/pipelinesetup"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // A draft the release setup opened waits for the developer (#1788): their workflow tests a change by hand before its
@@ -110,6 +111,9 @@ func (w *SetupPrWatch) Watch(dir string, number int, url string, target string) 
 		return
 	}
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:mission:setupprwatch", recover())
+		}()
 		defer w.stop(url)
 		w.follow(dir, number, url, target)
 	}()
@@ -137,28 +141,37 @@ func (w *SetupPrWatch) stop(url string) {
 func (w *SetupPrWatch) follow(dir string, number int, url string, target string) {
 	for round := 1; round <= w.Rounds; round++ {
 		time.Sleep(w.Every)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		status, err := ReadSetupPrStatus(ctx, w.Run, SetupPrStatusRequest{Dir: dir, Number: number})
-		cancel()
-		if err != nil {
-			continue
-		}
-		verdict := setupPrVerdict(status, round)
-		if verdict == setupPrVerdictWait {
-			continue
-		}
-		if verdict == setupPrVerdictStop {
+		if w.followRound(dir, number, url, target, round) {
 			return
 		}
-		if status.Base != "" {
-			target = status.Base
-		}
-		ctx, cancel = context.WithTimeout(context.Background(), keptNoticeTimeout)
-		err = w.Publish(ctx, setupPrNotice(verdict, dir, number, url, target))
-		cancel()
-		if err != nil {
-			log.Printf("molten: telling the release setup's pull request #%d waits: %v\n", number, err)
-		}
-		return
 	}
+}
+
+// followRound reads the pull request once; true when the watch ends. A panic ends that round only.
+func (w *SetupPrWatch) followRound(dir string, number int, url string, target string, round int) (ended bool) {
+	defer func() {
+		panichandler.PanicHandler("molten:mission:setupprwatch:round", recover())
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	status, err := ReadSetupPrStatus(ctx, w.Run, SetupPrStatusRequest{Dir: dir, Number: number})
+	cancel()
+	if err != nil {
+		return false
+	}
+	verdict := setupPrVerdict(status, round)
+	if verdict == setupPrVerdictWait {
+		return false
+	}
+	if verdict == setupPrVerdictStop {
+		return true
+	}
+	if status.Base != "" {
+		target = status.Base
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), keptNoticeTimeout)
+	defer cancel()
+	if err := w.Publish(ctx, setupPrNotice(verdict, dir, number, url, target)); err != nil {
+		log.Printf("molten: telling the release setup's pull request #%d waits: %v\n", number, err)
+	}
+	return true
 }

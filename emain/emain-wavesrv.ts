@@ -81,11 +81,11 @@ export function runWaveSrv(handleWSEvent: (evtMsg: WSEventType) => void): Promis
         cwd: getWaveSrvCwd(),
         env: envCopy,
     });
-    proc.on("exit", (e) => {
+    proc.on("exit", (code, signal) => {
         if (updater?.status == "installing") {
             return;
         }
-        console.log("wavesrv exited, shutting down");
+        console.log(`wavesrv exited (code ${code}, signal ${signal}), shutting down`); // MOLTENTERM-PATCH (#2125)
         setForceQuit(true);
         isWaveSrvDead = true;
         electron.app.quit();

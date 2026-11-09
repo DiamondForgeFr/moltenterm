@@ -15,6 +15,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // The clean end of an agent MoltenTerm started (#758). wavesrv follows it while its terminal lives: while it works,
@@ -105,18 +106,33 @@ func (r *Restarter) startFollow(f agentFollow) {
 		return
 	}
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:review:agentfollow", recover())
+		}()
 		st := &followState{}
 		ticker := time.NewTicker(r.env.FollowEvery)
 		defer ticker.Stop()
 		for range ticker.C {
-			ctx, cancel := context.WithTimeout(context.Background(), followTimeout)
-			more := r.followStep(ctx, f, st)
-			cancel()
+			more := recoverStep("molten:review:agentfollow:step", func() bool {
+				ctx, cancel := context.WithTimeout(context.Background(), followTimeout)
+				defer cancel()
+				return r.followStep(ctx, f, st)
+			})
 			if !more {
 				return
 			}
 		}
 	}()
+}
+
+// recoverStep runs one step of a follow loop: a panic ends that step only, and the follow goes on at the next tick.
+func recoverStep(name string, step func() bool) (more bool) {
+	defer func() {
+		if panichandler.PanicHandler(name, recover()) != nil {
+			more = true
+		}
+	}()
+	return step()
 }
 
 // followStep reads the agent once; false when the follow ends (cleaned up, or its terminal is gone).

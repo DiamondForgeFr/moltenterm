@@ -20,6 +20,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -218,6 +219,11 @@ func (waveEnv) Cdp(ctx context.Context, key TabKey, method string, params any) (
 	}
 	respCh := make(chan response, 1)
 	go func() {
+		defer func() {
+			if err := panichandler.PanicHandler("molten:browseragent:cdp", recover()); err != nil {
+				respCh <- response{err: err}
+			}
+		}()
 		data, err := handler.NextResponse()
 		respCh <- response{data: data, err: err}
 	}()
