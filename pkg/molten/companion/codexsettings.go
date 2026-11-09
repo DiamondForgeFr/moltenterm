@@ -207,7 +207,7 @@ func codexSettingText(v any) string {
 
 // readFileTail reads at most max bytes from the end of a regular file.
 func readFileTail(path string, max int64) ([]byte, error) {
-	f, err := os.Open(path)
+	f, err := openTranscript(path)
 	if err != nil {
 		return nil, err
 	}

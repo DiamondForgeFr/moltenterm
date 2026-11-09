@@ -273,6 +273,7 @@ func Start() {
 		return &settings
 	}
 	defaultManager = m
+	attention.SetTranscriptLink(m.LinkTranscript)
 	m.startProcessLinks()
 	usage.DefaultCodexUsage.SetTranscript(m.CodexLimits)
 	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {

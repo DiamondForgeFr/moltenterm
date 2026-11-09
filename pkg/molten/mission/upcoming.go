@@ -171,6 +171,8 @@ type AgentPlace struct {
 	Pid int32
 	// Review: a review session's terminal, read-only, never the one working on the branch.
 	Review bool
+	// local: a terminal of this computer, whose session's transcript can be read for Work.
+	local bool
 }
 
 type upcomingTicket struct {
@@ -186,6 +188,9 @@ type UpcomingEnv struct {
 	Now      func() time.Time
 	Snapshot func(dir string) (Snapshot, bool)
 	Agents   func(ctx context.Context) []AgentPlace
+	// WorkFolders fills the places' Work, which reads the sessions' transcripts: only for an answer being computed
+	// (#2142). nil: Agents gives Work.
+	WorkFolders func(places []AgentPlace) []AgentPlace
 	// FileTime: a file's modification time, in Unix milliseconds (0 when it cannot be read).
 	FileTime func(path string) int64
 	// Subagents: the sub-agents of the running agent panels, their worktrees' symlinks resolved.
@@ -199,7 +204,9 @@ type UpcomingEnv struct {
 type upcomingState struct {
 	answer UpcomingAnswer
 	at     time.Time
-	// places: the agent terminals the answer placed (placesKey); other ones make it out of date at once (#1077).
+	// places: the agent terminals the answer placed (placesKey); other ones make it out of date at once (#1077). Where
+	// their sessions work (Work) is not part of it: reading it costs every transcript's end (#2142), so a session that
+	// moves to another worktree shows there at the next computed answer.
 	places    string
 	ticketKey string
 	ticketsAt time.Time
@@ -246,11 +253,11 @@ func (u *Upcoming) projectLock(dir string) *sync.Mutex {
 	return m
 }
 
-// placesKey names the agent terminals and where they work, in a stable order.
+// placesKey names the agent terminals and their folders, in a stable order.
 func placesKey(places []AgentPlace) string {
 	parts := make([]string, 0, len(places))
 	for _, p := range places {
-		parts = append(parts, fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%t", p.BlockId, p.Agent, p.FirstName, p.Started, p.Link, p.Cwd, p.Work, p.Review))
+		parts = append(parts, fmt.Sprintf("%s|%s|%s|%d|%s|%s|%t", p.BlockId, p.Agent, p.FirstName, p.Started, p.Link, p.Cwd, p.Review))
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, "\n")
@@ -322,6 +329,9 @@ func (u *Upcoming) Get(req UpcomingRequest) (UpcomingAnswer, error) {
 	defer m.Unlock()
 	if answer := u.cached(dir, req.Force, key); answer != nil {
 		return *answer, nil
+	}
+	if u.env.WorkFolders != nil {
+		places = u.env.WorkFolders(places)
 	}
 	answer := u.compute(dir, places)
 	u.store(dir, answer, key)

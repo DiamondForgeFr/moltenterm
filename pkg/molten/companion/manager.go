@@ -232,6 +232,8 @@ type Manager struct {
 	subagentPaths map[string]bool
 	// identityAdapters: the adapters PaneSubagents reads with, one per agent (#1035).
 	identityAdapters map[string]Adapter
+	// refusedTranscripts: the transcript a hook's state report named and the companion refused, by block (#2142).
+	refusedTranscripts map[string]string
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf          func(blockId string) (molten.AgentRunInfo, bool)
@@ -404,6 +406,7 @@ func (m *Manager) ForgetBlock(blockId string) {
 	delete(m.usagePublished, blockId)
 	delete(m.usageVisible, blockId)
 	delete(m.statusLines, blockId)
+	delete(m.refusedTranscripts, blockId)
 	usage.DefaultStatusLineStore.Forget(blockId)
 }
 
@@ -582,6 +585,37 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 		m.readSettings(req.BlockId, agent, adapter, path)
 	}
 	return nil
+}
+
+// LinkTranscript takes the transcript a hook's working or done report names (#2142): it becomes the block's hook
+// report only when the companion has no current one, which is the case after a wavesrv restart. A link the hook's
+// SessionStart made is never replaced here, and a transcript refused once is not checked again for the block.
+func (m *Manager) LinkTranscript(blockId string, agent string, path string) {
+	if m.hasCurrentReport(blockId, path) {
+		return
+	}
+	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: blockId, Agent: agent, Path: path}); err != nil {
+		m.refuseTranscript(blockId, path)
+	}
+}
+
+// hasCurrentReport: the block's hook report speaks for its run, or the transcript was refused for it already.
+func (m *Manager) hasCurrentReport(blockId string, path string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if r, ok := m.reports[blockId]; ok && m.reportCurrentLocked(blockId, r) {
+		return true
+	}
+	return m.refusedTranscripts[blockId] == path
+}
+
+func (m *Manager) refuseTranscript(blockId string, path string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.refusedTranscripts == nil || len(m.refusedTranscripts) >= maxReports {
+		m.refusedTranscripts = map[string]string{}
+	}
+	m.refusedTranscripts[blockId] = path
 }
 
 func (m *Manager) recordReport(blockId string, agent string, path string, pending bool, by string) error {

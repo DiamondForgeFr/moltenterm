@@ -41,9 +41,10 @@ func liveUpcomingEnv(collector *Collector, run Runner) UpcomingEnv {
 			}
 			return Snapshot{}, false
 		},
-		Agents:    liveAgentPlaces,
-		Subagents: liveSubagents,
-		Procs:     LiveProcFacts,
+		Agents:      liveAgentTerminals,
+		WorkFolders: liveWorkFolders,
+		Subagents:   liveSubagents,
+		Procs:       LiveProcFacts,
 		ReviewTreesDir: func(projectDir string) string {
 			return molten.ReviewTreesDir(wavebase.GetWaveDataDir(), projectDir)
 		},
@@ -78,6 +79,26 @@ func PaneSubagentsOf(places []AgentPlace, read func(blockId string) []companion.
 // liveAgentPlaces lists the running agents of local terminals with their folders, symlinks resolved like git's paths:
 // the terminal's, the worktree it is linked to, and where its agent's adapter reads the session works (#1476).
 func liveAgentPlaces(ctx context.Context) []AgentPlace {
+	return liveWorkFolders(liveAgentTerminals(ctx))
+}
+
+// liveWorkFolders places each local agent terminal where its session works (#1476): its transcript is read, so only
+// for an answer that is computed, never to tell whether a cached one is still fresh (#2142).
+func liveWorkFolders(places []AgentPlace) []AgentPlace {
+	for i, p := range places {
+		if !p.local {
+			continue
+		}
+		if work := companion.PaneWorkFolder(p.BlockId); filepath.IsAbs(work) {
+			places[i].Work = realPath(work)
+		}
+	}
+	return places
+}
+
+// liveAgentTerminals lists the running agents of terminals with their terminal's folder and linked worktree, from the
+// object store only.
+func liveAgentTerminals(ctx context.Context) []AgentPlace {
 	var rtn []AgentPlace
 	for _, run := range attention.AgentRuns() {
 		if !run.Running || run.BlockId == "" {
@@ -93,14 +114,9 @@ func liveAgentPlaces(ctx context.Context) []AgentPlace {
 		}
 		conn := block.Meta.GetString(waveobj.MetaKey_Connection, "")
 		cwd := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
-		local := conn == "" || conn == "local"
-		if local && filepath.IsAbs(cwd) {
+		place.local = conn == "" || conn == "local"
+		if place.local && filepath.IsAbs(cwd) {
 			place.Cwd = realPath(cwd)
-		}
-		if local {
-			if work := companion.PaneWorkFolder(run.BlockId); filepath.IsAbs(work) {
-				place.Work = realPath(work)
-			}
 		}
 		_, place.Review = block.Meta[mcpreview.SessionMetaKey]
 		rtn = append(rtn, place)
