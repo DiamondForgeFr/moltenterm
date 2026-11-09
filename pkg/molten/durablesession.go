@@ -48,6 +48,10 @@ const (
 	// Sessions table nests the receiver under it (FR-SHELL-058, #933).
 	HandedByMetaKey = "molten:handedby"
 
+	// SessionTabMetaKey: on a job, the tab its pane was last seen in. Once the pane is gone, it tells which workspace
+	// the session belongs to while that tab exists (#2120).
+	SessionTabMetaKey = "molten:sessiontab"
+
 	// SessionOriginReview: a Review panel session (FR-REV); the other origins are the kinds of the agents the review
 	// actions start (pkg/molten/review/agentstart.go).
 	SessionOriginReview = "review"
@@ -135,6 +139,9 @@ type DurableSession struct {
 	TabId          string `json:"tabid,omitempty"`
 	TabName        string `json:"tabname,omitempty"`
 	BlockId        string `json:"blockid,omitempty"`
+	// HomeWorkspaceId: for a session no pane shows, the workspace of the tab its pane was last in, while that tab
+	// exists; "" when unknown. A terminal of that workspace may still show, end or reconnect it (#2120).
+	HomeWorkspaceId string `json:"homeworkspaceid,omitempty"`
 
 	Shown   bool   `json:"shown"`
 	Reason  string `json:"reason,omitempty"`
