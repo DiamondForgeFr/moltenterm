@@ -3,10 +3,17 @@
 
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react-swc";
+import { fileURLToPath } from "node:url"; // MOLTENTERM-PATCH (#2126)
 import { defineConfig } from "vite";
+import { moltentermBundledPackages } from "../../frontend/moltenterm-shell/build/bundled-packages"; // MOLTENTERM-PATCH (#2126)
 
 export default defineConfig({
-    plugins: [react(), tailwindcss()],
+    // MOLTENTERM-PATCH (#2126): the npm packages this bundle ships, for the licence notices (the repository root is two folders up)
+    plugins: [
+        react(),
+        tailwindcss(),
+        moltentermBundledPackages("tsunami", { root: fileURLToPath(new URL("../..", import.meta.url)) }),
+    ],
     resolve: {
         alias: {
             "@": "/src",
