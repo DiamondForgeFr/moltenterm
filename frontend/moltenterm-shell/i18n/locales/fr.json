@@ -7668,6 +7668,9 @@
         "notRepo": {
             "hint": "Le panneau Intégration suit les changements du projet avec git : ses branches et ses pull requests. Suivez ce dossier avec git pour les voir ici."
         },
+        "resend": {
+            "failed": "Rien n'a été renvoyé, les pull requests n'ont pas pu être lues."
+        },
         "lead": {
             "sent": "Confiée à {name}, l'agent principal à qui ce travail appartient : le brief est dans son terminal, c'est lui qui décide qui s'en charge.",
             "queued": "{name} est occupé : le brief est tapé dans son terminal quand son invite est libre.",
@@ -9247,6 +9250,10 @@
                 "timeout": "L'invite de {receiver} n'est pas devenue disponible dans l'heure.",
                 "failed": "MoltenTerm n'a pas pu taper le passage de relais ({detail})."
             },
+            "expired": {
+                "title": "{receiver} n'a pas pris la demande de MoltenTerm",
+                "message": "{reason} Elle s'applique toujours, et rien ne demande votre approbation. Le brief se trouve dans {path}."
+            },
             "typed": {
                 "title": "Tapé dans l'invite de {receiver} : appuyez sur Entrée dans son terminal pour démarrer",
                 "message": "Le passage de relais de {from} a été ajouté après ce qui était déjà dans l'invite. Le brief se trouve dans {path}.",
@@ -9628,6 +9635,7 @@
                 "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
                 "openReview": "Ouvrir la revue",
                 "openCard": "Voir dans le panneau Intégration",
+                "resend": "Renvoyer",
                 "prAside": " (PR #{number})",
                 "ciGreenTitle": "#{number}{pr} : la CI est de nouveau verte",
                 "ciGreen": "{name} : {outcome}",

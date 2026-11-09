@@ -212,6 +212,9 @@ type RestartEnv struct {
 	// PushSeen (#2145, handoff_guard.go): a branch's head is at oid on GitHub, which the Integration list may not show
 	// yet, or a followed agent pushed it; the list reads the PR again at once. nil tells nobody.
 	PushSeen func(dir string, branch string, oid string)
+	// HandoffQueued (#2145): a request still waits for the agent's prompt in the handoffs' queue; a hand-off that waits
+	// there is handled. nil: none does.
+	HandoffQueued func(blockId string) bool
 }
 
 type Restarter struct {

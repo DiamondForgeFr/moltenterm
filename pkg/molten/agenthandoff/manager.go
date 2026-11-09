@@ -28,6 +28,10 @@ const (
 	// A queued handoff waits this long for its receiver's idle prompt.
 	DefaultQueueTimeout = time.Hour
 	DefaultQueuePoll    = time.Second
+	// A queued request that can say whether it still applies (AppRequest.Applies) is asked this often while it waits,
+	// and each time for at most appliesTimeout.
+	DefaultAppliesEvery = time.Minute
+	appliesTimeout      = 30 * time.Second
 	// After a delivery, the next one for the same receiver waits for this turn to start.
 	afterDeliveryPause = 3 * time.Second
 	// The MCP server asks for the agent's own name at its start, maybe before MoltenTerm sees the agent.
@@ -113,6 +117,12 @@ type delivery struct {
 	brief Brief
 	// receipt: MoltenTerm's own line to the sender of a late answer; failing to type it is only logged.
 	receipt bool
+	// MoltenTerm's own request (#2145, AppRequest): its task key, whether it still applies, the action that sends it
+	// again. checkedAt is read and written by the receiver's queue loop only.
+	key       string
+	applies   func(ctx context.Context) bool
+	resend    *molten.NotificationAction
+	checkedAt time.Time
 }
 
 type Manager struct {
@@ -123,6 +133,7 @@ type Manager struct {
 	approvalTimeout time.Duration
 	queueTimeout    time.Duration
 	queuePoll       time.Duration
+	appliesEvery    time.Duration
 	sleep           func(time.Duration)
 	// pendingChanged tells the windows the requests waiting for the developer changed (PendingEvent); outside the lock.
 	pendingChanged func()
@@ -147,6 +158,7 @@ func MakeManager(env Env) *Manager {
 		approvalTimeout: DefaultApprovalTimeout,
 		queueTimeout:    DefaultQueueTimeout,
 		queuePoll:       DefaultQueuePoll,
+		appliesEvery:    DefaultAppliesEvery,
 		sleep:           time.Sleep,
 		pendingChanged:  func() {},
 		pairs:           map[string]string{},
@@ -820,14 +832,21 @@ func (m *Manager) runQueue(blockId string) {
 			for _, gone := range m.dropQueue(blockId) {
 				receiver := gone.to.callName()
 				m.notifyUndelivered(gone, fmt.Sprintf("%s ended before its prompt was idle.", capitalize(receiver)),
-					uimsg.Make("handoff.undelivered.ended", "receiver", receiver))
+					uimsg.Make("handoff.undelivered.ended", "receiver", receiver), true)
 			}
 			return
+		}
+		if m.noLongerApplies(d, false) {
+			m.logDropped(d)
+			if !m.popQueue(blockId) {
+				return
+			}
+			continue
 		}
 		if m.now().Sub(d.queuedAt) > m.queueTimeout {
 			receiver := d.to.callName()
 			m.notifyUndelivered(d, fmt.Sprintf("%s's prompt was not idle within an hour.", capitalize(receiver)),
-				uimsg.Make("handoff.undelivered.timeout", "receiver", receiver))
+				uimsg.Make("handoff.undelivered.timeout", "receiver", receiver), true)
 			if !m.popQueue(blockId) {
 				return
 			}
@@ -835,6 +854,13 @@ func (m *Manager) runQueue(blockId string) {
 		}
 		if receiverBusy(run) {
 			m.sleep(m.queuePoll)
+			continue
+		}
+		if m.noLongerApplies(d, true) {
+			m.logDropped(d)
+			if !m.popQueue(blockId) {
+				return
+			}
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -856,13 +882,53 @@ func (m *Manager) runQueue(blockId string) {
 				m.settleByReply(d)
 			}
 		} else {
-			m.notifyUndelivered(d, out.Message, out.MessageText)
+			m.notifyUndelivered(d, out.Message, out.MessageText, false)
 		}
 		if !m.popQueue(blockId) {
 			return
 		}
 		m.sleep(afterDeliveryPause)
 	}
+}
+
+// noLongerApplies asks a MoltenTerm request whether the world it was written for is still there (AppRequest.Applies):
+// not more than every appliesEvery unless forced, and only for a request that can say.
+func (m *Manager) noLongerApplies(d *delivery, force bool) bool {
+	if d.applies == nil {
+		return false
+	}
+	if !force && !d.checkedAt.IsZero() && m.now().Sub(d.checkedAt) < m.appliesEvery {
+		return false
+	}
+	d.checkedAt = m.now()
+	ctx, cancel := context.WithTimeout(context.Background(), appliesTimeout)
+	defer cancel()
+	return !d.applies(ctx)
+}
+
+func (m *Manager) logDropped(d *delivery) {
+	m.logf("%s from=%q to=%q dropped, it no longer applies (nothing said): %s\n", logPrefix, d.from.callName(), d.to.callName(), d.briefPath)
+}
+
+// queuedWithKey is the brief of a request with this task key that still waits for the receiver's prompt.
+func (m *Manager) queuedWithKey(blockId string, key string) (string, bool) {
+	if key == "" {
+		return "", false
+	}
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	for _, d := range m.queues[blockId] {
+		if d.key == key {
+			return d.briefPath, true
+		}
+	}
+	return "", false
+}
+
+// HasQueued tells whether a request still waits for the receiver's prompt, through the running handoffs.
+func HasQueued(blockId string) bool {
+	m := sharedManager()
+	return m != nil && m.hasQueue(blockId)
 }
 
 // notifyTyped tells the developer a handoff's prompt waits for Enter in the receiver's terminal, behind what may be
@@ -954,10 +1020,20 @@ func undeliveredTitleText(d *delivery) *uimsg.Text {
 }
 
 // notifyUndelivered tells the developer why a handoff was dropped; reasonText is reason's code, nil when the typing
-// path sent none: its English then shows as the detail of a sentence of ours (#1129).
-func (m *Manager) notifyUndelivered(d *delivery, reason string, reasonText *uimsg.Text) {
+// path sent none: its English then shows as the detail of a sentence of ours (#1129). expired: it waited for its
+// receiver and never got its turn, which asks nothing of the developer (#2145): a MoltenTerm request first checks that
+// it still applies, says nothing when it does not, and otherwise says so calmly with the action that sends it again.
+func (m *Manager) notifyUndelivered(d *delivery, reason string, reasonText *uimsg.Text, expired bool) {
 	m.logf("%s from=%q to=%q not delivered: %s\n", logPrefix, d.from.callName(), d.to.callName(), reason)
 	if d.receipt {
+		return
+	}
+	if m.noLongerApplies(d, true) {
+		m.logDropped(d)
+		return
+	}
+	if expired && d.from.App {
+		m.notifyExpired(d, reason, reasonText)
 		return
 	}
 	if reasonText == nil || reasonText.Code == "" {
@@ -971,4 +1047,22 @@ func (m *Manager) notifyUndelivered(d *delivery, reason string, reasonText *uims
 		MessageText: uimsg.Make("handoff.undelivered.message", "path", d.briefPath).With("reason", reasonText),
 		Kind:        "error",
 	})
+}
+
+// notifyExpired tells the developer that MoltenTerm's request, which still applies, never reached its receiver: calm,
+// since nothing needs the developer's approval, with Resend when the request can be sent again.
+func (m *Manager) notifyExpired(d *delivery, reason string, reasonText *uimsg.Text) {
+	receiver := d.to.callName()
+	input := molten.NotificationInput{
+		Source:      NotificationSource,
+		Title:       capitalize(fmt.Sprintf("%s did not take MoltenTerm's request", receiver)),
+		TitleText:   uimsg.Make("handoff.expired.title", "receiver", receiver),
+		Message:     fmt.Sprintf("%s It still applies, and nothing needs your approval. The brief is at %s.", reason, d.briefPath),
+		MessageText: uimsg.Make("handoff.expired.message", "path", d.briefPath).With("reason", reasonText),
+		Kind:        "info",
+	}
+	if d.resend != nil {
+		input.Actions = []molten.NotificationAction{*d.resend}
+	}
+	m.env.Notify(input)
 }

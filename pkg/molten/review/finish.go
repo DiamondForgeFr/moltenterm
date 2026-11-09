@@ -115,6 +115,13 @@ func (r *Restarter) AskFinish(ctx context.Context, req FinishRequest) (RestartRe
 	if now.head != "" {
 		req.HeadOid = now.head
 	}
+	asked := req
+	ctx = withTask(ctx, &handoffTask{kind: HandoffFinish, req: req.restartRequest(), head: req.HeadOid,
+		remains: func(now prNow) bool {
+			again := asked
+			return !pruneFinish(&again, now)
+		},
+		resend:  resendAction(HandoffFinish, req.restartRequest(), req.MarkReady, req.Lead.cleaned())})
 	res, err := r.askFinish(ctx, req)
 	if err == nil {
 		r.noteHanded(HandoffFinish, req.PrKey, req.HeadOid, res)

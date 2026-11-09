@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The hand-off guard (#2145, FR-REV-022 AC22). A card sends what it read of the PR: its head, a conflict, the red
@@ -75,6 +77,83 @@ type handedTask struct {
 	blockId   string
 	firstName string
 	agentName string
+	// queued: the request waits for its receiver's prompt (RestartQueued); it is handled until it leaves the queue.
+	queued bool
+}
+
+// handoffTask is what a request MoltenTerm types to a lead is about, carried by the context of the click: the task, the
+// PR and the head the card knew, and whether the problems it names remain on the PR. A request that waits for the
+// lead's prompt asks it before it is typed and before it is said to have expired (agenthandoff.AppRequest.Applies).
+type handoffTask struct {
+	kind string
+	req  RestartRequest
+	head string
+	// remains: some problem the request names is still on the PR; nil when the request names none.
+	remains func(now prNow) bool
+	// resend: the notification action that asks the same task again, from the card's own flow.
+	resend *molten.NotificationAction
+}
+
+type handoffTaskKey struct{}
+
+func withTask(ctx context.Context, task *handoffTask) context.Context {
+	return context.WithValue(ctx, handoffTaskKey{}, task)
+}
+
+func taskOf(ctx context.Context) *handoffTask {
+	task, _ := ctx.Value(handoffTaskKey{}).(*handoffTask)
+	return task
+}
+
+// ResendGesture asks a task of a PR again from its notification; must match
+// frontend/moltenterm-shell/reviews/reviews-resend-gesture.ts.
+const ResendGesture = "reviews:resend"
+
+// resendAction is the calm notice's Resend: the card's own flow runs again with the PR as the list reads it then, so it
+// is checked like a click (the PR open, its head, what remains).
+func resendAction(kind string, req RestartRequest, markReady bool, lead *LeadRef) *molten.NotificationAction {
+	args := map[string]any{"dir": req.Dir, "number": req.Number, "task": kind}
+	if markReady {
+		args["markready"] = true
+	}
+	if lead != nil {
+		args["leadname"], args["leadagent"], args["leadblockid"] = lead.FirstName, lead.Agent, lead.BlockId
+	}
+	return &molten.NotificationAction{Id: "resend", Label: "Resend", LabelText: uimsg.Make("notif.review.resend"), Kind: "gesture",
+		Gesture: ResendGesture, Lasting: true, Args: args}
+}
+
+// appRequest is the request MoltenTerm types to a lead: its brief, and what lets the handoffs keep it honest while it
+// waits (#2145): one request per task, PR and head, dropped without a word once the PR is closed, moved on or fixed,
+// and told calmly, with Resend, when it expired and still applies.
+func (r *Restarter) appRequest(ctx context.Context, found agenthandoff.LeadFound, goal string, text string, closing string) agenthandoff.AppRequest {
+	req := agenthandoff.AppRequest{ToBlockId: found.BlockId, Goal: goal, Context: text, Closing: closing}
+	task := taskOf(ctx)
+	if task == nil {
+		return req
+	}
+	if isOid(task.head) {
+		req.Key = fmt.Sprintf("%s|%s#%d|%s", task.kind, strings.ToLower(task.req.Repo), task.req.Number, strings.ToLower(task.head))
+	}
+	req.Applies = func(ctx context.Context) bool { return r.taskApplies(ctx, task) }
+	req.Resend = task.resend
+	return req
+}
+
+// taskApplies: the PR is still open at the head the request was written for and some problem it names remains. GitHub
+// not answering proves nothing: the request keeps applying.
+func (r *Restarter) taskApplies(ctx context.Context, task *handoffTask) bool {
+	now := r.readPrNow(ctx, task.req.PrKey, task.req.Dir)
+	if !now.read {
+		return true
+	}
+	if now.state != "" && now.state != "OPEN" {
+		return false
+	}
+	if isOid(task.head) && now.head != "" && !strings.EqualFold(now.head, task.head) {
+		return false
+	}
+	return task.remains == nil || task.remains(now)
 }
 
 // prNow is the PR as GitHub has it now.
@@ -234,6 +313,9 @@ func (r *Restarter) stillOnIt(task handedTask) bool {
 	if task.blockId == "" {
 		return false
 	}
+	if task.queued && r.env.HandoffQueued != nil && r.env.HandoffQueued(task.blockId) {
+		return true
+	}
 	run, ok := r.agentRunOf(task.blockId)
 	return ok && run.Running && (run.State == molten.AgentStateWorking || run.State == molten.AgentStateWaiting)
 }
@@ -259,7 +341,8 @@ func (r *Restarter) noteHanded(kind string, k PrKey, head string, res RestartRes
 			delete(r.handed, key)
 		}
 	}
-	r.handed[handedKey{k, kind, strings.ToLower(head)}] = handedTask{at: now, blockId: res.BlockId, firstName: res.FirstName, agentName: res.AgentName}
+	r.handed[handedKey{k, kind, strings.ToLower(head)}] = handedTask{at: now, blockId: res.BlockId, firstName: res.FirstName,
+		agentName: res.AgentName, queued: res.Status == RestartQueued}
 }
 
 // pushSeen tells the Integration list that a followed agent pushed its branch.
