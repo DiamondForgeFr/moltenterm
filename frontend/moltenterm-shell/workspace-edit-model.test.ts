@@ -56,9 +56,9 @@ describe("names for screen readers (NFR-SHELL-014)", () => {
         const icons = goList("WorkspaceIcons");
         expect(icons.length).toBeGreaterThan(0);
         for (const icon of icons) {
-            expect(iconName(icon), icon).toMatch(/^[A-Z][a-z ]+$/);
+            expect(iconName(icon), icon).toMatch(/^[A-Z][A-Za-z ]+$/);
         }
-        expect(iconName("custom@wave-logo-solid")).toBe("Wave");
+        expect(iconName("custom@wave-logo-solid")).toBe("MoltenTerm");
         expect(iconName("graduation-cap")).toBe("Graduation cap");
         expect(iconName("rocket")).toBe("Rocket");
         expect(iconName("solid@paper-plane")).toBe("Paper plane");

@@ -28,7 +28,8 @@ export type ConfigFile = {
     language?: string;
     deprecated?: boolean;
     description?: string;
-    docsUrl?: string;
+    // MOLTENTERM-PATCH (#2124): no docsUrl field; Wave's pointed to docs.waveterm.dev and MoltenTerm has no public documentation site yet.
+    // A Wave merge that brings docsUrl entries back fails the type check: drop them again.
     validator?: ConfigValidator;
     isSecrets?: boolean;
     hasJsonView?: boolean;
@@ -67,14 +68,12 @@ export function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             name: "Settings", // MOLTENTERM-PATCH (#404): Wave named it General
             path: "settings.json",
             language: "json",
-            docsUrl: "https://docs.waveterm.dev/config",
             hasJsonView: true,
         },
         {
             name: "Connections",
             path: "connections.json",
             language: "json",
-            docsUrl: "https://docs.waveterm.dev/connections",
             description: isWindows ? "SSH hosts and WSL distros" : "SSH hosts",
             hasJsonView: true,
         },
@@ -82,7 +81,6 @@ export function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             name: "Rail widgets", // MOLTENTERM-PATCH (#404): the rail replaces Wave's sidebar
             path: "widgets.json",
             language: "json",
-            docsUrl: "https://docs.waveterm.dev/customwidgets",
             hasJsonView: true,
         },
         {
@@ -90,7 +88,6 @@ export function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             path: "waveai.json",
             language: "json",
             description: "Local models and BYOK",
-            docsUrl: "https://docs.waveterm.dev/waveai-modes",
             validator: validateWaveAiJson,
             hasJsonView: true,
             // visualComponent: WaveAIVisualContent,
@@ -99,7 +96,6 @@ export function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             name: "Tab backgrounds", // MOLTENTERM-PATCH (#404): sentence case
             path: "backgrounds.json",
             language: "json",
-            docsUrl: "https://docs.waveterm.dev/tab-backgrounds",
             hasJsonView: true,
         },
         {
@@ -125,7 +121,6 @@ const deprecatedConfigFiles: ConfigFile[] = [
         path: "presets/ai.json",
         language: "json",
         deprecated: true,
-        docsUrl: "https://docs.waveterm.dev/ai-presets",
         validator: validateAiJson,
         hasJsonView: true,
     },
