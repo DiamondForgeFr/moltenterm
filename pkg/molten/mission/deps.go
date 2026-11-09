@@ -605,7 +605,7 @@ func (g *Groups) Deps(req GroupsRequest) ([]DependencyState, error) {
 		states = []DependencyState{}
 	}
 	// The groups and the notifications follow what was just read.
-	go g.Refreshed()
+	goRecovered("molten:mission:groups:refreshed", g.Refreshed)
 	return states, nil
 }
 

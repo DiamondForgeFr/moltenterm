@@ -69,6 +69,8 @@ func TestSetupPrNoticeSaysWhyAndOffersMarkReady(t *testing.T) {
 }
 
 // ghSetupPrAnswers: gh pr view answers, one per look; the last one repeats.
+const ghAnswerPanics = "panic"
+
 func ghSetupPrAnswers(answers ...string) (func(ctx context.Context, dir string, name string, args ...string) ([]byte, error), func() int) {
 	var lock sync.Mutex
 	looks := 0
@@ -82,6 +84,9 @@ func ghSetupPrAnswers(answers ...string) (func(ctx context.Context, dir string, 
 		looks++
 		if answer == "" {
 			return nil, errors.New("gh: could not connect")
+		}
+		if answer == ghAnswerPanics {
+			panic("gh blew up")
 		}
 		return []byte(answer), nil
 	}
@@ -134,6 +139,31 @@ func TestSetupPrWatchTellsOnceTheChecksAreGreen(t *testing.T) {
 	}
 	if len(published) != 0 {
 		t.Fatal("published twice")
+	}
+}
+
+// A round that panics ends that round only: the watch reads the pull request again and still tells (#2125).
+func TestSetupPrWatchGoesOnAfterAPanickingRound(t *testing.T) {
+	t.Parallel()
+	run, looks := ghSetupPrAnswers(ghAnswerPanics, setupPrJson(true, "SUCCESS"))
+	published := make(chan molten.NotificationInput, 4)
+	w := &SetupPrWatch{Run: run, Every: time.Millisecond, Rounds: 1000,
+		Publish: func(ctx context.Context, input molten.NotificationInput) error {
+			published <- input
+			return nil
+		}}
+	w.Watch("/p", 1787, setupPrUrl, "develop")
+	select {
+	case got := <-published:
+		if got.TitleText.Code != "notif.setup.prReadyTitle" {
+			t.Fatalf("published: %+v", got)
+		}
+	case <-time.After(time.Minute):
+		t.Fatal("the watch stopped after a panicking round")
+	}
+	waitSetupPrWatchIdle(t, w)
+	if n := looks(); n != 2 {
+		t.Fatalf("looks: %d", n)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // Detection (FR-CONT-006 AC2, AC5, AC6): the agent's program on the login PATH, launchers skipped, and
@@ -212,6 +213,9 @@ func (d *Detector) DetectAll(ctx context.Context, executables []string, env Dete
 	for _, exe := range executables {
 		wg.Add(1)
 		go func(exe string) {
+			defer func() {
+				panichandler.PanicHandler("molten:agentcontinuity:detect", recover())
+			}()
 			defer wg.Done()
 			result := d.Detect(ctx, exe, env)
 			lock.Lock()

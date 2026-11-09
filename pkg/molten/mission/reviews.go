@@ -719,7 +719,7 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 		go r.readReports(dir)
 	}
 	if start := r.prepareShips(&answer, snap, req.Force); start {
-		go r.readShips(dir)
+		goRecovered("molten:mission:reviews:ships", func() { r.readShips(dir) })
 	}
 	return answer, nil
 }

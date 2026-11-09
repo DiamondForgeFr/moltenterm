@@ -17,6 +17,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 )
 
@@ -159,6 +160,9 @@ func endCodexAppServer(cmd *exec.Cmd, stdin io.Closer, done <-chan struct{}, gra
 // readCodexMessages reads the server's lines, each at most codexMaxLineBytes and codexMaxOutputBytes in all, until
 // stop closes; a line that is not a JSON-RPC message is skipped, a longer one ends the read.
 func readCodexMessages(r io.Reader, out chan<- codexRpcMessage, stop <-chan struct{}) {
+	defer func() {
+		panichandler.PanicHandler("molten:usage:codexappserver:read", recover())
+	}()
 	defer close(out)
 	scanner := bufio.NewScanner(io.LimitReader(r, codexMaxOutputBytes))
 	scanner.Buffer(make([]byte, 0, 64*1024), codexMaxLineBytes)

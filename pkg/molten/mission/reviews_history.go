@@ -371,7 +371,7 @@ func (r *Reviews) MergedHistory(req MergedHistoryRequest) (MergedHistoryAnswer, 
 	}
 	answer.Repo, answer.Url = snap.Github.Repo, snap.Github.Url
 	if r.prepareHistory(dir, snap, answer.Target, req.Force) {
-		go r.readHistory(dir)
+		goRecovered("molten:mission:reviews:history", func() { r.readHistory(dir) })
 	}
 	return r.historyAnswer(dir, answer), nil
 }

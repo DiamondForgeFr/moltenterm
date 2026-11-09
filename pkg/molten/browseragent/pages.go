@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // The navigation and reading tools (FR-BRW-009, DS-BRW-014/015): navigate, read_page, get_page_text, find and the
@@ -410,6 +411,9 @@ func (m *Manager) readTree(ctx context.Context, key TabKey) (*axDoc, error) {
 	for _, backendId := range editable {
 		wg.Add(1)
 		go func(backendId int64) {
+			defer func() {
+				panichandler.PanicHandler("molten:browseragent:describe", recover())
+			}()
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()

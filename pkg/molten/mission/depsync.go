@@ -434,7 +434,7 @@ func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 	}
 	go g.runSync(s, rec)
 	// The flag shows the sync running; its end refreshes the groups through the collector (the run event).
-	go g.Refreshed()
+	goRecovered("molten:mission:groups:refreshed", g.Refreshed)
 	return RunResult{Run: &rec}, nil
 }
 
@@ -778,6 +778,6 @@ func (g *Groups) endSync(rec RunRecord, state string, exit *int, outcome string,
 	}
 	g.runs.prune(rec.Dir)
 	if g.collector == nil {
-		go g.Refreshed()
+		goRecovered("molten:mission:groups:refreshed", g.Refreshed)
 	}
 }

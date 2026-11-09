@@ -587,6 +587,9 @@ func (c *Collector) refresh(dir string, plan refreshPlan) {
 func (c *Collector) startRefresh(dir string, plan refreshPlan) {
 	c.addInflight(1)
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:mission:collector:refresh", recover())
+		}()
 		defer c.addInflight(-1)
 		c.refresh(dir, plan)
 	}()
@@ -684,8 +687,9 @@ func Start() {
 	var reviews *Reviews
 	collector := MakeCollector(CacheDir(dataDir), ExecRunner, func(snap Snapshot) {
 		publishSnapshot(snap)
-		go groups.Refreshed()
-		go reviews.Refreshed(snap)
+		goRecovered("molten:mission:groups:refreshed", groups.Refreshed)
+		rv := reviews
+		goRecovered("molten:mission:reviews:refreshed", func() { rv.Refreshed(snap) })
 	})
 	// The sessions list reads its PRs from this cache (#933).
 	useSessionCollector(collector)
@@ -705,11 +709,12 @@ func Start() {
 		}
 		publishCiRun(rec)
 		if rec.Status != CiStateRunning {
-			go groups.Refreshed()
+			goRecovered("molten:mission:groups:refreshed", groups.Refreshed)
 		}
 		// The Integration cards read the local CI's statuses with it (#1713): a run that starts or ends shows at once.
 		if rec.Status != CiStateRunning || ciRunJustStarted(rec) {
-			go reviews.CiChanged(rec.Dir)
+			rv := reviews
+			goRecovered("molten:mission:reviews:cichanged", func() { rv.CiChanged(rec.Dir) })
 		}
 	})
 	runs.UseCi(ci)
@@ -728,8 +733,10 @@ func Start() {
 	groups.UseSync(MakeDepAcks(DepAcksDir(dataDir)), DepSyncTreesDir(dataDir))
 	// The rail keeps a product's workspaces together (FR-MC-027), and a move changes the member order the groups show.
 	// A project product takes the local rail groups' members it shows (FR-MC-032), with a notification.
-	railorder.SetGrouping(ProductWorkspaces, func() { go groups.Reordered() }, func(displaced []railorder.Displaced) {
-		go notifyRailGroups(displaced)
+	railorder.SetGrouping(ProductWorkspaces, func() {
+		goRecovered("molten:mission:groups:reordered", groups.Reordered)
+	}, func(displaced []railorder.Displaced) {
+		goRecovered("molten:mission:railgroups:notify", func() { notifyRailGroups(displaced) })
 	})
 	// The groups become workspaces of several projects, once (FR-SHELL-087).
 	startProjectsMigration()
