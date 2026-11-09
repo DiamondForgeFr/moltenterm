@@ -111,6 +111,28 @@ func (s *fakeServer) connections() int {
 	return s.conns
 }
 
+func (s *fakeServer) statusLineRequests() int {
+	n := 0
+	for _, req := range s.requests() {
+		if req.Command == AgentStatusLineCommand {
+			n++
+		}
+	}
+	return n
+}
+
+// liftStatusLineLimits takes the clock out of the status line relay: its wait for the hand-off and the hand-off's own
+// deadline become a bound on a failing run, and the resend time cannot pass. Each run then returns once its hand-off is
+// recorded, however loaded the machine is (#2134). Tests of the package are not parallel: they share these variables.
+func liftStatusLineLimits(t *testing.T) {
+	t.Helper()
+	savedWait, savedLimit, savedNow := relaySendTimeout, handOffTimeout, statusLineNow
+	t.Cleanup(func() { relaySendTimeout, handOffTimeout, statusLineNow = savedWait, savedLimit, savedNow })
+	frozen := time.Now()
+	relaySendTimeout, handOffTimeout = time.Minute, time.Minute
+	statusLineNow = func() time.Time { return frozen }
+}
+
 // testToken is a token shaped like a terminal's: wavesrv checks the signature, the client never does.
 func testToken(sock string, blockId string) string {
 	enc := base64.RawURLEncoding
@@ -243,11 +265,10 @@ func TestRunFastHandsTheRestToWsh(t *testing.T) {
 
 const relayInput = `{"session_id":"s","rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1738425600},"seven_day":{"used_percentage":41,"resets_at":1738857600}}}`
 
-// The relay hands the same windows over once, and again only when they change or the resend time is past.
-func TestRunFastStatusLineSendsUnchangedWindowsOnce(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("sh")
-	}
+// startStatusLineRelay: a fake wavesrv that keeps the windows, and a function that runs the relay once on an input, in
+// the pane block-2, with a cache folder of its own.
+func startStatusLineRelay(t *testing.T) (*fakeServer, string, func(input string) (int, string)) {
+	t.Helper()
 	s := startFakeServer(t, "")
 	token := testToken(s.sock, "block-2")
 	s.token = token
@@ -262,6 +283,18 @@ func TestRunFastStatusLineSendsUnchangedWindowsOnce(t *testing.T) {
 		}
 		return code, stdout.String()
 	}
+	return s, cache, run
+}
+
+// The relay hands the same windows over once, and again only when they change or the resend time is past. The hand-off's
+// limits and the clock are lifted (#2134): a loaded machine cut a hand-off short at 300 ms, which records nothing, and
+// the next run then connected a second time.
+func TestRunFastStatusLineSendsUnchangedWindowsOnce(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sh")
+	}
+	liftStatusLineLimits(t)
+	s, cache, run := startStatusLineRelay(t)
 	for i := 0; i < 3; i++ {
 		if code, out := run(relayInput); code != 0 || out != "ok" {
 			t.Fatalf("run %d: %d %q", i, code, out)
@@ -289,6 +322,36 @@ func TestRunFastStatusLineSendsUnchangedWindowsOnce(t *testing.T) {
 	}
 	if n := s.connections(); n != 2 {
 		t.Errorf("outside MoltenTerm nothing is sent: %d connections", n)
+	}
+}
+
+// A hand-off cut short by its limit records nothing, so the next run hands the windows over again: the status line is
+// never held for a slow wavesrv, and the windows are made up at the next run. The limit is already past: nothing is
+// timed (#2134).
+func TestRunFastStatusLineCutShortHandOffIsMadeUpAtTheNextRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sh")
+	}
+	liftStatusLineLimits(t)
+	s, cache, run := startStatusLineRelay(t)
+	handOffTimeout = -time.Minute
+	if code, out := run(relayInput); code != 0 || out != "ok" {
+		t.Fatalf("cut short: %d %q", code, out)
+	}
+	if n := s.statusLineRequests(); n != 0 {
+		t.Fatalf("a hand-off past its limit reached wavesrv: %d requests", n)
+	}
+	if entries, _ := os.ReadDir(cache); len(entries) != 0 {
+		t.Fatalf("a hand-off wavesrv did not answer is remembered: %d entries", len(entries))
+	}
+	handOffTimeout = time.Minute
+	for i := 0; i < 2; i++ {
+		if code, out := run(relayInput); code != 0 || out != "ok" {
+			t.Fatalf("run %d: %d %q", i, code, out)
+		}
+	}
+	if n := s.statusLineRequests(); n != 1 {
+		t.Errorf("the next run hands the windows over, the one after does not: %d requests, want 1", n)
 	}
 }
 

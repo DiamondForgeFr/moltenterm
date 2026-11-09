@@ -611,7 +611,7 @@ func (ws *WshServer) GetFullConfigCommand(ctx context.Context) (wconfig.FullConf
 func (ws *WshServer) GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AIModeConfigUpdate, error) {
 	fullConfig := wconfig.GetWatcher().GetFullConfig()
 	resolvedConfigs := aiusechat.ComputeResolvedAIModeConfigs(fullConfig)
-	return wconfig.AIModeConfigUpdate{Configs: resolvedConfigs}, nil
+	return wconfig.AIModeConfigUpdate{Configs: moltenListedAIModes(ctx, resolvedConfigs)}, nil // MOLTENTERM-PATCH (#2119): no tokens for a server
 }
 
 func (ws *WshServer) ConnStatusCommand(ctx context.Context) ([]wshrpc.ConnStatus, error) {
@@ -872,7 +872,7 @@ func (ws *WshServer) BlockInfoCommand(ctx context.Context, blockId string) (*wsh
 		BlockId:     blockId,
 		TabId:       tabId,
 		WorkspaceId: workspaceId,
-		Block:       blockData,
+		Block:       moltenListedBlock(ctx, blockData), // MOLTENTERM-PATCH (#2119): the meta getmeta would return
 		Files:       fileInfoList,
 	}, nil
 }

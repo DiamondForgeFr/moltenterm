@@ -22,6 +22,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 const (
@@ -356,18 +357,30 @@ func (d *Differ) listFiles(ctx context.Context, dir string, base string, head st
 	var wg sync.WaitGroup
 	wg.Add(4)
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:review:diff:numstat", recover())
+		}()
 		defer wg.Done()
 		counts, _ = d.git(ctx, dir, "diff", "--numstat", "-z", "-M", "--no-ext-diff", "--no-textconv", base, head)
 	}()
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:review:diff:oldsizes", recover())
+		}()
 		defer wg.Done()
 		oldSizes = d.sizes(ctx, dir, base, oldPaths)
 	}()
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:review:diff:newsizes", recover())
+		}()
 		defer wg.Done()
 		newSizes = d.sizes(ctx, dir, head, newPaths)
 	}()
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:review:diff:generated", recover())
+		}()
 		defer wg.Done()
 		generated = d.linguistGenerated(ctx, dir, head, newPaths)
 	}()

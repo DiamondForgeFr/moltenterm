@@ -88,6 +88,30 @@ export function usageReasonText(reason: string, agent?: string): string {
     return t(`companion.gauges.reason.${known}`);
 }
 
+// The ids of the gauges sources (pkg/molten/usage, GaugesSource.Id). wavesrv names a source in English, for the agents
+// and the logs that read it; the section names it from its id, in the interface language (#2123).
+export const UsageSourceIds = ["claude-statusline", "claude-oauth", "codex-transcript", "codex-appserver"];
+
+// The source's name in the interface language; `given` (wavesrv's own) stands in for an id this window does not know.
+export function usageSourceName(id: string, given = ""): string {
+    return UsageSourceIds.includes(id) ? t(`companion.gauges.source.${id}`) : given;
+}
+
+// The sources a reading came from ("ligne d'état de Claude Code et service d'utilisation d'Anthropic"): the ids of its
+// merged snapshot, in the order wavesrv merged them. When one is unknown the whole line stays as wavesrv worded it,
+// rather than a half-translated list.
+export function usageSourcesText(info: CompanionUsageInfo): string {
+    const ids = (info?.snapshot?.source ?? "").split(",").filter((id) => id !== "");
+    if (ids.length === 0 || !ids.every((id) => UsageSourceIds.includes(id))) {
+        return info?.sourcename ?? "";
+    }
+    const names = ids.map((id) => usageSourceName(id));
+    if (names.length === 1) {
+        return names[0];
+    }
+    return t("companion.gauges.sourceAnd", { list: names.slice(0, -1).join(", "), last: names[names.length - 1] });
+}
+
 export type GaugeLevel = "normal" | "warning" | "error";
 
 // percentShort and resetsShort: the words of a one-line list ("23.5 %", "in 2 h"). `line` is what the week grid draws
@@ -291,7 +315,7 @@ export function experimentalView(info: CompanionUsageInfo): ExperimentalView {
         return { kind: "none" };
     }
     if (!exp.on) {
-        return { kind: "off", statement: experimentalStatement(exp.store, exp.name) };
+        return { kind: "off", statement: experimentalStatement(exp.store, usageSourceName(exp.source, exp.name)) };
     }
     // Waiting is its first answer on the way, not a failure.
     const failed = exp.reason && exp.reason !== "waiting";
@@ -324,7 +348,7 @@ export function gaugesView(info: CompanionUsageInfo, now: number): GaugesView {
         agent: info.agent,
         now,
         rows,
-        source: info.sourcename ?? "",
+        source: usageSourcesText(info),
         age: at ? t("companion.gauges.updated", { ago: relativeTime(at, now) }) : "",
         credits,
     };

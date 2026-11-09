@@ -321,6 +321,7 @@ func (r *Restarter) followInvestigation(ctx context.Context, f agentFollow, st *
 		r.holdCi(f, st)
 		return true
 	}
+	r.notePush(f, st, facts)
 	if message, text, ok := treeNeeds(name, f.req.HeadRef, facts); ok {
 		r.needsYou(ctx, f, st, name, message, text)
 		return true

@@ -138,6 +138,10 @@ type RestartResult struct {
 	// Subagent (#1955): the result is about a sub-agent of the agent FirstName and BlockId name: it works on the PR
 	// (RestartReasonSubagentBusy), or its lead was asked to continue it (Lead is then set too).
 	Subagent bool `json:"subagent,omitempty"`
+	// Head (#2145): the PR's head on GitHub when the hand-off was checked against it; with RestartStale, the head the
+	// card did not know. HandedAt (ms): when the hand-off the same task already got was sent (RestartReasonAlreadyHanded).
+	Head     string `json:"head,omitempty"`
+	HandedAt int64  `json:"handedat,omitempty"`
 }
 
 // RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now; Gone:
@@ -205,6 +209,12 @@ type RestartEnv struct {
 	// BranchAgents (#1955, owners.go): the agents on the project's branches, as the Integration rows show them; false when
 	// they cannot be read. nil reads none.
 	BranchAgents func(ctx context.Context, dir string) ([]mission.BranchAgent, bool)
+	// PushSeen (#2145, handoff_guard.go): a branch's head is at oid on GitHub, which the Integration list may not show
+	// yet, or a followed agent pushed it; the list reads the PR again at once. nil tells nobody.
+	PushSeen func(dir string, branch string, oid string)
+	// HandoffQueued (#2145): a request still waits for the agent's prompt in the handoffs' queue; a hand-off that waits
+	// there is handled. nil: none does.
+	HandoffQueued func(blockId string) bool
 }
 
 type Restarter struct {
@@ -213,6 +223,8 @@ type Restarter struct {
 
 	lock    sync.Mutex
 	running map[PrKey]bool
+	// The hand-offs sent and still handled, by task, PR and head (handoff_guard.go).
+	handed map[handedKey]handedTask
 }
 
 func MakeRestarter(store *Store, env RestartEnv) *Restarter {
@@ -225,7 +237,7 @@ func MakeRestarter(store *Store, env RestartEnv) *Restarter {
 	if env.LeadStartPoll <= 0 {
 		env.LeadStartPoll = defaultLeadStartPoll
 	}
-	return &Restarter{env: env, store: store, running: map[PrKey]bool{}}
+	return &Restarter{env: env, store: store, running: map[PrKey]bool{}, handed: map[handedKey]handedTask{}}
 }
 
 func (r *Restarter) claim(k PrKey) bool {

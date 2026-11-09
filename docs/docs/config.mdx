@@ -77,7 +77,7 @@ wsh editconfig
 | term:cursorblink <VersionBadge version="v0.14" />                   | bool     | when enabled, terminal cursor blinks (default false)                                                                                                                                                                                                          |
 | term:bellsound <VersionBadge version="v0.14" />                      | bool     | when enabled, plays the system beep sound when the terminal bell (BEL character) is received (default false)                                                                                                                                                  |
 | term:bellindicator <VersionBadge version="v0.14" />                  | bool     | when enabled, shows a visual indicator in the tab when the terminal bell is received (default false)                                                                                                                                                           |
-| term:osc52 <VersionBadge version="v0.14" />                          | string   | controls OSC 52 clipboard behavior: `always` (default, allows OSC 52 at any time) or `focus` (requires focused window and focused block)                                                                                                                     |
+| term:osc52 <VersionBadge version="v0.14" />                          | string   | controls OSC 52 clipboard behavior: `focus` (default, a program may write the clipboard only from the focused block of the focused window) or `always` (any terminal, focused or not)                                                                         |
 | term:durable <VersionBadge version="v0.14" />                        | bool     | makes remote terminal sessions durable across network disconnects (defaults to false)                                                                                                                                                                           |
 | term:showsplitbuttons <VersionBadge version="v0.15" />               | bool     | when enabled, shows split horizontal and vertical buttons in the terminal block header (defaults to false)                                                                                                                                                      |
 | editor:minimapenabled                | bool     | set to false to disable editor minimap                                                                                                                                                                                                                        |
@@ -157,7 +157,7 @@ For reference, this is the current default configuration (v0.14.0):
     "telemetry:enabled": true,
     "term:bellsound": false,
     "term:bellindicator": false,
-    "term:osc52": "always",
+    "term:osc52": "focus",
     "term:cursor": "block",
     "term:cursorblink": false,
     "term:copyonselect": true,

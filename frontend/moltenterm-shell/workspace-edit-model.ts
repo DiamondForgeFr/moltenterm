@@ -14,7 +14,7 @@ export function emptyNameError(): string {
 }
 
 const IconNames: Record<string, string> = {
-    "custom@wave-logo-solid": "workspace.icons.wave",
+    "custom@wave-logo-solid": "workspace.icons.moltenterm",
     "solid@cloud": "workspace.icons.cloud",
     "layer-group": "workspace.icons.layers",
     "chart-line": "workspace.icons.chart",

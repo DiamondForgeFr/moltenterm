@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 // A request MoltenTerm itself writes to an agent (#1143): the developer's click in a window is its approval, so no
@@ -35,6 +37,16 @@ type AppRequest struct {
 	Goal      string
 	Context   string
 	Closing   string
+	// Key names the task (#2145): a request whose key is already queued for the receiver is not queued twice, the
+	// answer names the brief that waits.
+	Key string
+	// Applies tells whether the request still applies to the world it was written for (the PR is open, its head is the
+	// one asked about, a problem remains). It is asked before a queued request is typed, now and then while it waits,
+	// and before the developer is told it did not arrive: false drops the request without a word. nil: it always
+	// applies. A request that waits an hour is not the request the developer clicked.
+	Applies func(ctx context.Context) bool
+	// Resend is the notification action that sends the request again, offered when it expired and still applies.
+	Resend *molten.NotificationAction
 }
 
 // LeadQuery names the lead agent a piece of work belongs to (#1779). FirstName and Agent come from the work's
@@ -168,11 +180,16 @@ func (m *Manager) SendFromApp(ctx context.Context, req AppRequest) (AppSent, err
 	brief.Closing = cut(cleanBlock(req.Closing), maxContextLen)
 	from := Party{FirstName: AppName, App: true}
 	to := m.party(req.ToBlockId, run, true, loc)
+	if path, queued := m.queuedWithKey(req.ToBlockId, req.Key); queued {
+		m.logf("%s MoltenTerm to=%q already queued, not queued twice: %s\n", logPrefix, to.callName(), path)
+		return AppSent{Status: StatusQueued, To: to.FirstName, BriefPath: path, OutcomePath: OutcomePathOf(path)}, nil
+	}
 	path, err := writeBrief(m.env.DataDir(), from, to, brief, m.now())
 	if err != nil {
 		return AppSent{}, fmt.Errorf("MoltenTerm could not write the brief: %v", err)
 	}
-	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now()}
+	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now(),
+		key: req.Key, applies: req.Applies, resend: req.Resend}
 	res, err := m.deliver(ctx, d)
 	if err != nil {
 		return AppSent{}, err

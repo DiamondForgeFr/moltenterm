@@ -195,6 +195,7 @@ GitHub is unavailable, sign on the developer's Mac and upload to the draft relea
 ```bash
 git checkout vX.Y.Z && npm ci && task clean && task build:backend && task build:tsunamiscaffold
 MOLTENTERM_BUILD_CHANNEL=public npm run build:prod   # rc for a release candidate
+node scripts/moltenterm-notices.mjs                  # the third-party notices; the package is refused without them
 # the seven variables of the table above, read from the password manager into this shell only
 node scripts/macos-signing/package.mjs package -c.publish.provider=github -c.publish.owner=DiamondForgeFr -c.publish.repo=moltenterm
 ```
@@ -274,10 +275,17 @@ On a separate macOS user that never ran MoltenTerm:
 
 On a machine or VM with a desktop session:
 
-- [ ] AppImage: `chmod +x MoltenTerm-*.AppImage`, then run it. The same points as macOS, from the first run to the
-      durable session.
-- [ ] deb: `sudo apt install ./moltenterm-linux-*.deb` (dependencies resolve), then start it from the menu. The same
-      points. Uninstall with `sudo apt remove moltenterm`.
+- [ ] AppImage: `chmod +x moltenterm-linux-*.AppImage`, then run it (the files are `moltenterm-linux-x86_64-<version>.AppImage`
+      and `moltenterm-linux-arm64-<version>.AppImage`). The same points as macOS, from the first run to the durable
+      session.
+- [ ] deb: `sudo apt install ./moltenterm-linux-*.deb` (dependencies resolve; the files are
+      `moltenterm-linux-amd64-<version>.deb` and `moltenterm-linux-arm64-<version>.deb`), then start it from the menu.
+      The same points. Uninstall with `sudo apt remove moltenterm`.
+- [ ] Ubuntu 23.10 or later (once per release): the README tells those users to install the `.deb`, because AppArmor
+      restricts unprivileged user namespaces there (`kernel.apparmor_restrict_unprivileged_userns`) and an AppImage
+      cannot carry the setuid `chrome-sandbox` that the deb sets (`build/moltenterm/deb-postinstall.tpl`). That is
+      expected, not tested yet. Run the AppImage on such a machine and note on the release ticket whether it starts;
+      change the README's Linux note if it does.
 
 ### 3. Next to the gold (the developer's Mac)
 

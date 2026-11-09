@@ -18,6 +18,7 @@ type fakeOps struct {
 	calls       []string
 	attachErr   error
 	tabWs       map[string]string
+	blockWs     map[string]string
 	activeTab   map[string]string
 	terminateEr error
 	// onCreate runs when a pane is made (the list changing meanwhile).
@@ -83,6 +84,14 @@ func (f *fakeOps) WorkspaceOfTab(ctx context.Context, tabId string) (string, err
 	return ws, nil
 }
 
+func (f *fakeOps) WorkspaceOfBlock(ctx context.Context, blockId string) (string, error) {
+	ws, ok := f.blockWs[blockId]
+	if !ok {
+		return "", errors.New("no such block")
+	}
+	return ws, nil
+}
+
 func (f *fakeOps) ActiveTab(ctx context.Context, workspaceId string) (string, error) {
 	return f.activeTab[workspaceId], nil
 }
@@ -114,7 +123,7 @@ func (f *fakeOps) trace() string {
 func makeTestActions(sessions ...molten.DurableSession) (*Actions, *fakeBuild, *fakeOps) {
 	f := &fakeBuild{}
 	f.set(sessions...)
-	ops := &fakeOps{tabWs: map[string]string{"tabA": "wsA", "tabB": "wsB", "tabB2": "wsB"}, activeTab: map[string]string{"wsB": "tabB2"}}
+	ops := &fakeOps{tabWs: map[string]string{"tabA": "wsA", "tabB": "wsB", "tabB2": "wsB"}, blockWs: map[string]string{}, activeTab: map[string]string{"wsB": "tabB2"}}
 	return MakeActions(MakeModel(f.build, f.publish), ops), f, ops
 }
 

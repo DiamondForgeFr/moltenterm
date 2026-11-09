@@ -566,7 +566,8 @@ func (l *routeLink) route() localroute.Route {
 			if command == TrustCommand {
 				l.asks.Granted(requestDir(data))
 				// A card waiting for this approval (#1713) leaves its state at once.
-				go l.reviews.CiChanged(requestDir(data))
+				rv, dir := l.reviews, requestDir(data)
+				goRecovered("molten:mission:reviews:cichanged", func() { rv.CiChanged(dir) })
 				return answer, nil
 			}
 			// A window shows its own trust sheet; a terminal (an agent, a script) can only be answered by a notification.

@@ -36,6 +36,11 @@ type HookInput struct {
 	AgentId             string `json:"agent_id"`
 	AgentType           string `json:"agent_type"`
 	AgentTranscriptPath string `json:"agent_transcript_path"`
+	// ToolName, ToolDescription (tool_input.description), BackgroundTaskId (tool_response.backgroundTaskId): a
+	// PostToolUse's, to tell a command left running in the background (backgroundtask.go, #2140).
+	ToolName         string `json:"tool_name"`
+	ToolDescription  string `json:"-"`
+	BackgroundTaskId string `json:"-"`
 	// Provider is not in the input: runHook sets the provider host the hook's env names (provider.go).
 	Provider string `json:"-"`
 }

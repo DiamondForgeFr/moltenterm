@@ -134,7 +134,9 @@ tasks:
     package:
         desc: Package the application for the current platform.
         cmds:
-            - npm run build:prod && npm exec electron-builder -- -c electron-builder.config.cjs -p never {{.CLI_ARGS}}
+            # MOLTENTERM-PATCH (#2126): the third-party notices are generated from the bundler's module graph and the Go
+            # modules just built, before electron-builder ships them (its afterPack hook fails a package without them).
+            - npm run build:prod && node scripts/moltenterm-notices.mjs && npm exec electron-builder -- -c electron-builder.config.cjs -p never {{.CLI_ARGS}}
         deps:
             - clean
             - npm:install

@@ -107,10 +107,18 @@ func TestModelTicks(t *testing.T) {
 	m := MakeModel(f.build, f.publish)
 	m.tick = 20 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go m.Run(ctx)
-	time.Sleep(110 * time.Millisecond)
-	cancel()
-	if builds, _ := f.counts(); builds < 3 {
-		t.Fatalf("the tick builds: %d builds", builds)
+	// No trigger is sent: only the tick can build, so three builds prove it ticks (#2120, load-proof).
+	deadline := time.Now().Add(time.Minute)
+	for {
+		builds, _ := f.counts()
+		if builds >= 3 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the tick builds: %d builds", builds)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

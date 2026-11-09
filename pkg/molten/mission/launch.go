@@ -691,6 +691,9 @@ func (l *Launches) stopServers(state *LaunchState) {
 		}
 		wg.Add(1)
 		go func(pid int) {
+			defer func() {
+				panichandler.PanicHandler("molten:mission:launch:stop", recover())
+			}()
 			defer wg.Done()
 			l.stopGroup(pid)
 		}(step.Pid)
@@ -1193,6 +1196,11 @@ func (l *Launches) runServer(ctx context.Context, state *LaunchState, i int) boo
 	l.exited[pid] = exited
 	l.lock.Unlock()
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:mission:launch:server-exit", recover())
+		}()
+		// Deferred so that the end is announced even when recording it panics.
+		defer close(exited)
 		err := cmd.Wait()
 		exitCode := 0
 		var exitErr *exec.ExitError
@@ -1201,7 +1209,6 @@ func (l *Launches) runServer(ctx context.Context, state *LaunchState, i int) boo
 		}
 		// Recorded before the end is announced: whoever waits for it then reads the state it left.
 		l.serverExited(state.Dir, state.Id, i, pid, exitCode)
-		close(exited)
 	}()
 	l.stepState(state.Dir, state.Id, i, func(s *LaunchStep) {
 		s.State = LaunchStepRunning

@@ -47,11 +47,13 @@ func codexSessionTest(t *testing.T, withLimits bool) (*Manager, *gaugesEnv, *fak
 	return m, g, fake, path
 }
 
+// waitLimits polls until the session the companion follows in b2 matches. Before the companion found the session,
+// CodexLimits answers empty limits that are not loading: they must not count as "read through".
 func waitLimits(t *testing.T, m *Manager, ok func(usage.CodexTranscriptLimits) bool) {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		if lim, _ := m.CodexLimits("b2"); ok(lim) {
+		if lim, followed := m.CodexLimits("b2"); followed && ok(lim) {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
@@ -172,6 +174,9 @@ func TestAutomaticReadsPauseWhileTheWindowIsHidden(t *testing.T) {
 	m, g, fake, _ := codexSessionTest(t, false)
 	m.SetUsageGauges("b2", true)
 	g.write([]string{"codex"})
+	// Showing the gauges makes the companion read the session again from its start, and a session being read starts no
+	// process. Its first publication is the end of that read: nothing reads on the test's behalf after it.
+	waitPublished(t, g, "b2", func(UsageInfo) bool { return true })
 	usage.DefaultCodexUsage.Reset()
 	runs := fake.count()
 	// A window that does not show asks without fetch: the app-server never starts for it.

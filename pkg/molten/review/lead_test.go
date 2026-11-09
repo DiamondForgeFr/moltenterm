@@ -164,9 +164,17 @@ func TestResumeHandsTheBriefOnce(t *testing.T) {
 	if sent := f.sentRequests(); len(sent) != 1 {
 		t.Fatalf("the brief is sent once: %+v", sent)
 	}
-	again, _ := f.r.AskFinish(context.Background(), f.leadRequest())
+	// Once answered, the same ask for the same head is handled by the lead (#2145): nothing more is sent; the PR's next
+	// head is a new ask.
+	same, _ := f.r.AskFinish(context.Background(), f.leadRequest())
+	if same.Status != RestartBusy || same.Reason != RestartReasonAlreadyHanded || len(f.sentRequests()) != 1 {
+		t.Fatalf("the same ask for the same head: %+v", same)
+	}
+	next := f.leadRequest()
+	next.HeadOid = "89abcdef0123456789abcdef0123456789abcdef"
+	again, _ := f.r.AskFinish(context.Background(), next)
 	if again.Status != RestartSent || len(f.sentRequests()) != 2 {
-		t.Fatalf("once answered, the next click is a new ask: %+v", again)
+		t.Fatalf("a new head is a new ask: %+v", again)
 	}
 }
 
@@ -218,14 +226,23 @@ func TestResumeReportsHowTheLeadTookTheBrief(t *testing.T) {
 	t.Parallel()
 	f := makeLeadFixture(t)
 	f.arthurRuns()
+	// Each ask is for another head: the same one, while handled, is not sent twice (#2145).
+	heads := []string{"1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222", "3333333333333333333333333333333333333333"}
+	ask := func(i int) RestartResult {
+		req := f.leadRequest()
+		req.HeadOid = heads[i]
+		return f.askFinish(req)
+	}
+	i := 0
 	for status, want := range map[string]string{agenthandoff.StatusQueued: RestartQueued, agenthandoff.StatusTyped: RestartTyped} {
 		f.sendOut.Status = status
-		if res := f.askFinish(f.leadRequest()); res.Status != want || !res.Lead || res.BlockId != "lead-block" {
+		if res := ask(i); res.Status != want || !res.Lead || res.BlockId != "lead-block" {
 			t.Fatalf("%s: %+v", status, res)
 		}
+		i++
 	}
 	f.sendErr = errors.New("Not delivered to Arthur: its terminal is closed")
-	res := f.askFinish(f.leadRequest())
+	res := ask(i)
 	if res.Status != RestartFailed || res.Reason != RestartReasonNotTyped || !strings.Contains(res.Message, "terminal is closed") {
 		t.Fatalf("result: %+v", res)
 	}

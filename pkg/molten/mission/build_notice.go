@@ -117,6 +117,7 @@ func (r *Runs) settle(rec *RunRecord) {
 	rec.Told = true
 	r.writeRecord(*rec)
 	if ok {
-		go r.notify(*rec, input)
+		told, notify := *rec, r.notify
+		goRecovered("molten:mission:build:notify", func() { notify(told, input) })
 	}
 }

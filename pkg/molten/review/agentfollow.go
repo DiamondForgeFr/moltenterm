@@ -15,6 +15,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // The clean end of an agent MoltenTerm started (#758). wavesrv follows it while its terminal lives: while it works,
@@ -58,6 +59,8 @@ type followState struct {
 	lastKey    string
 	checkedAt  time.Time
 	notice     string
+	// pushed: the head of the push already told to the Integration list (#2145).
+	pushed string
 	// An investigation (#896): the state MoltenTerm holds, when the agent stopped, and a failure seen once.
 	hold      string
 	stoppedAt time.Time
@@ -105,18 +108,33 @@ func (r *Restarter) startFollow(f agentFollow) {
 		return
 	}
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:review:agentfollow", recover())
+		}()
 		st := &followState{}
 		ticker := time.NewTicker(r.env.FollowEvery)
 		defer ticker.Stop()
 		for range ticker.C {
-			ctx, cancel := context.WithTimeout(context.Background(), followTimeout)
-			more := r.followStep(ctx, f, st)
-			cancel()
+			more := recoverStep("molten:review:agentfollow:step", func() bool {
+				ctx, cancel := context.WithTimeout(context.Background(), followTimeout)
+				defer cancel()
+				return r.followStep(ctx, f, st)
+			})
 			if !more {
 				return
 			}
 		}
 	}()
+}
+
+// recoverStep runs one step of a follow loop: a panic ends that step only, and the follow goes on at the next tick.
+func recoverStep(name string, step func() bool) (more bool) {
+	defer func() {
+		if panichandler.PanicHandler(name, recover()) != nil {
+			more = true
+		}
+	}()
+	return step()
 }
 
 // followStep reads the agent once; false when the follow ends (cleaned up, or its terminal is gone).
@@ -154,6 +172,7 @@ func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followSta
 		log.Printf("%s %s#%d: the agent's worktree could not be read: %v\n", logPrefix, f.req.Repo, f.req.Number, err)
 		return true
 	}
+	r.notePush(f, st, facts)
 	waiting := running && (run.State == molten.AgentStateWaiting || run.State == molten.AgentStateError)
 	if facts.pushed(f.startHead) && facts.clean() && !waiting {
 		r.finish(ctx, f, run)
@@ -170,6 +189,16 @@ func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followSta
 	}
 	r.noticeNeeds(ctx, f, st, run, running, facts)
 	return true
+}
+
+// notePush tells the Integration list that the followed agent pushed its branch (#2145), once per pushed head: the PR is
+// read again at once, not at the next minute of the list.
+func (r *Restarter) notePush(f agentFollow, st *followState, facts treeFacts) {
+	if !facts.pushed(f.startHead) || st.pushed == facts.head {
+		return
+	}
+	st.pushed = facts.head
+	r.pushSeen(f.req.Dir, f.req.HeadRef, facts.head)
 }
 
 func (r *Restarter) agentRunOf(blockId string) (molten.AgentRunInfo, bool) {

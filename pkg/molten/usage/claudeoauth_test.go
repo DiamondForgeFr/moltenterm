@@ -123,14 +123,15 @@ func tlsClientFor(srv *httptest.Server) *http.Client {
 }
 
 type oauthFixture struct {
-	src      *ClaudeOAuthSource
-	ep       *fakeEndpoint
-	clock    *fakeClock
-	creds    atomic.Int32
-	token    string
-	expires  int64
-	credsErr error
-	logs     *bytes.Buffer
+	src        *ClaudeOAuthSource
+	ep         *fakeEndpoint
+	clock      *fakeClock
+	creds      atomic.Int32
+	token      string
+	expires    int64
+	credsErr   error
+	credsPanic atomic.Bool
+	logs       *bytes.Buffer
 }
 
 // newOAuthFixture points a fresh source at a local https server, with fake credentials, and captures the log.
@@ -145,6 +146,9 @@ func newOAuthFixture(t *testing.T) *oauthFixture {
 		Client:   tlsClientFor(f.ep.srv),
 		Credentials: func(ctx context.Context) (string, int64, error) {
 			f.creds.Add(1)
+			if f.credsPanic.Load() {
+				panic("credentials store blew up")
+			}
 			return f.token, f.expires, f.credsErr
 		},
 		Store: func() string { return "the test store" },
@@ -763,5 +767,20 @@ func TestUnavailableErrorsCarryOnlyAReason(t *testing.T) {
 	err := Unavailable(ReasonDenied)
 	if err.Error() != "plan usage unavailable: denied" || !errors.As(err, new(*UnavailableError)) {
 		t.Errorf("error: %v", err)
+	}
+}
+
+// A call that panics ends as failed (#2125): the read gets its answer, and the next due read calls again.
+func TestClaudeOAuthPanickingCallEnds(t *testing.T) {
+	f := newOAuthFixture(t)
+	f.credsPanic.Store(true)
+	if _, err := f.src.Read(fetchCtx(), "b1"); ReasonOf(err) != ReasonFailed {
+		t.Fatalf("a panicking call answers failed: %v", err)
+	}
+	f.credsPanic.Store(false)
+	f.clock.add(oauthAutoInterval + time.Second)
+	snap, err := f.src.Read(fetchCtx(), "b1")
+	if err != nil || len(snap.Windows) == 0 || f.ep.hits.Load() != 1 {
+		t.Errorf("the next call runs after a panic: %v, %d windows, %d hits", err, len(snap.Windows), f.ep.hits.Load())
 	}
 }

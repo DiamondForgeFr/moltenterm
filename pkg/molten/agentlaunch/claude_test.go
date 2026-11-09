@@ -265,12 +265,16 @@ func TestClaudePlanStatusLineLevels(t *testing.T) {
 func TestClaudePlanSkipsUserHooks(t *testing.T) {
 	tree := makeFakeTree(t)
 	tree.write(t, tree.userSettings(), `{"hooks":{
-		"Stop":[{"hooks":[{"type":"command","command":"molten agent state done --agent claude"}]}],
+		"Notification":[{"hooks":[{"type":"command","command":"molten agent state waiting --agent claude --stdin"}]}],
+		"Stop":[{"hooks":[{"type":"command","command":"molten agent hook --agent claude"}]}],
 		"PostToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"./my-own-hook.sh"}]}],
 		"SessionStart":[{"hooks":[{"type":"command","command":"molten agent session --stdin"}]}]}}`)
 	plan, gen, _ := planOf(t, tree.ctx())
 	if _, ok := gen.Hooks["Stop"]; ok {
 		t.Fatalf("Stop is the user's: %v", gen.Hooks["Stop"])
+	}
+	if _, ok := gen.Hooks["Notification"]; ok {
+		t.Fatalf("Notification is the user's: %v", gen.Hooks["Notification"])
 	}
 	if _, ok := gen.Hooks["SessionStart"]; ok {
 		t.Fatalf("SessionStart is the user's")
@@ -282,11 +286,30 @@ func TestClaudePlanSkipsUserHooks(t *testing.T) {
 	for _, it := range plan.Skipped {
 		skipped[it.Kind] = it.Name + ": " + it.Reason
 	}
-	if !strings.Contains(skipped[molten.IntegrationStateHooks], "Stop") || !strings.Contains(skipped[molten.IntegrationStateHooks], "~/.claude/settings.json") {
+	if !strings.Contains(skipped[molten.IntegrationStateHooks], "Stop") || !strings.Contains(skipped[molten.IntegrationStateHooks], "Notification") || !strings.Contains(skipped[molten.IntegrationStateHooks], "~/.claude/settings.json") {
 		t.Fatalf("skipped %v", skipped)
 	}
 	if _, ok := skipped[molten.IntegrationSession]; !ok {
 		t.Fatalf("skipped %v", skipped)
+	}
+}
+
+// #2140: an older `molten agent state` on PostToolUse or Stop never reads the hook's input, where Claude Code tells a
+// command left running in the background: MoltenTerm's handler runs next to it. Its other events stay the user's.
+func TestClaudePlanAddsTheHandlerNextToOlderStateHooks(t *testing.T) {
+	tree := makeFakeTree(t)
+	tree.write(t, tree.userSettings(), `{"hooks":{
+		"Stop":[{"hooks":[{"type":"command","command":"[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent claude || true"}]}],
+		"PostToolUse":[{"hooks":[{"type":"command","command":"[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true"}]}],
+		"UserPromptSubmit":[{"hooks":[{"type":"command","command":"[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true"}]}]}}`)
+	_, gen, _ := planOf(t, tree.ctx())
+	for _, event := range []string{"Stop", "PostToolUse"} {
+		if got := hookCommands(gen, event); !slices.Equal(got, []string{molten.ClaudeStateHookCommand}) {
+			t.Fatalf("%s: %q", event, got)
+		}
+	}
+	if _, ok := gen.Hooks["UserPromptSubmit"]; ok {
+		t.Fatalf("UserPromptSubmit is the user's: %v", gen.Hooks["UserPromptSubmit"])
 	}
 }
 

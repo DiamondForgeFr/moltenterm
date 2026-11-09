@@ -325,6 +325,11 @@ type AgentStateRequest struct {
 	// Provider: the host Claude Code talks to when it is not Anthropic's (FR-AGC-008); a Start report without one says
 	// the run talks to Anthropic, another report without one changes nothing.
 	Provider string `json:"provider,omitempty"`
+	// BackgroundTask: the main session left a command running in the background (Claude Code's backgroundTaskId,
+	// #2140), BackgroundDescription its words. Transcript: the session's transcript, where its end is told.
+	BackgroundTask        string `json:"backgroundtask,omitempty"`
+	BackgroundDescription string `json:"backgrounddescription,omitempty"`
+	Transcript            string `json:"transcript,omitempty"`
 }
 
 // AgentStateSeenRequest: the window showed the block's done agent, at Version of its state.

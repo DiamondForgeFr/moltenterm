@@ -17,6 +17,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // Clean up on a leftover whose worktree a live process holds (#1143, FR-REV-022 AC16, FR-REV-013 AC10). MoltenTerm
@@ -271,12 +272,17 @@ func (a *LeftoverAsks) follow(key string) {
 		return
 	}
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:review:leftoverask", recover())
+		}()
 		ticker := time.NewTicker(a.env.FollowEvery)
 		defer ticker.Stop()
 		for range ticker.C {
-			ctx, cancel := context.WithTimeout(context.Background(), leftoverAskTimeout)
-			more := a.Step(ctx, key)
-			cancel()
+			more := recoverStep("molten:review:leftoverask:step", func() bool {
+				ctx, cancel := context.WithTimeout(context.Background(), leftoverAskTimeout)
+				defer cancel()
+				return a.Step(ctx, key)
+			})
 			if !more {
 				return
 			}

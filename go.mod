@@ -32,7 +32,7 @@ require (
 	github.com/ubuntu/gowsl v0.0.0-20240906163211-049fd49bd93b
 	github.com/wavetermdev/htmltoken v0.2.0
 	github.com/wavetermdev/waveterm/tsunami v0.12.3
-	golang.org/x/crypto v0.58.0
+	golang.org/x/crypto v0.58.1-0.20261009181718-2f1f834330b2
 	golang.org/x/image v0.45.0
 	golang.org/x/mod v0.41.0
 	golang.org/x/net v0.62.0

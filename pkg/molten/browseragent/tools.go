@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 const (
@@ -309,6 +310,9 @@ func (m *Manager) readTabs(ctx context.Context, s sessionInfo, loc BlockLocation
 	for i, info := range infos {
 		wg.Add(1)
 		go func(i int, info tabInfo) {
+			defer func() {
+				panichandler.PanicHandler("molten:browseragent:readtab", recover())
+			}()
 			defer wg.Done()
 			resolved, errText := m.resolveTab(ctx, s, loc, info.id, false)
 			if errText != "" {

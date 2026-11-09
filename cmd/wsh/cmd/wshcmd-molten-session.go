@@ -43,7 +43,7 @@ var moltenSessionListCmd = &cobra.Command{
 
 var moltenSessionShowCmd = &cobra.Command{
 	Use:     "show <id>",
-	Short:   "focus the session's pane, or open a pane attached to it in this tab when none shows it",
+	Short:   "focus the session's pane, or open a pane attached to it in this tab when none shows it (sessions of this workspace)",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenSessionShowRun),
 	PreRunE: preRunSetupRpcClient,
@@ -99,7 +99,7 @@ func moltenSessionResolve(arg string) (molten.DurableSession, error) {
 	}
 	id, err := molten.ResolveSessionId(arg, ids)
 	if err != nil {
-		return molten.DurableSession{}, fmt.Errorf("%v; %s", err, moltenSessionIdsText(data.Sessions))
+		return molten.DurableSession{}, fmt.Errorf("%v; %s%s", err, moltenSessionIdsText(data.Sessions), moltenSessionScopeNote(data))
 	}
 	for _, s := range data.Sessions {
 		if s.Id == id {
@@ -119,6 +119,14 @@ func moltenSessionIdsText(sessions []molten.DurableSession) string {
 	}
 	sort.Strings(shorts)
 	return "running sessions: " + strings.Join(shorts, ", ")
+}
+
+// moltenSessionScopeNote says the list a terminal gets holds only its workspace's sessions (#2120).
+func moltenSessionScopeNote(data molten.DurableSessionsData) string {
+	if data.WorkspaceId == "" {
+		return ""
+	}
+	return " (this workspace only: the Sessions panel lists every workspace's sessions)"
 }
 
 func moltenSessionCallerBlockId() string {
@@ -141,6 +149,10 @@ func moltenSessionListRun(cmd *cobra.Command, args []string) error {
 			data.Sessions = []molten.DurableSession{}
 		}
 		return moltenWriteJson(data)
+	}
+	if len(data.Sessions) == 0 && data.WorkspaceId != "" {
+		WriteStdout("No session is running in this workspace. The Sessions panel lists every workspace's sessions.\n")
+		return nil
 	}
 	WriteStdout("%s", formatMoltenSessions(data.Sessions, moltenSessionCallerBlockId(), time.Now()))
 	return nil

@@ -240,7 +240,7 @@ func (w *attentionWatcher) handle(blockId string, data []byte) {
 		if item.repeat {
 			continue
 		}
-		if w.agents != nil && w.agents.heldDoneSignal(blockId, signal) {
+		if w.agents != nil && (w.agents.heldDoneSignal(blockId, signal) || w.agents.backgroundDoneSignal(blockId, signal)) {
 			continue
 		}
 		if w.agents != nil && !w.agents.allowNotice(blockId, noticeFromSignal) {
@@ -257,7 +257,12 @@ var defaultAttentionWatcher = makeDefaultAttentionWatcher()
 
 func makeDefaultAttentionWatcher() *attentionWatcher {
 	w := makeAttentionWatcher(func(blockId string, signal AttentionSignal) {
-		go recordAttention(blockId, signal)
+		go func() {
+			defer func() {
+				panichandler.PanicHandler("molten:attention:record", recover())
+			}()
+			recordAttention(blockId, signal)
+		}()
 	})
 	w.agents = defaultAgentStates
 	return w

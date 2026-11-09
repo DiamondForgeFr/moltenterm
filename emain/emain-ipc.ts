@@ -34,6 +34,7 @@ import { isFlatFrame } from "./moltenterm-carpet-thumb-store"; // MOLTENTERM-PAT
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
+import { initFileClipboardIpc } from "./moltenterm-file-clipboard"; // MOLTENTERM-PATCH (#2115)
 import { initNativePathIpc } from "./moltenterm-native-path"; // MOLTENTERM-PATCH (#1575)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
@@ -444,6 +445,7 @@ export function initIpcHandlers() {
     });
 
     initNativePathIpc(); // MOLTENTERM-PATCH (#1575): native open and reveal are separate guarded actions
+    initFileClipboardIpc(); // MOLTENTERM-PATCH (#2115): the file panel's Copy file puts a file on the clipboard
 
     onAppIpc("set-window-init-status", (event, status: "ready" | "wave-ready") => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);

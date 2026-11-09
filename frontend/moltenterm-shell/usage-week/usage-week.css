@@ -4,19 +4,16 @@
 /* The week grid of a plan usage (FR-BOSS-009, AC48 to AC51, #2100): one grid for the whole block, so the day initials
    written once on top stand over the seven blocks of every row: logo, Monday to Sunday, percent. A row is display:
    contents, its parts being the grid's cells. Nothing changes on hover, and the block never grows.
-   Slim everywhere (#2106): the day blocks are --mt-uw-block-h high, 3 px apart and at most
-   --mt-uw-block-max wide, so a wide panel keeps the grid compact instead of stretching it; the label and the percent
-   stay next to the blocks. */
+   Slim everywhere (#2106): the day blocks are --mt-uw-block-h high and 3 px apart. They share all the width between
+   the label and the percent (#2111), so the grid spans the whole panel and the percent sits at its right edge. */
 .mt-uw {
     --mt-uw-first: 18px;
     --mt-uw-block-min: 0px;
-    --mt-uw-block-max: 30px;
     --mt-uw-block-h: 6px;
     display: grid;
     grid-template-columns:
-        var(--mt-uw-first) repeat(7, minmax(var(--mt-uw-block-min), var(--mt-uw-block-max)))
+        var(--mt-uw-first) repeat(7, minmax(var(--mt-uw-block-min), 1fr))
         minmax(52px, max-content);
-    justify-content: start;
     gap: 7px 3px;
     align-items: center;
     padding: 2px 0;
@@ -164,6 +161,36 @@
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+}
+
+/* The legend under the rows (#2123), across the whole grid. Its swatches are the grid's own blocks (.mt-uw-cell, with
+   is-today and is-reset, and the fill coloured by --mt-uw-pace), so the block height, the ring, the outline and the
+   sheen are the rows' own. One line when the width allows, each key staying whole when it wraps. */
+.mt-uw-legend {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    gap: 6px 12px;
+    margin-top: 2px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1.2;
+}
+
+.mt-uw-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.mt-uw-key .mt-uw-cell {
+    flex: none;
+    width: 16px;
+}
+
+.mt-uw-key .mt-uw-cell i {
+    width: 100%;
 }
 
 /* The calm line of a reading that cannot be read (#2074), across the day blocks and the percent. */

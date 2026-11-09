@@ -6,13 +6,13 @@
 
 import Logo from "@/app/asset/logo.svg";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
-import { atoms } from "@/app/store/global";
+import { atoms, getApi } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
 import { isDev } from "@/util/isdev";
 import { moltentermProductNameFor, MoltentermRepoUrl } from "@/util/moltenterm-identity";
-import { cn } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { BuildIdentity } from "../../moltenterm-shell/build/build-identity";
 import { currentBuildIdentity } from "../../moltenterm-shell/build/current-build";
 import { useT } from "../../moltenterm-shell/i18n/i18n";
@@ -44,6 +44,62 @@ const AboutLicenseLine = () => {
 };
 
 AboutLicenseLine.displayName = "AboutLicenseLine";
+
+// Whether the main process handed the notices file to the system's viewer; a build without the file, or a failure, is false.
+export async function noticesOpened(open: () => Promise<boolean>): Promise<boolean> {
+    try {
+        return (await open()) === true;
+    } catch {
+        return false;
+    }
+}
+
+interface AboutNoticesViewProps {
+    missing: boolean;
+    onOpen: () => void;
+}
+
+// The third-party licence notices (#2126): the file the build generates and the package ships, opened by the app itself.
+const AboutNoticesView = ({ missing, onOpen }: AboutNoticesViewProps) => {
+    const t = useT();
+    return (
+        <>
+            <button
+                type="button"
+                onClick={onOpen}
+                title={t("about.openSourceLicensesTitle")}
+                className={cn(linkClassName, "col-span-2 cursor-pointer")}
+                data-testid="about-open-source-licenses"
+            >
+                <i className="fa-solid fa-file-lines mr-2"></i>
+                {t("about.openSourceLicenses")}
+            </button>
+            {missing ? (
+                <div
+                    role="status"
+                    className="col-span-2 text-xs text-secondary text-center"
+                    data-testid="about-open-source-licenses-missing"
+                >
+                    {t("about.openSourceLicensesMissing")}
+                </div>
+            ) : null}
+        </>
+    );
+};
+
+AboutNoticesView.displayName = "AboutNoticesView";
+
+const AboutNotices = () => {
+    const [missing, setMissing] = useState(false);
+    const openNotices = () => {
+        fireAndForget(async () => {
+            setMissing(!(await noticesOpened(() => getApi().openThirdPartyNotices())));
+        });
+    };
+    return <AboutNoticesView missing={missing} onOpen={openNotices} />;
+};
+
+AboutNotices.displayName = "AboutNotices";
 
 interface MoltentermAboutModalVProps {
     identity: BuildIdentity;
@@ -98,6 +154,7 @@ const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps
                         <i className="fa-solid fa-scroll mr-2"></i>
                         {t("about.releaseNotes")}
                     </button>
+                    <AboutNotices />
                     <a href={MoltentermRepoUrl} target="_blank" rel="noopener" className={linkClassName}>
                         <i className="fa-brands fa-github mr-2"></i>GitHub
                     </a>
@@ -125,4 +182,4 @@ const AboutModal = () => {
 
 AboutModal.displayName = "AboutModal";
 
-export { AboutLicenseLine, AboutModal, MoltentermAboutModalV };
+export { AboutLicenseLine, AboutModal, AboutNoticesView, MoltentermAboutModalV };

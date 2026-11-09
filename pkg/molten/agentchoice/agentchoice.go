@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
@@ -201,15 +202,86 @@ func NoneText() string {
 	return "No supported coding agent is installed on this computer"
 }
 
-// PrintArgv is the agent's non-interactive form, prompt on its standard input and answer on its standard output.
-func PrintArgv(id string) []string {
+// ClaudeReadOnlyDeniedTools are the tools an agent MoltenTerm starts on its own may never use: no shell, no file
+// writer, no web. Deny rules hold in every permission mode, bypass included, over the user's allow rules.
+var ClaudeReadOnlyDeniedTools = []string{"Bash", "Edit", "Write", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"}
+
+// PrintArgv is the thin adapter of each agent MoltenTerm knows a read-only, non-interactive form of: the prompt on its
+// standard input, the answer on its standard output; nil for any other agent. MoltenTerm starts it on its own, on text
+// anyone can write (commit messages, issue titles, a repository's files), in dirs: it can only read (#2121).
+//
+// The folder's own agent configuration never loads (as for review sessions, #664). Claude Code: --setting-sources user
+// leaves out the project's and the local .claude/settings*.json (hooks, allow rules, env, apiKeyHelper),
+// --strict-mcp-config every MCP server, and the deny list comes last because --disallowed-tools takes every argument
+// after it. Codex: the read-only sandbox, no MCP server, and each folder (with its links resolved and, for a linked
+// worktree, its main checkout, whose trust a worktree takes) untrusted for this run, so its .codex/ does not load.
+func PrintArgv(id string, dirs ...string) []string {
 	switch id {
 	case molten.AgentIdClaude:
-		return []string{"claude", "-p"}
+		argv := []string{"claude", "-p", "--setting-sources", "user", "--strict-mcp-config", "--disallowed-tools"}
+		return append(argv, ClaudeReadOnlyDeniedTools...)
 	case molten.AgentIdCodex:
-		return []string{"codex", "exec", "-"}
+		argv := []string{"codex", "exec", "--sandbox", "read-only", "-c", "mcp_servers={}"}
+		if projects := codexUntrustedProjects(dirs); projects != "" {
+			argv = append(argv, "-c", projects)
+		}
+		return append(argv, "-")
 	}
 	return nil
+}
+
+// codexUntrustedProjects is the projects table of a run, every folder explicitly untrusted; "" when there is none. It
+// replaces the user's table for the run only and is never saved.
+func codexUntrustedProjects(dirs []string) string {
+	seen := map[string]bool{}
+	var entries []string
+	add := func(dir string) {
+		if dir == "" || !filepath.IsAbs(dir) || seen[dir] {
+			return
+		}
+		seen[dir] = true
+		entries = append(entries, tomlString(dir)+`={trust_level="untrusted"}`)
+	}
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		dir = filepath.Clean(dir)
+		add(dir)
+		if real, err := filepath.EvalSymlinks(dir); err == nil {
+			add(real)
+		}
+		if main := mainCheckout(dir); main != "" {
+			add(main)
+			if real, err := filepath.EvalSymlinks(main); err == nil {
+				add(real)
+			}
+		}
+	}
+	if len(entries) == 0 {
+		return ""
+	}
+	return "projects={" + strings.Join(entries, ",") + "}"
+}
+
+// tomlString writes a TOML basic string: quotes, backslashes and control characters escaped.
+func tomlString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range strings.ToValidUTF8(s, string(utf8.RuneError)) {
+		switch {
+		case r == '"':
+			b.WriteString(`\"`)
+		case r == '\\':
+			b.WriteString(`\\`)
+		case r < 0x20 || r == 0x7f:
+			fmt.Fprintf(&b, `\u%04X`, r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 // ProjectKeys are the folders a project's choice may be stored under for dir: dir itself and, for a linked worktree,

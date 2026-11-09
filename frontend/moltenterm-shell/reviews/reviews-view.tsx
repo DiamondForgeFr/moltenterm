@@ -91,6 +91,7 @@ import {
 } from "./reviews-queue-model";
 import { SectionHeading } from "./reviews-section-heading";
 import {
+    batchBannerTurn,
     cardStates,
     filledAction,
     queueSectionOf,
@@ -370,11 +371,14 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         () => leftoverTurnRows(leftoverRows(upcoming, answer), leftoverAsks),
         [upcoming, answer, leftoverAsks]
     );
+    // A queue that runs holds every other merge: its banner heads the list (#2141).
+    const bannerInWaiting = batchVisible && batchBannerTurn(batchRun) === "waiting";
+    const bannerOnTop = batchVisible && !bannerInWaiting;
     const sections = useMemo(() => {
-        let rtn = withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "waiting", batchVisible || batchPointer);
+        let rtn = withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "waiting", bannerInWaiting || batchPointer);
         rtn = withTurnShown(rtn, "waiting", (leftoverTurns.waiting?.length ?? 0) > 0);
         return withTurnShown(rtn, "yours", (leftoverTurns.yours?.length ?? 0) > 0);
-    }, [listed, cards, sort, ranks, batchVisible, batchPointer, leftoverTurns]);
+    }, [listed, cards, sort, ranks, bannerInWaiting, batchPointer, leftoverTurns]);
     const filled = useMemo(
         () =>
             filledAction(
@@ -567,7 +571,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         groupMerge: shown ? queueChoice(queue, pr.number) : null,
         onGroupMerge: (inGroup: boolean) => model.setInGroupMerge(dir, pr.number, inGroup),
         queued: queuedAsks[rebaseAskKey(dir, pr.number)],
-        batchMark: batchRowMark(batchRun, pr.number),
+        batchMark: batchRowMark(batchRun, pr.number, pr),
         onBatchRetry: () => retryBatchItem(pr.number),
     });
     const edgeText = (number: number, where: EdgeWhere) =>
@@ -650,6 +654,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     {t("reviews.reportsError")}
                 </div>
             ) : null}
+            {bannerOnTop ? <BatchBanner run={batchRun} ids={shownIds} /> : null}
             {queueTurn == null ? queueBlock : null}
             {sections.length === 0 ? (
                 <p
@@ -689,7 +694,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                             </SectionHeading>
                             {section.turn === checkTurn ? <CheckAgentsReport check={check} /> : null}
                             {section.turn === queueTurn ? queueBlock : null}
-                            {section.turn === "waiting" && batchVisible ? (
+                            {section.turn === "waiting" && bannerInWaiting ? (
                                 <BatchBanner run={batchRun} ids={shownIds} />
                             ) : null}
                             {section.turn === "waiting" && batchPointer ? (

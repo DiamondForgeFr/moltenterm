@@ -301,6 +301,10 @@ export type RebaseResult = {
     // #1955: the result is about a sub-agent of the agent firstname and blockid name: it works on the PR (reason
     // subagentbusy), or its lead was asked to continue it (lead is then set too).
     subagent?: boolean;
+    // #2145: the PR's head on GitHub when the hand-off was checked against it (status stale: the one the card did not
+    // know); handedat (ms) is when the hand-off the same task already got was sent (reason alreadyhanded).
+    head?: string;
+    handedat?: number;
 };
 
 // The lead agent that owns a PR (#1779, FR-REV-022 AC19): named by the PR's signature, else by the sub-agent registry's
@@ -328,7 +332,18 @@ export type RebaseOutcome = {
     note?: boolean;
     // The agent busy on the branch (#1062): the card offers to hand it the task after its own.
     busy?: { blockId: string; name: string };
+    // The PR is not what the card said (#2145): nothing was sent. The card keeps the line until its next ask, whatever
+    // section the refreshed PR moves it to.
+    stale?: boolean;
 };
+
+const StaleKeys: Record<string, string> = {
+    headmoved: "reviews.rebase.stale.headMoved",
+    prclosed: "reviews.rebase.stale.closed",
+    problemgone: "reviews.rebase.stale.problemGone",
+};
+
+const HeadChars = 7;
 
 // notChosen: the agent already on the branch took the work, not the one the developer chose (#845).
 function notChosen(result: RebaseResult, name: string): Phrase {
@@ -393,8 +408,11 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
         folder: folderOf(result.worktree),
         brief: result.briefpath ?? "",
         message: serverPhrase(result.messagetext, result.message ?? ""),
+        head: (result.head ?? "").slice(0, HeadChars),
     };
     switch (result.status) {
+        case "stale":
+            return { kind: "info", stale: true, text: phrase(StaleKeys[result.reason] ?? StaleKeys.problemgone, vars) };
         case "started":
             if (result.lead) {
                 return { kind: "asked", name, text: phrase("reviews.lead.started", vars), note: true };
@@ -474,6 +492,12 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
                     return { kind: "info", text: phrase("reviews.rebase.treeInUse", vars) };
                 case "inflight":
                     return { kind: "info", text: phrase("reviews.rebase.inflight") };
+                case "alreadyhanded":
+                    // Not queued behind anybody: the work is already handed over, whoever has it.
+                    return {
+                        kind: "info",
+                        text: phrase(name ? "reviews.rebase.alreadyHanded" : "reviews.rebase.alreadyHandedAnon", vars),
+                    };
             }
             return { kind: "info", text: phrase("reviews.rebase.notready", vars) };
     }

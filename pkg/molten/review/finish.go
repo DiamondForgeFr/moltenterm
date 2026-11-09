@@ -102,6 +102,57 @@ func (r *Restarter) AskFinish(ctx context.Context, req FinishRequest) (RestartRe
 	if err := req.check(); err != nil {
 		return RestartResult{}, err
 	}
+	if held, ok := r.handedAlready(HandoffFinish, req.PrKey, req.HeadOid); ok {
+		return held, nil
+	}
+	now, stale := r.guardPr(ctx, req.PrKey, req.Dir, req.HeadRef, req.HeadOid)
+	if stale != nil {
+		return *stale, nil
+	}
+	if pruneFinish(&req, now) {
+		return r.staleResult(req.PrKey, req.Dir, req.HeadRef, RestartReasonProblemGone, req.HeadOid, now), nil
+	}
+	if now.head != "" {
+		req.HeadOid = now.head
+	}
+	asked := req
+	ctx = withTask(ctx, &handoffTask{kind: HandoffFinish, req: req.restartRequest(), head: req.HeadOid,
+		remains: func(now prNow) bool {
+			again := asked
+			return !pruneFinish(&again, now)
+		},
+		resend:  resendAction(HandoffFinish, req.restartRequest(), req.MarkReady, req.Lead.cleaned())})
+	res, err := r.askFinish(ctx, req)
+	if err == nil {
+		r.noteHanded(HandoffFinish, req.PrKey, req.HeadOid, res)
+	}
+	return res, err
+}
+
+// pruneFinish keeps of the problems the card named the ones GitHub still shows on the PR; true when the card named
+// some and none is left. A missing test report is not read here: it stays.
+func pruneFinish(req *FinishRequest, now prNow) bool {
+	if !now.read {
+		return false
+	}
+	named := req.Conflicts || len(req.FailedChecks) > 0 || req.ChangesRequested || req.NoReport || req.MarkReady
+	if !named {
+		return false
+	}
+	req.Conflicts = req.Conflicts && (now.conflicts || now.computing)
+	var red []string
+	for _, name := range req.FailedChecks {
+		if now.stillRed(name) {
+			red = append(red, name)
+		}
+	}
+	req.FailedChecks = red
+	req.ChangesRequested = req.ChangesRequested && now.changes
+	req.MarkReady = req.MarkReady && now.draft
+	return !(req.Conflicts || len(req.FailedChecks) > 0 || req.ChangesRequested || req.NoReport || req.MarkReady)
+}
+
+func (r *Restarter) askFinish(ctx context.Context, req FinishRequest) (RestartResult, error) {
 	checks := make([]string, 0, len(req.FailedChecks))
 	for _, name := range req.FailedChecks {
 		name = cleanCheck(InvestigateCheck{Name: name}).Name

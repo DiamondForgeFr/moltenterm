@@ -220,6 +220,11 @@
             "rename": "Rename",
             "save": "Save",
             "cancel": "Cancel",
+            "copyFile": "Copy file",
+            "copyFileLocalOnly": "Only for files on this computer",
+            "fileCopied": "File copied",
+            "fileCopiedSaved": "Saved version copied",
+            "copyFileFailed": "Could not copy the file",
             "copyName": "Copy file name",
             "copyPath": "Copy full path",
             "copyNameQuoted": "Copy file name (shell quoted)",
@@ -244,6 +249,18 @@
             "download": "Download file",
             "openInNewPanel": "Open in a new panel",
             "openTerminalHere": "Open a terminal here",
+            "noPreview": {
+                "kindWithExt": "{kind} ({ext})",
+                "hint": "The Files panel can't show this kind of file. Open it in the app that usually opens it.",
+                "hintRemote": "The Files panel can't show this kind of file. Download it to open it on this computer.",
+                "kind": {
+                    "spreadsheet": "Spreadsheet",
+                    "document": "Text document",
+                    "presentation": "Presentation",
+                    "archive": "Archive",
+                    "other": "File"
+                }
+            },
             "renameFailed": "Rename failed",
             "deleteFailed": "Delete failed",
             "confirmDeleteFolder": "Delete this folder?",
@@ -2109,6 +2126,14 @@
             "refresh": "Refresh plan usage",
             "compact": "Compact plan usage",
             "from": "From the {source}",
+            "source": {
+                "claude-statusline": "Claude Code status line",
+                "claude-oauth": "Anthropic usage endpoint",
+                "codex-transcript": "Codex session log",
+                "codex-appserver": "Codex app-server"
+            },
+            "sourceAnd": "{list} and {last}",
+            "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the \"Resets\" line says when the window starts again.",
             "details": "Plan usage details",
             "detailsMore": "Plan usage details ({count} more)",
             "setupLabel": "Plan usage setup",
@@ -5643,7 +5668,7 @@
         },
         "icons": {
             "none": "No icon",
-            "wave": "Wave",
+            "moltenterm": "MoltenTerm",
             "cloud": "Cloud",
             "layers": "Layers",
             "chart": "Chart",
@@ -6403,6 +6428,9 @@
         "basedOn": "Based on Wave Terminal {wave} by Command Line Inc. (Apache-2.0)",
         "license": "Open source, AGPL-3.0 (parts from Wave Terminal: Apache-2.0)",
         "licenseTitle": "Which licence covers which part, and the source code",
+        "openSourceLicenses": "Open-source licences",
+        "openSourceLicensesTitle": "Open the licences of the open-source software MoltenTerm contains",
+        "openSourceLicensesMissing": "This build does not contain the licence notices.",
         "copyright": "© {year} DiamondForge. Portions © Command Line Inc."
     },
     "releases": {
@@ -7175,6 +7203,8 @@
                 "mergefailed": "GitHub refused the merge: nothing was merged.",
                 "read": "GitHub could not be read: nothing was merged.",
                 "agentstart": "The agent could not be started for the rebase.",
+                "checksPassed": "Its checks have now passed on the commit you validated: nothing was merged yet.",
+                "checksRunning": "The merge queue stopped on it, and its checks are still running.",
                 "retry": "Try again",
                 "retryTitle": "Put #{number} back in the merge queue, bound to the commit you validated",
                 "rebase": "Rebase",
@@ -7523,6 +7553,13 @@
             "working": "{name} is working on {branch}.",
             "waiting": "{name} is waiting for your answer on {branch}.",
             "inflight": "An agent is already being reached for this pull request.",
+            "alreadyHanded": "{name} already has this for the head {head}: nothing more was sent.",
+            "alreadyHandedAnon": "An agent already has this for the head {head}: nothing more was sent.",
+            "stale": {
+                "headMoved": "This pull request moved on since the card was drawn (its head is now {head}): nothing was sent. The card is reading it again.",
+                "problemGone": "What this asked for is no longer true on GitHub (the pull request is at {head}): nothing was sent. The card is reading it again.",
+                "closed": "This pull request is no longer open: nothing was sent."
+            },
             "notready": "{name} cannot take the rebase now: {message}",
             "subagentWorking": "A sub-agent of {name} is already working on {branch}: nothing was started.",
             "backgroundWorking": "An agent is probably already working on {branch}: nothing was started.",
@@ -7630,6 +7667,9 @@
         },
         "notRepo": {
             "hint": "The Integration panel follows the project's changes with git: its branches and its pull requests. Start tracking this folder with git to see them here."
+        },
+        "resend": {
+            "failed": "Nothing was resent: the pull requests could not be read."
         },
         "lead": {
             "sent": "Handed to {name}, the lead agent that owns this work: the brief is in its terminal, it decides who does it.",
@@ -9114,7 +9154,11 @@
         },
         "agentState": {
             "subagent": "1 sub-agent running",
-            "subagents": "{count} sub-agents running"
+            "subagents": "{count} sub-agents running",
+            "backgroundCommand": "1 background command running",
+            "backgroundCommandNamed": "In the background: {description}",
+            "backgroundCommands": "{count} background commands running",
+            "backgroundTasks": "{count} background tasks running"
         },
         "review": {
             "batchempty": "Select the pull requests to merge first.",
@@ -9206,6 +9250,10 @@
                 "timeout": "{receiver}'s prompt was not idle within an hour.",
                 "failed": "MoltenTerm could not type the handoff ({detail})."
             },
+            "expired": {
+                "title": "{receiver} did not take MoltenTerm's request",
+                "message": "{reason} It still applies, and nothing needs your approval. The brief is at {path}."
+            },
             "typed": {
                 "title": "Typed in {receiver}'s prompt: press Enter in its terminal to start",
                 "message": "{from}'s handoff was added after what was already in the prompt. The brief is at {path}.",
@@ -9243,6 +9291,12 @@
             "gone": "The session {session} is no longer running.",
             "endself": "A session cannot end itself: type exit instead.",
             "notab": "There is no view to open the session in.",
+            "scope": {
+                "noworkspace": "This terminal is in no workspace, so it reaches no session. Use the Sessions panel.",
+                "otherworkspace": "The session {session} is in another workspace: a terminal reaches only its own workspace's sessions. Use the Sessions panel.",
+                "nopane": "The session {session} shows in no pane and the view it was in is gone, so its workspace is unknown: a terminal reaches only its own workspace's sessions. Open it from the Sessions panel.",
+                "othertab": "That view is not in this terminal's workspace: a terminal opens sessions only in its own workspace. Use the Sessions panel."
+            },
             "welcomeback": {
                 "keptone": "1 session kept running while MoltenTerm was closed",
                 "keptother": "{count} sessions kept running while MoltenTerm was closed",
@@ -9581,6 +9635,7 @@
                 "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
                 "openReview": "Open the review",
                 "openCard": "Show in Integration",
+                "resend": "Resend",
                 "prAside": " (PR #{number})",
                 "ciGreenTitle": "#{number}{pr}: CI green again",
                 "ciGreen": "{name}: {outcome}",
@@ -11621,6 +11676,21 @@
         "rowAsOf": "read {ago}",
         "rowUnreadable": "{name}, no reading: {reason}",
         "rowNoReading": "{name}, no reading",
+        "legend": {
+            "label": "Colours and marks of the week grid",
+            "today": "Today",
+            "reset": "Reset day",
+            "under": "Under pace",
+            "on": "On pace",
+            "above": "Above pace",
+            "title": {
+                "today": "Today's column, lighter on every row",
+                "reset": "The ringed block, where the window starts again at 0 %",
+                "under": "Less used than the time gone allows",
+                "on": "As much as the time gone allows",
+                "above": "More than the time gone allows, orange towards red. At this pace the window may run out before it resets"
+            }
+        },
         "day": {
             "mon": "M",
             "tue": "T",

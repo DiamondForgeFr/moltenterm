@@ -23,19 +23,22 @@ func TestNotesAgentFollowsTheProjectsCodingAgent(t *testing.T) {
 	}
 	var out bytes.Buffer
 	e := &Env{Dir: "/p", Out: &out}
-	if argv := e.notesAgent(ctx, &Project{}); argv != nil {
+	if argv := e.notesAgent(ctx, &Project{}, ""); argv != nil {
 		t.Fatalf("outside MoltenTerm, nothing declared: %v", argv)
 	}
-	if argv := e.notesAgent(ctx, &Project{NotesAgent: []string{"my-agent"}}); !reflect.DeepEqual(argv, []string{"my-agent"}) {
+	if argv := e.notesAgent(ctx, &Project{NotesAgent: []string{"my-agent"}}, ""); !reflect.DeepEqual(argv, []string{"my-agent"}) {
 		t.Errorf("the project's command first: %v", argv)
 	}
 	t.Setenv(agentchoice.EnvVar, "codex")
-	if argv := e.notesAgent(ctx, &Project{}); !reflect.DeepEqual(argv, []string{"codex", "exec", "-"}) {
+	// #2121: read-only, the release worktree and the project untrusted so their .codex/ does not load.
+	wantCodex := []string{"codex", "exec", "--sandbox", "read-only", "-c", "mcp_servers={}",
+		"-c", `projects={"/wt"={trust_level="untrusted"},"/p"={trust_level="untrusted"}}`, "-"}
+	if argv := e.notesAgent(ctx, &Project{}, "/wt"); !reflect.DeepEqual(argv, wantCodex) {
 		t.Errorf("Mission Control's agent: %v", argv)
 	}
 	t.Setenv(agentchoice.EnvVar, "")
 	t.Setenv(agentchoice.MissingEnvVar, "codex")
-	if argv := e.notesAgent(ctx, &Project{}); argv != nil || !strings.Contains(out.String(), "Codex, the coding agent chosen for this project, is not installed") {
+	if argv := e.notesAgent(ctx, &Project{}, ""); argv != nil || !strings.Contains(out.String(), "Codex, the coding agent chosen for this project, is not installed") {
 		t.Errorf("missing: %v %q", argv, out.String())
 	}
 	t.Setenv(agentchoice.MissingEnvVar, "")
@@ -44,11 +47,13 @@ func TestNotesAgentFollowsTheProjectsCodingAgent(t *testing.T) {
 		asked = dir
 		return agentchoice.Choice{Agent: "claude", Source: agentchoice.SourceProject, Chosen: "claude"}, true
 	}
-	if argv := e.notesAgent(ctx, &Project{}); !reflect.DeepEqual(argv, []string{"claude", "-p"}) || asked != "/p" {
+	wantClaude := []string{"claude", "-p", "--setting-sources", "user", "--strict-mcp-config",
+		"--disallowed-tools", "Bash", "Edit", "Write", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"}
+	if argv := e.notesAgent(ctx, &Project{}, "/wt"); !reflect.DeepEqual(argv, wantClaude) || asked != "/p" {
 		t.Errorf("a terminal asks MoltenTerm: %v %q", argv, asked)
 	}
 	t.Setenv(NotesAiEnv, "off")
-	if argv := e.notesAgent(ctx, &Project{}); argv != nil {
+	if argv := e.notesAgent(ctx, &Project{}, ""); argv != nil {
 		t.Errorf("off: %v", argv)
 	}
 }

@@ -15,6 +15,8 @@ import (
 	"io"
 	"slices"
 	"sync"
+
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // The MCP stdio transport (spec 2025-06-18, "Transports"): one JSON-RPC 2.0 message per line, UTF-8, no embedded
@@ -502,9 +504,12 @@ func (s *Server) handleToolCall(ctx context.Context, msg inMessage) {
 	s.callGroup.Add(1)
 	s.addActive(1)
 	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:mcpbrowser:call", recover())
+		}()
 		defer s.callGroup.Done()
 		defer cancel()
-		result := s.backend.CallTool(callCtx, params.Name, json.RawMessage(args))
+		result := s.callTool(callCtx, params.Name, json.RawMessage(args))
 		if s.finishCall(key) {
 			// Cancelled by the client: the spec asks for no response.
 			s.addActive(-1)
@@ -512,6 +517,16 @@ func (s *Server) handleToolCall(ctx context.Context, msg inMessage) {
 		}
 		s.writeLine(s.marshal(outResponse{JsonRpc: JsonRpcVersion, Id: msg.Id, Result: toMcpResult(result)}), true)
 	}()
+}
+
+// callTool answers a panic of the backend as a failed call, so the client still gets its response.
+func (s *Server) callTool(ctx context.Context, name string, args json.RawMessage) (result CallResult) {
+	defer func() {
+		if err := panichandler.PanicHandler("molten:mcpbrowser:calltool", recover()); err != nil {
+			result = ErrorResult(fmt.Sprintf("the %s tool failed: %v", name, err))
+		}
+	}()
+	return s.backend.CallTool(ctx, name, args)
 }
 
 func (s *Server) registerCall(key string, cancel context.CancelFunc) bool {

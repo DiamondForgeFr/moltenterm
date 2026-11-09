@@ -11,9 +11,12 @@ Existing Streamdown sanitization strips KaTeX formatting and MathML, including b
 Electron is pinned to 45.2.3 (#1983; 45.2.0 from #1590), with the developer-approved macOS 13+ minimum. Electron 42 is
 out of support; the earlier #810 choice of 42.11.15 and macOS 12 support is historical. Historic performance baselines
 keep their recorded versions. Electron 45 is tentatively supported until April 27, 2027; the pinned lifecycle review
-expires at the start of December 7, 2026 UTC. The 45.2.1 to 45.2.3 notes carry Chromium 156.0.8078.75 to .80 and
-upstream Chromium, ANGLE, Dawn, FFmpeg, PDFium, Skia and V8 backports, Node.js 24.22.2, and two fixes (a Wayland crash
-with a hidden parent window, `removeInsertedCSS()` and user-origin stylesheets); no API changes. The patch deadlines,
+expires at the start of February 3, 2027 UTC. It was renewed on November 9, 2026 (#2122): 45.2.3 (November 4) was
+still the newest 45.x, with no Electron advisory holding it, 45 was among the three supported stable majors (43 to 45)
+and the schedule still gave April 27, 2027 for 45 and January 5, 2027 for 46 stable. The 45.2.1 to 45.2.3 notes carry
+Chromium 156.0.8078.75 to .80 and upstream Chromium, ANGLE, Dawn, FFmpeg, PDFium, Skia and V8 backports, Node.js
+24.22.2, and two fixes (a Wayland crash with a hidden parent window, `removeInsertedCSS()` and user-origin
+stylesheets); no API changes. The patch deadlines,
 the daily and release-time staleness check and the bump procedure are in [ELECTRON.md](ELECTRON.md); a bump is
 requalified on a packaged build before it ships.
 See [Electron releases](https://releases.electronjs.org/), its
@@ -83,3 +86,10 @@ The project and security scanner retain npm 10.9.2. No global npm or another wor
 Go and standalone Tsunami now pin Go 1.26.10 (#941: GO-2026-6809, crypto/x509, fixed in 1.26.10). The SSH, image, HTTP, module, text, telemetry, gRPC and fuzzy-search
 updates eliminate the host's reachable findings. gRPC 1.83.1 was rejected by the fresh scanner and replaced by
 1.83.2. Cross-target source scans and native release builds remain necessary; a host result is not all-platform evidence.
+
+golang.org/x/crypto is pinned to the untagged `v0.58.1-0.20261009181718-2f1f834330b2` (#2122), the fixed version of
+GO-2026-5932. No release is tagged past v0.58.0 (2026-11-09). That commit, 2f1f834330b2, is the only one on top of
+v0.58.0 and only adds `openpgp/go.mod`, which carves the deprecated OpenPGP packages out into their own module: the
+module tree is v0.58.0's minus `openpgp/`, with the same `go.mod` (same go.mod hash in `go.sum`), and no package of
+either Go graph imports OpenPGP. Move to the first tagged release once one ships; the commits after it on master
+change SSH behaviour (DSA removal, known_hosts parsing) and need their own qualification.

@@ -189,7 +189,7 @@ func (s *Setup) Survey(ctx context.Context, req SurveyRequest) (SurveyAnswer, er
 	}
 	if s.ChooseAgent != nil {
 		choice := s.ChooseAgent(dir)
-		if refineArgv(choice.Agent) != nil {
+		if refineArgv(choice.Agent, dir) != nil {
 			answer.Agent, answer.AgentName = choice.Agent, choice.AgentName
 		} else if choice.Missing {
 			answer.AgentMissing = choice.ChosenName

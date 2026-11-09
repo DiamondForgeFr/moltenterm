@@ -249,6 +249,17 @@ func IsAgentStateHookCommand(command string) bool {
 	return strings.Contains(command, agentStateHookCommand) || strings.Contains(command, agentHookCommand)
 }
 
+// AgentStateHookCovers tells whether a user's hook command for an event reports what MoltenTerm's own would, so the
+// launcher leaves the event to it. An older `molten agent state` on Claude Code's PostToolUse or Stop does not: it
+// never reads the hook's input, where a command left running in the background and the transcript telling its end
+// are (#2140), so MoltenTerm's handler runs next to it.
+func AgentStateHookCovers(agent string, event string, command string) bool {
+	if agent == AgentIdClaude && (event == agenthook.HookEventPostToolUse || event == agenthook.HookEventStop) {
+		return strings.Contains(command, agentHookCommand)
+	}
+	return IsAgentStateHookCommand(command)
+}
+
 // IsAgentSessionHookCommand tells whether a hook command links the session (`molten agent hook`, or an older
 // `molten agent session`).
 func IsAgentSessionHookCommand(command string) bool {

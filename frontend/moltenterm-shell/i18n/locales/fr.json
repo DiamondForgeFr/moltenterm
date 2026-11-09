@@ -220,6 +220,11 @@
             "rename": "Renommer",
             "save": "Enregistrer",
             "cancel": "Annuler",
+            "copyFile": "Copier le fichier",
+            "copyFileLocalOnly": "Uniquement pour les fichiers de cet ordinateur",
+            "fileCopied": "Fichier copié",
+            "fileCopiedSaved": "Version enregistrée copiée",
+            "copyFileFailed": "Impossible de copier le fichier",
             "copyName": "Copier le nom du fichier",
             "copyPath": "Copier le chemin complet",
             "copyNameQuoted": "Copier le nom du fichier (échappé pour le shell)",
@@ -244,6 +249,18 @@
             "download": "Télécharger le fichier",
             "openInNewPanel": "Ouvrir dans un nouveau panneau",
             "openTerminalHere": "Ouvrir un terminal ici",
+            "noPreview": {
+                "kindWithExt": "{kind} ({ext})",
+                "hint": "Le panneau Fichiers ne peut pas afficher ce type de fichier. Ouvrez-le dans l’application qui l’ouvre d’habitude.",
+                "hintRemote": "Le panneau Fichiers ne peut pas afficher ce type de fichier. Téléchargez-le pour l’ouvrir sur cet ordinateur.",
+                "kind": {
+                    "spreadsheet": "Feuille de calcul",
+                    "document": "Document texte",
+                    "presentation": "Présentation",
+                    "archive": "Archive",
+                    "other": "Fichier"
+                }
+            },
             "renameFailed": "Échec du renommage",
             "deleteFailed": "Échec de la suppression",
             "confirmDeleteFolder": "Supprimer ce dossier ?",
@@ -2109,6 +2126,14 @@
             "refresh": "Actualiser l'utilisation de l'abonnement",
             "compact": "Réduire l'utilisation de l'abonnement",
             "from": "Depuis : {source}",
+            "source": {
+                "claude-statusline": "ligne d'état de Claude Code",
+                "claude-oauth": "service d'utilisation d'Anthropic",
+                "codex-transcript": "journal de session de Codex",
+                "codex-appserver": "app-server de Codex"
+            },
+            "sourceAnd": "{list} et {last}",
+            "explain": "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart.",
             "details": "Détails de l'utilisation de l'abonnement",
             "detailsMore": "Détails de l'utilisation de l'abonnement ({count} de plus)",
             "setupLabel": "Configuration de l'utilisation de l'abonnement",
@@ -5643,7 +5668,7 @@
         },
         "icons": {
             "none": "Aucune icône",
-            "wave": "Wave",
+            "moltenterm": "MoltenTerm",
             "cloud": "Nuage",
             "layers": "Calques",
             "chart": "Graphique",
@@ -6403,6 +6428,9 @@
         "basedOn": "Basé sur Wave Terminal {wave} de Command Line Inc. (Apache-2.0)",
         "license": "Open source, AGPL-3.0 (parties issues de Wave Terminal : Apache-2.0)",
         "licenseTitle": "Quelle licence couvre quelle partie, et le code source",
+        "openSourceLicenses": "Licences open source",
+        "openSourceLicensesTitle": "Ouvrir les licences des logiciels open source que contient MoltenTerm",
+        "openSourceLicensesMissing": "Cette version ne contient pas les notices de licences.",
         "copyright": "© {year} DiamondForge. Certaines parties © Command Line Inc."
     },
     "releases": {
@@ -7175,6 +7203,8 @@
                 "mergefailed": "GitHub a refusé la fusion : rien n'a été fusionné.",
                 "read": "GitHub n'a pas pu être lu : rien n'a été fusionné.",
                 "agentstart": "L'agent n'a pas pu être lancé pour le rebase.",
+                "checksPassed": "Ses checks sont maintenant passés sur le commit que vous avez validé, rien n'a encore été fusionné.",
+                "checksRunning": "La file de fusion s'est arrêtée dessus, et ses checks tournent encore.",
                 "retry": "Réessayer",
                 "retryTitle": "Remettre #{number} dans la file de fusion, sur le commit que vous avez validé",
                 "rebase": "Rebaser",
@@ -7523,6 +7553,13 @@
             "working": "{name} travaille sur {branch}.",
             "waiting": "{name} attend votre réponse sur {branch}.",
             "inflight": "Un agent est déjà en cours de contact pour cette pull request.",
+            "alreadyHanded": "{name} a déjà cette demande pour la tête {head} : rien n'a été envoyé de plus.",
+            "alreadyHandedAnon": "Un agent a déjà cette demande pour la tête {head} : rien n'a été envoyé de plus.",
+            "stale": {
+                "headMoved": "Cette pull request a avancé depuis l'affichage de la carte (sa tête est maintenant {head}) : rien n'a été envoyé. La carte la relit.",
+                "problemGone": "Ce qui était demandé n'est plus vrai sur GitHub (la pull request est à {head}) : rien n'a été envoyé. La carte la relit.",
+                "closed": "Cette pull request n'est plus ouverte : rien n'a été envoyé."
+            },
             "subagentWorking": "Un sous-agent de {name} travaille déjà sur {branch} : rien n'a été lancé.",
             "backgroundWorking": "Un agent travaille probablement déjà sur {branch} : rien n'a été lancé.",
             "treeInUse": "Un agent ({name}) travaille déjà dans {folder} : aucun second agent n'y a été lancé.",
@@ -7630,6 +7667,9 @@
         },
         "notRepo": {
             "hint": "Le panneau Intégration suit les changements du projet avec git : ses branches et ses pull requests. Suivez ce dossier avec git pour les voir ici."
+        },
+        "resend": {
+            "failed": "Rien n'a été renvoyé, les pull requests n'ont pas pu être lues."
         },
         "lead": {
             "sent": "Confiée à {name}, l'agent principal à qui ce travail appartient : le brief est dans son terminal, c'est lui qui décide qui s'en charge.",
@@ -9114,7 +9154,11 @@
         },
         "agentState": {
             "subagent": "1 sous-agent en cours",
-            "subagents": "{count} sous-agents en cours"
+            "subagents": "{count} sous-agents en cours",
+            "backgroundCommand": "1 commande en arrière-plan en cours",
+            "backgroundCommandNamed": "En arrière-plan : {description}",
+            "backgroundCommands": "{count} commandes en arrière-plan en cours",
+            "backgroundTasks": "{count} tâches en arrière-plan en cours"
         },
         "review": {
             "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
@@ -9206,6 +9250,10 @@
                 "timeout": "L'invite de {receiver} n'est pas devenue disponible dans l'heure.",
                 "failed": "MoltenTerm n'a pas pu taper le passage de relais ({detail})."
             },
+            "expired": {
+                "title": "{receiver} n'a pas pris la demande de MoltenTerm",
+                "message": "{reason} Elle s'applique toujours, et rien ne demande votre approbation. Le brief se trouve dans {path}."
+            },
             "typed": {
                 "title": "Tapé dans l'invite de {receiver} : appuyez sur Entrée dans son terminal pour démarrer",
                 "message": "Le passage de relais de {from} a été ajouté après ce qui était déjà dans l'invite. Le brief se trouve dans {path}.",
@@ -9243,6 +9291,12 @@
             "gone": "La session {session} ne tourne plus.",
             "endself": "Une session ne peut pas se terminer elle-même : tapez exit à la place.",
             "notab": "Aucune vue où ouvrir la session.",
+            "scope": {
+                "noworkspace": "Ce terminal n'est dans aucun espace de travail : il n'atteint aucune session. Passez par le panneau Sessions.",
+                "otherworkspace": "La session {session} est dans un autre espace de travail : un terminal n'atteint que les sessions de son espace de travail. Passez par le panneau Sessions.",
+                "nopane": "La session {session} n'est affichée dans aucun panneau et la vue où elle était a disparu, son espace de travail est donc inconnu : un terminal n'atteint que les sessions de son espace de travail. Ouvrez-la depuis le panneau Sessions.",
+                "othertab": "Cette vue n'est pas dans l'espace de travail de ce terminal : un terminal n'ouvre des sessions que dans son espace de travail. Passez par le panneau Sessions."
+            },
             "welcomeback": {
                 "keptone": "1 session a continué de tourner pendant que MoltenTerm était fermé",
                 "keptother": "{count} sessions ont continué de tourner pendant que MoltenTerm était fermé",
@@ -9581,6 +9635,7 @@
                 "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
                 "openReview": "Ouvrir la revue",
                 "openCard": "Voir dans le panneau Intégration",
+                "resend": "Renvoyer",
                 "prAside": " (PR #{number})",
                 "ciGreenTitle": "#{number}{pr} : la CI est de nouveau verte",
                 "ciGreen": "{name} : {outcome}",
@@ -11621,6 +11676,21 @@
         "rowAsOf": "relevé {ago}",
         "rowUnreadable": "{name}, aucun relevé : {reason}",
         "rowNoReading": "{name}, aucun relevé",
+        "legend": {
+            "label": "Couleurs et repères de la grille de la semaine",
+            "today": "Aujourd'hui",
+            "reset": "Jour de remise à zéro",
+            "under": "Sous le rythme",
+            "on": "Au rythme",
+            "above": "Au-dessus du rythme",
+            "title": {
+                "today": "La colonne d'aujourd'hui, plus claire sur chaque ligne",
+                "reset": "Le bloc cerclé, où la fenêtre repart de zéro",
+                "under": "Moins utilisé que le temps écoulé ne le permet",
+                "on": "Autant que le temps écoulé le permet",
+                "above": "Plus que le temps écoulé ne le permet, du orange au rouge. À ce rythme, la fenêtre peut s'épuiser avant sa remise à zéro"
+            }
+        },
         "day": {
             "mon": "L",
             "tue": "M",

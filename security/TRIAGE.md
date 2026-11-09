@@ -1,38 +1,39 @@
 # Remaining dependency findings — #810 / #861
 
-Reviewed 2026-10-17. Owner: **AGachet**. Review again by **2026-11-17**, sooner if input paths, callers, dependency
-versions or advisory metadata change. `dependencies.json` binds each assessment to the exact advisory fingerprint,
-affected range, locked occurrence/version, surface, reachability and listed targets. There are **no accepted
-high-impact exceptions**. A changed advisory or a new Go package/symbol trace must be reviewed again.
+Reviewed 2026-10-17, renewed 2026-11-09 (#2122). Owner: **AGachet**. Review again by **2027-02-03**, sooner if
+input paths, callers, dependency versions or advisory metadata change. `dependencies.json` binds each assessment to
+the exact advisory fingerprint, affected range, locked occurrence/version, surface, reachability and listed targets.
+There are **no accepted high-impact exceptions**. A changed advisory or a new Go package/symbol trace must be reviewed
+again.
+
+The 2026-11-09 renewal (#2122) reran the full scan on develop (`7f2ffca4f`): 24 vulnerable npm package entries, 22
+normalized occurrences (13 npm, and GO-2026-5932 on 9 Go scopes), all matched by a review. The braces and sprintf-js
+advisories have been withdrawn and npm no longer reports them; GO-2026-5932 is fixed by the x/crypto bump
+(`UPGRADES.md`), after which the scan reports the 13 npm occurrences only. Every remaining finding is a docs or
+build tool with no fix inside its consumer's range: Docusaurus 3.10.2, the latest release, still asks for
+copy-webpack-plugin ^11 and css-minimizer-webpack-plugin ^5 (serialize-javascript ^6), tinypool ^1.0.2 and sharp
+^0.32.3; sockjs 0.3.24, the latest, asks for uuid ^8.3.2; deepmerge 4.3.1 is the latest. The locked versions, the
+callers below (rechecked in the published @docusaurus/core 3.10.2, copy-webpack-plugin 11.0.0,
+css-minimizer-webpack-plugin 5.0.1, @rollup/plugin-node-resolve 16.0.3, @svgr/plugin-svgo 8.1.0 and sockjs 0.3.24)
+and the docs boundary (no workflow builds or deploys the docs; `docs/package.json` and `docs/docusaurus.config.ts`
+unchanged since the previous review, the pages only gained reviewed repository content) are the same, so each review
+keeps its reason with a new date.
 
 The 2026-10-17 npm audit reported 61 vulnerable package/meta-vulnerability entries. They resolved to **15 distinct
-GHSA IDs / 18 leaf occurrences**; the full parent graph remains in the raw report. Go reports **GO-2026-5932** at module
+GHSA IDs / 18 leaf occurrences**; the full parent graph remains in the raw report. Go reported **GO-2026-5932** at module
 level in the root graph, with no affected-package or called-symbol finding; standalone Tsunami has none on the scanned
 targets. These numbers describe scanner evidence, not an exploit count or a claim that every dependency is safe.
 
 ## Runtime callers
 
-- [sprintf-js / GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), 1.1.3: the vulnerable condition
-  requires an attacker-controlled precision specifier in the **format string**. `emain/emain.ts:83` uses a literal
-  startup format with `%s` placeholders; paths/runtime versions are arguments. `frontend/app/store/ws.ts:122` uses
-  literal `sleeping %ds` and a locally bounded reconnect delay. Neither accepts a format or precision from files,
-  terminal/network content or settings. This condition is nonapplicable to these callers. Follow-up: replace these
-  two formatting calls and remove the direct dependency; no upstream fixed version is available.
 - [KaTeX / GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7): #1602 replaces the affected
   0.16.47 occurrence with 0.18.10, outside the affected range. The original condition required a separate existing
   prototype-pollution primitive or attacker control of an options prototype; neither was established in these paths.
   The exact override is outside the current consumers' declared ranges and must be requalified when they change;
   see `UPGRADES.md`. Existing Streamdown math formatting and MathML stripping is tracked separately in #1610.
-- [OpenPGP / GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932), x/crypto v0.58.0: the unmaintained APIs are
-  `golang.org/x/crypto/openpgp` and its subpackages. The application's static imports and complete source-scan traces
-  do not include them. x/crypto is used for other APIs, including SSH; that does not make OpenPGP present. All recorded
-  findings contain only the module/version frame. Mark **only this module-level condition** nonapplicable; never
-  apply this review to an imported package or called symbol. Keep the SSH handshake/key-policy fixture and rerun the
-  source matrix on graph changes. The record changed on 2026-11-02 (#1797): it gained a fixed x/crypto version, the
-  untagged pseudo-version `0.58.1-0.20261009181718-2f1f834330b2`, and a separate `golang.org/x/crypto/openpgp`
-  module entry, so the dated review no longer matched and the scan blocked develop. `go list -deps` on darwin, linux,
-  windows and Tsunami still lists no `openpgp` package, and the findings still carry only the module frame: the
-  review now binds the new fingerprint and range. Move to the first tagged x/crypto release past that version.
+
+No shipped-runtime finding remains: the sprintf-js advisory was withdrawn and GO-2026-5932 is resolved by upgrade
+(both below).
 
 ## Documentation/tooling boundary
 
@@ -50,7 +51,6 @@ prototype-pollution input, or run in a credential-bearing deploy pipeline, reass
 
 | Locked dependency / advisory | Concrete condition and current caller | Disposition / owned action |
 | --- | --- | --- |
-| braces 3.0.3; [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | Docusaurus globby/fast-glob processes repository/config glob patterns. Deep attacker-provided brace patterns can exhaust the stack; no product/user pattern reaches this docs graph. | Low-impact docs follow-up: update the Docusaurus/glob chain; reassess if patterns come from requests or untrusted configuration. |
 | serialize-javascript 6.0.2; [GHSA-5c6j-r48x-rmvq](https://github.com/advisories/GHSA-5c6j-r48x-rmvq) | Resolved through copy-webpack-plugin 11. Docusaurus's StaticDirectoriesCopyPlugin supplies only owned from/to/info patterns, with no transform/cache callback. Vulnerable spoofed RegExp/Date serialization plus later evaluation is not this path; serialized cache keys elsewhere are strings, not evaluated JavaScript. | Condition nonapplicable; update the docs copy-plugin/serializer chain to >=7.0.5. |
 | serialize-javascript 6.0.2; [GHSA-qj8w-gfj5-8c6v](https://github.com/advisories/GHSA-qj8w-gfj5-8c6v) | Crafted array-like objects/prototypes can exhaust CPU during serialization. There is no anonymous object input to the docs build configuration/cache options. | Low-impact docs follow-up: qualify the same serializer update; reassess any external object/config source. |
 | serialize-javascript 6.0.2; [GHSA-m5mm-p8h7-m29v](https://github.com/advisories/GHSA-m5mm-p8h7-m29v) | XSS needs attacker-controlled function source text (a spoofed `toString()` ending in `</script`) whose serialized output is then embedded in an HTML `<script>` element. copy-webpack-plugin 11 hashes serialized owned options into cache keys; css-minimizer-webpack-plugin 5 passes owned minimizer options to its workers. Neither embeds the output in page markup. The fix exists only in 7.1.3, a major bump behind @docusaurus/core's ranges. | Condition nonapplicable; update the same docs serializer chain to >=7.1.3 on the owned review date. |
@@ -65,8 +65,20 @@ The policy blocks unknown/new occurrences until reviewed, and expires these revi
 Advisory/version fingerprints do not detect a changed application input path or deployment configuration. Reviewers
 must reassess those source/deployment changes even when scanner metadata remains identical.
 
+## Withdrawn advisories
+
+- sprintf-js 1.1.3; [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), withdrawn by GitHub
+  on 2026-10-22, and braces 3.0.3; [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm),
+  withdrawn on 2026-10-23 (#2122). npm no longer reports either, so their dated dispositions are removed. No fixed
+  version of either package exists; the two literal-format `sprintf` callers (`emain/emain.ts`,
+  `frontend/app/store/ws.ts`) are unchanged. A republished advisory has a new fingerprint and blocks until reviewed.
+
 ## Resolved by upgrade
 
+- golang.org/x/crypto v0.58.0; [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) (#2122, 2026-11-09). The root
+  module moves to the fixed `v0.58.1-0.20261009181718-2f1f834330b2`, v0.58.0 with OpenPGP carved out into its own
+  module (`UPGRADES.md`). The application never imported OpenPGP: the module-level review of #810 and #1797 held
+  until this bump, and its dated disposition is removed. Move to the first tagged x/crypto release past it.
 - postcss-selector-parser 6.1.4; [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf) (#1170,
   2026-10-26). The advisory record changed on 2026-10-26, so its dated review (removed here) no longer matched the finding's
   scope and the scan blocked every pull request. Docusaurus 3.10.2 pins the cssnano 6 chain (postcss-calc, postcss-merge-rules,

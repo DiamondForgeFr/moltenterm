@@ -142,7 +142,8 @@ jobs:
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
               run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
-            - run: npm ci --no-audit --no-fund
+            # `npm ci` with these flags, tried up to three times: a download timeout is not a failure of the change.
+            - run: scripts/moltenterm-npm-ci.sh --no-audit --no-fund
             # The command behind `task check:ts`, without its `npm install` step.
             - name: Type check
               run: npx tsc --noEmit
@@ -162,6 +163,10 @@ jobs:
               run: node scripts/security/runtime-check.mjs
             - name: Build
               run: npm run build:prod
+            # The licence of every npm package the bundles above ship (taken from the build's module graph) and of the
+            # fonts and icons public/ carries must be known and on build/moltenterm/license-policy.json (#2126).
+            - name: Third-party licences
+              run: node scripts/moltenterm-notices.mjs --check --sources npm,assets
 
     backend:
         # Skipped when no Go file changed and no Go test reads a changed file. `task build:backend` runs when a file the
@@ -203,6 +208,10 @@ jobs:
                   args=(--run --summary --only go --base HEAD^1)
                   if [ "$FULL" = true ]; then args+=(--full --full-reason "$REASON" -- -count=1); fi
                   node scripts/moltenterm-affected.mjs "${args[@]}"
+            # The Go modules wavesrv, wsh and molten link (`go list -deps`, from the module cache the tests just filled):
+            # their licences must be known and allowed (#2126).
+            - name: Third-party licences
+              run: node scripts/moltenterm-notices.mjs --check --sources go
             # Only the build needs Task and Zig: installed after the tests, a download outage cannot keep them from running.
             - uses: ./.github/actions/setup-task
               if: needs.select.outputs.gobuild == 'true'
@@ -280,7 +289,7 @@ jobs:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
               run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
             # The app runs here, so Electron's native dependencies are installed (no WAVETERM_SKIP_APP_DEPS).
-            - run: npm ci --no-audit --no-fund
+            - run: scripts/moltenterm-npm-ci.sh --no-audit --no-fund
             - name: Build the app
               env:
                   NODE_OPTIONS: --max-old-space-size=4096

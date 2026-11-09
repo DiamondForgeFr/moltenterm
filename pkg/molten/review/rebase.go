@@ -114,11 +114,29 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 	if err := req.check(); err != nil {
 		return RestartResult{}, err
 	}
+	if held, ok := r.handedAlready(HandoffRebase, req.PrKey, req.HeadOid); ok {
+		return held, nil
+	}
+	now, stale := r.guardPr(ctx, req.PrKey, req.Dir, req.HeadRef, req.HeadOid)
+	if stale != nil {
+		return *stale, nil
+	}
+	if now.read && !now.needsRebase() && !now.computing {
+		return r.staleResult(req.PrKey, req.Dir, req.HeadRef, RestartReasonProblemGone, req.HeadOid, now), nil
+	}
+	if now.head != "" {
+		req.HeadOid = now.head
+	}
+	ctx = withTask(ctx, &handoffTask{kind: HandoffRebase, req: req.restartRequest(), head: req.HeadOid,
+		remains: func(now prNow) bool { return now.needsRebase() || now.computing },
+		resend:  resendAction(HandoffRebase, req.restartRequest(), false, nil)})
 	origin := r.origin(req.restartRequest(), AgentOriginRebase)
 	origin.MergedPr = req.MergedPr
-	return r.askOnBranch(ctx, req.restartRequest(), origin, func(tree string, result *RestartResult) (string, bool) {
+	res := r.askOnBranch(ctx, req.restartRequest(), origin, func(tree string, result *RestartResult) (string, bool) {
 		return r.rebaseLine(req, tree, result)
-	}), nil
+	})
+	r.noteHanded(HandoffRebase, req.PrKey, req.HeadOid, res)
+	return res, nil
 }
 
 // askOnBranch hands a prompt to the agent on the PR's branch (its linked worktrees, then the main checkout), or, with

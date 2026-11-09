@@ -122,6 +122,7 @@ func TestAnalyzeAndResolveReportRoundAndMissingLocalCi(t *testing.T) {
 	}
 
 	// Handed over, the round is no longer a blocker; the local CI statuses seen on the head are not missing.
+	f.later()
 	req.LocalSeen = true
 	res, err = f.r.AskInvestigate(context.Background(), req)
 	if err != nil || res.Status != RestartSent {

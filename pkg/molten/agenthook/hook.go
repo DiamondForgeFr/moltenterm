@@ -156,6 +156,12 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 		if input.AgentId != "" {
 			return subagent(AgentStateWorking)
 		}
+		if input.HookEventName == HookEventPostToolUse && input.BackgroundTaskId != "" {
+			return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{
+				BlockId: blockId, State: AgentStateWorking, Agent: agent, BackgroundTask: input.BackgroundTaskId,
+				BackgroundDescription: input.ToolDescription, Transcript: absPath(input.TranscriptPath),
+			})
+		}
 		return state(AgentStateWorking, "")
 	case HookEventNotification:
 		// A sub-agent's question too: it shows in the main session's terminal, which waits for the developer.
@@ -167,7 +173,7 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 		if input.AgentId != "" {
 			return subagent(AgentStateDone)
 		}
-		return state(AgentStateDone, "")
+		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateDone, Agent: agent, Transcript: absPath(input.TranscriptPath)})
 	case HookEventSubagentStart, HookEventSubagentStop:
 		return subagentEvent(input, agent, blockId, call)
 	}
@@ -259,6 +265,8 @@ func (input *HookInput) field(key string) *string {
 		return &input.AgentType
 	case "agent_transcript_path":
 		return &input.AgentTranscriptPath
+	case "tool_name":
+		return &input.ToolName
 	}
 	return nil
 }
@@ -290,7 +298,9 @@ func ReadHookInput(r io.Reader) HookInput {
 			if json.Unmarshal(raw, &s) == nil {
 				*dst = s
 			}
+			continue
 		}
+		readToolField(&input, key, raw)
 	}
 	return input
 }

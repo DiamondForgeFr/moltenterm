@@ -213,8 +213,41 @@ func joinOne(s *Snapshot, job *waveobj.Job) molten.DurableSession {
 		fillShown(s, job, p, &ds)
 	} else {
 		fillHidden(s, job, &ds)
+		ds.HomeWorkspaceId = homeWorkspace(s, job)
 	}
 	return ds
+}
+
+// homeWorkspace is the workspace of the tab a session's pane was last in, while that tab exists: the pane's block,
+// still in a tab after another job replaced it, else the tab recorded on the job (TabsToRecord).
+func homeWorkspace(s *Snapshot, job *waveobj.Job) string {
+	tabId := s.BlockTab[job.AttachedBlockId]
+	if tabId == "" {
+		tabId = job.Meta.GetString(molten.SessionTabMetaKey, "")
+	}
+	if tabId == "" {
+		return ""
+	}
+	return s.TabWorkspace[tabId]
+}
+
+// TabsToRecord lists, by job, the tab of each session shown in a pane whose job does not record that tab yet, so that
+// the session keeps its workspace once its pane is gone (homeWorkspace).
+func TabsToRecord(s *Snapshot) map[string]string {
+	rtn := map[string]string{}
+	for _, job := range s.Jobs {
+		if !IsLive(job) {
+			continue
+		}
+		p := paneOf(s, job)
+		if p.reason != "" || p.tabId == "" {
+			continue
+		}
+		if job.Meta.GetString(molten.SessionTabMetaKey, "") != p.tabId {
+			rtn[job.OID] = p.tabId
+		}
+	}
+	return rtn
 }
 
 func fillShown(s *Snapshot, job *waveobj.Job, p pane, ds *molten.DurableSession) {

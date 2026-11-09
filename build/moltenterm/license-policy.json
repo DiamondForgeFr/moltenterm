@@ -1,0 +1,40 @@
+{
+    "allowed": [
+        "0BSD",
+        "Apache-2.0",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "BlueOak-1.0.0",
+        "CC0-1.0",
+        "ISC",
+        "MIT",
+        "MPL-2.0",
+        "OFL-1.1",
+        "Python-2.0",
+        "Unlicense",
+        "Zlib"
+    ],
+    "exceptions": [
+        {
+            "ecosystem": "npm",
+            "name": "@diamondforge/character",
+            "license": "LicenseRef-DiamondForge-Proprietary",
+            "reason": "DiamondForge's own private package (the runtime of the suite's animated characters), UNLICENSED and not under any open-source licence. NOTICE names it; whether a public release may bundle it is its owner's decision (UPSTREAM.md, Licensing).",
+            "note": "DiamondForge's own private package, all rights reserved (see NOTICE).",
+            "noText": true
+        },
+        {
+            "ecosystem": "asset",
+            "name": "Font Awesome Free",
+            "version": "6.7.2",
+            "license": "CC-BY-4.0 AND OFL-1.1 AND MIT",
+            "reason": "Icons are CC BY 4.0 (attribution only, kept in the notices and NOTICE), fonts OFL-1.1, code MIT. Reviewed with #1870 and #2126."
+        },
+        {
+            "ecosystem": "asset",
+            "name": "Hack Nerd Font Mono",
+            "license": "MIT AND Bitstream-Vera",
+            "reason": "Hack is MIT; its Bitstream Vera Sans Mono base is under the Bitstream Vera licence, a permissive font licence that allows redistribution with its notice in an application (the font is renamed, as it requires). Reviewed with #2126."
+        }
+    ]
+}

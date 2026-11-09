@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // Codex keeps its rollout open while it runs (#799). Its notify links the session only at the end of a turn and its
@@ -299,14 +298,5 @@ func (m *Manager) followSettings(run molten.AgentRunInfo, follower SettingsFollo
 
 // startProcessLinks runs the loop for wavesrv's life.
 func (m *Manager) startProcessLinks() {
-	go func() {
-		defer func() {
-			panichandler.PanicHandler("molten:companion:processlinks", recover())
-		}()
-		ticker := time.NewTicker(processLinkInterval)
-		defer ticker.Stop()
-		for range ticker.C {
-			m.followRuns()
-		}
-	}()
+	go everyRecovered("molten:companion:processlinks", processLinkInterval, false, nil, m.followRuns)
 }

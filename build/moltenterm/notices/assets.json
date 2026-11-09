@@ -1,0 +1,58 @@
+{
+    "components": [
+        {
+            "name": "Font Awesome Free",
+            "version": "6.7.2",
+            "license": "CC-BY-4.0 AND OFL-1.1 AND MIT",
+            "url": "https://fontawesome.com",
+            "shippedAs": "public/fontawesome-free: the icon style sheets and web fonts",
+            "texts": [{ "file": "public/fontawesome-free/LICENSE.txt" }]
+        },
+        {
+            "name": "Hack Nerd Font Mono",
+            "license": "MIT AND Bitstream-Vera",
+            "url": "https://github.com/source-foundry/Hack",
+            "shippedAs": "public/fonts/hacknerdmono-*.ttf: Hack, patched with the glyph sets of Nerd Fonts (https://github.com/ryanoasis/nerd-fonts)",
+            "texts": [{ "file": "build/moltenterm/notices/Hack-LICENSE.txt" }]
+        },
+        {
+            "name": "IBM Plex Sans",
+            "license": "OFL-1.1",
+            "url": "https://github.com/IBM/plex",
+            "shippedAs": "public/fonts/ibm-plex-sans-var-*.woff2",
+            "texts": [{ "file": "public/fonts/ibm-plex-sans-ofl.txt" }]
+        },
+        {
+            "name": "Inter",
+            "license": "OFL-1.1",
+            "url": "https://github.com/rsms/inter",
+            "shippedAs": "public/fonts/inter-variable.woff2",
+            "texts": [
+                {
+                    "prefix": "Copyright 2016 The Inter Project Authors\n\nThis Font Software is licensed under the SIL Open Font License, Version 1.1.\nThis license is copied below, and is also available with a FAQ at: http://scripts.sil.org/OFL",
+                    "file": "build/moltenterm/notices/OFL-1.1.txt"
+                }
+            ]
+        },
+        {
+            "name": "JetBrains Mono",
+            "license": "OFL-1.1",
+            "url": "https://github.com/JetBrains/JetBrainsMono",
+            "shippedAs": "public/fonts/jetbrains-mono-*.woff2",
+            "texts": [
+                {
+                    "prefix": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)\n\nThis Font Software is licensed under the SIL Open Font License, Version 1.1.\nThis license is copied below, and is also available with a FAQ at: https://scripts.sil.org/OFL",
+                    "file": "build/moltenterm/notices/OFL-1.1.txt"
+                }
+            ]
+        },
+        {
+            "name": "bash-preexec",
+            "version": "0.6.0",
+            "license": "MIT",
+            "url": "https://github.com/rcaloras/bash-preexec",
+            "shippedAs": "pkg/util/shellutil/shellintegration/bash_preexec.sh: embedded in wavesrv, with its licence text in the file's header",
+            "texts": [{ "file": "build/moltenterm/notices/bash-preexec-LICENSE.txt" }]
+        }
+    ]
+}

@@ -1,6 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
 import { errorPhrase, wordPhrase } from "../i18n/phrase";
@@ -30,6 +31,7 @@ import {
     splitReviews,
     validateBlocked,
 } from "./reviews-model";
+import { ReviewsModel } from "./reviews-store";
 
 // The outcome with its text worded, as a row shows it (#1058).
 function rebaseOutcome(
@@ -165,6 +167,60 @@ describe("reviews model", () => {
             text: "The rebase could not be asked: boom",
         });
         expect(rebaseOutcome(null)).toBeNull();
+    });
+
+    // #2145 AC-2 (FR-REV-022 AC22): a hand-off wavesrv found out of date sent nothing; the card says why, with the head
+    // GitHub has, and offers no queue behind anybody.
+    it("says a hand-off was not sent because the PR changed (#2145)", () => {
+        const head = "02d4ec6760000000000000000000000000000bbb";
+        const moved = rebaseOutcome({ status: "stale", reason: "headmoved", head });
+        expect(moved).toMatchObject({ kind: "info", stale: true });
+        expect(moved.text).toBe(
+            "This pull request moved on since the card was drawn (its head is now 02d4ec6): nothing was sent. The card is reading it again."
+        );
+        expect(moved.busy).toBeUndefined();
+        expect(rebaseOutcome({ status: "stale", reason: "problemgone", head }, undefined, "finish").text).toBe(
+            "What this asked for is no longer true on GitHub (the pull request is at 02d4ec6): nothing was sent. The card is reading it again."
+        );
+        expect(rebaseOutcome({ status: "stale", reason: "prclosed", head }, undefined, "investigate")).toMatchObject({
+            kind: "info",
+            stale: true,
+            text: "This pull request is no longer open: nothing was sent.",
+        });
+    });
+
+    // #2145 AC-3: the same task for the same head is already handled; the card says who has it, and queues nothing.
+    it("says who already has a hand-off for the head (#2145)", () => {
+        const head = "02d4ec6760000000000000000000000000000bbb";
+        const held = rebaseOutcome({
+            status: "busy",
+            reason: "alreadyhanded",
+            firstname: "Arthur",
+            blockid: "blk-arthur",
+            head,
+            handedat: 1000,
+        });
+        expect(held).toMatchObject({
+            kind: "info",
+            text: "Arthur already has this for the head 02d4ec6: nothing more was sent.",
+        });
+        expect(held.busy).toBeUndefined();
+        expect(held.stale).toBeFalsy();
+        expect(rebaseOutcome({ status: "busy", reason: "alreadyhanded", head }).text).toBe(
+            "An agent already has this for the head 02d4ec6: nothing more was sent."
+        );
+    });
+
+    it("keeps the line a stale hand-off left on its card until the card is asked again (#2145)", () => {
+        const model = ReviewsModel.getInstance();
+        const key = rebaseAskKey("/p", 4);
+        const stale = outcomeOf({ status: "stale", reason: "headmoved", head: "0123456789abcdef" });
+        model.noteTask("/p", pr(4), "rebase", stale);
+        expect(wordPhrase(globalStore.get(model.staleAtom)[key])).toContain("moved on");
+        expect(globalStore.get(model.rebaseAsksAtom)[key]).toBeUndefined();
+        model.noteTask("/p", pr(4), "rebase", outcomeOf({ status: "sent", firstname: "Rita" }));
+        expect(globalStore.get(model.staleAtom)[key]).toBeUndefined();
+        expect(globalStore.get(model.rebaseAsksAtom)[key]).toMatchObject({ name: "Rita", kind: "rebase" });
     });
 
     it("sums the checks, failing first", () => {
@@ -436,6 +492,16 @@ describe("reviews model", () => {
                 "Intégration — 2 à relire, 1 prête à fusionner, 3 brouillons"
             );
             expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Intégration — 1 brouillon");
+        });
+
+        it("words the stale and the already handed hand-offs (#2145)", () => {
+            const head = "02d4ec6760000000000000000000000000000bbb";
+            expect(rebaseOutcome({ status: "stale", reason: "headmoved", head }).text).toBe(
+                "Cette pull request a avancé depuis l'affichage de la carte (sa tête est maintenant 02d4ec6) : rien n'a été envoyé. La carte la relit."
+            );
+            expect(rebaseOutcome({ status: "busy", reason: "alreadyhanded", firstname: "Arthur", head }).text).toBe(
+                "Arthur a déjà cette demande pour la tête 02d4ec6 : rien n'a été envoyé de plus."
+            );
         });
 
         it("names a failed check and why the merge is blocked (#797)", () => {

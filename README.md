@@ -20,9 +20,10 @@ The vision, principles, non-goals and roadmap are in [MANIFESTO.md](MANIFESTO.md
 
 ## Status
 
-Early development. MoltenTerm currently builds on **Wave Terminal v0.14.5** with its own identity, no calls to
-services operated by the Wave project, and openly licensed assets. The mod system described in the manifesto is the
-next milestone.
+MoltenTerm **1.0.0** is the first public release. It builds on **Wave Terminal v0.14.5** with its own identity, no
+calls to services operated by the Wave project, and openly licensed assets. The mod system, the `molten` command and
+Mission Control described in the manifesto are in the box; the community phase (a registry, permissions and signing,
+an in-app gallery) comes later.
 
 ## Install
 
@@ -33,6 +34,9 @@ for macOS (Apple Silicon and Intel) and Linux (x64 and arm64, AppImage and .deb)
   yet, so macOS refuses to open them the first time: right-click MoltenTerm in Applications and choose **Open**, or
   run `xattr -dr com.apple.quarantine /Applications/MoltenTerm.app`.
 - **Linux**: make the `.AppImage` executable and run it, or install the `.deb` with `sudo apt install ./<file>.deb`.
+  On **Ubuntu 23.10 and later, install the `.deb`**. The AppImage needs unprivileged user namespaces, which AppArmor
+  restricts there, and an AppImage cannot carry the `chrome-sandbox` helper that the `.deb` installs with the
+  permissions the sandbox needs: it may refuse to start.
 
 `SHA256SUMS.txt` in each release lists the checksum of every file.
 
