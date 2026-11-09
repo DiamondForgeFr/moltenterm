@@ -43,7 +43,7 @@
     "telemetry:enabled": false,
     "term:bellsound": false,
     "term:bellindicator": true,
-    "term:osc52": "always",
+    "term:osc52": "focus",
     "term:cursor": "block",
     "term:cursorblink": false,
     "term:copyonselect": true,

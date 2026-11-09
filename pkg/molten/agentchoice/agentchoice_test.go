@@ -70,15 +70,47 @@ func TestResolveReportsAMissingChoice(t *testing.T) {
 	}
 }
 
+// #2121: an agent MoltenTerm starts on its own reads only, and the folder's own agent configuration never loads.
 func TestPrintArgv(t *testing.T) {
-	if got := PrintArgv("claude"); !reflect.DeepEqual(got, []string{"claude", "-p"}) {
+	claude := []string{"claude", "-p", "--setting-sources", "user", "--strict-mcp-config",
+		"--disallowed-tools", "Bash", "Edit", "Write", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"}
+	if got := PrintArgv("claude", "/p"); !reflect.DeepEqual(got, claude) {
 		t.Errorf("claude: %v", got)
 	}
-	if got := PrintArgv("codex"); !reflect.DeepEqual(got, []string{"codex", "exec", "-"}) {
+	if got := PrintArgv("codex"); !reflect.DeepEqual(got, []string{"codex", "exec", "--sandbox", "read-only", "-c", "mcp_servers={}", "-"}) {
+		t.Errorf("codex without a folder: %v", got)
+	}
+	want := []string{"codex", "exec", "--sandbox", "read-only", "-c", "mcp_servers={}",
+		"-c", `projects={"/p"={trust_level="untrusted"},"/q \"x\""={trust_level="untrusted"}}`, "-"}
+	if got := PrintArgv("codex", "/p", "", "/q \"x\"", "/p", "relative"); !reflect.DeepEqual(got, want) {
 		t.Errorf("codex: %v", got)
 	}
-	if PrintArgv("gemini") != nil {
-		t.Errorf("an agent without a review flow has no form")
+	if PrintArgv("gemini", "/p") != nil {
+		t.Errorf("an agent without a read-only form is never started")
+	}
+}
+
+// A linked worktree takes the trust of its main checkout in Codex: both are untrusted for the run.
+func TestPrintArgvCodexUntrustsTheMainCheckout(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	main := filepath.Join(root, "app")
+	tree := filepath.Join(root, "app-9")
+	if err := os.MkdirAll(filepath.Join(main, ".git", "worktrees", "app-9"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(tree, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tree, ".git"), []byte("gitdir: "+filepath.Join(main, ".git", "worktrees", "app-9")+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got := PrintArgv("codex", tree)
+	projects := `projects={` + tomlString(tree) + `={trust_level="untrusted"},` + tomlString(main) + `={trust_level="untrusted"}}`
+	if len(got) < 2 || got[len(got)-2] != projects {
+		t.Fatalf("argv %v, want %s", got, projects)
 	}
 }
 

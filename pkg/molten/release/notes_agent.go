@@ -63,8 +63,9 @@ func ExecAgent(ctx context.Context, dir string, argv []string, prompt string) ([
 // notesAgent is the agent command of this run: the environment's, else the project's (versions.notesagent), else the
 // non-interactive form of the project's coding agent (#845: what Mission Control puts in the step's environment, or
 // what MoltenTerm answers a terminal); nil when the notes are written from the commit subjects. A chosen agent that is
-// not installed is said, never replaced.
-func (e *Env) notesAgent(ctx context.Context, p *Project) []string {
+// not installed is said, never replaced. The coding agent's form is read-only and leaves out the configuration of wt
+// and of the project (#2121): its prompt holds commit messages and issue titles anyone can write.
+func (e *Env) notesAgent(ctx context.Context, p *Project, wt string) []string {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(NotesAiEnv))) {
 	case "off", "0", "false", "no":
 		return nil
@@ -81,7 +82,7 @@ func (e *Env) notesAgent(ctx context.Context, p *Project) []string {
 			molten.AgentDisplayName(missing))
 		return nil
 	}
-	if argv := agentchoice.PrintArgv(strings.TrimSpace(os.Getenv(agentchoice.EnvVar))); argv != nil {
+	if argv := agentchoice.PrintArgv(strings.TrimSpace(os.Getenv(agentchoice.EnvVar)), wt, e.Dir); argv != nil {
 		return argv
 	}
 	if e.CodingAgent == nil {
@@ -95,7 +96,7 @@ func (e *Env) notesAgent(ctx context.Context, p *Project) []string {
 		e.printf("%s. The public notes are written from the commit subjects.\n", choice.MissingText())
 		return nil
 	}
-	return agentchoice.PrintArgv(choice.Agent)
+	return agentchoice.PrintArgv(choice.Agent, wt, e.Dir)
 }
 
 func notesPrompt(f NotesFacts, record string) string {
@@ -210,7 +211,7 @@ func (e *Env) writeNotes(ctx context.Context, wt string, p *Project, tag string,
 	e.printf("Engineering record written: %s (%d commit(s), %d ticket(s) since %s).\n", p.InternalNotesFile(tag), len(facts.Subjects), len(facts.Tickets), facts.sinceLabel())
 	body := ""
 	how := "from the commit subjects"
-	if argv := e.notesAgent(ctx, p); len(argv) > 0 && !plain {
+	if argv := e.notesAgent(ctx, p, wt); len(argv) > 0 && !plain {
 		body = e.agentNotes(ctx, wt, argv, facts, record)
 		if body == "" {
 			e.printf("Falling back to the commit subjects: review them, they may read oddly.\n")
