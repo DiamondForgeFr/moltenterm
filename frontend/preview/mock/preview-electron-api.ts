@@ -59,6 +59,7 @@ const previewElectronApi: ElectronApi = {
     onQuicklook: (_filePath: string) => {},
     openNativePath: (_filePath: string) => {},
     revealNativePath: (_filePath: string) => {}, // MOLTENTERM-PATCH (#1575)
+    copyFileToClipboard: (_filePath: string) => Promise.resolve("copied" as const), // MOLTENTERM-PATCH (#2115)
     captureScreenshot: (_rect: Electron.Rectangle) => Promise.resolve(""),
     setKeyboardChordMode: () => {},
     clearWebviewStorage: (_webContentsId: number) => Promise.resolve(),

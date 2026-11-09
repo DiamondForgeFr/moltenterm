@@ -6,6 +6,7 @@ import { SettingsKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/wav
 export type PreviewEnv = WaveEnvSubset<{
     electron: {
         onQuicklook: WaveEnv["electron"]["onQuicklook"];
+        copyFileToClipboard: WaveEnv["electron"]["copyFileToClipboard"]; // MOLTENTERM-PATCH (#2115)
     };
     rpc: {
         ConnEnsureCommand: WaveEnv["rpc"]["ConnEnsureCommand"];
