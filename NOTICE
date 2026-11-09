@@ -29,6 +29,18 @@ This product bundles Font Awesome Free 6.7.2 by Fonticons, Inc. (https://fontawe
 icons under CC BY 4.0, fonts under the SIL Open Font License 1.1, code under the MIT License.
 See public/fontawesome-free/LICENSE.txt.
 
+This product bundles these fonts in public/fonts/. Each licence text sits beside its font, and the app loads no
+remote font:
+- IBM Plex Sans (variable), Copyright 2017 IBM Corp. with Reserved Font Name "Plex", under the SIL Open Font
+  License 1.1. See public/fonts/ibm-plex-sans-ofl.txt.
+- Inter 4.0 (variable), Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter), under the SIL Open
+  Font License 1.1. See public/fonts/inter-ofl.txt.
+- JetBrains Mono 2.211, Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono),
+  under the SIL Open Font License 1.1. See public/fonts/jetbrains-mono-ofl.txt.
+- Hack Nerd Font Mono 3.2.1: Hack 3.003, Copyright 2018 Source Foundry Authors (MIT License), built on Bitstream Vera
+  Sans Mono, Copyright 2003 Bitstream, Inc. (Bitstream Vera License), patched with icon glyphs by the Nerd Fonts
+  patcher 3.2.1, Copyright 2014 Ryan L McIntyre (MIT License). See public/fonts/hacknerdmono-license.txt.
+
 This product bundles @diamondforge/character 0.3.1 by DiamondForge, the runtime of the DiamondForge suite's
 animated characters. It is DiamondForge's own private package, UNLICENSED (all rights reserved), and is not
 licensed under any of the licences above.
