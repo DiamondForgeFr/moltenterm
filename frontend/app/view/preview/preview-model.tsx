@@ -10,6 +10,7 @@ import { getOverrideConfigAtom, refocusNode } from "@/store/global";
 import * as WOS from "@/store/wos";
 import { goHistory, goHistoryBack, goHistoryForward } from "@/util/historyutil";
 import { checkKeyPressed } from "@/util/keyutil";
+import { PLATFORM } from "@/util/platformutil"; // MOLTENTERM-PATCH (#2115)
 import { addOpenMenuItems } from "@/util/previewutil";
 import { base64ToString, fireAndForget, isBlank, jotaiLoadableValue, stringToBase64 } from "@/util/util";
 import { formatRemoteUri } from "@/util/waveutil";
@@ -26,6 +27,7 @@ import {
     FileConfineGate,
     fileConfineHeaderElems,
 } from "../../../moltenterm-shell/file-confine/file-confine";
+import { FileCopyModel } from "../../../moltenterm-shell/file-copy/file-copy"; // MOLTENTERM-PATCH (#2115)
 import { FileFilterModel } from "../../../moltenterm-shell/file-filter/file-filter"; // MOLTENTERM-PATCH (#1625)
 import { PreviewView } from "./preview";
 import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
@@ -186,6 +188,7 @@ export class PreviewModel implements ViewModel {
     env: PreviewEnv;
     confine: FileConfineGate; // MOLTENTERM-PATCH (#1624)
     fileFilter: FileFilterModel; // MOLTENTERM-PATCH (#1625)
+    fileCopy: FileCopyModel; // MOLTENTERM-PATCH (#2115)
 
     constructor({ blockId, nodeModel, tabModel, waveEnv }: ViewModelInitType) {
         this.viewType = "preview";
@@ -219,6 +222,12 @@ export class PreviewModel implements ViewModel {
             isFocusedAtom: nodeModel?.isFocused,
         });
         this.showHiddenFiles = this.fileFilter.showHiddenAtom;
+        // MOLTENTERM-PATCH (#2115): Copy file puts the shown file on the system clipboard (FR-FILE-005)
+        this.fileCopy = new FileCopyModel({
+            copy: (path) => this.env.electron.copyFileToClipboard(path),
+            platform: () => PLATFORM,
+            hasUnsaved: () => globalStore.get(this.newFileContent) != null,
+        });
         this.markdownShowToc = atom(false);
         this.filterOutNowsh = atom(true);
         this.monacoRef = createRef();
@@ -290,6 +299,10 @@ export class PreviewModel implements ViewModel {
                 },
                 ...fileConfineHeaderElems(get, this.confine, () => fireAndForget(() => this.goBackToProject())), // MOLTENTERM-PATCH (#1624)
             ];
+            const fileCopyPill = this.fileCopy.pill(get); // MOLTENTERM-PATCH (#2115)
+            if (fileCopyPill != null) {
+                viewTextChildren.push(fileCopyPill);
+            }
             let saveClassName = "grey";
             if (get(this.newFileContent) !== null) {
                 saveClassName = "green";
@@ -360,7 +373,7 @@ export class PreviewModel implements ViewModel {
                 click: this.goParentDirectory.bind(this),
             };
         });
-        this.endIconButtons = atom((get) => {
+        const viewEndIconButtons = atom((get) => {
             const connStatus = get(this.connStatus);
             if (connStatus?.status != "connected") {
                 return null;
@@ -415,6 +428,18 @@ export class PreviewModel implements ViewModel {
                 ] as IconButtonDecl[];
             }
             return null;
+        });
+        // MOLTENTERM-PATCH (#2115): Copy file joins the view's buttons wherever the panel shows a file on this computer
+        this.endIconButtons = atom((get) => {
+            const buttons = get(viewEndIconButtons);
+            if (get(this.connStatus)?.status != "connected") {
+                return buttons;
+            }
+            const finfo = jotaiLoadableValue(get(this.loadableFileInfo), null);
+            const copyFile = this.fileCopy.headerButton(get, get(this.connectionImmediate), finfo, () =>
+                fireAndForget(() => this.copyShownFile())
+            );
+            return copyFile == null ? buttons : [...(buttons ?? []), copyFile];
         });
         // MOLTENTERM-PATCH (#1624): a confined panel shows what its gate let through (null until the gate answers)
         this.metaFilePath = atom<string>((get) => {
@@ -542,6 +567,13 @@ export class PreviewModel implements ViewModel {
     dispose() {
         this.confine.dispose();
         this.fileFilter.dispose(); // MOLTENTERM-PATCH (#1625)
+        this.fileCopy.dispose(); // MOLTENTERM-PATCH (#2115)
+    }
+
+    // MOLTENTERM-PATCH (#2115): the file the panel shows now, read when the button or the menu is used
+    async copyShownFile() {
+        const finfo = jotaiLoadableValue(globalStore.get(this.loadableFileInfo), null);
+        await this.fileCopy.copy(globalStore.get(this.connectionImmediate), finfo);
     }
 
     // MOLTENTERM-PATCH (#1624): the header's Back to the project opens the root, which ends the approval
@@ -771,6 +803,13 @@ export class PreviewModel implements ViewModel {
         const blockData = globalStore.get(this.blockAtom);
         const overrideFontSize = blockData?.meta?.["editor:fontsize"];
         const menuItems: ContextMenuItem[] = [];
+        // MOLTENTERM-PATCH (#2115): above Copy path and Copy name
+        menuItems.push(
+            ...this.fileCopy.menuItems(
+                globalStore.get(this.connectionImmediate),
+                jotaiLoadableValue(globalStore.get(this.loadableFileInfo), null)
+            )
+        );
         menuItems.push({
             label: t("wave.files.copyPath"), // MOLTENTERM-PATCH (#742)
             click: () =>

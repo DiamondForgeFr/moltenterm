@@ -435,6 +435,7 @@ function TableBody({
                 {
                     type: "separator",
                 },
+                ...model.fileCopy.menuItems(conn, finfo), // MOLTENTERM-PATCH (#2115): above Copy name and Copy path
                 {
                     label: t("wave.files.copyName"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(fileName)),
