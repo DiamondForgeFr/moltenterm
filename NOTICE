@@ -30,5 +30,13 @@ icons under CC BY 4.0, fonts under the SIL Open Font License 1.1, code under the
 See public/fontawesome-free/LICENSE.txt.
 
 This product bundles @diamondforge/character 0.3.1 by DiamondForge, the runtime of the DiamondForge suite's
-animated characters. It is a private package, UNLICENSED (all rights reserved), and is not licensed under any
-of the licences above.
+animated characters. It is DiamondForge's own private package, UNLICENSED (all rights reserved), and is not
+licensed under any of the licences above.
+
+The other third-party software this product contains (the npm packages bundled into the application, the Go
+modules compiled into its programs, and the fonts and icons it carries) is listed with its licences and
+copyright notices in THIRD-PARTY-NOTICES.txt, installed in the application's licenses folder and opened from
+About, "Open-source licences". The build generates it from what really ships
+(scripts/moltenterm-notices.mjs) and refuses a licence that is unknown or not on the project's allow-list
+(build/moltenterm/license-policy.json). Electron's licence and the licences of Chromium are installed with the
+application (LICENSE.electron.txt and LICENSES.chromium.html).
