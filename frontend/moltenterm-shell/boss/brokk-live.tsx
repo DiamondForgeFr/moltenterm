@@ -10,11 +10,11 @@
 
 import { TransmissionPortrait } from "@diamondforge/character";
 import "@diamondforge/character/styles.css";
-import { useEffect, useReducer } from "react";
-import type { AskedExpression, BrokkSituation } from "./brokk-ask-model";
+import { useEffect, useMemo, useReducer } from "react";
+import type { AskedExpression, BrokkPose, BrokkSituation } from "./brokk-ask-model";
 import "./brokk-live.css";
 import { startMoments } from "./brokk-moments";
-import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
+import { BrokkPortrait, declarationForPoses, rhythmProps } from "./brokk-portrait";
 import type { BlinkRhythm } from "./brokk-scene";
 import { brokkPose, faceAfter, gestureEvent, reactionCapMs, SpeakingMs, startFace } from "./brokk-state-model";
 
@@ -36,11 +36,28 @@ export type BrokkLiveProps = {
     onOpened?: () => void;
     // How the scene wants his blinks spaced: the package's `idleGap` (brokk-portrait.ts).
     rhythm?: BlinkRhythm;
+    // The only poses this face can take, when it is not all four: the package is declared with the transitions between
+    // them (declarationForPoses). A constant, since a new array declares the portrait anew.
+    poses?: readonly BrokkPose[];
 };
 
-export function BrokkLive({ situation, asked, play, speaks, onPlayed, opened, onOpened, rhythm }: BrokkLiveProps) {
+export function BrokkLive({
+    situation,
+    asked,
+    play,
+    speaks,
+    onPlayed,
+    opened,
+    onOpened,
+    rhythm,
+    poses,
+}: BrokkLiveProps) {
     const [face, dispatch] = useReducer(faceAfter, { asked, play, speaks }, startFace);
     const reaction = face.reaction;
+    const declaration = useMemo(
+        () => (poses != null ? declarationForPoses(BrokkPortrait, poses) : BrokkPortrait),
+        [poses]
+    );
 
     useEffect(() => startMoments(), []);
     useEffect(() => {
@@ -100,7 +117,7 @@ export function BrokkLive({ situation, asked, play, speaks, onPlayed, opened, on
     return (
         <div className="mt-brokk-live" data-pose={pose} data-rhythm={rhythm ?? "normal"} data-testid="brokk-live">
             <TransmissionPortrait
-                {...BrokkPortrait}
+                {...declaration}
                 {...rhythmProps(rhythm ?? "normal")}
                 bare
                 className="mt-brokk-portrait"

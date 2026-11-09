@@ -56,8 +56,11 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
+import { restingPose } from "./brokk-ask-model";
 import { BrokkAvatar, BrokkAvatarSlot } from "./brokk-avatar";
 import {
+    AvatarPoses,
+    avatarSituation,
     AvatarSizePx,
     downloadRingRadiusUnits,
     HangingSizePx,
@@ -334,6 +337,14 @@ describe("the ring (AC2)", () => {
         expect(probe(false, true)).toBeNull();
         Mocks.motion = false;
         expect(probe(false)).toBeNull();
+    });
+
+    it("declares only the poses it can take, so that the portrait mounts the transitions between them (#2154)", () => {
+        const live = hook(() => useAvatarLive(false, false)) as any;
+        expect(live.poses).toBe(AvatarPoses);
+        expect(AvatarPoses).toEqual(["listening", "thinking"]);
+        const taken = [false, true].map((own) => restingPose(avatarSituation(own)));
+        expect(taken.every((pose) => AvatarPoses.includes(pose))).toBe(true);
     });
 });
 

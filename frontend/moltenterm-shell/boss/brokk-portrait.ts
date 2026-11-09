@@ -106,6 +106,17 @@ export function makeBrokkDeclaration(manifest: BrokkManifest, loops: string, sti
     return { src: still, loops, restState: RestState, transitions, idles };
 }
 
+// The declaration of a face that can take only some poses (the sidebar's avatar listens and thinks, it never speaks nor
+// sleeps): the package mounts a video for each transition that leaves the pose on screen, so it is handed the transitions
+// between those poses only, which the face could take anyway. The loops are the package's to mount (#2154, see the PR).
+export function declarationForPoses(declaration: BrokkDeclaration, poses: readonly string[]): BrokkDeclaration {
+    const transitions = (declaration.transitions ?? []).filter((transition) => {
+        const [from, to] = transition.split(">");
+        return poses.includes(from) && poses.includes(to);
+    });
+    return { ...declaration, transitions };
+}
+
 // Vite gives each clip its own URL; the package wants one folder to read them all from. The build keeps the clips
 // together under their own names (moltentermStableClips, build/stable-clips.ts), so their folder is the one every URL
 // shares. Without clips, or when they are apart, there is no folder and the still plays the part.

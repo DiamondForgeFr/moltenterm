@@ -10,6 +10,7 @@ import {
     BrokkPortrait,
     clipNames,
     clipsFolder,
+    declarationForPoses,
     IdleGaps,
     makeBrokkDeclaration,
     RestState,
@@ -312,5 +313,27 @@ describe("the package at v0.3.1 (FR-BOSS-007, AC1 and AC17; #1999, #2007)", () =
                 expect(allowed, `${selector.trim()} { ${declaration} }`).toContain(declaration);
             }
         }
+    });
+});
+
+describe("the declaration of a face that takes some poses only (#2154)", () => {
+    const declaration = makeBrokkDeclaration(Manifest as BrokkManifest, "/clips", "/brokk.jpg");
+
+    it("keeps the transitions between those poses and none that leave them", () => {
+        const narrowed = declarationForPoses(declaration, ["listening", "thinking"]);
+        expect(narrowed.transitions).toEqual(["listening>thinking", "thinking>listening"]);
+        expect(declaration.transitions).toContain("listening>rest");
+        expect(declaration.transitions).toContain("thinking>speaking");
+    });
+
+    it("changes nothing else of the declaration: the loops, the gestures and the picture are the same", () => {
+        const narrowed = declarationForPoses(declaration, ["listening", "thinking"]);
+        expect({ ...narrowed, transitions: undefined }).toEqual({ ...declaration, transitions: undefined });
+        expect(narrowed.idles).toBe(declaration.idles);
+    });
+
+    it("keeps every transition for all four poses", () => {
+        const all = declarationForPoses(declaration, ["listening", "thinking", "speaking", "rest"]);
+        expect(all.transitions).toEqual(declaration.transitions);
     });
 });

@@ -43,13 +43,21 @@ vi.mock("./brokk-expressions", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { TabActivity } from "../tab-activity";
 import type { BossPeek } from "./boss-overview";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import type { BrokkScene } from "./brokk-scene";
 import { useGroupCaption } from "./use-brokk-caption";
-import { useBrokkScene, useBrokkSituation, useCardLive } from "./use-brokk-live";
+import {
+    faceVisibleIn,
+    useBrokkScene,
+    useBrokkSituation,
+    useCardLive,
+    useFaceVisible,
+    useMotionAllowed,
+} from "./use-brokk-live";
 
 const bubble = BossBubbleModel.getInstance() as any;
 const expressions = BrokkExpressionsModel.getInstance() as any;
@@ -111,6 +119,49 @@ describe("the card's header (FR-BOSS-007, AC8, #1959; FR-BOSS-009)", () => {
     it("shows the still whatever happens when motion is reduced", () => {
         Mocks.reduced = true;
         expect(hook(() => useCardLive())).toBeNull();
+    });
+});
+
+describe("where his face can be seen (#2154)", () => {
+    afterEach(() => {
+        TabActivity.resetInstance();
+    });
+
+    it("is where the page is visible and the tab view is on screen, whether or not the window has the focus", () => {
+        expect(faceVisibleIn(true, "active")).toBe(true);
+        expect(faceVisibleIn(true, "visible")).toBe(true);
+        expect(faceVisibleIn(true, "hidden")).toBe(false);
+        expect(faceVisibleIn(true, "minimized")).toBe(false);
+        expect(faceVisibleIn(false, "active")).toBe(false);
+    });
+
+    it("keeps him animated in a view that shows in a window without the focus", () => {
+        const activity = TabActivity.getInstance();
+        globalStore.set(activity.documentFocusedAtom, false);
+        expect(globalStore.get(activity.stateAtom)).toBe("visible");
+        expect(hook(() => useCardLive())).toMatchObject({ rhythm: "normal" });
+        expect(hook(() => useMotionAllowed())).toBe(true);
+    });
+
+    it("mounts nothing in a tab view that is not on screen, nor in a minimised window", () => {
+        const activity = TabActivity.getInstance();
+        globalStore.set(activity.documentVisibleAtom, false);
+        expect(globalStore.get(activity.stateAtom)).toBe("hidden");
+        expect(hook(() => useCardLive())).toBeNull();
+        expect(hook(() => useFaceVisible())).toBe(false);
+        globalStore.set(activity.documentVisibleAtom, true);
+        globalStore.set(activity.windowAtom, { focused: false, minimized: true, shown: true });
+        expect(globalStore.get(activity.stateAtom)).toBe("minimized");
+        expect(hook(() => useCardLive())).toBeNull();
+        expect(hook(() => useMotionAllowed())).toBe(false);
+    });
+
+    it("plays again once the view is on screen again", () => {
+        const activity = TabActivity.getInstance();
+        globalStore.set(activity.documentVisibleAtom, false);
+        expect(hook(() => useCardLive())).toBeNull();
+        globalStore.set(activity.documentVisibleAtom, true);
+        expect(hook(() => useCardLive())).not.toBeNull();
     });
 });
 

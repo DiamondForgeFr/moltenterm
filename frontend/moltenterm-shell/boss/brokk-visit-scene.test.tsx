@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 
-const Mocks = vi.hoisted(() => ({ hub: null as any, motion: true, reduced: false }));
+const Mocks = vi.hoisted(() => ({ hub: null as any, motion: true, visible: true, reduced: false }));
 vi.mock("./brokk-hub-store", () => ({ BrokkHubModel: { getInstance: () => ({ hub: Mocks.hub }) } }));
 vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
@@ -18,7 +18,10 @@ vi.mock("./boss-store", async () => {
 vi.mock("./use-brokk-hub", () => ({
     useHubSelect: (select: (view: unknown) => unknown) => select(Mocks.hub.getView()),
 }));
-vi.mock("./use-brokk-live", () => ({ useMotionAllowed: () => Mocks.motion }));
+vi.mock("./use-brokk-live", () => ({
+    useMotionAllowed: () => Mocks.motion && Mocks.visible,
+    useFaceVisible: () => Mocks.visible,
+}));
 vi.mock("../molten-motion", () => ({ prefersReducedMotion: () => Mocks.reduced }));
 const Package = vi.hoisted(() => ({ props: null as Record<string, any> }));
 vi.mock("@diamondforge/character", () => ({
@@ -35,9 +38,9 @@ import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { edgeLineOn } from "./brokk-edge-model";
 import { BrokkHub, HubDeps } from "./brokk-hub";
+import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
 import { Severity } from "./brokk-queue";
 import type { Visit } from "./brokk-visit";
-import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
 import { BrokkVisitScene, BrokkVisitSceneView, LaterMenu } from "./brokk-visit-scene";
 import {
     laterOptions,
@@ -104,6 +107,7 @@ function hubFixture(): { hub: BrokkHub; panels: () => number } {
 
 beforeEach(() => {
     Mocks.motion = true;
+    Mocks.visible = true;
     Mocks.reduced = false;
     Mocks.hub = hubFixture().hub;
 });
@@ -237,6 +241,16 @@ describe("the forge scene (FR-BOSS-009, AC6)", () => {
         Package.props = null;
         render("important");
         expect(Package.props).toBeNull();
+    });
+
+    it("mounts no video and no portrait where his face cannot be seen: a tab view behind another, a hidden window (#2154)", () => {
+        Mocks.visible = false;
+        for (const severity of Severities) {
+            Package.props = null;
+            const html = render(severity);
+            expect(html, severity).not.toContain("<video");
+            expect(Package.props, severity).toBeNull();
+        }
     });
 
     it("is his living portrait when motion is allowed, waiting in the listening pose, never a looping clip (#2025)", () => {
