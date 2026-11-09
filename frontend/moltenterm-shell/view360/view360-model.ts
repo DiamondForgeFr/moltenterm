@@ -315,6 +315,8 @@ export class View360Model {
     wheelGesture: GestureSteps = initialGestureSteps();
     // Where the carpet's glide ends, while it glides.
     glideTarget: number = null;
+    // What the constructor subscribed to in the store, released by dispose() (#2154).
+    unsubscribers: Array<() => void> = [];
 
     constructor(layoutModel: LayoutModel, tabAtom: Atom<Tab>) {
         this.layoutModel = layoutModel;
@@ -328,10 +330,10 @@ export class View360Model {
             const pending = get(this.pendingPlacesAtom);
             return pending != null ? pending.n : get(metaPlacesAtom);
         });
-        globalStore.sub(metaPlacesAtom, () => globalStore.set(this.pendingPlacesAtom, null));
+        this.watch(metaPlacesAtom, () => globalStore.set(this.pendingPlacesAtom, null));
         const metaGroupAtom = selectAtom(tabAtom, (tab) => storedGroup(tab));
         this.groupAtom = atom((get) => get(this.pendingGroupAtom)?.group ?? get(metaGroupAtom));
-        globalStore.sub(metaGroupAtom, () => globalStore.set(this.pendingGroupAtom, null));
+        this.watch(metaGroupAtom, () => globalStore.set(this.pendingGroupAtom, null));
         this.decisionAtom = atom((get) =>
             decideView360({
                 setting: normalizeView360Setting(get(this.settingAtom)),
@@ -345,15 +347,15 @@ export class View360Model {
             })
         );
         // Another N redraws the carpet, also while the view was already in 360 view.
-        globalStore.sub(this.placesAtom, () => {
+        this.watch(this.placesAtom, () => {
             if (!this.inLayoutPass) {
                 this.layoutModel.updateTree();
             }
         });
         // Another screen, or another threshold chosen for it: the decision is taken again.
-        globalStore.sub(this.thresholdAtom, () => this.layoutModel.updateTree());
+        this.watch(this.thresholdAtom, () => this.layoutModel.updateTree());
         // The window crossing the narrow threshold too (FR-SHELL-109).
-        globalStore.sub(narrowWindowAtom, () => this.layoutModel.updateTree());
+        this.watch(narrowWindowAtom, () => this.layoutModel.updateTree());
         this.activeAtom = selectAtom(this.decisionAtom, (d) => d.active);
         const visibleAtom = atom((get) => visibleCarpetColumnIds(get(this.layoutAtom), get(this.scrollLeftAtom)));
         this.visibleColumnIdsAtom = selectAtom(visibleAtom, (ids) => ids, sameIds);
@@ -363,7 +365,7 @@ export class View360Model {
         this.restColumnIdsAtom = selectAtom(restAtom, (ids) => ids, sameIds);
         this.fixedNodeIdAtom = atom((get) => get(this.layoutAtom)?.fixedNodeId ?? null);
         // A switch decided inside a layout pass is already drawn by that pass.
-        globalStore.sub(this.activeAtom, () => {
+        this.watch(this.activeAtom, () => {
             if (!this.inLayoutPass) {
                 this.layoutModel.updateTree();
             }
@@ -375,13 +377,38 @@ export class View360Model {
         );
         this.pinsAtom = atom((get) => get(this.pendingPinsAtom) ?? get(metaPinsAtom));
         // The meta caught up with this window's write (or another window wrote): the meta is the truth again.
-        globalStore.sub(metaPinsAtom, () => globalStore.set(this.pendingPinsAtom, null));
-        globalStore.sub(this.pinsAtom, () => {
+        this.watch(metaPinsAtom, () => globalStore.set(this.pendingPinsAtom, null));
+        this.watch(this.pinsAtom, () => {
             if (this.active) {
                 this.layoutModel.updateTree();
             }
         });
-        globalStore.sub(this.layoutModel.focusedNode, () => this.revealFocusedNode());
+        this.watch(this.layoutModel.focusedNode, () => this.revealFocusedNode());
+    }
+
+    watch<T>(source: Atom<T>, listener: () => void): void {
+        this.unsubscribers.push(globalStore.sub(source, listener));
+    }
+
+    // The tab's layout model is gone (deleteLayoutModelForTab): the store no longer calls this model, and nothing it
+    // scheduled runs after. Without it each closed tab left nine subscriptions that kept the model alive (#2154).
+    dispose(): void {
+        for (const unsubscribe of this.unsubscribers.splice(0)) {
+            unsubscribe();
+        }
+        this.cancelSettle();
+        clearTimeout(this.settleTimer);
+        clearTimeout(this.freeScrollTimer);
+        this.settleTimer = null;
+        this.freeScrollTimer = null;
+        for (const frame of [this.smoothFrame, this.scrollFrame]) {
+            if (frame != null) {
+                cancelAnimationFrame(frame);
+            }
+        }
+        this.smoothFrame = null;
+        this.scrollFrame = null;
+        this.glideTarget = null;
     }
 
     get active(): boolean {

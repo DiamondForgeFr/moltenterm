@@ -1215,3 +1215,59 @@ describe("View360Model decision for a column about to be added (#1668)", () => {
         expect(model.wantsWithColumns(3, 1630, 8)).toBe(false);
     });
 });
+
+describe("View360Model.dispose (#2154)", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.useRealTimers();
+    });
+
+    it("keeps an unsubscriber for each subscription its constructor takes", () => {
+        const sub = vi.spyOn(globalStore, "sub");
+        const { model } = makeModel(true, rowOf(2));
+        expect(sub.mock.calls.length).toBeGreaterThanOrEqual(9);
+        expect(model.unsubscribers).toHaveLength(sub.mock.calls.length);
+        model.dispose();
+        expect(model.unsubscribers).toHaveLength(0);
+    });
+
+    it("reacts to the store while the tab lives", () => {
+        const { layoutModel } = makeModel(true, rowOf(2));
+        setThreshold(3);
+        expect(layoutModel.updateTree).toHaveBeenCalled();
+        setThreshold(8);
+    });
+
+    it("is called by no listener once disposed: a store change after the tab's layout model is deleted does nothing", () => {
+        const { model, layoutModel, tabAtom } = makeModel(true, rowOf(2));
+        const reveal = vi.spyOn(model as any, "revealFocusedNode");
+        const width = globalStore.get(windowWidthAtom);
+        model.dispose();
+        setThreshold(3);
+        globalStore.set(windowWidthAtom, 400);
+        globalStore.set(layoutModel.focusedNode as unknown as PrimitiveAtom<LayoutNode>, leaf("c1"));
+        globalStore.set(tabAtom, { oid: "tab-1", meta: { [View360MetaKey]: false } } as unknown as Tab);
+        expect(layoutModel.updateTree).not.toHaveBeenCalled();
+        expect(reveal).not.toHaveBeenCalled();
+        setThreshold(8);
+        globalStore.set(windowWidthAtom, width);
+    });
+
+    it("can be called twice", () => {
+        const { model } = makeModel(true, rowOf(2));
+        model.dispose();
+        expect(() => model.dispose()).not.toThrow();
+    });
+
+    it("cancels the resize timer it had set", () => {
+        vi.useFakeTimers();
+        setSetting("auto");
+        const { model, layoutModel } = makeModel(null, rowOf(3));
+        const root = rowOf(3);
+        model.evaluate(root, boundsOf(1400));
+        model.evaluate(root, boundsOf(1200));
+        model.dispose();
+        vi.advanceTimersByTime(ResizeSettleMs * 2);
+        expect(layoutModel.updateTree).not.toHaveBeenCalled();
+    });
+});
