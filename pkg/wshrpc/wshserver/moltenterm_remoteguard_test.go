@@ -15,10 +15,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 	"github.com/wavetermdev/waveterm/pkg/molten/metaguard"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 const guardTestConn = "dev@build.example"
@@ -438,6 +441,69 @@ func TestRemoteHopToAnotherServer(t *testing.T) {
 	f.allow = true
 	if _, err := guardAsk(t, "createblock", wshrpc.CommandCreateBlockData{TabId: "t", BlockDef: &waveobj.BlockDef{Meta: waveobj.MetaMapType{waveobj.MetaKey_View: "term", waveobj.MetaKey_Controller: "shell", waveobj.MetaKey_Connection: "new@new.example"}}}); err != nil {
 		t.Fatalf("wsh ssh -n to an allowed server: %v", err)
+	}
+}
+
+// #2119: an SSH or WSL host's link, as the router knows it, is refused this computer's secrets, the events that carry
+// its API tokens or other connections' questions, the AI modes' tokens and other workspaces' MoltenTerm keys through
+// blockinfo. A window and a local terminal keep them.
+func TestRemoteSecretsTokensAndEvents(t *testing.T) {
+	e := routetest.Make(t)
+	saved := wshutil.DefaultRouter
+	wshutil.DefaultRouter = e.Router
+	t.Cleanup(func() { wshutil.DefaultRouter = saved })
+	ctxOf := func(from routetest.From) context.Context {
+		return wshutil.WithCallerContext(context.Background(), from.Source, from.Link)
+	}
+	remote := e.Forged()[0]
+	if remote.Name != "remote terminal" {
+		t.Fatalf("the first forged caller is %q", remote.Name)
+	}
+	value := "sk-new"
+	secretRequests := map[string]any{
+		"getsecrets":      []string{"OPENAI_KEY"},
+		"getsecretsnames": nil,
+		"setsecrets":      map[string]*string{"OPENAI_KEY": &value},
+	}
+	for command, data := range secretRequests {
+		_, err := moltenRemoteGuard(ctxOf(remote), command, asWire(t, data))
+		mustGuardRefuse(t, "remote "+command, err)
+		for _, from := range []routetest.From{e.Window(), e.Terminal()} {
+			if _, err := moltenRemoteGuard(ctxOf(from), command, asWire(t, data)); err != nil {
+				t.Errorf("%s %s: %v", from.Name, command, err)
+			}
+		}
+	}
+	for _, event := range []string{wps.Event_Config, wps.Event_AIModeConfig, wps.Event_UserInput} {
+		req := wps.SubscriptionRequest{Event: event, AllScopes: true}
+		mustGuardRefuse(t, "remote eventsub "+event, WshServerImpl.EventSubCommand(ctxOf(remote), req))
+		_, err := WshServerImpl.EventReadHistoryCommand(ctxOf(remote), wshrpc.CommandEventReadHistoryData{Event: event, MaxItems: 1})
+		mustGuardRefuse(t, "remote history "+event, err)
+		for _, from := range []routetest.From{e.Window(), e.Terminal()} {
+			if err := moltenCheckSubscribe(ctxOf(from), req); err != nil {
+				t.Errorf("%s %s: %v", from.Name, event, err)
+			}
+		}
+	}
+	if err := moltenCheckSubscribe(ctxOf(remote), wps.SubscriptionRequest{Event: wps.Event_BlockClose, AllScopes: true}); err != nil {
+		t.Errorf("remote blockclose (wsh editor): %v", err)
+	}
+	modes := map[string]wconfig.AIModeConfigType{"m": {APIToken: "sk-1", Model: "gpt"}}
+	if got := moltenListedAIModes(ctxOf(remote), modes); got["m"].APIToken != "" || got["m"].Model != "gpt" {
+		t.Errorf("remote AI modes %+v", got)
+	}
+	if got := moltenListedAIModes(ctxOf(e.Window()), modes); got["m"].APIToken != "sk-1" {
+		t.Errorf("the window's AI modes %+v", got)
+	}
+	block := &waveobj.Block{OID: localBlock, Meta: waveobj.MetaMapType{waveobj.MetaKey_View: "web", "molten:browser:open": "x"}}
+	if got := moltenListedBlock(ctxOf(remote), block); got.Meta["molten:browser:open"] != nil || got.Meta[waveobj.MetaKey_View] != "web" {
+		t.Errorf("remote blockinfo meta %+v", got.Meta)
+	}
+	if block.Meta["molten:browser:open"] != "x" {
+		t.Fatal("the stored block was changed")
+	}
+	if got := moltenListedBlock(ctxOf(e.Window()), block); got.Meta["molten:browser:open"] != "x" {
+		t.Errorf("the window's blockinfo meta %+v", got.Meta)
 	}
 }
 

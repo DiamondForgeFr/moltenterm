@@ -15,13 +15,7 @@ const aiApiTokenKey = "ai:apitoken"
 func RemoteListedConfig(config wconfig.FullConfigType) wconfig.FullConfigType {
 	rtn := config
 	rtn.Settings.AiApiToken = ""
-	if config.WaveAIModes != nil {
-		rtn.WaveAIModes = make(map[string]wconfig.AIModeConfigType, len(config.WaveAIModes))
-		for name, mode := range config.WaveAIModes {
-			mode.APIToken = ""
-			rtn.WaveAIModes[name] = mode
-		}
-	}
+	rtn.WaveAIModes = RemoteListedAIModes(config.WaveAIModes)
 	if config.Connections != nil {
 		rtn.Connections = make(map[string]wconfig.ConnKeywords, len(config.Connections))
 		for name, keywords := range config.Connections {
@@ -40,6 +34,20 @@ func RemoteListedConfig(config wconfig.FullConfigType) wconfig.FullConfigType {
 			}
 			rtn.Presets[name] = listed
 		}
+	}
+	return rtn
+}
+
+// RemoteListedAIModes are the AI modes an SSH or WSL host reads (getfullconfig, getwaveaimodeconfig): without their
+// API tokens (#2119). The modes themselves are never changed.
+func RemoteListedAIModes(modes map[string]wconfig.AIModeConfigType) map[string]wconfig.AIModeConfigType {
+	if modes == nil {
+		return nil
+	}
+	rtn := make(map[string]wconfig.AIModeConfigType, len(modes))
+	for name, mode := range modes {
+		mode.APIToken = ""
+		rtn[name] = mode
 	}
 	return rtn
 }
