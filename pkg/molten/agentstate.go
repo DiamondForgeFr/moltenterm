@@ -326,7 +326,9 @@ type AgentStateRequest struct {
 	// the run talks to Anthropic, another report without one changes nothing.
 	Provider string `json:"provider,omitempty"`
 	// BackgroundTask: the main session left a command running in the background (Claude Code's backgroundTaskId,
-	// #2140), BackgroundDescription its words. Transcript: the session's transcript, where its end is told.
+	// #2140), BackgroundDescription its words. Transcript: the session's transcript, where its end is told; a hook's
+	// working or done report of the main session carries it too, and links a pane the companion has no report for
+	// (#2142: a wavesrv restart forgets the SessionStart reports).
 	BackgroundTask        string `json:"backgroundtask,omitempty"`
 	BackgroundDescription string `json:"backgrounddescription,omitempty"`
 	Transcript            string `json:"transcript,omitempty"`

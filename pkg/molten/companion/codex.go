@@ -126,6 +126,7 @@ func (a *CodexAdapter) discoverDir(dir string, cwd string, since time.Time) []Ca
 		return nil
 	}
 	var rtn []Candidate
+	folder := makeQueryFolder(cwd)
 	for _, e := range entries {
 		name := e.Name()
 		if !e.Type().IsRegular() || !strings.HasPrefix(name, "rollout-") || !strings.HasSuffix(name, ".jsonl") {
@@ -136,41 +137,47 @@ func (a *CodexAdapter) discoverDir(dir string, cwd string, since time.Time) []Ca
 			continue
 		}
 		path := filepath.Join(dir, name)
-		c := Candidate{Path: path, Modified: info.ModTime().UnixMilli()}
-		subagent := false
-		metaSeen := false
-		for _, rec := range readHead(path, 50) {
-			payload := obj(rec, "payload")
-			switch str(rec, "type") {
-			case "session_meta":
-				// A sub-agent's rollout copies its parent's history after its own header, the parent's
-				// session_meta included (#799): only the first one is the rollout's.
-				if metaSeen {
-					continue
-				}
-				metaSeen = true
-				c.cwd = str(payload, "cwd")
-				c.Id = str(payload, "id")
-				c.Started = parseTime(str(payload, "timestamp"))
-				subagent = codexSubagent(payload)
-			case "event_msg":
-				if c.Prompt == "" {
-					if text, ok := codexPromptEvent(payload); ok {
-						c.Prompt = preview(cleanTitleText(text))
-					}
-				}
-			}
-			if c.cwd != "" && c.Prompt != "" {
-				break
-			}
-		}
+		// Every project's rollouts share the dated folders: once read, one of another folder is skipped unread.
+		head := cachedHead(a, path, info, folder, codexDiscoveryHead)
+		c := Candidate{Path: path, Modified: info.ModTime().UnixMilli(), Id: head.id, Started: head.started, Prompt: head.prompt, cwd: head.cwd}
 		// Without its folder a rollout cannot be told apart: only a hook's report links it.
-		if subagent || !samePath(c.cwd, cwd) {
+		if head.subagent || !head.in(folder) {
 			continue
 		}
 		rtn = append(rtn, c)
 	}
 	return rtn
+}
+
+// codexDiscoveryHead reads a rollout's folder, thread, start and first prompt from its head.
+func codexDiscoveryHead(path string) headFacts {
+	var h headFacts
+	metaSeen := false
+	hp, atEnd := readHeadUntil(path, 50, func(rec map[string]any) bool {
+		payload := obj(rec, "payload")
+		switch str(rec, "type") {
+		case "session_meta":
+			// A sub-agent's rollout copies its parent's history after its own header, the parent's
+			// session_meta included (#799): only the first one is the rollout's.
+			if metaSeen {
+				return false
+			}
+			metaSeen = true
+			h.cwd = str(payload, "cwd")
+			h.id = str(payload, "id")
+			h.started = parseTime(str(payload, "timestamp"))
+			h.subagent = codexSubagent(payload)
+		case "event_msg":
+			if h.prompt == "" {
+				if text, ok := codexPromptEvent(payload); ok {
+					h.prompt = preview(cleanTitleText(text))
+				}
+			}
+		}
+		return h.cwd != "" && h.prompt != ""
+	})
+	h.hp, h.complete = hp, !atEnd
+	return h
 }
 
 // A Codex thread id is a UUID; anything else is never looked up.

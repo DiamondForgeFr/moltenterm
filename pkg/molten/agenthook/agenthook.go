@@ -41,7 +41,8 @@ type AgentStateRequest struct {
 	// without one says the run talks to Anthropic.
 	Provider string `json:"provider,omitempty"`
 	// BackgroundTask, BackgroundDescription, Transcript: a command left running in the background and where its end is
-	// told (backgroundtask.go, #2140).
+	// told (backgroundtask.go, #2140). The main session's working and done reports carry Transcript too: it links the
+	// pane again after a wavesrv restart (#2142).
 	BackgroundTask        string `json:"backgroundtask,omitempty"`
 	BackgroundDescription string `json:"backgrounddescription,omitempty"`
 	Transcript            string `json:"transcript,omitempty"`

@@ -42,12 +42,12 @@ var agentRoute = localroute.Route{
 			molten.AgentIntegrationStatusCommand: localroute.AllowAny,
 		},
 	},
-	Handler: func(_ context.Context, command string, _ localroute.Caller, data any) (any, error) {
-		return handleAgentCommand(command, data)
+	Handler: func(_ context.Context, command string, caller localroute.Caller, data any) (any, error) {
+		return handleAgentCommand(command, caller, data)
 	},
 }
 
-func handleAgentCommand(command string, data any) (any, error) {
+func handleAgentCommand(command string, caller localroute.Caller, data any) (any, error) {
 	switch command {
 	case molten.AgentStatesCommand:
 		return AgentStatesSnapshot(), nil
@@ -58,7 +58,11 @@ func handleAgentCommand(command string, data any) (any, error) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), agentReportTimeout)
 		defer cancel()
-		return nil, ReportAgentState(ctx, req)
+		if err := ReportAgentState(ctx, req); err != nil {
+			return nil, err
+		}
+		linkTranscript(caller, req)
+		return nil, nil
 	case molten.AgentStateSeenCommand:
 		var req molten.AgentStateSeenRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
