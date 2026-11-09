@@ -117,12 +117,12 @@ describe("the slim week grid (FR-BOSS-009, AC56, #2106)", () => {
     const rule = (selector: string) =>
         new RegExp(`\\n${selector.replace(/[.[\]]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
 
-    it("draws 6 px blocks, 3 px apart, at most 30 px wide, packed to the start", () => {
+    it("draws 6 px blocks, 3 px apart, sharing all the width between the label and the percent (#2111)", () => {
         const grid = rule(".mt-uw");
         expect(grid).toContain("--mt-uw-block-h: 6px;");
-        expect(grid).toContain("--mt-uw-block-max: 30px;");
-        expect(grid).toContain("repeat(7, minmax(var(--mt-uw-block-min), var(--mt-uw-block-max)))");
-        expect(grid).toContain("justify-content: start;");
+        expect(grid).not.toContain("--mt-uw-block-max");
+        expect(grid).toContain("repeat(7, minmax(var(--mt-uw-block-min), 1fr))");
+        expect(grid).not.toContain("justify-content: start;");
         expect(grid).toContain("gap: 7px 3px;");
         expect(rule(".mt-uw-cell")).toContain("height: var(--mt-uw-block-h);");
     });
