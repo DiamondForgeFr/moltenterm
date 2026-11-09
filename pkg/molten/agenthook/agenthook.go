@@ -40,6 +40,11 @@ type AgentStateRequest struct {
 	// Provider: the host Claude Code talks to when it is not Anthropic's (FR-AGC-008, provider.go); a start report
 	// without one says the run talks to Anthropic.
 	Provider string `json:"provider,omitempty"`
+	// BackgroundTask, BackgroundDescription, Transcript: a command left running in the background and where its end is
+	// told (backgroundtask.go, #2140).
+	BackgroundTask        string `json:"backgroundtask,omitempty"`
+	BackgroundDescription string `json:"backgrounddescription,omitempty"`
+	Transcript            string `json:"transcript,omitempty"`
 }
 
 // ValidAgentState and ValidAgentId accept what molten.ValidAgentState and molten.ValidAgentId accept, without a

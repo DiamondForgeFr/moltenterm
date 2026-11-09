@@ -24,6 +24,7 @@ var hookConformance = map[string][]hookPayloadCase{
 		{"session start", `{"session_id":"abc","transcript_path":"/h/.claude/projects/p/abc.jsonl","cwd":"/w","hook_event_name":"SessionStart","source":"startup"}`, AgentStateIdle, ""},
 		{"prompt", `{"session_id":"abc","hook_event_name":"UserPromptSubmit","prompt":"fix the tests"}`, AgentStateWorking, ""},
 		{"tool", `{"session_id":"abc","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"tool_response":{"stdout":"a"}}`, AgentStateWorking, ""},
+		{"background command", backgroundBashPayload, AgentStateWorking, ""},
 		{"permission", `{"session_id":"abc","hook_event_name":"Notification","notification_type":"permission_prompt","message":"Claude needs your permission to use Bash"}`, AgentStateWaiting, "Claude needs your permission to use Bash"},
 		{"idle reminder", `{"session_id":"abc","hook_event_name":"Notification","notification_type":"idle_prompt","message":"Claude is waiting for your input"}`, "", ""},
 		{"stop", `{"session_id":"abc","hook_event_name":"Stop","stop_hook_active":false}`, AgentStateDone, ""},
