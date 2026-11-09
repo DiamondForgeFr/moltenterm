@@ -81,6 +81,12 @@ func (g *guardGh) reads() int {
 
 type pushNote struct{ dir, branch, oid string }
 
+// later moves the fixture's clock past the window in which the same hand-off is not sent twice, for a test that asks
+// the same task for the same head again to read what the second ask writes.
+func (f *restartFixture) later() {
+	f.r.env.Now = func() time.Time { return time.UnixMilli(5000).Add(handedWindow + time.Minute) }
+}
+
 // guardFixture: a restart fixture whose agent on the branch is idle (so an unguarded hand-off would be typed), GitHub
 // faked, the pushes told to the list recorded, and a clock the test moves.
 type guardFixture struct {
