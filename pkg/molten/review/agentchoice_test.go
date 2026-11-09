@@ -100,6 +100,7 @@ func TestRunPickStartsThatAgent(t *testing.T) {
 		t.Errorf("opened %v", f.opened)
 	}
 	f.opened = nil
+	f.later()
 	res, err = f.r.AskInvestigate(context.Background(), f.investigateRequest(true))
 	if err != nil || res.Agent != molten.AgentIdCodex || len(f.opened) != 1 || !strings.HasPrefix(f.opened[0], "codex ") {
 		t.Fatalf("the project's choice: %+v %v %v", res, err, f.opened)
@@ -124,7 +125,8 @@ func TestReusedAgentNamesTheChosenOne(t *testing.T) {
 		t.Fatalf("result: %+v", res)
 	}
 	f.choose(molten.AgentIdClaude, "")
-	if res := f.askRebase(false); res.ChosenAgent != "" {
+	f.later()
+	if res := f.askRebase(false); res.Status != RestartSent || res.ChosenAgent != "" {
 		t.Errorf("the same agent needs no word: %+v", res)
 	}
 }

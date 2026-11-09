@@ -123,6 +123,7 @@ func TestAskFinishAsksTheAgentToMarkItsDraftReady(t *testing.T) {
 			t.Errorf("the brief misses %q:\n%s", part, brief)
 		}
 	}
+	f.later()
 	plain := f.askFinish(f.finishRequest(false))
 	if strings.Contains(readText(t, plain.BriefPath), "mark it ready") {
 		t.Errorf("without markready the brief must not ask to mark the PR ready")

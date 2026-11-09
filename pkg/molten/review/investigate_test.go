@@ -91,6 +91,7 @@ func TestInvestigateBriefDropsTheLastOutcome(t *testing.T) {
 	if err := os.WriteFile(outcome, []byte("rebased on develop\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	f.later()
 	if _, err := f.r.AskInvestigate(context.Background(), f.investigateRequest(false)); err != nil {
 		t.Fatal(err)
 	}
