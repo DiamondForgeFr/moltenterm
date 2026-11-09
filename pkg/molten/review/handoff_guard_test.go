@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 )
 
@@ -440,6 +442,84 @@ func TestAnOfferIsNotAHandOff(t *testing.T) {
 	f.setRun("agent-term", molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Bruno"})
 	if res := f.askRebase(false); res.Status != RestartSent {
 		t.Fatalf("the agent is free now: %+v", res)
+	}
+}
+
+// A request that waits for the lead's prompt carries what keeps it honest (#2145): one request per task, PR and head;
+// asked again before it is typed or said to have expired, it applies only while the PR is open at that head with a
+// problem left; and the action that sends it again.
+func TestTheRequestToTheLeadCarriesWhatKeepsItHonest(t *testing.T) {
+	t.Parallel()
+	draft := conflicting()
+	draft.draft = true
+	f := makeGuardFixture(t, draft)
+	f.arthurRuns()
+	req := f.leadRequest()
+	req.FailedChecks = []string{"build"}
+	if res := f.askFinish(req); res.Status != RestartSent {
+		t.Fatalf("result: %+v", res)
+	}
+	sent := f.sentRequests()
+	if len(sent) != 1 {
+		t.Fatalf("sent: %+v", sent)
+	}
+	app := sent[0]
+	if app.Key != "finish|"+strings.ToLower(f.k.Repo)+"#9|"+rebaseHead {
+		t.Errorf("key: %q", app.Key)
+	}
+	if app.Resend == nil || app.Resend.Gesture != ResendGesture || app.Resend.Args["task"] != HandoffFinish || app.Resend.Args["number"] != 9 ||
+		app.Resend.Args["dir"] != f.dir || app.Resend.Args["markready"] != true || app.Resend.Args["leadname"] != "Arthur" ||
+		app.Resend.LabelText == nil || app.Resend.LabelText.Code != "notif.review.resend" {
+		t.Errorf("resend: %+v", app.Resend)
+	}
+	applies := func() bool { return app.Applies(context.Background()) }
+	if !applies() {
+		t.Error("the PR is as the request said")
+	}
+	merged := conflicting()
+	merged.state = "MERGED"
+	f.gh.set(merged)
+	if applies() {
+		t.Error("a merged PR needs nothing")
+	}
+	moved := conflicting()
+	moved.head = guardNewHead
+	f.gh.set(moved)
+	if applies() {
+		t.Error("a head that moved is another state")
+	}
+	fixed := guardState{state: "OPEN", head: rebaseHead, mergeable: "MERGEABLE", mergeState: "CLEAN", rollup: guardOkRoll}
+	f.gh.set(fixed)
+	if applies() {
+		t.Error("every problem is gone")
+	}
+	f.gh.set(conflicting())
+	f.gh.err = errors.New("HTTP 502")
+	if !applies() {
+		t.Error("GitHub not answering proves nothing")
+	}
+}
+
+// A request queued for a busy lead stays handled until it leaves the handoffs' queue, however long that takes: the
+// repeated clicks of the two minutes after it were what queued eight requests for one lead.
+func TestAQueuedHandOffIsHandledUntilItLeavesTheQueue(t *testing.T) {
+	t.Parallel()
+	f := makeGuardFixture(t, conflicting())
+	f.arthurRuns()
+	f.sendOut.Status = agenthandoff.StatusQueued
+	var queued atomic.Bool
+	queued.Store(true)
+	f.r.env.HandoffQueued = func(blockId string) bool { return blockId == "lead-block" && queued.Load() }
+	if first := f.askFinish(f.leadRequest()); first.Status != RestartQueued {
+		t.Fatalf("first: %+v", first)
+	}
+	f.advance(handedWindow + 10*time.Minute)
+	if held := f.askFinish(f.leadRequest()); held.Reason != RestartReasonAlreadyHanded {
+		t.Fatalf("it still waits in the queue: %+v", held)
+	}
+	queued.Store(false)
+	if again := f.askFinish(f.leadRequest()); again.Status != RestartQueued || len(f.sentRequests()) != 2 {
+		t.Fatalf("it left the queue without being delivered: %+v sent %d", again, len(f.sentRequests()))
 	}
 }
 

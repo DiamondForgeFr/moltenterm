@@ -168,7 +168,7 @@ func (r *Restarter) sendToLead(ctx context.Context, req FinishRequest, found age
 func (r *Restarter) deliverToLead(ctx context.Context, found agenthandoff.LeadFound, branch string, goal string, text string, closing string) RestartResult {
 	result := RestartResult{Lead: true, Branch: branch, BlockId: found.BlockId, TabId: found.TabId, Agent: found.Agent,
 		AgentName: found.AgentName, FirstName: found.FirstName}
-	sent, err := r.env.SendLead(ctx, agenthandoff.AppRequest{ToBlockId: found.BlockId, Goal: goal, Context: text, Closing: closing})
+	sent, err := r.env.SendLead(ctx, r.appRequest(ctx, found, goal, text, closing))
 	if err != nil {
 		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonNotTyped, err.Error()
 		return result
@@ -234,7 +234,7 @@ func (r *Restarter) resumeLead(ctx context.Context, req FinishRequest, lead *Lea
 	if r.env.PreferName != nil {
 		r.env.PreferName(blockId, lead.FirstName)
 	}
-	go r.sendWhenUp(req, blockId)
+	go r.sendWhenUp(req, blockId, taskOf(ctx))
 	if err != nil {
 		result.Status, result.Reason = RestartFailed, RestartReasonNotStarted
 		result.Message = fmt.Sprintf("The agent was not started (%v). Start it in the new terminal with: %s", err, command)
@@ -247,11 +247,11 @@ func (r *Restarter) resumeLead(ctx context.Context, req FinishRequest, lead *Lea
 
 // sendWhenUp waits for the resumed lead to show as a running agent, then sends the brief as to a running lead. A lead
 // that never shows leaves its terminal in front of the developer, who sees why.
-func (r *Restarter) sendWhenUp(req FinishRequest, blockId string) {
+func (r *Restarter) sendWhenUp(req FinishRequest, blockId string, task *handoffTask) {
 	defer func() {
 		panichandler.PanicHandler("molten:review:lead-resume", recover())
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), r.env.LeadStartWait)
+	ctx, cancel := context.WithTimeout(withTask(context.Background(), task), r.env.LeadStartWait)
 	defer cancel()
 	for {
 		if run, ok := r.env.AgentRun(blockId); ok && run.Running {

@@ -24,6 +24,7 @@ import { SegmentedControl } from "../segmented-control";
 import { nextToggleIndex, RadioDot } from "../suite/suite";
 import { reviewsCardGesture, ReviewsCardGesture } from "./reviews-card-gesture";
 import { investigateGesture, InvestigateGesture } from "./reviews-queue-gesture";
+import { reviewsResendGesture, ReviewsResendGesture } from "./reviews-resend-gesture";
 
 // must match ReviewOpenGesture in pkg/molten/review/agentfollow.go
 export const ReviewOpenGesture = "review:open";
@@ -210,6 +211,7 @@ export function AgentChoiceHost() {
     useEffect(() => registerNotificationGesture(ReviewOpenGesture, openReviewGesture), []);
     useEffect(() => registerNotificationGesture(InvestigateGesture, investigateGesture), []);
     useEffect(() => registerNotificationGesture(ReviewsCardGesture, reviewsCardGesture), []);
+    useEffect(() => registerNotificationGesture(ReviewsResendGesture, reviewsResendGesture), []);
     if (pending == null) {
         return null;
     }

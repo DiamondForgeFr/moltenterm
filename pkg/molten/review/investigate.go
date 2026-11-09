@@ -212,6 +212,14 @@ func (r *Restarter) AskInvestigate(ctx context.Context, req InvestigateRequest) 
 	if now.head != "" {
 		req.HeadOid = now.head
 	}
+	asked := req
+	ctx = withTask(ctx, &handoffTask{kind: HandoffInvestigate, req: req.restartRequest(), head: req.HeadOid,
+		remains: func(now prNow) bool {
+			again := asked
+			pruneInvestigate(&again, now)
+			return !r.readBlockers(again).empty()
+		},
+		resend: resendAction(HandoffInvestigate, req.restartRequest(), false, nil)})
 	res, err := r.handInvestigate(ctx, req, b)
 	if err == nil {
 		r.noteHanded(HandoffInvestigate, req.PrKey, req.HeadOid, res)

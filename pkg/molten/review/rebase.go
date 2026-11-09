@@ -127,6 +127,9 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 	if now.head != "" {
 		req.HeadOid = now.head
 	}
+	ctx = withTask(ctx, &handoffTask{kind: HandoffRebase, req: req.restartRequest(), head: req.HeadOid,
+		remains: func(now prNow) bool { return now.needsRebase() || now.computing },
+		resend:  resendAction(HandoffRebase, req.restartRequest(), false, nil)})
 	origin := r.origin(req.restartRequest(), AgentOriginRebase)
 	origin.MergedPr = req.MergedPr
 	res := r.askOnBranch(ctx, req.restartRequest(), origin, func(tree string, result *RestartResult) (string, bool) {

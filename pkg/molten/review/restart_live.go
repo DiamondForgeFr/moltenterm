@@ -10,6 +10,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
@@ -124,10 +125,11 @@ func baseLiveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 		ResolveNotices: func(ctx context.Context, keyPrefix string) error {
 			return attention.ResolveNotificationsExcept(ctx, keyPrefix, nil)
 		},
-		Gh:           ExecGh,
-		HoldState:    attention.HoldAgentState,
-		ReleaseState: attention.ReleaseAgentState,
-		StopSettled:  attention.AgentStopSettled,
-		PushSeen:     mission.LiveHeadPushed,
+		Gh:            ExecGh,
+		HoldState:     attention.HoldAgentState,
+		ReleaseState:  attention.ReleaseAgentState,
+		StopSettled:   attention.AgentStopSettled,
+		PushSeen:      mission.LiveHeadPushed,
+		HandoffQueued: agenthandoff.HasQueued,
 	}
 }

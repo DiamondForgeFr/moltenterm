@@ -7668,6 +7668,9 @@
         "notRepo": {
             "hint": "The Integration panel follows the project's changes with git: its branches and its pull requests. Start tracking this folder with git to see them here."
         },
+        "resend": {
+            "failed": "Nothing was resent: the pull requests could not be read."
+        },
         "lead": {
             "sent": "Handed to {name}, the lead agent that owns this work: the brief is in its terminal, it decides who does it.",
             "queued": "{name} is busy: the brief is typed in its terminal when its prompt is idle.",
@@ -9247,6 +9250,10 @@
                 "timeout": "{receiver}'s prompt was not idle within an hour.",
                 "failed": "MoltenTerm could not type the handoff ({detail})."
             },
+            "expired": {
+                "title": "{receiver} did not take MoltenTerm's request",
+                "message": "{reason} It still applies, and nothing needs your approval. The brief is at {path}."
+            },
             "typed": {
                 "title": "Typed in {receiver}'s prompt: press Enter in its terminal to start",
                 "message": "{from}'s handoff was added after what was already in the prompt. The brief is at {path}.",
@@ -9628,6 +9635,7 @@
                 "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
                 "openReview": "Open the review",
                 "openCard": "Show in Integration",
+                "resend": "Resend",
                 "prAside": " (PR #{number})",
                 "ciGreenTitle": "#{number}{pr}: CI green again",
                 "ciGreen": "{name}: {outcome}",
