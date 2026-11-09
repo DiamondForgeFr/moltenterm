@@ -684,20 +684,20 @@ describe("the legend, the explanation and the source line (#2123)", () => {
         expect(fromOf(markup(enabled))).toBe("From the Claude Code status line");
         inFrench(() => {
             expect(fromOf(markup(both))).toBe(
-                "Depuis : ligne d'état de Claude Code et service d'utilisation d'Anthropic"
+                "Depuis\u00a0: ligne d'état de Claude Code et service d'utilisation d'Anthropic"
             );
-            expect(fromOf(markup(enabled))).toBe("Depuis : ligne d'état de Claude Code");
-            expect(fromOf(markup({ ...codex }))).toBe("Depuis : journal de session de Codex");
+            expect(fromOf(markup(enabled))).toBe("Depuis\u00a0: ligne d'état de Claude Code");
+            expect(fromOf(markup({ ...codex }))).toBe("Depuis\u00a0: journal de session de Codex");
             expect(
                 fromOf(
                     markup(fromSources("codex-transcript,codex-appserver", "Codex session log and Codex app-server"))
                 )
-            ).toBe("Depuis : journal de session de Codex et app-server de Codex");
+            ).toBe("Depuis\u00a0: journal de session de Codex et app-server de Codex");
             const compact = renderToStaticMarkup(
                 <PlanUsageBody view={gaugesView(both, now)} {...noop} compact onDetails={() => {}} />
             );
             expect(plain(compact)).toContain(
-                "Depuis : ligne d'état de Claude Code et service d'utilisation d'Anthropic"
+                "Depuis\u00a0: ligne d'état de Claude Code et service d'utilisation d'Anthropic"
             );
         });
         expect(fromOf(markup(codex))).toBe("From the Codex session log");
@@ -709,7 +709,7 @@ describe("the legend, the explanation and the source line (#2123)", () => {
         const unnamed = fromSources("", "Claude Code status line");
         for (const info of [unknown, mixed, unnamed]) {
             expect(fromOf(markup(info))).toBe(`From the ${info.sourcename}`);
-            inFrench(() => expect(fromOf(markup(info))).toBe(`Depuis : ${info.sourcename}`));
+            inFrench(() => expect(fromOf(markup(info))).toBe(`Depuis\u00a0: ${info.sourcename}`));
         }
         expect(usageSourceName("claude-newsource", "Some new source")).toBe("Some new source");
         expect(usageSourceName("claude-newsource")).toBe("");
