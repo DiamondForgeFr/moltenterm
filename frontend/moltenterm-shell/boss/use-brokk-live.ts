@@ -5,15 +5,17 @@
 // (brokk-scene.ts) is read once per surface, from the rows To handle, the agents, his mood and the clock, and every
 // surface draws what it gives. The portrait is asked for by each surface that shows his face: the card's header, which
 // plays while the card shows, and the avatar, which plays its calm loop at rest (use-brokk-hub.ts). Nothing plays under
-// reduced motion (the app's setting or the system's) or while the window is hidden: those surfaces show the still. What
-// is returned for the portrait is what BossPortrait hands to the lazy portrait (brokk-live.tsx), or null for the still
-// alone.
+// reduced motion (the app's setting or the system's), in a window nobody sees or in a tab view that is not on screen
+// (faceVisibleIn): those surfaces show the still, and mount no video. What is returned for the portrait is what
+// BossPortrait hands to the lazy portrait (brokk-live.tsx), or null for the still alone.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { AgentStates } from "../agent-state-store";
 import { prefersReducedMotion } from "../molten-motion";
+import { TabActivity } from "../tab-activity";
+import { ActivityState, isShowing } from "../tab-activity-model";
 import { BossPeek } from "./boss-overview";
 import { BossBubbleModel } from "./boss-store";
 import { toHandleHeadline } from "./boss-to-handle-model";
@@ -36,9 +38,22 @@ export function usePageVisible(): boolean {
     return visible;
 }
 
+// Whether his face can be seen: the page is visible and this tab view is on screen in a window that shows (it need not
+// have the focus: a face beside the terminal the developer types in stays animated). Where it cannot be seen nothing is
+// mounted, so nothing plays or decodes there (#2154).
+export function faceVisibleIn(pageVisible: boolean, activity: ActivityState): boolean {
+    return pageVisible && isShowing(activity);
+}
+
+export function useFaceVisible(): boolean {
+    const pageVisible = usePageVisible();
+    const activity = useAtomValue(TabActivity.getInstance().stateAtom, { store: globalStore });
+    return faceVisibleIn(pageVisible, activity);
+}
+
 // The clips play unless the developer asked for less motion or nobody can see them.
 export function useMotionAllowed(): boolean {
-    const visible = usePageVisible();
+    const visible = useFaceVisible();
     return visible && !prefersReducedMotion();
 }
 

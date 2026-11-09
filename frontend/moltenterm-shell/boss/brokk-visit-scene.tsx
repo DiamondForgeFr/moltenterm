@@ -51,7 +51,7 @@ import {
 import BrokkStill from "./portrait/brokk/brokk.jpg";
 import { BossBubbleModel } from "./boss-store";
 import { useHubSelect } from "./use-brokk-hub";
-import { useMotionAllowed } from "./use-brokk-live";
+import { useFaceVisible, useMotionAllowed } from "./use-brokk-live";
 
 // The four faces: the clips of his listening pose, by the file name the package ships them under. Read as URLs only.
 const Clips = import.meta.glob("./portrait/brokk/listening.*.webm", {
@@ -176,7 +176,11 @@ function SceneStill({ clip }: { clip: string }) {
 }
 
 function SceneFace({ severity }: { severity: Severity }) {
+    const visible = useFaceVisible();
     const motion = useMotionAllowed();
+    if (!visible) {
+        return null;
+    }
     if (!motion) {
         return <SceneStill clip={sceneClipOf(severity)} />;
     }
