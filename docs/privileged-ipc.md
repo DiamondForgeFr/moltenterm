@@ -47,7 +47,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `moltenterm-renderer-gone.ts` | `moltenterm-show-log` |
 | `emain-platform.ts` | `get-is-dev`, `get-platform`, `get-user-name`, `get-host-name`, `get-webview-preload`, `get-data-dir`, `get-config-dir`, `get-home-dir` |
 | `emain-ipc.ts` | `open-external`, `download`, `get-cursor-point`, `capture-screenshot`, `get-env`, `get-about-modal-details`, `get-zoom-factor`, `webview-focus`, `register-global-webview-keys`, `set-keyboard-chord-mode`, `set-is-active`, `update-window-controls-overlay`, `quicklook`, `clear-webview-storage`, `set-window-init-status`, `fe-log`, `increment-term-commands`, `native-paste`, `open-builder`, `set-builder-window-appid`, `open-new-window`, `close-builder-window`, `do-refresh`, `save-text-file` |
-| `moltenterm-native-path.ts` | `open-native-path`, `reveal-native-path` |
+| `moltenterm-native-path.ts` | `open-native-path`, `reveal-native-path`, `moltenterm-open-third-party-notices` (opens the one `THIRD-PARTY-NOTICES.txt` of the application's resources folder with the system's viewer; the renderer sends no path) |
 | `moltenterm-file-clipboard.ts` | `moltenterm-copy-file` (the file panel's Copy file, FR-FILE-005: main accepts only a string that is an absolute path of an existing regular file, never reads the file, writes one clipboard entry holding its file URL, and answers only a code; macOS and Linux, `unsupported` elsewhere. No RPC, `wsh` or `molten` command reaches it) |
 | `emain-window.ts` | `set-active-tab`, `create-tab`, `set-waveai-open`, `close-tab`, `switch-workspace`, `create-workspace`, `delete-workspace`, `reset-workspace`, `undo-workspace` |
 | `emain-menu.ts` | `contextmenu-show`, `workspace-appmenu-show`, `builder-appmenu-show` |

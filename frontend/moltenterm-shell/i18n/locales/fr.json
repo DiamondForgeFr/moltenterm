@@ -6428,6 +6428,9 @@
         "basedOn": "Basé sur Wave Terminal {wave} de Command Line Inc. (Apache-2.0)",
         "license": "Open source, AGPL-3.0 (parties issues de Wave Terminal : Apache-2.0)",
         "licenseTitle": "Quelle licence couvre quelle partie, et le code source",
+        "openSourceLicenses": "Licences open source",
+        "openSourceLicensesTitle": "Ouvrir les licences des logiciels open source que contient MoltenTerm",
+        "openSourceLicensesMissing": "Cette version ne contient pas les notices de licences.",
         "copyright": "© {year} DiamondForge. Certaines parties © Command Line Inc."
     },
     "releases": {
