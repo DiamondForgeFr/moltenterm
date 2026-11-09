@@ -25,6 +25,13 @@ func liveReviews() *Reviews {
 	return liveIndex.reviews
 }
 
+// LiveHeadPushed tells the review list that a branch got a new head (an agent pushed, or a hand-off found the PR ahead
+// of its card): the PR is read again now and followed until GitHub shows the push (#2145). Nothing when Mission
+// Control is not started.
+func LiveHeadPushed(dir string, branch string, oid string) {
+	liveReviews().HeadPushed(dir, branch, oid)
+}
+
 // LiveBranchAgents lists the agents on the project's branches as wavesrv places them now (the answer is read again when
 // the cached one is a few seconds old). false when Mission Control is not started or the project's worktrees cannot be
 // read: the caller then knows nothing, and says so rather than guessing nobody works there.

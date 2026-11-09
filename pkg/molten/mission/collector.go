@@ -169,6 +169,8 @@ type projectState struct {
 	// The repository watch's sequence the snapshot's git part was read at (gitWatched: read under a watch).
 	gitSeq     uint64
 	gitWatched bool
+	// The PRs read on their own after a push (ReplacePr), by number: a list read that started before is older.
+	prPatches map[int]prPatch
 }
 
 type Collector struct {
@@ -211,6 +213,15 @@ func (c *Collector) track(dir string) (uint64, bool) {
 		return 0, false
 	}
 	return c.watch.Track(dir)
+}
+
+// Active tells whether a Mission Control view asked about the project lately: the same window that makes a repository
+// change worth a read (RepoChanged).
+func (c *Collector) Active(dir string) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	state := c.projects[dir]
+	return state != nil && c.now().Sub(state.activeAt) < activeWindow
 }
 
 // Size is the number of projects held in memory (tests, diagnostics).
@@ -329,6 +340,8 @@ type refreshPlan struct {
 	// The watch's sequence when the plan was made: the git read answers for it.
 	seq     uint64
 	watched bool
+	// When the plan was made: a PR read on its own since then (reviews_heads.go) is newer than the list this refresh reads.
+	startedAt time.Time
 }
 
 type refreshAsk struct {
@@ -381,10 +394,11 @@ func (c *Collector) startRefreshLocked(state *projectState, ask refreshAsk) (ref
 		gitMaxAge = max(ask.maxAge, watchedGitMaxAge)
 	}
 	plan := refreshPlan{
-		git:     forced || changed || gitAge >= gitMaxAge,
-		github:  githubAge >= minGithubInterval && (forced || githubAge >= ask.maxAge),
-		seq:     ask.seq,
-		watched: ask.watched,
+		git:       forced || changed || gitAge >= gitMaxAge,
+		github:    githubAge >= minGithubInterval && (forced || githubAge >= ask.maxAge),
+		seq:       ask.seq,
+		watched:   ask.watched,
+		startedAt: now,
 	}
 	if ask.passive {
 		plan.github = githubAge >= passiveGithubInterval
@@ -626,7 +640,7 @@ func (c *Collector) applyRefresh(dir string, plan refreshPlan, gitSnap *GitSnaps
 		}
 	}
 	if plan.github {
-		state.snap.Github = KeepLastGithub(state.snap.Github, githubSnap)
+		state.snap.Github = withNewerPrs(KeepLastGithub(state.snap.Github, githubSnap), state.prPatches, plan.startedAt)
 		state.snap.GithubAt = now.UnixMilli()
 	}
 	state.refreshing = false
@@ -728,6 +742,8 @@ func Start() {
 	watch.OnChange(func(root string) {
 		publishPaneChanged(root)
 		collector.RepoChanged(root)
+		// A push moves a remote branch: a listed PR whose head moved is read again at once (#2145).
+		reviews.RepoChanged(root)
 	})
 	groups = MakeGroups(collector, ci, runs, ExecRunner, WorkspaceLinks, publishGroups, notifyDependencies)
 	groups.UseSync(MakeDepAcks(DepAcksDir(dataDir)), DepSyncTreesDir(dataDir))
