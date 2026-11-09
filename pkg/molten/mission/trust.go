@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
 
 // The trust rule for a project's declared commands (DS-MC-005), as for mods (FR-MORPH-004): MoltenTerm runs them
@@ -76,6 +77,10 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 	if p.Versions != nil && strings.TrimSpace(p.Versions.Format) != "" {
 		rtn = append(rtn, TrustedCommand{Kind: "format", Id: "format", Title: "Format the release's files", Run: p.Versions.Format})
 	}
+	// The release runs the declared notes agent on commit and issue text (#2121): declaring or changing it asks again.
+	if p.Versions != nil && len(p.Versions.NotesAgent) > 0 {
+		rtn = append(rtn, TrustedCommand{Kind: "notesagent", Id: "notesagent", Title: "Write the release notes", Run: argvLine(p.Versions.NotesAgent)})
+	}
 	for _, step := range p.Steps {
 		rtn = append(rtn, TrustedCommand{Kind: "step", Id: step.Id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env})
 	}
@@ -88,6 +93,19 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 		rtn = append(rtn, TrustedCommand{Kind: RunKindSync, Id: id, Title: "Sync from " + strings.TrimSpace(dep.Project), Run: dep.Sync})
 	}
 	return rtn
+}
+
+// argvLine shows an argv as a shell would read it: each argument quoted when it needs to be, so two different argvs
+// never show (or hash) the same.
+func argvLine(argv []string) string {
+	parts := make([]string, len(argv))
+	for i, arg := range argv {
+		parts[i] = utilfn.ShellQuote(arg, false, -1)
+		if arg == "" {
+			parts[i] = "''"
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // CommandsHash changes whenever a command, its folder or its environment changes; titles do not count.

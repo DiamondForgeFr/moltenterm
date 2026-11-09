@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { isClaudeCodeCommand } from "./osc-handlers";
+import { isClaudeCodeCommand, osc52WriteAllowed } from "./osc-handlers";
+
+// MOLTENTERM-PATCH (#2121): OSC 52 writes the clipboard only from the focused terminal unless "always" is chosen.
+describe("osc52WriteAllowed", () => {
+    it("refuses a terminal that is not focused when the setting is unset or focus", () => {
+        for (const mode of [undefined, null, "", "focus"]) {
+            expect(osc52WriteAllowed(mode, false, true)).toBe(false);
+            expect(osc52WriteAllowed(mode, true, false)).toBe(false);
+            expect(osc52WriteAllowed(mode, true, true)).toBe(true);
+        }
+    });
+
+    it("lets any terminal write when always is chosen", () => {
+        expect(osc52WriteAllowed("always", false, false)).toBe(true);
+    });
+});
 
 describe("isClaudeCodeCommand", () => {
     it("matches direct Claude Code invocations", () => {

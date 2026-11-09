@@ -440,15 +440,9 @@ func writeProjectFile(dir string, rel string, data []byte) (string, error) {
 // refineArgv is the thin adapter of each agent MoltenTerm knows a read-only, non-interactive form of: no shell, no file
 // writer, no web; the prompt on its standard input, the answer on its standard output. Any other agentic CLI takes the
 // same prompt through the generic path (Prompt, then the pasted answer): MoltenTerm never starts an agent it cannot
-// hold to reading.
-func refineArgv(agent string) []string {
-	switch agent {
-	case molten.AgentIdClaude:
-		return []string{"claude", "-p", "--disallowed-tools", "Bash", "Edit", "Write", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"}
-	case molten.AgentIdCodex:
-		return []string{"codex", "exec", "--sandbox", "read-only", "-"}
-	}
-	return nil
+// hold to reading. The repository's own agent configuration stays out (#2121): see agentchoice.PrintArgv.
+func refineArgv(agent string, dir string) []string {
+	return agentchoice.PrintArgv(agent, dir)
 }
 
 // must match the contract in StepChange and decodeChange (#1099)
@@ -538,7 +532,7 @@ func (s *Setup) Refine(ctx context.Context, req RefineRequest) (RefineAnswer, er
 	name := ""
 	if strings.TrimSpace(req.Answer) == "" {
 		choice := s.ChooseAgent(dir)
-		argv := refineArgv(choice.Agent)
+		argv := refineArgv(choice.Agent, dir)
 		if argv == nil {
 			return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.noAgent"), "%s", agentchoice.NoneText())
 		}

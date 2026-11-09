@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -429,6 +430,46 @@ func TestRefineOnlyProposes(t *testing.T) {
 	after, _ := os.ReadFile(filepath.Join(dir, ".molten/project.json"))
 	if string(after) != string(before) {
 		t.Fatal("refining wrote the file")
+	}
+}
+
+// #2121: Refine's agent reads only and never loads the repository's own agent configuration (hooks, env, MCP servers).
+func TestRefineAgentIsReadOnlyOutsideTheRepositorySettings(t *testing.T) {
+	t.Parallel()
+	dir := saasFoundryFixture(t)
+	cases := map[string][]string{
+		molten.AgentIdClaude: {"claude", "-p", "--setting-sources", "user", "--strict-mcp-config",
+			"--disallowed-tools", "Bash", "Edit", "Write", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"},
+		molten.AgentIdCodex: {"codex", "exec", "--sandbox", "read-only", "-c", "mcp_servers={}", "-c",
+			`projects={"` + dir + `"={trust_level="untrusted"}}`, "-"},
+	}
+	for id, want := range cases {
+		var gotArgv []string
+		var gotDir string
+		agent := func(_ context.Context, runDir string, argv []string, _ string) ([]byte, error) {
+			gotArgv, gotDir = argv, runDir
+			return []byte(`{"changes": []}`), nil
+		}
+		s := MakeSetup(noSf, agent)
+		s.ChooseAgent = func(string) agentchoice.Choice {
+			return agentchoice.Choice{Agent: id, AgentName: id}
+		}
+		if _, err := s.Refine(context.Background(), RefineRequest{Dir: dir, Text: sfPipeline}); err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		if gotDir != dir {
+			t.Fatalf("%s runs in %q", id, gotDir)
+		}
+		// The fixture's folder may be reached through a link (the temp folder on some systems): its resolved path is
+		// untrusted too.
+		if id == molten.AgentIdCodex {
+			if real, err := filepath.EvalSymlinks(dir); err == nil && real != dir {
+				want[len(want)-2] = `projects={"` + dir + `"={trust_level="untrusted"},"` + real + `"={trust_level="untrusted"}}`
+			}
+		}
+		if !reflect.DeepEqual(gotArgv, want) {
+			t.Fatalf("%s argv %q, want %q", id, gotArgv, want)
+		}
 	}
 }
 

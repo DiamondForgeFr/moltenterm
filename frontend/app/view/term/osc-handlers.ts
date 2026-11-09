@@ -136,19 +136,27 @@ function handleShellIntegrationCommandStart(
     rtInfo["shell:lastcmdexitcode"] = null;
 }
 
+// MOLTENTERM-PATCH (#2121): an unset term:osc52 means "focus", as the default settings say. A background terminal or a
+// remote host's output (a banner, a cat of a repository's file) must not replace the clipboard the developer then
+// pastes into an agent's prompt; "always" stays available as an explicit choice.
+export function osc52WriteAllowed(mode: string, windowFocused: boolean, blockFocused: boolean): boolean {
+    if (mode === "always") {
+        return true;
+    }
+    return windowFocused && blockFocused;
+}
+
 // for xterm OSC handlers, we return true always because we "own" the OSC number.
 // even if data is invalid we don't want to propagate to other handlers.
 export function handleOsc52Command(data: string, blockId: string, loaded: boolean, termWrap: TermWrap): boolean {
     if (!loaded) {
         return true;
     }
-    const osc52Mode = globalStore.get(getOverrideConfigAtom(blockId, "term:osc52")) ?? "always";
-    if (osc52Mode === "focus") {
-        const isBlockFocused = termWrap.nodeModel ? globalStore.get(termWrap.nodeModel.isFocused) : false;
-        if (!document.hasFocus() || !isBlockFocused) {
-            console.log("OSC 52: rejected, window or block not focused");
-            return true;
-        }
+    const osc52Mode = globalStore.get(getOverrideConfigAtom(blockId, "term:osc52"));
+    const isBlockFocused = termWrap.nodeModel ? globalStore.get(termWrap.nodeModel.isFocused) : false;
+    if (!osc52WriteAllowed(osc52Mode, document.hasFocus(), isBlockFocused)) {
+        console.log("OSC 52: rejected, window or block not focused");
+        return true;
     }
     if (!data || data.length === 0) {
         console.log("OSC 52: empty data received");
