@@ -125,6 +125,11 @@ export function brokkWorking(data: AgentStatesData, ownBlockId: string): boolean
     return ownBlockId != null && ownBlockId !== "" && data?.states?.[ownBlockId]?.state === "working";
 }
 
+// Brokk's own agent stopped on a prompt in his hidden terminal and waits for the developer there (#2155).
+export function brokkWaiting(data: AgentStatesData, ownBlockId: string): boolean {
+    return ownBlockId != null && ownBlockId !== "" && data?.states?.[ownBlockId]?.state === "waiting";
+}
+
 // The rows To handle that can bring Brokk, as the events of his visits (FR-BOSS-009, AC3, AC11): an agent that waits
 // is blocked, an agent that stopped is in error, a failing CI and a pull request ready are what they say. The rows the
 // developer has seen are not asked again. Any other row (a question that is no agent's, a hand-off request) is not one

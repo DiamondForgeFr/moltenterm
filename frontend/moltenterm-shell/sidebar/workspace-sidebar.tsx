@@ -2762,7 +2762,7 @@ export function WorkspaceSidebar() {
                     <Suspense fallback={null}>
                         <BrokkVisitScene
                             rowHeight={hidden ? PeekWindowRowHeight : WindowRowHeight}
-                            line={edgeLineOn(hidden, brokkShown)}
+                            line={edgeLineOn(brokkShown)}
                         />
                     </Suspense>
                 ) : null}

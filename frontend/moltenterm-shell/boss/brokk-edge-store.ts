@@ -26,9 +26,10 @@ export class BrokkEdgeModel {
         return BrokkEdgeModel.instance;
     }
 
-    // What the badge counts now, whether the developer is looking at it, and whether the feeds have been read.
-    tell(keys: string[], looking: boolean, ready: boolean): void {
-        const step = edgeNewsAfter(this.news, keys, looking, ready);
+    // What the badge counts now, whether the developer is looking at it, and whether the feeds have been read. `coming`
+    // are the keys set to Vient, the only ones that move the sidebar (#2155).
+    tell(keys: string[], looking: boolean, ready: boolean, coming: string[] = keys): void {
+        const step = edgeNewsAfter(this.news, keys, coming, looking, ready);
         this.news = step.news;
         if (step.fresh) {
             globalStore.set(this.bounceAtom, globalStore.get(this.bounceAtom) + 1);

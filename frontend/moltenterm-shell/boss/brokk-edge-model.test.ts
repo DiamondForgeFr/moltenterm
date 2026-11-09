@@ -77,16 +77,15 @@ describe("how far the collapsed sidebar comes out (AC44 to AC46, #2093)", () => 
         expect(edgeShapeOf("none", { visit: true, cue: true, telling: true })).toBeNull();
     });
 
-    it("says the event's line on the scene of a collapsed sidebar, half open or unfolded, not on a docked one", () => {
-        expect(edgeLineOn(true, true)).toBe(true);
-        expect(edgeLineOn(true, false)).toBe(false);
-        expect(edgeLineOn(false, true)).toBe(false);
+    it("says the event's line on the scene wherever Brokk shows, a docked sidebar included (#2155)", () => {
+        expect(edgeLineOn(true)).toBe(true);
+        expect(edgeLineOn(false)).toBe(false);
     });
 });
 
 describe("the news (AC28)", () => {
     const read = (news: EdgeNews, keys: string[], looking = false, ready = true) =>
-        edgeNewsAfter(news, keys, looking, ready);
+        edgeNewsAfter(news, keys, keys, looking, ready);
 
     // The feeds read once, with what was there when the window opened.
     const baseline = (keys: string[]) => read(NoNews, keys).news;
@@ -148,6 +147,17 @@ describe("the news (AC28)", () => {
         expect(handled.unseen).toBe(false);
         const back = read(handled.news, ["agent:a"]);
         expect(back.fresh).toBe(true);
+    });
+
+    it("never moves for an event set to Badge: it only counts, and still marks the face unseen (#2155)", () => {
+        const before = baseline([]);
+        const badgeOnly = edgeNewsAfter(before, ["ci:/p:1"], [], false, true);
+        expect(badgeOnly.fresh).toBe(false);
+        expect(badgeOnly.unseen).toBe(true);
+        const comes = edgeNewsAfter(badgeOnly.news, ["agent:a", "ci:/p:1"], ["agent:a"], false, true);
+        expect(comes.fresh).toBe(true);
+        // A Badge event already counted never bounces later on.
+        expect(edgeNewsAfter(comes.news, ["agent:a", "ci:/p:1"], ["agent:a"], false, true).fresh).toBe(false);
     });
 
     it("bounces for a new notification even when another one went in the same reading", () => {

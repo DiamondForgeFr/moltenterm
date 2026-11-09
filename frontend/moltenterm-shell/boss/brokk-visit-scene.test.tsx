@@ -33,6 +33,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { t } from "../i18n/i18n";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
+import { edgeLineOn } from "./brokk-edge-model";
 import { BrokkHub, HubDeps } from "./brokk-hub";
 import { Severity } from "./brokk-queue";
 import type { Visit } from "./brokk-visit";
@@ -146,8 +147,12 @@ describe("the scene says the sentence of the event in a collapsed sidebar (FR-BO
         expect(attr(html, "brokk-scene-hit", "aria-label")).toBe(sceneLabel(t, "Brokk", "important"));
     });
 
-    it("says nothing of it in a docked sidebar, whose scene has no text but Plus tard", () => {
+    it("says nothing of it when the sidebar does not ask for the line (Brokk hidden)", () => {
         expect(scene(false)).not.toContain("brokk-scene-line");
+    });
+
+    it("says it in a docked sidebar too, so that the developer learns why he came without a click (#2155)", () => {
+        expect(scene(edgeLineOn(true))).toContain(t("boss.screen.waitedFor", { name: "Léa", minutes: 6 }));
     });
 });
 

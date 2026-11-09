@@ -20,7 +20,7 @@ import { downloadRingOf } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useT } from "../i18n/i18n";
 import { useWorkingBeat } from "../working-beat";
-import { bubbleLabel } from "./boss-overview";
+import { bubbleCueLabel, bubbleLabel } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
 import { AvatarVariant, avatarVariant, faceClickAction } from "./brokk-avatar-model";
@@ -97,7 +97,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
         cardOpen && pinned
             ? t("boss.avatar.close", { name })
             : cue
-              ? t("boss.avatar.labelCue", { name, count: badge.count })
+              ? bubbleCueLabel(name, badge.count)
               : bubbleLabel(name, badge.count);
     const label = downloadWords != null ? `${base}. ${downloadWords}` : base;
     const onActivate = () => {

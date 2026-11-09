@@ -166,6 +166,41 @@ describe("his answer comes back to the panel (#2028)", () => {
     });
 });
 
+// #2155: his agent stopped on a prompt in his hidden terminal (a fake agent state: waiting).
+describe("a Brokk blocked on a prompt is no silence (#2155)", () => {
+    const answering = talkStateOf({ status: "sent", blockid: "b", tabid: "t", workspaceid: "w" });
+    const waitingReply = { status: "waiting" as const };
+
+    it("says he needs the developer's answer and offers his terminal, however long it lasts", () => {
+        let step = { state: answering, follow: StartFollow, done: false };
+        for (let i = 0; i < IdleReadingsForNoReply * 2; i++) {
+            step = followStep(step.state, step.follow, waitingReply, false, true);
+        }
+        expect(step).toMatchObject({ done: false, state: { phase: "needsanswer" } });
+        expect(talkNoteKey(step.state)).toBe("boss.panel.talk.needsAnswer");
+        expect(talkWayOut(step.state)).toBe("openTerminal");
+        expect(step.state.where).toEqual({ workspaceid: "w", tabid: "t", blockid: "b" });
+        expect(keepsText(step.state)).toBe(false);
+    });
+
+    it("keeps what he said before the prompt", () => {
+        const reply = { status: "answer" as const, markdown: "Cleaning", blockid: "b", tabid: "t" };
+        const step = followStep(answering, StartFollow, reply, false, true);
+        expect(step.state).toMatchObject({ phase: "needsanswer", reply: "Cleaning" });
+    });
+
+    it("goes back to thinking once his agent works again after the developer answered", () => {
+        const blocked = followStep(answering, StartFollow, waitingReply, false, true);
+        const resumed = followStep(blocked.state, blocked.follow, waitingReply, true, false);
+        expect(resumed).toMatchObject({ done: false, state: { phase: "answering" } });
+    });
+
+    it("still says the terminal was closed when it was", () => {
+        const step = followStep(answering, StartFollow, { status: "none" }, false, true);
+        expect(step).toMatchObject({ done: true, state: { phase: "failed", reason: "gone" } });
+    });
+});
+
 describe("his face with the field (FR-BOSS-009, AC9; FR-BOSS-007)", () => {
     const open = { working: 0, waiting: 0, cardOpen: true };
 
