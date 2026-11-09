@@ -8,7 +8,8 @@
 // forward round the week, and it carries an accent ring and a slow sheen. Today's column stands out on every row. The
 // fill and the percent take the colour of the pace, from on pace (success) to running out before the reset (error), or
 // towards info when much of what the time allowed is left unused (#2106). A row shows no other detail on hover unless
-// its surface gives it a tooltip; each row has an accessible name.
+// its surface gives it a tooltip; each row has an accessible name. A surface that has room for it asks for the legend
+// under the rows (#2123): swatches made of the grid's own blocks, so they follow it.
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
@@ -21,6 +22,7 @@ import { useFloatingInPlace } from "../floating-in-place";
 import { useLocale, useT } from "../i18n/i18n";
 import {
     dayFills,
+    legendColours,
     paceColour,
     PaceRedAt,
     resetDay,
@@ -127,7 +129,46 @@ function RowLead({ row }: { row: UsageWeekRow }) {
     );
 }
 
-export function UsageWeekGrid({ rows, now }: { rows: UsageWeekRow[]; now: number }) {
+const LegendKeys = ["today", "reset", "under", "on", "above"] as const;
+type LegendKey = (typeof LegendKeys)[number];
+
+// What each key of the legend is: today and the reset day are the grid's own marks on an empty block, the paces a block
+// filled with their colour.
+function LegendSwatch({ legend, colours }: { legend: LegendKey; colours: ReturnType<typeof legendColours> }) {
+    const colour = legend === "under" || legend === "on" || legend === "above" ? colours[legend] : null;
+    return (
+        <span
+            className={cn("mt-uw-cell", legend === "today" && "is-today", legend === "reset" && "is-reset")}
+            style={colour ? ({ "--mt-uw-pace": colour } as CSSProperties) : undefined}
+            aria-hidden
+            data-testid="usage-week-key-swatch"
+        >
+            {colour ? <i /> : null}
+        </span>
+    );
+}
+
+export function UsageWeekLegend() {
+    const t = useT();
+    const colours = legendColours();
+    return (
+        <span
+            className="mt-uw-legend"
+            role="group"
+            aria-label={t("usageWeek.legend.label")}
+            data-testid="usage-week-legend"
+        >
+            {LegendKeys.map((key) => (
+                <span key={key} className="mt-uw-key" title={t(`usageWeek.legend.title.${key}`)} data-key={key}>
+                    <LegendSwatch legend={key} colours={colours} />
+                    {t(`usageWeek.legend.${key}`)}
+                </span>
+            ))}
+        </span>
+    );
+}
+
+export function UsageWeekGrid({ rows, now, legend }: { rows: UsageWeekRow[]; now: number; legend?: boolean }) {
     const t = useT();
     const locale = useLocale();
     const today = weekdayIndex(now);
@@ -219,6 +260,7 @@ export function UsageWeekGrid({ rows, now }: { rows: UsageWeekRow[]; now: number
                     </span>
                 );
             })}
+            {legend ? <UsageWeekLegend /> : null}
         </span>
     );
 }

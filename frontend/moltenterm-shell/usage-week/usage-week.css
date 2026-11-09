@@ -163,6 +163,36 @@
     white-space: nowrap;
 }
 
+/* The legend under the rows (#2123), across the whole grid. Its swatches are the grid's own blocks (.mt-uw-cell, with
+   is-today and is-reset, and the fill coloured by --mt-uw-pace), so the block height, the ring, the outline and the
+   sheen are the rows' own. One line when the width allows, each key staying whole when it wraps. */
+.mt-uw-legend {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    gap: 6px 12px;
+    margin-top: 2px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1.2;
+}
+
+.mt-uw-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.mt-uw-key .mt-uw-cell {
+    flex: none;
+    width: 16px;
+}
+
+.mt-uw-key .mt-uw-cell i {
+    width: 100%;
+}
+
 /* The calm line of a reading that cannot be read (#2074), across the day blocks and the percent. */
 .mt-uw-note {
     grid-column: 2 / -1;
