@@ -8,6 +8,7 @@ import { ViteImageOptimizer } from "vite-plugin-image-optimizer";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { makeMoltentermBuildChanges, makeMoltentermBuildInfo } from "./frontend/moltenterm-shell/build/build-info"; // MOLTENTERM-PATCH (#55, #187)
+import { moltentermBundledPackages } from "./frontend/moltenterm-shell/build/bundled-packages"; // MOLTENTERM-PATCH (#2126)
 import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
 import { moltentermEntryGuard } from "./frontend/moltenterm-shell/build/entry-guard"; // MOLTENTERM-PATCH (#453)
 import { ignoredDevJson, moltentermLocalesHot } from "./frontend/moltenterm-shell/build/locales-hot"; // MOLTENTERM-PATCH (#1215)
@@ -90,7 +91,7 @@ export default defineConfig({
             outDir: "dist/main",
             externalizeDeps: false,
         },
-        plugins: [tsconfigPaths()],
+        plugins: [tsconfigPaths(), moltentermBundledPackages("main")], // MOLTENTERM-PATCH (#2126)
         resolve: {
             alias: {
                 "@": "frontend",
@@ -126,7 +127,7 @@ export default defineConfig({
         server: {
             open: false,
         },
-        plugins: [tsconfigPaths()],
+        plugins: [tsconfigPaths(), moltentermBundledPackages("preload")], // MOLTENTERM-PATCH (#2126)
     },
     renderer: {
         root: ".",
@@ -151,6 +152,10 @@ export default defineConfig({
         },
         optimizeDeps: {
             include: ["monaco-yaml/yaml.worker.js"],
+        },
+        // MOLTENTERM-PATCH (#2126): Vite bundles each `?worker` import apart; the editor's workers carry monaco's code.
+        worker: {
+            plugins: () => [moltentermBundledPackages("renderer")],
         },
         server: {
             open: false,
@@ -190,6 +195,7 @@ export default defineConfig({
             moltentermEntryGuard(), // MOLTENTERM-PATCH (#453): fails the build when the entry pulls a heavy library
             moltentermLocalesHot(), // MOLTENTERM-PATCH (#1215): a dictionary changed under `task dev` reaches the views
             moltentermStableClips(), // MOLTENTERM-PATCH (#1904): a character's clips keep their names, the shared package reads them by name
+            moltentermBundledPackages("renderer"), // MOLTENTERM-PATCH (#2126): the npm packages this bundle ships, for the licence notices
         ],
     },
 });
