@@ -2121,6 +2121,14 @@
             "refresh": "Refresh plan usage",
             "compact": "Compact plan usage",
             "from": "From the {source}",
+            "source": {
+                "claude-statusline": "Claude Code status line",
+                "claude-oauth": "Anthropic usage endpoint",
+                "codex-transcript": "Codex session log",
+                "codex-appserver": "Codex app-server"
+            },
+            "sourceAnd": "{list} and {last}",
+            "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the \"Resets\" line says when the window starts again.",
             "details": "Plan usage details",
             "detailsMore": "Plan usage details ({count} more)",
             "setupLabel": "Plan usage setup",
@@ -11633,6 +11641,21 @@
         "rowAsOf": "read {ago}",
         "rowUnreadable": "{name}, no reading: {reason}",
         "rowNoReading": "{name}, no reading",
+        "legend": {
+            "label": "Colours and marks of the week grid",
+            "today": "Today",
+            "reset": "Reset day",
+            "under": "Under pace",
+            "on": "On pace",
+            "above": "Above pace",
+            "title": {
+                "today": "Today's column, lighter on every row",
+                "reset": "The ringed block, where the window starts again at 0 %",
+                "under": "Less used than the time gone allows",
+                "on": "As much as the time gone allows",
+                "above": "More than the time gone allows, orange towards red. At this pace the window may run out before it resets"
+            }
+        },
         "day": {
             "mon": "M",
             "tue": "T",

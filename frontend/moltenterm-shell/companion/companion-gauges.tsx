@@ -396,8 +396,17 @@ export function PlanUsageBody({
                 onLess={onDetails != null ? () => onDetails(false) : null}
             />
             <div className="mt-1.5" data-testid="companion-gauges">
-                <UsageWeekGrid rows={view.rows.map((row) => weekRow(view, row, "", true))} now={view.now} />
+                <UsageWeekGrid
+                    rows={view.rows.map((row) => weekRow(view, row, "", true))}
+                    now={view.now}
+                    legend={view.rows.length > 0}
+                />
             </div>
+            {view.rows.length > 0 ? (
+                <p className="mt-1.5 text-11 leading-snug text-muted" data-testid="companion-plan-usage-explain">
+                    {t("companion.gauges.explain")}
+                </p>
+            ) : null}
             {view.credits ? (
                 <div className="mt-1.5 text-11 text-secondary" data-testid="companion-plan-usage-credits">
                     {view.credits}

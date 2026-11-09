@@ -6,11 +6,13 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { I18nModel } from "../i18n/i18n";
-import { paceColour, paceRatio } from "../usage-week/usage-week-model";
+import { UsageWeekGrid } from "../usage-week/usage-week";
+import { legendColours, paceColour, paceRatio, UnusedBlueAt } from "../usage-week/usage-week-model";
 import { PlanUsageBody } from "./companion-gauges";
 import {
     CompanionUsageInfo,
     creditsText,
+    experimentalView,
     gaugeLevel,
     gaugePercent,
     gaugeRows,
@@ -19,6 +21,8 @@ import {
     usageFor,
     usageReadFor,
     usageReasonText,
+    UsageSourceIds,
+    usageSourceName,
     usageStale,
     UsageStaleMs,
     usageWindowShortLabel,
@@ -349,7 +353,12 @@ describe("Codex plan usage", () => {
     });
 
     it("names the merged sources", () => {
-        expect(markup({ ...codex, sourcename: "Codex app-server" })).toContain("From the Codex app-server");
+        const appServer = {
+            ...codex,
+            sourcename: "Codex app-server",
+            snapshot: { ...codex.snapshot, source: "codex-appserver" },
+        };
+        expect(markup(appServer)).toContain("From the Codex app-server");
     });
 
     it("gives Codex's own reasons", () => {
@@ -520,5 +529,232 @@ describe("the companion's usage week grid (#2102)", () => {
         ]);
         expect(rows[1].line.start).toBe(6);
         expect(rows[1].line.windowMins).toBe(10080);
+    });
+});
+
+// The expanded section says what the grid shows, and names its sources in the interface language (FR-SHELL-027,
+// amended for #2123).
+describe("the legend, the explanation and the source line (#2123)", () => {
+    const plain = (s: string) => s.replace(/&#x27;/g, "'").replace(/&quot;/g, '"');
+    const inFrench = <T,>(run: () => T): T => {
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            return run();
+        } finally {
+            i18n.setLanguageSetting("");
+        }
+    };
+    const keysOf = (html: string): [string, string][] =>
+        [
+            ...html.matchAll(
+                /<span class="mt-uw-key"[^>]*data-key="(\w+)"[^>]*><span[^>]*>(?:<i><\/i>)?<\/span>([^<]*)<\/span>/g
+            ),
+        ].map((m) => [m[1], plain(m[2])]);
+    const swatchesOf = (html: string) =>
+        [
+            ...html.matchAll(/<span class="(mt-uw-cell[^"]*)"([^>]*)data-testid="usage-week-key-swatch">(<i><\/i>)?/g),
+        ].map((m) => ({
+            classes: m[1],
+            colour: /style="--mt-uw-pace:([^"]*)"/.exec(m[2])?.[1] ?? null,
+            filled: m[3] != null,
+        }));
+    const fromOf = (html: string): string =>
+        plain(/<div class="w-full text-11 text-muted">([^<]*)<\/div>/.exec(html)?.[1] ?? "");
+    const explainOf = (html: string): string =>
+        plain(/data-testid="companion-plan-usage-explain">([^<]*)</.exec(html)?.[1] ?? "");
+    const fromSources = (source: string, sourcename: string): CompanionUsageInfo => ({
+        ...enabled,
+        sourcename,
+        snapshot: { ...enabled.snapshot, source },
+    });
+
+    it("shows the legend under the rows of the expanded section, in the grid's order of marks", () => {
+        const html = markup(enabled);
+        expect(html).toContain('data-testid="usage-week-legend"');
+        expect(html).toContain('role="group" aria-label="Colours and marks of the week grid"');
+        expect(keysOf(html)).toEqual([
+            ["today", "Today"],
+            ["reset", "Reset day"],
+            ["under", "Under pace"],
+            ["on", "On pace"],
+            ["above", "Above pace"],
+        ]);
+        expect(html.indexOf('data-testid="usage-week-legend"')).toBeGreaterThan(
+            html.lastIndexOf('data-testid="usage-week-row"')
+        );
+        expect(html).toContain(
+            'title="More than the time gone allows, orange towards red. At this pace the window may run out before it resets"'
+        );
+    });
+
+    it("is absent from the compact form and from every state without a grid", () => {
+        const compact = renderToStaticMarkup(
+            <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={() => {}} />
+        );
+        expect(compact).toContain('data-testid="usage-week"');
+        expect(compact).not.toContain("usage-week-legend");
+        expect(compact).not.toContain("companion-plan-usage-explain");
+        for (const info of [
+            { ...enabled, gauges: "off" as const, snapshot: undefined },
+            { ...enabled, gauges: "unavailable" as const, reason: "noplan" as const, snapshot: undefined },
+            {
+                ...enabled,
+                snapshot: {
+                    ...enabled.snapshot,
+                    windows: [],
+                    credits: { enabled: true, used: 5, limit: 50, unit: "USD" },
+                },
+            },
+        ]) {
+            const html = markup(info);
+            expect(html).not.toContain("usage-week-legend");
+            expect(html).not.toContain("companion-plan-usage-explain");
+        }
+    });
+
+    it("leaves Brokk's usage block as it is: its grid asks for no legend", () => {
+        expect(renderToStaticMarkup(<UsageWeekGrid rows={[]} now={now} />)).not.toContain("usage-week-legend");
+        expect(renderToStaticMarkup(<UsageWeekGrid rows={[]} now={now} legend />)).toContain("usage-week-legend");
+        const brokk = readFileSync(join(__dirname, "../boss/brokk-group.tsx"), "utf8");
+        expect(brokk).toContain("<UsageWeekGrid rows={weekRows} now={now} />");
+        expect(brokk).not.toMatch(/\blegend\b/i);
+    });
+
+    it("draws the swatches with the grid's own blocks, ring and colours", () => {
+        const html = markup(enabled);
+        const colours = legendColours();
+        expect(swatchesOf(html)).toEqual([
+            { classes: "mt-uw-cell is-today", colour: null, filled: false },
+            { classes: "mt-uw-cell is-reset", colour: null, filled: false },
+            { classes: "mt-uw-cell", colour: colours.under, filled: true },
+            { classes: "mt-uw-cell", colour: colours.on, filled: true },
+            { classes: "mt-uw-cell", colour: colours.above, filled: true },
+        ]);
+        // The rows' blocks carry the same classes: a row far under its pace is full blue, a row on pace is green.
+        expect(colours.under).toBe(paceColour(0, UnusedBlueAt));
+        const onPace = gaugeRows(
+            {
+                ...enabled.snapshot,
+                windows: [
+                    {
+                        id: "week",
+                        label: "This week",
+                        usedpercent: 28,
+                        resetsat: now + 5 * 24 * Hour,
+                        windowmins: 10080,
+                    },
+                ],
+            },
+            now
+        );
+        expect(onPace[0].line.pace).toBeLessThanOrEqual(1);
+        expect(paceColour(onPace[0].line.pace, onPace[0].line.unused)).toBe(colours.on);
+        expect(html).toContain('class="mt-uw-cell is-reset"');
+    });
+
+    it("explains a row, its blocks, the percentage and the reset line, in the interface language", () => {
+        const english = explainOf(markup(enabled));
+        expect(english).toBe(
+            'A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the "Resets" line says when the window starts again.'
+        );
+        expect(english.split(". ")).toHaveLength(2);
+        inFrench(() => {
+            const html = markup(enabled);
+            expect(explainOf(html)).toBe(
+                "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart."
+            );
+            expect(keysOf(html).map(([, label]) => label)).toEqual([
+                "Aujourd'hui",
+                "Jour de remise à zéro",
+                "Sous le rythme",
+                "Au rythme",
+                "Au-dessus du rythme",
+            ]);
+        });
+        expect(explainOf(markup(enabled))).toBe(english);
+    });
+
+    it("names the sources in the interface language, from their ids", () => {
+        const both = fromSources(
+            "claude-statusline,claude-oauth",
+            "Claude Code status line and Anthropic usage endpoint"
+        );
+        expect(fromOf(markup(both))).toBe("From the Claude Code status line and Anthropic usage endpoint");
+        expect(fromOf(markup(enabled))).toBe("From the Claude Code status line");
+        inFrench(() => {
+            expect(fromOf(markup(both))).toBe(
+                "Depuis : ligne d'état de Claude Code et service d'utilisation d'Anthropic"
+            );
+            expect(fromOf(markup(enabled))).toBe("Depuis : ligne d'état de Claude Code");
+            expect(fromOf(markup({ ...codex }))).toBe("Depuis : journal de session de Codex");
+            expect(
+                fromOf(
+                    markup(fromSources("codex-transcript,codex-appserver", "Codex session log and Codex app-server"))
+                )
+            ).toBe("Depuis : journal de session de Codex et app-server de Codex");
+            const compact = renderToStaticMarkup(
+                <PlanUsageBody view={gaugesView(both, now)} {...noop} compact onDetails={() => {}} />
+            );
+            expect(plain(compact)).toContain(
+                "Depuis : ligne d'état de Claude Code et service d'utilisation d'Anthropic"
+            );
+        });
+        expect(fromOf(markup(codex))).toBe("From the Codex session log");
+    });
+
+    it("keeps wavesrv's words for a source it does not know, whole rather than half translated", () => {
+        const unknown = fromSources("claude-newsource", "Some new source");
+        const mixed = fromSources("claude-statusline,claude-newsource", "Claude Code status line and Some new source");
+        const unnamed = fromSources("", "Claude Code status line");
+        for (const info of [unknown, mixed, unnamed]) {
+            expect(fromOf(markup(info))).toBe(`From the ${info.sourcename}`);
+            inFrench(() => expect(fromOf(markup(info))).toBe(`Depuis : ${info.sourcename}`));
+        }
+        expect(usageSourceName("claude-newsource", "Some new source")).toBe("Some new source");
+        expect(usageSourceName("claude-newsource")).toBe("");
+    });
+
+    it("lists three sources with commas and the last after 'and'", () => {
+        const three = fromSources(
+            "claude-statusline,claude-oauth,codex-transcript",
+            "Claude Code status line and Anthropic usage endpoint and Codex session log"
+        );
+        const view = gaugesView(three, now);
+        expect(view.kind === "enabled" && view.source).toBe(
+            "Claude Code status line, Anthropic usage endpoint and Codex session log"
+        );
+    });
+
+    it("names the experimental source in its confirmation in the interface language", () => {
+        const off: CompanionUsageInfo = {
+            ...enabled,
+            experimental: {
+                source: "claude-oauth",
+                name: "Anthropic usage endpoint",
+                on: false,
+                store: "the keychain",
+            },
+        };
+        const statement = (info: CompanionUsageInfo) => {
+            const view = experimentalView(info);
+            return view.kind === "off" ? plain(view.statement) : "";
+        };
+        expect(statement(off)).toContain("(source: Anthropic usage endpoint)");
+        inFrench(() => expect(statement(off)).toMatch(/\(source\s: service d'utilisation d'Anthropic\)/));
+        const unknown = { ...off, experimental: { ...off.experimental, source: "other", name: "Some endpoint" } };
+        inFrench(() => expect(statement(unknown)).toMatch(/\(source\s: Some endpoint\)/));
+    });
+
+    it("knows every source id of wavesrv, and has a name for each in both languages", () => {
+        const dir = join(__dirname, "../../../pkg/molten/usage");
+        const goIds = ["claudeoauth.go", "claudestatusline.go", "codex.go"].flatMap((file) =>
+            [...readFileSync(join(dir, file), "utf8").matchAll(/SourceId\s*=\s*"([^"]+)"/g)].map((m) => m[1])
+        );
+        expect([...goIds].sort()).toEqual([...UsageSourceIds].sort());
+        for (const id of UsageSourceIds) {
+            expect(usageSourceName(id)).not.toContain("companion.gauges.source");
+            inFrench(() => expect(usageSourceName(id)).not.toContain("companion.gauges.source"));
+        }
     });
 });

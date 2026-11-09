@@ -203,6 +203,16 @@ export function paceColour(ratio: number, unused = 0): string {
     return "var(--color-error)";
 }
 
+// The colours the grid's legend shows (#2123), taken from the rules above so a swatch can never drift from the rows: far
+// under the pace is full blue, on pace green, and above it runs from orange to red.
+export function legendColours(): { under: string; on: string; above: string } {
+    return {
+        under: paceColour(1, UnusedBlueAt),
+        on: paceColour(1),
+        above: `linear-gradient(90deg, ${paceColour(PaceOrangeAt)}, ${paceColour(PaceRedAt)})`,
+    };
+}
+
 // The line one window draws.
 export function usageWeekLine(window: UsageWindow, now: number): UsageWeekLine {
     const percent = Math.round(Math.min(100, Math.max(0, window.usedpercent)));

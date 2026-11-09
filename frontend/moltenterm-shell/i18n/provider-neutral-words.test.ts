@@ -42,6 +42,9 @@ export const ProviderSubjectPrefixes: Record<string, string> = {
     // An agent's profile on its Library page (#1699, FR-ONB-008): its vendor's facts, the vendor and its products are
     // the subject of every sentence.
     "library.agents.profiles.": "an agent's own profile, from its vendor's pages",
+    // A gauges source is named after the product it reads (#2123): wavesrv names it in English for the agents, the window
+    // names it from its id in the interface language, so each name carries the product it belongs to.
+    "companion.gauges.source.": "a usage source's own name, after the product it reads",
 };
 
 function providerSubject(key: string): boolean {

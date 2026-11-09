@@ -1,15 +1,16 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import En from "../i18n/locales/en.json";
 import Fr from "../i18n/locales/fr.json";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
     allowedPercent,
     dayFills,
     lastReset,
+    legendColours,
     mainWindow,
     paceColour,
     PaceOrangeAt,
@@ -138,6 +139,49 @@ describe("the slim week grid (FR-BOSS-009, AC56, #2106)", () => {
         expect(rule(".mt-uw-cell.is-today")).toContain(
             "box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 35%, transparent);"
         );
+    });
+});
+
+// #2123: the legend's swatches are the grid's own blocks and colours.
+describe("the legend of the week grid (#2123)", () => {
+    const css = readFileSync(join(__dirname, "usage-week.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = (selector: string) =>
+        new RegExp(`\\n${selector.replace(/[.[\]]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+
+    it("takes its colours from the pace rules: blue far under, green on pace, orange to red above", () => {
+        expect(legendColours()).toEqual({
+            under: "var(--mt-info)",
+            on: "var(--color-success)",
+            above: `linear-gradient(90deg, ${paceColour(PaceOrangeAt)}, ${paceColour(PaceRedAt)})`,
+        });
+        expect(legendColours().above).toBe(
+            "linear-gradient(90deg, color-mix(in srgb, var(--color-warning) 100%, var(--color-success)), " +
+                "color-mix(in srgb, var(--color-error) 100%, var(--color-warning)))"
+        );
+    });
+
+    it("spans the grid, on one line when the width allows and wrapping between whole keys otherwise", () => {
+        const legend = rule(".mt-uw-legend");
+        expect(legend).toContain("grid-column: 1 / -1;");
+        expect(legend).toContain("display: flex;");
+        expect(legend).toContain("flex-wrap: wrap;");
+        expect(legend).toContain("color: var(--mt-text-3);");
+        expect(rule(".mt-uw-key")).toContain("white-space: nowrap;");
+    });
+
+    it("draws a swatch with the grid's block, whose fill takes the colour a row's does", () => {
+        expect(rule(".mt-uw-key .mt-uw-cell")).toContain("width: 16px;");
+        expect(rule(".mt-uw-key .mt-uw-cell")).not.toContain("height");
+        expect(rule(".mt-uw-key .mt-uw-cell i")).toContain("width: 100%;");
+        expect(rule(".mt-uw-cell i")).toContain("background: var(--mt-uw-pace");
+    });
+
+    it("words the legend in both languages with the same keys", () => {
+        for (const dict of [En, Fr]) {
+            const legend = dict.usageWeek.legend;
+            expect(Object.keys(legend).sort()).toEqual(["above", "label", "on", "reset", "title", "today", "under"]);
+            expect(Object.keys(legend.title).sort()).toEqual(["above", "on", "reset", "today", "under"]);
+        }
     });
 });
 
