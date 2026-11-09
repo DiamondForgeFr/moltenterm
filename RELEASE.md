@@ -195,6 +195,7 @@ GitHub is unavailable, sign on the developer's Mac and upload to the draft relea
 ```bash
 git checkout vX.Y.Z && npm ci && task clean && task build:backend && task build:tsunamiscaffold
 MOLTENTERM_BUILD_CHANNEL=public npm run build:prod   # rc for a release candidate
+node scripts/moltenterm-notices.mjs                  # the third-party notices; the package is refused without them
 # the seven variables of the table above, read from the password manager into this shell only
 node scripts/macos-signing/package.mjs package -c.publish.provider=github -c.publish.owner=DiamondForgeFr -c.publish.repo=moltenterm
 ```

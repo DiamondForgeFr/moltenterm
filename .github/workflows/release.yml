@@ -291,6 +291,7 @@ jobs:
                   task build:backend
                   task build:tsunamiscaffold
                   npm run build:prod
+                  node scripts/moltenterm-notices.mjs
             # A dedicated temporary keychain, the builder's sign hook, then the DMGs signed, notarized and stapled and
             # latest-mac.yml rewritten from the final bytes, all before the upload below (scripts/macos-signing).
             - name: Package, sign and notarize (Developer ID)
