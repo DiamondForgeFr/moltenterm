@@ -14,6 +14,7 @@ import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MissionCiEvent, missionGet, MissionRouteId, MissionUpdateEvent } from "./mission/mission-client";
+import { makeShownAsk } from "./shown-ask";
 import { keepPaneState, PaneState } from "./status-bar-model";
 import { TabActivity, whileShown } from "./tab-activity";
 import { isShowing } from "./tab-activity-model";
@@ -172,31 +173,38 @@ export function usePaneStatus(folder: string, blockId: string, worktree?: string
         return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
     }, [root, linkedPath, ask]);
     const project = state?.project ?? "";
-    useEffect(() => {
-        if (!project) {
-            return;
-        }
-        // wavesrv reads the verdict and the pull request on every answer: no git probe for them.
-        const unsubscribeCi = waveEventSubscribeSingle({
-            eventType: MissionCiEvent as WaveEventName,
-            scope: project,
-            handler: (event) => {
-                if ((event.data as { status?: string })?.status !== "running") {
-                    ask(false);
-                }
-            },
-        });
-        const unsubscribeMission = waveEventSubscribeSingle({
-            eventType: MissionUpdateEvent as WaveEventName,
-            scope: project,
-            handler: () => ask(false),
-        });
-        return () => {
-            unsubscribeCi();
-            unsubscribeMission();
-        };
-    }, [project, ask]);
+    useEffect(() => (project ? watchProjectEvents(project, () => ask(false)) : undefined), [project, ask]);
     return state;
+}
+
+// The project's CI and collector events ask the bar again, in the view that shows; a hidden view asks once when it shows
+// again (#2154).
+export function watchProjectEvents(
+    project: string,
+    ask: () => void,
+    activity: Pick<TabActivity, "stateAtom"> = TabActivity.getInstance()
+): () => void {
+    const shown = makeShownAsk(ask, activity);
+    // wavesrv reads the verdict and the pull request on every answer: no git probe for them.
+    const unsubscribeCi = waveEventSubscribeSingle({
+        eventType: MissionCiEvent as WaveEventName,
+        scope: project,
+        handler: (event) => {
+            if ((event.data as { status?: string })?.status !== "running") {
+                shown.event();
+            }
+        },
+    });
+    const unsubscribeMission = waveEventSubscribeSingle({
+        eventType: MissionUpdateEvent as WaveEventName,
+        scope: project,
+        handler: () => shown.event(),
+    });
+    return () => {
+        shown.stop();
+        unsubscribeCi();
+        unsubscribeMission();
+    };
 }
 
 export function useWarmLinkedProject(dir: string) {
