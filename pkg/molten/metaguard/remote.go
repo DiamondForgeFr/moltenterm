@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/remote/connparse"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
@@ -286,8 +287,13 @@ func PathHost(uri string) (string, bool) {
 }
 
 // RemoteRefusedCommands are the wavesrv commands no SSH or WSL host sends: they write the configuration (a local
-// shell path, widgets), build and run local apps, approve Wave AI's tool calls, or write this computer's files.
+// shell path, widgets), build and run local apps or read their environment and output, approve Wave AI's tool calls,
+// or write this computer's files.
 var RemoteRefusedCommands = map[string]bool{
+	"getrtinfo":              true,
+	"setrtinfo":              true,
+	"getbuilderstatus":       true,
+	"getbuilderoutput":       true,
 	"setconfig":              true,
 	"setconnectionsconfig":   true,
 	"writetempfile":          true,
@@ -310,11 +316,42 @@ var RemoteRefusedCommands = map[string]bool{
 	"waveaigettooldiff":      true,
 }
 
-// CheckRemoteCommand refuses the commands of RemoteRefusedCommands. This computer's own connection server (conn:local:
-// start a job, stream, copy or delete a file, signal a process) is out of a host's reach at the router.
+// RemoteSecretCommands read or replace this computer's secrets: AI provider keys and the passwords of the other servers
+// (ssh:passwordsecretname). wavesrv reads that password itself when it connects, so no host ever needs them (#2119).
+var RemoteSecretCommands = map[string]bool{
+	"getsecrets":      true,
+	"getsecretsnames": true,
+	"setsecrets":      true,
+}
+
+// RemoteRefusedEvents are the events no SSH or WSL host follows, with why: they carry this computer's API tokens or
+// what MoltenTerm asks about other connections (#2119). Subscribing and reading their history are both refused.
+var RemoteRefusedEvents = map[string]string{
+	wps.Event_Config:        "they carry this computer's configuration, API tokens included",
+	wps.Event_AIModeConfig:  "they carry this computer's AI modes, API tokens included",
+	wps.Event_UserInput:     "they carry the questions MoltenTerm asks about other connections (passwords, host keys)",
+	wps.Event_BuilderOutput: "they carry the output of this computer's app builds",
+	wps.Event_BuilderStatus: "they carry the state of this computer's app builds",
+}
+
+// CheckRemoteCommand refuses the commands of RemoteRefusedCommands and RemoteSecretCommands. This computer's own
+// connection server (conn:local: start a job, stream, copy or delete a file, signal a process) is out of a host's reach
+// at the router.
 func CheckRemoteCommand(command string) error {
+	if RemoteSecretCommands[command] {
+		return fmt.Errorf("refused: an SSH or WSL host cannot send %q: this computer's secrets stay on it, and MoltenTerm uses them itself (an SSH password is read here when MoltenTerm connects)."+RemoteHint, command)
+	}
 	if RemoteRefusedCommands[command] {
 		return fmt.Errorf("refused: an SSH or WSL host cannot send %q to this computer."+RemoteHint, command)
 	}
 	return nil
+}
+
+// CheckRemoteSubscribe refuses the events of RemoteRefusedEvents, saying why.
+func CheckRemoteSubscribe(event string) error {
+	reason, refused := RemoteRefusedEvents[event]
+	if !refused {
+		return nil
+	}
+	return fmt.Errorf("refused: an SSH or WSL host cannot follow %q events; %s."+RemoteHint, event, reason)
 }

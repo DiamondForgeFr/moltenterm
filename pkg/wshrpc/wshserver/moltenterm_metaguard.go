@@ -73,6 +73,21 @@ func moltenReadMeta(ctx context.Context, oref waveobj.ORef, meta waveobj.MetaMap
 	return meta, nil
 }
 
+// moltenListedBlock is the block blockinfo returns: its meta as getmeta reads it for the caller, so blockinfo is no way
+// around ReadBlockMeta (#2119). The stored block is never changed.
+func moltenListedBlock(ctx context.Context, block *waveobj.Block) *waveobj.Block {
+	if block == nil {
+		return nil
+	}
+	meta, err := moltenReadMeta(ctx, waveobj.MakeORef(waveobj.OType_Block, block.OID), block.Meta)
+	if err != nil {
+		meta = waveobj.MetaMapType{}
+	}
+	listed := *block
+	listed.Meta = meta
+	return &listed
+}
+
 func moltenListedWorkspaces(ctx context.Context, workspaces []wshrpc.WorkspaceInfoData) {
 	caller := moltenMetaCaller(ctx, true)
 	if caller.Trusted {
@@ -103,6 +118,9 @@ func moltenCheckPublish(ctx context.Context, event string) error {
 }
 
 func moltenCheckSubscribe(ctx context.Context, req wps.SubscriptionRequest) error {
+	if err := moltenCheckRemoteSubscribe(ctx, req.Event); err != nil {
+		return err
+	}
 	if req.Event == wps.Event_BlockFile {
 		return moltenCheckBlockFileSubscribe(ctx, req)
 	}

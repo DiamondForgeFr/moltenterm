@@ -9,6 +9,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
 var sshHost = Remote{Conn: "dev@build.example"}
@@ -157,6 +158,43 @@ func TestRemoteCommandsAndConnections(t *testing.T) {
 	}
 	mustAccept(t, "another server", CheckRemoteConn(sshHost, "other@host", "connect to"))
 	mustAccept(t, "its own connection", CheckRemoteConn(sshHost, sshHost.Conn, "connect to"))
+}
+
+// #2119: a host ran `wsh secret list|get|set` and read or replaced this computer's secrets (AI keys, the passwords of
+// the other servers), read AI tokens through the config events, and read a local app build's environment.
+func TestRemoteSecretsTokensAndBuilds(t *testing.T) {
+	for _, command := range []string{"getsecrets", "getsecretsnames", "setsecrets"} {
+		err := CheckRemoteCommand(command)
+		mustRefuse(t, command, err)
+		if err != nil && !strings.Contains(err.Error(), "secrets stay on it") {
+			t.Errorf("%s: %q does not say why", command, err)
+		}
+	}
+	for _, command := range []string{"getrtinfo", "setrtinfo", "getbuilderoutput", "getbuilderstatus"} {
+		mustRefuse(t, command, CheckRemoteCommand(command))
+	}
+	mustAccept(t, "secret storage backend", CheckRemoteCommand("getsecretslinuxstoragebackend"))
+	for _, event := range []string{"config", "waveai:modeconfig", "userinput", "builderoutput", "builderstatus"} {
+		err := CheckRemoteSubscribe(event)
+		mustRefuse(t, event, err)
+		if err != nil && !strings.Contains(err.Error(), "they carry") {
+			t.Errorf("%s: %q does not say why", event, err)
+		}
+	}
+	for _, event := range []string{"blockclose", "badge", "sysinfo", "route:up", "molten:agentstate"} {
+		mustAccept(t, event, CheckRemoteSubscribe(event))
+	}
+	modes := map[string]wconfig.AIModeConfigType{"m": {APIToken: "sk-1", APITokenSecretName: "OPENAI_KEY", Model: "gpt"}}
+	listed := RemoteListedAIModes(modes)
+	if listed["m"].APIToken != "" || listed["m"].APITokenSecretName != "OPENAI_KEY" || listed["m"].Model != "gpt" {
+		t.Fatalf("listed modes %+v", listed)
+	}
+	if modes["m"].APIToken != "sk-1" {
+		t.Fatal("the stored modes were changed")
+	}
+	if RemoteListedAIModes(nil) != nil {
+		t.Fatal("no modes became some")
+	}
 }
 
 func TestIsLoopbackConn(t *testing.T) {

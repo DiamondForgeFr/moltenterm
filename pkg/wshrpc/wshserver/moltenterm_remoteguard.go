@@ -395,3 +395,20 @@ func moltenListedConfig(ctx context.Context, config wconfig.FullConfigType) wcon
 	}
 	return metaguard.RemoteListedConfig(config)
 }
+
+// moltenListedAIModes are the AI modes a caller gets: an SSH or WSL host gets them without API tokens (#2119).
+func moltenListedAIModes(ctx context.Context, modes map[string]wconfig.AIModeConfigType) map[string]wconfig.AIModeConfigType {
+	if _, ok := moltenRemoteCaller(ctx); !ok {
+		return modes
+	}
+	return metaguard.RemoteListedAIModes(modes)
+}
+
+// moltenCheckRemoteSubscribe refuses an SSH or WSL host the events that carry this computer's tokens or other
+// connections' questions; other callers keep the rules of moltenCheckSubscribe.
+func moltenCheckRemoteSubscribe(ctx context.Context, event string) error {
+	if _, ok := moltenRemoteCaller(ctx); !ok {
+		return nil
+	}
+	return metaguard.CheckRemoteSubscribe(event)
+}
