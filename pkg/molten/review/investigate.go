@@ -194,10 +194,68 @@ func (r *Restarter) AskInvestigate(ctx context.Context, req InvestigateRequest) 
 	for i := range req.Checks {
 		req.Checks[i] = cleanCheck(req.Checks[i])
 	}
+	if held, ok := r.handedAlready(HandoffInvestigate, req.PrKey, req.HeadOid); ok {
+		return held, nil
+	}
+	now, stale := r.guardPr(ctx, req.PrKey, req.Dir, req.HeadRef, req.HeadOid)
+	if stale != nil {
+		return *stale, nil
+	}
+	pruned := pruneInvestigate(&req, now)
 	b := r.readBlockers(req)
 	if b.empty() {
+		if pruned {
+			return r.staleResult(req.PrKey, req.Dir, req.HeadRef, RestartReasonProblemGone, req.HeadOid, now), nil
+		}
 		return RestartResult{}, fmt.Errorf("nothing blocks PR #%d: no failed check, conflict, missing report or review round", req.Number)
 	}
+	if now.head != "" {
+		req.HeadOid = now.head
+	}
+	res, err := r.handInvestigate(ctx, req, b)
+	if err == nil {
+		r.noteHanded(HandoffInvestigate, req.PrKey, req.HeadOid, res)
+	}
+	return res, err
+}
+
+// pruneInvestigate keeps of the blockers the card named the ones GitHub still shows on the PR (the rebase it needs is
+// the one it has now: behind or conflicting); true when something the card named is gone.
+func pruneInvestigate(req *InvestigateRequest, now prNow) bool {
+	if !now.read {
+		return false
+	}
+	changed := false
+	switch req.Merge {
+	case InvestigateMergeBehind, InvestigateMergeConflicts:
+		merge := req.Merge
+		switch {
+		case now.conflicts:
+			merge = InvestigateMergeConflicts
+		case now.behind:
+			merge = InvestigateMergeBehind
+		case now.computing:
+		default:
+			merge = ""
+		}
+		changed = changed || merge == ""
+		req.Merge = merge
+	}
+	var red []InvestigateCheck
+	for _, c := range req.Checks {
+		if now.stillRed(c.Name) {
+			red = append(red, c)
+		}
+	}
+	changed = changed || len(red) < len(req.Checks)
+	req.Checks = red
+	if req.ChangesRequested && !now.changes {
+		req.ChangesRequested, changed = false, true
+	}
+	return changed
+}
+
+func (r *Restarter) handInvestigate(ctx context.Context, req InvestigateRequest, b blockers) (RestartResult, error) {
 	rreq := req.restartRequest()
 	origin := r.origin(rreq, AgentOriginInvestigate)
 	var state State

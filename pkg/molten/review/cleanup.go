@@ -1006,6 +1006,9 @@ func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
 		item.State, item.Flag = CleanupStateDone, CleanupFlagRebaseTyped
 	case res.Status == RestartBusy:
 		item.State, item.Flag = CleanupStateSkipped, CleanupFlagAgentBusy
+	case res.Status == RestartStale:
+		// Already rebased, or closed, since the list was read (#2145): nothing to ask.
+		item.State, item.Flag = CleanupStateSkipped, CleanupFlagChecking
 	case res.Status == RebaseOffer:
 		item.State, item.Flag = CleanupStateSkipped, CleanupFlagNeedsAgent
 	default:

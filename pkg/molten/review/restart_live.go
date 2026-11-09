@@ -128,5 +128,6 @@ func baseLiveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 		HoldState:    attention.HoldAgentState,
 		ReleaseState: attention.ReleaseAgentState,
 		StopSettled:  attention.AgentStopSettled,
+		PushSeen:     mission.LiveHeadPushed,
 	}
 }

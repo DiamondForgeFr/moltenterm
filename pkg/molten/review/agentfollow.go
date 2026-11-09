@@ -59,6 +59,8 @@ type followState struct {
 	lastKey    string
 	checkedAt  time.Time
 	notice     string
+	// pushed: the head of the push already told to the Integration list (#2145).
+	pushed string
 	// An investigation (#896): the state MoltenTerm holds, when the agent stopped, and a failure seen once.
 	hold      string
 	stoppedAt time.Time
@@ -170,6 +172,7 @@ func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followSta
 		log.Printf("%s %s#%d: the agent's worktree could not be read: %v\n", logPrefix, f.req.Repo, f.req.Number, err)
 		return true
 	}
+	r.notePush(f, st, facts)
 	waiting := running && (run.State == molten.AgentStateWaiting || run.State == molten.AgentStateError)
 	if facts.pushed(f.startHead) && facts.clean() && !waiting {
 		r.finish(ctx, f, run)
@@ -186,6 +189,16 @@ func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followSta
 	}
 	r.noticeNeeds(ctx, f, st, run, running, facts)
 	return true
+}
+
+// notePush tells the Integration list that the followed agent pushed its branch (#2145), once per pushed head: the PR is
+// read again at once, not at the next minute of the list.
+func (r *Restarter) notePush(f agentFollow, st *followState, facts treeFacts) {
+	if !facts.pushed(f.startHead) || st.pushed == facts.head {
+		return
+	}
+	st.pushed = facts.head
+	r.pushSeen(f.req.Dir, f.req.HeadRef, facts.head)
 }
 
 func (r *Restarter) agentRunOf(blockId string) (molten.AgentRunInfo, bool) {

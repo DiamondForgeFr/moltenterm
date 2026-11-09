@@ -653,10 +653,17 @@ type Reviews struct {
 	rerunEvery time.Duration
 	// The local CI, to reread its statuses on the PRs (#1713); nil leaves them as GitHub has them.
 	ci *Ci
+	// The pushes being followed (#2145, reviews_heads.go), the last push each PR was followed for, and the reads still
+	// going. followEvery: how often a pushed PR is read again (headFollowEvery when 0).
+	follows      map[headKey]*headFollow
+	followedWant map[headKey]string
+	followCount  int
+	followEvery  time.Duration
 }
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {
-	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}, history: map[string]*mergedHistoryState{}}
+	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}, history: map[string]*mergedHistoryState{},
+		follows: map[headKey]*headFollow{}, followedWant: map[headKey]string{}}
 }
 
 func publishReviews(answer ReviewsAnswer) {
