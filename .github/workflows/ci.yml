@@ -163,6 +163,10 @@ jobs:
               run: node scripts/security/runtime-check.mjs
             - name: Build
               run: npm run build:prod
+            # The licence of every npm package the bundles above ship (taken from the build's module graph) and of the
+            # fonts and icons public/ carries must be known and on build/moltenterm/license-policy.json (#2126).
+            - name: Third-party licences
+              run: node scripts/moltenterm-notices.mjs --check --sources npm,assets
 
     backend:
         # Skipped when no Go file changed and no Go test reads a changed file. `task build:backend` runs when a file the
@@ -204,6 +208,10 @@ jobs:
                   args=(--run --summary --only go --base HEAD^1)
                   if [ "$FULL" = true ]; then args+=(--full --full-reason "$REASON" -- -count=1); fi
                   node scripts/moltenterm-affected.mjs "${args[@]}"
+            # The Go modules wavesrv, wsh and molten link (`go list -deps`, from the module cache the tests just filled):
+            # their licences must be known and allowed (#2126).
+            - name: Third-party licences
+              run: node scripts/moltenterm-notices.mjs --check --sources go
             # Only the build needs Task and Zig: installed after the tests, a download outage cannot keep them from running.
             - uses: ./.github/actions/setup-task
               if: needs.select.outputs.gobuild == 'true'

@@ -3,6 +3,7 @@ const pkg = require("./package.json");
 const fs = require("fs");
 const path = require("path");
 const { ElectronFuses } = require("./build/moltenterm/electron-fuses.cjs"); // MOLTENTERM-PATCH (#1975)
+const { verifyPackagedLicenses } = require("./build/moltenterm/package-licenses.cjs"); // MOLTENTERM-PATCH (#2126)
 
 const windowsShouldSign = !!process.env.SM_CODE_SIGNING_CERT_SHA1_HASH;
 // MOLTENTERM-PATCH (#507): set only by scripts/macos-signing/package.mjs, inside its ephemeral signing session. Without
@@ -30,7 +31,16 @@ const config = {
             from: "./dist",
             to: "./dist",
             // MOLTENTERM-PATCH (#458): the small molten program (cmd/molten) ships next to wsh.
-            filter: ["**/*", "!bin/*", "bin/wavesrv.${arch}*", "bin/wsh*", "bin/molten-*", "!tsunamiscaffold/**/*"],
+            // MOLTENTERM-PATCH (#2126): dist/licenses holds the build's licence work files; the notices ship as a resource.
+            filter: [
+                "**/*",
+                "!bin/*",
+                "bin/wavesrv.${arch}*",
+                "bin/wsh*",
+                "bin/molten-*",
+                "!tsunamiscaffold/**/*",
+                "!licenses/**/*",
+            ],
         },
         {
             from: ".",
@@ -50,6 +60,13 @@ const config = {
             from: ".",
             to: "licenses",
             filter: ["LICENSE", "LICENSE-APACHE", "LICENSE-EXCEPTION", "NOTICE", "TRADEMARKS.md"],
+        },
+        // MOLTENTERM-PATCH (#2126): the third-party notices (scripts/moltenterm-notices.mjs), which the About panel opens.
+        // Electron's and Chromium's licence files are kept by electron-builder; afterPack checks all of them.
+        {
+            from: "dist/licenses",
+            to: "licenses",
+            filter: ["THIRD-PARTY-NOTICES.txt"],
         },
     ],
     directories: {
@@ -153,6 +170,7 @@ const config = {
     // without the key, electron-builder infers a GitHub feed from the git remote.
     publish: null,
     afterPack: (context) => {
+        verifyPackagedLicenses(context); // MOLTENTERM-PATCH (#2126)
         // This is a workaround to restore file permissions to the wavesrv binaries on macOS after packaging the universal binary.
         if (context.electronPlatformName === "darwin" && context.arch === Arch.universal) {
             const packageBinDir = path.resolve(

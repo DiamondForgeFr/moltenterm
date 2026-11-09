@@ -58,6 +58,8 @@ for f in dist/bin/wsh-* dist/bin/molten-*; do
     esac
 done
 MOLTENTERM_BUILD_CHANNEL=gold MOLTENTERM_BUILD_ID=$BUILD_ID npm run build:prod
+# The third-party notices (#2126): electron-builder ships them, and its afterPack hook refuses a package without them.
+node scripts/moltenterm-notices.mjs
 # The gold has an icon and a name of its own (scripts/moltenterm-gen-icons.mjs, #191), so it is told apart from dev
 # builds in the Dock and in Spotlight.
 # electron-builder signs every nested helper and framework before the app, with the entitlements of the config. A
