@@ -7200,6 +7200,8 @@
                 "mergefailed": "GitHub refused the merge: nothing was merged.",
                 "read": "GitHub could not be read: nothing was merged.",
                 "agentstart": "The agent could not be started for the rebase.",
+                "checksPassed": "Its checks have now passed on the commit you validated: nothing was merged yet.",
+                "checksRunning": "The merge queue stopped on it, and its checks are still running.",
                 "retry": "Try again",
                 "retryTitle": "Put #{number} back in the merge queue, bound to the commit you validated",
                 "rebase": "Rebase",

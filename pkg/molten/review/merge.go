@@ -126,6 +126,9 @@ const (
 	planMaxAge = 30 * time.Minute
 	// The rebase by GitHub then CI on the new head; past this, the merge gives up (never merges late unseen).
 	defaultCiTimeout = 45 * time.Minute
+	// The time checks wait to start does not count against defaultCiTimeout (#2141), up to this much in all: a check
+	// that never starts still stops the merge.
+	maxCiQueued      = 3 * time.Hour
 	defaultPollEvery = 15 * time.Second
 	ghCallTimeout    = 2 * time.Minute
 	// gh pr view failing this many times in a row while waiting for CI stops the merge.
@@ -319,6 +322,10 @@ type Merger struct {
 	reviewer func(dir string) string
 	// greenOnly: the review:validategreenonly setting (#912); nil reads off.
 	greenOnly func() bool
+	// localGreen: the local CI passed on the code of a head (and posted its statuses there); localBusy: a local CI run
+	// is in progress for the project (#2141). nil knows nothing.
+	localGreen func(dir string, sha string) bool
+	localBusy  func(dir string) bool
 }
 
 func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *Merger {
@@ -794,7 +801,7 @@ func (m *Merger) Merge(req MergeRequest) (MergeRecord, error) {
 	// The developer's choice is the repository's next default, whatever GitHub then answers.
 	m.keepChosenMethod(plan.Repo, plan.Method, plan.Queue)
 	m.record(req.PrKey, record)
-	ctx, cancel := context.WithTimeout(context.Background(), m.ciTimeout+10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), m.ciTimeout+maxCiQueued+10*time.Minute)
 	run.cancel = cancel
 	go func() {
 		defer func() {
@@ -1042,7 +1049,10 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 	record.Updated = true
 	record.State = MergeWaitingCi
 	m.record(k, record)
-	deadline := m.now().Add(m.ciTimeout)
+	last := m.now()
+	deadline := last.Add(m.ciTimeout)
+	var queued time.Duration
+	localDone := false
 	newHead := ""
 	errors := 0
 	blockedPolls := 0
@@ -1051,7 +1061,10 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 			m.end(k, record, MergeCancelled, "", MergeCodeStopped, nil)
 			return "", record, false
 		}
-		if m.now().After(deadline) {
+		now := m.now()
+		elapsed := now.Sub(last)
+		last = now
+		if now.After(deadline) {
 			record.Minutes = int(m.ciTimeout.Minutes())
 			m.end(k, record, MergeFailed, "", MergeCodeCiTimeout, nil)
 			return "", record, false
@@ -1078,7 +1091,22 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 			m.end(k, headMoved(record, pr.HeadRefOid, newHead), MergeRefused, RefusedHeadMoved, MergeCodeHeadMoved, nil)
 			return "", record, false
 		}
-		verdict := ciOnNewHead(pr, plan.ciNames, plan.redNames)
+		// #2141: local statuses the new head lacks are answered by the local CI's verdict on its code, when it passed.
+		if !localDone && missingLocal(pr, plan.ciNames) && m.localGreen != nil && m.localGreen(plan.Dir, newHead) {
+			localDone = true
+			log.Printf("%s %s#%d: the local CI passed on the code of %s, its statuses are not waited for\n", logPrefix, k.Repo, k.Number, shortHead(newHead))
+		}
+		waitFor := plan.ciNames
+		if localDone {
+			waitFor = withoutLocal(plan.ciNames)
+		}
+		// #2141: the time a check waits to start (a local CI run behind another one on a busy runner) is not CI time.
+		if checksNotStarted(pr, waitFor, m.localBusy != nil && m.localBusy(plan.Dir)) {
+			extra := min(elapsed, maxCiQueued-queued)
+			queued += extra
+			deadline = deadline.Add(extra)
+		}
+		verdict := ciOnNewHead(pr, waitFor, plan.redNames)
 		if !verdict.done && verdict.refused != "" {
 			// Every check passed but GitHub still blocks: past a short grace, a missing review will not come by itself.
 			blockedPolls++
@@ -1099,6 +1127,58 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 		}
 		return newHead, record, true
 	}
+}
+
+// checksNotStarted: a check the merge waits for has not started on the new head yet. GitHub shows a queued job as
+// pending with no start time, or not yet. The local CI posts its local-* status only once a job starts, so a run
+// waiting for the runner shows as a missing check: one counts as waiting to start only while the local CI is busy
+// (localBusy), since with nothing running it would never come.
+func checksNotStarted(pr ghMergePr, planChecks []string, localBusy bool) bool {
+	ci, err := mission.ParseReviewChecks(pr.StatusCheckRollup)
+	if err != nil {
+		return false
+	}
+	present := map[string]bool{}
+	for _, c := range ci.Checks {
+		present[c.Name] = true
+		if c.State == mission.ReviewCheckPending && c.StartedAt == "" {
+			return true
+		}
+	}
+	for _, name := range planChecks {
+		if !present[name] && (localBusy || !IsLocalCiCheck(name)) {
+			return true
+		}
+	}
+	return false
+}
+
+// missingLocal: a local CI check the merge waits for is not on the new head.
+func missingLocal(pr ghMergePr, planChecks []string) bool {
+	ci, err := mission.ParseReviewChecks(pr.StatusCheckRollup)
+	if err != nil {
+		return false
+	}
+	present := map[string]bool{}
+	for _, c := range ci.Checks {
+		present[c.Name] = true
+	}
+	for _, name := range planChecks {
+		if !present[name] && IsLocalCiCheck(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func withoutLocal(names []string) []string {
+	var rtn []string
+	for _, name := range names {
+		if !IsLocalCiCheck(name) {
+			rtn = append(rtn, name)
+		}
+	}
+	return rtn
 }
 
 // ciVerdict: done when the wait is over; outcome is set when the merge must stop, with its code.

@@ -467,7 +467,7 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, i int) int {
 			continue
 		}
 		blockedPolls = 0
-		out, stop := b.merge(ctl, i, k, pr)
+		out, stop := b.merge(ctx, ctl, i, k, pr)
 		if out != batchAgain {
 			if out == batchStopped {
 				return b.stopItem(ctl, i, stop)
@@ -548,15 +548,15 @@ func batchItemMethod(item BatchItem, run BatchRun, plan MergePlan) (string, bool
 
 // merge goes through Validate's path (FR-REV-012): a plan read fresh, then the merge bound to its head, with the
 // method validated; its cleanup runs after it as after a manual merge.
-func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr) (int, batchStop) {
+func (b *BatchRunner) merge(ctx context.Context, ctl *batchCtl, i int, k PrKey, pr ghMergePr) (int, batchStop) {
 	m := b.env.Merger
 	if m == nil {
 		return batchStopped, batchStop{reason: BatchReasonMergeFailed, detail: "Validate is not available"}
 	}
 	run := b.read(ctl)
 	item := run.Items[i]
-	ctx, cancel := context.WithTimeout(context.Background(), batchStepTimeout)
-	plan, err := m.Plan(ctx, MergePlanRequest{PrKey: k, Dir: run.Dir, Ticket: item.Ticket})
+	planCtx, cancel := context.WithTimeout(context.Background(), batchStepTimeout)
+	plan, err := m.Plan(planCtx, MergePlanRequest{PrKey: k, Dir: run.Dir, Ticket: item.Ticket})
 	cancel()
 	if err != nil {
 		return batchStopped, batchStop{reason: BatchReasonRead, detail: err.Error()}
@@ -592,7 +592,7 @@ func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr) (int, b
 	if _, err := m.Merge(MergeRequest{PrKey: k, PlanId: plan.Id, Override: override, Method: method, Batch: b.remaining(ctl, i)}); err != nil {
 		return batchStopped, batchStop{reason: BatchReasonMergeFailed, detail: err.Error()}
 	}
-	final := b.waitMerge(ctl, k)
+	final := b.waitMerge(ctx, ctl, k)
 	if final.Updated {
 		b.change(ctl, func(run *BatchRun) {
 			run.Items[i].CiRuns++
@@ -634,8 +634,9 @@ func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr) (int, b
 }
 
 // waitMerge waits for Validate's merge to end. A cancel stops it only while GitHub updates the branch or CI runs on
-// it: a merge call already sent is not undone.
-func (b *BatchRunner) waitMerge(ctl *batchCtl, k PrKey) MergeRecord {
+// it: a merge call already sent is not undone. The queue's cancel (ctx) is seen at once (#2141): a CI wait blocks every
+// other merge, so Cancel must not wait for the next look.
+func (b *BatchRunner) waitMerge(ctx context.Context, ctl *batchCtl, k PrKey) MergeRecord {
 	m := b.env.Merger
 	done := make(chan struct{})
 	go func() {
@@ -643,6 +644,7 @@ func (b *BatchRunner) waitMerge(ctl *batchCtl, k PrKey) MergeRecord {
 		close(done)
 	}()
 	cancelled := false
+	stopped := ctx.Done()
 	for {
 		select {
 		case <-done:
@@ -651,6 +653,8 @@ func (b *BatchRunner) waitMerge(ctl *batchCtl, k PrKey) MergeRecord {
 				return MergeRecord{State: MergeFailed, Code: MergeCodeReread}
 			}
 			return *state.Merge
+		case <-stopped:
+			stopped = nil
 		case <-time.After(b.env.AgentEvery):
 		}
 		if cancelled || !b.cancelAsked(ctl) {
