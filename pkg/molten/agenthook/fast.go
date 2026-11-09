@@ -154,6 +154,15 @@ func SendAgentState(token string, req AgentStateRequest) error {
 	return err
 }
 
+// handOffTimeout is StatusLineSendTimeout, the deadline of a hand-off's connection and call. A hand-off cut short by it
+// records nothing, so the next run hands the windows over again: a test that counts connections lifts it out of reach,
+// like relaySendTimeout, or it would count how loaded the machine is (#2134).
+var handOffTimeout = StatusLineSendTimeout
+
+// statusLineNow is the clock of the resend check; a test freezes it so that StatusLineResendAfter cannot pass between
+// two runs of a slow machine (#2134).
+var statusLineNow = time.Now
+
 // MakeStatusLineSender hands the windows to the companion of the terminal the relay runs in, at most once for the same
 // windows (statuslinecache.go); nil outside MoltenTerm.
 func MakeStatusLineSender(getenv func(string) string, cacheDir string) StatusLineSender {
@@ -169,10 +178,10 @@ func MakeStatusLineSender(getenv func(string) string, cacheDir string) StatusLin
 		if claims, err := ParseTokenClaims(token); err == nil && claims.BlockId != "" {
 			req.BlockId = claims.BlockId
 		}
-		if !StatusLineSendDue(cacheDir, req, time.Now()) {
+		if !StatusLineSendDue(cacheDir, req, statusLineNow()) {
 			return
 		}
-		deadline := time.Now().Add(StatusLineSendTimeout)
+		deadline := time.Now().Add(handOffTimeout)
 		c, err := Dial(token, deadline)
 		if err != nil {
 			return
@@ -182,6 +191,6 @@ func MakeStatusLineSender(getenv func(string) string, cacheDir string) StatusLin
 		if err != nil {
 			return
 		}
-		RecordStatusLineSent(cacheDir, req, StatusLineKept(data), time.Now())
+		RecordStatusLineSent(cacheDir, req, StatusLineKept(data), statusLineNow())
 	}
 }
