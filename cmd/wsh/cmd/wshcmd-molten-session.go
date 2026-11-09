@@ -43,7 +43,7 @@ var moltenSessionListCmd = &cobra.Command{
 
 var moltenSessionShowCmd = &cobra.Command{
 	Use:     "show <id>",
-	Short:   "focus the pane of a session of this workspace (a session no pane shows opens from the Sessions panel)",
+	Short:   "focus the session's pane, or open a pane attached to it in this tab when none shows it (sessions of this workspace)",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenSessionShowRun),
 	PreRunE: preRunSetupRpcClient,

@@ -9258,7 +9258,7 @@
             "scope": {
                 "noworkspace": "This terminal is in no workspace, so it reaches no session. Use the Sessions panel.",
                 "otherworkspace": "The session {session} is in another workspace: a terminal reaches only its own workspace's sessions. Use the Sessions panel.",
-                "nopane": "The session {session} shows in no pane, so it is in no workspace: a terminal reaches only its own workspace's sessions. Open it from the Sessions panel.",
+                "nopane": "The session {session} shows in no pane and the view it was in is gone, so its workspace is unknown: a terminal reaches only its own workspace's sessions. Open it from the Sessions panel.",
                 "othertab": "That view is not in this terminal's workspace: a terminal opens sessions only in its own workspace. Use the Sessions panel."
             },
             "welcomeback": {

@@ -117,6 +117,47 @@ func TestJoinShownLocalWithAgent(t *testing.T) {
 	}
 }
 
+// #2120: a shown session's tab is recorded on its job; once the pane is gone, the session belongs to that tab's
+// workspace while the tab exists, and to none once it is gone.
+func TestJoinHomeWorkspaceOfPaneGoneSessions(t *testing.T) {
+	t.Parallel()
+	w := makeWorld()
+	w.workspace("ws1", "Work", "#f00", "tab1")
+	w.workspace("ws2", "Other", "#0f0", "tab2")
+	shown := localJob("job-shown", 1000)
+	w.pane(shown, "b1", "tab1", waveobj.MetaMapType{})
+	recorded := localJob("job-recorded", 1100)
+	w.pane(recorded, "b2", "tab2", waveobj.MetaMapType{})
+	recorded.Meta = waveobj.MetaMapType{molten.SessionTabMetaKey: "tab2"}
+	if got := TabsToRecord(w.s); len(got) != 1 || got["job-shown"] != "tab1" {
+		t.Fatalf("tabs to record %v, want job-shown in tab1 only", got)
+	}
+
+	gone := localJob("job-gone", 2000)
+	gone.AttachedBlockId = "b-closed"
+	gone.Meta = waveobj.MetaMapType{molten.SessionTabMetaKey: "tab1"}
+	tabGone := localJob("job-tabgone", 2100)
+	tabGone.AttachedBlockId = "b-closed2"
+	tabGone.Meta = waveobj.MetaMapType{molten.SessionTabMetaKey: "tab-closed"}
+	unrecorded := localJob("job-unrecorded", 2200)
+	unrecorded.AttachedBlockId = "b-closed3"
+	replaced := localJob("job-replaced", 2300)
+	w.pane(replaced, "b2", "tab2", waveobj.MetaMapType{})
+	w.s.Blocks["b2"].JobId = recorded.OID
+	w.s.Jobs = append(w.s.Jobs, gone, tabGone, unrecorded)
+
+	data := Join(w.s)
+	for id, want := range map[string]string{"job-gone": "ws1", "job-tabgone": "", "job-unrecorded": "", "job-replaced": "ws2"} {
+		s := find(t, data, id)
+		if s.Shown || s.WorkspaceId != "" || s.HomeWorkspaceId != want {
+			t.Errorf("%s: shown %v workspace %q home %q, want home %q", id, s.Shown, s.WorkspaceId, s.HomeWorkspaceId, want)
+		}
+	}
+	if s := find(t, data, "job-shown"); s.HomeWorkspaceId != "" || s.WorkspaceId != "ws1" {
+		t.Errorf("shown session: workspace %q home %q", s.WorkspaceId, s.HomeWorkspaceId)
+	}
+}
+
 // FR-BOSS-009, AC26 (#2033): Brokk's own session is no session of the developer's, so the Sessions view, the Agents and
 // Sessions panels and the count of running agents never list it.
 func TestJoinLeavesBrokksOwnSessionOut(t *testing.T) {

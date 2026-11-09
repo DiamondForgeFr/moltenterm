@@ -5,6 +5,7 @@ package sessions
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -109,7 +110,24 @@ func (src *liveSources) Build() (molten.DurableSessionsData, error) {
 	if err != nil {
 		return molten.DurableSessionsData{}, err
 	}
+	recordTabs(ctx, TabsToRecord(s))
 	return Join(s), nil
+}
+
+// recordTabs writes on each job the tab its pane is in. A job update raises no event the list listens to, so this
+// does not trigger another build.
+func recordTabs(ctx context.Context, tabs map[string]string) {
+	for jobId, tabId := range tabs {
+		err := wstore.DBUpdateFn(ctx, jobId, func(job *waveobj.Job) {
+			if job.Meta == nil {
+				job.Meta = waveobj.MetaMapType{}
+			}
+			job.Meta[molten.SessionTabMetaKey] = tabId
+		})
+		if err != nil {
+			log.Printf("molten: tab of session %s not recorded: %v\n", molten.ShortSessionId(jobId), err)
+		}
+	}
 }
 
 func parentTabId(block *waveobj.Block) string {

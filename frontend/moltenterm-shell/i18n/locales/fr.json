@@ -9258,7 +9258,7 @@
             "scope": {
                 "noworkspace": "Ce terminal n'est dans aucun espace de travail : il n'atteint aucune session. Passez par le panneau Sessions.",
                 "otherworkspace": "La session {session} est dans un autre espace de travail : un terminal n'atteint que les sessions de son espace de travail. Passez par le panneau Sessions.",
-                "nopane": "La session {session} n'est affichée dans aucun panneau, elle n'est donc dans aucun espace de travail : un terminal n'atteint que les sessions de son espace de travail. Ouvrez-la depuis le panneau Sessions.",
+                "nopane": "La session {session} n'est affichée dans aucun panneau et la vue où elle était a disparu, son espace de travail est donc inconnu : un terminal n'atteint que les sessions de son espace de travail. Ouvrez-la depuis le panneau Sessions.",
                 "othertab": "Cette vue n'est pas dans l'espace de travail de ce terminal : un terminal n'ouvre des sessions que dans son espace de travail. Passez par le panneau Sessions."
             },
             "welcomeback": {

@@ -28,11 +28,15 @@ func makeTestLink(t *testing.T, sessions ...molten.DurableSession) (*routetest.E
 }
 
 // The terminal asking (routetest.TerminalBlock) is in wsA, its own session ownA; shownB is another workspace's.
+// homeA and homeB lost their panes in a tab of wsA and of wsB that still exist; detachedS and paneGoneS lost theirs in a
+// tab that is gone (or never recorded).
 var (
 	ownA    = molten.DurableSession{Id: "own", Shown: true, CanShow: true, CanEnd: true, WorkspaceId: "wsA", TabId: "tabA", BlockId: routetest.TerminalBlock}
 	agentA  = molten.DurableSession{Id: "agentA", Shown: true, CanShow: true, CanEnd: true, WorkspaceId: "wsA", TabId: "tabA", BlockId: "blockA", Agent: "claude"}
 	agentB  = molten.DurableSession{Id: "agentB", Shown: true, CanShow: true, CanEnd: true, WorkspaceId: "wsB", TabId: "tabB", BlockId: "blockB2", Agent: "claude"}
-	scopeOf = []molten.DurableSession{ownA, agentA, shownB, agentB, detachedS, paneGoneS}
+	homeA   = molten.DurableSession{Id: "homeA", Reason: molten.SessionReasonPaneGone, CanShow: true, CanEnd: true, HomeWorkspaceId: "wsA"}
+	homeB   = molten.DurableSession{Id: "homeB", Reason: molten.SessionReasonPaneGone, CanShow: true, CanEnd: true, HomeWorkspaceId: "wsB"}
+	scopeOf = []molten.DurableSession{ownA, agentA, shownB, agentB, detachedS, paneGoneS, homeA, homeB}
 )
 
 func askList(t *testing.T, link *localroute.Link, from routetest.From) molten.DurableSessionsData {
@@ -62,20 +66,21 @@ func TestRouteTerminalListsOnlyItsWorkspace(t *testing.T) {
 	t.Parallel()
 	e, link, _ := makeTestLink(t, scopeOf...)
 	got := askList(t, link, e.Terminal())
-	if ids := listIds(got); ids != "agentA,own" {
+	if ids := listIds(got); ids != "agentA,homeA,own" {
 		t.Fatalf("terminal list: %s", ids)
 	}
 	if got.WorkspaceId != "wsA" || got.RunningAgents != 1 {
 		t.Fatalf("terminal list scope %q, agents %d", got.WorkspaceId, got.RunningAgents)
 	}
 	full := askList(t, link, e.Window())
-	if ids := listIds(full); ids != "agentA,agentB,detached,own,panegone,shown" || full.WorkspaceId != "" {
+	if ids := listIds(full); ids != "agentA,agentB,detached,homeA,homeB,own,panegone,shown" || full.WorkspaceId != "" {
 		t.Fatalf("window list: %s scope %q", ids, full.WorkspaceId)
 	}
 }
 
 // AC-2 (#2120): show, end and reconnect from a terminal refuse another workspace's session, a session no pane shows
-// (whose history a reattach would copy) and a tab of another workspace, naming the Sessions panel.
+// whose workspace is another or unknown (a reattach would copy its history) and a tab of another workspace, naming
+// the Sessions panel.
 func TestRouteTerminalRefusesOtherWorkspaces(t *testing.T) {
 	t.Parallel()
 	e, link, ops := makeTestLink(t, scopeOf...)
@@ -85,13 +90,17 @@ func TestRouteTerminalRefusesOtherWorkspaces(t *testing.T) {
 		want    string
 	}{
 		{molten.DurableSessionsShowCommand, map[string]any{"id": "shown", "tabid": "tabA"}, "another workspace"},
-		{molten.DurableSessionsShowCommand, map[string]any{"id": "detached", "tabid": "tabA"}, "in no workspace"},
-		{molten.DurableSessionsShowCommand, map[string]any{"id": "panegone", "tabid": "tabA"}, "in no workspace"},
+		{molten.DurableSessionsShowCommand, map[string]any{"id": "detached", "tabid": "tabA"}, "workspace is unknown"},
+		{molten.DurableSessionsShowCommand, map[string]any{"id": "panegone", "tabid": "tabA"}, "workspace is unknown"},
+		{molten.DurableSessionsShowCommand, map[string]any{"id": "homeB", "tabid": "tabA"}, "another workspace"},
+		{molten.DurableSessionsShowCommand, map[string]any{"id": "homeA", "tabid": "tabB"}, "not in this terminal's workspace"},
 		{molten.DurableSessionsShowCommand, map[string]any{"id": "agentA", "tabid": "tabB"}, "not in this terminal's workspace"},
 		{molten.DurableSessionsShowCommand, map[string]any{"id": "agentA", "tabid": "tabnowhere"}, "not in this terminal's workspace"},
 		{molten.DurableSessionsEndCommand, map[string]any{"id": "agentB"}, "another workspace"},
-		{molten.DurableSessionsEndCommand, map[string]any{"id": "detached"}, "in no workspace"},
-		{molten.DurableSessionsReconnectCommand, map[string]any{"id": "panegone"}, "in no workspace"},
+		{molten.DurableSessionsEndCommand, map[string]any{"id": "detached"}, "workspace is unknown"},
+		{molten.DurableSessionsEndCommand, map[string]any{"id": "homeB"}, "another workspace"},
+		{molten.DurableSessionsReconnectCommand, map[string]any{"id": "panegone"}, "workspace is unknown"},
+		{molten.DurableSessionsReconnectCommand, map[string]any{"id": "homeB"}, "another workspace"},
 		{molten.DurableSessionsReconnectCommand, map[string]any{"id": "shown"}, "another workspace"},
 	}
 	for _, c := range cases {
@@ -111,6 +120,31 @@ func TestRouteTerminalRefusesOtherWorkspaces(t *testing.T) {
 	}
 	if trace := ops.trace(); trace != "focus tabA blockA; terminate agentA" {
 		t.Fatalf("own workspace actions: %s", trace)
+	}
+}
+
+// A session whose pane is gone from a tab of the terminal's workspace that still exists stays the terminal's: it is
+// listed, and `molten session show` reattaches it in the terminal's tab, as end and reconnect still act on it.
+func TestRouteTerminalKeepsItsWorkspacesPaneGoneSessions(t *testing.T) {
+	t.Parallel()
+	e, link, ops := makeTestLink(t, scopeOf...)
+	for _, c := range []struct {
+		command string
+		data    map[string]any
+	}{
+		{molten.DurableSessionsShowCommand, map[string]any{"id": "homeA", "tabid": "tabA"}},
+		{molten.DurableSessionsReconnectCommand, map[string]any{"id": "homeA"}},
+		{molten.DurableSessionsEndCommand, map[string]any{"id": "homeA"}},
+	} {
+		if _, errStr := routetest.Ask(t, link, e.Terminal(), c.command, c.data); errStr != "" {
+			t.Fatalf("%s %v from a terminal of its workspace: %s", c.command, c.data, errStr)
+		}
+	}
+	trace := ops.trace()
+	for _, want := range []string{"create tabA", "copy homeA newblock", "attach homeA newblock", "reconnect homeA", "terminate+detach homeA"} {
+		if !strings.Contains(trace, want) {
+			t.Fatalf("own workspace's pane-gone session: %q missing in %s", want, trace)
+		}
 	}
 }
 

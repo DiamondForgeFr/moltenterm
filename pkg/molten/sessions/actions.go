@@ -90,16 +90,26 @@ func (a *Actions) findIn(id string, workspaceId string) (molten.DurableSession, 
 	return s, inScope(s, workspaceId)
 }
 
+// workspaceOf is the workspace a session belongs to: its pane's, else the one of the tab its pane was last in, "" when
+// that tab is gone.
+func workspaceOf(s molten.DurableSession) string {
+	if s.WorkspaceId != "" {
+		return s.WorkspaceId
+	}
+	return s.HomeWorkspaceId
+}
+
 // inScope refuses a session outside workspaceId, the workspace a terminal's requests are confined to (#2120): a
 // terminal never reaches another workspace's sessions, whose output a reattach would copy into its tab (#1832). A
-// session no pane shows is in no workspace, so only the windows reach it.
+// session whose workspace is unknown is left to the windows.
 func inScope(s molten.DurableSession, workspaceId string) error {
-	if workspaceId == "" || s.WorkspaceId == workspaceId {
+	ws := workspaceOf(s)
+	if workspaceId == "" || ws == workspaceId {
 		return nil
 	}
 	short := molten.ShortSessionId(s.Id)
-	if s.WorkspaceId == "" {
-		return uimsg.Errorf(uimsg.Make("sessions.scope.nopane", "session", short), "the session %s shows in no pane, so it is in no workspace: a terminal reaches only its own workspace's sessions; open it from the Sessions panel", short)
+	if ws == "" {
+		return uimsg.Errorf(uimsg.Make("sessions.scope.nopane", "session", short), "the session %s shows in no pane and the view it was in is gone, so its workspace is unknown: a terminal reaches only its own workspace's sessions; open it from the Sessions panel", short)
 	}
 	return uimsg.Errorf(uimsg.Make("sessions.scope.otherworkspace", "session", short), "the session %s is in another workspace: a terminal reaches only its own workspace's sessions; use the Sessions panel", short)
 }
@@ -111,7 +121,7 @@ func scopedList(data molten.DurableSessionsData, workspaceId string) molten.Dura
 	}
 	rtn := molten.DurableSessionsData{Sessions: []molten.DurableSession{}, Version: data.Version, WorkspaceId: workspaceId}
 	for _, s := range data.Sessions {
-		if s.WorkspaceId != workspaceId {
+		if workspaceOf(s) != workspaceId {
 			continue
 		}
 		if s.Agent != "" {
