@@ -52,6 +52,7 @@ on:
             - scripts/moltenterm-release-files.sh
             - scripts/moltenterm-release-sign.sh
             - scripts/moltenterm-release-sign-test.sh
+            - scripts/moltenterm-npm-ci.sh
             - scripts/release-*.mjs
             - scripts/macos-signing/**
             - electron-builder.config.cjs
@@ -165,9 +166,11 @@ jobs:
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
               run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
+            # Every install is `npm ci` with the flags given, tried up to three times (scripts/moltenterm-npm-ci.sh): a
+            # download timeout must not fail a release build.
             - name: Install fixture dependencies
               if: github.event_name == 'pull_request'
-              run: npm ci --ignore-scripts --no-audit --no-fund
+              run: scripts/moltenterm-npm-ci.sh --ignore-scripts --no-audit --no-fund
             - name: Test release admission and publication
               if: github.event_name == 'pull_request'
               run: node --test scripts/release-*.node-test.mjs
@@ -260,7 +263,7 @@ jobs:
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
               run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
-            - run: npm ci --no-audit --no-fund
+            - run: scripts/moltenterm-npm-ci.sh --no-audit --no-fund
             - name: Test the macOS signing orchestration
               run: node --test scripts/macos-signing/*.node-test.mjs
             # Ad hoc (`-`): an unsigned arm64 app does not start at all, an ad-hoc one opens once Gatekeeper is told to.
@@ -404,7 +407,7 @@ jobs:
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
               run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
-            - run: npm ci --no-audit --no-fund
+            - run: scripts/moltenterm-npm-ci.sh --no-audit --no-fund
             - name: Package
               env:
                   MOLTENTERM_BUILD_CHANNEL: ${{ needs.meta.outputs.channel }}
@@ -462,7 +465,7 @@ jobs:
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
               run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
-            - run: npm ci --ignore-scripts --no-audit --no-fund
+            - run: scripts/moltenterm-npm-ci.sh --ignore-scripts --no-audit --no-fund
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-rehearsal
             # As on a release, so that the checklist covers the signature before a candidate is cut.
@@ -537,7 +540,7 @@ jobs:
               env:
                   CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
               run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
-            - run: npm ci --ignore-scripts --no-audit --no-fund
+            - run: scripts/moltenterm-npm-ci.sh --ignore-scripts --no-audit --no-fund
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-release
             # Closed failure once the key exists: a wrong secret fails the run here, before anything is published.

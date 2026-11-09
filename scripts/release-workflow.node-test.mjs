@@ -26,7 +26,10 @@ test("public context reaches signing preflight, packaging, checksum policy and f
             assert.equal(workflow.jobs[job].env[`RELEASE_${field}`], `\${{ github.${source} }}`);
     }
     const mac = steps("macos");
-    assert.ok(mac.indexOf(named("macos", "Signing mode")) < mac.findIndex((step) => step.run?.startsWith("npm ci")));
+    assert.ok(
+        mac.indexOf(named("macos", "Signing mode")) <
+            mac.findIndex((step) => step.run?.startsWith("scripts/moltenterm-npm-ci.sh"))
+    );
     assert.match(named("macos", "Signing mode").run, /node scripts\/release-policy\.mjs macos/);
     assert.match(named("meta", "Required checksum signing inputs").run, /release-policy\.mjs checksum-inputs/);
     assert.equal(named("meta", "Required checksum signing inputs").if, "github.event_name == 'push'");
@@ -44,7 +47,7 @@ test("public context reaches signing preflight, packaging, checksum policy and f
 test("pull requests execute portable delivery, policy, inventory and publication regressions", () => {
     assert.ok(workflow.on.pull_request.paths.includes("scripts/release-*.mjs"));
     const meta = steps("meta");
-    const install = meta.findIndex((step) => step.run?.startsWith("npm ci --ignore-scripts"));
+    const install = meta.findIndex((step) => step.run?.startsWith("scripts/moltenterm-npm-ci.sh --ignore-scripts"));
     for (const name of [
         "Test release admission and publication",
         "Test the release signing",
