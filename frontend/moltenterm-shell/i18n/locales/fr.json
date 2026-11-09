@@ -244,6 +244,18 @@
             "download": "Télécharger le fichier",
             "openInNewPanel": "Ouvrir dans un nouveau panneau",
             "openTerminalHere": "Ouvrir un terminal ici",
+            "noPreview": {
+                "kindWithExt": "{kind} ({ext})",
+                "hint": "Le panneau Fichiers ne peut pas afficher ce type de fichier. Ouvrez-le dans l’application qui l’ouvre d’habitude.",
+                "hintRemote": "Le panneau Fichiers ne peut pas afficher ce type de fichier. Téléchargez-le pour l’ouvrir sur cet ordinateur.",
+                "kind": {
+                    "spreadsheet": "Feuille de calcul",
+                    "document": "Document texte",
+                    "presentation": "Présentation",
+                    "archive": "Archive",
+                    "other": "Fichier"
+                }
+            },
             "renameFailed": "Échec du renommage",
             "deleteFailed": "Échec de la suppression",
             "confirmDeleteFolder": "Supprimer ce dossier ?",
