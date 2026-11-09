@@ -11,6 +11,7 @@
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { cn, fireAndForget } from "@/util/util";
+import { useAtomValue } from "jotai";
 import { useMemo, useState } from "react";
 import { useEscape } from "../dialog-frame";
 import { useLocale, useT } from "../i18n/i18n";
@@ -42,7 +43,7 @@ import { launchTargetOfPr } from "./reviews-launch-model";
 import { ticketLinkUrl } from "./reviews-links-model";
 import { approveCommands, runLocalCiAgain } from "./reviews-local-ci";
 import { MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
-import { blockersText, RebaseAsk, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
+import { blockersText, RebaseAsk, rebaseAskKey, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
 import { NumberLink } from "./reviews-number-link";
 import { MergeOrderRank } from "./reviews-order";
 import { QueuedAskLine } from "./reviews-queue";
@@ -212,6 +213,7 @@ export function ReviewRow({
     );
     const rerun = useRerunFailed(dir, pr.number);
     const origin = usePanelOrigin();
+    const staleLines = useAtomValue(ReviewsModel.getInstance().staleAtom);
     const [busy, setBusy] = useState<string>(null);
     const [outcome, setOutcome] = useState<RebaseOutcome>(null);
     // The task the outcome answers, for the offer to queue it for a busy agent (#1062).
@@ -221,19 +223,24 @@ export function ReviewRow({
     const [lastHead, setLastHead] = useState(pr.headoid);
     if (lastHead !== pr.headoid) {
         setLastHead(pr.headoid);
-        setOutcome(null);
+        // The line that says the state changed (#2145) is the card's answer to a click, and the head that moved is why.
+        if (!outcome?.stale) {
+            setOutcome(null);
+        }
     }
     useEscape(confirm != null, () => setConfirm(null));
     // The list passes the state it sorted the card by; alone (tests), the card computes the same.
     const card: CardState = cardProp ?? cardState(input);
     const head = reviewHeadline(pr);
     const outcomeShown = outcome != null && (outcome.kind !== "asked" || outcome.note);
+    const staleLine = staleLines[rebaseAskKey(dir, pr.number)];
     const ask = (id: string, kind: PrTaskKind, fn: () => Promise<RebaseOutcome>) => {
         if (busy != null) {
             return;
         }
         setBusy(id);
         setOutcome(null);
+        ReviewsModel.getInstance().noteStale(rebaseAskKey(dir, pr.number), null);
         setOutcomeTask(kind);
         fireAndForget(async () => {
             try {
@@ -695,6 +702,11 @@ export function ReviewRow({
                             })}
                         </button>
                     ) : null}
+                </div>
+            ) : null}
+            {staleLine != null && !(outcomeShown && outcome.stale) ? (
+                <div className="text-12 leading-4 text-secondary" role="status" data-testid="reviews-stale-line">
+                    {word(staleLine)}
                 </div>
             ) : null}
             <QueuedAskLine ask={queued} />

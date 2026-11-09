@@ -7553,6 +7553,13 @@
             "working": "{name} travaille sur {branch}.",
             "waiting": "{name} attend votre réponse sur {branch}.",
             "inflight": "Un agent est déjà en cours de contact pour cette pull request.",
+            "alreadyHanded": "{name} a déjà cette demande pour la tête {head} : rien n'a été envoyé de plus.",
+            "alreadyHandedAnon": "Un agent a déjà cette demande pour la tête {head} : rien n'a été envoyé de plus.",
+            "stale": {
+                "headMoved": "Cette pull request a avancé depuis l'affichage de la carte (sa tête est maintenant {head}) : rien n'a été envoyé. La carte la relit.",
+                "problemGone": "Ce qui était demandé n'est plus vrai sur GitHub (la pull request est à {head}) : rien n'a été envoyé. La carte la relit.",
+                "closed": "Cette pull request n'est plus ouverte : rien n'a été envoyé."
+            },
             "subagentWorking": "Un sous-agent de {name} travaille déjà sur {branch} : rien n'a été lancé.",
             "backgroundWorking": "Un agent travaille probablement déjà sur {branch} : rien n'a été lancé.",
             "treeInUse": "Un agent ({name}) travaille déjà dans {folder} : aucun second agent n'y a été lancé.",

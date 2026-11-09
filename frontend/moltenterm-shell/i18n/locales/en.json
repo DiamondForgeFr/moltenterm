@@ -7553,6 +7553,13 @@
             "working": "{name} is working on {branch}.",
             "waiting": "{name} is waiting for your answer on {branch}.",
             "inflight": "An agent is already being reached for this pull request.",
+            "alreadyHanded": "{name} already has this for the head {head}: nothing more was sent.",
+            "alreadyHandedAnon": "An agent already has this for the head {head}: nothing more was sent.",
+            "stale": {
+                "headMoved": "This pull request moved on since the card was drawn (its head is now {head}): nothing was sent. The card is reading it again.",
+                "problemGone": "What this asked for is no longer true on GitHub (the pull request is at {head}): nothing was sent. The card is reading it again.",
+                "closed": "This pull request is no longer open: nothing was sent."
+            },
             "notready": "{name} cannot take the rebase now: {message}",
             "subagentWorking": "A sub-agent of {name} is already working on {branch}: nothing was started.",
             "backgroundWorking": "An agent is probably already working on {branch}: nothing was started.",

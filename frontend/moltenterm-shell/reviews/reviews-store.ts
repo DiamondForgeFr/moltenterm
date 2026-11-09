@@ -93,6 +93,9 @@ export class ReviewsModel {
     queueMemories: Record<string, QueueMemory> = {};
     // The check-and-finish asks still open, by rebaseAskKey (#1779).
     finishAsks = new Map<string, Promise<RebaseOutcome>>();
+    // What a hand-off found out of date (#2145, FR-REV-022 AC22), by rebaseAskKey: the line the card keeps until its
+    // next ask, as the refreshed PR may move it to another section.
+    staleAtom = atom({}) as PrimitiveAtom<Record<string, Phrase>>;
     // The PRs the developer took out of the group merge (#1108, FR-REV-024), by project folder: kept while the app
     // runs, forgotten once a PR leaves the list. Every queueable PR is in by default.
     groupOutAtom = atom({}) as PrimitiveAtom<Record<string, number[]>>;
@@ -246,10 +249,14 @@ export class ReviewsModel {
     // markReady: the ask was Resume on a draft (#1212), whose last step is the agent's: the task is not done while the
     // PR is a draft.
     noteTask(dir: string, pr: ReviewPr, kind: PrTaskKind, outcome: RebaseOutcome, markReady?: boolean) {
-        if (outcome?.kind !== "asked" || !dir || pr == null) {
+        if (!dir || pr == null) {
             return;
         }
         const key = rebaseAskKey(dir, pr.number);
+        this.noteStale(key, outcome?.stale ? outcome.text : null);
+        if (outcome?.kind !== "asked") {
+            return;
+        }
         const asks = globalStore.get(this.rebaseAsksAtom);
         globalStore.set(this.rebaseAsksAtom, {
             ...asks,
@@ -262,6 +269,21 @@ export class ReviewsModel {
                 ...(markReady && pr.draft ? { markReady: true } : {}),
             },
         });
+    }
+
+    // noteStale keeps the line a hand-off left on its card, or forgets it (text null) once the card is asked again.
+    noteStale(key: string, text: Phrase) {
+        const shown = globalStore.get(this.staleAtom);
+        if ((shown[key] ?? null) === text) {
+            return;
+        }
+        const next = { ...shown };
+        if (text == null) {
+            delete next[key];
+        } else {
+            next[key] = text;
+        }
+        globalStore.set(this.staleAtom, next);
     }
 
     // noteQueueRead (#1062): a new read of a project's list against the queue the last one showed: the queued PRs merged
@@ -546,7 +568,12 @@ export class ReviewsModel {
                     report.offers.push(pr);
                     break;
                 case "info":
-                    report.busy++;
+                    // Out of date (#2145): what the list said was left is gone, so it needs no work after all.
+                    if (outcome.stale) {
+                        report.needs--;
+                    } else {
+                        report.busy++;
+                    }
                     break;
                 default:
                     report.failed++;
