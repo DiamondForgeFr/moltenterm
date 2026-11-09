@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
 import { MissionSnapshot } from "../mission/mission-model";
+import { makeShownAsk, useAskWhenShown } from "../shown-ask";
 import { TabActivity, whileShown } from "../tab-activity";
 import { ReviewsMerges, withLocalMerges } from "./reviews-merges";
 import { ReviewsAnswer } from "./reviews-model";
@@ -161,42 +162,46 @@ export function useReviews(dir: string, snapshot: MissionSnapshot): ReviewsState
             window.removeEventListener("focus", onFocus);
         };
     }, [dir, ask]);
-    // The frame's snapshot changed (a collector refresh, or its 15 s ask while shown): the list follows it.
+    // The frame's snapshot changed (a collector refresh, or its 15 s ask while shown): the list follows it. A view that
+    // is not on screen asks once when it shows again (#2154).
     const githubAt = snapshot?.githubat ?? 0;
     const refreshing = snapshot?.refreshing ?? false;
-    useEffect(() => {
-        ask(false);
-    }, [ask, githubAt, refreshing]);
+    useAskWhenShown(() => ask(false), [ask, githubAt, refreshing]);
     const refresh = useCallback(() => ask(true), [ask]);
     const answer = useMemo(() => (asked === dir ? stored : null), [asked, dir, stored]);
     return { answer, error: error == null ? null : word(error), refresh };
 }
 
 // The rail's Reviews counts (#688) for the window's active project: a passive ask now, every RailPollMs while the
-// window shows, on the window's focus, and when the collector or the reports move.
+// window shows, on the window's focus, and when the collector or the reports move. A view that is not on screen makes
+// none of these asks: it makes one when it shows again (#2154).
+export function watchReviewsRail(
+    dir: string,
+    activity: Pick<TabActivity, "stateAtom" | "every"> = TabActivity.getInstance()
+): () => void {
+    const ask = () => {
+        reviewsGet(dir, false, true).catch(() => {});
+    };
+    const shown = makeShownAsk(ask, activity);
+    const unsubscribeReviews = subscribeReviewsEvent(dir);
+    // A git read that just named a GitHub origin makes GitHub due: ask again at once.
+    const unsubscribeMission = waveEventSubscribeSingle({
+        eventType: MissionUpdateEvent as WaveEventName,
+        scope: dir,
+        handler: shown.event,
+    });
+    window.addEventListener("focus", shown.event);
+    shown.event();
+    const stop = activity.every(whileShown(RailPollMs), ask, "reviews-rail");
+    return () => {
+        unsubscribeReviews();
+        unsubscribeMission();
+        window.removeEventListener("focus", shown.event);
+        shown.stop();
+        stop();
+    };
+}
+
 export function useReviewsRailWatch(dir: string) {
-    useEffect(() => {
-        if (!dir) {
-            return;
-        }
-        const ask = () => {
-            reviewsGet(dir, false, true).catch(() => {});
-        };
-        const unsubscribeReviews = subscribeReviewsEvent(dir);
-        // A git read that just named a GitHub origin makes GitHub due: ask again at once.
-        const unsubscribeMission = waveEventSubscribeSingle({
-            eventType: MissionUpdateEvent as WaveEventName,
-            scope: dir,
-            handler: ask,
-        });
-        window.addEventListener("focus", ask);
-        ask();
-        const stop = TabActivity.getInstance().every(whileShown(RailPollMs), ask, "reviews-rail");
-        return () => {
-            unsubscribeReviews();
-            unsubscribeMission();
-            window.removeEventListener("focus", ask);
-            stop();
-        };
-    }, [dir]);
+    useEffect(() => (dir ? watchReviewsRail(dir) : undefined), [dir]);
 }
