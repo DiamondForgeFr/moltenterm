@@ -30,6 +30,7 @@ type Ops interface {
 	// InsertPane puts the block in the tab's layout, focused: beside the placement's panel when there is one.
 	InsertPane(ctx context.Context, tabId string, blockId string, place molten.PanePlacement) error
 	WorkspaceOfTab(ctx context.Context, tabId string) (string, error)
+	WorkspaceOfBlock(ctx context.Context, blockId string) (string, error)
 	ActiveTab(ctx context.Context, workspaceId string) (string, error)
 	SetActiveTab(ctx context.Context, workspaceId string, tabId string) error
 	// FocusBlock asks the tab's renderer to focus the block once it shows the tab (molten:focusblock).
@@ -80,15 +81,61 @@ func (a *Actions) find(id string) (molten.DurableSession, error) {
 	return s, nil
 }
 
+// findIn is find confined to workspaceId ("" for every workspace).
+func (a *Actions) findIn(id string, workspaceId string) (molten.DurableSession, error) {
+	s, err := a.find(id)
+	if err != nil {
+		return s, err
+	}
+	return s, inScope(s, workspaceId)
+}
+
+// inScope refuses a session outside workspaceId, the workspace a terminal's requests are confined to (#2120): a
+// terminal never reaches another workspace's sessions, whose output a reattach would copy into its tab (#1832). A
+// session no pane shows is in no workspace, so only the windows reach it.
+func inScope(s molten.DurableSession, workspaceId string) error {
+	if workspaceId == "" || s.WorkspaceId == workspaceId {
+		return nil
+	}
+	short := molten.ShortSessionId(s.Id)
+	if s.WorkspaceId == "" {
+		return uimsg.Errorf(uimsg.Make("sessions.scope.nopane", "session", short), "the session %s shows in no pane, so it is in no workspace: a terminal reaches only its own workspace's sessions; open it from the Sessions panel", short)
+	}
+	return uimsg.Errorf(uimsg.Make("sessions.scope.otherworkspace", "session", short), "the session %s is in another workspace: a terminal reaches only its own workspace's sessions; use the Sessions panel", short)
+}
+
+// scopedList keeps the sessions of workspaceId, and counts their agents again; "" keeps the whole list.
+func scopedList(data molten.DurableSessionsData, workspaceId string) molten.DurableSessionsData {
+	if workspaceId == "" {
+		return data
+	}
+	rtn := molten.DurableSessionsData{Sessions: []molten.DurableSession{}, Version: data.Version, WorkspaceId: workspaceId}
+	for _, s := range data.Sessions {
+		if s.WorkspaceId != workspaceId {
+			continue
+		}
+		if s.Agent != "" {
+			rtn.RunningAgents++
+		}
+		rtn.Sessions = append(rtn.Sessions, s)
+	}
+	return rtn
+}
+
 func (a *Actions) rebuild() {
 	a.model.rebuildLogged()
 }
 
 // End ends a session. The terminal asking cannot end its own session (`molten session end` from inside it).
 func (a *Actions) End(ctx context.Context, id string, callerBlockId string) (molten.DurableSessionEndResult, error) {
+	return a.EndIn(ctx, id, callerBlockId, "")
+}
+
+// EndIn is End confined to workspaceId ("" for every workspace).
+func (a *Actions) EndIn(ctx context.Context, id string, callerBlockId string, workspaceId string) (molten.DurableSessionEndResult, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	s, err := a.find(id)
+	s, err := a.findIn(id, workspaceId)
 	if err != nil {
 		return molten.DurableSessionEndResult{}, err
 	}
@@ -154,11 +201,21 @@ func (a *Actions) Show(ctx context.Context, id string, tabId string) (molten.Ses
 // ShowAt is Show with the place of a reattached pane (a session dropped on a panel, FR-SHELL-060). A session already
 // in a pane is shown where it is.
 func (a *Actions) ShowAt(ctx context.Context, id string, tabId string, place molten.PanePlacement) (molten.SessionLocation, error) {
+	return a.ShowIn(ctx, id, tabId, place, "")
+}
+
+// ShowIn is ShowAt confined to workspaceId ("" for every workspace): the session and tabId must both be in it.
+func (a *Actions) ShowIn(ctx context.Context, id string, tabId string, place molten.PanePlacement, workspaceId string) (molten.SessionLocation, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	s, err := a.find(id)
+	s, err := a.findIn(id, workspaceId)
 	if err != nil {
 		return molten.SessionLocation{}, err
+	}
+	if workspaceId != "" && tabId != "" {
+		if tabWs, err := a.ops.WorkspaceOfTab(ctx, tabId); err != nil || tabWs != workspaceId {
+			return molten.SessionLocation{}, uimsg.Errorf(uimsg.Make("sessions.scope.othertab"), "that view is not in this terminal's workspace: a terminal opens sessions only in its own workspace; use the Sessions panel")
+		}
 	}
 	if !s.CanShow {
 		return molten.SessionLocation{}, cannotShow(s.Reason)
@@ -241,9 +298,14 @@ func (a *Actions) fillPane(ctx context.Context, jobId string, tabId string, bloc
 
 // Reconnect connects the session's host (Wave's usual prompts apply), then the job.
 func (a *Actions) Reconnect(ctx context.Context, id string) error {
+	return a.ReconnectIn(ctx, id, "")
+}
+
+// ReconnectIn is Reconnect confined to workspaceId ("" for every workspace).
+func (a *Actions) ReconnectIn(ctx context.Context, id string, workspaceId string) error {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	s, err := a.find(id)
+	s, err := a.findIn(id, workspaceId)
 	if err != nil {
 		return err
 	}

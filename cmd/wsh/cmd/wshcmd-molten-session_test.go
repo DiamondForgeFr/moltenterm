@@ -41,4 +41,10 @@ func TestFormatMoltenSessions(t *testing.T) {
 	if got := moltenSessionIdsText(sessions); got != "running sessions: a1b2c3d4, ffee0011" {
 		t.Fatalf("ids %q", got)
 	}
+	if got := moltenSessionScopeNote(molten.DurableSessionsData{}); got != "" {
+		t.Fatalf("full list note %q", got)
+	}
+	if got := moltenSessionScopeNote(molten.DurableSessionsData{WorkspaceId: "ws"}); !strings.Contains(got, "this workspace only") || !strings.Contains(got, "Sessions panel") {
+		t.Fatalf("scoped list note %q", got)
+	}
 }
