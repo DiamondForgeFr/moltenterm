@@ -71,7 +71,7 @@ describe("a PR the merge queue stopped (#1871)", () => {
             [{ reason: "citimeout" }, "ci"],
             [{ reason: "blocked" }, "github"],
             [{ reason: "mergefailed", detail: "HTTP 422", code: "mergeerror" }, "retry"],
-            [{ reason: "draft" }, null],
+            [{ reason: "draft" }, "github"],
         ];
         for (const [extra, action] of cases) {
             const help = batchStopHelp(item(extra), "develop");

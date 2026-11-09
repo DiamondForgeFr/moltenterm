@@ -7203,6 +7203,8 @@
                 "mergefailed": "GitHub a refusé la fusion : rien n'a été fusionné.",
                 "read": "GitHub n'a pas pu être lu : rien n'a été fusionné.",
                 "agentstart": "L'agent n'a pas pu être lancé pour le rebase.",
+                "checksPassed": "Ses checks sont maintenant passés sur le commit que vous avez validé, rien n'a encore été fusionné.",
+                "checksRunning": "La file de fusion s'est arrêtée dessus, et ses checks tournent encore.",
                 "retry": "Réessayer",
                 "retryTitle": "Remettre #{number} dans la file de fusion, sur le commit que vous avez validé",
                 "rebase": "Rebaser",

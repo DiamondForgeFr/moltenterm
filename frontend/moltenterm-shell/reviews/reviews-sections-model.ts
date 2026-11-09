@@ -9,7 +9,7 @@
 
 import type { AgentStatesData } from "../agent-state-model";
 import { batchWorkItem, withBatchAgent } from "./reviews-batch-agent";
-import { batchRowMark, type BatchRun } from "./reviews-batch-model";
+import { batchActive, batchRowMark, type BatchRun } from "./reviews-batch-model";
 import { CardInput, CardState, cardState, CardStateKinds, CardTurn, openWaits } from "./reviews-card-model";
 import type { ReviewMergedPr } from "./reviews-merged-model";
 import { checksOf, RebaseAsk, ReviewPr } from "./reviews-model";
@@ -47,6 +47,13 @@ export type CardContext = {
 export function cardAgents(pr: ReviewPr, ctx: CardContext): AgentBarFacts[] {
     const agents = branchAgents(ctx.upcoming, ctx.states, pr.branch, pr.ticket, pr.number);
     return withBatchAgent(agents, ctx.batchRun?.(pr.base), pr, ctx.states);
+}
+
+// batchStoppedOn: the merge queue stopped on the PR and waits for the developer; not while the checks it stopped on
+// still run on the validated commit (#2141): the CI is on it, and the card says so.
+export function batchStoppedOn(run: BatchRun, pr: ReviewPr): boolean {
+    const stop = batchRowMark(run, pr.number, pr)?.stop;
+    return stop != null && stop.cleared !== "running";
 }
 
 // cardInputOf: the card state's input for a PR, as the card reads it (its agents, its task, its draft turn); the list
@@ -88,7 +95,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         batch: batchItem != null ? { run, item: batchItem } : undefined,
         waitsOn: openWaits(pr),
         now: ctx.now,
-        batchStopped: batchRowMark(run, pr.number)?.stop != null,
+        batchStopped: batchStoppedOn(run, pr),
     };
 }
 
@@ -149,6 +156,12 @@ export function sectionsByTurn(
         turn,
         prs: sorted.filter((pr) => (cards[pr.number]?.turn ?? "yours") === turn),
     })).filter((s) => s.prs.length > 0);
+}
+
+// batchBannerTurn (#2141): where the merge queue's banner sits. A queue that runs holds every other merge, so its
+// banner, with Cancel, heads the list whatever the sort (null); an ended one stays in "In progress" until hidden.
+export function batchBannerTurn(run: BatchRun): CardTurn {
+    return batchActive(run) ? null : "waiting";
 }
 
 // withTurnShown: the sections with turn's present, empty when no card is in it, at its place in TurnOrder. The merge

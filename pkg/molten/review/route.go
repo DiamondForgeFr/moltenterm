@@ -228,6 +228,8 @@ func Start() {
 			},
 			TreeInUse: func(path string) bool { return len(mission.ProcessesInTree(path)) > 0 },
 		})
+		service.merger.localGreen = mission.LocalCiGreenOn
+		service.merger.localBusy = mission.LocalCiBusy
 		service.merger.greenOnly = func() bool {
 			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewValidateGreenOnly
 		}

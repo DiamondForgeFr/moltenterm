@@ -104,7 +104,17 @@ export function BatchStopLine({
     return (
         <div className="flex min-w-0 flex-col gap-1 text-11 leading-4" data-testid="reviews-batch-stop">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <i className="fa fa-solid fa-circle-exclamation text-10 text-danger" aria-hidden />
+                <i
+                    className={cn(
+                        "fa fa-solid text-10",
+                        help.cleared === "passed"
+                            ? "fa-circle-check text-success"
+                            : help.cleared === "running"
+                              ? "fa-circle-half-stroke text-muted"
+                              : "fa-circle-exclamation text-danger"
+                    )}
+                    aria-hidden
+                />
                 <span className="min-w-0 text-secondary" data-testid="reviews-batch-stop-why">
                     {help.sentence}
                 </span>

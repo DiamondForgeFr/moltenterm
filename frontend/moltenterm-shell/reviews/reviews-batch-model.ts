@@ -527,9 +527,20 @@ export function queueRank(run: BatchRun, number: number): number {
 // again, look at its CI or at the PR on GitHub.
 export type BatchStopAction = "retry" | "rebase" | "revalidate" | "ci" | "github";
 
+// Where the checks of a stopped PR stand now on the commit the developer validated (#2141): every one passed, or some
+// still run with none failing.
+export type BatchStopCleared = "passed" | "running";
+
 // BatchStopHelp: why the PR stopped in one plain sentence, the action that answers it, whether GitHub itself did not
-// answer (a link to its status page then), and the raw error, one click away.
-export type BatchStopHelp = { sentence: string; action: BatchStopAction; outage: boolean; detail: string };
+// answer (a link to its status page then), and the raw error, one click away. cleared: the stop's cause cleared, or
+// is clearing, since (#2141).
+export type BatchStopHelp = {
+    sentence: string;
+    action: BatchStopAction;
+    outage: boolean;
+    detail: string;
+    cleared?: BatchStopCleared;
+};
 
 const StopActions: Partial<Record<BatchReason, BatchStopAction>> = {
     unavailable: "retry",
@@ -550,16 +561,50 @@ const StopActions: Partial<Record<BatchReason, BatchStopAction>> = {
     blocked: "github",
 };
 
+// A stop no action above answers still offers one (#2141): the PR on GitHub.
+const FallbackStopAction: BatchStopAction = "github";
+
 // The reasons whose raw error is shown behind Details instead of inside the sentence.
 const DetailReasons = new Set<BatchReason>(["mergefailed", "read", "agentstart", "unavailable"]);
 
-// batchStopHelp: what the row of a PR the queue stopped or set aside says and offers; null for any other PR.
-export function batchStopHelp(item: BatchItem, base: string): BatchStopHelp {
+// The stops whose cause may clear by itself (#2141): checks that did not finish in time, or failed and are rerun.
+const ClearingReasons = new Set<BatchReason>(["citimeout", "failing"]);
+
+// stopCleared: where the checks of a PR stopped on its checks stand now, as the list read it, when its head is still
+// the commit the developer validated; null on another commit, with a failing check, or when the list cannot say.
+export function stopCleared(item: BatchItem, pr: ReviewPr): BatchStopCleared {
+    if (pr?.ci == null || !ClearingReasons.has(item?.reason)) {
+        return null;
+    }
+    const valid = item.valid || item.headoid;
+    if (!valid || pr.headoid !== valid || (pr.ci.failure ?? 0) > 0) {
+        return null;
+    }
+    if (pr.ci.state === "pending" || (pr.ci.pending ?? 0) > 0) {
+        return "running";
+    }
+    return pr.ci.state === "success" ? "passed" : null;
+}
+
+// batchStopHelp: what the row of a PR the queue stopped or set aside says and offers; null for any other PR. pr: the
+// PR as the list read it, whose checks may have passed since the stop (#2141).
+export function batchStopHelp(item: BatchItem, base: string, pr?: ReviewPr): BatchStopHelp {
     if (item?.state !== "stopped" && item?.state !== "failed") {
         return null;
     }
     if (item.waiting) {
         return null;
+    }
+    const cleared = stopCleared(item, pr);
+    if (cleared != null) {
+        // Passed: Try again puts it back in the queue bound to that commit; nothing merges until the developer asks.
+        return {
+            sentence: t(cleared === "passed" ? "reviews.batch.stop.checksPassed" : "reviews.batch.stop.checksRunning"),
+            action: cleared === "passed" ? "retry" : "ci",
+            outage: false,
+            detail: "",
+            cleared,
+        };
     }
     const detail = DetailReasons.has(item.reason) ? [item.detail, item.code].filter(Boolean).join(" ") : "";
     const sentence =
@@ -570,7 +615,7 @@ export function batchStopHelp(item: BatchItem, base: string): BatchStopHelp {
               : batchReasonText(item, base);
     return {
         sentence,
-        action: StopActions[item.reason] ?? null,
+        action: StopActions[item.reason] ?? FallbackStopAction,
         outage: item.reason === "unavailable",
         detail: item.reason === "unavailable" ? (item.detail ?? "") : detail,
     };
@@ -619,8 +664,8 @@ export type BatchRowMark = {
 };
 
 // batchRowMark: the PR's place in the queue, on its row of the Reviews list (FR-REV-026 AC7); null when it is not part
-// of the queue shown.
-export function batchRowMark(run: BatchRun, number: number): BatchRowMark {
+// of the queue shown. pr: the PR as the list read it, for a stop whose cause cleared since (#2141).
+export function batchRowMark(run: BatchRun, number: number, pr?: ReviewPr): BatchRowMark {
     if (!batchShown(run)) {
         return null;
     }
@@ -636,7 +681,7 @@ export function batchRowMark(run: BatchRun, number: number): BatchRowMark {
         tone,
         title,
         current,
-        stop: batchStopHelp(item, run.base),
+        stop: batchStopHelp(item, run.base, pr),
         item,
     });
     if (item.waiting) {
