@@ -914,13 +914,14 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 | `SECURITY.md` | Rewritten as MoltenTerm's policy: reports go through GitHub's private vulnerability reporting, with the supported versions and what a reporter can expect | Wave's file sent vulnerability reports to Command Line Inc.'s address. Keep ours on a merge | #2124 |
 | `ACKNOWLEDGEMENTS.md` | Rewritten: thanks to Wave Terminal and the bundled fonts and icons, and a pointer to the third-party notices file of #2126 | Wave's file pointed to Wave's FOSSA report. Keep ours on a merge | #2124 |
 | `public/logos/wave-dark.png`, `public/logos/wave-logo-256.png`, `public/logos/wave-logo-dark.png`, `public/logos/wave-logo.png` | Deleted (binary, no marker) | Wave's logos, used by nothing, in the folder `TRADEMARKS.md` keeps for DiamondForge's own logos. Stay deleted on a merge | #2124 |
+| `ROADMAP.md` | Rewritten as a short MoltenTerm page that points to the phases in `MANIFESTO.md` and to the repository's milestones, with no dates | Wave's file was Wave Terminal's own roadmap, with a link to Wave's Discord. Keep ours on a merge | #2124 |
 
 ## Known upstream items
 
 - **Font Awesome Pro 6:** resolved by #6 (FR-FORK-004). HEAD ships Font Awesome Free plus `public/moltenterm-icons.css`;
   the Pro files remain in Wave's history, which Moltenterm keeps (decision of 2026-09-29).
-- **Wave branding left on purpose:** links to docs.waveterm.dev (still the only documentation of the configuration),
-  `wsh` help texts, and pages that are no longer reachable (the opt-out "star us" page, release notes and upgrade
+- **Wave branding left on purpose:** links to docs.waveterm.dev in code that is no longer reachable (the Settings book
+  icon, the only reachable one, was removed by #2124), `wsh` help texts, and pages that are no longer reachable (the opt-out "star us" page, release notes and upgrade
   modals). The `docs/` site is Wave's documentation (Algolia index, Plausible analytics); it is not built or shipped.
 - **Built-in AI:** removed by #25 (FR-MORPH-008). Wave's AI code stays in the tree, unreachable: the panel is not mounted
   and never opens, its buttons, shortcuts, menu entry, tour page, tips, config entries and settings are gone, `wsh ai` is
