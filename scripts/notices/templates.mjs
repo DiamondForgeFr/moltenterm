@@ -96,6 +96,6 @@ export function standardNotice(component, id) {
     : "its package.json names no author";
   const note =
     `${component.name} ships no licence file. It declares the ${id} licence and ${source}; this is the standard text ` +
-    `of that licence with that name.`;
+    `of that licence${component.author ? " with that name" : ""}.`;
   return { file: "(standard text)", text: `${note}\n\n${template(holder)}` };
 }
