@@ -177,6 +177,19 @@ func (liveOps) WorkspaceOfTab(ctx context.Context, tabId string) (string, error)
 	return wsId, nil
 }
 
+// WorkspaceOfBlock resolves a block as the #1832 guards do (moltenWorkspaceOf in pkg/wshrpc/wshserver): its tab, then
+// that tab's workspace.
+func (o liveOps) WorkspaceOfBlock(ctx context.Context, blockId string) (string, error) {
+	tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
+	if err != nil {
+		return "", err
+	}
+	if tabId == "" {
+		return "", fmt.Errorf("block %s is in no tab", blockId)
+	}
+	return o.WorkspaceOfTab(ctx, tabId)
+}
+
 func (liveOps) ActiveTab(ctx context.Context, workspaceId string) (string, error) {
 	ws, err := wcore.GetWorkspace(ctx, workspaceId)
 	if err != nil {

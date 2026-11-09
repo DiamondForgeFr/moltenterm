@@ -9255,6 +9255,12 @@
             "gone": "La session {session} ne tourne plus.",
             "endself": "Une session ne peut pas se terminer elle-même : tapez exit à la place.",
             "notab": "Aucune vue où ouvrir la session.",
+            "scope": {
+                "noworkspace": "Ce terminal n'est dans aucun espace de travail : il n'atteint aucune session. Passez par le panneau Sessions.",
+                "otherworkspace": "La session {session} est dans un autre espace de travail : un terminal n'atteint que les sessions de son espace de travail. Passez par le panneau Sessions.",
+                "nopane": "La session {session} n'est affichée dans aucun panneau, elle n'est donc dans aucun espace de travail : un terminal n'atteint que les sessions de son espace de travail. Ouvrez-la depuis le panneau Sessions.",
+                "othertab": "Cette vue n'est pas dans l'espace de travail de ce terminal : un terminal n'ouvre des sessions que dans son espace de travail. Passez par le panneau Sessions."
+            },
             "welcomeback": {
                 "keptone": "1 session a continué de tourner pendant que MoltenTerm était fermé",
                 "keptother": "{count} sessions ont continué de tourner pendant que MoltenTerm était fermé",

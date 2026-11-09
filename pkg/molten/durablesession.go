@@ -146,13 +146,16 @@ type DurableSessionsData struct {
 	Sessions      []DurableSession `json:"sessions"`
 	RunningAgents int              `json:"runningagents"`
 	Version       int64            `json:"version"`
+	// WorkspaceId: the list holds only this workspace's sessions, as a terminal gets it (#2120); "" for the full list.
+	WorkspaceId string `json:"workspaceid,omitempty"`
 }
 
 type DurableSessionRequest struct {
 	Id string `json:"id"`
 	// show: the tab a session not in a pane opens in (the caller's).
 	TabId string `json:"tabid,omitempty"`
-	// end: the terminal asking (`molten session end` from a terminal), which cannot end its own session.
+	// end: the terminal asking (`molten session end` from a terminal), which cannot end its own session. The route
+	// ignores it and checks the block the caller's token was issued to (#2120).
 	CallerBlockId string `json:"callerblockid,omitempty"`
 	// show: where a session not in a pane opens, when it was dropped on a panel (drag to split, FR-SHELL-060).
 	PanePlacement
