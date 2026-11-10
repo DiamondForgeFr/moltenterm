@@ -64,13 +64,14 @@ describe("a narrow panel header folds in a stable order and keeps close", () => 
     });
 
     // #1585: shown alone, the carpet button floated in an empty header; it fades with the other end buttons, they all
-    // come back while the header is hovered, and only the "pinned" state mark stays.
+    // come back while the header is hovered, and only the "pinned" state mark stays. #2207: so does the Integration
+    // panel's owners funnel while a filter is on, since a narrowed list is never an invisible state.
     it("the carpet button fades with the other end buttons in a panel that is not focused", () => {
         const css = read("../moltenterm-shell.css");
         const fade = css.slice(0, css.indexOf("opacity: 0;", css.indexOf("Store on the carpet\" with them")));
         const rule = fade.slice(fade.lastIndexOf("*/") + 2);
         expect(rule).toMatch(
-            /\.block-frame-default-header:not\(:hover\)\s+\.block-frame-end-icons\s+:is\(button, \.wave-iconbutton, \.iconbutton\):not\(\.block-frame-default-close, \.mt-carpet-button\.is-open\)/
+            /\.block-frame-default-header:not\(:hover\)\s+\.block-frame-end-icons\s+:is\(button, \.wave-iconbutton, \.iconbutton\):not\(\s*\.block-frame-default-close,\s*\.mt-carpet-button\.is-open,\s*\.mt-owners-filter\.is-on\s*\)/
         );
         expect(rule).toMatch(
             /\.molten-browser-row:not\(:hover\)\s+\.molten-browser-panel-buttons\s+:is\(\.mt-carpet-button:not\(\.is-open\), \.mt-pin-button, \.mt-focus-only\)/
