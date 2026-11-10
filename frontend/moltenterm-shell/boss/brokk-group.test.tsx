@@ -148,7 +148,16 @@ import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
-import { ArrivalSteps, groupGeometry, PanelId, ReportSize, ReportView, reportView } from "./brokk-group-model";
+import {
+    ArrivalSteps,
+    groupGeometry,
+    PanelId,
+    PanelSlidePx,
+    RailBorderPx,
+    ReportSize,
+    ReportView,
+    reportView,
+} from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 
 const boss = BossBubbleModel.getInstance() as any;
@@ -462,9 +471,9 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
             expect(scope).toMatch(/transition: opacity var\(--mt-duration-fade\) linear !important/);
             expect(scope).toMatch(/\.mt-brokk-scan \{\s*animation: none;/);
             expect(scope).toMatch(/\.mt-brokk-gpanel/);
-            // The panel and its link fade with the group, the same short fade (#2082).
+            // The panel fades with the group, the same short fade (#2082); its link is the tether's, which does the same.
             expect(scope).toMatch(
-                /\.mt-brokk-gpanel,\s*(\.prefers-reduced-motion )?\.mt-brokk-plink \{\s*animation: none !important;\s*transform: none !important;\s*transition: opacity var\(--mt-duration-fade\) linear !important;/
+                /\.mt-brokk-gpanel \{\s*animation: none !important;\s*transform: none !important;\s*transition: opacity var\(--mt-duration-fade\) linear !important;/
             );
         }
     });
@@ -1230,5 +1239,84 @@ describe("the scrim over the work area (AC39, #2082)", () => {
         expect(css).toMatch(
             /\.prefers-reduced-motion \.mt-brokk-scrim \{\s*transition: opacity var\(--mt-duration-fade\) linear;/
         );
+    });
+});
+
+describe("the tethers of the group (AC65 to AC68, #2196)", () => {
+    const rule = (css: string, selector: string) =>
+        new RegExp(`\\n${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+    const number = (style: string, name: string) => parseFloat(new RegExp(`${name}:([\\d.]+)`).exec(style)?.[1]);
+
+    it("ties the open panel to its icon with the shared tether, from the icon's edge to the panel's edge", () => {
+        const html = render();
+        const icon = g.icons.notifications;
+        const tiedAt = icon.x + icon.w + RailBorderPx;
+        const width = g.panelLeft - tiedAt;
+        const classes = attr(html, "brokk-plink", "class").split(" ");
+        expect(classes).toEqual(expect.arrayContaining(["mt-tether", "mt-brokk-plink", "is-in"]));
+        const style = attr(html, "brokk-plink", "style");
+        expect(style).toContain(`left:${tiedAt}px;top:${icon.y + icon.h / 2 + RailBorderPx - 1}px;width:${width}px`);
+        expect(number(style, "--mt-tether-w")).toBe(width);
+        expect(number(style, "--mt-tether-from")).toBeCloseTo((width - PanelSlidePx) / width, 3);
+        expect(attr(html, "brokk-plink", "aria-hidden")).toBe("true");
+        expect(html.match(/class="mt-tether-(rope|anchor|knot)"/g)).toHaveLength(6);
+    });
+
+    it("is tied to the icon of the panel that is open, and the panel's edge is its end", () => {
+        globalStore.set(boss.tabRequestAtom, { tab: "keepawake", seq: 1, highlight: [] });
+        const icon = g.icons.keepawake;
+        expect(attr(render(), "brokk-plink", "style")).toContain(`top:${icon.y + icon.h / 2 + RailBorderPx - 1}px`);
+        globalStore.set(boss.tabRequestAtom, { tab: "sessions", seq: 2, highlight: [] });
+        const last = g.icons.sessions;
+        expect(attr(render(), "brokk-plink", "style")).toContain(`top:${last.y + last.h / 2 + RailBorderPx - 1}px`);
+        expect(attr(render(), "brokk-panel", "style")).toContain(`left:${g.panelLeft}px`);
+    });
+
+    it("is open with the group and closed without it, so that it leaves with the panel", () => {
+        expect(attr(render(Frame, true), "brokk-plink", "data-open")).toBe("true");
+        const closed = render(Frame, false);
+        expect(attr(closed, "brokk-plink", "data-open")).toBe("false");
+        expect(attr(closed, "brokk-plink", "class").split(" ")).not.toContain("is-in");
+        expect(attr(closed, "brokk-thread", "data-open")).toBe("false");
+    });
+
+    it("draws the thread from the face to the square with the same tether, as long as the gap it is given", () => {
+        const html = render();
+        expect(attr(html, "brokk-thread", "class").split(" ")).toEqual(
+            expect.arrayContaining(["mt-tether", "mt-brokk-thread", "is-in"])
+        );
+        const style = attr(html, "brokk-thread", "style");
+        expect(style).toContain("left:252px;top:19px;width:20px");
+        expect(number(style, "--mt-tether-from")).toBe(0);
+    });
+
+    it("has no other link: two tethers in the group, no style of its own for them and no dashes", () => {
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source.match(/<Tether /g)).toHaveLength(2);
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        expect(css).not.toMatch(/dashed|dotted|dasharray|\.mt-brokk-plink/);
+        expect(rule(css, ".mt-tether.mt-brokk-thread")).toMatch(/--mt-tether-time: var\(--mt-duration-drop\);/);
+    });
+
+    it("plays the panel's slide and its tether's growth on the same time and curve, so the rope's end rides on the panel's edge", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const tether = readFileSync(join(__dirname, "..", "tether", "tether.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        const panel = /transform (var\(--mt-duration-[a-z]+\) var\(--mt-ease-[a-z]+\))/.exec(
+            rule(css, ".mt-brokk-gpanel")
+        )?.[1];
+        const defaults = rule(tether, ".mt-tether");
+        const time = /--mt-tether-time: (var\(--mt-duration-[a-z]+\));/.exec(defaults)?.[1];
+        const ease = /--mt-tether-ease: (var\(--mt-ease-[a-z]+\));/.exec(defaults)?.[1];
+        expect(panel).toBeDefined();
+        expect(`${time} ${ease}`).toBe(panel);
+        const square = /transform (var\(--mt-duration-[a-z]+\)) (cubic-bezier\([^)]*\))/.exec(
+            rule(css, ".mt-brokk-sq")
+        );
+        const thread = rule(css, ".mt-tether.mt-brokk-thread");
+        expect(thread).toContain(`--mt-tether-time: ${square?.[1]};`);
+        expect(thread).toContain(`--mt-tether-ease: ${square?.[2]};`);
     });
 });
