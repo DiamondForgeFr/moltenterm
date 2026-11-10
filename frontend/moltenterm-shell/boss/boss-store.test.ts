@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
     setMeta: vi.fn(),
+    clear: vi.fn(),
     readPending: vi.fn(),
     handlers: new Map<string, ((event: unknown) => void)[]>(),
 }));
@@ -56,7 +57,9 @@ vi.mock("../notifications-store", async () => {
     const { atom } = await import("jotai");
     const entriesAtom = atom([]);
     return {
-        MoltentermNotifications: { getInstance: () => ({ entriesAtom, shownEntriesAtom: entriesAtom }) },
+        MoltentermNotifications: {
+            getInstance: () => ({ entriesAtom, shownEntriesAtom: entriesAtom, clear: m.clear }),
+        },
         registerNotificationGesture: vi.fn(),
     };
 });
@@ -590,6 +593,69 @@ describe("the rows settled or ignored (FR-BOSS-009, AC16, #2026)", () => {
         expect(added).toContain("storage");
         detach();
         expect(removed).toContain("storage");
+    });
+
+    describe("archiving cards, with the undo (#2195, FR-MC-019 AC15 and AC16)", () => {
+        const done = { key: "done:d", since: 11, tone: "done" };
+
+        function agentsWaiting() {
+            globalStore.set(agents.dataAtom, {
+                states: {
+                    a: { ...agentInfo("a", "waiting"), since: 7 },
+                    d: { ...agentInfo("d", "done"), since: 11 },
+                },
+                versions: {},
+            });
+        }
+
+        it("takes the rows out of the list and the badge in one write, and clears the notifications", () => {
+            agentsWaiting();
+            const undoNotifications = vi.fn(async () => {});
+            m.clear.mockReturnValue(undoNotifications);
+            expect(globalStore.get(model.badgeAtom).count).toBe(1);
+            expect(globalStore.get(model.toHandleAtom).info).toHaveLength(1);
+            model.archiveRows({ entryIds: ["n1", "n2"], marks: [waiting, done] });
+            expect(m.clear).toHaveBeenCalledWith(["n1", "n2"]);
+            expect(globalStore.get(model.toHandleAtom).items).toEqual([]);
+            expect(globalStore.get(model.toHandleAtom).info).toEqual([]);
+            expect(globalStore.get(model.badgeAtom).count).toBe(0);
+            expect(Object.keys(JSON.parse(store.get("moltenterm:brokk-handled"))).sort()).toEqual([
+                "agent:a",
+                "done:d",
+            ]);
+        });
+
+        it("gives everything back with the undo: the rows in this window and, through the shared marks, in the others", async () => {
+            agentsWaiting();
+            const undoNotifications = vi.fn(async () => {});
+            m.clear.mockReturnValue(undoNotifications);
+            const undo = model.archiveRows({ entryIds: ["n1"], marks: [waiting, done] });
+            await undo();
+            expect(undoNotifications).toHaveBeenCalledTimes(1);
+            expect(globalStore.get(model.badgeAtom).count).toBe(1);
+            expect(globalStore.get(model.toHandleAtom).info).toHaveLength(1);
+            // Another window, which still holds the first marks, takes the later ones the undo wrote.
+            const shared = store.get("moltenterm:brokk-handled");
+            globalStore.set(model.handledAtom, {
+                "agent:a": { episode: "7:waiting", at: Date.now() - 1000 },
+                "done:d": { episode: "11:done", at: Date.now() - 1000 },
+            });
+            expect(globalStore.get(model.badgeAtom).count).toBe(0);
+            model.handledChanged(shared);
+            expect(globalStore.get(model.badgeAtom).count).toBe(1);
+        });
+
+        it("clears no notification when the cards are rows that stand for a fact", () => {
+            agentsWaiting();
+            m.clear.mockClear();
+            model.archiveRows({ entryIds: [], marks: [waiting] });
+            expect(m.clear).not.toHaveBeenCalled();
+        });
+
+        it("writes nothing for no card", () => {
+            model.archiveRows({ entryIds: [], marks: [] });
+            expect(store.get("moltenterm:brokk-handled")).toBeUndefined();
+        });
     });
 });
 

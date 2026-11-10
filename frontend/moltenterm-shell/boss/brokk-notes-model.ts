@@ -10,9 +10,18 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
+import { AgentHandoffNotificationKeyPrefix } from "../agent-handoff-types";
 import { checkNeedsAnswer } from "../notification-attention";
-import { activeEntries, checkUnread, MoltentermNotification } from "../notifications-model";
-import { InfoItem, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
+import {
+    activeEntries,
+    checkClickable,
+    checkUnread,
+    ClickActionId,
+    displayActions,
+    MoltentermNotification,
+} from "../notifications-model";
+import { HandledRow } from "./boss-handled";
+import { infoHandledRow, InfoItem, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import { Severity } from "./brokk-queue";
 import { BrokkEvent, BrokkEventKind, severityOf, VisitSettings } from "./brokk-visit-events";
 
@@ -96,6 +105,21 @@ function bySeverity(a: NoteRow, b: NoteRow): number {
     );
 }
 
+// The notification of the finish may be stamped a little before the agent's state.
+export const ToldSlackMs = 60_000;
+
+// An archived "is done" notification still tells the finish it was raised for (#2195): archiving the card must not make the
+// agent's own row appear in its place. One from an earlier finish of the same agent does not.
+export function checkToldByNotification(info: InfoItem, entries: MoltentermNotification[]): boolean {
+    const blockid = info.key.replace(/^done:/, "");
+    return entries.some(
+        (entry) =>
+            entry.titlecode === "agentdone" &&
+            entry.blockid === blockid &&
+            (entry.archived == null || (entry.updated ?? entry.time ?? 0) >= (info.since ?? 0) - ToldSlackMs)
+    );
+}
+
 // Every row of the Notifications panel, the most urgent first, then the newest.
 export function buildNotes(input: NotesInput): NoteRow[] {
     const todo: NoteRow[] = (input.toHandle?.items ?? []).map((item) => ({
@@ -127,18 +151,13 @@ export function buildNotes(input: NotesInput): NoteRow[] {
             };
         });
     // An agent that finished is told once: by its notification when it raised one, else by the row of the agent states.
-    const toldBy = new Set(
-        activeEntries(input.entries ?? [])
-            .filter((entry) => entry.titlecode === "agentdone" && entry.blockid)
-            .map((entry) => entry.blockid)
-    );
     const finished: NoteRow[] = (input.toHandle?.info ?? [])
-        .filter((info) => !toldBy.has(info.key.replace(/^done:/, "")))
+        .filter((info) => !checkToldByNotification(info, input.entries ?? []))
         .map((info) => ({
             key: `finished:${info.key}`,
             source: "finished",
             priority: "done",
-            since: 0,
+            since: info.since ?? 0,
             workspaceid: info.workspaceid ?? "",
             dir: "",
             unread: false,
@@ -163,6 +182,95 @@ export function primaryAllowed(priority: NotePriority): boolean {
 // Whether the button at this place of the row is the primary one.
 export function isPrimaryAction(row: Pick<NoteRow, "priority">, index: number, offered: boolean = true): boolean {
     return offered && index === 0 && primaryAllowed(row.priority);
+}
+
+// Where a card comes from, as the source a notification names ("agent", "ci"), for the first line of every kind of card
+// (#2195): "" when the card says no source. "pr" and "handoff" are the two sources of a row that is no notification.
+export function rowSourceId(row: NoteRow): string {
+    if (row.entry != null) {
+        return row.entry.source;
+    }
+    if (row.finished != null) {
+        return "agent";
+    }
+    const item = row.item;
+    if (item == null) {
+        return "";
+    }
+    if (item.handoff != null) {
+        return "handoff";
+    }
+    if (item.key.startsWith("notif:")) {
+        return item.notice?.source ?? "";
+    }
+    if (item.key.startsWith("agent:")) {
+        return "agent";
+    }
+    if (item.key.startsWith("ci:")) {
+        return "ci";
+    }
+    return item.key.startsWith("ready:") ? "pr" : "";
+}
+
+// Where a card that leads somewhere leads (#2195): the place a notification comes from, or the agent that finished.
+export type CardTarget = "origin" | "agent";
+
+export function cardTarget(row: NoteRow, archived = false): CardTarget {
+    if (archived) {
+        return null;
+    }
+    if (row.source === "entry") {
+        return row.entry != null && checkClickable(row.entry) ? "origin" : null;
+    }
+    if (row.source === "finished") {
+        return row.finished?.blockid || row.finished?.sessionid ? "agent" : null;
+    }
+    return null;
+}
+
+// Whether the card shows the Integration's "Go to →" on its action line: it has a target, and none of its own actions
+// already goes there (the "Go to the terminal" of an agent's notification, a pull request's card).
+export function cardGoTo(row: NoteRow, archived = false): CardTarget {
+    const target = cardTarget(row, archived);
+    if (target !== "origin") {
+        return target;
+    }
+    return displayActions(row.entry).some((a) => a.kind === "open" || a.id === ClickActionId) ? null : target;
+}
+
+// What archiving cards does (#2195): the notifications go to the Archived list, and a card that stands for a fact (an
+// agent, a CI, a pull request, a hand-off request, an agent that finished) is marked as handled for the episode it shows.
+export type ArchivePlan = { entryIds: string[]; marks: HandledRow[] };
+
+export function archivePlan(rows: NoteRow[], entries: MoltentermNotification[] = []): ArchivePlan {
+    const entryIds = new Set<string>();
+    const marks = new Map<string, HandledRow>();
+    for (const row of rows) {
+        if (row.entry != null) {
+            entryIds.add(row.entry.id);
+            continue;
+        }
+        if (row.finished != null) {
+            const mark = infoHandledRow(row.finished);
+            marks.set(mark.key, mark);
+            continue;
+        }
+        const item = row.item;
+        if (item == null) {
+            continue;
+        }
+        if (item.notice != null) {
+            entryIds.add(item.notice.id);
+        }
+        if (item.handoff != null) {
+            const key = AgentHandoffNotificationKeyPrefix + item.handoff.requestid;
+            entries.filter((entry) => entry.key === key && entry.archived == null).forEach((e) => entryIds.add(e.id));
+        }
+        if (!item.key.startsWith("notif:")) {
+            marks.set(item.key, { key: item.key, since: item.since, tone: item.tone });
+        }
+    }
+    return { entryIds: [...entryIds], marks: [...marks.values()] };
 }
 
 // The notifications to settle when Brokk closes: the Info ones the developer saw listed.

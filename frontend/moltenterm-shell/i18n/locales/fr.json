@@ -5899,13 +5899,14 @@
     "notif": {
         "center": {
             "noPath": "aucun chemin à afficher",
-            "clearOne": "Effacer",
-            "clearAll": "Tout effacer",
-            "clearAllTitle": "Déplace toutes les notifications de la liste vers les archives. Vous pouvez annuler pendant quelques secondes.",
-            "cleared": {
-                "one": "{count} notification effacée",
-                "other": "{count} notifications effacées"
+            "archive": "Archiver",
+            "archiveAll": "Tout archiver",
+            "archiveAllTitle": "Archive toutes les cartes de la liste. Vous pouvez annuler pendant quelques secondes.",
+            "archivedCount": {
+                "one": "{count} notification archivée",
+                "other": "{count} notifications archivées"
             },
+            "goToTitle": "Afficher d'où cela vient",
             "resolved": "Résolue",
             "silence": "Ne plus me le dire…",
             "running": "En cours…",
@@ -5972,7 +5973,9 @@
             "release": "release",
             "deps": "dépendances",
             "download": "téléchargement",
-            "trust": "approbation"
+            "trust": "approbation",
+            "pr": "pull request",
+            "handoff": "passage de relais"
         },
         "goToTerminal": "Aller au terminal",
         "age": {

@@ -5899,13 +5899,14 @@
     "notif": {
         "center": {
             "noPath": "no path to show",
-            "clearOne": "Clear",
-            "clearAll": "Clear all",
-            "clearAllTitle": "Moves every notification of the list to the archive. You can undo it for a few seconds.",
-            "cleared": {
-                "one": "{count} notification cleared",
-                "other": "{count} notifications cleared"
+            "archive": "Archive",
+            "archiveAll": "Archive all",
+            "archiveAllTitle": "Archives every card of the list. You can undo it for a few seconds.",
+            "archivedCount": {
+                "one": "{count} notification archived",
+                "other": "{count} notifications archived"
             },
+            "goToTitle": "Show where this comes from",
             "resolved": "Resolved",
             "silence": "Don't tell me again…",
             "running": "Running…",
@@ -5972,7 +5973,9 @@
             "release": "release",
             "deps": "dependencies",
             "download": "download",
-            "trust": "approval"
+            "trust": "approval",
+            "pr": "pull request",
+            "handoff": "hand-off"
         },
         "goToTerminal": "Go to the terminal",
         "age": {

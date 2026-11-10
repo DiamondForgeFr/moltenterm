@@ -28,6 +28,7 @@ import {
     mergeHandled,
     readHandled,
     sameHandled,
+    unmarkRowHandled,
 } from "./boss-handled";
 import { PendingHandoffs } from "./boss-handoffs";
 import { bossName, BossNameSettingKey, bossSettingOn, BossShowSettingKey } from "./boss-name";
@@ -35,6 +36,7 @@ import { Badge, BossPeek, makePeek, workingCount, workspaceNamesOf } from "./bos
 import { buildToHandle, peekRowOf, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
 import { PanelId, PanelRequest } from "./brokk-group-model";
+import type { ArchivePlan } from "./brokk-notes-model";
 import { arrivalsAfter, EmptyArrivals, unseenItems } from "./brokk-watch";
 
 // The slice of the document the model listens on, so the rules run against a stand-in in the tests.
@@ -192,16 +194,47 @@ export class BossBubbleModel {
     // The developer settled or ignored this row (FR-BOSS-009, AC16): it stays away while the fact it shows stays what it
     // was. The marks other views wrote meanwhile are kept.
     settleRow(row: HandledRow): void {
+        this.settleRows([row]);
+    }
+
+    settleRows(rows: HandledRow[]): void {
+        if (rows.length === 0) {
+            return;
+        }
+        this.changeHandled((handled, now) => rows.reduce((next, row) => markRowHandled(next, row, now), handled));
+    }
+
+    // Gives these rows back, whatever episode they were marked for.
+    unsettleRows(rows: HandledRow[]): void {
+        if (rows.length === 0) {
+            return;
+        }
+        this.changeHandled((handled, now) => rows.reduce((next, row) => unmarkRowHandled(next, row.key, now), handled));
+    }
+
+    private changeHandled(change: (handled: HandledRows, now: number) => HandledRows): void {
         const now = Date.now();
         const store = storage();
         const shared = readHandled(store?.getItem(HandledKey), now);
-        const next = markRowHandled(mergeHandled(globalStore.get(this.handledAtom), shared, now), row, now);
+        const next = change(mergeHandled(globalStore.get(this.handledAtom), shared, now), now);
         globalStore.set(this.handledAtom, next);
         try {
             store?.setItem(HandledKey, handledText(next));
         } catch {
             // A full or missing storage only means this view's marks stay in this view.
         }
+    }
+
+    // Archives cards (#2195): the notifications go to the Archived list and the rows that stand for a fact are marked as
+    // handled. The undo gives back exactly what was archived.
+    archiveRows(plan: ArchivePlan): () => Promise<void> {
+        const undoEntries =
+            plan.entryIds.length > 0 ? MoltentermNotifications.getInstance().clear(plan.entryIds) : null;
+        this.settleRows(plan.marks);
+        return async () => {
+            this.unsettleRows(plan.marks);
+            await undoEntries?.();
+        };
     }
 
     // Another view or window wrote the marks.

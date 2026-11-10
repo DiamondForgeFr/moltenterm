@@ -1,18 +1,21 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The Notifications panel of Brokk's group (FR-BOSS-009, AC19, FR-BOSS-003, FR-MC-019, #2032): one list that replaces
-// À traiter and Notifications. Each row says its priority, its workspace and its date on one line, then its title, then
-// its actions; only an Urgent or À répondre row has an orange button, and the × is last. The header keeps what the
-// notification centre offered: the archived list and clearing it, Mark all read, Clear all with its undo, the link to the
-// preferences. The work that runs keeps its group at the top. The rows are brokk-notes-model.ts's.
+// The Notifications panel of Brokk's group (FR-BOSS-009, AC19, AC65 to AC70, FR-BOSS-003, FR-MC-019, #2032, #2195): one
+// list that replaces À traiter and Notifications. Every card, of every kind, has the same anatomy: a first line (its
+// priority, its workspace, its source, its date), one title line, and one action line, with the card's own actions on the
+// left and, on the right, the Integration's "Go to →" where the card leads somewhere, then Archive. Only an Urgent or
+// À répondre card has an orange button. The header keeps what the notification centre offered: the archived list and
+// clearing it, Mark all read, Archive all with its undo, the link to the preferences. The work that runs keeps its group
+// at the top. The rows are brokk-notes-model.ts's.
 
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
-import { tCount as translateCount, useT } from "../i18n/i18n";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { GoToButton } from "../go-to-button";
+import { tCount as translateCount, t as translateNow, useT } from "../i18n/i18n";
 import { InlineCodeText } from "../inline-code";
 import { MoltenWave } from "../molten-button";
 import { RowBoundary, WorkRow } from "../notification-center";
@@ -21,7 +24,6 @@ import { openNotificationSettings } from "../notification-settings";
 import { WorkspaceLabel, workspaceLabel } from "../notification-workspace";
 import {
     archivedEntries,
-    checkClickable,
     displayActions,
     formatAge,
     MoltentermNotification,
@@ -39,7 +41,15 @@ import { toneOf } from "../toast-model";
 import { GhostButton, PrimaryButton, SecondaryButton } from "./boss-card-buttons";
 import { HandoffRowView } from "./boss-handoff-row";
 import { ToHandleAction, toHandleHeadline, toHandleName } from "./boss-to-handle-model";
-import { isPrimaryAction, NoteRow, sourceBesideWorkspace } from "./brokk-notes-model";
+import {
+    archivePlan,
+    cardGoTo,
+    cardTarget,
+    isPrimaryAction,
+    NoteRow,
+    rowSourceId,
+    sourceBesideWorkspace,
+} from "./brokk-notes-model";
 import { EmptyLine, HeaderIconButton, PanelFrame, PanelProblem } from "./brokk-panel-frame";
 import { goToWorkspace, labelOfRow, WorkspaceTag } from "./brokk-workspace-tag";
 import { BrokkActions } from "./use-brokk-actions";
@@ -54,6 +64,13 @@ function PriorityMark({ priority }: { priority: NoteRow["priority"] }) {
             {t(`boss.group.priority.${priority}`)}
         </span>
     );
+}
+
+// The sources of the rows that are no notification (rowSourceId) have their words here; the others are the centre's.
+const ExtraSourceKeys: Record<string, string> = { pr: "notif.source.pr", handoff: "notif.source.handoff" };
+
+function sourceLabel(id: string): string {
+    return ExtraSourceKeys[id] != null ? translateNow(ExtraSourceKeys[id]) : notificationSourceLabel(id);
 }
 
 function RowButton({
@@ -93,33 +110,120 @@ function RowButton({
     );
 }
 
-// The buttons of a row To handle: its own, in its own order, without Later and Ignorer, which have a place of their own.
+// The buttons of a row To handle: its own, in its own order, without Later, which has a place of its own.
 function todoButtons(actions: ToHandleAction[]): ToHandleAction[] {
     return actions.filter((action) => action.run.kind !== "later" && action.run.kind !== "ignore");
 }
 
-function TodoRowBody({ row, actions }: { row: NoteRow; actions: BrokkActions }) {
+// The Archive of a card (#2195): the one action every card ends its action line with. It shows on hover and on keyboard
+// focus, and keeps its place the rest of the time, so that no card is taller or shorter for it.
+function ArchiveButton({ onArchive }: { onArchive: () => void }) {
+    const t = useT();
+    return (
+        <button
+            type="button"
+            title={t("notif.center.archive")}
+            aria-label={t("notif.center.archive")}
+            data-testid="notification-archive"
+            onClick={(e) => {
+                e.stopPropagation();
+                onArchive();
+            }}
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-11 text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-hover hover:text-primary focus-visible:opacity-100"
+        >
+            <i className="fa fa-solid fa-box-archive" aria-hidden />
+        </button>
+    );
+}
+
+// The title line every kind of card has (#2195): the agent's name or the event, then its short text, in one weight.
+function CardTitle({
+    title,
+    text,
+    lead,
+    tail,
+    dim,
+    testId,
+    data,
+}: {
+    title: ReactNode;
+    text?: ReactNode;
+    lead?: ReactNode;
+    tail?: ReactNode;
+    dim?: boolean;
+    testId: string;
+    data?: Record<string, string>;
+}) {
+    return (
+        <div
+            className={cn("mt-brokk-rt flex items-start gap-1.5", dim && "text-secondary")}
+            data-testid={testId}
+            {...data}
+        >
+            {lead}
+            <span className="line-clamp-3 min-w-0">
+                {title}
+                {text ? (
+                    <>
+                        <span className="text-muted" aria-hidden>
+                            {" · "}
+                        </span>
+                        <span className="text-secondary">{text}</span>
+                    </>
+                ) : null}
+            </span>
+            {tail}
+        </div>
+    );
+}
+
+// The action line every kind of card has (#2195), in the same place: the card's own actions on the left, then on the
+// right what is not its own (Later, Go to →) and Archive. It keeps its height with no action at all.
+function ActionLine({
+    own,
+    extra,
+    goTo,
+    archive,
+}: {
+    own?: ReactNode;
+    extra?: ReactNode;
+    goTo?: ReactNode;
+    archive?: ReactNode;
+}) {
+    return (
+        <div className="mt-brokk-ra" data-testid="brokk-card-actions">
+            {own}
+            <span className="mt-brokk-ra-end">
+                {extra}
+                {goTo}
+                {archive}
+            </span>
+        </div>
+    );
+}
+
+function TodoRowBody({ row, actions, onArchive }: { row: NoteRow; actions: BrokkActions; onArchive: () => void }) {
     const t = useT();
     const item = row.item;
     const buttons = todoButtons(item.actions);
     const later = item.actions.find((a) => a.run.kind === "later");
-    const ignore = item.actions.find((a) => a.run.kind === "ignore");
     return (
         <>
-            <div
-                className={cn("mt-brokk-rt", item.seen && "text-secondary")}
-                data-testid="boss-card-todo-name"
-                data-line={toHandleName(item)}
-            >
-                {toHandleHeadline(item)}
-                {item.seen ? (
-                    <span className="ml-1.5 text-11 font-normal text-muted" data-testid="boss-card-todo-seen">
-                        {t("boss.todo.seen")}
-                    </span>
-                ) : null}
-            </div>
-            <div className="mt-brokk-ra">
-                {buttons.map((action, i) => {
+            <CardTitle
+                title={toHandleHeadline(item)}
+                dim={item.seen}
+                testId="boss-card-todo-name"
+                data={{ "data-line": toHandleName(item) }}
+                tail={
+                    item.seen ? (
+                        <span className="shrink-0 text-11 font-normal text-muted" data-testid="boss-card-todo-seen">
+                            {t("boss.todo.seen")}
+                        </span>
+                    ) : null
+                }
+            />
+            <ActionLine
+                own={buttons.map((action, i) => {
                     const label =
                         action.run.kind === "answer"
                             ? notificationActionLabel(action.run.action)
@@ -137,52 +241,20 @@ function TodoRowBody({ row, actions }: { row: NoteRow; actions: BrokkActions }) 
                         />
                     );
                 })}
-                <span className="mt-brokk-ra-end">
-                    {later != null ? (
+                extra={
+                    later != null ? (
                         <HeaderIconButton
                             icon="clock"
                             label={t("boss.todo.later")}
                             testId="boss-card-todo-later"
                             onClick={() => actions.runTodo(item, later)}
                         />
-                    ) : null}
-                    {ignore != null ? (
-                        <HeaderIconButton
-                            icon="xmark"
-                            label={t("boss.todo.ignore")}
-                            testId="boss-card-todo-ignore"
-                            onClick={() => actions.runTodo(item, ignore)}
-                        />
-                    ) : null}
-                </span>
-            </div>
+                    ) : null
+                }
+                archive={<ArchiveButton onArchive={onArchive} />}
+            />
         </>
     );
-}
-
-// The × of a notification: it moves it to the archive.
-function ClearButton({ onClear }: { onClear: () => void }) {
-    const t = useT();
-    return (
-        <button
-            type="button"
-            title={t("notif.center.clearOne")}
-            aria-label={t("notif.center.clearOne")}
-            data-testid="notification-clear"
-            onClick={(e) => {
-                e.stopPropagation();
-                onClear();
-            }}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-11 text-muted hover:bg-hover hover:text-primary"
-        >
-            <i className="fa fa-solid fa-xmark" aria-hidden />
-        </button>
-    );
-}
-
-// A notification with no button of its own has its × on the first line, so that the row is not taller for it.
-export function clearsInline(entry: MoltentermNotification, archived: boolean): boolean {
-    return !archived && displayActions(entry).length === 0;
 }
 
 function EntryRowBody({
@@ -191,7 +263,8 @@ function EntryRowBody({
     running,
     error,
     onAction,
-    onClear,
+    onOpen,
+    onArchive,
     onSilence,
 }: {
     row: NoteRow;
@@ -199,7 +272,8 @@ function EntryRowBody({
     running: Record<string, boolean>;
     error: string;
     onAction: (action: NotificationAction) => void;
-    onClear: () => void;
+    onOpen: () => void;
+    onArchive: () => void;
     onSilence: (subject: NotificationSubject) => void;
 }) {
     const t = useT();
@@ -208,37 +282,35 @@ function EntryRowBody({
     const anyRunning = actions.some((a) => running[`${entry.id}:${a.id}`]);
     const subject = subjectOf(entry.source);
     const silenceable = !archived && entry.kind === "info" && subject != null;
-    const clearInline = clearsInline(entry, archived);
     const tone = toneOf(entry.kind);
     const resolved = entry.resolved != null;
     return (
         <>
-            <div className={cn("mt-brokk-rt flex items-start gap-1.5", row.unread && "font-semibold")}>
-                {entry.kind === "error" || entry.kind === "warning" ? (
-                    <i
-                        aria-label={tone.label}
-                        className={cn(
-                            "fa fa-solid mt-0.5 w-3.5 shrink-0 text-center",
-                            `fa-${tone.icon}`,
-                            tone.colorClass
-                        )}
-                    />
-                ) : null}
-                <span className="min-w-0">
-                    <InlineCodeText text={notificationTitle(entry, t)} />
-                </span>
-                {resolved ? (
-                    <span className="shrink-0 text-11 font-normal text-muted">✓ {t("notif.center.resolved")}</span>
-                ) : null}
-            </div>
-            {entry.message ? (
-                <div className="mt-0.5 line-clamp-3 text-11 text-secondary">
-                    <InlineCodeText text={notificationMessage(entry)} />
-                </div>
-            ) : null}
-            {actions.length > 0 || silenceable || (!archived && !clearInline) ? (
-                <div className="mt-brokk-ra">
-                    {actions.map((action, i) => (
+            <CardTitle
+                testId="notification-title"
+                lead={
+                    entry.kind === "error" || entry.kind === "warning" ? (
+                        <i
+                            aria-label={tone.label}
+                            className={cn(
+                                "fa fa-solid mt-0.5 w-3.5 shrink-0 text-center",
+                                `fa-${tone.icon}`,
+                                tone.colorClass
+                            )}
+                        />
+                    ) : null
+                }
+                title={<InlineCodeText text={notificationTitle(entry, t)} />}
+                text={entry.message ? <InlineCodeText text={notificationMessage(entry)} /> : null}
+                tail={
+                    resolved ? (
+                        <span className="shrink-0 text-11 font-normal text-muted">✓ {t("notif.center.resolved")}</span>
+                    ) : null
+                }
+            />
+            {archived && actions.length === 0 ? null : (
+                <ActionLine
+                    own={actions.map((action, i) => (
                         <RowButton
                             key={action.id}
                             label={
@@ -253,30 +325,64 @@ function EntryRowBody({
                             onClick={() => onAction(action)}
                         />
                     ))}
-                    {!archived ? (
-                        <span className="mt-brokk-ra-end">
-                            {silenceable ? (
-                                <button
-                                    type="button"
-                                    data-testid="notification-silence"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onSilence(subject);
-                                    }}
-                                    className={cn(
-                                        GhostButton,
-                                        "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                                    )}
-                                >
-                                    {t("notif.center.silence")}
-                                </button>
-                            ) : null}
-                            {clearInline ? null : <ClearButton onClear={onClear} />}
-                        </span>
-                    ) : null}
-                </div>
-            ) : null}
+                    extra={
+                        silenceable ? (
+                            <button
+                                type="button"
+                                data-testid="notification-silence"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSilence(subject);
+                                }}
+                                className={cn(
+                                    GhostButton,
+                                    "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                                )}
+                            >
+                                {t("notif.center.silence")}
+                            </button>
+                        ) : null
+                    }
+                    goTo={
+                        cardGoTo(row, archived) != null ? (
+                            <GoToButton
+                                title={t("notif.center.goToTitle")}
+                                testId="notification-goto"
+                                onClick={onOpen}
+                            />
+                        ) : null
+                    }
+                    archive={archived ? null : <ArchiveButton onArchive={onArchive} />}
+                />
+            )}
             {error ? <div className="mt-1 text-11 text-danger">{error}</div> : null}
+        </>
+    );
+}
+
+// An agent that finished (Fait): no notification of its own, so its card is the agent's name and what it did.
+function FinishedRowBody({ row, onOpen, onArchive }: { row: NoteRow; onOpen: () => void; onArchive: () => void }) {
+    const t = useT();
+    const finished = row.finished;
+    return (
+        <>
+            <CardTitle
+                testId="boss-card-info-name"
+                title={finished.name}
+                text={finished.line.key != null ? t(finished.line.key, finished.line.vars) : ""}
+            />
+            <ActionLine
+                goTo={
+                    cardGoTo(row) != null ? (
+                        <GoToButton
+                            title={t("reviewsAgents.goToTitle", { name: finished.name })}
+                            testId="notification-goto"
+                            onClick={onOpen}
+                        />
+                    ) : null
+                }
+                archive={<ArchiveButton onArchive={onArchive} />}
+            />
         </>
     );
 }
@@ -292,7 +398,7 @@ function NoteRowView({
     actions,
     onOpen,
     onAction,
-    onClear,
+    onArchive,
     onSilence,
 }: {
     row: NoteRow;
@@ -305,10 +411,9 @@ function NoteRowView({
     actions: BrokkActions;
     onOpen: () => void;
     onAction: (action: NotificationAction) => void;
-    onClear: () => void;
+    onArchive: () => void;
     onSilence: (subject: NotificationSubject) => void;
 }) {
-    const t = useT();
     const rowRef = useRef<HTMLLIElement>(null);
     useEffect(() => {
         if (highlighted) {
@@ -316,29 +421,26 @@ function NoteRowView({
         }
     }, [highlighted]);
     const entry = row.entry;
-    const hasOrigin = entry != null && checkClickable(entry);
-    // Delete or Backspace on the row itself clears it, and the focus moves to a neighbour so the keyboard stays in the list.
-    const clearAndKeepFocus = () => {
+    const hasTarget = cardTarget(row, archived) != null;
+    // Delete or Backspace on the card itself archives it, and the focus moves to a neighbour so the keyboard stays in the list.
+    const archiveAndKeepFocus = () => {
         const li = rowRef.current;
         const neighbour = li?.nextElementSibling ?? li?.previousElementSibling;
         if (neighbour instanceof HTMLElement) {
             neighbour.focus();
         }
-        onClear();
+        onArchive();
     };
     const onKeyDown = (e: React.KeyboardEvent<HTMLLIElement>) => {
-        if (entry == null) {
-            return;
-        }
         const action = e.nativeEvent.isComposing
             ? null
-            : rowKeyAction(e.key, { onRow: e.target === e.currentTarget, archived, hasOrigin });
+            : rowKeyAction(e.key, { onRow: e.target === e.currentTarget, archived, hasOrigin: hasTarget });
         if (action == null) {
             return;
         }
         e.preventDefault();
         if (action === "clear") {
-            clearAndKeepFocus();
+            archiveAndKeepFocus();
             return;
         }
         onOpen();
@@ -356,24 +458,26 @@ function NoteRowView({
               ? { "data-todo": row.item.key, "data-tone": row.item.tone, "data-seen": row.item.seen ? "true" : "false" }
               : { "data-info": row.finished.key };
     const handoff = row.item?.handoff != null;
-    const source = entry != null ? sourceBesideWorkspace(label?.name ?? "", notificationSourceLabel(entry.source)) : "";
+    const source = sourceBesideWorkspace(label?.name ?? "", sourceLabel(rowSourceId(row)));
+    const archiveButton = archived ? null : <ArchiveButton onArchive={onArchive} />;
     return (
         <li
             ref={rowRef}
             data-testid={testId}
             data-priority={row.priority}
             data-highlighted={highlighted || undefined}
+            data-cta={hasTarget || undefined}
             {...dataKey}
             className={cn(
-                "mt-brokk-row group",
+                "mt-brokk-row mt-brokk-card group",
                 highlighted && "molten-notification-highlight",
                 entry?.resolved != null && "opacity-60",
-                hasOrigin && "cursor-pointer"
+                hasTarget && "cursor-pointer"
             )}
-            onClick={hasOrigin && !archived ? onOpen : undefined}
+            onClick={hasTarget ? onOpen : undefined}
             onKeyDown={onKeyDown}
-            role={hasOrigin ? "button" : undefined}
-            tabIndex={archived || entry == null ? undefined : 0}
+            role={hasTarget ? "button" : undefined}
+            tabIndex={archived ? undefined : 0}
         >
             <div className="mt-brokk-rh">
                 <PriorityMark priority={row.priority} />
@@ -385,14 +489,11 @@ function NoteRowView({
                 ) : null}
                 {row.unread && row.source === "entry" ? <span className="mt-brokk-unread" aria-hidden /> : null}
                 {row.since > 0 ? <span className="mt-brokk-when">{formatAge(row.since, now)}</span> : null}
-                {entry != null && clearsInline(entry, archived) ? <ClearButton onClear={onClear} /> : null}
             </div>
             {handoff ? (
-                <ul className="mt-1 flex flex-col">
-                    <HandoffRowView item={row.item} now={now} busyId={actions.busyId} onRun={actions.runTodo} />
-                </ul>
+                <HandoffRowView item={row.item} busyId={actions.busyId} onRun={actions.runTodo} end={archiveButton} />
             ) : row.source === "todo" ? (
-                <TodoRowBody row={row} actions={actions} />
+                <TodoRowBody row={row} actions={actions} onArchive={onArchive} />
             ) : row.source === "entry" ? (
                 <EntryRowBody
                     row={row}
@@ -400,16 +501,12 @@ function NoteRowView({
                     running={running}
                     error={error}
                     onAction={onAction}
-                    onClear={onClear}
+                    onOpen={onOpen}
+                    onArchive={onArchive}
                     onSilence={onSilence}
                 />
             ) : (
-                <div className="mt-brokk-rt" data-testid="boss-card-info-name">
-                    {row.finished.name}
-                    <span className="ml-1.5 font-normal text-secondary">
-                        {row.finished.line.key != null ? t(row.finished.line.key, row.finished.line.vars) : ""}
-                    </span>
-                </div>
+                <FinishedRowBody row={row} onOpen={onOpen} onArchive={onArchive} />
             )}
         </li>
     );
@@ -448,7 +545,6 @@ export function NotificationsPanel({
     const work = useRunningWork();
     const [view, setView] = useState<"active" | "archived">("active");
     const archived = archivedEntries(entries);
-    const entryRows = rows.filter((row) => row.source === "entry");
     const shown = rows.slice(0, MaxRenderedRows);
     const hidden = rows.length - shown.length;
 
@@ -463,15 +559,39 @@ export function NotificationsPanel({
         onListed(listedKey === "" ? [] : listedKey.split(","));
     }, [listedKey, onListed]);
 
-    // Clears the notifications of the list; the undo toast gives back exactly what was cleared (FR-MC-019, #2026). What
-    // waits for an answer is a row of its agent, not a notification to clear.
-    const clearAll = () => {
-        const ids = entryRows.map((row) => row.entry.id);
-        if (ids.length === 0) {
+    // Archives cards, whatever their kind (FR-MC-019, AC15 and AC16; #2195): the undo toast gives back exactly what was
+    // archived, a notification and the rows that stand for a fact alike.
+    const archiveCards = (cards: NoteRow[]) => {
+        if (cards.length === 0) {
             return;
         }
-        const undo = model.clear(ids);
-        showUndoToast(translateCount("notif.center.cleared", ids.length), undo);
+        const undo = actions.archive(archivePlan(cards, entries));
+        showUndoToast(translateCount("notif.center.archivedCount", cards.length), undo);
+    };
+    // Takes the developer to what the card is about; going there settles a notification as FR-MC-019 (#2026) says, and an
+    // agent that finished leaves when its pane is seen.
+    const openCard = (row: NoteRow) => {
+        if (row.entry != null) {
+            onLeave();
+            fireAndForget(() => model.open(row.entry));
+            return;
+        }
+        const finished = row.finished;
+        if (finished == null) {
+            return;
+        }
+        if (finished.sessionid) {
+            actions.goToSession(finished.sessionid, row.key);
+            return;
+        }
+        onLeave();
+        fireAndForget(() =>
+            model.goTo({
+                workspaceid: finished.workspaceid || undefined,
+                tabid: finished.tabid || undefined,
+                blockid: finished.blockid,
+            })
+        );
     };
     const labelFor = (row: NoteRow) => labelOfRow(workspaces, currentWorkspace?.oid, row, row.entry?.tabid);
     const showWork = view === "active" && work.length > 0;
@@ -512,13 +632,13 @@ export function NotificationsPanel({
                                 onClick={() => model.markAllRead()}
                             />
                         ) : null}
-                        {entryRows.length > 0 ? (
+                        {rows.length > 0 ? (
                             <HeaderIconButton
                                 icon="broom"
-                                label={t("notif.center.clearAll")}
-                                title={t("notif.center.clearAllTitle")}
-                                testId="notification-clear-all"
-                                onClick={clearAll}
+                                label={t("notif.center.archiveAll")}
+                                title={t("notif.center.archiveAllTitle")}
+                                testId="notification-archive-all"
+                                onClick={() => archiveCards(rows)}
                             />
                         ) : null}
                         <HeaderIconButton
@@ -571,7 +691,7 @@ export function NotificationsPanel({
                                             actions={actions}
                                             onOpen={() => {}}
                                             onAction={(action) => fireAndForget(() => model.runAction(entry, action))}
-                                            onClear={() => {}}
+                                            onArchive={() => {}}
                                             onSilence={() => {}}
                                         />
                                     </RowBoundary>
@@ -596,20 +716,14 @@ export function NotificationsPanel({
                                         running={running}
                                         error={row.entry != null ? errors[row.entry.id] : ""}
                                         actions={actions}
-                                        onOpen={() => {
-                                            if (row.entry == null) {
-                                                return;
-                                            }
-                                            onLeave();
-                                            fireAndForget(() => model.open(row.entry));
-                                        }}
+                                        onOpen={() => openCard(row)}
                                         onAction={(action) => {
                                             if (action.kind === "open") {
                                                 onLeave();
                                             }
                                             fireAndForget(() => model.runAction(row.entry, action));
                                         }}
-                                        onClear={() => model.clear([row.entry.id])}
+                                        onArchive={() => archiveCards([row])}
                                         onSilence={(subject) => {
                                             onLeave();
                                             openNotificationSettings(subject);

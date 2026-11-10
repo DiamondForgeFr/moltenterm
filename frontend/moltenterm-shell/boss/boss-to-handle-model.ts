@@ -36,7 +36,7 @@ import {
 } from "../reviews/reviews-model";
 import { DurableSession } from "../sessions/sessions-model";
 import { workspaceShownName } from "../workspace-default-name";
-import { checkRowHandled, HandledRows } from "./boss-handled";
+import { checkRowHandled, HandledRow, HandledRows } from "./boss-handled";
 import type { Badge, PeekWaitingRow } from "./boss-overview";
 import { attentionAgents } from "./boss-overview";
 
@@ -121,7 +121,26 @@ export type ToHandleItem = {
     handoff?: HandoffRow;
 };
 
-export type InfoItem = { key: string; name: string; place: string; workspaceid?: string; line: TextRef };
+// An agent that finished. blockid, tabid and sessionid are where its view and terminal are, for the card's Go to (#2195);
+// since is when it finished (Unix ms, 0 when unknown), the episode an archived card holds for.
+export type InfoItem = {
+    key: string;
+    name: string;
+    place: string;
+    workspaceid?: string;
+    tabid?: string;
+    blockid?: string;
+    sessionid?: string;
+    since?: number;
+    line: TextRef;
+};
+
+// The mark of an agent that finished, once archived: the episode is the finish, so a new finish brings the card back.
+export const InfoTone = "done";
+
+export function infoHandledRow(info: Pick<InfoItem, "key" | "since">): HandledRow {
+    return { key: info.key, since: info.since ?? 0, tone: InfoTone };
+}
 
 export type ToHandleList = {
     items: ToHandleItem[];
@@ -477,8 +496,13 @@ export function buildToHandle(input: ToHandleInput): ToHandleList {
             name: agentCallName(state),
             place: workspaceShownName(sessionOf(input.sessions, state.blockid)?.workspacename ?? "", t),
             workspaceid: sessionOf(input.sessions, state.blockid)?.workspaceid ?? "",
+            tabid: state.tabid ?? "",
+            blockid: state.blockid,
+            sessionid: sessionOf(input.sessions, state.blockid)?.id ?? "",
+            since: sinceOf(state.since),
             line: { key: "boss.todo.infoDone" },
-        }));
+        }))
+        .filter((item) => !checkRowHandled(input.handled, infoHandledRow(item)));
     return {
         items,
         info,
