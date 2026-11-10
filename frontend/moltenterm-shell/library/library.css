@@ -105,6 +105,7 @@
 
 .mt-lib-ni.is-on {
     background: color-mix(in srgb, var(--mt-veil) 12%, transparent);
+    box-shadow: var(--mt-selected-line-action);
     color: var(--color-primary);
 }
 
@@ -286,7 +287,9 @@
 
 .mt-lib-tile.is-on {
     background: color-mix(in srgb, var(--mt-veil) 20%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 20%, transparent);
+    box-shadow:
+        var(--mt-selected-line),
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 20%, transparent);
 }
 
 .mt-lib-sect {
@@ -319,6 +322,10 @@
 .mt-lib-mrow.is-on {
     background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
     color: var(--color-primary);
+}
+
+.mt-lib-mrow.is-on {
+    box-shadow: var(--mt-selected-line);
 }
 
 .mt-lib-mrow .t {
@@ -1335,7 +1342,9 @@
 
 .mt-lib-set[aria-current="true"] {
     background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent);
+    box-shadow:
+        var(--mt-selected-line-action),
+        inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent);
     font-weight: var(--mt-weight-semibold);
 }
 

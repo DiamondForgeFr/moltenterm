@@ -30,6 +30,7 @@
 
 .mt-sb-arow.is-on {
     background: color-mix(in srgb, var(--mt-veil) 15%, transparent);
+    box-shadow: var(--mt-selected-line);
     color: var(--color-primary);
 }
 

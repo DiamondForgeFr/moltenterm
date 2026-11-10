@@ -160,9 +160,10 @@ describe("the markup that carries the shape", () => {
         expect(functionSource(src, "dropSideClass")).toContain('drag.stacked && "mt-sb-dropy"');
     });
 
-    it("keeps the active underline, the corner's marks and the glyph on the tile, whatever the shape", () => {
+    it("keeps the selected liseré, the corner's marks and the glyph on the tile, whatever the shape", () => {
         const tile = functionSource(src, "Tile");
-        expect(tile).toContain('className="mt-sb-tile-place"');
+        expect(tile).toContain('active ? "mt-sb-selected bg-white/20"');
+        expect(tile).not.toContain("mt-sb-tile-place");
         expect(tile).toContain('className="mt-sb-corner"');
         expect(tile).toContain("<TileAgentMark");
         expect(tile).toContain("<PrDots");
@@ -211,8 +212,8 @@ describe("a tile as a row", () => {
         expect(revert).toMatch(/translateY\(-50%\)/);
     });
 
-    it("does not hide the underline, the glyph or the corner", () => {
-        expect(block).not.toMatch(/mt-sb-tile-place|sidebar-glyph|mt-sb-glyph|display:\s*none/);
+    it("does not hide the selected liseré, the glyph or the corner", () => {
+        expect(block).not.toMatch(/mt-sb-selected|box-shadow|sidebar-glyph|mt-sb-glyph|display:\s*none/);
     });
 });
 

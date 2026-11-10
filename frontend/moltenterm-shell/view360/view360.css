@@ -285,6 +285,7 @@
 
 .mt-places-seg-choice.is-on {
     background: var(--mt-surface-3);
+    box-shadow: var(--mt-selected-line-action);
     color: var(--mt-text-1);
     font-weight: 500;
 }

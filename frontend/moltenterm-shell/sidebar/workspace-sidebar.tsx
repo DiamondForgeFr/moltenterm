@@ -891,9 +891,7 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
             tabIndex={0}
             className={cn(
                 "mt-sb-tile relative flex h-[52px] min-w-0 cursor-pointer flex-col items-center justify-center gap-[5px] rounded-6 px-1 text-11 text-primary transition-colors duration-120 ease-mt",
-                active
-                    ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-                    : "bg-white/[0.09] hover:bg-white/15",
+                active ? "mt-sb-selected bg-white/20" : "bg-white/[0.09] hover:bg-white/15",
                 // The dots' column sits on the right: the glyph and the name keep clear of it (centred in what is left,
                 // so a three-panel glyph still fits); a wider glyph takes its small size and is clipped rather than
                 // run under the dots.
@@ -950,7 +948,6 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 )}
                 {hasCounts ? <PrDots counts={counts} motionKey={`tile:${tabId}`} calm={!fresh} /> : null}
             </span>
-            {active ? <span className="mt-sb-tile-place" data-testid="sidebar-tile-place" aria-hidden /> : null}
             <WorkingLight on={working} />
             <PourLight active={active} />
             {modified ? (
@@ -1114,7 +1111,9 @@ function ViewRow({
             tabIndex={0}
             className={cn(
                 "mt-sb-row relative flex min-h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 transition-colors duration-120 ease-mt",
-                active ? "bg-white/15 text-primary" : "text-secondary hover:bg-white/[0.08] hover:text-primary",
+                active
+                    ? "mt-selected bg-white/15 text-primary"
+                    : "text-secondary hover:bg-white/[0.08] hover:text-primary",
                 dragging && "mt-sb-dragged"
             )}
             aria-current={active ? "page" : undefined}
@@ -1571,9 +1570,7 @@ function TopRowBlock({
             className={cn(
                 "relative flex min-w-0 cursor-pointer items-center justify-center rounded-6 px-1 text-primary transition-colors duration-120 ease-mt",
                 fit === "beside" ? "h-[34px]" : "h-[44px]",
-                active
-                    ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-                    : "bg-white/[0.07] hover:bg-white/[0.14]",
+                active ? "mt-sb-selected bg-white/20" : "bg-white/[0.07] hover:bg-white/[0.14]",
                 // The dots' column sits on the right: the glyph keeps clear of it, still centred.
                 hasCounts && "px-[10px]",
                 // A name keeps clear of the corner column on both sides, so the icon and name stay centred (#1651):

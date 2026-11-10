@@ -43,7 +43,9 @@ export function SortControl({ sort }: { sort: ReviewsSort }) {
                         className={cn(
                             "cursor-pointer px-2 py-0.5 text-11 leading-4 whitespace-nowrap transition-colors duration-120 ease-mt",
                             i > 0 && "border-l border-border",
-                            on ? "bg-hover text-primary" : "text-muted hover:bg-hover/60 hover:text-primary"
+                            on
+                                ? "mt-selected-action bg-hover text-primary"
+                                : "text-muted hover:bg-hover/60 hover:text-primary"
                         )}
                         data-testid={`reviews-sort-${s.sort}`}
                     >

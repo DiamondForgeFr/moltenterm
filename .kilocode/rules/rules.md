@@ -52,6 +52,12 @@ It has a TypeScript/React frontend and a Go backend. They talk together over `ws
 - For accent buttons, use "bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer" (if you do "bg-accent hover:bg-accent/80" it looks weird as on hover the button gets darker instead of lighter)
   - **Moltenterm (MOLTENTERM-PATCH #145):** this replaces the line above. A call-to-action button takes the class `molten-btn` (add `molten-btn-destructive` or `molten-btn-warning` for those) with sizes only from Tailwind (e.g. `"molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"`, no `bg-*`, `text-*` colour or `hover:bg-*`), and `<MoltenWave />` from `frontend/moltenterm-shell/molten-button.tsx` as its last child. Wave's `Button` does this itself: no class or the `green` class gives the molten primary. Secondary actions stay calm (bordered or ghost). The style lives in `frontend/moltenterm-shell/molten-button.css`.
 
+### Selected = the rounded liseré (Moltenterm, MOLTENTERM-PATCH #2189)
+
+- The selected one among siblings (a tab, a segment of a track, a section's entry, a view's tile or row) carries the carpet strip's liseré: an inset line along its bottom edge, never a bar, a border or an underline (DS-SHELL-156). It is defined once, in `frontend/moltenterm-shell/moltenterm-shell.css`; write no inset line of your own.
+- Add the class `mt-selected` (place colour: what stands for a place of the workspace, like the strip's tabs and the sidebar's views) or `mt-selected-action` (action colour: every other tab or segment) to the selected element, and keep its own fill. A surface with other shadow layers composes the token into its own `box-shadow` instead: `var(--mt-selected-line)` or `var(--mt-selected-line-action)`.
+- A checkbox, switch, radio dot, swatch, pill chip or list cursor is another kind: it keeps its own mark. `frontend/moltenterm-shell/build/selected-line.test.ts` guards the rule and lists the surfaces.
+
 ### Agent left, graphics right (Moltenterm, MOLTENTERM-PATCH #1165)
 
 - A tab that holds an agent (its terminal or its AI panel) next to a graphical panel lays the agent out on the **left** and the graphical panel on the **right** (DS-REV-012). Example: the Review tab splits its AI panel before the review block (`aiPaneLayoutAction` in `pkg/molten/review/tab.go`).
