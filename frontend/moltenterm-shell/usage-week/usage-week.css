@@ -163,6 +163,20 @@
     white-space: nowrap;
 }
 
+/* The share of each day under its block (#2164): a line of its own across the grid's columns, closer to its row than the
+   rows are to each other. Muted, never pace-coloured. Flex-end keeps the figure right-aligned and, when it is wider than
+   its block (100 %), lets it grow to the left over the gap instead of pushing the layout. */
+.mt-uw-share {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -6px;
+    color: var(--mt-text-3);
+    font-size: calc(var(--mt-text-11) - 1px);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+}
+
 /* The legend under the rows (#2123), across the whole grid. Its swatches are the grid's own blocks (.mt-uw-cell, with
    is-today and is-reset, and the fill coloured by --mt-uw-pace), so the block height, the ring, the outline and the
    sheen are the rows' own. One line when the width allows, each key staying whole when it wraps. */
@@ -204,6 +218,7 @@
 
 /* An old reading (#2074): its age is in the row's name, its figures are dimmed. */
 .mt-uw-row[data-old="true"] .mt-uw-pct,
+.mt-uw-row[data-old="true"] .mt-uw-share,
 .mt-uw-row[data-old="true"] .mt-uw-cell i {
     opacity: 0.6;
 }

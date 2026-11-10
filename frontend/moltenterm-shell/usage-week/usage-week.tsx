@@ -9,7 +9,8 @@
 // fill and the percent take the colour of the pace, from on pace (success) to running out before the reset (error), or
 // towards info when much of what the time allowed is left unused (#2106). A row shows no other detail on hover unless
 // its surface gives it a tooltip; each row has an accessible name. A surface that has room for it asks for the legend
-// under the rows (#2123): swatches made of the grid's own blocks, so they follow it.
+// under the rows (#2123): swatches made of the grid's own blocks, so they follow it. A surface that wants the share of
+// each day asks for the figures under the blocks (#2164): one small muted number a block, in a line of its own.
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
@@ -22,6 +23,7 @@ import { useFloatingInPlace } from "../floating-in-place";
 import { useLocale, useT } from "../i18n/i18n";
 import {
     dayFills,
+    dayShares,
     legendColours,
     paceColour,
     PaceRedAt,
@@ -168,7 +170,34 @@ export function UsageWeekLegend() {
     );
 }
 
-export function UsageWeekGrid({ rows, now, legend }: { rows: UsageWeekRow[]; now: number; legend?: boolean }) {
+// The line of figures under a row's blocks, across the grid's columns: the lead's and the percent's stay empty. It is
+// decoration for the eye: the row's accessible name already carries the percent.
+function DayFigures({ line }: { line: UsageWeekLine }) {
+    const t = useT();
+    return (
+        <>
+            <span aria-hidden />
+            {dayShares(line.percent, line.start).map((share, i) => (
+                <span key={i} className="mt-uw-share" aria-hidden data-testid="usage-week-share" data-share={share}>
+                    {t("usageWeek.dayShare", { percent: share })}
+                </span>
+            ))}
+            <span aria-hidden />
+        </>
+    );
+}
+
+export function UsageWeekGrid({
+    rows,
+    now,
+    legend,
+    dayFigures,
+}: {
+    rows: UsageWeekRow[];
+    now: number;
+    legend?: boolean;
+    dayFigures?: boolean;
+}) {
     const t = useT();
     const locale = useLocale();
     const today = weekdayIndex(now);
@@ -252,6 +281,7 @@ export function UsageWeekGrid({ rows, now, legend }: { rows: UsageWeekRow[]; now
                         <b className="mt-uw-pct" data-testid="usage-week-percent">
                             {t("usageWeek.percent", { percent: line.percent })}
                         </b>
+                        {dayFigures ? <DayFigures line={line} /> : null}
                         {row.note ? (
                             <span className="mt-uw-detail" data-testid="usage-week-note">
                                 {row.note}

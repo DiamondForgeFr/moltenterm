@@ -653,16 +653,16 @@ describe("the legend, the explanation and the source line (#2123)", () => {
         expect(html).toContain('class="mt-uw-cell is-reset"');
     });
 
-    it("explains a row, its blocks, the percentage and the reset line, in the interface language", () => {
+    it("explains a row, its blocks, the percentage, the reset line and the day figures, in the interface language", () => {
         const english = explainOf(markup(enabled));
         expect(english).toBe(
-            'A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the "Resets" line says when the window starts again.'
+            'A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the "Resets" line says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days\' worth has been used.'
         );
-        expect(english.split(". ")).toHaveLength(2);
+        expect(english.split(". ")).toHaveLength(3);
         inFrench(() => {
             const html = markup(enabled);
             expect(explainOf(html)).toBe(
-                "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart."
+                "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées."
             );
             expect(keysOf(html).map(([, label]) => label)).toEqual([
                 "Aujourd'hui",
@@ -756,5 +756,153 @@ describe("the legend, the explanation and the source line (#2123)", () => {
             expect(usageSourceName(id)).not.toContain("companion.gauges.source");
             inFrench(() => expect(usageSourceName(id)).not.toContain("companion.gauges.source"));
         }
+    });
+});
+
+// The share of each day under its block, in the expanded section only (FR-SHELL-027, amended for #2164).
+describe("the share of each day under its block (#2164)", () => {
+    const sharesOf = (html: string, window: string): [number, string][] =>
+        [
+            ...rowHtml(html, window).matchAll(
+                /<span class="mt-uw-share"[^>]*data-testid="usage-week-share" data-share="(\d+)">([^<]*)</g
+            ),
+        ].map((m) => [Number(m[1]), m[2]]);
+    const compactOf = (info: CompanionUsageInfo): string =>
+        renderToStaticMarkup(<PlanUsageBody view={gaugesView(info, now)} {...noop} compact onDetails={() => {}} />);
+    const week = (usedpercent: number, resetsat?: number): CompanionUsageInfo => ({
+        ...enabled,
+        snapshot: {
+            ...enabled.snapshot,
+            windows: [{ id: "week", label: "This week", usedpercent, resetsat, windowmins: 10080 }],
+        },
+    });
+
+    it("writes under every block of every row the share of its day, Monday first, 0 % included", () => {
+        const html = markup(enabled);
+        // The week last reset on Friday and is 82 % used: 5.74 days' worth, Friday to Tuesday full, Wednesday 74 %.
+        expect(sharesOf(html, "week")).toEqual([
+            [100, "100%"],
+            [100, "100%"],
+            [74, "74%"],
+            [0, "0%"],
+            [100, "100%"],
+            [100, "100%"],
+            [100, "100%"],
+        ]);
+        // The session's 24 % is 1.68 days' worth from its Tuesday: Tuesday full, Wednesday 68 %.
+        expect(sharesOf(html, "session").map(([share]) => share)).toEqual([0, 100, 68, 0, 0, 0, 0]);
+        expect(html.match(/data-testid="usage-week-share"/g)).toHaveLength(14);
+    });
+
+    it("lines them up with the blocks: a figure is the fill of the block above it", () => {
+        const html = markup(enabled);
+        for (const window of ["week", "session"]) {
+            expect(sharesOf(html, window).map(([share]) => share)).toEqual(
+                blocksOf(html, window).map((block) => Math.round(block.fill))
+            );
+        }
+    });
+
+    it("fills the 67 % week of a Tuesday reset as Tuesday to Friday, then 69 % on Saturday", () => {
+        // now is Tuesday 6 October 10:00; the week resets next Tuesday 13 October at 09:00, so it last reset today.
+        const html = markup(week(67, new Date(2026, 9, 13, 9, 0).getTime()));
+        expect(sharesOf(html, "week").map(([share]) => share)).toEqual([0, 100, 100, 100, 100, 69, 0]);
+    });
+
+    it("shows 0 % under every block of an unused week and 100 % under every block of a spent one", () => {
+        const reset = new Date(2026, 9, 13, 9, 0).getTime();
+        expect(sharesOf(markup(week(0, reset)), "week").map(([share]) => share)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+        expect(sharesOf(markup(week(0, reset)), "week").map(([, text]) => text)).toEqual(Array(7).fill("0%"));
+        expect(sharesOf(markup(week(100, reset)), "week").map(([share]) => share)).toEqual(Array(7).fill(100));
+    });
+
+    it("starts on Monday when the reader gives no reset time", () => {
+        const html = markup(week(50));
+        expect(sharesOf(html, "week").map(([share]) => share)).toEqual([100, 100, 100, 50, 0, 0, 0]);
+    });
+
+    it("draws the model-specific week too", () => {
+        const withModel: CompanionUsageInfo = {
+            ...enabled,
+            snapshot: {
+                ...enabled.snapshot,
+                windows: [
+                    {
+                        id: "model:opus",
+                        label: "This week (Opus)",
+                        usedpercent: 70,
+                        resetsat: now + 5 * 24 * Hour,
+                        windowmins: 10080,
+                    },
+                ],
+            },
+        };
+        // Last reset on Sunday: 4.9 days' worth, Sunday to Wednesday full, Thursday 90 %.
+        expect(sharesOf(markup(withModel), "model:opus").map(([share]) => share)).toEqual([
+            100, 100, 100, 90, 0, 0, 100,
+        ]);
+    });
+
+    it("keeps the figures calm: muted, never coloured by the pace, and hidden from assistive technology", () => {
+        const html = markup(enabled);
+        const tags = [...html.matchAll(/<span class="mt-uw-share"[^>]*>/g)].map((m) => m[0]);
+        expect(tags).toHaveLength(14);
+        for (const tag of tags) {
+            expect(tag).not.toContain("style=");
+            expect(tag).not.toContain("--mt-uw-pace");
+            expect(tag).toContain('aria-hidden="true"');
+        }
+        const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        const rule = /\n\.mt-uw-share \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(rule).toContain("color: var(--mt-text-3)");
+        expect(rule).toContain("justify-content: flex-end");
+        expect(rule).not.toContain("--mt-uw-pace");
+        expect(rowTag(html, "week")).not.toContain("share");
+    });
+
+    it("writes the figure in the interface language", () => {
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            expect(sharesOf(markup(enabled), "week").map(([, text]) => text)).toEqual([
+                "100 %",
+                "100 %",
+                "74 %",
+                "0 %",
+                "100 %",
+                "100 %",
+                "100 %",
+            ]);
+        } finally {
+            i18n.setLanguageSetting("");
+        }
+    });
+
+    it("leaves the compact form and Brokk's grid without any figure", () => {
+        expect(compactOf(enabled)).toContain('data-testid="usage-week"');
+        expect(compactOf(enabled)).not.toContain("usage-week-share");
+        expect(markup(enabled)).toContain("usage-week-share");
+        const rows = [{ key: "week", agent: "claude", name: "Claude", line: gaugeRows(enabled.snapshot, now)[1].line }];
+        expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} />)).not.toContain("usage-week-share");
+        expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} legend />)).not.toContain("usage-week-share");
+        expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} dayFigures />)).toContain("usage-week-share");
+        const brokk = readFileSync(join(__dirname, "../boss/brokk-group.tsx"), "utf8");
+        expect(brokk).toContain("<UsageWeekGrid rows={weekRows} now={now} />");
+        expect(brokk).not.toContain("dayFigures");
+    });
+
+    it("draws no figure for a row without a reading", () => {
+        const html = renderToStaticMarkup(
+            <UsageWeekGrid
+                rows={[{ key: "week", agent: "claude", name: "Claude", unreadable: "failed" }]}
+                now={now}
+                dayFigures
+            />
+        );
+        expect(html).toContain("usage-week-unreadable");
+        expect(html).not.toContain("usage-week-share");
     });
 });

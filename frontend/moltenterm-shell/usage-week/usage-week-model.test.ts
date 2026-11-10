@@ -9,6 +9,7 @@ import Fr from "../i18n/locales/fr.json";
 import {
     allowedPercent,
     dayFills,
+    dayShares,
     lastReset,
     legendColours,
     mainWindow,
@@ -233,6 +234,66 @@ describe("the under-use scale (FR-BOSS-009, AC59, #2106)", () => {
 });
 
 // #2102 reuses the grid for other usage surfaces: the model takes any list of windows.
+// #2164: the figure under each day block is the block's fill as a whole percent. A week gives each day one seventh, so
+// the total (percent × 7 / 100) is that many days' worth, spent from the reset day forward.
+describe("the share of each day under its block (#2164)", () => {
+    // Monday first, as the grid's columns.
+    it("spends 67 % of a week from a Tuesday reset as 4.69 days: Tuesday to Friday full, Saturday 69 %, the rest 0", () => {
+        expect(dayShares(67, 1)).toEqual([0, 100, 100, 100, 100, 69, 0]);
+    });
+
+    it("shows 0 % under every block of a window not used yet, on a Sunday reset as on any other", () => {
+        expect(dayShares(0, 6)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+        expect(dayShares(0, 2)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    });
+
+    it("shows 100 % under every block of a spent window, whatever the reset day", () => {
+        expect(dayShares(100, 3)).toEqual([100, 100, 100, 100, 100, 100, 100]);
+        expect(dayShares(100, 6)).toEqual([100, 100, 100, 100, 100, 100, 100]);
+        expect(dayShares(140, 0)).toEqual([100, 100, 100, 100, 100, 100, 100]);
+    });
+
+    it("starts on Monday without a reset day, as the blocks do", () => {
+        expect(dayShares(50, -1)).toEqual([100, 100, 100, 50, 0, 0, 0]);
+        expect(dayShares(50)).toEqual(dayShares(50, -1));
+        const line = usageWeekLine({ id: "week", label: "This week", usedpercent: 50 }, Now);
+        expect(line.start).toBe(-1);
+        expect(dayShares(line.percent, line.start)).toEqual([100, 100, 100, 50, 0, 0, 0]);
+    });
+
+    it("runs round the week past Sunday to Monday", () => {
+        // 31 % from a Sunday reset: 2.17 days' worth.
+        expect(dayShares(31, 6)).toEqual([100, 17, 0, 0, 0, 0, 100]);
+    });
+
+    it("rounds to a whole percent, and is the fill of the blocks", () => {
+        expect(dayShares(10, 0)).toEqual([70, 0, 0, 0, 0, 0, 0]);
+        for (const [percent, start] of [
+            [67, 1],
+            [3, 5],
+            [88, 2],
+            [41, -1],
+        ]) {
+            expect(dayShares(percent, start)).toEqual(dayFills(percent, start).map((fill) => Math.round(fill * 100)));
+        }
+    });
+
+    it("follows the line a window draws: a week resetting on a Tuesday, 67 % used", () => {
+        const line = usageWeekLine(
+            {
+                id: "week",
+                label: "This week",
+                usedpercent: 67,
+                resetsat: new Date(2026, 10, 17, 9, 0).getTime(),
+                windowmins: 10080,
+            },
+            Now
+        );
+        expect(line.start).toBe(1);
+        expect(dayShares(line.percent, line.start)).toEqual([0, 100, 100, 100, 100, 69, 0]);
+    });
+});
+
 describe("the week lines of a list of windows", () => {
     const windows = [
         { id: "session", label: "Current session", usedpercent: 30, resetsat: Now + 3600_000, windowmins: 300 },

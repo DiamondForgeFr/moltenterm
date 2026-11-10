@@ -400,6 +400,7 @@ export function PlanUsageBody({
                     rows={view.rows.map((row) => weekRow(view, row, "", true))}
                     now={view.now}
                     legend={view.rows.length > 0}
+                    dayFigures
                 />
             </div>
             {view.rows.length > 0 ? (
