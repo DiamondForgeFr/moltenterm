@@ -10353,8 +10353,8 @@
         }
     },
     "agentTried": {
-        "line": "Essayé avec MoltenTerm :",
-        "chipLabel": "{level} : dans quelle mesure {name} a été essayé avec MoltenTerm",
+        "line": "Essayé avec MoltenTerm :",
+        "chipLabel": "{level} : dans quelle mesure {name} a été essayé avec MoltenTerm",
         "asof": "Niveau établi le {date}",
         "report": "Signaler un problème",
         "level": {
@@ -10364,8 +10364,8 @@
         },
         "meaning": {
             "daily": "MoltenTerm est utilisé chaque jour avec {name}. Si quelque chose ne marche pas, vous pouvez le signaler.",
-            "tested": "MoltenTerm a été essayé avec {name}, mais moins qu'avec l'agent utilisé chaque jour : un défaut est possible. Si vous en rencontrez un, vous pouvez le signaler.",
-            "little": "MoltenTerm a encore peu été essayé avec {name} : vous pouvez rencontrer un défaut. MoltenTerm est open source, vous pouvez le signaler."
+            "tested": "MoltenTerm a été essayé avec {name}, mais moins qu'avec l'agent utilisé chaque jour : un défaut est possible. Si vous en rencontrez un, vous pouvez le signaler.",
+            "little": "MoltenTerm a encore peu été essayé avec {name} : vous pouvez rencontrer un défaut. MoltenTerm est open source, vous pouvez le signaler."
         }
     },
     "agentInfo": {
