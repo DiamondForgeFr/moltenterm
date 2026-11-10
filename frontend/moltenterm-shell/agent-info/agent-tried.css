@@ -1,0 +1,91 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* How much an agent has been tried with MoltenTerm (#2167): a calm chip in the secondary text colour, three pips that
+   fill with the level. Little tested is information, not a warning: no red, no amber, no warning glyph. */
+.mt-tried {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+    color: var(--mt-text-2);
+    cursor: default;
+    font: inherit;
+    font-size: var(--mt-text-11);
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.mt-tried:hover,
+.mt-tried[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--mt-veil) 12%, transparent);
+}
+
+.mt-tried:focus-visible {
+    outline: 1px solid var(--mt-text-3);
+    outline-offset: 1px;
+}
+
+.mt-tried-pips {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.mt-tried-pips i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentcolor;
+    opacity: 0.3;
+}
+
+.mt-tried[data-level="daily"] .mt-tried-pips i,
+.mt-tried[data-level="tested"] .mt-tried-pips i:nth-child(-n + 2),
+.mt-tried[data-level="little"] .mt-tried-pips i:first-child {
+    opacity: 1;
+}
+
+.mt-tried-tip {
+    z-index: 1000;
+    display: flex;
+    max-width: 260px;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--mt-radius-panel);
+    background: var(--mt-surface-3);
+    box-shadow: var(--mt-shadow-command);
+    color: var(--main-text-color);
+    font-size: var(--mt-text-12);
+    line-height: 1.5;
+}
+
+.mt-tried-tip p {
+    margin: 0;
+}
+
+.mt-tried-asof {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-tried-link {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--mt-action-text);
+    cursor: pointer;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.mt-tried-link:focus-visible {
+    outline: 1px solid var(--mt-text-3);
+    outline-offset: 2px;
+}

@@ -2144,7 +2144,7 @@
                 "codex-appserver": "app-server de Codex"
             },
             "sourceAnd": "{list} et {last}",
-            "explain": "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart.",
+            "explain": "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées.",
             "details": "Détails de l'utilisation de l'abonnement",
             "detailsMore": "Détails de l'utilisation de l'abonnement ({count} de plus)",
             "setupLabel": "Configuration de l'utilisation de l'abonnement",
@@ -2411,6 +2411,7 @@
             "downloaded": "MoltenTerm {version} a été téléchargé et vérifié. À vous de l'installer.",
             "showInFolder": "Afficher dans le dossier",
             "releasePage": "Ouvrir la page de la version",
+            "cancel": "Annuler",
             "failed": "MoltenTerm {version} n'a pas été installé",
             "notice": {
                 "readyTitle": "MoltenTerm {version} est prêt à être installé",
@@ -3160,6 +3161,7 @@
             "badge": "Badge",
             "rien": "Rien",
             "quietBetween": "Heures calmes, de et à",
+            "inView": "Il ne vient pas pour ce que vous avez déjà sous les yeux.",
             "example": {
                 "button": "Voir une visite",
                 "hint": "Exemple : un agent vous attend depuis 6 min. Rien n'est noté ni compté, et les heures calmes ne le retiennent pas."
@@ -10350,6 +10352,22 @@
             "provider": "le fournisseur derrière l'agent ne le propose pas"
         }
     },
+    "agentTried": {
+        "line": "Essayé avec MoltenTerm :",
+        "chipLabel": "{level} : dans quelle mesure {name} a été essayé avec MoltenTerm",
+        "asof": "Niveau établi le {date}",
+        "report": "Signaler un problème",
+        "level": {
+            "daily": "Utilisé au quotidien",
+            "tested": "Testé",
+            "little": "Peu testé"
+        },
+        "meaning": {
+            "daily": "MoltenTerm est utilisé chaque jour avec {name}. Si quelque chose ne marche pas, vous pouvez le signaler.",
+            "tested": "MoltenTerm a été essayé avec {name}, mais moins qu'avec l'agent utilisé chaque jour : un défaut est possible. Si vous en rencontrez un, vous pouvez le signaler.",
+            "little": "MoltenTerm a encore peu été essayé avec {name} : vous pouvez rencontrer un défaut. MoltenTerm est open source, vous pouvez le signaler."
+        }
+    },
     "agentInfo": {
         "title": "Tout sur {name}",
         "everything": "Tout sur {name}",
@@ -11443,7 +11461,16 @@
             "running": {
                 "one": "En cours · {count}",
                 "other": "En cours · {count}"
-            }
+            },
+            "app": "MoltenTerm"
+        },
+        "update": {
+            "title": "MoltenTerm {version}",
+            "origin": "Mise à jour de MoltenTerm",
+            "verifying": "Vérification",
+            "readySwap": "Prête : elle s'installe au redémarrage de MoltenTerm",
+            "readyDownload": "Téléchargée et vérifiée, dans votre dossier Téléchargements",
+            "openUpdate": "Ouvrir le panneau Mise à jour"
         },
         "day": {
             "today": "Aujourd'hui",
@@ -11478,7 +11505,8 @@
             "reopen": "Rouvrir la page",
             "reopenIn": "Rouvrir dans {workspace}",
             "reopenTitle": "Rouvrir la page dans l'espace de travail « {workspace} »",
-            "toView": "Aller à la vue"
+            "toView": "Aller à la vue",
+            "files": "Depuis le panneau Fichiers · {connection}"
         },
         "reason": {
             "connectionAt": "La connexion a été perdue à {percent} %",
@@ -11682,6 +11710,7 @@
         }
     },
     "usageWeek": {
+        "dayUnit": " %",
         "percent": "{percent} %",
         "unreadable": "aucun relevé",
         "row": "{name}, {percent} %",

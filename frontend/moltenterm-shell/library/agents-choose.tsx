@@ -6,6 +6,7 @@
 // (agents-model.ts). Each surface brings its look, its test ids and what a suggestion leads to.
 
 import { useState } from "react";
+import { TriedChip } from "../agent-info/agent-tried";
 import { useT, useTCount } from "../i18n/i18n";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
 import {
@@ -70,7 +71,11 @@ function ChooseQuestion({
         question = t("library.agents.choose.already.question");
         answers = [
             ...ChooseSubscriptions.map((s) => ({ id: s.id, label: s.label, answers: { already: s.id } })),
-            { id: ChooseNone, label: t("library.agents.choose.already.answers.none"), answers: { already: ChooseNone } },
+            {
+                id: ChooseNone,
+                label: t("library.agents.choose.already.answers.none"),
+                answers: { already: ChooseNone },
+            },
         ];
     }
     return (
@@ -137,6 +142,7 @@ function ChooseCard({
                 ))}
             </ul>
             <span className="text-11 text-secondary">{priceText(t, row.agent.profile)}</span>
+            <TriedChip name={row.card.name} tried={row.card.tried} testId={`${testId}-tried`} className="self-start" />
             {action?.(row)}
         </div>
     );

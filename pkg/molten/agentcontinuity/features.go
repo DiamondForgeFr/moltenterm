@@ -21,6 +21,38 @@ import (
 // MatrixAsOf is when the matrix was last checked against the code and the agents' documentation (NFR-AGC-002).
 const MatrixAsOf = "2026-11-01"
 
+// TriedAsOf is when the tried levels below were last written by hand (FR-AGC-001, #2167). It is the developer's own
+// experience with each agent, not something the code measures: change it with the levels.
+const TriedAsOf = "2026-11-10"
+
+// How much an agent has been tried with MoltenTerm.
+const (
+	// TriedDaily: used every day while MoltenTerm is built.
+	TriedDaily = "daily"
+	// TriedTested: tried, less than the daily one.
+	TriedTested = "tested"
+	// TriedLittle: set up and detected, but little used so far.
+	TriedLittle = "little"
+)
+
+var validTried = []string{TriedDaily, TriedTested, TriedLittle}
+
+// TriedLevels is how much each registered agent has been tried, by agent id. Every agent of the registry has one,
+// adapter or not (checkTried refuses the registry otherwise): a new agent cannot ship without saying so.
+var TriedLevels = map[string]string{
+	molten.AgentIdClaude:      TriedDaily,
+	molten.AgentIdCodex:       TriedTested,
+	molten.AgentIdGemini:      TriedLittle,
+	molten.AgentIdKimi:        TriedLittle,
+	molten.AgentIdQwen:        TriedLittle,
+	molten.AgentIdOpenCode:    TriedLittle,
+	molten.AgentIdAntigravity: TriedLittle,
+	molten.AgentIdCopilot:     TriedLittle,
+	molten.AgentIdCursor:      TriedLittle,
+	molten.AgentIdGrok:        TriedLittle,
+	molten.AgentIdVibe:        TriedLittle,
+}
+
 // How a feature works with an agent.
 const (
 	// LevelNative: through the agent's own hooks or files, wired by MoltenTerm.
@@ -131,7 +163,8 @@ type FeatureSupport struct {
 // AgentFeatures is one agent's row. Adapter: the agent has an agentcontinuity adapter. Profile: its guide and catalog
 // profile id (molten.AgentProfiles, the onboarding catalog), which differs from Id for some agents ("claude-code");
 // GuideCall: how the agent calls a molten guide, {name} the guide's name (FR-AGC-003: the interface reads both here).
-// Command: the program that starts it, which tells the agent of a launcher preset (FR-AGC-004).
+// Command: the program that starts it, which tells the agent of a launcher preset (FR-AGC-004). Tried: how much the
+// agent has been tried with MoltenTerm (TriedLevels), dated by FeatureMatrix.TriedAsOf.
 type AgentFeatures struct {
 	Id        string                    `json:"id"`
 	Name      string                    `json:"name"`
@@ -139,6 +172,7 @@ type AgentFeatures struct {
 	Profile   string                    `json:"profile,omitempty"`
 	Command   string                    `json:"command,omitempty"`
 	GuideCall string                    `json:"guidecall,omitempty"`
+	Tried     string                    `json:"tried,omitempty"`
 	Features  map[string]FeatureSupport `json:"features"`
 }
 
@@ -154,8 +188,10 @@ type ProviderFeatures struct {
 
 // FeatureMatrix is what molten agent list --features --json prints and the molten:agentfeatures route answers.
 // Providers: the rows of agents run behind another provider, apart from Agents so that no list offers them as agents.
+// TriedAsOf: when the agents' tried levels were written, which is not AsOf.
 type FeatureMatrix struct {
 	AsOf      string             `json:"asof"`
+	TriedAsOf string             `json:"triedasof,omitempty"`
 	Features  []FeatureInfo      `json:"features"`
 	Agents    []AgentFeatures    `json:"agents"`
 	Providers []ProviderFeatures `json:"providers,omitempty"`
@@ -173,13 +209,13 @@ func FindFeature(id string) *FeatureInfo {
 
 // Matrix is every known agent's row: the adapters in registration order, then the planned agents.
 func (r *Registry) Matrix() FeatureMatrix {
-	rtn := FeatureMatrix{AsOf: MatrixAsOf, Features: slices.Clone(AllFeatures)}
+	rtn := FeatureMatrix{AsOf: MatrixAsOf, TriedAsOf: TriedAsOf, Features: slices.Clone(AllFeatures)}
 	for _, a := range r.Adapters() {
-		row := AgentFeatures{Id: a.Id(), Name: a.Name(), Adapter: true, Features: a.Features()}
+		row := AgentFeatures{Id: a.Id(), Name: a.Name(), Adapter: true, Tried: TriedLevels[a.Id()], Features: a.Features()}
 		rtn.Agents = append(rtn.Agents, withGuideProfile(row, a.Executable()))
 	}
 	for _, p := range PlannedAgents {
-		row := AgentFeatures{Id: p.Id, Name: p.Name, Features: copyFeatures(p.Features)}
+		row := AgentFeatures{Id: p.Id, Name: p.Name, Tried: TriedLevels[p.Id], Features: copyFeatures(p.Features)}
 		rtn.Agents = append(rtn.Agents, withGuideProfile(row, p.Executable))
 	}
 	for _, p := range ProviderRows {

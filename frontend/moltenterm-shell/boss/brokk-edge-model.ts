@@ -92,13 +92,16 @@ function keptIn(keys: ReadonlySet<string>, now: ReadonlySet<string>): Set<string
 // `keys` are what the badge counts now. Looking (the sidebar is on screen, or his group is open) sees everything, and so
 // does the first reading of the feeds (`ready`): what was there when the window opened is no news. A key that leaves is
 // forgotten, so that the same one coming back is news again. Only a key of `coming`, an event set to Vient, moves the
-// sidebar: one set to Badge counts on the badge and moves nothing (#2155), though it still marks the face unseen.
+// sidebar: one set to Badge counts on the badge and moves nothing (#2155), though it still marks the face unseen. A key
+// of `held`, whose source the developer has in view (#2166), moves nothing either and is not told yet: let go, it moves
+// the sidebar once.
 export function edgeNewsAfter(
     before: EdgeNews,
     keys: string[],
     coming: string[],
     looking: boolean,
-    ready: boolean
+    ready: boolean,
+    held: string[] = []
 ): EdgeNewsStep {
     const now = new Set(keys);
     if (looking || !ready || !before.ready) {
@@ -106,10 +109,15 @@ export function edgeNewsAfter(
     }
     const seen = keptIn(before.seen, now);
     const told = keptIn(before.told, now);
-    const moves = new Set(coming);
+    const holds = new Set(held);
+    const moves = new Set(coming.filter((key) => !holds.has(key)));
     const fresh = keys.some((key) => !told.has(key) && moves.has(key));
     const unseen = keys.some((key) => !seen.has(key));
-    return { news: { seen, told: new Set([...told, ...keys]), ready }, fresh, unseen };
+    return {
+        news: { seen, told: new Set([...told, ...keys.filter((key) => !holds.has(key))]), ready },
+        fresh,
+        unseen,
+    };
 }
 
 // A new bounce was told since the last one: the sidebar tells it if it still waits at the edge. One that was unfolded

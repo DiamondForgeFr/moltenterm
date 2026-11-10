@@ -9,7 +9,7 @@
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
 import type { Atom, createStore } from "jotai";
-import type { AgentStatesData } from "../agent-state-model";
+import type { AgentSeenView, AgentStatesData } from "../agent-state-model";
 import type { DownloadRecord } from "../downloads/downloads-model";
 import type { ToHandleList } from "./boss-to-handle-model";
 import type { UsageReadings } from "./boss-usage";
@@ -54,6 +54,9 @@ export type HubSources = {
     closedDownloadsAtom?: Atom<ReadonlySet<string>>;
     updateOfferAtom?: Atom<string>;
     usageAtom?: Atom<UsageReadings>;
+    // What this tab view shows the developer (makeSeenViewAtom, #2166): what is in it does not bring him. A window
+    // without one leaves it out.
+    inViewAtom?: Atom<AgentSeenView>;
 };
 
 // Reads `atom` now and at every change, and calls `tell` with the new value each time it differs from the last. The
@@ -135,6 +138,7 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
             ? follow(store, src.sidebarEdgeAtom, (edge) => hub.gate({ type: "edge", edge }))
             : () => {},
         follow(store, src.searchOpenAtom, (focused) => hub.gate({ type: "search", focused })),
+        src.inViewAtom != null ? follow(store, src.inViewAtom, (view) => hub.inView(view)) : () => {},
         follow(
             store,
             src.dragAtom,

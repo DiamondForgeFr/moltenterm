@@ -7,6 +7,9 @@
 // when the developer set it to Vient, brings Brokk (FR-BOSS-009): nothing opens the center by itself (#2003).
 
 import { globalStore } from "@/app/store/jotaiStore";
+import type { Atom } from "jotai";
+import { makeSeenViewAtom } from "./agent-seen";
+import type { AgentSeenView } from "./agent-state-model";
 import { trustReviewAction } from "./mission/trust-approval-model";
 import { toastArrivals, ToastCoalesceMs } from "./notification-rules";
 import {
@@ -17,6 +20,7 @@ import {
     notificationTitle,
 } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
+import { notificationInView } from "./source-in-view";
 import { checkQuestion, goneNotificationToasts, notificationToastId, toastActionsOf, ToastInput } from "./toast-model";
 import { Toasts } from "./toast-store";
 
@@ -46,7 +50,21 @@ export function notificationToast(entry: MoltentermNotification): ToastInput {
     };
 }
 
-export function startNotificationToasts(): () => void {
+// The arrivals to toast, oldest first: still unread and open, and not from a pane the developer has in view (#2166,
+// source-in-view.ts), which they already see; those stay unread in the center.
+export function toastsToShow(
+    entries: MoltentermNotification[],
+    ids: ReadonlySet<string>,
+    view: AgentSeenView
+): MoltentermNotification[] {
+    return entries
+        .filter(
+            (e) => ids.has(e.id) && !e.read && e.resolved == null && e.archived == null && !notificationInView(e, view)
+        )
+        .sort((a, b) => a.updated - b.updated);
+}
+
+export function startNotificationToasts(viewAtom: Atom<AgentSeenView> = makeSeenViewAtom()): () => void {
     const model = MoltentermNotifications.getInstance();
     const toasts = Toasts.getInstance();
     let seen = new Map(model.entries().map((e) => [e.id, e.updated]));
@@ -59,11 +77,9 @@ export function startNotificationToasts(): () => void {
         timer = null;
         const ids = new Set(pending);
         pending = [];
-        const shown = model
-            .entries()
-            .filter((e) => ids.has(e.id) && !e.read && e.resolved == null && e.archived == null)
-            .sort((a, b) => a.updated - b.updated);
-        shown.forEach((entry) => toasts.push(notificationToast(entry)));
+        toastsToShow(model.entries(), ids, globalStore.get(viewAtom)).forEach((entry) =>
+            toasts.push(notificationToast(entry))
+        );
     };
 
     const unsubscribe = globalStore.sub(model.entriesAtom, () => {

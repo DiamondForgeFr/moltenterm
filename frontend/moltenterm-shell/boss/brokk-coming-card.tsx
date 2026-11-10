@@ -188,6 +188,9 @@ export function BrokkComingCard({ entries, settings }: { entries: SettingEntry[]
                     <ComingRow key={id} entry={entry} value={current.coming[id] ?? DefaultComing[id]} />
                 );
             })}
+            <p className="py-1.5 text-11 text-muted" data-testid="brokk-coming-in-view">
+                {t("boss.coming.inView")}
+            </p>
             {threshold != null ? (
                 <div
                     className="flex items-center gap-3 border-b border-line-strong py-1.5"

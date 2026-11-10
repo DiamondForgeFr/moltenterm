@@ -9,6 +9,7 @@ import { t } from "../i18n/i18n";
 import { registerNotificationPlace } from "../notification-settle";
 import type { MoltentermNotificationInput, NotificationAction } from "../notifications-model";
 import { MoltentermNotifications, registerNotificationGesture } from "../notifications-store";
+import { startReleaseTransfers } from "../update/release-install-transfer-source";
 import { formatSize, reasonText } from "./downloads-format";
 import { DownloadRecord } from "./downloads-model";
 import { DownloadsModel } from "./downloads-store";
@@ -119,6 +120,7 @@ export function registerDownloadGestures(): () => void {
 export function startDownloads(): () => void {
     const model = DownloadsModel.getInstance();
     const stopList = model.start();
+    const stopRelease = startReleaseTransfers();
     const stopGestures = registerDownloadGestures();
     const stopNotify = model.onNotify(({ record, outcome }) => {
         MoltentermNotifications.getInstance().publish(
@@ -134,6 +136,7 @@ export function startDownloads(): () => void {
         stopPlace();
         stopNotify();
         stopGestures();
+        stopRelease();
         stopList();
     };
 }

@@ -8,6 +8,7 @@
 import { modalsModel } from "@/app/store/modalmodel";
 import { MoltentermRepoUrl } from "@/util/moltenterm-identity";
 import { useEffect, useId, useRef, useState } from "react";
+import { TriedChip } from "../moltenterm-shell/agent-info/agent-tried";
 import { AgentWorks } from "../moltenterm-shell/agent-info/agent-works";
 import { useT } from "../moltenterm-shell/i18n/i18n";
 import { serverText } from "../moltenterm-shell/i18n/server-text";
@@ -228,7 +229,7 @@ function AgentCardView({
             </div>
             <div className="flex flex-col gap-0.5 text-11 text-secondary">
                 <span>{t(`onboarding.pour.agents.account.${card.account}`, { provider: card.provider })}</span>
-                {card.recipe ? null : <AgentWorks agent={card.id} className="mt-0.5" />}
+                {card.recipe ? null : <AgentWorks agent={card.id} className="mt-0.5" hideTried />}
                 {card.hooksNote && card.ready ? (
                     <span className="text-muted" data-testid="pour-codex-hooks">
                         {withCodes(t("onboarding.pour.agents.hooks"), { command: CodexHooksCommand })}
@@ -237,13 +238,16 @@ function AgentCardView({
             </div>
             <CardProfile profile={profile} />
             <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
-                <div className="mt-pour-status flex items-center gap-1.5 text-12 text-muted">
-                    {installing ? (
-                        <DominoLoader className="text-[var(--pour-hot)]" />
-                    ) : (
-                        <span className="mt-pour-status-dot" />
-                    )}
-                    {status}
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <div className="mt-pour-status flex items-center gap-1.5 text-12 text-muted">
+                        {installing ? (
+                            <DominoLoader className="text-[var(--pour-hot)]" />
+                        ) : (
+                            <span className="mt-pour-status-dot" />
+                        )}
+                        {status}
+                    </div>
+                    <TriedChip name={card.name} tried={card.tried} testId={`pour-tried-${card.id}`} />
                 </div>
                 {card.ready && !card.recipe && !signIn ? null : (
                     <button

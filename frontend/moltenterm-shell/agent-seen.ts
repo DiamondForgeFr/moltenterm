@@ -25,9 +25,13 @@ import {
 import { AgentStates } from "./agent-state-store";
 import { checkUnread, MoltentermNotification } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
+import { projectRepoDir, readProjects } from "./sidebar/workspace-projects";
+import { NothingInView } from "./source-in-view";
 import { TabActivity } from "./tab-activity";
 
 const SeenTimeoutMs = 5000;
+// must match MoltentermReviewsView in reviews/reviews-model.ts, kept apart so the view rule does not load the panel
+const MoltentermReviewsView = "molten-reviews";
 // must match molten.NotificationTitleAgentDone in pkg/molten/notifications.go
 const AgentDoneTitleCode = "agentdone";
 
@@ -127,20 +131,27 @@ export function unreadDoneNotifications(entries: MoltentermNotification[], block
         .map((e) => e.id);
 }
 
-// What this tab view shows: active when it is the tab on screen in the focused window, with its blocks and the focused
-// one. Shared with the notifications that settle when their source is looked at (notification-settle-start.ts).
+// What this tab view shows: active when it is the tab on screen in the focused window, with its blocks, the focused
+// one, and the projects an Integration panel among them lists. Shared with the notifications that settle when their
+// source is looked at (notification-settle-start.ts), and with what Brokk and the toasts hold back because the developer
+// already has it in front of them (source-in-view.ts, #2166).
 export function makeSeenViewAtom(): Atom<AgentSeenView> {
     const activity = TabActivity.getInstance();
     return atom((get) => {
         const tabId = get(atoms.staticTabId);
         const active = get(activity.stateAtom) === "active";
         if (!active || tabId == null) {
-            return { active: false, blockIds: [], focusedBlockId: null };
+            return NothingInView;
         }
         const tab = get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)));
         const layout = getLayoutModelForStaticTab();
         const focusedBlockId = layout?.focusedNode == null ? null : (get(layout.focusedNode)?.data?.blockId ?? null);
-        return { active, blockIds: tab?.blockids ?? [], focusedBlockId };
+        const blockIds = tab?.blockids ?? [];
+        const integration = blockIds.some(
+            (id) => get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", id)))?.meta?.view === MoltentermReviewsView
+        );
+        const prDirs = integration ? readProjects(get(atoms.workspace)).map((p) => projectRepoDir(p)) : [];
+        return { active, blockIds, focusedBlockId, prDirs };
     });
 }
 

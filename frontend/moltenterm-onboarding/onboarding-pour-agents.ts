@@ -15,6 +15,7 @@ import {
     featureWorks,
     type FeatureMatrix,
 } from "../moltenterm-shell/agent-info/agent-features-model";
+import { agentTried, type AgentTried } from "../moltenterm-shell/agent-info/agent-tried-model";
 import { AgentSignIn, canMorph, catalogAgents, OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 
 export const GlmCardId = "glm";
@@ -120,6 +121,8 @@ export type PourAgentCard = {
     command: string;
     ready: boolean;
     full: boolean;
+    // how much the agent has been tried with MoltenTerm (#2167); a recipe card has none, it runs in Claude Code
+    tried?: AgentTried;
     account: AccountKind;
     provider: string;
     install: string[];
@@ -149,6 +152,7 @@ function agentCard(agent: OnboardingAgent, matrix: FeatureMatrix): PourAgentCard
         command: agent.executable || agent.id,
         ready: agent.found,
         full: fullIntegration(matrix, agent.id),
+        tried: agentTried(matrix, agent.id),
         account: facts?.account ?? "apiKey",
         provider: facts?.provider ?? agent.name,
         install: agent.installcommands ?? [],

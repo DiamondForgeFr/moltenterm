@@ -11,6 +11,7 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { makeSeenViewAtom } from "../agent-seen";
 import { AgentStates } from "../agent-state-store";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { modalIsOpen } from "../modal-open";
@@ -168,6 +169,7 @@ export class BrokkHubModel {
             closedDownloadsAtom: this.closedDownloadsAtom,
             updateOfferAtom: this.updateOfferAtom,
             usageAtom: UsageReadingsAtom,
+            inViewAtom: makeSeenViewAtom(),
         });
         const onStorage = (e: StorageEvent) => {
             if (e.key === VisitShareKey) {

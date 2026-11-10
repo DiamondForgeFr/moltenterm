@@ -4,15 +4,20 @@
 // The downloads of the web pages in Electron main (FR-MC-019 AC7-AC13, #1992): every session, the default one and each
 // partition created later, hands its downloads to the DownloadManager (moltenterm-download-manager.ts), which keeps
 // the record of each one, saves it straight to the system Downloads folder without a native dialog (unless the user
-// turned "always ask where to save" on), tells the windows and answers their questions. A download that does not come
-// from a web page (the file panel's own "Download file", MoltenTerm's own interface) is left to the engine as before.
+// turned "always ask where to save" on), tells the windows and answers their questions. The Files panel's Download of a
+// file on a connection is listed the same way (#2163); any other download of MoltenTerm's own interface is left to the
+// engine as before.
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { randomUUID } from "crypto";
 import * as electron from "electron";
 import * as fs from "fs";
 import * as path from "path";
-import { DownloadActions, DownloadActRequest } from "../frontend/moltenterm-shell/downloads/downloads-model";
+import {
+    connectionOfRemoteUri,
+    DownloadActions,
+    DownloadActRequest,
+} from "../frontend/moltenterm-shell/downloads/downloads-model";
 import { callWithOriginalXdgCurrentDesktopAsync, getWaveDataDir } from "./emain-platform";
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { focusedWaveWindow, getWaveWindowById } from "./emain-window";
@@ -73,6 +78,43 @@ function windowToTell(hostId: number): electron.WebContents {
 
 const NoSource: DownloadSource = { web: false, origin: {}, hostId: 0, agent: "", startAgain: () => false };
 
+// The Files panel's Download (#2163): emain-ipc.ts names the stream address it is about to fetch, and the session's
+// will-download that follows lists it like a page's download. Each address is expected once per click.
+const expectedFiles = new Map<string, string[]>();
+
+export function expectFileDownload(streamingUrl: string, remoteUri: string): void {
+    expectedFiles.set(streamingUrl, [...(expectedFiles.get(streamingUrl) ?? []), remoteUri]);
+}
+
+function takeExpectedFile(url: string): string {
+    const waiting = expectedFiles.get(url);
+    if (waiting == null || waiting.length === 0) {
+        return null;
+    }
+    const [uri, ...rest] = waiting;
+    if (rest.length === 0) {
+        expectedFiles.delete(url);
+    } else {
+        expectedFiles.set(url, rest);
+    }
+    return uri;
+}
+
+function describeFileSource(wc: electron.WebContents, remoteUri: string): DownloadSource {
+    const session = wc.session;
+    return {
+        web: true,
+        origin: { pageTitle: remoteUri },
+        hostId: wc.id,
+        agent: "",
+        startAgain: (address) => {
+            session.downloadURL(address);
+            return true;
+        },
+        files: { connection: connectionOfRemoteUri(remoteUri) },
+    };
+}
+
 // What the engine says about a download is the page that started it: a panel's page (or a popup it opened), whatever
 // registered the page tells where it lives.
 function describeSource(wc: electron.WebContents, url: string): DownloadSource {
@@ -117,7 +159,9 @@ function hookSession(session: electron.Session): void {
     // listener ran.
     session.on("will-download", (event, item, wc) => {
         const url = item.getURLChain()[0] || item.getURL();
-        manager.willDownload(event, item as unknown as ItemLike, describeSource(wc, url));
+        const remoteUri = wc != null && !wc.isDestroyed() ? takeExpectedFile(url) : null;
+        const source = remoteUri != null ? describeFileSource(wc, remoteUri) : describeSource(wc, url);
+        manager.willDownload(event, item as unknown as ItemLike, source);
     });
 }
 

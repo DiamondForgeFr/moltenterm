@@ -15,6 +15,7 @@ import { CopyLine, ExternalLink, withCodes } from "../../moltenterm-onboarding/o
 import type { PourAgentCard } from "../../moltenterm-onboarding/onboarding-pour-agents";
 import { InstallOutput, SignInBody } from "../../moltenterm-onboarding/onboarding-pour-scenes";
 import { AgentSignInModel } from "../../moltenterm-onboarding/onboarding-signin";
+import { TriedChip, TriedLine } from "../agent-info/agent-tried";
 import { useT } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
@@ -55,21 +56,21 @@ export function AgentCard({ row, job }: { row: LibraryAgent; job: CliInstallStat
     const t = useT();
     const { card } = row;
     const running = isRunning(job);
+    // The card holds a second control, the level's chip: the open button is stretched over the card by CSS rather than
+    // being the card, since a button cannot hold another one.
     return (
-        <button
-            type="button"
-            className="mt-lib-pcard mt-lib-agcard"
-            data-testid="library-agent"
-            data-agent={card.id}
-            aria-label={t("library.agents.open", { name: card.name })}
-            onClick={() => LibraryAgentsModel.getInstance().open(card.id)}
-        >
-            <div className="flex items-center gap-2 font-semibold text-primary">
+        <div className="mt-lib-pcard mt-lib-agcard" data-testid="library-agent" data-agent={card.id}>
+            <button
+                type="button"
+                className="mt-lib-agopen flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-semibold text-primary"
+                aria-label={t("library.agents.open", { name: card.name })}
+                onClick={() => LibraryAgentsModel.getInstance().open(card.id)}
+            >
                 <i className="mt-lib-pic" aria-hidden>
                     <SidebarGlyph name="agents" size={16} />
                 </i>
                 <span className="truncate">{card.name}</span>
-            </div>
+            </button>
             <code className="font-mono text-11 text-secondary">$ {card.command}</code>
             <p>
                 {row.agent.profile?.goodforkey
@@ -81,7 +82,7 @@ export function AgentCard({ row, job }: { row: LibraryAgent; job: CliInstallStat
             {row.agent.profile ? (
                 <span className="text-11 text-secondary">{priceText(t, row.agent.profile)}</span>
             ) : null}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
                 {running ? (
                     <span className="mt-lib-agstate" data-state="running">
                         <DominoLoader />
@@ -97,8 +98,9 @@ export function AgentCard({ row, job }: { row: LibraryAgent; job: CliInstallStat
                 ) : (
                     <StatusChip card={card} />
                 )}
+                <TriedChip name={card.name} tried={card.tried} testId="library-agent-tried" />
             </div>
-        </button>
+        </div>
     );
 }
 
@@ -259,7 +261,7 @@ function ProfileBlock({ agent }: { agent: OnboardingAgent }) {
 
 // What works in MoltenTerm with the agent: the matrix's counts when wavesrv serves it (#1696), a marked slot for the
 // detailed rows of #1685 meanwhile.
-function WorksBlock({ card }: { card: PourAgentCard }) {
+export function WorksBlock({ card }: { card: PourAgentCard }) {
     const t = useT();
     const matrix = useAtomValue(LibraryAgentsModel.getInstance().matrixAtom);
     const summary = matrix != null && matrix !== "absent" ? matrixSummary(matrix, card.id) : null;
@@ -288,6 +290,7 @@ function WorksBlock({ card }: { card: PourAgentCard }) {
     }
     return (
         <Block title={t("library.agents.sections.works")} testId="library-agent-works">
+            <TriedLine name={card.name} tried={card.tried} plain />
             <div data-slot="what-works-1685">{body}</div>
         </Block>
     );
@@ -626,6 +629,7 @@ export function StatusBlock({ card, agent }: { card: PourAgentCard; agent: Onboa
         <Block title={t("library.agents.sections.status")} testId="library-agent-state">
             <div className="flex flex-wrap items-center gap-2">
                 <StatusChip card={card} />
+                <TriedChip name={card.name} tried={card.tried} testId="library-agent-page-tried" />
                 {card.ready && agent.foundpath ? (
                     <span className="text-11 text-secondary">
                         {withCodes(t("library.agents.foundAt"), { path: agent.foundpath })}

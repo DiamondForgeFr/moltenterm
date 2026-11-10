@@ -112,6 +112,16 @@ export class ReleaseInstaller {
         this.abort?.abort(new Cancelled());
     }
 
+    // The user's Cancel (#2163): the download stops, what it fetched is removed and the state goes back to idle, so the
+    // offer stands. A staged update is not a download: Cancel does not withdraw it.
+    cancelDownload(): ReleaseInstallResult {
+        if (this.current.phase !== "downloading" && this.current.phase !== "verifying") {
+            return { ok: false, error: installError("stale") };
+        }
+        this.cancel();
+        return { ok: true };
+    }
+
     private set(state: ReleaseInstallState) {
         this.current = state;
         this.deps.publish(state);

@@ -8,6 +8,8 @@ import { cn } from "@/util/util";
 import { useId, useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { useFeatureMatrix } from "./agent-features-model";
+import { TriedLine } from "./agent-tried";
+import { agentTried } from "./agent-tried-model";
 import {
     agentWorks,
     detailLevelKey,
@@ -50,9 +52,18 @@ function DetailLine({ detail }: { detail: WorksDetail }) {
     );
 }
 
-// agent: an agent id or a catalog profile id. The glance: what MoltenTerm follows, what the agent can use, what it
-// cannot yet; the details list each feature with why it is not native.
-export function AgentWorks({ agent, className }: { agent: string; className?: string }) {
+// agent: an agent id or a catalog profile id. The glance: how much the agent has been tried with MoltenTerm (#2167), what
+// MoltenTerm follows, what the agent can use, what it cannot yet; the details list each feature with why it is not
+// native. hideTried: the card around it already shows the level beside its install state.
+export function AgentWorks({
+    agent,
+    className,
+    hideTried,
+}: {
+    agent: string;
+    className?: string;
+    hideTried?: boolean;
+}) {
     const t = useT();
     const matrix = useFeatureMatrix();
     const [open, setOpen] = useState(false);
@@ -61,6 +72,7 @@ export function AgentWorks({ agent, className }: { agent: string; className?: st
         return null;
     }
     const works = agentWorks(matrix, agent);
+    const tried = hideTried ? null : agentTried(matrix, agent);
     if (!works.known) {
         return (
             <div className={cn("text-11 text-muted", className)} data-testid="agent-works">
@@ -70,6 +82,7 @@ export function AgentWorks({ agent, className }: { agent: string; className?: st
     }
     return (
         <div className={cn("flex flex-col gap-0.5 text-11 text-secondary", className)} data-testid="agent-works">
+            {tried != null ? <TriedLine name={works.name} tried={tried} className="mb-0.5" /> : null}
             <GroupLine labelKey="agentWorks.follows" items={works.follows} />
             <GroupLine labelKey="agentWorks.uses" items={works.uses} />
             <GroupLine labelKey="agentWorks.notYet" items={works.missing} muted />

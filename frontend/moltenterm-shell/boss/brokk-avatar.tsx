@@ -77,7 +77,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const sceneUp = useHubSelect((view) => view.visit != null);
     const live = useAvatarLive(ownWorking, sceneUp || cardOpen);
     const unseen = useAtomValue(BrokkEdgeModel.getInstance().unseenAtom, { store: globalStore });
-    const running = useAtomValue(DownloadsModel.getInstance().runningAtom, { store: globalStore });
+    const running = useAtomValue(DownloadsModel.getInstance().ringAtom, { store: globalStore });
     const downloadRing = downloadRingOf(running);
     const downloadWords = useDownloadWords(running);
     const motion = useMotionAllowed();

@@ -27,9 +27,35 @@ export type SharedVisit = {
     // No new visit before this moment, 0 when none.
     laterUntil: number;
     told: Record<string, SharedTold>;
+    // The events held back because the developer has, or just had, their source in view in some window (#2166), until
+    // when. The view that shows the source renews it; a window that closes lets it end by itself.
+    held?: Record<string, number>;
 };
 
 export const EmptyShared: SharedVisit = { laterUntil: 0, told: {} };
+
+// The record with its holds, left out when there are none, so that the storage stays as it was without them.
+function withHeld(shared: SharedVisit, held: Record<string, number>): SharedVisit {
+    return Object.keys(held).length === 0 ? shared : { ...shared, held };
+}
+
+function liveHolds(held: Record<string, unknown>, now: number): Record<string, number> {
+    const kept: Record<string, number> = {};
+    for (const [key, until] of Object.entries(held ?? {})) {
+        const at = finite(until);
+        if (at > now) {
+            kept[key] = at;
+        }
+    }
+    return kept;
+}
+
+function sameHolds(a: Record<string, number>, b: Record<string, number>): boolean {
+    const x = a ?? {};
+    const y = b ?? {};
+    const keys = Object.keys(x);
+    return keys.length === Object.keys(y).length && keys.every((key) => x[key] === y[key]);
+}
 
 function finite(value: unknown): number {
     return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
@@ -67,7 +93,8 @@ export function readShared(raw: unknown, now: number): SharedVisit {
             }
         }
     }
-    return { laterUntil: finite(value.laterUntil), told: prune(told, now) };
+    const held = value.held != null && typeof value.held === "object" ? liveHolds(value.held, now) : {};
+    return withHeld({ laterUntil: finite(value.laterUntil), told: prune(told, now) }, held);
 }
 
 export function sharedText(shared: SharedVisit): string {
@@ -81,6 +108,7 @@ export function sameShared(a: SharedVisit, b: SharedVisit): boolean {
     const keys = Object.keys(a.told);
     return (
         a.laterUntil === b.laterUntil &&
+        sameHolds(a.held, b.held) &&
         keys.length === Object.keys(b.told).length &&
         keys.every((key) => b.told[key]?.rank === a.told[key].rank && b.told[key]?.at === a.told[key].at)
     );
@@ -95,8 +123,12 @@ export function mergeShared(a: SharedVisit, b: SharedVisit, now: number): Shared
             told[key] = mark;
         }
     }
+    const held = liveHolds(a.held ?? {}, now);
+    for (const [key, until] of Object.entries(liveHolds(b.held ?? {}, now))) {
+        held[key] = Math.max(held[key] ?? 0, until);
+    }
     const later = Math.max(a.laterUntil, b.laterUntil);
-    const next: SharedVisit = { laterUntil: later > now ? later : 0, told: prune(told, now) };
+    const next = withHeld({ laterUntil: later > now ? later : 0, told: prune(told, now) }, held);
     return sameShared(next, a) ? a : next;
 }
 
@@ -109,21 +141,32 @@ export function publishOf(shared: SharedVisit, visits: VisitState, now: number):
             told[key] = { rank, at: now };
         }
     }
-    return mergeShared(shared, { laterUntil: visits.laterUntil, told }, now);
+    const held: Record<string, number> = {};
+    for (const [key, until] of Object.entries(visits.heldUntil ?? {})) {
+        if (visits.events[key] != null) {
+            held[key] = until;
+        }
+    }
+    return mergeShared(shared, { laterUntil: visits.laterUntil, told, held }, now);
 }
 
 // Events that ended: what was told of them is forgotten, for every view, so that the same key raised again is new. The
 // very same record when nothing was told of them.
 export function forgetIn(shared: SharedVisit, keys: string[], now: number): SharedVisit {
     const told = { ...shared.told };
+    const held = { ...(shared.held ?? {}) };
     let changed = false;
     for (const key of keys) {
         if ((told[key]?.rank ?? ForgottenRank) > ForgottenRank) {
             told[key] = { rank: ForgottenRank, at: now };
             changed = true;
         }
+        if (held[key] != null) {
+            delete held[key];
+            changed = true;
+        }
     }
-    return changed ? { ...shared, told } : shared;
+    return changed ? withHeld({ laterUntil: shared.laterUntil, told }, held) : shared;
 }
 
 // What this view takes from what is shared: a delay started elsewhere (the scene that is up folds), and the marks of the
@@ -141,5 +184,17 @@ export function adoptInto(visits: VisitState, shared: SharedVisit, now: number):
             told[key] = mark.rank;
         }
     }
-    return told === next.told ? next : { ...next, told };
+    if (told !== next.told) {
+        next = { ...next, told };
+    }
+    // A hold another view or window shows the source for is this view's too (#2166).
+    let heldUntil: Record<string, number> = null;
+    for (const key of Object.keys(next.events)) {
+        const until = shared.held?.[key] ?? 0;
+        if (until > now && until > (next.heldUntil?.[key] ?? 0)) {
+            heldUntil ??= { ...(next.heldUntil ?? {}) };
+            heldUntil[key] = until;
+        }
+    }
+    return heldUntil == null ? next : { ...next, heldUntil };
 }

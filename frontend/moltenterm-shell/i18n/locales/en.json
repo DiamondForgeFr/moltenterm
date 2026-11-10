@@ -2144,7 +2144,7 @@
                 "codex-appserver": "Codex app-server"
             },
             "sourceAnd": "{list} and {last}",
-            "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the \"Resets\" line says when the window starts again.",
+            "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the \"Resets\" line says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days' worth has been used.",
             "details": "Plan usage details",
             "detailsMore": "Plan usage details ({count} more)",
             "setupLabel": "Plan usage setup",
@@ -2411,6 +2411,7 @@
             "downloaded": "MoltenTerm {version} was downloaded and checked. Installing it is up to you.",
             "showInFolder": "Show in folder",
             "releasePage": "Open the release page",
+            "cancel": "Cancel",
             "failed": "MoltenTerm {version} was not installed",
             "notice": {
                 "readyTitle": "MoltenTerm {version} is ready to install",
@@ -3160,6 +3161,7 @@
             "badge": "Badge",
             "rien": "Nothing",
             "quietBetween": "Quiet hours, from and to",
+            "inView": "He does not come for what you already have in front of you.",
             "severity": "Severity sets his face and the delays of Later, never the words: the scene has no text.",
             "example": {
                 "button": "Show a visit",
@@ -10350,6 +10352,22 @@
             "provider": "the provider behind the agent does not offer it"
         }
     },
+    "agentTried": {
+        "line": "Tried with MoltenTerm:",
+        "chipLabel": "{level}: how much {name} has been tried with MoltenTerm",
+        "asof": "Level set on {date}",
+        "report": "Report a problem",
+        "level": {
+            "daily": "Daily use",
+            "tested": "Tested",
+            "little": "Little tested"
+        },
+        "meaning": {
+            "daily": "MoltenTerm is used with {name} every day. If something does not work, you can report it.",
+            "tested": "MoltenTerm has been tried with {name}, but less than with the agent used every day, so a rough edge is possible. If you meet one, you can report it.",
+            "little": "MoltenTerm has not been tried much with {name} yet, so you may meet a rough edge. MoltenTerm is open source: if you do, you can report it."
+        }
+    },
     "agentInfo": {
         "title": "Everything about {name}",
         "everything": "Everything about {name}",
@@ -11443,7 +11461,16 @@
             "running": {
                 "one": "In progress · {count}",
                 "other": "In progress · {count}"
-            }
+            },
+            "app": "MoltenTerm"
+        },
+        "update": {
+            "title": "MoltenTerm {version}",
+            "origin": "Update of MoltenTerm",
+            "verifying": "Verifying",
+            "readySwap": "Ready: it installs when MoltenTerm restarts",
+            "readyDownload": "Downloaded and checked, in your Downloads folder",
+            "openUpdate": "Open the Update panel"
         },
         "day": {
             "today": "Today",
@@ -11478,7 +11505,8 @@
             "reopen": "Reopen the page",
             "reopenIn": "Reopen in {workspace}",
             "reopenTitle": "Reopen the page in the workspace “{workspace}”",
-            "toView": "Go to the view"
+            "toView": "Go to the view",
+            "files": "From the Files panel · {connection}"
         },
         "reason": {
             "connectionAt": "The connection was lost at {percent}%",
@@ -11683,6 +11711,7 @@
     },
     "usageWeek": {
         "percent": "{percent} %",
+        "dayUnit": "%",
         "unreadable": "no reading",
         "row": "{name}, {percent} %",
         "rowReset": "{name}, {percent} %, resets {day}",
