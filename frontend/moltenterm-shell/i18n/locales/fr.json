@@ -11693,7 +11693,7 @@
         }
     },
     "usageWeek": {
-        "dayShare": "{percent} %",
+        "dayUnit": " %",
         "percent": "{percent} %",
         "unreadable": "aucun relevé",
         "row": "{name}, {percent} %",
