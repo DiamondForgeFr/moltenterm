@@ -4,6 +4,7 @@
 package companion
 
 import (
+	"os"
 	"path/filepath"
 )
 
@@ -16,11 +17,14 @@ import (
 // (codexWorkFolder), a main session's newest command decides: one that checks a worktree and goes back to its own
 // checkout is back there with its next command.
 func (a *CodexAdapter) WorkFolder(sessionPath string) (string, bool) {
-	tail, err := readFileTail(sessionPath, codexSubagentTail)
-	if err != nil {
+	work, ok := cachedWorkTail(a, sessionPath, codexSubagentTail, func(tail []byte) workTail {
+		cwd, _, folders := codexLastTurn(tail)
+		return workTail{cwd: cwd, folders: folders}
+	})
+	if !ok {
 		return "", false
 	}
-	cwd, _, folders := codexLastTurn(tail)
+	cwd, folders := work.cwd, work.folders
 	if cwd == "" {
 		if head, ok := a.head(sessionPath); ok {
 			cwd = head.cwd
@@ -40,15 +44,48 @@ func (a *CodexAdapter) WorkFolder(sessionPath string) (string, bool) {
 // WorkFolder reads where a Claude Code session works now: its latest record's cwd, which follows the session into a
 // worktree (EnterWorktree, a cd its shell keeps).
 func (a *ClaudeAdapter) WorkFolder(sessionPath string) (string, bool) {
-	tail, err := readFileTail(sessionPath, claudeSubagentTailBytes)
-	if err != nil {
+	work, ok := cachedWorkTail(a, sessionPath, claudeSubagentTailBytes, func(tail []byte) workTail {
+		return workTail{cwd: claudeTailFacts(tail, true).cwd}
+	})
+	if !ok {
 		return "", false
 	}
-	cwd := claudeTailFacts(tail, true).cwd
+	cwd := work.cwd
 	if !filepath.IsAbs(cwd) {
 		return "", false
 	}
 	return filepath.Clean(cwd), true
+}
+
+// workTail is what the end of a session's transcript says of where it works: its turn's folder and its latest
+// commands' folders. Whether a folder is in a repository is checked at each read, outside the cache.
+type workTail struct {
+	cwd     string
+	folders []string
+}
+
+const maxWorkTails = 512
+
+var workTails = makeFileCache[workTail](maxWorkTails)
+
+// cachedWorkTail reads a transcript's end again only when the file changed since it was last read (#2142): Integration
+// places every agent at each refresh, and an agent between two turns writes nothing.
+func cachedWorkTail(adapter Adapter, path string, tailBytes int64, read func(tail []byte) workTail) (workTail, bool) {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return workTail{}, false
+	}
+	key := adapter.Id() + "\x00" + path
+	if e, ok := workTails.get(key); ok && e.stamp.unchanged(info) {
+		return e.value, true
+	}
+	tail, err := readFileTail(path, tailBytes)
+	if err != nil {
+		return workTail{}, false
+	}
+	work := read(tail)
+	workTails.put(key, info, work)
+	return work, true
 }
 
 // absFolder is a command's folder made absolute against its turn's folder; "" when neither is absolute.

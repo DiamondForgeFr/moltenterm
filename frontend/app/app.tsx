@@ -33,6 +33,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { openInBrowserPanel } from "../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
 import { CommandPanelHost } from "../moltenterm-shell/command-panel/command-panel"; // MOLTENTERM-PATCH (#401)
 import { makeFirstClickGuard } from "../moltenterm-shell/first-click-guard"; // MOLTENTERM-PATCH (#334)
+import { t } from "../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#2155)
 import { MenuHost } from "../moltenterm-shell/menu/menu-host"; // MOLTENTERM-PATCH (#371)
 import { PanelDropZones } from "../moltenterm-shell/split/drop-zones-overlay"; // MOLTENTERM-PATCH (#414)
 import { TabViewGuard } from "../moltenterm-shell/tab-view-guard"; // MOLTENTERM-PATCH (#447)
@@ -135,19 +136,20 @@ async function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
         return;
     }
     const menu: ContextMenuItem[] = [];
+    // MOLTENTERM-PATCH (#2155): the items in the interface language
     if (canCut) {
-        menu.push({ label: "Cut", role: "cut" });
+        menu.push({ label: t("menu.roles.cut"), role: "cut" });
     }
     if (canCopy) {
-        menu.push({ label: "Copy", role: "copy" });
+        menu.push({ label: t("menu.roles.copy"), role: "copy" });
     }
     if (canPaste) {
-        menu.push({ label: "Paste", role: "paste" });
+        menu.push({ label: t("menu.roles.paste"), role: "paste" });
     }
     if (clipboardURL) {
         menu.push({ type: "separator" });
         menu.push({
-            label: "Open Clipboard URL (" + clipboardURL.hostname + ")",
+            label: t("wave.clipboard.openUrl", { host: clipboardURL.hostname }), // MOLTENTERM-PATCH (#2155)
             click: () => {
                 openInBrowserPanel(clipboardURL.toString()); // MOLTENTERM-PATCH (#132, #140)
             },

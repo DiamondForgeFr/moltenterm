@@ -52,6 +52,8 @@ export function getLayoutModelForStaticTab() {
 }
 
 export function deleteLayoutModelForTab(tabId: string) {
+    // MOLTENTERM-PATCH (#2154): the 360 model unsubscribes from the store with the layout model it belongs to
+    layoutModelMap.get(tabId)?.moltenView360?.dispose();
     if (layoutModelMap.has(tabId)) layoutModelMap.delete(tabId);
 }
 

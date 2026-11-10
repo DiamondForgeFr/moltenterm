@@ -8,7 +8,7 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
-import type { BrokkSituation } from "./brokk-ask-model";
+import type { BrokkPose, BrokkSituation } from "./brokk-ask-model";
 import type { SidebarPlace } from "./brokk-edge-model";
 
 export type Rect = { left: number; top: number; width: number; height: number };
@@ -65,6 +65,10 @@ export function hangingRightPx(controlsOnTheLeft: boolean): number {
 export function avatarSituation(ownWorking: boolean): BrokkSituation {
     return { working: ownWorking ? 1 : 0, waiting: 0, cardOpen: false, away: false };
 }
+
+// The only poses that situation gives: he never speaks (nothing waits) nor sleeps (never away) there. The portrait is
+// declared with the transitions between these two only, so that the sidebar's 26 px face mounts fewer 480 px videos.
+export const AvatarPoses: readonly BrokkPose[] = ["listening", "thinking"];
 
 // Hovering the face opens his group (FR-BOSS-009, AC52 to AC55, #2103): there is no hover card. The pointer must rest on
 // the face, so that a pass on the way to the window buttons opens nothing; a group opened that way closes by itself

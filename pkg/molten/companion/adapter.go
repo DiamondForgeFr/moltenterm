@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -253,33 +255,165 @@ func samePath(a string, b string) bool {
 	return errA == nil && errB == nil && ra == rb
 }
 
+// headReaders: one reader buffer per concurrent head read, not one per transcript discovery looks at (#2142).
+var headReaders = sync.Pool{New: func() any { return bufio.NewReaderSize(nil, headLineMax) }}
+
+// A head's facts are checked against its first bytes, at most this many, before they are kept for a grown file.
+const headPrintMax = 64 * 1024
+
+// headPrint identifies the first n bytes of a transcript: the ones its head facts were read from.
+type headPrint struct {
+	n   int
+	sum uint64
+}
+
 // readHead reads the first records of a transcript (complete lines only), for discovery.
 func readHead(path string, maxLines int) []map[string]any {
-	f, err := os.Open(path)
+	var rtn []map[string]any
+	readHeadUntil(path, maxLines, func(rec map[string]any) bool {
+		rtn = append(rtn, rec)
+		return false
+	})
+	return rtn
+}
+
+// readHeadUntil gives the first records of a transcript to visit, until it returns true or a limit is reached. atEnd:
+// the read stopped at the end of the file, so a file that grows may add records to its head; a head read to visit's
+// end or to its limits stays as it is while the file is only appended to. hp identifies the bytes read.
+func readHeadUntil(path string, maxLines int, visit func(rec map[string]any) bool) (hp headPrint, atEnd bool) {
+	f, err := openTranscript(path)
 	if err != nil {
-		return nil
+		return headPrint{}, true
 	}
 	defer f.Close()
-	reader := bufio.NewReaderSize(io.LimitReader(f, headReadBytes), headLineMax)
-	var rtn []map[string]any
-	for len(rtn) < maxLines {
+	reader := headReaders.Get().(*bufio.Reader)
+	reader.Reset(io.LimitReader(f, headReadBytes))
+	defer func() {
+		reader.Reset(nil)
+		headReaders.Put(reader)
+	}()
+	hash := fnv.New64a()
+	read := 0
+	take := func(line []byte) {
+		if read < headPrintMax {
+			hash.Write(line[:min(len(line), headPrintMax-read)])
+		}
+		read += len(line)
+	}
+	printed := func() headPrint {
+		return headPrint{n: min(read, headPrintMax), sum: hash.Sum64()}
+	}
+	for lines := 0; lines < maxLines; {
 		line, err := reader.ReadSlice('\n')
+		take(line)
 		if err == bufio.ErrBufferFull {
 			// A long record (a tool result): skip it.
 			for err == bufio.ErrBufferFull {
-				_, err = reader.ReadSlice('\n')
+				line, err = reader.ReadSlice('\n')
+				take(line)
 			}
 			continue
 		}
 		if err != nil {
-			break
+			return printed(), read < headReadBytes
 		}
 		var rec map[string]any
-		if json.Unmarshal(line, &rec) == nil {
-			rtn = append(rtn, rec)
+		if json.Unmarshal(line, &rec) != nil {
+			continue
+		}
+		lines++
+		if visit(rec) {
+			return printed(), false
 		}
 	}
-	return rtn
+	return printed(), false
+}
+
+// samePrint tells whether a transcript still starts with the bytes hp identifies.
+func samePrint(path string, hp headPrint) bool {
+	f, err := openTranscript(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	reader := headReaders.Get().(*bufio.Reader)
+	reader.Reset(io.LimitReader(f, int64(hp.n)))
+	defer func() {
+		reader.Reset(nil)
+		headReaders.Put(reader)
+	}()
+	hash := fnv.New64a()
+	n, err := io.Copy(hash, reader)
+	return err == nil && n == int64(hp.n) && hash.Sum64() == hp.sum
+}
+
+// headFacts is what discovery reads from a transcript's head. complete: nothing appended later can change it.
+type headFacts struct {
+	cwd      string
+	id       string
+	started  int64
+	prompt   string
+	command  string
+	subagent bool
+	complete bool
+	hp       headPrint
+	// realCwd: cwd with its symlinks resolved when it was read, "" when it could not be.
+	realCwd string
+}
+
+// queryFolder is the folder discovery looks for, its symlinks resolved once for all its transcripts.
+type queryFolder struct {
+	path string
+	real string
+}
+
+func makeQueryFolder(cwd string) queryFolder {
+	real, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		real = ""
+	}
+	return queryFolder{path: filepath.Clean(cwd), real: real}
+}
+
+// in is samePath(h.cwd, folder) without resolving the transcript's folder again.
+func (h headFacts) in(q queryFolder) bool {
+	if h.cwd == "" || q.path == "" {
+		return false
+	}
+	if filepath.Clean(h.cwd) == q.path {
+		return true
+	}
+	return h.realCwd != "" && h.realCwd == q.real
+}
+
+const maxDiscoveryHeads = 4096
+
+var discoveryHeads = makeFileCache[headFacts](maxDiscoveryHeads)
+
+// cachedHead reads a transcript's head facts again only when they may have changed (#2142): never for an unchanged
+// file; for one that grew, only when its head was not complete and its folder (its first record's, never changed)
+// may be cwd, or when it no longer starts with the bytes the facts came from (rewritten in place). info is the
+// file's Lstat, from its folder's listing.
+func cachedHead(adapter Adapter, path string, info os.FileInfo, folder queryFolder, read func(path string) headFacts) headFacts {
+	key := adapter.Id() + "\x00" + path
+	if e, ok := discoveryHeads.get(key); ok {
+		if e.stamp.unchanged(info) {
+			return e.value
+		}
+		settled := e.value.complete || e.value.cwd != "" && !e.value.in(folder)
+		if e.stamp.grown(info) && settled && samePrint(path, e.value.hp) {
+			discoveryHeads.put(key, info, e.value)
+			return e.value
+		}
+	}
+	facts := read(path)
+	if facts.cwd != "" {
+		if real, err := filepath.EvalSymlinks(facts.cwd); err == nil {
+			facts.realCwd = real
+		}
+	}
+	discoveryHeads.put(key, info, facts)
+	return facts
 }
 
 // JSON helpers: transcripts are read as loose maps so a field that changes type or disappears is skipped, never fatal.

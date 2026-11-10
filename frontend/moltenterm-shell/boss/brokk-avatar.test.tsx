@@ -56,8 +56,11 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
+import { restingPose } from "./brokk-ask-model";
 import { BrokkAvatar, BrokkAvatarSlot } from "./brokk-avatar";
 import {
+    AvatarPoses,
+    avatarSituation,
     AvatarSizePx,
     downloadRingRadiusUnits,
     HangingSizePx,
@@ -181,7 +184,8 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
 
     it("uses the name the developer chose", () => {
         globalStore.set(boss.nameAtom, "Léa");
-        expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Léa, 0 waiting");
+        // Nothing waits: no count of zero is read (#2155).
+        expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Léa");
     });
 
     it("carries his portrait, still when motion is reduced and calm and alive otherwise", () => {
@@ -220,7 +224,7 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         globalStore.set(boss.cardOpenAtom, true);
         globalStore.set(boss.cardPinnedAtom, false);
         const html = render();
-        expect(attr(html, "brokk-avatar", "aria-label")).toBe("Brokk, 0 waiting");
+        expect(attr(html, "brokk-avatar", "aria-label")).toBe("Brokk");
         expect(attr(html, "brokk-avatar", "aria-expanded")).toBe("true");
         expect(attr(html, "brokk-avatar", "data-pinned")).toBeUndefined();
     });
@@ -333,6 +337,14 @@ describe("the ring (AC2)", () => {
         expect(probe(false, true)).toBeNull();
         Mocks.motion = false;
         expect(probe(false)).toBeNull();
+    });
+
+    it("declares only the poses it can take, so that the portrait mounts the transitions between them (#2154)", () => {
+        const live = hook(() => useAvatarLive(false, false)) as any;
+        expect(live.poses).toBe(AvatarPoses);
+        expect(AvatarPoses).toEqual(["listening", "thinking"]);
+        const taken = [false, true].map((own) => restingPose(avatarSituation(own)));
+        expect(taken.every((pose) => AvatarPoses.includes(pose))).toBe(true);
     });
 });
 

@@ -39,12 +39,15 @@ export const MaxMessageLength = 4000;
 
 // idle: nothing to say; starting: the first message starts his session; sending: on its way; answering: his agent has
 // it and works on it (reply: what he answered so far); answered: his answer is here; unread: he answered in his
-// terminal, where the panel cannot read it; noreply: no answer came. The others are the failures of the message.
+// terminal, where the panel cannot read it; noreply: no answer came; needsanswer: his agent stopped on a prompt in his
+// hidden terminal (a permission, a trust question) and waits for the developer there. The others are the failures of
+// the message.
 export type TalkPhase =
     | "idle"
     | "starting"
     | "sending"
     | "answering"
+    | "needsanswer"
     | "answered"
     | "unread"
     | "noreply"
@@ -111,13 +114,28 @@ export type Follow = { idle: number; failed: number; worked: boolean };
 
 export const StartFollow: Follow = { idle: 0, failed: 0, worked: false };
 
-// One reading of his answer: the next state, and whether to keep following. working: his agent works now (the ring).
+// One reading of his answer: the next state, and whether to keep following. working: his agent works now (the ring);
+// waiting: his agent's state says it waits for the developer (#2155). A wait is no silence: it is said, the way to his
+// terminal is offered, and the following goes on, so that his answer is read once the developer has answered there.
 export function followStep(
     state: TalkState,
     follow: Follow,
     reply: ReplyResult,
-    working: boolean
+    working: boolean,
+    waiting = false
 ): { state: TalkState; follow: Follow; done: boolean } {
+    if (waiting && reply?.status !== "none") {
+        const where = whereOf(reply) ?? state.where;
+        const said = reply?.status === "answer" ? (reply.markdown ?? "") : state.reply;
+        return {
+            state: { ...state, phase: "needsanswer", reply: said, where },
+            follow: { ...follow, idle: 0, failed: 0 },
+            done: false,
+        };
+    }
+    if (state.phase === "needsanswer") {
+        state = { ...state, phase: "answering" };
+    }
     if (reply == null) {
         const failed = follow.failed + 1;
         if (failed >= FailedReadingsForNoReply) {
@@ -165,6 +183,7 @@ export function onItsWay(state: TalkState): boolean {
 export function keepsText(state: TalkState): boolean {
     return !(
         state.phase === "answering" ||
+        state.phase === "needsanswer" ||
         state.phase === "answered" ||
         state.phase === "unread" ||
         state.phase === "noreply"
@@ -185,6 +204,8 @@ export function talkNoteKey(state: TalkState): string {
             return "boss.panel.talk.sending";
         case "answering":
             return "boss.panel.talk.thinking";
+        case "needsanswer":
+            return "boss.panel.talk.needsAnswer";
         case "unread":
             return "boss.panel.talk.unread";
         case "noreply":
@@ -218,6 +239,8 @@ export function talkWayOut(state: TalkState): TalkWayOut {
             return "chooseAgent";
         case "busy":
             return "retry";
+        case "needsanswer":
+            return state.where != null ? "openTerminal" : null;
         case "unread":
         case "noreply":
             return state.where != null ? "openTerminal" : "retry";

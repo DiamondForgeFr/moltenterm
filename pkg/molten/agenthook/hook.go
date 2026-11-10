@@ -162,7 +162,9 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 				BackgroundDescription: input.ToolDescription, Transcript: absPath(input.TranscriptPath),
 			})
 		}
-		return state(AgentStateWorking, "")
+		// The transcript rides with the state (#2142): a wavesrv restarted since SessionStart links the pane again
+		// from it, without a request of its own.
+		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateWorking, Agent: agent, Transcript: absPath(input.TranscriptPath)})
 	case HookEventNotification:
 		// A sub-agent's question too: it shows in the main session's terminal, which waits for the developer.
 		if !ClaudeNotificationWaits(input) {

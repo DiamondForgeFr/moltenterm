@@ -16,7 +16,8 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useId, useMemo, useState } from "react";
-import { agentProviderLabel, agentProviderName } from "../agent-state-model";
+import { goToAgent } from "../agent-info/agent-info-hooks";
+import { agentProviderLabel, agentProviderName, type AgentStateInfo } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { CodingAgentModel } from "../coding-agent/coding-agent";
 import { EmptyState, EmptyStateAction } from "../empty-state";
@@ -56,7 +57,6 @@ import {
     CompanionTodo,
     CompanionToolCall,
     CompanionView,
-    formatArgs,
     integrationProblem,
     isIntegrated,
     MoltentermCompanionView,
@@ -67,6 +67,7 @@ import {
     statusMessage,
     todoCounts,
 } from "./companion-model";
+import { permissionTerminalOf, PermissionRequestCard } from "./companion-permission";
 import { AgentsSection, RecentTopicsSection } from "./companion-recap";
 import { SectionTitle, SessionSections } from "./companion-section";
 import { CompanionSessions } from "./companion-session-store";
@@ -433,7 +434,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
             <SessionSections
                 usage={usage}
                 agents={<AgentsSection view={view} agentState={agentState} now={Date.now()} />}
-                permission={<PermissionCard pending={view.pending} agentState={agentState?.state} />}
+                permission={<PermissionCard pending={view.pending} target={target} agentState={agentState} />}
                 topics={<RecentTopicsSection view={view} now={Date.now()} />}
                 answer={<AnswerSection key={view.session?.path} target={target} view={view} />}
                 todos={<TodoSection todos={view.todos} />}
@@ -688,28 +689,21 @@ function IntegrationNotice({ view, className }: { view: CompanionView; className
     );
 }
 
-function PermissionCard({ pending, agentState }: { pending: CompanionToolCall[]; agentState: string }) {
+// The way to the terminal is the one notifications and the agent tree take: its workspace, its tab, then its pane,
+// focused.
+function PermissionCard({
+    pending,
+    target,
+    agentState,
+}: {
+    pending: CompanionToolCall[];
+    target: string;
+    agentState: AgentStateInfo;
+}) {
     const t = useT();
-    const request = permissionRequest(pending, agentState);
-    if (request == null) {
-        return null;
-    }
-    return (
-        <div
-            className="m-3 mb-0 rounded-4 border border-warning/60 bg-warning/10 p-2"
-            data-testid="companion-permission"
-        >
-            <div className="mb-1 text-12 font-medium text-warning">
-                {t("companion.permissionRequest")} · <span className="font-mono">{request.tool}</span>
-            </div>
-            {request.args ? (
-                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-11 text-secondary">
-                    {formatArgs(request.args)}
-                </pre>
-            ) : null}
-            <div className="mt-1 text-11 text-muted">{t("companion.answerInTerminal")}</div>
-        </div>
-    );
+    const request = permissionRequest(pending, agentState?.state);
+    const showTerminal = () => fireAndForget(() => goToAgent(permissionTerminalOf(target, agentState)));
+    return <PermissionRequestCard request={request} t={t} onShowTerminal={showTerminal} />;
 }
 
 function NavButton({

@@ -10,6 +10,7 @@ import { DurableSession } from "../sessions/sessions-model";
 import {
     attentionAgents,
     badgeTone,
+    bubbleCueLabel,
     bubbleLabel,
     latestNotification,
     makeBadge,
@@ -123,7 +124,12 @@ describe("the agents that need the developer (FR-BOSS-001, AC5)", () => {
 
     it("name the button with the name and the count (AC10)", () => {
         expect(bubbleLabel("Brokk", 2)).toBe("Brokk, 2 waiting");
-        expect(bubbleLabel("Léa", 0)).toBe("Léa, 0 waiting");
+    });
+
+    it("reads no count of zero (#2155)", () => {
+        expect(bubbleLabel("Léa", 0)).toBe("Léa");
+        expect(bubbleCueLabel("Léa", 0)).toBe("Léa has something to tell you");
+        expect(bubbleCueLabel("Léa", 3)).toBe("Léa, 3 waiting: has something to tell you");
     });
 });
 

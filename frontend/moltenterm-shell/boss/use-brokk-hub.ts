@@ -8,7 +8,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
 import { useMemo, useSyncExternalStore } from "react";
-import { avatarSituation } from "./brokk-avatar-model";
+import { AvatarPoses, avatarSituation } from "./brokk-avatar-model";
 import type { BrokkLiveProps } from "./brokk-live";
 import type { HubView } from "./brokk-hub";
 import { BrokkHubModel } from "./brokk-hub-store";
@@ -61,14 +61,15 @@ export function useBrokkGateProps() {
     );
 }
 
-// His animated portrait at rest: awake and calm, thinking only while his own session works. Nothing plays under reduced
-// motion or in a window nobody sees, and while the scene stands in his place.
+// His animated portrait at rest: awake and calm, thinking only while his own session works. He stays animated whenever his
+// face is visible; nothing plays or is mounted under reduced motion, in a window or a tab view nobody sees, and while the
+// scene stands in his place (#2154).
 export function useAvatarLive(ownWorking: boolean, replaced: boolean): BrokkLiveProps {
     const allowed = useMotionAllowed();
     return useMemo(
         () =>
             allowed && !replaced
-                ? { situation: avatarSituation(ownWorking), asked: null, rhythm: "calm" as const }
+                ? { situation: avatarSituation(ownWorking), asked: null, rhythm: "calm" as const, poses: AvatarPoses }
                 : null,
         [allowed, replaced, ownWorking]
     );

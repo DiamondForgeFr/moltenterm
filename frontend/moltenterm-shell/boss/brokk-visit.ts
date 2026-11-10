@@ -161,6 +161,17 @@ export function badgeKeys(visits: VisitState, settings: VisitSettings): string[]
         .sort();
 }
 
+// The badge's keys set to Vient: the only ones that move the collapsed sidebar (#2155). With "never come" set, none.
+export function comingKeys(visits: VisitState, settings: VisitSettings): string[] {
+    if (settings.never) {
+        return [];
+    }
+    return Object.values(visits.events)
+        .filter(({ event }) => comingOf(event.kind, settings) === "vient")
+        .map(({ event }) => event.key)
+        .sort();
+}
+
 export function badgeCount(visits: VisitState, settings: VisitSettings): number {
     return badgeKeys(visits, settings).length;
 }
@@ -281,6 +292,8 @@ export type BrokkView = {
     // How many events the badge counts, and which.
     badge: number;
     badgeKeys: string[];
+    // Those of them set to Vient, which move the collapsed sidebar.
+    comingKeys: string[];
     laterUntil: number;
 };
 
@@ -308,6 +321,7 @@ function viewOf(model: BrokkModel, now: number): BrokkView {
         mayArrive: mayArriveNow(model.gate, quiet, now),
         badge: keys.length,
         badgeKeys: keys,
+        comingKeys: comingKeys(visits, settings),
         laterUntil: visits.laterUntil,
     };
 }

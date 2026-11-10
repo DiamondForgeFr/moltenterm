@@ -13,6 +13,7 @@ import { useEffect, useRef } from "react";
 import type { AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { MissionRouteId } from "../mission/mission-client";
+import { useAskWhenShown } from "../shown-ask";
 import type { ReviewsAnswer } from "./reviews-model";
 import { UpcomingAnswer, UpcomingCommand } from "./reviews-upcoming-model";
 
@@ -89,27 +90,32 @@ export function upcomingAskForce(seen: string, agents: string): boolean {
     return seen != null && seen !== agents;
 }
 
-// Asks while the Reviews list of the project shows; the answer lands in the per-project store the bars read.
+// One ask of the upcoming work. `seen`: the agents of the last ask.
+export function askUpcomingWork(seen: { agents: string }, dir: string, key: string, agents: string) {
+    if (!dir || !key) {
+        return;
+    }
+    // An agent started, came back after a restart or closed since the last ask: wavesrv's placement is out of
+    // date, and wavesrv recomputes it whatever its cache's age (pkg/molten/mission/upcoming.go).
+    const force = upcomingAskForce(seen.agents, agents);
+    seen.agents = agents;
+    fireAndForget(async () => {
+        try {
+            await upcomingGet(dir, force);
+        } catch (e) {
+            console.log("reviews: upcoming work", e);
+        }
+    });
+}
+
+// Asks while the Reviews list of the project shows; the answer lands in the per-project store the bars read. A view that
+// is not on screen asks nothing: it asks once when it shows again, forced if the agents changed meanwhile, so that only
+// a view somebody looks at forces wavesrv to place the work anew (#2154).
 export function useUpcomingWatch(dir: string, reviews: ReviewsAnswer) {
     const key = upcomingAskKey(reviews);
     const agents = agentsAskKey(useAtomValue(AgentStates.getInstance().dataAtom));
-    const lastAgents = useRef<string>(null);
-    useEffect(() => {
-        if (!dir || !key) {
-            return;
-        }
-        // An agent started, came back after a restart or closed since the last ask: wavesrv's placement is out of
-        // date, and wavesrv recomputes it whatever its cache's age (pkg/molten/mission/upcoming.go).
-        const force = upcomingAskForce(lastAgents.current, agents);
-        lastAgents.current = agents;
-        fireAndForget(async () => {
-            try {
-                await upcomingGet(dir, force);
-            } catch (e) {
-                console.log("reviews: upcoming work", e);
-            }
-        });
-    }, [dir, key, agents]);
+    const seen = useRef({ agents: null as string });
+    useAskWhenShown(() => askUpcomingWork(seen.current, dir, key, agents), [dir, key, agents]);
     useEffect(() => {
         if (!dir) {
             return;

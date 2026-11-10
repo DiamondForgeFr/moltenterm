@@ -229,6 +229,7 @@ func (a *ClaudeAdapter) discoverDir(dir string, cwd string, since time.Time) []C
 		return nil
 	}
 	var rtn []Candidate
+	folder := makeQueryFolder(cwd)
 	for _, e := range entries {
 		name := e.Name()
 		if !e.Type().IsRegular() || !strings.HasSuffix(name, ".jsonl") || strings.HasPrefix(name, ".") {
@@ -239,34 +240,41 @@ func (a *ClaudeAdapter) discoverDir(dir string, cwd string, since time.Time) []C
 			continue
 		}
 		path := filepath.Join(dir, name)
-		c := Candidate{Path: path, Id: strings.TrimSuffix(name, ".jsonl"), Modified: info.ModTime().UnixMilli()}
-		for _, rec := range readHead(path, headMaxLines) {
-			if boolean(rec, "isSidechain") {
-				continue
-			}
-			if c.cwd == "" {
-				c.cwd = str(rec, "cwd")
-			}
-			if c.Started == 0 {
-				c.Started = parseTime(str(rec, "timestamp"))
-			}
-			if c.Prompt == "" && str(rec, "type") == "user" && !boolean(rec, "isMeta") && !boolean(rec, "isCompactSummary") {
-				text := claudePromptText(obj(rec, "message"))
-				if c.Command == "" {
-					c.Command = commandName(text)
-				}
-				c.Prompt = preview(titlePrompt(text))
-			}
-			if c.cwd != "" && c.Started != 0 && c.Prompt != "" {
-				break
-			}
-		}
-		if c.cwd != "" && !samePath(c.cwd, cwd) {
+		head := cachedHead(a, path, info, folder, claudeHead)
+		c := Candidate{Path: path, Id: strings.TrimSuffix(name, ".jsonl"), Modified: info.ModTime().UnixMilli(),
+			Started: head.started, Prompt: head.prompt, Command: head.command, cwd: head.cwd}
+		if c.cwd != "" && !head.in(folder) {
 			continue
 		}
 		rtn = append(rtn, c)
 	}
 	return rtn
+}
+
+// claudeHead reads a session's folder, start and first prompt from the head of its transcript.
+func claudeHead(path string) headFacts {
+	var h headFacts
+	hp, atEnd := readHeadUntil(path, headMaxLines, func(rec map[string]any) bool {
+		if boolean(rec, "isSidechain") {
+			return false
+		}
+		if h.cwd == "" {
+			h.cwd = str(rec, "cwd")
+		}
+		if h.started == 0 {
+			h.started = parseTime(str(rec, "timestamp"))
+		}
+		if h.prompt == "" && str(rec, "type") == "user" && !boolean(rec, "isMeta") && !boolean(rec, "isCompactSummary") {
+			text := claudePromptText(obj(rec, "message"))
+			if h.command == "" {
+				h.command = commandName(text)
+			}
+			h.prompt = preview(titlePrompt(text))
+		}
+		return h.cwd != "" && h.started != 0 && h.prompt != ""
+	})
+	h.hp, h.complete = hp, !atEnd
+	return h
 }
 
 // claudePromptText is the text of a user message: a plain string, or its text blocks (tool results are not prompts).
