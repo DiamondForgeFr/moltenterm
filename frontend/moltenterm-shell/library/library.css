@@ -1715,15 +1715,33 @@
 
 /* Agents (#1699): one card per agent, then its page; the same layout for every agent. */
 .mt-lib-agcard {
+    position: relative;
     border: 0;
     color: inherit;
     font: inherit;
     text-align: left;
-    cursor: pointer;
 }
 
 .mt-lib-agcard:hover {
     background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+}
+
+/* The open button covers the whole card (#2167): the level's chip is a second control, above it. */
+.mt-lib-agopen::after {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--mt-radius-panel);
+    content: "";
+}
+
+.mt-lib-agopen:focus-visible::after {
+    outline: 2px solid var(--mt-action-text);
+    outline-offset: -2px;
+}
+
+.mt-lib-agcard .mt-tried {
+    position: relative;
+    z-index: 1;
 }
 
 .mt-lib-agstate {

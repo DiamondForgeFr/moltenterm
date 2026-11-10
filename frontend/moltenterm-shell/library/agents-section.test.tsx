@@ -8,7 +8,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { OnboardingAgent } from "../../moltenterm-onboarding/onboarding-agent-model";
 import type { PourAgentCard } from "../../moltenterm-onboarding/onboarding-pour-agents";
-import { AgentCard, InstallBlock, StatusBlock, TrashReport, UninstallBlock, UninstallConfirm } from "./agents-section";
+import {
+    AgentCard,
+    InstallBlock,
+    StatusBlock,
+    TrashReport,
+    UninstallBlock,
+    UninstallConfirm,
+    WorksBlock,
+} from "./agents-section";
 
 const Card: PourAgentCard = {
     id: "claude-code",
@@ -138,5 +146,46 @@ describe("Sign in on the agent's page (#1723)", () => {
     it("offers nothing once the sign-in is seen", () => {
         const html = renderToStaticMarkup(<StatusBlock card={{ ...Unseen, signedIn: true }} agent={Found} />);
         expect(html).not.toContain("library-agent-signin");
+    });
+});
+
+describe("how much the agent has been tried (#2167)", () => {
+    const Found = { id: "claude-code", name: "Claude Code", found: true } as unknown as OnboardingAgent;
+    const Daily: PourAgentCard = { ...Card, tried: { level: "daily", asof: "2026-11-10" } };
+    const Little: PourAgentCard = {
+        ...Card,
+        id: "kimi",
+        name: "Kimi Code",
+        command: "kimi",
+        tried: { level: "little", asof: "2026-11-10" },
+    };
+
+    it("puts the chip beside the state on the card, without a button inside the card's button", () => {
+        const html = renderToStaticMarkup(<AgentCard row={{ card: Little, agent: Found }} job={null} />);
+        expect(html).toContain('data-testid="library-agent-tried"');
+        expect(html).toContain('data-level="little"');
+        expect(html).toContain("Little tested");
+        expect(html.match(/<button/g)).toHaveLength(2);
+        expect(html).not.toMatch(/<button[^>]*data-testid="library-agent"/);
+        expect(html).toMatch(/<div class="mt-lib-pcard mt-lib-agcard" data-testid="library-agent" data-agent="kimi"/);
+        expect(html).toContain('aria-label="Open the page of Kimi Code"');
+        expect(html.indexOf("library-agent-status")).toBeLessThan(html.indexOf("library-agent-tried"));
+    });
+
+    it("shows the chip on the page's status, and the level with its date in what works", () => {
+        const status = renderToStaticMarkup(<StatusBlock card={Daily} agent={Found} />);
+        expect(status).toContain('data-testid="library-agent-page-tried"');
+        expect(status).toContain("Daily use");
+        const works = renderToStaticMarkup(<WorksBlock card={Daily} />);
+        expect(works).toContain("Tried with MoltenTerm:");
+        expect(works).toContain("Daily use");
+        expect(works).toContain("Level set on 2026-11-10");
+        expect(works).not.toContain("mt-tried");
+    });
+
+    it("shows nothing where an agent has no level", () => {
+        const html = renderToStaticMarkup(<AgentCard row={{ card: Card, agent: Found }} job={null} />);
+        expect(html).not.toContain("library-agent-tried");
+        expect(renderToStaticMarkup(<WorksBlock card={Card} />)).not.toContain("Tried with MoltenTerm");
     });
 });

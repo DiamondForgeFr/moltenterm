@@ -38,7 +38,8 @@ export type FeatureSupport = {
     issue?: string;
 };
 // profile: the agent's guide and catalog profile id ("claude-code"); command: the program that starts it; guidecall:
-// how it calls a guide, {name} the guide's name ("${name}").
+// how it calls a guide, {name} the guide's name ("${name}"); tried: how much it has been tried with MoltenTerm
+// ("daily", "tested" or "little", #2167), dated by the matrix's triedasof.
 export type AgentFeatures = {
     id: string;
     name: string;
@@ -46,6 +47,7 @@ export type AgentFeatures = {
     profile?: string;
     command?: string;
     guidecall?: string;
+    tried?: string;
     features: Record<string, FeatureSupport>;
 };
 // providers: an agent run behind another provider (FR-AGC-008), apart from the agents so that no list offers it.
@@ -57,6 +59,7 @@ export type ProviderFeatures = {
 };
 export type FeatureMatrix = {
     asof: string;
+    triedasof?: string;
     features: FeatureInfo[];
     agents: AgentFeatures[];
     providers?: ProviderFeatures[];

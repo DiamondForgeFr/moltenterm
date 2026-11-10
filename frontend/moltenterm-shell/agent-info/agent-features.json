@@ -1,5 +1,6 @@
 {
     "asof": "2026-11-01",
+    "triedasof": "2026-11-10",
     "features": [
         {
             "id": "detect",
@@ -160,6 +161,7 @@
             "profile": "claude-code",
             "command": "claude",
             "guidecall": "/{name}",
+            "tried": "daily",
             "features": {
                 "approvals": {
                     "level": "native",
@@ -305,6 +307,7 @@
             "profile": "codex",
             "command": "codex",
             "guidecall": "${name}",
+            "tried": "tested",
             "features": {
                 "approvals": {
                     "level": "adapted",
@@ -451,6 +454,7 @@
             "profile": "gemini-cli",
             "command": "gemini",
             "guidecall": "/{name}",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -583,6 +587,7 @@
             "profile": "kimi",
             "command": "kimi",
             "guidecall": "/skill:{name}",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -714,6 +719,7 @@
             "profile": "qwen-code",
             "command": "qwen",
             "guidecall": "/{name}",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -842,6 +848,7 @@
             "name": "OpenCode",
             "adapter": false,
             "command": "opencode",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -972,6 +979,7 @@
             "profile": "antigravity",
             "command": "agy",
             "guidecall": "/{name}",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -1102,6 +1110,7 @@
             "profile": "copilot",
             "command": "copilot",
             "guidecall": "/{name}",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -1232,6 +1241,7 @@
             "profile": "cursor",
             "command": "agent",
             "guidecall": "/{name}",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -1362,6 +1372,7 @@
             "profile": "grok",
             "command": "grok",
             "guidecall": "/{name}",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
@@ -1492,6 +1503,7 @@
             "profile": "vibe",
             "command": "vibe",
             "guidecall": "/{name}",
+            "tried": "little",
             "features": {
                 "approvals": {
                     "level": "none",
