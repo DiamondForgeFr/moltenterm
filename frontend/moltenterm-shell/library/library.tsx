@@ -34,9 +34,8 @@ import { pickerPanelEntries } from "../palette/palette-sources";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { type PutAwayView } from "../reopen/reopen-model";
 import { listPutAwayViews, reopenPutAwayView } from "../reopen/reopen-store";
-import { useListedReviewsAnswer } from "../reviews/reviews-client";
-import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "../reviews/reviews-model";
-import { ReviewsModel } from "../reviews/reviews-store";
+import { MoltentermReviewsView, reviewsRailLabel } from "../reviews/reviews-model";
+import { useWorkspaceReviewCounts } from "../reviews/reviews-workspace";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { localizeSection, SettingsSectionId, SettingsSections } from "../settings/settings-catalog";
@@ -437,8 +436,6 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
     const identity = useTabIdentity(tabId, tab?.name ?? "");
     const sessions = useAtomValue(DurableSessions.getInstance().badgeAtom);
     const dir = readWorkspaceProject(workspace).repo;
-    const answer = useListedReviewsAnswer(dir);
-    const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     const reviewsShown = useAtomValue(makeViewInActiveTabAtom(MoltentermReviewsView));
     const sessionsShown = useAtomValue(makeViewInActiveTabAtom(MoltentermSessionsView));
     const showApps = getApi().getIsDev() || (fullConfig?.settings?.["feature:waveappbuilder"] ?? false);
@@ -449,7 +446,7 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
     const viewState = useAtomValue(ViewPins.getInstance().stateAtom(tabId));
     const [asking, setAsking] = useState<string>(null);
     const viewName = identity.name || t("library.panels.thisView");
-    const counts = reviewCounts(answer, readied);
+    const counts = useWorkspaceReviewCounts();
     const hasReviews = counts.toreview + counts.mergeable + counts.drafts > 0;
     // A pinned view changes only when the developer says so (FR-SHELL-094): Add to names it and asks first.
     const askKey = libraryAddAsk(viewState, isProjectTab(tab));

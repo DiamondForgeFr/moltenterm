@@ -4,7 +4,7 @@
 // The project chips (FR-SHELL-087): Pilotage's filter and the Project panel's switch draw the same chip.
 
 import { cn, fireAndForget } from "@/util/util";
-import { useT } from "../i18n/i18n";
+import { useT, useTCount } from "../i18n/i18n";
 import { workspaceShownName } from "../workspace-default-name";
 import { currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
@@ -15,19 +15,25 @@ export function ProjectChip({
     title,
     testId,
     onClick,
+    waiting,
 }: {
     on: boolean;
     label: string;
     title?: string;
     testId?: string;
     onClick: () => void;
+    // How many of the project's pull requests wait for the developer (FR-SHELL-087, #2174); nothing shows for none.
+    waiting?: number;
 }) {
+    const tc = useTCount();
+    const words = waiting > 0 ? tc("reviews.projects.waits", waiting, { count: waiting }) : "";
     return (
         <button
             type="button"
             role="radio"
             aria-checked={on}
-            title={title}
+            aria-label={words ? `${label}, ${words}` : undefined}
+            title={words ? (title ? `${title} · ${words}` : words) : title}
             className={cn(
                 "h-6 max-w-full shrink-0 cursor-pointer truncate rounded-full border-0 px-2.5 text-11 whitespace-nowrap transition-colors duration-120 ease-mt",
                 on ? "bg-accent/35 text-primary" : "bg-white/[0.07] text-secondary hover:bg-white/[0.13]"
@@ -36,6 +42,15 @@ export function ProjectChip({
             onClick={onClick}
         >
             {label}
+            {waiting > 0 ? (
+                <span
+                    className="ml-1.5 inline-block min-w-[14px] rounded-full bg-[var(--mt-state-waiting)] px-1 text-center text-10 leading-[14px] font-semibold text-[var(--mt-state-fg)]"
+                    aria-hidden="true"
+                    data-testid="project-chip-waiting"
+                >
+                    {waiting}
+                </span>
+            ) : null}
         </button>
     );
 }

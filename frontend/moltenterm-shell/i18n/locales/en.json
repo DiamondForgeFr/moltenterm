@@ -6986,9 +6986,15 @@
             "noneHint": "Nothing waits for you on {name}.",
             "openTitle": "Open #{number} in {project}'s Integration panel",
             "noFolderTitle": "{project} has no folder yet",
-            "noFolder": "Give it a folder to follow its pull requests."
+            "noFolder": "Give it a folder to follow its pull requests.",
+            "waits": {
+                "one": "{count} pull request waits for you",
+                "other": "{count} pull requests wait for you"
+            }
         },
         "owners": {
+            "inProject": "{count} in {project}",
+            "openProject": "Show {project}'s pull requests",
             "label": "Owners",
             "bar": "Whose work this view shows",
             "all": "All · {count}",

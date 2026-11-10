@@ -26,6 +26,7 @@ import { rebaseAskKey, reviewsEmptyState, splitReviews } from "./reviews-model";
 import { AllProjects, projectLanes, ProjectPrRow, ReviewsProjectFilter } from "./reviews-projects-model";
 import { cardStates } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
+import { useProjectWaiting } from "./reviews-workspace";
 
 export function ProjectChips({
     workspaceId,
@@ -38,11 +39,15 @@ export function ProjectChips({
 }) {
     const t = useT();
     const choose = (id: string) => ReviewsProjectFilter.getInstance().choose(workspaceId, id);
-    const chip = (id: string, label: string) => (
+    // What waits for the developer in each project, so a pull request waiting in another one is never invisible.
+    const waiting = useProjectWaiting();
+    const waitingOf = (p: WorkspaceProjectEntry) => (p.dir === "" ? 0 : (waiting[projectRepoDir(p)] ?? 0));
+    const chip = (id: string, label: string, count: number) => (
         <ProjectChip
             key={id}
             on={filter === id}
             label={label}
+            waiting={count}
             testId={`reviews-project-chip-${id}`}
             onClick={() => choose(id)}
         />
@@ -54,8 +59,12 @@ export function ProjectChips({
             className="flex shrink-0 flex-wrap gap-1.5 border-b border-border px-3 py-2"
             data-testid="reviews-project-chips"
         >
-            {chip(AllProjects, t("reviews.projects.all"))}
-            {projects.map((p) => chip(p.id, projectLabel(p)))}
+            {chip(
+                AllProjects,
+                t("reviews.projects.all"),
+                projects.reduce((sum, p) => sum + waitingOf(p), 0)
+            )}
+            {projects.map((p) => chip(p.id, projectLabel(p), waitingOf(p)))}
         </div>
     );
 }
