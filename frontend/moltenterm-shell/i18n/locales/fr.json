@@ -3158,6 +3158,8 @@
                 "update": "Une mise à jour est disponible",
                 "usage": "Un forfait est presque épuisé",
                 "security": "Une alerte de sécurité sur une dépendance",
+                "ciFailed": "La CI de la PR #{number} a échoué",
+                "ready": "La PR #{number} est prête à fusionner",
                 "other": "Quelque chose vous attend"
             },
             "example": "Exemple : {name} voudrait vous parler ({severity}). Un agent vous attend depuis 6 min.",

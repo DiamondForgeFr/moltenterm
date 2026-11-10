@@ -3159,6 +3159,8 @@
                 "update": "An update is available",
                 "usage": "A plan is nearly used up",
                 "security": "A security alert on a dependency",
+                "ciFailed": "The CI of PR #{number} failed",
+                "ready": "PR #{number} is ready to merge",
                 "other": "Something needs you"
             },
             "severity": {
