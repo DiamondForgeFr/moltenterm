@@ -9,7 +9,8 @@
 // (exitView360). The developer thinks in space (#1083): beyond the screen's column threshold the tab goes to 360 view,
 // the readable minimums staying a safety net, and the proportions the developer set are never readjusted, only kept
 // (rememberedFractions) and given back. A view's 360 × N keeps the view in 360 only while it stores something (#2175):
-// with every panel visible the view rests in the normal layout, keeping its N.
+// with every panel visible the view rests in the normal layout, keeping its N. A view that never was in 360 view,
+// while the developer never chose, is offered the choice before the threshold switches it (#2180, view360-offer.ts).
 
 import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { FixedMinPx, ReadableCarpetColumnPx } from "./carpet-model";
@@ -172,18 +173,23 @@ export type View360Inputs = {
     // The top-level columns the carpet would hold: those other than the first and the pinned ones (#2175). Unknown
     // (undefined): the 360 × N is taken to store something.
     carpetColumns?: number;
+    // The developer is asked before this view first goes to 360 view (FR-SHELL-066-AC11, #2180): the screen's column
+    // threshold does not switch it. The readable-minimum safety net does.
+    offering?: boolean;
 };
 
 // What holds an automatic view on: the screen's column threshold, or the readable minimums.
 export type View360Reason = "columns" | "fit";
 
-// idle (#2175): the view's 360 × N is kept but stores nothing, so the view rests in the normal layout.
+// idle (#2175): the view's 360 × N is kept but stores nothing, so the view rests in the normal layout. asking (#2180):
+// the view would go to 360 view beyond the threshold but is offered the choice first.
 export type View360Decision = {
     active: boolean;
     wanted: boolean;
     source: View360Source;
     reason?: View360Reason;
     idle?: boolean;
+    asking?: boolean;
 };
 
 // Whether a view's 360 × N stores nothing (#2175, FR-SHELL-123-AC15): every carpet column fits in its places, so the
@@ -222,7 +228,7 @@ export function decideView360(inputs: View360Inputs): View360Decision {
         wanted = !!inputs.cannotFit && autoColumns;
         source = wanted ? "auto" : "setting";
         reason = wanted ? "fit" : undefined;
-    } else if (inputs.columnsOver && inputs.columnCount >= AutoMinColumns) {
+    } else if (inputs.columnsOver && !inputs.offering && inputs.columnCount >= AutoMinColumns) {
         wanted = true;
         reason = "columns";
     } else if (inputs.autoOn && autoColumns) {
@@ -239,6 +245,9 @@ export function decideView360(inputs: View360Inputs): View360Decision {
     }
     if (idle) {
         rtn.idle = true;
+    }
+    if (!wanted && inputs.offering && inputs.setting === "auto" && inputs.manual == null) {
+        rtn.asking = true;
     }
     return rtn;
 }

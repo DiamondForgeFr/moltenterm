@@ -1205,6 +1205,16 @@
                     "always": "Always"
                 }
             },
+            "moltenterm:view360places": {
+                "label": "Visible panels when it switches by itself",
+                "description": "With Automatic: how many panels stay visible beside the first column. Empty: the plain 360 view.",
+                "unset": "Plain 360 view",
+                "options": {
+                    "1": "1 visible panel",
+                    "2": "2 visible panels",
+                    "3": "3 visible panels"
+                }
+            },
             "review:publishlanguage": {
                 "label": "Publication language",
                 "description": "Language of review comments on GitHub when the project names none; empty: from its PRs and README."
@@ -6563,6 +6573,7 @@
             "offPlaces": "This view keeps its 360 × N. Every panel is visible and the panels share the width. The carpet comes back by itself when a panel would be stored.",
             "offColumns": "Automatic: turns on by itself beyond {count} columns on this screen, or when the panels no longer fit side by side.",
             "offGrid": "Keep the grid: the panels stay side by side. It turns on by itself only if they no longer fit side by side at all.",
+            "offAsking": "Automatic: asks before it turns on beyond {count} columns on this screen.",
             "clickOn": "Click to turn it on.",
             "clickOff": "Click to leave it: the panels get back the proportions you gave them.",
             "tooltipSingle": "360 view needs a second panel beside the first one.",
@@ -6580,6 +6591,16 @@
             "message": "The first column stays fixed and the other panels line up on a carpet that scrolls sideways. You can change this in Settings.",
             "keepGrid": "Keep the grid",
             "use360": "Use 360"
+        },
+        "offer": {
+            "title": "Switch to the 360 view?",
+            "message": "The first column stays fixed. Pick how many panels stay visible on the right; the others are stored on the carpet, still active.",
+            "everyView": "Do the same in every view",
+            "everyViewHint": "No other view asks again. You can change it in Settings.",
+            "saveTitle": "Save for this {width} × {height} screen?",
+            "saveText": "On this screen, 360 view beyond {count} columns. Listed in Settings, under Columns per screen.",
+            "save": "Save",
+            "notNow": "Not now"
         },
         "screens": {
             "title": "Columns per screen",

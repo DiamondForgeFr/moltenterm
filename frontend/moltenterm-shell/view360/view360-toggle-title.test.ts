@@ -13,6 +13,12 @@ describe("the 360 toggle's tooltip (FR-SHELL-066 AC3, #2175)", () => {
         expect(title).not.toContain(View360Text.offManual);
     });
 
+    it("says a view that is offered the 360 view asks before it turns on (#2180)", () => {
+        const title = toggleTitle({ active: false, wanted: false, source: "auto", asking: true }, false, 2);
+        expect(title).toBe(`${View360Text.tooltipOff}\n${t("view360.ui.offAsking", { count: 2 })}\n${View360Text.clickOn}`);
+        expect(title).not.toContain(t("view360.ui.offColumns", { count: 2 }));
+    });
+
     it("keeps the words of the other states", () => {
         expect(toggleTitle({ active: false, wanted: false, source: "auto" }, true, 2)).toBe(View360Text.tooltipSingle);
         expect(toggleTitle({ active: true, wanted: true, source: "manual" }, false, 2)).toBe(

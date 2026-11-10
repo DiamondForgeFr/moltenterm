@@ -85,6 +85,46 @@ export function thresholdFor(stored: ScreenThresholds, screen: ScreenInfo): numb
     return stored?.[screen.key]?.columns ?? defaultColumnThreshold(screen.widthpx);
 }
 
+// The screens the developer was offered to save and declined (FR-SHELL-066-AC12, #2180), by key: never asked again.
+export const ScreensAskedMetaKey = "molten:view360screensasked";
+
+export type ScreensAsked = Record<string, true>;
+
+export function readScreensAsked(raw: unknown): ScreensAsked {
+    if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+        return {};
+    }
+    const rtn: ScreensAsked = {};
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (key && value === true) {
+            rtn[key] = true;
+        }
+    }
+    return rtn;
+}
+
+export function withAsked(asked: ScreensAsked, screen: ScreenInfo): ScreensAsked {
+    if (screen?.key == null) {
+        return asked ?? {};
+    }
+    return { ...(asked ?? {}), [screen.key]: true };
+}
+
+// Whether a change of configuration on this screen offers to save it: a screen the list holds, or that was declined,
+// is never asked. Without a screen (an old main process, a preview) there is nothing to save.
+export function screenSaveOffered(stored: ScreenThresholds, asked: ScreensAsked, screen: ScreenInfo): boolean {
+    if (screen?.key == null) {
+        return false;
+    }
+    return stored?.[screen.key] == null && !asked?.[screen.key];
+}
+
+// The threshold a screen saves for a picked number of visible panels: the first column and the N panels beside it, so
+// a view with more columns than that goes to 360 view. `fallback` (the threshold in effect) without a number.
+export function columnsForPlaces(n: number, fallback: number): number {
+    return (Number.isInteger(n) ? validColumns(n + 1) : null) ?? fallback;
+}
+
 export function withThreshold(stored: ScreenThresholds, screen: ScreenInfo, columns: number): ScreenThresholds {
     const valid = validColumns(columns);
     if (screen?.key == null || valid == null) {

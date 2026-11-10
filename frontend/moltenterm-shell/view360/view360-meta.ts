@@ -100,6 +100,43 @@ export function writePlacesState(tabId: string, state: View360PlacesState): Prom
     return RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("tab", tabId), meta: meta as MetaType });
 }
 
+// The view's answer to the first-time offer (FR-SHELL-066-AC11, #2180): "grid" once the developer kept the grid for this
+// view, "taken" once a 360 × N was applied to it, from the offer or by hand. The N itself is forgotten when the view
+// leaves 360 view; the answer is not, so the offer does not come back.
+export const View360OfferMetaKey = "molten:view360offer";
+export const OfferGrid = "grid";
+export const OfferTaken = "taken";
+export type OfferAnswer = typeof OfferGrid | typeof OfferTaken;
+
+export function readOfferAnswer(raw: unknown): OfferAnswer {
+    return raw === OfferGrid || raw === OfferTaken ? raw : null;
+}
+
+export function storedOfferAnswer(tab: Tab): OfferAnswer {
+    return readOfferAnswer((tab?.meta as Record<string, unknown>)?.[View360OfferMetaKey]);
+}
+
+// null forgets the answer: the view is offered the switch again.
+export function setTabOfferAnswer(tabId: string, answer: OfferAnswer): Promise<void> {
+    return RpcApi.SetMetaCommand(TabRpcClient, {
+        oref: WOS.makeORef("tab", tabId),
+        meta: { [View360OfferMetaKey]: answer } as MetaType,
+    });
+}
+
+// Whether the view ever was in 360 view, or answered the offer (FR-SHELL-066-AC11): a manual choice, a stored 360 × N,
+// pins, the fixed zone's width (written on entering the view, and kept after leaving it) or the offer's answer. Views
+// made before the offer existed carry the same marks.
+export function hasView360History(tab: Tab): boolean {
+    return (
+        tabManualView360(tab) != null ||
+        storedPlaces(tab) != null ||
+        Object.keys(storedPins(tab)).length > 0 ||
+        storedFixedPx(tab) != null ||
+        storedOfferAnswer(tab) != null
+    );
+}
+
 // The proportions of the tab's columns as the developer last set them in the normal layout (#1083): the carpet keeps
 // them in 360 view and leaving the view gives them back, also after a restart.
 export const View360FractionsMetaKey = "molten:view360fractions";

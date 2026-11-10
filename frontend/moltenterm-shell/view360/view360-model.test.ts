@@ -50,8 +50,9 @@ vi.mock("@/app/store/global", async () => {
 const screenThreshold = vi.hoisted(() => ({ atom: null as unknown }));
 vi.mock("./screen-store", async () => {
     const { atom } = await import("jotai");
+    const { makeFakeScreens } = await import("./screen-store-fake");
     screenThreshold.atom = atom(8);
-    return { ScreenModel: { getInstance: () => ({ thresholdAtom: screenThreshold.atom }) } };
+    return { ScreenModel: { getInstance: () => makeFakeScreens(screenThreshold.atom) } };
 });
 
 function setThreshold(n: number) {
@@ -80,11 +81,12 @@ function leaf(id: string): LayoutNode {
     return { id, flexDirection: FlexDirection.Column, size: 10, data: { blockId: `b-${id}` } };
 }
 
-// on: the tab's manual choice (true, false) or null to follow the setting.
-function makeModel(on: boolean, rootNode: LayoutNode) {
+// on: the tab's manual choice (true, false) or null to follow the setting. meta: other marks of the tab, such as the
+// fixed zone's width a view that was in 360 view keeps (its history, #2180).
+function makeModel(on: boolean, rootNode: LayoutNode, meta: Record<string, unknown> = {}) {
     const tabAtom = atom({
         oid: "tab-1",
-        meta: on == null ? {} : { [View360MetaKey]: on },
+        meta: on == null ? { ...meta } : { ...meta, [View360MetaKey]: on },
     } as unknown as Tab) as PrimitiveAtom<Tab>;
     const layoutModel = {
         focusedNode: atom(null as LayoutNode),
@@ -1100,10 +1102,12 @@ describe("View360Model first-switch notice and focus (FR-SHELL-066-AC10, #1654)"
     });
 
     const noticeToasts = () => vi.mocked(showToast).mock.calls.filter((c) => c[0].id === View360NoticeToastId);
+    // A view that already was in 360 view is not offered the switch (#2180): the notice announces its automatic one.
+    const wasIn360 = { [View360FixedPxMetaKey]: 700 };
 
     it("announces the first automatic switch while the setting was never chosen, once", () => {
         setSetting(undefined);
-        const { model } = makeModel(null, sizedRow(40, 60));
+        const { model } = makeModel(null, sizedRow(40, 60), wasIn360);
         pass(model, sizedRow(40, 60), 1600);
         pass(model, sizedRow(40, 30, 30), 1600);
         expect(model.active).toBe(true);
@@ -1147,7 +1151,7 @@ describe("View360Model first-switch notice and focus (FR-SHELL-066-AC10, #1654)"
 
     it("Keep the grid from the notice gives the focus back to the focused panel once back in the grid", () => {
         setSetting(undefined);
-        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60), wasIn360);
         pass(model, sizedRow(40, 60), 1600);
         const three = sizedRow(40, 30, 30);
         globalStore.set(layoutModel.focusedNode as PrimitiveAtom<LayoutNode>, three.children[2]);
@@ -1163,7 +1167,7 @@ describe("View360Model first-switch notice and focus (FR-SHELL-066-AC10, #1654)"
 
     it("Use 360 from the notice keeps the view and gives the focus back", () => {
         setSetting(undefined);
-        const { model, layoutModel } = makeModel(null, sizedRow(40, 60));
+        const { model, layoutModel } = makeModel(null, sizedRow(40, 60), wasIn360);
         pass(model, sizedRow(40, 60), 1600);
         const three = sizedRow(40, 30, 30);
         globalStore.set(layoutModel.focusedNode as PrimitiveAtom<LayoutNode>, three.children[2]);
@@ -1187,11 +1191,18 @@ describe("View360Model decision for a column about to be added (#1668)", () => {
     it("unset or automatic: a third column beyond the threshold wants 360 view, through the automatic decision", () => {
         for (const setting of [undefined, "auto"]) {
             setSetting(setting);
-            const { model } = makeModel(null, sizedRow(40, 60));
+            const { model } = makeModel(null, sizedRow(40, 60), { [View360FixedPxMetaKey]: 700 });
             pass(model, sizedRow(40, 60), 1630);
             expect(model.wantsWithColumns(3, 1630, 8)).toBe(true);
             expect(model.wantsWithColumns(2, 1630, 8)).toBe(false);
         }
+    });
+
+    it("unset, in a view that never was in 360 view: a third column is offered the switch, it does not want it (#2180)", () => {
+        setSetting(undefined);
+        const { model } = makeModel(null, sizedRow(40, 60));
+        pass(model, sizedRow(40, 60), 1630);
+        expect(model.wantsWithColumns(3, 1630, 8)).toBe(false);
     });
 
     it("Keep the grid: a third column that fits at its readable minimum stays in the grid", () => {

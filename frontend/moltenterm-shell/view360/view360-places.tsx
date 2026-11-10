@@ -119,6 +119,56 @@ function PlacesDiagram({ option, active }: { option: PlaceOption; active: boolea
     );
 }
 
+type PlaceCountProps = {
+    option: PlaceOption;
+    current?: boolean;
+    hover: boolean;
+    testId: string;
+    buttonRef?: React.Ref<HTMLButtonElement>;
+    onHover: (on: boolean) => void;
+    onApply: () => void;
+};
+
+// One number of the picker: its diagram, "360 × N" and its caption. The chooser and the first-time offer
+// (view360-offer.tsx, #2180) draw the same tile.
+export function PlaceCount({ option, current, hover, testId, buttonRef, onHover, onApply }: PlaceCountProps) {
+    const t = useT();
+    const caption = optionCaption(option);
+    return (
+        <button
+            ref={buttonRef}
+            type="button"
+            className={cn(
+                "mt-places-count",
+                option.offered ? "cursor-pointer" : "is-off",
+                hover && option.offered && "is-hover",
+                current && "is-current"
+            )}
+            aria-disabled={!option.offered}
+            aria-pressed={current}
+            aria-label={`${option.n} · ${t("view360.places.mark", { count: option.n })} · ${caption}`}
+            data-testid={testId}
+            data-offered={option.offered ? "true" : "false"}
+            data-reason={option.reason ?? ""}
+            onMouseEnter={() => onHover(true)}
+            onMouseLeave={() => onHover(false)}
+            onFocus={() => onHover(true)}
+            onBlur={() => onHover(false)}
+            onClick={onApply}
+        >
+            <PlacesDiagram option={option} active={option.offered && hover} />
+            <span className="mt-places-n">
+                <span className="mt-places-n-mark">
+                    {option.n}
+                    <small>{t("view360.places.mark", { count: option.n })}</small>
+                </span>
+                {current && <em>{t("view360.places.current")}</em>}
+            </span>
+            <span className="mt-places-caption">{caption}</span>
+        </button>
+    );
+}
+
 export type ChooserChoices = {
     // Whether "On the carpet: All panels · The pages" is shown (FR-SHELL-124-AC1), and the choice selected on opening.
     offered: boolean;
@@ -353,44 +403,18 @@ function PlacesChooser({ view360, state }: ChooserProps) {
                 {t("view360.places.label")}
             </div>
             <div className="mt-places-counts" role="group" aria-labelledby="mt-places-label">
-                {options.map((option, i) => {
-                    const caption = optionCaption(option);
-                    const current = shown === option.n && group === choices.initial;
-                    return (
-                        <button
-                            key={option.n}
-                            ref={i === 0 ? firstRef : undefined}
-                            type="button"
-                            className={cn(
-                                "mt-places-count",
-                                option.offered ? "cursor-pointer" : "is-off",
-                                hover === option.n && option.offered && "is-hover",
-                                current && "is-current"
-                            )}
-                            aria-disabled={!option.offered}
-                            aria-pressed={current}
-                            aria-label={`${option.n} · ${t("view360.places.mark", { count: option.n })} · ${caption}`}
-                            data-testid={`mt-places-${option.n}`}
-                            data-offered={option.offered ? "true" : "false"}
-                            data-reason={option.reason ?? ""}
-                            onMouseEnter={() => setHover(option.n)}
-                            onMouseLeave={() => setHover((h) => (h === option.n ? null : h))}
-                            onFocus={() => setHover(option.n)}
-                            onBlur={() => setHover((h) => (h === option.n ? null : h))}
-                            onClick={() => apply(option.n)}
-                        >
-                            <PlacesDiagram option={option} active={option.offered && hover === option.n} />
-                            <span className="mt-places-n">
-                                <span className="mt-places-n-mark">
-                                    {option.n}
-                                    <small>{t("view360.places.mark", { count: option.n })}</small>
-                                </span>
-                                {current && <em>{t("view360.places.current")}</em>}
-                            </span>
-                            <span className="mt-places-caption">{caption}</span>
-                        </button>
-                    );
-                })}
+                {options.map((option, i) => (
+                    <PlaceCount
+                        key={option.n}
+                        option={option}
+                        current={shown === option.n && group === choices.initial}
+                        hover={hover === option.n}
+                        testId={`mt-places-${option.n}`}
+                        buttonRef={i === 0 ? firstRef : undefined}
+                        onHover={(on) => setHover((h) => (on ? option.n : h === option.n ? null : h))}
+                        onApply={() => apply(option.n)}
+                    />
+                ))}
             </div>
             {why != null && (
                 <div className="mt-places-why" data-testid="mt-places-why">

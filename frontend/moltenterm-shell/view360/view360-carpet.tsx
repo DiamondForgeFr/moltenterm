@@ -14,6 +14,7 @@ import { useT } from "../i18n/i18n";
 import { Rect } from "./carpet-model";
 import { canScrollX, horizontalWheelDelta, routeHorizontalWheel, wheelDeltaPx } from "./carpet-wheel";
 import { CarpetSensors } from "./view360-offcarpet";
+import { View360Offers } from "./view360-offer-card";
 import { View360Radar } from "./view360-radar";
 import "./view360.css";
 
@@ -100,23 +101,27 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
         };
     }, [active, layoutModel, view360]);
 
+    // The offers of the first time (#2180) are drawn in the grid as well, where the view waits for the answer.
     if (layout == null) {
-        return null;
+        return <View360Offers view360={view360} />;
     }
     const gripStuck = view360.gripNoRoom() != null;
     // The edge fades went with the carpet's frame (#1545): the peeks of View360Radar sit in the gutters instead.
     return (
-        <div className="mt-carpet-chrome">
-            {layout.fixedNodeId != null && (
-                <div
-                    className={cn("mt-fixed-grip", gripStuck && "mt-fixed-grip-stuck")}
-                    style={{
-                        transform: `translate3d(${layout.fixed.width - 2}px, ${layout.fixed.height / 2 - 18}px, 0)`,
-                    }}
-                />
-            )}
-            <View360Radar layoutModel={layoutModel} layout={layout} />
-        </div>
+        <>
+            <div className="mt-carpet-chrome">
+                {layout.fixedNodeId != null && (
+                    <div
+                        className={cn("mt-fixed-grip", gripStuck && "mt-fixed-grip-stuck")}
+                        style={{
+                            transform: `translate3d(${layout.fixed.width - 2}px, ${layout.fixed.height / 2 - 18}px, 0)`,
+                        }}
+                    />
+                )}
+                <View360Radar layoutModel={layoutModel} layout={layout} />
+            </div>
+            <View360Offers view360={view360} />
+        </>
     );
 });
 View360Overlay.displayName = "View360Overlay";

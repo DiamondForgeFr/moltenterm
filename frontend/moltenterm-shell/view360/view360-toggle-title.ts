@@ -26,6 +26,9 @@ export function toggleTitle(decision: View360Decision, single: boolean, threshol
     if (decision.idle) {
         return `${View360Text.tooltipOff}\n${t("view360.ui.offPlaces")}\n${View360Text.clickOn}`;
     }
+    if (decision.asking) {
+        return `${View360Text.tooltipOff}\n${t("view360.ui.offAsking", { count: threshold })}\n${View360Text.clickOn}`;
+    }
     const off =
         decision.source === "manual"
             ? View360Text.offManual

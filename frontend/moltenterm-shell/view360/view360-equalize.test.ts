@@ -19,7 +19,8 @@ vi.mock("@/app/store/global", async () => {
 vi.mock("./screen-store", async () => {
     const { atom } = await import("jotai");
     const thresholdAtom = atom(8);
-    return { ScreenModel: { getInstance: () => ({ thresholdAtom }) } };
+    const { makeFakeScreens } = await import("./screen-store-fake");
+    return { ScreenModel: { getInstance: () => makeFakeScreens(thresholdAtom) } };
 });
 vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: vi.fn(() => Promise.resolve()) } }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
