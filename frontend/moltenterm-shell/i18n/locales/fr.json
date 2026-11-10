@@ -6967,6 +6967,45 @@
             "noFolderTitle": "{project} n’a pas encore de dossier",
             "noFolder": "Donnez-lui un dossier pour suivre ses pull requests."
         },
+        "owners": {
+            "label": "Responsables",
+            "bar": "Le travail que cette vue montre",
+            "all": "Tous · {count}",
+            "change": "Changer",
+            "menuAria": "Choisir le travail à montrer",
+            "menuEmpty": "Aucun agent n’est encore responsable de travail ici.",
+            "menuItemSubs": "+ {count} sous-agents",
+            "noAgents": "Aucun agent dans cette vue : pas de filtre",
+            "chipSubs": {
+                "one": "+ {count} sous-agent",
+                "other": "+ {count} sous-agents"
+            },
+            "chipTitle": "Cette vue suit {name} et les agents à qui {name} a confié du travail",
+            "chipRemove": "Ne plus suivre {name}",
+            "hidden": {
+                "one": "{count} autre masquée",
+                "other": "{count} autres masquées"
+            },
+            "showAll": "Tout afficher",
+            "waits": {
+                "one": "{count} autre vous attend",
+                "other": "{count} autres vous attendent"
+            },
+            "waitsShow": "Voir",
+            "waitsHide": "Masquer",
+            "propose": "+ {name} ?",
+            "proposeTitle": "{name} est arrivé dans cette vue. Rien ne change tant que vous ne l’ajoutez pas ; l’ignorer retire cette proposition pour de bon dans cette vue.",
+            "add": "Ajouter",
+            "ignore": "Ignorer {name}",
+            "noneShown": "Aucun travail des agents suivis n’est ouvert.",
+            "byHand": "à la main",
+            "byHandTitle": "Aucun agent n’a signé ce travail",
+            "subOf": "{name} · sous-agent de {lead}",
+            "groupSubs": "+ {names}",
+            "filterOn": "Filtrer sur {name}",
+            "noAgentGroup": "Sans agent",
+            "noAgentHint": "faites à la main ou par un agent fermé"
+        },
         "launch": {
             "button": "Lancer",
             "buttonTitle": "Lancer {target} sur cet ordinateur et l'ouvrir dans le navigateur",

@@ -46,6 +46,8 @@ import { MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import { blockersText, RebaseAsk, rebaseAskKey, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
 import { NumberLink } from "./reviews-number-link";
 import { MergeOrderRank } from "./reviews-order";
+import { OwnerChip } from "./reviews-owners";
+import type { OwnerFacts } from "./reviews-owners-model";
 import { QueuedAskLine } from "./reviews-queue";
 import { CardRelation, groupMergeAction } from "./reviews-queue-model";
 import { cardInputOf } from "./reviews-sections-model";
@@ -166,7 +168,13 @@ export function ReviewRow({
     onBatchRetry,
     card: cardProp,
     filled,
+    owner,
+    ownerByHand,
 }: {
+    // The agent that owns the work and the lead that handed it over (FR-REV-034); ownerByHand: nobody signed this one,
+    // in a list where agents sign.
+    owner?: OwnerFacts;
+    ownerByHand?: boolean;
     // The state the list computed for the card's section (#1061).
     card?: CardState;
     // Whether the panel gives this card its one filled button (#1351, filledAction); alone, the card's state says.
@@ -543,6 +551,8 @@ export function ReviewRow({
                                 {relationTag}
                             </span>
                         ) : null}
+                        <span className="ml-auto" />
+                        <OwnerChip owner={owner} byHand={ownerByHand} />
                     </div>
                     <CardStateLine tone={card.tone} sentence={sentence} why={why} working={false} />
                     <CardStatusLine running={card.status.running} moving={card.motion === "state"} text={status} />
