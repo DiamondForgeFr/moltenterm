@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { I18nModel, t } from "../i18n/i18n";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { ExampleVisit, type Visit, visitPanelOf } from "./brokk-visit";
 import { visitLineOf } from "./brokk-visit-line";
@@ -55,21 +56,64 @@ describe("what the visit says of the event that brought him (FR-BOSS-009, AC29, 
         expect(line).toEqual({ text: "Léa: Autoriser la modification de main.go ?" });
     });
 
-    it("says the row's own sentence for an agent that stopped, a failing CI and a pull request ready", () => {
+    it("says the row's own sentence for an agent that stopped", () => {
         const stopped = row("agent:b", "error", { name: "Théo", line: { text: "Théo s'est arrêté sur une erreur" } });
         expect(visitLineOf(visit("agent:b"), [stopped], T)).toEqual({ text: "Théo s'est arrêté sur une erreur" });
-        const ci = row("ci:/work/app:12", "error", { name: "app #12", line: { text: "La CI a échoué" } });
-        expect(visitLineOf(visit("ci:/work/app:12"), [ci], T)).toEqual({ text: "La CI a échoué (app #12)" });
-        const ready = row("ready:/work/app:14", "success", { name: "app #14", line: { text: "Prête à fusionner" } });
-        expect(visitLineOf(visit("ready:/work/app:14"), [ready], T)).toEqual({
-            text: "Prête à fusionner (app #14)",
-        });
     });
 
     it("says the example's own sentence for the visit of the settings' Show a visit, which has no row", () => {
         expect(visitLineOf(ExampleVisit, [], T)).toEqual({ key: "boss.visit.exampleLine" });
         const waiting = row("agent:a", "waiting", { name: "Léa", since: T - 6 * Min });
         expect(visitLineOf(ExampleVisit, [waiting], T)).toEqual({ key: "boss.visit.exampleLine" });
+    });
+});
+
+// #2205: a failing CI or a pull request ready is said in Brokk's own words, in the user's language, the PR by number:
+// its title and the names of its checks are GitHub's text, which stays on the row, the card and Integration.
+describe("a failing CI or a ready PR is said in his own words, the PR by number (FR-BOSS-009, AC81, #2205)", () => {
+    const Title = "Fix the archive badge of the sidebar";
+    const ci = row("ci:/work/app:2204", "error", {
+        name: "#2204",
+        line: { key: "boss.todo.ciFailed", vars: { checks: "lint, unit-tests" } },
+    });
+    const ready = row("ready:/work/app:2204", "success", { name: "#2204", line: { text: Title } });
+
+    function said(keys: string[], items: ToHandleItem[]): string {
+        const line = visitLineOf(visit(...keys), items, T);
+        return line.text ?? t(line.key, line.vars);
+    }
+
+    afterEach(() => {
+        I18nModel.getInstance().setLanguageSetting("en");
+    });
+
+    for (const [lang, ciLine, readyLine] of [
+        ["en", "The CI of PR #2204 failed", "PR #2204 is ready to merge"],
+        ["fr", "La CI de la PR #2204 a échoué", "La PR #2204 est prête à fusionner"],
+    ]) {
+        it(`says it in ${lang}, with no title and no check name`, () => {
+            I18nModel.getInstance().setLanguageSetting(lang);
+            expect(said(["ci:/work/app:2204"], [ci])).toBe(ciLine);
+            expect(said(["ready:/work/app:2204"], [ready])).toBe(readyLine);
+            const withMore = said(["ready:/work/app:2204", "download:1"], [ready]);
+            expect(withMore.startsWith(readyLine)).toBe(true);
+            for (const text of [said(["ci:/work/app:2204"], [ci]), said(["ready:/work/app:2204"], [ready]), withMore]) {
+                expect(text).not.toContain(Title);
+                expect(text).not.toContain("lint");
+                expect(text).not.toContain("unit-tests");
+            }
+        });
+    }
+
+    it("names the PR by the key's number, even when its row is gone or its folder holds a colon", () => {
+        expect(visitLineOf(visit("ready:/work/app:14"), [], T)).toEqual({
+            key: "boss.visit.reason.ready",
+            vars: { number: "14" },
+        });
+        expect(visitLineOf(visit("ci:C:\\work\\app:12"), [], T)).toEqual({
+            key: "boss.visit.reason.ciFailed",
+            vars: { number: "12" },
+        });
     });
 });
 
