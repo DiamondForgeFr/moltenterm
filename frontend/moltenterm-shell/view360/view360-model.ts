@@ -215,6 +215,9 @@ export class View360Model {
     // The screen the window is on (ScreenModel's): a test instance sets it to emulate another screen.
     screenAtom: PrimitiveAtom<ScreenInfo>;
     columnCountAtom: PrimitiveAtom<number> = atom(0);
+    // The columns the carpet would hold (the top-level columns other than the first and the pinned ones), measured on
+    // every pass; null before the first one. A 360 × N holds the view only while it is above N (#2175).
+    carpetColumnCountAtom: PrimitiveAtom<number> = atom(null) as PrimitiveAtom<number>;
     // Bumped on each automatic switch, for its short glow.
     signalAtom: PrimitiveAtom<number> = atom(0);
     decisionAtom: Atom<View360Decision>;
@@ -344,6 +347,7 @@ export class View360Model {
                 columnCount: get(this.columnCountAtom),
                 narrowWindow: get(narrowWindowAtom),
                 places: get(this.placesAtom),
+                carpetColumns: get(this.carpetColumnCountAtom),
             })
         );
         // Another N redraws the carpet, also while the view was already in 360 view.
@@ -437,10 +441,21 @@ export class View360Model {
     // The tab's button (#733): on turns the view on on demand; off is guarded (requestLeave).
     setActive(on: boolean): void {
         if (on) {
+            this.forgetRestingPlaces();
             this.setManual(true);
             return;
         }
         this.requestLeave();
+    }
+
+    // The button clicked while a 360 × N rests in the grid (#2175) asks for the plain 360 view: the N, which keeps the
+    // view in the grid, goes the way leaving sends it, or the click would change nothing on screen.
+    private forgetRestingPlaces() {
+        if (this.places() == null || !globalStore.get(this.decisionAtom).idle) {
+            return;
+        }
+        this.dropGrouping();
+        this.writePlaces(null);
     }
 
     toggle(): void {
@@ -565,6 +580,7 @@ export class View360Model {
         const gap = this.gapPx();
         // Taken before the column count changes: the automatic gate (#1225) flips the state with the count alone.
         const before = this.active;
+        globalStore.set(this.carpetColumnCountAtom, this.carpetColumnCountIn(rootNode));
         globalStore.set(this.columnCountAtom, count);
         const columnMins = columnMinimumsPx(count, currentFirstColumnFloorPx());
         this.lastColumnMins = columnMins;
@@ -975,6 +991,15 @@ export class View360Model {
         }
         const index = layout.columns.findIndex((c) => c.x + c.width / 2 > this.scrollLeft);
         return index < 0 ? layout.columns.length - 1 : index;
+    }
+
+    // The columns the carpet would hold in this tree: the same ones the chooser counts as C (FR-SHELL-123-AC3).
+    private carpetColumnCountIn(rootNode: LayoutNode): number {
+        const split = splitCarpetColumns(rootNode);
+        if (split == null) {
+            return 0;
+        }
+        return partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom)).carpet.length;
     }
 
     // Block id -> where each panel would be drawn in 360 view, measured on every pass (the normal layout too).

@@ -8,7 +8,8 @@
 // decision cannot be turned off (#733): the tab's button only adds an on-demand 360 view, and leaving is guarded
 // (exitView360). The developer thinks in space (#1083): beyond the screen's column threshold the tab goes to 360 view,
 // the readable minimums staying a safety net, and the proportions the developer set are never readjusted, only kept
-// (rememberedFractions) and given back.
+// (rememberedFractions) and given back. A view's 360 × N keeps the view in 360 only while it stores something (#2175):
+// with every panel visible the view rests in the normal layout, keeping its N.
 
 import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { FixedMinPx, ReadableCarpetColumnPx } from "./carpet-model";
@@ -165,18 +166,44 @@ export type View360Inputs = {
     columnCount: number;
     // The window is narrow (FR-SHELL-109): two columns go automatic when they cannot fit.
     narrowWindow?: boolean;
-    // The view's 360 × N (FR-SHELL-123), null without one: it holds the view on whatever the threshold says.
+    // The view's 360 × N (FR-SHELL-123), null without one: it holds the view on whatever the threshold says, as long
+    // as something is stored on the carpet.
     places?: number;
+    // The top-level columns the carpet would hold: those other than the first and the pinned ones (#2175). Unknown
+    // (undefined): the 360 × N is taken to store something.
+    carpetColumns?: number;
 };
 
 // What holds an automatic view on: the screen's column threshold, or the readable minimums.
 export type View360Reason = "columns" | "fit";
 
-export type View360Decision = { active: boolean; wanted: boolean; source: View360Source; reason?: View360Reason };
+// idle (#2175): the view's 360 × N is kept but stores nothing, so the view rests in the normal layout.
+export type View360Decision = {
+    active: boolean;
+    wanted: boolean;
+    source: View360Source;
+    reason?: View360Reason;
+    idle?: boolean;
+};
+
+// Whether a view's 360 × N stores nothing (#2175, FR-SHELL-123-AC15): every carpet column fits in its places, so the
+// carpet would only repeat the grid. The panels not fitting side by side at their readable minimums (the safety net of
+// #733) and the Always setting keep the 360 view drawn.
+export function placesStoreNothing(inputs: View360Inputs): boolean {
+    if (!(inputs.places > 0) || inputs.carpetColumns == null || inputs.carpetColumns > inputs.places) {
+        return false;
+    }
+    if (inputs.setting === "always") {
+        return false;
+    }
+    const pressed = !!inputs.autoOn || !!inputs.cannotFit;
+    return !(pressed && inputs.columnCount >= autoMinColumns(!!inputs.narrowWindow));
+}
 
 // wanted: what the tab asks for whatever its columns (a panel opened then goes to the carpet); active: what is drawn,
-// never 360 view for a single column (nothing to lay on the carpet). source: what holds the view on (on demand first,
-// then the automatic decision, then the always setting), or while off what keeps it off (the tab's own choice, the
+// never 360 view for a single column (nothing to lay on the carpet), nor for a 360 × N that stores nothing (idle: the
+// N is kept and the carpet comes back with a panel to store). source: what holds the view on (on demand first, then
+// the automatic decision, then the always setting), or while off what keeps it off (the tab's own choice, the
 // automatic decision otherwise). Turned off by hand (#1083), the tab stays off beyond the threshold and below the
 // first column's floor, only columns that cannot fit at all turn it back on.
 export function decideView360(inputs: View360Inputs): View360Decision {
@@ -205,9 +232,13 @@ export function decideView360(inputs: View360Inputs): View360Decision {
         wanted = true;
         source = "setting";
     }
-    const rtn: View360Decision = { active: wanted && inputs.columnCount >= 2, wanted, source };
+    const idle = inputs.columnCount >= 2 && placesStoreNothing(inputs);
+    const rtn: View360Decision = { active: wanted && inputs.columnCount >= 2 && !idle, wanted, source };
     if (reason != null) {
         rtn.reason = reason;
+    }
+    if (idle) {
+        rtn.idle = true;
     }
     return rtn;
 }

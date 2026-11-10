@@ -6558,6 +6558,7 @@
             "heldSetting": "From the 360 view setting (Always).",
             "heldColumns": "Automatic: more than {count} columns on this screen.",
             "offManual": "Turned off for this view until it is back to this screen's number of columns. It still turns on by itself if the panels no longer fit side by side at all.",
+            "offPlaces": "This view keeps its 360 × N. Every panel is visible and the panels share the width. The carpet comes back by itself when a panel would be stored.",
             "offColumns": "Automatic: turns on by itself beyond {count} columns on this screen, or when the panels no longer fit side by side.",
             "offGrid": "Keep the grid: the panels stay side by side. It turns on by itself only if they no longer fit side by side at all.",
             "clickOn": "Click to turn it on.",
