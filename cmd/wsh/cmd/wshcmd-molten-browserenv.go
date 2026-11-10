@@ -167,21 +167,30 @@ func moltenBrowserEnvQueue(tabId string, page string) error {
 	return nil
 }
 
-func moltenOsOpenCommand(target string) *exec.Cmd {
+// moltenOsOpenCommand runs the real opener by its absolute path: on PATH, open and xdg-open may be MoltenTerm's own
+// shims (#2176), which would hand a page straight back here.
+func moltenOsOpenCommand(target string) (*exec.Cmd, error) {
+	tool := "xdg-open"
 	switch runtime.GOOS {
 	case "darwin":
-		return exec.Command("open", target)
+		tool = "open"
 	case "windows":
-		return exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
-	default:
-		return exec.Command("xdg-open", target)
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", target), nil
 	}
+	real, found := moltenRealOpener(tool)
+	if !found {
+		return nil, fmt.Errorf("opening %s: %s not found", target, tool)
+	}
+	return exec.Command(real, target), nil
 }
 
 // moltenOsOpen hands the target to the OS opener, as data and never through a shell. BROWSER is removed from the
 // opener's environment: xdg-open reads it, and would hand the target straight back to molten-open.
 func moltenOsOpen(target string) error {
-	cmd := moltenOsOpenCommand(target)
+	cmd, err := moltenOsOpenCommand(target)
+	if err != nil {
+		return err
+	}
 	cmd.Env = moltenEnvWithout(os.Environ(), shellutil.BrowserVarName)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr

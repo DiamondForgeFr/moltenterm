@@ -52,6 +52,21 @@ func moltenBrowserEnv() string {
 	return shellutil.MoltenOpenPath()
 }
 
+// commandBlockEnv is what a local command panel gets of its swap token (#2176): an interactive shell swaps the token in
+// its integration script, a command run with -c has none, so its pane identity (WAVETERM_TABID, WAVETERM_BLOCKID) and
+// its cmd:env (an agent sign-in's PATH) never reached it, and molten-open could not find the pane's tab. The wsh token
+// stays out: it is added only for cmd:jwt, as before.
+func commandBlockEnv(tokenEnv map[string]string) map[string]string {
+	rtn := make(map[string]string, len(tokenEnv))
+	for k, v := range tokenEnv {
+		if k == wavebase.WaveJwtTokenVarName || v == "" {
+			continue
+		}
+		rtn[k] = v
+	}
+	return rtn
+}
+
 // moltenAgentPartsEnv is CLAUDE_CODE_PLUGIN_DIRS for a local shell. set is false when the shell can keep the
 // inherited value as it is (nothing inherited and no slot); an empty value with set means "unset it", for a value
 // holding only the slots of a MoltenTerm that started this one.
