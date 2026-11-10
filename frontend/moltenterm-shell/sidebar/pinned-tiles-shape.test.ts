@@ -150,7 +150,7 @@ describe("the markup that carries the shape", () => {
         const grid = functionSource(src, "TileGrid");
         expect(grid).toMatch(/"mt-sb-zone mt-sb-tiles /);
         expect(grid).toContain('className="mt-sb-tilegrid"');
-        expect(grid).toMatch(/className="mt-sb-tilecell">\s*<Tile /);
+        expect(grid).toMatch(/className="mt-sb-tilecell">\s*<Tile\s/);
         // An inline column rule or a grid would bring back fixed tracks.
         expect(grid).not.toContain("gridTemplateColumns");
         expect(grid).not.toContain("--mt-tile-cols");
