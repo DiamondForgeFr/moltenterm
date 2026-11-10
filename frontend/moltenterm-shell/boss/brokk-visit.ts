@@ -17,6 +17,7 @@ import type { AgentSeenView } from "../agent-state-model";
 import { eventSourceInView, NothingInView } from "../source-in-view";
 import type { BrokkExpression } from "./brokk-ask-model";
 import { EmptyGate, gateAfter, GateEvent, gateHold, gateOpensAt, GateState, mayArriveNow } from "./brokk-gate";
+import type { PanelId } from "./brokk-group-model";
 import { inQuietHours, nextClockTime, nextQuietChange } from "./brokk-mood";
 import { severest, Severity, SeverityExpression, SeverityRank } from "./brokk-queue";
 import {
@@ -181,6 +182,17 @@ export type Visit = {
     count: number;
     example?: boolean;
 };
+
+// The panel his click opens on, so that it names the reason (FR-BOSS-009, AC79, #2203): a download is in Downloads, a plan
+// reading is the week grid that always stands under his square, and everything else is a card of the Notifications. null:
+// no panel is asked, the group opens as it does for the avatar.
+export function visitPanelOf(visit: Visit): PanelId {
+    const key = visit?.keys[0];
+    if (key == null || visit.example === true || key.startsWith("usage:")) {
+        return null;
+    }
+    return key.startsWith("download:") ? "downloads" : "notifications";
+}
 
 // The visit of the settings' "Show a visit" (FR-BOSS-009, AC31 and AC32, #2079): the scene as a real one plays it, for an
 // example event. It is never raised, counted, told or recorded, and the hub shows it on its own, past quiet hours.

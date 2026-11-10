@@ -130,7 +130,8 @@ export const SettingsSections: SettingsSection[] = [
     },
 ];
 
-export type SettingOption = { value: string; label: string };
+// `hint`: one line saying what the choice does, shown beside it when the choices are option rows (settings.items.<key>.hints.<value>).
+export type SettingOption = { value: string; label: string; hint?: string };
 
 // "global": settings.json. "workspace": the current workspace's meta, the setting applies to that workspace only.
 export type SettingScope = "global" | "workspace";
@@ -328,6 +329,7 @@ export function localizeSettingEntry(entry: SettingEntry, tr: TFunction): Settin
         options: entry.options?.map((o) => ({
             value: o.value,
             label: translatedOr(tr, `${base}.options.${o.value}`, o.label),
+            hint: hasKey(`${base}.hints.${o.value}`) ? tr(`${base}.hints.${o.value}`) : undefined,
         })),
     };
 }
@@ -485,7 +487,7 @@ export function jsonSummary(value: unknown, tr: TFunction = t): string {
 // "Selected". A longer list (terminal themes, the installed browsers) stays a menu.
 export const MaxChoiceRows = 4;
 
-export type SettingChoice = { value: string; label: string };
+export type SettingChoice = { value: string; label: string; hint?: string };
 
 // The choices a setting shows as option rows, or null for a menu. The empty value is the unset choice (the system's
 // language, a setting's own "unset" label).
@@ -506,7 +508,7 @@ export function settingChoices(
     if (entry.optionsFrom != null || entry.options == null) {
         return null;
     }
-    const list = entry.options.map((o) => ({ value: o.value, label: o.label }));
+    const list: SettingChoice[] = entry.options.map((o) => ({ value: o.value, label: o.label, hint: o.hint }));
     if (entry.unsetLabel != null) {
         list.unshift({ value: "", label: entry.unsetLabel });
     }

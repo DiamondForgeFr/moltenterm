@@ -163,3 +163,30 @@ func TestBrokkVisitKeysAreShown(t *testing.T) {
 		t.Errorf("boss:nevercome must be a shown setting")
 	}
 }
+
+// FR-BOSS-009, AC75 (#2203): Brokk's proximity is a choice on a scale that 1.1.0 extends, never a switch.
+func TestBrokkProximityIsAChoiceThatCanGrow(t *testing.T) {
+	s, ok := Lookup("boss:proximity")
+	if !ok || s.Hidden {
+		t.Fatalf("boss:proximity must be a shown setting")
+	}
+	if s.Section != SectionBoss || s.Group != "Avatar" {
+		t.Errorf("boss:proximity is in %s/%q, want the Brokk section's Avatar group", s.Section, s.Group)
+	}
+	if s.Control != ControlSelect {
+		t.Errorf("boss:proximity is a %s, want a select: 1.1.0 adds Close and Partner", s.Control)
+	}
+	if s.Default != "colleague" {
+		t.Errorf("boss:proximity defaults to %v, want colleague", s.Default)
+	}
+	var values []string
+	for _, option := range s.Options {
+		values = append(values, option.Value)
+	}
+	if strings.Join(values, ",") != "discreet,colleague" {
+		t.Errorf("boss:proximity offers %v, want discreet then colleague", values)
+	}
+	if v, ok := Lookup("boss:visitfinished"); !ok || !strings.Contains(v.Description, "never brings him") {
+		t.Errorf("boss:visitfinished must say that a finished agent never brings him")
+	}
+}

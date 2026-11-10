@@ -41,12 +41,21 @@ export const BlockHeightPx = 96;
 // What the card holds besides the usage grid, at rest (brokk-group.css): its padding (10 above and below) and 1 px
 // border, Brokk's line (34) and the 9 px gap above the grid.
 export const BlockChromePx = 65;
+// With no line from Brokk (AC71, #2203) the card holds the usage grid alone: its padding and border, no line and no gap.
+export const BlockBareChromePx = 22;
+// What the card with no line is never shorter than: the grid's empty message and the card's chrome.
+export const BlockBareHeightPx = 44;
 export const FieldHeightPx = 36;
 
 // The card's height at rest (FR-BOSS-009, AC57, #2106): its chrome and the usage grid as measured, one row per provider,
-// so the field and what follows stand below the last row whatever the number of providers.
-export function blockHeight(usageHeight: number): number {
-    return Math.max(BlockHeightPx, BlockChromePx + Math.max(0, Math.ceil(usageHeight || 0)));
+// so the field and what follows stand below the last row whatever the number of providers. `withLine`: Brokk has a line
+// to say (AC71).
+export function blockHeight(usageHeight: number, withLine = true): number {
+    const grid = Math.max(0, Math.ceil(usageHeight || 0));
+    if (!withLine) {
+        return Math.max(BlockBareHeightPx, BlockBareChromePx + grid);
+    }
+    return Math.max(BlockHeightPx, BlockChromePx + grid);
 }
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -68,8 +77,13 @@ export type GroupGeometry = {
 
 // The gap between the icons is worked out so that the rail is exactly as tall as the square: (square - 12 - 5 tiles) / 4.
 // `usageHeight` is the usage grid's measured height: the card and the field below it follow it.
-export function groupGeometry(square: number = SquarePx, tile: number = TilePx, usageHeight = 0): GroupGeometry {
-    const blockH = blockHeight(usageHeight);
+export function groupGeometry(
+    square: number = SquarePx,
+    tile: number = TilePx,
+    usageHeight = 0,
+    withLine = true
+): GroupGeometry {
+    const blockH = blockHeight(usageHeight, withLine);
     const count = RailPanels.length;
     const gap = Math.max(0, (square - RailPaddingPx - count * tile) / (count - 1));
     const railWidth = tile + RailPaddingPx;
@@ -398,6 +412,9 @@ export function reportCut(textHeight: number, shownHeight: number): boolean {
 // What the report's text measures: `full` is the height it needs, `shown` the height of the lines the card keeps. Both are
 // read from the text itself, never from its current box, so they do not move while the card grows or folds.
 export type ReportSize = { full: number; shown: number };
+
+// The size of a report that is not there: Brokk has no line to say (AC71).
+export const EmptyReportSize: ReportSize = { full: 0, shown: 0 };
 
 // The room the window leaves under the group at rest: the most the report's card can grow by (FR-BOSS-009, AC43, #2097).
 export function reportRoom(g: GroupGeometry, heightRoom: number): number {

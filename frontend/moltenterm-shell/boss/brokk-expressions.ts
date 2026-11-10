@@ -15,6 +15,7 @@ import { atom, Atom, createStore, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { BossBubbleModel } from "./boss-store";
 import { AskedExpression, BrokkExpression, rose } from "./brokk-ask-model";
+import { BrokkColleagueModel } from "./brokk-colleague-store";
 import { EmptyMood, greetingDue, moodAfter, MoodEvent, MoodMemory, moodOf, replayOf } from "./brokk-mood";
 import { EmptyQueue, queueAfter, QueueEvent, QueueState } from "./brokk-queue";
 import { moodFactsOf, presenceAfter, unseenItems, watchBrokk } from "./brokk-watch";
@@ -163,6 +164,10 @@ export class BrokkExpressionsModel {
                 memory: () => globalStore.get(this.moodAtom),
             }
         );
+        // The kind colleague's moments (brokk-colleague.ts) count stretches of activity from these very inputs: Brokk has
+        // one tracker of the developer's presence, not two.
+        const colleague = BrokkColleagueModel.getInstance();
+        const stopColleague = colleague.start();
         let last = Date.now();
         const onInput = () => {
             const seen = presenceAfter(last, Date.now());
@@ -170,6 +175,7 @@ export class BrokkExpressionsModel {
             if (seen.returnedSince != null) {
                 this.note({ type: "returned", since: seen.returnedSince });
             }
+            colleague.noteInput();
         };
         const onKey = () => this.noteKey();
         const options = { capture: true, passive: true };
@@ -178,6 +184,7 @@ export class BrokkExpressionsModel {
         return () => {
             stopCalls();
             stopForge();
+            stopColleague();
             InputEvents.forEach((name) => target.removeEventListener(name, onInput, options));
             target.removeEventListener("keydown", onKey, options);
         };

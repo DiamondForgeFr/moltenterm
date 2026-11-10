@@ -36,6 +36,20 @@ vi.mock("../agent-state-store", async () => {
     };
 });
 vi.mock("./developer-away", () => ({ InputEvents: ["pointermove", "keydown"] }));
+// The kind colleague (brokk-colleague-store.ts) is fed by the one input listener of this watch; its own rules are tested
+// in its own file.
+const Colleague = vi.hoisted(() => ({ start: vi.fn(), stop: vi.fn(), noteInput: vi.fn() }));
+vi.mock("./brokk-colleague-store", () => ({
+    BrokkColleagueModel: {
+        getInstance: () => ({
+            start: () => {
+                Colleague.start();
+                return Colleague.stop;
+            },
+            noteInput: Colleague.noteInput,
+        }),
+    },
+}));
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { ToHandleItem } from "./boss-to-handle-model";
@@ -281,6 +295,22 @@ describe("what a bubble on screen listens to (FR-BOSS-007, AC3 and AC14)", () =>
         target.dispatch("pointermove");
         expect(globalStore.get(model().moodAtom).back).toMatchObject({ greeted: false });
         stop();
+    });
+
+    // #2203: Brokk has one tracker of the developer's presence, and the moments of a kind colleague read it.
+    it("feeds the kind colleague from its one input listener, and stops it with the bubble", () => {
+        Colleague.start.mockClear();
+        Colleague.stop.mockClear();
+        Colleague.noteInput.mockClear();
+        const target = fakeTarget();
+        const stop = model().watch(target);
+        expect(Colleague.start).toHaveBeenCalledTimes(1);
+        target.dispatch("pointermove");
+        target.dispatch("keydown");
+        expect(Colleague.noteInput).toHaveBeenCalledTimes(2);
+        stop();
+        expect(Colleague.stop).toHaveBeenCalledTimes(1);
+        expect(target.count()).toBe(0);
     });
 
     it("frowns at a failure that appears, and stops listening when the bubble goes", () => {

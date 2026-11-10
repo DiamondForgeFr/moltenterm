@@ -75,17 +75,20 @@ vi.mock("./boss-usage", async () => {
     return { UsageReadingsAtom: atom({} as any), UsageUnreadableAtom: atom({} as any) };
 });
 // His animated portrait and its models have their own tests (use-brokk-live): here the group only asks for them.
-const Calls = vi.hoisted(() => ({ live: [] as unknown[], caption: [] as unknown[] }));
+const Calls = vi.hoisted(() => ({ live: [] as unknown[], moment: [] as boolean[] }));
 vi.mock("./use-brokk-live", () => ({
     useCardLive: (talk?: string) => {
         Calls.live.push(talk ?? null);
         return { situation: { talk }, rhythm: "normal" };
     },
 }));
-vi.mock("./use-brokk-caption", () => ({
-    useGroupCaption: (talk?: string) => {
-        Calls.caption.push(talk ?? null);
-        return "He says something";
+// The moment of a kind colleague has its own tests (brokk-colleague, use-brokk-moment): here the group draws what it gives,
+// or hides the line when it gives none (#2203).
+const Said = vi.hoisted(() => ({ text: "He says something" as string }));
+vi.mock("./use-brokk-moment", () => ({
+    useBrokkMoment: (shown: boolean) => {
+        Calls.moment.push(shown);
+        return Said.text == null ? null : { id: "moment:1", text: Said.text };
     },
 }));
 vi.mock("./boss-portrait", () => ({
@@ -157,6 +160,8 @@ import {
     ReportSize,
     ReportView,
     reportView,
+    SquarePx,
+    TilePx,
 } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 
@@ -239,7 +244,8 @@ beforeEach(() => {
     quiet();
     rememberPanel(null);
     Calls.live.length = 0;
-    Calls.caption.length = 0;
+    Calls.moment.length = 0;
+    Said.text = "He says something";
 });
 
 describe("the group (FR-BOSS-009, AC17)", () => {
@@ -381,17 +387,24 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
         expect(attr(html, "portrait", "data-live")).toContain("&quot;rhythm&quot;:&quot;normal&quot;");
     });
 
-    it("is driven by the same pose and mood models as the panel was: the talk pose goes to the portrait and to the caption", () => {
+    it("is driven by the same pose and mood models as the panel was: the talk pose goes to the portrait", () => {
         render();
         expect(Calls.live).toEqual([null]);
-        expect(Calls.caption).toEqual([null]);
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain(
             "const pose = talkPose({ typing, awaiting: talkWaits(talk), working: answering, speaking });"
         );
         expect(source).toContain("useCardLive(pose)");
-        expect(source).toContain("useGroupCaption(pose)");
         expect(source).toContain('<BossPortrait live={live} framing="banner" />');
+    });
+
+    // #2203: the line under the square is no longer the caption of his scene (it repeated the notifications).
+    it("asks for the moment he has to say when the group shows, not for a caption of his scene", () => {
+        render();
+        expect(Calls.moment).toEqual([true]);
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toContain("useBrokkMoment(shown)");
+        expect(source).not.toContain("useGroupCaption");
     });
 
     // FR-BOSS-009, AC25: listens while he is written to, thinks while his session works, speaks while his answer comes in.
@@ -417,7 +430,6 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
             globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, true);
             render();
             expect(Calls.live).toEqual(["thinking"]);
-            expect(Calls.caption).toEqual(["thinking"]);
         });
 
         it("thinks from the moment his agent has a message, before his session shows work", () => {
@@ -439,7 +451,6 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
             globalStore.set(session.speakingAtom, true);
             render();
             expect(Calls.live).toEqual(["answering"]);
-            expect(Calls.caption).toEqual(["answering"]);
         });
     });
 
@@ -725,10 +736,62 @@ describe("the block under the square (AC17 and AC20)", () => {
         windows: [{ id: "week", label: "This week", usedpercent: percent, resetsat }],
     });
 
-    it("says one line, the caption of his scene", () => {
+    it("says one line, the moment of a kind colleague (#2203)", () => {
         expect(attr(render(), "brokk-say", "class")).toBe("mt-brokk-say");
         expect(render()).toMatch(/data-testid="brokk-say"[^>]*><span>He says something<\/span>/);
-        expect(attr(render(), "brokk-say", "data-source")).toBe("activity");
+        expect(attr(render(), "brokk-say", "data-source")).toBe("moment");
+    });
+
+    // FR-BOSS-009, AC71 (#2203): when he has nothing worth saying the line is hidden, never a filler, and the card holds
+    // the usage grid alone, so the field comes up to it.
+    describe("when he has nothing to say (AC71)", () => {
+        const bare = groupGeometry(SquarePx, TilePx, 0, false);
+
+        it("draws no line at all, not an empty one", () => {
+            Said.text = null;
+            const html = render();
+            expect(html).not.toContain('data-testid="brokk-say"');
+            expect(html).not.toContain("mt-brokk-say");
+            expect(html).toContain('data-testid="brokk-usage"');
+        });
+
+        it("takes the line's room back: the card is shorter and the field comes up under it", () => {
+            Said.text = null;
+            const html = render();
+            expect(attr(html, "brokk-block", "style")).toContain(`min-height:${bare.block.h}px`);
+            expect(attr(html, "brokk-fieldbox", "style")).toContain(`top:${bare.field.y}px`);
+            expect(bare.block.h).toBeLessThan(g.block.h);
+            expect(bare.field.y).toBe(264 + 8 + bare.block.h + 8);
+        });
+
+        it("shows the line again, in the card of its full size, once he has something to say", () => {
+            Said.text = null;
+            expect(render()).not.toContain('data-testid="brokk-say"');
+            Said.text = "Good morning";
+            const html = render();
+            expect(html).toContain('data-testid="brokk-say"');
+            expect(attr(html, "brokk-block", "style")).toContain(`min-height:${g.block.h}px`);
+        });
+
+        it("keeps his session's answer in the line while the developer has not seen it, moment or none", () => {
+            Said.text = null;
+            const session = BrokkSession.getInstance() as any;
+            globalStore.set(session.exchangeAtom, [
+                {
+                    id: "m1",
+                    role: "brokk",
+                    text: "I looked at the failing build.",
+                    actions: [],
+                    at: 1,
+                    turn: 1,
+                    final: true,
+                },
+            ]);
+            globalStore.set(session.unseenIdAtom, "m1");
+            const html = render();
+            expect(html).toContain("I looked at the failing build.");
+            expect(attr(html, "brokk-say", "data-source")).toBe("session");
+        });
     });
 
     // #2090, #2097: the card keeps two lines; a report that needs more makes the card itself taller while it is pointed
@@ -793,8 +856,8 @@ describe("the block under the square (AC17 and AC20)", () => {
 
         it("is open for the pointer over the card or the keyboard on it, and a click's focus does not keep it open", () => {
             const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-            expect(source).toContain(
-                "reportView(g, reportSize, reportHovered || reportFocused, frame.place.heightRoom)"
+            expect(source).toMatch(
+                /reportView\(\s*g,\s*hasLine \? reportSize : EmptyReportSize,\s*reportHovered \|\| reportFocused,\s*frame\.place\.heightRoom\s*\)/
             );
             expect(source).toContain("onHover={setReportHovered}");
             expect(source).toContain("onFocusVisible={setReportFocused}");
@@ -866,7 +929,7 @@ describe("the block under the square (AC17 and AC20)", () => {
             expect(attr(html, "brokk-say", "data-source")).toBe("session");
         });
 
-        it("goes back to the activity summary once the developer has seen it", () => {
+        it("goes back to the moment he has to say once the developer has seen it", () => {
             globalStore.set(session.exchangeAtom, [
                 { id: "m1", role: "you", text: "any news?", at: 1 },
                 answer("Olivia waits."),
@@ -1168,7 +1231,7 @@ describe("the block under the square (AC17 and AC20)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain("const measure = () => setUsageHeight(usage.offsetHeight);");
         expect(source).toContain("observer.observe(usage);");
-        expect(source).toContain("groupGeometry(SquarePx, TilePx, usageHeight)");
+        expect(source).toContain("groupGeometry(SquarePx, TilePx, usageHeight, hasLine)");
         expect(source).toContain('<div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">');
     });
 

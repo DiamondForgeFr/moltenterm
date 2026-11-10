@@ -369,7 +369,7 @@ export function BrokkVisitScene({ rowHeight, line = false }: { rowHeight: string
     const words = useRef("");
     if (visit != null) {
         last.current = visit;
-        words.current = line ? text(visitLineOf(visit, list.items, list.info, Date.now())) : "";
+        words.current = line ? text(visitLineOf(visit, list.items, Date.now())) : "";
     }
     const life = useSceneLife(visit != null, unmountAfterMs(prefersReducedMotion()));
     if (!life.mounted || last.current == null) {

@@ -16,7 +16,9 @@ import { BrokkHubModel } from "./brokk-hub-store";
 import { parseClock } from "./brokk-mood";
 import {
     BlockedThresholdsMin,
+    BrokkSettingId,
     Coming,
+    comingChoices,
     ComingValues,
     DefaultBlockedMin,
     DefaultComing,
@@ -66,8 +68,9 @@ function showExample(): void {
     BrokkHubModel.getInstance().hub.showExample();
 }
 
-function ComingRow({ entry, value }: { entry: SettingEntry; value: Coming }) {
+function ComingRow({ id, entry, value }: { id: BrokkSettingId; entry: SettingEntry; value: Coming }) {
     const t = useT();
+    const choices = comingChoices(id);
     return (
         <div
             role="radiogroup"
@@ -81,6 +84,9 @@ function ComingRow({ entry, value }: { entry: SettingEntry; value: Coming }) {
                 <div className="text-11 text-muted">{entry.description}</div>
             </div>
             {ComingColumns.map((choice) => {
+                if (!choices.includes(choice)) {
+                    return <span key={choice} aria-hidden data-testid="brokk-coming-none" data-value={choice} />;
+                }
                 const label = entry.options?.find((o) => o.value === choice)?.label ?? t(`boss.coming.${choice}`);
                 return (
                     <label
@@ -185,7 +191,12 @@ export function BrokkComingCard({ entries, settings }: { entries: SettingEntry[]
             {SettingIds.map((id) => {
                 const entry = byKey.get(VisitSettingKeys.coming[id]);
                 return entry == null ? null : (
-                    <ComingRow key={id} entry={entry} value={current.coming[id] ?? DefaultComing[id]} />
+                    <ComingRow
+                        key={id}
+                        id={id}
+                        entry={entry}
+                        value={comingChoices(id).includes(current.coming[id]) ? current.coming[id] : DefaultComing[id]}
+                    />
                 );
             })}
             <p className="py-1.5 text-11 text-muted" data-testid="brokk-coming-in-view">

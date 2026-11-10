@@ -230,6 +230,25 @@ func PrintArgv(id string, dirs ...string) []string {
 	return nil
 }
 
+// QuickPrintArgv is PrintArgv for a short answer that needs no reasoning (#2203, the line Brokk's model phrases): the
+// cheapest model or effort the form allows and no session kept. Claude Code: the Haiku alias, and nothing written to its
+// session list. Codex: the lowest reasoning effort, an ephemeral run, and no demand for a repository. nil for any other
+// agent.
+func QuickPrintArgv(id string, dirs ...string) []string {
+	argv := PrintArgv(id, dirs...)
+	if argv == nil {
+		return nil
+	}
+	var quick []string
+	switch id {
+	case molten.AgentIdClaude:
+		quick = []string{"--model", "haiku", "--no-session-persistence"}
+	case molten.AgentIdCodex:
+		quick = []string{"--ephemeral", "--skip-git-repo-check", "-c", `model_reasoning_effort="low"`}
+	}
+	return append(append(append([]string{}, argv[:2]...), quick...), argv[2:]...)
+}
+
 // codexUntrustedProjects is the projects table of a run, every folder explicitly untrusted; "" when there is none. It
 // replaces the user's table for the run only and is never saved.
 func codexUntrustedProjects(dirs []string) string {

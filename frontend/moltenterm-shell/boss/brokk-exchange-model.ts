@@ -201,10 +201,11 @@ export function leadOf(text: string, max: number = LeadChars): string {
 // How long he keeps speaking after his answer last changed (the mockup's 2.4 s, and a margin).
 export const SpeakingHoldMs = 3000;
 
-// The line under the square: his latest answer while the developer has not seen it, else the activity summary.
-export function sayLine(unseen: BrokkItem, caption: string): string {
+// The line under the square: his latest answer while the developer has not seen it, else the moment he has to say
+// (brokk-colleague.ts), else nothing: "" hides the line.
+export function sayLine(unseen: BrokkItem, moment: string): string {
     const lead = unseen != null ? leadOf(unseen.text) : "";
-    return lead !== "" ? lead : caption;
+    return lead !== "" ? lead : (moment ?? "");
 }
 
 // The conversation window is open while the field has the focus, and stays open while text is left in it (AC22).

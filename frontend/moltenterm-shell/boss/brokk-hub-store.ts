@@ -112,7 +112,14 @@ export class BrokkHubModel {
                 modalIsOpen() ||
                 modalsModel.hasOpenModals() ||
                 globalStore.get(BossBubbleModel.getInstance().cardOpenAtom),
-            openPanel: () => BossBubbleModel.getInstance().openCard(),
+            openPanel: (panel) => {
+                const boss = BossBubbleModel.getInstance();
+                if (panel == null) {
+                    boss.openCard();
+                    return;
+                }
+                boss.showPanel(panel);
+            },
             readShared: () => readShared(storage()?.getItem(VisitShareKey), Date.now()),
             writeShared: (shared) => {
                 try {

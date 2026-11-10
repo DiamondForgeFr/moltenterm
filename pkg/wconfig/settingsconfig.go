@@ -264,6 +264,9 @@ type SettingsType struct {
 	BossQuietTo       string `json:"boss:quietto,omitempty" jsonschema_description:"When the quiet hours end, as HH:MM on the local clock. 08:00 when unset or invalid"`
 	BossNeverCome     bool   `json:"boss:nevercome,omitempty" jsonschema_description:"Brokk never comes to fetch you, whatever the events are set to: only the badge counts. Off when unset"`
 
+	// MOLTENTERM-PATCH (#2203): how near Brokk stands (FR-BOSS-009, AC75, frontend/moltenterm-shell/boss/brokk-colleague.ts).
+	BossProximity string `json:"boss:proximity,omitempty" jsonschema:"enum=discreet,enum=colleague" jsonschema_description:"How near Brokk stands. discreet: only the events that matter, no moments and no model call; colleague: he says hello, suggests breaks and lets you know in the evening, and his model may phrase them. Colleague when unset"`
+
 	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
 	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`
 
