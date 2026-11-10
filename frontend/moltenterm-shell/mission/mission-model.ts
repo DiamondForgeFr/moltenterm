@@ -326,6 +326,8 @@ export type RunRecord = {
     state: RunState;
     exit?: number;
     phases: string[];
+    // When each phase marker was first seen, in step with phases (must match PhaseAt in pkg/molten/mission/runs.go).
+    phaseat?: number[];
     cancelled?: boolean;
     closed?: boolean;
     commit?: string;

@@ -6,7 +6,7 @@ import { AgentStateInfo } from "../agent-state-model";
 import { CiState } from "../mission/ci-model";
 import { PullRequest } from "../mission/github";
 import { MissionBranch, MissionGit, RunRecord } from "../mission/mission-model";
-import { layoutProjectCards, ProjectCard, ProjectCardRegistry } from "./project-cards";
+import { layoutProjectCards, ProjectCard, ProjectCardRegistry, shownProjectCards } from "./project-cards";
 import {
     checkProjectRoute,
     checkProjectSource,
@@ -203,11 +203,26 @@ describe("project cards", () => {
             card("c1", "cards", 10),
             card("c3", "cards", 20),
             card("h", "header", 0),
-            { ...card("x", "map", 0), region: "band" as any },
+            { ...card("x", "map", 0), region: "nowhere" as any },
+            card("b", "band", 10),
+            card("f", "foot", 10),
         ]);
         expect(layout.header.map((c) => c.id)).toEqual(["h"]);
         expect(layout.map.map((c) => c.id)).toEqual(["m"]);
+        expect(layout.band.map((c) => c.id)).toEqual(["b"]);
         expect(layout.cards.map((c) => c.id)).toEqual(["c1", "c2", "c3"]);
+        expect(layout.foot.map((c) => c.id)).toEqual(["f"]);
+    });
+
+    it("leaves out a card that says it has nothing to show (#2188)", () => {
+        const shown = shownProjectCards(
+            [card("a", "cards", 10), { ...card("b", "cards", 20), visible: (p: { on: boolean }) => p.on }],
+            { on: false }
+        );
+        expect(shown.map((c) => c.id)).toEqual(["a"]);
+        expect(
+            shownProjectCards([{ ...card("b", "cards", 20), visible: (p: { on: boolean }) => p.on }], { on: true })
+        ).toHaveLength(1);
     });
 
     it("replaces a card registered again under its id, and removes it on unregister", () => {

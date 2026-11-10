@@ -4,13 +4,14 @@
 // The Project tab's cards (FR-SHELL-015, DS-SHELL-015): the core lays them out, the cards themselves are
 // contributions. Every built-in card registers here the way a mod's card will; there is no mod loader yet, only this
 // list. A card names its region and its order inside it. The regions are the overview's slots, top to bottom
-// (FR-MC-020, DS-MC-012): the header band, the line map, then the row of cards.
+// (FR-MC-020, DS-MC-012): the header band, the line map, the band of what runs (FR-MC-024, #2188), the row of cards, then
+// the foot under the row.
 
 import type { ComponentType } from "react";
 
-export type ProjectCardRegion = "header" | "map" | "cards";
+export type ProjectCardRegion = "header" | "map" | "band" | "cards" | "foot";
 
-export const ProjectCardRegions: ProjectCardRegion[] = ["header", "map", "cards"];
+export const ProjectCardRegions: ProjectCardRegion[] = ["header", "map", "band", "cards", "foot"];
 
 export type ProjectCard<P = any> = {
     id: string;
@@ -19,8 +20,15 @@ export type ProjectCard<P = any> = {
     order: number;
     // Drawn without the core's frame and title: the card frames itself (or shows nothing when it has nothing to say).
     bare?: boolean;
+    // A card that has nothing to show leaves its place to the others (#2188): the Project steps card of a pipeline that
+    // declares none gives its cell to the cards beside it.
+    visible?: (props: P) => boolean;
     component: ComponentType<P>;
 };
+
+export function shownProjectCards<P>(cards: readonly ProjectCard<P>[], props: P): ProjectCard<P>[] {
+    return cards.filter((card) => card.visible == null || card.visible(props));
+}
 
 export class ProjectCardRegistry<P = any> {
     cards: ProjectCard<P>[] = [];
@@ -53,7 +61,7 @@ export class ProjectCardRegistry<P = any> {
 
 // The cards of each region, in order; ties keep the registration order, so a contribution never jumps.
 export function layoutProjectCards<P>(cards: readonly ProjectCard<P>[]): Record<ProjectCardRegion, ProjectCard<P>[]> {
-    const rtn: Record<ProjectCardRegion, ProjectCard<P>[]> = { header: [], map: [], cards: [] };
+    const rtn: Record<ProjectCardRegion, ProjectCard<P>[]> = { header: [], map: [], band: [], cards: [], foot: [] };
     cards.forEach((card) => {
         if (!ProjectCardRegions.includes(card.region)) {
             return;

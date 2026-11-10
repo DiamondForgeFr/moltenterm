@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Starting and following a project's declared builds (FR-MC-006, DS-MC-005): the trust prompt the first run of a
-// project's commands asks for, the card of a build (phases, last lines of its log, the whole log on demand, cancel,
-// open or show its artifact), and the list of recent builds.
+// project's commands asks for, the row of a build in the overview's "In progress" band (phases, its log under it,
+// cancel, retry, #2188), and the list of recent builds.
 
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
@@ -17,10 +17,12 @@ import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { pathParent } from "../workspace-project";
-import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
+import { BuildManifest, BuildPhaseDef } from "./builds-model";
 import { missionBuilds, missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
 import { logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./mission-model";
 import { usePendingLock } from "./pending-action";
+import { LogToggle, RowButtonClass, RowCtaClass, RunLogArea, RunRow } from "./run-row";
+import { buildBandRow } from "./run-row-model";
 import { timeAgo } from "./time-format";
 
 const StateClasses: Record<RunState, string> = {
@@ -33,7 +35,6 @@ const StateClasses: Record<RunState, string> = {
 
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
-const BusyButtonClass = "inline-flex items-center disabled:cursor-default disabled:opacity-50";
 
 export function TrustPrompt({
     projectName,
@@ -180,6 +181,11 @@ function openPath(path: string) {
     getApi().openNativePath(path);
 }
 
+// The folder a build was delivered to, in the system's file manager.
+export function showBuildInFolder(run: RunRecord) {
+    openPath(pathParent(run.artifact));
+}
+
 // The artifact a build produced: opened (an app starts), or shown in the system's file manager through its folder.
 export function ArtifactActions({ run }: { run: RunRecord }) {
     const t = useT();
@@ -244,26 +250,6 @@ export function RunStateBadge({ state }: { state: RunState }) {
     );
 }
 
-const PhaseNodeClasses: Record<BuildPhaseStatus, string> = {
-    todo: "border-border bg-transparent text-muted",
-    running: "border-accent/70 bg-accent/15 text-accent",
-    done: "border-success/60 bg-success/10 text-success",
-    failed: "border-error/60 bg-error/10 text-error",
-};
-
-function PhaseIcon({ status }: { status: BuildPhaseStatus }) {
-    if (status === "done") {
-        return <i className="fa fa-solid fa-check text-11" />;
-    }
-    if (status === "failed") {
-        return <i className="fa fa-solid fa-xmark text-11" />;
-    }
-    if (status === "running") {
-        return <DominoLoader className="mt-dominos-node" />;
-    }
-    return <span className="h-1.5 w-1.5 rounded-full bg-current" />;
-}
-
 // The manifest a finished build left, read again once the run ends.
 export function useDeliveredManifest(dir: string, run: RunRecord): BuildManifest {
     const [manifest, setManifest] = useState<BuildManifest>(null);
@@ -287,24 +273,32 @@ export function useDeliveredManifest(dir: string, run: RunRecord): BuildManifest
     return manifest;
 }
 
-// The local build panel (FR-MC-013), as Notulia's: the build's declared phases as a stepper, what the current one does,
-// what was delivered or why it stopped, then Show in folder, Retry and Close; Cancel while it runs.
-export function BuildRunCard({
+function BuildRunLog({ run }: { run: RunRecord }) {
+    return <RunLogArea log={useRunLog(run)} testId="build-run-log" />;
+}
+
+// The local build in the overview's band (FR-MC-013, #2188), as Notulia's panel was: the build's declared phases as a
+// bar with the current one named, what it does, what was delivered or why it stopped; Log, and Cancel while it runs,
+// Retry and Close once it failed. A failed build keeps its row and its log open until the developer closes it.
+export function BuildRunRow({
     run,
-    projectName,
     phases,
     manifest,
+    runs,
+    trunk,
+    now,
     onRetry,
 }: {
     run: RunRecord;
-    projectName: string;
     phases: BuildPhaseDef[];
     manifest: BuildManifest;
+    runs: readonly RunRecord[];
+    trunk: string;
+    now: number;
     onRetry?: () => void;
 }) {
     const t = useT();
-    const log = useRunLog(run);
-    const [full, setFull] = useState(false);
+    const [logOpen, setLogOpen] = useState<boolean>(null);
     // A cancel holds until the run reads stopped: the process takes a moment to end (#952).
     const lock = usePendingLock(run.state);
     const [error, setError] = useState<string>(null);
@@ -318,116 +312,71 @@ export function BuildRunCard({
                 setError(serverErrorText(e));
             }
         });
-    const view = buildRunView(run, phases, manifest);
-    const lines = logTail(log, full ? 2000 : 8);
-    const showLines = lines.length > 0 && (view.showLog || full);
+    const row = buildBandRow(run, phases, manifest, runs, trunk, now);
+    const stopped = run.state !== "running";
+    const open = logOpen ?? stopped;
     return (
-        <section
-            className="rounded-6 border border-yellow-500/40 bg-gradient-to-br from-yellow-500/10 to-transparent p-4"
-            data-testid="build-run"
-            data-state={run.state}
+        <RunRow
+            row={row}
+            now={now}
+            testId="build-run"
+            phasesLabel={t("mc.builds.phasesLabel")}
+            actions={
+                <>
+                    <LogToggle open={open} onToggle={() => setLogOpen(!open)} />
+                    {run.state === "running" ? (
+                        <button
+                            type="button"
+                            disabled={locked}
+                            aria-busy={lock.pending === "cancel"}
+                            onClick={() =>
+                                runLocked("cancel", async () => {
+                                    await missionCancel(run.dir, run.id);
+                                    return true;
+                                })
+                            }
+                            className={RowButtonClass}
+                            data-testid="build-run-cancel"
+                        >
+                            {lock.pending === "cancel" ? <DominoLoader /> : null}
+                            {lock.pending === "cancel" ? t("mc.run.cancelling") : t("common.cancel")}
+                        </button>
+                    ) : null}
+                    {stopped && onRetry ? (
+                        <button type="button" onClick={onRetry} className={RowCtaClass} data-testid="build-run-retry">
+                            {t("mc.run.retry")}
+                            <MoltenWave />
+                        </button>
+                    ) : null}
+                    {stopped ? (
+                        <button
+                            type="button"
+                            disabled={locked}
+                            aria-busy={lock.pending === "close"}
+                            onClick={() =>
+                                runLocked("close", async () => {
+                                    await missionClose(run.dir, run.id);
+                                })
+                            }
+                            className={RowButtonClass}
+                            data-testid="build-run-close"
+                        >
+                            {lock.pending === "close" ? <DominoLoader /> : null}
+                            {lock.pending === "close" ? t("mc.run.closing") : t("common.close")}
+                        </button>
+                    ) : null}
+                </>
+            }
+            extra={
+                error ? (
+                    <p className="mt-2 mr-4 text-right text-12 text-danger" role="alert">
+                        {error}
+                    </p>
+                ) : null
+            }
         >
-            <div className="mb-3 flex items-center gap-1.5 text-11 font-medium tracking-wide text-muted uppercase">
-                <i className="fa fa-solid fa-hammer text-yellow-400" />
-                {t("mc.builds.buildLocal")}
-                <span className="ml-auto rounded-full border border-border px-2 py-0.5 tracking-normal text-primary normal-case">
-                    {buildCardTitle(projectName, { id: run.stepid, title: run.title })}
-                </span>
-            </div>
-            <ol className="flex items-start gap-2" aria-label={t("mc.builds.phasesLabel")}>
-                {view.phases.map((p, i) => (
-                    <li key={p.id} className="flex flex-1 items-center gap-2 last:flex-none">
-                        <div className="flex flex-col items-center gap-1">
-                            <span
-                                className={cn(
-                                    "flex h-7 w-7 items-center justify-center rounded-full border",
-                                    PhaseNodeClasses[p.status]
-                                )}
-                                data-status={p.status}
-                            >
-                                <PhaseIcon status={p.status} />
-                            </span>
-                            <span className="text-11 whitespace-nowrap text-muted">{p.title}</span>
-                        </div>
-                        {i < view.phases.length - 1 ? (
-                            <span className="mb-4 h-px flex-1 bg-border" aria-hidden />
-                        ) : null}
-                    </li>
-                ))}
-            </ol>
-            {view.line ? <p className="mt-3 text-12 text-secondary">{view.line}</p> : null}
-            {showLines ? (
-                <pre
-                    className={cn(
-                        "mt-3 overflow-auto rounded-6 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre-wrap text-secondary",
-                        full ? "max-h-[50vh]" : "max-h-40"
-                    )}
-                >
-                    {lines.join("\n")}
-                </pre>
-            ) : null}
-            <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                {run.state === "running" ? (
-                    <button
-                        type="button"
-                        disabled={locked}
-                        aria-busy={lock.pending === "cancel"}
-                        onClick={() =>
-                            runLocked("cancel", async () => {
-                                await missionCancel(run.dir, run.id);
-                                return true;
-                            })
-                        }
-                        className={cn(PlainButton, BusyButtonClass)}
-                        data-testid="build-run-cancel"
-                    >
-                        {lock.pending === "cancel" ? <DominoLoader className="mr-1.5" /> : null}
-                        {lock.pending === "cancel" ? t("mc.run.cancelling") : t("common.cancel")}
-                    </button>
-                ) : null}
-                <button type="button" onClick={() => setFull(!full)} className={cn(PlainButton, "mr-auto")}>
-                    {full ? t("mc.run.less") : t("mc.run.wholeLog")}
-                </button>
-                {view.delivered && run.artifact ? (
-                    <button type="button" onClick={() => openPath(pathParent(run.artifact))} className={PlainButton}>
-                        <i className="fa fa-solid fa-folder-open mr-1 text-11" />
-                        {t("mc.builds.showInFolder")}
-                    </button>
-                ) : null}
-                {run.state !== "running" && run.state !== "success" && onRetry ? (
-                    <button
-                        type="button"
-                        onClick={onRetry}
-                        className="molten-btn cursor-pointer rounded-6 px-2 py-1 text-12"
-                    >
-                        {t("mc.run.retry")}
-                        <MoltenWave />
-                    </button>
-                ) : null}
-                {run.state !== "running" ? (
-                    <button
-                        type="button"
-                        disabled={locked}
-                        aria-busy={lock.pending === "close"}
-                        onClick={() =>
-                            runLocked("close", async () => {
-                                await missionClose(run.dir, run.id);
-                            })
-                        }
-                        className={cn(PlainButton, BusyButtonClass)}
-                        data-testid="build-run-close"
-                    >
-                        {lock.pending === "close" ? <DominoLoader className="mr-1.5" /> : null}
-                        {lock.pending === "close" ? t("mc.run.closing") : t("common.close")}
-                    </button>
-                ) : null}
-            </div>
-            {error ? (
-                <p className="mt-2 text-right text-12 text-danger" role="alert">
-                    {error}
-                </p>
-            ) : null}
-        </section>
+            {open ? <BuildRunLog run={run} /> : null}
+        </RunRow>
     );
 }
 

@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { BuiltinProjectCards } from "./project-builtin-cards";
-import { layoutProjectCards } from "./project-cards";
+import { layoutProjectCards, shownProjectCards } from "./project-cards";
 
 // The Project overview's slots (FR-MC-020-AC1, DS-MC-012): the header band, the line map, then four cards in order.
 describe("project overview", () => {
@@ -17,6 +17,26 @@ describe("project overview", () => {
 
     it("shows four cards in one row: Next public release, Releases, Now, Project steps", () => {
         expect(layout.cards.map((c) => c.title)).toEqual(["Next public release", "Releases", "Now", "Project steps"]);
+    });
+
+    it("puts the In progress band between the line map and the cards, and a foot under the row (#2188)", () => {
+        expect(layout.band.map((c) => c.id)).toEqual(["moltenterm:running"]);
+        expect(layout.foot.map((c) => c.id)).toEqual(["moltenterm:steps-hint"]);
+        expect(layout.band[0].bare).toBe(true);
+    });
+
+    it("gives the Project steps card's cell to the others when the pipeline declares no step for it (AC-5)", () => {
+        const steps = layout.cards.find((c) => c.id === "moltenterm:steps");
+        const pipeline = (section: string) => ({ pipeline: { steps: [{ id: "s", section }] } }) as any;
+        expect(steps.visible(pipeline("timeline"))).toBe(true);
+        expect(steps.visible(pipeline("cd"))).toBe(false);
+        expect(steps.visible({ pipeline: null } as any)).toBe(false);
+        const props = { pipeline: { steps: [] } } as any;
+        expect(shownProjectCards(layout.cards, props).map((c) => c.id)).toEqual([
+            "moltenterm:next-release",
+            "moltenterm:releases",
+            "moltenterm:now",
+        ]);
     });
 
     it("gives each piece of information one card", () => {

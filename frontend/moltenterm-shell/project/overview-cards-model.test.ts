@@ -11,14 +11,17 @@ import { MissionGit, RunRecord, toTreeData } from "../mission/mission-model";
 import { releaseState, treeRules } from "../mission/versions";
 import {
     agoText,
+    buildNowLine,
     clockElapsed,
     commitKind,
+    hasOverviewSteps,
     lastBuildLine,
     nextReleaseView,
     notesExcerpt,
     nowSubagents,
     pickMilestone,
     releaseBars,
+    releaseNowLine,
     releasesView,
     trunkCiLine,
 } from "./overview-cards-model";
@@ -316,6 +319,78 @@ describe("now card", () => {
         expect(agoText(0, Now)).toBe("");
         expect(clockElapsed(3_725_000)).toBe("1:02:05");
         expect(clockElapsed(-5)).toBe("00:00");
+    });
+});
+
+// #2188: what runs is a row of the "In progress" band, and Now keeps one flat line for each thing.
+describe("the Now card's flat lines (#2188)", () => {
+    const build = {
+        id: "b1",
+        dir: "/p",
+        kind: "build",
+        stepid: "gold",
+        title: "Gold",
+        command: "x",
+        startedat: Now - 700_000,
+        finishedat: Now - 660_000,
+        state: "success",
+        phases: [],
+    } as RunRecord;
+
+    it("says a build in the band is running, see above, whatever its elapsed time", () => {
+        expect(buildNowLine({ ...build, state: "running", finishedat: 0 }, true, Now)).toEqual({
+            label: "Gold",
+            text: "running, see above",
+            tone: "running",
+        });
+        expect(buildNowLine({ ...build, state: "failure" }, true, Now)).toMatchObject({
+            text: "failed, see above",
+            tone: "failure",
+        });
+    });
+
+    it("says a build that left the band as it ended, a minute or more ago", () => {
+        expect(buildNowLine(build, false, Now)).toMatchObject({ text: "succeeded · 11 minutes ago", tone: "success" });
+        expect(buildNowLine(null, false, Now)).toMatchObject({ label: "No local build yet", tone: "neutral" });
+    });
+
+    const tag = (name: string, date: string) => ({ name, sha: "s", date, notes: null, notesInternal: null });
+    const state = (lastRc: any, lastPublic: any) => ({ lastRc, lastPublic }) as any;
+
+    it("says the release in the band is running, see above", () => {
+        expect(releaseNowLine(state(null, null), { tag: "v1.0.0-12" }, Now)).toEqual({
+            label: "Release v1.0.0-12",
+            text: "running, see above",
+            tone: "running",
+        });
+    });
+
+    it("says when the latest release was published, a candidate or a public one", () => {
+        const rc = tag("v1.0.0-12", new Date(Now - 4 * 60_000).toISOString());
+        const pub = tag("v0.9.0", new Date(Now - 5 * 86_400_000).toISOString());
+        expect(releaseNowLine(state(rc, pub), null, Now)).toMatchObject({
+            label: "Release v1.0.0-12",
+            text: "published 4 minutes ago",
+            tone: "success",
+        });
+        expect(releaseNowLine(state(null, pub), null, Now)).toMatchObject({
+            label: "Release v0.9.0",
+            text: "published 5 days ago",
+        });
+        expect(releaseNowLine(state(pub, rc), null, Now).label).toBe("Release v1.0.0-12");
+    });
+
+    it("has no release line for a project that never released", () => {
+        expect(releaseNowLine(state(null, null), null, Now)).toBeNull();
+        expect(releaseNowLine(null, null, Now)).toBeNull();
+    });
+
+    it("lists Project steps only when the pipeline declares a step in the overview section", () => {
+        const pipeline = (section: string) => ({ steps: [{ id: "s", section }] }) as any;
+        expect(hasOverviewSteps(pipeline("timeline"))).toBe(true);
+        expect(hasOverviewSteps(pipeline("cd"))).toBe(false);
+        expect(hasOverviewSteps({ steps: [] } as any)).toBe(false);
+        expect(hasOverviewSteps(null)).toBe(false);
     });
 });
 
