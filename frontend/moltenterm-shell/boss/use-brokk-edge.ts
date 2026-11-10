@@ -45,9 +45,14 @@ export function useBrokkEdge(asideRef: React.RefObject<HTMLElement>): { place: S
     const coming = useHubSelect((view) => view.comingKeys);
     const keysKey = keys.join("\n");
     const comingKey = coming.join("\n");
+    const held = useHubSelect((view) => view.heldKeys);
+    const heldKey = held.join("\n");
     const shape = edgeShapeOf(place, { visit, cue, telling });
 
-    useEffect(() => edgeModel.tell(keys, looking, ready, coming), [edgeModel, keysKey, comingKey, looking, ready]);
+    useEffect(
+        () => edgeModel.tell(keys, looking, ready, coming, held),
+        [edgeModel, keysKey, comingKey, heldKey, looking, ready]
+    );
     useEffect(() => {
         const step = newsToTell(bounce, played.current, place);
         played.current = step.played;

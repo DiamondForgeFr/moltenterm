@@ -13,6 +13,8 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
+import type { AgentSeenView } from "../agent-state-model";
+import { eventSourceInView, NothingInView } from "../source-in-view";
 import type { BrokkExpression } from "./brokk-ask-model";
 import { EmptyGate, gateAfter, GateEvent, gateHold, gateOpensAt, GateState, mayArriveNow } from "./brokk-gate";
 import { inQuietHours, nextClockTime, nextQuietChange } from "./brokk-mood";
@@ -93,13 +95,83 @@ export type VisitState = {
     laterUntil: number;
     // He is there: the scene is up.
     shown: boolean;
+    // The events held back because their source is, or just was, in front of the developer (#2166): not before this
+    // moment. Kept a little ahead while the source stays in view, and set to LeftViewDelayMs after it leaves.
+    heldUntil?: Record<string, number>;
+    // The events whose source was in view at the last step, to know when it leaves.
+    inView?: string[];
 };
 
-export const EmptyVisits: VisitState = { events: {}, told: {}, laterUntil: 0, shown: false };
+export const EmptyVisits: VisitState = { events: {}, told: {}, laterUntil: 0, shown: false, heldUntil: {}, inView: [] };
 
-export type BrokkModel = { settings: VisitSettings; gate: GateState; visits: VisitState };
+// `view` is what this tab view shows (source-in-view.ts): what it shows of an event's source holds the event back.
+export type BrokkModel = { settings: VisitSettings; gate: GateState; visits: VisitState; view?: AgentSeenView };
 
-export const InitialBrokk: BrokkModel = { settings: DefaultVisitSettings, gate: EmptyGate, visits: EmptyVisits };
+export const InitialBrokk: BrokkModel = {
+    settings: DefaultVisitSettings,
+    gate: EmptyGate,
+    visits: EmptyVisits,
+    view: NothingInView,
+};
+
+// How long an event stays held back once its source left the view (AC64): the developer who looked away without acting
+// is fetched after this, once, as if it had just arrived.
+export const LeftViewDelayMs = Min;
+
+// A hold is renewed while its source stays in view once less than this is left of it (every 10 s), so that the other
+// views and windows, which learn it through the shared record, keep holding. A view that stops listening as it hides
+// cannot say the source left: the view the developer moves to then lets it go 50 to 60 s later.
+export const HoldRenewMs = LeftViewDelayMs - 10 * 1000;
+
+export function isHeld(visits: VisitState, key: string, now: number): boolean {
+    return (visits.heldUntil?.[key] ?? 0) > now;
+}
+
+// The keys held back now, sorted.
+export function heldKeys(visits: VisitState, now: number): string[] {
+    return Object.keys(visits.heldUntil ?? {})
+        .filter((key) => visits.events[key] != null && isHeld(visits, key, now))
+        .sort();
+}
+
+function sameList(a: string[], b: string[]): boolean {
+    return a.length === b.length && a.every((value, i) => value === b[i]);
+}
+
+function sameHolds(a: Record<string, number>, b: Record<string, number>): boolean {
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
+
+// The holds after a step (AC63, AC64): an event whose source is in view is held, and renewed while it stays there; one
+// whose source just left stays held for LeftViewDelayMs from now; a hold that is over, or of an event that ended, goes.
+function withHolds(visits: VisitState, view: AgentSeenView, now: number): VisitState {
+    const before = visits.heldUntil ?? {};
+    const wasInView = visits.inView ?? [];
+    const inView = Object.keys(visits.events)
+        .filter((key) => eventSourceInView(key, view))
+        .sort();
+    const held: Record<string, number> = {};
+    for (const [key, until] of Object.entries(before)) {
+        if (visits.events[key] != null && until > now) {
+            held[key] = until;
+        }
+    }
+    for (const key of inView) {
+        if ((held[key] ?? 0) <= now + HoldRenewMs) {
+            held[key] = now + LeftViewDelayMs;
+        }
+    }
+    for (const key of wasInView) {
+        if (visits.events[key] != null && !inView.includes(key)) {
+            held[key] = now + LeftViewDelayMs;
+        }
+    }
+    if (sameList(inView, wasInView) && sameHolds(held, before)) {
+        return visits;
+    }
+    return { ...visits, heldUntil: held, inView };
+}
 
 // What the visit says: his face, how grave it is, and the events it covers, the gravest first.
 export type Visit = {
@@ -127,13 +199,15 @@ function byGravity(settings: VisitSettings, now: number) {
         (a.event.key < b.event.key ? -1 : 1);
 }
 
-// The events a visit would tell: set to Vient, worth a visit already, and not told at this gravity.
-export function tellable(visits: VisitState, settings: VisitSettings, now: number): StoredEvent[] {
+// The events a visit would tell: set to Vient, worth a visit already, not told at this gravity, and not held back by what
+// the developer has in view (#2166) unless `withHeld`.
+export function tellable(visits: VisitState, settings: VisitSettings, now: number, withHeld = false): StoredEvent[] {
     return Object.values(visits.events)
         .filter(
             ({ event }) =>
                 comingOf(event.kind, settings) === "vient" &&
                 isRaised(event, settings, now) &&
+                (withHeld || !isHeld(visits, event.key, now)) &&
                 (visits.told[event.key] ?? -1) < SeverityRank[severityOf(event, settings, now)]
         )
         .sort(byGravity(settings, now));
@@ -161,13 +235,14 @@ export function badgeKeys(visits: VisitState, settings: VisitSettings): string[]
         .sort();
 }
 
-// The badge's keys set to Vient: the only ones that move the collapsed sidebar (#2155). With "never come" set, none.
-export function comingKeys(visits: VisitState, settings: VisitSettings): string[] {
+// The badge's keys set to Vient: the only ones that move the collapsed sidebar (#2155). With "never come" set, none; nor
+// one held back by what the developer has in view (#2166).
+export function comingKeys(visits: VisitState, settings: VisitSettings, now: number = 0): string[] {
     if (settings.never) {
         return [];
     }
     return Object.values(visits.events)
-        .filter(({ event }) => comingOf(event.kind, settings) === "vient")
+        .filter(({ event }) => comingOf(event.kind, settings) === "vient" && !isHeld(visits, event.key, now))
         .map(({ event }) => event.key)
         .sort();
 }
@@ -189,6 +264,8 @@ export type BrokkInput =
     | { type: "open" }
     | { type: "settings"; settings: VisitSettings }
     | { type: "gate"; event: GateEvent }
+    // What this tab view shows changed (source-in-view.ts).
+    | { type: "view"; view: AgentSeenView }
     | { type: "tick" };
 
 // The state after an event is raised: the very same object when it is known as it is, so that no one draws again for
@@ -208,14 +285,16 @@ function withEvent(visits: VisitState, event: BrokkEvent, source: string, now: n
 }
 
 function withoutEvent(visits: VisitState, key: string): VisitState {
-    if (visits.events[key] == null && visits.told[key] == null) {
+    if (visits.events[key] == null && visits.told[key] == null && visits.heldUntil?.[key] == null) {
         return visits;
     }
     const events = { ...visits.events };
     const told = { ...visits.told };
+    const heldUntil = { ...(visits.heldUntil ?? {}) };
     delete events[key];
     delete told[key];
-    return { ...visits, events, told };
+    delete heldUntil[key];
+    return { ...visits, events, told, heldUntil, inView: (visits.inView ?? []).filter((k) => k !== key) };
 }
 
 function visitsAfter(visits: VisitState, input: BrokkInput, settings: VisitSettings, now: number): VisitState {
@@ -245,7 +324,8 @@ function visitsAfter(visits: VisitState, input: BrokkInput, settings: VisitSetti
         }
         case "open": {
             const told = { ...visits.told };
-            for (const { event } of tellable(visits, settings, now)) {
+            // What is held back is heard too: the developer opened his panel on everything.
+            for (const { event } of tellable(visits, settings, now, true)) {
                 told[event.key] = SeverityRank[severityOf(event, settings, now)];
             }
             return { ...visits, told, shown: false };
@@ -263,7 +343,7 @@ function quietNow(model: BrokkModel, now: number): boolean {
 // the developer turned him off), and comes when something is, nothing holds him and the gate is open. Quiet hours
 // beginning do not take back a scene that is already up.
 function settled(model: BrokkModel, now: number): BrokkModel {
-    let visits = model.visits;
+    let visits = withHolds(model.visits, model.view ?? NothingInView, now);
     if (visits.laterUntil > 0 && now >= visits.laterUntil) {
         visits = { ...visits, laterUntil: 0 };
     }
@@ -294,6 +374,9 @@ export type BrokkView = {
     badgeKeys: string[];
     // Those of them set to Vient, which move the collapsed sidebar.
     comingKeys: string[];
+    // Those held back by what the developer has in view (#2166): the collapsed sidebar does not count them as told, so
+    // that it moves for them once they are let go.
+    heldKeys: string[];
     laterUntil: number;
 };
 
@@ -321,7 +404,8 @@ function viewOf(model: BrokkModel, now: number): BrokkView {
         mayArrive: mayArriveNow(model.gate, quiet, now),
         badge: keys.length,
         badgeKeys: keys,
-        comingKeys: comingKeys(visits, settings),
+        comingKeys: comingKeys(visits, settings, now),
+        heldKeys: heldKeys(visits, now),
         laterUntil: visits.laterUntil,
     };
 }
@@ -338,9 +422,15 @@ function wakeOf(model: BrokkModel, now: number): number {
     if (visits.laterUntil > now) {
         moments.push(visits.laterUntil);
     }
+    const inView = new Set(visits.inView ?? []);
     for (const { event } of Object.values(visits.events)) {
-        if (comingOf(event.kind, settings) === "vient") {
-            moments.push(...eventMoments(event, settings));
+        if (comingOf(event.kind, settings) !== "vient") {
+            continue;
+        }
+        moments.push(...eventMoments(event, settings));
+        const until = visits.heldUntil?.[event.key];
+        if (until != null) {
+            moments.push(inView.has(event.key) ? until - HoldRenewMs : until);
         }
     }
     const held = !visits.shown && visits.laterUntil === 0 && tellable(visits, settings, now).length > 0;
@@ -360,6 +450,8 @@ export function brokkAfter(before: BrokkModel, input: BrokkInput, now: number): 
         model = { ...model, settings: input.settings };
     } else if (input.type === "gate") {
         model = { ...model, gate: gateAfter(model.gate, input.event, now) };
+    } else if (input.type === "view") {
+        model = { ...model, view: input.view ?? NothingInView };
     } else {
         const visits = visitsAfter(model.visits, input, model.settings, now);
         model = visits === model.visits ? model : { ...model, visits };

@@ -9,7 +9,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
-import { edgeNewsAfter, EdgeNews, NoNews } from "./brokk-edge-model";
+import { EdgeNews, edgeNewsAfter, NoNews } from "./brokk-edge-model";
 
 export class BrokkEdgeModel {
     private static instance: BrokkEdgeModel = null;
@@ -27,9 +27,10 @@ export class BrokkEdgeModel {
     }
 
     // What the badge counts now, whether the developer is looking at it, and whether the feeds have been read. `coming`
-    // are the keys set to Vient, the only ones that move the sidebar (#2155).
-    tell(keys: string[], looking: boolean, ready: boolean, coming: string[] = keys): void {
-        const step = edgeNewsAfter(this.news, keys, coming, looking, ready);
+    // are the keys set to Vient, the only ones that move the sidebar (#2155); `held` those the developer has in view,
+    // which move it only once let go (#2166).
+    tell(keys: string[], looking: boolean, ready: boolean, coming: string[] = keys, held: string[] = []): void {
+        const step = edgeNewsAfter(this.news, keys, coming, looking, ready, held);
         this.news = step.news;
         if (step.fresh) {
             globalStore.set(this.bounceAtom, globalStore.get(this.bounceAtom) + 1);

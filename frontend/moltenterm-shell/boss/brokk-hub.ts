@@ -10,7 +10,7 @@
 // It knows no surface and no store: everything outside is handed in, and the clock and the timers are too, so the rules
 // are tested without a wait. It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
-import type { AgentStatesData } from "../agent-state-model";
+import type { AgentSeenView, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { GateEvent, gateHold } from "./brokk-gate";
 import { finishedSetAfter } from "./brokk-hub-feed";
@@ -77,8 +77,27 @@ function sameView(a: HubView, b: HubView): boolean {
         a.badge === b.badge &&
         a.badgeKeys.join("\n") === b.badgeKeys.join("\n") &&
         a.comingKeys.join("\n") === b.comingKeys.join("\n") &&
+        a.heldKeys.join("\n") === b.heldKeys.join("\n") &&
         a.laterUntil === b.laterUntil &&
         a.ready === b.ready
+    );
+}
+
+function sameItems(a: string[], b: string[]): boolean {
+    const x = a ?? [];
+    const y = b ?? [];
+    return x.length === y.length && x.every((value, i) => value === y[i]);
+}
+
+// The focused block does not matter to what is in view: only the blocks and the projects shown do.
+function sameSeenView(a: AgentSeenView, b: AgentSeenView): boolean {
+    return (
+        a === b ||
+        (a != null &&
+            b != null &&
+            !!a.active === !!b.active &&
+            sameItems(a.blockIds, b.blockIds) &&
+            sameItems(a.prDirs, b.prDirs))
     );
 }
 
@@ -172,6 +191,14 @@ export class BrokkHub {
 
     gate(event: GateEvent): void {
         this.run({ type: "gate", event });
+    }
+
+    // What this tab view shows (source-in-view.ts, #2166): an event whose source is in it is held back.
+    inView(view: AgentSeenView): void {
+        if (sameSeenView(this.model.view, view)) {
+            return;
+        }
+        this.run({ type: "view", view });
     }
 
     later(choice: SnoozeChoiceId | "escape"): void {
