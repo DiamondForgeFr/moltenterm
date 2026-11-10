@@ -811,6 +811,7 @@ export function ReleaseRunPanel({
             setAbandonError(null);
             try {
                 await cardLock.run("abandon", onAbandon);
+                setConfirming(false);
             } catch (e) {
                 setAbandonError(serverErrorText(e));
             }

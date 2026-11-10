@@ -359,12 +359,16 @@ export function buildNowLine(build: RunRecord, inBand: boolean, now = Date.now()
 
 // The latest release the history holds, a candidate or a public one: "published 4 min ago". While a release is a row
 // of the band, its line says where to look. null when the project has never released.
-export function releaseNowLine(state: ReleaseState, running: { tag: string } | null, now = Date.now()): NowLine {
+export function releaseNowLine(
+    state: ReleaseState,
+    running: { tag: string; failed?: boolean } | null,
+    now = Date.now()
+): NowLine {
     if (running != null) {
         return {
             label: t("project.now.release", { tag: running.tag }),
-            text: t("project.now.runningAbove"),
-            tone: "running",
+            text: running.failed ? t("project.now.failedAbove") : t("project.now.runningAbove"),
+            tone: running.failed ? "failure" : "running",
         };
     }
     const tags = [state?.lastRc, state?.lastPublic].filter((tag) => tag != null);

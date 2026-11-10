@@ -20,6 +20,7 @@ export function workBandRow(item: WorkItem): BandRow {
         note: "",
         phases: [],
         startedat: item.startedat,
+        endedat: 0,
         estimateMs: 0,
     };
 }

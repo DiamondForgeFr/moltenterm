@@ -165,8 +165,17 @@ describe("buildBandRow", () => {
     });
 
     it("keeps a failed build in the failure tone with why it stopped, on the phase it stopped in", () => {
-        const row = buildBandRow(run({ state: "failure" }), Defs, null, [], "develop", now);
+        const row = buildBandRow(
+            run({ state: "failure", finishedat: 1_000_000 + 5_000 }),
+            Defs,
+            null,
+            [],
+            "develop",
+            now
+        );
         expect(row.tone).toBe("failed");
+        expect(row.endedat).toBe(1_005_000);
+        expect(buildBandRow(run(), Defs, null, [], "develop", now).endedat).toBe(0);
         expect(row.note).toContain("Failed during");
         expect(row.note).toContain("Wavesrv");
         const current = row.phases.find((p) => p.current);

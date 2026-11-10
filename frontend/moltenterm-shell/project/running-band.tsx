@@ -30,15 +30,7 @@ const BandTitle: Record<RowTone, string> = {
     failed: "text-danger",
 };
 
-export function RunningBand({
-    pipeline,
-    runs,
-    ci,
-    release,
-    startBuild,
-    snapshot,
-    releaseFollow,
-}: ProjectCardProps) {
+export function RunningBand({ pipeline, runs, ci, release, startBuild, snapshot, releaseFollow }: ProjectCardProps) {
     const t = useT();
     useLocale();
     const trunk = snapshot?.git?.trunk ?? "";
@@ -81,6 +73,7 @@ export function RunningBand({
             <div className="divide-y divide-border">
                 {buildShown ? (
                     <BuildRunRow
+                        key={lastBuild.id}
                         run={lastBuild}
                         phases={buildDef?.phases ?? []}
                         manifest={null}

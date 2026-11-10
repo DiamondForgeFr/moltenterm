@@ -28,7 +28,7 @@ import { deliveredBy } from "../mission/builds-model";
 import { latestRun, MissionSnapshot, toTreeData } from "../mission/mission-model";
 import { openSetupTab } from "../mission/pipeline-tab-open";
 import { NextPublicRelease, ReleaseHistory } from "../mission/release-state-panel";
-import { buildInBand } from "../mission/run-row-model";
+import { buildInBand, releaseBandRow } from "../mission/run-row-model";
 import { showBuildInFolder, useDeliveredManifest } from "../mission/runs-view";
 import { releaseState, treeRules } from "../mission/versions";
 import { MoltentermNotifications } from "../notifications-store";
@@ -294,7 +294,15 @@ export function NowCard({ project, pipeline, runs, ci, startBuild, snapshot, rel
     const ciLine = trunkCiLine(ci, trunk, now);
     const inBand = buildInBand(lastBuild);
     const buildLine = buildNowLine(lastBuild, inBand, now);
-    const releaseLine = releaseNowLine(state, releaseFollow?.run ?? null, now);
+    const followed = releaseFollow?.run ?? null;
+    const releaseLine = releaseNowLine(
+        state,
+        followed && {
+            tag: followed.tag,
+            failed: releaseBandRow(followed, releaseFollow.jobs, releaseFollow.startedat).tone === "failed",
+        },
+        now
+    );
     const rebuildable = lastBuild != null && !inBand && (pipeline?.builds ?? []).some((b) => b.id === lastBuild.stepid);
     const folder = lastBuild != null && !!lastBuild.artifact && deliveredBy(lastBuild, delivered) != null;
     return (
