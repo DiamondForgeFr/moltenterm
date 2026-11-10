@@ -1179,3 +1179,67 @@
     background: var(--mt-place);
     pointer-events: none;
 }
+
+/* The pinned tiles' shape follows their room (FR-SHELL-079, #2173). Narrow, a tile keeps its shape: the icon above the
+   name, up to three a row. From PinnedRowMinWidth (sidebar-model.ts, 280 px: a sidebar of 296 px) of room each tile is
+   a row of its own like the temporary views', its icon on the left and its name on the right, filling the width. The
+   size container is the tiles' zone, since a container cannot restyle itself; the active underline, the lights and
+   the corner's marks stay on the tile, the marks turning from a column into a line at the row's end. */
+.mt-sb-tiles {
+    container: mtpins / inline-size;
+}
+
+.mt-sb-tilegrid {
+    grid-template-columns: var(--mt-tile-cols);
+}
+
+@container mtpins (min-width: 280px) {
+    .mt-sb-tilegrid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .mt-sb-tile {
+        height: 36px;
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 8px;
+        padding: 0 8px;
+        font-size: var(--mt-text-12);
+    }
+
+    .mt-sb-tile .mt-sb-tile-name {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        text-align: left;
+    }
+
+    .mt-sb-tile .mt-sb-corner {
+        position: static;
+        width: auto;
+        flex: none;
+        flex-direction: row;
+        gap: 6px;
+    }
+
+    .mt-sb-tile .mt-sb-prdots {
+        flex-direction: row;
+        gap: 3px;
+    }
+
+    .mt-sb-tile .mt-sb-revert {
+        top: 50%;
+        right: 6px;
+        bottom: auto;
+        transform: translateY(-50%);
+    }
+
+    /* Tiles stand one above the other: the bar of a drop shows above or below, not on a side (sidebar-drag.ts). */
+    .mt-sb-tile.mt-sb-dropb {
+        box-shadow: 0 -3px 0 0 var(--color-accent) !important;
+    }
+
+    .mt-sb-tile.mt-sb-dropa {
+        box-shadow: 0 3px 0 0 var(--color-accent) !important;
+    }
+}

@@ -928,12 +928,12 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 <ViewGlyph icons={glyph} />
             )}
             {renaming ? (
-                <span className="flex w-full px-0.5">
+                <span className="mt-sb-tile-name flex w-full px-0.5">
                     <RenameInput initial={identity.name} onDone={rename} />
                 </span>
             ) : (
                 <span
-                    className="name max-w-full truncate"
+                    className="name mt-sb-tile-name max-w-full truncate"
                     onDoubleClick={(e) => {
                         e.stopPropagation();
                         setRenaming(true);
@@ -1007,25 +1007,31 @@ function TileGrid({ tileIds, activeTabId, label }: { tileIds: string[]; activeTa
         <div
             ref={ref}
             className={cn(
-                "mt-sb-zone grid shrink-0 gap-1.5 px-1 pt-[7px] pb-0.5",
+                "mt-sb-zone mt-sb-tiles shrink-0 px-1 pt-[7px] pb-0.5",
                 target && "is-target",
                 over && "is-over",
                 tileIds.length === 0 && "mt-sb-zone-empty"
             )}
-            style={{ gridTemplateColumns: TileGridColumns }}
             aria-label={label}
             data-testid="sidebar-tiles"
             data-cap={caption}
             {...zoneProps("tiles")}
         >
-            {tileIds.map((id) => (
-                <Tile
-                    key={id}
-                    tabId={id}
-                    active={id === activeTabId}
-                    counts={id === pilotageTile ? counts : undefined}
-                />
-            ))}
+            {/* The zone is the size container of the tiles' shape (sidebar.css, PinnedRowMinWidth): a container cannot
+                restyle itself, so the grid is its child, and its columns come from a variable the query can override. */}
+            <div
+                className="mt-sb-tilegrid grid gap-1.5"
+                style={{ "--mt-tile-cols": TileGridColumns } as React.CSSProperties}
+            >
+                {tileIds.map((id) => (
+                    <Tile
+                        key={id}
+                        tabId={id}
+                        active={id === activeTabId}
+                        counts={id === pilotageTile ? counts : undefined}
+                    />
+                ))}
+            </div>
         </div>
     );
 }

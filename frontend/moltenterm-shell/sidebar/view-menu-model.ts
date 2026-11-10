@@ -333,6 +333,16 @@ export function dropsAfter(clientX: number, rect: { left: number; width: number 
     return clientX > rect.left + rect.width / 2;
 }
 
+// Blocks that fill their area's width stand one above the other (the tiles of a wide sidebar, FR-SHELL-079, #2173):
+// the pointer's height tells the side of a drop there, as its x tells it for blocks side by side.
+export function blockStacks(block: { width: number }, area: { width: number }): boolean {
+    return area.width > 0 && block.width >= area.width * 0.9;
+}
+
+export function dropsBelow(clientY: number, rect: { top: number; height: number }): boolean {
+    return clientY > rect.top + rect.height / 2;
+}
+
 // ⌘Z (Ctrl+Z elsewhere) undoes the sidebar's last change while its toast shows, unless the focus types text (a field,
 // an editor, a terminal), which keeps its own undo.
 export function undoKey(

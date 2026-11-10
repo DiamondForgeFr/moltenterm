@@ -36,7 +36,7 @@ function GhostTab({ tabId, tiles }: { tabId: string; tiles: boolean }) {
         return (
             <div className="mt-sb-tile flex h-[52px] min-w-0 flex-col items-center justify-center gap-[5px] rounded-6 bg-white/[0.09] px-1 text-11 text-primary">
                 <ViewGlyph icons={glyph} />
-                <span className="max-w-full truncate">{name}</span>
+                <span className="mt-sb-tile-name max-w-full truncate">{name}</span>
             </div>
         );
     }
@@ -116,13 +116,15 @@ export const SidebarGhost = memo(function SidebarGhost({
                             {name}
                         </span>
                     </div>
-                    <div
-                        className="grid shrink-0 gap-1.5 px-1 pt-[7px]"
-                        style={{ gridTemplateColumns: TileGridColumns }}
-                    >
-                        {tabIds.map((id) => (
-                            <GhostTab key={id} tabId={id} tiles />
-                        ))}
+                    <div className="mt-sb-tiles shrink-0 px-1 pt-[7px]">
+                        <div
+                            className="mt-sb-tilegrid grid gap-1.5"
+                            style={{ "--mt-tile-cols": TileGridColumns } as React.CSSProperties}
+                        >
+                            {tabIds.map((id) => (
+                                <GhostTab key={id} tabId={id} tiles />
+                            ))}
+                        </div>
                     </div>
                     <div className="flex flex-col gap-0.5 px-0.5">
                         {tabIds.map((id) => (

@@ -22,6 +22,10 @@ export const SidebarDefaultWidth = 264;
 export const TileGap = 6;
 export const TileMinWidth = 74;
 export const TileMaxPerRow = 3;
+// From this much room for the tiles (their area's width: the sidebar's, less the frame's gap and the area's padding,
+// 296 px of sidebar) each tile is a row of its own, its icon on the left and its name on the right (FR-SHELL-079,
+// #2173). The stylesheet's container query states the same number (sidebar.css, "mtpins").
+export const PinnedRowMinWidth = 280;
 
 // The sidebar is on unless the hidden setting turns it off.
 export function sidebarEnabled(setting: boolean): boolean {
