@@ -767,7 +767,7 @@ export class View360Model {
     // answer is stored in the settings too, so no other view is asked. Returns false when the number cannot apply.
     answerOffer(choice: OfferChoice, everyView: boolean): boolean {
         if (choice === OfferGrid) {
-            this.keepGridForView();
+            this.writeOfferAnswer(OfferGrid);
         } else {
             const blockId = this.placesBlockId();
             if (blockId == null || !this.applyPlaces(blockId, choice)) {
@@ -779,10 +779,6 @@ export class View360Model {
             fireAndForget(() => storeEveryView(choice));
         }
         return true;
-    }
-
-    private keepGridForView() {
-        this.writeOfferAnswer(OfferGrid);
     }
 
     offerAnswer(): OfferAnswer {
