@@ -291,3 +291,73 @@ button.molten-header-link:focus-visible {
         flex-shrink: 1 !important;
     }
 }
+
+/* The Integration panel's owners filter (FR-REV-034 AC12, #2207). The funnel turns the action colour while a filter is
+   on, with a quarter fill and no dot or badge; open, it looks like the carpet button. The agents it filters by sit
+   after the title as quiet text: a muted dot, the names, a muted +N. The names give way first and never wrap; the dot
+   and the +N keep their room. */
+.wave-iconbutton.mt-owners-filter.is-on {
+    color: var(--mt-action);
+    opacity: 1;
+}
+
+.wave-iconbutton.mt-owners-filter.is-open {
+    background: var(--mt-surface-3);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    opacity: 1;
+}
+
+.block.block-frame-default
+    .block-frame-default-inner
+    .block-frame-default-header
+    .block-frame-textelems-wrapper
+    .block-frame-div.mt-owners-names {
+    flex: 0 1 auto;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    justify-content: flex-start;
+    gap: var(--mt-space-4);
+    overflow: hidden;
+}
+
+.block.block-frame-default
+    .block-frame-default-inner
+    .block-frame-default-header
+    .block-frame-textelems-wrapper
+    .mt-owners-names
+    .block-frame-text {
+    flex-shrink: 0;
+    font-family: var(--mt-ui-font);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.block.block-frame-default
+    .block-frame-default-inner
+    .block-frame-default-header
+    .block-frame-textelems-wrapper
+    .mt-owners-names
+    .mt-owners-list {
+    flex-shrink: 1;
+    min-width: 0;
+    color: var(--mt-text-secondary);
+}
+
+.block.block-frame-default
+    .block-frame-default-inner
+    .block-frame-default-header
+    .block-frame-textelems-wrapper
+    .mt-owners-names:hover
+    .mt-owners-list {
+    color: var(--mt-text-main);
+}
+
+.block.block-frame-default
+    .block-frame-default-inner
+    .block-frame-default-header
+    .block-frame-textelems-wrapper
+    .mt-owners-names
+    .mt-owners-dot {
+    opacity: 0.6;
+}

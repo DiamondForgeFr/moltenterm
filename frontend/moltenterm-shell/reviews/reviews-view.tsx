@@ -14,7 +14,7 @@ import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { atoms, getBlockMetaKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
-import { atom, useAtomValue } from "jotai";
+import { atom, Atom, useAtomValue } from "jotai";
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentChain } from "../agent-chain-store";
 import { AgentStates } from "../agent-state-store";
@@ -70,7 +70,8 @@ import { CardMotion } from "./reviews-motion";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
-import { LeadGroupHeader, OthersWaitLine, OwnersBar } from "./reviews-owners";
+import { LeadGroupHeader, OthersWaitLine, OwnersFilterHost } from "./reviews-owners";
+import { OwnersFilter } from "./reviews-owners-filter";
 import {
     branchOwner,
     groupByLead,
@@ -148,10 +149,18 @@ export class ReviewsViewModel implements ViewModel {
         return translate("reviews.viewName");
     });
     noPadding = atom(true);
+    // The owners filter lives in the panel's header (FR-REV-034 AC12): the funnel among the icon buttons, the names
+    // next to the title.
+    owners: OwnersFilter;
+    endIconButtons: Atom<IconButtonDecl[]>;
+    viewText: Atom<HeaderElem[]>;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
+        this.owners = new OwnersFilter(blockId);
+        this.endIconButtons = this.owners.buttonsAtom;
+        this.viewText = this.owners.textAtom;
     }
 
     get viewComponent(): ViewComponent {
@@ -200,7 +209,7 @@ function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
             notRepoText={reviewsNotRepoText()}
         >
             {({ project, snapshot }) => (
-                <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
+                <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} filter={model.owners} />
             )}
         </MissionFrame>
     );
@@ -213,7 +222,7 @@ function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
                     </Suspense>
                     {shown == null ? (
                         <Suspense fallback={null}>
-                            <AllProjectsList workspace={workspace} projects={projects} />
+                            <AllProjectsList workspace={workspace} projects={projects} filter={model.owners} />
                         </Suspense>
                     ) : shown.dir === "" ? (
                         <Suspense fallback={null}>
@@ -244,10 +253,12 @@ function ReviewsContent({
     project,
     snapshot,
     blockId,
+    filter,
 }: {
     project: ActiveProject;
     snapshot: MissionSnapshot;
     blockId: string;
+    filter: OwnersFilter;
 }) {
     const t = useT();
     const { answer, error, refresh } = useReviews(project.dir, snapshot);
@@ -269,7 +280,14 @@ function ReviewsContent({
                 ) : null}
                 {answer?.state === "ok" ? <SortControl sort={sort} /> : null}
             </MissionHeader>
-            <ReviewsBody dir={project.dir} answer={answer} error={error} refresh={refresh} blockId={blockId} />
+            <ReviewsBody
+                dir={project.dir}
+                answer={answer}
+                error={error}
+                refresh={refresh}
+                blockId={blockId}
+                filter={filter}
+            />
         </>
     );
 }
@@ -280,12 +298,14 @@ function ReviewsBody({
     error,
     refresh,
     blockId,
+    filter,
 }: {
     dir: string;
     answer: ReviewsAnswer;
     error: string;
     refresh: () => void;
     blockId: string;
+    filter: OwnersFilter;
 }) {
     const t = useT();
     if (answer == null && error) {
@@ -318,7 +338,7 @@ function ReviewsBody({
             />
         );
     }
-    return <ReviewsList dir={dir} answer={answer} blockId={blockId} />;
+    return <ReviewsList dir={dir} answer={answer} blockId={blockId} filter={filter} />;
 }
 
 function Loading() {
@@ -341,7 +361,17 @@ const TurnSectionText: Record<CardTurn, { title: string; hint?: string }> = {
     agents: { title: TurnTitleKeys.agents, hint: "reviews.sections.agentsHint" },
 };
 
-function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAnswer; blockId: string }) {
+function ReviewsList({
+    dir,
+    answer,
+    blockId,
+    filter,
+}: {
+    dir: string;
+    answer: ReviewsAnswer;
+    blockId: string;
+    filter: OwnersFilter;
+}) {
     const t = useT();
     const word = useWordPhrase();
     const model = ReviewsModel.getInstance();
@@ -751,14 +781,12 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             onMouseLeave={() => setHovered(null)}
             data-role="molten-reviews"
         >
-            <div className="-mx-3 -mt-3">
-                <OwnersBar
-                    view={view}
-                    edges={edges}
-                    owners={ownerCounts}
-                    hidden={scoped.hidden.length + elsewhere.hidden}
-                />
-            </div>
+            <OwnersFilterHost
+                filter={filter}
+                view={view}
+                owners={ownerCounts}
+                hidden={scoped.hidden.length + elsewhere.hidden}
+            />
             <ForecastLinks
                 listRef={listRef}
                 source={hot.length > 0 ? active : null}

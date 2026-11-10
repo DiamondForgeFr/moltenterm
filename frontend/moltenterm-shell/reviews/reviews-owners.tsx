@@ -1,16 +1,19 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The Integration panel's owners (FR-REV-034, #2174): the bar that says whose work the view shows (the followed agents
-// as chips, the proposal for an agent that joined, the count hidden), the owner on each card, the groups of work in
-// progress under their lead, and the calm line for what outside the filter waits for the developer.
+// The Integration panel's owners (FR-REV-034, #2174, #2207): the owners menu the header's funnel button opens (whose
+// work the view shows, the proposal for an agent that joined, the count hidden), the owner on each card, the groups of
+// work in progress under their lead, and the calm line for what outside the filter waits for the developer.
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
-import { lazy, Suspense, useState } from "react";
-import type { ChainEdge } from "../agent-chain-store";
+import { useAtomValue } from "jotai";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { useT, useTCount } from "../i18n/i18n";
-import { MoltenWave } from "../molten-button";
-import { foldName, OwnerFacts, ScopeChip, scopeChips } from "./reviews-owners-model";
+import type { OwnersFilter } from "./reviews-owners-filter";
+import { ownersNamesFitting } from "./reviews-owners-fit";
+import { MinNamesShown, OwnerFacts, ownersFilterFacts } from "./reviews-owners-model";
 import type { ViewScopeState } from "./reviews-owners-store";
 import type { ElsewhereWaits } from "./reviews-workspace-model";
 
@@ -30,154 +33,89 @@ function Initial({ name, dashed }: { name: string; dashed?: boolean }) {
     );
 }
 
-function FollowedChip({ chip, onRemove }: { chip: ScopeChip; onRemove: () => void }) {
-    const t = useT();
-    const tc = useTCount();
-    return (
-        <span
-            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-accent/60 bg-accent/10 pr-1 pl-1 text-12 text-primary"
-            title={t("reviews.owners.chipTitle", { name: chip.name })}
-            data-testid="reviews-owners-chip"
-            data-agent={chip.name}
-        >
-            <Initial name={chip.name} />
-            <span>{chip.name}</span>
-            {chip.subs > 0 ? (
-                <span className="text-muted" data-testid="reviews-owners-chip-subs">
-                    {tc("reviews.owners.chipSubs", chip.subs, { count: chip.subs })}
-                </span>
-            ) : null}
-            <button
-                type="button"
-                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-muted hover:bg-hover hover:text-primary"
-                aria-label={t("reviews.owners.chipRemove", { name: chip.name })}
-                title={t("reviews.owners.chipRemove", { name: chip.name })}
-                onClick={onRemove}
-                data-testid="reviews-owners-chip-remove"
-            >
-                <i className="fa fa-solid fa-xmark text-10" aria-hidden />
-            </button>
-        </span>
-    );
-}
-
-function ProposalChip({ name, onAdd, onIgnore }: { name: string; onAdd: () => void; onIgnore: () => void }) {
-    const t = useT();
-    return (
-        <span
-            className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-border pr-1 pl-2.5 text-12 text-secondary"
-            title={t("reviews.owners.proposeTitle", { name })}
-            data-testid="reviews-owners-proposal"
-            data-agent={name}
-        >
-            <span>{t("reviews.owners.propose", { name })}</span>
-            <button
-                type="button"
-                className="molten-btn flex h-5 cursor-pointer items-center rounded-full px-2 text-11"
-                onClick={onAdd}
-                data-testid="reviews-owners-proposal-add"
-            >
-                {t("reviews.owners.add")}
-                <MoltenWave />
-            </button>
-            <button
-                type="button"
-                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-muted hover:bg-hover hover:text-primary"
-                aria-label={t("reviews.owners.ignore", { name })}
-                title={t("reviews.owners.ignore", { name })}
-                onClick={onIgnore}
-                data-testid="reviews-owners-proposal-ignore"
-            >
-                <i className="fa fa-solid fa-xmark text-10" aria-hidden />
-            </button>
-        </span>
-    );
-}
-
 // Loaded on demand: the menu only shows once the developer opens it, so its code stays out of the JS every tab view
 // loads up front (NFR-PERF-003, bundle.initialJsMB).
 const OwnersMenu = lazy(() => import("./reviews-owners-menu").then((m) => ({ default: m.OwnersMenu })));
 
-export function OwnersBar({
+// Tells the header how many of the filter's names it has room for, now and whenever the panel is resized. It draws
+// nothing: the header draws the names.
+function OwnersNamesFit({ filter }: { filter: Pick<OwnersFilter, "blockId" | "factsAtom" | "shownAtom"> }) {
+    const names = useAtomValue(filter.factsAtom).names;
+    const key = names.join("\n");
+    useLayoutEffect(() => {
+        if (names.length <= MinNamesShown) {
+            globalStore.set(filter.shownAtom, null);
+            return;
+        }
+        const header = document.querySelector(
+            `[data-blockid="${CSS.escape(filter.blockId)}"] .block-frame-default-header`
+        );
+        if (header == null) {
+            return;
+        }
+        const fit = () => globalStore.set(filter.shownAtom, ownersNamesFitting(header, names));
+        fit();
+        const observer = new ResizeObserver(fit);
+        observer.observe(header);
+        const wrapper = header.querySelector(".block-frame-textelems-wrapper");
+        if (wrapper != null) {
+            observer.observe(wrapper);
+        }
+        return () => observer.disconnect();
+    }, [filter, key]);
+    return null;
+}
+
+// The owners menu of the panel's header button (FR-REV-034 AC12): drawn by the list the filter applies to, which knows
+// the owners and what the filter hides, and hung from the button. It tells the header how many names fit, and draws
+// nothing else; the button lives only while a list does.
+export function OwnersFilterHost({
+    filter,
     view,
-    edges,
     owners,
     hidden,
 }: {
+    filter: Pick<OwnersFilter, "blockId" | "factsAtom" | "listsAtom" | "menuAtom" | "shownAtom">;
     view: ViewScopeState;
-    edges: readonly ChainEdge[];
     owners: OwnerCount[];
-    // The pull requests the filter hides in the project(s) the bar counts.
+    // The pull requests the filter hides in the project(s) the list counts.
     hidden: number;
 }) {
     const t = useT();
-    const tc = useTCount();
-    const [menu, setMenu] = useState(false);
-    const on = view.scope.agents.length > 0;
-    const chips = scopeChips(view.scope, edges);
-    const label = t("reviews.owners.menuAria");
+    const anchor = useAtomValue(filter.menuAtom);
+    const shown = ownersFilterFacts(view.scope, view.present, true).shown;
+    const close = useCallback(() => globalStore.set(filter.menuAtom, null), [filter]);
+    useEffect(() => {
+        globalStore.set(filter.listsAtom, (n) => n + 1);
+        return () => {
+            globalStore.set(filter.listsAtom, (n) => n - 1);
+            close();
+        };
+    }, [filter, close]);
+    useEffect(() => {
+        if (!shown) {
+            close();
+        }
+    }, [shown, close]);
     return (
-        <div
-            className="relative flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2"
-            role="group"
-            aria-label={t("reviews.owners.bar")}
-            data-testid="reviews-owners-bar"
-            data-filtered={on ? "true" : "false"}
-        >
-            <span className="text-11 font-semibold tracking-[0.08em] text-muted uppercase">
-                {t("reviews.owners.label")}
-            </span>
-            {chips.map((chip) => (
-                <FollowedChip key={foldName(chip.name)} chip={chip} onRemove={() => view.remove([chip.name])} />
-            ))}
-            <span className="relative">
-                <button
-                    type="button"
-                    className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-border px-2.5 text-12 text-secondary hover:bg-hover hover:text-primary"
-                    aria-haspopup="menu"
-                    aria-expanded={menu}
-                    aria-label={label}
-                    onClick={() => setMenu((v) => !v)}
-                    data-testid="reviews-owners-menu-button"
-                >
-                    {on ? t("reviews.owners.change") : t("reviews.owners.all", { count: owners.length })}
-                    <i className="fa fa-solid fa-chevron-down text-10" aria-hidden />
-                </button>
-                {menu ? (
-                    <Suspense fallback={null}>
-                        <OwnersMenu view={view} owners={owners} label={label} onClose={() => setMenu(false)} />
-                    </Suspense>
-                ) : null}
-            </span>
-            {view.proposed.map((name) => (
-                <ProposalChip
-                    key={foldName(name)}
-                    name={name}
-                    onAdd={() => view.add(name)}
-                    onIgnore={() => view.ignore(name)}
-                />
-            ))}
-            {!on && view.proposed.length === 0 && view.present.length === 0 ? (
-                <span className="text-12 text-muted" data-testid="reviews-owners-none">
-                    {t("reviews.owners.noAgents")}
-                </span>
-            ) : null}
-            <span className="grow" />
-            {on && hidden > 0 ? (
-                <span className="text-12 text-secondary" data-testid="reviews-owners-hidden">
-                    {tc("reviews.owners.hidden", hidden, { count: hidden })}
-                    {" · "}
-                    <button
-                        type="button"
-                        className="cursor-pointer text-accent hover:underline"
-                        onClick={view.showAll}
-                        data-testid="reviews-owners-show-all"
-                    >
-                        {t("reviews.owners.showAll")}
-                    </button>
-                </span>
-            ) : null}
-        </div>
+        <>
+            <OwnersNamesFit filter={filter} />
+            {anchor != null && shown
+                ? createPortal(
+                      <Suspense fallback={null}>
+                          <OwnersMenu
+                              view={view}
+                              owners={owners}
+                              hidden={hidden}
+                              label={t("reviews.owners.menuAria")}
+                              anchor={anchor}
+                              onClose={close}
+                          />
+                      </Suspense>,
+                      document.body
+                  )
+                : null}
+        </>
     );
 }
 

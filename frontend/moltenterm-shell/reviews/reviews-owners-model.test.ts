@@ -23,6 +23,8 @@ import {
     NoOwnersFilter,
     ownerFacts,
     ownersFilterFacts,
+    type OwnersFilterFacts,
+    ownersHeaderElems,
     ownersHeaderLabel,
     ownersHeaderParts,
     ownersNamesFit,
@@ -33,7 +35,6 @@ import {
     readScope,
     sameOwnersFilterFacts,
     scopeAdd,
-    scopeChips,
     scopeIgnore,
     scopeNames,
     scopeOn,
@@ -158,13 +159,6 @@ describe("the view's filter", () => {
             expect(inScope(who, names)).toBe(true);
         }
         expect(inScope("Marc", names)).toBe(false);
-    });
-
-    it("counts the sub-agents each chip answers for", () => {
-        expect(scopeChips(initialScope(["Flore", "Jérôme"]), Chain)).toEqual([
-            { name: "Flore", subs: 2 },
-            { name: "Jérôme", subs: 1 },
-        ]);
     });
 
     it("hides what is outside it and says which pull requests", () => {
@@ -389,6 +383,86 @@ describe("the names the header says", () => {
     it("holds when asked for more names than there are", () => {
         expect(ownersHeaderParts(["Flore"], 9)).toEqual({ names: "Flore", more: 0 });
         expect(ownersHeaderParts(names, -1)).toEqual({ names: "", more: 5 });
+    });
+});
+
+// FR-REV-034 AC1, AC2 and AC12 (#2207): what the header carries of the owners filter.
+describe("the owners filter in the panel's header", () => {
+    const words = { filter: "Filter by owner", active: (names: string) => `Owners: ${names}` };
+    const toggle = () => {};
+    const header = (facts: OwnersFilterFacts, shown: number = null, open = false) =>
+        ownersHeaderElems(facts, shown, open, words, "funnel", toggle);
+    const filtered = (names: string[]): OwnersFilterFacts => ({ shown: true, names });
+
+    it("has no button and no names in a view without an agent", () => {
+        expect(header(NoOwnersFilter)).toEqual({ buttons: [], text: [] });
+        expect(header(ownersFilterFacts(initialScope([]), [], true))).toEqual({ buttons: [], text: [] });
+    });
+
+    it("has the funnel, off, and no names when agents are in the view and no filter is on", () => {
+        const { buttons, text } = header(filtered([]));
+        expect(buttons).toHaveLength(1);
+        expect(buttons[0]).toMatchObject({
+            elemtype: "iconbutton",
+            icon: "funnel",
+            title: "Filter by owner",
+            className: "mt-owners-filter",
+            pressed: false,
+        });
+        expect(text).toEqual([]);
+    });
+
+    it("turns the funnel on with a filter, names it in the tooltip, and adds no dot or badge", () => {
+        const { buttons } = header(filtered(["Flore", "Bérénice"]));
+        expect(buttons[0].className).toBe("mt-owners-filter is-on");
+        expect(buttons[0].title).toBe("Owners: Flore, Bérénice");
+        expect(Object.keys(buttons[0]).sort()).toEqual(["className", "click", "elemtype", "icon", "pressed", "title"]);
+    });
+
+    it("says the names next to the title: a muted dot, the names, and +N for the others", () => {
+        const names = ["Flore", "Bérénice", "Nathan", "Diane", "Hugo"];
+        const { buttons, text } = header(filtered(names), 3);
+        expect(text).toHaveLength(1);
+        expect(text[0]).toMatchObject({ elemtype: "div", className: "mt-owners-names" });
+        const children = (text[0] as HeaderDiv).children as HeaderText[];
+        expect(children.map((c) => [c.className, c.text])).toEqual([
+            ["mt-owners-dot", "·"],
+            ["mt-owners-list", "Flore, Bérénice, Nathan"],
+            ["mt-owners-more", "+2"],
+        ]);
+        expect(buttons[0].title).toBe("Owners: Flore, Bérénice, Nathan, Diane, Hugo");
+    });
+
+    it("says every name, with no +N, when they fit or are not measured yet", () => {
+        const names = ["Flore", "Bérénice", "Nathan"];
+        for (const shown of [3, 9, null]) {
+            const children = ((header(filtered(names), shown).text[0] as HeaderDiv).children as HeaderText[]).map(
+                (c) => c.className
+            );
+            expect(children).toEqual(["mt-owners-dot", "mt-owners-list"]);
+        }
+        const two = (header(filtered(["Flore", "Bérénice"]), null).text[0] as HeaderDiv).children as HeaderText[];
+        expect(two[1].text).toBe("Flore, Bérénice");
+    });
+
+    it("opens the same menu from the funnel and from the names", () => {
+        const { buttons, text } = header(filtered(["Flore", "Bérénice", "Nathan", "Diane"]), 3);
+        expect(buttons[0].click).toBe(toggle);
+        for (const child of (text[0] as HeaderDiv).children as HeaderText[]) {
+            expect(child.onClick).toBe(toggle);
+        }
+    });
+
+    it("presses the funnel while the menu is open", () => {
+        const { buttons } = header(filtered(["Flore"]), null, true);
+        expect(buttons[0].pressed).toBe(true);
+        expect(buttons[0].className).toBe("mt-owners-filter is-on is-open");
+        expect(header(filtered([]), null, true).buttons[0].className).toBe("mt-owners-filter is-open");
+    });
+
+    it("keeps the funnel, on, for an agent that left while its filter is kept", () => {
+        const facts = ownersFilterFacts(initialScope(["Flore"]), [], true);
+        expect(header(facts).buttons[0].className).toBe("mt-owners-filter is-on");
     });
 });
 

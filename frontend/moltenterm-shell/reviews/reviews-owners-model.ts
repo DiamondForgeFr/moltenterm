@@ -128,13 +128,6 @@ export function scopeNames(scope: OwnerScope, edges: readonly ChainEdge[]): Scop
     return new Set([...scope.agents, ...chainSubs(edges, scope.agents)].map(foldName));
 }
 
-export type ScopeChip = { name: string; subs: number };
-
-// scopeChips: one chip per followed agent, with how many sub-agents it answers for.
-export function scopeChips(scope: OwnerScope, edges: readonly ChainEdge[]): ScopeChip[] {
-    return (scope?.agents ?? []).map((name) => ({ name, subs: chainSubs(edges, [name]).length }));
-}
-
 // effectiveScope: the filter a view works with: the one it kept, else the agents already there once their states are
 // known (the panel writes it when it first opens).
 export function effectiveScope(saved: OwnerScope, loaded: boolean, present: readonly string[]): OwnerScope {
@@ -195,6 +188,54 @@ export function ownersNamesShown(total: number, fits: (shown: number) => boolean
         }
     }
     return floor;
+}
+
+// OwnersWords: the header's texts, already translated: the tooltip without a filter, and with one (it names the agents).
+export type OwnersWords = { filter: string; active: (names: string) => string };
+
+// ownersHeaderElems: the owners filter in the panel's header (FR-REV-034 AC12): a funnel icon button among the other
+// icon buttons, which takes the action colour while a filter is on (no dot, no badge) and whose tooltip names the
+// filter, and, while a filter is on, the agents' first names next to the title (a muted dot, the names, a muted +N).
+// Both open the owners menu. shown: how many names the room holds, null until it is measured. Nothing when the facts
+// say hidden.
+export function ownersHeaderElems(
+    facts: OwnersFilterFacts,
+    shown: number,
+    open: boolean,
+    words: OwnersWords,
+    icon: React.ReactNode,
+    toggle: (e: React.MouseEvent<any>) => void
+): { buttons: IconButtonDecl[]; text: HeaderElem[] } {
+    if (!facts.shown) {
+        return { buttons: [], text: [] };
+    }
+    const on = facts.names.length > 0;
+    const button: IconButtonDecl = {
+        elemtype: "iconbutton",
+        icon,
+        title: on ? words.active(facts.names.join(", ")) : words.filter,
+        pressed: open,
+        className: `mt-owners-filter${on ? " is-on" : ""}${open ? " is-open" : ""}`,
+        click: toggle,
+    };
+    if (!on) {
+        return { buttons: [button], text: [] };
+    }
+    const parts = ownersHeaderParts(facts.names, shown ?? facts.names.length);
+    const children: HeaderElem[] = [
+        { elemtype: "text", text: "·", className: "mt-owners-dot", noGrow: true, onClick: toggle },
+        { elemtype: "text", text: parts.names, className: "mt-owners-list", noGrow: true, onClick: toggle },
+    ];
+    if (parts.more > 0) {
+        children.push({
+            elemtype: "text",
+            text: `+${parts.more}`,
+            className: "mt-owners-more",
+            noGrow: true,
+            onClick: toggle,
+        });
+    }
+    return { buttons: [button], text: [{ elemtype: "div", className: "mt-owners-names", children }] };
 }
 
 // ownersNamesFit: how many names the room (px) holds, given how wide a line of text measures.
