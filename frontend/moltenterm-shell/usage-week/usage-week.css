@@ -164,8 +164,13 @@
 }
 
 /* The share of each day under its block (#2164): a line of its own across the grid's columns, closer to its row than the
-   rows are to each other. Muted, never pace-coloured. Flex-end keeps the figure right-aligned and, when it is wider than
-   its block (100 %), lets it grow to the left over the gap instead of pushing the layout. */
+   rows are to each other. Muted, never pace-coloured. Flex-end keeps the figure right-aligned. A block is about 20 px
+   wide in a narrow panel, which "100%" would overflow into its neighbour's figure: the unit shows only when the grid is
+   wide enough for it, the bare number always fits. */
+.mt-uw[data-figures="true"] {
+    container-type: inline-size;
+}
+
 .mt-uw-share {
     display: flex;
     justify-content: flex-end;
@@ -175,6 +180,16 @@
     font-variant-numeric: tabular-nums;
     line-height: 1;
     white-space: nowrap;
+}
+
+.mt-uw-unit {
+    display: none;
+}
+
+@container (min-width: 360px) {
+    .mt-uw-unit {
+        display: inline;
+    }
 }
 
 /* The legend under the rows (#2123), across the whole grid. Its swatches are the grid's own blocks (.mt-uw-cell, with

@@ -11711,7 +11711,7 @@
     },
     "usageWeek": {
         "percent": "{percent} %",
-        "dayShare": "{percent}%",
+        "dayUnit": "%",
         "unreadable": "no reading",
         "row": "{name}, {percent} %",
         "rowReset": "{name}, {percent} %, resets {day}",

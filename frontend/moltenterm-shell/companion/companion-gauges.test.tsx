@@ -764,9 +764,9 @@ describe("the share of each day under its block (#2164)", () => {
     const sharesOf = (html: string, window: string): [number, string][] =>
         [
             ...rowHtml(html, window).matchAll(
-                /<span class="mt-uw-share"[^>]*data-testid="usage-week-share" data-share="(\d+)">([^<]*)</g
+                /<span class="mt-uw-share"[^>]*data-testid="usage-week-share" data-share="(\d+)">(\d+)<span class="mt-uw-unit">([^<]*)<\/span>/g
             ),
-        ].map((m) => [Number(m[1]), m[2]]);
+        ].map((m) => [Number(m[1]), `${m[2]}${m[3]}`]);
     const compactOf = (info: CompanionUsageInfo): string =>
         renderToStaticMarkup(<PlanUsageBody view={gaugesView(info, now)} {...noop} compact onDetails={() => {}} />);
     const week = (usedpercent: number, resetsat?: number): CompanionUsageInfo => ({
@@ -861,6 +861,23 @@ describe("the share of each day under its block (#2164)", () => {
         expect(rule).toContain("justify-content: flex-end");
         expect(rule).not.toContain("--mt-uw-pace");
         expect(rowTag(html, "week")).not.toContain("share");
+    });
+
+    // A block is about 20 px wide in a narrow panel: "100%" would run into its neighbour's figure, the bare number fits.
+    it("shows the unit only where the grid is wide enough for it", () => {
+        const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        expect(/\n\.mt-uw\[data-figures="true"\] \{([^}]*)\}/.exec(css)?.[1]).toContain("container-type: inline-size");
+        expect(/\n\.mt-uw-unit \{([^}]*)\}/.exec(css)?.[1]).toContain("display: none");
+        expect(/@container \(min-width: 360px\) \{\s*\.mt-uw-unit \{([^}]*)\}/.exec(css)?.[1]).toContain(
+            "display: inline"
+        );
+        expect(markup(enabled)).toContain('data-figures="true"');
+        expect(compactOf(enabled)).not.toContain("data-figures");
+        const rows = [{ key: "week", agent: "claude", name: "Claude", line: gaugeRows(enabled.snapshot, now)[1].line }];
+        expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} />)).not.toContain("data-figures");
     });
 
     it("writes the figure in the interface language", () => {

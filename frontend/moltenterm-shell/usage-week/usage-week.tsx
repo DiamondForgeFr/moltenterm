@@ -179,7 +179,8 @@ function DayFigures({ line }: { line: UsageWeekLine }) {
             <span aria-hidden />
             {dayShares(line.percent, line.start).map((share, i) => (
                 <span key={i} className="mt-uw-share" aria-hidden data-testid="usage-week-share" data-share={share}>
-                    {t("usageWeek.dayShare", { percent: share })}
+                    {share}
+                    <span className="mt-uw-unit">{t("usageWeek.dayUnit")}</span>
                 </span>
             ))}
             <span aria-hidden />
@@ -203,7 +204,12 @@ export function UsageWeekGrid({
     const today = weekdayIndex(now);
     const labelled = rows.some((row) => row.label != null);
     return (
-        <span className="mt-uw" data-labelled={labelled ? "true" : undefined} data-testid="usage-week">
+        <span
+            className="mt-uw"
+            data-labelled={labelled ? "true" : undefined}
+            data-figures={dayFigures ? "true" : undefined}
+            data-testid="usage-week"
+        >
             <span aria-hidden />
             {WeekDayKeys.map((key, i) => (
                 <span
