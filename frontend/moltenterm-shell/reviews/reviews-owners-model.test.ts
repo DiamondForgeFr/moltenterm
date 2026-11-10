@@ -23,6 +23,9 @@ import {
     NoOwnersFilter,
     ownerFacts,
     ownersFilterFacts,
+    ownersHeaderLabel,
+    ownersHeaderParts,
+    ownersNamesFit,
     ownersOf,
     presentAgentNames,
     proposals,
@@ -37,6 +40,7 @@ import {
     scopeOnly,
     scopeRemove,
     scopeSplit,
+    shortOwnerName,
     waitsForYou,
 } from "./reviews-owners-model";
 import type { BranchAgent, UpcomingAnswer } from "./reviews-upcoming-model";
@@ -335,6 +339,56 @@ describe("whether the owners filter shows", () => {
         expect(effectiveScope(saved, true, ["Hugo"])).toBe(saved);
         expect(effectiveScope(null, true, ["Hugo"])).toEqual({ agents: ["Hugo"], ignored: [] });
         expect(effectiveScope(null, false, ["Hugo"])).toEqual({ agents: [], ignored: [] });
+    });
+});
+
+// FR-REV-034 AC12 (#2207): the header names the agents the filter keeps, as many as the room allows, 3 at least.
+describe("the names the header says", () => {
+    const names = ["Flore", "Bérénice", "Nathan", "Diane", "Hugo"];
+    // 7 px a character, whatever the font: the rule is about counts, not about a font.
+    const measure = (text: string) => [...text].length * 7;
+
+    it("says them all, as one line, when the room holds them", () => {
+        expect(ownersNamesFit(names, 400, measure)).toBe(5);
+        expect(ownersHeaderLabel(names, 5)).toBe("Flore, Bérénice, Nathan, Diane, Hugo");
+        expect(ownersHeaderParts(names, 5)).toEqual({ names: "Flore, Bérénice, Nathan, Diane, Hugo", more: 0 });
+    });
+
+    it("collapses the others to +N when the room is short", () => {
+        expect(ownersNamesFit(names, 240, measure)).toBe(4);
+        expect(ownersHeaderLabel(names, 4)).toBe("Flore, Bérénice, Nathan, Diane +1");
+        expect(ownersHeaderParts(names, 3)).toEqual({ names: "Flore, Bérénice, Nathan", more: 2 });
+    });
+
+    it("grows and shrinks with the room, so a resize gives the count again", () => {
+        const counts = [100, 190, 240, 260, 600].map((room) => ownersNamesFit(names, room, measure));
+        expect(counts).toEqual([3, 3, 4, 5, 5]);
+    });
+
+    it("never says fewer than 3 while the filter keeps 3 or more, however short the room", () => {
+        expect(ownersNamesFit(names, 0, measure)).toBe(3);
+        expect(ownersNamesFit(names.slice(0, 3), 0, measure)).toBe(3);
+        expect(ownersHeaderLabel(names, 3)).toBe("Flore, Bérénice, Nathan +2");
+    });
+
+    it("says every name when the filter keeps fewer than 3, with no +N", () => {
+        expect(ownersNamesFit(names.slice(0, 2), 0, measure)).toBe(2);
+        expect(ownersNamesFit(["Flore"], 0, measure)).toBe(1);
+        expect(ownersHeaderLabel(names.slice(0, 2), 2)).toBe("Flore, Bérénice");
+        expect(ownersNamesFit([], 100, measure)).toBe(0);
+        expect(ownersHeaderLabel([], 0)).toBe("");
+    });
+
+    it("cuts a long name short so it cannot take the room of the others", () => {
+        expect(shortOwnerName("Maximilienne-Alexandra")).toBe("Maximilienne-…");
+        expect([...shortOwnerName("Maximilienne-Alexandra")]).toHaveLength(14);
+        expect(shortOwnerName(" Flore ")).toBe("Flore");
+        expect(ownersHeaderParts(["Maximilienne-Alexandra", "Flore"], 2).names).toBe("Maximilienne-…, Flore");
+    });
+
+    it("holds when asked for more names than there are", () => {
+        expect(ownersHeaderParts(["Flore"], 9)).toEqual({ names: "Flore", more: 0 });
+        expect(ownersHeaderParts(names, -1)).toEqual({ names: "", more: 5 });
     });
 });
 
