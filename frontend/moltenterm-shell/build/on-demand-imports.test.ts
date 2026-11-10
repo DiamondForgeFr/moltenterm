@@ -9,7 +9,7 @@ function source(name: string): string {
 }
 
 function staticImports(text: string): string[] {
-    return [...text.matchAll(/^import\s[^;]*?from\s+"([^"]+)";/gms)].map((m) => m[1]);
+    return [...text.matchAll(/^import\s[^;]*?from\s+"([^"]+)";/gm)].map((m) => m[1]);
 }
 
 // Code shown only on demand stays behind a dynamic import, out of the JS every tab view loads up front (NFR-PERF-003,
