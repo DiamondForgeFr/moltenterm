@@ -23,6 +23,7 @@ vi.mock("@/app/store/global", () => ({
 
 import { setTestMatrix } from "../agent-info/agent-features-fixture";
 import { AgentStateInfo } from "../agent-state-model";
+import { I18nModel } from "../i18n/i18n";
 import { AgentInputInfo, agentSection, ClaudeCommands, CodexCommands, modelItem, ModelItemId } from "./agent-commands";
 import { AgentInputs } from "./agent-input-store";
 import { choiceValueLabel } from "./panel-model";
@@ -100,6 +101,18 @@ describe("model in the command panel (#573)", () => {
         const item = modelItem({ ...claude, model: "", modelname: "" }, null, claudeModelDef, handlers());
         expect(item.options.map((o) => o.label)).toEqual(["Choose in Claude Code"]);
         expect(choiceValueLabel(item)).toBe("");
+    });
+
+    it("words the choice without a model id in the interface language (#2182)", () => {
+        const info: AgentInputInfo = { blockid: "b1", models: [{ id: "", label: "Your default model" }, ...claudeInfo.models] };
+        try {
+            I18nModel.getInstance().setLanguageSetting("fr");
+            const item = modelItem(claude, info, claudeModelDef, handlers());
+            expect(item.options[1].label).toBe("Votre modèle par défaut");
+            expect(item.options[2].label).toBe("Fable (latest)");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
     });
 
     it("falls back to Codex's own picker", () => {
