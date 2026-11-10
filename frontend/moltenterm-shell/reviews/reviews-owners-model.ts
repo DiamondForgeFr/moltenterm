@@ -161,6 +161,47 @@ export function sameOwnersFilterFacts(a: OwnersFilterFacts, b: OwnersFilterFacts
     return a.shown === b.shown && a.names.length === b.names.length && a.names.every((n, i) => n === b.names[i]);
 }
 
+// The header says the agents the filter keeps by their first names (FR-REV-034 AC12): as many as the room allows, never
+// fewer than MinNamesShown unless the filter keeps fewer, then "+N" for the others. A name is cut short so one long
+// name cannot take the room of the rest.
+export const MinNamesShown = 3;
+const MaxNameChars = 14;
+
+export function shortOwnerName(name: string): string {
+    const chars = [...(name ?? "").trim()];
+    return chars.length > MaxNameChars ? `${chars.slice(0, MaxNameChars - 1).join("")}…` : chars.join("");
+}
+
+export type OwnersHeaderParts = { names: string; more: number };
+
+export function ownersHeaderParts(names: readonly string[], shown: number): OwnersHeaderParts {
+    const count = Math.max(0, Math.min(shown, names.length));
+    return { names: names.slice(0, count).map(shortOwnerName).join(", "), more: names.length - count };
+}
+
+// ownersHeaderLabel: the parts as one line, the way the header measures them.
+export function ownersHeaderLabel(names: readonly string[], shown: number): string {
+    const parts = ownersHeaderParts(names, shown);
+    return parts.more > 0 ? `${parts.names} +${parts.more}` : parts.names;
+}
+
+// ownersNamesShown: the most names, down to the minimum, for which fits(shown) holds. The minimum holds even when
+// nothing fits: the header clips the line instead of wrapping it.
+export function ownersNamesShown(total: number, fits: (shown: number) => boolean): number {
+    const floor = Math.min(MinNamesShown, total);
+    for (let shown = total; shown > floor; shown--) {
+        if (fits(shown)) {
+            return shown;
+        }
+    }
+    return floor;
+}
+
+// ownersNamesFit: how many names the room (px) holds, given how wide a line of text measures.
+export function ownersNamesFit(names: readonly string[], room: number, measure: (text: string) => number): number {
+    return ownersNamesShown(names.length, (shown) => measure(ownersHeaderLabel(names, shown)) <= room);
+}
+
 // agentOwner: whose work a placed agent is. A panel works for itself, a sub-agent of the CLI for its session (it signs
 // with the session's first name), a background agent for the session that started it unless its work is signed. A
 // panel that only passed through the worktree works on nothing there.
