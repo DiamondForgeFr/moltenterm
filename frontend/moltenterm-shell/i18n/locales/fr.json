@@ -7123,6 +7123,7 @@
             "subOf": "{name} · sous-agent de {lead}",
             "groupSubs": "+ {names}",
             "filterOn": "Filtrer sur {name}",
+            "filterButton": "Filtrer par responsable",
             "noAgentGroup": "Sans agent",
             "noAgentHint": "faites à la main ou par un agent fermé"
         },

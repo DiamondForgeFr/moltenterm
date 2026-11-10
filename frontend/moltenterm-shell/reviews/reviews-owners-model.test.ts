@@ -15,16 +15,20 @@ import {
     chainLeadOf,
     chainRoot,
     chainSubs,
+    effectiveScope,
     foldName,
     groupByLead,
     initialScope,
     inScope,
+    NoOwnersFilter,
     ownerFacts,
+    ownersFilterFacts,
     ownersOf,
     presentAgentNames,
     proposals,
     prOwner,
     readScope,
+    sameOwnersFilterFacts,
     scopeAdd,
     scopeChips,
     scopeIgnore,
@@ -287,6 +291,50 @@ describe("the agents of a view", () => {
         expect(presentAgentNames(data, "t1")).toEqual(["Flore", "Hugo"]);
         expect(presentAgentNames(data, "t3")).toEqual([]);
         expect(presentAgentNames(null, "t1")).toEqual([]);
+    });
+});
+
+// FR-REV-034 AC1 and AC12 (#2207): the owners filter shows in the header only when there is something to filter.
+describe("whether the owners filter shows", () => {
+    const followed = initialScope(["Flore", "Jérôme"]);
+
+    it("shows nothing in a view without an agent, and nothing is kept", () => {
+        expect(ownersFilterFacts(initialScope([]), [], true)).toEqual({ shown: false, names: [] });
+        expect(ownersFilterFacts(null, [], true)).toEqual({ shown: false, names: [] });
+    });
+
+    it("shows the filter, off, when an agent is in the view and no filter is kept", () => {
+        expect(ownersFilterFacts(initialScope([]), ["Flore"], true)).toEqual({ shown: true, names: [] });
+    });
+
+    it("shows the agents the filter keeps", () => {
+        expect(ownersFilterFacts(followed, ["Flore", "Jérôme"], true)).toEqual({
+            shown: true,
+            names: ["Flore", "Jérôme"],
+        });
+    });
+
+    it("keeps the filter, and the way to take it off, for an agent that left the view", () => {
+        expect(ownersFilterFacts(followed, [], true)).toEqual({ shown: true, names: ["Flore", "Jérôme"] });
+    });
+
+    it("shows nothing while the panel shows no list the filter applies to", () => {
+        expect(ownersFilterFacts(followed, ["Flore"], false)).toEqual({ shown: false, names: [] });
+    });
+
+    it("tells a change of facts by value", () => {
+        const a = ownersFilterFacts(followed, ["Flore"], true);
+        expect(sameOwnersFilterFacts(a, ownersFilterFacts(followed, ["Hugo"], true))).toBe(true);
+        expect(sameOwnersFilterFacts(a, ownersFilterFacts(initialScope(["Flore"]), ["Flore"], true))).toBe(false);
+        expect(sameOwnersFilterFacts(a, ownersFilterFacts(followed, [], false))).toBe(false);
+        expect(sameOwnersFilterFacts(NoOwnersFilter, ownersFilterFacts(initialScope([]), [], true))).toBe(true);
+    });
+
+    it("works from the saved filter, else from the agents there once their states are known", () => {
+        const saved = initialScope(["Flore"]);
+        expect(effectiveScope(saved, true, ["Hugo"])).toBe(saved);
+        expect(effectiveScope(null, true, ["Hugo"])).toEqual({ agents: ["Hugo"], ignored: [] });
+        expect(effectiveScope(null, false, ["Hugo"])).toEqual({ agents: [], ignored: [] });
     });
 });
 

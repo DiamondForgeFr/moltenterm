@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { AgentChain } from "../agent-chain-store";
 import { AgentStates } from "../agent-state-store";
 import {
+    effectiveScope,
     initialScope,
     OwnerScope,
     presentAgentNames,
@@ -140,7 +141,7 @@ export function useViewScope(): ViewScopeState {
             store.ensure(tabId, present);
         }
     }, [loaded, tabId, present, store]);
-    const scope = useMemo(() => saved ?? initialScope(loaded ? present : []), [saved, loaded, present]);
+    const scope = useMemo(() => effectiveScope(saved, loaded, present), [saved, loaded, present]);
     const names = useMemo(() => scopeNames(scope, edges), [scope, edges]);
     const proposed = useMemo(
         () => (saved == null ? NoAgents : proposals(present, scope, edges)),

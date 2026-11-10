@@ -135,6 +135,32 @@ export function scopeChips(scope: OwnerScope, edges: readonly ChainEdge[]): Scop
     return (scope?.agents ?? []).map((name) => ({ name, subs: chainSubs(edges, [name]).length }));
 }
 
+// effectiveScope: the filter a view works with: the one it kept, else the agents already there once their states are
+// known (the panel writes it when it first opens).
+export function effectiveScope(saved: OwnerScope, loaded: boolean, present: readonly string[]): OwnerScope {
+    return saved ?? initialScope(loaded ? present : []);
+}
+
+// OwnersFilterFacts: what the panel's header shows of the owners filter (FR-REV-034 AC12): the button only when there
+// is something to filter, and the agents the filter keeps, none when the list is whole.
+export type OwnersFilterFacts = { shown: boolean; names: string[] };
+
+export const NoOwnersFilter: OwnersFilterFacts = { shown: false, names: [] };
+
+// ownersFilterFacts: a view with no agent and no filter kept shows nothing; an agent that left keeps its filter, so the
+// button stays for the developer to take it off. listed: the panel shows a list the filter applies to.
+export function ownersFilterFacts(scope: OwnerScope, present: readonly string[], listed: boolean): OwnersFilterFacts {
+    const names = scopeOn(scope) ? [...scope.agents] : [];
+    if (!listed || (names.length === 0 && present.length === 0)) {
+        return NoOwnersFilter;
+    }
+    return { shown: true, names };
+}
+
+export function sameOwnersFilterFacts(a: OwnersFilterFacts, b: OwnersFilterFacts): boolean {
+    return a.shown === b.shown && a.names.length === b.names.length && a.names.every((n, i) => n === b.names[i]);
+}
+
 // agentOwner: whose work a placed agent is. A panel works for itself, a sub-agent of the CLI for its session (it signs
 // with the session's first name), a background agent for the session that started it unless its work is signed. A
 // panel that only passed through the worktree works on nothing there.
