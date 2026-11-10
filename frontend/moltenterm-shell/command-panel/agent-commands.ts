@@ -342,7 +342,8 @@ export function modelItem(
     for (const m of models) {
         options.push({
             id: `model:${m.id}`,
-            label: m.label,
+            // The adapters label the no-id choice in English for molten's output; the window words it itself.
+            label: m.id ? m.label : t("cmdpanel.agent.defaultModel"),
             detail: behind || t("cmdpanel.agent.savedDefault"),
             checked: false,
             run: () => handlers.setModel?.(m.id),
