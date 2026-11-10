@@ -19,6 +19,7 @@ import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import type { AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { BarButton, GoToButton } from "../go-to-button";
 import { TFunction, useT } from "../i18n/i18n";
 import { Phrase, useWordPhrase } from "../i18n/phrase";
 import { serverText } from "../i18n/server-text";
@@ -371,30 +372,18 @@ export function AgentBar({
                 ) : null}
                 {actions}
                 {(!background || signedBackground) && facts.blockId ? (
-                    <button
-                        type="button"
+                    <GoToButton
                         onClick={(e) => goTo(e, facts.blockId)}
-                        onKeyDown={stop}
-                        className={BarButton}
                         title={t("reviewsAgents.goToTitle", { name })}
-                        data-testid="reviews-agent-goto"
-                    >
-                        {t("reviewsAgents.goTo")}
-                        <i className="fa fa-solid fa-arrow-right text-10" aria-hidden />
-                    </button>
+                        testId="reviews-agent-goto"
+                    />
                 ) : null}
                 {subagent && facts.parentBlockId ? (
-                    <button
-                        type="button"
+                    <GoToButton
                         onClick={(e) => goTo(e, facts.parentBlockId)}
-                        onKeyDown={stop}
-                        className={BarButton}
                         title={t("reviewsAgents.goToTitle", { name: facts.parentName || t("reviewsAgents.agent") })}
-                        data-testid="reviews-agent-goto"
-                    >
-                        {t("reviewsAgents.goTo")}
-                        <i className="fa fa-solid fa-arrow-right text-10" aria-hidden />
-                    </button>
+                        testId="reviews-agent-goto"
+                    />
                 ) : null}
                 {background && facts.parentBlockId ? (
                     <button
@@ -415,9 +404,6 @@ export function AgentBar({
         </div>
     );
 }
-
-export const BarButton =
-    "flex h-5 shrink-0 cursor-pointer items-center gap-1.5 rounded-4 border border-transparent px-1.5 text-secondary hover:border-border hover:bg-hover hover:text-primary focus-visible:border-border";
 
 // The line of a task whose agent's session is gone (#954): its name, what it left, and Retry.
 function GoneAgentBar({ task, actions, stacked }: { task: BarTask; actions?: React.ReactNode; stacked?: boolean }) {
