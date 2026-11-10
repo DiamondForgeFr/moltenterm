@@ -17,6 +17,8 @@ export const HeavyPackages = [
     "katex",
     "cytoscape",
     "streamdown",
+    // The JavaScript parser of `molten mod validate` (#2200): about 190 KB, needed only by that command.
+    "acorn",
 ];
 
 const HeavyChunkNameRegex = /^(monaco|shiki|mermaid|katex|cytoscape|streamdown)[-._]/;
