@@ -24,7 +24,7 @@ import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef
 import { AgentStates } from "../agent-state-store";
 import { AiIcon } from "../ai-icon";
 import { agentName } from "../companion/companion-task-model";
-import { isActive, overallDownloadProgress, runningDownloads } from "../downloads/downloads-model";
+import { isActive, overallDownloadProgress } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useLocale, useT } from "../i18n/i18n";
 import { keepAwakeActive } from "../keepawake-model";
@@ -307,6 +307,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const unseenId = useAtomValue(session.unseenIdAtom, { store: globalStore });
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom, { store: globalStore });
     const downloadItems = useAtomValue(downloads.itemsAtom, { store: globalStore });
+    const running = useAtomValue(downloads.ringAtom, { store: globalStore });
+    const transfers = useAtomValue(downloads.transfersAtom, { store: globalStore });
     const badgeKeys = useAvatarKeys();
     const readings = useAtomValue(UsageReadingsAtom, { store: globalStore });
     const unreadable = useAtomValue(UsageUnreadableAtom, { store: globalStore });
@@ -371,7 +373,6 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     );
     const facts = noteFacts(rows);
     const agentBlocked = attentionAgents(agentStates).length > 0;
-    const running = runningDownloads(downloadItems);
     const downloadReported = downloadItems.some(
         (r) => !isActive(r) && (r.state === "completed" || r.state === "interrupted") && r.endedAt > lookedAt
     );
@@ -675,7 +676,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                     />
                 );
             case "downloads":
-                return <DownloadsPanel count={downloadItems.length} onLeave={leave} onClose={closePanel} />;
+                return <DownloadsPanel count={downloadItems.length + transfers.length} onLeave={leave} onClose={closePanel} />;
             case "keepawake":
                 return <BrokkKeepAwakePanel onLeave={leave} onClose={closePanel} />;
             default:

@@ -58,6 +58,8 @@ export type DownloadSource = {
     hostId: number;
     agent: string;
     startAgain: (url: string) => boolean;
+    // The Files panel's Download (#2163): the row names the connection, not the local stream's host.
+    files?: { connection: string };
 };
 
 export type DownloadEventLike = { defaultPrevented?: boolean };
@@ -207,7 +209,8 @@ export class DownloadManager {
             record = {
                 id: this.deps.newId(),
                 url,
-                host: hostOf(url),
+                host: source.files != null ? source.files.connection : hostOf(url),
+                source: source.files != null ? "files" : "web",
                 name,
                 path: chosen,
                 mime: item.getMimeType(),

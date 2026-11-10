@@ -16,6 +16,7 @@ export const MoltentermReleaseInstallStartChannel = "moltenterm-release-install-
 export const MoltentermReleaseInstallApplyChannel = "moltenterm-release-install-apply";
 export const MoltentermReleaseInstallRevealChannel = "moltenterm-release-install-reveal";
 export const MoltentermReleaseInstallLastChannel = "moltenterm-release-install-last";
+export const MoltentermReleaseInstallCancelChannel = "moltenterm-release-install-cancel";
 // Pushed by emain to every window at each change of the state.
 export const MoltentermReleaseInstallEventChannel = "moltenterm-release-install-event";
 

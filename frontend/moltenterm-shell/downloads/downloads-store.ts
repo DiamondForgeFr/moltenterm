@@ -16,10 +16,14 @@ import {
     DownloadsSnapshot,
     isActive,
     overallDownloadProgress,
+    RingProgress,
     runningDownloads,
 } from "./downloads-model";
 import { goToPage, goToView, loadOriginFacts, reopenPage } from "./downloads-origin";
 import { OriginState, originState } from "./downloads-origin-model";
+import { runningRingEntries, TrackedTransfer, TransferSource } from "./tracked-transfer";
+
+export type DownloadsTransferSource = TransferSource<Atom<TrackedTransfer[]>>;
 
 type DownloadsElectronApi = {
     moltentermDownloadsList?: () => Promise<DownloadsSnapshot>;
@@ -60,6 +64,11 @@ export class DownloadsModel {
     runningAtom: Atom<DownloadRecord[]>;
     // The ring: the mean of what runs and knows its size, null when nothing does.
     progressAtom: Atom<number>;
+    // The other sources of downloads (#2163): each owns its state and gives the section tracked transfers.
+    sourcesAtom = atom([]) as PrimitiveAtom<DownloadsTransferSource[]>;
+    transfersAtom: Atom<TrackedTransfer[]>;
+    // What Brokk's ring, his words and the rail count: the running downloads and the running transfers.
+    ringAtom: Atom<RingProgress[]>;
 
     private stops: (() => void)[] = [];
     private started = false;
@@ -69,6 +78,36 @@ export class DownloadsModel {
         this.itemsAtom = atom((get) => get(this.snapshotAtom).items);
         this.runningAtom = atom((get) => runningDownloads(get(this.itemsAtom)));
         this.progressAtom = atom((get) => overallDownloadProgress(get(this.runningAtom)));
+        this.transfersAtom = atom((get) =>
+            get(this.sourcesAtom).flatMap((source) => (get(source.transfersAtom) ?? []).filter((t) => t != null))
+        );
+        this.ringAtom = atom((get) => [...get(this.runningAtom), ...runningRingEntries(get(this.transfersAtom))]);
+    }
+
+    // A source plugs in for as long as it lives; the returned function takes it out.
+    registerSource(source: DownloadsTransferSource): () => void {
+        const others = globalStore.get(this.sourcesAtom).filter((s) => s.id !== source.id);
+        globalStore.set(this.sourcesAtom, [...others, source]);
+        return () => {
+            globalStore.set(
+                this.sourcesAtom,
+                globalStore.get(this.sourcesAtom).filter((s) => s !== source)
+            );
+        };
+    }
+
+    async actTransfer(transferId: string, actionId: string): Promise<void> {
+        const source = globalStore
+            .get(this.sourcesAtom)
+            .find((s) => (globalStore.get(s.transfersAtom) ?? []).some((t) => t?.id === transferId));
+        if (source == null) {
+            return;
+        }
+        try {
+            await source.act(transferId, actionId);
+        } catch (e) {
+            console.log("downloads: the transfer's action failed", e?.message ?? e);
+        }
     }
 
     static getInstance(): DownloadsModel {

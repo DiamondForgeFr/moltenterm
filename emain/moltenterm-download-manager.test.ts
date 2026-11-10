@@ -249,6 +249,19 @@ describe("a download starts (FR-MC-019 AC12)", () => {
         expect(h.manager.snapshot().items).toEqual([]);
     });
 
+    it("lists the Files panel's Download like a page's, named after its connection (#2163)", async () => {
+        const h = makeHarness();
+        const item = new FakeItem();
+        const record = await start(h, item, {
+            ...webSource(),
+            origin: { pageTitle: "wsh://dev-box/home/dev/report.pdf" },
+            files: { connection: "dev-box" },
+        });
+        expect(item.savePath).toBe(path.join(Folder, "report.pdf"));
+        expect(record).toMatchObject({ host: "dev-box", source: "files", state: "progressing", total: 1000 });
+        expect((await start(makeHarness(), new FakeItem())).source).toBe("web");
+    });
+
     it("lists nothing for a download another listener held back (FR-BRW-010)", async () => {
         const held = new FakeItem();
         const h = makeHarness({ isHeld: (item) => item === held });

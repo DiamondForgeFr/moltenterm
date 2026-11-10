@@ -83,6 +83,7 @@ type ReleaseElectronApi = ElectronApi & {
     moltentermReleaseInstallStart: (tag: string) => Promise<ReleaseInstallResult>;
     moltentermReleaseInstallApply: (when: ReleaseApplyWhen) => Promise<ReleaseInstallResult>;
     moltentermReleaseInstallReveal: () => Promise<ReleaseInstallResult>;
+    moltentermReleaseInstallCancel: () => Promise<ReleaseInstallResult>;
     moltentermReleaseInstallLast: () => Promise<ReleaseSwapStatus>;
     onMoltentermReleaseInstall: (callback: (state: ReleaseInstallState) => void) => () => void;
 };
@@ -372,6 +373,11 @@ export class ReleaseUpdateModel {
 
     async reveal(): Promise<void> {
         await releaseApi().moltentermReleaseInstallReveal();
+    }
+
+    // Stops the download in flight (#2163): the installer goes back to idle, keeps nothing, and the offer stands.
+    async cancel(): Promise<void> {
+        await releaseApi().moltentermReleaseInstallCancel?.();
     }
 
     // The status bar entry and the notification's name lead to the update's own page when it can be done here.

@@ -31,7 +31,9 @@ vi.mock("../agent-state-store", async () => {
 vi.mock("../downloads/downloads-store", async () => {
     const { atom } = await import("jotai");
     const itemsAtom = atom([] as any[]);
-    return { DownloadsModel: { getInstance: () => ({ itemsAtom }) } };
+    const ringAtom = atom((get) => get(itemsAtom).filter((r) => r.state === "progressing" || r.state === "paused"));
+    const transfersAtom = atom([] as any[]);
+    return { DownloadsModel: { getInstance: () => ({ itemsAtom, ringAtom, transfersAtom }) } };
 });
 vi.mock("../keepawake-store", async () => {
     const { atom } = await import("jotai");

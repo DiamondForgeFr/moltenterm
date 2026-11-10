@@ -144,6 +144,8 @@ contextBridge.exposeInMainWorld("api", {
     moltentermReleaseInstallApply: (when: string) => ipcRenderer.invoke("moltenterm-release-install-apply", when),
     moltentermReleaseInstallReveal: () => ipcRenderer.invoke("moltenterm-release-install-reveal"),
     moltentermReleaseInstallLast: () => ipcRenderer.invoke("moltenterm-release-install-last"),
+    // MOLTENTERM-PATCH (#2163): Cancel of the update's download, from Settings › About or Brokk's Downloads
+    moltentermReleaseInstallCancel: () => ipcRenderer.invoke("moltenterm-release-install-cancel"),
     onMoltentermReleaseInstall: (callback: (state: any) => void) => {
         const listener = (_event, state: any) => callback(state);
         ipcRenderer.on("moltenterm-release-install-event", listener);
