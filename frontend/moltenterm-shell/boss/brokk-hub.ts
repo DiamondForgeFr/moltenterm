@@ -14,7 +14,7 @@ import type { AgentSeenView, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { GateEvent, gateHold } from "./brokk-gate";
 import type { PanelId } from "./brokk-group-model";
-import { finishedSetAfter } from "./brokk-hub-feed";
+import { finishedSetAfter, finishedStillListed } from "./brokk-hub-feed";
 import {
     brokkAfter,
     BrokkInput,
@@ -180,9 +180,13 @@ export class BrokkHub {
         this.run({ type: "sync", source, events });
     }
 
-    // The agent states, read once the first reading is in: who finished stays a good news for the badge.
-    agents(data: AgentStatesData): void {
-        const finished = finishedSetAfter(this.finished, this.agentsBefore, data, this.deps.now());
+    // The agent states, read once the first reading is in: who finished stays a good news for the badge, while its Done
+    // card is listed (`openDone`, the blocks whose card the developer has not archived, #2210).
+    agents(data: AgentStatesData, openDone?: ReadonlySet<string>): void {
+        const finished = finishedStillListed(
+            finishedSetAfter(this.finished, this.agentsBefore, data, this.deps.now()),
+            openDone
+        );
         this.agentsBefore = data;
         if (finished === this.finished) {
             return;
@@ -212,6 +216,14 @@ export class BrokkHub {
         this.finished = [];
         this.run({ type: "open" });
         this.run({ type: "sync", source: FinishedSource, events: [] });
+    }
+
+    // The developer gave these rows back by an undo (#2210): what they bring is no news, so he does not come for it.
+    heard(keys: string[]): void {
+        if (keys.length === 0) {
+            return;
+        }
+        this.run({ type: "heard", keys });
     }
 
     // A click on the scene or the avatar, or Enter or Space on them: he folds back and his panel opens in one gesture.

@@ -83,6 +83,8 @@ export class BossBubbleModel {
     // The rows settled or ignored, for the episode they were in, shared by the views and windows of this computer
     // (FR-BOSS-009, AC16).
     handledAtom = atom(EmptyHandled) as PrimitiveAtom<HandledRows>;
+    // The rows an undo gives back, until they are listed again: their return is no arrival (#2210).
+    givenBack = new Set<string>();
 
     nameAtom: Atom<string>;
     showAtom: Atom<boolean>;
@@ -227,12 +229,18 @@ export class BossBubbleModel {
 
     // Archives cards (#2195): the notifications go to the Archived list and the rows that stand for a fact are marked as
     // handled. The undo gives back exactly what was archived.
-    archiveRows(plan: ArchivePlan): () => Promise<void> {
+    // The undo gives the rows back as the developer left them (#2210): no arrival for the badge's call, and `heard` tells
+    // Brokk's hub that the events they bring back are no news. The rows that stand for a fact come back with their mark,
+    // at once; a notification's row comes back with the notification.
+    archiveRows(plan: ArchivePlan, heard: (keys: string[]) => void = () => {}): () => Promise<void> {
         const undoEntries =
             plan.entryIds.length > 0 ? MoltentermNotifications.getInstance().clear(plan.entryIds) : null;
         this.settleRows(plan.marks);
+        const keys = plan.rowKeys ?? [];
         return async () => {
+            keys.forEach((key) => this.givenBack.add(key));
             this.unsettleRows(plan.marks);
+            heard(keys);
             await undoEntries?.();
         };
     }
@@ -296,7 +304,9 @@ export class BossBubbleModel {
                 reviewDirs: Object.keys(globalStore.get(SharedReviewsAnswersAtom) ?? {}),
             });
             memory = step.memory;
-            if (step.arrived.length > 0) {
+            const arrived = step.arrived.filter((key) => !this.givenBack.has(key));
+            list.items.forEach((item) => this.givenBack.delete(item.key));
+            if (arrived.length > 0) {
                 globalStore.set(this.cueAtom, (n) => n + 1);
             }
         };

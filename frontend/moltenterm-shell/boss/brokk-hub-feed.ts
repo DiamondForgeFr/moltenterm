@@ -11,8 +11,8 @@ import type { AgentStatesData } from "../agent-state-model";
 import { badgeCount } from "../notification-rules";
 import type { Badge } from "./boss-overview";
 import type { ToHandleItem } from "./boss-to-handle-model";
-import { finishedEvents, unseenItems, visitEventsOfRows } from "./brokk-watch";
 import { BrokkEvent, comingOf, VisitSettings } from "./brokk-visit-events";
+import { finishedEvents, unseenItems, visitEventsOfRows } from "./brokk-watch";
 
 const FinishedPrefix = "finished:";
 
@@ -33,6 +33,16 @@ export function finishedSetAfter(
     const known = new Set(kept.map((event) => event.key));
     const fresh = finishedEvents(before, now, at).filter((event) => !known.has(event.key));
     return fresh.length === 0 && kept.length === previous.length ? previous : [...kept, ...fresh];
+}
+
+// The finished agents whose Done card is still listed (#2210): the developer archived the others, and their own gesture is
+// no news. Without the list (a window that does not tell it), all of them. The very same array when none goes.
+export function finishedStillListed(events: BrokkEvent[], openDone: ReadonlySet<string>): BrokkEvent[] {
+    if (openDone == null) {
+        return events;
+    }
+    const kept = events.filter((event) => openDone.has(blockOfFinished(event)));
+    return kept.length === events.length ? events : kept;
 }
 
 // The rows the avatar's badge counts that are no event of the table (a question that is no agent's, a hand-off

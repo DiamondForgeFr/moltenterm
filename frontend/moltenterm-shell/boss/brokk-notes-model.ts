@@ -120,6 +120,24 @@ export function checkToldByNotification(info: InfoItem, entries: MoltentermNotif
     );
 }
 
+// The agents whose Done card is still in the Notifications panel (#2210): its "is done" notification is not archived, or,
+// without one, its own card is not archived. Archiving the card is the developer's own gesture: the finish it told
+// leaves Brokk's badge with it.
+export function openDoneBlocks(list: ToHandleList, entries: MoltentermNotification[]): ReadonlySet<string> {
+    const blocks = new Set<string>();
+    for (const info of list?.info ?? []) {
+        const blockid = info.key.replace(/^done:/, "");
+        const told = checkToldByNotification(info, entries ?? []);
+        const open = (entries ?? []).some(
+            (entry) => entry.titlecode === "agentdone" && entry.blockid === blockid && entry.archived == null
+        );
+        if (!told || open) {
+            blocks.add(blockid);
+        }
+    }
+    return blocks;
+}
+
 // Every row of the Notifications panel, the most urgent first, then the newest.
 export function buildNotes(input: NotesInput): NoteRow[] {
     const todo: NoteRow[] = (input.toHandle?.items ?? []).map((item) => ({
@@ -240,12 +258,17 @@ export function cardGoTo(row: NoteRow, archived = false): CardTarget {
 
 // What archiving cards does (#2195): the notifications go to the Archived list, and a card that stands for a fact (an
 // agent, a CI, a pull request, a hand-off request, an agent that finished) is marked as handled for the episode it shows.
-export type ArchivePlan = { entryIds: string[]; marks: HandledRow[] };
+// rowKeys: the rows To handle among the cards, which the undo gives back as the developer left them, never as news (#2210).
+export type ArchivePlan = { entryIds: string[]; marks: HandledRow[]; rowKeys?: string[] };
 
 export function archivePlan(rows: NoteRow[], entries: MoltentermNotification[] = []): ArchivePlan {
     const entryIds = new Set<string>();
     const marks = new Map<string, HandledRow>();
+    const rowKeys = new Set<string>();
     for (const row of rows) {
+        if (row.item != null) {
+            rowKeys.add(row.item.key);
+        }
         if (row.entry != null) {
             entryIds.add(row.entry.id);
             continue;
@@ -270,7 +293,7 @@ export function archivePlan(rows: NoteRow[], entries: MoltentermNotification[] =
             marks.set(item.key, { key: item.key, since: item.since, tone: item.tone });
         }
     }
-    return { entryIds: [...entryIds], marks: [...marks.values()] };
+    return { entryIds: [...entryIds], marks: [...marks.values()], rowKeys: [...rowKeys] };
 }
 
 // The notifications to settle when Brokk closes: the Info ones the developer saw listed.
