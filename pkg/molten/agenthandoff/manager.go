@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchain"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -137,6 +138,10 @@ type Manager struct {
 	sleep           func(time.Duration)
 	// pendingChanged tells the windows the requests waiting for the developer changed (PendingEvent); outside the lock.
 	pendingChanged func()
+	// chain keeps which agents each lead handed work to (FR-REV-035); chainChanged tells the windows a link was added.
+	// nil chain: no link is kept (the tests that do not look at it).
+	chain        *agentchain.Registry
+	chainChanged func()
 
 	lock sync.Mutex
 	// pairs: always or block, for a pair of panes, until MoltenTerm restarts (NFR-CONT-005).
@@ -455,6 +460,7 @@ func (m *Manager) complete(ctx context.Context, from Party, to Party, brief Brie
 	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now(), brief: brief}
 	m.addHistory(from, to, brief)
 	m.env.RecordHandoff(ctx, from.BlockId, to.BlockId)
+	m.recordChain(from, to)
 	return m.deliver(ctx, d)
 }
 
