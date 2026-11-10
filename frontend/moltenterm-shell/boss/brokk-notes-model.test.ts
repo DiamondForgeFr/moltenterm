@@ -15,6 +15,7 @@ import {
     isPrimaryAction,
     noteFacts,
     NoteRow,
+    openDoneBlocks,
     primaryAllowed,
     priorityOf,
     rowSourceId,
@@ -317,7 +318,7 @@ describe("archiving cards (#2195, FR-MC-019 AC15, AC16, AC18)", () => {
     });
 
     it("plans nothing for no card, and each id once for the same card twice", () => {
-        expect(archivePlan([])).toEqual({ entryIds: [], marks: [] });
+        expect(archivePlan([])).toEqual({ entryIds: [], marks: [], rowKeys: [] });
         const [row] = notes(list([]), [entry("n1")]);
         expect(archivePlan([row, row]).entryIds).toEqual(["n1"]);
     });
@@ -359,6 +360,32 @@ describe("archiving cards (#2195, FR-MC-019 AC15, AC16, AC18)", () => {
         expect(noteFacts(again.rows).count).toBe(2);
         expect(toHandleBadge(again.toHandle).count).toBe(1);
         expect(again.rows.filter((r) => r.source === "finished")).toHaveLength(1);
+    });
+
+    it("names the rows To handle among the cards, for the undo to give them back as no news (#2210)", () => {
+        const rows = notes(
+            list(
+                [item("agent:b1"), item("notif:n1", { notice: entry("n1", { kind: "warning" }) })],
+                [{ key: "done:b9", name: "Jo", place: "", since: Now - 2 * Min, line: { key: "x" } }]
+            ),
+            [entry("n2")]
+        );
+        expect(archivePlan(rows).rowKeys.sort()).toEqual(["agent:b1", "notif:n1"]);
+    });
+
+    it("lists an agent's Done card until it is archived, by its notification or by its own card (#2210)", () => {
+        const info = { key: "done:b9", name: "Jo", place: "", since: Now - 2 * Min, line: { key: "x" } };
+        const done = entry("d1", {
+            titlecode: "agentdone",
+            blockid: "b9",
+            time: Now - 2 * Min,
+            updated: Now - 2 * Min,
+        });
+        expect([...openDoneBlocks(list([], [info]), [])]).toEqual(["b9"]);
+        expect([...openDoneBlocks(list([], [info]), [done])]).toEqual(["b9"]);
+        expect([...openDoneBlocks(list([], [info]), [{ ...done, archived: Now }])]).toEqual([]);
+        // Its own card archived: the row is marked, so it is no info row any more.
+        expect([...openDoneBlocks(list([], []), [])]).toEqual([]);
     });
 
     it("brings an archived agent back when it finishes again", () => {

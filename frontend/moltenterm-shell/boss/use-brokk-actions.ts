@@ -25,6 +25,7 @@ import { BossBubbleModel } from "./boss-store";
 import { ToHandleAction, ToHandleItem } from "./boss-to-handle-model";
 import { handledKindOf } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
+import { BrokkHubModel } from "./brokk-hub-store";
 import type { ArchivePlan } from "./brokk-notes-model";
 
 export type BrokkActions = {
@@ -159,7 +160,8 @@ export function useBrokkActions(onLeave: () => void): BrokkActions {
         });
     };
 
-    const archive = (plan: ArchivePlan) => model.archiveRows(plan);
+    const archive = (plan: ArchivePlan) =>
+        model.archiveRows(plan, (keys) => BrokkHubModel.getInstance().hub.heard(keys));
 
     return { busyId, problem, goToSession, runTodo, reconnect, archive };
 }

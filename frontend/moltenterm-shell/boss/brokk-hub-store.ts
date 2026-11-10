@@ -29,6 +29,7 @@ import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
 import { closedDownloadIds } from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
+import { openDoneBlocks } from "./brokk-notes-model";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
 import { EmptyShared, readShared, sharedText, VisitShareKey } from "./brokk-visit-share";
 import { brokkWaiting, brokkWorking } from "./brokk-watch";
@@ -62,6 +63,8 @@ export class BrokkHubModel {
     updateOfferAtom: Atom<string>;
     // The downloads whose notification the developer settled or cleared (FR-BOSS-009, AC16), the same set while it holds.
     closedDownloadsAtom: Atom<ReadonlySet<string>>;
+    // The agents whose Done card the Notifications panel still lists (#2210), the same set while it holds.
+    openDoneAtom: Atom<ReadonlySet<string>>;
     hub: BrokkHub;
     // The hover of the title-bar face, which opens his group (FR-BOSS-009, AC53 to AC55, #2103): the face and the group
     // both tell it where the pointer is.
@@ -87,6 +90,18 @@ export class BrokkHubModel {
                 return closedDownloads;
             }
             closedDownloads = next;
+            return next;
+        });
+        let openDone: ReadonlySet<string> = new Set();
+        this.openDoneAtom = atom((get) => {
+            const next = openDoneBlocks(
+                get(BossBubbleModel.getInstance().toHandleAtom),
+                get(MoltentermNotifications.getInstance().shownEntriesAtom)
+            );
+            if (next.size === openDone.size && [...next].every((id) => openDone.has(id))) {
+                return openDone;
+            }
+            openDone = next;
             return next;
         });
         // His session is in no list of agents (FR-BOSS-009, AC26): its state is kept apart, and only his face shows it.
@@ -177,6 +192,7 @@ export class BrokkHubModel {
             updateOfferAtom: this.updateOfferAtom,
             usageAtom: UsageReadingsAtom,
             inViewAtom: makeSeenViewAtom(),
+            openDoneAtom: this.openDoneAtom,
         });
         const onStorage = (e: StorageEvent) => {
             if (e.key === VisitShareKey) {

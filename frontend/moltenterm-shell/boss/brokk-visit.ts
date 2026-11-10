@@ -274,6 +274,8 @@ export type BrokkInput =
     | { type: "later"; choice: SnoozeChoiceId | "escape" }
     // The developer opened Brokk's panel, from the scene or from the avatar: what was waiting is told.
     | { type: "open" }
+    // The developer gave these events back themselves (the undo of an archive, #2210): they are heard, as on opening.
+    | { type: "heard"; keys: string[] }
     | { type: "settings"; settings: VisitSettings }
     | { type: "gate"; event: GateEvent }
     // What this tab view shows changed (source-in-view.ts).
@@ -341,6 +343,21 @@ function visitsAfter(visits: VisitState, input: BrokkInput, settings: VisitSetti
                 told[event.key] = SeverityRank[severityOf(event, settings, now)];
             }
             return { ...visits, told, shown: false };
+        }
+        case "heard": {
+            let told = visits.told;
+            for (const key of input.keys) {
+                const known = visits.events[key];
+                if (known == null) {
+                    continue;
+                }
+                const rank = SeverityRank[severityOf(known.event, settings, now)];
+                if ((told[key] ?? -1) < rank) {
+                    told = told === visits.told ? { ...told } : told;
+                    told[key] = rank;
+                }
+            }
+            return told === visits.told ? visits : { ...visits, told };
         }
         default:
             return visits;

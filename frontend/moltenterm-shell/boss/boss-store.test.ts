@@ -645,6 +645,29 @@ describe("the rows settled or ignored (FR-BOSS-009, AC16, #2026)", () => {
             expect(globalStore.get(model.badgeAtom).count).toBe(1);
         });
 
+        it("gives the rows back with no call of the badge and as heard by Brokk: the undo is the developer's own (#2210)", async () => {
+            agentsWaiting();
+            globalStore.set(agents.loadedAtom, true);
+            const detach = model.attach(fakeDom());
+            await vi.waitFor(() => expect(globalStore.get(handoffs.loadedAtom)).toBe(true), { timeout: 30000 });
+            m.clear.mockReturnValue(vi.fn(async () => {}));
+            const heard = vi.fn();
+            const undo = model.archiveRows({ entryIds: ["n1"], marks: [waiting], rowKeys: ["agent:a"] }, heard);
+            expect(globalStore.get(model.badgeAtom).count).toBe(0);
+            await undo();
+            expect(globalStore.get(model.badgeAtom).count).toBe(1);
+            expect(globalStore.get(model.cueAtom)).toBe(0);
+            expect(heard).toHaveBeenCalledWith(["agent:a"]);
+            // A later arrival under the same key is news again.
+            model.settleRow(waiting);
+            globalStore.set(agents.dataAtom, {
+                states: { a: { ...agentInfo("a", "waiting"), since: 30 } },
+                versions: {},
+            });
+            expect(globalStore.get(model.cueAtom)).toBe(1);
+            detach();
+        });
+
         it("clears no notification when the cards are rows that stand for a fact", () => {
             agentsWaiting();
             m.clear.mockClear();

@@ -57,6 +57,9 @@ export type HubSources = {
     // What this tab view shows the developer (makeSeenViewAtom, #2166): what is in it does not bring him. A window
     // without one leaves it out.
     inViewAtom?: Atom<AgentSeenView>;
+    // The agents whose Done card the Notifications panel still lists (#2210): a finish whose card the developer archived
+    // leaves the badge. A window without one leaves it out.
+    openDoneAtom?: Atom<ReadonlySet<string>>;
 };
 
 // Reads `atom` now and at every change, and calls `tell` with the new value each time it differs from the last. The
@@ -125,7 +128,7 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         if (!store.get(src.agentsLoadedAtom)) {
             return;
         }
-        hub.agents(store.get(src.agentsAtom));
+        hub.agents(store.get(src.agentsAtom), src.openDoneAtom != null ? store.get(src.openDoneAtom) : undefined);
         hub.syncRows(store.get(src.toHandleAtom).items);
         hub.markReady();
     };
@@ -161,6 +164,7 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         store.sub(src.agentsAtom, readings),
         store.sub(src.agentsLoadedAtom, readings),
         store.sub(src.toHandleAtom, readings),
+        src.openDoneAtom != null ? store.sub(src.openDoneAtom, readings) : () => {},
     ];
     readings();
     return () => stops.forEach((stop) => stop());
