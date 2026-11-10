@@ -13,6 +13,7 @@ import (
 	"unicode"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
@@ -165,7 +166,9 @@ func SignInBlockMeta(id string, note string, pathList string) (waveobj.MetaMapTy
 		waveobj.MetaKey_CmdCloseOnExit: false,
 		// Runs on the click only: a panel kept across a restart never starts the sign-in again by itself.
 		waveobj.MetaKey_CmdRunOnce: true,
-		SignInBlockMetaKey:         id,
+		// molten-open needs the pane's wsh channel to send a sign-in page to the browser panel (FR-BRW-007, #2176).
+		waveobj.MetaKey_CmdJwt: true,
+		SignInBlockMetaKey:     id,
 	}
 	if pathList != "" {
 		meta[waveobj.MetaKey_CmdEnv] = map[string]any{"PATH": pathList}
@@ -178,11 +181,30 @@ func handleAgentSignIn(ctx context.Context, source string, data any) (any, error
 	if err := utilfn.ReUnmarshal(&req, data); err != nil {
 		return nil, err
 	}
-	meta, err := SignInBlockMeta(req.Id, req.Note, molten.LoginPath())
+	meta, err := SignInBlockMeta(req.Id, req.Note, withOpenerShims(molten.LoginPath(), shellutil.OpenerBinDir(), os.Getenv("PATH")))
 	if err != nil {
 		return nil, err
 	}
 	return AgentSignInResult{Meta: meta}, nil
+}
+
+// withOpenerShims puts the opener shims' folder first on the sign-in's PATH (FR-BRW-007, #2176): a CLI that calls open
+// or xdg-open instead of BROWSER (the Kimi CLI) then opens its sign-in page in MoltenTerm's browser. inherited stands
+// in for a login PATH that could not be read.
+func withOpenerShims(pathList string, openerDir string, inherited string) string {
+	if openerDir == "" {
+		return pathList
+	}
+	if pathList == "" {
+		pathList = inherited
+	}
+	entries := []string{openerDir}
+	for _, dir := range filepath.SplitList(pathList) {
+		if dir != "" && filepath.Clean(dir) != filepath.Clean(openerDir) {
+			entries = append(entries, dir)
+		}
+	}
+	return strings.Join(entries, string(filepath.ListSeparator))
 }
 
 func init() {

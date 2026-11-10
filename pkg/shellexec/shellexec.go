@@ -628,6 +628,7 @@ func StartLocalShellProc(logCtx context.Context, termSize waveobj.TermSize, cmdS
 		shellOpts = append(shellOpts, "-c", cmdStr)
 		ecmd = exec.Command(shellPath, shellOpts...)
 		ecmd.Env = localShellBaseEnv() // MOLTENTERM-PATCH (#106): drop inherited agent session markers
+		shellutil.UpdateCmdEnv(ecmd, commandBlockEnv(cmdOpts.SwapToken.Env)) // MOLTENTERM-PATCH (#2176)
 	}
 
 	packedToken, err := cmdOpts.SwapToken.PackForClient()

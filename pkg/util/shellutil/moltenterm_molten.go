@@ -75,6 +75,36 @@ func SleepShimNames() []string {
 	return nil
 }
 
+// OpenerBinDirName holds the opener shims alone (FR-BRW-007, #2176), under the wsh bin folder, for terminals that do not
+// get the agent launchers' folder on PATH: an agent's sign-in panel puts it first on its PATH.
+const OpenerBinDirName = "openers"
+
+// OpenerShimNames are the OS openers programs call instead of BROWSER (the npm open package, a provider's sign-in):
+// open on macOS, xdg-open on Linux. wsh recognises them (wshcmd-molten-openershim.go): one http(s) page goes to
+// molten-open, every other call to the real opener.
+func OpenerShimNames() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{"open"}
+	case "linux":
+		return []string{"xdg-open"}
+	}
+	return nil
+}
+
+// OpenerBinDir is the absolute path of the local openers folder, or "" when no shim is installed there.
+func OpenerBinDir() string {
+	names := OpenerShimNames()
+	if len(names) == 0 {
+		return ""
+	}
+	dir := filepath.Join(wavebase.GetWaveDataDir(), WaveHomeBinDir, OpenerBinDirName)
+	if _, err := os.Stat(filepath.Join(dir, names[0])); err != nil {
+		return ""
+	}
+	return dir
+}
+
 // moltenRefreshParams adds the refresh files' paths to the integration scripts' template values.
 func moltenRefreshParams(waveHome string, params map[string]string) {
 	params["MOLTENREFRESH"] = HardQuote(filepath.Join(waveHome, MoltenRefreshDir, moltenRefreshShName))
@@ -148,7 +178,8 @@ var MoltenProgramPath = func() string {
 // they follow every wsh update, or a copy on Windows, where symlinks need extra rights. Where the small molten program
 // exists, molten is a copy of it instead: it runs the agents' hook commands without starting wsh and hands wsh, next to
 // it, every other command (FR-PERF-012). The agent launchers and the inhibitor shims go in their own folder
-// (agents/claude -> ../wsh), which only local shells put on PATH.
+// (agents/claude -> ../wsh), which only local shells put on PATH; the opener shims go there too, and in the openers
+// folder for the panels that only get that one.
 func InstallMoltenCommand(binDir string, wshPath string) error {
 	if program := MoltenProgramPath(); program != "" {
 		if err := utilfn.AtomicRenameCopy(filepath.Join(binDir, MoltenCommandName), program, 0755); err != nil {
@@ -164,8 +195,22 @@ func InstallMoltenCommand(binDir string, wshPath string) error {
 	if err := os.MkdirAll(agentDir, 0755); err != nil {
 		return fmt.Errorf("creating %s: %w", agentDir, err)
 	}
-	for _, name := range append(append([]string{}, AgentLauncherNames...), SleepShimNames()...) {
-		if err := installWshAlias(agentDir, wshPath, name, filepath.Join("..", filepath.Base(wshPath))); err != nil {
+	parentWsh := filepath.Join("..", filepath.Base(wshPath))
+	names := append(append(append([]string{}, AgentLauncherNames...), SleepShimNames()...), OpenerShimNames()...)
+	for _, name := range names {
+		if err := installWshAlias(agentDir, wshPath, name, parentWsh); err != nil {
+			return err
+		}
+	}
+	if len(OpenerShimNames()) == 0 {
+		return nil
+	}
+	openerDir := filepath.Join(binDir, OpenerBinDirName)
+	if err := os.MkdirAll(openerDir, 0755); err != nil {
+		return fmt.Errorf("creating %s: %w", openerDir, err)
+	}
+	for _, name := range OpenerShimNames() {
+		if err := installWshAlias(openerDir, wshPath, name, parentWsh); err != nil {
 			return err
 		}
 	}

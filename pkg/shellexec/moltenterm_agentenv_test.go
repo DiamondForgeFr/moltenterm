@@ -5,6 +5,7 @@ package shellexec
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -129,5 +130,31 @@ func TestLocalShellBaseEnvSetsBrowser(t *testing.T) {
 	}
 	if got := moltenBrowserEnv(); got != openPath {
 		t.Fatalf("job env: got %q, want %q", got, openPath)
+	}
+}
+
+// #2176: a local command panel gets its pane identity and cmd:env (over the inherited values), never the wsh token
+// unless cmd:jwt adds it afterwards.
+func TestCommandBlockEnv(t *testing.T) {
+	token := map[string]string{
+		"WAVETERM_TABID":             "tab-1",
+		"WAVETERM_BLOCKID":           "block-1",
+		"PATH":                       "/d/bin/openers:/usr/bin",
+		"EMPTY":                      "",
+		wavebase.WaveJwtTokenVarName: "secret",
+	}
+	cmd := exec.Command("/bin/true")
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=/home/x", "EMPTY=kept"}
+	shellutil.UpdateCmdEnv(cmd, commandBlockEnv(token))
+	got := map[string]string{}
+	for _, kv := range cmd.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		got[k] = v
+	}
+	if got["WAVETERM_TABID"] != "tab-1" || got["WAVETERM_BLOCKID"] != "block-1" || got["PATH"] != "/d/bin/openers:/usr/bin" || got["HOME"] != "/home/x" || got["EMPTY"] != "kept" {
+		t.Errorf("env %v", got)
+	}
+	if _, ok := got[wavebase.WaveJwtTokenVarName]; ok {
+		t.Errorf("the wsh token must stay out without cmd:jwt: %v", got)
 	}
 }

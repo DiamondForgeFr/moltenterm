@@ -20,7 +20,7 @@ import {
     shNavHandler,
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
-import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
+import { openLinkInApp } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663, #2176)
 import { watchGuestFavicons } from "./moltenterm-favicons"; // MOLTENTERM-PATCH (#1962)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireViewForTab, noteTabViewDestroyed, noteTabViewDestroying } from "./moltenterm-tabview-host"; // MOLTENTERM-PATCH (#461)
@@ -269,8 +269,9 @@ export async function getOrCreateWebViewForTab(
     }
     const tabView = acquired.view;
     const fullConfig = acquired.fullConfig;
-    tabView.webContents.on("will-navigate", shNavHandler);
-    tabView.webContents.on("will-frame-navigate", shFrameNavHandler);
+    // MOLTENTERM-PATCH (#2176): the tab view itself takes the web pages its interface opens (its browser panel)
+    tabView.webContents.on("will-navigate", (event, url) => shNavHandler(event, url, tabView.webContents));
+    tabView.webContents.on("will-frame-navigate", (event) => shFrameNavHandler(event, tabView.webContents));
     // MOLTENTERM-PATCH (#207): sign-in popups open as real child windows; other new windows still become panel tabs
     // (Wave's deny-and-forward moved to emain/moltenterm-popups.ts).
     tabView.webContents.on("did-attach-webview", (event, wc) => {
@@ -299,7 +300,7 @@ export async function getOrCreateWebViewForTab(
     tabView.webContents.setWindowOpenHandler(({ url, frameName }) => {
         if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://")) {
             console.log("openExternal fallback", url);
-            void openExternalLink(url); // MOLTENTERM-PATCH (#663): the shared scheme rule
+            void openLinkInApp(url, tabView.webContents); // MOLTENTERM-PATCH (#663, #2176): the shared scheme rule
         }
         console.log("window-open denied", url);
         return { action: "deny" };

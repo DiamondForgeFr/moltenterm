@@ -3,8 +3,8 @@
 
 // Small pieces the first run's steps share: inline code, and a line of text to copy.
 
-import { getApi } from "@/app/store/global";
-import { cn } from "@/util/util";
+import { openLink } from "@/app/store/global";
+import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { useT } from "../moltenterm-shell/i18n/i18n";
 
@@ -42,13 +42,15 @@ export function StepText({
     );
 }
 
+// A vendor's page (install, keys, plans, sign-in, docs) opens like any interface link: MoltenTerm's browser panel first
+// (FR-BRW-007, #2176).
 export function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
     return (
         <a
             href={href}
             onClick={(e) => {
                 e.preventDefault();
-                getApi().openExternal(href);
+                fireAndForget(() => openLink(href));
             }}
             className="cursor-pointer text-accent hover:underline"
         >

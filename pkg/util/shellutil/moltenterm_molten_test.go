@@ -46,6 +46,33 @@ func TestInstallMoltenCommand(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(binDir, AgentBinDirName, "claude")); err != nil {
 			t.Fatalf("install %d: agents/claude does not resolve: %v", i, err)
 		}
+		// #2176: the opener shims, in the launchers' folder and in the openers folder.
+		for _, name := range OpenerShimNames() {
+			for _, dir := range []string{AgentBinDirName, OpenerBinDirName} {
+				path := filepath.Join(binDir, dir, name)
+				target, err := os.Readlink(path)
+				if err != nil || target != filepath.Join("..", "wsh") {
+					t.Fatalf("install %d: %s/%s links to %q (%v), want ../wsh", i, dir, name, target, err)
+				}
+				if _, err := os.Stat(path); err != nil {
+					t.Fatalf("install %d: %s/%s does not resolve: %v", i, dir, name, err)
+				}
+			}
+		}
+	}
+}
+
+func TestOpenerShimNames(t *testing.T) {
+	want := map[string]string{"darwin": "open", "linux": "xdg-open"}[runtime.GOOS]
+	names := OpenerShimNames()
+	if want == "" {
+		if len(names) != 0 {
+			t.Fatalf("got %q, want no opener shim on %s", names, runtime.GOOS)
+		}
+		return
+	}
+	if len(names) != 1 || names[0] != want {
+		t.Fatalf("got %q, want [%s]", names, want)
 	}
 }
 

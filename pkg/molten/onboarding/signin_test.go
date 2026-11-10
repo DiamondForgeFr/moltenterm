@@ -80,11 +80,34 @@ func TestSignInBlockMeta(t *testing.T) {
 	if env := meta.GetStringMap(waveobj.MetaKey_CmdEnv, false); env["PATH"] != "/opt/bin:/usr/bin" {
 		t.Errorf("env %+v", env)
 	}
+	if !meta.GetBool(waveobj.MetaKey_CmdJwt, false) {
+		t.Errorf("the sign-in needs its wsh channel for molten-open (#2176): %+v", meta)
+	}
 	if _, err := SignInBlockMeta("generic", "", ""); err == nil {
 		t.Error("the generic agent has no sign-in")
 	}
 	if _, err := SignInBlockMeta("nope", "", ""); err == nil {
 		t.Error("an unknown id is refused")
+	}
+}
+
+// #2176: the opener shims' folder goes first on the sign-in's PATH, once; without shims the PATH is unchanged.
+func TestWithOpenerShims(t *testing.T) {
+	t.Parallel()
+	sep := string(filepath.ListSeparator)
+	cases := []struct {
+		path, openers, inherited, want string
+	}{
+		{"/opt/bin" + sep + "/usr/bin", "/d/bin/openers", "/x", "/d/bin/openers" + sep + "/opt/bin" + sep + "/usr/bin"},
+		{"/d/bin/openers" + sep + "/usr/bin" + sep + "/d/bin/openers/", "/d/bin/openers", "", "/d/bin/openers" + sep + "/usr/bin"},
+		{"", "/d/bin/openers", "/usr/bin", "/d/bin/openers" + sep + "/usr/bin"},
+		{"/opt/bin", "", "/usr/bin", "/opt/bin"},
+		{"", "", "/usr/bin", ""},
+	}
+	for _, c := range cases {
+		if got := withOpenerShims(c.path, c.openers, c.inherited); got != c.want {
+			t.Errorf("withOpenerShims(%q, %q, %q) = %q, want %q", c.path, c.openers, c.inherited, got, c.want)
+		}
 	}
 }
 
