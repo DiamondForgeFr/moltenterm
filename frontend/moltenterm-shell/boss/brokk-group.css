@@ -689,6 +689,45 @@
     box-shadow: inset 0 0 0 1px var(--mt-focus-ring);
 }
 
+/* A card of the Notifications panel (#2195): the row with a little room on each side, taken back by a negative margin so
+   its text stays where the other panels' rows put it, for the glow of a card that leads somewhere to have a body. */
+.mt-brokk-card {
+    margin-inline: -4px;
+    padding-inline: 4px;
+}
+
+/* The action line has the height of its tallest control (Archive, 24 px) even when it holds none, so a card without
+   actions is as tall as another. */
+.mt-brokk-card .mt-brokk-ra {
+    min-height: 24px;
+}
+
+/* A card that leads somewhere is a call to action: on hover and on focus it lifts a little and takes the glow of the
+   action colour, as the Integration panel's cards do under the pointer. Reduced motion (the system's, or MoltenTerm's
+   own setting on the app root) keeps the glow and drops the lift. */
+.mt-brokk-card[data-cta] {
+    transition:
+        transform var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        box-shadow var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-brokk-card[data-cta]:hover,
+.mt-brokk-card[data-cta]:focus-visible {
+    border-radius: var(--mt-radius-panel);
+    background: var(--mt-action-wash);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-action) 45%, transparent),
+        0 6px 16px -10px color-mix(in srgb, var(--mt-action) 70%, transparent);
+    transform: translateY(-1px);
+}
+
+.mt-brokk-card[data-cta]:focus-visible {
+    box-shadow:
+        inset 0 0 0 1px var(--mt-focus-ring),
+        0 6px 16px -10px color-mix(in srgb, var(--mt-action) 70%, transparent);
+}
+
 .mt-brokk-rh {
     display: flex;
     align-items: center;
@@ -886,6 +925,15 @@
     .mt-brokk-say > span:first-child {
         transition: none !important;
     }
+
+    .mt-brokk-card[data-cta] {
+        transition: none;
+    }
+
+    .mt-brokk-card[data-cta]:hover,
+    .mt-brokk-card[data-cta]:focus-visible {
+        transform: none;
+    }
 }
 
 .prefers-reduced-motion .mt-brokk-sq,
@@ -914,4 +962,13 @@
 
 .prefers-reduced-motion .mt-brokk-say > span:first-child {
     transition: none !important;
+}
+
+.prefers-reduced-motion .mt-brokk-card[data-cta] {
+    transition: none;
+}
+
+.prefers-reduced-motion .mt-brokk-card[data-cta]:hover,
+.prefers-reduced-motion .mt-brokk-card[data-cta]:focus-visible {
+    transform: none;
 }

@@ -25,6 +25,7 @@ import { BossBubbleModel } from "./boss-store";
 import { ToHandleAction, ToHandleItem } from "./boss-to-handle-model";
 import { handledKindOf } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
+import type { ArchivePlan } from "./brokk-notes-model";
 
 export type BrokkActions = {
     // The key of the button that runs, null when none does.
@@ -34,6 +35,8 @@ export type BrokkActions = {
     goToSession: (sessionId: string, busyKey: string, settle?: () => void) => void;
     runTodo: (item: ToHandleItem, action: ToHandleAction) => void;
     reconnect: (sessionId: string) => void;
+    // Archives cards (#2195); the undo it returns gives back exactly what was archived.
+    archive: (plan: ArchivePlan) => () => Promise<void>;
 };
 
 // onLeave: an action took the developer somewhere else, so the group closes and leaves the focus where it went.
@@ -156,5 +159,7 @@ export function useBrokkActions(onLeave: () => void): BrokkActions {
         });
     };
 
-    return { busyId, problem, goToSession, runTodo, reconnect };
+    const archive = (plan: ArchivePlan) => model.archiveRows(plan);
+
+    return { busyId, problem, goToSession, runTodo, reconnect, archive };
 }

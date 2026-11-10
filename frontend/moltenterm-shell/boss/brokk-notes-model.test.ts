@@ -3,9 +3,13 @@
 
 import { describe, expect, it } from "vitest";
 import { MoltentermNotification } from "../notifications-model";
-import { ToHandleItem, ToHandleList } from "./boss-to-handle-model";
+import { HandledRows, markRowHandled, unmarkRowHandled } from "./boss-handled";
+import { buildToHandle, toHandleBadge, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import {
+    archivePlan,
     buildNotes,
+    cardGoTo,
+    cardTarget,
     consultedIds,
     entrySeverity,
     isPrimaryAction,
@@ -13,6 +17,7 @@ import {
     NoteRow,
     primaryAllowed,
     priorityOf,
+    rowSourceId,
     sourceBesideWorkspace,
     todoSeverity,
 } from "./brokk-notes-model";
@@ -156,6 +161,220 @@ describe("the sort of the Notifications list", () => {
     it("leaves out the archived ones", () => {
         const rows = notes(list([]), [entry("a", { archived: Now }), entry("b")]);
         expect(rows.map((r) => r.entry.id)).toEqual(["b"]);
+    });
+
+    it("does not bring the agent's own row back when its archived notification told the finish (#2195)", () => {
+        const info = [{ key: "done:b1", name: "Olivia", place: "", since: Now - 5 * Min, line: { key: "x" } }];
+        const told = (extra: Partial<MoltentermNotification>) =>
+            entry("told", { kind: "success", titlecode: "agentdone", blockid: "b1", source: "agent", ...extra });
+        // Archived after the finish: the card is gone and the agent's row does not take its place.
+        expect(notes(list([], info), [told({ archived: Now, updated: Now - 5 * Min })])).toEqual([]);
+        // An archived one from an earlier finish of the same agent does not tell this one.
+        expect(
+            notes(list([], info), [told({ archived: Now - 100 * Min, updated: Now - 120 * Min })]).map((r) => r.key)
+        ).toEqual(["finished:done:b1"]);
+    });
+
+    it("dates an agent that finished by its finish, and sorts it among the Fait rows by it", () => {
+        const info = [
+            { key: "done:b1", name: "Olivia", place: "", since: Now - 9 * Min, line: { key: "x" } },
+            { key: "done:b2", name: "Jo", place: "", since: Now - 3 * Min, line: { key: "x" } },
+        ];
+        const rows = notes(list([], info));
+        expect(rows.map((r) => [r.finished.name, r.since])).toEqual([
+            ["Jo", Now - 3 * Min],
+            ["Olivia", Now - 9 * Min],
+        ]);
+    });
+});
+
+describe("the card's target and its Go to → (#2195)", () => {
+    const place = { workspaceid: "wsA", blockid: "b1", tabid: "t1" };
+    const finished = (extra = {}) => ({
+        key: "done:b1",
+        name: "Olivia",
+        place: "",
+        blockid: "b1",
+        sessionid: "s1",
+        line: { key: "x" },
+        ...extra,
+    });
+
+    it("leads from a notification that comes from somewhere, and from nothing else of its kind", () => {
+        const [from, nowhere] = notes(list([]), [entry("from", place), entry("nowhere")]);
+        expect(cardTarget(from)).toBe("origin");
+        expect(cardGoTo(from)).toBe("origin");
+        expect(cardTarget(nowhere)).toBeNull();
+        expect(cardGoTo(nowhere)).toBeNull();
+    });
+
+    it("leads from an agent that finished that has a place to go, and from none that has not", () => {
+        const [row] = notes(list([], [finished()]));
+        expect(cardTarget(row)).toBe("agent");
+        expect(cardGoTo(row)).toBe("agent");
+        const [nowhere] = notes(list([], [finished({ blockid: "", sessionid: "" })]));
+        expect(cardTarget(nowhere)).toBeNull();
+    });
+
+    it("keeps the card clickable but shows no Go to → when its own action already goes there", () => {
+        const own = entry("own", {
+            ...place,
+            actions: [{ id: "g", label: "Go to Olivia", kind: "open", ...place }],
+        });
+        const card = entry("card", {
+            ...place,
+            actions: [{ id: "card", label: "Open", kind: "gesture", gesture: "g" }],
+        });
+        const [a, b] = notes(list([]), [own, card]);
+        for (const row of [a, b]) {
+            expect(cardTarget(row)).toBe("origin");
+            expect(cardGoTo(row)).toBeNull();
+        }
+    });
+
+    it("leads from nothing in the archived list, and from no row To handle (their buttons lead)", () => {
+        const [row] = notes(list([]), [entry("from", place)]);
+        expect(cardTarget(row, true)).toBeNull();
+        expect(cardGoTo(row, true)).toBeNull();
+        const [todo] = notes(list([item("agent:b1")]));
+        expect(cardTarget(todo)).toBeNull();
+        expect(cardGoTo(todo)).toBeNull();
+    });
+});
+
+describe("the source of every kind of card (#2195)", () => {
+    it("names it from the notification, and from the key of a row that is none", () => {
+        const handoff = item("handoff:r1", { handoff: {} as any });
+        const rows = notes(
+            list(
+                [
+                    item("agent:b1"),
+                    item("ci:/p:2"),
+                    item("ready:/p:3"),
+                    handoff,
+                    item("notif:n1", { notice: entry("n1", { source: "build" }) }),
+                ],
+                [{ key: "done:b9", name: "Jo", place: "", line: { key: "x" } }]
+            ),
+            [entry("e", { source: "release" })]
+        );
+        const byKey = Object.fromEntries(rows.map((r) => [r.key, rowSourceId(r)]));
+        expect(byKey).toEqual({
+            "todo:agent:b1": "agent",
+            "todo:ci:/p:2": "ci",
+            "todo:ready:/p:3": "pr",
+            "todo:handoff:r1": "handoff",
+            "todo:notif:n1": "build",
+            "finished:done:b9": "agent",
+            "entry:e": "release",
+        });
+    });
+});
+
+describe("archiving cards (#2195, FR-MC-019 AC15, AC16, AC18)", () => {
+    it("clears the notifications, and marks every row that stands for a fact for the episode it shows", () => {
+        const rows = notes(
+            list(
+                [
+                    item("agent:b1", { since: Now - 4 * Min, tone: "waiting" }),
+                    item("ci:/p:2", { since: Now - 6 * Min, tone: "error" }),
+                    item("ready:/p:3", { since: Now - 8 * Min, tone: "success" }),
+                ],
+                [{ key: "done:b9", name: "Jo", place: "", since: Now - 2 * Min, line: { key: "x" } }]
+            ),
+            [entry("n1"), entry("n2", { kind: "success" })]
+        );
+        const plan = archivePlan(rows);
+        expect(plan.entryIds.sort()).toEqual(["n1", "n2"]);
+        expect(plan.marks).toEqual(
+            expect.arrayContaining([
+                { key: "agent:b1", since: Now - 4 * Min, tone: "waiting" },
+                { key: "ci:/p:2", since: Now - 6 * Min, tone: "error" },
+                { key: "ready:/p:3", since: Now - 8 * Min, tone: "success" },
+                { key: "done:b9", since: Now - 2 * Min, tone: "done" },
+            ])
+        );
+        expect(plan.marks).toHaveLength(4);
+    });
+
+    it("clears the notification a row stands for, and the one an agent's question consumed, and marks no notification row", () => {
+        const asking = entry("ask", { kind: "warning", blockid: "b1", source: "agent" });
+        const rows = notes(
+            list([item("notif:n1", { notice: entry("n1", { kind: "warning" }) }), item("agent:b1", { notice: asking })])
+        );
+        const plan = archivePlan(rows);
+        expect(plan.entryIds.sort()).toEqual(["ask", "n1"]);
+        expect(plan.marks.map((m) => m.key)).toEqual(["agent:b1"]);
+    });
+
+    it("clears the notification of a hand-off request that no row of its own stands for", () => {
+        const request = entry("req", { key: "agenthandoff:r1", kind: "warning" });
+        const archived = entry("old", { key: "agenthandoff:r1", archived: Now });
+        const rows = notes(list([item("handoff:r1", { handoff: { requestid: "r1" } as any, since: Now })]));
+        const plan = archivePlan(rows, [request, archived]);
+        expect(plan.entryIds).toEqual(["req"]);
+        expect(plan.marks).toEqual([{ key: "handoff:r1", since: Now, tone: "waiting" }]);
+    });
+
+    it("plans nothing for no card, and each id once for the same card twice", () => {
+        expect(archivePlan([])).toEqual({ entryIds: [], marks: [] });
+        const [row] = notes(list([]), [entry("n1")]);
+        expect(archivePlan([row, row]).entryIds).toEqual(["n1"]);
+    });
+
+    it("lowers the counts of the rail and of Brokk's badge once the marks and the archive are in", () => {
+        const input = (handled: HandledRows, entries: MoltentermNotification[]) => {
+            const toHandle = buildToHandle({
+                states: {
+                    states: {
+                        b1: { blockid: "b1", state: "waiting", since: Now - 4 * Min, version: 1 },
+                        b9: { blockid: "b9", state: "done", since: Now - 2 * Min, version: 1 },
+                    },
+                    versions: {},
+                } as any,
+                notifications: entries,
+                answers: {},
+                readied: {},
+                sessions: [],
+                parked: {},
+                handled,
+            });
+            return { toHandle, rows: notes(toHandle, entries) };
+        };
+        const before = input({}, [entry("n1")]);
+        expect(noteFacts(before.rows).count).toBe(2);
+        expect(toHandleBadge(before.toHandle).count).toBe(1);
+        expect(before.rows.filter((r) => r.source === "finished")).toHaveLength(1);
+
+        const plan = archivePlan(before.rows);
+        const handled = plan.marks.reduce((h, m) => markRowHandled(h, m, Now), {} as HandledRows);
+        const after = input(handled, [{ ...entry("n1"), archived: Now }]);
+        expect(after.rows).toEqual([]);
+        expect(noteFacts(after.rows).count).toBe(0);
+        expect(toHandleBadge(after.toHandle).count).toBe(0);
+
+        // The undo: the marks are lifted and the notification is open again.
+        const undone = plan.marks.reduce((h, m) => unmarkRowHandled(h, m.key, Now), handled);
+        const again = input(undone, [entry("n1")]);
+        expect(noteFacts(again.rows).count).toBe(2);
+        expect(toHandleBadge(again.toHandle).count).toBe(1);
+        expect(again.rows.filter((r) => r.source === "finished")).toHaveLength(1);
+    });
+
+    it("brings an archived agent back when it finishes again", () => {
+        const state = (since: number) =>
+            ({ states: { b9: { blockid: "b9", state: "done", since, version: 1 } }, versions: {} }) as any;
+        const base = {
+            notifications: [],
+            answers: {},
+            readied: {},
+            sessions: [],
+            parked: {},
+        };
+        const first = buildToHandle({ ...base, states: state(Now - 9 * Min) });
+        const handled = archivePlan(notes(first)).marks.reduce((h, m) => markRowHandled(h, m, Now), {} as HandledRows);
+        expect(buildToHandle({ ...base, states: state(Now - 9 * Min), handled }).info).toEqual([]);
+        expect(buildToHandle({ ...base, states: state(Now - 1 * Min), handled }).info).toHaveLength(1);
     });
 });
 

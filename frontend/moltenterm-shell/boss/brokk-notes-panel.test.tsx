@@ -106,6 +106,7 @@ const Actions: BrokkActions = {
     goToSession: vi.fn(),
     runTodo: vi.fn(),
     reconnect: vi.fn(),
+    archive: vi.fn(() => async () => {}),
 };
 
 function workspaces(): Map<string, Workspace> {
@@ -157,13 +158,13 @@ describe("the Notifications panel is the notification centre, with À traiter in
         expect(html).toContain("Nothing needs your attention.");
     });
 
-    it("lists the notifications, each with its × and silence actions", () => {
+    it("lists the notifications, each with its Archive and silence actions", () => {
         globalStore.set(model.entriesAtom, [entry("n1", { source: "ci" }), entry("n2", { source: "build" })]);
         const html = render();
         expect(html.match(/data-testid="notification-row"/g)).toHaveLength(2);
         expect(html).toContain('data-notif="n1"');
-        expect(html.match(/data-testid="notification-clear"/g)).toHaveLength(2);
-        expect(html).toContain('aria-label="Clear"');
+        expect(html.match(/data-testid="notification-archive"/g)).toHaveLength(2);
+        expect(html).toContain('aria-label="Archive"');
         // An info notification of a subject can be silenced: "Don't tell me again…".
         expect(html).toContain('data-testid="notification-silence"');
     });
@@ -206,13 +207,15 @@ describe("the Notifications panel is the notification centre, with À traiter in
         expect(html).toContain("Build the app");
     });
 
-    it("keeps the rows To handle: an agent that waits, with its Go to, Later and Ignorer", () => {
+    it("keeps the rows To handle: an agent that waits, with its Go to, Later and Archive", () => {
         const html = render(rowsOf({ items: [todo("agent:b1")] }));
         expect(tags(html, "boss-card-todo-row")).toHaveLength(1);
         expect(html).toContain('data-todo="agent:b1"');
         expect(tags(html, "boss-card-todo-action").map((t) => /data-act="([^"]*)"/.exec(t)[1])).toEqual(["goto"]);
         expect(html).toContain('data-testid="boss-card-todo-later"');
-        expect(html).toContain('data-testid="boss-card-todo-ignore"');
+        // Ignorer and the × are one Archive (#2195).
+        expect(html).not.toContain('data-testid="boss-card-todo-ignore"');
+        expect(html).toContain('data-testid="notification-archive"');
     });
 
     it("draws a row the developer has already seen as seen, and dimmed", () => {
@@ -251,27 +254,34 @@ describe("the header keeps what the centre offered, as compact icon buttons (FR-
         globalStore.set(model.entriesAtom, [entry("n1")]);
         globalStore.set(model.unreadCountAtom, 1);
         const html = render();
-        for (const id of ["notification-mark-all-read", "notification-clear-all", "notification-settings-link"]) {
+        for (const id of ["notification-mark-all-read", "notification-archive-all", "notification-settings-link"]) {
             const tag = tags(html, id)[0];
             expect(tag, id).toMatch(/aria-label="[^"]+"/);
             expect(tag, id).toMatch(/title="[^"]+"/);
         }
-        expect(html).toContain(
-            'title="Moves every notification of the list to the archive. You can undo it for a few seconds."'
-        );
+        expect(tags(html, "notification-archive-all")[0]).toContain('aria-label="Archive all"');
+        expect(html).toContain('title="Archives every card of the list. You can undo it for a few seconds."');
     });
 
-    it("offers Clear all while the list has notifications, and not on an empty one (#2026)", () => {
-        expect(render()).not.toContain('data-testid="notification-clear-all"');
+    it("offers Archive all while the list has a card of any kind, and not on an empty one (#2195)", () => {
+        expect(render()).not.toContain('data-testid="notification-archive-all"');
         globalStore.set(model.entriesAtom, [entry("n1")]);
-        expect(render()).toContain('data-testid="notification-clear-all"');
+        expect(render()).toContain('data-testid="notification-archive-all"');
+        globalStore.set(model.entriesAtom, []);
+        expect(render(rowsOf({ items: [todo("agent:b1")] }))).toContain('data-testid="notification-archive-all"');
+        expect(
+            render(
+                rowsOf({ info: [{ key: "done:b9", name: "Benoît", place: "", line: { key: "boss.todo.infoDone" } }] })
+            )
+        ).toContain('data-testid="notification-archive-all"');
     });
 
-    it("clears the notifications of the list with an undo toast, never a confirmation, and leaves what waits for an answer", () => {
+    it("archives every card of the list with an undo toast, never a confirmation (#2195)", () => {
         const source = readFileSync(join(__dirname, "brokk-notes-panel.tsx"), "utf8");
-        expect(source).toContain("const undo = model.clear(ids);");
-        expect(source).toContain('showUndoToast(translateCount("notif.center.cleared", ids.length), undo)');
-        expect(source).toContain("const ids = entryRows.map((row) => row.entry.id);");
+        expect(source).toContain("const undo = actions.archive(archivePlan(cards, entries));");
+        expect(source).toContain('showUndoToast(translateCount("notif.center.archivedCount", cards.length), undo)');
+        expect(source).toContain("onClick={() => archiveCards(rows)}");
+        expect(source).toContain("onArchive={() => archiveCards([row])}");
         expect(source).not.toContain("window.confirm");
     });
 
@@ -354,13 +364,13 @@ describe("one list, sorted by priority, then date (FR-BOSS-009, AC19)", () => {
         expect(html.match(/molten-btn-wave/g)?.length ?? 0).toBe(primaries.length);
     });
 
-    it("puts the × last on a notification's row, after its actions", () => {
+    it("puts Archive last on a notification's row, after its actions", () => {
         globalStore.set(model.entriesAtom, [
             entry("n1", { actions: [{ id: "a", label: "Open the log", kind: "gesture", gesture: "x" }] }),
         ]);
         const html = render();
         expect(html.indexOf('data-testid="notification-action"')).toBeLessThan(
-            html.indexOf('data-testid="notification-clear"')
+            html.indexOf('data-testid="notification-archive"')
         );
     });
 
@@ -452,5 +462,257 @@ describe("the source of a notification, shown once (FR-BOSS-009, AC19)", () => {
         expect(tags(html, "notification-source")).toHaveLength(2);
         expect(html).toMatch(/data-testid="notification-source">CI</);
         expect(html).toMatch(/data-testid="notification-source">MoltenTerm</);
+    });
+});
+
+// One card of every kind the panel lists: a notification (Info, Fait, with its own action, with a place it comes from),
+// the rows To handle (an agent, a failing CI, a pull request ready, a hand-off request) and an agent that finished.
+function everyKind(): NoteRow[] {
+    globalStore.set(model.entriesAtom, [
+        entry("info", { source: "ci" }),
+        entry("acts", {
+            source: "build",
+            actions: [{ id: "a", label: "Open the log", kind: "gesture", gesture: "x" }],
+        }),
+        entry("done", { kind: "success", source: "agent", workspaceid: "wsA", blockid: "b7", title: "Léa is done" }),
+        entry("lead", { source: "agent", workspaceid: "wsA", blockid: "b8", title: "Marc has a lead" }),
+    ]);
+    return rowsOf({
+        items: [
+            todo("agent:b1"),
+            todo("ci:/p:2", { tone: "error", name: "#2", actions: [{ ...todo("x").actions[0], id: "failure" }] }),
+            todo("ready:/p:3", {
+                tone: "success",
+                name: "#3",
+                actions: [{ ...todo("x").actions[0], id: "integration" }],
+            }),
+            todo("handoff:r1", {
+                name: "Léa",
+                actions: [
+                    {
+                        id: "once",
+                        primary: true,
+                        labelKey: "boss.todo.handoff.once",
+                        disabled: false,
+                        run: { kind: "handoff", requestid: "r1", decision: "once" },
+                    },
+                    {
+                        id: "brief",
+                        primary: false,
+                        labelKey: "boss.todo.handoff.brief",
+                        disabled: false,
+                        run: { kind: "brief" },
+                    },
+                ],
+                handoff: {
+                    requestid: "r1",
+                    from: "Léa",
+                    to: "Marc",
+                    fromPlace: "",
+                    toPlace: "",
+                    goal: "Review the plan",
+                    files: [],
+                    links: [],
+                    brief: { goal: "Review the plan" },
+                },
+            }),
+        ],
+        info: [
+            {
+                key: "done:b9",
+                name: "Bérénice",
+                place: "Alpha",
+                workspaceid: "wsA",
+                blockid: "b9",
+                sessionid: "s9",
+                since: Now - 5 * Min,
+                line: { key: "boss.todo.infoDone" },
+            },
+        ],
+    });
+}
+
+function cardsOf(html: string): string[] {
+    return html.split("<li ").slice(1);
+}
+
+describe("every card can be archived, and all of them at once (#2195, FR-MC-019 AC15 and AC16)", () => {
+    it("ends the action line of every kind of card with one Archive", () => {
+        const cards = cardsOf(render(everyKind()));
+        expect(cards).toHaveLength(9);
+        for (const card of cards) {
+            expect(card.match(/data-testid="notification-archive"/g), card.slice(0, 160)).toHaveLength(1);
+        }
+    });
+
+    it("shows Archive on hover and on keyboard focus, never behind a menu", () => {
+        const html = render(everyKind());
+        const button = tags(html, "notification-archive")[0];
+        expect(button).toContain("group-hover:opacity-100");
+        expect(button).toContain("group-focus-within:opacity-100");
+        expect(button).toContain("focus-visible:opacity-100");
+        expect(button).toContain('aria-label="Archive"');
+        expect(html).not.toContain('aria-haspopup="menu"');
+    });
+
+    it("makes every active card focusable, for Delete and Backspace", () => {
+        for (const card of cardsOf(render(everyKind()))) {
+            expect(card.slice(0, card.indexOf(">"))).toContain('tabindex="0"');
+        }
+    });
+
+    it("offers no Archive in the archived list", () => {
+        globalStore.set(model.entriesAtom, [entry("old", { archived: Date.now() }), entry("n1")]);
+        const source = readFileSync(join(__dirname, "brokk-notes-panel.tsx"), "utf8");
+        expect(source).toContain("const archiveButton = archived ? null : <ArchiveButton");
+        expect(source).toContain("archive={archived ? null : <ArchiveButton onArchive={onArchive} />}");
+    });
+
+    it("has no separate × on the first line, nor an Ignorer, any more", () => {
+        const html = render(everyKind());
+        expect(html).not.toContain('data-testid="notification-clear"');
+        expect(html).not.toContain('data-testid="boss-card-todo-ignore"');
+        for (const card of cardsOf(html)) {
+            const header = /<div class="mt-brokk-rh">(.*?)<\/div>/.exec(card)?.[1] ?? "";
+            expect(header).not.toContain("notification-archive");
+        }
+    });
+});
+
+describe("one anatomy for every kind of card (#2195, FR-MC-019 AC20)", () => {
+    it("gives each card a first line, one title line and one action line", () => {
+        const cards = cardsOf(render(everyKind()));
+        for (const card of cards) {
+            expect(card, card.slice(0, 160)).toContain('class="mt-brokk-rh"');
+            expect(card).toContain('data-testid="brokk-note-priority"');
+            expect(card.match(/class="mt-brokk-rt[ "]/g), card.slice(0, 160)).toHaveLength(1);
+            expect(card.match(/data-testid="brokk-card-actions"/g), card.slice(0, 160)).toHaveLength(1);
+            expect(card.indexOf("mt-brokk-rh")).toBeLessThan(card.indexOf("mt-brokk-rt"));
+            expect(card.indexOf("mt-brokk-rt")).toBeLessThan(card.indexOf('data-testid="brokk-card-actions"'));
+        }
+    });
+
+    it("writes every title line in the same weight, with no bold for an unread card", () => {
+        const html = render(everyKind());
+        for (const card of cardsOf(html)) {
+            const title = /<div class="mt-brokk-rt[^"]*"/.exec(card)?.[0] ?? "";
+            expect(title).not.toMatch(/font-(semibold|bold|normal)/);
+        }
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(/\.mt-brokk-rt \{[^}]*font-weight: 500;/.test(css)).toBe(true);
+    });
+
+    it("says the agent's name or the event, then its short text, on the title line", () => {
+        const html = render(everyKind());
+        const finished = tags(html, "boss-card-info-name")[0];
+        expect(finished).toBeDefined();
+        expect(html).toMatch(
+            /data-testid="boss-card-info-name"[^>]*><span class="line-clamp-3 min-w-0">Bérénice<span class="text-muted"[^>]*> · <\/span><span class="text-secondary">Finished its work\.<\/span>/
+        );
+        expect(html).toMatch(
+            /data-testid="notification-title"[^>]*><span class="line-clamp-3 min-w-0">Title info<span class="text-muted"[^>]*> · <\/span><span class="text-secondary">Message info<\/span>/
+        );
+    });
+
+    it("keeps the action line's height with no action at all", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).toMatch(/\.mt-brokk-card \.mt-brokk-ra \{\s*min-height: 24px;/);
+        const bare = cardsOf(render(everyKind())).find((card) => card.includes('data-notif="info"'));
+        expect(bare).toContain('data-testid="brokk-card-actions"');
+    });
+
+    it("names the source of every kind on the first line", () => {
+        const sources = cardsOf(render(everyKind())).map(
+            (card) => /data-testid="notification-source">([^<]*)</.exec(card)?.[1] ?? ""
+        );
+        expect(sources).toEqual(expect.arrayContaining(["CI", "build", "agent", "pull request", "hand-off"]));
+        expect(sources.filter((s) => s === "")).toHaveLength(0);
+    });
+});
+
+describe("a card that leads somewhere is a call to action (#2195, FR-MC-019 AC17)", () => {
+    const done = () => cardsOf(render(everyKind())).find((card) => card.includes('data-info="done:b9"'));
+
+    it("makes a Done card clickable as a whole, with the hover state of a call to action", () => {
+        const card = done();
+        const opening = card.slice(0, card.indexOf(">"));
+        expect(opening).toContain('data-cta="true"');
+        expect(opening).toContain('role="button"');
+        expect(opening).toContain("cursor-pointer");
+        expect(opening).toContain('tabindex="0"');
+        const source = readFileSync(join(__dirname, "brokk-notes-panel.tsx"), "utf8");
+        expect(source).toContain("onClick={hasTarget ? onOpen : undefined}");
+    });
+
+    it("shows the Integration's Go to → on the right of a Done card, before its Archive", () => {
+        const card = done();
+        const goTo = tags(card, "notification-goto")[0];
+        expect(goTo).toContain("rounded-4 border border-transparent");
+        expect(goTo).toContain('title="Show Bérénice&#x27;s panel"');
+        expect(card).toMatch(/data-testid="notification-goto"[^>]*>Go to<i class="fa fa-solid fa-arrow-right text-10"/);
+        expect(card.indexOf('data-testid="notification-goto"')).toBeLessThan(
+            card.indexOf('data-testid="notification-archive"')
+        );
+        expect(card.indexOf('data-testid="brokk-card-actions"')).toBeLessThan(card.indexOf("mt-brokk-ra-end"));
+    });
+
+    it("is the very component and wording of the Integration panel's agent bar", () => {
+        const bar = readFileSync(join(__dirname, "..", "reviews", "reviews-agent-bar.tsx"), "utf8");
+        expect(bar).toContain('import { BarButton, GoToButton } from "../go-to-button"');
+        expect(bar).toContain('testId="reviews-agent-goto"');
+        const button = readFileSync(join(__dirname, "..", "go-to-button.tsx"), "utf8");
+        expect(button).toContain('{t("reviewsAgents.goTo")}');
+        expect(button).toContain("fa-arrow-right");
+        const panel = readFileSync(join(__dirname, "brokk-notes-panel.tsx"), "utf8");
+        expect(panel).toContain('import { GoToButton } from "../go-to-button"');
+    });
+
+    it("brings the agent's view and terminal forward from the Done card", () => {
+        const source = readFileSync(join(__dirname, "brokk-notes-panel.tsx"), "utf8");
+        expect(source).toContain("actions.goToSession(finished.sessionid, row.key)");
+        expect(source).toContain("model.goTo({");
+    });
+
+    it("leads from a notification that comes from somewhere, and not twice when its own action leads there", () => {
+        const cards = cardsOf(render(everyKind()));
+        const lead = cards.find((card) => card.includes('data-notif="lead"'));
+        const done = cards.find((card) => card.includes('data-notif="done"'));
+        const plain = cards.find((card) => card.includes('data-notif="info"'));
+        expect(lead).toContain('data-testid="notification-goto"');
+        expect(done).toContain('data-testid="notification-goto"');
+        expect(plain).not.toContain('data-testid="notification-goto"');
+        expect(plain.slice(0, plain.indexOf(">"))).not.toContain("data-cta");
+        const own = render(
+            rowsOf({}, [
+                entry("goto", {
+                    kind: "info",
+                    workspaceid: "wsA",
+                    blockid: "b1",
+                    actions: [{ id: "g", label: "Go to Léa", kind: "open", workspaceid: "wsA", blockid: "b1" }],
+                }),
+            ] as any[])
+        );
+        expect(own).not.toContain('data-testid="notification-goto"');
+        expect(own).toContain("data-cta");
+    });
+
+    it("leaves the cards that have their own buttons to those", () => {
+        for (const key of ["agent:b1", "ci:/p:2", "ready:/p:3", "handoff:r1"]) {
+            const card = cardsOf(render(everyKind())).find((c) => c.includes(`data-todo="${key}"`));
+            expect(card, key).toBeDefined();
+            expect(card, key).not.toContain('data-testid="notification-goto"');
+            expect(card.slice(0, card.indexOf(">")), key).not.toContain("data-cta");
+        }
+    });
+
+    it("stops the hover motion with reduced motion, the system's and MoltenTerm's own", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+        expect(media).toMatch(/\.mt-brokk-card\[data-cta\] \{\s*transition: none;/);
+        expect(media).toMatch(/\.mt-brokk-card\[data-cta\]:hover,[^{]*\{\s*transform: none;/);
+        expect(css).toMatch(/\.prefers-reduced-motion \.mt-brokk-card\[data-cta\]:hover,[^{]*\{\s*transform: none;/);
+        expect(css).toMatch(
+            /\.mt-brokk-card\[data-cta\]:hover,\s*\.mt-brokk-card\[data-cta\]:focus-visible \{[^}]*transform: translateY\(-1px\);/
+        );
     });
 });
