@@ -166,6 +166,14 @@ func TestRunSucceedsWithPhasesAndLog(t *testing.T) {
 	if rec.State != RunStateSuccess || rec.Exit == nil || *rec.Exit != 0 || strings.Join(rec.Phases, ",") != "build,deliver" {
 		t.Fatalf("finished run: %+v", rec)
 	}
+	if len(rec.PhaseAt) != len(rec.Phases) {
+		t.Fatalf("each phase is stamped with when it was first seen: %+v", rec)
+	}
+	for i, at := range rec.PhaseAt {
+		if at < rec.StartedAt || at > rec.FinishedAt || (i > 0 && at < rec.PhaseAt[i-1]) {
+			t.Fatalf("phase %d seen at %d, outside the run (%d to %d) or before the phase before: %+v", i, at, rec.StartedAt, rec.FinishedAt, rec)
+		}
+	}
 	chunk, err := r.ReadLog(dir, rec.Id, 0)
 	if err != nil || !strings.Contains(chunk.Text, "working") || strings.Contains(chunk.Text, "exit=0") || chunk.Size != int64(len(chunk.Text)) {
 		t.Fatalf("log: %+v, %v", chunk, err)

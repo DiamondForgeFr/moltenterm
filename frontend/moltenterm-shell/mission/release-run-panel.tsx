@@ -4,12 +4,14 @@
 // The release in flight (FR-MC-016), as Notulia's ReleaseRunPanel: five phases, where it is, what it waits on, and why
 // it is stuck when it is. Each phase has at most one button, the next thing to do there (after a failure, the step
 // before the failed one is offered again beside it); the cut says what cannot be taken back before it lands, and
-// while it waits its public notes are read and edited here.
+// while it waits its public notes are read and edited here. It is a row of the overview's "In progress" band
+// (FR-MC-024, #2188): the phase picked unfolds under the row without a frame, open by itself while the release waits for
+// the developer or failed.
 
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { t, useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -65,6 +67,8 @@ import {
     ReleaseRun,
     releaseRun,
 } from "./release-run";
+import { RowButtonClass, RowInsetClass, RunRow } from "./run-row";
+import { releaseBandRow } from "./run-row-model";
 import { TrustPrompt } from "./runs-view";
 
 const NodeClasses: Record<PhaseStatus, string> = {
@@ -83,18 +87,16 @@ const Says: Record<PhaseStatus, string> = labelRecord("mc.releaseRun.says", [
     "todo",
 ]);
 
-const ShortTitles: Record<ReleasePhase, string> = labelRecord("mc.releaseRun.short", [
-    "prepare",
-    "cut",
-    "build",
-    "publish",
-    "back",
-]);
-
 const PlainButton =
-    "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+    "cursor-pointer rounded-4 border border-border px-2.5 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 const AccentButton =
-    "molten-btn cursor-pointer rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50";
+    "molten-btn cursor-pointer rounded-4 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50";
+
+// A remark inside the unfolded phase: tinted, with no frame of its own (#2188).
+const CalloutBase = "flex items-start gap-1.5 rounded-4 px-2.5 py-1.5 text-12";
+const NeutralCallout = "bg-hover/40 text-secondary";
+const WarningCallout = "bg-warning/10 text-secondary";
+const ErrorCallout = "bg-error/10 text-danger";
 
 export type ReleasePanelActions = {
     // Resolves true when a step started: the card stays pending until it read the release again. A manual step whose
@@ -252,10 +254,7 @@ export function UncoveredNote({ failure }: { failure: ManualCheckFailure }) {
     const shown = items.slice(0, MaxUncoveredShown);
     const vars = { version: failure.version || failure.contains, path: failure.path, since: failure.since };
     return (
-        <div
-            className="flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-secondary"
-            data-testid="release-run-uncovered"
-        >
+        <div className={cn(CalloutBase, WarningCallout)} data-testid="release-run-uncovered">
             <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11 text-warning" />
             <div className="flex min-w-0 flex-col gap-1">
                 <span className="break-words">
@@ -296,10 +295,7 @@ function ScopeNote({ scope, withNotes }: { scope: ChangelogScope; withNotes: boo
         text = scope.since ? t("mc.releaseRun.scopeRc", { since: scope.since }) : t("mc.releaseRun.scopeRcFirst");
     }
     return (
-        <p
-            className="mt-2 flex items-start gap-1.5 rounded-4 border border-border bg-hover/40 px-2 py-1.5 text-12 text-secondary"
-            data-testid="release-run-scope"
-        >
+        <p className={cn("mt-2", CalloutBase, NeutralCallout)} data-testid="release-run-scope">
             <i className="fa fa-solid fa-list-check mt-0.5 text-11 text-accent" />
             <span className="min-w-0 break-words">
                 {text}
@@ -372,9 +368,7 @@ function ActionButton({
     return (
         <div className="mt-3 flex flex-col gap-2">
             {confirming && confirm ? (
-                <p className="rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-warning">
-                    {confirm}
-                </p>
+                <p className="rounded-4 bg-warning/10 px-2.5 py-1.5 text-12 text-warning">{confirm}</p>
             ) : null}
             <div className="flex justify-end gap-2">
                 {confirming ? (
@@ -443,7 +437,7 @@ export function UnprovedWarning({
             {failure.uncovered?.length > 0 ? (
                 <UncoveredNote failure={failure} />
             ) : (
-                <p className="flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-warning">
+                <p className={cn(CalloutBase, "bg-warning/10 text-warning")}>
                     <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
                     <span className="min-w-0 break-words">
                         {failure.missing
@@ -609,10 +603,7 @@ function UnformattedNote({ format }: { format: ReleaseFormat }) {
     const failed = format.state === "failed";
     return (
         <div
-            className={cn(
-                "mt-2 flex items-start gap-1.5 rounded-4 border px-2 py-1.5 text-12",
-                failed ? "border-warning/40 bg-warning/10 text-secondary" : "border-border bg-hover/40 text-secondary"
-            )}
+            className={cn("mt-2", CalloutBase, failed ? WarningCallout : NeutralCallout)}
             data-testid="release-run-unformatted"
         >
             <i
@@ -672,10 +663,7 @@ function Detail({
         : null;
     const tail = phase.log?.tail ?? [];
     return (
-        <div
-            className="mt-4 rounded-6 border border-border bg-black/20 p-3"
-            data-testid={`release-run-detail-${phase.id}`}
-        >
+        <div className="flex flex-col" data-testid={`release-run-detail-${phase.id}`}>
             <div className="flex items-baseline justify-between gap-2">
                 <h3 className="text-13 leading-5 font-medium text-primary">{phase.title}</h3>
                 <span className="text-11 text-muted">{Says[phase.status]}</span>
@@ -683,7 +671,7 @@ function Detail({
             <p className="mt-1 text-12 text-secondary">{phase.expect}</p>
             {phase.manual ? (
                 <p
-                    className="mt-2 flex items-start gap-1.5 rounded-4 border border-border bg-hover/40 px-2 py-1.5 text-12 whitespace-pre-wrap text-primary"
+                    className={cn("mt-2", CalloutBase, "bg-hover/40 whitespace-pre-wrap text-primary")}
                     data-testid="release-run-manual"
                 >
                     <i className="fa fa-solid fa-hand mt-0.5 text-11 text-accent" />
@@ -692,17 +680,14 @@ function Detail({
             ) : null}
             {phase.scope ? <ScopeNote scope={phase.scope} withNotes={editing} /> : null}
             {phase.approval ? (
-                <p
-                    className="mt-2 flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-secondary"
-                    data-testid="release-run-approval"
-                >
+                <p className={cn("mt-2", CalloutBase, WarningCallout)} data-testid="release-run-approval">
                     <i className="fa fa-solid fa-user-check mt-0.5 text-11 text-warning" />
                     {t("mc.releaseRun.approvalHint", { environment: phase.approval.environment })}
                 </p>
             ) : null}
             {awaits != null && phase.id === run.current ? (
                 <div
-                    className="mt-2 flex flex-wrap items-center gap-2 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-secondary"
+                    className={cn("mt-2 flex-wrap items-center gap-2", CalloutBase, WarningCallout)}
                     data-testid="release-run-awaits-ci"
                 >
                     <i className="fa fa-solid fa-hourglass-half text-11 text-warning" />
@@ -720,14 +705,14 @@ function Detail({
                 <UnformattedNote format={run.unformatted} />
             ) : null}
             {phase.cause ? (
-                <p className="mt-2 flex items-start gap-1.5 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger">
+                <p className={cn("mt-2", CalloutBase, ErrorCallout)}>
                     <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
                     {phase.cause}
                 </p>
             ) : null}
             {phase.id === "build" && jobs.length > 0 ? <Jobs jobs={jobs} /> : null}
             {phase.status !== "done" && tail.length > 0 ? (
-                <pre className="mt-3 max-h-32 overflow-auto rounded-6 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre-wrap text-secondary">
+                <pre className="mt-3 max-h-32 overflow-auto rounded-4 bg-[color-mix(in_srgb,var(--mt-sink)_40%,transparent)] px-3 py-2 font-mono text-11 leading-relaxed whitespace-pre-wrap text-secondary">
                     {tail.slice(-6).join("\n")}
                 </pre>
             ) : null}
@@ -788,6 +773,8 @@ export function ReleaseRunPanel({
     awaits,
     lock,
     revision,
+    now,
+    startedat,
 }: {
     run: ReleaseRun;
     jobs: ReleaseGhJob[];
@@ -801,16 +788,24 @@ export function ReleaseRunPanel({
     lock?: PendingLock;
     // Changes on each read of the release: a started step's button stays pending until then.
     revision?: unknown;
+    // The clock of the band, and when the release started (0 when it is not known).
+    now?: number;
+    startedat?: number;
 }) {
     const t = useT();
     const own = usePendingLock(revision);
     const cardLock = lock ?? own;
     const [picked, setPicked] = useState<ReleasePhase>(null);
+    const [open, setOpen] = useState<boolean>(null);
     const [confirming, setConfirming] = useState(false);
     const [abandonError, setAbandonError] = useState<string>(null);
     const shown = run.phases.find((p) => p.id === (picked ?? run.current)) ?? run.phases[run.phases.length - 1];
+    // What waits for the developer, or failed, unfolds by itself; the developer closes it when they want.
+    const unfolded = open ?? (shown.status === "waiting" || shown.status === "failed");
     const locked = cardLock.pending !== "";
     const abandoning = cardLock.pending === "abandon";
+    const link = run.phases.find((p) => p.id === run.current)?.links[0];
+    const row = releaseBandRow(run, jobs, startedat ?? 0);
     const abandon = () =>
         fireAndForget(async () => {
             setAbandonError(null);
@@ -822,113 +817,120 @@ export function ReleaseRunPanel({
         });
     return (
         <PendingLockContext.Provider value={cardLock}>
-            <section
-                className="rounded-6 border border-accent/40 bg-gradient-to-br from-accent/10 to-transparent p-4"
-                data-testid="release-run"
-            >
-                <div className="mb-3 flex items-center gap-1.5 text-11 font-medium tracking-wide text-muted uppercase">
-                    <i className="fa fa-solid fa-tower-broadcast text-accent" />
-                    {t("mc.releaseRun.inFlight")}
-                    <span className="ml-auto rounded-full border border-border px-2 py-0.5 font-mono tracking-normal text-primary normal-case">
-                        {run.tag} ·{" "}
-                        {run.channel === "rc" ? t("mc.releaseRun.internal") : t("mc.releaseRun.publicChannel")}
-                    </span>
-                </div>
-                <ol className="flex items-start gap-1" aria-label={t("mc.releaseRun.phasesLabel")}>
-                    {run.phases.map((p, i) => (
-                        <li key={p.id} className="flex flex-1 items-center gap-1 last:flex-none">
-                            <div className="flex flex-col items-center gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setPicked(p.id === picked ? null : p.id)}
-                                    aria-current={p.id === run.current ? "step" : undefined}
-                                    aria-label={`${p.title}: ${Says[p.status]}`}
-                                    data-status={p.status}
-                                    data-testid={`release-run-phase-${p.id}`}
-                                    className={cn(
-                                        "flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border",
-                                        NodeClasses[p.status],
-                                        p.id === shown.id && "ring-2 ring-accent/30"
-                                    )}
-                                >
-                                    <StatusIcon status={p.status} />
-                                </button>
-                                <span
-                                    className={cn(
-                                        "text-11 whitespace-nowrap",
-                                        p.id === run.current ? "text-primary" : "text-muted"
-                                    )}
-                                >
-                                    {ShortTitles[p.id]}
-                                </span>
-                            </div>
-                            {i < run.phases.length - 1 ? (
-                                <span
-                                    className={cn(
-                                        "mb-4 h-px flex-1",
-                                        p.status === "done" ? "bg-success/60" : "bg-border"
-                                    )}
-                                    aria-hidden
-                                />
-                            ) : null}
-                        </li>
-                    ))}
-                </ol>
-                <Detail run={run} phase={shown} jobs={jobs} actions={actions} awaits={awaits} />
-                {onAbandon ? (
-                    <div className="mt-3 flex items-center justify-end gap-2 text-11">
-                        {confirming ? (
-                            <>
-                                <span className="text-muted">{t("mc.releaseRun.stopFollowing", { tag: run.tag })}</span>
-                                <button
-                                    type="button"
-                                    disabled={locked}
-                                    className={PlainButton}
-                                    onClick={() => setConfirming(false)}
-                                >
-                                    {t("mc.releaseRun.no")}
-                                </button>
-                                <button
-                                    type="button"
-                                    disabled={locked}
-                                    aria-busy={abandoning}
-                                    className="inline-flex cursor-pointer items-center rounded-6 border border-error/50 px-2 py-1 text-12 text-danger hover:bg-error/10 disabled:cursor-default disabled:opacity-50"
-                                    onClick={abandon}
-                                    data-testid="release-run-abandon-yes"
-                                >
-                                    <PendingLabel
-                                        busy={abandoning}
-                                        label={t("mc.releaseRun.pending.abandoning")}
-                                        idle={t("mc.releaseRun.abandon")}
-                                    />
-                                </button>
-                            </>
-                        ) : (
+            <RunRow
+                row={row}
+                now={now ?? Date.now()}
+                testId="release-run"
+                phasesLabel={t("mc.releaseRun.phasesLabel")}
+                picked={shown.id}
+                onPick={(id) => {
+                    setPicked(id === picked ? null : (id as ReleasePhase));
+                    setOpen(true);
+                }}
+                phaseTestIdPrefix="release-run-phase-"
+                actions={
+                    <>
+                        {link ? (
+                            <button
+                                type="button"
+                                onClick={() => fireAndForget(() => openWebLink(link.url))}
+                                title={link.label}
+                                className={RowButtonClass}
+                                data-testid="release-run-github"
+                            >
+                                {t("project.band.seeOnGithub")}
+                                <i className="fa fa-solid fa-arrow-up-right-from-square text-11" aria-hidden />
+                            </button>
+                        ) : null}
+                        <button
+                            type="button"
+                            onClick={() => setOpen(!unfolded)}
+                            aria-expanded={unfolded}
+                            className={cn(RowButtonClass, unfolded && "bg-hover text-primary")}
+                            data-testid="release-run-details"
+                        >
+                            {t("project.band.details")}
+                            <i
+                                className={cn("fa fa-solid text-11", unfolded ? "fa-chevron-up" : "fa-chevron-down")}
+                                aria-hidden
+                            />
+                        </button>
+                        {onAbandon && !confirming ? (
                             <button
                                 type="button"
                                 disabled={locked}
-                                className="cursor-pointer rounded-6 px-2 py-1 text-muted hover:text-primary disabled:cursor-default disabled:opacity-50"
+                                className="cursor-pointer rounded-4 px-2 py-1.5 text-12 text-muted hover:text-primary disabled:cursor-default disabled:opacity-50"
                                 onClick={() => setConfirming(true)}
                                 data-testid="release-run-abandon"
                             >
                                 {t("mc.releaseRun.abandonRelease")}
                             </button>
-                        )}
+                        ) : null}
+                    </>
+                }
+                extra={
+                    abandonError ? (
+                        <p className="mt-2 mr-4 text-right text-12 text-danger" role="alert">
+                            {abandonError}
+                        </p>
+                    ) : null
+                }
+            >
+                {confirming ? (
+                    <div className={cn("mt-3 flex flex-wrap items-center justify-end gap-2 text-12", RowInsetClass)}>
+                        <span className="mr-auto text-muted">{t("mc.releaseRun.stopFollowing", { tag: run.tag })}</span>
+                        <button
+                            type="button"
+                            disabled={locked}
+                            className={PlainButton}
+                            onClick={() => setConfirming(false)}
+                        >
+                            {t("mc.releaseRun.no")}
+                        </button>
+                        <button
+                            type="button"
+                            disabled={locked}
+                            aria-busy={abandoning}
+                            className="inline-flex cursor-pointer items-center rounded-4 border border-error/50 px-2.5 py-1 text-12 text-danger hover:bg-error/10 disabled:cursor-default disabled:opacity-50"
+                            onClick={abandon}
+                            data-testid="release-run-abandon-yes"
+                        >
+                            <PendingLabel
+                                busy={abandoning}
+                                label={t("mc.releaseRun.pending.abandoning")}
+                                idle={t("mc.releaseRun.abandon")}
+                            />
+                        </button>
                     </div>
                 ) : null}
-                {abandonError ? (
-                    <p className="mt-2 text-right text-12 text-danger" role="alert">
-                        {abandonError}
-                    </p>
+                {unfolded ? (
+                    <div className={cn("mt-3", RowInsetClass)}>
+                        <Detail run={run} phase={shown} jobs={jobs} actions={actions} awaits={awaits} />
+                    </div>
                 ) : null}
-            </section>
+            </RunRow>
         </PendingLockContext.Provider>
     );
 }
 
+// What following the release in flight gives the Project overview (FR-MC-016, #2188): the run to show (null when there is
+// none or it is complete), what its row needs, and the commands' trust prompt.
+export type ReleaseFollow = {
+    run: ReleaseRun;
+    jobs: ReleaseGhJob[];
+    actions: ReleasePanelActions;
+    lock: PendingLock;
+    awaits: ReleaseCiAwait;
+    startedat: number;
+    abandon: () => Promise<void>;
+    error: string;
+    prompt: ReactNode;
+};
+
 // The release followed, in the Project tab: its facts, the actions that move it forward under the trust rule, and its
-// end, by itself once all five phases are done or when the user abandons it.
-export function ReleaseRunSection({
+// end, by itself once all five phases are done or when the user abandons it. Read once by the Project view, so the band
+// and the Now card agree on whether a release is in flight.
+export function useReleaseFollow({
     dir,
     repo,
     projectName,
@@ -941,13 +943,17 @@ export function ReleaseRunSection({
     // The project on GitHub, owner/name: the failed runs an agent reads (#945).
     repo?: string;
     projectName: string;
+    // Without a pipeline there is no release to follow.
     pipeline: PipelineDef;
     runs: RunRecord[];
     session: ReleaseSession;
     onEnded: () => void;
-}) {
+}): ReleaseFollow {
     const lastStep = latestRun(runs, "release");
-    const { facts, reload } = useReleaseFacts(dir, `${lastStep?.id}:${lastStep?.state}:${session?.tag ?? ""}`);
+    const { facts, reload } = useReleaseFacts(
+        pipeline != null ? dir : "",
+        `${lastStep?.id}:${lastStep?.state}:${session?.tag ?? ""}`
+    );
     const [pending, setPending] = useState<{ action: PhaseAction; info: UntrustedInfo }>(null);
     const [error, setError] = useState<string>(null);
     const steps = facts?.channel === "public" ? pipeline?.release?.public : pipeline?.release?.rc;
@@ -1046,10 +1052,10 @@ export function ReleaseRunSection({
             onEnded();
         });
     }, [complete, facts?.session?.tag]);
-    if (run == null || !run.active) {
-        return null;
-    }
     const abandon = async () => {
+        if (run == null) {
+            return;
+        }
         await releaseEnd(dir, run.tag);
         onEnded();
         reload();
@@ -1070,31 +1076,54 @@ export function ReleaseRunSection({
                 setError(serverErrorText(e));
             }
         });
+    const prompt =
+        pending != null ? (
+            <TrustPrompt
+                projectName={projectName}
+                dir={dir}
+                info={pending.info}
+                onTrust={trustAndRun}
+                onCancel={() => setPending(null)}
+                busy={lock.pending === "trust"}
+            />
+        ) : null;
+    return {
+        run: run != null && run.active ? run : null,
+        jobs: facts?.jobs ?? [],
+        actions,
+        lock,
+        awaits: facts?.awaits,
+        startedat: facts?.session?.startedat ?? session?.startedat ?? 0,
+        abandon,
+        error,
+        prompt,
+    };
+}
+
+// The release followed, as a row of the band (FR-MC-024, #2188), with the prompt that asks to trust its commands and the
+// error of a step that did not start.
+export function ReleaseFollowRow({ follow, now }: { follow: ReleaseFollow; now: number }) {
+    if (follow.run == null) {
+        return null;
+    }
     return (
         <>
             <ReleaseRunPanel
-                run={run}
-                jobs={facts?.jobs ?? []}
-                actions={actions}
-                onAbandon={abandon}
-                awaits={facts?.awaits}
-                lock={lock}
+                run={follow.run}
+                jobs={follow.jobs}
+                actions={follow.actions}
+                onAbandon={follow.abandon}
+                awaits={follow.awaits}
+                lock={follow.lock}
+                now={now}
+                startedat={follow.startedat}
             />
-            {error ? (
-                <p className="text-12 text-danger" role="alert">
-                    {error}
+            {follow.error ? (
+                <p className="mx-4 text-12 text-danger" role="alert">
+                    {follow.error}
                 </p>
             ) : null}
-            {pending != null ? (
-                <TrustPrompt
-                    projectName={projectName}
-                    dir={dir}
-                    info={pending.info}
-                    onTrust={trustAndRun}
-                    onCancel={() => setPending(null)}
-                    busy={lock.pending === "trust"}
-                />
-            ) : null}
+            {follow.prompt}
         </>
     );
 }

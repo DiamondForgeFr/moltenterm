@@ -6190,10 +6190,12 @@
             "moltenterm:group-strip": "Produit",
             "moltenterm:next-station": "Prochaine station",
             "moltenterm:linemap": "Plan de lignes",
+            "moltenterm:running": "En cours",
             "moltenterm:next-release": "Prochaine version publique",
             "moltenterm:releases": "Versions",
             "moltenterm:now": "En ce moment",
-            "moltenterm:steps": "Étapes du projet"
+            "moltenterm:steps": "Étapes du projet",
+            "moltenterm:steps-hint": "Étapes du projet"
         },
         "overview": {
             "bars": {
@@ -6224,7 +6226,13 @@
             "lastRun": "Dernière exécution, sur {sha} : {text}",
             "notRun": "pas lancée",
             "noBuild": "Pas encore de build local",
-            "commit": "Commit {sha}"
+            "commit": "Commit {sha}",
+            "runningAbove": "en cours, voir au-dessus",
+            "failedAbove": "échec, voir au-dessus",
+            "rebuild": "Relancer",
+            "release": "Release {tag}",
+            "published": "publiée {ago}",
+            "publishedUndated": "publiée"
         },
         "work": {
             "jobs": "{done}/{total} jobs",
@@ -6232,6 +6240,31 @@
             "release": "Release {tag}",
             "candidate": "candidate",
             "public": "publique"
+        },
+        "band": {
+            "title": "En cours",
+            "hint": "Rien ne bloque pendant ce temps, vous pouvez continuer à travailler.",
+            "actionsOf": "Actions de {name}",
+            "logOf": "Dernières lignes du journal",
+            "logFollows": "Les dernières lignes défilent toutes seules",
+            "copyLog": "Copier",
+            "ofEstimate": "/ ~{estimate}",
+            "percent": "{percent} %",
+            "buildLocal": "build local",
+            "buildOn": "build local · {branch}",
+            "buildFrom": "build local · {branch} @ {sha}",
+            "release": "Release {tag}",
+            "releaseCandidate": "release candidate",
+            "releasePublic": "release publique",
+            "releaseTagged": "{channel} · tag poussé",
+            "seeOnGithub": "Voir sur GitHub",
+            "details": "Détails",
+            "duration": {
+                "seconds": "{seconds} s",
+                "minutesSeconds": "{minutes} min {seconds}",
+                "minutes": "{minutes} min",
+                "hoursMinutes": "{hours} h {minutes}"
+            }
         },
         "agents": {
             "heading": "Agents",
@@ -6264,7 +6297,9 @@
         },
         "steps": {
             "none": "Aucune étape de projet pour la vue d'ensemble : le pipeline n'en déclare aucune dans sa section « {section} ».",
-            "noPipeline": "Les étapes propres au projet s'affichent ici une fois le pipeline connecté."
+            "noPipeline": "Les étapes propres au projet s'affichent ici une fois le pipeline connecté.",
+            "add": "Ajouter des étapes",
+            "comesBack": "La carte revient d'elle-même quand il y en a."
         },
         "station": {
             "heading": "Prochaine station",

@@ -6190,10 +6190,12 @@
             "moltenterm:group-strip": "Product",
             "moltenterm:next-station": "Next station",
             "moltenterm:linemap": "Line map",
+            "moltenterm:running": "In progress",
             "moltenterm:next-release": "Next public release",
             "moltenterm:releases": "Releases",
             "moltenterm:now": "Now",
-            "moltenterm:steps": "Project steps"
+            "moltenterm:steps": "Project steps",
+            "moltenterm:steps-hint": "Project steps"
         },
         "overview": {
             "bars": {
@@ -6224,7 +6226,13 @@
             "lastRun": "Last run, on {sha}: {text}",
             "notRun": "not run",
             "noBuild": "No local build yet",
-            "commit": "Commit {sha}"
+            "commit": "Commit {sha}",
+            "runningAbove": "running, see above",
+            "failedAbove": "failed, see above",
+            "rebuild": "Rebuild",
+            "release": "Release {tag}",
+            "published": "published {ago}",
+            "publishedUndated": "published"
         },
         "work": {
             "jobs": "{done}/{total} jobs",
@@ -6232,6 +6240,31 @@
             "release": "Release {tag}",
             "candidate": "candidate",
             "public": "public"
+        },
+        "band": {
+            "title": "In progress",
+            "hint": "Nothing blocks while this runs, you can keep working.",
+            "actionsOf": "Actions of {name}",
+            "logOf": "Last lines of the log",
+            "logFollows": "The last lines scroll by themselves",
+            "copyLog": "Copy",
+            "ofEstimate": "/ ~{estimate}",
+            "percent": "{percent}%",
+            "buildLocal": "local build",
+            "buildOn": "local build · {branch}",
+            "buildFrom": "local build · {branch} @ {sha}",
+            "release": "Release {tag}",
+            "releaseCandidate": "release candidate",
+            "releasePublic": "public release",
+            "releaseTagged": "{channel} · tag pushed",
+            "seeOnGithub": "See on GitHub",
+            "details": "Details",
+            "duration": {
+                "seconds": "{seconds} s",
+                "minutesSeconds": "{minutes} min {seconds}",
+                "minutes": "{minutes} min",
+                "hoursMinutes": "{hours} h {minutes}"
+            }
         },
         "agents": {
             "heading": "Agents",
@@ -6264,7 +6297,9 @@
         },
         "steps": {
             "none": "No project step for the overview: the pipeline declares none in its \"{section}\" section.",
-            "noPipeline": "The project's own steps show here once the pipeline is connected."
+            "noPipeline": "The project's own steps show here once the pipeline is connected.",
+            "add": "Add steps",
+            "comesBack": "The card comes back by itself once there are some."
         },
         "station": {
             "heading": "Next station",

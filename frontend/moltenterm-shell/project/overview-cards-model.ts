@@ -10,11 +10,28 @@ import { AgentRow, agentsView } from "../companion/companion-recap-model";
 import { getLocale, t, tCount } from "../i18n/i18n";
 import { branchCi, CiState, CiStatusLabels } from "../mission/ci-model";
 import { Milestone, milestoneKey, releaseNotesText } from "../mission/github";
-import { GithubState, MissionGit, RawCommit, RawTag, RunRecord, RunStateLabels } from "../mission/mission-model";
+import {
+    GithubState,
+    MissionGit,
+    PipelineDef,
+    RawCommit,
+    RawTag,
+    RunRecord,
+    RunStateLabels,
+} from "../mission/mission-model";
 import { ReleaseState } from "../mission/versions";
 
 const TypeRegex = /^([a-z]+)(\([^)]*\))?!?:/;
 const NotesExcerptChars = 220;
+
+// The overview section of the pipeline's steps; must match PipelineSections in pkg/molten/pipeline.go.
+export const OverviewSection = "timeline";
+
+// The Project steps card has something to list (#2188): without a step in the overview section it gives its place to the
+// other cards.
+export function hasOverviewSteps(pipeline: PipelineDef): boolean {
+    return (pipeline?.steps ?? []).some((s) => s.section === OverviewSection);
+}
 
 export type CardTone = "running" | "success" | "failure" | "neutral";
 
@@ -324,6 +341,43 @@ export function lastBuildLine(build: RunRecord, now = Date.now()): NowLine {
         text,
         tone: runTone(build.state),
         title: build.commit ? t("project.now.commit", { sha: build.commit.slice(0, 7) }) : null,
+    };
+}
+
+// While the build is a row of the band, its line in Now says where to look (#2188).
+export function buildNowLine(build: RunRecord, inBand: boolean, now = Date.now()): NowLine {
+    if (build == null || !inBand) {
+        return lastBuildLine(build, now);
+    }
+    const running = build.state === "running";
+    return {
+        label: build.title || build.stepid,
+        text: running ? t("project.now.runningAbove") : t("project.now.failedAbove"),
+        tone: running ? "running" : "failure",
+    };
+}
+
+// The latest release the history holds, a candidate or a public one: "published 4 min ago". While a release is a row
+// of the band, its line says where to look. null when the project has never released.
+export function releaseNowLine(state: ReleaseState, running: { tag: string } | null, now = Date.now()): NowLine {
+    if (running != null) {
+        return {
+            label: t("project.now.release", { tag: running.tag }),
+            text: t("project.now.runningAbove"),
+            tone: "running",
+        };
+    }
+    const tags = [state?.lastRc, state?.lastPublic].filter((tag) => tag != null);
+    const latest = tags.sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0];
+    if (latest == null) {
+        return null;
+    }
+    const ago = agoText(Date.parse(latest.date), now);
+    return {
+        label: t("project.now.release", { tag: latest.name }),
+        text: ago ? t("project.now.published", { ago }) : t("project.now.publishedUndated"),
+        tone: "success",
+        title: formatWhen(latest.date),
     };
 }
 

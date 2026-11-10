@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The Project view (FR-MC-020, DS-MC-012): Mission Control's single overview of the linked project, shown by the
-// Project tab (FR-SHELL-015, DS-SHELL-015). Top to bottom: the header band with the actions, the line map, then one
-// row of four cards that wraps on narrow panes. The core reads the project's data once and lays out the slots; the
-// cards themselves come from the registry (project-cards.ts), built-in ones first.
+// Project tab (FR-SHELL-015, DS-SHELL-015). Top to bottom: the header band with the actions, the line map, the "In
+// progress" band while something runs (#2188), then one row of four cards that wraps on narrow panes, and under it the
+// foot. The core reads the project's data once and lays out the slots; the cards themselves come from the registry
+// (project-cards.ts), built-in ones first.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { ErrorBoundary } from "@/app/element/errorboundary";
@@ -26,6 +27,7 @@ import {
 } from "../mission/mission-client";
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "../mission/mission-frame";
 import { MissionSnapshot, UntrustedInfo } from "../mission/mission-model";
+import { useReleaseFollow } from "../mission/release-run-panel";
 import { TrustPrompt, useStartRun } from "../mission/runs-view";
 import { openMoltentermView } from "../open-view";
 import { useNewViewHint, usePanelOrigin } from "../panel-cta";
@@ -33,13 +35,25 @@ import { ProjectSwitchChips } from "../sidebar/project-chips";
 import { openProjectSheet } from "../workspace-edit";
 import { pathBaseName } from "../workspace-project";
 import { useMapFull } from "./map-full";
-import { BuiltinProjectCards, LineMapCardId } from "./project-builtin-cards";
-import { layoutProjectCards, ProjectCard } from "./project-cards";
+import { BuiltinProjectCards, LineMapCardId, RunningBandCardId } from "./project-builtin-cards";
+import { layoutProjectCards, ProjectCard, shownProjectCards } from "./project-cards";
 import { ProjectCardProps, registerProjectCard, useProjectCards } from "./project-context";
 import { MoltentermProjectView } from "./project-model";
 
-// The card that follows what runs: a start from the header scrolls it into view.
+// The cards that follow what runs: a start from the header scrolls the band into view, and the Now card when nothing
+// shows it yet.
 const NowCardId = "moltenterm:now";
+
+// The cards of the row share it whatever their number: a card that has nothing to show gives its cell away (#2188).
+function cardColumns(count: number): string {
+    if (count <= 1) {
+        return "";
+    }
+    if (count === 3) {
+        return "@min-[42rem]:grid-cols-2 @min-[68.75rem]:grid-cols-3 @min-[42rem]:[&>*:last-child]:col-span-2 @min-[68.75rem]:[&>*:last-child]:col-span-1";
+    }
+    return count === 2 ? "@min-[42rem]:grid-cols-2" : "@min-[42rem]:grid-cols-2 @min-[68.75rem]:grid-cols-4";
+}
 
 for (const card of BuiltinProjectCards) {
     registerProjectCard(card);
@@ -108,7 +122,7 @@ function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props:
     useLocale();
     if (card.bare) {
         return (
-            <div className="min-w-0" data-card={card.id}>
+            <div className="min-w-0 empty:hidden" data-card={card.id}>
                 <CardBody card={card} props={props} />
             </div>
         );
@@ -166,12 +180,21 @@ function ProjectContent({
     const { session: release, reload: reloadRelease } = useReleaseSession(dir);
     const group = useMissionGroup(project.workspace?.oid, dir);
     const { start, startAsync, prompt, error, clearError } = useStartRun(dir, projectName);
+    const report = snapshot?.pipeline;
+    const pipeline = report?.valid ? report.pipeline : null;
+    const releaseFollow = useReleaseFollow({
+        dir,
+        repo: snapshot?.github?.repo,
+        projectName,
+        pipeline,
+        runs,
+        session: release,
+        onEnded: reloadRelease,
+    });
     const [ciError, setCiError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<{ branch: string; info: UntrustedInfo }>(null);
     const rootRef = useRef<HTMLDivElement>(null);
     const { mapFull, toggleMapFull } = useMapFull(nodeModel);
-    const report = snapshot?.pipeline;
-    const pipeline = report?.valid ? report.pipeline : null;
     // The CI's verdicts are read for the branches' heads: when the trunk moves, the verdict on its new head is asked
     // again, so the Now card follows the trunk as the status bar does (#234).
     const git = snapshot?.git;
@@ -211,10 +234,13 @@ function ProjectContent({
                 setCiError(serverErrorText(e));
             }
         });
-    const showRuns = useCallback(
-        () => rootRef.current?.querySelector(`[data-card="${NowCardId}"]`)?.scrollIntoView({ block: "nearest" }),
-        []
-    );
+    const showRuns = useCallback(() => {
+        const root = rootRef.current;
+        const target =
+            root?.querySelector(`[data-card="${RunningBandCardId}"]`) ??
+            root?.querySelector(`[data-card="${NowCardId}"]`);
+        target?.scrollIntoView({ block: "nearest" });
+    }, []);
 
     const cards = useProjectCards();
     const regions = useMemo(() => layoutProjectCards(cards), [cards]);
@@ -229,6 +255,7 @@ function ProjectContent({
         reloadCi,
         release,
         reloadRelease,
+        releaseFollow,
         startBuild: (id) => startAsync("build", id),
         startStep: (id) => start("step", id),
         runCi,
@@ -240,6 +267,7 @@ function ProjectContent({
     };
     const problem = error ?? ciError;
     const fullMapCard = mapFull ? regions.map.find((card) => card.id === LineMapCardId) : null;
+    const rowCards = shownProjectCards(regions.cards, props);
     return (
         <>
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
@@ -309,17 +337,23 @@ function ProjectContent({
                             ))}
                         </div>
                     ) : null}
-                    {regions.cards.length > 0 ? (
+                    {regions.band.map((card) => (
+                        <CardSlot key={card.id} card={card} props={props} />
+                    ))}
+                    {rowCards.length > 0 ? (
                         <div
-                            className="grid gap-3 @min-[42rem]:grid-cols-2 @min-[68.75rem]:grid-cols-4"
+                            className={cn("grid gap-3", cardColumns(rowCards.length))}
                             data-slot="cards"
                             data-testid="project-cards"
                         >
-                            {regions.cards.map((card) => (
+                            {rowCards.map((card) => (
                                 <CardSlot key={card.id} card={card} props={props} />
                             ))}
                         </div>
                     ) : null}
+                    {regions.foot.map((card) => (
+                        <CardSlot key={card.id} card={card} props={props} />
+                    ))}
                 </div>
             </div>
             {prompt}

@@ -72,7 +72,10 @@ type RunRecord struct {
 	State      string   `json:"state"`
 	Exit       *int     `json:"exit,omitempty"`
 	Phases     []string `json:"phases"`
-	Cancelled  bool     `json:"cancelled,omitempty"`
+	// When each phase marker was first seen (Unix ms), in step with Phases: the overview's band measures the phase a
+	// build is in against the same phase of the build before (#2188).
+	PhaseAt   []int64 `json:"phaseat,omitempty"`
+	Cancelled bool    `json:"cancelled,omitempty"`
 	// A build's commit, built in a worktree of its own, and its kind (gold, rc).
 	Commit    string `json:"commit,omitempty"`
 	BuildKind string `json:"buildkind,omitempty"`
@@ -496,6 +499,10 @@ func (r *Runs) update(rec *RunRecord) bool {
 		phases = append(phases, string(m[1]))
 	}
 	if len(phases) != len(rec.Phases) {
+		seen := r.now().UnixMilli()
+		for len(rec.PhaseAt) < len(phases) {
+			rec.PhaseAt = append(rec.PhaseAt, seen)
+		}
 		rec.Phases = phases
 		changed = true
 	}

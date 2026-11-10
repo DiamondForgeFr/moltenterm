@@ -10,7 +10,6 @@ const IconUses = [
     "mission/branch-cleanup.tsx|<i className=\"fa fa-solid fa-trash-can w-3.5 text-11 text-error\" />",
     "mission/ci-icon.tsx|failure: \"fa-xmark text-error\",",
     "mission/release-run-panel.tsx|failed: \"border-error/60 bg-error/10 text-error\",",
-    "mission/runs-view.tsx|failed: \"border-error/60 bg-error/10 text-error\",",
     "review/review-answers-view.tsx|className=\"cursor-pointer px-1 text-muted hover:text-error\"",
     "review/review-stepper-view.tsx|failed: \"border-error/60 bg-error/10 text-error\",",
     "sessions/sessions-dialogs.tsx|failed: \"text-error\",",
