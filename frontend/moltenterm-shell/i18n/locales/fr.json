@@ -6965,9 +6965,15 @@
             "noneHint": "Rien ne vous attend sur {name}.",
             "openTitle": "Ouvrir #{number} dans le panneau Intégration de {project}",
             "noFolderTitle": "{project} n’a pas encore de dossier",
-            "noFolder": "Donnez-lui un dossier pour suivre ses pull requests."
+            "noFolder": "Donnez-lui un dossier pour suivre ses pull requests.",
+            "waits": {
+                "one": "{count} pull request vous attend",
+                "other": "{count} pull requests vous attendent"
+            }
         },
         "owners": {
+            "inProject": "{count} dans {project}",
+            "openProject": "Afficher les pull requests de {project}",
             "label": "Responsables",
             "bar": "Le travail que cette vue montre",
             "all": "Tous · {count}",

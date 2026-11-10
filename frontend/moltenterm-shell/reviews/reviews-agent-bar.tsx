@@ -17,6 +17,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
+import type { AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { TFunction, useT } from "../i18n/i18n";
 import { Phrase, useWordPhrase } from "../i18n/phrase";
@@ -30,6 +31,7 @@ import { AiIcon } from "../tab-identity";
 import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
 import { BatchRuns, queueKey } from "./reviews-batch-client";
+import type { BatchRun } from "./reviews-batch-model";
 import { reviewsGet } from "./reviews-client";
 import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
 import { cardAgents, type CardContext } from "./reviews-sections-model";
@@ -56,6 +58,7 @@ import {
     DraftTurn,
     draftTurn,
     durationText,
+    type UpcomingAnswer,
 } from "./reviews-upcoming-model";
 
 const MinuteMs = 60_000;
@@ -129,16 +132,25 @@ export function useCardContext(dir: string): CardContext {
     const states = useAtomValue(AgentStates.getInstance().dataAtom);
     const now = useMinuteNow();
     const runs = useAtomValue(BatchRuns.getInstance().runsAtom);
-    return useMemo(
-        () => ({
-            upcoming,
-            states,
-            now,
-            boardText: (status: string) => boardStatusText(t, status),
-            batchRun: (base: string) => runs[queueKey(dir, base)] ?? null,
-        }),
-        [upcoming, states, now, t, runs, dir]
-    );
+    return useMemo(() => makeCardContext(dir, t, upcoming, states, now, runs), [upcoming, states, now, t, runs, dir]);
+}
+
+// The same context for a project the window reads without showing its list (FR-SHELL-087: the counts of every project).
+export function makeCardContext(
+    dir: string,
+    t: TFunction,
+    upcoming: UpcomingAnswer,
+    states: AgentStatesData,
+    now: number,
+    runs: Record<string, BatchRun>
+): CardContext {
+    return {
+        upcoming,
+        states,
+        now,
+        boardText: (status: string) => boardStatusText(t, status),
+        batchRun: (base: string) => runs[queueKey(dir, base)] ?? null,
+    };
 }
 
 // The rail sits on the tile's 1 px border, 1 px to the left (the lists clip at their border edge for it), so the bar

@@ -104,6 +104,7 @@ import { EmptyWorkspace } from "./empty-workspace";
 import { useFoundLogos } from "./header-logo";
 import { plusMenuItems } from "./plus-menu-model";
 import {
+    OtherProjectsWatch,
     PrDots,
     useCountsMotion,
     usePilotageBlock,
@@ -2263,6 +2264,7 @@ function LibraryButton() {
                     placement="right-end"
                 />
             ) : null}
+            <OtherProjectsWatch />
         </>
     );
 }

@@ -18,10 +18,11 @@ import { useFloatingInPlace } from "./floating-in-place";
 import { useLocale, useT } from "./i18n/i18n";
 import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
-import { useListedReviewsAnswer, useReviewsRailWatch } from "./reviews/reviews-client";
-import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "./reviews/reviews-model";
+import { useReviewsRailWatch } from "./reviews/reviews-client";
+import { MoltentermReviewsView, reviewsRailLabel } from "./reviews/reviews-model";
 import { ReviewsRailBadges } from "./reviews/reviews-rail-badge";
 import { ReviewsModel } from "./reviews/reviews-store";
+import { useWorkspaceReviewCounts } from "./reviews/reviews-workspace";
 import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
 import { DurableSessions } from "./sessions/sessions-store";
 import { openSettings } from "./settings/settings-open";
@@ -184,10 +185,9 @@ function ReviewsToolButton({ onHover }: { onHover: RailHover }) {
     const workspace = useAtomValue(atoms.workspace);
     const dir = readWorkspaceProject(workspace).repo;
     useReviewsRailWatch(dir);
-    const answer = useListedReviewsAnswer(dir);
-    const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     useLocale();
-    const counts = reviewCounts(answer, readied);
+    // Every project of the workspace adds up (FR-SHELL-087): the badge never hides what waits in another one.
+    const counts = useWorkspaceReviewCounts();
     return (
         <ViewToggleButton
             view={MoltentermReviewsView}

@@ -12,6 +12,7 @@ import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { foldName, OwnerFacts, ScopeChip, scopeChips } from "./reviews-owners-model";
 import type { ViewScopeState } from "./reviews-owners-store";
+import type { ElsewhereWaits } from "./reviews-workspace-model";
 
 export type OwnerCount = { name: string; count: number; subs: number };
 
@@ -363,44 +364,67 @@ export function LeadGroupHeader({
 
 // The calm line under the list: what the filter hides and waits for the developer (FR-REV-034 AC6).
 export function OthersWaitLine({
-    count,
+    local,
+    elsewhere = [],
     revealed,
     onToggle,
-    where,
+    onOpenProject,
 }: {
-    count: number;
+    // The hidden pull requests that wait for the developer in this project, and in the workspace's other projects: the
+    // line counts them all and names the other projects (FR-REV-034 with FR-SHELL-087).
+    local: number;
+    elsewhere?: ElsewhereWaits[];
     revealed: boolean;
     onToggle: () => void;
-    // The projects holding some, when it is not only this one.
-    where?: string;
+    onOpenProject?: (projectId: string) => void;
 }) {
     const t = useT();
     const tc = useTCount();
+    const count = local + elsewhere.reduce((sum, e) => sum + e.count, 0);
     if (count <= 0) {
         return null;
     }
     return (
         <div
-            className="flex items-center gap-2.5 rounded-6 border border-dashed border-border bg-white/[0.02] px-3 py-2 text-13 text-secondary"
+            className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-6 border border-dashed border-border bg-white/[0.02] px-3 py-2 text-13 text-secondary"
             role="status"
             data-testid="reviews-owners-waits"
             data-count={count}
         >
             <i className="fa fa-solid fa-circle-exclamation text-12 text-[var(--mt-state-waiting)]" aria-hidden />
-            <span>
-                {tc("reviews.owners.waits", count, { count })}
-                {where ? <span className="text-muted"> · {where}</span> : null}
-            </span>
+            <span>{tc("reviews.owners.waits", count, { count })}</span>
+            {elsewhere.length > 0 ? (
+                <span className="text-muted">
+                    {"· "}
+                    {elsewhere.map((e, i) => (
+                        <span key={e.projectId}>
+                            {i > 0 ? ", " : ""}
+                            <button
+                                type="button"
+                                className="cursor-pointer text-muted hover:text-primary hover:underline"
+                                title={t("reviews.owners.openProject", { project: e.label })}
+                                onClick={() => onOpenProject?.(e.projectId)}
+                                data-testid="reviews-owners-waits-project"
+                                data-project={e.projectId}
+                            >
+                                {t("reviews.owners.inProject", { count: e.count, project: e.label })}
+                            </button>
+                        </span>
+                    ))}
+                </span>
+            ) : null}
             <span className="grow" />
-            <button
-                type="button"
-                className="cursor-pointer text-accent hover:underline"
-                onClick={onToggle}
-                aria-pressed={revealed}
-                data-testid="reviews-owners-waits-toggle"
-            >
-                {revealed ? t("reviews.owners.waitsHide") : t("reviews.owners.waitsShow")}
-            </button>
+            {local > 0 ? (
+                <button
+                    type="button"
+                    className="cursor-pointer text-accent hover:underline"
+                    onClick={onToggle}
+                    aria-pressed={revealed}
+                    data-testid="reviews-owners-waits-toggle"
+                >
+                    {revealed ? t("reviews.owners.waitsHide") : t("reviews.owners.waitsShow")}
+                </button>
+            ) : null}
         </div>
     );
 }

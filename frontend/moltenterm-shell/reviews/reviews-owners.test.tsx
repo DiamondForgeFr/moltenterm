@@ -162,16 +162,43 @@ describe("Check the agents on a filtered list", () => {
 
 describe("the calm line for what waits outside the filter", () => {
     it("counts the hidden pull requests that wait for the developer, with a link to show them", () => {
-        const html = renderToStaticMarkup(<OthersWaitLine count={2} revealed={false} onToggle={() => {}} />);
+        const html = renderToStaticMarkup(<OthersWaitLine local={2} revealed={false} onToggle={() => {}} />);
         expect(html).toContain("2 others wait for you");
         expect(html).toContain('role="status"');
         expect(html).toContain(">Show<");
-        expect(renderToStaticMarkup(<OthersWaitLine count={1} revealed onToggle={() => {}} />)).toContain(
+        expect(renderToStaticMarkup(<OthersWaitLine local={1} revealed onToggle={() => {}} />)).toContain(
             "1 other waits for you"
         );
     });
 
+    it("counts what waits in the workspace's other projects too, and names them", () => {
+        const html = renderToStaticMarkup(
+            <OthersWaitLine
+                local={1}
+                elsewhere={[{ projectId: "p2", label: "Mobile", count: 2 }]}
+                revealed={false}
+                onToggle={() => {}}
+            />
+        );
+        expect(html).toContain("3 others wait for you");
+        expect(html).toContain("2 in Mobile");
+        expect(html).toContain('data-project="p2"');
+    });
+
+    it("offers no Show when everything that waits is in another project", () => {
+        const html = renderToStaticMarkup(
+            <OthersWaitLine
+                local={0}
+                elsewhere={[{ projectId: "p2", label: "Mobile", count: 1 }]}
+                revealed={false}
+                onToggle={() => {}}
+            />
+        );
+        expect(html).toContain("1 other waits for you");
+        expect(html).not.toContain("reviews-owners-waits-toggle");
+    });
+
     it("is absent when nothing waits", () => {
-        expect(renderToStaticMarkup(<OthersWaitLine count={0} revealed={false} onToggle={() => {}} />)).toBe("");
+        expect(renderToStaticMarkup(<OthersWaitLine local={0} revealed={false} onToggle={() => {}} />)).toBe("");
     });
 });

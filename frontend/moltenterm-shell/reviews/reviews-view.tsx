@@ -119,6 +119,7 @@ import {
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
+import { useOutsideOtherProjects } from "./reviews-workspace";
 
 export { MoltentermReviewsView, ReviewRow };
 
@@ -346,6 +347,9 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const view = useViewScope();
     const edges = useAtomValue(AgentChain.getInstance().edgesAtom);
     const [revealed, setRevealed] = useState(false);
+    const workspaceId = useAtomValue(atoms.workspace)?.oid;
+    // The filter hides pull requests of the workspace's other projects too, and some of them wait for the developer.
+    const elsewhere = useOutsideOtherProjects(dir, view.names);
     const splitAll = useMemo(() => splitReviews(answer, readied), [answer, readied]);
     const listedAll = useMemo(() => [...splitAll.ready, ...splitAll.drafts], [splitAll]);
     const cards = useMemo(
@@ -728,7 +732,12 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             data-role="molten-reviews"
         >
             <div className="-mx-3 -mt-3">
-                <OwnersBar view={view} edges={edges} owners={ownerCounts} hidden={scoped.hidden.length} />
+                <OwnersBar
+                    view={view}
+                    edges={edges}
+                    owners={ownerCounts}
+                    hidden={scoped.hidden.length + elsewhere.hidden}
+                />
             </div>
             <ForecastLinks
                 listRef={listRef}
@@ -855,7 +864,13 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     );
                 })}
             </CardMotion>
-            <OthersWaitLine count={hiddenWaiting.length} revealed={revealed} onToggle={() => setRevealed((v) => !v)} />
+            <OthersWaitLine
+                local={hiddenWaiting.length}
+                elsewhere={elsewhere.waits}
+                revealed={revealed}
+                onToggle={() => setRevealed((v) => !v)}
+                onOpenProject={(id) => ReviewsProjectFilter.getInstance().choose(workspaceId, id)}
+            />
             <UpcomingSection dir={dir} reviews={answer} defaultOpen={bottomOpen} names={view.names} />
             {answer.repo ? (
                 <NotesSection dir={dir} repo={answer.repo} blockId={blockId} ask={notesAsk} defaultOpen={bottomOpen} />
