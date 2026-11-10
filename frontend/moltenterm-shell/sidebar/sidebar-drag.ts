@@ -27,6 +27,8 @@ export type SidebarDrag = {
     // The block the pointer is on in that zone, and its side.
     key: string;
     after: boolean;
+    // The block fills its row's width, so its neighbours stand above and below it: the drop's bar shows there.
+    stacked?: boolean;
     // False for a view a drop must not pin (MoltenTerm's own Project tab): it only reorders.
     pinnable: boolean;
 };
@@ -43,7 +45,7 @@ export function usableHit(kind: DragKind, hit: ZoneHit, pinnable: boolean): Zone
 
 export const sidebarDragAtom = jotai.atom(null) as jotai.PrimitiveAtom<SidebarDrag>;
 
-export type ZoneHit = { zone: DropZone; key: string; after: boolean };
+export type ZoneHit = { zone: DropZone; key: string; after: boolean; stacked?: boolean };
 
 // The row and the block under the pointer.
 export function zoneAt(x: number, y: number): ZoneHit {
@@ -58,8 +60,14 @@ export function zoneAt(x: number, y: number): ZoneHit {
         return { zone, key: null, after: false };
     }
     const rect = block.getBoundingClientRect();
-    const stacked = zone === "tiles" && blockStacks(rect, (block.parentElement ?? zoneEl).getBoundingClientRect());
-    return { zone, key: block.getAttribute(KeyAttr), after: stacked ? dropsBelow(y, rect) : dropsAfter(x, rect) };
+    // Measured against the zone, not the parent: each tile sits in a cell of its own width (sidebar.css).
+    const stacked = zone === "tiles" && blockStacks(rect, zoneEl.getBoundingClientRect());
+    return {
+        zone,
+        key: block.getAttribute(KeyAttr),
+        after: stacked ? dropsBelow(y, rect) : dropsAfter(x, rect),
+        stacked,
+    };
 }
 
 export function zoneProps(zone: DropZone): Record<string, string> {
@@ -140,7 +148,15 @@ export function startBlockDrag(e: React.MouseEvent, kind: "tile" | "top", id: st
             started = true;
         }
         hit = usableHit(kind, zoneAt(ev.clientX, ev.clientY), pinnable);
-        setDrag({ kind, id, zone: hit?.zone ?? null, key: hit?.key ?? null, after: hit?.after ?? false, pinnable });
+        setDrag({
+            kind,
+            id,
+            zone: hit?.zone ?? null,
+            key: hit?.key ?? null,
+            after: hit?.after ?? false,
+            stacked: hit?.stacked ?? false,
+            pinnable,
+        });
     };
     const onUp = () => {
         document.removeEventListener("mousemove", onMove);

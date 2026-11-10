@@ -1180,24 +1180,42 @@
     pointer-events: none;
 }
 
-/* The pinned tiles' shape follows their room (FR-SHELL-079, #2173). Narrow, a tile keeps its shape: the icon above the
-   name, up to three a row. From PinnedRowMinWidth (sidebar-model.ts, 280 px: a sidebar of 296 px) of room each tile is
-   a row of its own like the temporary views', its icon on the left and its name on the right, filling the width. The
-   size container is the tiles' zone, since a container cannot restyle itself; the active underline, the lights and
-   the corner's marks stay on the tile, the marks turning from a column into a line at the row's end. */
-.mt-sb-tiles {
-    container: mtpins / inline-size;
-}
-
+/* The pinned tiles always fill their rows (FR-SHELL-079, #2173, #2184). The area is a wrapping flex row and each tile
+   sits in a cell that grows from PinnedTileMinWidth (sidebar-model.ts, 108 px): a line holds as many cells as fit at
+   that width, never more than there are tiles, and they share it equally, the last line's included, so no row ends on
+   a hole. A grid's tracks could not stretch a short last row. */
 .mt-sb-tilegrid {
-    grid-template-columns: var(--mt-tile-cols);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
-@container mtpins (min-width: 280px) {
-    .mt-sb-tilegrid {
-        grid-template-columns: minmax(0, 1fr);
-    }
+/* The cell is the tile's size container, since a container cannot restyle itself: the tile's shape follows its own
+   width. From PinnedRowMinWidth (140 px) it lays its icon on the left and its name on the right like the temporary
+   views' rows; narrower its icon stands above its name. The active underline, the lights and the corner's marks stay
+   on the tile, the marks turning from a column into a line at the row's end. */
+.mt-sb-tilecell {
+    container: mttile / inline-size;
+    display: flex;
+    flex: 1 1 108px;
+    min-width: 0;
+}
 
+.mt-sb-tilecell > .mt-sb-tile {
+    flex: 1 1 auto;
+}
+
+/* A tile that fills its row stands above or below its neighbours: the bar of a drop shows above or below it, not on a
+   side (sidebar-drag.ts reads the pointer's height there). */
+.mt-sb-tile.mt-sb-dropy.mt-sb-dropb {
+    box-shadow: 0 -3px 0 0 var(--color-accent) !important;
+}
+
+.mt-sb-tile.mt-sb-dropy.mt-sb-dropa {
+    box-shadow: 0 3px 0 0 var(--color-accent) !important;
+}
+
+@container mttile (min-width: 140px) {
     .mt-sb-tile {
         height: 36px;
         flex-direction: row;
@@ -1232,14 +1250,5 @@
         right: 6px;
         bottom: auto;
         transform: translateY(-50%);
-    }
-
-    /* Tiles stand one above the other: the bar of a drop shows above or below, not on a side (sidebar-drag.ts). */
-    .mt-sb-tile.mt-sb-dropb {
-        box-shadow: 0 -3px 0 0 var(--color-accent) !important;
-    }
-
-    .mt-sb-tile.mt-sb-dropa {
-        box-shadow: 0 3px 0 0 var(--color-accent) !important;
     }
 }

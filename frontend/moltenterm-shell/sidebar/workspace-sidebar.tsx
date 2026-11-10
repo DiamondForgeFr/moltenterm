@@ -156,7 +156,6 @@ import {
     SidebarDefaultWidth,
     SidebarMaxWidth,
     SidebarMinWidth,
-    TileGridColumns,
     type SidebarTabSplit,
 } from "./sidebar-model";
 import { pruneSnapshots, sidebarAtRest, SnapshotSource, useSidebarCapture } from "./sidebar-snapshot";
@@ -828,7 +827,7 @@ function dropSideClass(drag: SidebarDrag, zone: DropZone, key: string): string {
     if (dropAction(drag.kind, zone) !== (zone === "tiles" ? "reorder-tiles" : "reorder-top")) {
         return null;
     }
-    return drag.after ? "mt-sb-dropa" : "mt-sb-dropb";
+    return cn(drag.after ? "mt-sb-dropa" : "mt-sb-dropb", drag.stacked && "mt-sb-dropy");
 }
 
 function Tile({ tabId, active, counts }: { tabId: string; active: boolean; counts?: PrCounts }) {
@@ -1017,19 +1016,17 @@ function TileGrid({ tileIds, activeTabId, label }: { tileIds: string[]; activeTa
             data-cap={caption}
             {...zoneProps("tiles")}
         >
-            {/* The zone is the size container of the tiles' shape (sidebar.css, PinnedRowMinWidth): a container cannot
-                restyle itself, so the grid is its child, and its columns come from a variable the query can override. */}
-            <div
-                className="mt-sb-tilegrid grid gap-1.5"
-                style={{ "--mt-tile-cols": TileGridColumns } as React.CSSProperties}
-            >
+            {/* The tiles fill their rows, and each tile's cell is the size container of its shape (sidebar.css,
+                PinnedTileMinWidth, PinnedRowMinWidth): a container cannot restyle itself, so the tile is its child. */}
+            <div className="mt-sb-tilegrid">
                 {tileIds.map((id) => (
-                    <Tile
-                        key={id}
-                        tabId={id}
-                        active={id === activeTabId}
-                        counts={id === pilotageTile ? counts : undefined}
-                    />
+                    <div key={id} className="mt-sb-tilecell">
+                        <Tile
+                            tabId={id}
+                            active={id === activeTabId}
+                            counts={id === pilotageTile ? counts : undefined}
+                        />
+                    </div>
                 ))}
             </div>
         </div>

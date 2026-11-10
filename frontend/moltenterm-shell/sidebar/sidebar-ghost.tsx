@@ -15,7 +15,7 @@ import { useT } from "../i18n/i18n";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { useTabIdentity } from "../tab-identity-ui";
 import { workspaceShownName } from "../workspace-default-name";
-import { isPinnedTab, TileGridColumns } from "./sidebar-model";
+import { isPinnedTab } from "./sidebar-model";
 import { snapshotFits, useSidebarSnapshot } from "./sidebar-snapshot";
 import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { GlobalPinMetaKey, PinMetaKey } from "./view-pins-model";
@@ -34,9 +34,11 @@ function GhostTab({ tabId, tiles }: { tabId: string; tiles: boolean }) {
     }
     if (tiles) {
         return (
-            <div className="mt-sb-tile flex h-[52px] min-w-0 flex-col items-center justify-center gap-[5px] rounded-6 bg-white/[0.09] px-1 text-11 text-primary">
-                <ViewGlyph icons={glyph} />
-                <span className="mt-sb-tile-name max-w-full truncate">{name}</span>
+            <div className="mt-sb-tilecell">
+                <div className="mt-sb-tile flex h-[52px] min-w-0 flex-col items-center justify-center gap-[5px] rounded-6 bg-white/[0.09] px-1 text-11 text-primary">
+                    <ViewGlyph icons={glyph} />
+                    <span className="mt-sb-tile-name max-w-full truncate">{name}</span>
+                </div>
             </div>
         );
     }
@@ -117,10 +119,7 @@ export const SidebarGhost = memo(function SidebarGhost({
                         </span>
                     </div>
                     <div className="mt-sb-tiles shrink-0 px-1 pt-[7px]">
-                        <div
-                            className="mt-sb-tilegrid grid gap-1.5"
-                            style={{ "--mt-tile-cols": TileGridColumns } as React.CSSProperties}
-                        >
+                        <div className="mt-sb-tilegrid">
                             {tabIds.map((id) => (
                                 <GhostTab key={id} tabId={id} tiles />
                             ))}
